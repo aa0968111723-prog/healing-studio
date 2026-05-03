@@ -16,8 +16,10 @@
  */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, AlertCircle, HelpCircle, ArrowRight, Sparkles, X } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, AlertCircle, HelpCircle, ArrowRight, Sparkles, X, StopCircle } from "lucide-react";
 import { useOrbTaskObservations, type OrbTaskObservationItem } from "@/hooks/useOrbTaskObservations";
+import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -68,12 +70,34 @@ export default function OrbTaskObservationStrip({
   className,
 }: Props) {
   const { observations, isPolling, currentTaskId } = useOrbTaskObservations(rootTaskId);
+  const cancelMutation = trpc.ai.orbTask.cancel.useMutation();
+  const [isCancelling, setIsCancelling] = useState(false);
 
   if (!rootTaskId || observations.length === 0) return null;
 
   // Show only the most recent 4 to keep the strip compact; older
   // observations live in the audit log.
   const visible = observations.slice(-4);
+
+  // Only offer cancel while the chain is still running. Once an
+  // observation reaches a terminal kind the polling stops anyway and
+  // there is nothing left to cancel.
+  const canCancel = isPolling && !!currentTaskId;
+  const handleCancel = async () => {
+    if (!currentTaskId || isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await cancelMutation.mutateAsync({
+        taskId: currentTaskId,
+        reason: "cancelled by user from observation strip",
+      });
+    } catch {
+      // best-effort — even if the mutation fails the strip still
+      // stops polling once the next terminal observation lands.
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   return (
     <motion.div
@@ -96,16 +120,34 @@ export default function OrbTaskObservationStrip({
             <span className="text-violet-200/80 normal-case">（chain）</span>
           )}
         </div>
-        {onDismiss && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="rounded-full p-1 text-white/40 hover:bg-white/10 hover:text-white/70 transition-colors"
-            title="收掉"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {canCancel && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isCancelling}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition-colors",
+                "border border-rose-300/30 bg-rose-300/10 text-rose-100 hover:bg-rose-300/20",
+                "disabled:opacity-50"
+              )}
+              title="停止代理"
+            >
+              <StopCircle className="w-3 h-3" />
+              <span>{isCancelling ? "停中…" : "停止"}</span>
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="rounded-full p-1 text-white/40 hover:bg-white/10 hover:text-white/70 transition-colors"
+              title="收掉"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       <AnimatePresence initial={false}>
