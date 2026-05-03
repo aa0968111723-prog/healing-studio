@@ -177,7 +177,7 @@ export function formatResearchPromptBlock(
       "【網路研究 / Web Research（即時抓取，僅供背景參考）】",
       "以下是即時搜到的相關來源，內容可作為你規劃 plan / 回答 clarification 時的事實參考；",
       "請只在 reply 文字裡引用 1–2 條 URL（且必須是真的對應使用者主題的來源）。",
-      "不要把整個回覆寫成 步驟 1 / 步驟 2 的教學文 — 步驟結構由 plan.steps 決定。",
+      "不要把整個回覆寫成編號步驟的教學文 — 步驟結構由 plan.steps 決定。",
       ...lines,
     ].join("\n");
   }

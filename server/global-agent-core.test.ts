@@ -159,8 +159,17 @@ describe("global-agent-workflows", () => {
   });
 
   it("builds deterministic short-video workflows from Chinese and English user text", () => {
-    const zh = maybeCreateWorkflowFromUserText("幫我做一支 30 秒廣告短片");
-    const en = maybeCreateWorkflowFromUserText("create a reel for my product");
+    // Prompts must be fully-specified (length + subject + style + platform/aspect)
+    // so the multi-round wizard committed by detectVideoIntent doesn't ask for
+    // more clarification before returning a ready workflow. Cf. the wizard
+    // tests below (`detectVideoIntent walks the wizard for partially-specified
+    // video requests`) which assert the inverse for partial prompts.
+    const zh = maybeCreateWorkflowFromUserText(
+      "幫我做一支 30 秒 IG Reel 9:16 電影感的茶道體驗廣告短片"
+    );
+    const en = maybeCreateWorkflowFromUserText(
+      "create a 30 second cinematic IG Reel 9:16 ad for my matcha product"
+    );
     const noWorkflow = maybeCreateWorkflowFromUserText("今天天氣如何？");
 
     expect(zh?.type).toBe("runWorkflow");

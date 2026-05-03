@@ -3189,6 +3189,11 @@ ${segmentSummaries}
           prompt: input.prompt,
           modelId: input.modelId,
           ...input.params,
+          // Persist the exact charged amount so pollGenerationTask's failure
+          // path can refund the same number of points instead of recomputing
+          // from a partial set of inputs (voice's charCount, for instance,
+          // is not part of params and would be silently dropped on refund).
+          chargedPoints: estimate.totalPoints,
         } as any,
       });
 
@@ -3495,20 +3500,37 @@ ${segmentSummaries}
         // 退回扣除的點數，並標記 job 失敗
         const { isDemoMode } = await import("../_core/googleAuth");
         if (!isDemoMode()) {
-          // 估算點數退款：嘗試從 resultJson 還原原始 modelId + 參數
-          const { estimatePoints } = await import("../services/modelPricing");
+          // Prefer the exact `chargedPoints` snapshot persisted at deduction
+          // time — recomputing via estimatePoints here drops voice's
+          // charCount (it isn't part of params), which would refund less than
+          // was charged. Fall back to the recompute path only when the
+          // snapshot isn't present (older jobs created before this field
+          // existed).
           const params = (meta as Record<string, unknown>) ?? {};
-          const durationSec =
-            typeof params.duration === "number"
-              ? params.duration
-              : typeof params.seconds_total === "number"
-                ? params.seconds_total
-                : undefined;
-          try {
-            const refund = estimatePoints(modelId, { durationSec });
-            await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
-          } catch {
-            /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+          const chargedPoints =
+            typeof params.chargedPoints === "number" && params.chargedPoints > 0
+              ? params.chargedPoints
+              : null;
+          if (chargedPoints !== null) {
+            try {
+              await dbModule.refundUserPoints(ctx.user.id, chargedPoints);
+            } catch {
+              /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+            }
+          } else {
+            const { estimatePoints } = await import("../services/modelPricing");
+            const durationSec =
+              typeof params.duration === "number"
+                ? params.duration
+                : typeof params.seconds_total === "number"
+                  ? params.seconds_total
+                  : undefined;
+            try {
+              const refund = estimatePoints(modelId, { durationSec });
+              await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
+            } catch {
+              /* 退款失敗時不阻擋 */
+            }
           }
         }
         await dbModule.updateBackgroundJob(job.id, {
