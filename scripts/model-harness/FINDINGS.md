@@ -467,3 +467,69 @@ node scripts/model-harness/inspect.mjs <fal-model-id> \
 ```
 
 Reads keys from `.env` at repo root.
+
+## Round 5 — Director AI procedures + ultra-tier video
+
+Round 5 covers what round 4 left: every Director AI tRPC procedure
+(LLM-driven script planning) and the ultra-tier text-to-video models
+that I gated behind --include-ultra to control cost in earlier rounds.
+
+### Director AI: 15/15 procedures live-pass
+
+Wrote `scripts/model-harness/director-smoke.mjs` — exercises every
+Director procedure with a logged-in JWT against the local DB. Four
+hit Gemini directly (the others read state or are pure calc).
+
+| Procedure | Status | Notes |
+|---|---|---|
+| director.templates / quickActions / generationModels | ✓ | static metadata |
+| director.listSessions / listPlanningSessions / preferences.get | ✓ | DB reads |
+| director.estimateSegmentCost | ✓ | pure calc |
+| director.discussSegment | ✓ (after fix) | 27.5s Gemini |
+| director.generateSegmentCostar | ✓ (after fix) | 53.9s Gemini |
+| director.analyzeScriptOverview | ✓ | 16.2s Gemini |
+| director.refineScript | ✓ | 18.9s Gemini |
+| director.planningDiscuss | ✓ | 26.8s Gemini |
+| director.planningAnalyzeDepth | ✓ | 23.3s Gemini |
+| director.planningCreateMilestones | ✓ | DB write |
+| director.askForStudioPlan | ✓ | 9.5s Gemini |
+
+### L. discussSegment required `discussion` array even on first call
+
+The Zod input made `segment.discussion` and `segment.status` strictly
+required. A user opening a freshly-generated segment for the first
+time has neither (no discussion yet, no status set). Calls would 400
+with `"Invalid input: expected array, received undefined"`. The
+frontend got around this by always sending defaults, but any new
+caller (orb tool bridge, scripted automation, future API client)
+would hit the wall.
+
+Fix: `.default([])` and `.default("pending")` so the schema accepts
+either shape and the procedure handles both naturally.
+
+### M. generateSegmentCostar 45s timeout same class as round-3 chat 30s
+
+`gemini-2.5-pro` thinking + structured-JSON CO-STAR generation
+routinely takes 30-60s. The hard 45s `withTimeout` ceiling around it
+meant ~half of CO-STAR generations 500'd in production with `分鏡
+CO-STAR 生成 回應超時（45秒）`. Bumped to 90s — same pattern as the
+director.chat 30→90s fix in round 3. invokeLLM's underlying
+`LLM_TIMEOUT_SECONDS` (default 60) and AbortSignal still bound the
+real call; this wrapper is the per-stage failsafe.
+
+Verified post-fix: same prompt now completes in 53.9s.
+
+(There are 4 other 45s `withTimeout` sites in director.ts —
+discussSegment, refineScript, planningDiscuss, planningAnalyzeDepth.
+All passed in 16-27s with the current default brain, so 45s is
+within margin for them. Left as-is; if production starts seeing
+regressions on those they're 1-line bumps.)
+
+### Ultra-tier video: veo3 ✓, sora ✗ (disabled)
+
+- `fal-ai/veo3` — ✓ live-tested, returns video URL.
+- `fal-ai/sora` — fal returns 404 'Application "sora" not found'.
+  Newer `fal-ai/sora-2` accepts the submit but its result endpoint
+  returns 200 `{"detail":"Path / not found"}` (same gateway
+  short-circuit pattern as kling t2v). Disabled in catalog;
+  dispatcher auto-degrades to LTX-13B / veo3 in the same category.

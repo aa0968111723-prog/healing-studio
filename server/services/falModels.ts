@@ -1641,6 +1641,15 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { prompt: true, aspectRatio: true, duration: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 480_000,
+      // Live audit (2026-05-03): fal returns 404 'Application "sora" not
+      // found' on submit. The newer fal-ai/sora-2 endpoint accepts the
+      // submit but its result endpoint returns 200 {"detail":"Path / not
+      // found"} (same gateway short-circuit pattern as kling t2v / topaz).
+      // Veo3 still works as the ultra-tier text-to-video; LTX-13B remains
+      // a working premium fallback in this category.
+      disabled: true,
+      disabledReason:
+        "fal returns 404 on /sora and the /sora-2 result endpoint also short-circuits; use veo3 or ltx-video-13b for ultra/premium text-to-video",
     },
     {
       modelId: "fal-ai/ltx-video-13b-distilled",
