@@ -1073,7 +1073,16 @@ function ScheduleTab({ isAuthenticated }: { isAuthenticated: boolean }) {
               </div>
               {job.lastRunAt && (
                 <div className="text-[10px] text-muted-foreground">
-                  上次執行：{new Date(job.lastRunAt).toLocaleString()}
+                  上次執行：
+                  {new Date(job.lastRunAt).toLocaleString("zh-TW", {
+                    timeZone: "Asia/Taipei",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
+                  <span className="ml-1 opacity-70">（台灣時間）</span>
                 </div>
               )}
             </div>

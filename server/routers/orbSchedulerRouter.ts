@@ -10,7 +10,12 @@ import {
   setOrbJobEnabled,
   unscheduleOrbJob,
 } from "../services/orbScheduler";
-import { nextFireTimes } from "../services/cronPreview";
+import {
+  formatRelativeFromNow,
+  formatTaipeiLabel,
+  nextFireTimes,
+  SCHEDULER_TIMEZONE,
+} from "../services/cronPreview";
 
 const OrbScheduleInput = z.object({
   id: z
@@ -131,9 +136,14 @@ export const orbSchedulerRouter = router({
   listJobs: protectedProcedure.query(({ ctx }) => listScheduledJobs(ctx.user.id)),
 
   /**
-   * Live preview the next 3 fire times for a cron expression so the user
+   * Live preview the next N fire times for a cron expression so the user
    * can sanity-check before saving. Stateless — does not touch the DB or
    * the in-memory registry.
+   *
+   * The cron expression is interpreted as Asia/Taipei wall-clock time
+   * (matches what the actual scheduler uses), and the response carries
+   * pre-formatted Taiwan strings so the client doesn't have to do any
+   * timezone math itself.
    */
   previewCron: protectedProcedure
     .input(
@@ -144,20 +154,31 @@ export const orbSchedulerRouter = router({
     )
     .query(({ input }): {
       ok: boolean;
+      timezone: string;
       nextRuns: string[];
+      nextRunsLocal: Array<{ iso: string; label: string; relative: string }>;
       error?: string;
     } => {
       if (!isValidCronExpression(input.cronExpression)) {
         return {
           ok: false,
+          timezone: SCHEDULER_TIMEZONE,
           nextRuns: [],
+          nextRunsLocal: [],
           error: "無效的 cron 表達式",
         };
       }
       const result = nextFireTimes(input.cronExpression, input.count);
+      const now = new Date();
       return {
         ok: result.ok,
+        timezone: SCHEDULER_TIMEZONE,
         nextRuns: result.nextRuns.map(d => d.toISOString()),
+        nextRunsLocal: result.nextRuns.map(d => ({
+          iso: d.toISOString(),
+          label: formatTaipeiLabel(d),
+          relative: formatRelativeFromNow(d, now),
+        })),
         error: result.error,
       };
     }),
