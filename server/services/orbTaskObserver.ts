@@ -114,6 +114,26 @@ export interface ObserveOrbTaskInput {
   maxTokens?: number;
 }
 
+// ─── Operations knobs (env-driven defaults) ───────────────────────────────
+//
+// All read at call time so ops can tune live without restarting.
+
+/** Max tokens the observer LLM can spend per call. Default 600. */
+function envDefaultObserverTokens(): number {
+  const raw = parseInt(process.env.ORB_OBSERVATION_OBSERVER_TOKENS ?? "", 10);
+  if (!Number.isFinite(raw) || raw <= 0) return 600;
+  // Hard cap — observer prompts are short, no reason to spend > 4 k tokens.
+  return Math.min(raw, 4_000);
+}
+
+/** Max recent task-memory entries to surface in the observer prompt.
+ *  Default 5; capped by `getRecentOrbTaskMemoryForUser` at 50. */
+function envDefaultMemoryLimit(): number {
+  const raw = parseInt(process.env.ORB_OBSERVATION_MEMORY_LIMIT ?? "", 10);
+  if (!Number.isFinite(raw) || raw <= 0) return 5;
+  return Math.min(raw, 20);
+}
+
 // ─── JSON schema for LLM structured output ────────────────────────────────
 
 const OBSERVATION_JSON_SCHEMA = {
@@ -242,17 +262,18 @@ function summarizeExecutionForLLM(input: ObserveOrbTaskInput): string {
 function resolveRecentTaskMemory(
   input: ObserveOrbTaskInput
 ): OrbTaskMemoryEvent[] {
+  const limit = envDefaultMemoryLimit();
   if (input.recentTaskMemory !== undefined) {
     // Caller opted in (or out by passing []) — honour exactly.
-    return input.recentTaskMemory.slice(0, 5);
+    return input.recentTaskMemory.slice(0, limit);
   }
   // Per-user view when we know the user; falls back to the unscoped
   // global feed only for legacy callers that don't pass userId (real
   // brain-router / chain-runner paths always do).
   if (typeof input.userId === "number") {
-    return getRecentOrbTaskMemoryForUser(input.userId, 5);
+    return getRecentOrbTaskMemoryForUser(input.userId, limit);
   }
-  return getRecentOrbTaskMemory(5);
+  return getRecentOrbTaskMemory(limit);
 }
 
 function resolvePageStateSnapshots(
@@ -344,7 +365,7 @@ export async function observeOrbTaskOutcome(
     const result = await llm({
       messages: buildObserverMessages(input),
       runName: "orb-task-observer",
-      maxTokens: input.maxTokens ?? 600,
+      maxTokens: input.maxTokens ?? envDefaultObserverTokens(),
       response_format: {
         type: "json_schema",
         json_schema: OBSERVATION_JSON_SCHEMA as unknown as {

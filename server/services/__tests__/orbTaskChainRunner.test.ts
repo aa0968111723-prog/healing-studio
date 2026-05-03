@@ -453,6 +453,42 @@ describe("orbTaskChainRunner memory integration", () => {
     expect(ours?.outcome).toBe("blocked");
   });
 
+  it("clamps maxIterations from env when caller doesn't override", async () => {
+    const prev = process.env.ORB_OBSERVATION_LOOP_MAX_ITERATIONS;
+    process.env.ORB_OBSERVATION_LOOP_MAX_ITERATIONS = "3";
+    // We can't directly observe maxIterations, but emitted chain_started
+    // carries the clamped value.
+    const cap = captureGenerationEvents();
+    try {
+      await runOrbTaskWithContinuationLoop({
+        initialTaskId: "t-env",
+        userId,
+        userRole,
+        tools,
+        runTask: vi.fn(async () => makeRunResult()),
+        invokeObserver: vi.fn(async () => ({
+          kind: "complete" as const,
+          userMessage: "ok",
+        } satisfies TaskObservation)),
+        invokePlanner: vi.fn(),
+        // No maxIterations passed — env default takes over.
+      });
+      const started = cap.events.find(e => e.type === "chain_started");
+      if (started?.type === "chain_started") {
+        expect(started.maxIterations).toBe(3);
+      } else {
+        throw new Error("chain_started not emitted");
+      }
+    } finally {
+      cap.restore();
+      if (prev === undefined) {
+        delete process.env.ORB_OBSERVATION_LOOP_MAX_ITERATIONS;
+      } else {
+        process.env.ORB_OBSERVATION_LOOP_MAX_ITERATIONS = prev;
+      }
+    }
+  });
+
   it("attaches per-iteration page-state snapshots and threads them into memory failedReason", async () => {
     appendOrbTaskPageState("t-snap", {
       at: 1,

@@ -55,7 +55,10 @@ import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
 import { emitGenerationEvent } from "../generationEvents";
-import { recordOrbTaskMemory } from "./orbTaskMemory";
+import {
+  persistOrbTaskMemoryEvent,
+  recordOrbTaskMemory,
+} from "./orbTaskMemory";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -119,8 +122,22 @@ export interface RunOrbTaskChainInput {
 
 const HARD_CAP_ITERATIONS = 4;
 
+/**
+ * Operations knob — `ORB_OBSERVATION_LOOP_MAX_ITERATIONS` overrides the
+ * default of 2; bounded by HARD_CAP_ITERATIONS. Read at call time so
+ * ops can tune live without restarting.
+ */
+function envDefaultMaxIterations(): number {
+  const raw = parseInt(
+    process.env.ORB_OBSERVATION_LOOP_MAX_ITERATIONS ?? "",
+    10
+  );
+  if (!Number.isFinite(raw) || raw <= 0) return 2;
+  return Math.min(raw, HARD_CAP_ITERATIONS);
+}
+
 function clampMaxIterations(n: number | undefined): number {
-  const raw = typeof n === "number" && n > 0 ? n : 2;
+  const raw = typeof n === "number" && n > 0 ? n : envDefaultMaxIterations();
   return Math.min(Math.max(1, Math.floor(raw)), HARD_CAP_ITERATIONS);
 }
 
@@ -532,7 +549,7 @@ export async function runOrbTaskWithContinuationLoop(
     if (pageHintParts.length > 0) {
       failedReasonParts.push(`page:[${pageHintParts.join(" | ")}]`);
     }
-    recordOrbTaskMemory({
+    const memoryEvent = {
       taskId: input.initialTaskId,
       planId: initialAgent?.planId ?? input.initialTaskId,
       traceId: initialAgent?.traceId ?? input.initialTaskId,
@@ -547,7 +564,12 @@ export async function runOrbTaskWithContinuationLoop(
       usedMultimodalPlanner: !!(initialAgent?.usedMultimodalPlanner ?? finalAgent?.usedMultimodalPlanner),
       actionTypes: allActionTypes,
       createdAt: Date.now(),
-    });
+    };
+    recordOrbTaskMemory(memoryEvent);
+    // Operations: opt-in DB mirror so chain history survives process
+    // restart and crosses horizontally-scaled instances. No-op when
+    // ORB_CHAIN_MEMORY_PERSIST is unset; never blocks chain return.
+    void persistOrbTaskMemoryEvent(memoryEvent);
   } catch (memError) {
     // recordOrbTaskMemory is in-memory only and should never throw, but
     // wrap defensively — chain memory is observability-only, never
