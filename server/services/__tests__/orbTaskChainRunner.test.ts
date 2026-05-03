@@ -10,6 +10,7 @@ import type { TaskObservation } from "../orbTaskObserver";
 import type { OrbApiTool } from "../agentToolExecutor";
 import { setGenerationEventBusForTests } from "../../generationEvents";
 import type { GenerationEvent } from "../../generationEvents";
+import { getRecentOrbTaskMemory } from "../orbTaskMemory";
 
 const tools: OrbApiTool[] = [];
 const userId = 42;
@@ -381,5 +382,69 @@ describe("orbTaskChainRunner telemetry", () => {
     } finally {
       cap.restore();
     }
+  });
+});
+
+describe("orbTaskChainRunner memory integration", () => {
+  it("records a chain-level memory entry on completion", async () => {
+    const before = getRecentOrbTaskMemory(50).length;
+    await runOrbTaskWithContinuationLoop({
+      initialTaskId: "t-mem-success",
+      userId,
+      userRole,
+      tools,
+      runTask: vi.fn(async () => makeRunResult()),
+      invokeObserver: vi.fn(async () => ({
+        kind: "complete" as const,
+        userMessage: "ok",
+      } satisfies TaskObservation)),
+      invokePlanner: vi.fn(),
+    });
+    const recent = getRecentOrbTaskMemory(50);
+    expect(recent.length).toBeGreaterThan(before);
+    // The newest entry is unshifted to the front; find the one from this run.
+    const ours = recent.find(r => r.taskId === "t-mem-success");
+    expect(ours).toBeDefined();
+    expect(ours?.outcome).toBe("success");
+  });
+
+  it("records failure with merged failedReason on abort", async () => {
+    await runOrbTaskWithContinuationLoop({
+      initialTaskId: "t-mem-fail",
+      userId,
+      userRole,
+      tools,
+      runTask: vi.fn(async () =>
+        makeRunResult({ outcome: "failed", reason: "tool-broke" })
+      ),
+      invokeObserver: vi.fn(async () => ({
+        kind: "abort" as const,
+        userMessage: "stopped",
+        failureCategory: "tool_error" as const,
+      } satisfies TaskObservation)),
+      invokePlanner: vi.fn(),
+    });
+    const ours = getRecentOrbTaskMemory(50).find(r => r.taskId === "t-mem-fail");
+    expect(ours?.outcome).toBe("failure");
+    expect(ours?.failedReason).toContain("observer:tool_error");
+  });
+
+  it("records blocked on needs_user", async () => {
+    await runOrbTaskWithContinuationLoop({
+      initialTaskId: "t-mem-needs-user",
+      userId,
+      userRole,
+      tools,
+      runTask: vi.fn(async () =>
+        makeRunResult({ outcome: "awaiting_approval" })
+      ),
+      invokeObserver: vi.fn(async () => ({
+        kind: "needs_user" as const,
+        question: "你想要哪一種？",
+      } satisfies TaskObservation)),
+      invokePlanner: vi.fn(),
+    });
+    const ours = getRecentOrbTaskMemory(50).find(r => r.taskId === "t-mem-needs-user");
+    expect(ours?.outcome).toBe("blocked");
   });
 });

@@ -52,6 +52,7 @@ import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
 import { emitGenerationEvent } from "../generationEvents";
+import { recordOrbTaskMemory } from "./orbTaskMemory";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -432,6 +433,61 @@ export async function runOrbTaskWithContinuationLoop(
     });
   } catch {
     // ignore — pure observability event
+  }
+
+  // Record one chain-level memory entry so the planner's
+  // `recentTaskMemorySummary` context shows past chain outcomes when
+  // making the next plan. This is what lets the agent eventually
+  // "learn" — e.g. avoid retrying with the same failing model after
+  // it failed last time.
+  try {
+    const initialAgent = getOrbAgentTask(input.initialTaskId);
+    const finalAgent = getOrbAgentTask(currentTaskId);
+    const memoryOutcome: "success" | "failure" | "cancelled" | "blocked" =
+      stopReason === "completed"
+        ? "success"
+        : stopReason === "needs_user"
+        ? "blocked"
+        : "failure";
+    const allActionTypes: string[] = [];
+    for (const it of iterations) {
+      const fsm = getOrbAgentTask(it.taskId);
+      if (!fsm) continue;
+      for (const s of fsm.steps) {
+        if (s.actionType && !allActionTypes.includes(s.actionType)) {
+          allActionTypes.push(s.actionType);
+        }
+      }
+    }
+    const failedReasonParts: string[] = [];
+    if (stopReason !== "completed" && stopReason !== "needs_user") {
+      failedReasonParts.push(`chain.${stopReason}`);
+    }
+    if (finalAgent?.failedReason) failedReasonParts.push(finalAgent.failedReason);
+    const lastObservation = iterations[iterations.length - 1]?.observation;
+    if (lastObservation && lastObservation.kind === "abort") {
+      failedReasonParts.push(`observer:${lastObservation.failureCategory}`);
+    }
+    recordOrbTaskMemory({
+      taskId: input.initialTaskId,
+      planId: initialAgent?.planId ?? input.initialTaskId,
+      traceId: initialAgent?.traceId ?? input.initialTaskId,
+      userIntent: initialAgent?.intent ?? finalAgent?.intent ?? "",
+      outcome: memoryOutcome,
+      failedReason: failedReasonParts.length > 0 ? failedReasonParts.join(" / ") : undefined,
+      usedEngine: finalAgent?.preferredEngine ?? initialAgent?.preferredEngine ?? null,
+      usedMultimodalPlanner: !!(initialAgent?.usedMultimodalPlanner ?? finalAgent?.usedMultimodalPlanner),
+      actionTypes: allActionTypes,
+      createdAt: Date.now(),
+    });
+  } catch (memError) {
+    // recordOrbTaskMemory is in-memory only and should never throw, but
+    // wrap defensively — chain memory is observability-only, never
+    // critical to chain completion.
+    console.warn(
+      "[orbTaskChainRunner] recordOrbTaskMemory failed:",
+      memError instanceof Error ? memError.message : String(memError)
+    );
   }
 
   return {
