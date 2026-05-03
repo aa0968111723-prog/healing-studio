@@ -393,6 +393,28 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 即時靈感 / 時事 / 社群偏好查詢（Perplexity Sonar 驅動） ──
+  // 光球可在創作前主動呼叫此工具拉取真實的網路情報：流行風格、熱門題材、
+  // 社群討論度、近期 AI 模型發表、季節性 / 節慶題材等。回傳已附帶可點擊
+  // 引用來源（PERPLEXITY_API_KEY 或 OPENROUTER_API_KEY 任一即可運作）。
+  {
+    name: "inspiration.fetch",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 主題關鍵字（必填）：例「貓咪短影片風格」、「2025 春天婚紗攝影流行色」
+      topic: "string",
+      // 模態提示（選填）：image / video / audio / voice / 3d / 不填則泛用
+      modality: "string?",
+      // 視角提示（選填）：trending / community / news / seasonal / model_release
+      angle: "string?",
+      // 期望輸出風格（選填）：visual_styles / prompt_keywords / mood_board / quick_facts
+      format: "string?",
+      // 限制：最多回幾筆引用（預設 5，最大 8）
+      maxResults: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
   {
     name: "director.suggestPlan",

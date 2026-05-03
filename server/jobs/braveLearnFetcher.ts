@@ -93,45 +93,142 @@ async function searchBrave(
 ): Promise<BraveSearchResult[]> {
   const apiKey = ENV.braveSearchApiKey;
   if (!apiKey) {
-    logFetch("warn", "BRAVE_SEARCH_API_KEY 未設定，跳過搜尋");
-    return [];
+    logFetch("warn", "BRAVE_SEARCH_API_KEY 未設定，嘗試 Perplexity Sonar 備援");
+    return await searchPerplexity(query, count);
   }
 
   const encoded = encodeURIComponent(query);
   const url = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${count}&freshness=pw`;
 
-  const res = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "Accept-Encoding": "gzip",
-      "X-Subscription-Token": apiKey,
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey,
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Brave Search API 回傳 ${res.status}: ${res.statusText}`);
+    if (!res.ok) {
+      throw new Error(`Brave Search API 回傳 ${res.status}: ${res.statusText}`);
+    }
+
+    const data = (await res.json()) as {
+      web?: {
+        results?: Array<{
+          title?: string;
+          description?: string;
+          url?: string;
+        }>;
+      };
+    };
+
+    const braveResults = (data.web?.results ?? [])
+      .filter((r): r is { title: string; description: string; url: string } =>
+        Boolean(r.title && r.url && r.description)
+      )
+      .map(r => ({
+        title: r.title,
+        url: r.url,
+        description: r.description,
+      }));
+
+    if (braveResults.length > 0) return braveResults;
+
+    // Brave 回傳 0 筆 → 嘗試 Perplexity 補位（Sonar 對「最新一週 AI 文章」這類
+    // 主題召回率比 Brave 好，因為它會做 query rewriting）。
+    logFetch(
+      "warn",
+      `Brave 對「${query}」沒有回傳結果，啟動 Perplexity Sonar 備援`
+    );
+    return await searchPerplexity(query, count);
+  } catch (err) {
+    logFetch(
+      "warn",
+      `Brave Search 失敗：${err instanceof Error ? err.message : String(err)}，啟動 Perplexity Sonar 備援`
+    );
+    return await searchPerplexity(query, count);
+  }
+}
+
+/**
+ * Perplexity Sonar 備援：當 BRAVE_SEARCH_API_KEY 未設定或 Brave 失敗 / 0 筆時，
+ * 用 Sonar 的 web grounding 拿一週內 AI 相關文章。
+ */
+async function searchPerplexity(
+  query: string,
+  count: number
+): Promise<BraveSearchResult[]> {
+  const apiKey = ENV.perplexityApiKey;
+  if (!apiKey) {
+    logFetch("warn", "PERPLEXITY_API_KEY 未設定，搜尋管線完全沒結果");
+    return [];
   }
 
-  const data = (await res.json()) as {
-    web?: {
-      results?: Array<{
-        title?: string;
-        description?: string;
-        url?: string;
-      }>;
-    };
-  };
+  try {
+    const res = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "sonar-pro",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a research assistant. Reply ONLY with a JSON object of shape " +
+              `{"results":[{"title":string,"url":string,"description":string}]}. ` +
+              `Return up to ${count} distinct articles published in the past 7 days. Each URL must be real and working.`,
+          },
+          { role: "user", content: query },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 1500,
+        temperature: 0.2,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
 
-  return (data.web?.results ?? [])
-    .filter((r): r is { title: string; description: string; url: string } =>
-      Boolean(r.title && r.url && r.description)
-    )
-    .map(r => ({
-      title: r.title,
-      url: r.url,
-      description: r.description,
-    }));
+    if (!res.ok) {
+      logFetch("warn", `Perplexity Sonar 回傳 ${res.status}`);
+      return [];
+    }
+
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!content) return [];
+
+    let parsed: { results?: Array<Partial<BraveSearchResult>> } = {};
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      logFetch("warn", "Perplexity Sonar 回傳非合法 JSON");
+      return [];
+    }
+
+    return (parsed.results ?? [])
+      .filter(
+        (r): r is BraveSearchResult =>
+          Boolean(r.title && r.url && r.description)
+      )
+      .slice(0, count)
+      .map(r => ({
+        title: r.title,
+        url: r.url,
+        description: r.description,
+      }));
+  } catch (err) {
+    logFetch(
+      "warn",
+      `Perplexity Sonar 搜尋失敗：${err instanceof Error ? err.message : String(err)}`
+    );
+    return [];
+  }
 }
 
 // ─── LLM Synthesis ──────────────────────────────────────────────────────────

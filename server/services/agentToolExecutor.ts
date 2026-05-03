@@ -410,6 +410,43 @@ export async function executeOrbToolCalls(
     const requestId =
       opts.requestId ?? `orb_req_${startedAt}_${Math.random().toString(36).slice(2, 8)}`;
 
+    // ── inspiration.fetch：Perplexity Sonar 即時靈感 / 時事 / 社群偏好 ──
+    if (call.name === "inspiration.fetch") {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      const inspirationResult = await dispatchInspirationTool(call, opts);
+      out.push(inspirationResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: inspirationResult.usedTool,
+        ok: inspirationResult.ok,
+        error: inspirationResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── studio.* 生成工具：橋接到 dispatchFalQueueTask / SunoClient ──
     // ── director.* 規劃工具：橋接到 director.askForStudioPlan ──
     if (call.name.startsWith("studio.") || call.name.startsWith("director.")) {
@@ -1785,6 +1822,84 @@ async function dispatchStudioTool(
           error: `unknown-studio-tool: ${call.name}`,
         };
     }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// inspiration.fetch 工具橋接：呼叫 Perplexity Sonar 抓即時靈感 / 時事 / 社群偏好
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 inspiration.fetch 工具呼叫橋接到 inspirationFetcher 服務。
+ * 永遠回傳 ok=true 給 planner（即使 Sonar 失敗也回 ok=true + 空 cards），
+ * 避免單一外部依賴失敗就讓整個 plan 中斷。失敗訊息透過 result.error 傳遞。
+ */
+async function dispatchInspirationTool(
+  call: OrbToolCall,
+  _opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { fetchInspiration } = await import("./inspirationFetcher");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const topic = typeof args.topic === "string" ? args.topic : "";
+  if (!topic.trim()) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "inspiration-topic-required",
+    };
+  }
+  try {
+    const result = await fetchInspiration({
+      topic: topic.trim(),
+      modality:
+        typeof args.modality === "string"
+          ? (args.modality as
+              | "image"
+              | "video"
+              | "audio"
+              | "voice"
+              | "3d"
+              | "general")
+          : undefined,
+      angle:
+        typeof args.angle === "string"
+          ? (args.angle as
+              | "trending"
+              | "community"
+              | "news"
+              | "seasonal"
+              | "model_release")
+          : undefined,
+      format:
+        typeof args.format === "string"
+          ? (args.format as
+              | "visual_styles"
+              | "prompt_keywords"
+              | "mood_board"
+              | "quick_facts")
+          : undefined,
+      maxResults:
+        typeof args.maxResults === "number" ? args.maxResults : undefined,
+    });
+
+    return {
+      name: call.name,
+      ok: true,
+      usedTool: `inspiration.fetch:${result.provider}`,
+      data: {
+        provider: result.provider,
+        cards: result.cards,
+        sources: result.sources,
+        summary: result.summary,
+        ...(result.error ? { warning: result.error } : {}),
+      },
+    };
   } catch (err) {
     return {
       name: call.name,

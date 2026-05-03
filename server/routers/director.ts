@@ -1292,11 +1292,32 @@ async function runDirectorAI(
     : "";
 
   // Step 1: Factual grounding with personality-aware research style + full platform knowledge
+  //
+  // 「靈感 / 時事 / 社群偏好」深度整合：研究階段優先用 Perplexity Sonar
+  // Reasoning Pro（內建 web grounding）。Sonar 會自動拉取最新趨勢、社群
+  // 喜好、流行視覺風格、近期熱門模型等即時情報，再交給 Step 2 的創作
+  // 階段去編排成 CO-STAR 腳本。Sonar 不可用時自動降回原本的 brainConfig。
+  //
+  // 為什麼用 Sonar 而非 brainConfig：
+  //   - brainConfig 通常是 Claude / Gemini，知識截止日期固定，無法回答
+  //     「現在抖音流行什麼濾鏡」「2026 年 4 月哪些 AI 圖像模型最熱」這類
+  //     即時問題
+  //   - Sonar 的 search_results / citations 直接附帶可點擊來源，創作者
+  //     可以追溯「為什麼導演 AI 提這個風格」
+  const sonarAvailable = Boolean(
+    process.env.PERPLEXITY_API_KEY?.trim() ||
+      process.env.OPENROUTER_API_KEY?.trim()
+  );
+  const researchModel = sonarAvailable
+    ? "perplexity/sonar-reasoning-pro"
+    : brainConfig?.model;
   const researchResult = await withTimeout(
     invokeLLM({
       runName: "director-research",
-      model: brainConfig?.model,
-      temperature: brainConfig?.temperature,
+      model: researchModel,
+      // Sonar 推理本身已有溫度控制，這裡用較低溫度確保事實穩定。若 fallback
+      // 到 brainConfig 仍套用 brain 設定。
+      temperature: sonarAvailable ? 0.2 : brainConfig?.temperature,
       topP: brainConfig?.topP,
       systemPrompt: brainConfig?.systemPrompt,
       messages: [
@@ -1307,7 +1328,16 @@ async function runDirectorAI(
 你深入了解 Healing Studio 平台所有生成模型和工具：
 ${GENERATION_MODALITIES_KNOWLEDGE}
 ${WORKFLOW_KNOWLEDGE}
-${memorySection}`,
+${memorySection}
+
+【即時靈感調查任務】
+回答時若涉及：
+  - 流行視覺風格 / 攝影風格 / 色彩趨勢 / 字體風格
+  - 當前社群（IG / TikTok / Threads / 抖音 / Pinterest / X）熱門題材
+  - 近期 AI 模型發表（Flux、Sora、Nano Banana、ElevenLabs 等更新）
+  - 文化時事 / 節慶 / 新聞 / 季節性題材
+請直接引用真實的網路來源（你已具備 web search 能力），讓創作有當下感。
+回覆中以「來源：[標題](URL)」附上引用，方便 Step 2 創作階段沿用。`,
         },
         ...messages.map(m => ({
           role: m.role as "user" | "assistant",
@@ -3658,5 +3688,48 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
           typeof parsed.rationale === "string" ? parsed.rationale : "",
         rawResponse: undefined as string | undefined,
       };
+    }),
+
+  /**
+   * fetchTrendingInspiration — 即時靈感 / 時事 / 社群偏好查詢
+   * ────────────────────────────────────────────────────────────────────────
+   * 給導演 AI 的「靈感卡片」UI 用：輸入主題 + 模態 + 視角，回傳一組
+   * Perplexity Sonar 即時搜尋來的靈感卡片（每張附引用來源 URL）。
+   *
+   * 使用情境：
+   *   - 導演 AI 對話前，使用者點「我想做最近流行的」按鈕
+   *   - 圖像 / 影片 / 音樂工作室空白畫面顯示「今天的靈感」
+   *   - 光球聊天中使用者問「最近大家在做什麼風格」直接 mutateAsync 後回傳
+   *
+   * 路由策略：原生 Perplexity API 優先（PERPLEXITY_API_KEY），失敗時降級到
+   * OpenRouter Sonar（OPENROUTER_API_KEY）。兩個都缺時 ok=false。
+   */
+  fetchTrendingInspiration: brainProcedure
+    .input(
+      z.object({
+        topic: z.string().min(2).max(200),
+        modality: z
+          .enum(["image", "video", "audio", "voice", "3d", "general"])
+          .optional(),
+        angle: z
+          .enum(["trending", "community", "news", "seasonal", "model_release"])
+          .optional(),
+        format: z
+          .enum([
+            "visual_styles",
+            "prompt_keywords",
+            "mood_board",
+            "quick_facts",
+          ])
+          .optional(),
+        maxResults: z.number().int().min(1).max(8).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { fetchInspiration } = await import(
+        "../services/inspirationFetcher"
+      );
+      const result = await fetchInspiration(input);
+      return result;
     }),
 });

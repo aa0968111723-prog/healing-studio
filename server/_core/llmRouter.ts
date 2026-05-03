@@ -43,6 +43,7 @@ import { ENV } from "./env";
 export type LLMEngine =
   | "openrouter"
   | "anthropic"
+  | "perplexity"
   | "gemini"
   | "vertex"
   | "forge"
@@ -188,6 +189,13 @@ export function inferEngineFromModelId(
   if (id.startsWith("openrouter/")) return "openrouter";
   if (id.startsWith("vertex/")) return "vertex";
 
+  // Perplexity：原生 API 直連（PERPLEXITY_API_KEY），perplexity/sonar* 系列
+  // 也可走 OpenRouter（呼叫端 fallback 由 inferEngineFromModelIdSafe 決定）。
+  if (id.startsWith("perplexity/")) return "perplexity";
+  // 裸 sonar-* 模型 ID（sonar、sonar-pro、sonar-reasoning、sonar-reasoning-pro
+  // 等）→ 直連 Perplexity API。
+  if (/^sonar(-|$)/.test(id)) return "perplexity";
+
   // NVIDIA NIM：catalog 用 nvidia/...，原生 API 用 minimaxai/...
   if (id.startsWith("minimaxai/") || id.startsWith("nvidia/")) return "nvidia";
 
@@ -237,10 +245,14 @@ export function inferEngineFromModelIdSafe(
       // 推斷出引擎但金鑰缺失 — 走下面的 OpenRouter 自動降級
     }
   }
-  // Vertex / Anthropic / 直連 Gemini 沒設好 → 自動切到 OpenRouter（normalizeModelForEngine
-  // 會把 vertex/* → google/*、claude-* → anthropic/claude-* 重寫成 OpenRouter 接受的格式）
+  // Vertex / Anthropic / 直連 Gemini / Perplexity 沒設好 → 自動切到 OpenRouter
+  // （normalizeModelForEngine 會把 vertex/* → google/*、claude-* →
+  // anthropic/claude-*、sonar-* → perplexity/sonar-* 重寫成 OpenRouter 接受的格式）。
   if (
-    (inferred === "vertex" || inferred === "anthropic" || inferred === "gemini") &&
+    (inferred === "vertex" ||
+      inferred === "anthropic" ||
+      inferred === "gemini" ||
+      inferred === "perplexity") &&
     ENV.openRouterApiKey &&
     isEngineAvailable("openrouter")
   ) {
@@ -274,6 +286,12 @@ export function detectAvailableEngines(): Array<{
     available.push({
       engine: "anthropic",
       reason: "ANTHROPIC_API_KEY 已設定（光球代理主引擎）",
+    });
+  }
+  if (ENV.perplexityApiKey) {
+    available.push({
+      engine: "perplexity",
+      reason: "PERPLEXITY_API_KEY 已設定（搜尋 + 推理代理：Sonar 系列）",
     });
   }
   if (ENV.geminiApiKey) {
@@ -319,10 +337,13 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   // ── Auto 模式 — 健康感知路由 ───────────────────────────────
-  // 優先順序：gemini > nvidia > vertex > forge
+  // 優先順序：openrouter > anthropic > perplexity > gemini > nvidia > vertex > forge
+  // perplexity 排在 anthropic 後面：Sonar 雖然是搜尋+推理代理，但 tool use
+  // 與一般對話的覆蓋面不如 Claude，僅當顯式選擇 perplexity/sonar-* 時優先。
   const autoOrder: LLMEngine[] = [
     "openrouter",
     "anthropic",
+    "perplexity",
     "gemini",
     "nvidia",
     "vertex",
@@ -363,6 +384,7 @@ export function getEngineFallbackChain(
   const allOrder: LLMEngine[] = [
     "openrouter",
     "anthropic",
+    "perplexity",
     "gemini",
     "nvidia",
     "vertex",
@@ -398,10 +420,12 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         // OpenAI-compatible chat completions endpoint
         url: `${baseUrl}/chat/completions`,
         apiKey: ENV.openRouterApiKey,
-        // Default to Claude Sonnet 4.5 — change via brain config UI per slot.
-        // Model IDs follow `<provider>/<model>` format; OpenRouter supports
-        // anthropic/*, openai/*, google/*, meta-llama/*, mistralai/* etc.
-        model: "anthropic/claude-sonnet-4.5",
+        // Default to Claude Opus 4.7 — Anthropic 的旗艦 AI 代理人模型，最高品質
+        // 的 tool use / 多步驟規劃 / 反問判斷力（全站光球代理首選，與
+        // DEFAULT_REASONING_BRAINS 對齊）。Model IDs follow `<provider>/<model>`
+        // 格式；OpenRouter 支援 anthropic/*, openai/*, google/*, meta-llama/*,
+        // mistralai/* 等。可在 /ai-brain-settings 自行切換每個 slot 的模型。
+        model: "anthropic/claude-opus-4.7",
         supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: true,
@@ -426,6 +450,31 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         supportsGrounding: false,
         supportsLongContext: true,
         supportsToolCalling: true,
+      };
+
+    case "perplexity":
+      if (!ENV.perplexityApiKey)
+        throw new Error(
+          "Engine 'perplexity' 指定但 PERPLEXITY_API_KEY 未設定。請至 https://www.perplexity.ai/settings/api 取得並設定環境變數。"
+        );
+      return {
+        name: "Perplexity (Sonar)",
+        engine: "perplexity",
+        // OpenAI-compatible chat completions endpoint。Sonar 系列原生帶 web
+        // grounding（不需要 tool 即可搜尋），所以 supportsGrounding=true。
+        url: "https://api.perplexity.ai/chat/completions",
+        apiKey: ENV.perplexityApiKey,
+        // 預設 sonar-reasoning-pro：Perplexity 旗艦推理模型，內建 web search，
+        // 最適合需要規劃 + 即時資訊查詢的全站光球代理。可在每次呼叫覆寫
+        // model（例如改用 sonar-pro / sonar / sonar-deep-research）。
+        model: "sonar-reasoning-pro",
+        supportsThinking: true,
+        supportsGrounding: true,
+        supportsLongContext: true,
+        // Sonar chat completions 不支援 OpenAI 風格的 function calling；
+        // 光球的 [ACTION:...] 文字標記仍可正常 parse，但 schema-first
+        // planner 的 JSON tool_use 流程會 fall back 到 prompt-engineering。
+        supportsToolCalling: false,
       };
 
     case "gemini":

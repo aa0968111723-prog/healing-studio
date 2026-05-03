@@ -46,6 +46,22 @@ export const REASONING_MODEL_CATALOG = {
         label: "MiniMax M2.7 (NVIDIA NIM) 🟠",
         tier: "premium",
       },
+      // ── Perplexity Sonar（原生 API，內建 web grounding，AI 代理專用）──
+      {
+        value: "perplexity/sonar-reasoning-pro",
+        label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
+        value: "perplexity/sonar-pro",
+        label: "Perplexity Sonar Pro 🔍",
+        tier: "premium",
+      },
+      {
+        value: "perplexity/sonar",
+        label: "Perplexity Sonar 🔍 ⚡",
+        tier: "fast",
+      },
       // ── OpenRouter Unified Gateway ──
       {
         value: "anthropic/claude-sonnet-4.5",
@@ -85,7 +101,23 @@ export const REASONING_MODEL_CATALOG = {
         label: "Vertex Llama 3.1 405B",
         tier: "premium",
       },
+      // ── Perplexity Sonar（原生 API，內建 web grounding） ──
+      {
+        value: "perplexity/sonar-reasoning-pro",
+        label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
+        value: "perplexity/sonar-pro",
+        label: "Perplexity Sonar Pro 🔍",
+        tier: "premium",
+      },
       // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
       {
         value: "google/gemini-2.5-flash",
         label: "Gemini 2.5 Flash (OpenRouter) 🟣",
@@ -114,7 +146,23 @@ export const REASONING_MODEL_CATALOG = {
         label: "Vertex Mistral NeMo",
         tier: "standard",
       },
+      // ── Perplexity Sonar（原生 API，內建 web grounding） ──
+      {
+        value: "perplexity/sonar-reasoning-pro",
+        label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
+        value: "perplexity/sonar-pro",
+        label: "Perplexity Sonar Pro 🔍",
+        tier: "premium",
+      },
       // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
       {
         value: "anthropic/claude-sonnet-4.5",
         label: "Claude Sonnet 4.5 (OpenRouter) 🟣",
@@ -143,7 +191,23 @@ export const REASONING_MODEL_CATALOG = {
         label: "Vertex Gemini 2.5 Flash 🔷",
         tier: "fast",
       },
+      // ── Perplexity Sonar（原生 API，內建 web grounding） ──
+      {
+        value: "perplexity/sonar-reasoning-pro",
+        label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
+        value: "perplexity/sonar-pro",
+        label: "Perplexity Sonar Pro 🔍",
+        tier: "premium",
+      },
       // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
       {
         value: "anthropic/claude-haiku-4.5",
         label: "Claude Haiku 4.5 (OpenRouter) 🟣 ⚡",
@@ -167,7 +231,23 @@ export const REASONING_MODEL_CATALOG = {
         label: "Vertex Gemini 2.5 Pro 🔷",
         tier: "premium",
       },
+      // ── Perplexity Sonar（原生 API，內建 web grounding） ──
+      {
+        value: "perplexity/sonar-reasoning-pro",
+        label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
+        value: "perplexity/sonar-pro",
+        label: "Perplexity Sonar Pro 🔍",
+        tier: "premium",
+      },
       // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
       {
         value: "google/gemini-2.5-pro",
         label: "Gemini 2.5 Pro (OpenRouter) 🟣",
@@ -664,6 +744,17 @@ const LEGACY_LLM_ALIASES = new Set([
   "meta-llama/llama-3.2-90b-vision-instruct",
   "meta-llama/llama-3.1-405b-instruct",
   "mistralai/mistral-nemo",
+  // Perplexity Sonar 系列(原生 API + 可走 OpenRouter perplexity/* 前綴)
+  "perplexity/sonar",
+  "perplexity/sonar-pro",
+  "perplexity/sonar-reasoning",
+  "perplexity/sonar-reasoning-pro",
+  "perplexity/sonar-deep-research",
+  "sonar",
+  "sonar-pro",
+  "sonar-reasoning",
+  "sonar-reasoning-pro",
+  "sonar-deep-research",
   // OpenAI via OpenRouter
   "openai/gpt-4o",
   "openai/gpt-4o-mini",

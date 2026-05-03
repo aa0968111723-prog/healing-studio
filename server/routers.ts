@@ -476,7 +476,23 @@ function pickReasoningSlotForOrbChat(input: {
       "比較",
       "差異",
       "trend",
-      "dashboard"
+      "dashboard",
+      // Explicit web-search / lookup intents — analyst slot defaults to
+      // Perplexity Sonar (web grounding), so routing search intents here
+      // gives the orb live citations instead of guessing from training data.
+      "上網",
+      "查一下",
+      "查詢",
+      "搜尋",
+      "search the web",
+      "look up",
+      "find latest",
+      "最新消息",
+      "新聞",
+      "news",
+      "現在",
+      "今天的",
+      "即時"
     )
   ) {
     return "analyst";
@@ -5298,7 +5314,35 @@ export const appRouter = router({
           userText: latestUserTextForRouting,
           pageSnapshot: input.pageSnapshot,
         });
-        const director = ctx.brain.getBrain(reasoningSlot);
+        let director = ctx.brain.getBrain(reasoningSlot);
+
+        // ── Hybrid brain safeguard ────────────────────────────────────────
+        // Perplexity Sonar 系列在原生 chat completions API 不支援 OpenAI 風格
+        // 的 function calling；schema-first planner 一旦遇到必須吐 tool_use
+        // JSON 的劇本就會退化成 prompt-engineering（成功率掉一截）。
+        //
+        // 我們的「混合搭配」策略：分析型 slot（analyst）預設走 Sonar 換取
+        // 即時 web grounding，其他 slot 走 Claude Opus 4.7 換取原生 tool
+        // use。當 Sonar slot 被選中、但 schema-first planner 啟用時，把規劃
+        // 階段的大腦改用 director（Claude）— 這樣使用者拿到的回覆既能
+        // 帶上 Sonar 的網路引用，又不會卡在 planner 的 JSON 流程上。
+        const isPerplexityModel = (m: string | undefined) =>
+          typeof m === "string" && /^(perplexity\/|sonar(-|$))/i.test(m);
+        if (
+          isPerplexityModel(director.model) &&
+          schemaFirstPlannerEnabled
+        ) {
+          const directorBrain = ctx.brain.getBrain("director");
+          if (directorBrain && !isPerplexityModel(directorBrain.model)) {
+            director = {
+              ...director,
+              // Use the director slot's tool-use-capable model for planning,
+              // but keep the picked slot's temperature / topP / system prompt
+              // so the conversational personality stays consistent.
+              model: directorBrain.model,
+            };
+          }
+        }
 
         // ── Web research stage ─────────────────────────────────────────────
         // When the user asks a research-style question ("how to …", "製茶過程",

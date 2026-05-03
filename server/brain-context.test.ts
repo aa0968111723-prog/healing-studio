@@ -130,7 +130,13 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(123);
 
       expect(brain.hasCustomConfig).toBe(false);
-      expect(brain.getBrain("director").model).toBe("gemini-2.5-pro");
+      // 全站光球代理採「混合搭配」：director 使用 Claude Opus 4.7（原生
+      // function calling、無 web 雜訊）；analyst 才用 Perplexity Sonar
+      // Reasoning Pro（取其原生 web grounding）。
+      expect(brain.getBrain("director").model).toBe("anthropic/claude-opus-4.7");
+      expect(brain.getBrain("analyst").model).toBe(
+        "perplexity/sonar-reasoning-pro"
+      );
       expect(brain.getEngine("imageEngine").engine).toBe("fal-ai/flux-pro/v1.1");
 
       warnSpy.mockRestore();
@@ -428,7 +434,10 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(999);
       const director = brain.getBrain("director");
       expect(director.slot).toBe("director");
-      expect(director.model).toBe("gemini-2.5-pro");
+      // 全站光球代理採「混合搭配」：director 使用 Claude Opus 4.7（原生
+      // function calling、無 web 雜訊）；analyst 才用 Perplexity Sonar
+      // Reasoning Pro（取其原生 web grounding）。
+      expect(director.model).toBe("anthropic/claude-opus-4.7");
     });
 
     it("getEngine should return correct slot config", async () => {
