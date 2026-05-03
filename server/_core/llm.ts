@@ -632,6 +632,15 @@ function normalizeModelForEngine(model: string, engineName: string): string {
     return ANTHROPIC_MODEL_REMAP[model] ?? "claude-haiku-4-5-20251001";
   }
 
+  const isNvidiaEndpoint = engineName.includes("NVIDIA NIM");
+
+  if (isNvidiaEndpoint) {
+    // NVIDIA 端點只接受 minimaxai/minimax-m2.7；若帶 nvidia/ 前綴會 404。
+    if (model === "nvidia/minimax-m2.7") return "minimaxai/minimax-m2.7";
+    if (model === "minimax/minimax-m2") return "minimaxai/minimax-m2.7";
+    return model;
+  }
+
   if (!isGeminiEndpoint) return model;
 
   // 處理 "vertex/gemini-2.5-pro" 路徑格式
