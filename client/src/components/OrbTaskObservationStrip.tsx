@@ -119,6 +119,22 @@ export default function OrbTaskObservationStrip({
           {currentTaskId && currentTaskId !== rootTaskId && (
             <span className="text-violet-200/80 normal-case">（chain）</span>
           )}
+          {/* Iteration progress — visible once we've actually hopped at
+              least once. Shows how many tasks deep into the bounded
+              continuation chain we are; chain runner caps at 2 by
+              default so the worst case is "第 2/2 輪". */}
+          {(() => {
+            const last = visible[visible.length - 1];
+            const iter = last?.iterationIndex ?? 0;
+            if (iter > 0) {
+              return (
+                <span className="rounded-full border border-violet-300/30 bg-violet-300/10 px-1.5 py-0.5 text-violet-100 normal-case">
+                  第 {iter + 1} 輪
+                </span>
+              );
+            }
+            return null;
+          })()}
         </div>
         <div className="flex items-center gap-1">
           {canCancel && (

@@ -13,12 +13,17 @@ export default defineConfig({
     },
   },
   test: {
+    // Default node env. Per-file `// @vitest-environment jsdom`
+    // directives switch individual tests (e.g. React hook tests under
+    // tests/unit/client/) to a DOM environment.
     environment: "node",
     include: [
       "server/**/*.test.ts",
       "server/**/*.spec.ts",
       "tests/unit/**/*.test.ts",
       "tests/unit/**/*.spec.ts",
+      "tests/unit/**/*.test.tsx",
+      "tests/unit/**/*.spec.tsx",
     ],
   },
 });

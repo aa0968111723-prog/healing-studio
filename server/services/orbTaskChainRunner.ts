@@ -47,7 +47,10 @@ import {
   setOrbTaskPlannerContext,
   type StoredOrbTaskPlannerContext,
 } from "./orbTaskPlannerContextStore";
-import { deleteOrbTaskPageState } from "./orbTaskPageStateStore";
+import {
+  deleteOrbTaskPageState,
+  getOrbTaskPageState,
+} from "./orbTaskPageStateStore";
 import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
@@ -416,6 +419,11 @@ export async function runOrbTaskWithContinuationLoop(
     };
   }
 
+  // Snapshot the final task's page state BEFORE the cleanup below so
+  // the chain memory entry can carry a compact "what the page looked
+  // like when the chain ended" summary forward to the planner.
+  const finalPageSnapshots = getOrbTaskPageState(currentTaskId);
+
   // Final cleanup of context for whichever task ended the chain.
   deleteOrbTaskPlannerContext(currentTaskId);
   deleteOrbTaskPageState(currentTaskId);
@@ -467,6 +475,18 @@ export async function runOrbTaskWithContinuationLoop(
     const lastObservation = iterations[iterations.length - 1]?.observation;
     if (lastObservation && lastObservation.kind === "abort") {
       failedReasonParts.push(`observer:${lastObservation.failureCategory}`);
+    }
+    // Add a tiny "page-state at chain end" hint so a planner that sees
+    // this memory next time can recognise the same trap (e.g. prompt
+    // queued but never landed because tab switch never happened).
+    // Bounded length so the memory summary stays compact for LLM
+    // context budgets.
+    if (finalPageSnapshots.length > 0) {
+      const last = finalPageSnapshots[finalPageSnapshots.length - 1];
+      const stateHint = JSON.stringify(last.state).slice(0, 80);
+      const pageBit = last.pageId ? `${last.pageId}:` : "";
+      const actionBit = last.actionType ? `${last.actionType} ` : "";
+      failedReasonParts.push(`page:${pageBit}${actionBit}${stateHint}`);
     }
     recordOrbTaskMemory({
       taskId: input.initialTaskId,
