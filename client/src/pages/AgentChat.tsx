@@ -387,10 +387,6 @@ export default function AgentChat() {
   );
 
   const isFirstTurn = messages.length <= 1;
-  const quickStarters = useMemo(
-    () => starterEntries.map(entry => entry.starterText).slice(0, 4),
-    [starterEntries]
-  );
   const handleStarterEntryClick = useCallback(
     async (entry: StarterEntry) => {
       // 1) 有 path -> 先導頁
@@ -442,9 +438,48 @@ export default function AgentChat() {
         }}
       />
 
-      <div className="w-full max-w-2xl flex-1 flex flex-col px-4 sm:px-6 py-8 sm:py-12 gap-6">
+      <div className="w-full max-w-2xl flex-1 flex flex-col px-4 sm:px-6 py-6 sm:py-8 gap-4 relative">
+        {/* 右上角：低頻工具（清除對話 / 代理設定）做成圖示，不搶版面 */}
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 z-10">
+          <button
+            type="button"
+            onClick={() => {
+              if (messages.length === 0) {
+                globalChat.resetConversation();
+                toast.success("已重新開始對話");
+                return;
+              }
+              if (
+                window.confirm(
+                  `確定要清除這段對話嗎？目前有 ${messages.length} 則訊息會被刪除（不影響排程與設定）。`
+                )
+              ) {
+                globalChat.resetConversation();
+                toast.success("對話已清除，重新開始");
+              }
+            }}
+            disabled={isSending}
+            title="清除對話"
+            aria-label="清除目前的光球對話"
+            data-testid="clear-chat-trigger"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-destructive hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
+          >
+            <Eraser className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            title="代理設定"
+            aria-haspopup="dialog"
+            data-testid="agent-settings-trigger"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+          >
+            <Settings2 className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* 開場區塊 */}
-        <div className="flex flex-col items-center text-center gap-3 pb-2">
+        <div className="flex flex-col items-center text-center gap-3">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -459,62 +494,21 @@ export default function AgentChat() {
             我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
           </p>
 
-          {/* 工具列：如何使用 + 代理設定 + 清除對話 */}
-          <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setHowToOpen(prev => !prev)}
-              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-              aria-expanded={howToOpen}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-              如何使用光球
-              <ChevronDown
-                className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
-              />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (messages.length === 0) {
-                  globalChat.resetConversation();
-                  toast.success("已重新開始對話");
-                  return;
-                }
-                if (
-                  window.confirm(
-                    `確定要清除這段對話嗎？目前有 ${messages.length} 則訊息會被刪除（不影響排程與設定）。`
-                  )
-                ) {
-                  globalChat.resetConversation();
-                  toast.success("對話已清除，重新開始");
-                }
-              }}
-              disabled={isSending}
-              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-destructive hover:border-destructive/40"
-              aria-label="清除目前的光球對話"
-              data-testid="clear-chat-trigger"
-            >
-              <Eraser className="w-3.5 h-3.5" />
-              清除對話
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSettingsOpen(true)}
-              className="h-8 px-3 text-xs gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/60 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
-              aria-haspopup="dialog"
-              data-testid="agent-settings-trigger"
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              代理設定
-            </Button>
-          </div>
+          {/* 主要輔助按鈕：如何使用光球（單一） */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setHowToOpen(prev => !prev)}
+            className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+            aria-expanded={howToOpen}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+            如何使用光球
+            <ChevronDown
+              className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
+            />
+          </Button>
 
           {/* 如何使用 — 分步說明 */}
           <AnimatePresence initial={false}>
@@ -617,32 +611,12 @@ export default function AgentChat() {
               </CollapsibleContent>
             </Collapsible>
           </div>
-          <div className="w-full mt-2">
-            <div className="grid grid-cols-2 gap-2">
-              {quickStarters.map(text => {
-                const emoji = inferSuggestionEmoji(text);
-                return (
-                  <button
-                    key={text}
-                    onClick={() => void send(text)}
-                    className="group flex items-center gap-2 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/50 px-3 py-2.5 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50/60 dark:hover:border-emerald-600/70 dark:hover:bg-emerald-900/20 transition-all"
-                  >
-                    <span className="text-base leading-none shrink-0">{emoji}</span>
-                    <span className="text-xs leading-snug text-slate-600 dark:text-slate-300 line-clamp-2">
-                      {text}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── 第一輪：意圖選擇 grid ── */}
+          {/* ── 第一輪：意圖選擇 grid（主要 CTA） ── */}
           {isFirstTurn && (
             <AnimatePresence>
               <motion.div
                 key="intent-grid"
-                className="w-full mt-2 space-y-3"
+                className="w-full mt-1 space-y-3"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.2 }}
@@ -659,107 +633,114 @@ export default function AgentChat() {
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.25 + i * 0.05 }}
-                        className="group relative flex flex-col gap-1 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 text-left hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-sm transition-all"
+                        className="group relative flex items-center gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/40 pl-3 pr-1 py-2 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-sm transition-all"
                       >
                         {/* 意圖主體：點擊 → 開啟引導流程 */}
                         <button
                           type="button"
-                          className="flex items-center gap-2 w-full"
+                          className="flex items-center gap-2 flex-1 min-w-0 text-left py-0.5"
                           onClick={() => {
                             selectOrbIntent(intentId);
                             openOrbGuide();
                           }}
                         >
-                          <span className="text-lg leading-none">{cfg.emoji}</span>
-                          <div className="flex-1 text-left">
-                            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                          <span className="text-lg leading-none shrink-0">{cfg.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
                               {cfg.label}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                               {cfg.description}
                             </p>
                           </div>
                           <Navigation2 className="w-3.5 h-3.5 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                         </button>
-                        {/* 聊天捷徑：點擊 → 在聊天中問這個意圖 */}
+                        {/* 次要：先聊聊這個（小圖示） */}
                         <button
                           type="button"
-                          className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors pl-7"
+                          title={`先聊聊「${cfg.label}」`}
+                          aria-label={`先聊聊 ${cfg.label}`}
+                          className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
                           onClick={() => void send(`我想要${cfg.label}`)}
                         >
-                          <MessageCircle className="w-3 h-3" />
-                          先聊聊這個
+                          <MessageCircle className="w-3.5 h-3.5" />
                         </button>
                       </motion.div>
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
-                  或是直接在下方輸入框說說你的想法 ✨
-                </p>
-                <div className="space-y-2 pt-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    一頁一頁深度整合（含參數、感覺、素材與模型子項目）：
-                  </p>
-                  {([
-                    ["create", "創作工作流"],
-                    ["assets", "素材 / 模型整合"],
-                    ["train", "訓練流程"],
-                  ] as const).map(([groupKey, groupLabel]) => {
-                    const entries = groupedStarterEntries[groupKey];
-                    if (!entries.length) return null;
-                    return (
-                      <div
-                        key={groupKey}
-                        className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/75 dark:bg-slate-900/40 p-2.5"
-                      >
-                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-2">
-                          {groupLabel}
-                        </p>
-                        <div className="space-y-2">
-                          {entries.map(entry => (
-                            <div
-                              key={entry.id}
-                              className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 p-2"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => void handleStarterEntryClick(entry)}
-                                className="w-full flex items-center justify-between gap-2 text-left"
+
+                {/* 進階：全部頁面入口（深度整合）— 預設收合，避免一次塞太多 */}
+                <Collapsible className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/30">
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 group"
+                    >
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                        瀏覽全部頁面入口（含參數、素材、模型子項目）
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-2.5 pb-2.5 pt-0 space-y-2">
+                    {([
+                      ["create", "創作工作流"],
+                      ["assets", "素材 / 模型整合"],
+                      ["train", "訓練流程"],
+                    ] as const).map(([groupKey, groupLabel]) => {
+                      const entries = groupedStarterEntries[groupKey];
+                      if (!entries.length) return null;
+                      return (
+                        <div key={groupKey} className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 px-1">
+                            {groupLabel}
+                          </p>
+                          <div className="space-y-1.5">
+                            {entries.map(entry => (
+                              <div
+                                key={entry.id}
+                                className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 p-2"
                               >
-                                <div>
-                                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                                    {entry.label}
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                    {entry.description}
-                                  </p>
-                                </div>
-                                <ArrowRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                              </button>
-                              {entry.quickActions.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {entry.quickActions.slice(0, 3).map(action => (
-                                    <button
-                                      type="button"
-                                      key={action.id}
-                                      onClick={() =>
-                                        void handleStarterQuickAction(entry, action)
-                                      }
-                                      className="text-[11px] px-2 py-1 rounded-full border border-emerald-200/80 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 transition-colors"
-                                    >
-                                      {action.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                <button
+                                  type="button"
+                                  onClick={() => void handleStarterEntryClick(entry)}
+                                  className="w-full flex items-center justify-between gap-2 text-left"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
+                                      {entry.label}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                      {entry.description}
+                                    </p>
+                                  </div>
+                                  <ArrowRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                </button>
+                                {entry.quickActions.length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {entry.quickActions.slice(0, 3).map(action => (
+                                      <button
+                                        type="button"
+                                        key={action.id}
+                                        onClick={() =>
+                                          void handleStarterQuickAction(entry, action)
+                                        }
+                                        className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-200/80 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 transition-colors"
+                                      >
+                                        {action.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </CollapsibleContent>
+                </Collapsible>
               </motion.div>
             </AnimatePresence>
           )}
