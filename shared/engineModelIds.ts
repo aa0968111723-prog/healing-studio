@@ -79,6 +79,23 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/dreambooth-flux": "fal-ai/flux-lora-fast-training",
   "fal/sd3-lora": "fal-ai/flux-lora-fast-training",
   "fal/cogvideox-lora": "fal-ai/flux-lora-fast-training",
+  // DEF-V12 (2026-05-03 live audit): the codebase used legacy fal IDs that
+  // fal has since renamed. runway-gen4-turbo never existed at fal under that
+  // ID; gen3/turbo is the canonical i2v endpoint. fal-ai/runway-gen4-turbo
+  // /image-to-video → 404 at submit. The alias target (gen3/turbo) IS in
+  // both the catalog and pricing, so SSOT consistency holds after the
+  // rewrite.
+  //
+  // Note: fal-ai/rife-v4.6/video deliberately has NO alias here. The
+  // canonical-looking fal-ai/rife/v4.6 also returns 200 {detail: "Path
+  // /v4.6 not found"} on the result endpoint (i.e. fal removed the video
+  // frame-interpolation handler entirely; only the /fal-ai/rife image-pair
+  // interpolator remains). Adding an alias would silently bypass the
+  // disabled flag on the original entry and route users to another broken
+  // endpoint. The catalog `disabled: true` flag does the right thing
+  // instead — dispatcher auto-degrades to a working same-category model.
+  "fal-ai/runway-gen4-turbo/image-to-video":
+    "fal-ai/runway-gen3/turbo/image-to-video",
 };
 
 export const normalizeEngineModelId = (value: string): string =>

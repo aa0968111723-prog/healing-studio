@@ -2059,6 +2059,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true, fps: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 240_000,
+      // Live audit (2026-05-03): fal removed the video frame-interpolation
+      // endpoint. The bare /fal-ai/rife endpoint still exists but only
+      // accepts {start_image_url, end_image_url} (image-pair interpolation,
+      // not video). Both /fal-ai/rife-v4.6/video and /fal-ai/rife/v4.6
+      // return 200 {detail: "Path /v4.6 not found"} on result fetch.
+      disabled: true,
+      disabledReason:
+        "fal removed the video frame-interpolation endpoint; the bare /fal-ai/rife is image-pair only, not video",
     },
     {
       modelId: "fal-ai/topaz/video-enhance",
@@ -2080,6 +2088,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true, guidanceScale: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Live audit (2026-05-03): fal returns
+      // 404 'Application "depthcrafter" not found' on submit. fal removed
+      // the model. Mark disabled until fal restores it or we replace with
+      // an equivalent depth-from-video model.
+      disabled: true,
+      disabledReason:
+        "fal returns 404 'Application \"depthcrafter\" not found' on submit; model removed at fal",
     },
   ],
 };

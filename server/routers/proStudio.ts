@@ -1023,8 +1023,12 @@ export const proStudioRouter = router({
         charCount: input.text?.length ?? 0,
       });
       try {
+        // Live audit (2026-05-03): fal's qwen-3-tts/voice-design endpoint
+        // expects the field name `prompt`, not `voice_description`. Sending
+        // voice_description got a 422 'Field required: body.prompt' on every
+        // call. Map our input field to fal's canonical name.
         const { request_id } = await falQueueSubmit(modelId, {
-          voice_description: input.voice_description,
+          prompt: input.voice_description,
           text: input.text,
         });
         return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
@@ -1424,6 +1428,12 @@ export const proStudioRouter = router({
       z.object({
         image_url: z.string().url(),
         audio_url: z.string().url(),
+        // Live audit (2026-05-03): fal's stable-avatar requires `prompt`.
+        // Submitting without it returns
+        // 422 'Field required: body.prompt' on every call. Default to a
+        // generic "calm speaker" so callers that only have an image+audio
+        // pair still succeed.
+        prompt: z.string().min(1).max(2000).default("a person speaking naturally"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1434,6 +1444,7 @@ export const proStudioRouter = router({
         const { request_id } = await falQueueSubmit(modelId, {
           image_url: input.image_url,
           audio_url: input.audio_url,
+          prompt: input.prompt,
         });
         return { request_id, model: modelId, estimated_credits: charged };
       } catch (err) {

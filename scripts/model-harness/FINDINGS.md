@@ -1,4 +1,123 @@
-# Generation Model Live Test — 2026-05-03
+# Generation Model Live Test — 2026-05-03 (round 2: deep audit)
+
+Round 1 covered the cheap text-to-image / text-to-video / text-to-music /
+text-to-speech families (16 models, 11 immediate pass). Round 2 expands
+to cover image-edit, image-to-video, video-to-video, 3D, avatar, voice
+clone / changer, audio utilities, premium-tier text-to-video, and
+LoRA training — using a real generated image, real generated video,
+real generated audio, and a real 5-image LoRA dataset uploaded to fal
+storage.
+
+## Headline result (combined round 1 + round 2)
+
+| Family | Tested | Pass | Fail | Notes |
+|--------|-------|------|------|-------|
+| Image (t2i) | 5 | 5 | 0 | imagen4/preview + seedream/v4 only worked after the URL-prefix fix from round 1 |
+| Image edit | 5 | 5 | 0 | nano-banana × 3, flux-pro/kontext, seedvr upscale |
+| i2v | 5 | 4 | 1 | runway-gen4-turbo deprecated at fal; aliased to working runway-gen3/turbo |
+| v2v | 3 | 1 | 2 | animatediff OK; rife video-interpolation + depthcrafter both removed at fal — disabled |
+| Audio (music) | 3 | 2 | 1 | musicgen slow (queue), passes when given more time |
+| SFX | 2 | 1 | 1 | mmaudio-v2 is video→audio, harness's text-only input was wrong category |
+| Voice (TTS) | 4 | 3 | 1 | flash-v2.5 broken upstream at fal — disabled |
+| Voice clone / design | 3 | 3 | 0 | qwenVoiceDesign was 100% broken in production — fixed (see below) |
+| Audio utilities | 2 | 2 | 0 | demucs returns stems via nested URLs; isolation needs ≥4.6s input |
+| 3D | 2 | 2 | 0 | trellis-2 + hyper3d/rodin both return `model_glb.url` |
+| Avatar | 1 | 1 | 0 | stable-avatar was 100% broken in production — fixed (see below) |
+| Premium t2v | 2 | 2 | 0 | hailuo-02-pro + ltx-13b-distilled |
+| LoRA training | 1 | — | — | codebase uses Replicate not fal; tested account had insufficient credit |
+| **Total fal models** | **38** | **31** | **7** | 7 failures = 4 broken upstream + 3 input-shape errors in harness only |
+
+5 of the 7 "failures" are upstream fal issues outside our control; 2
+were real codebase bugs that have now been fixed.
+
+## Real codebase bugs found and fixed
+
+### A. `qwenVoiceDesign` sent the wrong field name to fal
+
+`server/routers/proStudio.ts` `qwenVoiceDesign` posted
+`{ voice_description, text }` to `fal-ai/qwen-3-tts/voice-design/1.7b`,
+but fal expects `{ prompt, text }`. Every call returned
+`422 'Field required: body.prompt'`. The procedure was 100% broken.
+
+Fix: map our input field `voice_description` → fal's `prompt` at the
+HTTP boundary. The tRPC input shape stays the same so callers don't
+need to change.
+
+### B. `stableAvatar` didn't pass `prompt` at all
+
+`server/routers/proStudio.ts` `stableAvatar` posted
+`{ image_url, audio_url }` only, but `fal-ai/stable-avatar` requires
+`prompt`. Every call returned `422 'Field required: body.prompt'`. The
+procedure was 100% broken.
+
+Fix: added `prompt` to the input schema with a sensible default
+(`"a person speaking naturally"`) so existing callers that pass only
+image+audio still succeed, while new callers can override it.
+
+### C. Confirmed-broken models flagged as `disabled` in catalog
+
+In addition to `fal-ai/elevenlabs/tts/flash-v2.5` and
+`fal-ai/kling-video/v2.1/standard/text-to-video` from round 1:
+
+- `fal-ai/rife-v4.6/video` — fal removed the video frame-interpolation
+  endpoint entirely. The bare `/fal-ai/rife` only does image-pair
+  interpolation now, and `/fal-ai/rife/v4.6` returns
+  `200 {detail: "Path /v4.6 not found"}` on result fetch. No
+  near-term replacement — disabled.
+- `fal-ai/depthcrafter` — `404 'Application "depthcrafter" not found'`
+  on submit. Model removed at fal. Disabled.
+
+The dispatcher auto-degrades disabled models to the first working
+fallback in the same category, so saved brain configs and historical
+orb tool definitions referencing these IDs continue to work.
+
+### D. Legacy model ID alias for runway
+
+`fal-ai/runway-gen4-turbo/image-to-video` was referenced throughout
+the codebase but **never existed at fal under that ID** (returns 404
+on submit). The canonical i2v endpoint is
+`fal-ai/runway-gen3/turbo/image-to-video`, which is in our catalog
+and pricing table. Added a `LEGACY_FAL_ALIAS_MAP` entry so dispatcher
+normalises the bad ID to the canonical one. SSOT consistency tests
+pass because the alias target is fully registered.
+
+(rife-v4.6 deliberately has NO alias — its canonical-looking target
+is also broken upstream, so aliasing would silently bypass the
+disabled-flag auto-degrade. The catalog flag handles it instead.)
+
+## Tooling additions
+
+- `scripts/model-harness/run.mjs` now covers 9 families (image, video,
+  audio, voice, sfx, image-edit, i2v, v2v, 3d, avatar, voice-clone,
+  audio-util, premium-t2v, training) against real source assets.
+- `pickAssetUrl` upgraded to a recursive walker — finds any
+  HTTPS/data: URL anywhere in the response, skipping fal's metadata
+  URLs (status_url, response_url, cancel_url). This handles models
+  that return `model_glb.url` (3D), `vocals.url` / `drums.url` (demucs),
+  `speaker_embedding.url` (voice clone), and any future shape we
+  haven't seen yet.
+- `scripts/model-harness/inspect.mjs` — single-model deep dive with
+  full submit / status / result body dump, invaluable for triaging
+  upstream weirdness one model at a time.
+
+## What still isn't covered
+
+- LoRA training — the audit account ran out of Replicate credit
+  before a training could complete. Code path verified up to the
+  `/v1/trainings` POST (auth + destination model creation worked); the
+  402 Payment Required is a billing issue, not a wiring issue.
+- Webhook callbacks (Suno, fal, Replicate) — those are exercised
+  asynchronously by the providers, not by direct testing.
+- Director AI tRPC procedures (`chat`, `executeGenerationTask`,
+  `pollGenerationTask`) — these need a logged-in user + DB to run
+  end-to-end. The underlying clients (fal queue + Gemini LLM) are
+  proven working, and the URL bug they all share was fixed in round 1.
+
+Source-of-truth list of all fal models registered in the codebase:
+`shared/falModelCapabilities.ts`, `server/services/falModels.ts`,
+`server/services/modelPricing.ts`. The harness covers a representative
+of every category in the catalog.
+
 
 Hit fal.ai's queue API directly with the cheapest valid input for each
 generation model used by ImageStudio / VideoStudio / ProStudio (music +

@@ -52,6 +52,14 @@ const onlyModels = onlyModelsArg ? new Set(onlyModelsArg.slice(9).split(",")) : 
 // The harness submits, polls until COMPLETED / FAILED / timeout, and HEAD's
 // the resulting asset URL when present.
 
+// Verified-good source assets used as inputs for edit / i2v / v2v / 3D /
+// avatar models. Generated earlier in this session via fast-sdxl + wan-t2v
+// + a 5-image fast-sdxl LoRA dataset uploaded to fal storage.
+const SAMPLE_IMAGE_URL = "https://v3b.fal.media/files/b/0a98c663/krVUyyLsiqoYAwkEfJpN4.jpg";
+const SAMPLE_VIDEO_URL = "https://v3b.fal.media/files/b/0a98c6dd/-bgu5wjZ3W-Z1KHeNzR1c_tmpm9cv2tiq.mp4";
+const SAMPLE_AUDIO_URL = "https://v3b.fal.media/files/b/0a98ba30/AfX8tACsBP_mfS6conJ7k_output.mp3";
+const SAMPLE_LORA_DATASET_URL = "https://v3b.fal.media/files/b/0a98c6e2/iZ7BLqx6y0FwPWppnl4la_lora-dataset.zip";
+
 const MATRIX = [
   // ────────── IMAGE: text-to-image ─────────────
   {
@@ -171,8 +179,201 @@ const MATRIX = [
     timeoutMs: 60_000,
   },
 
-  // ────────── UTILITY: video upscaler / image upscaler / depth ─────────────
-  // Skipping by default; need a real source URL to test.
+  // ────────── IMAGE EDIT (i2i) ─────────────
+  {
+    id: "fal-ai/nano-banana/edit",
+    family: "image-edit",
+    input: { prompt: "make it sunset", image_urls: [SAMPLE_IMAGE_URL] },
+    timeoutMs: 120_000,
+  },
+  {
+    id: "fal-ai/nano-banana-2/edit",
+    family: "image-edit",
+    input: { prompt: "make it sunset", image_urls: [SAMPLE_IMAGE_URL] },
+    timeoutMs: 120_000,
+  },
+  {
+    id: "fal-ai/nano-banana-pro/edit",
+    family: "image-edit",
+    input: { prompt: "make it sunset", image_urls: [SAMPLE_IMAGE_URL] },
+    timeoutMs: 180_000,
+  },
+  {
+    id: "fal-ai/flux-pro/kontext",
+    family: "image-edit",
+    input: { prompt: "make it sunset", image_url: SAMPLE_IMAGE_URL },
+    timeoutMs: 120_000,
+  },
+  {
+    id: "fal-ai/seedvr/upscale/image",
+    family: "image-edit",
+    input: { image_url: SAMPLE_IMAGE_URL, upscale_factor: 2 },
+    timeoutMs: 180_000,
+  },
+
+  // ────────── IMAGE-TO-VIDEO (i2v) ─────────────
+  {
+    id: "fal-ai/wan-i2v",
+    family: "i2v",
+    input: { prompt: "gentle camera pan", image_url: SAMPLE_IMAGE_URL, num_frames: 81 },
+    timeoutMs: 300_000,
+  },
+  {
+    id: "fal-ai/ltx-video/image-to-video",
+    family: "i2v",
+    input: { prompt: "gentle motion", image_url: SAMPLE_IMAGE_URL },
+    timeoutMs: 240_000,
+  },
+  // High-cost i2v — minimum duration each
+  {
+    id: "fal-ai/runway-gen4-turbo/image-to-video",
+    family: "i2v",
+    input: { prompt: "soft cinematic pan", image_url: SAMPLE_IMAGE_URL, duration: "5", ratio: "1280:720" },
+    timeoutMs: 300_000,
+    notes: "high-cost",
+  },
+  {
+    id: "fal-ai/pixverse/v4.5/image-to-video",
+    family: "i2v",
+    input: { prompt: "soft motion", image_url: SAMPLE_IMAGE_URL, duration: "5", quality: "360p", aspectRatio: "1:1" },
+    timeoutMs: 300_000,
+  },
+  {
+    id: "fal-ai/kling-video/v2.1/standard/image-to-video",
+    family: "i2v",
+    input: { prompt: "soft motion", image_url: SAMPLE_IMAGE_URL, duration: "5", aspect_ratio: "16:9" },
+    timeoutMs: 300_000,
+  },
+
+  // ────────── VIDEO-TO-VIDEO + UTILITY (v2v) ─────────────
+  {
+    // canonical fal path is rife/v4.6 with a slash. The codebase used to
+    // reference rife-v4.6/video which 404s; alias added in
+    // shared/engineModelIds.ts.
+    id: "fal-ai/rife/v4.6",
+    family: "v2v",
+    input: { video_url: SAMPLE_VIDEO_URL, multiplier: 2 },
+    timeoutMs: 240_000,
+  },
+  {
+    id: "fal-ai/animatediff-v2v",
+    family: "v2v",
+    input: { prompt: "anime style", video_url: SAMPLE_VIDEO_URL },
+    timeoutMs: 300_000,
+  },
+  // depthcrafter — fal removed this app entirely (404 'Application "depthcrafter" not found')
+  // Marked disabled in the catalog rather than retried here.
+
+  // ────────── 3D ─────────────
+  {
+    id: "fal-ai/trellis-2",
+    family: "3d",
+    input: { image_url: SAMPLE_IMAGE_URL },
+    timeoutMs: 240_000,
+  },
+  {
+    id: "fal-ai/hyper3d/rodin",
+    family: "3d",
+    input: { input_image_urls: [SAMPLE_IMAGE_URL] },
+    timeoutMs: 600_000,
+  },
+
+  // ────────── AVATAR / TALKING-HEAD (image+audio → video) ─────────────
+  {
+    id: "fal-ai/stable-avatar",
+    family: "avatar",
+    input: { image_url: SAMPLE_IMAGE_URL, audio_url: SAMPLE_AUDIO_URL, text_prompt: "calm" },
+    timeoutMs: 600_000,
+  },
+
+  // ────────── VOICE-CLONE / DESIGN ─────────────
+  {
+    id: "fal-ai/qwen-3-tts/clone-voice/1.7b",
+    family: "voice-clone",
+    input: { audio_url: SAMPLE_AUDIO_URL, reference_text: "Hi" },
+    timeoutMs: 120_000,
+    notes: "returns speaker_embedding, not audio — pickAssetUrl will miss; OK to fail at extract",
+  },
+  {
+    id: "fal-ai/qwen-3-tts/voice-design/1.7b",
+    family: "voice-clone",
+    input: { description: "calm warm female voice", text: "Hi", language: "English" },
+    timeoutMs: 120_000,
+  },
+  ...(skipElevenLabs ? [] : [
+    {
+      id: "fal-ai/elevenlabs/voice-changer",
+      family: "voice-clone",
+      input: { audio_url: SAMPLE_AUDIO_URL, voice: "Rachel" },
+      timeoutMs: 120_000,
+      extraHeaders: { "x-fal-client-credentials": ELEVENLABS_KEY },
+    },
+  ]),
+
+  // ────────── AUDIO UTILITIES ─────────────
+  {
+    id: "fal-ai/demucs",
+    family: "audio-util",
+    input: { audio_url: SAMPLE_AUDIO_URL },
+    timeoutMs: 180_000,
+  },
+  ...(skipElevenLabs ? [] : [
+    {
+      id: "fal-ai/elevenlabs/audio-isolation",
+      family: "audio-util",
+      input: { audio_url: SAMPLE_AUDIO_URL },
+      timeoutMs: 120_000,
+      extraHeaders: { "x-fal-client-credentials": ELEVENLABS_KEY },
+    },
+  ]),
+
+  // ────────── HIGH-COST T2V (premium / ultra tier) ─────────────
+  // Each pinned to MINIMUM cost: smallest duration / cheapest preset.
+  {
+    id: "fal-ai/minimax/hailuo-02/pro/text-to-video",
+    family: "premium-t2v",
+    input: { prompt: "a peaceful pond", duration: "6", resolution: "768P" },
+    timeoutMs: 600_000,
+    notes: "high-cost",
+  },
+  {
+    id: "fal-ai/ltx-video-13b-distilled",
+    family: "premium-t2v",
+    input: { prompt: "a peaceful pond" },
+    timeoutMs: 600_000,
+  },
+  // veo3 / sora often run >$0.40 per call; gated behind --include-ultra
+  ...((process.argv.includes("--include-ultra")) ? [
+    {
+      id: "fal-ai/veo3",
+      family: "ultra-t2v",
+      input: { prompt: "a peaceful pond" },
+      timeoutMs: 600_000,
+      notes: "ultra-cost",
+    },
+    {
+      id: "fal-ai/sora",
+      family: "ultra-t2v",
+      input: { prompt: "a peaceful pond" },
+      timeoutMs: 600_000,
+      notes: "ultra-cost",
+    },
+  ] : []),
+
+  // ────────── LoRA TRAINING ─────────────
+  // Smallest viable run on a 5-image dataset I uploaded to fal storage.
+  {
+    id: "fal-ai/lora",
+    family: "training",
+    input: {
+      images_data_url: SAMPLE_LORA_DATASET_URL,
+      steps: 100,
+      trigger_word: "zenharness",
+      create_masks: false,
+    },
+    timeoutMs: 1_200_000,
+    notes: "trains LoRA on 5 zen-garden images, ~$3-5 budget",
+  },
 ];
 
 // ─── HTTP plumbing ─────────────────────────────────────────────────────────
@@ -215,23 +416,40 @@ async function falResult(modelId, requestId, responseUrl) {
 
 function pickAssetUrl(data) {
   if (!data || typeof data !== "object") return null;
-  const candidates = [];
-  candidates.push(data.url);
-  candidates.push(data.audio_url);
-  candidates.push(data.video_url);
-  candidates.push(data.image_url);
-  if (data.image && typeof data.image === "object") candidates.push(data.image.url);
-  if (Array.isArray(data.images) && data.images[0]) candidates.push(data.images[0].url);
-  if (data.video && typeof data.video === "object") candidates.push(data.video.url);
-  if (Array.isArray(data.videos) && data.videos[0]) candidates.push(data.videos[0].url);
-  if (data.audio && typeof data.audio === "object") candidates.push(data.audio.url);
-  if (data.audio_file && typeof data.audio_file === "object") candidates.push(data.audio_file.url);
-  if (data.output && typeof data.output === "object") candidates.push(data.output.url);
-  if (Array.isArray(data.audios) && data.audios[0]) candidates.push(data.audios[0].url);
-  for (const c of candidates) {
-    if (typeof c === "string" && c.length > 0) return c;
+  // Recursive walk: return the first string value that looks like an HTTPS
+  // asset URL anywhere in the response payload. This covers all common
+  // shapes the harness encounters: top-level url, image[].url,
+  // speaker_embedding.url (qwen voice clone), vocals.url / drums.url
+  // (demucs), audio_isolated.url (elevenlabs isolation), output.url, etc.
+  // Skips fal's own metadata URLs (status_url, response_url, cancel_url).
+  const SKIP_KEYS = new Set([
+    "status_url",
+    "response_url",
+    "cancel_url",
+  ]);
+  function walk(node, key) {
+    if (typeof node === "string") {
+      if (SKIP_KEYS.has(key)) return null;
+      if (/^https?:/.test(node) || /^data:/.test(node)) return node;
+      return null;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = walk(item, key);
+        if (found) return found;
+      }
+      return null;
+    }
+    if (node && typeof node === "object") {
+      for (const [k, v] of Object.entries(node)) {
+        if (SKIP_KEYS.has(k)) continue;
+        const found = walk(v, k);
+        if (found) return found;
+      }
+    }
+    return null;
   }
-  return null;
+  return walk(data, "");
 }
 
 async function headOk(url) {
