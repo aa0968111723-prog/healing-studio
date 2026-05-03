@@ -34,6 +34,8 @@ export interface OrbTaskAuditEvent {
     | "step.rollback_failed"
     | "task.recovering"
     | "task.replanning"
+    | "task.observed"
+    | "task.continuation_started"
     | "task.completed"
     | "task.failed"
     | "task.cancelled"
@@ -112,6 +114,12 @@ export interface OrbAgentTask {
   taskId: string;
   planId: string;
   traceId: string;
+  /** Owning user — required so per-task chain memory + page-state can
+   *  be scoped per user. Optional in the shared shape for backwards
+   *  compatibility with callers that pre-date user scoping; the FSM
+   *  setter populates it whenever createOrbAgentTaskFromPlanner gets
+   *  the userId from the brain router. */
+  userId?: number;
   intent: string;
   summaryForUser: string;
   status: OrbTaskState;
@@ -132,4 +140,10 @@ export interface OrbAgentTask {
   riskLevel?: string;
   capabilities?: string[];
   isolation?: "ui" | "tool" | "code";
+  /** When this task was generated as a continuation/recovery of a previous
+   *  task, the originating task id. Lets the UI surface the chain. */
+  predecessorTaskId?: string;
+  /** 0 for the initial task; 1, 2, … for each continuation. Bounded by
+   *  the chain runner so the planner cannot recurse forever. */
+  iterationIndex?: number;
 }

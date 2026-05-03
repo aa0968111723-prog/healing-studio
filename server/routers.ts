@@ -58,7 +58,10 @@ import { orbTaskRepository } from "./repositories/orbTaskRepository";
 import { executeCurrentStepTools, runOrbTaskToCompletion } from "./services/orbTaskOrchestrator";
 import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
-import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
+import { runSchemaFirstAgentPlanner, type AgentPlannerInput } from "./services/agentPlanner";
+import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
+import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
+import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -296,25 +299,52 @@ async function driveOrbTaskInBackground(input: {
   try {
     const tools = getOrbToolRegistry();
     const agentPreferences = await loadAgentPreferencesForUser(input.userId);
-    const result = await runOrbTaskToCompletion({
-      taskId: input.taskId,
-      userId: input.userId,
-      userRole: input.userRole,
-      tools,
-      agentPreferences,
-      requestId: `orb_auto_${input.taskId}_${Date.now()}`,
-      onToolAuditEvent: event => {
-        try {
-          orbToolCallLogStore.append(event);
-        } catch {
-          // best-effort
-        }
-      },
-    });
-    if (result.outcome === "failed") {
-      console.warn(
-        `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
-      );
+    const onToolAuditEvent = (event: Parameters<typeof orbToolCallLogStore.append>[0]) => {
+      try {
+        orbToolCallLogStore.append(event);
+      } catch {
+        // best-effort
+      }
+    };
+
+    // Agent loop v1 + v2 — when ORB_OBSERVATION_LOOP=1 the chain runner
+    // wraps the orchestrator with post-mortem observation AND bounded
+    // continuation: if the observer says "continue", the planner is
+    // re-invoked with the original conversation + an execution recap and
+    // a fresh task is materialised + driven. Capped at 2 iterations
+    // (1 replan max). Off by default — preserves the legacy single-shot
+    // path so behaviour and cost don't change for production until
+    // explicitly opted in.
+    if (process.env.ORB_OBSERVATION_LOOP === "1") {
+      const chain = await runOrbTaskWithContinuationLoop({
+        initialTaskId: input.taskId,
+        userId: input.userId,
+        userRole: input.userRole,
+        tools,
+        agentPreferences,
+        onToolAuditEvent,
+      });
+      const last = chain.iterations[chain.iterations.length - 1];
+      if (last?.runResult.outcome === "failed") {
+        console.warn(
+          `[Orb] chain finished with failure: finalTaskId=${chain.finalTaskId} stopReason=${chain.stopReason}`
+        );
+      }
+    } else {
+      const result = await runOrbTaskToCompletion({
+        taskId: input.taskId,
+        userId: input.userId,
+        userRole: input.userRole,
+        tools,
+        agentPreferences,
+        requestId: `orb_auto_${input.taskId}_${Date.now()}`,
+        onToolAuditEvent,
+      });
+      if (result.outcome === "failed") {
+        console.warn(
+          `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
+        );
+      }
     }
   } catch (error) {
     // The auto-driver crashed before runOrbTaskToCompletion could write
@@ -5950,7 +5980,7 @@ export const appRouter = router({
               let codeTask: unknown = null;
               let codeTaskPrompt: string | null = null;
               if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
-                stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult);
+                stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, ctx.user.id);
               }
               // Always materialize a legacy orbTaskRepository record so the
               // existing reportTaskStep flow (which queries the legacy store)
@@ -5976,6 +6006,32 @@ export const appRouter = router({
                   });
                 } catch (taskError) {
                   console.warn("[Orb] task materialization failed:", taskError instanceof Error ? taskError.message : String(taskError));
+                }
+                // Agent loop v2 — stash the planner inputs so the
+                // continuation chain runner (driven by ORB_OBSERVATION_LOOP)
+                // can replan with the same context if the post-mortem
+                // observer says "continue". No-op when the loop flag is off.
+                if (stateMachineTask?.taskId) {
+                  try {
+                    setOrbTaskPlannerContext(stateMachineTask.taskId, {
+                      userId: ctx.user.id,
+                      userRole: ctx.user.role,
+                      messages: plannerMessages,
+                      context: input.context,
+                      personality: input.personality,
+                      pageSnapshot: (input.pageSnapshot ?? null) as PageAgentSnapshot | null,
+                      recentFeedback: mergedFeedback as AgentFeedbackEvent[],
+                      recentTaskMemorySummary,
+                      recentOrbMemorySummary,
+                      siteKnowledgeSummary,
+                      preferences: (input.preferences ?? null) as AgentPlannerInput["preferences"],
+                    });
+                  } catch (stashError) {
+                    console.warn(
+                      "[Orb] failed to stash planner context for continuation:",
+                      stashError instanceof Error ? stashError.message : String(stashError)
+                    );
+                  }
                 }
               }
               const planRecord =
@@ -6451,6 +6507,56 @@ export const appRouter = router({
         .input(z.object({ taskId: z.string().min(1) }))
         .query(({ input }) => {
           return getOrbAgentTaskEvents(input.taskId);
+        }),
+
+      // Agent loop v5 — client posts a structured page-state snapshot
+      // here whenever a PageAgent action handler returns `data` while a
+      // task is being followed. The observer reads the buffer at
+      // post-mortem time so its prompt sees what the destination page
+      // actually looks like (was the prompt filled? which model? did
+      // generation succeed?). Off-band from the FSM audit log on
+      // purpose: this is a "what does the world look like" snapshot,
+      // not a "what did I do" event.
+      //
+      // Agent loop v10 — verify caller owns the taskId before
+      // accepting the snapshot. Without this a malicious user could
+      // pollute another user's task state (taskIds are guessable in
+      // shape `orb_task_<ts>_<rand>`). We allow legacy tasks without a
+      // recorded userId through unchanged so existing flows that
+      // pre-date user scoping don't suddenly start failing.
+      reportPageState: brainProcedure
+        .input(
+          z.object({
+            taskId: z.string().min(1).max(72),
+            pageId: z.string().min(1).max(64).optional(),
+            actionType: z.string().min(1).max(48).optional(),
+            summary: z.string().max(240).optional(),
+            // Cap the JSON payload defensively so a chatty page
+            // handler can't blow up the in-memory buffer.
+            state: z
+              .record(z.string(), z.unknown())
+              .refine(v => JSON.stringify(v).length <= 4_000, {
+                message: "page state payload exceeds 4 kB",
+              }),
+          })
+        )
+        .mutation(({ input, ctx }) => {
+          const fsmTask = getOrbAgentTask(input.taskId);
+          if (
+            fsmTask &&
+            typeof fsmTask.userId === "number" &&
+            fsmTask.userId !== ctx.user.id
+          ) {
+            return { ok: false as const, reason: "not-your-task" };
+          }
+          appendOrbTaskPageState(input.taskId, {
+            at: Date.now(),
+            pageId: input.pageId,
+            actionType: input.actionType,
+            summary: input.summary,
+            state: input.state,
+          });
+          return { ok: true as const };
         }),
 
       completeStep: brainProcedure

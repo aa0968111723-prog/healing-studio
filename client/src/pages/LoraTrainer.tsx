@@ -765,6 +765,54 @@ export default function LoraTrainer() {
       hasTriggerWord: triggerWord.trim().length > 0,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      const result = await runLoraTrainerAction(action);
+      // Agent loop v5/v6/v8 — overlay structured `data` so the observer
+      // sees what changed (active tab, training type, prompt slot,
+      // hyperparam, dataset state). Backwards compatible.
+      if (result.ok) {
+        const data = synthesizeLoraTrainerData(action);
+        if (data) return { ...result, data };
+      }
+      return result;
+    },
+  });
+
+  function synthesizeLoraTrainerData(
+    action: AgentAction
+  ): Record<string, unknown> | null {
+    switch (action.type) {
+      case "setTab":
+        return { activeTab: action.tabId };
+      case "applyPreset":
+        return { presetId: action.presetId };
+      case "fillPrompt":
+        return {
+          slot: action.slot ?? "modelName",
+          append: !!action.append,
+          textPreview: String(action.text).slice(0, 80),
+        };
+      case "setParam":
+        return {
+          paramKey: action.key,
+          paramValueType: typeof action.value,
+        };
+      case "submit":
+        return {
+          submitted: true,
+          datasetImageCount: datasetImages.length,
+          datasetVideoCount: datasetVideos.length,
+          hasModelName: modelName.trim().length > 0,
+        };
+      case "reset":
+        return { reset: true };
+      default:
+        return null;
+    }
+  }
+
+  async function runLoraTrainerAction(
+    action: AgentAction
+  ): Promise<AgentActionResult> {
       switch (action.type) {
         case "setTab": {
           if (
@@ -843,8 +891,7 @@ export default function LoraTrainer() {
         default:
           return { ok: false, reason: "unsupported action" };
       }
-    },
-  });
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">

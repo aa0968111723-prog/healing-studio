@@ -1,0 +1,454 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  observeOrbTaskOutcome,
+  observationToAuditMessage,
+  observationToAuditMetadata,
+  type TaskObservation,
+} from "../orbTaskObserver";
+import type { RunOrbTaskResult } from "../orbTaskOrchestrator";
+import type { OrbAgentTask } from "../../../shared/orb-task-state-machine";
+import {
+  _resetOrbTaskPageStateStoreForTests,
+  appendOrbTaskPageState,
+} from "../orbTaskPageStateStore";
+import {
+  _resetOrbTaskMemoryForTests,
+  recordOrbTaskMemory,
+} from "../orbTaskMemory";
+
+afterEach(() => {
+  _resetOrbTaskPageStateStoreForTests();
+  _resetOrbTaskMemoryForTests();
+});
+
+function makeRunResult(
+  partial: Partial<RunOrbTaskResult> = {}
+): RunOrbTaskResult {
+  return {
+    taskId: "t1",
+    outcome: "completed",
+    stepsRun: 1,
+    perStepToolResults: [],
+    finalTask: null,
+    finalAgentTask: null,
+    ...partial,
+  };
+}
+
+function makeAgentTask(partial: Partial<OrbAgentTask> = {}): OrbAgentTask {
+  return {
+    taskId: "t1",
+    planId: "p1",
+    traceId: "tr1",
+    intent: "幫我做一支貓咪短片",
+    summaryForUser: "做短片",
+    status: "completed",
+    currentStepId: null,
+    steps: [],
+    createdAt: 0,
+    updatedAt: 0,
+    completedAt: null,
+    failedReason: null,
+    approvalRequired: false,
+    preferredEngine: null,
+    usedMultimodalPlanner: false,
+    warnings: [],
+    auditEvents: [],
+    retryBudget: 2,
+    retryCount: 0,
+    ...partial,
+  };
+}
+
+function stubLLM(payload: TaskObservation) {
+  return vi.fn(async () => ({
+    choices: [{ message: { content: JSON.stringify(payload) } }],
+  })) as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"];
+}
+
+describe("orbTaskObserver", () => {
+  it("returns LLM-classified complete observation", async () => {
+    const observation = await observeOrbTaskOutcome({
+      intent: "幫我生成一張圖",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      invoke: stubLLM({ kind: "complete", userMessage: "幫你做完了，我把成品放在右側" }),
+    });
+    expect(observation.kind).toBe("complete");
+    if (observation.kind === "complete") {
+      expect(observation.userMessage).toContain("做完");
+    }
+  });
+
+  it("parses needs_user with optional suggestions", async () => {
+    const observation = await observeOrbTaskOutcome({
+      intent: "幫我做配音",
+      runResult: makeRunResult({ outcome: "awaiting_approval" }),
+      agentTask: makeAgentTask({ status: "awaiting_approval" }),
+      invoke: stubLLM({
+        kind: "needs_user",
+        question: "你想要哪一種聲線？",
+        suggestions: ["溫暖男聲", "活潑女聲"],
+      }),
+    });
+    expect(observation.kind).toBe("needs_user");
+    if (observation.kind === "needs_user") {
+      expect(observation.suggestions).toEqual(["溫暖男聲", "活潑女聲"]);
+    }
+  });
+
+  it("parses continue with reason + next action", async () => {
+    const observation = await observeOrbTaskOutcome({
+      intent: "做一支影片",
+      runResult: makeRunResult({
+        outcome: "failed",
+        reason: "model-timeout",
+        perStepToolResults: [
+          { stepId: "s1", toolResults: [{ name: "video.gen", ok: false, error: "timeout" }], ok: false },
+        ],
+      }),
+      agentTask: makeAgentTask({ status: "failed" }),
+      invoke: stubLLM({
+        kind: "continue",
+        suggestedNextAction: "換成 Veo 重試",
+        reason: "預設模型卡住超過 60 秒",
+      }),
+    });
+    expect(observation.kind).toBe("continue");
+    if (observation.kind === "continue") {
+      expect(observation.suggestedNextAction).toBe("換成 Veo 重試");
+    }
+  });
+
+  it("parses abort and clamps unknown failureCategory to 'unknown'", async () => {
+    const observation = await observeOrbTaskOutcome({
+      intent: "做圖",
+      runResult: makeRunResult({ outcome: "failed", reason: "policy-blocked" }),
+      agentTask: makeAgentTask({ status: "failed", failedReason: "policy-blocked" }),
+      invoke: stubLLM({
+        kind: "abort",
+        userMessage: "這次沒辦法做完，先暫停在這裡",
+        // intentionally invalid value to test the clamp
+        failureCategory: "weird-thing-not-in-enum" as unknown as TaskObservation extends {
+          kind: "abort";
+          failureCategory: infer F;
+        }
+          ? F
+          : never,
+      }),
+    });
+    expect(observation.kind).toBe("abort");
+    if (observation.kind === "abort") {
+      expect(observation.failureCategory).toBe("unknown");
+    }
+  });
+
+  it("falls back when LLM returns invalid JSON", async () => {
+    const badLLM = vi.fn(async () => ({
+      choices: [{ message: { content: "not-a-json" } }],
+    })) as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"];
+    const observation = await observeOrbTaskOutcome({
+      intent: "anything",
+      runResult: makeRunResult({ outcome: "failed", reason: "x" }),
+      agentTask: makeAgentTask({ status: "failed" }),
+      invoke: badLLM,
+    });
+    expect(observation.kind).toBe("abort");
+  });
+
+  it("falls back when LLM throws", async () => {
+    const throwingLLM = vi.fn(async () => {
+      throw new Error("network");
+    }) as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"];
+    const observation = await observeOrbTaskOutcome({
+      intent: "anything",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask({ status: "completed" }),
+      invoke: throwingLLM,
+    });
+    expect(observation.kind).toBe("complete");
+  });
+
+  it("uses deterministic shortcut for cancelled-with-zero-steps without invoking LLM", async () => {
+    const llm = vi.fn(async () => ({ choices: [{ message: { content: "{}" } }] }));
+    const observation = await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "cancelled", stepsRun: 0 }),
+      agentTask: makeAgentTask({ status: "cancelled" }),
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(observation.kind).toBe("abort");
+    expect(llm).not.toHaveBeenCalled();
+  });
+
+  it("audit helpers produce stable shape", () => {
+    const observation: TaskObservation = {
+      kind: "complete",
+      userMessage: "好了",
+    };
+    expect(observationToAuditMessage(observation)).toContain("complete");
+    expect(observationToAuditMetadata(observation)).toEqual({ observation });
+  });
+
+  it("forwards page-state snapshots from store into the LLM prompt", async () => {
+    appendOrbTaskPageState("task-with-state", {
+      at: 1,
+      pageId: "video-studio",
+      actionType: "fillPrompt",
+      state: { promptText: "calm cat by a river" },
+    });
+    appendOrbTaskPageState("task-with-state", {
+      at: 2,
+      pageId: "video-studio",
+      actionType: "submit",
+      state: { ok: true, jobId: "job-77" },
+    });
+
+    let capturedUserContent = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      capturedUserContent = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                kind: "complete",
+                userMessage: "做完了",
+              }),
+            },
+          },
+        ],
+      };
+    });
+
+    await observeOrbTaskOutcome({
+      intent: "做一支貓咪短片",
+      runResult: makeRunResult({ outcome: "completed", taskId: "task-with-state" }),
+      agentTask: makeAgentTask(),
+      taskId: "task-with-state",
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+
+    expect(capturedUserContent).toContain("[頁面實況]");
+    expect(capturedUserContent).toContain("video-studio");
+    expect(capturedUserContent).toContain("fillPrompt");
+    expect(capturedUserContent).toContain("submit");
+    expect(capturedUserContent).toContain("calm cat");
+  });
+
+  it("prefers explicit pageStateSnapshots over store lookup", async () => {
+    // Put one thing in the store, then pass a different one explicitly —
+    // the explicit snapshots should win.
+    appendOrbTaskPageState("task-x", {
+      at: 1,
+      state: { fromStore: true },
+    });
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      taskId: "task-x",
+      pageStateSnapshots: [
+        { at: 99, pageId: "explicit", state: { fromExplicit: true } },
+      ],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).toContain("fromExplicit");
+    expect(captured).not.toContain("fromStore");
+  });
+
+  it("omits page-state block when no snapshots available", async () => {
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      taskId: "no-state-task",
+      recentTaskMemory: [],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).not.toContain("[頁面實況]");
+  });
+
+  it("forwards recent task memory into the LLM prompt", async () => {
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "做一支貓咪短片",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      recentTaskMemory: [
+        {
+          taskId: "prev-1",
+          planId: "prev-1",
+          traceId: "prev-1",
+          userIntent: "做一支貓咪短片",
+          outcome: "failure",
+          failedReason: "chain.planner_no_task / page:[#0 video-studio:fillPrompt {\"promptApplied\":false}]",
+          usedEngine: "veo3",
+          usedMultimodalPlanner: false,
+          actionTypes: ["fillPrompt", "submit"],
+          createdAt: Date.now() - 60_000,
+        },
+      ],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).toContain("[歷史紀錄]");
+    expect(captured).toContain("chain.planner_no_task");
+    expect(captured).toContain("貓咪短片");
+  });
+
+  it("omits memory block when explicitly empty", async () => {
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      recentTaskMemory: [],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).not.toContain("[歷史紀錄]");
+  });
+
+  it("scopes auto-pulled memory to the userId so other users' chains never leak in", async () => {
+    // Seed two events for user A (target) and one for user B (control).
+    recordOrbTaskMemory({
+      taskId: "ta-1",
+      planId: "ta-1",
+      traceId: "ta-1",
+      userId: 1,
+      userIntent: "user A intent",
+      outcome: "failure",
+      failedReason: "USER_A_TRAP_MARKER",
+      usedMultimodalPlanner: false,
+      actionTypes: [],
+      createdAt: Date.now() - 100,
+    });
+    recordOrbTaskMemory({
+      taskId: "tb-1",
+      planId: "tb-1",
+      traceId: "tb-1",
+      userId: 2,
+      userIntent: "user B intent",
+      outcome: "failure",
+      failedReason: "USER_B_TRAP_MARKER",
+      usedMultimodalPlanner: false,
+      actionTypes: [],
+      createdAt: Date.now(),
+    });
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    // Observer runs for user A — it must NOT see user B's marker.
+    await observeOrbTaskOutcome({
+      intent: "user A intent again",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      userId: 1,
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).toContain("USER_A_TRAP_MARKER");
+    expect(captured).not.toContain("USER_B_TRAP_MARKER");
+  });
+
+  it("excludes legacy events with no userId from per-user view", async () => {
+    recordOrbTaskMemory({
+      taskId: "legacy",
+      planId: "legacy",
+      traceId: "legacy",
+      // Intentionally no userId — pre-v10 caller.
+      userIntent: "legacy intent",
+      outcome: "failure",
+      failedReason: "LEGACY_TRAP_MARKER",
+      usedMultimodalPlanner: false,
+      actionTypes: [],
+      createdAt: Date.now(),
+    });
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      userId: 1,
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).not.toContain("LEGACY_TRAP_MARKER");
+  });
+});

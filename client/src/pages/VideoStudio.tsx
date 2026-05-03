@@ -4101,6 +4101,10 @@ export default function VideoStudio() {
         requestAgentDrain();
       };
 
+      // Agent loop v5 — page handlers now return optional `data` so the
+      // observer can see what the page actually looks like after each
+      // action. Stays backwards compatible: existing callers reading
+      // only `ok` / `message` keep working.
       switch (action.type) {
         case "setTab": {
           const tab = TABS.find(t => t.id === action.tabId);
@@ -4111,7 +4115,11 @@ export default function VideoStudio() {
             pendingAgentPayloadRef.current = null;
           }
           setActiveTab(tab.id);
-          return { ok: true, message: `已切到「${tab.label}」` };
+          return {
+            ok: true,
+            message: `已切到「${tab.label}」`,
+            data: { activeTab: tab.id, activeTabLabel: tab.label },
+          };
         }
         case "setModel": {
           const m = VIDEO_MODELS.find(x => x.id === action.modelId);
@@ -4133,14 +4141,22 @@ export default function VideoStudio() {
             "vidu-ref": "vidu",
           };
           const modelKey = MODEL_KEY_MAP[m.id];
+          let modelDispatched = false;
           if (modelKey) {
-            const dispatched = agentBus.dispatch({ type: "setModel", payload: { modelKey } });
-            if (!dispatched) agentBus.setPendingModel(modelKey);
+            modelDispatched = agentBus.dispatch({ type: "setModel", payload: { modelKey } });
+            if (!modelDispatched) agentBus.setPendingModel(modelKey);
           }
           setActiveTab(m.tab);
           return {
             ok: true,
             message: `已切換到「${m.label}」（${TABS.find(t => t.id === m.tab)?.label}）`,
+            data: {
+              activeTab: m.tab,
+              activeTabLabel: TABS.find(t => t.id === m.tab)?.label,
+              modelId: m.id,
+              modelLabel: m.label,
+              modelDispatched,
+            },
           };
         }
         case "fillPrompt": {
@@ -4151,7 +4167,19 @@ export default function VideoStudio() {
               type: "fillPrompt",
               payload: { text: action.text, slot: action.slot, append: action.append },
             });
-            if (dispatched) return { ok: true, message: "提示詞已填入" };
+            if (dispatched) {
+              return {
+                ok: true,
+                message: "提示詞已填入",
+                data: {
+                  promptApplied: true,
+                  appliedOnTab: activeTab,
+                  promptPreview: action.text.slice(0, 120),
+                  slot: action.slot,
+                  append: !!action.append,
+                },
+              };
+            }
           }
           // 暫存：等待目標 tab 切換完成 + 子分頁 subscribe 後 drain
           queueAgent(prev => ({
@@ -4161,6 +4189,13 @@ export default function VideoStudio() {
           return {
             ok: true,
             message: `提示詞已暫存，等切到「${TABS.find(t => t.id === expectedTab)?.label ?? expectedTab}」分頁就緒後填入`,
+            data: {
+              promptApplied: false,
+              promptQueuedForTab: expectedTab,
+              promptPreview: action.text.slice(0, 120),
+              slot: action.slot,
+              append: !!action.append,
+            },
           };
         }
         case "setParam": {
@@ -4171,28 +4206,60 @@ export default function VideoStudio() {
               type: "setParam",
               payload: { key: action.key, value: action.value },
             });
-            if (dispatched) return { ok: true, message: `已設定 ${action.key}` };
+            if (dispatched) {
+              return {
+                ok: true,
+                message: `已設定 ${action.key}`,
+                data: {
+                  paramApplied: true,
+                  paramKey: action.key,
+                  appliedOnTab: activeTab,
+                },
+              };
+            }
           }
           queueAgent(prev => ({
             ...prev,
             setParam: [...(prev.setParam ?? []), { key: action.key, value: action.value }],
           }), expectedTab);
-          return { ok: true, message: `參數已暫存，等分頁就緒後套用` };
+          return {
+            ok: true,
+            message: `參數已暫存，等分頁就緒後套用`,
+            data: {
+              paramApplied: false,
+              paramKey: action.key,
+              paramQueuedForTab: expectedTab,
+            },
+          };
         }
         case "submit": {
           const pending = pendingAgentPayloadRef.current;
           const expectedTab = (pending?.targetTab ?? activeTab) as TabId;
           if (expectedTab === activeTab && !pending?.fillPrompt && !pending?.setParam?.length) {
             const dispatched = agentBus.dispatch({ type: "submit" });
-            if (dispatched) return { ok: true, message: "已送出生成" };
+            if (dispatched) {
+              return {
+                ok: true,
+                message: "已送出生成",
+                data: { submitted: true, submittedOnTab: activeTab },
+              };
+            }
           }
           queueAgent(prev => ({ ...prev, submit: true }), expectedTab);
-          return { ok: true, message: "送出已排入佇列，等分頁與提示詞就緒後執行" };
+          return {
+            ok: true,
+            message: "送出已排入佇列，等分頁與提示詞就緒後執行",
+            data: {
+              submitted: false,
+              submitQueuedForTab: expectedTab,
+              waitingFor: pending?.fillPrompt ? "prompt" : pending?.setParam?.length ? "params" : "tab",
+            },
+          };
         }
         case "reset": {
           const dispatched = agentBus.dispatch({ type: "reset" });
           if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒" };
-          return { ok: true, message: "已重設" };
+          return { ok: true, message: "已重設", data: { reset: true } };
         }
         case "focusElement":
           return { ok: true };

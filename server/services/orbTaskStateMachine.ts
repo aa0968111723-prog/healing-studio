@@ -40,7 +40,16 @@ function now() {
   return Date.now();
 }
 
-export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): OrbAgentTask | null {
+export function createOrbAgentTaskFromPlanner(
+  result: GatedAgentPlanResult,
+  /**
+   * Owning user. Optional for backwards compatibility with the small
+   * number of test/scaffold call sites that don't have a user; real
+   * brain-router callers MUST pass it so chain memory + per-user
+   * observer queries stay scoped.
+   */
+  userId?: number
+): OrbAgentTask | null {
   if (result.status !== "tasked" || !result.task) return null;
   const plan = result.plan && typeof result.plan === "object" ? (result.plan as Record<string, unknown>) : null;
   const planId =
@@ -82,6 +91,7 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     taskId: id("orb_task"),
     planId,
     traceId,
+    userId,
     intent: result.task.intent,
     summaryForUser: result.task.summaryForUser,
     status: approvalRequired ? "awaiting_approval" : "approved",
@@ -187,6 +197,7 @@ export function cancelOrbAgentTask(taskId: string, reason = "cancelled by user")
     taskId: task.taskId,
     planId: task.planId,
     traceId: task.traceId,
+    userId: task.userId,
     userIntent: task.intent,
     outcome: "cancelled",
     failedReason: reason,
@@ -284,6 +295,7 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
       taskId: task.taskId,
       planId: task.planId,
       traceId: task.traceId,
+      userId: task.userId,
       userIntent: task.intent,
       outcome: "success",
       usedEngine: task.preferredEngine,
@@ -407,6 +419,7 @@ export function failOrbAgentStep(
     taskId: task.taskId,
     planId: task.planId,
     traceId: task.traceId,
+    userId: task.userId,
     userIntent: task.intent,
     outcome: "failure",
     failedReason: reason,
@@ -593,4 +606,46 @@ export function recordAgentMessage(
 
 export function getOrbAgentTaskEvents(taskId: string): OrbTaskAuditEvent[] {
   return taskStore.get(taskId)?.auditEvents ?? [];
+}
+
+/**
+ * Append a single audit event to an existing FSM task. Returns the new event
+ * (with generated `eventId` / `timestamp`) or null if the task is unknown.
+ *
+ * Use this for cross-cutting layers (e.g. orbTaskObserver) that need to add
+ * structured events without owning the full pushEvent / lifecycle machinery.
+ * Caller chooses the event `type` from the existing audit-event union.
+ */
+export function appendOrbAgentTaskAuditEvent(
+  taskId: string,
+  type: OrbTaskAuditEvent["type"],
+  message: string,
+  metadata?: Record<string, unknown>
+): OrbTaskAuditEvent | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  pushEvent(task, type, message, metadata);
+  task.updatedAt = now();
+  return task.auditEvents[task.auditEvents.length - 1] ?? null;
+}
+
+/**
+ * Mark a task as a continuation of another task. Used by the chain runner
+ * when the post-mortem observer says "continue" and the planner produces
+ * a recovery plan; the new task gets linked back to its predecessor so the
+ * UI can render the chain and metrics can group runs by root task id.
+ *
+ * Idempotent — calling twice with the same predecessor is a no-op.
+ */
+export function linkOrbAgentTaskPredecessor(
+  newTaskId: string,
+  predecessorTaskId: string,
+  iterationIndex: number
+): OrbAgentTask | null {
+  const task = taskStore.get(newTaskId);
+  if (!task) return null;
+  task.predecessorTaskId = predecessorTaskId;
+  task.iterationIndex = iterationIndex;
+  task.updatedAt = now();
+  return task;
 }

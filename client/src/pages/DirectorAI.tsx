@@ -3625,6 +3625,46 @@ export default function DirectorAI() {
       isChatting: chatMutation.isPending,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      const result = await runDirectorAction(action);
+      // Agent loop v5/v6 — overlay structured `data` so the observer
+      // sees what changed (active tab, applied preset, prompt sent
+      // through to the chat). Backwards compatible.
+      if (result.ok) {
+        const data = synthesizeDirectorData(action);
+        if (data) return { ...result, data };
+      }
+      return result;
+    },
+  });
+
+  function synthesizeDirectorData(
+    action: AgentAction
+  ): Record<string, unknown> | null {
+    switch (action.type) {
+      case "setTab":
+        return { activeTab: action.tabId };
+      case "fillPrompt":
+        return {
+          promptSent: true,
+          promptPreview: String(action.text).slice(0, 120),
+        };
+      case "applyPreset":
+        return { presetId: action.presetId };
+      case "setParam":
+        return {
+          paramKey: action.key,
+          paramValueType: typeof action.value,
+        };
+      case "reset":
+        return { reset: true };
+      default:
+        return null;
+    }
+  }
+
+  async function runDirectorAction(
+    action: AgentAction
+  ): Promise<AgentActionResult> {
       switch (action.type) {
         case "setTab": {
           if (action.tabId !== "chat" && action.tabId !== "script") {
@@ -3709,8 +3749,7 @@ export default function DirectorAI() {
         default:
           return { ok: false, reason: "unsupported action" };
       }
-    },
-  });
+  }
 
   return (
     <div className="space-y-4">

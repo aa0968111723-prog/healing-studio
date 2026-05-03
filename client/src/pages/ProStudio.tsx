@@ -4277,6 +4277,73 @@ export default function ProStudio() {
       ...(bridgeRef.current.getState?.() ?? {}),
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      const result = await runProStudioAction(action);
+      // Agent loop v5/v6 — overlay structured `data` so the observer
+      // sees what changed (active tab, model id, whether prompt/params/
+      // submit landed immediately or got queued for a pending tab
+      // switch). Backwards compatible — `ok` / `message` unchanged.
+      if (result.ok) {
+        const pending = pendingAgentPayloadRef.current;
+        const data = synthesizeProStudioData(action, pending, tab);
+        if (data) return { ...result, data };
+      }
+      return result;
+    },
+  });
+
+  function synthesizeProStudioData(
+    action: AgentAction,
+    pending: PendingAgentPayload | null,
+    activeTab: string
+  ): Record<string, unknown> | null {
+    switch (action.type) {
+      case "setTab": {
+        const t = TABS.find(x => x.id === action.tabId);
+        return { activeTab: action.tabId, activeTabLabel: t?.label };
+      }
+      case "setModel": {
+        const m = PRO_MODELS.find(x => x.id === action.modelId);
+        return {
+          modelId: action.modelId,
+          modelLabel: m?.label,
+          modelTab: m?.tab,
+        };
+      }
+      case "fillPrompt": {
+        const expectedTab = pending?.targetTab ?? activeTab;
+        return {
+          promptApplied: expectedTab === activeTab,
+          promptQueuedForTab: expectedTab !== activeTab ? expectedTab : undefined,
+          promptPreview: String(action.text).slice(0, 120),
+        };
+      }
+      case "setParam": {
+        const expectedTab = pending?.targetTab ?? activeTab;
+        return {
+          paramKey: action.key,
+          paramApplied: expectedTab === activeTab,
+          paramQueuedForTab: expectedTab !== activeTab ? expectedTab : undefined,
+        };
+      }
+      case "submit": {
+        const expectedTab = pending?.targetTab ?? activeTab;
+        return {
+          submitted: expectedTab === activeTab && !pending?.fillPrompt && !pending?.setParam?.length,
+          waitingFor: pending?.fillPrompt ? "prompt" : pending?.setParam?.length ? "params" : expectedTab !== activeTab ? "tab" : undefined,
+        };
+      }
+      case "reset":
+        return { reset: true };
+      case "applyPreset":
+        return { presetId: action.presetId };
+      default:
+        return null;
+    }
+  }
+
+  async function runProStudioAction(
+    action: AgentAction
+  ): Promise<AgentActionResult> {
       const queueAgent = (
         update: (prev: PendingAgentPayload) => PendingAgentPayload,
         targetTab: string
@@ -4389,8 +4456,7 @@ export default function ProStudio() {
         default:
           return { ok: false, reason: "unsupported action" };
       }
-    },
-  });
+  }
 
   const currentTabModels = PRO_MODELS.filter(m => m.tab === tab);
   const [guideKeyword, setGuideKeyword] = useState("");

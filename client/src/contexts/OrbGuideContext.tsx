@@ -25,7 +25,9 @@ import {
 import type { AgentAction } from "../../../shared/agent-actions";
 import {
   buildOrbGuideActions,
+  buildOrbGuideManualSteps,
   type OrbGuideIntentId,
+  type OrbGuideManualStep,
 } from "../../../shared/orb-guide-plans";
 import { getPageByPath } from "@/config/appRegistry";
 
@@ -64,6 +66,8 @@ export interface GuidePlan {
   autoFillPrompt?: string; // 到達後自動填入的提示詞（legacy；鏡射 actions 裡的 fillPrompt）
   /** Phase 3e：到站要執行的結構化動作清單（非破壞性：setTab / fillPrompt…） */
   actions: AgentAction[];
+  /** 到站後使用者要親自完成的步驟（程式無法代勞，例如上傳檔案、按生成） */
+  manualSteps: OrbGuideManualStep[];
 }
 
 // ─── 意圖對應的目標頁面與問題 ────────────────────────────────────────────────
@@ -328,6 +332,8 @@ interface OrbGuideContextType {
   plan: GuidePlan | null;
   // 是否正在顯示引導面板
   isPanelOpen: boolean;
+  // 到站後使用者已勾掉的手動步驟 id
+  completedManualStepIds: string[];
 
   // Actions
   openPanel: () => void;
@@ -336,6 +342,10 @@ interface OrbGuideContextType {
   submitAnswer: (questionId: string, value: string) => void;
   confirmAndNavigate: () => void;
   reset: () => void;
+  // 在「到站」狀態下勾掉某個手動步驟
+  toggleManualStepDone: (stepId: string) => void;
+  // 收掉到站引導卡（保留 plan 以便快速重看）
+  dismissArrival: () => void;
   // 到達目標頁面後，光球說的第一句話
   arrivedMessage: string | null;
   clearArrivedMessage: () => void;
@@ -355,12 +365,15 @@ const OrbGuideContext = createContext<OrbGuideContextType>({
   answers: {},
   plan: null,
   isPanelOpen: false,
+  completedManualStepIds: [],
   openPanel: () => {},
   closePanel: () => {},
   selectIntent: () => {},
   submitAnswer: () => {},
   confirmAndNavigate: () => {},
   reset: () => {},
+  toggleManualStepDone: () => {},
+  dismissArrival: () => {},
   arrivedMessage: null,
   clearArrivedMessage: () => {},
   patchPlan: () => {},
@@ -375,6 +388,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   const [plan, setPlan] = useState<GuidePlan | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [arrivedMessage, setArrivedMessage] = useState<string | null>(null);
+  const [completedManualStepIds, setCompletedManualStepIds] = useState<string[]>([]);
   // track answered question index
   const questionIndexRef = useRef(0);
 
@@ -409,11 +423,13 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       if (nextIndex >= cfg.questions.length) {
         const orbMessage = cfg.buildOrbMessage(newAnswers);
         const promptHint = cfg.buildPromptHint(newAnswers);
-        const actions = buildOrbGuideActions({
+        const planInput = {
           intent: intent as OrbGuideIntentId,
           answers: newAnswers,
           promptHint,
-        });
+        };
+        const actions = buildOrbGuideActions(planInput);
+        const manualSteps = buildOrbGuideManualSteps(planInput);
         const target = resolveIntentTarget(cfg);
         const newPlan: GuidePlan = {
           intent,
@@ -426,6 +442,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
           orbMessage,
           autoFillPrompt: promptHint || undefined,
           actions,
+          manualSteps,
         };
         setPlan(newPlan);
         setStep("confirming");
@@ -438,7 +455,10 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   const confirmAndNavigate = useCallback(() => {
     if (!plan) return;
     setStep("navigating");
-    setIsPanelOpen(false);
+    // 跳頁時保持面板開著：目標頁的自動動作（setTab / fillPrompt …）會在 PageAgent
+    // queue drain 時自動執行；面板會切到「到站引導」緊湊版，列出已自動完成的
+    // 步驟與接下來使用者要親自做的事，避免使用者跳過去後一片茫然。
+    setCompletedManualStepIds([]);
 
     // 設定到達訊息，讓目標頁面的光球顯示
     setArrivedMessage(plan.orbMessage);
@@ -456,10 +476,10 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       })
     );
 
-    // 短暫延遲後重置步驟（讓動畫完成）
+    // 短暫延遲後切到「到站」步驟，讓動畫完成
     setTimeout(() => {
       setStep("arrived");
-    }, 1000);
+    }, 800);
   }, [plan]);
 
   const reset = useCallback(() => {
@@ -468,12 +488,33 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setAnswers({});
     setPlan(null);
     setIsPanelOpen(false);
+    setCompletedManualStepIds([]);
     questionIndexRef.current = 0;
   }, []);
 
   const clearArrivedMessage = useCallback(() => {
+    // 只清掉短暫的到站問候訊息（toast 用），不影響 step；
+    // 「到站引導卡」由 step === "arrived" 管，使用者自己關閉。
     setArrivedMessage(null);
+  }, []);
+
+  const toggleManualStepDone = useCallback((stepId: string) => {
+    setCompletedManualStepIds(prev =>
+      prev.includes(stepId)
+        ? prev.filter(id => id !== stepId)
+        : [...prev, stepId]
+    );
+  }, []);
+
+  const dismissArrival = useCallback(() => {
     setStep("idle");
+    setIsPanelOpen(false);
+    setIntent(null);
+    setAnswers({});
+    setPlan(null);
+    setCompletedManualStepIds([]);
+    setArrivedMessage(null);
+    questionIndexRef.current = 0;
   }, []);
 
   const patchPlan = useCallback(
@@ -512,12 +553,15 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       answers,
       plan,
       isPanelOpen,
+      completedManualStepIds,
       openPanel,
       closePanel,
       selectIntent,
       submitAnswer,
       confirmAndNavigate,
       reset,
+      toggleManualStepDone,
+      dismissArrival,
       arrivedMessage,
       clearArrivedMessage,
       patchPlan,
@@ -528,12 +572,15 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       answers,
       plan,
       isPanelOpen,
+      completedManualStepIds,
       openPanel,
       closePanel,
       selectIntent,
       submitAnswer,
       confirmAndNavigate,
       reset,
+      toggleManualStepDone,
+      dismissArrival,
       arrivedMessage,
       clearArrivedMessage,
       patchPlan,
