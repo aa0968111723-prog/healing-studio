@@ -368,6 +368,88 @@ const PAGE_GREETINGS: Record<string, string[]> = {
     "🔧 有任何異常我會幫你注意的。",
     "✨ 這些工具是為了讓你的創作更順暢。",
   ],
+  home: [
+    "🌅 嗨～想做點什麼呢？我帶你去最適合的工作室。",
+    "✨ 圖、影、音、聲，告訴我心情，我幫你選方向。",
+    "🌿 不確定先做哪個？我可以從靈感開始陪你聊。",
+  ],
+  "my-brain": [
+    "🧠 這裡是你的大腦工作面板，整合任務、模型與筆記。",
+    "✨ 想看推理鏈或調整模型偏好嗎？我可以帶你去。",
+    "💡 把你想完成的事告訴我，我幫你規劃下一步。",
+  ],
+  "tutorial-overview": [
+    "📚 想學什麼呢？我幫你挑一條最順的學習路徑。",
+    "✨ 從新手起手到進階參數，這裡都有對應的教學。",
+    "🌱 學習也是一種療癒，慢慢來，每一步都算數。",
+  ],
+  "focus-flow": [
+    "🌸 想休息一下嗎？療癒、番茄、聚焦三種節奏任你切換。",
+    "⏳ 設定一段專注時間，我會在旁邊陪著你。",
+    "✨ 累的時候先療癒，靈感清晰後再進工作室也來得及。",
+  ],
+  "agent-chat": [
+    "💬 在這裡可以和我自由聊聊，我是你的全站助手。",
+    "✨ 想去哪一頁、想找哪個模型，告訴我都行。",
+    "🌿 想梳理思緒？聊天也能幫你慢慢釐清下一步。",
+  ],
+  admin: [
+    "🛡️ 管理後台，這裡的每一步都建議謹慎操作。",
+    "📊 想看用量、用戶或大腦組態？我可以帶你切到對應分頁。",
+    "✨ 有狀況我會即時提醒你。",
+  ],
+  "admin-brain-pipeline": [
+    "🧪 大腦推理鏈視覺化，逐步追蹤每一段思考。",
+    "✨ 想看哪一條鏈路？告訴我目標，我幫你判讀。",
+  ],
+  "admin-api-usage": [
+    "📈 API 用量分析中心，可以看趨勢、分佈與異常。",
+    "✨ 需要幫忙抓出花最多 token 的地方嗎？我可以協助。",
+  ],
+  feedback: [
+    "🌿 你的回饋很重要，慢慢說，我都會聽。",
+    "✨ 不確定怎麼描述問題？我可以幫你整理成清楚的句子。",
+    "💌 想到什麼就寫什麼，事後我會幫你補強。",
+  ],
+  notes: [
+    "📒 這裡是你的創作筆記，把零散的靈感都收進來吧。",
+    "✨ 想把剛剛的對話存進筆記嗎？告訴我一聲就行。",
+    "🌿 整理筆記也是一種療癒，慢慢來不急。",
+  ],
+  calendar: [
+    "📅 創作日曆，幫你把素材、生成、訓練、交付排成節奏。",
+    "✨ 想規劃一週還是先排明天？我都可以陪你拆解。",
+    "🌿 給自己留點呼吸的空檔，靈感才有空間生長。",
+  ],
+  assets: [
+    "🗂️ 這裡是你的數位資產庫，慢慢挑一個喜歡的當靈感起點。",
+    "✨ 想找特定風格、模型或時間段的素材嗎？我來幫你過濾。",
+    "🌿 一個好素材，可以延伸出整個系列。",
+  ],
+  vault: [
+    "🛡️ 一致性保險庫，幫你的角色、場景、風格留下穩定錨點。",
+    "✨ 跨模型還想保持一致？我們先把錨點建好。",
+    "🌿 一致性是長作品的根，慢慢養就好。",
+  ],
+  "prompt-library": [
+    "📚 提示詞庫，這裡有許多可直接套用的模板。",
+    "✨ 告訴我你想做的任務，我幫你挑一個最近的模板。",
+    "🌿 模板只是起點，最終要長成你自己的語氣。",
+  ],
+  "background-tasks": [
+    "⏳ 背景任務中心，你的所有生成都在這裡集合。",
+    "✨ 想看哪個任務、要不要重試？我可以幫你判讀優先序。",
+    "🌿 等待也是創作的一部分，先去休息一下也行。",
+  ],
+  settings: [
+    "⚙️ 個人設定中心，把站台調整成最適合你的樣子。",
+    "✨ 想調主題、聲音、引導節奏？我帶你逐項看。",
+  ],
+  credits: [
+    "💎 積分中心，幫你掌握每一次生成的成本。",
+    "✨ 想知道怎麼省、怎麼花得有效率嗎？我來分析。",
+    "🌿 創作不是比誰花最多，是比誰最懂節奏。",
+  ],
 };
 
 // ─── Quick actions for the interaction panel ─────────────────────────────
@@ -533,6 +615,18 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-director-model-deep-dive",
     },
     {
+      icon: <Layers className="w-4 h-4" />,
+      label: "分鏡規劃",
+      description: "從劇本/概念開始拆解出可執行的分鏡與節奏",
+      action: "chat-director-storyboard",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "腳本優化",
+      description: "幫你把粗稿改寫成可生成的鏡頭描述",
+      action: "chat-director-script-polish",
+    },
+    {
       icon: <Coins className="w-4 h-4" />,
       label: "生成積分預估",
       description: "估算導演 AI 全流程生成大約所需積分",
@@ -545,6 +639,24 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "訓練建議",
       description: "如何準備最佳的訓練資料集",
       action: "chat-training-tips",
+    },
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "資料集整理",
+      description: "分類、去雜訊與打標籤，提升訓練品質",
+      action: "chat-lora-dataset-prep",
+    },
+    {
+      icon: <RefreshCw className="w-4 h-4" />,
+      label: "訓練監控",
+      description: "解讀步數、loss 與成果取捨，決定是否續練",
+      action: "chat-lora-training-monitor",
+    },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "訓練成本預估",
+      description: "依步數與資料集規模估算積分與時間",
+      action: "chat-credits-estimate",
     },
   ],
   assets: [
@@ -584,6 +696,18 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       description: "比較版本用途、風險與參數起手式",
       action: "chat-models-deep-dive",
     },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "我該用哪個模型",
+      description: "依風格與成本給你 1-2 個首選版本",
+      action: "chat-model-recommend",
+    },
+    {
+      icon: <Shield className="w-4 h-4" />,
+      label: "風險與權重檢查",
+      description: "釐清版本授權、敏感主題與穩定度差異",
+      action: "chat-models-risk-check",
+    },
   ],
   vault: [
     {
@@ -615,6 +739,18 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "規劃筆記導覽",
       description: "整理腳本、待辦與優先級執行清單",
       action: "chat-notes-deep-dive",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "把對話存進筆記",
+      description: "把剛剛聊天的重點整理成可重用的筆記稿",
+      action: "chat-notes-from-chat",
+    },
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "待辦排序",
+      description: "把目前所有筆記重新排出今日 / 本週優先序",
+      action: "chat-notes-prioritize",
     },
   ],
   calendar: [
@@ -655,6 +791,176 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "學習路徑",
       description: "推薦適合你程度的學習文件",
       action: "chat-learning-path",
+    },
+  ],
+  home: [
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "今天想做什麼",
+      description: "依心情/目標幫你挑出最適合的工作室入口",
+      action: "chat-home-orient",
+    },
+    {
+      icon: <Navigation2 className="w-4 h-4" />,
+      label: "全站導覽",
+      description: "用一段話帶你看完所有主要頁面與用途",
+      action: "chat-home-tour",
+    },
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "新手起手",
+      description: "推薦幾條最容易上手的學習路徑",
+      action: "chat-learning-path",
+    },
+  ],
+  "my-brain": [
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "大腦組態總覽",
+      description: "解讀目前模型、人格、偏好的整體狀態",
+      action: "chat-my-brain-overview",
+    },
+    {
+      icon: <BarChart3 className="w-4 h-4" />,
+      label: "推理鏈分析",
+      description: "看看最近的決策路徑，找優化空間",
+      action: "chat-my-brain-pipeline",
+    },
+  ],
+  "tutorial-overview": [
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "學習路徑",
+      description: "依你的目標安排一條順暢的學習動線",
+      action: "chat-learning-path",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "推薦下一課",
+      description: "根據你已經看過的內容挑下一個主題",
+      action: "chat-tutorial-next",
+    },
+  ],
+  "focus-flow": [
+    {
+      icon: <Clock className="w-4 h-4" />,
+      label: "選擇節奏",
+      description: "幫你判斷今天適合療癒、番茄還是聚焦時間",
+      action: "chat-focus-flow-pick",
+    },
+    {
+      icon: <Heart className="w-4 h-4" />,
+      label: "療癒陪伴",
+      description: "邊聊邊放鬆，做完後再回去工作室",
+      action: "chat-healing",
+    },
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "完成後做什麼",
+      description: "把這段時間的想法整理成下一步",
+      action: "chat-focus-flow-next",
+    },
+  ],
+  "agent-chat": [
+    {
+      icon: <Navigation2 className="w-4 h-4" />,
+      label: "帶我去某一頁",
+      description: "告訴我目的地，我直接帶你過去並準備好參數",
+      action: "chat-agent-navigate",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "全站搜尋",
+      description: "搜尋功能、模型、教學或歷史紀錄",
+      action: "chat-agent-search",
+    },
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "規劃工作流",
+      description: "把目標拆成跨頁面的可執行步驟",
+      action: "chat-agent-workflow",
+    },
+  ],
+  admin: [
+    {
+      icon: <Shield className="w-4 h-4" />,
+      label: "後台導覽",
+      description: "拆解管理後台各分頁與安全操作守則",
+      action: "chat-admin-overview",
+    },
+    {
+      icon: <BarChart3 className="w-4 h-4" />,
+      label: "系統健康檢查",
+      description: "從用戶、回饋、API 用量找出需要關注的訊號",
+      action: "chat-admin-health",
+    },
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "AI 大腦組態",
+      description: "解讀目前大腦設定、模型路由與風險點",
+      action: "chat-admin-brain",
+    },
+  ],
+  "admin-brain-pipeline": [
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "推理鏈解讀",
+      description: "逐節點說明這段推理的決策、輸入與輸出",
+      action: "chat-admin-pipeline-read",
+    },
+    {
+      icon: <RefreshCw className="w-4 h-4" />,
+      label: "找瓶頸",
+      description: "從鏈路裡找出耗時/失敗最高的節點",
+      action: "chat-admin-pipeline-bottleneck",
+    },
+  ],
+  "admin-api-usage": [
+    {
+      icon: <BarChart3 className="w-4 h-4" />,
+      label: "用量趨勢解讀",
+      description: "依時間、模型與用戶拆解 API 用量分佈",
+      action: "chat-admin-api-trend",
+    },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "成本優化建議",
+      description: "找出花最多 token 的節點與可降本的方法",
+      action: "chat-admin-api-cost",
+    },
+  ],
+  "brain-settings": [
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "大腦組態導覽",
+      description: "逐項解說模型路由、人格與安全設定",
+      action: "chat-brain-settings-deep-dive",
+    },
+    {
+      icon: <Shield className="w-4 h-4" />,
+      label: "風險與守則",
+      description: "說明變更設定的影響範圍與注意事項",
+      action: "chat-brain-settings-safety",
+    },
+  ],
+  feedback: [
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "整理回饋內容",
+      description: "把你想說的話整理成清楚、可行動的回饋",
+      action: "chat-feedback-compose",
+    },
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "選擇分類",
+      description: "幫你判斷這則屬於 bug、功能、品質或一般回饋",
+      action: "chat-feedback-categorize",
+    },
+    {
+      icon: <Heart className="w-4 h-4" />,
+      label: "我想聊聊感受",
+      description: "先把心情聊出來，再決定怎麼寫回饋",
+      action: "chat-healing",
     },
   ],
 };
@@ -1846,6 +2152,62 @@ export default memo(function ProactiveOrbWidget({
               "chat-voice-tips": "聲音克隆有什麼注意事項？",
               "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
               "chat-learning-path": "推薦適合新手的學習路徑",
+              "chat-director-storyboard":
+                "請依我的概念/劇本拆解一份可執行的分鏡：每鏡的鏡頭語言、節奏秒數、情緒轉折與生成模型搭配建議。",
+              "chat-director-script-polish":
+                "請把我的粗稿改寫成可生成的鏡頭描述：保留情緒，補上構圖、光線、運鏡與音樂方向，每鏡 2-3 句。",
+              "chat-lora-dataset-prep":
+                "請帶我整理 LoRA 資料集：分類、去雜訊、解析度、命名與打標籤策略，並說明每步對訓練品質的影響。",
+              "chat-lora-training-monitor":
+                "請教我看 LoRA 訓練監控：步數、loss 趨勢、過擬合徵兆與何時該停手或續練的判斷準則。",
+              "chat-models-risk-check":
+                "請幫我做模型風險檢查：版本授權、敏感主題、穩定度、推薦使用情境與不建議使用的場景。",
+              "chat-notes-from-chat":
+                "請把剛剛的對話濃縮成一份可重用的筆記：標題、重點清單、可立即執行的下一步。",
+              "chat-notes-prioritize":
+                "請依我目前所有筆記重新排出今日 / 本週優先序，並標出 3 個最值得先做的任務。",
+              "chat-home-orient":
+                "我現在在首頁，請依我的心情或目標推薦最適合的工作室入口，給 1-2 個首選與理由。",
+              "chat-home-tour":
+                "請用 5-7 句話帶我看完整個站台主要頁面：每一頁的用途、什麼時候該去、可從哪裡開始。",
+              "chat-my-brain-overview":
+                "請解讀我的大腦組態總覽：目前模型路由、人格設定、最近偏好與可優化的地方。",
+              "chat-my-brain-pipeline":
+                "請帶我看最近的推理鏈：哪幾步最關鍵、哪裡可能有耗時或誤判，並給我下次的優化方向。",
+              "chat-tutorial-next":
+                "請依我已經看過的教學內容，推薦下一個最值得學的主題，並給我 3 步上手建議。",
+              "chat-focus-flow-pick":
+                "請依我目前的狀態幫我決定要走療癒、番茄或聚焦：先問我 1-2 個關鍵問題，再給建議與設定。",
+              "chat-focus-flow-next":
+                "我剛剛完成這段專注時間，請幫我整理當下的想法，並建議下一步要去哪一頁、做什麼。",
+              "chat-agent-navigate":
+                "我想去某一頁，但還沒想清楚，請先問我 1-2 句關鍵問題，再幫我選定目的地並用 [ACTION:navigate] 帶我過去。",
+              "chat-agent-search":
+                "請啟動全站搜尋：先問我關鍵字或目標，再列出最相關的頁面、模型與教學，並給快速跳轉建議。",
+              "chat-agent-workflow":
+                "請幫我把目標拆成跨頁面的可執行工作流：每一步要去哪一頁、要做什麼、產出是什麼、下一步如何銜接。",
+              "chat-admin-overview":
+                "請帶我看管理後台：每個分頁的用途、操作風險等級與建議流程，並提示哪些動作不可逆。",
+              "chat-admin-health":
+                "請從用戶、回饋、API 用量、系統訊號中整理出目前需要關注的 3 件事，並給對應處理建議。",
+              "chat-admin-brain":
+                "請解讀目前 AI 大腦組態：模型路由、人格、安全設定的搭配是否合理，有沒有立即可優化的點。",
+              "chat-admin-pipeline-read":
+                "請逐節點解讀目前這條推理鏈：每一步的輸入、輸出、決策依據，最後給整體判讀。",
+              "chat-admin-pipeline-bottleneck":
+                "請從目前推理鏈中找出耗時或失敗率最高的節點，並給降本/降延遲的具體建議。",
+              "chat-admin-api-trend":
+                "請分析目前 API 用量：依時間、模型、用戶拆解趨勢，標出 2-3 個值得關注的訊號。",
+              "chat-admin-api-cost":
+                "請找出花最多 token 的節點，並給 3 條可立即執行的成本優化建議（含風險評估）。",
+              "chat-brain-settings-deep-dive":
+                "請逐項解說 AI 大腦設定中心：模型路由、人格、安全、引導節奏，給我推薦配置與調整時的注意事項。",
+              "chat-brain-settings-safety":
+                "請說明變更目前大腦設定的影響範圍：哪些是可逆的、哪些可能影響全站，並列出操作前的檢查清單。",
+              "chat-feedback-compose":
+                "我想提交一則回饋，請先問我 2-3 個關鍵問題，再幫我整理成清楚、可行動的標題與描述。",
+              "chat-feedback-categorize":
+                "請依我描述的內容判斷這則回饋屬於 bug、功能建議、品質問題還是一般回饋，並建議優先級。",
             };
             const seedMsg = topicHints[action] ?? "有什麼想聊的嗎？";
             setPanelView("chat");
