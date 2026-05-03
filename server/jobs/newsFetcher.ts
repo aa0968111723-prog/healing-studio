@@ -361,14 +361,30 @@ async function fetchNewsWithFailover(): Promise<FetchResult | null> {
   }
 
   // ── Attempt 3: Tertiary AI-curated (Perplexity Sonar) ──
+  // 受 perplexityThrottle 控管（env ENABLE_PERPLEXITY_NEWS_FALLBACK + 全站
+  // per-minute 節流）。Cron 系統呼叫，userId=null 只看全站額度。
   if (perplexityKey) {
-    try {
-      return await fetchFromPerplexity(perplexityKey);
-    } catch (tertiaryError: any) {
+    const { checkAndConsumePerplexity } = await import(
+      "../services/perplexityThrottle"
+    );
+    const throttle = checkAndConsumePerplexity({
+      feature: "news_fallback",
+      userId: null,
+    });
+    if (!throttle.allowed) {
       logOars(
-        "error",
-        `第三級備援 Perplexity Sonar 也失敗：${tertiaryError.message}。本輪新聞抓取中止。`
+        "warn",
+        `Perplexity Sonar 第三級備援被節流跳過（reason=${throttle.reason ?? "unknown"}）`
       );
+    } else {
+      try {
+        return await fetchFromPerplexity(perplexityKey);
+      } catch (tertiaryError: any) {
+        logOars(
+          "error",
+          `第三級備援 Perplexity Sonar 也失敗：${tertiaryError.message}。本輪新聞抓取中止。`
+        );
+      }
     }
   } else {
     logOars(

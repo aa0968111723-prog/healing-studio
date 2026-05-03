@@ -155,6 +155,9 @@ async function searchBrave(
 /**
  * Perplexity Sonar 備援：當 BRAVE_SEARCH_API_KEY 未設定或 Brave 失敗 / 0 筆時，
  * 用 Sonar 的 web grounding 拿一週內 AI 相關文章。
+ *
+ * 受 perplexityThrottle 控管（env ENABLE_PERPLEXITY_LEARN_FALLBACK + 全站
+ * per-minute 節流）。Cron 系統呼叫，userId=null 只看全站額度。
  */
 async function searchPerplexity(
   query: string,
@@ -163,6 +166,21 @@ async function searchPerplexity(
   const apiKey = ENV.perplexityApiKey;
   if (!apiKey) {
     logFetch("warn", "PERPLEXITY_API_KEY 未設定，搜尋管線完全沒結果");
+    return [];
+  }
+
+  const { checkAndConsumePerplexity } = await import(
+    "../services/perplexityThrottle"
+  );
+  const throttle = checkAndConsumePerplexity({
+    feature: "learn_fallback",
+    userId: null,
+  });
+  if (!throttle.allowed) {
+    logFetch(
+      "warn",
+      `Perplexity Sonar 備援被節流跳過（reason=${throttle.reason ?? "unknown"}）`
+    );
     return [];
   }
 
