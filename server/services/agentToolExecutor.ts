@@ -537,6 +537,26 @@ export async function executeOrbToolCalls(
       continue;
     }
 
+    // ── model.* 模型智慧大腦工具：動態查詢、比較、推薦全站創作模型 ──
+    if (call.name.startsWith("model.")) {
+      const modelResult = await dispatchModelBrainTool(call, opts);
+      out.push(modelResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: modelResult.usedTool,
+        ok: modelResult.ok,
+        error: modelResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── studio.* 生成工具：橋接到 dispatchFalQueueTask / SunoClient ──
     // ── director.* 規劃工具：橋接到 director.askForStudioPlan ──
     if (call.name.startsWith("studio.") || call.name.startsWith("director.")) {
@@ -2715,6 +2735,104 @@ async function dispatchInsightTool(
   } catch (err) {
     return {
       name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// dispatchModelBrainTool — 模型智慧大腦工具分發
+// ═══════════════════════════════════════════════════════════════════════════
+
+import {
+  queryModels,
+  compareModels,
+  recommendModel,
+  formatModelQueryForOrb,
+  formatRecommendationForOrb,
+} from "./orbModelBrain";
+
+async function dispatchModelBrainTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  try {
+    const args = call.args ?? {};
+
+    switch (call.name) {
+      case "model.query": {
+        const models = queryModels({
+          category: args.category as string | undefined,
+          modality: args.modality as string | undefined,
+          tier: args.tier as "ultra" | "premium" | "standard" | "fast" | undefined,
+          keyword: args.keyword as string | undefined,
+          includeDisabled: args.includeDisabled as boolean | undefined,
+        });
+        return {
+          name: call.name,
+          usedTool: "orbModelBrain.queryModels",
+          ok: true,
+          data: formatModelQueryForOrb(models),
+        };
+      }
+
+      case "model.compare": {
+        const modelIds = (args.modelIds as string[]) ?? [];
+        if (modelIds.length < 2) {
+          return {
+            name: call.name,
+            usedTool: "orbModelBrain.compareModels",
+            ok: false,
+            error: "至少需要 2 個模型 ID 才能比較。",
+          };
+        }
+        const result = compareModels(modelIds);
+        return {
+          name: call.name,
+          usedTool: "orbModelBrain.compareModels",
+          ok: true,
+          data: `${result.comparisonTable}\n\n${result.recommendation}`,
+        };
+      }
+
+      case "model.recommend": {
+        const intent = (args.intent as string) ?? "";
+        if (!intent) {
+          return {
+            name: call.name,
+            usedTool: "orbModelBrain.recommendModel",
+            ok: false,
+            error: "請提供創作意圖描述。",
+          };
+        }
+        const rec = recommendModel({
+          intent,
+          modality: args.modality as string | undefined,
+          budget: args.budget as "low" | "medium" | "high" | "unlimited" | undefined,
+          style: args.style as string | undefined,
+          language: args.language as string | undefined,
+        });
+        return {
+          name: call.name,
+          usedTool: "orbModelBrain.recommendModel",
+          ok: true,
+          data: formatRecommendationForOrb(rec),
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `Unknown model brain tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      usedTool: "orbModelBrain",
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     };

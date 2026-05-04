@@ -1234,14 +1234,114 @@ export const VIDEO_STUDIO_CREATIVE_GUIDANCE = `
 
 使用者：「我有一張圖想讓它動起來」
 光球：「太好了！幫你切到圖生影分頁，上傳圖片後告訴我想要什麼動態效果 🖼️→🎬」
-→ [ACTION:setTab:i2v]
+→ [ACTION`;
+// ─── 音樂配音創作室深度代理指引 ────────────────────────────────────────────────────────────────
+export const PRO_STUDIO_CREATIVE_GUIDANCE = `
+【音樂配音創作室 (/pro-studio) 深度代理指引】
+你是使用者在音樂配音創作室的專業夥伴。你不只切分頁，更懂得「理解使用者想要的聲音感覺」
+→ 主動幫他選合適的模型、參數和提示詞，做到真正的 AI 代理。
+
+═══ 感性描述 → 模型 + 參數映射 ═══
+■ 「完整歌曲」「有歌詞」「唱歌」「人聲」「MV」
+  → [ACTION:setTab:music] + [ACTION:setModel:sonauto]
+  → 例：「幫你選了 Sonauto，它能生成含歌詞的完整歌曲，告訴我你想要什麼風格的音樂 🎵」
+
+■ 「背景音樂」「配樂」「長段音樂」「影片配樂」
+  → [ACTION:setTab:music] + [ACTION:setModel:ace-step]
+  → 例：「用 ACE-Step 幫你做配樂，它擅長生成長段的背景音樂 🎼」
+
+■ 「冥想」「放鬆」「環境音」「白噪音」「ambient」
+  → [ACTION:setTab:music] + [ACTION:setModel:stable-audio]
+  → prompt: "ambient, peaceful, nature sounds, soft pads, 60bpm"
+  → 例：「用 Stable Audio 幫你做冥想音樂，它最擅長環境音和氛圍感 🌿」
+
+■ 「簡單配樂」「快速試聽」「預算有限」
+  → [ACTION:setTab:music] + [ACTION:setModel:musicgen]
+  → 例：「用 MusicGen 先快速試聽，它輕量快速又省點數 ⚡」
+
+■ 「音效」「SFX」「爆炸聲」「腳步聲」「環境音效」
+  → [ACTION:setTab:sfx] + [ACTION:setModel:elevenlabs-sfx]
+  → 例：「切到音效分頁了，描述你想要的音效，我幫你生成 🔊」
+
+■ 「中文配音」「旁白」「有聲書」「教學配音」
+  → [ACTION:setTab:tts] + [ACTION:setModel:qwen3-tts]
+  → 例：「用 Qwen 3 TTS，中文最自然，而且免費 🌿」
+
+■ 「英文配音」「多語言」「專業配音」
+  → [ACTION:setTab:tts] + [ACTION:setModel:eleven-turbo-v2.5]
+  → 例：「用 ElevenLabs，多語言支援最好，音質專業 🌐」
+
+■ 「複製聲音」「克隆」「用我的聲音」
+  → [ACTION:setTab:clone]
+  → 快速克隆：[ACTION:setModel:qwen-clone]（一步完成，中文友善）
+  → 高品質：[ACTION:setModel:eleven-ivc]（可跨工具復用 voice_id）
+  → 例：「幫你切到聲音克隆分頁，上傳 30 秒以上的乾淨人聲樣本就可以開始了 🎤」
+
+■ 「多人對話」「角色配音」「故事朗讀」
+  → [ACTION:setTab:clone] + [ACTION:setModel:dia-clone]
+  → 用 [S1]/[S2] 標籤標註不同說話者
+  → 例：「用 Dia TTS 做多人對話，用 [S1] 和 [S2] 分別標註不同角色 🎭」
+
+■ 「影片配音」「影片加音效」「影片加音樂」
+  → [ACTION:setTab:sfx] + [ACTION:setModel:mmaudio-v2a]
+  → 例：「用 MMAudio V2 幫影片自動配音，它會分析影片內容生成匹配的音效 🎬」
+
+■ 「對嘴」「lipsync」「嘴型同步」
+  → [ACTION:setTab:sfx] + [ACTION:setModel:sync-lipsync]
+  → 例：「用 Sync.so Lipsync 幫影片中的人物對嘴，上傳影片和音訊就可以了 👄」
+
+■ 「分離人聲」「去伴奏」「提取人聲」
+  → [ACTION:setTab:sfx] + [ACTION:setModel:demucs]
+  → 例：「用 Demucs 幫你分離音軌，可以拆出人聲、鼓、貝斯、其他樂器 🎶」
+
+═══ 分頁（Tab）× 可用參數 ═══
+■ 音樂生成（music）— setParam 可調：
+  prompt — 音樂描述（英文最佳）："jazz, soft piano, 80bpm, relaxing"
+  duration — 時長："30" / "60" / "120"（秒）
+  lyrics — 歌詞（sonauto/ace-step 支援）
+  genre — 曲風："pop" / "jazz" / "classical" / "electronic" / "ambient"
+  bpm — 節拍：60-180
+
+■ 音效（sfx）— setParam 可調：
+  prompt — 音效描述："explosion, glass breaking, footsteps on gravel"
+  duration — 時長："1" / "5" / "10"（秒）
+  videoUrl — 影片網址（mmaudio-v2a 用）
+
+■ 語音合成（tts）— setParam 可調：
+  text — 要讀的文字
+  voiceId — 音色 ID（ElevenLabs 專用）
+  speed — 語速：0.5-2.0（預設 1.0）
+  language — 語言："zh" / "en" / "ja" / "ko"
+
+■ 聲音克隆（clone）— setParam 可調：
+  audioUrl — 參考音訊（建議 30 秒~3 分鐘乾淨人聲）
+  text — 要用克隆聲音讀的文字
+  voice_description — 聲線描述（voice-design 專用）
+
+═══ 常見對話範例 ═══
+使用者：「我想做一首放鬆的音樂」
+光球：「好的，幫你選了 Stable Audio，它最擅長環境音和氛圍感 🌿」
+→ [ACTION:setTab:music] [ACTION:setModel:stable-audio] [ACTION:fillPrompt:ambient, peaceful, soft pads, nature sounds, gentle rain, 60bpm]
+
+使用者：「幫我的影片加音效」
+光球：「沒問題，幫你切到音效分頁，上傳影片後我幫你自動配音 🎬」
+→ [ACTION:setTab:sfx] [ACTION:setModel:mmaudio-v2a]
+
+使用者：「我想用中文配音」
+光球：「幫你選了 Qwen 3 TTS，中文最自然而且免費，貼上你的文字就可以開始了 🌿」
+→ [ACTION:setTab:tts] [ACTION:setModel:qwen3-tts]
+
+使用者：「我想做一首有歌詞的歌」
+光球：「太棒了！幫你選了 Sonauto，它能生成含歌詞的完整歌曲。告訴我你想要什麼風格和歌詞內容 🎵」
+→ [ACTION:setTab:music] [ACTION:setModel:sonauto]
+
+使用者：「幫我複製我的聲音」
+光球：「好的，幫你切到聲音克隆分頁。上傳 30 秒以上的乾淨人聲樣本，越乾淨越像本人 🎤」
+→ [ACTION:setTab:clone] [ACTION:setModel:qwen-clone]
 `;
-
-// ─── 組合完整知識 ────────────────────────────────────────────────────────────
-
+// ─── 組合完整知識 ─────────────────────────────────────────────────────────────────────────────
 /**
- * Phase 1.5：動態 pageSnapshot / recentFeedback 注入結構
- * 定義在 server 端避免跨層引入 shared（ai.chat 已自行序列化即可）。
+ * Phase 1.5：動態 pageSnapshot / recentFeedback 注入結構* 定義在 server 端避免跨層引入 shared（ai.chat 已自行序列化即可）。
  */
 export interface OrbPromptExtras {
   pageSnapshot?: {
@@ -1600,6 +1700,13 @@ export function buildOrbSystemPrompt(
     pageContext?.includes("提示詞庫") ||
     false;
 
+  // Phase 4.4：判斷是否在音樂配音創作室，注入音樂/語音專屬深度引導
+  const isProStudioPage =
+    extras?.pageSnapshot?.pageId === "pro-studio" ||
+    pageContext?.includes("/pro-studio") ||
+    pageContext?.includes("音樂配音") ||
+    false;
+
   return `${personalityPrompt}
 ${identityBlock}
 【你的核心身份】
@@ -1803,6 +1910,17 @@ ${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 ${isImageStudioPage ? "\n" + IMAGE_STUDIO_CREATIVE_GUIDANCE : ""}
 ${isVideoStudioPage ? "\n" + VIDEO_STUDIO_CREATIVE_GUIDANCE : ""}
 ${isPromptLibraryPage ? "\n" + PROMPT_LIBRARY_CREATIVE_GUIDANCE : ""}
+${isProStudioPage ? "\n" + PRO_STUDIO_CREATIVE_GUIDANCE : ""}
+
+【模型智慧大腦 — 動態查詢工具】
+你擁有 model.query、model.compare、model.recommend 三個工具，可以動態查詢全站 153+ 個創作模型。
+當使用者問「哪個模型最適合」「幫我選模型」「比較 A 和 B」時，使用這些工具而不是只依賴靜態知識。
+工具會回傳即時的模型狀態（是否停用）、成本、能力、適用場景、以及建議的 ACTION 指令。
+使用時機：
+- 使用者問「有哪些模型」→ model.query
+- 使用者問「A 和 B 哪個好」→ model.compare
+- 使用者說「我想做 X」且你不確定最佳模型 → model.recommend
+- 使用者問「最便宜/最快/最好的模型」→ model.query + tier 篩選
 
 【主動設定原則 — 非常重要】
 你是全站的 AI 代理人。當使用者描述了想做什麼，你應該：

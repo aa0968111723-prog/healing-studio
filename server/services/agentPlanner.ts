@@ -474,6 +474,24 @@ When insight query intent is detected:
 2. decision.mode='tasked' with the appropriate insight.* step
 3. Present results with numbers and percentages for clarity
 4. If anomalies detected, proactively warn and suggest optimizations`,
+
+    // ═══ Phase 5: 模型查詢/比較/推薦意圖辨識 ═══
+    `=== MODEL QUERY / COMPARE / RECOMMEND INTENT ===
+When the user asks about models, wants to compare models, or needs model recommendations — this is a MODEL BRAIN query.
+
+Detection signals:
+- Chinese: 哪個模型 / 最適合 / 幫我選模型 / 比較 / A 和 B 哪個好 / 有哪些模型 / 最便宜 / 最快 / 最好的模型 / 模型推薦 / 模型差別 / 模型能力 / 模型成本 / 模型清單
+- English: which model / best model / compare models / model recommendation / cheapest model / fastest model / model list / model capabilities
+
+When model query intent is detected:
+1. 「有哪些模型」「列出模型」→ toolName='model.query' with optional category/modality/tier/keyword filters
+2. 「A 和 B 哪個好」「比較」→ toolName='model.compare' with modelIds=["modelA", "modelB"]
+3. 「幫我選」「最適合」「我想做 X」→ toolName='model.recommend' with intent/modality/budget/style
+4. decision.mode='tasked' with the appropriate model.* step
+5. After receiving model info, generate ACTION commands (setModel, setTab, navigate) to help user directly
+
+IMPORTANT: When user asks 「我想做 X」 and you are unsure which model is best, use model.recommend FIRST before generating.
+Do NOT guess models from static knowledge when dynamic query tools are available.`,
   ].filter(Boolean).join("\n\n");
 
   return [
