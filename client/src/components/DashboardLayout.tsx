@@ -756,24 +756,7 @@ function DashboardLayoutContent({
                 </div>
               </Link>
             )}
-            {!isCollapsed && (
-              <button
-                onClick={() => setLocation("/settings")}
-                className="w-full flex items-center justify-between px-2 py-1.5 mb-1 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors"
-              >
-                <span className="hs-small !mb-0 text-muted-foreground">
-                  檢視模式：
-                  {viewMode === "auto"
-                    ? "自動"
-                    : viewMode === "desktop"
-                      ? "桌機"
-                      : "行動"}
-                </span>
-                <span className="text-[11px] text-muted-foreground/80">
-                  到個人設定調整
-                </span>
-              </button>
-            )}
+            {/* 檢視模式按鈕已移除 — 功能保留在個人設定頁面，不需在側邊欄常駐 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
@@ -902,21 +885,7 @@ function DashboardLayoutContent({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setLocation("/settings")}
-                className="h-9 px-2 rounded-lg flex items-center justify-center bg-muted/60 hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="前往個人設定調整檢視模式"
-                title="到個人設定調整檢視模式"
-              >
-                <Monitor className="w-4 h-4 text-muted-foreground mr-1" />
-                <span className="text-[11px] text-muted-foreground">
-                  {viewMode === "auto"
-                    ? "自動"
-                    : viewMode === "desktop"
-                      ? "桌機"
-                      : "行動"}
-                </span>
-              </button>
+              {/* 檢視模式按鈕已移除 — 簡化行動端頂部列 */}
               {/* Quota badge */}
               <div className="flex items-center gap-1.5 bg-primary/10 rounded-lg px-2.5 py-1.5">
                 <Zap className="w-3.5 h-3.5 text-primary" />
@@ -991,7 +960,7 @@ function DashboardLayoutContent({
               : "calc(2rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
-          <GlobalPageHint />
+          {/* GlobalPageHint 已移除 — 操作提示功能已由光球助手替代，減少頁面雜訊 */}
           {children}
         </main>
       </SidebarInset>

@@ -491,17 +491,7 @@ function ToolCard({
         </CollapsibleTrigger>
         <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 overflow-hidden">
           <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
-            {modelId && (
-              <a
-                href={`https://fal.ai/models/${modelId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mb-3 transition-colors"
-              >
-                <ExternalLink className="w-2.5 h-2.5" />
-                {modelId}
-              </a>
-            )}
+            {/* API 路徑已隱藏 — 技術細節對一般用戶無意義，減少視覺雜訊 */}
             {children}
           </div>
         </CollapsibleContent>
@@ -513,27 +503,16 @@ function ToolCard({
 // ─── 子元件：API Key 提示橫條 ────────────────────────────────────────────────
 
 function ApiKeyBanner() {
+  // UI/UX 優化：後端配置警告不應暴露給一般用戶，僅在控制台輸出提示
   const { data } = trpc.videoStudio.checkApiKey.useQuery(undefined, {
     retry: false,
   });
   if (data?.configured) return null;
-  return (
-    <div className="mb-6 flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-      <span>
-        尚未設定 FAL_API_KEY，請至{" "}
-        <a
-          href="https://fal.ai/dashboard/keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline font-medium"
-        >
-          fal.ai → Keys
-        </a>{" "}
-        取得金鑰後在 Railway / 環境變數中新增，影片生成功能才能正常運作。
-      </span>
-    </div>
-  );
+  // 不再在 UI 中顯示技術性警告，避免困惑一般用戶
+  if (typeof window !== "undefined") {
+    console.warn("[VideoStudio] FAL_API_KEY not configured. Video generation may not work.");
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4584,8 +4563,8 @@ export default function VideoStudio() {
         </p>
       </div>
 
-      {/* 模型細膩導覽（依當前分頁） */}
-      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="rounded-2xl border border-border/40 bg-gradient-to-br from-blue-500/5 to-purple-500/5">
+      {/* 模型細膩導覽已移除 — 功能與光球助手重複，且佔用大量空間 */}
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="hidden">
         <CollapsibleTrigger asChild>
           <button
             type="button"

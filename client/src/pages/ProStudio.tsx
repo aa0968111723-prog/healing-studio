@@ -913,17 +913,7 @@ function ToolCard({
         </CollapsibleTrigger>
         <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 overflow-hidden">
           <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
-            {modelId && (
-              <a
-                href={`https://fal.ai/models/${modelId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mb-3 transition-colors"
-              >
-                <ExternalLink className="w-2.5 h-2.5" />
-                {modelId}
-              </a>
-            )}
+            {/* API 路徑已隱藏 — 技術細節對一般用戶無意義 */}
             {children}
           </div>
         </CollapsibleContent>
@@ -4575,8 +4565,8 @@ export default function ProStudio() {
         </p>
       </div>
 
-      {/* 模型細膩導覽（依當前分頁） */}
-      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-blue-500/5">
+      {/* 模型細膩導覽已移除 — 功能與光球助手重複，且佔用大量空間 */}
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="hidden">
         <CollapsibleTrigger asChild>
           <button
             type="button"

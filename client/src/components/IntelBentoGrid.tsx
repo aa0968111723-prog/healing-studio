@@ -835,12 +835,23 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
     [data]
   );
 
+  // UI/UX 優化：僅顯示 AI 相關新聞，過濾與平台無關的內容
+  const AI_RELEVANCE_KEYWORDS = /ai|artificial intelligence|人工智慧|機器學習|machine learning|deep learning|llm|gpt|gemini|stable diffusion|midjourney|dall-e|generative|生成式|大語言模型|diffusion|neural|transformer|text-to-image|text-to-video|image generation|圖片生成|影片生成|語音合成|openai|anthropic|meta ai|google ai|runway|kling|sora|flux|comfyui|lora|controlnet|模型/i;
+
+  const aiFilteredItems = useMemo(
+    () => items.filter(item => {
+      const text = `${item.title} ${item.oarsSummary ?? ""} ${(item.tags ?? []).join(" ")}`;
+      return AI_RELEVANCE_KEYWORDS.test(text);
+    }),
+    [items]
+  );
+
   // Filter by tab — route each item into exactly one bucket, with keyword
   // fallback for items the server couldn't classify.
   const filteredItems = useMemo(() => {
-    if (activeTab === "all") return items;
-    return items.filter(item => bucketForItem(item) === activeTab);
-  }, [items, activeTab]);
+    if (activeTab === "all") return aiFilteredItems;
+    return aiFilteredItems.filter(item => bucketForItem(item) === activeTab);
+  }, [aiFilteredItems, activeTab]);
 
   // Layout engine
   const layoutItems = useMemo(

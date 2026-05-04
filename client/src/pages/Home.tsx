@@ -1272,8 +1272,8 @@ ${profileSnippet}`;
                 onClick={() => navigate("/agent")}
                 className={`rounded-2xl gap-1.5 text-sm h-10 px-4 sm:px-6 btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
-                <span className="hidden sm:inline">啟動光球代理</span>
-                <span className="sm:hidden">光球</span>
+                <span className="hidden sm:inline">開始創作</span>
+                <span className="sm:hidden">創作</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             ) : (
@@ -1396,7 +1396,7 @@ ${profileSnippet}`;
                     className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     <Sparkles className="w-4 h-4" />
-                    開始創作（光球帶路）
+                    開始創作
                   </Button>
                   <Button
                     variant="outline"
@@ -1501,7 +1501,7 @@ ${profileSnippet}`;
                       className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      先用全站光球代理
+                      開始創作
                     </Button>
                   ) : (
                     <Button
@@ -1512,7 +1512,7 @@ ${profileSnippet}`;
                       className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      先體驗光球代理
+                      免費體驗
                     </Button>
                   )}
                   <Button
@@ -1521,15 +1521,7 @@ ${profileSnippet}`;
                     className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     <Rocket className="w-3.5 h-3.5" />
-                    前往教學總覽
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate("/learn/tutorial-overview")}
-                    className={`rounded-xl text-xs sm:text-sm ${s.btnOutline} ${s.btnOutlineText}`}
-                  >
-                    再看互動式導覽
+                    查看教學
                   </Button>
                 </div>
               </div>
@@ -1828,7 +1820,7 @@ ${profileSnippet}`;
         </motion.div>
       )}
 
-      {/* ── Intel Bento Grid (情報站) ── */}
+      {/* ── Intel Bento Grid (情報站) — 僅顯示 AI 相關新聞 ── */}
       <Suspense
         fallback={
           <div className="flex items-center justify-center py-20">
@@ -1943,7 +1935,7 @@ ${profileSnippet}`;
                       onClick={() => navigate("/agent")}
                       className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                     >
-                      啟動全站光球代理
+                      開始創作
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   ) : (

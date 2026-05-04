@@ -4033,8 +4033,8 @@ export default function ImageStudio() {
         </div>
       </div>
 
-      {/* ── Model Guide — by current tab ── */}
-      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="mt-4 rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-cyan-500/5">
+      {/* 模型細膩導覽已隱藏 — 功能與光球助手重複，且佔用大量空間 */}
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="hidden">
         <CollapsibleTrigger asChild>
           <button
             type="button"
