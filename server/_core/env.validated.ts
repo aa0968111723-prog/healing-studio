@@ -469,6 +469,17 @@ const multimodalSchema = z.object({
   // ── Orb Webhook（n8n / Zapier / Make 觸發 POST /api/webhooks/orb）─────
   // 共享密鑰：請求 header `x-orb-webhook-secret` 必須等於此值，否則 401
   ORB_WEBHOOK_SECRET: z.string().optional().default(""),
+
+  // ── hollow-agentOS 並行微服務（Phase 1：僅作 health smoke test）────────
+  // 預設 disabled；生產環境啟用前需先確認 GPU/RAM 資源足以承擔本地 LLM
+  // AGENT_OS_BASE_URL：在 docker-compose 內網中為 http://agent-os:8088
+  // AGENT_OS_TOKEN：對應 hollow-agentOS config.json 的 token 欄位（建議 openssl rand -hex 32）
+  // AGENT_OS_ALLOW_SHELL：Phase 4 才開放；保留兩段式閘門以避免誤啟用
+  AGENT_OS_ENABLED: z.string().optional().default("false"),
+  AGENT_OS_BASE_URL: z.string().optional().default(""),
+  AGENT_OS_TOKEN: z.string().optional().default(""),
+  AGENT_OS_TIMEOUT_SECONDS: z.string().optional().default("60"),
+  AGENT_OS_ALLOW_SHELL: z.string().optional().default("false"),
 });
 
 // Combined schema

@@ -111,3 +111,6 @@ temp/
 .webdev/
 frame*.jpg
 video_frames/
+
+# Side-car runtimes cloned per docker-compose.yml (e.g. hollow-agentOS)
+vendor/
