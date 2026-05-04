@@ -182,7 +182,6 @@ export default function AdminPage() {
 
   // ── Existing queries ──
   const usersQuery = trpc.admin.allUsers.useQuery(undefined, { retry: false });
-  const users = usersQuery.data ?? [];
 
   // 管理員後台僅暴露安全的 navigate / setTab 能力給光球；不允許 destructive
   // 動作（submit / reset / applyPreset），避免代理人誤觸用戶配額或大腦切換。
@@ -221,7 +220,7 @@ export default function AdminPage() {
     ],
     state: {
       activeTab,
-      userCount: users.length,
+      userCount: usersQuery.data?.length ?? 0,
     },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
@@ -352,6 +351,7 @@ export default function AdminPage() {
   }
 
   const stats = statsQuery.data;
+  const users = usersQuery.data ?? [];
   const autoCreditSummary = useMemo(() => {
     const enabledUsers = users.filter(u => u.autoCreditEnabled);
     const now = Date.now();
