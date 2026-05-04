@@ -497,6 +497,46 @@ export async function executeOrbToolCalls(
       continue;
     }
 
+    // ── resource.* 資源中心查詢工具：跨頁面查詢數位資產、提示詞、模型、保險庫 ──
+    if (call.name.startsWith("resource.")) {
+      const resourceResult = await dispatchResourceTool(call, opts);
+      out.push(resourceResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: resourceResult.usedTool,
+        ok: resourceResult.ok,
+        error: resourceResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
+    // ── insight.* 數據洞察查詢工具：跨頁面查詢使用統計、成本分析、AI 洞察 ──
+    if (call.name.startsWith("insight.")) {
+      const insightResult = await dispatchInsightTool(call, opts);
+      out.push(insightResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: insightResult.usedTool,
+        ok: insightResult.ok,
+        error: insightResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── studio.* 生成工具：橋接到 dispatchFalQueueTask / SunoClient ──
     // ── director.* 規劃工具：橋接到 director.askForStudioPlan ──
     if (call.name.startsWith("studio.") || call.name.startsWith("director.")) {
@@ -2415,6 +2455,263 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
       },
       usedTool: call.name,
     };
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// resource.* 資源中心橋接：跨頁面查詢數位資產、提示詞、模型、保險庫
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchResourceTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const bridge = await import("./orbResourceBridge");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const baseOpts = {
+    userId: opts.userId,
+    query: typeof args.query === "string" ? args.query : undefined,
+    limit: typeof args.limit === "number" ? args.limit : undefined,
+  };
+
+  try {
+    switch (call.name) {
+      case "resource.searchAssets": {
+        const results = await bridge.searchAssets({
+          ...baseOpts,
+          assetType:
+            typeof args.assetType === "string" ? args.assetType : undefined,
+          includeTeam:
+            typeof args.includeTeam === "boolean"
+              ? args.includeTeam
+              : false,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            count: results.length,
+            assets: results,
+            hint:
+              results.length === 0
+                ? "使用者目前沒有符合條件的數位資產。可建議到 /assets 上傳或到工作室生成。"
+                : `找到 ${results.length} 項資產。可用 [ACTION:navigate:/assets] 帶使用者前往管理。`,
+          },
+        };
+      }
+
+      case "resource.searchPrompts": {
+        const results = await bridge.searchPrompts({
+          ...baseOpts,
+          category:
+            typeof args.category === "string" ? args.category : undefined,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            count: results.length,
+            prompts: results,
+            hint:
+              results.length === 0
+                ? "使用者目前沒有符合條件的提示詞。可建議到 /prompt-library 新增。"
+                : `找到 ${results.length} 則提示詞。可用 [ACTION:navigate:/prompt-library] 帶使用者前往管理。`,
+          },
+        };
+      }
+
+      case "resource.listModels": {
+        const results = await bridge.listModels(baseOpts);
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            count: results.length,
+            models: results,
+            hint:
+              results.length === 0
+                ? "使用者目前沒有自訂模型。可建議到 /lora-trainer 訓練。"
+                : `找到 ${results.length} 個模型。可用 [ACTION:navigate:/models] 帶使用者前往管理。`,
+          },
+        };
+      }
+
+      case "resource.searchVault": {
+        const results = await bridge.searchVault(baseOpts);
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            count: results.length,
+            vaultItems: results,
+            hint:
+              results.length === 0
+                ? "使用者目前沒有保險庫項目。可建議到 /vault 新增角色/場景設定。"
+                : `找到 ${results.length} 項保險庫資產。可用 [ACTION:navigate:/vault] 帶使用者前往管理。`,
+          },
+        };
+      }
+
+      case "resource.getSummary": {
+        const summary = await bridge.getResourceSummary(opts.userId);
+        const formatted = bridge.formatResourceSummaryForOrb(summary);
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            summary,
+            formatted,
+          },
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown resource tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// insight.* 數據洞察橋接：跨頁面查詢使用統計、成本分析、AI 洞察
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 從 DB 取得使用者的 remainingGenerations。
+ * agentToolExecutor 的 opts 中沒有此欄位，需要額外查詢。
+ */
+async function getUserRemainingGenerations(
+  userId: number
+): Promise<number> {
+  try {
+    const { getDb } = await import("../db");
+    const { users } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return 0;
+    const result = await db
+      .select({ remainingGenerations: users.remainingGenerations })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return result[0]?.remainingGenerations ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function dispatchInsightTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const bridge = await import("./orbInsightBridge");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const remainingGenerations = await getUserRemainingGenerations(opts.userId);
+  const baseOpts = {
+    userId: opts.userId,
+    remainingGenerations,
+  };
+
+  try {
+    switch (call.name) {
+      case "insight.getStats": {
+        const stats = await bridge.getUsageStats(baseOpts);
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            ...stats,
+            hint: `剩餘 ${stats.remainingGenerations} 積分，今日已用 ${stats.todayRequests} 次（$${stats.todayCost.toFixed(4)}）。可用 [ACTION:navigate:/dashboard] 查看完整儀表板。`,
+          },
+        };
+      }
+
+      case "insight.getInsights": {
+        const insights = await bridge.getAIInsights(baseOpts);
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            riskLevel: insights.riskLevel,
+            costTrend: insights.costTrend,
+            topModality: insights.topModality,
+            topProvider: insights.topProvider,
+            anomalies: insights.anomalies,
+            recommendations: insights.recommendations,
+            orbSummary: insights.orbSummary,
+            hint:
+              insights.anomalies.length > 0
+                ? `偵測到 ${insights.anomalies.length} 項警示（${insights.riskLevel}）。建議：${insights.recommendations.join("；")}`
+                : "目前使用狀況正常，無異常警示。",
+          },
+        };
+      }
+
+      case "insight.getCostBreakdown": {
+        const breakdown = await bridge.getCostBreakdown(baseOpts);
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            ...breakdown,
+            hint: `總成本 $${breakdown.totalCost.toFixed(4)}。按模態分布：${breakdown.byModality.map((m) => `${m.requestType}(${(m.share * 100).toFixed(0)}%)`).join("、")}`,
+          },
+        };
+      }
+
+      case "insight.getDailyTrend": {
+        const days =
+          typeof args.days === "number"
+            ? Math.min(Math.max(args.days, 1), 90)
+            : 30;
+        const trend = await bridge.getDailyTrend({
+          ...baseOpts,
+          trendDays: days,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          usedTool: call.name,
+          data: {
+            days,
+            dataPoints: trend.length,
+            trend,
+            hint: `取得最近 ${trend.length} 天的趨勢數據。可用 [ACTION:navigate:/dashboard] 查看視覺化圖表。`,
+          },
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown insight tool: ${call.name}`,
+        };
+    }
   } catch (err) {
     return {
       name: call.name,

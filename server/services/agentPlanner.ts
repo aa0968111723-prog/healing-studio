@@ -450,6 +450,30 @@ When external search intent is detected:
 4. DO NOT interpret "搜尋 AI 圖片生成技術" as "generate an AI image" — it means "search for information about AI image generation technology"
 
 Critical anti-pattern: "幫我搜尋 X" ≠ "幫我生成 X"。搜尋是查資料，生成是做東西。分清楚再行動。`,
+    `Resource center query intent detection (資源中心查詢意圖辨識):
+When the user asks about their OWN assets, prompts, models, vault items, or resource overview — this is a RESOURCE QUERY.
+
+Detection signals:
+- Chinese: 我有哪些 / 我的素材 / 我的提示詞 / 我的模型 / 我的資源 / 素材庫 / 資產庫 / 保險庫 / 資源概況 / 找一下我的 / 有沒有可以用的
+- English: my assets / my prompts / my models / my vault / resource summary / do I have
+
+When resource query intent is detected:
+1. Use toolName='resource.searchAssets' / 'resource.searchPrompts' / 'resource.listModels' / 'resource.searchVault' / 'resource.getSummary'
+2. decision.mode='tasked' with the appropriate resource.* step
+3. If the user wants to generate content, FIRST check for reusable assets/prompts, THEN proceed to generation
+4. Combine resource results with navigation actions to help users manage their resources`,
+    `Data insight query intent detection (數據洞察查詢意圖辨識):
+When the user asks about their usage stats, costs, credits, anomalies, or trends — this is an INSIGHT QUERY.
+
+Detection signals:
+- Chinese: 積分 / 配額 / 剩餘 / 成本 / 花費 / 使用量 / 統計 / 趨勢 / 異常 / 建議 / 洞察 / 分析 / 我用了多少 / 還剩多少 / 最近用了什麼
+- English: credits / quota / remaining / cost / usage / statistics / trend / anomaly / insights / how much did I use
+
+When insight query intent is detected:
+1. Use toolName='insight.getStats' / 'insight.getInsights' / 'insight.getCostBreakdown' / 'insight.getDailyTrend'
+2. decision.mode='tasked' with the appropriate insight.* step
+3. Present results with numbers and percentages for clarity
+4. If anomalies detected, proactively warn and suggest optimizations`,
   ].filter(Boolean).join("\n\n");
 
   return [

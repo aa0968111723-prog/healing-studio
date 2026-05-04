@@ -486,6 +486,100 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 資源中心查詢工具（光球可跨頁面查詢使用者的數位資產、提示詞、模型、保險庫） ──
+  {
+    name: "resource.searchAssets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 搜尋關鍵字（標題、描述、提示詞）
+      query: "string?",
+      // 資產類型篩選：all / image / video / audio / voice / script / zip_bundle
+      assetType: "string?",
+      // 是否包含團隊共享資產
+      includeTeam: "boolean?",
+      // 回傳筆數上限（預設 10，最大 20）
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "resource.searchPrompts",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 搜尋關鍵字（標題、內容）
+      query: "string?",
+      // 分類篩選：all / general / image / video / audio / voice / story / system
+      category: "string?",
+      // 回傳筆數上限（預設 10，最大 20）
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "resource.listModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 搜尋關鍵字（名稱、觸發詞）
+      query: "string?",
+      // 回傳筆數上限（預設 10，最大 20）
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "resource.searchVault",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 搜尋關鍵字（名稱、描述）
+      query: "string?",
+      // 回傳筆數上限（預設 10，最大 20）
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "resource.getSummary",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  // ─── 數據洞察查詢工具（光球可跨頁面查詢使用統計、成本分析、AI 洞察） ──
+  {
+    name: "insight.getStats",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "insight.getInsights",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "insight.getCostBreakdown",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "insight.getDailyTrend",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 取得最近幾天的趨勢（預設 30，最大 90）
+      days: "number?",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {
