@@ -36,10 +36,11 @@ const LOOKBACK_DAYS = 7;
 /** 每次最多合成幾篇學習文件 */
 const MAX_DOCS_PER_RUN = 3;
 
-/** Gemini 呼叫逾時（毫秒）— 讀 LLM_TIMEOUT_SECONDS；批次任務預設 90s 比互動式長 */
+/** Gemini 呼叫逾時（毫秒）— 批次任務強制至少 120s，避免 60s 環境值導致大型 JSON 輸出超時 */
 const LLM_TIMEOUT_MS = (() => {
   const parsed = parseInt(serverEnv.LLM_TIMEOUT_SECONDS, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 90_000;
+  const fromEnv = Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 90_000;
+  return Math.max(fromEnv, 120_000);
 })();
 
 /** 啟動後首次同步延遲（毫秒） */
