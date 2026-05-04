@@ -583,40 +583,40 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
 
   // ═══ 模型智慧大腦工具 ═══════════════════════════════════════════════════
   {
+    // 動態查詢全站 153+ 個創作模型。可按類別/模態/tier/關鍵字篩選。回傳模型清單含能力、成本、適用場景。
     name: "model.query",
-    description: "動態查詢全站 153+ 個創作模型。可按類別（text-to-image, text-to-video 等）、模態（image/video/audio/voice/3d）、tier（ultra/premium/standard/fast）、關鍵字篩選。回傳模型清單含能力、成本、適用場景。",
     riskLevel: "low",
     requiresHuman: false,
     allowedArgsSchema: {
-      category: "string? — Fal 類別，如 text-to-image, image-to-video",
-      modality: "string? — 模態，如 image, video, audio, voice, 3d, music",
-      tier: "string? — 等級，如 ultra, premium, standard, fast",
-      keyword: "string? — 關鍵字搜尋（匹配模型名稱、優勢、場景）",
-      includeDisabled: "boolean? — 是否包含已停用模型，預設 false",
+      category: "string?",
+      modality: "string?",
+      tier: "string?",
+      keyword: "string?",
+      includeDisabled: "boolean?",
     },
     executionTarget: "server-side",
   },
   {
+    // 深度比較 2-5 個模型。回傳比較表（成本、能力、適用場景）和推薦結論。
     name: "model.compare",
-    description: "深度比較 2-5 個模型。回傳比較表（成本、能力、適用場景）和推薦結論。使用者問「A 和 B 哪個好」時使用。",
     riskLevel: "low",
     requiresHuman: false,
     allowedArgsSchema: {
-      modelIds: "string[] — 要比較的模型 ID 陣列（2-5 個）",
+      modelIds: "string[]",
     },
     executionTarget: "server-side",
   },
   {
+    // 根據使用者意圖智能推薦最佳模型。分析意圖、預算、風格偏好，回傳推薦模型 + ACTION 指令 + 替代方案。
     name: "model.recommend",
-    description: "根據使用者意圖智能推薦最佳模型。分析意圖、預算、風格偏好，回傳推薦模型 + ACTION 指令 + 替代方案。使用者說「幫我選模型」「哪個模型適合」「我想做 X」時使用。",
     riskLevel: "low",
     requiresHuman: false,
     allowedArgsSchema: {
-      intent: "string — 使用者的創作意圖描述",
-      modality: "string? — 指定模態（image/video/audio/voice/3d）",
-      budget: "string? — 預算偏好：low/medium/high/unlimited，預設 medium",
-      style: "string? — 風格偏好，如 anime, cinematic, realistic",
-      language: "string? — 語言偏好，如 zh, en",
+      intent: "string",
+      modality: "string?",
+      budget: "string?",
+      style: "string?",
+      language: "string?",
     },
     executionTarget: "server-side",
   },

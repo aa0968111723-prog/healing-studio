@@ -449,7 +449,7 @@ export function getStudioModelKnowledge(studioPath: string): string {
   }
 
   const lines: string[] = [];
-  for (const [category, models] of grouped) {
+  for (const [category, models] of Array.from(grouped.entries())) {
     const catLabel = (FAL_CATEGORY_LABELS as Record<string, string>)[category] ?? category;
     lines.push(`\n■ ${catLabel} (${category}):`);
     for (const m of models) {
