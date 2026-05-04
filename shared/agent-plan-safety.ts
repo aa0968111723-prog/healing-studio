@@ -354,6 +354,8 @@ const SERVER_SIDE_MEDIA_TOOL_PREFIXES = [
   "director.",
   "media.",
   "pro-studio.",
+  "research.",
+  "inspiration.",
 ] as const;
 
 export type AgentPlanV3GateMode = AgentPlanV3DecisionMode;
