@@ -393,6 +393,30 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 外部網路深度搜尋（Perplexity Deep Search 驅動） ──
+  // 光球可在使用者要求搜尋外部網路資訊時呼叫此工具，透過 Perplexity Sonar
+  // 搜尋引擎取得最新資訊、技術趨勢、產品比較、新聞等外部知識。
+  // 回傳結構化摘要 + 可點擊引用來源，可選擇寫入學習文件中心。
+  {
+    name: "research.deepSearch",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 搜尋查詢（必填）：例「2026 最新 AI 圖片生成技術」「如何做出好的短影片」
+      query: "string",
+      // 時間範圍過濾（選填）：day / week / month / year
+      recencyFilter: "string?",
+      // 限定搜尋網域（選填）：例 ["arxiv.org", "github.com"]
+      domainFilter: "string[]?",
+      // 搜尋語言偏好（選填）：zh-TW / en / ja / ko
+      language: "string?",
+      // 最大結果數（選填，預設 5，最大 10）
+      maxResults: "number?",
+      // 是否將搜尋結果寫入學習文件中心（選填，預設 false）
+      addToLearnHub: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 即時靈感 / 時事 / 社群偏好查詢（Perplexity Sonar 驅動） ──
   // 光球可在創作前主動呼叫此工具拉取真實的網路情報：流行風格、熱門題材、
   // 社群討論度、近期 AI 模型發表、季節性 / 節慶題材等。回傳已附帶可點擊

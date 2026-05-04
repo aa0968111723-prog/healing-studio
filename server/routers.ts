@@ -5367,9 +5367,11 @@ export const appRouter = router({
             mode: "agent",
           }
         );
-        if (webResearchOutcome.reason === "matched") {
+        if (webResearchOutcome.reason === "matched" || webResearchOutcome.reason === "matched:explicit_search" || webResearchOutcome.reason === "matched:deep_search") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.hit", {
             results: webResearchOutcome.results.length,
+            reason: webResearchOutcome.reason,
+            hasDeepSearch: !!webResearchOutcome.deepSearchResult,
           });
         } else if (webResearchOutcome.reason === "error") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.error", {});

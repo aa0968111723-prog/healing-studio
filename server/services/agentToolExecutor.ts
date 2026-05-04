@@ -410,6 +410,56 @@ export async function executeOrbToolCalls(
     const requestId =
       opts.requestId ?? `orb_req_${startedAt}_${Math.random().toString(36).slice(2, 8)}`;
 
+    // ── research.deepSearch：Perplexity 深度搜尋（外部網路搜尋）──
+    if (call.name === "research.deepSearch") {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      // v2: 整合重試中間件，外部搜尋 API 可能暫時不穩定
+      const { withToolRetry, getDefaultRetryOptions } = await import("./orbToolRetry");
+      const retryOpts = getDefaultRetryOptions(call.name);
+      const retryResult = await withToolRetry(
+        () => dispatchDeepSearchTool(call, opts),
+        { ...retryOpts, toolName: call.name }
+      );
+      const deepSearchResult = retryResult.result;
+      if (retryResult.retried) {
+        console.info(
+          `[ToolExecutor] research.deepSearch retried ${retryResult.attempts} times, ` +
+          `total ${retryResult.totalDurationMs}ms, errors: ${retryResult.retryErrors?.join(", ") ?? "none"}`
+        );
+      }
+      out.push(deepSearchResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: deepSearchResult.usedTool,
+        ok: deepSearchResult.ok,
+        error: deepSearchResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── inspiration.fetch：Perplexity Sonar 即時靈感 / 時事 / 社群偏好 ──
     if (call.name === "inspiration.fetch") {
       if ((opts.blockedTools ?? []).includes(call.name)) {
@@ -1900,6 +1950,85 @@ async function dispatchInspirationTool(
         cards: result.cards,
         sources: result.sources,
         summary: result.summary,
+        ...(result.error ? { warning: result.error } : {}),
+      },
+    };
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// research.deepSearch 工具橋接：呼叫 Perplexity 深度搜尋進行外部網路搜尋
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 research.deepSearch 工具呼叫橋接到 perplexityDeepSearch 服務。
+ * 永遠回傳 ok=true 給 planner（即使搜尋失敗也回 ok=true + 空 sources），
+ * 避免單一外部依賴失敗就讓整個 plan 中斷。失敗訊息透過 result.error 傳遞。
+ *
+ * 支援參數：
+ *   - query (string, required): 搜尋查詢
+ *   - recencyFilter ("day"|"week"|"month"|"year"): 時間範圍
+ *   - domainFilter (string[]): 限定搜尋網域
+ *   - language (string): 搜尋語言偏好
+ *   - maxResults (number): 最大結果數
+ *   - addToLearnHub (boolean): 是否寫入學習文件中心
+ */
+async function dispatchDeepSearchTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { executeDeepSearch, formatDeepSearchAsLearnDoc } = await import(
+    "./perplexityDeepSearch"
+  );
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const query = typeof args.query === "string" ? args.query : "";
+  if (!query.trim()) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "research-query-required",
+    };
+  }
+  try {
+    const result = await executeDeepSearch({
+      query: query.trim(),
+      userId: opts.userId,
+      recencyFilter:
+        typeof args.recencyFilter === "string"
+          ? (args.recencyFilter as "day" | "week" | "month" | "year")
+          : undefined,
+      domainFilter: Array.isArray(args.domainFilter)
+        ? (args.domainFilter as string[]).filter(
+            (d) => typeof d === "string" && d
+          )
+        : undefined,
+      language:
+        typeof args.language === "string"
+          ? (args.language as "zh-TW" | "zh-CN" | "en" | "ja" | "ko")
+          : "zh-TW",
+      maxResults:
+        typeof args.maxResults === "number" ? args.maxResults : undefined,
+      addToLearnHub:
+        typeof args.addToLearnHub === "boolean"
+          ? args.addToLearnHub
+          : false,
+    });
+
+    return {
+      name: call.name,
+      ok: true,
+      usedTool: `research.deepSearch:${result.provider}`,
+      data: {
+        provider: result.provider,
+        summary: result.summary,
+        sources: result.sources,
+        durationMs: result.durationMs,
         ...(result.error ? { warning: result.error } : {}),
       },
     };

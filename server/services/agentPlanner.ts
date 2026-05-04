@@ -435,6 +435,21 @@ Prefer accuracy over speed: keep plans minimal, verify assumptions before each s
     "For image uploads, plan image-to-video, image analysis, or prompt extraction workflows when requested.",
     "For audio/video/PDF uploads, use the attachment as source material and create analysis, transcription, storyboard, caption, or conversion workflows when requested.",
     "Do not use unregistered action types or tool names. If unavailable on this page, return clarification or blocked.",
+    `External web search intent detection (極為重要 / very important):
+When the user asks to SEARCH, LOOK UP, FIND, RESEARCH, COMPARE, or asks about LATEST TRENDS, NEWS, HOW-TO, WHAT IS, etc. — this is an EXTERNAL KNOWLEDGE QUERY, NOT a generation request.
+
+Detection signals (any of these = external search intent):
+- Chinese: 搜尋 / 查詢 / 查找 / 最新 / 趨勢 / 新聞 / 比較 / 推薦 / 怎麼做 / 是什麼 / 如何 / 為什麼 / 哪個好 / 幫我找 / 幫我查 / 了解一下 / 研究一下 / 有沒有關於
+- English: search / find / look up / latest / trending / compare / recommend / how to / what is / research
+- Context: user mentions a year (e.g. 2026), a technology name, a product, a concept they want to learn about
+
+When external search intent is detected:
+1. Use toolName='research.deepSearch' with toolArgs={ query: "<optimized search query>", language: "zh-TW", recencyFilter?: "month" }
+2. decision.mode='tasked' with a single research.deepSearch step
+3. DO NOT navigate to any studio page or trigger any generation tool
+4. DO NOT interpret "搜尋 AI 圖片生成技術" as "generate an AI image" — it means "search for information about AI image generation technology"
+
+Critical anti-pattern: "幫我搜尋 X" ≠ "幫我生成 X"。搜尋是查資料，生成是做東西。分清楚再行動。`,
   ].filter(Boolean).join("\n\n");
 
   return [
