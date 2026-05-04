@@ -974,6 +974,7 @@ const PAGE_TO_GUIDE_INTENT: Partial<Record<string, GuideIntent>> = {
   "pro-studio": "music",
   director: "script",
   "lora-trainer": "lora",
+  home: "explore",
 };
 
 // ─── 90-second onboarding step definitions ────────────────────────────────

@@ -61,7 +61,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportsPageAgent: true,
     quickActions: [{ id: "explore-home", label: "先逛逛", description: "查看平台亮點與入口" }],
     orbHints: ["我想先看看這個網站在做什麼"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "agent-chat",
@@ -92,7 +92,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "我不知道從哪裡開始，請你帶我做第一步",
       "我想做的成品是____，用途是____，幫我選頁面並告訴我怎麼做",
     ],
-    supportedActions: [],
+    supportedActions: ["navigate", "search"],
   },
   {
     id: "studio",
@@ -375,7 +375,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我看看最近使用狀況"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "history",
@@ -509,7 +509,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我想調整我的設定"],
-    supportedActions: ["setTab", "setParam", "reset"],
+    supportedActions: ["navigate", "setTab", "setParam", "reset"],
   },
   {
     id: "credits",
@@ -534,7 +534,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我的點數怎麼算"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "assets",
@@ -643,7 +643,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我的模型在哪裡"],
-    supportedActions: ["setTab", "openDialog", "setParam", "reset"],
+    supportedActions: ["navigate", "setTab", "openDialog", "setParam", "reset"],
   },
   {
     id: "vault",
@@ -668,7 +668,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["保持角色一致"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "calendar",
@@ -693,7 +693,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我排一下這週創作"],
-    supportedActions: ["setParam", "reset"],
+    supportedActions: ["navigate", "setParam", "reset"],
   },
   {
     id: "shared",
@@ -718,7 +718,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["看看團隊共享作品"],
-    supportedActions: ["setTab", "search", "setParam", "reset"],
+    supportedActions: ["navigate", "setTab", "search", "setParam", "reset"],
   },
   {
     id: "learn",
@@ -803,7 +803,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "go-agent-chat", label: "用光球開始互動教學", description: "透過光球助手一步一步學習" },
     ],
     orbHints: ["我想開始教學", "新手怎麼開始", "給我一個導覽"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "brain-settings",
@@ -820,7 +820,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-brain-settings", label: "開啟大腦組態", description: "前往 AI 大腦設定", path: "/admin?section=brain" },
     ],
     orbHints: ["切換大腦", "改 director model", "查看大腦健康度"],
-    supportedActions: ["setTab", "reset"],
+    supportedActions: ["navigate", "setTab", "reset"],
   },
   {
     id: "my-brain",
@@ -837,7 +837,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-my-brain", label: "開啟我的大腦", description: "管理個人大腦", path: "/my-brain" },
     ],
     orbHints: ["切到我的大腦", "個人 AI 設定"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "admin-brain-pipeline",
@@ -854,7 +854,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-brain-pipeline", label: "查看推理鏈", description: "前往大腦推理鏈視覺化", path: "/admin/brain-pipeline" },
     ],
     orbHints: ["看推理鏈", "大腦動作流"],
-    supportedActions: [],
+    supportedActions: ["navigate"],
   },
   {
     id: "focus-flow",
@@ -871,7 +871,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-focus-flow", label: "進入專注流", description: "啟動專注模式", path: "/focus-flow" },
     ],
     orbHints: ["我想專注一下", "啟動心流模式"],
-    supportedActions: ["setTab", "setParam", "reset"],
+    supportedActions: ["navigate", "setTab", "setParam", "reset"],
   },
   {
     id: "admin",
@@ -894,7 +894,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我要看管理後台", "如何切換大腦", "管理員工具在哪"],
-    supportedActions: [],
+    supportedActions: ["navigate", "setTab"],
   },
   {
     id: "admin-api-usage",
@@ -911,7 +911,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-admin-api-usage", label: "開啟 API 用量", description: "前往 API 用量分析頁", path: "/admin/api-usage" },
     ],
     orbHints: ["我想看 API 用量", "查看成本", "各引擎呼叫次數"],
-    supportedActions: [],
+    supportedActions: ["navigate", "setTab"],
   },
   {
     id: "process-viewer",
