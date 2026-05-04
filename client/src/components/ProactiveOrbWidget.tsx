@@ -975,6 +975,12 @@ const PAGE_TO_GUIDE_INTENT: Partial<Record<string, GuideIntent>> = {
   director: "script",
   "lora-trainer": "lora",
   home: "explore",
+  dashboard: "explore",
+  models: "lora",
+  assets: "explore",
+  notes: "script",
+  learn: "explore",
+  vault: "image",
 };
 
 // ─── 90-second onboarding step definitions ────────────────────────────────

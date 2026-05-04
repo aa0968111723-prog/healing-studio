@@ -291,6 +291,9 @@ export default function SettingsPage() {
         "/credits",
         "/admin",
         "/langsmith",
+        "/studio",
+        "/image-studio",
+        "/dashboard",
       ]),
     []
   );
@@ -317,7 +320,16 @@ export default function SettingsPage() {
       {
         action: "navigate",
         label: "跳到相關子頁",
-        hint: "navigate path='/director' | '/credits' | '/admin'（限管理員）| '/langsmith'（限管理員）",
+        options: [
+          { id: "/director", label: "導演 AI" },
+          { id: "/credits", label: "積分說明" },
+          { id: "/studio", label: "創作工作室" },
+          { id: "/image-studio", label: "圖片工作室" },
+          { id: "/dashboard", label: "儀表板" },
+          { id: "/admin", label: "管理後台（限管理員）" },
+          { id: "/langsmith", label: "LangSmith（限管理員）" },
+        ],
+        hint: "navigate path='/director' | '/credits' | '/studio' | '/image-studio' | '/dashboard' | '/admin' | '/langsmith'",
       },
       {
         action: "reset",

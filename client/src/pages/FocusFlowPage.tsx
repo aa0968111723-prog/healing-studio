@@ -658,7 +658,7 @@ export default function FocusFlowPage() {
     []
   );
   const FOCUS_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/notes", "/dashboard", "/calendar"]),
+    () => new Set(["/notes", "/dashboard", "/calendar", "/studio", "/settings"]),
     []
   );
   const focusAgentCapabilities: AgentCapability[] = useMemo(
@@ -677,8 +677,15 @@ export default function FocusFlowPage() {
       },
       {
         action: "navigate",
-        label: "前往筆記 / 儀表板",
-        hint: "/notes、/dashboard、/calendar",
+        label: "前往相關頁面",
+        options: [
+          { id: "/notes", label: "專案筆記", meta: { bestFor: "記錄靈感", tip: "專注時的想法隨手記" } },
+          { id: "/dashboard", label: "儀表板", meta: { bestFor: "看產能", tip: "專注後檢視產出" } },
+          { id: "/calendar", label: "行事曆", meta: { bestFor: "排程", tip: "專注時段排入行事曆" } },
+          { id: "/studio", label: "創作工作室", meta: { bestFor: "開始創作", tip: "專注後直接進入創作" } },
+          { id: "/settings", label: "個人設定", meta: { bestFor: "調整專注偏好", tip: "設定預設專注時長" } },
+        ],
+        hint: "navigate path='/notes' | '/dashboard' | '/calendar' | '/studio' | '/settings'",
       },
     ],
     [activeTab, FOCUS_TAB_OPTIONS]

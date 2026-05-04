@@ -560,6 +560,9 @@ export default function AdminApiUsagePage() {
         ],
       },
     ],
+    state: {
+      activeTab,
+    },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
         navigate(action.path);

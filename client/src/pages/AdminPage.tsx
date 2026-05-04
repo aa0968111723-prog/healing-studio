@@ -203,12 +203,22 @@ export default function AdminPage() {
         options: [
           { id: "overview", label: "總覽" },
           { id: "users", label: "使用者" },
+          { id: "activity", label: "活動紀錄" },
+          { id: "api", label: "API 用量" },
+          { id: "costs", label: "成本分析" },
+          { id: "generations", label: "生成紀錄" },
+          { id: "jobs", label: "背景任務" },
           { id: "feedback", label: "用戶回饋" },
-          { id: "system", label: "系統健康" },
           { id: "brain", label: "AI 大腦" },
+          { id: "ai-research", label: "AI 研究" },
         ],
+        currentId: activeTab,
       },
     ],
+    state: {
+      activeTab,
+      userCount: users.length,
+    },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
         navigate(action.path);

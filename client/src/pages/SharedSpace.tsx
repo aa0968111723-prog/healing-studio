@@ -263,7 +263,7 @@ export default function SharedSpace() {
     []
   );
   const SHARED_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/assets", "/models", "/studio"]),
+    () => new Set(["/assets", "/models", "/studio", "/notes", "/image-studio"]),
     []
   );
   const sharedAgentCapabilities: AgentCapability[] = useMemo(
@@ -293,8 +293,15 @@ export default function SharedSpace() {
       },
       {
         action: "navigate",
-        label: "前往我的資產 / 模型",
-        hint: "/assets、/models、/studio",
+        label: "前往相關頁面",
+        options: [
+          { id: "/assets", label: "數位資產庫", meta: { bestFor: "管理我的素材", tip: "將共享素材儲存到自己的資產庫" } },
+          { id: "/models", label: "角色鍛造所", meta: { bestFor: "查看模型詳情", tip: "將共享模型導入自己的庫" } },
+          { id: "/studio", label: "創作工作室", meta: { bestFor: "套用素材創作", tip: "直接使用共享素材生成" } },
+          { id: "/notes", label: "專案筆記", meta: { bestFor: "記錄靈感", tip: "將共享素材的靈感記下" } },
+          { id: "/image-studio", label: "圖片工作室", meta: { bestFor: "精細圖像創作", tip: "用共享素材做參考圖" } },
+        ],
+        hint: "navigate path='/assets' | '/models' | '/studio' | '/notes' | '/image-studio'",
       },
     ],
     [activeTab, SHARED_TAB_OPTIONS, SHARED_TYPE_OPTIONS]

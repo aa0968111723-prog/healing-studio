@@ -265,7 +265,7 @@ export default function AiBrainSettings() {
     []
   );
   const BRAIN_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/settings", "/langsmith", "/admin"]),
+    () => new Set(["/settings", "/langsmith", "/admin", "/my-brain", "/admin/brain-pipeline"]),
     []
   );
   const brainAgentCapabilities: AgentCapability[] = useMemo(
@@ -280,7 +280,14 @@ export default function AiBrainSettings() {
       {
         action: "navigate",
         label: "前往相關頁面",
-        hint: "/settings、/langsmith、/admin",
+        options: [
+          { id: "/settings", label: "個人設定", meta: { bestFor: "返回設定主頁", tip: "調整其他偏好" } },
+          { id: "/my-brain", label: "我的大腦", meta: { bestFor: "查看運作狀態", tip: "即時監控大腦健康" } },
+          { id: "/admin/brain-pipeline", label: "推理鏈視覺化", meta: { bestFor: "視覺化推理過程", tip: "需管理員權限" } },
+          { id: "/admin", label: "管理後台", meta: { bestFor: "系統管理", tip: "需管理員權限" } },
+          { id: "/langsmith", label: "LangSmith", meta: { bestFor: "追蹤推理日誌", tip: "需管理員權限" } },
+        ],
+        hint: "navigate path='/settings' | '/my-brain' | '/admin/brain-pipeline' | '/admin' | '/langsmith'",
       },
     ],
     [activeTab, BRAIN_TAB_OPTIONS]

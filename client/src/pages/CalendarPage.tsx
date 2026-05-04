@@ -346,7 +346,7 @@ export default function CalendarPage() {
   // ─── PageAgent 註冊（Phase 4b：行事曆接入光球） ──────────────────────────
   // 光球可：回到今天、前進 / 後退一個月、跳到筆記頁建立內容。
   const CALENDAR_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/notes", "/dashboard"]),
+    () => new Set(["/notes", "/dashboard", "/studio", "/focus-flow"]),
     []
   );
   const calendarAgentCapabilities: AgentCapability[] = useMemo(
@@ -366,8 +366,10 @@ export default function CalendarPage() {
         options: [
           { id: "/notes", label: "專案筆記", meta: { bestFor: "補計畫內容", tip: "先寫清任務再拖曳排程" } },
           { id: "/dashboard", label: "儀表板", meta: { bestFor: "看產能與趨勢", tip: "依數據反調排程密度" } },
+          { id: "/studio", label: "創作工作室", meta: { bestFor: "開始創作", tip: "排程完直接開工" } },
+          { id: "/focus-flow", label: "專注流", meta: { bestFor: "深度工作", tip: "搭配行事曆排程使用" } },
         ],
-        hint: "navigate path='/notes'（建立內容）| '/dashboard'",
+        hint: "navigate path='/notes' | '/dashboard' | '/studio' | '/focus-flow'",
       },
       {
         action: "reset",

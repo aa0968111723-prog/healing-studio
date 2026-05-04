@@ -288,6 +288,9 @@ export default function VaultPage() {
     pageLabel: "一致性保險庫",
     pagePath: "/vault",
     capabilities: vaultAgentCapabilities,
+    state: {
+      activeTab,
+    },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       if (action.type === "navigate") {
         if (!VAULT_NAV_ALLOWLIST.has(action.path)) {

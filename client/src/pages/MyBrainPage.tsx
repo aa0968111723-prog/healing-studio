@@ -25,9 +25,14 @@ export default function MyBrainPage() {
           { id: "/my-brain", label: "我的大腦" },
           { id: "/admin?section=brain", label: "AI 大腦組態（需管理員）" },
           { id: "/admin/brain-pipeline", label: "推理鏈視覺化" },
+          { id: "/settings/ai-brain", label: "AI 大腦設定" },
         ],
       },
     ],
+    state: {
+      autoRefresh,
+      statusFilter,
+    },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
         navigate(action.path);

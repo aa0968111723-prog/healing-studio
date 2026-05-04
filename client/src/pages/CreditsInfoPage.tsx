@@ -288,7 +288,7 @@ export default function CreditsInfoPage() {
   // 積分頁本身唯讀，光球主要用處：把 remaining / 模型費率摘要送進 LLM 上下文，
   // 另外提供「前往學習文件」「前往儀表板」「前往分享空間賺積分」快捷 navigate。
   const CREDITS_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/learn", "/dashboard", "/shared", "/assets"]),
+    () => new Set(["/learn", "/dashboard", "/shared", "/assets", "/settings", "/studio"]),
     []
   );
   const creditsAgentCapabilities: AgentCapability[] = useMemo(
@@ -301,8 +301,10 @@ export default function CreditsInfoPage() {
           { id: "/dashboard", label: "儀表板", meta: { bestFor: "成本監控", tip: "追蹤單次生成成本變化" } },
           { id: "/shared", label: "共享空間", meta: { bestFor: "分享賺積分", tip: "高品質可復用資產優先分享" } },
           { id: "/assets", label: "數位資產庫", meta: { bestFor: "資產盤點", tip: "清理重複素材避免浪費生成" } },
+          { id: "/settings", label: "個人設定", meta: { bestFor: "調整偏好", tip: "管理自動給點與通知" } },
+          { id: "/studio", label: "創作工作室", meta: { bestFor: "開始創作", tip: "先確認餘額再生成" } },
         ],
-        hint: "navigate path='/learn'（文件）| '/dashboard'（看用量）| '/shared'（分享賺積分）| '/assets'（我的資產）",
+        hint: "navigate path='/learn' | '/dashboard' | '/shared' | '/assets' | '/settings' | '/studio'",
       },
     ],
     []
