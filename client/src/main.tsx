@@ -114,9 +114,15 @@ function resolveClientFetchUrl(input: RequestInfo | URL): string {
         ? input.toString()
         : input.url;
 
+  const apiBaseUrl = clientEnv.VITE_API_BASE_URL.trim();
+  const baseOrigin = apiBaseUrl || window.location.origin;
+  const normalizedBase = baseOrigin.endsWith("/")
+    ? baseOrigin
+    : `${baseOrigin}/`;
+
   const resolved = raw.startsWith("http://") || raw.startsWith("https://")
     ? raw
-    : new URL(raw, window.location.origin).toString();
+    : new URL(raw, normalizedBase).toString();
 
   if (!/^https?:\/\//i.test(resolved)) {
     throw new Error(`[fetch] Invalid URL (missing protocol): ${resolved}`);
@@ -166,14 +172,14 @@ const trpcClient = trpc.createClient({
       // take 30-60s; 90s leaves headroom without making a truly hung
       // request invisible).
       true: httpLink({
-        url: "/api/trpc",
+        url: resolveClientFetchUrl("/api/trpc"),
         transformer: superjson,
         fetch: fetchWithTimeout(90_000),
       }),
       // Light: batched, 30s ceiling (auth, profile, page data — anything
       // beyond 30s on these is a backend problem worth surfacing).
       false: httpBatchLink({
-        url: "/api/trpc",
+        url: resolveClientFetchUrl("/api/trpc"),
         transformer: superjson,
         fetch: fetchWithTimeout(30_000),
       }),

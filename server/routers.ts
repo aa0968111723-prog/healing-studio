@@ -5387,10 +5387,9 @@ export const appRouter = router({
 
         // 預設依大腦選定的 model 推斷引擎偏好；多模態與 Provider Router
         // 會在後續再做動態決策。Brain 設定改 model 後，光球就會跟著切換引擎。
-        let enginePreference: "gemini" | "auto" =
-          /^gemini[-/]/i.test(director.model) || /^google[-/]/i.test(director.model)
-            ? "gemini"
-            : "auto";
+        // 代理主流程預設走 auto：讓 llmRouter 以 OpenRouter / Perplexity 可用性
+        // 做首選與降級，不再把路由鎖死在 Gemini。
+        let enginePreference: "auto" = "auto";
 
         try {
           // Prompt-injection defence: strip well-known role-impersonation /
@@ -5626,7 +5625,7 @@ export const appRouter = router({
               routeIntent,
               health: providerHealth,
             });
-            enginePreference = selection.provider.id === "default_llm" ? "auto" : "gemini";
+            enginePreference = "auto";
           }
           if (!orbAgentEnabled) {
             // Kill switch active: skip all planning, return text-only via simple LLM call.
