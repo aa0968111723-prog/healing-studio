@@ -1087,9 +1087,21 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // 同一次 invokeLLM 呼叫即使要試 3 個引擎，也只佔一個槽，避免迴圈期間槽位反覆釋放。
   return withLLMSlot(async () => {
     let lastError: Error | null = null;
+    const inferredOverrideEngine =
+      typeof overrideModel === "string"
+        ? inferEngineFromModelIdSafe(overrideModel)
+        : null;
 
     for (const engineConfig of engineConfigs) {
       try {
+        // 避免把明確綁定特定供應商的 model ID（例如 gemini-2.5-pro）
+        // 送到不相容引擎（例如 perplexity）造成 400 invalid model。
+        // 若 fallback 到不同引擎，改用該引擎預設 model。
+        const scopedOverrideModel =
+          inferredOverrideEngine && inferredOverrideEngine !== engineConfig.engine
+            ? undefined
+            : overrideModel;
+
         const result = await invokeSingleEngine(engineConfig, {
           messages: processedMessages,
           tools,
@@ -1105,7 +1117,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           parentRunId,
           temperature,
           topP,
-          overrideModel,
+          overrideModel: scopedOverrideModel,
           timeoutMs,
         });
 
