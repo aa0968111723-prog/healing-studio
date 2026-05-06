@@ -199,6 +199,50 @@ interface AudioResult {
   [key: string]: unknown;
 }
 
+const PROMPT_MIN_LENGTH = 12;
+
+function hasKeyword(text: string, keywords: string[]): boolean {
+  const normalized = text.toLowerCase();
+  return keywords.some(keyword => normalized.includes(keyword.toLowerCase()));
+}
+
+export function validatePromptBeforeSubmit(tab: string, promptState: Record<string, unknown>): { ok: true } | { ok: false; reason: string } {
+  const rawPrompt = String(promptState.prompt ?? promptState.text ?? "").trim();
+  if (!rawPrompt) return { ok: false, reason: "提示詞為空，請先描述需求內容" };
+  if (rawPrompt.length < PROMPT_MIN_LENGTH) {
+    return { ok: false, reason: `提示詞太短（至少 ${PROMPT_MIN_LENGTH} 字），請補上更完整描述` };
+  }
+
+  if (tab === "music") {
+    const tags = String(promptState.tags ?? "").trim();
+    const merged = `${rawPrompt} ${tags}`.trim();
+    const hasStyle = hasKeyword(merged, ["風格", "style", "jazz", "lo-fi", "ambient", "cinematic", "流行", "爵士"]);
+    const hasRhythm = hasKeyword(merged, ["節奏", "bpm", "快", "慢", "rhythm", "tempo"]);
+    const hasMood = hasKeyword(merged, ["情緒", "mood", "放鬆", "療癒", "緊張", "開心", "悲傷", "平靜"]);
+    const hasUseCase = hasKeyword(merged, ["用途", "場景", "for", "適合", "背景", "冥想", "廣告", "影片"]);
+    if (!hasStyle && !hasRhythm) {
+      return { ok: false, reason: "配樂缺少風格與節奏描述（可補：曲風 + BPM/快慢）" };
+    }
+    const missing: string[] = [];
+    if (!hasStyle) missing.push("風格");
+    if (!hasRhythm) missing.push("節奏");
+    if (!hasMood) missing.push("情緒");
+    if (!hasUseCase) missing.push("用途/場景");
+    if (missing.length > 0) return { ok: false, reason: `配樂描述仍缺少：${missing.join("、")}` };
+  }
+
+  if (tab === "tts") {
+    const voiceId = String(promptState.voiceId ?? promptState.voice_id ?? "").trim();
+    const paragraphs = rawPrompt.split(/\n+/).map(x => x.trim()).filter(Boolean);
+    const hasTone = hasKeyword(rawPrompt, ["語氣", "tone", "溫暖", "嚴肅", "活潑", "沉穩", "親切", "情緒"]);
+    if (!voiceId) return { ok: false, reason: "旁白缺少聲線（voice_id 或預設 voice）" };
+    if (paragraphs.length < 2) return { ok: false, reason: "旁白缺少段落（建議至少 2 段）" };
+    if (!hasTone) return { ok: false, reason: "旁白缺少語氣描述（例：溫暖、沉穩、活潑）" };
+  }
+
+  return { ok: true };
+}
+
 // ─── 子元件：AsyncAudioPoller — 音訊輪詢元件 ─────────────────────────────────
 
 /**
@@ -4405,11 +4449,15 @@ export default function ProStudio() {
         }
         case "submit": {
           const fn = bridgeRef.current.submit;
+          const getState = bridgeRef.current.getState;
           const pending = pendingAgentPayloadRef.current;
           const expectedTab = pending?.targetTab ?? tab;
           if (fn && expectedTab === tab && !pending?.fillPrompt && !pending?.setParam?.length) {
+            const promptState = getState?.() ?? {};
+            const validation = validatePromptBeforeSubmit(expectedTab, promptState);
+            if (!validation.ok) return { ok: false, reason: validation.reason };
             const ok = fn();
-            return ok ? { ok: true } : { ok: false, reason: "提交條件不足（缺少必填欄位）" };
+            return ok ? { ok: true } : { ok: false, reason: "提交條件不足：請先補齊必要欄位後再送出" };
           }
           queueAgent(prev => ({ ...prev, submit: true }), expectedTab);
           return { ok: true, message: "送出已排入佇列，等分頁與提示詞就緒後執行" };
