@@ -177,18 +177,6 @@ export interface GlobalAgentExecutionContext {
    * up empty. Default 120ms; set 0 from tests / non-React callers.
    */
   samePageStateMutationSettleMs?: number;
-
-  planNextStep?: (args: {
-    goal: string;
-    previousObservations: StepObservation[];
-    context?: Record<string, unknown>;
-  }) => Promise<PlanStep | null>;
-  executePlanStep?: (step: PlanStep) => Promise<{
-    ok: boolean;
-    evidence: string;
-    outputRefId?: string;
-  }>;
-  onObservation?: (observation: StepObservation) => Promise<void> | void;
 }
 
 export interface GlobalDispatchOptions {
@@ -220,22 +208,6 @@ export interface GlobalAgentExecutionResult {
    * navigate + settle wait. Undefined when no step had a path.
    */
   endingPath?: string;
-}
-
-export interface PlanStep {
-  goal: string;
-  action: string;
-  target?: string;
-  inputs?: Record<string, unknown>;
-  success_criteria: string;
-  fallback?: string;
-}
-
-export interface StepObservation {
-  step: PlanStep;
-  success: boolean;
-  evidence: string;
-  outputRefId?: string;
 }
 
 const DANGEROUS_ACTION_TYPES = new Set<AgentAction["type"]>([
@@ -1314,39 +1286,4 @@ export async function executeGlobalActions(actions: AgentAction[], ctx: GlobalAg
     if (result.endingPath) runningPath = result.endingPath;
   }
   return results;
-}
-
-export async function executeClosedLoopPlan(args: {
-  goal: string;
-  ctx: GlobalAgentExecutionContext;
-  context?: Record<string, unknown>;
-  maxSteps?: number;
-}): Promise<{ ok: boolean; observations: StepObservation[]; reason?: string }> {
-  const { goal, ctx } = args;
-  if (!ctx.planNextStep || !ctx.executePlanStep) {
-    return { ok: false, observations: [], reason: "closed-loop hooks missing" };
-  }
-  const observations: StepObservation[] = [];
-  const maxSteps = Math.max(1, Math.min(args.maxSteps ?? 14, 50));
-
-  for (let i = 0; i < maxSteps; i += 1) {
-    const next = await ctx.planNextStep({
-      goal,
-      previousObservations: observations,
-      context: args.context,
-    });
-    if (!next) return { ok: true, observations };
-
-    const executed = await ctx.executePlanStep(next);
-    const observation: StepObservation = {
-      step: next,
-      success: executed.ok,
-      evidence: executed.evidence,
-      outputRefId: executed.outputRefId,
-    };
-    observations.push(observation);
-    if (ctx.onObservation) await ctx.onObservation(observation);
-    if (!executed.ok) return { ok: false, observations, reason: executed.evidence };
-  }
-  return { ok: false, observations, reason: "max_steps_reached" };
 }

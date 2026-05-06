@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeClosedLoopPlan, type GlobalAgentExecutionContext, type PlanStep } from "../../../shared/global-agent-orchestrator";
+import { executeClosedLoopPlan, type ClosedLoopContext, type PlanStep } from "../../../shared/closed-loop-plan";
 
 function step(goal: string, action: string, inputs: Record<string, unknown> = {}): PlanStep {
   return { goal, action, target: "/pro-studio", inputs, success_criteria: "step success", fallback: "ask user" };
@@ -8,22 +8,18 @@ function step(goal: string, action: string, inputs: Record<string, unknown> = {}
 describe("cross-page golden path (closed loop)", () => {
   it("success path: planner replans each step from fresh observations", async () => {
     const planNextStep = vi
-      .fn<NonNullable<GlobalAgentExecutionContext["planNextStep"]>>()
+      .fn<ClosedLoopContext["planNextStep"]>()
       .mockImplementation(async ({ previousObservations }) => {
         if (previousObservations.length === 0) return step("make video", "navigate");
         if (previousObservations.length === 1) return step("make video", "submit", { prompt: "calm tea" });
         return null;
       });
     const executePlanStep = vi
-      .fn<NonNullable<GlobalAgentExecutionContext["executePlanStep"]>>()
+      .fn<ClosedLoopContext["executePlanStep"]>()
       .mockResolvedValueOnce({ ok: true, evidence: "navigated", outputRefId: "nav-1" })
       .mockResolvedValueOnce({ ok: true, evidence: "submitted", outputRefId: "gen-1" });
 
-    const out = await executeClosedLoopPlan({
-      goal: "make video",
-      ctx: { navigate: vi.fn(), dispatch: vi.fn(), planNextStep, executePlanStep },
-    });
-
+    const out = await executeClosedLoopPlan({ goal: "make video", ctx: { planNextStep, executePlanStep } });
     expect(out.ok).toBe(true);
     expect(out.observations).toHaveLength(2);
     expect(planNextStep).toHaveBeenCalledTimes(3);
@@ -34,14 +30,11 @@ describe("cross-page golden path (closed loop)", () => {
     const out = await executeClosedLoopPlan({
       goal: "make video",
       ctx: {
-        navigate: vi.fn(),
-        dispatch: vi.fn(),
         planNextStep: async () => step("make video", "submit", { prompt: "" }),
         executePlanStep: async (s) => ({ ok: Boolean(String(s.inputs?.prompt ?? "").trim()), evidence: "missing prompt" }),
       },
       maxSteps: 3,
     });
-
     expect(out.ok).toBe(false);
     expect(out.observations[0].success).toBe(false);
   });
@@ -51,8 +44,6 @@ describe("cross-page golden path (closed loop)", () => {
     const out = await executeClosedLoopPlan({
       goal: "call external api",
       ctx: {
-        navigate: vi.fn(),
-        dispatch: vi.fn(),
         planNextStep: async ({ previousObservations }) => previousObservations.length ? null : step("call external api", "studio.generateVideo"),
         executePlanStep: async () => ({ ok: false, evidence: "external api timeout after 30s", outputRefId: "api-timeout-1" }),
         onObservation,

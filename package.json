@@ -15,7 +15,7 @@
     "check:routes": "node scripts/scan-routes.mjs",
     "check:smoke": "node scripts/smoke-routes.mjs",
     "format": "prettier --write .",
-    "test": "node scripts/vitest-run.mjs",
+    "test": "vitest run",
     "test:e2e": "playwright test",
     "db:push": "drizzle-kit migrate",
     "eval": "ts-node server/eval/runEval.ts"
