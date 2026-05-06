@@ -57,6 +57,28 @@ export const TEXT_TO_IMAGE_MODEL_REGISTRY: readonly TextToImageModelProfile[] = 
   },
 ];
 
+
+export function summarizeTextToImageModelRegistry(limit = 12): string {
+  const items = TEXT_TO_IMAGE_MODEL_REGISTRY.slice(0, Math.max(1, limit)).map(model => ({
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  }));
+
+  return JSON.stringify({
+    total: TEXT_TO_IMAGE_MODEL_REGISTRY.length,
+    items,
+    selectionPolicy: {
+      matcher: "keyword-overlap",
+      fallbackModelId: "fal-ai/flux-pro/v1.1",
+      note: "When no keywords match, fallback to a general-purpose model.",
+    },
+  });
+}
+
 export interface TextToImageModelMatch {
   modelId: string;
   score: number;
