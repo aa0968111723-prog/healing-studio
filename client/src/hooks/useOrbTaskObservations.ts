@@ -43,6 +43,13 @@ export interface OrbTaskObservationItem {
   /** Set on `continuation_started` events: id of the new task that was
    *  spawned. Hook uses this to switch its polling target. */
   successorTaskId?: string;
+  traceId?: string;
+  stepId?: string;
+  action?: string;
+  inputHash?: string;
+  latencyMs?: number;
+  errorCode?: string;
+  retryCount?: number;
 }
 
 export interface UseOrbTaskObservationsResult {
@@ -85,6 +92,21 @@ export function eventToObservation(
   event: OrbAuditEventRow,
   iterationIndex: number
 ): OrbTaskObservationItem | null {
+  const telemetry = event.metadata as Record<string, unknown> | undefined;
+  const commonTelemetry = {
+    traceId:
+      typeof telemetry?.trace_id === "string"
+        ? (telemetry.trace_id as string)
+        : typeof telemetry?.traceId === "string"
+          ? (telemetry.traceId as string)
+          : undefined,
+    stepId: typeof telemetry?.step_id === "string" ? (telemetry.step_id as string) : undefined,
+    action: typeof telemetry?.action === "string" ? (telemetry.action as string) : undefined,
+    inputHash: typeof telemetry?.input_hash === "string" ? (telemetry.input_hash as string) : undefined,
+    latencyMs: typeof telemetry?.latency_ms === "number" ? (telemetry.latency_ms as number) : undefined,
+    errorCode: typeof telemetry?.error_code === "string" ? (telemetry.error_code as string) : undefined,
+    retryCount: typeof telemetry?.retry_count === "number" ? (telemetry.retry_count as number) : undefined,
+  };
   if (event.type === "task.continuation_started") {
     const successor =
       event.metadata && typeof event.metadata.successorTaskId === "string"
@@ -102,6 +124,7 @@ export function eventToObservation(
       kind: "continuation_started",
       message: `光球換個方法繼續：第 ${nextIter} 輪`,
       successorTaskId: successor,
+      ...commonTelemetry,
     };
   }
 
@@ -121,6 +144,7 @@ export function eventToObservation(
       at: event.timestamp,
       kind: "continue",
       message: event.message || "光球觀察到狀況，但沒有完整資訊。",
+      ...commonTelemetry,
     };
   }
   const kind = obs.kind;
@@ -133,6 +157,7 @@ export function eventToObservation(
         at: event.timestamp,
         kind: "complete",
         message: typeof obs.userMessage === "string" ? obs.userMessage : "已完成。",
+        ...commonTelemetry,
       };
     case "abort":
       return {
@@ -146,6 +171,7 @@ export function eventToObservation(
           typeof obs.failureCategory === "string"
             ? (obs.failureCategory as OrbTaskObservationItem["failureCategory"])
             : "unknown",
+        ...commonTelemetry,
       };
     case "needs_user":
       return {
@@ -158,6 +184,7 @@ export function eventToObservation(
         suggestions: Array.isArray(obs.suggestions)
           ? obs.suggestions.filter((s): s is string => typeof s === "string").slice(0, 4)
           : undefined,
+        ...commonTelemetry,
       };
     case "continue":
       return {
@@ -170,6 +197,7 @@ export function eventToObservation(
           typeof obs.suggestedNextAction === "string"
             ? obs.suggestedNextAction
             : "光球準備繼續。",
+        ...commonTelemetry,
       };
     default:
       return null;

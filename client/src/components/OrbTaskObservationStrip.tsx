@@ -194,6 +194,20 @@ export default function OrbTaskObservationStrip({
                   )}
                 </div>
                 <p className="mt-0.5 text-xs text-white/85 leading-relaxed">{item.message}</p>
+                {(item.traceId || item.stepId || item.action || item.errorCode || item.latencyMs !== undefined) && (
+                  <details className="mt-1 text-[10px] text-white/55">
+                    <summary className="cursor-pointer select-none hover:text-white/80">步驟細節</summary>
+                    <div className="mt-1 space-y-0.5 rounded-md border border-white/10 bg-black/20 p-2">
+                      {item.traceId && <div>trace_id: {item.traceId}</div>}
+                      {item.stepId && <div>step_id: {item.stepId}</div>}
+                      {item.action && <div>action: {item.action}</div>}
+                      {item.inputHash && <div>input_hash: {item.inputHash}</div>}
+                      {typeof item.latencyMs === "number" && <div>latency_ms: {item.latencyMs}</div>}
+                      {item.errorCode && <div>error_code: {item.errorCode}</div>}
+                      {typeof item.retryCount === "number" && <div>retry_count: {item.retryCount}</div>}
+                    </div>
+                  </details>
+                )}
                 {item.kind === "needs_user" && item.suggestions && item.suggestions.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {item.suggestions.map(s => (

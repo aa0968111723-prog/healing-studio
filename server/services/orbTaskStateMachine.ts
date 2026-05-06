@@ -25,6 +25,25 @@ function pushEvent(
   message: string,
   metadata?: Record<string, unknown>
 ) {
+  const structuredMetadata = {
+    trace_id: task.traceId,
+    step_id: typeof metadata?.stepId === "string" ? metadata.stepId : null,
+    action:
+      typeof metadata?.action === "string"
+        ? metadata.action
+        : type.startsWith("step.")
+          ? type
+          : `task.${type.split(".").at(-1) ?? "event"}`,
+    input_hash: typeof metadata?.input_hash === "string" ? metadata.input_hash : null,
+    latency_ms: typeof metadata?.latency_ms === "number" ? metadata.latency_ms : null,
+    error_code:
+      typeof metadata?.error_code === "string"
+        ? metadata.error_code
+        : type.includes("failed")
+          ? "step_failed"
+          : null,
+    retry_count: typeof metadata?.retry_count === "number" ? metadata.retry_count : task.retryCount,
+  };
   task.auditEvents.push({
     eventId: id("evt"),
     taskId: task.taskId,
@@ -32,7 +51,7 @@ function pushEvent(
     timestamp: Date.now(),
     type,
     message,
-    metadata,
+    metadata: { ...structuredMetadata, ...(metadata ?? {}) },
   });
 }
 
