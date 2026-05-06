@@ -1728,9 +1728,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         error: reason,
         completedAt: Date.now(),
       } : prev);
+      const userEcho = trimmed.length > 0 ? `
+
+我有收到你剛剛說的：
+「${trimmed.slice(0, 1200)}」` : "";
       setMessages(prev => [...prev, {
         role: "orb",
-        text: "🌸 抱歉，我剛才恍神了一下。再跟我說一次好嗎？",
+        text: `🌸 抱歉，剛剛連線有點不穩，我沒有完整處理成功。${userEcho}
+
+你可以直接按送出再試一次，或我也可以先幫你把需求整理成分鏡／腳本大綱。`,
         at: Date.now(),
         pagePath: locationPath,
       }]);
