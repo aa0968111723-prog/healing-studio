@@ -744,6 +744,34 @@ const LONG_HINT_RE = /長片|長影片|長視頻|長.{0,4}的?(影片|video)/i;
 const SHORT_HINT_RE = /短片|reel|30\s*秒|15\s*秒|\b(short|teaser)\b/i;
 const SUBJECT_HINT_RE = /[:：]|主題|題目|關於|介紹|品牌|產品|內容是|story|theme|brand|product/i;
 
+
+const VIDEO_USE_CASE_HINT_RE = /(品牌廣告|故事敘事|教學解說|情緒短片|廣告|宣傳|教學|敘事|情緒|brand ad|story|tutorial|explainer|mood)/i;
+const STYLE_HINT_RE = /(電影感|寫實|動畫|紀錄|插畫|極簡|cinematic|realistic|animated|documentary)/i;
+
+function hasUseCaseHint(text: string): boolean {
+  return VIDEO_USE_CASE_HINT_RE.test(text);
+}
+
+function hasStyleHint(text: string): boolean {
+  return STYLE_HINT_RE.test(text);
+}
+
+export interface VideoSlotSummary {
+  hasLength: boolean;
+  hasSubject: boolean;
+  hasStyle: boolean;
+  hasUseCase: boolean;
+}
+
+export function summarizeVideoSlots(text: string): VideoSlotSummary {
+  const trimmed = text.trim();
+  return {
+    hasLength: LENGTH_HINT_RE.test(trimmed),
+    hasSubject: trimmed.length >= 25 || SUBJECT_HINT_RE.test(trimmed),
+    hasStyle: hasStyleHint(trimmed),
+    hasUseCase: hasUseCaseHint(trimmed),
+  };
+}
 interface ModalityHits {
   video: boolean;
   image: boolean;
@@ -778,23 +806,24 @@ export function detectVideoIntent(
   const wantsBuild = matchAny(q, BUILD_KEYWORDS);
   if (!(wantsVideo && wantsBuild)) return { kind: "none" };
 
-  const hasLength = LENGTH_HINT_RE.test(trimmed);
+  const slotSummary = summarizeVideoSlots(trimmed);
+  const hasLength = slotSummary.hasLength;
   const wantsLong = LONG_HINT_RE.test(trimmed) || /\d+\s*分(?!之|秒)/.test(trimmed);
   const isShortHint = SHORT_HINT_RE.test(trimmed);
-  const hasSubject = trimmed.length >= 25 || SUBJECT_HINT_RE.test(trimmed);
+  const hasSubject = slotSummary.hasSubject;
 
   // Style / platform we know about become hints embedded in the prompt so
   // generated work matches the user's usual taste without re-asking.
   const enrichedBrief = `${trimmed}${styleHint(preferences)}${platformHint(preferences)}`;
 
   if (wantsLong && !isShortHint) {
-    if (hasSubject) {
+    if (hasSubject && slotSummary.hasStyle && slotSummary.hasUseCase) {
       return { kind: "ready", workflow: buildLongVideoWorkflow(enrichedBrief) };
     }
     return {
       kind: "needs-clarification",
       message:
-        "長影片我可以幫你拼成多章節流程，先告訴我主題或想表達的核心訊息，我再幫你展開章節步驟。",
+        "長影片我可以幫你拼成多章節流程；目前還缺主題／風格／用途其中一些欄位，先補齊我再幫你展開章節步驟。",
       options: [
         "1–3 分鐘的中片（3 章節）",
         "5 分鐘的長片（4 章節）",

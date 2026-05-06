@@ -31,6 +31,7 @@ import {
   buildNavigateWorkflow,
   detectChatIntent,
   detectNavIntent,
+  summarizeVideoSlots,
 } from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
@@ -46,6 +47,7 @@ import {
   buildContextualClarificationOptions,
   isPhantomPlanReply,
   extractPhantomPlanQuestion,
+  type ClarificationDimension,
 } from "../../../shared/orb-clarification-options";
 import type { RunWorkflowAction } from "../../../shared/agent-actions";
 import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
@@ -145,6 +147,7 @@ export interface PendingClarificationPrompt {
   id: string;
   question: string;
   options?: string[];
+  dimension?: ClarificationDimension;
   originalUserText: string;
   createdAt: number;
 }
@@ -216,7 +219,7 @@ export function inferClarificationOptionEmoji(text: string): string {
   return "💡";
 }
 
-function inferClarificationIntentCards(question: string, userText: string): string[] {
+function inferClarificationIntentCards(question: string, userText: string, dimension: ClarificationDimension = "format"): string[] {
   // Delegate to the shared context-aware generator so the options always
   // reference the user's own topic (e.g. "茶道體驗短片（30 秒）" instead of
   // generic "社群短片（15-30 秒）"). The shared util infers the modality
@@ -225,7 +228,7 @@ function inferClarificationIntentCards(question: string, userText: string): stri
   // phrased around video.
   const optionPack = buildContextualClarificationOptions({
     userText: `${userText}\n${question}`.trim(),
-    dimension: "format",
+    dimension,
   });
   return optionPack.options;
 }
@@ -661,6 +664,22 @@ function WorkflowConfirmationCard({
       <div className="mt-3 rounded-2xl bg-white/10 p-3">
         <div className="text-xs text-white/50">需求</div>
         <div className="mt-1 line-clamp-2 text-sm text-white/80">{pendingWorkflow.userText}</div>
+      </div>
+
+      <div className="mt-3 rounded-2xl bg-cyan-400/10 p-3 border border-cyan-200/20">
+        <div className="text-xs text-cyan-100/70">已收集欄位摘要</div>
+        <div className="mt-1 text-xs text-white/80">
+          {(() => {
+            const slots = summarizeVideoSlots(pendingWorkflow.userText);
+            const marks = [
+              `片長：${slots.hasLength ? "✓" : "✗"}`,
+              `主題：${slots.hasSubject ? "✓" : "✗"}`,
+              `風格：${slots.hasStyle ? "✓" : "✗"}`,
+              `用途：${slots.hasUseCase ? "✓" : "✗"}`,
+            ];
+            return marks.join("｜");
+          })()}
+        </div>
       </div>
 
       <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
@@ -1394,7 +1413,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               .map(s => s.trim())
               .filter(s => s.length > 0)
               .slice(0, 4)
-          : inferClarificationIntentCards(clarificationQuestion, trimmed);
+          : inferClarificationIntentCards(clarificationQuestion, trimmed, /用途|use/i.test(clarificationQuestion) ? "usecase" : "format");
         setMessages(prev => [...prev, {
           role: "orb",
           text: clarificationQuestion,
@@ -1405,6 +1424,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           question: clarificationQuestion,
           options: clarificationOptions,
+          dimension: /用途|use/i.test(clarificationQuestion) ? "usecase" : "format",
           originalUserText: trimmed,
           createdAt: Date.now(),
         });
@@ -1493,6 +1513,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           question,
           options: intentDetection.options,
+          dimension: "format",
           originalUserText: trimmed,
           createdAt: Date.now(),
         });
@@ -1714,7 +1735,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           "我先確認一下你要的方向，這樣才能做對。";
         const optionPack = buildContextualClarificationOptions({
           userText: trimmed,
-          dimension: "format",
+          dimension,
         });
         setPendingClarification({
           id: `clarify_phantom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -1876,7 +1897,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setPendingClarification(null);
     const composedUserText =
       active.originalUserText.length > 0
-        ? `${active.originalUserText}\n\n[使用者澄清]: ${trimmed}`
+        ? `${active.originalUserText}\n\n[使用者澄清/${active.dimension ?? "format"}]: ${trimmed}`
         : trimmed;
     await sendMessage(composedUserText);
   }, [pendingClarification, sendMessage]);
