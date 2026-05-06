@@ -17,7 +17,7 @@ const requiredPackages = [
 const missing = [];
 for (const pkg of requiredPackages) {
   try {
-    require.resolve(pkg);
+    require.resolve(`${pkg}/package.json`);
   } catch {
     missing.push(pkg);
   }
@@ -50,6 +50,10 @@ if (missing.length > 0) {
 console.log("[check] Dependency preflight passed.");
 
 if (shouldTypecheck) {
-  const tsc = spawnSync("npx", ["tsc", "--noEmit"], { stdio: "inherit", shell: true });
+  const tsc = spawnSync(
+    "node",
+    ["./node_modules/typescript/bin/tsc", "--noEmit"],
+    { stdio: "inherit" }
+  );
   process.exit(tsc.status ?? 1);
 }

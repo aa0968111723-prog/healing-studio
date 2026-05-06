@@ -66,7 +66,8 @@ export interface ModelPricing {
     | "openai"
     | "anthropic"
     | "nvidia"
-    | "openrouter";
+    | "openrouter"
+    | "perplexity";
   category: ModelCategory;
   tier: PricingTier;
 
