@@ -53,6 +53,12 @@ import {
   rankVoiceModelsByPrompt,
   pickBestVoiceModel,
 } from "./voiceModelRegistry";
+import {
+  FINE_TUNE_MODEL_REGISTRY,
+  type FineTuneModelProfile,
+  rankFineTuneModelsByPrompt,
+  pickBestFineTuneModel,
+} from "./fineTuneModelRegistry";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 類型定義 (Type Definitions)
@@ -67,7 +73,8 @@ export type ModelDomain =
   | "image-to-3d"        // 影像生成 3D 模型
   | "image-to-world"     // 影像生成 3D 世界場景
   | "audio-music"        // 音樂/音效生成
-  | "voice-tts";         // 語音合成
+  | "voice-tts"          // 語音合成
+  | "fine-tune-training";// 模型微調/LoRA 訓練
 
 /**
  * 統一的模型描述介面
@@ -177,6 +184,18 @@ function normalizeVoiceModel(model: VoiceModelProfile): UnifiedModelProfile {
   };
 }
 
+function normalizeFineTuneModel(model: FineTuneModelProfile): UnifiedModelProfile {
+  return {
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    domain: "fine-tune-training",
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  };
+}
+
 /**
  * 統一模型資料庫 - 所有模型的完整清單
  */
@@ -186,6 +205,7 @@ export const UNIFIED_MODEL_REGISTRY: readonly UnifiedModelProfile[] = [
   ...SKELETAL_MODEL_REGISTRY.map(normalizeSkeletalModel),
   ...AUDIO_MODEL_REGISTRY.map(normalizeAudioModel),
   ...VOICE_MODEL_REGISTRY.map(normalizeVoiceModel),
+  ...FINE_TUNE_MODEL_REGISTRY.map(normalizeFineTuneModel),
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -293,6 +313,20 @@ export function queryModelsByPrompt(
     );
   }
 
+  
+  if (!domains || domains.includes("fine-tune-training")) {
+    const matches = rankFineTuneModelsByPrompt(prompt);
+    results.push(
+      ...matches.map(m => ({
+        modelId: m.modelId,
+        domain: "fine-tune-training" as ModelDomain,
+        score: m.score,
+        matchedKeywords: m.matchedKeywords,
+        rationale: m.rationale,
+      }))
+    );
+  }
+
   // 過濾並排序
   let filtered = results.filter(r => r.score >= minScore);
   filtered.sort((a, b) => b.score - a.score);
@@ -368,6 +402,16 @@ export function pickBestModelForDomain(
         rationale: match.rationale,
       };
     }
+    case "fine-tune-training": {
+      const match = pickBestFineTuneModel(prompt);
+      return {
+        modelId: match.modelId,
+        domain,
+        score: match.score,
+        matchedKeywords: match.matchedKeywords,
+        rationale: match.rationale,
+      };
+    }
   }
 }
 
@@ -416,8 +460,13 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
     domains.push("voice-tts");
   }
 
+  const fineTuneKeywords = ["lora", "fine tune", "fine-tune", "訓練", "微調", "portrait", "video lora"];
+  if (fineTuneKeywords.some(kw => normalized.includes(kw))) {
+    domains.push("fine-tune-training");
+  }
+
   // 如果沒有匹配到任何關鍵字，返回所有領域
-  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "audio-music", "voice-tts"];
+  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "audio-music", "voice-tts", "fine-tune-training"];
 }
 
 /**
@@ -483,6 +532,7 @@ export function getModelRegistryStats() {
       "image-to-world": 0,
       "audio-music": 0,
       "voice-tts": 0,
+      "fine-tune-training": 0,
     },
     byProvider: {} as Record<string, number>,
   };
@@ -512,6 +562,7 @@ export function generateModelRegistrySummary(): string {
 - 影像生成 3D 世界 (image-to-world): ${stats.byDomain["image-to-world"]} 個模型
 - 音樂音效生成 (audio-music): ${stats.byDomain["audio-music"]} 個模型
 - 語音合成配音 (voice-tts): ${stats.byDomain["voice-tts"]} 個模型
+- 模型微調訓練 (fine-tune-training): ${stats.byDomain["fine-tune-training"]} 個模型
 
 ## 依提供者分類
 ${Object.entries(stats.byProvider).map(([provider, count]) => `- ${provider}: ${count} 個模型`).join("\n")}
@@ -558,4 +609,10 @@ export {
   type VoiceModelMatch,
   rankVoiceModelsByPrompt,
   pickBestVoiceModel,
+
+  // Fine-tune Training Model Registry
+  FINE_TUNE_MODEL_REGISTRY,
+  type FineTuneModelProfile,
+  rankFineTuneModelsByPrompt,
+  pickBestFineTuneModel,
 };
