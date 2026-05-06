@@ -11,6 +11,7 @@ import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
 import { IMAGE_TO_IMAGE_MODEL_REGISTRY } from "../../shared/imageToImageModelRegistry";
 import { SKELETAL_MODEL_REGISTRY } from "../../shared/skeletalModelRegistry";
 import { IMAGE_UPSCALE_MODEL_REGISTRY } from "../../shared/imageUpscaleModelRegistry";
+import { summarizeStudioModelKnowledgeForAgent } from "../../shared/studioModelIntelligence";
 import {
   adaptAgentPlanV3ToActions,
   buildAgentPlanV3SystemPrompt,
@@ -336,6 +337,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const imageToImageModelSummary = summarizeImageToImageModelRegistryForPlanner();
   const skeletalModelSummary = summarizeSkeletalModelRegistryForPlanner();
   const imageUpscaleModelSummary = summarizeImageUpscaleModelRegistryForPlanner();
+  const studioModelKnowledgeSummary = summarizeStudioModelKnowledgeForAgent();
   const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
   const quotaSummary = input.quotaSnapshot
     ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
