@@ -464,6 +464,34 @@ export function inferLongVideoChapters(text: string): number {
   return 3;
 }
 
+
+
+interface DirectorChapter {
+  chapterTitle?: string;
+  visualPrompt?: string;
+  videoPrompt?: string;
+  musicMood?: string;
+  narrationText?: string;
+}
+
+function normalizeChapterField(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
+function composeVisualPromptFromChapter(chapter: DirectorChapter, chapterIndex: number, basePrompt: string): string {
+  const title = normalizeChapterField(chapter.chapterTitle, `第 ${chapterIndex} 章`);
+  const mood = normalizeChapterField(chapter.musicMood, "電影感情緒推進");
+  return `章節標題：${title}；請延續導演章節設定，提煉出電影感關鍵視覺，情緒氛圍：${mood}。整體主題：${basePrompt}`;
+}
+
+function composeVideoPromptFromChapter(chapter: DirectorChapter, chapterIndex: number, basePrompt: string): string {
+  const title = normalizeChapterField(chapter.chapterTitle, `第 ${chapterIndex} 章`);
+  const mood = normalizeChapterField(chapter.musicMood, "節奏漸進、敘事清楚");
+  const narration = normalizeChapterField(chapter.narrationText, "以章節主題推進故事，保留清楚轉場");
+  return `章節標題：${title}；請根據章節內容設計運鏡與剪輯節奏，情緒：${mood}；旁白重點：${narration}。整體主題：${basePrompt}`;
+}
+
 export interface LongVideoWorkflowOptions {
   chapters?: number;
 }
@@ -490,6 +518,12 @@ export function buildLongVideoWorkflow(
         `章節之間要能自然銜接：${basePrompt}`,
       label: `導演 AI：產生 ${chapters} 章節長片企劃`,
     },
+    {
+      path: "/director",
+      actionType: "setParam",
+      payload: `chapterPlanJson={"chapters":[{"chapterTitle":"第 1 章","visualPrompt":"","videoPrompt":"","musicMood":"","narrationText":""}]}`,
+      label: "導演 AI：接收章節 JSON（chapterTitle / visualPrompt / videoPrompt / musicMood / narrationText）",
+    },
   ];
 
   for (let i = 1; i <= chapters; i += 1) {
@@ -497,8 +531,11 @@ export function buildLongVideoWorkflow(
       {
         path: "/image-studio",
         actionType: "fillPrompt",
-        payload: `第 ${i} 章關鍵視覺（請延續導演 AI 該章主題與情緒方向）：${basePrompt}`,
-        label: `第 ${i} 章：填入關鍵視覺提示詞`,
+        payload:
+          `{{chapter:${i}:visualPrompt|` +
+          composeVisualPromptFromChapter({ chapterTitle: `第 ${i} 章` }, i, basePrompt) +
+          `}}`,
+        label: `第 ${i} 章：填入關鍵視覺提示詞（來自導演章節）`,
       },
       {
         path: "/image-studio",
@@ -510,8 +547,10 @@ export function buildLongVideoWorkflow(
         path: "/video-studio",
         actionType: "fillPrompt",
         payload:
-          `第 ${i} 章運鏡（鏡頭移動、節奏、光感，與第 ${i} 章主題對齊）：${basePrompt}`,
-        label: `第 ${i} 章：填入影片提示詞`,
+          `{{chapter:${i}:videoPrompt|` +
+          composeVideoPromptFromChapter({ chapterTitle: `第 ${i} 章` }, i, basePrompt) +
+          `}}`,
+        label: `第 ${i} 章：填入影片提示詞（來自導演章節）`,
       },
       {
         path: "/video-studio",
