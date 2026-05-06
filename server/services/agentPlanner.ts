@@ -30,6 +30,7 @@ import {
   summarizeOrbQuotaForPlanner,
   type OrbQuotaSnapshot,
 } from "./orbQuota";
+import { TEXT_TO_IMAGE_MODEL_REGISTRY } from "../../shared/textToImageModelRegistry";
 
 export type PlannerMultimodalKind = "image" | "audio" | "video" | "pdf" | "file";
 
@@ -257,6 +258,22 @@ export function summarizeRecentFeedbackForPlanner(feedback?: AgentFeedbackEvent[
   })), 2_000);
 }
 
+export function summarizeTextToImageModelRegistryForPlanner(): string {
+  return safeStringify({
+    note: "全站光球代理共用模型資料庫（文字生圖）",
+    models: TEXT_TO_IMAGE_MODEL_REGISTRY.map(model => ({
+      modelId: model.modelId,
+      label: model.label,
+      provider: model.provider,
+      strengths: model.strengths,
+      avoidWhen: model.avoidWhen,
+      promptKeywords: model.promptKeywords,
+    })),
+    plannerInstruction:
+      "若使用者提出 Stable Diffusion / SD / LoRA / 負面提示詞等意圖，優先從這份資料庫挑選最接近的 modelId，避免幻想不存在的模型名稱。",
+  }, 3_000);
+}
+
 export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const pageSummary = summarizePageSnapshotForPlanner(input.pageSnapshot);
   const feedbackSummary = summarizeRecentFeedbackForPlanner(input.recentFeedback);
@@ -264,6 +281,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const systemPrompt = buildAgentPlanV3SystemPrompt(pageSummary);
   const capabilitySummary = summarizeGlobalCapabilityRegistry(120);
   const toolSummary = summarizeGlobalToolRegistry(60);
+  const textToImageModelSummary = summarizeTextToImageModelRegistryForPlanner();
   const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
   const quotaSummary = input.quotaSnapshot
     ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
@@ -323,6 +341,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     input.siteKnowledgeSummary ? `Site knowledge summary:\n${input.siteKnowledgeSummary}` : undefined,
     `Global capability registry summary:\n${capabilitySummary}`,
     `Global tool registry summary:\n${toolSummary}`,
+    `Text-to-image model registry summary:\n${textToImageModelSummary}`,
     `Multimodal attachments:\n${multimodalSummary}`,
     `User agent preferences:\n${preferencesSummary}`,
     quotaSummary
