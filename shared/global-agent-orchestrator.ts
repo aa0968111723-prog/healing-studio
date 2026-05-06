@@ -210,6 +210,46 @@ export interface GlobalAgentExecutionResult {
   endingPath?: string;
 }
 
+export interface MissingRequiredField {
+  stepId: string;
+  stepLabel: string;
+  key: string;
+  label: string;
+  defaultValue?: string;
+  example?: string;
+}
+
+export interface WorkflowPreflightResult {
+  ok: boolean;
+  code?: "MISSING_REQUIRED_FIELDS";
+  missing: MissingRequiredField[];
+}
+
+export function preflightValidate(workflow: RunWorkflowAction, context: Record<string, unknown>): WorkflowPreflightResult {
+  const missing: MissingRequiredField[] = [];
+  workflow.steps.forEach((step, index) => {
+    const stepId = step.id ?? `step-${index + 1}`;
+    for (const input of step.requiredInputs ?? []) {
+      if (!input.required) continue;
+      const v = context[input.key];
+      const empty = v == null || (typeof v === "string" && v.trim().length === 0);
+      if (empty) {
+        missing.push({
+          stepId,
+          stepLabel: step.label,
+          key: input.key,
+          label: input.label,
+          ...(input.defaultValue ? { defaultValue: input.defaultValue } : {}),
+          ...(input.example ? { example: input.example } : {}),
+        });
+      }
+    }
+  });
+  if (missing.length > 0) return { ok: false, code: "MISSING_REQUIRED_FIELDS", missing };
+  return { ok: true, missing: [] };
+}
+
+
 const DANGEROUS_ACTION_TYPES = new Set<AgentAction["type"]>([
   "submit",
   "reset",
@@ -1136,6 +1176,21 @@ export async function executeGlobalWorkflow(action: RunWorkflowAction, ctx: Glob
       ok: false,
       results: [{ ok: false, reason: "workflow has no executable steps" }],
       reason: "workflow has no executable steps",
+      workflowName: action.name,
+    };
+  }
+
+  const preflight = preflightValidate(action, {});
+  if (!preflight.ok) {
+    log("workflow.validation_failed", {
+      name: action.name,
+      reason: preflight.code,
+      missing: preflight.missing.map(field => field.key),
+    });
+    return {
+      ok: false,
+      results: [{ ok: false, reason: `${preflight.code}:${preflight.missing.map(field => field.key).join(",")}` }],
+      reason: preflight.code,
       workflowName: action.name,
     };
   }

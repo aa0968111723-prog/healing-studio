@@ -132,8 +132,21 @@ export interface RunWorkflowAction {
   confirmationMode?: "all-at-once" | "step-by-step" | "high-risk-only";
 }
 
+export interface WorkflowRequiredInput {
+  key: string;
+  label: string;
+  required: boolean;
+  defaultValue?: string;
+  example?: string;
+}
+
 /** 工作流程子步驟（簡化版，只包含 navigate + 單一動作） */
 export interface AgentWorkflowStep {
+  /**
+   * Inputs required before this step can run. The agent should collect
+   * these once before cross-page execution begins.
+   */
+  requiredInputs?: WorkflowRequiredInput[];
   /** 目標頁面路徑（可選，不填表示在當頁執行） */
   path?: string;
   /** 到站後要執行的動作類型 */
