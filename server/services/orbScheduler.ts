@@ -429,9 +429,20 @@ async function loadPersistedJobs(): Promise<OrbScheduledJob[]> {
     const rows = await db.select().from(orbScheduledJobs);
     return rows.map(row => rowToJob(row as ScheduledJobRow));
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      message.includes("doesn't exist") ||
+      message.includes("does not exist") ||
+      message.includes("no such table")
+    ) {
+      console.info(
+        "[OrbScheduler] orb_scheduled_jobs table not found yet; skipping persisted-job reload."
+      );
+      return [];
+    }
     console.warn(
       "[OrbScheduler] loadPersistedJobs failed (table may not exist yet):",
-      error instanceof Error ? error.message : error
+      message
     );
     return [];
   }
