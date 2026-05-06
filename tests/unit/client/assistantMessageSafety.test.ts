@@ -12,6 +12,16 @@ describe("safeRenderAssistantMessage", () => {
     expect(result.fallback).toBe(false);
   });
 
+  it("accepts legacy reply shape from chat router", () => {
+    const result = safeRenderAssistantMessage({
+      reply: "這是正常回覆",
+      telemetry: { traceId: "trace_legacy" },
+    });
+    expect(result.text).toBe("這是正常回覆");
+    expect(result.traceId).toBe("trace_legacy");
+    expect(result.fallback).toBe(false);
+  });
+
   it("falls back on suspicious serialized strings", () => {
     const longGarbage = "eyJ" + "A".repeat(500);
     const result = safeRenderAssistantMessage({
