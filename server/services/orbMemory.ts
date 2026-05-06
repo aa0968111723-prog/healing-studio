@@ -136,6 +136,7 @@ export async function searchOrbMemoriesWithRag(args: {
   anonymousSessionId?: string;
   query: string;
   limit?: number;
+  degradeOnError?: boolean;
 }): Promise<OrbMemory[]> {
   const limit = args.limit ?? 10;
   let ragResults: OrbMemory[] = [];
@@ -146,6 +147,7 @@ export async function searchOrbMemoriesWithRag(args: {
       limit,
     });
   } catch (err) {
+    if (args.degradeOnError === false) throw err;
     console.warn("[orbMemory] RAG fallback failed (degrading to keyword-only):", err);
   }
 
@@ -190,6 +192,47 @@ export function summarizeOrbMemoriesForPlanner(args: {
     recent: JSON.parse(summarizeRecentMemoryForPlanner(memories)),
     hints: [repeatedFailedSummary, repeatedSuccessSummary, toolReliability].filter(Boolean),
   });
+}
+
+export async function buildOrbMemorySummaryForPlanner(args: {
+  userId?: number;
+  anonymousSessionId?: string;
+  query: string;
+  limit?: number;
+}): Promise<{ summary: string; memoryInjected: boolean }> {
+  try {
+    const memories = await searchOrbMemoriesWithRag({
+      userId: args.userId,
+      anonymousSessionId: args.anonymousSessionId,
+      query: args.query,
+      limit: Math.min(args.limit ?? 10, 10),
+      degradeOnError: false,
+    });
+    if (memories.length > 0) {
+      return {
+        summary: JSON.stringify({
+          memoryCount: memories.length,
+          recent: JSON.parse(summarizeRecentMemoryForPlanner(memories)),
+          source: "rag+keyword",
+        }),
+        memoryInjected: true,
+      };
+    }
+    return {
+      summary: summarizeOrbMemoriesForPlanner({
+        userId: args.userId,
+        anonymousSessionId: args.anonymousSessionId,
+        limit: args.limit,
+      }),
+      memoryInjected: true,
+    };
+  } catch (error) {
+    console.warn("[orbMemory] failed to build planner memory summary:", error);
+    return {
+      summary: "memory unavailable",
+      memoryInjected: false,
+    };
+  }
 }
 
 export function deleteOrbMemory(memoryId: string, owner: { userId?: number; anonymousSessionId?: string }): boolean {

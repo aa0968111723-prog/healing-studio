@@ -27,6 +27,7 @@ import {
 } from "../shared/orb-memory";
 import {
   __unsafe_clearAllOrbMemoryForTests,
+  buildOrbMemorySummaryForPlanner,
   clearOrbMemoryForUser,
   getRecentOrbMemories,
   recordOrbMemory,
@@ -222,6 +223,34 @@ describe("orb long-term memory repository", () => {
     __unsafe_clearAllOrbMemoryForTests();
     const summary = summarizeOrbMemoriesForPlanner({ userId: 99, limit: 10 });
     expect(summary).toContain("memoryCount");
+  });
+
+  it("injects memory summary fragment for planner when relevant memory exists", async () => {
+    recordOrbMemory({
+      userId: 2,
+      traceId: "trace_mem_inject",
+      type: "successful_workflow",
+      source: "test",
+      summary: "User prefers cinematic lighting for product shots",
+      tags: ["cinematic", "lighting"],
+    });
+    const result = await buildOrbMemorySummaryForPlanner({
+      userId: 2,
+      query: "cinematic lighting",
+      limit: 10,
+    });
+    expect(result.memoryInjected).toBe(true);
+    expect(result.summary).toContain("cinematic");
+  });
+
+  it("retrieval path does not block planner input construction", async () => {
+    const result = await buildOrbMemorySummaryForPlanner({
+      userId: 2,
+      query: "anything",
+      limit: 10,
+    });
+    expect(typeof result.summary).toBe("string");
+    expect(result.summary.length).toBeGreaterThan(0);
   });
 
   it("failed workflow affects future planner summary", () => {
