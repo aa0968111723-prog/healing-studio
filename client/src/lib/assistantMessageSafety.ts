@@ -8,7 +8,11 @@ const assistantPayloadSchema = z.object({
     markdown: z.string().optional(),
     cta: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
   }).optional(),
+  reply: z.string().optional(),
+  message: z.string().optional(),
+  text: z.string().optional(),
   traceId: z.string().optional(),
+  telemetry: z.object({ traceId: z.string().optional() }).optional(),
 });
 
 const looksLikeBase64 = (v: string) => /^[A-Za-z0-9+/=\s]+$/.test(v) && v.length > 400;
@@ -31,23 +35,25 @@ export function safeRenderAssistantMessage(raw: unknown): { text: string; traceI
   }
   const payload = parsed.data;
   const safe = payload.final_user_message;
-  if (!safe) {
-    console.debug("[assistant-message-safety] missing final_user_message", raw);
-    return { text: SAFE_MESSAGE, traceId: payload.traceId, fallback: true, triggerSummary: true };
+  const legacyText = payload.reply ?? payload.message ?? payload.text ?? "";
+  const text = safe?.markdown ?? safe?.text ?? legacyText;
+  const traceId = payload.traceId ?? payload.telemetry?.traceId;
+  if (!text) {
+    console.debug("[assistant-message-safety] missing safe assistant text", raw);
+    return { text: SAFE_MESSAGE, traceId, fallback: true, triggerSummary: true };
   }
-  const text = safe.markdown ?? safe.text ?? "";
   if (isSuspiciousSerializedString(text)) {
     console.debug("[assistant-message-safety] suspicious serialization output", {
-      traceId: payload.traceId,
+      traceId,
       preview: text.slice(0, 120),
       raw,
     });
-    return { text: SAFE_MESSAGE, traceId: payload.traceId, fallback: true, triggerSummary: true };
+    return { text: SAFE_MESSAGE, traceId, fallback: true, triggerSummary: true };
   }
   // whitelist only
-  const unknownFields = Object.keys(safe).filter(k => !["text", "markdown", "cta"].includes(k));
-  if (unknownFields.length > 0) {
+  const unknownFields = safe ? Object.keys(safe).filter(k => !["text", "markdown", "cta"].includes(k)) : [];
+  if (safe && unknownFields.length > 0) {
     console.debug("[assistant-message-safety] dropped unknown fields", unknownFields);
   }
-  return { text, traceId: payload.traceId, fallback: false, triggerSummary: false };
+  return { text, traceId, fallback: false, triggerSummary: false };
 }
