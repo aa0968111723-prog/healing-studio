@@ -62,6 +62,9 @@ import { runSchemaFirstAgentPlanner, type AgentPlannerInput } from "./services/a
 import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
 import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
+import { orbTaskTracer } from "./services/orbTaskTracer";
+import { createReplanCallback, type ReplanCallbackContext } from "./services/orbTaskReplanIntegration";
+import { buildOrbMemorySummaryForPlanner } from "./services/orbMemory";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -332,6 +335,32 @@ async function driveOrbTaskInBackground(input: {
         );
       }
     } else {
+      // Start trace for observability
+      const traceId = orbTaskTracer.generateTraceId();
+      const task = getOrbAgentTask(input.taskId);
+      if (task) {
+        orbTaskTracer.startTrace({
+          traceId,
+          userId: input.userId,
+          taskId: input.taskId,
+          taskIntent: task.objective || "Orb task execution",
+        });
+      }
+
+      // Create replanning callback for ReAct loop
+      const onRequestReplan = task ? createReplanCallback({
+        task,
+        userId: input.userId,
+        failedStep: task.steps[0], // Will be updated by orchestrator
+        observation: {
+          toolName: "",
+          errorCode: "",
+          issues: [],
+          toolArgs: {},
+        },
+        traceId,
+      }) : undefined;
+
       const result = await runOrbTaskToCompletion({
         taskId: input.taskId,
         userId: input.userId,
@@ -339,8 +368,20 @@ async function driveOrbTaskInBackground(input: {
         tools,
         agentPreferences,
         requestId: `orb_auto_${input.taskId}_${Date.now()}`,
+        traceId,
         onToolAuditEvent,
+        onRequestReplan,
       });
+
+      // End trace
+      if (task) {
+        orbTaskTracer.endTrace(traceId, {
+          status: result.outcome === "completed" ? "success" :
+                  result.outcome === "cancelled" ? "cancelled" : "failed",
+          finalReason: result.reason,
+        });
+      }
+
       if (result.outcome === "failed") {
         console.warn(
           `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
@@ -937,6 +978,45 @@ export const appRouter = router({
   agentPreferences: agentPreferencesRouter,
   orbCapabilities: orbCapabilitiesRouter,
   adminEval: adminRouter,
+
+  // ─── Orb Agent Observability ─────────────────────────────────────────────
+  orbTraces: router({
+    /** Get trace by ID for debugging */
+    getTrace: protectedProcedure
+      .input(z.object({ traceId: z.string() }))
+      .query(({ input }) => {
+        return orbTaskTracer.getTrace(input.traceId);
+      }),
+
+    /** Get recent traces for user */
+    listUserTraces: protectedProcedure
+      .input(z.object({ limit: z.number().min(1).max(50).optional() }))
+      .query(({ ctx, input }) => {
+        return orbTaskTracer.getTracesForUser(ctx.user.id, input.limit);
+      }),
+
+    /** Get execution timeline for visualization */
+    getTimeline: protectedProcedure
+      .input(z.object({ traceId: z.string() }))
+      .query(({ input }) => {
+        return orbTaskTracer.getTimeline(input.traceId);
+      }),
+
+    /** Export trace in observability platform format */
+    exportTrace: protectedProcedure
+      .input(z.object({
+        traceId: z.string(),
+        format: z.enum(["langfuse", "langsmith", "otlp"]).optional(),
+      }))
+      .query(({ input }) => {
+        return orbTaskTracer.exportTrace(input.traceId, input.format);
+      }),
+
+    /** Analyze failure patterns for debugging */
+    analyzeFailures: protectedProcedure.query(({ ctx }) => {
+      return orbTaskTracer.analyzeFailurePatterns(ctx.user.id);
+    }),
+  }),
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
