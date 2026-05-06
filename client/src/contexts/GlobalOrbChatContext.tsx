@@ -757,7 +757,12 @@ function WorkflowExecutionFloatingPanel({
           <div className="text-xs text-white/50">目前步驟</div>
           <div className="mt-1 text-sm">{current.label}</div>
           {current.path && <div className="mt-1 text-xs text-cyan-100/60">目標頁：{current.path}</div>}
-          {workflowExecution.error && <div className="mt-2 text-xs text-rose-200">{workflowExecution.error}</div>}
+          {workflowExecution.error && (
+            <div className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
+              <div className="font-medium">需要補充的欄位</div>
+              <div className="mt-1">{workflowExecution.error}</div>
+            </div>
+          )}
         </div>
       )}
 
