@@ -38,6 +38,22 @@ import {
   pickBestSkeletalModel,
 } from "./skeletalModelRegistry";
 
+import {
+  AUDIO_MODEL_REGISTRY,
+  type AudioModelProfile,
+  type AudioModelMatch,
+  rankAudioModelsByPrompt,
+  pickBestAudioModel,
+} from "./audioModelRegistry";
+
+import {
+  VOICE_MODEL_REGISTRY,
+  type VoiceModelProfile,
+  type VoiceModelMatch,
+  rankVoiceModelsByPrompt,
+  pickBestVoiceModel,
+} from "./voiceModelRegistry";
+
 // ═════════════════════════════════════════════════════════════════════════════
 // 類型定義 (Type Definitions)
 // ═════════════════════════════════════════════════════════════════════════════
@@ -49,7 +65,9 @@ export type ModelDomain =
   | "image-upscale"      // 影像畫質優化/放大
   | "text-to-image"      // 文字生成影像
   | "image-to-3d"        // 影像生成 3D 模型
-  | "image-to-world";    // 影像生成 3D 世界場景
+  | "image-to-world"     // 影像生成 3D 世界場景
+  | "audio-music"        // 音樂/音效生成
+  | "voice-tts";         // 語音合成
 
 /**
  * 統一的模型描述介面
@@ -133,6 +151,32 @@ function normalizeSkeletalModel(model: SkeletalModelProfile): UnifiedModelProfil
   };
 }
 
+function normalizeAudioModel(model: AudioModelProfile): UnifiedModelProfile {
+  return {
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    domain: "audio-music",
+    category: model.category,
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  };
+}
+
+function normalizeVoiceModel(model: VoiceModelProfile): UnifiedModelProfile {
+  return {
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    domain: "voice-tts",
+    category: model.category,
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  };
+}
+
 /**
  * 統一模型資料庫 - 所有模型的完整清單
  */
@@ -140,6 +184,8 @@ export const UNIFIED_MODEL_REGISTRY: readonly UnifiedModelProfile[] = [
   ...IMAGE_UPSCALE_MODEL_REGISTRY.map(normalizeImageUpscaleModel),
   ...TEXT_TO_IMAGE_MODEL_REGISTRY.map(normalizeTextToImageModel),
   ...SKELETAL_MODEL_REGISTRY.map(normalizeSkeletalModel),
+  ...AUDIO_MODEL_REGISTRY.map(normalizeAudioModel),
+  ...VOICE_MODEL_REGISTRY.map(normalizeVoiceModel),
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -219,6 +265,34 @@ export function queryModelsByPrompt(
     );
   }
 
+  // 查詢音樂/音效模型
+  if (!domains || domains.includes("audio-music")) {
+    const matches = rankAudioModelsByPrompt(prompt);
+    results.push(
+      ...matches.map(m => ({
+        modelId: m.modelId,
+        domain: "audio-music" as ModelDomain,
+        score: m.score,
+        matchedKeywords: m.matchedKeywords,
+        rationale: m.rationale,
+      }))
+    );
+  }
+
+  // 查詢語音合成模型
+  if (!domains || domains.includes("voice-tts")) {
+    const matches = rankVoiceModelsByPrompt(prompt);
+    results.push(
+      ...matches.map(m => ({
+        modelId: m.modelId,
+        domain: "voice-tts" as ModelDomain,
+        score: m.score,
+        matchedKeywords: m.matchedKeywords,
+        rationale: m.rationale,
+      }))
+    );
+  }
+
   // 過濾並排序
   let filtered = results.filter(r => r.score >= minScore);
   filtered.sort((a, b) => b.score - a.score);
@@ -274,6 +348,26 @@ export function pickBestModelForDomain(
         rationale: match.rationale,
       };
     }
+    case "audio-music": {
+      const match = pickBestAudioModel(prompt);
+      return {
+        modelId: match.modelId,
+        domain,
+        score: match.score,
+        matchedKeywords: match.matchedKeywords,
+        rationale: match.rationale,
+      };
+    }
+    case "voice-tts": {
+      const match = pickBestVoiceModel(prompt);
+      return {
+        modelId: match.modelId,
+        domain,
+        score: match.score,
+        matchedKeywords: match.matchedKeywords,
+        rationale: match.rationale,
+      };
+    }
   }
 }
 
@@ -310,8 +404,20 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
     domains.push("image-to-world");
   }
 
+  // 音樂/音效相關關鍵字
+  const audioKeywords = ["music", "音樂", "song", "歌曲", "audio", "音頻", "sound", "音效", "sfx", "background music", "配樂"];
+  if (audioKeywords.some(kw => normalized.includes(kw))) {
+    domains.push("audio-music");
+  }
+
+  // 語音合成相關關鍵字
+  const voiceKeywords = ["voice", "語音", "tts", "speech", "說話", "朗讀", "配音", "narration", "旁白"];
+  if (voiceKeywords.some(kw => normalized.includes(kw))) {
+    domains.push("voice-tts");
+  }
+
   // 如果沒有匹配到任何關鍵字，返回所有領域
-  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world"];
+  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "audio-music", "voice-tts"];
 }
 
 /**
@@ -375,6 +481,8 @@ export function getModelRegistryStats() {
       "text-to-image": 0,
       "image-to-3d": 0,
       "image-to-world": 0,
+      "audio-music": 0,
+      "voice-tts": 0,
     },
     byProvider: {} as Record<string, number>,
   };
@@ -402,6 +510,8 @@ export function generateModelRegistrySummary(): string {
 - 文字生成影像 (text-to-image): ${stats.byDomain["text-to-image"]} 個模型
 - 影像生成 3D 模型 (image-to-3d): ${stats.byDomain["image-to-3d"]} 個模型
 - 影像生成 3D 世界 (image-to-world): ${stats.byDomain["image-to-world"]} 個模型
+- 音樂音效生成 (audio-music): ${stats.byDomain["audio-music"]} 個模型
+- 語音合成配音 (voice-tts): ${stats.byDomain["voice-tts"]} 個模型
 
 ## 依提供者分類
 ${Object.entries(stats.byProvider).map(([provider, count]) => `- ${provider}: ${count} 個模型`).join("\n")}
@@ -434,4 +544,18 @@ export {
   type SkeletalModelMatch,
   rankSkeletalModelsByPrompt,
   pickBestSkeletalModel,
+
+  // Audio/Music Model Registry
+  AUDIO_MODEL_REGISTRY,
+  type AudioModelProfile,
+  type AudioModelMatch,
+  rankAudioModelsByPrompt,
+  pickBestAudioModel,
+
+  // Voice/TTS Model Registry
+  VOICE_MODEL_REGISTRY,
+  type VoiceModelProfile,
+  type VoiceModelMatch,
+  rankVoiceModelsByPrompt,
+  pickBestVoiceModel,
 };

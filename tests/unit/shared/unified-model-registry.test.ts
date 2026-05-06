@@ -22,6 +22,8 @@ describe("unifiedModelRegistry", () => {
       expect(domains.has("image-upscale")).toBe(true);
       expect(domains.has("text-to-image")).toBe(true);
       expect(domains.has("image-to-3d")).toBe(true);
+      expect(domains.has("audio-music")).toBe(true);
+      expect(domains.has("voice-tts")).toBe(true);
     });
 
     it("all models have required fields", () => {
@@ -59,6 +61,22 @@ describe("unifiedModelRegistry", () => {
       expect(models.length).toBeGreaterThan(0);
       models.forEach(model => {
         expect(model.domain).toBe("image-to-3d");
+      });
+    });
+
+    it("returns only audio-music models", () => {
+      const models = getModelsByDomain("audio-music");
+      expect(models.length).toBeGreaterThan(0);
+      models.forEach(model => {
+        expect(model.domain).toBe("audio-music");
+      });
+    });
+
+    it("returns only voice-tts models", () => {
+      const models = getModelsByDomain("voice-tts");
+      expect(models.length).toBeGreaterThan(0);
+      models.forEach(model => {
+        expect(model.domain).toBe("voice-tts");
       });
     });
   });
@@ -193,6 +211,16 @@ describe("unifiedModelRegistry", () => {
       expect(domains).toContain("image-to-world");
     });
 
+    it("infers audio-music from music keywords", () => {
+      const domains = inferDomainFromPrompt("Create a song with music");
+      expect(domains).toContain("audio-music");
+    });
+
+    it("infers voice-tts from voice keywords", () => {
+      const domains = inferDomainFromPrompt("Generate voice narration");
+      expect(domains).toContain("voice-tts");
+    });
+
     it("can infer multiple domains", () => {
       const domains = inferDomainFromPrompt("Generate a 4K quality 3D world scene");
       expect(domains.length).toBeGreaterThan(1);
@@ -200,7 +228,7 @@ describe("unifiedModelRegistry", () => {
 
     it("returns all domains when no keywords match", () => {
       const domains = inferDomainFromPrompt("xyz abc nonsemantic");
-      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world"]);
+      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "audio-music", "voice-tts"]);
     });
   });
 
@@ -265,6 +293,8 @@ describe("unifiedModelRegistry", () => {
       expect(stats.byDomain["image-upscale"]).toBeGreaterThan(0);
       expect(stats.byDomain["text-to-image"]).toBeGreaterThan(0);
       expect(stats.byDomain["image-to-3d"]).toBeGreaterThan(0);
+      expect(stats.byDomain["audio-music"]).toBeGreaterThan(0);
+      expect(stats.byDomain["voice-tts"]).toBeGreaterThan(0);
       expect(Object.keys(stats.byProvider).length).toBeGreaterThan(0);
     });
 
