@@ -1419,7 +1419,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         } | null;
       }).codeTask;
       const dataObj = (data ?? {}) as Record<string, unknown>;
-      const dataReply = typeof dataObj.reply === "string" ? dataObj.reply : "";
+      const safeAssistant = safeRenderAssistantMessage(dataObj);
+      const dataReply = safeAssistant.text;
       const dataActions = dataObj.actions;
       const llmActions = rawPlannerOutput
         ? adaptAgentPlanToActions(rawPlannerOutput)
@@ -1542,9 +1543,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         .slice(0, 6)
         .map(s => ({ title: s.title, url: s.url, source: s.source }));
 
+      const renderReply = safeAssistant.fallback && safeAssistant.traceId
+        ? `${replyText}
+
+追蹤碼：${safeAssistant.traceId}`
+        : replyText;
+
       setMessages(prev => [...prev, {
         role: "orb",
-        text: replyText,
+        text: renderReply,
         at: Date.now(),
         intent: effectiveIntent,
         pagePath: locationPath,
