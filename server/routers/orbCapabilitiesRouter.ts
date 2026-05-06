@@ -8,11 +8,16 @@
  * 路由，不需要硬編碼。前端 UI 也可以用這支 endpoint 動態生成 onboarding 卡。
  */
 
+import { z } from "zod";
 import { router, publicProcedure } from "../_core/trpc";
 import {
   serializeRegistryForSiteKnowledge,
   type SerializableAppRegistryItem,
 } from "../../shared/appRegistry";
+import {
+  getImageEditModelCatalog,
+  suggestImageEditModelsByPrompt,
+} from "../services/orbModelCatalog";
 
 export interface OrbCapabilitiesPayload {
   /** appRegistry 全部條目（含路徑、別名、quickActions、orbHints） */
@@ -21,6 +26,7 @@ export interface OrbCapabilitiesPayload {
   generatedAt: number;
   /** Manifest 條目數量，便於 UI 顯示「目前光球能掌握 X 個頁面」 */
   pageCount: number;
+  imageEditModelCount: number;
 }
 
 export const orbCapabilitiesRouter = router({
@@ -33,10 +39,23 @@ export const orbCapabilitiesRouter = router({
    */
   list: publicProcedure.query((): OrbCapabilitiesPayload => {
     const pages = serializeRegistryForSiteKnowledge();
+    const imageEditModels = getImageEditModelCatalog();
     return {
       pages,
       generatedAt: Date.now(),
       pageCount: pages.length,
+      imageEditModelCount: imageEditModels.length,
     };
   }),
+
+  /**
+   * 根據使用者提示詞推測「圖片編輯」模型建議順序。
+   */
+  suggestImageEditModels: publicProcedure
+    .input(z.object({ prompt: z.string().min(1) }))
+    .query(({ input }) => ({
+      prompt: input.prompt,
+      models: suggestImageEditModelsByPrompt(input.prompt),
+    })),
+
 });
