@@ -1733,13 +1733,16 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         const question =
           extractPhantomPlanQuestion(dataReply) ??
           "我先確認一下你要的方向，這樣才能做對。";
+        const phantomDimension: ClarificationDimension =
+          /用途|use/i.test(question) ? "usecase" : "format";
         const optionPack = buildContextualClarificationOptions({
           userText: trimmed,
-          dimension,
+          dimension: phantomDimension,
         });
         setPendingClarification({
           id: `clarify_phantom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           question,
+          dimension: phantomDimension,
           options: optionPack.options,
           originalUserText: trimmed,
           createdAt: Date.now(),
