@@ -147,4 +147,6 @@ export interface OrbAgentTask {
   /** 0 for the initial task; 1, 2, … for each continuation. Bounded by
    *  the chain runner so the planner cannot recurse forever. */
   iterationIndex?: number;
+  /** Trace id of predecessor task when this task is a continuation/replan. */
+  parentTraceId?: string;
 }

@@ -6664,6 +6664,18 @@ export const appRouter = router({
       memoryRecent: brainProcedure
         .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).optional())
         .query(({ input }) => getRecentOrbTaskMemory(input?.limit ?? 10)),
+      traceDebug: brainProcedure
+        .input(z.object({ taskId: z.string().min(1), limit: z.number().int().min(1).max(500).default(200) }))
+        .query(({ input }) => {
+          const task = getOrbAgentTask(input.taskId);
+          if (!task) return { task: null, events: [], chainEvents: [] };
+          const events = getOrbAgentTaskEvents(input.taskId).slice(-input.limit);
+          const traceId = task.traceId;
+          const chainEvents = getRecentOrbTaskMemory(500)
+            .filter(evt => evt.traceId === traceId || evt.taskId === input.taskId)
+            .slice(0, input.limit);
+          return { task, events, chainEvents };
+        }),
     }),
 
     orbMemory: router({

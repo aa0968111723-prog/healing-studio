@@ -24,6 +24,7 @@ import {
   type OrbRecoveryAction,
   type OrbStepErrorCode,
 } from "./orbTaskRecoveryPolicy";
+import { createHash } from "crypto";
 
 // ─── Single-step executor (existing public contract) ──────────────────────
 
@@ -34,6 +35,7 @@ export interface ExecuteStepToolsInput {
   tools: OrbApiTool[];
   approved: boolean;
   requestId?: string;
+  traceId?: string;
   onAuditEvent?: (event: {
     requestId: string;
     userId: number;
@@ -139,6 +141,7 @@ export async function executeCurrentStepTools(
   input: ExecuteStepToolsInput
 ): Promise<ExecuteStepToolsResult> {
   const step = input.task.steps[input.task.currentStepIndex];
+  const traceId = input.traceId ?? input.requestId ?? `trace_${input.task.taskId}`;
   if (!step || step.toolCalls.length === 0) {
     return { attempted: false, toolResults: [], ok: true };
   }
@@ -348,7 +351,7 @@ export async function executeCurrentStepTools(
     try {
       recordOrbMemory({
         userId: input.userId,
-        traceId: input.requestId ?? `task_${input.task.taskId}_step_${step.id}`,
+        traceId,
         taskId: input.task.taskId,
         type: "tool_feedback",
         summary: `Tool ${r.name} failed verifier (${errorCode}) on step ${step.id}`,
@@ -405,6 +408,10 @@ function collectUnresolvedStepRefs(value: unknown, acc: string[] = []): string[]
   return acc;
 }
 
+function hashPayload(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value ?? null)).digest("hex").slice(0, 16);
+}
+
 // ─── Multi-step coordinator ────────────────────────────────────────────────
 //
 // Real orchestration that walks the entire OrbTask, advancing both the
@@ -444,6 +451,7 @@ export interface RunOrbTaskInput {
    */
   maxSteps?: number;
   requestId?: string;
+  traceId?: string;
   /** Streamed for every state-machine audit event (for SSE). */
   onStateMachineEvent?: (event: OrbTaskAuditEvent) => void;
   /** Streamed for every tool-level audit event (forwarded from agentToolExecutor). */
@@ -508,6 +516,10 @@ export async function runOrbTaskToCompletion(
   const store = input.store ?? defaultOrbTaskStore;
   const clock = input.now ?? Date.now;
   const perStepToolResults: RunOrbTaskResult["perStepToolResults"] = [];
+  const traceId = input.traceId ?? input.requestId ?? `trace_${input.taskId}`;
+  let totalTokenCost = 0;
+  let totalExternalApiCost = 0;
+  let totalRetryCount = 0;
 
   // Snapshot existing FSM events so we only forward NEW ones to onStateMachineEvent.
   const seenEventIds = new Set<string>();
@@ -552,7 +564,9 @@ export async function runOrbTaskToCompletion(
         taskId: input.taskId,
         userId: input.userId,
         at: clock(),
+        orbTraceId: traceId,
       });
+      console.info("[orb.task_cost_aggregate]", { traceId, taskId: input.taskId, tokenCost: totalTokenCost, externalApiCost: totalExternalApiCost, retryCount: totalRetryCount });
       return {
         taskId: input.taskId,
         outcome: "completed",
@@ -568,7 +582,9 @@ export async function runOrbTaskToCompletion(
         taskId: input.taskId,
         userId: input.userId,
         at: clock(),
+        orbTraceId: traceId,
       });
+      console.info("[orb.task_cost_aggregate]", { traceId, taskId: input.taskId, tokenCost: totalTokenCost, externalApiCost: totalExternalApiCost, retryCount: totalRetryCount });
       return {
         taskId: input.taskId,
         outcome: "failed",
@@ -660,12 +676,29 @@ export async function runOrbTaskToCompletion(
       requestId: input.requestId
         ? `${input.requestId}_step_${step.id}`
         : `task_${input.taskId}_step_${step.id}_${clock()}`,
+      traceId,
       onAuditEvent: input.onToolAuditEvent,
       agentPreferences: input.agentPreferences,
       autoApprovedStepsInRun,
       perStepToolResults,
     });
     if (!stepRun.blockedByApproval && stepRun.attempted) autoApprovedStepsInRun += 1;
+    for (const r of stepRun.toolResults) {
+      const anyR = r as Record<string, unknown>;
+      totalTokenCost += typeof anyR.tokenCost === "number" ? Number(anyR.tokenCost) : 0;
+      totalExternalApiCost += typeof anyR.externalApiCost === "number" ? Number(anyR.externalApiCost) : 0;
+      totalRetryCount += typeof anyR.retryCount === "number" ? Number(anyR.retryCount) : 0;
+      console.info("[orb.tool_call]", {
+        traceId,
+        taskId: input.taskId,
+        stepId: step.id,
+        toolName: r.name,
+        latencyMs: typeof anyR.latencyMs === "number" ? Number(anyR.latencyMs) : null,
+        inputHash: hashPayload(step.toolCalls.find(c => c.name === r.name)?.args ?? null),
+        outputHash: hashPayload(r.data ?? r.error ?? null),
+        errorCode: r.ok ? null : (r.error ?? "tool_failed"),
+      });
+    }
 
     const failureReason = stepRun.toolResults.find(r => !r.ok)?.error;
     const error_code = stepRun.ok ? undefined : classifyOrbStepError(failureReason);
@@ -772,7 +805,9 @@ export async function runOrbTaskToCompletion(
       taskId: input.taskId,
       userId: input.userId,
       at: clock(),
+      orbTraceId: traceId,
     });
+    console.info("[orb.task_cost_aggregate]", { traceId, taskId: input.taskId, tokenCost: totalTokenCost, externalApiCost: totalExternalApiCost, retryCount: totalRetryCount });
     return {
       taskId: input.taskId,
       outcome: "completed",
@@ -788,7 +823,9 @@ export async function runOrbTaskToCompletion(
       taskId: input.taskId,
       userId: input.userId,
       at: clock(),
+      orbTraceId: traceId,
     });
+    console.info("[orb.task_cost_aggregate]", { traceId, taskId: input.taskId, tokenCost: totalTokenCost, externalApiCost: totalExternalApiCost, retryCount: totalRetryCount });
   }
   return {
     taskId: input.taskId,

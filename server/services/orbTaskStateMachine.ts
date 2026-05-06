@@ -659,12 +659,14 @@ export function appendOrbAgentTaskAuditEvent(
 export function linkOrbAgentTaskPredecessor(
   newTaskId: string,
   predecessorTaskId: string,
-  iterationIndex: number
+  iterationIndex: number,
+  parentTraceId?: string
 ): OrbAgentTask | null {
   const task = taskStore.get(newTaskId);
   if (!task) return null;
   task.predecessorTaskId = predecessorTaskId;
   task.iterationIndex = iterationIndex;
+  task.parentTraceId = parentTraceId;
   task.updatedAt = now();
   return task;
 }
