@@ -1237,7 +1237,6 @@ ${profileSnippet}`;
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <VisualSoul size="sm" personality={personality} />
             <span
               className={`font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
             >
