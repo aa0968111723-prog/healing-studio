@@ -171,14 +171,10 @@ const createGroupEntry = (
 });
 
 const sidebarStructure: SidebarEntry[] = [
-  "agent-chat",
   "studio",
   "director",
-  "assets",
-  "models",
   "notes",
-  "learn",
-  "settings",
+  "models",
 ]
   .map(id => sidebarPagesById.get(id))
   .filter((page): page is AppPageRegistryItem => Boolean(page))
