@@ -8,6 +8,7 @@ import {
   runSchemaFirstAgentPlanner,
   summarizeMultimodalInputsForPlanner,
   summarizePageSnapshotForPlanner,
+  summarizeTextToImageModelRegistryForPlanner,
 } from "./services/agentPlanner";
 
 function invokeResult(content: string): InvokeResult {
@@ -81,7 +82,15 @@ describe("agentPlanner", () => {
     expect(String(built[0].content)).toContain("recent-memory-summary");
     expect(String(built[0].content)).toContain("recent-orb-memory-summary");
     expect(String(built[0].content)).toContain("Site knowledge summary");
+    expect(String(built[0].content)).toContain("Text-to-image model registry summary");
     expect(built.at(-1)?.content).toBe("幫我做海報");
+  });
+
+  it("includes stable diffusion metadata in planner model registry summary", () => {
+    const summary = summarizeTextToImageModelRegistryForPlanner();
+    expect(summary).toContain("stable-diffusion-v35-large");
+    expect(summary).toContain("LoRA");
+    expect(summary).toContain("負面提示詞");
   });
 
   it("system prompt instructs a step-by-step quick-select wizard before tasked plans", () => {
