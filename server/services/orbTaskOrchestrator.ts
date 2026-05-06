@@ -8,6 +8,7 @@ import { executeOrbToolCalls } from "./agentToolExecutor";
 import { resolveStepRefsInArgs } from "../../shared/orb-step-ref-resolver";
 import { verifyToolResult } from "../../shared/orb-tool-result-verifier";
 import {
+  appendOrbAgentTaskAuditEvent,
   completeOrbAgentStep,
   failOrbAgentStep,
   getOrbAgentTask,
@@ -60,6 +61,71 @@ export interface ExecuteStepToolsInput {
     stepId: string;
     toolResults: OrbToolCallResult[];
   }>;
+  onRequestReplan?: (payload: {
+    taskId: string;
+    stepId: string;
+    toolName: string;
+    observation: ToolFailureObservation;
+    reason: string;
+  }) => Promise<void> | void;
+  stepRetryBudget?: number;
+}
+
+interface ToolFailureObservation {
+  toolName: string;
+  errorCode: string;
+  issues: string[];
+  toolArgs: unknown;
+}
+
+interface DeterministicRetryPatch {
+  args: Record<string, unknown>;
+  reason: string;
+}
+
+function sanitizeToolArgsForRetry(args: unknown): Record<string, unknown> {
+  return args && typeof args === "object" && !Array.isArray(args)
+    ? { ...(args as Record<string, unknown>) }
+    : {};
+}
+
+function buildDeterministicRetryPatch(toolArgs: unknown, issues: string[]): DeterministicRetryPatch | null {
+  const args = sanitizeToolArgsForRetry(toolArgs);
+  const lowerIssues = issues.map(issue => issue.toLowerCase());
+  let changed = false;
+  if ((args.image_size === undefined && args.resolution === undefined) && lowerIssues.some(issue => issue.includes("resolution") || issue.includes("size"))) {
+    args.image_size = "1024x1024";
+    changed = true;
+  }
+  if (args.duration === undefined && lowerIssues.some(issue => issue.includes("duration") || issue.includes("length"))) {
+    args.duration = 5;
+    changed = true;
+  }
+  if ((args.prompt === undefined || args.prompt === "") && lowerIssues.some(issue => issue.includes("prompt") || issue.includes("required"))) {
+    args.prompt = "high quality output";
+    changed = true;
+  }
+  if (!changed) return null;
+  return { args, reason: "deterministic-args-normalization" };
+}
+
+function recordRetryAuditAndMemory(input: ExecuteStepToolsInput, stepId: string, kind: "tool_feedback" | "replan_feedback", message: string, metadata: Record<string, unknown>): void {
+  appendOrbAgentTaskAuditEvent(input.task.taskId, "step.retry_attempted", message, metadata);
+  try {
+    recordOrbMemory({
+      userId: input.userId,
+      traceId: input.requestId ?? `task_${input.task.taskId}_step_${stepId}` ,
+      taskId: input.task.taskId,
+      type: kind,
+      summary: message,
+      source: "orchestrator.retry",
+      confidence: 0.9,
+      tags: [kind, String(metadata.toolName ?? "unknown")],
+      metadata,
+    });
+  } catch (err) {
+    console.warn("[orchestrator] retry memory writeback failed:", err);
+  }
 }
 
 export interface ExecuteStepToolsResult {
@@ -174,18 +240,74 @@ export async function executeCurrentStepTools(
     };
   }
 
-  const toolResults = await executeOrbToolCalls({
-    tools: input.tools,
-    calls,
-    userId: input.userId,
-    userRole: input.userRole,
-    approved: input.approved,
-    blockedTools: Array.from(blockedTools),
-    requestId: input.requestId,
-    taskId: input.task.taskId,
-    stepId: step.id,
-    onAuditEvent: input.onAuditEvent,
-  });
+  const stepRetryBudget = Math.min(2, Math.max(0, input.stepRetryBudget ?? 2));
+  let attempt = 0;
+  let callPlan = calls;
+  let toolResults: OrbToolCallResult[] = [];
+  while (attempt <= stepRetryBudget) {
+    toolResults = await executeOrbToolCalls({
+      tools: input.tools,
+      calls: callPlan,
+      userId: input.userId,
+      userRole: input.userRole,
+      approved: input.approved,
+      blockedTools: Array.from(blockedTools),
+      requestId: input.requestId,
+      taskId: input.task.taskId,
+      stepId: step.id,
+      onAuditEvent: input.onAuditEvent,
+    });
+    if (attempt >= stepRetryBudget) break;
+    const verifierFailure = toolResults.find(result => {
+      if (!result.ok) return false;
+      return !verifyToolResult({ toolName: result.name, data: result.data }).ok;
+    });
+    if (!verifierFailure) break;
+    const failedCall = callPlan.find(call => call.name === verifierFailure.name);
+    const verdict = verifyToolResult({ toolName: verifierFailure.name, data: verifierFailure.data });
+    if (verdict.ok || !failedCall) break;
+    const observation: ToolFailureObservation = {
+      toolName: verifierFailure.name,
+      errorCode: verdict.errorCode ?? "verifier:unknown",
+      issues: verdict.issues.slice(0, 8),
+      toolArgs: failedCall.args,
+    };
+    const retryPatch = buildDeterministicRetryPatch(failedCall.args, verdict.issues);
+    if (!retryPatch) {
+      recordRetryAuditAndMemory(
+        input,
+        step.id,
+        "replan_feedback",
+        `Deterministic retry unavailable for ${observation.toolName}; requesting planner replan`,
+        { attempt, stepId: step.id, ...observation }
+      );
+      appendOrbAgentTaskAuditEvent(
+        input.task.taskId,
+        "task.replanning",
+        `Replan requested after verifier failure on ${observation.toolName}`,
+        { attempt, stepId: step.id, observation }
+      );
+      await input.onRequestReplan?.({
+        taskId: input.task.taskId,
+        stepId: step.id,
+        toolName: observation.toolName,
+        observation,
+        reason: "deterministic-retry-unavailable",
+      });
+      break;
+    }
+    callPlan = callPlan.map(call =>
+      call.name === observation.toolName ? { ...call, args: retryPatch.args } : call
+    );
+    recordRetryAuditAndMemory(
+      input,
+      step.id,
+      "tool_feedback",
+      `Retrying ${observation.toolName} with deterministic patch (${retryPatch.reason})`,
+      { attempt, stepId: step.id, ...observation, retryReason: retryPatch.reason, patchedArgs: retryPatch.args }
+    );
+    attempt += 1;
+  }
 
   // ── DEF-AG1 Step Reflection ────────────────────────────────────────────
   // After a successful tool call, run a lightweight payload verifier so
