@@ -170,35 +170,19 @@ const createGroupEntry = (
     .map(toLeafItem),
 });
 
-const sidebarStructure: SidebarEntry[] = ["agent-chat", "studio", "director"]
+const sidebarStructure: SidebarEntry[] = [
+  "agent-chat",
+  "studio",
+  "director",
+  "assets",
+  "models",
+  "notes",
+  "learn",
+  "settings",
+]
   .map(id => sidebarPagesById.get(id))
   .filter((page): page is AppPageRegistryItem => Boolean(page))
   .map(toLeafItem);
-
-sidebarStructure.splice(
-  2,
-  0,
-  createGroupEntry("專業創作室", ["image-studio", "video-studio", "pro-studio"])
-);
-sidebarStructure.push(
-  createGroupEntry("資源中心", [
-    "assets",
-    "models",
-    "lora-trainer",
-    "notes",
-    "history",
-    "calendar",
-  ])
-);
-sidebarStructure.push(
-  createGroupEntry("數據洞察", ["dashboard"])
-);
-for (const tailId of ["learn", "settings"]) {
-  const page = sidebarPagesById.get(tailId);
-  if (page) {
-    sidebarStructure.push(toLeafItem(page));
-  }
-}
 
 const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry =>
   isGroup(entry) ? entry.children : [entry]
