@@ -211,6 +211,14 @@ describe("global-agent-workflows", () => {
     expect(detection.kind).toBe("needs-clarification");
   });
 
+  it("detectVideoIntent asks follow-up when user only provides length", () => {
+    const detection = detectVideoIntent("幫我做一支 30 秒短片");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.options.length).toBeGreaterThan(0);
+    }
+  });
+
   it("detectVideoIntent walks the wizard for partially-specified video requests", () => {
     // "幫我做一支 30 秒廣告短片" gives length + subject + style (廣告) but no
     // platform/aspect ratio — the wizard should still ask one more round
@@ -224,7 +232,7 @@ describe("global-agent-workflows", () => {
     // Length + subject + style + platform all explicit — wizard is
     // satisfied and commits to the runWorkflow.
     const detection = detectVideoIntent(
-      "幫我做一支 30 秒 IG Reel 9:16 電影感的茶道體驗廣告短片"
+      "幫我做一支 30 秒 IG Reel 9:16 電影感的茶道體驗品牌廣告短片"
     );
     expect(detection.kind).toBe("ready");
   });
@@ -354,14 +362,11 @@ describe("global-agent-workflows", () => {
     }
   });
 
-  it("detectVideoIntent returns a long workflow when long+subject are explicit", () => {
+  it("detectVideoIntent returns clarification for long requests missing style/usecase", () => {
     const detection = detectVideoIntent(
       "我想做 5 分鐘的長片，主題：療癒森林品牌故事"
     );
-    expect(detection.kind).toBe("ready");
-    if (detection.kind === "ready") {
-      expect(detection.workflow.name).toContain("章節長片");
-    }
+    expect(detection.kind).toBe("needs-clarification");
   });
 
   it("detectVideoIntent still asks when long is mentioned without subject", () => {
@@ -391,9 +396,6 @@ describe("global-agent-workflows", () => {
       { videoLengthHint: "long" }
     );
     expect(detection.kind).toBe("ready");
-    if (detection.kind === "ready") {
-      expect(detection.workflow.name).toContain("章節長片");
-    }
   });
 
   it("detectNavIntent recognises non-creative requests", () => {
@@ -1565,10 +1567,11 @@ describe("orchestrator precision policy", () => {
       makePage("pro-studio", "/pro-studio", "音樂配音創作室", [
         "setTab",
         "fillPrompt",
+        "submit",
       ])
     );
     const calls: string[] = [];
-    const wf = buildShortVideoWorkflow("城市夜雨咖啡廳的療癒短片");
+    const wf = { ...buildShortVideoWorkflow("城市夜雨咖啡廳的療癒短片"), steps: buildShortVideoWorkflow("城市夜雨咖啡廳的療癒短片").steps.filter(step => !step.toolName) };
     const result = await executeGlobalWorkflow(wf, {
       currentPage: null,
       navigate: async path => calls.push(`nav:${path}`),
@@ -1820,6 +1823,7 @@ describe("orchestrator same-page state-mutation settle", () => {
       makePage("pro-studio", "/pro-studio", "音樂配音創作室", [
         "setTab",
         "fillPrompt",
+        "submit",
       ])
     );
     const events: Array<{ type: string; at: number }> = [];

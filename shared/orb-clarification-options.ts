@@ -31,6 +31,7 @@ export type ClarificationDimension =
   | "audience"
   | "subject"
   | "platform"
+  | "usecase"
   | "open";
 
 export interface ClarificationOptionContext {
@@ -160,6 +161,12 @@ export function buildContextualClarificationOptions(
         "1 分鐘（紀錄／敘事）",
         "3 分鐘以上（微電影）",
       ],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
+      ],
       style: [
         `${tPrefix}紀錄寫實`,
         `${tPrefix}電影感運鏡`,
@@ -201,6 +208,12 @@ export function buildContextualClarificationOptions(
         `${tPrefix}寫實照片風格`,
       ],
       duration: [],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
+      ],
       style: [
         `${tPrefix}寫實風格`,
         `${tPrefix}日系插畫`,
@@ -247,6 +260,12 @@ export function buildContextualClarificationOptions(
         "2–3 分鐘（完整曲目）",
         "5 分鐘以上（長 BGM）",
       ],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
+      ],
       style: [
         `${tPrefix}療癒慢板`,
         `${tPrefix}節奏輕快`,
@@ -275,6 +294,12 @@ export function buildContextualClarificationOptions(
         "1–2 分鐘（敘事旁白）",
         "5 分鐘以上（podcast）",
       ],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
+      ],
       style: [
         "溫柔療癒女聲",
         "穩重專業男聲",
@@ -297,6 +322,12 @@ export function buildContextualClarificationOptions(
         "100 字以內（社群貼文）",
         "300 字（短廣告腳本）",
         "800 字（教學長腳本）",
+      ],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
       ],
       style: [
         `${tPrefix}親切口語`,
@@ -322,6 +353,12 @@ export function buildContextualClarificationOptions(
         "影片動作 LoRA",
       ],
       duration: [],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
+      ],
       style: [],
       audience: [],
       subject: [],
@@ -343,6 +380,12 @@ export function buildContextualClarificationOptions(
             "先寫腳本／文案",
           ],
       duration: [],
+      usecase: [
+        "品牌廣告",
+        "故事敘事",
+        "教學解說",
+        "情緒短片",
+      ],
       style: [],
       audience: [],
       subject: [],
