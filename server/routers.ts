@@ -5151,11 +5151,18 @@ export const appRouter = router({
         const recentOrbMemories = orbLongTermMemoryEnabled
           ? getRecentOrbMemories({ userId: ctx.user.id, limit: 10 })
           : [];
+        const memoryCandidate = [...input.messages]
+          .reverse()
+          .find(message => message.role === "user")?.content;
         const memoryQuery =
-          [...plannerMessages]
-            .reverse()
-            .find(message => message.role === "user" && typeof message.content === "string")
-            ?.content ?? "";
+          typeof memoryCandidate === "string"
+            ? memoryCandidate
+            : Array.isArray(memoryCandidate)
+              ? memoryCandidate
+                  .filter(part => part.type === "text")
+                  .map(part => part.text)
+                  .join("\n")
+              : "";
         const memoryContext = orbLongTermMemoryEnabled
           ? await buildOrbMemorySummaryForPlanner({ userId: ctx.user.id, query: memoryQuery, limit: 10 })
           : { summary: "Long-term memory disabled.", memoryInjected: false };

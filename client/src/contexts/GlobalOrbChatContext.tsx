@@ -20,6 +20,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
+import { safeRenderAssistantMessage } from "@/lib/assistantMessageSafety";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
@@ -169,6 +170,8 @@ const STORAGE_KEY_MESSAGES = "orb-chat-messages";
 const STORAGE_KEY_TIMESTAMP = "orb-chat-timestamp";
 const STORAGE_KEY_CLARIFICATION = "orb-chat-pending-clarification";
 const MAX_STORED_MESSAGES = 100;
+const MAX_CHAT_REQUEST_MESSAGES = 18;
+const MAX_CHAT_REQUEST_CHARS = 12_000;
 const STORAGE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 function inferUserMultimodalIntent(text: string): string {
@@ -273,6 +276,27 @@ function clearMessagesFromStorage() {
   } catch (err) {
     console.warn("[GlobalOrbChat] Failed to clear messages from storage:", err);
   }
+}
+
+function compactHistoryForRequest(history: ChatMessage[]): ChatMessage[] {
+  const cleaned = history.filter(m => m.role !== "orb" || m.at !== history[0]?.at);
+  if (cleaned.length <= 1) return cleaned;
+
+  const kept: ChatMessage[] = [];
+  let usedChars = 0;
+  for (let i = cleaned.length - 1; i >= 0; i -= 1) {
+    const msg = cleaned[i];
+    const msgChars = msg.text.length;
+    const exceedChars = usedChars + msgChars > MAX_CHAT_REQUEST_CHARS;
+    const exceedCount = kept.length >= MAX_CHAT_REQUEST_MESSAGES;
+    if (exceedChars || exceedCount) {
+      // Keep latest message, but stop adding old history once budget is reached.
+      if (i !== cleaned.length - 1) break;
+    }
+    kept.push(msg);
+    usedChars += msgChars;
+  }
+  return kept.reverse();
 }
 
 /**
@@ -1334,8 +1358,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           }
         : undefined;
       const data = await aiChat.mutateAsync({
-        messages: nextHistory
-          .filter(m => m.role !== "orb" || m.at !== messages[0]?.at)
+        messages: compactHistoryForRequest(nextHistory)
           .map(m => ({
             role: m.role === "user" ? ("user" as const) : ("assistant" as const),
             content: toLLMMessageContent(m),
