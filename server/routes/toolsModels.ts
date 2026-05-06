@@ -11,6 +11,7 @@ toolsModelsRouter.get("/api/tools/models", (req: Request, res: Response) => {
     image: ["text-to-image", "image-to-image"],
     video: ["text-to-video", "image-to-video", "video-to-video"],
     audio: ["text-to-audio", "text-to-speech", "video-to-audio"],
+    "3d": ["image-to-3d", "text-to-3d"],
   };
   const categories = categoryMap[category];
   if (!categories) {
