@@ -258,7 +258,8 @@ async function tryReplanAndCreateTask(args: {
   linkOrbAgentTaskPredecessor(
     stateMachineTask.taskId,
     args.prevTaskId,
-    args.iterationIndex
+    args.iterationIndex,
+    getOrbAgentTask(args.prevTaskId)?.traceId
   );
 
   // Carry the planner context onto the new taskId so subsequent
