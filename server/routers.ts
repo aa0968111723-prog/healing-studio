@@ -78,6 +78,7 @@ import {
   summarizeRecentOrbTaskMemoryForPlanner,
 } from "./services/orbTaskMemory";
 import {
+  buildOrbMemorySummaryForPlanner,
   clearOrbMemoryForUser,
   deleteOrbMemory,
   getRecentOrbMemories,
@@ -5050,6 +5051,7 @@ export const appRouter = router({
           preferredEngine?: string | null;
           taskId?: string | null;
           usedMultimodalPlanner?: boolean;
+          memoryInjected?: boolean;
         }) => {
           const now = Date.now();
           const planRecord =
@@ -5072,6 +5074,7 @@ export const appRouter = router({
             warnings: params.warnings ?? [],
             taskId: params.taskId ?? null,
             usedMultimodalPlanner: Boolean(params.usedMultimodalPlanner),
+            memoryInjected: Boolean(params.memoryInjected),
           };
         };
 
@@ -5148,9 +5151,15 @@ export const appRouter = router({
         const recentOrbMemories = orbLongTermMemoryEnabled
           ? getRecentOrbMemories({ userId: ctx.user.id, limit: 10 })
           : [];
-        const recentOrbMemorySummary = orbLongTermMemoryEnabled
-          ? summarizeOrbMemoriesForPlanner({ userId: ctx.user.id, limit: 10 })
-          : "Long-term memory disabled.";
+        const memoryQuery =
+          [...plannerMessages]
+            .reverse()
+            .find(message => message.role === "user" && typeof message.content === "string")
+            ?.content ?? "";
+        const memoryContext = orbLongTermMemoryEnabled
+          ? await buildOrbMemorySummaryForPlanner({ userId: ctx.user.id, query: memoryQuery, limit: 10 })
+          : { summary: "Long-term memory disabled.", memoryInjected: false };
+        const recentOrbMemorySummary = memoryContext.summary;
         // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
         // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
         // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
@@ -5832,6 +5841,7 @@ export const appRouter = router({
                 warnings,
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+                memoryInjected: memoryContext.memoryInjected,
               });
               // Gap 17: moderate the converted reply.
               const convertedModeration = moderateOrbContent(plannerResult.reply ?? "");
@@ -5899,6 +5909,7 @@ export const appRouter = router({
                 warnings: plannerResult.warnings,
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+                memoryInjected: memoryContext.memoryInjected,
               });
               const clarificationQuestion =
                 plannerResult.clarificationQuestion ??
@@ -5941,6 +5952,7 @@ export const appRouter = router({
                 warnings: plannerResult.warnings,
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+                memoryInjected: memoryContext.memoryInjected,
               });
               return {
                 reply:
@@ -6183,6 +6195,7 @@ export const appRouter = router({
                   (stateMachineTask?.taskId as string | undefined) ??
                   ((materializedTask as { taskId?: string } | null)?.taskId ?? null),
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+                memoryInjected: memoryContext.memoryInjected,
               });
 
               return finalizeIdempotentResponse({

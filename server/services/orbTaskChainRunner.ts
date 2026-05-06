@@ -53,6 +53,7 @@ import {
 } from "./orbTaskPageStateStore";
 import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
+import { buildOrbMemorySummaryForPlanner } from "./orbMemory";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
 import { emitGenerationEvent } from "../generationEvents";
 import {
@@ -199,10 +200,20 @@ async function tryReplanAndCreateTask(args: {
     siteKnowledgeSummary: args.context.siteKnowledgeSummary,
     preferences: args.context.preferences,
   };
+  const memoryContext = await buildOrbMemorySummaryForPlanner({
+    userId: args.userId,
+    query: recap,
+    limit: 10,
+  });
+  plannerInput.recentOrbMemorySummary = memoryContext.summary;
 
   let plannerResult;
   try {
     plannerResult = await args.invokePlanner(plannerInput);
+    (plannerResult as Record<string, unknown>).metadata = {
+      ...((plannerResult as Record<string, unknown>).metadata as Record<string, unknown> | undefined),
+      memoryInjected: memoryContext.memoryInjected,
+    };
   } catch (err) {
     return {
       ok: false,
