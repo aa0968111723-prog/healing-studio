@@ -148,7 +148,7 @@ import {
 } from "./services/internalMedia";
 import { eq } from "drizzle-orm";
 import { userAiBrain, promptLibrary } from "../drizzle/schema";
-import { getDb } from "./db";
+import { getDb, getSiteWideModelUsageSnapshot } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
 import {
@@ -5393,6 +5393,20 @@ export const appRouter = router({
           appendTelemetryEvent(telemetryEvents, "orb.web_research.error", {});
         }
         const webResearchPromptBlock = webResearchOutcome.promptBlock ?? "";
+        const siteModelUsageRows = await getSiteWideModelUsageSnapshot({
+          days: 14,
+          limit: 8,
+        });
+        const siteModelUsagePromptBlock = siteModelUsageRows.length
+          ? [
+              "【站內模型使用快照（最近 14 天）】",
+              ...siteModelUsageRows.map(
+                row =>
+                  `- ${row.model}：${row.totalCalls} 次（成功 ${row.successCalls} / 失敗 ${row.failedCalls}，tokens ${row.totalTokens}，成本 $${row.totalCostUsd.toFixed(4)}）`
+              ),
+              "若使用者要『全站哪些模型/功能最適合』，請優先參考以上活躍模型，再結合需求做分段建議。",
+            ].join("\n")
+          : "";
         const webResearchSources = webResearchOutcome.results.map(r => ({
           title: r.title,
           url: r.url,
@@ -5715,6 +5729,7 @@ export const appRouter = router({
               const plannerContextWithResearch = [
                 input.context,
                 webResearchPromptBlock || undefined,
+                siteModelUsagePromptBlock || undefined,
               ]
                 .filter((s): s is string => Boolean(s && s.trim()))
                 .join("\n\n");
