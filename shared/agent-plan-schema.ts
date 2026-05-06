@@ -420,6 +420,8 @@ export const AgentPlanV3SafetySchema = z.object({
 export type AgentPlanV3Safety = z.infer<typeof AgentPlanV3SafetySchema>;
 
 export const AgentPlanV3StepSchema = AgentPlanStepSchema.extend({
+  confidenceScore: z.number().min(0).max(1).default(0.75),
+  approvalGate: z.boolean().default(false),
   toolName: z.string().trim().min(1).max(80).optional(),
   toolArgs: z.record(z.string(), z.unknown()).optional(),
   condition: z.object({
@@ -525,6 +527,13 @@ export const AgentPlanV3Schema = z.object({
       path: ["steps"],
       message: "Tasked plans must include at least one step.",
     });
+  }
+  for (const step of plan.steps) {
+    const highRiskAction = ["submit", "reset"].includes(step.action.type)
+      || /publish|覆寫|overwrite|扣點|deduct/i.test(step.label);
+    if (highRiskAction && !step.approvalGate) {
+      step.approvalGate = true;
+    }
   }
 });
 export type AgentPlanV3 = z.infer<typeof AgentPlanV3Schema>;
