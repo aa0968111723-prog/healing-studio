@@ -139,9 +139,8 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
 };
 
 const groupIconByName: Record<string, LucideIcon> = {
-  專業創作室: Palette,
-  資源中心: FolderOpen,
-  數據洞察: BarChart3,
+  創作工作室: Wand2,
+  模型樂園: Sparkles,
 };
 
 const sidebarGroupsFromRegistry = getSidebarGroups();
@@ -170,15 +169,47 @@ const createGroupEntry = (
     .map(toLeafItem),
 });
 
-const sidebarStructure: SidebarEntry[] = [
-  "studio",
-  "director",
-  "notes",
-  "models",
-]
-  .map(id => sidebarPagesById.get(id))
-  .filter((page): page is AppPageRegistryItem => Boolean(page))
-  .map(toLeafItem);
+const sidebarStructure: SidebarEntry[] = [];
+
+// 1. 全站光球代理
+const agentChatPage = sidebarPagesById.get("agent-chat");
+if (agentChatPage) {
+  sidebarStructure.push(toLeafItem(agentChatPage));
+}
+
+// 2. 創作工作室群組 (studio, director, notes)
+sidebarStructure.push(
+  createGroupEntry("創作工作室", ["studio", "director", "notes"])
+);
+
+// 3. 數位資產庫
+const assetsPage = sidebarPagesById.get("assets");
+if (assetsPage) {
+  sidebarStructure.push(toLeafItem(assetsPage));
+}
+
+// 4. 學習文件中心
+const learnPage = sidebarPagesById.get("learn");
+if (learnPage) {
+  sidebarStructure.push(toLeafItem(learnPage));
+}
+
+// 5. 個人設定
+const settingsPage = sidebarPagesById.get("settings");
+if (settingsPage) {
+  sidebarStructure.push(toLeafItem(settingsPage));
+}
+
+// 6. 模型樂園群組 (models, image-studio, video-studio, pro-studio, dashboard)
+sidebarStructure.push(
+  createGroupEntry("模型樂園", [
+    "models",
+    "image-studio",
+    "video-studio",
+    "pro-studio",
+    "dashboard",
+  ])
+);
 
 const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry =>
   isGroup(entry) ? entry.children : [entry]
