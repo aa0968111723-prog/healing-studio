@@ -79,25 +79,25 @@ export function extractTopicWord(text: string): string | null {
   if (!text) return null;
   let stripped = text;
   const stripPatterns: RegExp[] = [
-    /影片|短片|reel|vlog|video/giu,
-    /圖片|插畫|海報|封面|image|picture|illustration/giu,
-    /音樂|配樂|bgm|music|歌曲|聲音/giu,
-    /音效|sfx|環境音/giu,
-    /配音|旁白|tts|voice|口白/giu,
-    /腳本|劇本|文案|script/giu,
-    /lora|訓練/giu,
+    /影片|短片|reel|vlog|video/gi,
+    /圖片|插畫|海報|封面|image|picture|illustration/gi,
+    /音樂|配樂|bgm|music|歌曲|聲音/gi,
+    /音效|sfx|環境音/gi,
+    /配音|旁白|tts|voice|口白/gi,
+    /腳本|劇本|文案|script/gi,
+    /lora|訓練/gi,
     /幫我|請|我想|我要|可以|希望|需要|建議/g,
     /做一支|做一段|做一首|做一張|做一個|生成|製作|設計|產生|畫一張/g,
     /一支|一段|一首|一張|一個/g,
-    /\b(?:make|create|generate|design|build|i\s+want|please)\b/giu,
-    /[\s\p{P}]+/gu,
+    /\b(?:make|create|generate|design|build|i\s+want|please)\b/gi,
+    /[\s.,!?;:()"'\-_/\[\]{}，。！？；：、（）「」『』《》【】]+/g,
   ];
   for (const pat of stripPatterns) stripped = stripped.replace(pat, " ");
   stripped = stripped.replace(/\s+/g, " ").trim();
   if (!stripped) return null;
 
   // Pick the longest contiguous CJK run that survives stripping.
-  const cjkRuns = stripped.match(/[一-鿿]+/gu);
+  const cjkRuns = stripped.match(/[一-鿿]+/g);
   if (cjkRuns && cjkRuns.length > 0) {
     const sorted = [...cjkRuns].sort((a, b) => b.length - a.length);
     return sorted[0].slice(0, 6);
@@ -566,24 +566,24 @@ export function isPhantomPlanReply(reply: string): boolean {
   if (!reply || reply.length < 20) return false;
   // Numbered-step heuristic: at least 2 numbered markers.
   const numberedSteps =
-    (reply.match(/(?:^|\n)\s*\*?\*?\s*步驟\s*\d/gu) ?? []).length +
-    (reply.match(/(?:^|\n)\s*\d[.)]\s+/gu) ?? []).length +
-    (reply.match(/(?:^|\n)\s*Step\s+\d/giu) ?? []).length;
+    (reply.match(/(?:^|\n)\s*\*?\*?\s*步驟\s*\d/g) ?? []).length +
+    (reply.match(/(?:^|\n)\s*\d[.)]\s+/g) ?? []).length +
+    (reply.match(/(?:^|\n)\s*Step\s+\d/gi) ?? []).length;
   if (numberedSteps < 2) return false;
 
   // Question-tail heuristic: the reply asks the user to pick / decide.
   const tail = reply.slice(-220);
   const askMarkers = [
-    /從哪[個一]?[步階]/u,
-    /想從哪[個一]?[步階]/u,
-    /比較想[從要]/u,
-    /有其他想法/u,
-    /要我從哪/u,
+    /從哪[個一]?[步階]/,
+    /想從哪[個一]?[步階]/,
+    /比較想[從要]/,
+    /有其他想法/,
+    /要我從哪/,
     /you want to start with/i,
     /which step/i,
     /which one/i,
   ];
-  const hasQuestionMark = /[?？]/u.test(tail);
+  const hasQuestionMark = /[?？]/.test(tail);
   const hasAskMarker = askMarkers.some(re => re.test(tail));
   return hasQuestionMark && hasAskMarker;
 }
@@ -598,7 +598,7 @@ export function extractPhantomPlanQuestion(reply: string): string | null {
   const lines = reply.split(/\n+/).map(l => l.trim()).filter(Boolean);
   // Walk from the bottom; first line that contains a ?/？ is the question.
   for (let i = lines.length - 1; i >= 0; i -= 1) {
-    if (/[?？]/u.test(lines[i])) {
+    if (/[?？]/.test(lines[i])) {
       return lines[i].replace(/^\*+|\*+$/g, "").slice(0, 160);
     }
   }

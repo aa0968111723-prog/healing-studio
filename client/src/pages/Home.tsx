@@ -120,7 +120,7 @@ const SCENE_STYLES: Record<
     cardBorder: "rgba(100,120,200,0.12)",
     btnPrimary: "bg-indigo-600 hover:bg-indigo-500 hover:shadow-lg",
     btnPrimaryText: "text-white",
-    btnOutline: "border-slate-500/40 hover:bg-slate-700/30 hover:shadow-md",
+    btnOutline: "bg-slate-900/25 border-slate-500/50 hover:bg-slate-700/35 hover:shadow-md",
     btnOutlineText: "text-slate-200",
     featureBg: "rgba(80,90,160,0.12)",
     footerBorder: "rgba(100,120,200,0.1)",
@@ -141,7 +141,7 @@ const SCENE_STYLES: Record<
     cardBorder: "rgba(220,180,140,0.2)",
     btnPrimary: "bg-amber-700 hover:bg-amber-600 hover:shadow-lg",
     btnPrimaryText: "text-white",
-    btnOutline: "border-amber-400/40 hover:bg-amber-100/30 hover:shadow-md",
+    btnOutline: "bg-amber-50/70 border-amber-500/50 hover:bg-amber-100/80 hover:shadow-md",
     btnOutlineText: "text-amber-800",
     featureBg: "rgba(255,200,140,0.15)",
     footerBorder: "rgba(200,160,120,0.15)",
@@ -162,7 +162,7 @@ const SCENE_STYLES: Record<
     cardBorder: "rgba(200,180,150,0.2)",
     btnPrimary: "bg-stone-800 hover:bg-stone-700 hover:shadow-lg",
     btnPrimaryText: "text-white",
-    btnOutline: "border-stone-400/40 hover:bg-stone-200/30 hover:shadow-md",
+    btnOutline: "bg-stone-100/75 border-stone-500/50 hover:bg-stone-200/85 hover:shadow-md",
     btnOutlineText: "text-stone-700",
     featureBg: "rgba(200,180,150,0.12)",
     footerBorder: "rgba(180,150,120,0.15)",
@@ -183,7 +183,7 @@ const SCENE_STYLES: Record<
     cardBorder: "rgba(60,140,180,0.12)",
     btnPrimary: "bg-cyan-700 hover:bg-cyan-600 hover:shadow-lg",
     btnPrimaryText: "text-white",
-    btnOutline: "border-cyan-500/40 hover:bg-cyan-800/30 hover:shadow-md",
+    btnOutline: "bg-cyan-950/30 border-cyan-500/50 hover:bg-cyan-800/35 hover:shadow-md",
     btnOutlineText: "text-cyan-200",
     featureBg: "rgba(60,140,180,0.12)",
     footerBorder: "rgba(60,140,180,0.1)",
@@ -1516,6 +1516,7 @@ ${profileSnippet}`;
                   )}
                   <Button
                     size="sm"
+                    variant="outline"
                     onClick={() => navigate("/learn/tutorial-overview")}
                     className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
                   >

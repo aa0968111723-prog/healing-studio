@@ -854,6 +854,10 @@ export interface FalQueueDispatchResult {
   request_id: string;
   /** 實際提交的 modelId（可能因 fallback 而變動） */
   modelId: string;
+  /** fal queue canonical status URL（若 fal 有回傳） */
+  statusUrl?: string;
+  /** fal queue canonical response URL（若 fal 有回傳） */
+  responseUrl?: string;
   /** true 表示原始 modelId 不在 catalog，已降級到 fallback chain 首選 */
   degraded?: boolean;
   /** 降級前原本要使用的 modelId */
