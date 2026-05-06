@@ -67,6 +67,9 @@ export interface ExecuteStepToolsResult {
   toolResults: OrbToolCallResult[];
   ok: boolean;
   blockedByApproval?: boolean;
+  blockedReason?: string;
+  confidence?: number;
+  confidenceSource?: "planner" | "verifier" | "rule";
 }
 
 export async function executeCurrentStepTools(
@@ -114,7 +117,11 @@ export async function executeCurrentStepTools(
   const autoStepLimitReached = (input.autoApprovedStepsInRun ?? 0) >= maxAuto;
   const isStepApproved = input.task.approvedStepIds.includes(step.id);
   const effectiveApproved = shouldForceManual ? false : (shouldForceApprove ? true : input.approved);
-  if ((stepNeedsApproval && !(effectiveApproved || isStepApproved)) || autoStepLimitReached) {
+  const confidenceGate = computeStepConfidence(step);
+  const gateReasons: string[] = [...confidenceGate.reasons];
+  if (autoStepLimitReached) gateReasons.push(`maxAutoStepsPerTask(${maxAuto}) reached`);
+  const needsManualGate = (stepNeedsApproval && !(effectiveApproved || isStepApproved)) || gateReasons.length > 0;
+  if (needsManualGate) {
     return {
       attempted: false,
       toolResults: [
@@ -126,6 +133,9 @@ export async function executeCurrentStepTools(
       ],
       ok: false,
       blockedByApproval: true,
+      blockedReason: gateReasons.join("; ") || "manual approval required",
+      confidence: confidenceGate.confidence,
+      confidenceSource: confidenceGate.source,
     };
   }
 
@@ -283,6 +293,33 @@ function collectUnresolvedStepRefs(value: unknown, acc: string[] = []): string[]
   return acc;
 }
 
+
+
+type ConfidenceSource = "planner" | "verifier" | "rule";
+
+const CONFIDENCE_GATE_THRESHOLD = 0.8;
+const FORCE_HITL_TOOL_RE = /(train|deploy|publish)/i;
+
+function computeStepConfidence(step: OrbTask["steps"][number]): {
+  confidence: number;
+  source: ConfidenceSource;
+  reasons: string[];
+} {
+  const asRecord = step as unknown as Record<string, unknown>;
+  const plannerConfidence = typeof asRecord.confidence === "number" ? asRecord.confidence : null;
+  const verifierConfidence = typeof asRecord.verifierConfidence === "number" ? asRecord.verifierConfidence : null;
+  const chosen = verifierConfidence ?? plannerConfidence ?? 1;
+  const source: ConfidenceSource = verifierConfidence !== null ? "verifier" : plannerConfidence !== null ? "planner" : "rule";
+  const reasons: string[] = [];
+  if (chosen < CONFIDENCE_GATE_THRESHOLD) {
+    reasons.push(`confidence ${chosen.toFixed(2)} below threshold ${CONFIDENCE_GATE_THRESHOLD.toFixed(2)} (${source})`);
+  }
+  const highRiskCall = step.toolCalls.find(call => FORCE_HITL_TOOL_RE.test(call.name));
+  if (highRiskCall) {
+    reasons.push(`high-risk tool '${highRiskCall.name}' requires human approval`);
+  }
+  return { confidence: Math.max(0, Math.min(1, chosen)), source, reasons };
+}
 // ─── Multi-step coordinator ────────────────────────────────────────────────
 //
 // Real orchestration that walks the entire OrbTask, advancing both the

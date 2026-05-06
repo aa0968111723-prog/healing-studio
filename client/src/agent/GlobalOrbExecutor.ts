@@ -28,6 +28,8 @@ export interface GlobalOrbExecutorTask {
   preferredEngine?: string | null;
   riskLevel?: string | null;
   requiresHumanReason?: string;
+  confidence?: number;
+  confidenceSource?: "planner" | "verifier" | "rule";
   retryBudget?: number;
   retryCount?: number;
   steps: GlobalOrbExecutorStep[];

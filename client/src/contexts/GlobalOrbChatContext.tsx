@@ -136,6 +136,8 @@ export interface PendingWorkflowPlan {
 export interface PendingExecutorTask {
   task: GlobalOrbExecutorTask;
   requiresHumanReason?: string;
+  confidence?: number;
+  confidenceSource?: "planner" | "verifier" | "rule";
   affectedPages: string[];
 }
 
@@ -770,7 +772,12 @@ function ExecutorConfirmationCard({
       <div className="mt-1 text-base font-semibold">{task.summaryForUser}</div>
       <div className="mt-2 text-xs text-white/70">taskId: {task.taskId} · traceId: {task.traceId ?? "n/a"}</div>
       <div className="mt-1 text-xs text-white/70">risk: {task.riskLevel ?? "unknown"}</div>
-      {pendingTask.requiresHumanReason && <div className="mt-1 text-xs text-amber-200">{pendingTask.requiresHumanReason}</div>}
+      {pendingTask.requiresHumanReason && <div className="mt-1 text-xs text-amber-200">為何需要你確認：{pendingTask.requiresHumanReason}</div>}
+      {typeof pendingTask.confidence === "number" && (
+        <div className="mt-1 text-xs text-white/70">
+          confidence: {Math.round(pendingTask.confidence * 100)}% · source: {pendingTask.confidenceSource ?? "rule"}
+        </div>
+      )}
       {task.riskLevel === "high" && (
         <div className="mt-2 rounded-xl border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
           高風險任務：不會自動執行，請確認後才開始。
@@ -783,9 +790,9 @@ function ExecutorConfirmationCard({
       </div>
       <div className="mt-2 text-xs text-cyan-100/70">Affected page: {pendingTask.affectedPages.join(", ") || "current page"}</div>
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <button type="button" onClick={onApprove} disabled={isBusy} className="rounded-2xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">Approve / 執行</button>
-        <button type="button" onClick={onCancel} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 disabled:opacity-50">Cancel / 取消</button>
-        <button type="button" onClick={onEditPlan} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 disabled:opacity-50">Edit Plan / 修改</button>
+        <button type="button" onClick={onApprove} disabled={isBusy} className="rounded-2xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">繼續 / Continue</button>
+        <button type="button" onClick={onCancel} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 disabled:opacity-50">取消 / Cancel</button>
+        <button type="button" onClick={onEditPlan} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 disabled:opacity-50">修改 Prompt / Edit</button>
       </div>
     </div>
   );
@@ -1628,9 +1635,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
       if (executorTask) {
         const pages = Array.from(new Set(executorTask.steps.map(step => step.pagePath).filter((v): v is string => Boolean(v))));
+        const gateMeta = data as { reply?: string; warnings?: string[]; confidence?: number; confidenceSource?: "planner" | "verifier" | "rule" };
         setPendingExecutorTask({
           task: executorTask,
-          requiresHumanReason: (data as { reply?: string; warnings?: string[] }).reply,
+          requiresHumanReason: gateMeta.reply,
+          confidence: typeof gateMeta.confidence === "number" ? gateMeta.confidence : undefined,
+          confidenceSource: gateMeta.confidenceSource,
           affectedPages: pages,
         });
         return;
