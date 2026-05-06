@@ -6,6 +6,7 @@ import {
 } from "../_core/llm";
 import { AGENT_PLAN_V3_JSON_SCHEMA } from "../../shared/agent-plan-schema";
 import { summarizeGlobalCapabilityRegistry } from "../../shared/global-agent-capabilities";
+import { summarizeTextToImageModelRegistry } from "../../shared/textToImageModelRegistry";
 import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
 import {
   adaptAgentPlanV3ToActions,
@@ -263,6 +264,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const multimodalSummary = summarizeMultimodalInputsForPlanner(input.messages);
   const systemPrompt = buildAgentPlanV3SystemPrompt(pageSummary);
   const capabilitySummary = summarizeGlobalCapabilityRegistry(120);
+  const textToImageModelSummary = summarizeTextToImageModelRegistry(30);
   const toolSummary = summarizeGlobalToolRegistry(60);
   const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
   const quotaSummary = input.quotaSnapshot
