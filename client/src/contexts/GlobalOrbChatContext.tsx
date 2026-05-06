@@ -827,7 +827,11 @@ function ExecutorProgressPanel({
             <div>{step.label} · {step.status}</div>
             {step.expectedOutput && <div className="text-white/50">expected: {step.expectedOutput}</div>}
             {step.status === "awaiting_approval" && (
-              <button className="mt-1 rounded bg-cyan-300 px-2 py-1 text-[11px] font-semibold text-slate-950" onClick={() => onApproveStep(step.id)}>Approve step</button>
+              <div className="mt-1 grid grid-cols-3 gap-1">
+                <button className="rounded bg-cyan-300 px-2 py-1 text-[11px] font-semibold text-slate-950" onClick={() => onApproveStep(step.id)}>確認</button>
+                <button className="rounded bg-white/10 px-2 py-1 text-[11px]" onClick={onReplan}>修改</button>
+                <button className="rounded bg-white/10 px-2 py-1 text-[11px]" onClick={onCancel}>跳過</button>
+              </div>
             )}
           </div>
         ))}
