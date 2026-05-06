@@ -497,6 +497,43 @@ export async function executeOrbToolCalls(
       continue;
     }
 
+    // ── db.* 資料庫查詢工具：安全的資料庫存取 ──
+    if (call.name.startsWith("db.")) {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      const dbResult = await dispatchDatabaseTool(call, opts);
+      out.push(dbResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: dbResult.usedTool,
+        ok: dbResult.ok,
+        error: dbResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── studio.* 生成工具：橋接到 dispatchFalQueueTask / SunoClient ──
     // ── director.* 規劃工具：橋接到 director.askForStudioPlan ──
     if (call.name.startsWith("studio.") || call.name.startsWith("director.")) {
@@ -681,6 +718,85 @@ export async function executeOrbToolCalls(
   }
 
   return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// db.* 資料庫查詢工具橋接：安全的資料庫存取
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 橋接 db.* 資料庫查詢工具到 orbDatabaseTools.ts 的安全查詢執行器。
+ * 所有查詢都是 user-scoped，使用預定義的查詢模板，只允許 SELECT 操作。
+ */
+async function dispatchDatabaseTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    executeDbQuery,
+    validateQueryParams,
+  } = await import("./orbDatabaseTools");
+
+  // Extract query name from tool name (e.g., "db.list_my_assets" -> "list_my_assets")
+  const queryName = call.name.replace(/^db\./, "") as any;
+  const args = call.args ?? {};
+
+  // Inject userId into query params (user-scoping security)
+  const params = {
+    ...args,
+    userId: opts.userId,
+  };
+
+  // Validate parameters
+  const validation = validateQueryParams(queryName, params);
+  if (!validation.valid) {
+    return {
+      name: call.name,
+      ok: false,
+      error: validation.error ?? "invalid-parameters",
+      usedTool: call.name,
+    };
+  }
+
+  try {
+    // Execute the safe database query
+    const result = await executeDbQuery(queryName, params);
+
+    if (!result.success) {
+      return {
+        name: call.name,
+        ok: false,
+        error: result.error ?? "database-query-failed",
+        data: {
+          queryName: result.queryName,
+          executionTimeMs: result.executionTimeMs,
+        },
+        usedTool: call.name,
+      };
+    }
+
+    return {
+      name: call.name,
+      ok: true,
+      data: {
+        queryName: result.queryName,
+        rows: result.data,
+        rowCount: result.rowCount,
+        executionTimeMs: result.executionTimeMs,
+      },
+      usedTool: call.name,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[ToolExecutor] db.${queryName} failed:`, errorMessage);
+
+    return {
+      name: call.name,
+      ok: false,
+      error: errorMessage,
+      usedTool: call.name,
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
