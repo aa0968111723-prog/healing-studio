@@ -8,6 +8,9 @@ import { AGENT_PLAN_V3_JSON_SCHEMA } from "../../shared/agent-plan-schema";
 import { summarizeGlobalCapabilityRegistry } from "../../shared/global-agent-capabilities";
 import { summarizeTextToImageModelRegistry } from "../../shared/textToImageModelRegistry";
 import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
+import { IMAGE_TO_IMAGE_MODEL_REGISTRY } from "../../shared/imageToImageModelRegistry";
+import { SKELETAL_MODEL_REGISTRY } from "../../shared/skeletalModelRegistry";
+import { IMAGE_UPSCALE_MODEL_REGISTRY } from "../../shared/imageUpscaleModelRegistry";
 import {
   adaptAgentPlanV3ToActions,
   buildAgentPlanV3SystemPrompt,
@@ -275,15 +278,64 @@ export function summarizeTextToImageModelRegistryForPlanner(): string {
   }, 3_000);
 }
 
+export function summarizeImageToImageModelRegistryForPlanner(): string {
+  return safeStringify({
+    note: "全站光球代理共用模型資料庫（圖生圖 / 進階控制）",
+    models: IMAGE_TO_IMAGE_MODEL_REGISTRY.map(model => ({
+      modelId: model.modelId,
+      label: model.label,
+      category: model.category,
+      strengths: model.strengths,
+      avoidWhen: model.avoidWhen,
+      promptKeywords: model.promptKeywords,
+    })),
+    plannerInstruction:
+      "若使用者提出 ControlNet / 姿勢控制 / 深度感知 / 圖片編輯 / 風格遷移 / 去背等意圖，優先從這份資料庫挑選對應的進階控制模型，依任務類型選擇：control (ControlNet/pose) → style-transfer (i2i) → edit (RemBG)。",
+  }, 3_000);
+}
+
+export function summarizeSkeletalModelRegistryForPlanner(): string {
+  return safeStringify({
+    note: "全站光球代理共用模型資料庫（骨骼 / 3D 模型）",
+    models: SKELETAL_MODEL_REGISTRY.map(model => ({
+      modelId: model.modelId,
+      label: model.label,
+      category: model.category,
+      strengths: model.strengths,
+      avoidWhen: model.avoidWhen,
+      promptKeywords: model.promptKeywords,
+    })),
+    plannerInstruction:
+      "若使用者提出 3D 建模 / 角色雕塑 / 場景生成 / 物件重建等意圖，優先從這份資料庫挑選對應的 3D 模型。image-to-3d 用於圖片轉 3D，image-to-world 用於場景 / 環境生成。",
+  }, 2_000);
+}
+
+export function summarizeImageUpscaleModelRegistryForPlanner(): string {
+  return safeStringify({
+    note: "全站光球代理共用模型資料庫（影像放大）",
+    models: IMAGE_UPSCALE_MODEL_REGISTRY.map(model => ({
+      modelId: model.modelId,
+      label: model.label,
+      strengths: model.strengths,
+      avoidWhen: model.avoidWhen,
+      promptKeywords: model.promptKeywords,
+    })),
+    plannerInstruction:
+      "若使用者提出影像放大 / 超解析度 / 畫質提升 / 4K/8K 等意圖，優先從這份資料庫挑選對應的放大模型。SeedVR 適合高品質真實照片，AuraSR 適合快速批次處理。",
+  }, 2_000);
+}
+
 export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const pageSummary = summarizePageSnapshotForPlanner(input.pageSnapshot);
   const feedbackSummary = summarizeRecentFeedbackForPlanner(input.recentFeedback);
   const multimodalSummary = summarizeMultimodalInputsForPlanner(input.messages);
   const systemPrompt = buildAgentPlanV3SystemPrompt(pageSummary);
   const capabilitySummary = summarizeGlobalCapabilityRegistry(120);
-  const textToImageModelSummary = summarizeTextToImageModelRegistry(30);
   const toolSummary = summarizeGlobalToolRegistry(60);
   const textToImageModelSummary = summarizeTextToImageModelRegistryForPlanner();
+  const imageToImageModelSummary = summarizeImageToImageModelRegistryForPlanner();
+  const skeletalModelSummary = summarizeSkeletalModelRegistryForPlanner();
+  const imageUpscaleModelSummary = summarizeImageUpscaleModelRegistryForPlanner();
   const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
   const quotaSummary = input.quotaSnapshot
     ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
@@ -344,6 +396,9 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `Global capability registry summary:\n${capabilitySummary}`,
     `Global tool registry summary:\n${toolSummary}`,
     `Text-to-image model registry summary:\n${textToImageModelSummary}`,
+    `Image-to-image (advanced control) model registry summary:\n${imageToImageModelSummary}`,
+    `Skeletal / 3D model registry summary:\n${skeletalModelSummary}`,
+    `Image upscale model registry summary:\n${imageUpscaleModelSummary}`,
     `Multimodal attachments:\n${multimodalSummary}`,
     `User agent preferences:\n${preferencesSummary}`,
     quotaSummary
