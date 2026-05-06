@@ -17,6 +17,12 @@ import type { OrbTaskStore } from "./orbTaskStore";
 import type { AgentPreferences } from "../../shared/agent-preferences";
 import { emitGenerationEvent } from "../generationEvents";
 import { recordOrbMemory } from "./orbMemory";
+import {
+  classifyOrbStepError,
+  recoveryActionFor,
+  type OrbRecoveryAction,
+  type OrbStepErrorCode,
+} from "./orbTaskRecoveryPolicy";
 
 // ─── Single-step executor (existing public contract) ──────────────────────
 
@@ -337,6 +343,8 @@ export interface RunOrbTaskResult {
     toolResults: OrbToolCallResult[];
     ok: boolean;
     blockedByApproval?: boolean;
+    error_code?: OrbStepErrorCode;
+    recovery_action?: OrbRecoveryAction;
   }>;
   /** Final task snapshot after the run (may be null if store dropped it). */
   finalTask: OrbTask | null;
@@ -344,6 +352,16 @@ export interface RunOrbTaskResult {
   finalAgentTask: OrbAgentTask | null;
   /** Reason for non-completed outcomes. */
   reason?: string;
+}
+
+const MAX_SAME_ERROR_STREAK = 3;
+const recoveryMetrics = new Map<string, { attempts: number; successes: number }>();
+
+function recordRecoveryMetric(action: OrbRecoveryAction, ok: boolean): void {
+  const cur = recoveryMetrics.get(action) ?? { attempts: 0, successes: 0 };
+  cur.attempts += 1;
+  if (ok) cur.successes += 1;
+  recoveryMetrics.set(action, cur);
 }
 
 /**
@@ -527,11 +545,16 @@ export async function runOrbTaskToCompletion(
     });
     if (!stepRun.blockedByApproval && stepRun.attempted) autoApprovedStepsInRun += 1;
 
+    const failureReason = stepRun.toolResults.find(r => !r.ok)?.error;
+    const error_code = stepRun.ok ? undefined : classifyOrbStepError(failureReason);
+    const recovery_action = error_code ? recoveryActionFor(error_code) : undefined;
     perStepToolResults.push({
       stepId: step.id,
       toolResults: stepRun.toolResults,
       ok: stepRun.ok,
       blockedByApproval: stepRun.blockedByApproval,
+      error_code,
+      recovery_action,
     });
 
     if (stepRun.blockedByApproval) {
@@ -550,15 +573,25 @@ export async function runOrbTaskToCompletion(
     }
 
     if (!stepRun.ok) {
-      const failureReason =
-        stepRun.toolResults.find(r => !r.ok)?.error ?? "step-failed";
+      const failureReason = stepRun.toolResults.find(r => !r.ok)?.error ?? "step-failed";
+      const streak = [...perStepToolResults]
+        .reverse()
+        .filter(x => !x.ok)
+        .map(x => x.error_code)
+        .findIndex(code => code !== error_code);
+      const sameErrorCount = streak === -1 ? perStepToolResults.filter(x => x.error_code === error_code).length : streak;
+      const trippedCircuit = Boolean(error_code) && sameErrorCount >= MAX_SAME_ERROR_STREAK;
+      const finalRecoveryAction = trippedCircuit ? "handoff_to_human" : recovery_action;
+      if (finalRecoveryAction) recordRecoveryMetric(finalRecoveryAction, false);
       const updatedTask = store.reportStep(
         {
           taskId: input.taskId,
           stepId: step.id,
           ok: false,
-          errorCode: failureReason,
-          detail: stepRun.toolResults.find(r => !r.ok)?.error,
+          errorCode: error_code ?? failureReason,
+          detail: [stepRun.toolResults.find(r => !r.ok)?.error, `recovery_action=${finalRecoveryAction ?? "none"}`]
+            .filter(Boolean)
+            .join("; "),
           source: "tool",
           actor: "agent",
           at: clock(),
@@ -578,7 +611,7 @@ export async function runOrbTaskToCompletion(
         perStepToolResults,
         finalTask: updatedTask,
         finalAgentTask: getOrbAgentTask(input.taskId),
-        reason: failureReason,
+        reason: trippedCircuit ? "handoff_to_human" : failureReason,
       };
     }
 
@@ -599,6 +632,7 @@ export async function runOrbTaskToCompletion(
       completeOrbAgentStep(input.taskId, step.id);
       flushNewFsmEvents();
     }
+    if (recovery_action) recordRecoveryMetric(recovery_action, true);
     emitGenerationEvent({
       type: "step_complete",
       taskId: input.taskId,
