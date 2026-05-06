@@ -193,11 +193,28 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
           `主體清楚、留出標題與字幕區。鏡頭可採中景或特寫，情緒呼應主題：${basePrompt}`,
         label: "圖像工作室：填入第一張關鍵視覺提示詞",
       },
+      // Tool-first execution (with UI actions kept for visual traceability):
+      // this workflow depends on resolveStepRefsInArgs resolving
+      // `${step_image_keyvisual.image_url}` at runtime. Do not rename this id
+      // unless you also update all dependent references.
+      {
+        id: "step_image_keyvisual",
+        path: "/studio",
+        actionType: "submit",
+        payload: "",
+        label: "圖像工作室：工具生成關鍵視覺",
+        toolName: "studio.generateImage",
+        toolArgs: {
+          prompt:
+            `為這支短片建立第一張電影感關鍵視覺（key visual）：構圖留白、光影立體、` +
+            `主體清楚、留出標題與字幕區。鏡頭可採中景或特寫，情緒呼應主題：${basePrompt}`,
+        },
+      },
       {
         path: "/studio",
         actionType: "submit",
         payload: "",
-        label: "圖像工作室：生成關鍵視覺",
+        label: "圖像工作室：生成關鍵視覺（UI）",
       },
       {
         path: "/video-studio",
@@ -212,7 +229,22 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
         path: "/video-studio",
         actionType: "submit",
         payload: "",
-        label: "影片工作室：生成影片",
+        label: "影片工作室：工具生成影片",
+        toolName: "studio.generateVideo",
+        dependsOn: ["step_image_keyvisual"],
+        toolArgs: {
+          prompt:
+            `把上一步的關鍵視覺延伸成 30 秒短片運鏡：包含 3 個鏡頭切換、` +
+            `平滑運鏡（推軌／環繞／升降）、情緒節奏起承轉、電影感光影與淺景深、` +
+            `符合社群平台的剪輯密度。請直接產出可送入影片模型的中文提示詞：${basePrompt}`,
+          image_url: "${step_image_keyvisual.image_url}",
+        },
+      },
+      {
+        path: "/video-studio",
+        actionType: "submit",
+        payload: "",
+        label: "影片工作室：生成影片（UI）",
       },
       {
         path: "/pro-studio",
