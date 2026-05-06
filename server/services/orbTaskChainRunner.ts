@@ -210,8 +210,8 @@ async function tryReplanAndCreateTask(args: {
   let plannerResult;
   try {
     plannerResult = await args.invokePlanner(plannerInput);
-    (plannerResult as Record<string, unknown>).metadata = {
-      ...((plannerResult as Record<string, unknown>).metadata as Record<string, unknown> | undefined),
+    (plannerResult as unknown as Record<string, unknown>).metadata = {
+      ...((plannerResult as unknown as Record<string, unknown>).metadata as Record<string, unknown> | undefined),
       memoryInjected: memoryContext.memoryInjected,
     };
   } catch (err) {

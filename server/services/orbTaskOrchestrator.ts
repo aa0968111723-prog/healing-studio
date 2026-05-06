@@ -111,7 +111,7 @@ function buildDeterministicRetryPatch(toolArgs: unknown, issues: string[]): Dete
   return { args, reason: "deterministic-args-normalization" };
 }
 
-function recordRetryAuditAndMemory(input: ExecuteStepToolsInput, stepId: string, kind: "tool_feedback" | "replan_feedback", message: string, metadata: Record<string, unknown>): void {
+function recordRetryAuditAndMemory(input: ExecuteStepToolsInput, stepId: string, kind: "tool_feedback" | "recovery_event", message: string, metadata: Record<string, unknown>): void {
   appendOrbAgentTaskAuditEvent(input.task.taskId, "step.retry_attempted", message, metadata);
   try {
     recordOrbMemory({
@@ -272,15 +272,15 @@ export async function executeCurrentStepTools(
     const observation: ToolFailureObservation = {
       toolName: verifierFailure.name,
       errorCode: verdict.errorCode ?? "verifier:unknown",
-      issues: verdict.issues.slice(0, 8),
+      issues: verdict.issues.slice(0, 8).map(issue => issue.message),
       toolArgs: failedCall.args,
     };
-    const retryPatch = buildDeterministicRetryPatch(failedCall.args, verdict.issues);
+    const retryPatch = buildDeterministicRetryPatch(failedCall.args, observation.issues);
     if (!retryPatch) {
       recordRetryAuditAndMemory(
         input,
         step.id,
-        "replan_feedback",
+        "recovery_event",
         `Deterministic retry unavailable for ${observation.toolName}; requesting planner replan`,
         { attempt, stepId: step.id, ...observation }
       );
@@ -684,7 +684,7 @@ export async function runOrbTaskToCompletion(
     });
     if (!stepRun.blockedByApproval && stepRun.attempted) autoApprovedStepsInRun += 1;
     for (const r of stepRun.toolResults) {
-      const anyR = r as Record<string, unknown>;
+      const anyR = r as unknown as Record<string, unknown>;
       totalTokenCost += typeof anyR.tokenCost === "number" ? Number(anyR.tokenCost) : 0;
       totalExternalApiCost += typeof anyR.externalApiCost === "number" ? Number(anyR.externalApiCost) : 0;
       totalRetryCount += typeof anyR.retryCount === "number" ? Number(anyR.retryCount) : 0;
