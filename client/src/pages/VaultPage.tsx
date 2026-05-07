@@ -262,8 +262,19 @@ export default function VaultPage() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<VaultTab>("consistency");
 
+  // 加入 video-studio / pro-studio 兩個常見的延伸創作目的地，讓使用者拍完
+  // 一致性圖之後可以直接到影片或音樂工作室；同時加 history 方便回看舊版。
   const VAULT_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/studio", "/image-studio", "/models", "/assets"]),
+    () =>
+      new Set([
+        "/studio",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
+        "/models",
+        "/assets",
+        "/history",
+      ]),
     []
   );
   const vaultAgentCapabilities: AgentCapability[] = useMemo(
@@ -274,10 +285,13 @@ export default function VaultPage() {
         options: [
           { id: "/studio", label: "創作工作室", meta: { bestFor: "快速套用一致性素材", tip: "先拖角色錨點再生成" } },
           { id: "/image-studio", label: "圖片創作室", meta: { bestFor: "角色視覺定稿", tip: "先固定臉部與服裝特徵" } },
+          { id: "/video-studio", label: "影片創作室", meta: { bestFor: "為一致性角色配動作", tip: "套用相同 LoRA 參考圖" } },
+          { id: "/pro-studio", label: "音樂配音室", meta: { bestFor: "為角色配聲音線", tip: "保留聲音設定到 vault" } },
           { id: "/models", label: "角色鍛造所", meta: { bestFor: "模型版本治理", tip: "保留穩定版避免回滾風險" } },
           { id: "/assets", label: "數位資產庫", meta: { bestFor: "參考素材整理", tip: "先統一命名規則再批次標記" } },
+          { id: "/history", label: "歷史紀錄", meta: { bestFor: "回看歷次版本", tip: "從歷史挑出基準版" } },
         ],
-        hint: "/studio、/image-studio、/models、/assets",
+        hint: "/studio、/image-studio、/video-studio、/pro-studio、/models、/assets、/history",
       },
     ],
     []

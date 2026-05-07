@@ -4306,6 +4306,11 @@ export default function ProStudio() {
     pagePath: "/pro-studio",
     capabilities: agentCapabilities,
     state: {
+      // pro-studio 會在「音樂 / 配音」之間切換；用 activeTab 推斷實際 modality
+      // 讓光球可以選擇音樂精靈或語音精靈。child state 來自子元件 bridge。
+      // 音樂類 tab：music / sfx；語音類 tab：tts / clone / asr / avatar / process。
+      modality:
+        tab === "music" || tab === "sfx" ? "audio" : "voice",
       activeTab: tab,
       modelCount: PRO_MODELS.length,
       ...(bridgeRef.current.getState?.() ?? {}),

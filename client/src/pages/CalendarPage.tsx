@@ -345,8 +345,19 @@ export default function CalendarPage() {
 
   // ─── PageAgent 註冊（Phase 4b：行事曆接入光球） ──────────────────────────
   // 光球可：回到今天、前進 / 後退一個月、跳到筆記頁建立內容。
+  // 加入 image-studio / video-studio / pro-studio 三個常見的後續創作目的地，
+  // 讓「行事曆 → 建立排程 → 直接前往對應工作室開工」的工作流可以一氣呵成。
   const CALENDAR_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/notes", "/dashboard", "/studio", "/focus-flow"]),
+    () =>
+      new Set([
+        "/notes",
+        "/dashboard",
+        "/studio",
+        "/focus-flow",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
+      ]),
     []
   );
   const calendarAgentCapabilities: AgentCapability[] = useMemo(
@@ -368,8 +379,11 @@ export default function CalendarPage() {
           { id: "/dashboard", label: "儀表板", meta: { bestFor: "看產能與趨勢", tip: "依數據反調排程密度" } },
           { id: "/studio", label: "創作工作室", meta: { bestFor: "開始創作", tip: "排程完直接開工" } },
           { id: "/focus-flow", label: "專注流", meta: { bestFor: "深度工作", tip: "搭配行事曆排程使用" } },
+          { id: "/image-studio", label: "圖片工作室", meta: { bestFor: "排程後出圖", tip: "把排程目標當提示詞" } },
+          { id: "/video-studio", label: "影片工作室", meta: { bestFor: "排程後出影片", tip: "為里程碑拍動畫" } },
+          { id: "/pro-studio", label: "音樂工作室", meta: { bestFor: "排程後配樂", tip: "為段落配音樂" } },
         ],
-        hint: "navigate path='/notes' | '/dashboard' | '/studio' | '/focus-flow'",
+        hint: "navigate path='/notes' | '/dashboard' | '/studio' | '/focus-flow' | '/image-studio' | '/video-studio' | '/pro-studio'",
       },
       {
         action: "reset",

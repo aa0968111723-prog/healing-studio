@@ -176,9 +176,11 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
     agentId: "learning-specialist",
     displayName: "學習精靈",
     description: "專精於平台教學與導引，熟悉所有功能、教程與最佳實踐",
+    // 注意：director.suggestPlan 屬於 director、research.deepSearch 屬於
+    // researcher（兩者都是泛用 advisory tools，由 generic skill 認領，
+    // 詳見 shared/agent-skills.ts）。學習精靈專屬 inspiration.fetch，
+    // 用來在教學時抓示範素材／靈感。
     primaryTools: [
-      "director.suggestPlan",
-      "research.deepSearch",
       "inspiration.fetch",
     ],
     knowledgeDomains: [

@@ -134,7 +134,9 @@ const KEYWORD_RULES: Array<{
       "背景音樂",
       "作曲",
       "音效",
-      "聲音",
+      // 注意：「聲音」由 voice-specialist 擁有，這裡不重複，避免「voice
+      // cloning 我的聲音」誤路由到 music-specialist。音樂相關訊號改用更
+      // 具體的「音樂」「歌曲」「配樂」捕捉，覆蓋率夠。
       "混音",
       "music",
       "song",
@@ -312,6 +314,25 @@ function matchesAny(haystack: string, keywords: readonly string[]): boolean {
  * can fold this into its decision to actually invoke the role's prompt
  * slice (e.g., only switch when confidence > 0.5).
  */
+// 教學意圖必須優先於 domain — 「教我怎麼做影片」是「想學」而不是
+// 「想做」，所以遇到這些 strong 教學詞時 learning-specialist 應該蓋掉
+// image / video / music / voice 的 domain 路由。只列高訊號詞避免誤判
+// 一般「我要學一下這個」之類的閒聊。
+const LEARNING_OVERRIDE_HINTS: readonly string[] = [
+  "教我",
+  "教學",
+  "教程",
+  "如何使用",
+  "怎麼用",
+  "怎麼開始",
+  "新手",
+  "入門",
+  "tutorial",
+  "how to",
+  "teach me",
+  "getting started",
+];
+
 export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
   const text = lowerOnce(input.text);
   if (!text.trim()) {
@@ -319,6 +340,25 @@ export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
       role: "companion",
       confidence: 0.2,
       rationale: "empty utterance — fall back to companion",
+    };
+  }
+
+  // 找出 director rule 用來偵測「使用者要的是規劃，而不是學習」的反訊號。
+  // 「幫我做一支教學影片，從規劃到輸出」雖然有「教學」也應落在 director，
+  // 因為使用者是在請求 multi-step plan 而非請我教他。
+  const directorRule = KEYWORD_RULES.find(r => r.role === "director");
+  const isDirectorIntent = directorRule
+    ? matchesAny(text, directorRule.keywords)
+    : false;
+
+  // Override 1：強教學訊號優先。沒有這個 guard，「教我怎麼做影片」會
+  // 被 video-specialist 的「影片」搶走而失去教學語氣。但若 director 規則
+  // 也命中，視為「規劃裡含教學產物」，仍交給 director。
+  if (!isDirectorIntent && matchesAny(text, LEARNING_OVERRIDE_HINTS)) {
+    return {
+      role: "learning-specialist",
+      confidence: 0.85,
+      rationale: "user explicitly asked to be taught (LEARNING_OVERRIDE_HINTS)",
     };
   }
 
@@ -467,6 +507,23 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
       return ["composer"];
     case "companion":
       return ["companion"];
+    case "image-specialist":
+    case "video-specialist":
+    case "music-specialist":
+    case "voice-specialist":
+      // Domain specialists hand off to composer for execution and end
+      // with critic so the user gets one round of refinement on the
+      // generated asset.
+      return [head.role, "composer", "critic"];
+    case "training-specialist":
+      // Training is execution-heavy on a single page (lora-trainer);
+      // skip the upfront director planning and end with critic to
+      // suggest dataset refinements.
+      return [head.role, "composer", "critic"];
+    case "learning-specialist":
+      // Learning chain stays advisory — navigator pulls the user to the
+      // right tutorial, critic offers a debrief once they've explored.
+      return [head.role, "navigator"];
   }
 }
 

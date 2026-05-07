@@ -3633,6 +3633,9 @@ export default function ImageStudio() {
     pagePath: "/image-studio",
     capabilities: agentCapabilities,
     state: {
+      // 顯式宣告 modality 讓光球的 selectSkill / route ranker 不必猜頁面類型；
+      // 同時暴露 selectedModelId / activeTab 讓 Skill 可以根據當前狀態微調 prompt。
+      modality: "image",
       activeTab,
       selectedModelId,
       modelName: model.name,

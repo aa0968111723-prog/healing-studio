@@ -88,7 +88,7 @@ You are the replanning module of the Orb AI Agent. A multi-step workflow has enc
 
 ## Context
 
-**Original Task:** ${input.task.userIntent || "Multi-step workflow"}
+**Original Task:** ${input.task.intent || "Multi-step workflow"}
 
 **Failed Step:**
 \`\`\`json
@@ -288,6 +288,10 @@ export function deterministicReplan(
         id: `prereq_image_${Date.now()}`,
         label: "Generate image for video (prerequisite)",
         actionType: "submit",
+        // payload is required by AgentWorkflowStep but unused when
+        // toolName is set (the type comment says "有值時忽略 actionType/
+        // payload"); empty string is the documented placeholder.
+        payload: "",
         path: "/studio",
         toolName: "studio.generateImage",
         toolArgs: {

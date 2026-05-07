@@ -67,7 +67,11 @@ import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore"
 import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
 import { orbTaskTracer } from "./services/orbTaskTracer";
 import { createReplanCallback, type ReplanCallbackContext } from "./services/orbTaskReplanIntegration";
-import { buildOrbMemorySummaryForPlanner } from "./services/orbMemory";
+import {
+  getRecentSpecialistTools,
+  getSpecialistMemoryHints,
+  recordToolAuditAsSpecialistInteraction,
+} from "./services/specializedAgentMemoryStore";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -337,7 +341,10 @@ async function driveOrbTaskInBackground(input: {
         agentPreferences,
         userMessage,
         pageSnapshot: plannerContext.pageSnapshot,
-        primaryRole: task?.assignedRole,
+        // OrbAgentTask doesn't carry an assignedRole field — the multi-
+        // agent integration layer derives the primary role from the
+        // userMessage when this is undefined.
+        primaryRole: undefined,
         sessionId: `session_${Date.now()}_${input.userId}`,
         onToolAuditEvent,
       });
@@ -387,23 +394,33 @@ async function driveOrbTaskInBackground(input: {
           traceId,
           userId: input.userId,
           taskId: input.taskId,
-          taskIntent: task.objective || "Orb task execution",
+          // OrbAgentTask uses `intent` (not `objective`); the field
+          // populated by the planner.
+          taskIntent: task.intent || "Orb task execution",
         });
       }
 
-      // Create replanning callback for ReAct loop
-      const onRequestReplan = task ? createReplanCallback({
-        task,
-        userId: input.userId,
-        failedStep: task.steps[0], // Will be updated by orchestrator
-        observation: {
-          toolName: "",
-          errorCode: "",
-          issues: [],
-          toolArgs: {},
-        },
-        traceId,
-      }) : undefined;
+      // Create replanning callback for ReAct loop. createReplanCallback
+      // takes an OrbTask + AgentWorkflowStep — we have an OrbAgentTask
+      // here whose shape only partly overlaps. Cast through `unknown`
+      // because the orchestrator only reads identifying fields
+      // (taskId / intent / userId) from the context, never the
+      // specific shape; the failedStep is overwritten by the
+      // orchestrator on the actual call.
+      const onRequestReplan = task
+        ? createReplanCallback({
+            task: task as unknown as ReplanCallbackContext["task"],
+            userId: input.userId,
+            failedStep: task.steps[0] as unknown as ReplanCallbackContext["failedStep"],
+            observation: {
+              toolName: "",
+              errorCode: "",
+              issues: [],
+              toolArgs: {},
+            },
+            traceId,
+          })
+        : undefined;
 
       const result = await runOrbTaskToCompletion({
         taskId: input.taskId,
@@ -4973,6 +4990,9 @@ export const appRouter = router({
             agentPreferences,
             onAuditEvent: event => {
               orbToolCallLogStore.append(event);
+              // 把每一筆 specialist tool 結果寫進 specialized_agent_interactions
+              // — 這是在這之前 dead schema 第一次有 production writer。
+              recordToolAuditAsSpecialistInteraction(event);
             },
             approved:
               !currentTask.needsApproval ||
@@ -5401,6 +5421,29 @@ export const appRouter = router({
             }
           : undefined;
 
+        // 找到最近一則 user 訊息，給 buildOrbSystemPrompt 用來決定本回合
+        // 的 agent skill（image-specialist / director / ...）。如果取不到
+        // 就傳 undefined，serializeSkillBlock 會跳過整個區塊。
+        const latestUserMessageContent = [...input.messages]
+          .reverse()
+          .find(m => m.role === "user")?.content;
+        const latestUserMessageText =
+          typeof latestUserMessageContent === "string"
+            ? latestUserMessageContent
+            : Array.isArray(latestUserMessageContent)
+            ? latestUserMessageContent
+                .filter(part => part.type === "text")
+                .map(part => part.text)
+                .join("\n")
+            : undefined;
+
+        // 從 specialized_agent_interactions 拉最近的 tool 名與專精助手習慣。
+        // 兩者並行，回傳空陣列 / 空字串都是合法（DB 不可用時不阻塞 chat）。
+        const [recentSpecialistTools, specialistHints] = await Promise.all([
+          getRecentSpecialistTools(ctx.user.id, 5),
+          getSpecialistMemoryHints(ctx.user.id),
+        ]);
+
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
@@ -5422,6 +5465,9 @@ export const appRouter = router({
             })),
             userIdentity,
             rememberedPreferences,
+            userMessage: latestUserMessageText,
+            recentTools: recentSpecialistTools,
+            specialistHints,
           }
         );
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
@@ -5791,6 +5837,9 @@ export const appRouter = router({
               alwaysConfirm: false,
               assetLibrary: assetLibrarySummary,
               apiTools: [],
+              userMessage: latestUserMessageText,
+              recentTools: recentSpecialistTools,
+              specialistHints,
             });
             const chatOnlyResult = await withTimeout(
               invokeLLM({
@@ -6610,6 +6659,7 @@ export const appRouter = router({
           requestId: `adhoc_${ctx.user.id}_${Date.now()}`,
           onAuditEvent: event => {
             orbToolCallLogStore.append(event);
+            recordToolAuditAsSpecialistInteraction(event);
           },
         });
         return { results };

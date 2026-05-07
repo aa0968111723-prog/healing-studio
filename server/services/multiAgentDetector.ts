@@ -8,6 +8,13 @@
 
 import type { PageAgentSnapshot } from "../../shared/agent-actions";
 import type { AgentRole } from "../../shared/orb-agent-roles";
+import {
+  MODALITY_KEYWORDS,
+  detectModalitiesFromText,
+  modalityToSpecialistAgentId,
+  type ModalityId,
+} from "../../shared/agent-modality-keywords";
+import { selectRoleForIntent } from "../../shared/orb-agent-roles";
 
 export interface MultiAgentDetectionInput {
   /** User's intent/message */
@@ -43,23 +50,17 @@ export function detectMultiAgentNeed(
   // ─── Heuristic 1: Training + generation workflow ───────────────────
   // Check this FIRST because it's highly specific
   if (msg.includes("訓練") || msg.includes("training")) {
-    const modalityKeywords = {
-      image: ["圖", "圖片", "圖像", "照片", "image", "photo", "picture"],
-      video: ["影片", "視頻", "video", "動畫", "animation"],
-      music: ["音樂", "音訊", "音效", "背景音", "music", "audio", "sound", "soundtrack"],
-      voice: ["配音", "語音", "聲音", "voice", "narration", "dubbing", "說話"],
-      "3d": ["3d", "三維", "立體", "模型", "3d model"],
-    };
-
-    for (const keywords of Object.values(modalityKeywords)) {
-      if (keywords.some(kw => msg.includes(kw))) {
-        return {
-          shouldCollaborate: true,
-          confidence: 0.75,
-          reason: "檢測到訓練與生成結合的工作流程",
-          suggestedAgents: ["director", "training-specialist"],
-        };
-      }
+    // 「訓練」下接任何 modality（圖／影／音／配音／3D）就視為 train+gen 流程。
+    // detectModalitiesFromText 用 shared 關鍵字表，避免和 orb-agent-roles
+    // 的 specialist router 失同步。
+    const detected = detectModalitiesFromText(msg);
+    if (detected.length > 0 || msg.includes("模型")) {
+      return {
+        shouldCollaborate: true,
+        confidence: 0.75,
+        reason: "檢測到訓練與生成結合的工作流程",
+        suggestedAgents: ["director", "training-specialist"],
+      };
     }
   }
 
@@ -92,21 +93,9 @@ export function detectMultiAgentNeed(
     };
   }
 
-  // Get modality keywords
-  const modalityKeywords = {
-    image: ["圖", "圖片", "圖像", "照片", "image", "photo", "picture"],
-    video: ["影片", "視頻", "video", "動畫", "animation"],
-    music: ["音樂", "音訊", "音效", "背景音", "music", "audio", "sound", "soundtrack"],
-    voice: ["配音", "語音", "聲音", "voice", "narration", "dubbing", "說話"],
-    "3d": ["3d", "三維", "立體", "模型", "3d model"],
-  };
-
-  const detectedModalities: string[] = [];
-  for (const [modality, keywords] of Object.entries(modalityKeywords)) {
-    if (keywords.some(kw => msg.includes(kw))) {
-      detectedModalities.push(modality);
-    }
-  }
+  // 用 shared 關鍵字表 — 不要再重新宣告，避免和 orb-agent-roles 的 specialist
+  // router 失同步（先前就因為這裡少了「畫」「繪製」而漏判 image 模態）。
+  const detectedModalities: ModalityId[] = detectModalitiesFromText(msg);
 
   // ─── Heuristic 3: Explicit collaboration keywords ──────────────────
   // Check for EXPLICIT collaboration intent keywords (not just "then")
@@ -171,25 +160,11 @@ export function detectMultiAgentNeed(
   const hasSequential = sequentialKeywords.some(kw => msg.includes(kw));
 
   if (hasSequential && detectedModalities.length >= 2) {
-    const agents: AgentRole[] = [];
-    if (detectedModalities.includes("image") || detectedModalities.includes("3d")) {
-      agents.push("image-specialist");
-    }
-    if (detectedModalities.includes("video")) {
-      agents.push("video-specialist");
-    }
-    if (detectedModalities.includes("music")) {
-      agents.push("music-specialist");
-    }
-    if (detectedModalities.includes("voice")) {
-      agents.push("voice-specialist");
-    }
-
     return {
       shouldCollaborate: true,
       confidence: 0.8,
       reason: `檢測到多模態需求：${detectedModalities.join("、")}`,
-      suggestedAgents: ["director", ...agents],
+      suggestedAgents: buildSuggestedAgents(detectedModalities),
     };
   }
 
@@ -197,25 +172,11 @@ export function detectMultiAgentNeed(
   // Check this LAST because it's the most general heuristic
   // Multi-modality signal: 2+ different modalities mentioned
   if (detectedModalities.length >= 2) {
-    const agents: AgentRole[] = [];
-    if (detectedModalities.includes("image") || detectedModalities.includes("3d")) {
-      agents.push("image-specialist");
-    }
-    if (detectedModalities.includes("video")) {
-      agents.push("video-specialist");
-    }
-    if (detectedModalities.includes("music")) {
-      agents.push("music-specialist");
-    }
-    if (detectedModalities.includes("voice")) {
-      agents.push("voice-specialist");
-    }
-
     return {
       shouldCollaborate: true,
       confidence: 0.8,
       reason: `檢測到多模態需求：${detectedModalities.join("、")}`,
-      suggestedAgents: ["director", ...agents],
+      suggestedAgents: buildSuggestedAgents(detectedModalities),
     };
   }
 
@@ -225,6 +186,21 @@ export function detectMultiAgentNeed(
     confidence: 0.9,
     reason: "任務適合單一 agent 執行",
   };
+}
+
+/**
+ * Map modalities to specialist agent ids, dedupe, prepend director.
+ * Used by heuristics 5/6 to build the suggestedAgents list. Pulling
+ * this into a helper removes ~25 lines of repetition that previously
+ * fell out of sync (image+3d were both treated as image-specialist
+ * in heuristic 5 but heuristic 1 used a parallel keyword set).
+ */
+function buildSuggestedAgents(modalities: ModalityId[]): AgentRole[] {
+  const agents = new Set<AgentRole>(["director"]);
+  for (const m of modalities) {
+    agents.add(modalityToSpecialistAgentId(m) as AgentRole);
+  }
+  return [...agents];
 }
 
 /**

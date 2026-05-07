@@ -155,7 +155,18 @@ export async function executeDbQuery(
       };
     }
 
-    const db = getDb();
+    const db = await getDb();
+    if (!db) {
+      // Return path mirrors the catch-block shape so callers and the
+      // unit tests can rely on `executionTimeMs` always being present.
+      return {
+        success: false,
+        queryName,
+        rowCount: 0,
+        error: "DB unavailable",
+        executionTimeMs: Date.now() - startTime,
+      };
+    }
     let data: unknown[] = [];
 
     // Execute the appropriate query based on template name
@@ -177,7 +188,7 @@ export async function executeDbQuery(
             title: digitalAssetLibrary.title,
             description: digitalAssetLibrary.description,
             assetType: digitalAssetLibrary.assetType,
-            url: digitalAssetLibrary.url,
+            url: digitalAssetLibrary.fileUrl,
             thumbnailUrl: digitalAssetLibrary.thumbnailUrl,
             createdAt: digitalAssetLibrary.createdAt,
           })
@@ -199,7 +210,7 @@ export async function executeDbQuery(
             title: digitalAssetLibrary.title,
             description: digitalAssetLibrary.description,
             assetType: digitalAssetLibrary.assetType,
-            url: digitalAssetLibrary.url,
+            url: digitalAssetLibrary.fileUrl,
             createdAt: digitalAssetLibrary.createdAt,
           })
           .from(digitalAssetLibrary)
@@ -226,7 +237,7 @@ export async function executeDbQuery(
             id: digitalAssetLibrary.id,
             title: digitalAssetLibrary.title,
             assetType: digitalAssetLibrary.assetType,
-            url: digitalAssetLibrary.url,
+            url: digitalAssetLibrary.fileUrl,
             createdAt: digitalAssetLibrary.createdAt,
           })
           .from(digitalAssetLibrary)
@@ -338,7 +349,10 @@ export async function executeDbQuery(
             id: generationHistory.id,
             modality: generationHistory.modality,
             prompt: generationHistory.prompt,
-            modelId: generationHistory.modelId,
+            // generation_history 沒有獨立 modelId 欄；模型資訊存在
+            // parameterSnapshot 的 JSON 裡（model 鍵）。把整個 snapshot
+            // 回傳，呼叫端自己挑要的欄位即可。
+            parameterSnapshot: generationHistory.parameterSnapshot,
             resultUrl: generationHistory.resultUrl,
             createdAt: generationHistory.createdAt,
           })
@@ -437,10 +451,10 @@ export async function executeDbQuery(
         data = await db
           .select({
             id: fineTunedModels.id,
-            modelName: fineTunedModels.modelName,
+            modelName: fineTunedModels.name,
             modelType: fineTunedModels.modelType,
             status: fineTunedModels.status,
-            replicateModelId: fineTunedModels.replicateModelId,
+            replicateModelId: fineTunedModels.replicatePredictionId,
             createdAt: fineTunedModels.createdAt,
           })
           .from(fineTunedModels)
@@ -459,7 +473,11 @@ export async function executeDbQuery(
             videoEngine: userAiBrain.videoEngine,
             audioEngine: userAiBrain.audioEngine,
             voiceEngine: userAiBrain.voiceEngine,
-            defaultLLM: userAiBrain.defaultLLM,
+            // user_ai_brain 沒有單一 defaultLLM；五個推理槽各有獨立模型。
+            // 回傳 directorModel 作為「整體入口」近似值，其它槽（analyst /
+            // storyteller / technician / curator）由 brainPipeline router
+            // 各自查詢。
+            directorModel: userAiBrain.directorModel,
             updatedAt: userAiBrain.updatedAt,
           })
           .from(userAiBrain)
@@ -482,11 +500,15 @@ export async function executeDbQuery(
         data = await db
           .select({
             id: orbScheduledJobs.id,
-            name: orbScheduledJobs.name,
+            // orb_scheduled_jobs 用 taskDescription 當人類看的標籤
+            // （schema 裡沒有 name 欄）。
+            taskDescription: orbScheduledJobs.taskDescription,
             cronExpression: orbScheduledJobs.cronExpression,
             enabled: orbScheduledJobs.enabled,
             lastRunAt: orbScheduledJobs.lastRunAt,
-            nextRunAt: orbScheduledJobs.nextRunAt,
+            // nextRunAt 由 cronPreview 動態計算；表上只存 cronExpression +
+            // lastRunAt，呼叫端要 next-run 自己算。
+            lastRunStatus: orbScheduledJobs.lastRunStatus,
             createdAt: orbScheduledJobs.createdAt,
           })
           .from(orbScheduledJobs)
@@ -514,15 +536,16 @@ export async function executeDbQuery(
           .select({
             id: promptLibrary.id,
             title: promptLibrary.title,
-            description: promptLibrary.description,
+            // prompt_library 沒有 description 欄；完整內容直接存在
+            // content（過去命名 promptText 也指向這個欄位）。
+            content: promptLibrary.content,
             category: promptLibrary.category,
-            promptText: promptLibrary.promptText,
             tags: promptLibrary.tags,
-            usageCount: promptLibrary.usageCount,
+            useCount: promptLibrary.useCount,
           })
           .from(promptLibrary)
           .where(and(...conditions))
-          .orderBy(desc(promptLibrary.usageCount))
+          .orderBy(desc(promptLibrary.useCount))
           .limit(Math.min(limit, 50));
         break;
       }

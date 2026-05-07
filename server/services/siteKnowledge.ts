@@ -18,6 +18,12 @@ import {
 } from "../../shared/orb-preference-distiller";
 import type { OrbMemory } from "../../shared/orb-memory";
 import { getAllLearnDocsForOrbIndex } from "../routers/learnHub";
+import {
+  selectSkillForIntent,
+  summarizeSkillForPrompt,
+  type SkillSelectionInput,
+} from "../../shared/agent-skills";
+import { getRoleSystemPromptSlice, summarizeRoleChainForPrompt } from "../../shared/orb-agent-roles";
 
 export function getSerializedAppRegistryKnowledge(): SerializableAppRegistryItem[] {
   return serializeRegistryForSiteKnowledge();
@@ -1316,6 +1322,25 @@ export interface OrbPromptExtras {
    * pacing inference, and prompt-block rendering itself.
    */
   recentMemories?: OrbMemory[];
+  /**
+   * Latest user utterance — used by `serializeSkillBlock` to pick the
+   * orb's role for this turn (director / composer / specialist / ...).
+   * When omitted the skill block is skipped entirely so behaviour stays
+   * identical to the legacy single-personality prompt.
+   */
+  userMessage?: string;
+  /**
+   * Recent server-side tool names this user has invoked — used as a
+   * tie-breaker when selecting a skill (e.g., recent `studio.generateImage`
+   * → image-specialist even if the latest message is short).
+   */
+  recentTools?: string[];
+  /**
+   * Pre-rendered specialist memory hints (from
+   * `getSpecialistMemoryHints`). Already a string so the prompt builder
+   * doesn't need a DB-aware section. Empty string = nothing to say.
+   */
+  specialistHints?: string;
 }
 
 function serializeSnapshotBlock(
@@ -1528,6 +1553,55 @@ function serializeApiToolsBlock(list: OrbPromptExtras["apiTools"]): string {
 }
 
 /**
+ * 把這一輪選到的 agent skill 序列化成 prompt 區塊。沒有 userMessage 時
+ * 回空字串，呼叫端的 template 用 `${skillBlock}` 直接內插即可。
+ *
+ * 為什麼這個區塊很重要：在這之前 selectRoleForIntent / 12 角色 / 6
+ * specialist 都只是宣告，從不進到 LLM 的 system prompt 裡 —— LLM 看不
+ * 到「本回合扮演導演」之類的指引。serializeSkillBlock 把它真正注入
+ * 進去，是讓「Agent Skill」從紙上走到行為層面的關鍵接線。
+ */
+function serializeSkillBlock(
+  extras: OrbPromptExtras | undefined,
+  pageContext: string | undefined
+): string {
+  if (!extras?.userMessage || !extras.userMessage.trim()) return "";
+  const input: SkillSelectionInput = {
+    text: extras.userMessage,
+    snapshot: extras.pageSnapshot
+      ? {
+          pageId: extras.pageSnapshot.pageId,
+          pageLabel: extras.pageSnapshot.pageLabel,
+          pagePath: extras.pageSnapshot.pagePath,
+          // selectSkillForIntent 只看 pagePath，capabilities 用空陣列補。
+          capabilities: [],
+        }
+      : null,
+    recentTools: extras.recentTools,
+    currentPagePath: extras.pageSnapshot?.pagePath ?? extractPagePath(pageContext),
+  };
+  const selection = selectSkillForIntent(input);
+  const summary = summarizeSkillForPrompt(selection.skill);
+  const slice = getRoleSystemPromptSlice(selection.skill.id);
+  const chainPreview = summarizeRoleChainForPrompt(selection.skill.chain);
+  return [
+    "",
+    "【本回合 Agent Skill】",
+    `來源：${selection.source}　信心：${selection.confidence.toFixed(2)}　依據：${selection.rationale}`,
+    summary,
+    chainPreview,
+    "",
+    slice,
+  ].join("\n");
+}
+
+function extractPagePath(pageContext: string | undefined): string | null {
+  if (!pageContext) return null;
+  const match = pageContext.match(/\/(?:[a-z0-9-]+)(?:\/[a-z0-9-]+)*/i);
+  return match?.[0] ?? null;
+}
+
+/**
  * 為光球（Orb）打造的完整系統提示詞
  * 包含全站知識 + 親切的光球人格
  */
@@ -1572,6 +1646,17 @@ export function buildOrbSystemPrompt(
   // the section entirely from the prompt.
   const distilledPreferenceBlock = serializeDistilledPreferenceBlock(extras).block;
 
+  // 角色 / Skill 切換 — 把這一輪選到的 agent skill（director / composer /
+  // image-specialist / ...）連同它的 prompt slice 注入給 LLM。沒有
+  // userMessage 時跳過整個區塊，保留 legacy 單一人格 prompt 行為。
+  const skillBlock = serializeSkillBlock(extras, pageContext);
+
+  // 使用者最近的專精助手習慣 — 由 caller 透過
+  // getSpecialistMemoryHints 預先渲染好；空字串時整段不出現在 prompt 裡。
+  const specialistHintsBlock = extras?.specialistHints?.trim()
+    ? `\n${extras.specialistHints.trim()}\n`
+    : "";
+
   // Phase 4：判斷是否在創作工作室，注入深度引導知識
   const isStudioPage =
     extras?.pageSnapshot?.pageId === "studio" ||
@@ -1602,6 +1687,7 @@ export function buildOrbSystemPrompt(
 
   return `${personalityPrompt}
 ${identityBlock}
+${skillBlock}${specialistHintsBlock}
 【你的核心身份】
 你是一個以人為本的 AI 療癒創作夥伴。你的首要使命不是效率，而是讓使用者在創作過程中感到放鬆、愉悅和被支持。
 Healing Studio 是一個療癒放鬆的創作空間，使用者來這裡是為了找到內心的平靜和創作的喜悅。

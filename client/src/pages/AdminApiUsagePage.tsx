@@ -535,6 +535,18 @@ export default function AdminApiUsagePage() {
   const [, navigate] = useLocation();
 
   // 與 AdminPage 同樣只暴露 navigate / setTab；不開放 destructive 動作。
+  // NAV_ALLOWLIST 與 capabilities.options 必須一致；TAB_ALLOWLIST 對應 setTab。
+  const ADMIN_API_NAV_ALLOWLIST = new Set<string>([
+    "/admin",
+    "/admin/api-usage",
+    "/admin/brain-pipeline",
+  ]);
+  const ADMIN_API_TAB_ALLOWLIST = new Set<string>([
+    "overview",
+    "providers",
+    "rate-limit",
+    "billing",
+  ]);
   useRegisterPageAgent({
     pageId: "admin-api-usage",
     pageLabel: "API 用量分析",
@@ -565,10 +577,22 @@ export default function AdminApiUsagePage() {
     },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
+        if (!ADMIN_API_NAV_ALLOWLIST.has(action.path)) {
+          return {
+            ok: false,
+            reason: `admin-api-usage: 不在允許跳轉清單：${action.path}`,
+          };
+        }
         navigate(action.path);
         return { ok: true };
       }
       if (action.type === "setTab" && typeof action.tabId === "string") {
+        if (!ADMIN_API_TAB_ALLOWLIST.has(action.tabId)) {
+          return {
+            ok: false,
+            reason: `admin-api-usage: 未知 tabId：${action.tabId}`,
+          };
+        }
         setActiveTab(action.tabId);
         return { ok: true };
       }
