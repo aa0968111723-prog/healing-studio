@@ -103,9 +103,6 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
 } from "@/components/ui/pagination";
 import {
   Popover,
@@ -732,39 +729,51 @@ export default function ComponentsShowcase() {
                 <Separator />
                 <div className="space-y-2">
                   <Label>Pagination</Label>
+                  {/* Showcase only: use button-based pagination actions to avoid placeholder links in production pages. */}
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
-                        <PaginationPrevious
-                          href="#"
-                          onClick={e => {
-                            e.preventDefault();
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="default"
+                          aria-label="Go to previous demo page"
+                          className="gap-1 px-2.5 sm:pl-2.5"
+                          onClick={() => {
                             setCurrentPage(Math.max(1, currentPage - 1));
                           }}
-                        />
+                        >
+                          <span className="hidden sm:block">Previous</span>
+                        </Button>
                       </PaginationItem>
                       {[1, 2, 3, 4, 5].map(page => (
                         <PaginationItem key={page}>
-                          <PaginationLink
-                            href="#"
-                            isActive={currentPage === page}
-                            onClick={e => {
-                              e.preventDefault();
+                          <Button
+                            type="button"
+                            variant={currentPage === page ? "outline" : "ghost"}
+                            size="icon"
+                            aria-label={`Go to demo page ${page}`}
+                            onClick={() => {
                               setCurrentPage(page);
                             }}
                           >
                             {page}
-                          </PaginationLink>
+                          </Button>
                         </PaginationItem>
                       ))}
                       <PaginationItem>
-                        <PaginationNext
-                          href="#"
-                          onClick={e => {
-                            e.preventDefault();
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="default"
+                          aria-label="Go to next demo page"
+                          className="gap-1 px-2.5 sm:pr-2.5"
+                          onClick={() => {
                             setCurrentPage(Math.min(5, currentPage + 1));
                           }}
-                        />
+                        >
+                          <span className="hidden sm:block">Next</span>
+                        </Button>
                       </PaginationItem>
                     </PaginationContent>
                   </Pagination>
