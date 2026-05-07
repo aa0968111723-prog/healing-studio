@@ -94,14 +94,23 @@ export function PersonalSettingsProvider({
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    const initial = parseStoredSettings(localStorage.getItem(STORAGE_KEY));
-    setSettings(initial);
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // localStorage can be locked out (privacy mode, strict CSP, quota).
+    }
+    setSettings(parseStoredSettings(raw));
     setIsHydrated(true);
   }, []);
 
   useEffect(() => {
     if (!isHydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch {
+      /* ignore — non-fatal */
+    }
   }, [settings, isHydrated]);
 
   useEffect(() => {

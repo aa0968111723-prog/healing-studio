@@ -17,11 +17,24 @@ interface State {
   error: Error | null;
 }
 
-/**
- * Zero-Anxiety ErrorBoundary
- * Catches React render errors and displays a friendly, calming UI.
- * Emphasizes that no credits were deducted and encourages retry.
- */
+const RELOAD_FLAG_KEY = "hs-chunk-reload-attempt";
+
+// Stale lazy-load chunks (after a redeploy the cached index.html points at
+// chunk hashes that no longer exist) surface as ChunkLoadError or as dynamic
+// import() failures. Setting state back doesn't clear them — only fetching
+// a fresh index.html does.
+function isChunkLoadError(error: Error | null): boolean {
+  if (!error) return false;
+  const name = error.name ?? "";
+  const message = error.message ?? "";
+  return (
+    name === "ChunkLoadError" ||
+    /Loading chunk [\d]+ failed/i.test(message) ||
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    /Importing a module script failed/i.test(message)
+  );
+}
+
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -34,11 +47,34 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error) {
     this.props.onError?.(error);
-    // Log error for debugging but don't expose to user
     console.error("[ErrorBoundary]", error);
+
+    // Stale chunk → force-reload once to pull a fresh index.html. The session
+    // flag prevents a reload loop if the failure is genuinely persistent.
+    if (isChunkLoadError(error) && typeof window !== "undefined") {
+      try {
+        const already = sessionStorage.getItem(RELOAD_FLAG_KEY);
+        if (!already) {
+          sessionStorage.setItem(RELOAD_FLAG_KEY, String(Date.now()));
+          window.location.reload();
+        }
+      } catch {
+        // sessionStorage unavailable — try a single reload anyway
+        window.location.reload();
+      }
+    }
   }
 
   handleRetry = () => {
+    if (isChunkLoadError(this.state.error) && typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(RELOAD_FLAG_KEY);
+      } catch {
+        /* ignore */
+      }
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: null });
   };
 
