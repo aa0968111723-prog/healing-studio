@@ -2115,7 +2115,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             if (a.type !== "runWorkflow") return autoApprove.has(a.type);
             return a.steps.every(step => autoApprove.has(step.actionType));
           });
-        if (policy === "always_approve" || everyStepIsAutoApprovedTool) {
+        const hasImplicitImageGeneration = pendingPlan.actions.some(action => {
+          if (action.type !== "runWorkflow") return false;
+          const hasSubmit = action.steps.some(step => step.actionType === "submit");
+          if (!hasSubmit) return false;
+          const hasExplicitModelSelection = action.steps.some(step => step.actionType === "setModel");
+          return !hasExplicitModelSelection;
+        });
+
+        if ((policy === "always_approve" || everyStepIsAutoApprovedTool) && !hasImplicitImageGeneration) {
           // Defer to next tick so React commits setPendingWorkflow first;
           // startPendingWorkflow reads the latest pendingWorkflow ref.
           setTimeout(() => {
