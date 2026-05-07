@@ -34,6 +34,8 @@ const CommandPalette = lazy(() => import("./components/CommandPalette"));
 import Home from "./pages/Home";
 
 // ─── 其他頁面使用 lazy() 延遲載入，按需拆分 bundle ────────────────────────
+const CreationHub = lazy(() => import("./pages/CreationHub"));
+const Playground = lazy(() => import("./pages/Playground"));
 const Studio = lazy(() => import("./pages/Studio"));
 const DirectorAI = lazy(() => import("./pages/DirectorAI"));
 const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
@@ -189,6 +191,12 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/create">
+        <ProtectedDashboardRoute component={CreationHub} />
+      </Route>
+      <Route path="/playground">
+        <ProtectedDashboardRoute component={Playground} />
+      </Route>
       <Route path="/studio">
         <ProtectedDashboardRoute component={Studio} />
       </Route>
