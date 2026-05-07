@@ -82,6 +82,10 @@ import {
 } from "../../../shared/orb-chat-multimodal";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import ChatMessageText from "./ChatMessageText";
+import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
+import type { CreativeCapability } from "@/data/creativeCapabilities";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 
 type Props = {
   className?: string;
@@ -1121,7 +1125,7 @@ export default memo(function ProactiveOrbWidget({
   // Interaction panel state
   const [showPanel, setShowPanel] = useState(false);
   const [panelView, setPanelView] = useState<
-    "main" | "chat" | "inspiration" | "focus-flow"
+    "main" | "chat" | "inspiration" | "focus-flow" | "capabilities"
   >("main");
   // Use global chat state instead of local state
   const chatInput = globalChat.input;
@@ -1695,6 +1699,33 @@ export default memo(function ProactiveOrbWidget({
     window.addEventListener("orb-guide-navigate", handler);
     return () => window.removeEventListener("orb-guide-navigate", handler);
   }, [onNavigate, pageAgent]);
+
+  // Auth hook for capability "試用" navigation
+  const { isAuthenticated } = useAuth();
+
+  // Handler invoked from OrbCapabilitiesView "進入" buttons.
+  const handleTryCapability = useCallback(
+    (capability: CreativeCapability) => {
+      setShowPanel(false);
+      if (!isAuthenticated) {
+        window.location.href = getLoginUrl();
+        return;
+      }
+      onNavigate?.(capability.route);
+      setLocation(capability.route);
+    },
+    [isAuthenticated, onNavigate, setLocation]
+  );
+
+  // Listen for "orb-open-capabilities" — fired from homepage narrative CTA.
+  useEffect(() => {
+    const handler = () => {
+      setShowPanel(true);
+      setPanelView("capabilities");
+    };
+    window.addEventListener("orb-open-capabilities", handler);
+    return () => window.removeEventListener("orb-open-capabilities", handler);
+  }, []);
 
   // 到達目標頁面後，顯示 arrivedMessage 作為 proactive
   useEffect(() => {
@@ -2552,7 +2583,9 @@ export default memo(function ProactiveOrbWidget({
                           ? "✨ 靈感"
                           : panelView === "focus-flow"
                             ? "🌿 專注"
-                            : "🌸 光球"}
+                            : panelView === "capabilities"
+                              ? "✨ 創作能力"
+                              : "🌸 光球"}
                     </span>
                     {pageContext && panelView === "main" && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
@@ -2678,6 +2711,12 @@ export default memo(function ProactiveOrbWidget({
                           className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                         >
                           <Lightbulb className="w-4 h-4" />🧭 頁面細節引導
+                        </button>
+                        <button
+                          onClick={() => setPanelView("capabilities")}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-purple-50 to-sky-50 border border-purple-200/40 hover:from-purple-100 hover:to-sky-100 transition-all text-sm font-medium text-purple-700 mt-2"
+                        >
+                          <Sparkles className="w-4 h-4" />✨ 創作能力
                         </button>
                         <button
                           onClick={() => setPanelView("focus-flow")}
@@ -2854,6 +2893,16 @@ export default memo(function ProactiveOrbWidget({
                         </div>
                       </motion.div>
                     )}
+                    {panelView === "capabilities" && (
+                      <motion.div
+                        key="capabilities-mobile"
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                      >
+                        <OrbCapabilitiesView onTryCapability={handleTryCapability} />
+                      </motion.div>
+                    )}
                     {panelView === "focus-flow" && (
                       <motion.div key="focus-flow-mobile" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
                         <FocusFlowMini />
@@ -2975,7 +3024,9 @@ export default memo(function ProactiveOrbWidget({
                         ? "✨ 靈感"
                         : panelView === "focus-flow"
                           ? "🌿 專注"
-                          : "🌸 光球"}
+                          : panelView === "capabilities"
+                            ? "✨ 創作能力"
+                            : "🌸 光球"}
                   </span>
                   {pageContext && panelView === "main" && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
@@ -3136,6 +3187,15 @@ export default memo(function ProactiveOrbWidget({
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                     >
                       <Lightbulb className="w-4 h-4" />🧭 頁面細節引導
+                    </button>
+
+                    {/* Capabilities Button */}
+                    <button
+                      onClick={() => setPanelView("capabilities")}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-50 to-sky-50 border border-purple-200/40 hover:from-purple-100 hover:to-sky-100 transition-all text-sm font-medium text-purple-700 mt-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      ✨ 創作能力
                     </button>
 
                     {/* Focus Flow Button */}
@@ -3380,6 +3440,21 @@ export default memo(function ProactiveOrbWidget({
                         </button>
                       ))}
                     </div>
+                  </motion.div>
+                )}
+
+                {/* ─── Capabilities View ─── */}
+                {panelView === "capabilities" && (
+                  <motion.div
+                    key="capabilities"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                  >
+                    <OrbCapabilitiesView
+                      onTryCapability={handleTryCapability}
+                      compact
+                    />
                   </motion.div>
                 )}
 

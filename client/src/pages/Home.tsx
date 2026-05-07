@@ -28,19 +28,13 @@ import {
   useMotionValueEvent,
 } from "framer-motion";
 import {
-  Wand2,
   Clapperboard,
-  Package,
-  Cpu,
   ArrowRight,
   Sparkles,
-  Shield,
-  Users,
   Moon,
   Sun,
   Coffee,
   Waves,
-  Play,
   Pause,
   Volume2,
   VolumeX,
@@ -73,9 +67,14 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
-import FeatureDetailDialog, {
-  type FeatureDetail,
-} from "@/components/FeatureDetailDialog";
+import OrbNarrativeBridge from "@/components/home/OrbNarrativeBridge";
+import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
+import MagneticTilt from "@/components/home/MagneticTilt";
+import ShimmerDivider from "@/components/home/ShimmerDivider";
+import PageRevealVeil from "@/components/home/PageRevealVeil";
+import AuroraBlobs from "@/components/home/AuroraBlobs";
+import GrainOverlay from "@/components/home/GrainOverlay";
+import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -196,121 +195,8 @@ const SCENE_STYLES: Record<
   },
 };
 
-// ─── Video Demo Showcase Data ────────────────────────────────────────────
-
-const VIDEO_DEMOS: FeatureDetail[] = [
-  {
-    id: "text-to-image",
-    icon: Wand2,
-    title: "AI 圖片生成",
-    description:
-      "輸入文字描述，即刻生成高品質影像。支援多種風格與精準的參數調校。",
-    longDescription:
-      "從一段描述出發，快速產出可商用等級的影像。內建多種美學預設與細節調校，讓你在分鐘內完成從概念到視覺成品的跳躍。",
-    features: [
-      "多風格預設：寫實 / 插畫 / 電影感 / 日系",
-      "精準參數：光影、構圖、色調、鏡頭語言",
-      "高解析輸出：支援 2K / 4K 放大",
-      "風格參考：上傳 reference 自動擷取氛圍",
-    ],
-    tag: "圖片",
-    color: "rgba(168,85,247,0.10)",
-    borderColor: "rgba(168,85,247,0.20)",
-    accentColor: "rgb(168,85,247)",
-  },
-  {
-    id: "text-to-video",
-    icon: Clapperboard,
-    title: "AI 影片創作",
-    description: "從文字一鍵生成流暢動態影片，適用於短片、動畫與創意敘事。",
-    longDescription:
-      "自動化從腳本到成片的全流程。鏡頭運動、轉場節奏、角色一致性都幫你處理好，你只需要專注在敘事本身。",
-    features: [
-      "鏡頭運動自動編排：推拉搖移一鍵套用",
-      "多尺寸輸出：9:16 / 16:9 / 1:1 同步生成",
-      "角色一致性：跨鏡頭維持同一人物樣貌",
-      "音畫同步：自動對齊配樂節奏",
-    ],
-    tag: "影片",
-    color: "rgba(59,130,246,0.10)",
-    borderColor: "rgba(59,130,246,0.20)",
-    accentColor: "rgb(59,130,246)",
-  },
-  {
-    id: "text-to-music",
-    icon: Sparkles,
-    title: "AI 音樂生成",
-    description:
-      "描述曲風情境，自動產生原創配樂。從電子氛圍到古典管弦皆可駕馭。",
-    longDescription:
-      "說出你想要的情緒、節奏與樂器，AI 會產出可直接使用的原創配樂。支援多段落結構與情緒轉折，適合 podcast、短影音、廣告。",
-    features: [
-      "情境式 prompt：「冷冽、雨夜、慢板鋼琴」",
-      "多樂器編制：電子、管弦、民謠、氛圍",
-      "段落結構：前奏 / 主歌 / 副歌可分段生成",
-      "商用授權：所有輸出可直接發佈",
-    ],
-    tag: "音樂",
-    color: "rgba(236,72,153,0.10)",
-    borderColor: "rgba(236,72,153,0.20)",
-    accentColor: "rgb(236,72,153)",
-  },
-  {
-    id: "director-ai",
-    icon: Cpu,
-    title: "導演 AI 編排",
-    description:
-      "智慧腳本分析與多媒體編排，自動拆解段落並生成對應的圖、影、音。",
-    longDescription:
-      "把一份腳本丟進來，導演 AI 會幫你拆解場景、分配鏡頭、挑選配樂，並呼叫對應的生成引擎組合出完整作品。",
-    features: [
-      "腳本自動分鏡：段落 → 場景 → shot list",
-      "跨模態編排：圖、影、音、字幕一次到位",
-      "節奏調校：自動對齊時間軸與敘事張力",
-      "一鍵重跑：單一場景可獨立重新生成",
-    ],
-    tag: "導演",
-    color: "rgba(34,197,94,0.10)",
-    borderColor: "rgba(34,197,94,0.20)",
-    accentColor: "rgb(34,197,94)",
-  },
-  {
-    id: "voice-clone",
-    icon: Users,
-    title: "語音克隆",
-    description: "上傳語音樣本，精確複製說話風格與音色，適用於配音與旁白製作。",
-    longDescription:
-      "只需 30 秒的聲音樣本，即可建立專屬語音模型。支援多語言、多情緒演繹，適合 podcast、旁白、有聲書與角色配音。",
-    features: [
-      "低樣本建模：30 秒樣本即可開始",
-      "多語言輸出：中英日韓自然切換",
-      "情緒控制：平靜、激昂、溫柔、嚴肅",
-      "倫理保護：需本人授權 + 浮水印追溯",
-    ],
-    tag: "語音",
-    color: "rgba(249,115,22,0.10)",
-    borderColor: "rgba(249,115,22,0.20)",
-    accentColor: "rgb(249,115,22)",
-  },
-  {
-    id: "lora-training",
-    icon: Shield,
-    title: "角色訓練 LoRA",
-    description: "訓練專屬角色模型，確保跨作品的視覺風格一致性與角色辨識度。",
-    longDescription:
-      "為你的 IP 角色或個人風格訓練專屬 LoRA 模型，在後續所有生成任務中保持一致的視覺特徵，不再為「角色又不像」煩惱。",
-    features: [
-      "少量樣本訓練：10–20 張即可開始",
-      "跨媒介一致：圖、影、3D 全部通用",
-      "版本管理：可保留多個風格 checkpoint",
-      "私有部署：訓練資料不外流",
-    ],
-    tag: "訓練",
-    color: "rgba(14,165,233,0.10)",
-    borderColor: "rgba(14,165,233,0.20)",
-    accentColor: "rgb(14,165,233)",
-  },
-];
+// Capability cards have moved into the global orb's "✨ 創作能力" view.
+// Source data: client/src/data/creativeCapabilities.ts.
 
 const HOME_QUICKSTART_GUIDE = [
   {
@@ -776,12 +662,8 @@ export default function Home() {
   const ambient = useAmbient();
   const { sceneId, isDark, override, setOverride, allScenes } = ambient;
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
+  const isMobile = useIsMobile();
 
-  // ─── Feature Detail Dialog State ─────────────────────────────────
-  const [activeFeature, setActiveFeature] = useState<FeatureDetail | null>(
-    null
-  );
-  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
   const [quickGuideHidden, setQuickGuideHidden] = useState(false);
   const [advancedQuickGuideOpen, setAdvancedQuickGuideOpen] = useState(false);
@@ -803,11 +685,6 @@ export default function Home() {
   );
   const [completedOrbLessons, setCompletedOrbLessons] = useState<string[]>([]);
   const quickStartRef = useRef<HTMLElement>(null);
-
-  const openFeature = useCallback((feature: FeatureDetail) => {
-    setActiveFeature(feature);
-    setFeatureDialogOpen(true);
-  }, []);
 
   const scrollToQuickStart = useCallback(() => {
     setOpenGuideId("new-user");
@@ -843,6 +720,27 @@ export default function Home() {
   // Hero content parallax: subtle upward drift as user scrolls
   const heroY = useTransform(scrollY, [0, 800], [0, -80]);
   const heroContentOpacity = useTransform(scrollY, [0, 400, 700], [1, 0.8, 0]);
+
+  // Hero orb visual handoff: as the user scrolls past the hero, the
+  // central orb shrinks toward the bottom-right corner where the
+  // floating ProactiveOrbWidget lives, signalling "the orb is your guide".
+  // Mobile uses gentler drift since the orb starts closer to the edge and
+  // big translations would overflow the narrow viewport.
+  const heroOrbScale = useTransform(
+    scrollY,
+    [0, 700],
+    isMobile ? [1, 0.55] : [1, 0.32]
+  );
+  const heroOrbDriftY = useTransform(
+    scrollY,
+    [0, 700],
+    isMobile ? [0, 30] : [0, 60]
+  );
+  const heroOrbDriftX = useTransform(
+    scrollY,
+    [0, 700],
+    isMobile ? [0, 32] : [0, 80]
+  );
 
   // Nav background intensifies as ambient fades (more opaque for readability)
   const navOpacityBoost = useTransform(scrollY, [300, 800], [0, 0.3]);
@@ -1199,6 +1097,8 @@ ${profileSnippet}`;
 
   return (
     <div className="min-h-screen relative overflow-x-hidden flex flex-col">
+      <PageRevealVeil color={isDark ? "rgba(6,8,20,0.55)" : "rgba(252,247,240,0.55)"} />
+      <GrainOverlay opacity={isDark ? 0.08 : 0.05} />
       {/* ── Full-page gradient background (scene-adaptive, covers entire scroll height) ── */}
       <div
         className="fixed inset-0 w-full h-full -z-20 pointer-events-none"
@@ -1295,8 +1195,10 @@ ${profileSnippet}`;
         className="pt-24 sm:pt-36 lg:pt-44 pb-20 sm:pb-28 lg:pb-36 px-4 sm:px-6 relative z-10 min-h-[85vh] sm:min-h-[90vh] flex items-center"
         style={{ y: heroY }}
       >
+        <AuroraBlobs />
+        <HeroMagneticSpotlight color={s.glowColor} />
         <motion.div
-          className="max-w-4xl mx-auto text-center w-full"
+          className="max-w-4xl mx-auto text-center w-full relative"
           style={{ opacity: heroContentOpacity }}
         >
           <motion.div
@@ -1318,8 +1220,17 @@ ${profileSnippet}`;
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </motion.div>
 
-            {/* Central Orb — ethereal, scene-adaptive glow */}
-            <div className="flex flex-col items-center mb-8 sm:mb-12">
+            {/* Central Orb — ethereal, scene-adaptive glow.
+                Wrapped in a motion.div that scroll-morphs the orb toward
+                the bottom-right floating orb as the user descends. */}
+            <motion.div
+              className="flex flex-col items-center mb-8 sm:mb-12"
+              style={{
+                scale: heroOrbScale,
+                x: heroOrbDriftX,
+                y: heroOrbDriftY,
+              }}
+            >
               {/* Ambient glow ring behind orb — soft, scene-linked, smaller on mobile */}
               <motion.div
                 className="absolute w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
@@ -1358,7 +1269,7 @@ ${profileSnippet}`;
                   className="sm:!w-16 sm:!h-16"
                 />
               </motion.div>
-            </div>
+            </motion.div>
 
             {/* OARS Contextual Greeting — replaces static title */}
             <motion.div
@@ -1387,14 +1298,16 @@ ${profileSnippet}`;
                 ease: [0.16, 1, 0.3, 1],
               }}
             >
-              <Button
-                size="lg"
-                onClick={() => navigate("/agent")}
-                className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
-              >
-                <Sparkles className="w-4 h-4" />
-                進入光球入口
-              </Button>
+              <MagneticTilt strength={10}>
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/agent")}
+                  className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  進入光球入口
+                </Button>
+              </MagneticTilt>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1466,222 +1379,17 @@ ${profileSnippet}`;
         </motion.div>
       </motion.section>
 
-      {/* ── Soft gradient divider between Hero and Features ── */}
-      <div
-        className="relative z-10 h-px mx-auto max-w-3xl"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
-        }}
-      />
+      {/* ── Shimmering hairline divider between Hero and Narrative ── */}
+      <ShimmerDivider color={s.dividerColor} />
 
       {/* 首頁快速導覽已完整移至 /learn/tutorial-overview */}
 
-      {/* ── Video Demo Showcase (影片功能展示區域) — healing carousel ── */}
-      <section className="section-breathing px-4 sm:px-6 relative z-10">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 28 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-16"
-          >
-            <motion.div
-              className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] tracking-[0.15em] uppercase mb-5 sm:mb-6 ${
-                isDark ? "bg-white/6 text-white/40" : "bg-black/3 text-black/30"
-              }`}
-              initial={{ opacity: 0, y: 8 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-            >
-              <Package className="w-3 h-3" />
-              Core Capabilities
-            </motion.div>
-            <h2
-              className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
-            >
-              多模態 AI 創作引擎
-            </h2>
-            <p
-              className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}
-            >
-              從圖片、影片到音樂與配音，一站式覆蓋你的所有創作需求
-            </p>
-            {/* Healing divider */}
-            <div
-              className="mx-auto mt-8 w-16 h-[1px] rounded-full"
-              style={{
-                background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
-              }}
-            />
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
-          >
-            {VIDEO_DEMOS.map((demo, idx) => (
-              <motion.button
-                key={demo.id}
-                type="button"
-                onClick={() => openFeature(demo)}
-                aria-label={`查看 ${demo.title} 詳情`}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{
-                  duration: 0.6,
-                  delay: idx * 0.06,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                className="group relative text-left h-full rounded-2xl overflow-hidden card-feature-refined focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                style={
-                  {
-                    background: s.cardBg,
-                    border: `1px solid ${s.cardBorder}`,
-                    ["--accent" as any]: demo.accentColor,
-                  } as React.CSSProperties
-                }
-              >
-                {/* Preview area */}
-                <div
-                  className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
-                  style={{ background: demo.color }}
-                >
-                  <motion.div
-                    className="absolute inset-0"
-                    style={{
-                      background: `radial-gradient(circle at 30% 30%, ${demo.accentColor}18 0%, transparent 55%), radial-gradient(circle at 70% 70%, ${demo.accentColor}0c 0%, transparent 55%)`,
-                    }}
-                    animate={{ opacity: [0.45, 0.85, 0.45] }}
-                    transition={{
-                      duration: 6 + idx * 0.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  />
-                  {/* Sheen sweep on hover */}
-                  <div
-                    className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-[1400ms] ease-out"
-                    style={{
-                      background: `linear-gradient(115deg, transparent 30%, ${demo.accentColor}18 50%, transparent 70%)`,
-                    }}
-                  />
-                  {/* Center icon */}
-                  <div className="relative z-10 flex flex-col items-center gap-3">
-                    <motion.div
-                      className="w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-2"
-                      style={{
-                        background: `${demo.accentColor}18`,
-                        border: `1px solid ${demo.accentColor}22`,
-                        backdropFilter: "blur(16px)",
-                      }}
-                    >
-                      <demo.icon
-                        className="w-6 h-6"
-                        style={{ color: demo.accentColor }}
-                      />
-                    </motion.div>
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                      style={{
-                        background: `${demo.accentColor}12`,
-                        border: `1px solid ${demo.accentColor}20`,
-                        backdropFilter: "blur(12px)",
-                      }}
-                    >
-                      <Play
-                        className="w-3.5 h-3.5 ml-0.5"
-                        style={{ color: demo.accentColor }}
-                      />
-                    </div>
-                  </div>
-                  {/* Tag badge */}
-                  <div
-                    className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[9px] font-medium tracking-wider uppercase"
-                    style={{
-                      background: `${demo.accentColor}12`,
-                      color: demo.accentColor,
-                      border: `1px solid ${demo.accentColor}20`,
-                      backdropFilter: "blur(12px)",
-                    }}
-                  >
-                    {demo.tag}
-                  </div>
-                </div>
-                {/* Text content */}
-                <div className="px-5 py-5 sm:px-6 sm:py-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div
-                      className="w-1 h-4 rounded-full"
-                      style={{ background: `${demo.accentColor}55` }}
-                    />
-                    <h3
-                      className={`hs-h3 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
-                    >
-                      {demo.title}
-                    </h3>
-                  </div>
-                  <p
-                    className={`hs-small !mb-0 leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
-                  >
-                    {demo.description}
-                  </p>
-                  {/* Dual CTA footer */}
-                  <div
-                    className={`mt-4 pt-4 flex items-center justify-between gap-2 border-t ${
-                      isDark ? "border-white/8" : "border-black/5"
-                    }`}
-                  >
-                    <span
-                      className={`text-[11px] tracking-wide flex items-center gap-1 ${s.textMuted}`}
-                    >
-                      查看詳情
-                      <ArrowRight className="w-3 h-3 transition-transform duration-500 group-hover:translate-x-0.5" />
-                    </span>
-                    <span
-                      onClick={e => {
-                        e.stopPropagation();
-                        if (!isAuthenticated) {
-                          window.location.href = getLoginUrl();
-                        } else {
-                          navigate(demo.ctaHref ?? "/studio");
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (!isAuthenticated) {
-                            window.location.href = getLoginUrl();
-                          } else {
-                            navigate(demo.ctaHref ?? "/studio");
-                          }
-                        }
-                      }}
-                      className="text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-all hover:shadow-md cursor-pointer"
-                      style={{
-                        background: `${demo.accentColor}18`,
-                        color: demo.accentColor,
-                        border: `1px solid ${demo.accentColor}30`,
-                      }}
-                    >
-                      <Play className="w-2.5 h-2.5 fill-current" />
-                      試用
-                    </span>
-                  </div>
-                </div>
-              </motion.button>
-            ))}
-          </motion.div>
-        </div>
-      </section>
+      {/* ── Cinematic Orb Narrative Bridge ── */}
+      {/* Replaces the former CORE CAPABILITIES showcase. Capability cards
+          now live inside the global orb's "✨ 創作能力" view; this narrative
+          orchestrates the visual handoff from the hero orb to the floating
+          orb at the bottom-right of the viewport. */}
+      <OrbNarrativeBridge />
 
       {/* ── Intent Inference Whisper (意圖推論低語) ── */}
       {intentResult && intentResult.confidence > 0.4 && (
@@ -1761,7 +1469,14 @@ ${profileSnippet}`;
           </div>
         }
       >
-        <IntelBentoGrid sceneId={sceneId} />
+        <motion.div
+          initial={{ opacity: 0, clipPath: "inset(0 100% 0 0)" }}
+          whileInView={{ opacity: 1, clipPath: "inset(0 0% 0 0)" }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <IntelBentoGrid sceneId={sceneId} />
+        </motion.div>
       </Suspense>
 
       {/* ── Showcase Masonry (精選作品瀑布流) ── */}
@@ -1772,28 +1487,30 @@ ${profileSnippet}`;
           </div>
         }
       >
-        <ShowcaseMasonry
-          sceneId={sceneId}
-          aestheticOverride={
-            intentResult &&
-            intentResult.confidence > 0.5 &&
-            intentResult.intentType === "aesthetic_preference" &&
-            intentResult.detectedAesthetics.length > 0
-              ? intentResult.detectedAesthetics
-              : null
-          }
-        />
+        <motion.div
+          initial={{ opacity: 0, clipPath: "inset(0 0 0 100%)" }}
+          whileInView={{ opacity: 1, clipPath: "inset(0 0 0 0%)" }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <ShowcaseMasonry
+            sceneId={sceneId}
+            aestheticOverride={
+              intentResult &&
+              intentResult.confidence > 0.5 &&
+              intentResult.intentType === "aesthetic_preference" &&
+              intentResult.detectedAesthetics.length > 0
+                ? intentResult.detectedAesthetics
+                : null
+            }
+          />
+        </motion.div>
       </Suspense>
 
       {SHOW_BOTTOM_CTA ? (
         <>
-          {/* ── Soft gradient divider before CTA ── */}
-          <div
-            className="relative z-10 h-px mx-auto max-w-3xl"
-            style={{
-              background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
-            }}
-          />
+          {/* ── Shimmering hairline divider before CTA ── */}
+          <ShimmerDivider color={s.dividerColor} />
 
           {/* ── CTA Section — healing invitation ── */}
           <section className="section-breathing px-4 sm:px-6 relative z-10">
@@ -1935,14 +1652,6 @@ ${profileSnippet}`;
           </span>
         </div>
       </footer>
-
-      <FeatureDetailDialog
-        feature={activeFeature}
-        open={featureDialogOpen}
-        onOpenChange={setFeatureDialogOpen}
-        isAuthenticated={isAuthenticated}
-        isDark={isDark}
-      />
     </div>
   );
 }
