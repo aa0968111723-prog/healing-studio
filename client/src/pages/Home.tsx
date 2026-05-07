@@ -46,7 +46,17 @@ import {
   CircleCheck,
   MessageCircle,
   Gauge,
+  Image as ImageIcon,
+  Video,
+  Music,
+  Mic,
+  Palette,
+  Layers,
+  Clock,
+  Zap,
+  Target,
 } from "lucide-react";
+import { CREATIVE_CAPABILITIES } from "@/data/creativeCapabilities";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
@@ -201,6 +211,84 @@ const SCENE_STYLES: Record<
 
 // Capability cards have moved into the global orb's "✨ 創作能力" view.
 // Source data: client/src/data/creativeCapabilities.ts.
+
+const SITE_USE_CASES = [
+  {
+    id: "brand-short-film",
+    icon: Video,
+    title: "品牌形象短片",
+    eta: "20-30 分鐘",
+    summary: "從腳本到成片：自動分鏡、配樂、字幕一次到位。",
+    path: "/director",
+  },
+  {
+    id: "product-key-visual",
+    icon: ImageIcon,
+    title: "商品主視覺",
+    eta: "8-12 分鐘",
+    summary: "輸入商品描述與情緒風格，產出多版可比較設計稿。",
+    path: "/image-studio",
+  },
+  {
+    id: "social-short",
+    icon: Zap,
+    title: "社群短影音",
+    eta: "10-15 分鐘",
+    summary: "9:16 直式短片，自動套用節奏點與字幕，可直接上架。",
+    path: "/video-studio",
+  },
+  {
+    id: "podcast-music",
+    icon: Music,
+    title: "Podcast 配樂與旁白",
+    eta: "10-15 分鐘",
+    summary: "選定情緒風格產出原創配樂，搭配語音克隆做專屬旁白。",
+    path: "/pro-studio",
+  },
+  {
+    id: "character-series",
+    icon: Palette,
+    title: "角色一致系列圖",
+    eta: "25-40 分鐘",
+    summary: "用 LoRA 訓練專屬角色，跨作品保持同一視覺辨識。",
+    path: "/lora-trainer",
+  },
+  {
+    id: "campaign-pack",
+    icon: Layers,
+    title: "完整行銷素材包",
+    eta: "30-45 分鐘",
+    summary: "主視覺 + 短片 + 配樂 + 旁白一次完成，跨格式同步輸出。",
+    path: "/director",
+  },
+] as const;
+
+const SITE_VALUE_HIGHLIGHTS = [
+  {
+    id: "speed",
+    icon: Zap,
+    title: "從一句話到成品",
+    description: "光球代理會把你的想法拆成可執行任務，平均 10 分鐘完成第一版。",
+  },
+  {
+    id: "consistency",
+    icon: Target,
+    title: "跨作品保持風格一致",
+    description: "用 LoRA 訓練專屬角色與風格，不再為「角色又不像」煩惱。",
+  },
+  {
+    id: "scene",
+    icon: Palette,
+    title: "場景隨時段切換",
+    description: "晨光、午後、夜空、深海四種氛圍，配合節奏切換進入創作心流。",
+  },
+  {
+    id: "iterate",
+    icon: CircleCheck,
+    title: "版本管理與可重跑",
+    description: "歷史頁可比對版本差異，保留最佳結果並建立可重複的工作流。",
+  },
+] as const;
 
 const HOME_QUICKSTART_GUIDE = [
   {
@@ -1200,7 +1288,7 @@ ${profileSnippet}`;
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-24 sm:pt-36 lg:pt-44 pb-20 sm:pb-28 lg:pb-36 px-4 sm:px-6 relative z-10 min-h-[85vh] sm:min-h-[90vh] flex items-center"
+        className="pt-20 sm:pt-32 lg:pt-44 pb-12 sm:pb-24 lg:pb-36 px-4 sm:px-6 relative z-10 min-h-[70vh] sm:min-h-[85vh] lg:min-h-[90vh] flex items-center"
         style={{ y: heroY }}
       >
         <AuroraBlobs sceneId={sceneId} />
@@ -1216,7 +1304,7 @@ ${profileSnippet}`;
           >
             {/* Scene Badge */}
             <motion.div
-              className="flex justify-center mb-8 sm:mb-10"
+              className="flex justify-center mb-5 sm:mb-10"
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1234,7 +1322,7 @@ ${profileSnippet}`;
                 and click ripple.  Scroll-morphs toward the floating orb
                 as the user descends. */}
             <motion.div
-              className="flex flex-col items-center mb-8 sm:mb-12"
+              className="flex flex-col items-center mb-5 sm:mb-12"
               style={{
                 scale: heroOrbScale,
                 x: heroOrbDriftX,
@@ -1359,7 +1447,7 @@ ${profileSnippet}`;
                 delay: 0.75,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="hidden md:block mt-6 px-4 sm:px-0"
+              className="block mt-6 sm:mt-8 px-4 sm:px-0"
             >
               <div
                 className="max-w-3xl mx-auto rounded-2xl border p-4 sm:p-5 text-left"
@@ -1412,6 +1500,287 @@ ${profileSnippet}`;
       </motion.section>
 
       {/* ── Shimmering hairline divider between Hero and Narrative ── */}
+      <ShimmerDivider color={s.dividerColor} />
+
+      {/* ── Site Capabilities Overview — 這網站能幫你做什麼 ── */}
+      <section className="px-4 sm:px-6 py-12 sm:py-16 lg:py-20 relative z-10">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center mb-8 sm:mb-12"
+          >
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs tracking-[0.15em] uppercase mb-4 ${s.textSecondary}`}
+              style={{ background: s.featureBg }}
+            >
+              <Sparkles className="w-3 h-3" />
+              這網站能幫你做什麼
+            </span>
+            <h2
+              className={`text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
+            >
+              一站完成圖、影、音、模型、導演
+            </h2>
+            <p
+              className={`mt-3 sm:mt-4 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+            >
+              六大 AI 創作能力即點即用。從一句話描述，到可發佈成品，全程由光球代理引導下一步。
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+            {CREATIVE_CAPABILITIES.map((cap, idx) => {
+              const Icon = cap.icon;
+              return (
+                <motion.button
+                  key={cap.id}
+                  type="button"
+                  onClick={() => navigate(cap.route)}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{
+                    duration: 0.6,
+                    delay: idx * 0.06,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="group relative text-left rounded-2xl p-4 sm:p-5 lg:p-6 backdrop-blur-md transition-all duration-300 overflow-hidden"
+                  style={{
+                    background: s.cardBg,
+                    border: `1px solid ${s.cardBorder}`,
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                    style={{
+                      background: `radial-gradient(ellipse at top right, ${cap.color} 0%, transparent 60%)`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div
+                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0"
+                        style={{
+                          background: cap.color,
+                          border: `1px solid ${cap.borderColor}`,
+                        }}
+                      >
+                        <Icon
+                          className="w-5 h-5"
+                          style={{ color: cap.accentColor }}
+                        />
+                      </div>
+                      <span
+                        className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${s.textMuted}`}
+                        style={{ background: s.featureBg }}
+                      >
+                        {cap.tag}
+                      </span>
+                    </div>
+                    <h3
+                      className={`text-base sm:text-lg font-semibold mb-1.5 transition-colors duration-1000 ${s.textPrimary}`}
+                    >
+                      {cap.title}
+                    </h3>
+                    <p
+                      className={`text-xs sm:text-sm leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+                    >
+                      {cap.description}
+                    </p>
+                    <div
+                      className={`mt-3 sm:mt-4 flex items-center gap-1.5 text-xs font-medium transition-colors duration-300 ${s.textSecondary} group-hover:gap-2.5`}
+                    >
+                      <span>進入工作室</span>
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Site Value Highlights — 為什麼選 Healing Studio ── */}
+      <section className="px-4 sm:px-6 py-10 sm:py-14 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {SITE_VALUE_HIGHLIGHTS.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{
+                    duration: 0.6,
+                    delay: idx * 0.08,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="rounded-2xl p-4 sm:p-5 backdrop-blur-md transition-colors duration-1000"
+                  style={{
+                    background: s.cardBg,
+                    border: `1px solid ${s.cardBorder}`,
+                  }}
+                >
+                  <div
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-3"
+                    style={{ background: s.featureBg }}
+                  >
+                    <Icon
+                      className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors duration-1000 ${s.textSecondary}`}
+                    />
+                  </div>
+                  <h4
+                    className={`text-sm sm:text-base font-semibold mb-1 transition-colors duration-1000 ${s.textPrimary}`}
+                  >
+                    {item.title}
+                  </h4>
+                  <p
+                    className={`text-xs sm:text-sm leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+                  >
+                    {item.description}
+                  </p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Site Use Cases — 你可以這樣用 ── */}
+      <section className="px-4 sm:px-6 py-12 sm:py-16 lg:py-20 relative z-10">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8 sm:mb-10"
+          >
+            <div>
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs tracking-[0.15em] uppercase mb-3 ${s.textSecondary}`}
+                style={{ background: s.featureBg }}
+              >
+                <Target className="w-3 h-3" />
+                你可以這樣用
+              </span>
+              <h2
+                className={`text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
+              >
+                六種常見創作情境
+              </h2>
+              <p
+                className={`mt-2 sm:mt-3 text-sm sm:text-base max-w-2xl leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+              >
+                每個情境都附上預估時間與起點工作室，點擊直接開始。
+              </p>
+            </div>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {SITE_USE_CASES.map((useCase, idx) => {
+              const Icon = useCase.icon;
+              return (
+                <motion.button
+                  key={useCase.id}
+                  type="button"
+                  onClick={() => navigate(useCase.path)}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{
+                    duration: 0.6,
+                    delay: idx * 0.06,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="group text-left rounded-2xl p-4 sm:p-5 backdrop-blur-md transition-all duration-300"
+                  style={{
+                    background: s.cardBg,
+                    border: `1px solid ${s.cardBorder}`,
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: s.featureBg }}
+                    >
+                      <Icon
+                        className={`w-5 h-5 transition-colors duration-1000 ${s.textSecondary}`}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h3
+                          className={`text-sm sm:text-base font-semibold transition-colors duration-1000 ${s.textPrimary}`}
+                        >
+                          {useCase.title}
+                        </h3>
+                      </div>
+                      <div
+                        className={`inline-flex items-center gap-1 text-[10px] sm:text-xs mb-2 px-1.5 py-0.5 rounded-md ${s.textMuted}`}
+                        style={{ background: s.featureBg }}
+                      >
+                        <Clock className="w-3 h-3" />
+                        {useCase.eta}
+                      </div>
+                      <p
+                        className={`text-xs sm:text-sm leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+                      >
+                        {useCase.summary}
+                      </p>
+                      <div
+                        className={`mt-3 flex items-center gap-1 text-xs font-medium ${s.textSecondary} transition-all duration-300 group-hover:gap-2`}
+                      >
+                        <span>立即開始</span>
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                      </div>
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+            className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3"
+          >
+            <Button
+              size="lg"
+              onClick={() => navigate("/agent")}
+              className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+            >
+              <Sparkles className="w-4 h-4" />
+              不確定？問光球代理
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={() => navigate("/learn")}
+              className={`rounded-2xl h-11 sm:h-12 px-6 gap-2 text-sm btn-healing w-full sm:w-auto ${s.textSecondary}`}
+            >
+              <Compass className="w-4 h-4" />
+              先看完整教學
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
       <ShimmerDivider color={s.dividerColor} />
 
       {/* 首頁快速導覽已完整移至 /learn/tutorial-overview */}
