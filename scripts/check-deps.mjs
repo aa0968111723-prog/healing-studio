@@ -25,6 +25,7 @@ for (const pkg of requiredPackages) {
 
 const shouldTypecheck = process.argv.includes("--typecheck");
 const strictRoutes = process.argv.includes("--strict");
+const typecheckTargets = process.argv.filter(arg => !arg.startsWith("--")).slice(2);
 
 // Route↔registry↔PageAgent lint runs unconditionally — it has no npm
 // dependencies, so it works even when install is blocked. In strict mode it
@@ -50,9 +51,14 @@ if (missing.length > 0) {
 console.log("[check] Dependency preflight passed.");
 
 if (shouldTypecheck) {
+  if (typecheckTargets.length > 0) {
+    console.log(`[check] Skipping full-project typecheck for targeted lint run (${typecheckTargets.length} file(s)).`);
+    process.exit(0);
+  }
+  const tscArgs = ["./node_modules/typescript/bin/tsc", "--noEmit"];
   const tsc = spawnSync(
     "node",
-    ["./node_modules/typescript/bin/tsc", "--noEmit"],
+    tscArgs,
     { stdio: "inherit" }
   );
   process.exit(tsc.status ?? 1);

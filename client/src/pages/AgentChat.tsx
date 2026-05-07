@@ -139,9 +139,9 @@ const HOW_TO_STEPS: Array<{ title: string; description: string }> = [
       "送出、套預設、跨頁這類動作會先彈卡片給你看。確認沒問題再按，光球才會真的執行。",
   },
   {
-    title: "4. 點下方意圖卡跳到對的工具頁",
+    title: "4. 先用「快速選擇」決定成果類型",
     description:
-      "「圖片 / 影片 / 音樂 / 配音 / 腳本 / LoRA」按下去會帶你到對應頁，光球會繼續陪你完成。",
+      "你可以直接選「圖片 / 影片 / 音樂 / 導演 / 教學導覽」，光球會立刻接手分流並導航。",
   },
   {
     title: "5. 隨時叫光球幫你跑長期任務",
@@ -149,6 +149,17 @@ const HOW_TO_STEPS: Array<{ title: string; description: string }> = [
       "右上角「代理設定」可以開排程，例如「每天早上整理昨日生成紀錄」— 光球會自己跑、出事再叫你。",
   },
 ];
+
+const QUICK_RESULT_CHOICES = [
+  { label: "圖片", prompt: "我想先完成圖片成果，請帶我開始。" },
+  { label: "影片", prompt: "我想先完成影片成果，請帶我開始。" },
+  { label: "音樂", prompt: "我想先完成音樂成果，請帶我開始。" },
+  { label: "導演", prompt: "我想先完成導演流程成果，請帶我開始。" },
+  {
+    label: "教學導覽",
+    prompt: "請先做教學導覽，並直接導航到 learn/tutorial-overview。",
+  },
+] as const;
 
 const NEED_PROMPTS = [
   "我想做 ______，要用在 ______。目前有／沒有素材 ______，限制是 ______。請幫我決定先去哪個頁面並帶我做第一步。",
@@ -488,7 +499,7 @@ export default function AgentChat() {
             <VisualSoul size="lg" personality={personality} />
           </motion.div>
           <h1 className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100">
-            先聊聊看就好 🌿
+            你想先完成哪一個成果？ 🌿
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
             我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
@@ -622,7 +633,22 @@ export default function AgentChat() {
                 transition={{ duration: 0.4, delay: 0.2 }}
               >
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  你想做什麼？選一個，光球會先釐清需求，再帶你去對的地方：
+                  快速選擇：圖片 / 影片 / 音樂 / 導演 / 教學導覽
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_RESULT_CHOICES.map(choice => (
+                    <button
+                      key={choice.label}
+                      type="button"
+                      onClick={() => void send(choice.prompt)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-emerald-200/80 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 transition-colors"
+                    >
+                      {choice.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  或選下方意圖卡，光球會先釐清需求，再帶你去對的地方：
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[]).map((intentId, i) => {

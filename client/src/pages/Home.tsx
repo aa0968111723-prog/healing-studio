@@ -1500,7 +1500,7 @@ ${profileSnippet}`;
                       className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      開始創作
+                      讓光球帶我開始
                     </Button>
                   ) : (
                     <Button
@@ -1514,16 +1514,15 @@ ${profileSnippet}`;
                       免費體驗
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate("/learn/tutorial-overview")}
-                    className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
-                  >
-                    <Rocket className="w-3.5 h-3.5" />
-                    查看教學
-                  </Button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/agent?tutorial=overview&target=/learn/tutorial-overview&entry=home")}
+                  className={`mt-2 inline-flex items-center gap-1 text-[11px] sm:text-xs underline-offset-2 hover:underline transition-colors duration-1000 ${s.textMuted}`}
+                >
+                  <Rocket className="w-3 h-3" />
+                  想先看教學？交給光球導覽
+                </button>
               </div>
             </motion.div>
 
