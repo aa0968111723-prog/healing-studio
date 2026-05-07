@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { agentPreferences } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -69,12 +69,38 @@ const UpdateSchema = z.object({
 async function ensurePreferences(userId: number) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  await ensureAgentPreferencesSchema(db);
   const existing = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
   if (existing[0]) return existing[0];
 
   await db.insert(agentPreferences).values({ userId, ...DEFAULT_AGENT_PREFERENCES });
   const created = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
   return created[0];
+}
+
+let ensureSchemaOnce: Promise<void> | null = null;
+async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  if (ensureSchemaOnce) return ensureSchemaOnce;
+  ensureSchemaOnce = (async () => {
+    await db.execute(sql`
+      ALTER TABLE 
+        agent_preferences
+      ADD COLUMN IF NOT EXISTS preferredSpecialistAgent varchar(64) NULL,
+      ADD COLUMN IF NOT EXISTS specialistAutoActivate boolean NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS specialistProactiveMode boolean NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS specialistLearningEnabled boolean NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS disabledSpecialistAgents json NOT NULL
+    `);
+    await db.execute(sql`
+      UPDATE agent_preferences
+      SET disabledSpecialistAgents = JSON_ARRAY()
+      WHERE disabledSpecialistAgents IS NULL
+    `);
+  })().catch(err => {
+    ensureSchemaOnce = null;
+    throw err;
+  });
+  return ensureSchemaOnce;
 }
 
 export const agentPreferencesRouter = router({
