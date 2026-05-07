@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
-import { useLocation, useSearch } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 const AiBrainSettings = lazy(() => import("./AiBrainSettings"));
@@ -417,9 +417,9 @@ export default function AdminPage() {
           className="gap-1.5"
           data-testid="admin-brain-pipeline-link"
         >
-          <a href="/admin/brain-pipeline">
+          <Link href="/admin/brain-pipeline">
             🧠 大腦管線可視化
-          </a>
+          </Link>
         </Button>
       </div>
 
