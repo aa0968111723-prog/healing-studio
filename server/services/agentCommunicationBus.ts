@@ -14,6 +14,11 @@ import type {
 import type { AgentRole } from "../../shared/orb-agent-roles";
 import { serializeAgentMessage } from "../../shared/agent-communication-protocol";
 import { logger } from "../_core/logger";
+import { db } from "../db";
+import {
+  agentCollaborationMessages,
+  type InsertAgentCollaborationMessage,
+} from "../../drizzle/schema";
 
 type MessageHandler = (message: AgentMessage) => Promise<void> | void;
 
@@ -81,6 +86,44 @@ class AgentCommunicationBusClass {
       priority: message.priority,
       correlation: message.correlationId,
     });
+
+    // ─── Persist message to database ────────────────────────────────────
+    try {
+      const toAgentString = Array.isArray(message.toAgent)
+        ? message.toAgent.join(",")
+        : message.toAgent;
+
+      const dbMessage: InsertAgentCollaborationMessage = {
+        messageId: message.messageId,
+        collaborationId: message.content.context?.collaborationId || null,
+        fromAgent: message.fromAgent,
+        toAgent: toAgentString,
+        messageType: message.messageType,
+        priority: message.priority,
+        content: {
+          action: message.content.action,
+          data: message.content.data,
+          reason: message.content.reason,
+          responseFormat: message.content.responseFormat,
+        },
+        correlationId: message.correlationId || null,
+        timestamp: message.timestamp,
+      };
+
+      await db.insert(agentCollaborationMessages).values(dbMessage);
+
+      logger.debug({
+        event: "agent_message_persisted",
+        messageId: message.messageId,
+      });
+    } catch (error) {
+      logger.error({
+        event: "agent_message_persist_failed",
+        messageId: message.messageId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue even if persistence fails - in-memory delivery proceeds
+    }
 
     // Route message to recipients
     if (message.toAgent === "broadcast") {
