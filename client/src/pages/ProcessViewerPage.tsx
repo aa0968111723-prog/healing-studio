@@ -30,6 +30,12 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { decodeProcessSpec, type ProcessSpec } from "../../../shared/orb-process-link";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 
 function readSpecFromUrl(): { spec?: ProcessSpec; reason?: string } {
   if (typeof window === "undefined") return { reason: "no-window" };
@@ -51,6 +57,49 @@ export default function ProcessViewerPage() {
   useEffect(() => {
     setCompleted(new Set());
   }, [spec?.title]);
+
+  const processCapabilities = useMemo<AgentCapability[]>(
+    () => [
+      {
+        action: "navigate",
+        label: "跳到流程指定步驟路徑",
+        hint: "navigate path=<步驟內顯示的內部路徑>",
+      },
+      {
+        action: "runWorkflow",
+        label: "讓光球依此流程執行",
+      },
+    ],
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "process-viewer",
+    pageLabel: "流程檢視器",
+    pagePath: "/process",
+    capabilities: processCapabilities,
+    state: {
+      hasSpec: spec !== undefined,
+      title: spec?.title ?? null,
+      kind: spec?.kind ?? null,
+      stepCount: spec?.steps.length ?? 0,
+      doneCount: completed.size,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "runWorkflow") {
+        if (!spec || spec.kind !== "workflow") {
+          return { ok: false, reason: "目前流程不可執行（kind 非 workflow 或尚未載入）" };
+        }
+        orbChat.open();
+        orbChat.setInput(
+          `請依「${spec.title}」這個流程，幫我跨頁執行 ${spec.steps.length} 個步驟。`
+        );
+        navigate("/agent");
+        return { ok: true, message: "已把流程交給光球", data: { title: spec.title } };
+      }
+      return { ok: false, reason: `unsupported on process-viewer: ${action.type}` };
+    },
+  });
 
   if (!spec) {
     return (

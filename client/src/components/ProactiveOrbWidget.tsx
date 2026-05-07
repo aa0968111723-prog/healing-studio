@@ -1934,6 +1934,18 @@ export default memo(function ProactiveOrbWidget({
 
   const handleQuickAction = useCallback(
     async (action: string) => {
+      // Persist the click as a "quick action accepted" memory so the
+      // planner sees on the next turn which suggestions the user
+      // actually engaged with — closing the suggest → click → learn
+      // loop. The 32-char actionType cap is enforced inside
+      // reportFeedback (slice), so a `qa:` prefix + the action id is
+      // safe for every existing quick-action key.
+      pageAgent.reportFeedback({
+        status: "accepted",
+        actionType: `qa:${action}`,
+        pageId: pageContext?.pageId,
+        note: currentRegistryPage?.label ?? pageContext?.pageLabel,
+      });
       switch (action) {
         case "random": {
           const preset =
@@ -2290,6 +2302,18 @@ export default memo(function ProactiveOrbWidget({
       prompt?: string;
       label: string;
     }) => {
+      // Persist the click as a "quick action accepted" memory before
+      // we run it. When an `action` is present dispatch will also
+      // emit its own completed/failed feedback — that's complementary
+      // (intent vs. outcome) and the planner reads both.
+      pageAgent.reportFeedback({
+        status: "accepted",
+        actionType: quickAction.action
+          ? `qa:${quickAction.action.type}`
+          : "qa:registry",
+        pageId: pageContext?.pageId,
+        note: quickAction.label,
+      });
       if (quickAction.path) {
         onNavigate?.(quickAction.path);
       }
@@ -2304,7 +2328,7 @@ export default memo(function ProactiveOrbWidget({
       }
       showFeedback(`已開始：${quickAction.label}`);
     },
-    [onNavigate, pageAgent, showFeedback]
+    [onNavigate, pageAgent, showFeedback, pageContext?.pageId, setChatInput]
   );
 
   // ─── Chat handler (with real LLM + conversation history) ─────────────

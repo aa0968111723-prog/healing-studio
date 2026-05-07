@@ -86,7 +86,26 @@ interface DispatchOptions {
   requireConfirmation?: boolean;
   intentSummary?: string;
   source?: "ai-chat" | "orb-guide" | "manual";
+  /**
+   * Wall-clock timeout for the entire dispatch (navigate → settle →
+   * awaiting handler). Defaults to {@link DEFAULT_DISPATCH_TIMEOUT_MS}.
+   * Pass `0` to disable. When the timeout fires the result is
+   * `{ ok: false, reason: "timeout: dispatch exceeded Nms" }` so the
+   * "timeout" → TIMEOUT error mapping in {@link executeApprovedTask}
+   * still kicks in.
+   */
+  timeoutMs?: number;
 }
+
+/**
+ * Default wall-clock cap for a single dispatch call. Any of
+ * navigate / settle / awaiting page handler can stall an entire orb
+ * workflow if it never resolves; 8s is short enough that the user
+ * sees a recoverable failure instead of a frozen agent, and long
+ * enough that legitimate slow handlers (image submit, big LLM call)
+ * still make it through.
+ */
+export const DEFAULT_DISPATCH_TIMEOUT_MS = 8_000;
 
 export type AgentExecutionErrorCode =
   | "NOT_APPROVED"
@@ -176,7 +195,7 @@ interface PageAgentContextValue {
   pendingConfirmation: PendingConfirmation | null;
   confirmPending: () => Promise<AgentActionResult | null>;
   cancelPending: (note?: string) => void;
-  reportFeedback: (event: Partial<AgentFeedbackEvent> & {
+  reportFeedback: (event: Omit<Partial<AgentFeedbackEvent>, "actionType"> & {
     status: AgentFeedbackStatus;
     actionType: AgentActionType | string;
   }) => void;
@@ -306,7 +325,7 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reportFeedback = useCallback(
-    (event: Partial<AgentFeedbackEvent> & { status: AgentFeedbackStatus; actionType: AgentActionType | string }) => {
+    (event: Omit<Partial<AgentFeedbackEvent>, "actionType"> & { status: AgentFeedbackStatus; actionType: AgentActionType | string }) => {
       const resolvedPageId = event.pageId ?? pageRef.current?.snapshot.pageId;
       setRecentFeedback(prev => pushFeedback(prev, {
         at: event.at ?? Date.now(),
@@ -431,7 +450,21 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       });
       return { ok: true, message: "awaiting user confirmation" };
     }
-    return runDispatch(action, opts);
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS;
+    const work = runDispatch(action, opts);
+    if (timeoutMs <= 0) return work;
+    let timer: number | null = null;
+    const timeoutPromise = new Promise<AgentActionResult>(resolve => {
+      timer = window.setTimeout(
+        () => resolve({ ok: false, reason: `timeout: dispatch exceeded ${timeoutMs}ms` }),
+        timeoutMs
+      );
+    });
+    try {
+      return await Promise.race([work, timeoutPromise]);
+    } finally {
+      if (timer !== null) window.clearTimeout(timer);
+    }
   }, [runDispatch]);
 
   const confirmPending = useCallback(async () => {
@@ -456,14 +489,6 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     for (const action of actions) results.push(await dispatch(action, opts));
     return results;
   }, [dispatch]);
-
-  const runWithTimeout = useCallback(async (promise: Promise<AgentActionResult>, timeoutMs: number): Promise<AgentActionResult> => {
-    if (timeoutMs <= 0) return promise;
-    return await Promise.race([
-      promise,
-      new Promise<AgentActionResult>(resolve => window.setTimeout(() => resolve({ ok: false, reason: "timeout waiting action result" }), timeoutMs)),
-    ]);
-  }, []);
 
   const executeApprovedTask = useCallback(async (task: ApprovedTask, opts?: {
     timeoutMsPerAction?: number;
@@ -495,7 +520,14 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
         const nextSteps = prev.steps.map(step => step.index === i ? { ...step, status: "running" as const } : step);
         return { ...prev, currentStep: i + 1, steps: nextSteps };
       });
-      const result = await runWithTimeout(dispatch(action, { targetPageId: task.pageId, enqueueIfNoHandler: false, requireConfirmation: false, source: opts?.source ?? "ai-chat" }), opts?.timeoutMsPerAction ?? 15_000);
+      const stepTimeoutMs = opts?.timeoutMsPerAction ?? 15_000;
+      const result = await dispatch(action, {
+        targetPageId: task.pageId,
+        enqueueIfNoHandler: false,
+        requireConfirmation: false,
+        source: opts?.source ?? "ai-chat",
+        timeoutMs: stepTimeoutMs,
+      });
       if (!result.ok) {
         const reason = result.reason ?? "unknown action failure";
         const errorCode: AgentExecutionErrorCode = reason.includes("timeout") ? "TIMEOUT" : reason.includes("threw") ? "ACTION_EXCEPTION" : reason === "no matching page handler" ? "NO_PAGE_HANDLER" : "ACTION_REJECTED";
@@ -509,7 +541,7 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     }
     setTaskExecution(prev => prev ? { ...prev, status: "completed" } : prev);
     return { ok: true as const };
-  }, [dispatch, runWithTimeout]);
+  }, [dispatch]);
 
   const registerPage = useCallback((page: RegisteredPage) => {
     pageRef.current = page;

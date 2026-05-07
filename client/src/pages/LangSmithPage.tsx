@@ -1,6 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1411,12 +1417,62 @@ function ExportTab() {
 
 // ─── Main Page Component ─────────────────────────────────────────────────────
 
+const LANGSMITH_TAB_META: ReadonlyArray<{ id: TabId; label: string; description: string }> = [
+  { id: "overview", label: "總覽", description: "監控總覽與健康度" },
+  { id: "traces", label: "追蹤", description: "全鏈路 trace 列表" },
+  { id: "comparison", label: "模型對比", description: "多模型 A/B 比較" },
+  { id: "datasets", label: "數據集", description: "回饋收集與數據集" },
+  { id: "export", label: "微調導出", description: "為微調匯出資料" },
+];
+
+const isLangsmithTabId = (value: string): value is TabId =>
+  LANGSMITH_TAB_META.some(t => t.id === value);
+
 export default function LangSmithPage() {
   usePageTour("langsmith");
 
   const statusQuery = trpc.langsmith.status.useQuery(undefined, {
     retry: false,
     refetchInterval: 120_000,
+  });
+
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+
+  const langsmithCapabilities = useMemo<AgentCapability[]>(
+    () => [
+      {
+        action: "setTab",
+        label: "切換 LangSmith 分頁",
+        currentId: activeTab,
+        options: LANGSMITH_TAB_META.map(t => ({
+          id: t.id,
+          label: t.label,
+          description: t.description,
+        })),
+      },
+    ],
+    [activeTab]
+  );
+
+  useRegisterPageAgent({
+    pageId: "langsmith",
+    pageLabel: "AI 監控中心",
+    pagePath: "/langsmith",
+    capabilities: langsmithCapabilities,
+    state: {
+      activeTab,
+      connected: statusQuery.data?.connected ?? false,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "setTab") {
+        if (!isLangsmithTabId(action.tabId)) {
+          return { ok: false, reason: `unknown langsmith tab: ${action.tabId}` };
+        }
+        setActiveTab(action.tabId);
+        return { ok: true, message: `切到「${action.tabId}」分頁`, data: { activeTab: action.tabId } };
+      }
+      return { ok: false, reason: `unsupported on langsmith: ${action.type}` };
+    },
   });
 
   return (
@@ -1438,7 +1494,11 @@ export default function LangSmithPage() {
       </p>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={value => setActiveTab(value as TabId)}
+        className="space-y-4"
+      >
         <TabsList className="grid w-full grid-cols-5 rounded-xl h-9">
           <TabsTrigger value="overview" className="text-xs rounded-lg gap-1">
             <Shield className="w-3 h-3" />{" "}

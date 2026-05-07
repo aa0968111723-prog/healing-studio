@@ -8,6 +8,12 @@ import {
 } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
+import {
   Wand2,
   Clapperboard,
   Package,
@@ -132,6 +138,40 @@ export default function CreationHub() {
     params.set("tab", value);
     setLocation(`/create?${params.toString()}`, { replace: true });
   };
+
+  const creationCapabilities = useMemo<AgentCapability[]>(
+    () => [
+      {
+        action: "setTab",
+        label: "切換創作中心分頁",
+        currentId: activeTab,
+        options: TABS.map(tab => ({
+          id: tab.id,
+          label: tab.label,
+          description: tab.hint,
+        })),
+      },
+    ],
+    [activeTab]
+  );
+
+  useRegisterPageAgent({
+    pageId: "creation-hub",
+    pageLabel: "創作中心",
+    pagePath: "/create",
+    capabilities: creationCapabilities,
+    state: { activeTab },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "setTab") {
+        if (!isCreationTabId(action.tabId)) {
+          return { ok: false, reason: `unknown creation-hub tab: ${action.tabId}` };
+        }
+        handleTabChange(action.tabId);
+        return { ok: true, message: `切到「${action.tabId}」分頁`, data: { activeTab: action.tabId } };
+      }
+      return { ok: false, reason: `unsupported on creation-hub: ${action.type}` };
+    },
+  });
 
   return (
     <div className="creation-hub-shell space-y-5">
