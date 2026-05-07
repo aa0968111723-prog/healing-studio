@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { Link } from "wouter";
 
 type Mode = "login" | "register";
 
@@ -383,16 +384,12 @@ export default function LocalAuthForm({
                   ).padStart(2, "0")}）`
                 : ""}
             </span>
-            <a
+            <Link
               href="/forgot-password"
               className="text-xs text-primary hover:underline"
-              onClick={e => {
-                e.preventDefault();
-                window.location.href = "/forgot-password";
-              }}
             >
               忘記密碼？
-            </a>
+            </Link>
           </div>
 
           {twoFactorRequired && (

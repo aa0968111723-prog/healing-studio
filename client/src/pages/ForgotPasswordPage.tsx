@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [, navigate] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,13 +49,13 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center gap-2">
-            <a
+            <Link
               href="/"
               className="p-1 hover:bg-muted rounded-md transition-colors"
               aria-label="返回首頁"
             >
               <ArrowLeft className="h-5 w-5" />
-            </a>
+            </Link>
             <CardTitle className="text-2xl font-bold">忘記密碼</CardTitle>
           </div>
           <CardDescription>
@@ -79,7 +81,7 @@ export default function ForgotPasswordPage() {
               </div>
               <div className="space-y-2 pt-4">
                 <Button
-                  onClick={() => window.location.href = "/"}
+                  onClick={() => navigate("/")}
                   variant="outline"
                   className="w-full"
                 >

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -259,6 +260,7 @@ function QuickSaveForm({
 // ─── Main Drawer ────────────────────────────────────────────────────────────
 
 export default function ProjectNotesDrawer() {
+  const [, navigate] = useLocation();
   const { isOpen, closeDrawer, pendingPayload } = useNotesDrawer();
   const [showForm, setShowForm] = useState(false);
 
@@ -367,7 +369,7 @@ export default function ProjectNotesDrawer() {
             <div className="flex items-center justify-between text-xs text-muted-foreground/40">
               <span>{notesQuery.data?.length ?? 0} 則筆記</span>
               <button
-                onClick={() => (window.location.href = "/notes")}
+                onClick={() => navigate("/notes")}
                 className="flex items-center gap-1 hover:text-foreground/70 transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />

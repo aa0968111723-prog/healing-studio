@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ export default function ResetPasswordPage() {
   const [tokenValid, setTokenValid] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [, navigate] = useLocation();
 
   const isStrongPassword = (value: string) =>
     value.length >= 8 &&
@@ -101,7 +103,7 @@ export default function ResetPasswordPage() {
 
       // Redirect to home after 3 seconds
       setTimeout(() => {
-        window.location.href = "/";
+        navigate("/");
       }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "密碼重置失敗");
@@ -132,13 +134,13 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center gap-2">
-            <a
+            <Link
               href="/"
               className="p-1 hover:bg-muted rounded-md transition-colors"
               aria-label="返回首頁"
             >
               <ArrowLeft className="h-5 w-5" />
-            </a>
+            </Link>
             <CardTitle className="text-2xl font-bold">重置密碼</CardTitle>
           </div>
           <CardDescription>設定您的新密碼</CardDescription>
@@ -164,13 +166,13 @@ export default function ResetPasswordPage() {
               </div>
               <div className="space-y-2 pt-4">
                 <Button
-                  onClick={() => window.location.href = "/forgot-password"}
+                  onClick={() => navigate("/forgot-password")}
                   className="w-full"
                 >
                   重新申請重置連結
                 </Button>
                 <Button
-                  onClick={() => window.location.href = "/"}
+                  onClick={() => navigate("/")}
                   variant="outline"
                   className="w-full"
                 >

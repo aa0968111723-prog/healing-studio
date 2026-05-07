@@ -26,6 +26,11 @@ for (const pkg of requiredPackages) {
 const shouldTypecheck = process.argv.includes("--typecheck");
 const strictRoutes = process.argv.includes("--strict");
 
+const navigationScan = spawnSync("node", ["scripts/check-internal-navigation.mjs"], { stdio: "inherit" });
+if (navigationScan.status && navigationScan.status !== 0) {
+  process.exit(navigationScan.status);
+}
+
 // Route↔registry↔PageAgent lint runs unconditionally — it has no npm
 // dependencies, so it works even when install is blocked. In strict mode it
 // blocks the build; in lint mode it just prints warnings.

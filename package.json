@@ -20,7 +20,8 @@
     "db:push": "drizzle-kit migrate",
     "eval": "ts-node server/eval/runEval.ts",
     "lint": "npm run check",
-    "gitnexus": "node scripts/gitnexus-launcher.mjs"
+    "gitnexus": "node scripts/gitnexus-launcher.mjs",
+    "check:navigation": "node scripts/check-internal-navigation.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
