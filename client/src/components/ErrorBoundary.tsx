@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Cloud, RefreshCw, Home, ShieldCheck } from "lucide-react";
 import { Component, ReactNode } from "react";
+import { Link } from "wouter";
 
 interface Props {
   children: ReactNode;
@@ -183,8 +184,8 @@ class ErrorBoundary extends Component<Props, State> {
               <RefreshCw size={15} />
               重新嘗試
             </button>
-            <button
-              onClick={() => (window.location.href = "/studio")}
+            <Link
+              href="/studio"
               className={cn(
                 "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium",
                 "bg-muted text-muted-foreground",
@@ -193,7 +194,7 @@ class ErrorBoundary extends Component<Props, State> {
             >
               <Home size={15} />
               回到工作室
-            </button>
+            </Link>
           </div>
 
           {/* Subtle error detail for power users */}
