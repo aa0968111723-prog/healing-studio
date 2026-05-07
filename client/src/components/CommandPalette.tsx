@@ -2,11 +2,16 @@ import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowRight,
+  Brain,
   Compass,
+  Download,
   Home,
   RotateCcw,
+  Search,
   Settings,
+  Share2,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -22,6 +27,9 @@ import {
 import { getSidebarGroups, getAllPages } from "@/config/appRegistry";
 import type { AppPageGroupId } from "@/config/appRegistry";
 import { useSiteOnboarding } from "@/contexts/SiteOnboardingContext";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const GROUP_LABELS: Record<AppPageGroupId, string> = {
   orb: "光球與首頁",
@@ -42,6 +50,19 @@ export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
   const { startTour } = useSiteOnboarding();
+  const globalChat = useGlobalOrbChat();
+  const utils = trpc.useUtils();
+  const clearMemory = trpc.orbProxy.clearAllPreferenceMemory.useMutation({
+    onSuccess: result => {
+      void utils.orbProxy.getRememberedPreferences.invalidate();
+      toast.success(
+        result.removed > 0
+          ? `已清掉 ${result.removed} 條偏好記憶，光球會重新詢問`
+          : "光球本來就還沒記住任何偏好"
+      );
+    },
+    onError: err => toast.error(`清除失敗：${err.message}`),
+  });
 
   // Toggle on ⌘K / Ctrl-K
   useEffect(() => {
@@ -65,6 +86,39 @@ export default function CommandPalette() {
     },
     [setLocation]
   );
+
+  // Send a phrase via the global orb chat. Closes the palette first so the
+  // chat panel/transition isn't fighting the dialog dismiss animation, then
+  // ensures the chat is open and forwards the message — the existing
+  // `sendMessage` already routes to the right shortcut (search / detection /
+  // LLM) so we don't need to duplicate that logic here.
+  const sendOrbPhrase = useCallback(
+    (phrase: string) => {
+      setOpen(false);
+      setTimeout(() => {
+        globalChat.open();
+        void globalChat.sendMessage(phrase);
+      }, 80);
+    },
+    [globalChat]
+  );
+
+  const openOrbChat = useCallback(() => {
+    setOpen(false);
+    setTimeout(() => globalChat.open(), 80);
+  }, [globalChat]);
+
+  const handleClearMemory = useCallback(() => {
+    setOpen(false);
+    if (clearMemory.isPending) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(
+        "確定要清掉光球記住的所有偏好（風格／平台／用途／模型）嗎？這會讓光球下次重新詢問。"
+      );
+      if (!ok) return;
+    }
+    clearMemory.mutate();
+  }, [clearMemory]);
 
   const groups = getSidebarGroups();
   const allPages = getAllPages();
@@ -114,6 +168,88 @@ export default function CommandPalette() {
           >
             <RotateCcw />
             <span>重新開始新手導覽</span>
+          </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading="光球動作">
+          <CommandItem
+            value="orb open chat 對話 聊天"
+            onSelect={openOrbChat}
+          >
+            <Sparkles />
+            <div className="flex flex-col gap-0.5">
+              <span>打開光球對話</span>
+              <span className="text-xs text-muted-foreground">
+                跟光球聊天、提問、要求多步驟代辦
+              </span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="orb search find assets 找 搜尋 我的素材 筆記"
+            onSelect={() => sendOrbPhrase("找我之前的素材")}
+            data-testid="cmdk-orb-search"
+          >
+            <Search />
+            <div className="flex flex-col gap-0.5">
+              <span>找我之前的素材</span>
+              <span className="text-xs text-muted-foreground">
+                跨資產／筆記／生成歷史／教學中心搜尋
+              </span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="orb export pdf chat 匯出 對話 聊天 pdf"
+            onSelect={() => sendOrbPhrase("把今天的對話匯出成 PDF")}
+            data-testid="cmdk-orb-export-pdf"
+          >
+            <Download />
+            <div className="flex flex-col gap-0.5">
+              <span>匯出今天的對話成 PDF</span>
+              <span className="text-xs text-muted-foreground">
+                打開列印視窗，挑選「另存為 PDF」
+              </span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="orb share workflow link 分享 工作流 連結"
+            onSelect={() => sendOrbPhrase("把剛剛的流程做成連結")}
+            data-testid="cmdk-orb-share-workflow"
+          >
+            <Share2 />
+            <div className="flex flex-col gap-0.5">
+              <span>分享上一個工作流</span>
+              <span className="text-xs text-muted-foreground">
+                打包成 /process?spec=… 連結並複製到剪貼簿
+              </span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="orb memory remember preferences 光球 記得 偏好"
+            onSelect={() => sendOrbPhrase("光球記得我什麼？")}
+            data-testid="cmdk-orb-memory-show"
+          >
+            <Brain />
+            <div className="flex flex-col gap-0.5">
+              <span>看光球記得我什麼</span>
+              <span className="text-xs text-muted-foreground">
+                秀出風格／平台／用途偏好的儀表板
+              </span>
+            </div>
+          </CommandItem>
+          <CommandItem
+            value="orb clear memory reset preferences 清除 重置 記憶 偏好"
+            onSelect={handleClearMemory}
+            data-testid="cmdk-orb-memory-clear"
+          >
+            <Trash2 />
+            <div className="flex flex-col gap-0.5">
+              <span>清除光球的所有記憶偏好</span>
+              <span className="text-xs text-muted-foreground">
+                {clearMemory.isPending ? "清除中…" : "重置風格／平台／用途／模型偏好（會問你確認）"}
+              </span>
+            </div>
           </CommandItem>
         </CommandGroup>
 
