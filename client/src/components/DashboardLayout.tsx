@@ -5,6 +5,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -54,8 +56,6 @@ import {
   BookOpen,
   BookMarked,
   ChevronRight,
-  Palette,
-  FolderOpen,
   ListChecks,
   Coins,
   Monitor,
@@ -63,6 +63,7 @@ import {
   GripVertical,
   Bot,
   Sparkles,
+  LayoutGrid,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -95,26 +96,44 @@ import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 
 
 type SidebarLeafItem = {
+  kind: "leaf";
   icon: LucideIcon;
   label: string;
   path: string;
   id: string;
+  pageId: string;
 };
 
 type SidebarGroupItem = {
+  kind: "group";
   icon: LucideIcon;
   label: string;
   children: SidebarLeafItem[];
 };
 
-type SidebarEntry = SidebarLeafItem | SidebarGroupItem;
+type SidebarHeadingItem = {
+  kind: "heading";
+  label: string;
+};
+
+type SidebarEntry = SidebarLeafItem | SidebarGroupItem | SidebarHeadingItem;
 
 function isGroup(entry: SidebarEntry): entry is SidebarGroupItem {
-  return "children" in entry;
+  return entry.kind === "group";
+}
+
+function isHeading(entry: SidebarEntry): entry is SidebarHeadingItem {
+  return entry.kind === "heading";
+}
+
+function isLeaf(entry: SidebarEntry): entry is SidebarLeafItem {
+  return entry.kind === "leaf";
 }
 
 const sidebarIconByPageId: Record<string, LucideIcon> = {
   "agent-chat": Bot,
+  create: LayoutGrid,
+  playground: Sparkles,
   studio: Wand2,
   "image-studio": Image,
   "video-studio": Film,
@@ -138,12 +157,6 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
-const groupIconByName: Record<string, LucideIcon> = {
-  專業創作室: Palette,
-  資源中心: FolderOpen,
-  數據洞察: BarChart3,
-};
-
 const sidebarGroupsFromRegistry = getSidebarGroups();
 const sidebarPagesById = new Map(
   sidebarGroupsFromRegistry.flatMap(group =>
@@ -152,61 +165,39 @@ const sidebarPagesById = new Map(
 );
 
 const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
+  kind: "leaf",
   icon: sidebarIconByPageId[page.id] ?? BookOpen,
   label: page.label,
   path: page.path,
   id: `sidebar-${page.id}-link`,
+  pageId: page.id,
 });
 
-const createGroupEntry = (
-  label: string,
-  pageIds: string[]
-): SidebarGroupItem => ({
-  icon: groupIconByName[label] ?? FolderOpen,
-  label,
-  children: pageIds
-    .map(id => sidebarPagesById.get(id))
-    .filter((page): page is AppPageRegistryItem => Boolean(page))
-    .map(toLeafItem),
+const buildLeaf = (id: string): SidebarLeafItem | null => {
+  const page = sidebarPagesById.get(id);
+  return page ? toLeafItem(page) : null;
+};
+
+const sidebarStructure: SidebarEntry[] = (() => {
+  const entries: SidebarEntry[] = [];
+  const push = (entry: SidebarEntry | null) => {
+    if (entry) entries.push(entry);
+  };
+  push(buildLeaf("agent-chat"));
+  entries.push({ kind: "heading", label: "日常創作" });
+  push(buildLeaf("create"));
+  entries.push({ kind: "heading", label: "進階工具" });
+  push(buildLeaf("playground"));
+  entries.push({ kind: "heading", label: "學習" });
+  push(buildLeaf("learn"));
+  return entries;
+})();
+
+const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry => {
+  if (isGroup(entry)) return entry.children;
+  if (isLeaf(entry)) return [entry];
+  return [];
 });
-
-const sidebarStructure: SidebarEntry[] = ["agent-chat", "studio", "director"]
-  .map(id => sidebarPagesById.get(id))
-  .filter((page): page is AppPageRegistryItem => Boolean(page))
-  .map(toLeafItem);
-
-sidebarStructure.splice(
-  2,
-  0,
-  createGroupEntry("專業創作室", ["image-studio", "video-studio", "pro-studio"])
-);
-sidebarStructure.push(
-  createGroupEntry("資源中心", [
-    "assets",
-    "models",
-    "lora-trainer",
-    "notes",
-    "history",
-    "calendar",
-  ])
-);
-sidebarStructure.push(
-  createGroupEntry("數據洞察", ["dashboard"])
-);
-for (const tailId of ["learn", "settings"]) {
-  const page = sidebarPagesById.get(tailId);
-  if (page) {
-    sidebarStructure.push(toLeafItem(page));
-  }
-}
-
-const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry =>
-  isGroup(entry) ? entry.children : [entry]
-);
-
-const adminItems = [
-  { icon: Shield, label: "管理後台", path: "/admin" },
-];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
@@ -378,9 +369,7 @@ function DashboardLayoutContent({
   );
   const [sidebarQuery, setSidebarQuery] = useState("");
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = [...flatMenuItems, ...adminItems].find(
-    item => item.path === location
-  );
+  const activeMenuItem = flatMenuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
   const { viewMode } = useViewMode();
   const normalizedSidebarQuery = sidebarQuery.trim().toLowerCase();
@@ -389,7 +378,11 @@ function DashboardLayoutContent({
 
     return sidebarStructure
       .map(entry => {
-        if (!isGroup(entry)) {
+        if (isHeading(entry)) {
+          // Headings are decorative — skip during search filtering.
+          return null;
+        }
+        if (isLeaf(entry)) {
           const matched =
             entry.label.toLowerCase().includes(normalizedSidebarQuery) ||
             entry.path.toLowerCase().includes(normalizedSidebarQuery);
@@ -636,7 +629,18 @@ function DashboardLayoutContent({
               role="navigation"
               aria-label="主導覽"
             >
-              {visibleSidebarStructure.map(entry => {
+              {visibleSidebarStructure.map((entry, index) => {
+                if (isHeading(entry)) {
+                  return (
+                    <li
+                      key={`heading-${entry.label}-${index}`}
+                      className="sidebar-section-heading group-data-[collapsible=icon]:hidden list-none px-3 pt-4 pb-1.5 text-[10px] font-medium tracking-[0.16em] uppercase text-muted-foreground/55"
+                      role="presentation"
+                    >
+                      <span>{entry.label}</span>
+                    </li>
+                  );
+                }
                 if (isGroup(entry)) {
                   const hasActiveChild = entry.children.some(
                     child => location === child.path
@@ -651,14 +655,14 @@ function DashboardLayoutContent({
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             tooltip={entry.label}
-                            className="h-10 transition-all font-normal rounded-xl"
+                            className="h-11 transition-all duration-200 ease-out font-normal rounded-xl"
                           >
                             <entry.icon className="h-4 w-4" />
                             <span>{entry.label}</span>
                             <span className="ml-1 text-[10px] text-muted-foreground">
                               {entry.children.length}
                             </span>
-                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -694,7 +698,8 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(entry.path)}
                       tooltip={entry.label}
-                      className="h-10 transition-all font-normal rounded-xl"
+                      data-pageid={entry.pageId}
+                      className="sidebar-leaf-button h-11 transition-all duration-200 ease-out font-normal rounded-xl"
                       id={entry.id}
                     >
                       <entry.icon
@@ -705,32 +710,15 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
-              {isAdmin &&
-                adminItems.map(item => {
-                  const isActive = location === item.path;
-                  return (
-                    <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        onClick={() => setLocation(item.path)}
-                        tooltip={item.label}
-                        className="h-10 transition-all font-normal rounded-xl"
-                      >
-                        <item.icon
-                          className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                        />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              {visibleSidebarStructure.length === 0 && !isCollapsed && (
-                <SidebarMenuItem>
-                  <div className="px-3 py-6 text-center text-xs text-muted-foreground rounded-xl border border-dashed border-border/70">
-                    找不到符合的頁面，請換個關鍵字試試。
-                  </div>
-                </SidebarMenuItem>
-              )}
+              {visibleSidebarStructure.filter(e => !isHeading(e)).length ===
+                0 &&
+                !isCollapsed && (
+                  <SidebarMenuItem>
+                    <div className="px-3 py-6 text-center text-xs text-muted-foreground rounded-xl border border-dashed border-border/70">
+                      找不到符合的頁面，請換個關鍵字試試。
+                    </div>
+                  </SidebarMenuItem>
+                )}
             </SidebarMenu>
           </SidebarContent>
 
@@ -775,7 +763,16 @@ function DashboardLayoutContent({
                   </div>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel className="px-3 pb-1.5 pt-2">
+                  <p className="text-sm font-medium truncate text-foreground">
+                    {displayName}
+                  </p>
+                  <p className="text-xs font-normal text-muted-foreground truncate mt-0.5">
+                    {user?.email || "-"}
+                  </p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setLocation("/")}
                   className="cursor-pointer"
@@ -790,6 +787,16 @@ function DashboardLayoutContent({
                   <Settings className="mr-2 h-4 w-4" />
                   <span>個人設定</span>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem
+                    onClick={() => setLocation("/admin")}
+                    className="cursor-pointer"
+                  >
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>管理後台</span>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => startTour("welcome", true)}
                   className="cursor-pointer"
@@ -928,6 +935,15 @@ function DashboardLayoutContent({
                     <Settings className="mr-2 h-4 w-4" />
                     <span>個人設定</span>
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      onClick={() => setLocation("/admin")}
+                      className="cursor-pointer h-10"
+                    >
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>管理後台</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onClick={() => startTour("welcome", true)}
                     className="cursor-pointer h-10"

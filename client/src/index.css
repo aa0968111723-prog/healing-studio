@@ -591,6 +591,110 @@
     pointer-events: none;
   }
 
+  /* ─── Sidebar UX polish: section headings, accent rails, leaf hover ─── */
+  .sidebar-section-heading + .sidebar-section-heading {
+    /* Avoid stacking double headings if filtered. */
+    display: none;
+  }
+
+  .sidebar-leaf-button {
+    position: relative;
+  }
+
+  /* Subtle gradient accent rail on the left of "primary" sidebar leaves
+     (創作中心 / 模型樂園 / 學習文件中心). The rail fades in on hover and
+     becomes prominent when the entry is active. */
+  .sidebar-leaf-button[data-pageid="create"]::before,
+  .sidebar-leaf-button[data-pageid="playground"]::before,
+  .sidebar-leaf-button[data-pageid="learn"]::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.25s ease-out;
+    pointer-events: none;
+  }
+
+  .sidebar-leaf-button[data-pageid="create"]::before {
+    background: linear-gradient(
+      180deg,
+      oklch(0.78 0.10 60) 0%,
+      oklch(0.82 0.06 30) 100%
+    );
+  }
+  .sidebar-leaf-button[data-pageid="playground"]::before {
+    background: linear-gradient(
+      180deg,
+      oklch(0.78 0.12 290) 0%,
+      oklch(0.82 0.08 240) 100%
+    );
+  }
+  .sidebar-leaf-button[data-pageid="learn"]::before {
+    background: linear-gradient(
+      180deg,
+      oklch(0.82 0.08 170) 0%,
+      oklch(0.85 0.06 200) 100%
+    );
+  }
+
+  .sidebar-leaf-button[data-pageid]:hover::before {
+    opacity: 0.55;
+  }
+  .sidebar-leaf-button[data-pageid][data-active="true"]::before {
+    opacity: 1;
+  }
+  .sidebar-leaf-button[data-pageid][data-active="true"] {
+    box-shadow: 0 0 0 1px var(--sidebar-ring) / 18%;
+  }
+
+  /* Icon micro-zoom on hover — tactile, healing micro-interaction. */
+  .sidebar-leaf-button > svg,
+  [data-slot="sidebar-menu-button"] > svg {
+    transition: transform 0.2s ease-out;
+  }
+  .sidebar-leaf-button:hover > svg,
+  [data-slot="sidebar-menu-button"]:hover > svg {
+    transform: scale(1.06);
+  }
+
+  /* Tighter, calmer spacing between top-level entries. */
+  [data-slot="sidebar-menu"] {
+    gap: 0.25rem;
+  }
+
+  /* Hide the section heading list-marker for cleaner uppercase chips. */
+  .sidebar-section-heading {
+    list-style: none;
+  }
+
+  /* ─── Creation Hub & Playground hero ─── */
+  .playground-hero {
+    background: linear-gradient(
+      135deg,
+      oklch(0.97 0.02 290 / 0.55) 0%,
+      oklch(0.97 0.02 240 / 0.35) 60%,
+      transparent 100%
+    );
+  }
+  .playground-hero-glow {
+    position: absolute;
+    inset: -40% -10% auto auto;
+    width: 360px;
+    height: 360px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at center,
+      oklch(0.85 0.10 290 / 0.35),
+      transparent 70%
+    );
+    filter: blur(40px);
+    pointer-events: none;
+  }
+
   /* Quota card with zen gradient overlay — warmer healing tones */
   .quota-card-zen {
     background: linear-gradient(
