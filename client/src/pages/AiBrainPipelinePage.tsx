@@ -18,6 +18,13 @@ export default function AiBrainPipelinePage() {
   const [viewMode, setViewMode] = useState<ViewMode>("brain");
   const [, navigate] = useLocation();
 
+  // 純展示頁；只給 navigate 並用 ALLOWLIST 限制目的地。
+  const BRAIN_PIPELINE_NAV_ALLOWLIST = new Set<string>([
+    "/admin",
+    "/admin?section=brain",
+    "/admin/api-usage",
+    "/admin/brain-pipeline",
+  ]);
   useRegisterPageAgent({
     pageId: "admin-brain-pipeline",
     pageLabel: "大腦推理鏈視覺化",
@@ -34,8 +41,19 @@ export default function AiBrainPipelinePage() {
         ],
       },
     ],
+    state: {
+      autoRefresh,
+      statusFilter,
+      viewMode,
+    },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
+        if (!BRAIN_PIPELINE_NAV_ALLOWLIST.has(action.path)) {
+          return {
+            ok: false,
+            reason: `admin-brain-pipeline: 不在允許跳轉清單：${action.path}`,
+          };
+        }
         navigate(action.path);
         return { ok: true };
       }

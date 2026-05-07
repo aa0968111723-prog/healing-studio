@@ -776,8 +776,19 @@ export default function ModelsPage() {
     []
   );
   const FORGE_STEP_IDS: CharacterForgeStep[] = ["dataset", "captioning", "hyperparams", "training"];
+  // 加入 video-studio / pro-studio / models（同頁切換）讓「在角色鍛造所
+  // 完成訓練後直接前往對應創作工作室」的工作流可以一氣呵成。
   const MODELS_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/studio", "/image-studio", "/lora-trainer", "/assets"]),
+    () =>
+      new Set([
+        "/studio",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
+        "/lora-trainer",
+        "/assets",
+        "/models",
+      ]),
     []
   );
   const modelsAgentCapabilities: AgentCapability[] = useMemo(

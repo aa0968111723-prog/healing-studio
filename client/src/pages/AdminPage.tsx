@@ -185,6 +185,13 @@ export default function AdminPage() {
 
   // 管理員後台僅暴露安全的 navigate / setTab 能力給光球；不允許 destructive
   // 動作（submit / reset / applyPreset），避免代理人誤觸用戶配額或大腦切換。
+  // NAV_ALLOWLIST 必須與 capabilities.options 同步，否則合法導航會被擋。
+  const ADMIN_NAV_ALLOWLIST = new Set<string>([
+    "/admin",
+    "/admin?section=brain",
+    "/admin/api-usage",
+    "/admin/brain-pipeline",
+  ]);
   useRegisterPageAgent({
     pageId: "admin",
     pageLabel: "管理後台",
@@ -224,10 +231,16 @@ export default function AdminPage() {
     },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
+        if (!ADMIN_NAV_ALLOWLIST.has(action.path)) {
+          return { ok: false, reason: `admin: 不在允許跳轉清單：${action.path}` };
+        }
         navigate(action.path);
         return { ok: true };
       }
       if (action.type === "setTab" && typeof action.tabId === "string") {
+        if (!isAdminTabId(action.tabId)) {
+          return { ok: false, reason: `admin: 未知 tabId：${action.tabId}` };
+        }
         handleTabChange(action.tabId);
         return { ok: true };
       }

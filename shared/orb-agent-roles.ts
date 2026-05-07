@@ -467,6 +467,23 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
       return ["composer"];
     case "companion":
       return ["companion"];
+    case "image-specialist":
+    case "video-specialist":
+    case "music-specialist":
+    case "voice-specialist":
+      // Domain specialists hand off to composer for execution and end
+      // with critic so the user gets one round of refinement on the
+      // generated asset.
+      return [head.role, "composer", "critic"];
+    case "training-specialist":
+      // Training is execution-heavy on a single page (lora-trainer);
+      // skip the upfront director planning and end with critic to
+      // suggest dataset refinements.
+      return [head.role, "composer", "critic"];
+    case "learning-specialist":
+      // Learning chain stays advisory — navigator pulls the user to the
+      // right tutorial, critic offers a debrief once they've explored.
+      return [head.role, "navigator"];
   }
 }
 

@@ -13,6 +13,13 @@ export default function MyBrainPage() {
   const [, navigate] = useLocation();
 
   // 純展示頁：只給光球 navigate 能力，不允許動作直接改 brain 配置（那是 admin 範疇）。
+  // ALLOWLIST 與 capabilities.options 同步維護，光球只能跳到這 4 個目的地。
+  const MY_BRAIN_NAV_ALLOWLIST = new Set<string>([
+    "/my-brain",
+    "/admin?section=brain",
+    "/admin/brain-pipeline",
+    "/settings/ai-brain",
+  ]);
   useRegisterPageAgent({
     pageId: "my-brain",
     pageLabel: "我的大腦",
@@ -35,6 +42,12 @@ export default function MyBrainPage() {
     },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
+        if (!MY_BRAIN_NAV_ALLOWLIST.has(action.path)) {
+          return {
+            ok: false,
+            reason: `my-brain: 不在允許跳轉清單：${action.path}`,
+          };
+        }
         navigate(action.path);
         return { ok: true };
       }

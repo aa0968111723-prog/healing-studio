@@ -4063,6 +4063,9 @@ export default function VideoStudio() {
     pagePath: "/video-studio",
     capabilities: agentCapabilities,
     state: {
+      // 顯式宣告 modality 讓光球能直接挑選影像精靈；child state 來自當前
+      // tab 的子元件，通常包含 prompt、model、duration 等。
+      modality: "video",
       activeTab,
       activeTabLabel: TABS.find(t => t.id === activeTab)?.label ?? "",
       modelCount: VIDEO_MODELS.length,

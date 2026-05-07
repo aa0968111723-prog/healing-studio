@@ -1,9 +1,23 @@
+import { useMemo } from "react";
 import { useLocation } from "wouter";
 import { BookOpen, Compass, Film, Image as ImageIcon, MicVocal, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
+
+// 教學總覽頁的允許跳轉清單。光球只能把使用者帶去這幾個入口，避免被引誘
+// 到任意路徑。同步維護 capabilities.options 與這個 Set。
+const TUTORIAL_NAV_ALLOWLIST = new Set<string>([
+  "/",
+  "/learn",
+  "/director",
+  "/image-studio",
+  "/video-studio",
+  "/pro-studio",
+  "/agent",
+  "/studio",
+]);
 
 const QUICK_LINKS = [
   {
@@ -80,6 +94,8 @@ export default function TutorialOverviewPage() {
   const [, navigate] = useLocation();
   const { startTour } = useSiteOnboarding();
 
+  const tourCount = useMemo(() => TOUR_TRACKS.length, []);
+
   useRegisterPageAgent({
     pageId: "tutorial-overview",
     pageLabel: "教學總覽",
@@ -101,8 +117,18 @@ export default function TutorialOverviewPage() {
         ],
       },
     ],
+    state: {
+      tourCount,
+      surface: "tutorial-overview",
+    },
     handle: async (action): Promise<AgentActionResult> => {
       if (action.type === "navigate" && typeof action.path === "string") {
+        if (!TUTORIAL_NAV_ALLOWLIST.has(action.path)) {
+          return {
+            ok: false,
+            reason: `tutorial-overview: 不在允許跳轉清單：${action.path}`,
+          };
+        }
         navigate(action.path);
         return { ok: true };
       }

@@ -37,7 +37,9 @@ describe("selectRoleForIntent", () => {
   });
 
   it("routes navigate intents to navigator", () => {
-    const r = selectRoleForIntent({ text: "帶我去訓練模型那邊" });
+    // 用「設定頁面」這類沒有觸發其他 specialist 關鍵字的目標，確保
+    // navigator 規則不會被前面的 specialist 規則搶走。
+    const r = selectRoleForIntent({ text: "帶我去個人設定頁面" });
     expect(r.role).toBe("navigator");
   });
 
@@ -66,7 +68,7 @@ describe("composeRoleChain", () => {
     expect(chain).toEqual(["director", "composer", "critic"]);
   });
   it("navigator chain is single-role", () => {
-    const chain = composeRoleChain({ text: "帶我去學習中心" });
+    const chain = composeRoleChain({ text: "帶我去儀表板" });
     expect(chain).toEqual(["navigator"]);
   });
   it("researcher chain leads with researcher then planning", () => {

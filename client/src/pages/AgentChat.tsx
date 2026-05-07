@@ -205,6 +205,24 @@ export default function AgentChat() {
   //
   // 這頁自己的能力包括「帶你去別頁」和「搜尋」——
   // 其他結構化動作留給目的地頁面的 handler（透過 pending queue 傳遞）。
+  //
+  // navigate 的 ALLOWLIST 是「全站功能頁」的集合（從 AGENT_HOME_ENTRIES 衍
+  // 生），加上幾個輔助路徑。確保光球只把使用者送去已登記的頁面，避免被
+  // LLM 引誘到 /admin 等敏感路徑或亂編路徑。
+  const AGENT_NAV_ALLOWLIST = useMemo<Set<string>>(() => {
+    const paths = new Set<string>();
+    for (const entry of AGENT_HOME_ENTRIES) {
+      if (entry.path) paths.add(entry.path);
+    }
+    paths.add("/");
+    paths.add("/agent");
+    paths.add("/learn");
+    paths.add("/tutorial-overview");
+    paths.add("/dashboard");
+    paths.add("/settings");
+    paths.add("/credits");
+    return paths;
+  }, []);
   useRegisterPageAgent({
     pageId: "agent-chat",
     pageLabel: "全站光球代理",
@@ -221,8 +239,19 @@ export default function AgentChat() {
         hint: "搜尋功能頁面、工作流程、模型名稱",
       },
     ],
+    state: {
+      messageCount: globalChat.messages.length,
+      starterEntryCount: AGENT_HOME_ENTRIES.length,
+      surface: "agent-chat",
+    },
     handle: async action => {
       if (action.type === "navigate") {
+        if (!AGENT_NAV_ALLOWLIST.has(action.path)) {
+          return {
+            ok: false,
+            reason: `agent-chat: 不在允許跳轉清單：${action.path}`,
+          };
+        }
         setLocation(action.path);
         return { ok: true, message: "navigated" };
       }
@@ -236,7 +265,10 @@ export default function AgentChat() {
         return { ok: true, message: "searching" };
       }
       // 其他動作：這頁沒有工具可執行，讓 bus 自己 enqueue 給目標頁
-      return { ok: false, reason: "not-applicable-on-agent-chat" };
+      return {
+        ok: false,
+        reason: `agent-chat: not-applicable (${action.type}) — 由目標頁面接手`,
+      };
     },
   });
 
