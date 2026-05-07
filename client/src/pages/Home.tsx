@@ -77,6 +77,7 @@ import GrainOverlay from "@/components/home/GrainOverlay";
 import SceneVignette from "@/components/home/SceneVignette";
 import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
+import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
@@ -1151,14 +1152,14 @@ ${profileSnippet}`;
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex items-center gap-2">
-              <SceneSwitcher
-                currentScene={sceneId}
-                override={override}
-                allScenes={allScenes}
-                onSelect={setOverride}
-                isDark={isDark}
-              />
+            <SceneSwitcher
+              currentScene={sceneId}
+              override={override}
+              allScenes={allScenes}
+              onSelect={setOverride}
+              isDark={isDark}
+            />
+            <div className="hidden sm:flex">
               <SoundControl
                 controls={ambient}
                 isDark={isDark}
@@ -1246,15 +1247,17 @@ ${profileSnippet}`;
                   window.dispatchEvent(new CustomEvent("orb-open-capabilities"))
                 }
               >
-                {/* Ambient glow ring behind orb — soft, scene-linked */}
+                {/* Ambient glow ring behind orb — soft, scene-linked.
+                    Lower opacity on mobile so it doesn't stack with the
+                    JewelOrbStage bloom into a heavy amber ring. */}
                 <motion.div
-                  className="absolute inset-0 m-auto w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
+                  className="absolute inset-0 m-auto w-28 h-28 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
                   style={{
                     background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
                   }}
                   animate={{
                     scale: [1, 1.08, 1],
-                    opacity: [0.25, 0.4, 0.25],
+                    opacity: isMobile ? [0.15, 0.25, 0.15] : [0.25, 0.4, 0.25],
                   }}
                   transition={{
                     duration: 8,
@@ -1318,10 +1321,23 @@ ${profileSnippet}`;
                 <Button
                   size="lg"
                   onClick={() => navigate("/agent")}
-                  className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  className={`group relative overflow-hidden rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  style={{
+                    boxShadow: `0 8px 32px ${s.glowColor}, 0 0 0 1px rgba(255,255,255,0.06) inset`,
+                  }}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  進入光球入口
+                  {/* Sheen sweep on hover */}
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-[1100ms] ease-out"
+                    style={{
+                      background:
+                        "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)",
+                    }}
+                  />
+                  <Sparkles className="w-4 h-4 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110" />
+                  <span className="relative z-10">進入光球入口</span>
+                  <ArrowRight className="w-4 h-4 transition-transform duration-500 group-hover:translate-x-1" />
                 </Button>
               </MagneticTilt>
               <Button
@@ -1480,9 +1496,11 @@ ${profileSnippet}`;
       {/* ── Intel Bento Grid (情報站) — 僅顯示 AI 相關新聞 ── */}
       <Suspense
         fallback={
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          </div>
+          <SectionShimmerSkeleton
+            height={420}
+            color={s.glowColor}
+            label="情報站載入中"
+          />
         }
       >
         <motion.div
@@ -1498,9 +1516,11 @@ ${profileSnippet}`;
       {/* ── Showcase Masonry (精選作品瀑布流) ── */}
       <Suspense
         fallback={
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          </div>
+          <SectionShimmerSkeleton
+            height={520}
+            color={s.dividerColor}
+            label="作品瀑布流載入中"
+          />
         }
       >
         <motion.div
@@ -1646,13 +1666,23 @@ ${profileSnippet}`;
 
       {/* ── Footer — healing minimal ── */}
       <footer className="py-10 sm:py-12 lg:py-14 px-4 sm:px-6 transition-colors duration-1000 relative z-10 mt-auto">
-        {/* Breathing divider line */}
+        {/* Scene-tinted glow seam — soft halo at top of footer */}
         <div
-          className="max-w-4xl mx-auto mb-8 sm:mb-10 h-px"
+          aria-hidden
+          className="pointer-events-none absolute top-0 left-0 right-0 h-24 -translate-y-1/2"
           style={{
-            background: `linear-gradient(90deg, transparent, ${s.footerBorder}, transparent)`,
+            background: `radial-gradient(ellipse 60% 100% at 50% 100%, ${s.glowColor} 0%, transparent 70%)`,
+            opacity: 0.45,
           }}
         />
+        {/* Breathing shimmer divider line */}
+        <div className="mb-8 sm:mb-10">
+          <ShimmerDivider
+            color={s.footerBorder}
+            maxWidthClass="max-w-4xl"
+            duration={9}
+          />
+        </div>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-xs">
           <div className="flex items-center gap-3">
             <span
