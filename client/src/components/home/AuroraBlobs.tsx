@@ -1,24 +1,60 @@
 import { motion, useReducedMotion } from "framer-motion";
 
+export type AuroraSceneId = "nightSky" | "morning" | "cafe" | "deepSea";
+
+/**
+ * Per-scene blob palettes.  Each scene gets a distinct triad so the
+ * homepage feels visibly different across the 4 time-of-day moods.
+ *
+ * Alphas are intentionally low (0.10–0.18) so the underlying ambient
+ * particles and page gradient still read through.
+ */
+export const AURORA_SCENE_PALETTES: Record<
+  AuroraSceneId,
+  { primary: string; secondary: string; accent: string }
+> = {
+  nightSky: {
+    primary: "rgba(99,102,241,0.18)", // indigo
+    secondary: "rgba(139,92,246,0.16)", // violet
+    accent: "rgba(56,189,248,0.12)", // sky
+  },
+  morning: {
+    primary: "rgba(251,191,36,0.16)", // amber
+    secondary: "rgba(244,114,182,0.14)", // rose
+    accent: "rgba(253,224,71,0.12)", // sun yellow
+  },
+  cafe: {
+    primary: "rgba(217,119,6,0.14)", // amber-deep
+    secondary: "rgba(180,83,9,0.12)", // sepia
+    accent: "rgba(245,158,11,0.10)", // honey
+  },
+  deepSea: {
+    primary: "rgba(20,184,166,0.16)", // teal
+    secondary: "rgba(56,189,248,0.16)", // sky
+    accent: "rgba(99,102,241,0.12)", // indigo
+  },
+};
+
 interface Props {
-  /** Tint of the primary blob (rgba). Defaults to a soft sky tone. */
+  /** Optional explicit tints. If omitted, derived from `sceneId`. */
   primary?: string;
-  /** Tint of the secondary blob. */
   secondary?: string;
-  /** Tint of the accent blob. */
   accent?: string;
+  /** Pick a per-scene palette automatically. */
+  sceneId?: AuroraSceneId;
 }
 
 /**
  * Three large soft gradient blobs that drift slowly behind the hero —
- * an "aurora" backdrop reminiscent of premium AI products.  Animation
- * shuts off under prefers-reduced-motion.
+ * an "aurora" backdrop tuned per-scene so each of the 4 time-of-day
+ * moods feels visually distinct.  Animation shuts off under
+ * prefers-reduced-motion.
  */
-export default function AuroraBlobs({
-  primary = "rgba(168,85,247,0.22)",
-  secondary = "rgba(56,189,248,0.20)",
-  accent = "rgba(236,72,153,0.18)",
-}: Props) {
+export default function AuroraBlobs({ sceneId, primary, secondary, accent }: Props) {
+  const palette = sceneId ? AURORA_SCENE_PALETTES[sceneId] : null;
+  const p = primary ?? palette?.primary ?? "rgba(168,85,247,0.18)";
+  const s = secondary ?? palette?.secondary ?? "rgba(56,189,248,0.16)";
+  const a = accent ?? palette?.accent ?? "rgba(236,72,153,0.14)";
   const reduceMotion = useReducedMotion();
 
   const blob = (color: string, base: { top: string; left: string; size: string }) => (
@@ -59,9 +95,9 @@ export default function AuroraBlobs({
       aria-hidden
       className="pointer-events-none absolute inset-0 overflow-hidden"
     >
-      {blob(primary, { top: "-12%", left: "-8%", size: "60%" })}
-      {blob(secondary, { top: "20%", left: "55%", size: "55%" })}
-      {blob(accent, { top: "55%", left: "12%", size: "45%" })}
+      {blob(p, { top: "-12%", left: "-8%", size: "60%" })}
+      {blob(s, { top: "20%", left: "55%", size: "55%" })}
+      {blob(a, { top: "55%", left: "12%", size: "45%" })}
     </div>
   );
 }

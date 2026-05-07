@@ -74,6 +74,7 @@ import ShimmerDivider from "@/components/home/ShimmerDivider";
 import PageRevealVeil from "@/components/home/PageRevealVeil";
 import AuroraBlobs from "@/components/home/AuroraBlobs";
 import GrainOverlay from "@/components/home/GrainOverlay";
+import SceneVignette from "@/components/home/SceneVignette";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
@@ -1098,7 +1099,7 @@ ${profileSnippet}`;
   return (
     <div className="min-h-screen relative overflow-x-hidden flex flex-col">
       <PageRevealVeil color={isDark ? "rgba(6,8,20,0.55)" : "rgba(252,247,240,0.55)"} />
-      <GrainOverlay opacity={isDark ? 0.08 : 0.05} />
+      <GrainOverlay opacity={isDark ? 0.05 : 0.03} />
       {/* ── Full-page gradient background (scene-adaptive, covers entire scroll height) ── */}
       <div
         className="fixed inset-0 w-full h-full -z-20 pointer-events-none"
@@ -1108,6 +1109,9 @@ ${profileSnippet}`;
         }}
         aria-hidden="true"
       />
+      {/* ── Scene-tinted vignette: deepens edges per time-of-day ── */}
+      <SceneVignette sceneId={sceneId} />
+
       {/* ── Full-screen Ambient Background (Video + Particles) ── */}
       {/* Opacity driven by scroll position via Framer Motion useTransform */}
       <motion.div
@@ -1195,7 +1199,7 @@ ${profileSnippet}`;
         className="pt-24 sm:pt-36 lg:pt-44 pb-20 sm:pb-28 lg:pb-36 px-4 sm:px-6 relative z-10 min-h-[85vh] sm:min-h-[90vh] flex items-center"
         style={{ y: heroY }}
       >
-        <AuroraBlobs />
+        <AuroraBlobs sceneId={sceneId} />
         <HeroMagneticSpotlight color={s.glowColor} />
         <motion.div
           className="max-w-4xl mx-auto text-center w-full relative"
@@ -1470,10 +1474,10 @@ ${profileSnippet}`;
         }
       >
         <motion.div
-          initial={{ opacity: 0, clipPath: "inset(0 100% 0 0)" }}
-          whileInView={{ opacity: 1, clipPath: "inset(0 0% 0 0)" }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px", amount: 0.05 }}
+          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
           <IntelBentoGrid sceneId={sceneId} />
         </motion.div>
@@ -1488,10 +1492,10 @@ ${profileSnippet}`;
         }
       >
         <motion.div
-          initial={{ opacity: 0, clipPath: "inset(0 0 0 100%)" }}
-          whileInView={{ opacity: 1, clipPath: "inset(0 0 0 0%)" }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px", amount: 0.05 }}
+          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
           <ShowcaseMasonry
             sceneId={sceneId}
