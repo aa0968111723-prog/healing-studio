@@ -28,7 +28,7 @@ import {
 } from "../../shared/orb-specialized-agents";
 import { AgentCommunicationBus } from "./agentCommunicationBus";
 import { logger } from "../_core/logger";
-import { db } from "../db";
+import { getDb } from "../db";
 import {
   agentCollaborationSessions,
   agentCollaborationSteps,
@@ -221,6 +221,8 @@ class AgentCollaborationOrchestratorClass {
         completedAt: undefined,
       };
 
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
       await db.insert(agentCollaborationSessions).values(dbSession);
 
       logger.debug({
@@ -357,6 +359,8 @@ class AgentCollaborationOrchestratorClass {
         timestamp: Date.now(),
       };
 
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
       await db.insert(agentCollaborationHandoffs).values(dbHandoff);
 
       // Update session in database
@@ -412,6 +416,8 @@ class AgentCollaborationOrchestratorClass {
 
     // ─── Persist completion to database ─────────────────────────────────
     try {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
       await db
         .update(agentCollaborationSessions)
         .set({
@@ -470,6 +476,8 @@ class AgentCollaborationOrchestratorClass {
 
       // ─── Persist cancellation to database ───────────────────────────────
       try {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
         await db
           .update(agentCollaborationSessions)
           .set({
