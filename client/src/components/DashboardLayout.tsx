@@ -181,16 +181,12 @@ const sidebarStructure: SidebarEntry[] = (() => {
   const push = (entry: SidebarEntry | null) => {
     if (entry) entries.push(entry);
   };
-  // Flat list — every feature is its own top-level entry, no categories.
   push(buildLeaf("agent-chat"));
-  push(buildLeaf("studio"));
-  push(buildLeaf("image-studio"));
-  push(buildLeaf("video-studio"));
-  push(buildLeaf("pro-studio"));
-  push(buildLeaf("director"));
-  push(buildLeaf("models"));
-  push(buildLeaf("assets"));
-  push(buildLeaf("notes"));
+  entries.push({ kind: "heading", label: "日常創作" });
+  push(buildLeaf("create"));
+  entries.push({ kind: "heading", label: "進階工具" });
+  push(buildLeaf("playground"));
+  entries.push({ kind: "heading", label: "學習" });
   push(buildLeaf("learn"));
   return entries;
 })();
