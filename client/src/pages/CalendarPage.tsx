@@ -397,7 +397,9 @@ export default function CalendarPage() {
   useRegisterPageAgent({
     pageId: "calendar",
     pageLabel: "創作行事曆",
-    pagePath: "/calendar",
+    // CalendarPage 同時被 NotesPage 與 CreationHub 引用；canonical 入口是
+    // CreationHub 的 ?tab=calendar（有 URL 同步），與 appRegistry 對齊。
+    pagePath: "/create?tab=calendar",
     capabilities: calendarAgentCapabilities,
     state: {
       month: month.toISOString(),

@@ -392,7 +392,11 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   {
     id: "lora-trainer",
     label: "模型訓練中心",
-    path: "/models",
+    // ModelsPage 同時 host 角色鍛造所（forge）與 LoRA 訓練中心（trainer）兩個
+    // 子分頁，現在 ?tab=trainer 已支援 URL 同步，給 lora-trainer 一個獨立的
+    // canonical path，避免和 models（forge）共用 /models 導致 getPageByPath
+    // 永遠落到第一個比對結果。
+    path: "/models?tab=trainer",
     group: "train",
     description: "LoRA 訓練流程",
     aliases: ["lora", "訓練", "trainer", "角色鍛造", "鍛造所", "character-forge"],
@@ -401,12 +405,17 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     agentEntryPriority: 12,
     supportsPageAgent: true,
     quickActions: [
-      { id: "start-training", label: "開始訓練", description: "上傳資料啟動 LoRA 訓練" },
+      {
+        id: "start-training",
+        label: "開始訓練",
+        description: "上傳資料啟動 LoRA 訓練",
+        path: "/models?tab=trainer",
+      },
       {
         id: "open-character-forge",
         label: "開啟角色鍛造精靈",
         description: "進入角色鍛造所並開啟新增角色對話框",
-        path: "/models",
+        path: "/models?tab=trainer",
         prompt:
           "請切到「角色鍛造所」分頁,開啟角色鍛造精靈,引導我從資料集 → 自動標註 → 超參數 → 開始訓練,過程中提示每一步的常見地雷。",
       },
@@ -414,7 +423,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         id: "trainer-model-deep-dive",
         label: "模型細膩導覽",
         description: "依訓練類型比較資料量、引擎與參數起手式",
-        path: "/models",
+        path: "/models?tab=trainer",
         prompt:
           "請深度比較模型訓練中心各訓練類別(人物/風格/場景/影片/聲音)的資料量門檻、推薦引擎、超參數起手式與常見失敗點。",
       },
@@ -764,21 +773,29 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   {
     id: "calendar",
     label: "創作排程",
-    path: "/notes",
+    // CalendarPage 同時掛在 NotesPage 的「創作排程」分頁與 CreationHub 的
+    // calendar tab 之下；CreationHub 有 ?tab=URL 同步，是 orb 能可靠著陸
+    // 到日曆的唯一入口。/calendar 也在 App.tsx 重新導到這裡。
+    path: "/create?tab=calendar",
     group: "project",
     description: "專案時間排程",
-    aliases: ["calendar", "排程", "行程"],
+    aliases: ["calendar", "排程", "行程", "日曆", "行事曆"],
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 25,
     supportsPageAgent: true,
     quickActions: [
-      { id: "open-calendar", label: "查看排程", description: "檢視與安排創作時程" },
+      {
+        id: "open-calendar",
+        label: "查看排程",
+        description: "檢視與安排創作時程",
+        path: "/create?tab=calendar",
+      },
       {
         id: "calendar-deep-dive",
         label: "創作排程導覽",
         description: "把素材、生成、訓練任務排成可執行節奏",
-        path: "/notes",
+        path: "/create?tab=calendar",
         prompt:
           "請深度規劃創作排程：如何把素材整理、生成迭代、模型訓練、交付節點安排成一週節奏。",
       },

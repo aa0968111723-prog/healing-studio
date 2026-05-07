@@ -67,7 +67,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CharacterForgeStep, DatasetImage } from "@shared/types";
 import { useAIState } from "@/contexts/AIStateContext";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 
 const FORGE_STEPS: {
   id: CharacterForgeStep;
@@ -489,7 +489,47 @@ export default function ModelsPage() {
   usePageTour("models");
 
   // 頁面分頁：角色鍛造所 | 模型訓練中心
-  const [pageTab, setPageTab] = useState<"forge" | "trainer">("forge");
+  // URL ?tab=trainer 同步：讓 orb 跨頁 navigate 可以直接落在 trainer 子分頁，
+  // 也讓 /lora-trainer 重新導向能保留分頁意圖。
+  const search = useSearch();
+  const initialPageTab = (() => {
+    try {
+      const v = new URLSearchParams(search).get("tab");
+      return v === "trainer" ? "trainer" : "forge";
+    } catch {
+      return "forge";
+    }
+  })();
+  const [pageTab, setPageTab] = useState<"forge" | "trainer">(initialPageTab);
+
+  useEffect(() => {
+    try {
+      const v = new URLSearchParams(search).get("tab");
+      const next: "forge" | "trainer" = v === "trainer" ? "trainer" : "forge";
+      if (next !== pageTab) setPageTab(next);
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handlePageTabChange = (next: "forge" | "trainer") => {
+    if (next === pageTab) return;
+    setPageTab(next);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (next === "forge") {
+        params.delete("tab");
+      } else {
+        params.set("tab", next);
+      }
+      const qs = params.toString();
+      const url = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", url);
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     if (pageTab === "forge") {
@@ -839,7 +879,7 @@ export default function ModelsPage() {
         case "setTab": {
           const id = action.tabId;
           if (id === "forge" || id === "trainer") {
-            setPageTab(id);
+            handlePageTabChange(id);
             return { ok: true, message: `切到「${id === "forge" ? "角色鍛造所" : "模型訓練中心"}」` };
           }
           if (id === "my" || id === "team") {
@@ -882,7 +922,7 @@ export default function ModelsPage() {
         }
         case "reset": {
           setTab("my");
-          setPageTab("forge");
+          handlePageTabChange("forge");
           setDialogOpen(false);
           return { ok: true, message: "已回到我的模型" };
         }
@@ -901,7 +941,7 @@ export default function ModelsPage() {
       <div className="flex items-center gap-1 border-b border-border/50 pb-0">
         <button
           type="button"
-          onClick={() => setPageTab("forge")}
+          onClick={() => handlePageTabChange("forge")}
           className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
             pageTab === "forge"
               ? "bg-primary/10 text-primary border-b-2 border-primary"
@@ -913,7 +953,7 @@ export default function ModelsPage() {
         </button>
         <button
           type="button"
-          onClick={() => setPageTab("trainer")}
+          onClick={() => handlePageTabChange("trainer")}
           className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
             pageTab === "trainer"
               ? "bg-primary/10 text-primary border-b-2 border-primary"

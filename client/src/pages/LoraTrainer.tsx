@@ -753,7 +753,9 @@ export default function LoraTrainer() {
   useRegisterPageAgent({
     pageId: "lora-trainer",
     pageLabel: "AI 模型訓練中心",
-    pagePath: "/models",
+    // canonical path 包含 ?tab=trainer：ModelsPage 已支援 URL ?tab 同步，
+    // 確保 orb 跨頁 navigate 落在 trainer 子分頁而不是 forge。
+    pagePath: "/models?tab=trainer",
     capabilities: loraCaps,
     state: {
       activeTab: tab,

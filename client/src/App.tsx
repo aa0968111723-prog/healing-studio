@@ -220,7 +220,7 @@ function Router() {
         <DashboardRoute component={NotesPage} />
       </Route>
       <Route path="/calendar">
-        <NavigateRedirect to="/notes" />
+        <NavigateRedirect to="/create?tab=calendar" />
       </Route>
       <Route path="/dashboard">
         <DashboardRoute component={DashboardPage} />
@@ -271,7 +271,7 @@ function Router() {
         <DashboardRoute component={TutorialOverviewPage} />
       </Route>
       <Route path="/lora-trainer">
-        <NavigateRedirect to="/models" />
+        <NavigateRedirect to="/models?tab=trainer" />
       </Route>
       <Route path="/focus-flow">
         <DashboardRoute component={FocusFlowPage} />
