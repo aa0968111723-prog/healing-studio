@@ -69,6 +69,9 @@ import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
 import OrbNarrativeBridge from "@/components/home/OrbNarrativeBridge";
 import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
+import MagneticTilt from "@/components/home/MagneticTilt";
+import ShimmerDivider from "@/components/home/ShimmerDivider";
+import PageRevealVeil from "@/components/home/PageRevealVeil";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -1076,6 +1079,7 @@ ${profileSnippet}`;
 
   return (
     <div className="min-h-screen relative overflow-x-hidden flex flex-col">
+      <PageRevealVeil color={isDark ? "rgba(6,8,20,0.55)" : "rgba(252,247,240,0.55)"} />
       {/* ── Full-page gradient background (scene-adaptive, covers entire scroll height) ── */}
       <div
         className="fixed inset-0 w-full h-full -z-20 pointer-events-none"
@@ -1274,14 +1278,16 @@ ${profileSnippet}`;
                 ease: [0.16, 1, 0.3, 1],
               }}
             >
-              <Button
-                size="lg"
-                onClick={() => navigate("/agent")}
-                className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
-              >
-                <Sparkles className="w-4 h-4" />
-                進入光球入口
-              </Button>
+              <MagneticTilt strength={10}>
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/agent")}
+                  className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  進入光球入口
+                </Button>
+              </MagneticTilt>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1353,13 +1359,8 @@ ${profileSnippet}`;
         </motion.div>
       </motion.section>
 
-      {/* ── Soft gradient divider between Hero and Features ── */}
-      <div
-        className="relative z-10 h-px mx-auto max-w-3xl"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
-        }}
-      />
+      {/* ── Shimmering hairline divider between Hero and Narrative ── */}
+      <ShimmerDivider color={s.dividerColor} />
 
       {/* 首頁快速導覽已完整移至 /learn/tutorial-overview */}
 
@@ -1488,13 +1489,8 @@ ${profileSnippet}`;
 
       {SHOW_BOTTOM_CTA ? (
         <>
-          {/* ── Soft gradient divider before CTA ── */}
-          <div
-            className="relative z-10 h-px mx-auto max-w-3xl"
-            style={{
-              background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
-            }}
-          />
+          {/* ── Shimmering hairline divider before CTA ── */}
+          <ShimmerDivider color={s.dividerColor} />
 
           {/* ── CTA Section — healing invitation ── */}
           <section className="section-breathing px-4 sm:px-6 relative z-10">

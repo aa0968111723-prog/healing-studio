@@ -8,6 +8,20 @@ import {
 } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 
+// Pre-computed dust positions (deterministic so re-renders don't re-roll).
+const DUST = Array.from({ length: 14 }, (_, i) => {
+  const angle = (i / 14) * Math.PI * 2;
+  const r = 70 + (i % 3) * 28;
+  return {
+    id: i,
+    dx: Math.cos(angle) * r,
+    dy: Math.sin(angle) * r,
+    delay: (i * 0.18) % 2.4,
+    size: 4 + (i % 3) * 2,
+    opacity: 0.25 + ((i * 7) % 5) / 20,
+  };
+});
+
 /**
  * OrbNarrativeBridge — a 3-frame scrollytelling block that bridges the hero
  * to the rest of the homepage.  Replaces the former "CORE CAPABILITIES"
@@ -83,7 +97,7 @@ export default function OrbNarrativeBridge() {
     >
       {/* Sticky stage that pins to viewport while the section scrolls */}
       <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center justify-center">
-        {/* Drifting orb */}
+        {/* Drifting orb (with surrounding dust field) */}
         <motion.div
           aria-hidden
           className="pointer-events-none absolute top-1/2 left-1/2"
@@ -97,15 +111,43 @@ export default function OrbNarrativeBridge() {
             translateY: "-50%",
           }}
         >
-          <div
-            className="w-40 h-40 rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle at 30% 30%, rgba(186,230,253,0.95) 0%, rgba(125,211,252,0.7) 35%, rgba(56,189,248,0.4) 60%, rgba(56,189,248,0) 100%)",
-              boxShadow:
-                "0 0 80px rgba(125,211,252,0.55), inset 0 0 30px rgba(255,255,255,0.6)",
-            }}
-          />
+          <div className="relative w-40 h-40">
+            {/* Dust particles orbiting the orb */}
+            {DUST.map(d => (
+              <motion.span
+                key={d.id}
+                className="absolute top-1/2 left-1/2 rounded-full bg-white/80"
+                style={{
+                  width: d.size,
+                  height: d.size,
+                  marginLeft: -d.size / 2,
+                  marginTop: -d.size / 2,
+                  filter: "blur(0.5px)",
+                }}
+                animate={{
+                  x: [d.dx, d.dx * 1.08, d.dx],
+                  y: [d.dy, d.dy * 1.08, d.dy],
+                  opacity: [0, d.opacity, 0],
+                }}
+                transition={{
+                  duration: 3.6 + (d.id % 4) * 0.4,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: d.delay,
+                }}
+              />
+            ))}
+            {/* Core orb */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, rgba(186,230,253,0.95) 0%, rgba(125,211,252,0.7) 35%, rgba(56,189,248,0.4) 60%, rgba(56,189,248,0) 100%)",
+                boxShadow:
+                  "0 0 80px rgba(125,211,252,0.55), inset 0 0 30px rgba(255,255,255,0.6)",
+              }}
+            />
+          </div>
         </motion.div>
 
         {/* Frame 1 — concept */}

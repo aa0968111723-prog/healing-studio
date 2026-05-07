@@ -83,24 +83,38 @@ export default function OrbCapabilitiesView({
               type="button"
               onClick={() => setExpandedId(isOpen ? null : cap.id)}
               aria-expanded={isOpen}
-              className={`relative w-full flex items-center gap-3 text-left ${
+              className={`group relative w-full flex items-center gap-3 text-left ${
                 compact ? "px-3 py-2.5" : "px-3.5 py-3"
               }`}
             >
-              <div
-                className={`shrink-0 rounded-lg flex items-center justify-center ${
+              {/* Hover sheen sweep */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-[1100ms] ease-out"
+                style={{
+                  background: `linear-gradient(115deg, transparent 30%, ${cap.accentColor}1f 50%, transparent 70%)`,
+                }}
+              />
+              <motion.div
+                className={`relative shrink-0 rounded-lg flex items-center justify-center ${
                   compact ? "w-9 h-9" : "w-10 h-10"
                 }`}
                 style={{
                   background: `${cap.accentColor}18`,
                   border: `1px solid ${cap.accentColor}26`,
                 }}
+                animate={
+                  isOpen
+                    ? { scale: [1, 1.08, 1], rotate: [0, 3, 0] }
+                    : { scale: 1, rotate: 0 }
+                }
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               >
                 <Icon
                   className={compact ? "w-4 h-4" : "w-4.5 h-4.5"}
                   style={{ color: cap.accentColor }}
                 />
-              </div>
+              </motion.div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p
