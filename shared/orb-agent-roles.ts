@@ -22,7 +22,13 @@ export type AgentRole =
   | "critic"     // review user's plan / output, suggest improvements
   | "researcher" // search docs / web / asset library before acting
   | "navigator"  // just take the user somewhere, no execution
-  | "companion"; // open conversation, no goal yet
+  | "companion"  // open conversation, no goal yet
+  | "image-specialist"    // image generation & editing specialist
+  | "video-specialist"    // video generation & editing specialist
+  | "music-specialist"    // music & audio generation specialist
+  | "voice-specialist"    // voice cloning & dubbing specialist
+  | "training-specialist" // model training & LoRA specialist
+  | "learning-specialist"; // learning & tutorial guidance specialist
 
 export interface RoleSelectionInput {
   /** User's most recent utterance, lower-cased before matching. */
@@ -68,6 +74,144 @@ const KEYWORD_RULES: Array<{
       "end-to-end",
     ],
     rationale: "user asked for multi-step / cross-page planning",
+  },
+  // Image Specialist: focused image generation and editing tasks
+  {
+    role: "image-specialist",
+    keywords: [
+      "圖片",
+      "圖像",
+      "照片",
+      "畫",
+      "繪製",
+      "修圖",
+      "圖片編輯",
+      "去背",
+      "放大圖片",
+      "圖片風格",
+      "image",
+      "picture",
+      "photo",
+      "draw",
+      "edit image",
+      "upscale",
+      "remove background",
+      "img2img",
+      "inpainting",
+    ],
+    rationale: "user wants image generation or editing assistance",
+  },
+  // Video Specialist: video generation and editing tasks
+  {
+    role: "video-specialist",
+    keywords: [
+      "影片",
+      "視頻",
+      "影像",
+      "動畫",
+      "剪輯",
+      "影片編輯",
+      "影片增強",
+      "影片風格",
+      "video",
+      "animation",
+      "clip",
+      "video editing",
+      "enhance video",
+      "i2v",
+      "v2v",
+      "video style",
+    ],
+    rationale: "user wants video generation or editing assistance",
+  },
+  // Music Specialist: music and audio generation tasks
+  {
+    role: "music-specialist",
+    keywords: [
+      "音樂",
+      "歌曲",
+      "配樂",
+      "背景音樂",
+      "作曲",
+      "音效",
+      "聲音",
+      "混音",
+      "music",
+      "song",
+      "soundtrack",
+      "background music",
+      "compose",
+      "sound effect",
+      "audio mix",
+      "stems",
+    ],
+    rationale: "user wants music or audio generation assistance",
+  },
+  // Voice Specialist: voice cloning and dubbing tasks
+  {
+    role: "voice-specialist",
+    keywords: [
+      "配音",
+      "聲音",
+      "語音",
+      "旁白",
+      "聲音克隆",
+      "變聲",
+      "口播",
+      "語音生成",
+      "voice",
+      "voiceover",
+      "narration",
+      "voice cloning",
+      "voice change",
+      "tts",
+      "text to speech",
+      "dubbing",
+    ],
+    rationale: "user wants voice generation or cloning assistance",
+  },
+  // Training Specialist: model training and LoRA tasks
+  {
+    role: "training-specialist",
+    keywords: [
+      "訓練",
+      "訓練模型",
+      "fine-tune",
+      "lora",
+      "模型訓練",
+      "客製化模型",
+      "訓練角色",
+      "train",
+      "training",
+      "fine-tuning",
+      "custom model",
+      "model training",
+      "character training",
+    ],
+    rationale: "user wants model training or LoRA creation assistance",
+  },
+  // Learning Specialist: learning and tutorial guidance
+  {
+    role: "learning-specialist",
+    keywords: [
+      "教學",
+      "學習",
+      "教程",
+      "怎麼用",
+      "如何使用",
+      "教我",
+      "指導",
+      "新手",
+      "入門",
+      "tutorial",
+      "learn",
+      "how to",
+      "teach me",
+      "guide",
+      "beginner",
+      "getting started",
+    ],
+    rationale: "user wants learning or tutorial guidance",
   },
   // Researcher: gather / look-up before acting.
   {
@@ -255,6 +399,48 @@ export function getRoleSystemPromptSlice(role: AgentRole): string {
         "對話開放，沒有明確目標；保持輕鬆對話，必要時輕聲提供 1-2 個下一步選項。",
         "不要主動執行動作；先問清意圖。",
       ].join("\n");
+    case "image-specialist":
+      return [
+        "【本回合扮演：圖像精靈 (image specialist)】",
+        "你是圖像生成與編輯專家，熟悉所有圖像模型、參數與技巧。",
+        "專注於提供精確的圖像生成建議：選擇最適合的模型、調整參數、優化提示詞。",
+        "主動提供專業建議（長寬比、風格、細節），但不施壓。可使用 studio.generateImage 工具直接執行。",
+      ].join("\n");
+    case "video-specialist":
+      return [
+        "【本回合扮演：影像精靈 (video specialist)】",
+        "你是影片生成與編輯專家，熟悉 text-to-video、image-to-video、video-to-video 所有流程。",
+        "專注於提供精確的影片生成建議：選擇最適合的模型、設定時長、優化提示詞。",
+        "了解影片生成的技術限制與最佳實踐。可使用 studio.generateVideo、studio.enhanceVideo 工具。",
+      ].join("\n");
+    case "music-specialist":
+      return [
+        "【本回合扮演：音樂精靈 (music specialist)】",
+        "你是音樂與音訊生成專家，熟悉音樂生成、音效製作、音訊混音所有技巧。",
+        "專注於提供音樂創作建議：風格選擇、情緒表達、音效配置。",
+        "了解音訊處理流程（分離音軌、合併、增強）。可使用 studio.generateAudio、studio.generateSfx、studio.separateStems、studio.mergeAudios 工具。",
+      ].join("\n");
+    case "voice-specialist":
+      return [
+        "【本回合扮演：語音精靈 (voice specialist)】",
+        "你是語音生成與配音專家，熟悉語音克隆、語音合成、變聲所有技術。",
+        "專注於提供語音生成建議：選擇聲音風格、調整語調、優化情感表達。",
+        "了解語音克隆流程與虛擬化身動畫。可使用 studio.generateVoice、studio.cloneVoice、studio.designVoice、studio.changeVoice、studio.animateSpeaker 工具。",
+      ].join("\n");
+    case "training-specialist":
+      return [
+        "【本回合扮演：訓練精靈 (training specialist)】",
+        "你是模型訓練與 LoRA 專家，熟悉客製化模型訓練的完整流程。",
+        "專注於提供訓練建議：準備訓練資料、選擇基礎模型、設定訓練參數。",
+        "了解 LoRA 訓練的最佳實踐與常見陷阱。可使用 studio.trainLora 工具，並引導使用者完成資料準備。",
+      ].join("\n");
+    case "learning-specialist":
+      return [
+        "【本回合扮演：學習精靈 (learning specialist)】",
+        "你是平台導師，熟悉所有功能、教程與最佳實踐。",
+        "專注於教學引導：分步驟講解、提供範例、解答疑問。",
+        "使用溫和、鼓勵的語氣，避免資訊超載。善用學習文件中心的資源，必要時使用 navigate 帶使用者到相關教程。",
+      ].join("\n");
   }
 }
 
@@ -294,6 +480,12 @@ export function summarizeRoleChainForPrompt(chain: AgentRole[]): string {
     researcher: "研究員",
     navigator: "導航",
     companion: "陪伴",
+    "image-specialist": "圖像精靈",
+    "video-specialist": "影像精靈",
+    "music-specialist": "音樂精靈",
+    "voice-specialist": "語音精靈",
+    "training-specialist": "訓練精靈",
+    "learning-specialist": "學習精靈",
   };
   if (chain.length === 1) return `【角色】${labels[chain[0]]}`;
   return `【角色鏈】${chain.map(r => labels[r]).join(" → ")}`;
