@@ -81,6 +81,7 @@ import FeatureDetailDialog, {
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
 const ShowcaseMasonry = lazy(() => import("@/components/ShowcaseMasonry"));
+const SHOW_BOTTOM_CTA = false;
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -1852,110 +1853,123 @@ ${profileSnippet}`;
         />
       </Suspense>
 
-      {/* ── Soft gradient divider before CTA ── */}
-      <div
-        className="relative z-10 h-px mx-auto max-w-3xl"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
-        }}
-      />
+      {SHOW_BOTTOM_CTA ? (
+        <>
+          {/* ── Soft gradient divider before CTA ── */}
+          <div
+            className="relative z-10 h-px mx-auto max-w-3xl"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
+            }}
+          />
 
-      {/* ── CTA Section — healing invitation ── */}
-      <section className="section-breathing px-4 sm:px-6 relative z-10">
-        <div className="max-w-3xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div
-              className="relative text-center py-12 sm:py-16 lg:py-24 px-5 sm:px-8 lg:px-12 rounded-2xl sm:rounded-3xl card-healing overflow-hidden"
-              style={{
-                background: s.cardBg,
-                border: `1px solid ${s.cardBorder}`,
-              }}
-            >
-              {/* Subtle ambient glow — scene-adaptive, no orb */}
+          {/* ── CTA Section — healing invitation ── */}
+          <section className="section-breathing px-4 sm:px-6 relative z-10">
+            <div className="max-w-3xl mx-auto">
               <motion.div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: `radial-gradient(ellipse at 50% 0%, ${s.glowColor} 0%, transparent 55%)`,
-                }}
-                animate={{ opacity: [0.2, 0.35, 0.2] }}
-                transition={{
-                  duration: 8,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-              {/* Decorative top accent line */}
-              <div
-                className="absolute top-0 left-1/2 -translate-x-1/2 h-[1px] w-1/2 rounded-full"
-                style={{
-                  background: `linear-gradient(90deg, transparent, ${s.glowColor}, transparent)`,
-                }}
-              />
-              <div className="relative z-10">
-                <motion.div
-                  className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] tracking-[0.15em] uppercase mb-6 sm:mb-8 ${
-                    isDark
-                      ? "bg-white/6 text-white/40"
-                      : "bg-black/3 text-black/30"
-                  }`}
-                  initial={{ opacity: 0, y: 8 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Healing Studio
-                </motion.div>
-                <h2
-                  className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
-                >
-                  準備好開始創作了嗎？
-                </h2>
-                <p
-                  className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}
-                >
-                  登入後即可使用所有功能，每位使用者享有初始免費配額
-                </p>
-                {/* Healing divider */}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              >
                 <div
-                  className="mx-auto mt-6 sm:mt-8 mb-8 sm:mb-10 w-12 h-[1px] rounded-full"
+                  className="relative text-center py-12 sm:py-16 lg:py-24 px-5 sm:px-8 lg:px-12 rounded-2xl sm:rounded-3xl card-healing overflow-hidden"
                   style={{
-                    background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
+                    background: s.cardBg,
+                    border: `1px solid ${s.cardBorder}`,
                   }}
-                />
-                <div>
-                  {isAuthenticated ? (
-                    <Button
-                      size="lg"
-                      onClick={() => navigate("/agent")}
-                      className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                >
+                  {/* Subtle ambient glow — scene-adaptive, no orb */}
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: `radial-gradient(ellipse at 50% 0%, ${s.glowColor} 0%, transparent 55%)`,
+                    }}
+                    animate={{ opacity: [0.2, 0.35, 0.2] }}
+                    transition={{
+                      duration: 8,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  />
+                  {/* Decorative top accent line */}
+                  <div
+                    className="absolute top-0 left-1/2 -translate-x-1/2 h-[1px] w-1/2 rounded-full"
+                    style={{
+                      background: `linear-gradient(90deg, transparent, ${s.glowColor}, transparent)`,
+                    }}
+                  />
+                  <div className="relative z-10">
+                    <motion.div
+                      className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] tracking-[0.15em] uppercase mb-6 sm:mb-8 ${
+                        isDark
+                          ? "bg-white/6 text-white/40"
+                          : "bg-black/3 text-black/30"
+                      }`}
+                      initial={{ opacity: 0, y: 8 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.2 }}
                     >
-                      開始創作
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      size="lg"
-                      onClick={() => {
-                        window.location.href = getLoginUrl();
+                      <Sparkles className="w-3 h-3" />
+                      Healing Studio
+                    </motion.div>
+                    <h2
+                      className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
+                    >
+                      準備好開始創作了嗎？
+                    </h2>
+                    <p
+                      className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}
+                    >
+                      登入後即可使用所有功能，每位使用者享有初始免費配額
+                    </p>
+                    {/* Healing divider */}
+                    <div
+                      className="mx-auto mt-6 sm:mt-8 mb-8 sm:mb-10 w-12 h-[1px] rounded-full"
+                      style={{
+                        background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
                       }}
-                      className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
-                    >
-                      免費開始
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  )}
+                    />
+                    <div>
+                      {isAuthenticated ? (
+                        <Button
+                          size="lg"
+                          onClick={() => navigate("/agent")}
+                          className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                        >
+                          開始創作
+                          <ArrowRight className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="lg"
+                          onClick={() => {
+                            window.location.href = getLoginUrl();
+                          }}
+                          className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                        >
+                          免費開始
+                          <ArrowRight className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
-          </motion.div>
+          </section>
+        </>
+      ) : (
+        <div className="relative z-10 py-8 sm:py-10 lg:py-12" aria-hidden="true">
+          <div
+            className="h-px mx-auto max-w-2xl"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
+            }}
+          />
         </div>
-      </section>
+      )}
 
       {/* ── VisualSoul Invitation (光球行動與邀約) ── */}
       <VisualSoulInvitation
