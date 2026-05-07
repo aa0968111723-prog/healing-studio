@@ -1707,6 +1707,7 @@ export default memo(function ProactiveOrbWidget({
 
   // Auth hook for capability "試用" navigation
   const { isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
 
   // Handler invoked from OrbCapabilitiesView "進入" buttons.
   const handleTryCapability = useCallback(

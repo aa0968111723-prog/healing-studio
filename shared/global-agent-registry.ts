@@ -64,6 +64,8 @@ function actionPayloadText(action: AgentAction): string {
     case "submit":
     case "reset":
       return action.type;
+    default:
+      return "";
   }
 }
 

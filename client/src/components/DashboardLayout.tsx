@@ -408,7 +408,7 @@ function DashboardLayoutContent({
           children: selfMatched ? entry.children : matchedChildren,
         } satisfies SidebarGroupItem;
       })
-      .filter((entry): entry is SidebarEntry => Boolean(entry));
+      .filter((entry): entry is Exclude<typeof entry, null> => entry !== null);
   }, [normalizedSidebarQuery]);
 
   const isAdmin = user?.role === "admin";
