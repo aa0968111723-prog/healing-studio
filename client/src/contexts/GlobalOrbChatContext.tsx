@@ -36,6 +36,10 @@ import {
   summarizeVideoSlots,
 } from "../../../shared/global-agent-workflows";
 import {
+  detectOrbPromptScenario,
+  type OrbPromptScenarioOutcome,
+} from "../../../shared/orb-prompt-scenarios";
+import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
   type OrbChatAttachmentMimeType,
@@ -270,6 +274,19 @@ export function inferClarificationOptionEmoji(text: string): string {
   if (/(看|觀察|先看|了解)/.test(text)) return "👁️";
   if (/(三組|3 組|多選|方向)/.test(text)) return "✨";
   return "💡";
+}
+
+/**
+ * Render a scenario outcome's reply, expanding the `show-feature-summary`
+ * follow-up by appending the live registry-driven feature list. Kept beside
+ * the other text helpers so the unit-test-friendly detector module can stay
+ * free of project-specific imports.
+ */
+function buildScenarioReplyText(outcome: OrbPromptScenarioOutcome): string {
+  if (outcome.followUp === "show-feature-summary") {
+    return `${outcome.reply}\n\n${buildFeatureSummaryReply()}`;
+  }
+  return outcome.reply;
 }
 
 function inferClarificationIntentCards(question: string, userText: string, dimension: ClarificationDimension = "format"): string[] {
@@ -1659,6 +1676,44 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setInput("");
     setSuggestions([]);
     setIsSending(true);
+
+    // ─── Edge-case prompt scenarios ──────────────────────────────────────
+    // Catches empty / noise / extremely-long input, frustration & cancel
+    // intents, self-help queries, history references, and same-prompt loops
+    // BEFORE we burn an LLM round-trip. Only runs in default mode so users
+    // who explicitly chose "navigate / ask-feature / agent" still hit the
+    // dedicated handlers below.
+    if (!requestedMode) {
+      const recentUserTexts = nextHistory
+        .filter(m => m.role === "user")
+        .slice(-4, -1) // exclude the message we just pushed
+        .map(m => m.text);
+      const scenario = detectOrbPromptScenario({
+        text: trimmed,
+        hasAttachments: attachments.length > 0,
+        recentUserTexts,
+      });
+      if (scenario) {
+        const reply = buildScenarioReplyText(scenario);
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: reply,
+          at: Date.now(),
+          pagePath: locationPath,
+          intent: scenario.intent,
+        }]);
+        if (scenario.suggestions && scenario.suggestions.length > 0) {
+          setSuggestions(scenario.suggestions.map(text => ({ text })));
+        }
+        if (scenario.followUp === "reset-conversation") {
+          orbState.setState("idle", "等你再開口");
+        } else {
+          orbState.setState("idle");
+        }
+        setIsSending(false);
+        return;
+      }
+    }
 
     // ─── Site-wide search shortcut ───────────────────────────────────────
     // "找我之前的森林圖" / "搜尋 calm BGM" / "翻一下我的筆記提到禪意"
