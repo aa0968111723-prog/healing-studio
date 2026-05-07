@@ -19,7 +19,8 @@
     "test:e2e": "playwright test",
     "db:push": "drizzle-kit migrate",
     "eval": "ts-node server/eval/runEval.ts",
-    "lint": "npm run check"
+    "lint": "npm run check",
+    "gitnexus": "node scripts/gitnexus-launcher.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
