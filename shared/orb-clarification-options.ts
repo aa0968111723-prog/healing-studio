@@ -22,6 +22,7 @@ export type ClarificationModality =
   | "voice"
   | "script"
   | "lora"
+  | "research"
   | "unknown";
 
 export type ClarificationDimension =
@@ -50,6 +51,7 @@ const SFX_KEYWORDS = ["音效", "sfx", "環境音", "ambient sound"];
 const VOICE_KEYWORDS = ["配音", "旁白", "voice", "tts", "口白", "聲音"];
 const SCRIPT_KEYWORDS = ["腳本", "劇本", "文案", "script"];
 const LORA_KEYWORDS = ["lora", "訓練", "model training", "訓練模型", "fine.?tune", "客製化模型"];
+const RESEARCH_KEYWORDS = ["perplexity", "深度搜尋", "深度研究", "research", "調研", "查資料", "最新資訊", "趨勢"];
 
 /**
  * Infer the user's modality from their text. Used both as a default for the
@@ -58,6 +60,7 @@ const LORA_KEYWORDS = ["lora", "訓練", "model training", "訓練模型", "fine
 export function inferModalityFromText(text: string): ClarificationModality {
   const lowered = text.toLowerCase();
   if (LORA_KEYWORDS.some(k => lowered.includes(k))) return "lora";
+  if (RESEARCH_KEYWORDS.some(k => lowered.includes(k))) return "research";
   if (VIDEO_KEYWORDS.some(k => lowered.includes(k))) return "video";
   if (IMAGE_KEYWORDS.some(k => lowered.includes(k))) return "image";
   if (VOICE_KEYWORDS.some(k => lowered.includes(k))) return "voice";
@@ -365,6 +368,36 @@ export function buildContextualClarificationOptions(
       platform: [],
       open: [],
     },
+    research: {
+      format: [
+        `${tPrefix}趨勢研究（Perplexity 深度搜尋）`,
+        `${tPrefix}競品比較（模型＋功能建議）`,
+        `${tPrefix}技術查核（來源＋摘要）`,
+        `${tPrefix}落地方案（站內模型路線圖）`,
+      ],
+      duration: [],
+      usecase: [
+        "找最新趨勢與時事",
+        "比對工具與模型差異",
+        "整理可執行步驟",
+        "輸出可直接用的提示詞",
+      ],
+      style: [
+        "先外部深搜，再站內匹配模型",
+        "只看權威來源（文件 / 論文）",
+        "重點摘要 + 可點來源",
+        "直接給最佳模型與參數建議",
+      ],
+      audience: [
+        "個人創作者",
+        "品牌行銷團隊",
+        "技術 / 產品團隊",
+        "教育 / 研究用途",
+      ],
+      subject: [],
+      platform: [],
+      open: [],
+    },
     unknown: {
       format: topic
         ? [
@@ -590,6 +623,8 @@ function modalityNounOf(modality: ClarificationModality): string {
       return "腳本";
     case "lora":
       return "客製化模型";
+    case "research":
+      return "研究／深度搜尋";
     case "unknown":
     default:
       return "成品";
