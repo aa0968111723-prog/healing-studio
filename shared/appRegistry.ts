@@ -1039,7 +1039,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: false,
     agentEntryPriority: 95,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-process-from-orb",
@@ -1047,12 +1047,32 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "告訴光球想了解的流程或步驟，它會回一個可分享的連結",
         prompt: "請幫我整理一個可以分享的流程說明連結，主題是：",
       },
+      {
+        id: "process-mark-next-done",
+        label: "勾選下一步",
+        description: "把目前進度往前推一格（光球協助時用）",
+        prompt: "我這一步做完了，請幫我勾選並告訴我下一步該做什麼。",
+      },
+      {
+        id: "process-run-with-orb",
+        label: "交給光球執行",
+        description: "讓光球依流程跨頁執行（僅 workflow 類型有效）",
+        action: { type: "submit" },
+      },
     ],
     orbHints: [
       "把這個流程整理成可分享的連結",
       "幫我做一個 step-by-step 的教學頁",
+      "下一步是什麼，幫我勾選現在這一步",
+      "把整個流程交給你執行",
     ],
-    supportedActions: [],
+    // navigate is universal via PageAgentContext; setParam / submit / reset are
+    // implemented by ProcessViewerPage's own useRegisterPageAgent handler.
+    // navigate is intentionally absent so the static-fallback ranker keeps
+    // routing «帶我去 /image-studio» to the actual studios, not /process —
+    // /process's navigate handler is only meaningful when the user is already
+    // there (live registry path).
+    supportedActions: ["setParam", "submit", "reset"],
   },
 ];
 

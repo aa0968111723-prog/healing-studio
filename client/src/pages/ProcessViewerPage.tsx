@@ -30,6 +30,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { decodeProcessSpec, type ProcessSpec } from "../../../shared/orb-process-link";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+} from "@/contexts/PageAgentContext";
 
 function readSpecFromUrl(): { spec?: ProcessSpec; reason?: string } {
   if (typeof window === "undefined") return { reason: "no-window" };
@@ -51,6 +56,180 @@ export default function ProcessViewerPage() {
   useEffect(() => {
     setCompleted(new Set());
   }, [spec?.title]);
+
+  // ── Derived values + helpers (kept above the conditional render so
+  // every hook below sees the same identity on every render) ────────────
+  const total = spec?.steps.length ?? 0;
+  const doneCount = completed.size;
+  const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  const toggleStep = (index: number) => {
+    setCompleted(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("連結已複製，可分享給朋友");
+    } catch {
+      toast.error("複製失敗，請手動複製網址列");
+    }
+  };
+
+  const handleOpenInChat = () => {
+    if (!spec) return;
+    orbChat.open();
+    const summary = spec.summary ? `（${spec.summary}）` : "";
+    orbChat.setInput(
+      `這是我剛看的流程「${spec.title}」${summary}。請依這個流程帶我一步步做下去。`
+    );
+    navigate("/agent");
+  };
+
+  const handleRunWithOrb = () => {
+    if (!spec) return;
+    if (spec.kind !== "workflow") return handleOpenInChat();
+    orbChat.open();
+    orbChat.setInput(`請依「${spec.title}」這個流程，幫我跨頁執行 ${total} 個步驟。`);
+    navigate("/agent");
+  };
+
+  // ── PageAgent 接入 ───────────────────────────────────────────────────
+  // 讓 director 產出的流程連結被打開時，learning / navigator 精靈能直接
+  // 驅動「打勾下一步、跳到對應頁、整段交給光球執行」。
+  //
+  // 1. NAV_ALLOWLIST 動態包含 spec 裡每個步驟的 path（光球只能跳到流程
+  //    宣告過的頁）+ 兩個共用入口（/、/agent）。
+  // 2. setParam key="completed" value=<index> → 切換指定步驟完成狀態。
+  // 3. setParam key="cursor" value=<index>     → 跳到該步驟對應頁面。
+  // 4. submit → 讓光球執行（僅 workflow），其餘 kind 退化為 openInChat。
+  // 5. reset → 清空所有完成標記。
+  //
+  // 所有 hook 都在 spec 缺失時也會被呼叫（值用 fallback 撐住），
+  // useRegisterPageAgent 的 enabled 會在 spec 不存在時關閉註冊。
+  const stepPaths = useMemo<string[]>(
+    () => spec?.steps.map(s => s.path).filter((p): p is string => !!p) ?? [],
+    [spec]
+  );
+  const PROCESS_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set<string>(["/", "/agent", ...stepPaths]),
+    [stepPaths]
+  );
+  const nextStepIndex = useMemo<number>(() => {
+    if (!spec) return -1;
+    for (let i = 0; i < spec.steps.length; i++) {
+      if (!completed.has(i)) return i;
+    }
+    return -1;
+  }, [completed, spec]);
+  const nextStep = spec && nextStepIndex >= 0 ? spec.steps[nextStepIndex] : null;
+
+  useRegisterPageAgent({
+    pageId: "process-viewer",
+    pageLabel: "流程說明檢視器",
+    pagePath: "/process",
+    enabled: !!spec,
+    capabilities: [
+      {
+        action: "navigate",
+        label: "跳到流程內某一步的頁面",
+        options: stepPaths.map(p => ({ id: p, label: p })),
+        hint: "只允許 spec.steps 宣告過的路徑 + / 與 /agent",
+      },
+      {
+        action: "setParam",
+        label: "勾選 / 取消勾選完成的步驟",
+        hint: "key='completed' value=<step index, 0-based>；key='cursor' value=<index> 跳到該步驟頁",
+      },
+      {
+        action: "submit",
+        label: "讓光球執行整個流程",
+        hint: "僅 kind=workflow 時生效；否則退化為「把流程帶入聊天」",
+      },
+      {
+        action: "reset",
+        label: "清空所有勾選",
+        hint: "重新從第一步開始",
+      },
+    ],
+    state: {
+      title: spec?.title ?? null,
+      summary: spec?.summary ?? null,
+      kind: spec?.kind ?? "howto",
+      totalSteps: total,
+      completedCount: doneCount,
+      percent,
+      nextStepIndex,
+      nextStepTitle: nextStep?.title ?? null,
+      nextStepPath: nextStep?.path ?? null,
+      hasUnfinishedSteps: nextStepIndex >= 0,
+      stepPathCount: stepPaths.length,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (!spec) {
+        return { ok: false, reason: "process: 沒有有效的流程資料" };
+      }
+      switch (action.type) {
+        case "navigate": {
+          const path = String(action.path ?? "");
+          if (!PROCESS_NAV_ALLOWLIST.has(path)) {
+            return { ok: false, reason: `process: 不在流程允許清單：${path}` };
+          }
+          navigate(path);
+          return { ok: true, message: `跳到 ${path}` };
+        }
+        case "setParam": {
+          if (action.key === "completed") {
+            const idx = Number(action.value);
+            if (!Number.isInteger(idx) || idx < 0 || idx >= total) {
+              return { ok: false, reason: `process: 步驟索引超界：${action.value}` };
+            }
+            toggleStep(idx);
+            return {
+              ok: true,
+              message: completed.has(idx) ? `取消勾選步驟 ${idx + 1}` : `勾選步驟 ${idx + 1}`,
+              data: { toggledIndex: idx },
+            };
+          }
+          if (action.key === "cursor") {
+            const idx = Number(action.value);
+            if (!Number.isInteger(idx) || idx < 0 || idx >= total) {
+              return { ok: false, reason: `process: 步驟索引超界：${action.value}` };
+            }
+            const targetPath = spec.steps[idx]?.path;
+            if (!targetPath) {
+              return { ok: false, reason: `process: 步驟 ${idx + 1} 沒有對應頁面` };
+            }
+            if (!PROCESS_NAV_ALLOWLIST.has(targetPath)) {
+              return { ok: false, reason: `process: 步驟頁不在允許清單：${targetPath}` };
+            }
+            navigate(targetPath);
+            return {
+              ok: true,
+              message: `跳到步驟 ${idx + 1}：${spec.steps[idx]?.title ?? ""}`,
+              data: { cursorIndex: idx, cursorPath: targetPath },
+            };
+          }
+          return { ok: false, reason: `process: 未知 setParam key：${action.key}` };
+        }
+        case "submit": {
+          handleRunWithOrb();
+          return { ok: true, message: "已把流程交給光球" };
+        }
+        case "reset": {
+          setCompleted(new Set());
+          return { ok: true, message: "已清空所有勾選" };
+        }
+        default:
+          return { ok: false, reason: `process: unsupported action "${action.type}"` };
+      }
+    },
+  });
 
   if (!spec) {
     return (
@@ -85,44 +264,6 @@ export default function ProcessViewerPage() {
       </div>
     );
   }
-
-  const total = spec.steps.length;
-  const doneCount = completed.size;
-  const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-
-  const toggleStep = (index: number) => {
-    setCompleted(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  };
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("連結已複製，可分享給朋友");
-    } catch {
-      toast.error("複製失敗，請手動複製網址列");
-    }
-  };
-
-  const handleOpenInChat = () => {
-    orbChat.open();
-    const summary = spec.summary ? `（${spec.summary}）` : "";
-    orbChat.setInput(
-      `這是我剛看的流程「${spec.title}」${summary}。請依這個流程帶我一步步做下去。`
-    );
-    navigate("/agent");
-  };
-
-  const handleRunWithOrb = () => {
-    if (spec.kind !== "workflow") return handleOpenInChat();
-    orbChat.open();
-    orbChat.setInput(`請依「${spec.title}」這個流程，幫我跨頁執行 ${total} 個步驟。`);
-    navigate("/agent");
-  };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-cyan-50">
