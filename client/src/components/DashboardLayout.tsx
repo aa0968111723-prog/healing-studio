@@ -89,7 +89,7 @@ import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
 import {
-  getSidebarGroups,
+  getSidebarPages,
   type AppPageRegistryItem,
 } from "@/config/appRegistry";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
@@ -157,11 +157,9 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
-const sidebarGroupsFromRegistry = getSidebarGroups();
+const allSidebarPages = getSidebarPages();
 const sidebarPagesById = new Map(
-  sidebarGroupsFromRegistry.flatMap(group =>
-    group.pages.map(page => [page.id, page])
-  )
+  allSidebarPages.map(page => [page.id, page])
 );
 
 const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
@@ -184,16 +182,18 @@ const sidebarStructure: SidebarEntry[] = (() => {
     if (entry) entries.push(entry);
   };
   // Flat list — every feature is its own top-level entry, no categories.
-  push(buildLeaf("agent-chat"));
-  push(buildLeaf("studio"));
-  push(buildLeaf("image-studio"));
-  push(buildLeaf("video-studio"));
-  push(buildLeaf("pro-studio"));
-  push(buildLeaf("director"));
-  push(buildLeaf("models"));
-  push(buildLeaf("assets"));
-  push(buildLeaf("notes"));
-  push(buildLeaf("learn"));
+  const pageIds = ["agent-chat", "studio", "image-studio", "video-studio", "pro-studio", "director", "models", "assets", "notes", "learn"];
+
+  // Debug: log which pages are found vs missing
+  console.log("[Sidebar Debug] Available pages in sidebarPagesById:", Array.from(sidebarPagesById.keys()));
+  pageIds.forEach(id => {
+    const leaf = buildLeaf(id);
+    if (!leaf) {
+      console.warn(`[Sidebar Debug] Page not found: ${id}`);
+    }
+    push(leaf);
+  });
+
   return entries;
 })();
 
