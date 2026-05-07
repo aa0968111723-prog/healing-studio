@@ -231,6 +231,12 @@ export default function DashboardPage() {
         "/director",
         "/studio",
         "/settings",
+        "/credits",
+        "/assets",
+        "/agent",
+        "/create",
+        "/playground",
+        "/background-tasks",
       ]),
     []
   );
@@ -249,8 +255,14 @@ export default function DashboardPage() {
           { id: "/director", label: "導演 AI", meta: { bestFor: "整體敘事規劃", tip: "先定分鏡再分派模型" } },
           { id: "/studio", label: "創作工作室", meta: { bestFor: "快速多模態創作", tip: "一站式圖影音生成" } },
           { id: "/settings", label: "個人設定", meta: { bestFor: "調整偏好", tip: "外觀/通知/場景" } },
+          { id: "/credits", label: "積分說明", meta: { bestFor: "瞭解計費", tip: "查看模型費率與餘額用法" } },
+          { id: "/assets", label: "數位資產庫", meta: { bestFor: "盤點素材", tip: "復用避免重複生成" } },
+          { id: "/agent", label: "全站光球代理", meta: { bestFor: "問光球任何問題", tip: "聊天驅動跨頁工作流" } },
+          { id: "/create", label: "創作中心", meta: { bestFor: "整合入口", tip: "創作工作室、導演、資產一站到位" } },
+          { id: "/playground", label: "模型樂園", meta: { bestFor: "進階工具", tip: "圖/影/音/角色鍛造" } },
+          { id: "/background-tasks", label: "背景任務", meta: { bestFor: "查看任務", tip: "監控異步生成進度" } },
         ],
-        hint: "navigate path='/history' | '/notes' | '/prompt-library' | '/image-studio' | '/video-studio' | '/pro-studio' | '/director' | '/studio' | '/settings'",
+        hint: "navigate path='/history' | '/notes' | '/prompt-library' | '/image-studio' | '/video-studio' | '/pro-studio' | '/director' | '/studio' | '/settings' | '/credits' | '/assets' | '/agent' | '/create' | '/playground' | '/background-tasks'",
       },
     ],
     []

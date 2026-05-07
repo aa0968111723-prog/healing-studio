@@ -515,9 +515,10 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 30,
-    // 此條目為快捷入口，實際處理動作由 dashboard 頁的 PageAgent 接手；
-    // 設為 false 避免 scan-routes 誤抓「找不到 useRegisterPageAgent」。
-    supportsPageAgent: false,
+    // LangSmithPage 在 /dashboard?section=langsmith 載入，現在自己 register 為
+    // PageAgent（id=langsmith），讓光球能控制其內部分頁（總覽 / 追蹤 / 對比 /
+    // 數據集 / 導出）。dashboard 容器仍負責「跳到 LangSmith section」這層。
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-langsmith",
@@ -525,9 +526,21 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "查看最近 LLM 追蹤、錯誤率與延遲趨勢",
         path: "/dashboard?section=langsmith",
       },
+      {
+        id: "langsmith-traces",
+        label: "切到追蹤",
+        description: "瀏覽單筆 LLM 呼叫的完整 trace",
+        action: { type: "setTab", tabId: "traces" },
+      },
+      {
+        id: "langsmith-comparison",
+        label: "切到模型對比",
+        description: "比較不同模型在同一輸入下的表現",
+        action: { type: "setTab", tabId: "comparison" },
+      },
     ],
     orbHints: ["帶我看 LangSmith 監控", "我想查最近模型呼叫的錯誤和延遲"],
-    supportedActions: [],
+    supportedActions: ["setTab"],
   },
   {
     id: "agent-preferences",

@@ -203,6 +203,13 @@ export default function AccountSettingsPage() {
 
   const passwordStrength = getPasswordStrength();
 
+  // 統一使用 NAV_ALLOWLIST Set 與其他頁一致；同時擴充常見離站目的（設定 / 積分），
+  // 讓光球能在 account-settings 直接帶用戶到帳號相關位置。
+  const ACCOUNT_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/", "/dashboard", "/settings", "/credits"]),
+    []
+  );
+
   const accountAgentCapabilities: AgentCapability[] = useMemo(
     () => [
       {
@@ -222,8 +229,10 @@ export default function AccountSettingsPage() {
         options: [
           { id: "/", label: "返回首頁", meta: { tip: "回到登入後首頁" } },
           { id: "/dashboard", label: "儀表板", meta: { tip: "查看創作概況" } },
+          { id: "/settings", label: "個人設定", meta: { tip: "外觀、通知與場景偏好" } },
+          { id: "/credits", label: "積分說明", meta: { tip: "瞭解積分計算與餘額" } },
         ],
-        hint: "navigate path='/' | '/dashboard'",
+        hint: "navigate path='/' | '/dashboard' | '/settings' | '/credits'",
       },
     ],
     [activeTab]
@@ -237,6 +246,8 @@ export default function AccountSettingsPage() {
     state: {
       activeTab,
       hasUser: !!user,
+      hasLoginHistory: loginHistory.length > 0,
+      loginHistoryCount: loginHistory.length,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
@@ -250,7 +261,7 @@ export default function AccountSettingsPage() {
         }
         case "navigate": {
           const path = String(action.path ?? "");
-          if (path !== "/" && path !== "/dashboard") {
+          if (!ACCOUNT_NAV_ALLOWLIST.has(path)) {
             return { ok: false, reason: `不在允許跳轉清單：${path}` };
           }
           window.location.href = path;

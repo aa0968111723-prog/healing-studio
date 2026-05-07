@@ -1,6 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "@/contexts/PageAgentContext";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,6 +75,18 @@ import {
 // ─── Tab definitions ─────────────────────────────────────────────────────────
 
 type TabId = "overview" | "traces" | "comparison" | "datasets" | "export";
+
+const LANGSMITH_TAB_IDS: TabId[] = [
+  "overview",
+  "traces",
+  "comparison",
+  "datasets",
+  "export",
+];
+
+function isLangSmithTabId(value: string): value is TabId {
+  return (LANGSMITH_TAB_IDS as readonly string[]).includes(value);
+}
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -1419,6 +1437,55 @@ export default function LangSmithPage() {
     refetchInterval: 120_000,
   });
 
+  // 將 Tabs 改為受控（controlled），讓光球可以透過 setTab 動作切換 LangSmith
+  // 各個監控分頁（總覽 / 追蹤 / 模型對比 / 數據集 / 微調導出）。
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+
+  const langsmithAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換監控分頁",
+        currentId: activeTab,
+        options: [
+          { id: "overview", label: "總覽", meta: { tip: "查看連線、總追蹤、成功率與延遲" } },
+          { id: "traces", label: "追蹤", meta: { tip: "瀏覽單筆 LLM 呼叫的完整 trace" } },
+          { id: "comparison", label: "模型對比", meta: { tip: "比較不同模型在同一輸入下的表現" } },
+          { id: "datasets", label: "數據集", meta: { tip: "管理用於評估與微調的測試集" } },
+          { id: "export", label: "微調導出", meta: { tip: "匯出可用於 fine-tune 的 JSONL 資料" } },
+        ],
+        hint: "setTab tabId='overview' | 'traces' | 'comparison' | 'datasets' | 'export'",
+      },
+    ],
+    [activeTab]
+  );
+
+  useRegisterPageAgent({
+    pageId: "langsmith",
+    pageLabel: "AI 監控中心",
+    pagePath: "/dashboard?section=langsmith",
+    capabilities: langsmithAgentCapabilities,
+    state: {
+      activeTab,
+      connected: statusQuery.data?.connected ?? false,
+      statusMessage: statusQuery.data?.message ?? null,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "setTab") {
+        const id = String(action.tabId ?? "");
+        if (!isLangSmithTabId(id)) {
+          return { ok: false, reason: `langsmith: 未知 tabId：${id}` };
+        }
+        setActiveTab(id);
+        return { ok: true, message: `已切換到 ${id}` };
+      }
+      return {
+        ok: false,
+        reason: `unsupported on langsmith: ${action.type}`,
+      };
+    },
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1438,7 +1505,11 @@ export default function LangSmithPage() {
       </p>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={v => isLangSmithTabId(v) && setActiveTab(v)}
+        className="space-y-4"
+      >
         <TabsList className="grid w-full grid-cols-5 rounded-xl h-9">
           <TabsTrigger value="overview" className="text-xs rounded-lg gap-1">
             <Shield className="w-3 h-3" />{" "}
