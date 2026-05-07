@@ -72,14 +72,14 @@ class AgentCommunicationBusClass {
     this.addToHistory(message);
 
     // Log the message
-    logger.debug({
-      event: "agent_message_published",
+    logger.debug("agent_message_published", {
       messageId: message.messageId,
       from: message.fromAgent,
       to: message.toAgent,
       type: message.messageType,
       priority: message.priority,
       correlation: message.correlationId,
+
     });
 
     // Route message to recipients
@@ -101,11 +101,11 @@ class AgentCommunicationBusClass {
   ): Promise<void> {
     const handlers = this.subscriptions.get(agentId);
     if (!handlers || handlers.length === 0) {
-      logger.warn({
-        event: "agent_message_no_subscriber",
+      logger.warn("agent_message_no_subscriber", {
         messageId: message.messageId,
         targetAgent: agentId,
         message: `No handler registered for agent: ${agentId}`,
+
       });
       return;
     }
@@ -116,11 +116,11 @@ class AgentCommunicationBusClass {
         try {
           await handler(message);
         } catch (error) {
-          logger.error({
-            event: "agent_message_handler_error",
+          logger.error("agent_message_handler_error", {
             messageId: message.messageId,
             targetAgent: agentId,
             error: error instanceof Error ? error.message : String(error),
+
           });
         }
       })
@@ -196,11 +196,15 @@ class AgentCommunicationBusClass {
     let filtered = [...this.messageHistory];
 
     if (options?.agentId) {
+      // Narrow into a const so TS can prove it's defined inside the
+      // includes() call (the outer .filter callback creates a new
+      // closure where `options.agentId` is `AgentRole | undefined` again).
+      const agentId = options.agentId;
       filtered = filtered.filter(
         msg =>
-          msg.fromAgent === options.agentId ||
-          msg.toAgent === options.agentId ||
-          (Array.isArray(msg.toAgent) && msg.toAgent.includes(options.agentId))
+          msg.fromAgent === agentId ||
+          msg.toAgent === agentId ||
+          (Array.isArray(msg.toAgent) && msg.toAgent.includes(agentId))
       );
     }
 
@@ -307,7 +311,11 @@ class AgentCommunicationBusClass {
           ) {
             resolved = true;
             unsubscribe();
-            resolve(message.content.data as AgentQueryResponse);
+            // message.content.data is Record<string, unknown> | undefined;
+            // tsc rejects a direct `as AgentQueryResponse` cast since the
+            // shapes don't overlap structurally. Round-tripping through
+            // `unknown` makes the cast explicit + keeps runtime behaviour.
+            resolve(message.content.data as unknown as AgentQueryResponse);
           }
         },
         { messageTypes: ["response"] }

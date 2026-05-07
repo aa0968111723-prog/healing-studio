@@ -68,10 +68,10 @@ export async function runOrbTaskWithAutoRouting(
 
   // Fast path: skip detection for obviously simple tasks
   if (isObviouslySingleAgentTask(input.userMessage)) {
-    logger.info({
-      event: "multi_agent_detection_skipped",
+    logger.info("multi_agent_detection_skipped", {
       taskId: input.initialTaskId,
       reason: "obviously_simple_task",
+
     });
 
     const chainResult = await runOrbTaskWithContinuationLoop({
@@ -102,13 +102,14 @@ export async function runOrbTaskWithAutoRouting(
     primaryRole: input.primaryRole,
   });
 
-  logger.info({
-    event: "multi_agent_detection_result",
+  logger.info("multi_agent_detection_result", {
     taskId: input.initialTaskId,
     shouldCollaborate: detection.shouldCollaborate,
     confidence: detection.confidence,
     reason: detection.reason,
     suggestedAgents: detection.suggestedAgents,
+
+
   });
 
   // ─── Phase 2: Route to appropriate execution path ──────────────────
@@ -166,24 +167,26 @@ export async function runOrbTaskWithAutoRouting(
       sharedContext,
     };
 
-    logger.info({
-      event: "starting_multi_agent_collaboration",
+    logger.info("starting_multi_agent_collaboration", {
       taskId: input.initialTaskId,
       collaborationRequest: {
         initiatingAgent: collaborationRequest.initiatingAgent,
         requiredCapabilities: collaborationRequest.requiredCapabilities,
       },
+
+
     });
 
     const collaborationSession = await AgentCollaborationOrchestrator.startCollaboration(
       collaborationRequest
     );
 
-    logger.info({
-      event: "multi_agent_collaboration_started",
+    logger.info("multi_agent_collaboration_started", {
       taskId: input.initialTaskId,
       collaborationId: collaborationSession.collaborationId,
       participatingAgents: collaborationSession.participatingAgents,
+
+
     });
 
     return {
@@ -197,11 +200,11 @@ export async function runOrbTaskWithAutoRouting(
     };
   } catch (error) {
     // Fallback to single-agent on collaboration failure
-    logger.error({
-      event: "multi_agent_collaboration_failed",
+    logger.error("multi_agent_collaboration_failed", {
       taskId: input.initialTaskId,
       error: error instanceof Error ? error.message : String(error),
       fallbackToSingleAgent: true,
+
     });
 
     const chainResult = await runOrbTaskWithContinuationLoop({

@@ -70,12 +70,13 @@ class CollaborativeTaskPlannerClass {
       0
     );
 
-    logger.info({
-      event: "task_decomposed",
+    logger.info("task_decomposed", {
       originalTask: task,
       subtaskCount: subtasks.length,
       strategy: executionPlan.strategy,
       estimatedDurationMs,
+
+
     });
 
     return {

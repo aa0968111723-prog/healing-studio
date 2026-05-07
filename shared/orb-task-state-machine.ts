@@ -34,6 +34,13 @@ export interface OrbTaskAuditEvent {
     | "step.rollback_failed"
     | "task.recovering"
     | "task.replanning"
+    // 由 orbLLMReplan / orbTaskReplanIntegration 發出的 lifecycle 事件。
+    // replanning 是「正在跑 LLM 重新規劃」，replanned 是「拿到新計畫並
+    // 套用」，replan_failed 是「LLM 拿了結果但驗證沒過」，replan_error
+    // 是「LLM 呼叫本身失敗」。
+    | "task.replanned"
+    | "task.replan_failed"
+    | "task.replan_error"
     | "task.observed"
     | "task.continuation_started"
     | "task.completed"

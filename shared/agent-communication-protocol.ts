@@ -29,7 +29,14 @@ export type AgentMessageType =
 /** Priority levels for agent messages */
 export type MessagePriority = "low" | "normal" | "high" | "urgent";
 
-/** Shared context that agents pass between each other */
+/** Shared context that agents pass between each other.
+ *
+ * Carries an open `[key: string]` index signature so callers can attach
+ * task-specific extras without extending this interface every time.
+ * agentCollaborationOrchestrator stores it via `as unknown as Record<...>`
+ * for DB persistence — the index signature lets that cast happen
+ * directly without `as unknown as` workarounds.
+ */
 export interface AgentSharedContext {
   /** User ID for scoping */
   userId?: number;
@@ -70,6 +77,11 @@ export interface AgentSharedContext {
     message: string;
     fromAgent: AgentRole;
   }>;
+  /** Open extension slot — keeps the type assignable to
+   *  `Record<string, unknown>` for downstream JSON storage / structured
+   *  cloning, and lets callers attach extras without extending this
+   *  interface every release. */
+  [key: string]: unknown;
 }
 
 /** Agent message structure */
@@ -124,20 +136,45 @@ export interface AgentCapabilityDeclaration {
   specializations?: Array<"image" | "video" | "audio" | "voice" | "3d" | "training" | "learning">;
 }
 
-/** Agent collaboration request */
+/** Agent collaboration request.
+ *
+ * 兩種等價的呼叫風格，type 都接受：
+ *   - 內部 protocol shape：requestingAgent + task + targetAgents + context
+ *   - chat router shape：initiatingAgent + taskDescription + sharedContext
+ *     + 平鋪的 userId/sessionId
+ *
+ * orchestrator 讀的是 task / context 那一組，但兩組欄位都標 optional，
+ * 讓兩條 caller 都不會被型別擋住。新呼叫端應該優先用內部 protocol shape，
+ * 平鋪欄位是 transitional 用。
+ */
 export interface AgentCollaborationRequest {
+  /** Requesting agent (alias of requestingAgent kept for back-compat
+   *  with multiAgentIntegration.ts which uses the older name). */
+  initiatingAgent?: AgentRole;
   /** Requesting agent */
-  requestingAgent: AgentRole;
+  requestingAgent?: AgentRole;
   /** Target agent(s) */
-  targetAgents: AgentRole | AgentRole[] | "auto";
+  targetAgents?: AgentRole | AgentRole[] | "auto";
+  /** Owning user. Optional only because the chat router fills it in
+   *  before persisting; planners and orchestrators that take the
+   *  request by value must supply it for per-user scoping. */
+  userId?: number;
+  /** Caller-supplied session id (used for grouping related requests
+   *  across the orb chat router and the multi-agent orchestrator). */
+  sessionId?: string;
   /** Task description */
-  task: string;
+  task?: string;
+  /** Alias of `task` used by chat-router-style callers. */
+  taskDescription?: string;
   /** Task type */
-  taskType: "generate" | "edit" | "analyze" | "plan" | "learn" | "teach";
+  taskType?: "generate" | "edit" | "analyze" | "plan" | "learn" | "teach";
   /** Required capabilities */
   requiredCapabilities?: string[];
   /** Shared context */
-  context: AgentSharedContext;
+  context?: AgentSharedContext;
+  /** Alias of `context` used by chat-router-style callers (which build
+   *  a flat record rather than the structured AgentSharedContext). */
+  sharedContext?: AgentSharedContext | Record<string, unknown>;
   /** Deadline (milliseconds from now) */
   deadline?: number;
   /** Callback when complete */
@@ -148,10 +185,20 @@ export interface AgentCollaborationRequest {
 export interface AgentCollaborationResult {
   /** Success status */
   success: boolean;
+  /** When the result was finalised (ms epoch). Routers populate this
+   *  on cancellation paths so the client can show the elapsed time. */
+  completedAt?: number;
   /** Agent that completed the task */
-  completedBy: AgentRole;
+  completedBy?: AgentRole;
   /** Result data */
   result?: Record<string, unknown>;
+  /** Final output payload — alias of `result` kept for the chat
+   *  router's response shape (it forwards `output` to the client). */
+  output?: Record<string, unknown>;
+  /** Roster of agents that took part in this collaboration. Mirrors
+   *  the orchestrator's `session.participatingAgents`; nullable for
+   *  results created from a single-agent fallback path. */
+  participants?: AgentRole[];
   /** Updated context */
   context?: AgentSharedContext;
   /** Errors if any */
@@ -160,6 +207,27 @@ export interface AgentCollaborationResult {
   durationMs: number;
   /** Next recommended agent (if task should continue) */
   nextAgent?: AgentRole;
+}
+
+/** Snapshot of an active collaboration session — exposed via
+ *  `agentCollaborationOrchestrator.getSessionStatus()` so routers can
+ *  poll progress without loading the orchestrator's internal state. */
+export interface CollaborationSession {
+  collaborationId: string;
+  userId?: number;
+  sessionId: string;
+  taskDescription: string;
+  startedAt: number;
+  /** Filled in when status transitions to "completed"/"failed"/"cancelled".
+   *  Routers use this to compute total duration without holding their
+   *  own start-time copy. */
+  completedAt?: number;
+  currentAgent: AgentRole;
+  participatingAgents: AgentRole[];
+  sharedContext: AgentSharedContext;
+  status: "active" | "completed" | "failed" | "cancelled";
+  completedSteps: string[];
+  result?: AgentCollaborationResult;
 }
 
 /** Agent handoff - transfer control from one agent to another */
@@ -299,14 +367,19 @@ export function createCollaborationRequestMessage(
   request: AgentCollaborationRequest,
   correlationId?: string
 ): AgentMessage {
+  // Both protocol-style and chat-router-style fields are accepted on
+  // AgentCollaborationRequest; coalesce here so the message constructor
+  // always sees concrete values.
+  const requestingAgent: AgentRole = request.requestingAgent ?? request.initiatingAgent ?? "director";
+  const target = request.targetAgents ?? "broadcast";
   return createAgentMessage(
-    request.requestingAgent,
-    request.targetAgents === "auto" ? "broadcast" : request.targetAgents,
+    requestingAgent,
+    target === "auto" ? "broadcast" : target,
     "request",
     {
       action: request.taskType,
       data: {
-        task: request.task,
+        task: request.task ?? request.taskDescription,
         requiredCapabilities: request.requiredCapabilities,
         deadline: request.deadline,
       },

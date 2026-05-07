@@ -461,6 +461,20 @@ export interface RunOrbTaskInput {
   /** Pluggable clock for tests. */
   now?: () => number;
   agentPreferences?: AgentPreferences;
+  /**
+   * Callback fired when the orchestrator decides a step should be
+   * re-planned (e.g. permanent retry exhaustion). Already invoked
+   * inside the orchestrator; the type just needs to surface here so
+   * callers (chat router) can wire `createReplanCallback`'s return
+   * value through without a `as` cast.
+   */
+  onRequestReplan?: (payload: {
+    taskId: string;
+    stepId: string;
+    toolName: string;
+    observation: ToolFailureObservation;
+    reason: string;
+  }) => Promise<void> | void;
 }
 
 export interface RunOrbTaskResult {

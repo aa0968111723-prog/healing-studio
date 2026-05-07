@@ -21,6 +21,7 @@ import {
   createHandoffMessage,
   generateCollaborationId,
   agentHasCapability,
+  type CollaborationSession,
 } from "../../shared/agent-communication-protocol";
 import {
   getSpecializedAgentCapability,
@@ -41,20 +42,11 @@ import {
 } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
-/** Active collaboration session */
-interface CollaborationSession {
-  collaborationId: string;
-  userId?: number;
-  sessionId: string;
-  taskDescription: string;
-  startedAt: number;
-  currentAgent: AgentRole;
-  participatingAgents: AgentRole[];
-  sharedContext: AgentSharedContext;
-  status: "active" | "completed" | "failed" | "cancelled";
-  completedSteps: string[];
-  result?: AgentCollaborationResult;
-}
+// CollaborationSession is now defined in the shared protocol so the
+// router and the orchestrator agree on the shape (the router imports
+// the same type via `import { CollaborationSession }`). Keeping the
+// orchestrator's behaviour identical — just removing the local copy
+// of the interface.
 
 class AgentCollaborationOrchestratorClass {
   private activeSessions: Map<string, CollaborationSession> = new Map();
@@ -147,7 +139,11 @@ class AgentCollaborationOrchestratorClass {
    * Map agent ID to specializations
    */
   private mapToSpecializations(agentId: string): AgentCapabilityDeclaration["specializations"] {
-    const mapping: Record<string, AgentCapabilityDeclaration["specializations"][0]> = {
+    // `specializations` is `Array<...> | undefined`, so its element
+    // type is `NonNullable<...>[number]` rather than `...[0]` (the
+    // latter doesn't exist on the undefined branch and breaks tsc).
+    type Spec = NonNullable<AgentCapabilityDeclaration["specializations"]>[number];
+    const mapping: Record<string, Spec> = {
       "image-specialist": "image",
       "video-specialist": "video",
       "music-specialist": "audio",
@@ -164,10 +160,10 @@ class AgentCollaborationOrchestratorClass {
    */
   registerAgentCapability(capability: AgentCapabilityDeclaration): void {
     this.agentCapabilities.set(capability.agentId, capability);
-    logger.debug({
-      event: "agent_capability_registered",
+    logger.debug("agent_capability_registered", {
       agentId: capability.agentId,
       capabilities: capability.capabilities,
+
     });
   }
 
@@ -177,17 +173,28 @@ class AgentCollaborationOrchestratorClass {
   async startCollaboration(
     request: AgentCollaborationRequest
   ): Promise<CollaborationSession> {
-    const collaborationId = request.context.collaborationId || generateCollaborationId();
+    // 兩種 caller shape 都支援：protocol-style (task / context / requestingAgent)
+    // 與 chat-router-style (taskDescription / sharedContext / initiatingAgent)。
+    // 把它們收斂成一組 normalized 變數再用。
+    const requestingAgent: AgentRole = request.requestingAgent ?? request.initiatingAgent ?? "director";
+    const taskText: string = request.task ?? request.taskDescription ?? "(unspecified collaboration task)";
+    const contextSource = (request.context ?? request.sharedContext ?? {}) as Partial<AgentSharedContext>;
+    const sessionId = contextSource.sessionId ?? request.sessionId ?? `session_${Date.now()}`;
+    const baseContext: AgentSharedContext = {
+      ...(contextSource as AgentSharedContext),
+      sessionId,
+    };
+    const collaborationId = baseContext.collaborationId || generateCollaborationId();
     const session: CollaborationSession = {
       collaborationId,
-      userId: request.context.userId,
-      sessionId: request.context.sessionId,
-      taskDescription: request.task,
+      userId: baseContext.userId ?? request.userId,
+      sessionId,
+      taskDescription: taskText,
       startedAt: Date.now(),
-      currentAgent: request.requestingAgent,
-      participatingAgents: [request.requestingAgent],
+      currentAgent: requestingAgent,
+      participatingAgents: [requestingAgent],
       sharedContext: {
-        ...request.context,
+        ...baseContext,
         collaborationId,
       },
       status: "active",
@@ -196,11 +203,12 @@ class AgentCollaborationOrchestratorClass {
 
     this.activeSessions.set(collaborationId, session);
 
-    logger.info({
-      event: "collaboration_started",
+    logger.info("collaboration_started", {
       collaborationId,
-      taskDescription: request.task,
-      requestingAgent: request.requestingAgent,
+      taskDescription: taskText,
+      requestingAgent,
+
+
     });
 
     // ─── Persist to database ────────────────────────────────────────────
@@ -208,10 +216,10 @@ class AgentCollaborationOrchestratorClass {
       const dbSession: InsertAgentCollaborationSession = {
         collaborationId,
         userId: session.userId || 0,
-        sessionId: session.sessionId,
+        sessionId,
         taskDescription: session.taskDescription,
         status: session.status,
-        initiatingAgent: request.requestingAgent,
+        initiatingAgent: requestingAgent,
         currentAgent: session.currentAgent,
         participatingAgents: session.participatingAgents,
         requiredCapabilities: request.requiredCapabilities || [],
@@ -225,15 +233,16 @@ class AgentCollaborationOrchestratorClass {
       if (!db) throw new Error("Database not available");
       await db.insert(agentCollaborationSessions).values(dbSession);
 
-      logger.debug({
-        event: "collaboration_persisted",
+      logger.debug("collaboration_persisted", {
         collaborationId,
+
+
       });
     } catch (error) {
-      logger.error({
-        event: "collaboration_persist_failed",
+      logger.error("collaboration_persist_failed", {
         collaborationId,
         error: error instanceof Error ? error.message : String(error),
+
       });
       // Continue even if persistence fails - in-memory session is still valid
     }
@@ -247,7 +256,9 @@ class AgentCollaborationOrchestratorClass {
   findBestAgent(requirements: {
     tools?: string[];
     domains?: string[];
-    specialization?: AgentCapabilityDeclaration["specializations"][0];
+    // Use NonNullable<...>[number] for the same reason as
+    // mapToSpecializations — index access on the optional array fails tsc.
+    specialization?: NonNullable<AgentCapabilityDeclaration["specializations"]>[number];
     excludeAgents?: AgentRole[];
   }): AgentRole | null {
     const candidates: Array<{ agent: AgentRole; score: number }> = [];
@@ -317,9 +328,9 @@ class AgentCollaborationOrchestratorClass {
     );
 
     if (!session) {
-      logger.warn({
-        event: "handoff_no_session",
+      logger.warn("handoff_no_session", {
         collaborationId: handoff.context.collaborationId,
+
       });
       return;
     }
@@ -339,12 +350,13 @@ class AgentCollaborationOrchestratorClass {
     const message = createHandoffMessage(handoff, session.collaborationId);
     await AgentCommunicationBus.publish(message);
 
-    logger.info({
-      event: "agent_handoff",
+    logger.info("agent_handoff", {
       collaborationId: session.collaborationId,
       fromAgent: handoff.fromAgent,
       toAgent: handoff.toAgent,
       reason: handoff.reason,
+
+
     });
 
     // ─── Persist handoff to database ────────────────────────────────────
@@ -373,15 +385,16 @@ class AgentCollaborationOrchestratorClass {
         })
         .where(eq(agentCollaborationSessions.collaborationId, session.collaborationId));
 
-      logger.debug({
-        event: "handoff_persisted",
+      logger.debug("handoff_persisted", {
         collaborationId: session.collaborationId,
+
+
       });
     } catch (error) {
-      logger.error({
-        event: "handoff_persist_failed",
+      logger.error("handoff_persist_failed", {
         collaborationId: session.collaborationId,
         error: error instanceof Error ? error.message : String(error),
+
       });
     }
   }
@@ -395,9 +408,9 @@ class AgentCollaborationOrchestratorClass {
   ): Promise<void> {
     const session = this.activeSessions.get(collaborationId);
     if (!session) {
-      logger.warn({
-        event: "complete_collaboration_no_session",
+      logger.warn("complete_collaboration_no_session", {
         collaborationId,
+
       });
       return;
     }
@@ -405,13 +418,14 @@ class AgentCollaborationOrchestratorClass {
     session.status = result.success ? "completed" : "failed";
     session.result = result;
 
-    logger.info({
-      event: "collaboration_completed",
+    logger.info("collaboration_completed", {
       collaborationId,
       success: result.success,
       duration: Date.now() - session.startedAt,
       participatingAgents: session.participatingAgents,
       completedBy: result.completedBy,
+
+
     });
 
     // ─── Persist completion to database ─────────────────────────────────
@@ -427,15 +441,16 @@ class AgentCollaborationOrchestratorClass {
         })
         .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
 
-      logger.debug({
-        event: "collaboration_completion_persisted",
+      logger.debug("collaboration_completion_persisted", {
         collaborationId,
+
+
       });
     } catch (error) {
-      logger.error({
-        event: "collaboration_completion_persist_failed",
+      logger.error("collaboration_completion_persist_failed", {
         collaborationId,
         error: error instanceof Error ? error.message : String(error),
+
       });
     }
 
@@ -450,6 +465,15 @@ class AgentCollaborationOrchestratorClass {
    */
   getSession(collaborationId: string): CollaborationSession | undefined {
     return this.activeSessions.get(collaborationId);
+  }
+
+  /**
+   * Alias of `getSession` — agentCollaborationRouter calls this name
+   * (it predates the rename); keep both pointing at the same store so
+   * neither call site has to change.
+   */
+  getSessionStatus(collaborationId: string): CollaborationSession | undefined {
+    return this.getSession(collaborationId);
   }
 
   /**
@@ -468,10 +492,10 @@ class AgentCollaborationOrchestratorClass {
     const session = this.activeSessions.get(collaborationId);
     if (session) {
       session.status = "cancelled";
-      logger.info({
-        event: "collaboration_cancelled",
+      logger.info("collaboration_cancelled", {
         collaborationId,
         reason,
+
       });
 
       // ─── Persist cancellation to database ───────────────────────────────
@@ -486,15 +510,16 @@ class AgentCollaborationOrchestratorClass {
           })
           .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
 
-        logger.debug({
-          event: "collaboration_cancellation_persisted",
+        logger.debug("collaboration_cancellation_persisted", {
           collaborationId,
+
+
         });
       } catch (error) {
-        logger.error({
-          event: "collaboration_cancellation_persist_failed",
+        logger.error("collaboration_cancellation_persist_failed", {
           collaborationId,
           error: error instanceof Error ? error.message : String(error),
+
         });
       }
     }

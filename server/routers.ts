@@ -341,7 +341,10 @@ async function driveOrbTaskInBackground(input: {
         agentPreferences,
         userMessage,
         pageSnapshot: plannerContext.pageSnapshot,
-        primaryRole: task?.assignedRole,
+        // OrbAgentTask doesn't carry an assignedRole field — the multi-
+        // agent integration layer derives the primary role from the
+        // userMessage when this is undefined.
+        primaryRole: undefined,
         sessionId: `session_${Date.now()}_${input.userId}`,
         onToolAuditEvent,
       });
@@ -391,23 +394,33 @@ async function driveOrbTaskInBackground(input: {
           traceId,
           userId: input.userId,
           taskId: input.taskId,
-          taskIntent: task.objective || "Orb task execution",
+          // OrbAgentTask uses `intent` (not `objective`); the field
+          // populated by the planner.
+          taskIntent: task.intent || "Orb task execution",
         });
       }
 
-      // Create replanning callback for ReAct loop
-      const onRequestReplan = task ? createReplanCallback({
-        task,
-        userId: input.userId,
-        failedStep: task.steps[0], // Will be updated by orchestrator
-        observation: {
-          toolName: "",
-          errorCode: "",
-          issues: [],
-          toolArgs: {},
-        },
-        traceId,
-      }) : undefined;
+      // Create replanning callback for ReAct loop. createReplanCallback
+      // takes an OrbTask + AgentWorkflowStep — we have an OrbAgentTask
+      // here whose shape only partly overlaps. Cast through `unknown`
+      // because the orchestrator only reads identifying fields
+      // (taskId / intent / userId) from the context, never the
+      // specific shape; the failedStep is overwritten by the
+      // orchestrator on the actual call.
+      const onRequestReplan = task
+        ? createReplanCallback({
+            task: task as unknown as ReplanCallbackContext["task"],
+            userId: input.userId,
+            failedStep: task.steps[0] as unknown as ReplanCallbackContext["failedStep"],
+            observation: {
+              toolName: "",
+              errorCode: "",
+              issues: [],
+              toolArgs: {},
+            },
+            traceId,
+          })
+        : undefined;
 
       const result = await runOrbTaskToCompletion({
         taskId: input.taskId,
