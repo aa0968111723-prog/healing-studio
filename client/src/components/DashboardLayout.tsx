@@ -89,7 +89,7 @@ import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
 import {
-  getSidebarGroups,
+  getSidebarPages,
   type AppPageRegistryItem,
 } from "@/config/appRegistry";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
@@ -157,11 +157,9 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
-const sidebarGroupsFromRegistry = getSidebarGroups();
+const allSidebarPages = getSidebarPages();
 const sidebarPagesById = new Map(
-  sidebarGroupsFromRegistry.flatMap(group =>
-    group.pages.map(page => [page.id, page])
-  )
+  allSidebarPages.map(page => [page.id, page])
 );
 
 const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
