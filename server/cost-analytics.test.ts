@@ -26,6 +26,14 @@ import {
   hourlyHeatmap,
   projectMonthlyCost,
   compareCatalogVsActual,
+  dailyEndpointTrends,
+  perCallCostDistribution,
+  detectRetryChains,
+  inferFeature,
+  summarizeByFeature,
+  suggestSavings,
+  reconcileWithProviderInvoices,
+  buildDeepCostCsvReport,
   type UsageEventLike,
 } from "./services/costAnalytics";
 
@@ -282,5 +290,344 @@ describe("compareCatalogVsActual", () => {
     ];
     const out = compareCatalogVsActual(events);
     expect(out[0].endpoint).toBe("fal-ai/flux-pro/v1.1");
+  });
+});
+
+// ─── Deep Layer 1: Daily Endpoint Trends ────────────────────────────────────
+
+describe("dailyEndpointTrends", () => {
+  it("回傳每端點 windowDays 長度的序列", () => {
+    const events: UsageEventLike[] = Array.from({ length: 7 }, (_, i) =>
+      evt({
+        endpoint: "fal-ai/flux-pro/v1.1",
+        costUsd: 0.04,
+        createdAt: new Date(2026, 4, 1 + i, 12, 0, 0),
+      })
+    );
+    const out = dailyEndpointTrends(events, 5, 7, new Date(2026, 4, 7, 23, 59, 59));
+    expect(out).toHaveLength(1);
+    expect(out[0].series).toHaveLength(7);
+  });
+
+  it("偵測異常（今日為 baseline 平均的 >=2 倍）", () => {
+    const baseline = Array.from({ length: 6 }, (_, i) =>
+      evt({
+        endpoint: "fal-ai/flux-pro/v1.1",
+        costUsd: 0.04,
+        createdAt: new Date(2026, 4, 1 + i, 12, 0, 0),
+      })
+    );
+    // 今日塞 10 倍流量
+    const todayEvents = Array.from({ length: 10 }, () =>
+      evt({
+        endpoint: "fal-ai/flux-pro/v1.1",
+        costUsd: 0.04,
+        createdAt: new Date(2026, 4, 7, 12, 0, 0),
+      })
+    );
+    const out = dailyEndpointTrends(
+      [...baseline, ...todayEvents],
+      5,
+      7,
+      new Date(2026, 4, 7, 23, 59, 59)
+    );
+    expect(out[0].isAnomaly).toBe(true);
+    expect(out[0].spikeRatio).toBeGreaterThanOrEqual(2);
+  });
+
+  it("無歷史 baseline 時不誤標", () => {
+    const events: UsageEventLike[] = [
+      evt({ endpoint: "x", costUsd: 0.5, createdAt: new Date(2026, 4, 7, 12, 0, 0) }),
+    ];
+    const out = dailyEndpointTrends(events, 5, 7, new Date(2026, 4, 7, 23, 59, 59));
+    expect(out[0].isAnomaly).toBe(false);
+    expect(out[0].spikeRatio).toBe(0);
+  });
+});
+
+// ─── Deep Layer 2: Per-Call Cost Distribution ───────────────────────────────
+
+describe("perCallCostDistribution", () => {
+  it("空輸入回傳全 0", () => {
+    expect(perCallCostDistribution([]).sampleCount).toBe(0);
+  });
+
+  it("計算 p50/p90/p95/p99/max", () => {
+    const events: UsageEventLike[] = Array.from({ length: 100 }, (_, i) =>
+      evt({ costUsd: (i + 1) * 0.01 })
+    );
+    const d = perCallCostDistribution(events);
+    expect(d.sampleCount).toBe(100);
+    expect(d.p50Usd).toBeCloseTo(0.5);
+    expect(d.p95Usd).toBeCloseTo(0.95);
+    expect(d.maxUsd).toBeCloseTo(1.0);
+  });
+
+  it("找出超過 p99 × 1.5 的離群值", () => {
+    const normal: UsageEventLike[] = Array.from({ length: 100 }, () =>
+      evt({ costUsd: 0.01 })
+    );
+    const outliers: UsageEventLike[] = [evt({ costUsd: 99, endpoint: "expensive/model" })];
+    const d = perCallCostDistribution([...normal, ...outliers]);
+    expect(d.outliers).toHaveLength(1);
+    expect(d.outliers[0].endpoint).toBe("expensive/model");
+  });
+});
+
+// ─── Deep Layer 3: Retry Chains ─────────────────────────────────────────────
+
+describe("detectRetryChains", () => {
+  it("偵測 60 秒內的連續呼叫（attempts >= 2）", () => {
+    const t0 = new Date(2026, 4, 1, 10, 0, 0).getTime();
+    const events: UsageEventLike[] = [
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0) }),
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0 + 5_000) }),
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0 + 10_000) }),
+    ];
+    const chains = detectRetryChains(events, 60);
+    expect(chains).toHaveLength(1);
+    expect(chains[0].attempts).toBe(3);
+  });
+
+  it("間隔 > windowSec 視為不同鏈", () => {
+    const t0 = new Date(2026, 4, 1, 10, 0, 0).getTime();
+    const events: UsageEventLike[] = [
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0) }),
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0 + 5_000) }),
+      // 5 分鐘後（>60s）應斷開
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0 + 5 * 60 * 1000) }),
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(t0 + 5 * 60 * 1000 + 3_000) }),
+    ];
+    const chains = detectRetryChains(events, 60);
+    expect(chains).toHaveLength(2);
+    chains.forEach(c => expect(c.attempts).toBe(2));
+  });
+
+  it("單次呼叫不算重試", () => {
+    const events: UsageEventLike[] = [
+      evt({ userId: 1, endpoint: "x", createdAt: new Date(2026, 4, 1, 10, 0, 0) }),
+    ];
+    expect(detectRetryChains(events)).toHaveLength(0);
+  });
+
+  it("略過 userId 為 null", () => {
+    const t0 = new Date(2026, 4, 1, 10, 0, 0).getTime();
+    const events: UsageEventLike[] = [
+      evt({ userId: null, endpoint: "x", createdAt: new Date(t0) }),
+      evt({ userId: null, endpoint: "x", createdAt: new Date(t0 + 5_000) }),
+    ];
+    expect(detectRetryChains(events)).toHaveLength(0);
+  });
+});
+
+// ─── Deep Layer 4: Feature Breakdown ────────────────────────────────────────
+
+describe("inferFeature / summarizeByFeature", () => {
+  it("依 endpoint 前綴推斷功能模組", () => {
+    expect(inferFeature("fal-ai/flux/schnell")).toBe("image-studio");
+    expect(inferFeature("fal-ai/kling-v2.1/standard")).toBe("video-studio");
+    expect(inferFeature("elevenlabs/v3")).toBe("tts-studio");
+    expect(inferFeature("gemini-2.5-pro")).toBe("ai-brain");
+    expect(inferFeature("totally-unknown")).toBe("general");
+  });
+
+  it("依 feature 彙總並計算佔比與最常端點", () => {
+    const events: UsageEventLike[] = [
+      evt({ endpoint: "fal-ai/flux/schnell", costUsd: 0.003 }),
+      evt({ endpoint: "fal-ai/flux/schnell", costUsd: 0.003 }),
+      evt({ endpoint: "fal-ai/flux-pro/v1.1", costUsd: 0.04 }),
+      evt({ endpoint: "fal-ai/kling-v2.1/standard", costUsd: 0.3 }),
+    ];
+    const out = summarizeByFeature(events);
+    const img = out.find(f => f.feature === "image-studio")!;
+    expect(img).toBeDefined();
+    expect(img.callCount).toBe(3);
+    expect(img.topEndpoint).toBe("fal-ai/flux/schnell");
+    const vid = out.find(f => f.feature === "video-studio")!;
+    expect(vid.callCount).toBe(1);
+    // 排序：cost 降冪 → video-studio 佔最大
+    expect(out[0].feature).toBe("video-studio");
+  });
+});
+
+// ─── Deep Layer 5: Savings Suggester ────────────────────────────────────────
+
+describe("suggestSavings", () => {
+  it("對 premium 端點推薦 economy 替代品", () => {
+    const events: UsageEventLike[] = Array.from({ length: 100 }, () =>
+      evt({ endpoint: "fal-ai/flux-pro/v1.1", costUsd: 0.04 })
+    );
+    const out = suggestSavings(events, 5, 30);
+    expect(out.length).toBeGreaterThan(0);
+    const top = out[0];
+    expect(top.endpoint).toBe("fal-ai/flux-pro/v1.1");
+    expect(top.suggestedEndpoint).not.toBe(top.endpoint);
+    expect(top.savingsPct).toBeGreaterThanOrEqual(30);
+  });
+
+  it("如果端點已是同 category 最便宜，不推薦", () => {
+    const events: UsageEventLike[] = Array.from({ length: 100 }, () =>
+      evt({ endpoint: "fal-ai/flux/schnell", costUsd: 0.003 })
+    );
+    const out = suggestSavings(events, 5, 30);
+    const self = out.find(s => s.endpoint === "fal-ai/flux/schnell");
+    expect(self).toBeUndefined();
+  });
+});
+
+// ─── Deep Layer 6: Reconciliation ───────────────────────────────────────────
+
+describe("reconcileWithProviderInvoices", () => {
+  it("缺口為正：供應商帳單高於記錄", () => {
+    const events: UsageEventLike[] = [
+      evt({ provider: "fal_ai", costUsd: 10 }),
+      evt({ provider: "gemini", costUsd: 2 }),
+    ];
+    const invoices = [
+      { provider: "fal_ai", invoiceUsd: 12, snapshotAt: new Date() },
+      { provider: "gemini", invoiceUsd: 2, snapshotAt: new Date() },
+    ];
+    const r = reconcileWithProviderInvoices(events, invoices);
+    expect(r.totalRecordedUsd).toBeCloseTo(12);
+    expect(r.totalInvoicedUsd).toBeCloseTo(14);
+    expect(r.totalGapUsd).toBeCloseTo(2);
+    expect(r.truthTotalUsd).toBeCloseTo(14);
+  });
+
+  it("供應商沒有發票時 invoice = null", () => {
+    const events: UsageEventLike[] = [evt({ provider: "fal_ai", costUsd: 5 })];
+    const r = reconcileWithProviderInvoices(events, [
+      { provider: "fal_ai", invoiceUsd: null, snapshotAt: null },
+    ]);
+    expect(r.perProvider[0].providerInvoiceUsd).toBeNull();
+    expect(r.perProvider[0].gapUsd).toBeNull();
+    expect(r.truthTotalUsd).toBeCloseTo(5);
+  });
+
+  it("整併兩邊鍵：events / invoices 不對稱也要列", () => {
+    const events: UsageEventLike[] = [evt({ provider: "fal_ai", costUsd: 5 })];
+    const invoices = [
+      { provider: "gemini", invoiceUsd: 3, snapshotAt: new Date() },
+    ];
+    const r = reconcileWithProviderInvoices(events, invoices);
+    expect(r.perProvider).toHaveLength(2);
+  });
+});
+
+// ─── Deep Layer 7: CSV Report Builder ───────────────────────────────────────
+
+describe("buildDeepCostCsvReport", () => {
+  it("輸出含全部段落標題", () => {
+    const csv = buildDeepCostCsvReport({
+      windowStart: "2026-05-01",
+      windowEnd: "2026-05-07",
+      reconciliation: {
+        perProvider: [
+          {
+            provider: "fal_ai",
+            recordedCostUsd: 10,
+            providerInvoiceUsd: 12,
+            gapUsd: 2,
+            gapPct: 16.67,
+            lastSnapshotAt: "2026-05-07T00:00:00.000Z",
+          },
+        ],
+        totalRecordedUsd: 10,
+        totalInvoicedUsd: 12,
+        totalGapUsd: 2,
+        totalGapPct: 16.67,
+        truthTotalUsd: 12,
+      },
+      byCategory: [],
+      byFeature: [],
+      byStatus: [],
+      topEndpoints: [],
+      topUsers: [],
+      catalogVsActual: [],
+      retryChains: [],
+      savingsSuggestions: [],
+      costDistribution: {
+        sampleCount: 0,
+        p50Usd: 0,
+        p90Usd: 0,
+        p95Usd: 0,
+        p99Usd: 0,
+        maxUsd: 0,
+        outliers: [],
+      },
+      waste: { wastedUsd: 0, wastedCalls: 0, wastedShare: 0 },
+      projection: {
+        daysElapsed: 7,
+        daysInMonth: 31,
+        monthToDateUsd: 10,
+        averageDailyUsd: 1.43,
+        projectedMonthEndUsd: 44.27,
+        remainingDays: 24,
+      },
+    });
+
+    expect(csv).toContain("## 帳單對帳");
+    expect(csv).toContain("## 模態拆解");
+    expect(csv).toContain("## 功能模組拆解");
+    expect(csv).toContain("## 狀態拆解");
+    expect(csv).toContain("## Top 端點");
+    expect(csv).toContain("## Top 使用者");
+    expect(csv).toContain("## Catalog 預估 vs 實際");
+    expect(csv).toContain("## 重試鏈");
+    expect(csv).toContain("## 節費建議");
+    expect(csv).toContain("## 月底投影");
+    expect(csv).toContain("真實總成本");
+  });
+
+  it("正確跳脫含逗號 / 雙引號的欄位", () => {
+    const csv = buildDeepCostCsvReport({
+      windowStart: "x",
+      windowEnd: "y",
+      reconciliation: {
+        perProvider: [],
+        totalRecordedUsd: 0,
+        totalInvoicedUsd: 0,
+        totalGapUsd: 0,
+        totalGapPct: 0,
+        truthTotalUsd: 0,
+      },
+      byCategory: [],
+      byFeature: [],
+      byStatus: [],
+      topEndpoints: [
+        {
+          provider: "fal_ai",
+          endpoint: 'evil,"endpoint',
+          category: "text-to-image",
+          callCount: 1,
+          costUsd: 0.04,
+          avgCostPerCall: 0.04,
+          errorRate: 0,
+        },
+      ],
+      topUsers: [],
+      catalogVsActual: [],
+      retryChains: [],
+      savingsSuggestions: [],
+      costDistribution: {
+        sampleCount: 0,
+        p50Usd: 0,
+        p90Usd: 0,
+        p95Usd: 0,
+        p99Usd: 0,
+        maxUsd: 0,
+        outliers: [],
+      },
+      waste: { wastedUsd: 0, wastedCalls: 0, wastedShare: 0 },
+      projection: {
+        daysElapsed: 1,
+        daysInMonth: 31,
+        monthToDateUsd: 0,
+        averageDailyUsd: 0,
+        projectedMonthEndUsd: 0,
+        remainingDays: 30,
+      },
+    });
+    expect(csv).toContain('"evil,""endpoint"');
   });
 });

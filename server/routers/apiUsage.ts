@@ -35,7 +35,14 @@ import {
   calculateWasteCost,
   projectMonthlyCost,
   compareCatalogVsActual,
+  dailyEndpointTrends,
+  perCallCostDistribution,
+  detectRetryChains,
+  summarizeByFeature,
+  suggestSavings,
+  reconcileWithProviderInvoices,
   type UsageEventLike,
+  type ProviderInvoiceInfo,
 } from "../services/costAnalytics";
 
 // ─── Shared Zod Schemas ──────────────────────────────────────────────────────
@@ -506,6 +513,25 @@ export const apiUsageRouter = router({
 
       const totalCost = events.reduce((s, e) => s + (Number(e.costUsd) || 0), 0);
 
+      // 帳單對帳：取每 provider 最新一次 snapshot 的 nextInvoice.amountUsd
+      const latestSnapshots = await db
+        .select()
+        .from(providerSnapshots)
+        .where(
+          sql`(${providerSnapshots.provider}, ${providerSnapshots.snapshotAt}) IN (
+            SELECT provider, MAX(snapshotAt) FROM ${providerSnapshots} GROUP BY provider
+          )`
+        );
+      const invoices: ProviderInvoiceInfo[] = latestSnapshots.map(s => ({
+        provider: s.provider,
+        invoiceUsd:
+          s.nextInvoice && typeof s.nextInvoice.amountUsd === "number"
+            ? s.nextInvoice.amountUsd
+            : null,
+        snapshotAt: s.snapshotAt ?? null,
+      }));
+      const reconciliation = reconcileWithProviderInvoices(events, invoices);
+
       return {
         window: {
           start: start.toISOString(),
@@ -514,6 +540,12 @@ export const apiUsageRouter = router({
           totalCostUsd: Math.round(totalCost * 1_000_000) / 1_000_000,
           truncated: events.length >= 50_000,
         },
+        // 真實成本單一真值（取「平台記錄」與「供應商帳單」的較高值）
+        truth: {
+          source: "ai_usage_events.costUsd + provider_snapshots.nextInvoice",
+          totalUsd: reconciliation.truthTotalUsd,
+        },
+        reconciliation,
         byCategory: summarizeByCategory(events),
         byStatus: summarizeByStatus(events),
         topEndpoints: summarizeByEndpoint(events, input?.topN ?? 20),
@@ -523,6 +555,12 @@ export const apiUsageRouter = router({
         waste: calculateWasteCost(events),
         projection: projectMonthlyCost(Number(mtdRow?.totalCost ?? 0), now),
         catalogVsActual: compareCatalogVsActual(events).slice(0, input?.topN ?? 20),
+        // ── Deep layers ──
+        endpointTrends: dailyEndpointTrends(events, 10, 7, now),
+        costDistribution: perCallCostDistribution(events, 1.5, 20),
+        retryChains: detectRetryChains(events, 60, 30),
+        byFeature: summarizeByFeature(events),
+        savingsSuggestions: suggestSavings(events, 10, 30),
       };
     }),
 
