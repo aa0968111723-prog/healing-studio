@@ -1151,14 +1151,14 @@ ${profileSnippet}`;
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex items-center gap-2">
-              <SceneSwitcher
-                currentScene={sceneId}
-                override={override}
-                allScenes={allScenes}
-                onSelect={setOverride}
-                isDark={isDark}
-              />
+            <SceneSwitcher
+              currentScene={sceneId}
+              override={override}
+              allScenes={allScenes}
+              onSelect={setOverride}
+              isDark={isDark}
+            />
+            <div className="hidden sm:flex">
               <SoundControl
                 controls={ambient}
                 isDark={isDark}
@@ -1246,15 +1246,17 @@ ${profileSnippet}`;
                   window.dispatchEvent(new CustomEvent("orb-open-capabilities"))
                 }
               >
-                {/* Ambient glow ring behind orb — soft, scene-linked */}
+                {/* Ambient glow ring behind orb — soft, scene-linked.
+                    Lower opacity on mobile so it doesn't stack with the
+                    JewelOrbStage bloom into a heavy amber ring. */}
                 <motion.div
-                  className="absolute inset-0 m-auto w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
+                  className="absolute inset-0 m-auto w-28 h-28 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
                   style={{
                     background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
                   }}
                   animate={{
                     scale: [1, 1.08, 1],
-                    opacity: [0.25, 0.4, 0.25],
+                    opacity: isMobile ? [0.15, 0.25, 0.15] : [0.25, 0.4, 0.25],
                   }}
                   transition={{
                     duration: 8,

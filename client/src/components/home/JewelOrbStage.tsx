@@ -11,6 +11,7 @@ import ConstellationField from "./ConstellationField";
 import CausticsPattern from "./CausticsPattern";
 import MorningSunRays from "./MorningSunRays";
 import CafeSteamWisps from "./CafeSteamWisps";
+import { useIsMobile } from "@/hooks/useMobile";
 
 export type JewelSceneId = "nightSky" | "morning" | "cafe" | "deepSea";
 
@@ -51,10 +52,18 @@ const RIPPLE_TINT: Record<JewelSceneId, string> = {
  */
 export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
   const reduceMotion = useReducedMotion();
+  const isMobile = useIsMobile();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const [hovering, setHovering] = useState(false);
   const [tiltEnabled, setTiltEnabled] = useState(false);
+
+  // Mobile reduces the bloom and shimmer arc so the small orb isn't
+  // swallowed by an oversized ring.
+  const bloomSize = isMobile ? 150 : 240;
+  const shimmerSize = isMobile ? 130 : 200;
+  const rippleStart = isMobile ? 40 : 60;
+  const rippleEnd = isMobile ? 220 : 320;
 
   // Pointer position relative to centre, normalised to [-1, 1].
   const px = useMotionValue(0);
@@ -136,18 +145,20 @@ export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
       {sceneId === "morning" && <MorningSunRays hovering={hovering} />}
       {sceneId === "cafe" && <CafeSteamWisps hovering={hovering} />}
 
-      {/* Hover bloom — intensifies the scene's signature glow */}
+      {/* Hover bloom — intensifies the scene's signature glow.
+          On mobile the bloom is smaller and dimmer so it doesn't form
+          a heavy ring around a small orb. */}
       <motion.div
         aria-hidden
         className="pointer-events-none absolute rounded-full"
         style={{
-          width: 240,
-          height: 240,
+          width: bloomSize,
+          height: bloomSize,
           background: `radial-gradient(circle, ${RIPPLE_TINT[sceneId]} 0%, transparent 65%)`,
           filter: "blur(20px)",
         }}
         animate={{
-          opacity: hovering ? 0.9 : 0.5,
+          opacity: hovering ? (isMobile ? 0.55 : 0.9) : isMobile ? 0.28 : 0.5,
           scale: hovering ? 1.12 : 1,
         }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -160,8 +171,8 @@ export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
             key={r.id}
             aria-hidden
             className="pointer-events-none absolute rounded-full"
-            initial={{ width: 60, height: 60, opacity: 0.7 }}
-            animate={{ width: 320, height: 320, opacity: 0 }}
+            initial={{ width: rippleStart, height: rippleStart, opacity: 0.7 }}
+            animate={{ width: rippleEnd, height: rippleEnd, opacity: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
             style={{ border: `2px solid ${r.color}` }}
@@ -187,14 +198,15 @@ export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
         {children}
       </motion.div>
 
-      {/* Specular shimmer arc — orbits subtly around the orb */}
-      {!reduceMotion && (
+      {/* Specular shimmer arc — orbits subtly around the orb.
+          Skipped on mobile where the arc would crowd the small orb. */}
+      {!reduceMotion && !isMobile && (
         <motion.span
           aria-hidden
           className="pointer-events-none absolute rounded-full"
           style={{
-            width: 200,
-            height: 200,
+            width: shimmerSize,
+            height: shimmerSize,
             border: `1px solid ${RIPPLE_TINT[sceneId].replace(/0\.\d+\)$/, "0.20)")}`,
             boxShadow: `inset 0 0 30px ${RIPPLE_TINT[sceneId]}`,
           }}
