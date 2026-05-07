@@ -156,7 +156,7 @@ export default function CreationHub() {
   );
 
   useRegisterPageAgent({
-    pageId: "creation-hub",
+    pageId: "create",
     pageLabel: "創作中心",
     pagePath: "/create",
     capabilities: creationCapabilities,
@@ -164,12 +164,12 @@ export default function CreationHub() {
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       if (action.type === "setTab") {
         if (!isCreationTabId(action.tabId)) {
-          return { ok: false, reason: `unknown creation-hub tab: ${action.tabId}` };
+          return { ok: false, reason: `unknown create tab: ${action.tabId}` };
         }
         handleTabChange(action.tabId);
         return { ok: true, message: `切到「${action.tabId}」分頁`, data: { activeTab: action.tabId } };
       }
-      return { ok: false, reason: `unsupported on creation-hub: ${action.type}` };
+      return { ok: false, reason: `unsupported on create: ${action.type}` };
     },
   });
 

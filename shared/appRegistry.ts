@@ -104,7 +104,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 2,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-creation-hub",
@@ -114,7 +114,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["帶我去創作中心", "我想開始創作"],
-    supportedActions: ["navigate"],
+    supportedActions: ["navigate", "setTab"],
   },
   {
     id: "playground",
@@ -126,7 +126,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 3,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-playground",
@@ -136,7 +136,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["帶我去模型樂園", "我想看進階工具"],
-    supportedActions: ["navigate"],
+    supportedActions: ["navigate", "setTab"],
   },
   {
     id: "studio",
@@ -481,9 +481,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 30,
-    // 此條目為快捷入口，實際處理動作由 dashboard 頁的 PageAgent 接手；
-    // 設為 false 避免 scan-routes 誤抓「找不到 useRegisterPageAgent」。
-    supportsPageAgent: false,
+    // LangSmithPage 在 section=langsmith 時掛上 useRegisterPageAgent，
+    // 暫時取代 dashboard 的 PageAgent 處理 setTab 等動作。
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-langsmith",
@@ -493,7 +493,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["帶我看 LangSmith 監控", "我想查最近模型呼叫的錯誤和延遲"],
-    supportedActions: [],
+    supportedActions: ["setTab"],
   },
   {
     id: "agent-preferences",
@@ -1005,7 +1005,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: false,
     agentEntryPriority: 95,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-process-from-orb",
@@ -1018,7 +1018,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "把這個流程整理成可分享的連結",
       "幫我做一個 step-by-step 的教學頁",
     ],
-    supportedActions: [],
+    supportedActions: ["runWorkflow"],
   },
 ];
 

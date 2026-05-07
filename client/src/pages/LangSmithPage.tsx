@@ -1457,7 +1457,7 @@ export default function LangSmithPage() {
   useRegisterPageAgent({
     pageId: "langsmith",
     pageLabel: "AI 監控中心",
-    pagePath: "/langsmith",
+    pagePath: "/dashboard?section=langsmith",
     capabilities: langsmithCapabilities,
     state: {
       activeTab,
