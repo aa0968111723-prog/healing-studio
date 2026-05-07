@@ -6603,6 +6603,13 @@ export const appRouter = router({
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
+          const isConfigError =
+            err instanceof TRPCError &&
+            err.code === "SERVICE_UNAVAILABLE" &&
+            /API_KEY|未設定|providerReadiness/i.test(errorMsg);
+          const fallbackReply = isConfigError
+            ? `🌿 ${errorMsg}`
+            : "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。";
           // Return healing-style fallback rather than crashing
           const meta = makePlannerMeta({
             plannerStatus: "fallback-error",
@@ -6611,8 +6618,7 @@ export const appRouter = router({
             usedMultimodalPlanner: false,
           });
           return {
-            reply:
-              "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。",
+            reply: fallbackReply,
             actions: [],
             intent: null,
             askBeforeAct: false,
