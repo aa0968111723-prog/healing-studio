@@ -1894,3 +1894,191 @@ export const fineTunedModelConsents = mysqlTable(
 export type FineTunedModelConsent = typeof fineTunedModelConsents.$inferSelect;
 export type InsertFineTunedModelConsent =
   typeof fineTunedModelConsents.$inferInsert;
+
+// ─── Agent Collaboration (Multi-Agent System) ──────────────────────────────
+
+export const agentCollaborationSessions = mysqlTable(
+  "agent_collaboration_sessions",
+  {
+    collaborationId: varchar("collaboration_id", { length: 64 }).primaryKey(),
+    userId: int("user_id").notNull(),
+    sessionId: varchar("session_id", { length: 64 }).notNull(),
+    taskDescription: text("task_description").notNull(),
+    status: mysqlEnum("status", ["active", "completed", "failed", "cancelled"])
+      .notNull()
+      .default("active"),
+    initiatingAgent: varchar("initiating_agent", { length: 32 }).notNull(),
+    currentAgent: varchar("current_agent", { length: 32 }),
+    participatingAgents: json("participating_agents")
+      .notNull()
+      .$type<string[]>(),
+    requiredCapabilities: json("required_capabilities").$type<string[]>(),
+    sharedContext: json("shared_context").$type<Record<string, unknown>>(),
+    result: json("result").$type<Record<string, unknown>>(),
+    startedAt: bigint("started_at", { mode: "number" }).notNull(),
+    completedAt: bigint("completed_at", { mode: "number" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userStatusIdx: index("acs_user_status_idx").on(table.userId, table.status),
+    sessionIdx: index("acs_session_idx").on(table.sessionId),
+    startedAtIdx: index("acs_started_at_idx").on(table.startedAt),
+    statusIdx: index("acs_status_idx").on(table.status),
+  })
+);
+
+export type AgentCollaborationSession =
+  typeof agentCollaborationSessions.$inferSelect;
+export type InsertAgentCollaborationSession =
+  typeof agentCollaborationSessions.$inferInsert;
+
+export const agentCollaborationSteps = mysqlTable(
+  "agent_collaboration_steps",
+  {
+    stepId: varchar("step_id", { length: 64 }).primaryKey(),
+    collaborationId: varchar("collaboration_id", { length: 64 }).notNull(),
+    stepOrder: int("step_order").notNull(),
+    agentRole: varchar("agent_role", { length: 32 }).notNull(),
+    stepDescription: text("step_description"),
+    toolName: varchar("tool_name", { length: 64 }),
+    toolArgs: json("tool_args").$type<Record<string, unknown>>(),
+    dependencies: json("dependencies").$type<string[]>(),
+    stepResult: json("step_result").$type<Record<string, unknown>>(),
+    status: mysqlEnum("status", [
+      "pending",
+      "in_progress",
+      "completed",
+      "failed",
+      "skipped",
+    ])
+      .notNull()
+      .default("pending"),
+    errorMessage: text("error_message"),
+    retryCount: int("retry_count").notNull().default(0),
+    maxRetries: int("max_retries").notNull().default(3),
+    startedAt: bigint("started_at", { mode: "number" }),
+    completedAt: bigint("completed_at", { mode: "number" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    collabOrderIdx: index("acst_collab_order_idx").on(
+      table.collaborationId,
+      table.stepOrder
+    ),
+    collabStatusIdx: index("acst_collab_status_idx").on(
+      table.collaborationId,
+      table.status
+    ),
+    agentRoleIdx: index("acst_agent_role_idx").on(table.agentRole),
+    statusIdx: index("acst_status_idx").on(table.status),
+  })
+);
+
+export type AgentCollaborationStep =
+  typeof agentCollaborationSteps.$inferSelect;
+export type InsertAgentCollaborationStep =
+  typeof agentCollaborationSteps.$inferInsert;
+
+export const agentCollaborationMessages = mysqlTable(
+  "agent_collaboration_messages",
+  {
+    messageId: varchar("message_id", { length: 64 }).primaryKey(),
+    collaborationId: varchar("collaboration_id", { length: 64 }),
+    fromAgent: varchar("from_agent", { length: 32 }).notNull(),
+    toAgent: varchar("to_agent", { length: 255 }).notNull(),
+    messageType: mysqlEnum("message_type", [
+      "request",
+      "response",
+      "notification",
+      "handoff",
+      "broadcast",
+      "query",
+      "share_context",
+    ]).notNull(),
+    priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"])
+      .notNull()
+      .default("normal"),
+    content: json("content").notNull().$type<Record<string, unknown>>(),
+    correlationId: varchar("correlation_id", { length: 64 }),
+    timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    collabTimestampIdx: index("acm_collab_timestamp_idx").on(
+      table.collaborationId,
+      table.timestamp
+    ),
+    correlationIdx: index("acm_correlation_idx").on(table.correlationId),
+    fromAgentIdx: index("acm_from_agent_idx").on(table.fromAgent),
+    toAgentIdx: index("acm_to_agent_idx").on(table.toAgent),
+    timestampIdx: index("acm_timestamp_idx").on(table.timestamp),
+  })
+);
+
+export type AgentCollaborationMessage =
+  typeof agentCollaborationMessages.$inferSelect;
+export type InsertAgentCollaborationMessage =
+  typeof agentCollaborationMessages.$inferInsert;
+
+export const agentCollaborationHandoffs = mysqlTable(
+  "agent_collaboration_handoffs",
+  {
+    handoffId: varchar("handoff_id", { length: 64 }).primaryKey(),
+    collaborationId: varchar("collaboration_id", { length: 64 }).notNull(),
+    fromAgent: varchar("from_agent", { length: 32 }).notNull(),
+    toAgent: varchar("to_agent", { length: 32 }).notNull(),
+    handoffReason: text("handoff_reason"),
+    contextTransferred: json("context_transferred").$type<
+      Record<string, unknown>
+    >(),
+    timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    collabTimestampIdx: index("ach_collab_timestamp_idx").on(
+      table.collaborationId,
+      table.timestamp
+    ),
+    fromToIdx: index("ach_from_to_idx").on(table.fromAgent, table.toAgent),
+  })
+);
+
+export type AgentCollaborationHandoff =
+  typeof agentCollaborationHandoffs.$inferSelect;
+export type InsertAgentCollaborationHandoff =
+  typeof agentCollaborationHandoffs.$inferInsert;
+
+export const agentPerformanceMetrics = mysqlTable(
+  "agent_performance_metrics",
+  {
+    metricId: bigint("metric_id", { mode: "number" })
+      .autoincrement()
+      .primaryKey(),
+    agentRole: varchar("agent_role", { length: 32 }).notNull(),
+    metricDate: date("metric_date").notNull(),
+    totalCollaborations: int("total_collaborations").notNull().default(0),
+    successfulSteps: int("successful_steps").notNull().default(0),
+    failedSteps: int("failed_steps").notNull().default(0),
+    avgStepDurationMs: bigint("avg_step_duration_ms", { mode: "number" }),
+    totalToolInvocations: int("total_tool_invocations").notNull().default(0),
+    toolSuccessRate: decimal("tool_success_rate", {
+      precision: 5,
+      scale: 2,
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    agentDateIdx: index("apm_agent_date_idx").on(
+      table.agentRole,
+      table.metricDate
+    ),
+  })
+);
+
+export type AgentPerformanceMetric =
+  typeof agentPerformanceMetrics.$inferSelect;
+export type InsertAgentPerformanceMetric =
+  typeof agentPerformanceMetrics.$inferInsert;
