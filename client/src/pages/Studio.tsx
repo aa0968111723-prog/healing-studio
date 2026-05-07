@@ -2236,8 +2236,19 @@ export default function Studio() {
     capabilities: studioCaps,
     state: {
       activeModality,
+      // activeTab is an alias of activeModality so generic agents that look
+      // for "tab" find the current section (orb, audit scripts, observers).
+      activeTab: activeModality,
       mode,
       creativeMode,
+      // selectedModelId / activeModel surface the currently-chosen FAL model
+      // so the orb can decide whether to keep / swap before driving submit.
+      selectedModelId: selectedFalModelId ?? null,
+      activeModel: selectedFalModelId ?? null,
+      // Provide a generic `prompt` alias alongside the existing
+      // promptLength / promptPreview to satisfy LLM prompts that look for the
+      // bare key, without leaking the full rawPrompt (capped at 120 chars).
+      prompt: promptBuilder.rawPrompt.slice(0, 120) || "(空)",
       promptLength: promptBuilder.rawPrompt.length,
       promptPreview: promptBuilder.rawPrompt.slice(0, 120) || "(空)",
       hasResult: resultUrl !== null,

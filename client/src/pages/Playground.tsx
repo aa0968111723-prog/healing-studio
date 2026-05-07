@@ -18,6 +18,11 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+} from "@/contexts/PageAgentContext";
 
 const ImageStudio = lazy(() => import("./ImageStudio"));
 const VideoStudio = lazy(() => import("./VideoStudio"));
@@ -143,6 +148,80 @@ export default function Playground() {
     params.set("tab", value);
     setLocation(`/playground?${params.toString()}`, { replace: true });
   };
+
+  // 讓光球能直接切換模型樂園的工具分頁，並在需要時引導到對應的獨立頁。
+  // NAV_ALLOWLIST 與 setTab options 同步，避免出現「光球說要去 image-studio
+  // 但 Hub 沒登錄該路徑」的靜默失敗。
+  const PLAYGROUND_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () =>
+      new Set([
+        "/playground",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
+        "/models",
+        "/lora-trainer",
+        "/dashboard",
+        "/prompt-library",
+      ]),
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "playground",
+    pageLabel: "模型樂園",
+    pagePath: "/playground",
+    capabilities: [
+      {
+        action: "setTab",
+        label: "切換模型樂園分頁",
+        options: TABS.map(tab => ({ id: tab.id, label: tab.label })),
+        currentId: activeTab,
+        hint: "在模型樂園內切換子工具（不離開 Hub）",
+      },
+      {
+        action: "navigate",
+        label: "進入單獨工具頁",
+        options: [
+          { id: "/image-studio", label: "圖片創作室（獨立頁）" },
+          { id: "/video-studio", label: "影片創作室（獨立頁）" },
+          { id: "/pro-studio", label: "音樂配音創作室（獨立頁）" },
+          { id: "/models", label: "角色鍛造所（獨立頁）" },
+          { id: "/lora-trainer", label: "LoRA 訓練（獨立頁）" },
+          { id: "/dashboard", label: "儀表板（獨立頁）" },
+          { id: "/prompt-library", label: "提示詞庫（獨立頁）" },
+        ],
+        hint: "需要全螢幕或獨立網址時使用",
+      },
+    ],
+    state: {
+      activeTab,
+      tabCount: TABS.length,
+      surface: "playground",
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "setTab" && typeof action.tabId === "string") {
+        if (!isPlaygroundTabId(action.tabId)) {
+          return { ok: false, reason: `playground: 未知 tabId：${action.tabId}` };
+        }
+        handleTabChange(action.tabId);
+        const tab = TABS.find(t => t.id === action.tabId);
+        return {
+          ok: true,
+          message: `已切到「${tab?.label ?? action.tabId}」`,
+          data: { activeTab: action.tabId, activeTabLabel: tab?.label },
+        };
+      }
+      if (action.type === "navigate" && typeof action.path === "string") {
+        if (!PLAYGROUND_NAV_ALLOWLIST.has(action.path)) {
+          return { ok: false, reason: `playground: 不在允許跳轉清單：${action.path}` };
+        }
+        setLocation(action.path);
+        return { ok: true, message: `跳到 ${action.path}` };
+      }
+      return { ok: false, reason: `playground: unsupported action "${action.type}"` };
+    },
+  });
 
   return (
     <div className="playground-shell space-y-5">

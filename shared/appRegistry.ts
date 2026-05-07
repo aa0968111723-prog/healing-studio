@@ -104,7 +104,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 2,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-creation-hub",
@@ -112,8 +112,26 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "打開整合的創作工作台",
         path: "/create",
       },
+      {
+        id: "switch-to-studio",
+        label: "切到創作工作室",
+        description: "在 Hub 內切到創作工作室分頁",
+        action: { type: "setTab", tabId: "studio" },
+      },
+      {
+        id: "switch-to-director",
+        label: "切到導演 AI",
+        description: "在 Hub 內切到導演 AI 分頁",
+        action: { type: "setTab", tabId: "director" },
+      },
     ],
-    orbHints: ["帶我去創作中心", "我想開始創作"],
+    orbHints: ["帶我去創作中心", "我想開始創作", "在 Hub 切到資產庫"],
+    // setTab is implemented at runtime by CreationHub's useRegisterPageAgent
+    // (so the orb can drive Hub tabs once mounted) but it is intentionally
+    // NOT listed here. The static fallback ranker uses `supportedActions` to
+    // decide which page wins setTab when emitted from /agent — and create's
+    // agentEntryPriority would beat the real destinations (image-studio,
+    // video-studio, …). Keep static fallback pointing at the actual studios.
     supportedActions: ["navigate"],
   },
   {
@@ -126,7 +144,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 3,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-playground",
@@ -134,8 +152,24 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "瀏覽全部進階模型工具",
         path: "/playground",
       },
+      {
+        id: "switch-to-image",
+        label: "切到圖片創作室",
+        description: "在 Hub 內切到圖片工具分頁",
+        action: { type: "setTab", tabId: "image-studio" },
+      },
+      {
+        id: "switch-to-video",
+        label: "切到影片創作室",
+        description: "在 Hub 內切到影片工具分頁",
+        action: { type: "setTab", tabId: "video-studio" },
+      },
     ],
-    orbHints: ["帶我去模型樂園", "我想看進階工具"],
+    orbHints: ["帶我去模型樂園", "我想看進階工具", "在樂園切到 LoRA 訓練"],
+    // Same rationale as `create` above: setTab is handled at runtime by
+    // Playground's useRegisterPageAgent, but kept out of supportedActions so
+    // the static fallback ranker keeps routing setTab to image-studio /
+    // video-studio / pro-studio rather than the Hub itself.
     supportedActions: ["navigate"],
   },
   {

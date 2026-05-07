@@ -16,6 +16,11 @@ import {
   Clock,
   type LucideIcon,
 } from "lucide-react";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+} from "@/contexts/PageAgentContext";
 
 const Studio = lazy(() => import("./Studio"));
 const DirectorAI = lazy(() => import("./DirectorAI"));
@@ -132,6 +137,78 @@ export default function CreationHub() {
     params.set("tab", value);
     setLocation(`/create?${params.toString()}`, { replace: true });
   };
+
+  // 讓光球能直接切換創作中心的子分頁，並跳到內嵌頁的「獨立路由」版本（如
+  // /studio、/director、/assets…），方便 orb 在「在 Hub 切 tab」與「直接深入該頁」
+  // 之間做選擇。NAV_ALLOWLIST 同步維護，避免任意路徑被注入。
+  const CREATE_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () =>
+      new Set([
+        "/create",
+        "/studio",
+        "/director",
+        "/assets",
+        "/notes",
+        "/calendar",
+        "/history",
+      ]),
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "create",
+    pageLabel: "創作中心",
+    pagePath: "/create",
+    capabilities: [
+      {
+        action: "setTab",
+        label: "切換創作中心分頁",
+        options: TABS.map(tab => ({ id: tab.id, label: tab.label })),
+        currentId: activeTab,
+        hint: "在創作中心內切換子工作台（不離開 Hub）",
+      },
+      {
+        action: "navigate",
+        label: "離開 Hub 進入單獨頁",
+        options: [
+          { id: "/studio", label: "創作工作室（獨立頁）" },
+          { id: "/director", label: "導演 AI（獨立頁）" },
+          { id: "/assets", label: "資產庫（獨立頁）" },
+          { id: "/notes", label: "專案筆記（獨立頁）" },
+          { id: "/calendar", label: "排程（獨立頁）" },
+          { id: "/history", label: "生成歷史（獨立頁）" },
+        ],
+        hint: "需要全螢幕或獨立網址時使用",
+      },
+    ],
+    state: {
+      activeTab,
+      tabCount: TABS.length,
+      surface: "creation-hub",
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "setTab" && typeof action.tabId === "string") {
+        if (!isCreationTabId(action.tabId)) {
+          return { ok: false, reason: `create: 未知 tabId：${action.tabId}` };
+        }
+        handleTabChange(action.tabId);
+        const tab = TABS.find(t => t.id === action.tabId);
+        return {
+          ok: true,
+          message: `已切到「${tab?.label ?? action.tabId}」`,
+          data: { activeTab: action.tabId, activeTabLabel: tab?.label },
+        };
+      }
+      if (action.type === "navigate" && typeof action.path === "string") {
+        if (!CREATE_NAV_ALLOWLIST.has(action.path)) {
+          return { ok: false, reason: `create: 不在允許跳轉清單：${action.path}` };
+        }
+        setLocation(action.path);
+        return { ok: true, message: `跳到 ${action.path}` };
+      }
+      return { ok: false, reason: `create: unsupported action "${action.type}"` };
+    },
+  });
 
   return (
     <div className="creation-hub-shell space-y-5">

@@ -4305,16 +4305,30 @@ export default function ProStudio() {
     pageLabel: "音樂配音創作室",
     pagePath: "/pro-studio",
     capabilities: agentCapabilities,
-    state: {
-      // pro-studio 會在「音樂 / 配音」之間切換；用 activeTab 推斷實際 modality
-      // 讓光球可以選擇音樂精靈或語音精靈。child state 來自子元件 bridge。
-      // 音樂類 tab：music / sfx；語音類 tab：tts / clone / asr / avatar / process。
-      modality:
-        tab === "music" || tab === "sfx" ? "audio" : "voice",
-      activeTab: tab,
-      modelCount: PRO_MODELS.length,
-      ...(bridgeRef.current.getState?.() ?? {}),
-    },
+    state: (() => {
+      const childState = bridgeRef.current.getState?.() ?? {};
+      // 從子元件 bridge 抽出最常見的 prompt / text 欄位，向光球統一暴露
+      // `prompt` / `promptPreview`，避免 LLM 看不到聲學提示詞而誤判。
+      const rawPrompt =
+        typeof childState.prompt === "string"
+          ? childState.prompt
+          : typeof childState.text === "string"
+          ? childState.text
+          : "";
+      return {
+        // pro-studio 會在「音樂 / 配音」之間切換；用 activeTab 推斷實際 modality
+        // 讓光球可以選擇音樂精靈或語音精靈。child state 來自子元件 bridge。
+        // 音樂類 tab：music / sfx；語音類 tab：tts / clone / asr / avatar / process。
+        modality:
+          tab === "music" || tab === "sfx" ? "audio" : "voice",
+        activeTab: tab,
+        modelCount: PRO_MODELS.length,
+        prompt: rawPrompt.slice(0, 120) || "(空)",
+        promptLength: rawPrompt.length,
+        promptPreview: rawPrompt.slice(0, 120) || "(空)",
+        ...childState,
+      };
+    })(),
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       const result = await runProStudioAction(action);
       // Agent loop v5/v6 — overlay structured `data` so the observer
