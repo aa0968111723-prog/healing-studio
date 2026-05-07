@@ -22,6 +22,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
+import OrbFeatureSpotlight from "@/components/orb/OrbFeatureSpotlight";
 import { safeRenderAssistantMessage } from "@/lib/assistantMessageSafety";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
@@ -652,7 +653,7 @@ function ClarificationPromptCard({
       role="dialog"
       aria-label="光球需要先確認需求"
       data-testid="orb-clarification-card"
-      className={`fixed bottom-24 right-5 z-[88] ${
+      className={`pointer-events-auto ${
         isMultiDim ? "w-[420px]" : "w-[380px]"
       } max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl`}
     >
@@ -818,7 +819,7 @@ function WorkflowConfirmationCard({
   const remaining = Math.max(pendingWorkflow.steps.length - previewSteps.length, 0);
 
   return (
-    <div className="fixed bottom-24 right-5 z-[85] w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-cyan-200/20 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-cyan-200/20 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">需要你的確認</div>
       <div className="mt-1 text-base font-semibold">{pendingWorkflow.name}</div>
       <div className="mt-2 text-sm leading-6 text-white/70">
@@ -924,7 +925,7 @@ function WorkflowExecutionFloatingPanel({
 
   return (
     <div
-      className={`fixed bottom-24 right-5 z-[80] ${
+      className={`pointer-events-auto ${
         viewMode === "flow" ? "w-[460px]" : "w-[360px]"
       } max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl`}
       data-testid="orb-workflow-execution-panel"
@@ -1040,7 +1041,7 @@ function ExecutorConfirmationCard({
   if (!pendingTask) return null;
   const { task } = pendingTask;
   return (
-    <div className="fixed bottom-24 left-5 z-[86] w-[400px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-[400px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">Executor Approval</div>
       <div className="mt-1 text-base font-semibold">{task.summaryForUser}</div>
       <div className="mt-2 text-xs text-white/70">taskId: {task.taskId} · traceId: {task.traceId ?? "n/a"}</div>
@@ -1083,7 +1084,7 @@ function ExecutorProgressPanel({
 }) {
   if (!task || state.taskId !== task.taskId) return null;
   return (
-    <div className="fixed bottom-24 left-5 z-[84] w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/20 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/20 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="flex justify-between text-xs text-white/70">
         <span>{state.status}</span>
         <span>{state.currentStepId ?? (
@@ -1133,7 +1134,7 @@ function CodeTaskCard({
 }) {
   if (!codeTask) return null;
   return (
-    <div className="fixed bottom-24 left-5 z-[87] w-[440px] max-w-[calc(100vw-2rem)] rounded-3xl border border-violet-300/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-[440px] max-w-[calc(100vw-2rem)] rounded-3xl border border-violet-300/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="text-xs uppercase tracking-[0.2em] text-violet-200/80">Code Collaboration Task</div>
       <div className="mt-1 text-base font-semibold">{codeTask.title}</div>
       <div className="mt-1 text-xs text-white/70">Provider: {codeTask.provider} · Risk: {codeTask.riskLevel}</div>
@@ -1398,7 +1399,18 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   }, [personality, customWelcomeMessage]);
 
   useEffect(() => {
-    if (messages.length === 0) setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
+    if (messages.length === 0) {
+      setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
+      // Prime first-open quick replies with the four most-useful new shortcuts
+      // so users discover them without waiting for an LLM round-trip. The
+      // built-in detectors handle every one of these locally.
+      setSuggestions([
+        { text: "找我之前的素材" },
+        { text: "幫我做品牌貼文素材包" },
+        { text: "把今天的對話匯出成 PDF" },
+        { text: "光球記得我什麼？" },
+      ]);
+    }
     // initialize once only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2453,45 +2465,71 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   return (
     <GlobalOrbChatContext.Provider value={value}>
       {children}
-      <WorkflowConfirmationCard
-        pendingWorkflow={pendingWorkflow}
-        isBusy={isSending}
-        onStart={startPendingWorkflow}
-        onRevise={revisePendingWorkflow}
-        onCancel={cancelPendingWorkflow}
-      />
-      <WorkflowExecutionFloatingPanel
-        workflowExecution={pendingWorkflow ? null : workflowExecution}
-        onDismiss={clearWorkflowExecution}
-      />
-      <ExecutorConfirmationCard
-        pendingTask={pendingExecutorTask}
-        isBusy={isSending}
-        onApprove={approveExecutorTask}
-        onCancel={cancelExecutorTask}
-        onEditPlan={editExecutorPlan}
-      />
-      <ExecutorProgressPanel
-        task={activeExecutorTask}
-        state={orbExecutor.state}
-        onRetry={retryExecutorTask}
-        onCancel={() => void orbExecutor.cancelTask("cancelled during execution")}
-        onReplan={replanFromFailure}
-        onApproveStep={stepId => void orbExecutor.approveStep(stepId)}
-      />
-      <CodeTaskCard
-        codeTask={pendingCodeTask}
-        isBusy={isSending}
-        onApprove={approveCodeTask}
-        onCancel={cancelCodeTaskPreview}
-      />
-      <ClarificationPromptCard
-        prompt={pendingClarification}
-        isBusy={isSending}
-        onAnswer={text => void answerClarification(text)}
-        onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
-        onCancel={cancelClarification}
-      />
+      {/*
+        Right-side stack — anchors to the orb's home corner. Cards have their
+        own pointer-events-auto so the gaps between them stay click-through.
+        flex-col-reverse means the LAST child renders at the bottom (closest
+        to the orb), which is where the most-actionable card should live.
+        Order from high-priority (bottom) to low-priority (top):
+          - ClarificationPromptCard (needs answer)
+          - WorkflowConfirmationCard (needs confirmation)
+          - WorkflowExecutionFloatingPanel (informational)
+          - OrbFeatureSpotlight (lowest — discoverability tip)
+      */}
+      <div
+        data-testid="orb-card-stack-right"
+        className="fixed bottom-24 right-5 z-[88] flex flex-col-reverse items-end gap-3 max-h-[calc(100vh-7rem)] overflow-y-auto pointer-events-none"
+      >
+        <ClarificationPromptCard
+          prompt={pendingClarification}
+          isBusy={isSending}
+          onAnswer={text => void answerClarification(text)}
+          onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
+          onCancel={cancelClarification}
+        />
+        <WorkflowConfirmationCard
+          pendingWorkflow={pendingWorkflow}
+          isBusy={isSending}
+          onStart={startPendingWorkflow}
+          onRevise={revisePendingWorkflow}
+          onCancel={cancelPendingWorkflow}
+        />
+        <WorkflowExecutionFloatingPanel
+          workflowExecution={pendingWorkflow ? null : workflowExecution}
+          onDismiss={clearWorkflowExecution}
+        />
+        <OrbFeatureSpotlight
+          isChatOpen={isOpen}
+          onTry={text => void sendMessage(text)}
+        />
+      </div>
+      {/* Left-side stack — executor + code task. Same flex pattern as right. */}
+      <div
+        data-testid="orb-card-stack-left"
+        className="fixed bottom-24 left-5 z-[87] flex flex-col-reverse items-start gap-3 max-h-[calc(100vh-7rem)] overflow-y-auto pointer-events-none"
+      >
+        <ExecutorConfirmationCard
+          pendingTask={pendingExecutorTask}
+          isBusy={isSending}
+          onApprove={approveExecutorTask}
+          onCancel={cancelExecutorTask}
+          onEditPlan={editExecutorPlan}
+        />
+        <CodeTaskCard
+          codeTask={pendingCodeTask}
+          isBusy={isSending}
+          onApprove={approveCodeTask}
+          onCancel={cancelCodeTaskPreview}
+        />
+        <ExecutorProgressPanel
+          task={activeExecutorTask}
+          state={orbExecutor.state}
+          onRetry={retryExecutorTask}
+          onCancel={() => void orbExecutor.cancelTask("cancelled during execution")}
+          onReplan={replanFromFailure}
+          onApproveStep={stepId => void orbExecutor.approveStep(stepId)}
+        />
+      </div>
       {latestServerTaskId && (
         <div className="fixed bottom-4 right-4 z-[83] w-[360px] max-w-[calc(100vw-2rem)] pointer-events-auto">
           <OrbTaskObservationStrip
