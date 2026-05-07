@@ -497,6 +497,18 @@ export interface ConversationDimensionSignals {
   hasPurpose?: boolean;
 }
 
+/**
+ * Coverage from durable memory. Folded into `inferConversationDimensions`
+ * so dimensions the user has previously answered (e.g. style=cinematic
+ * stored from a multi-dim pick last week) are treated as already-known
+ * and the multi-dim wizard skips them.
+ */
+export interface RememberedDimensionCoverage {
+  hasStyle?: boolean;
+  hasPlatform?: boolean;
+  hasPurpose?: boolean;
+}
+
 const STYLE_HINT_RE =
   /電影感|品牌|敘事|寫實|MV|動畫|插畫|紀錄|教學|搞笑|療癒|廣告|cinematic|brand|narrative|documentary|realistic|cartoon|animation|anime|funny|advert/i;
 const PLATFORM_HINT_RE =
@@ -510,10 +522,20 @@ const PURPOSE_HINT_RE =
 
 export function inferConversationDimensions(
   text: string,
-  modality: ClarificationModality
+  modality: ClarificationModality,
+  remembered?: RememberedDimensionCoverage
 ): ConversationDimensionSignals {
   const trimmed = text.trim();
-  if (!trimmed) return {};
+  if (!trimmed) {
+    // Even with empty text, remembered prefs still count.
+    return remembered
+      ? {
+          hasStyle: remembered.hasStyle,
+          hasPlatform: remembered.hasPlatform,
+          hasPurpose: remembered.hasPurpose,
+        }
+      : {};
+  }
   const lengthRe =
     /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻|\d+\s*字/i;
   const subjectMarkers =
@@ -533,18 +555,22 @@ export function inferConversationDimensions(
   return {
     hasLength,
     hasSubject,
-    hasStyle: STYLE_HINT_RE.test(trimmed),
-    hasPlatform: PLATFORM_HINT_RE.test(trimmed) || AUDIENCE_HINT_RE.test(trimmed),
+    hasStyle: STYLE_HINT_RE.test(trimmed) || Boolean(remembered?.hasStyle),
+    hasPlatform:
+      PLATFORM_HINT_RE.test(trimmed) ||
+      AUDIENCE_HINT_RE.test(trimmed) ||
+      Boolean(remembered?.hasPlatform),
     hasSource: SOURCE_HINT_RE.test(trimmed),
-    hasPurpose: PURPOSE_HINT_RE.test(trimmed),
+    hasPurpose: PURPOSE_HINT_RE.test(trimmed) || Boolean(remembered?.hasPurpose),
   };
 }
 
 export function nextMissingDimension(
   text: string,
-  modality: ClarificationModality
+  modality: ClarificationModality,
+  remembered?: RememberedDimensionCoverage
 ): ClarificationDimension | null {
-  const sig = inferConversationDimensions(text, modality);
+  const sig = inferConversationDimensions(text, modality, remembered);
   // Bar for "wizard satisfied" — kept intentionally thorough so the orb feels
   // like a real director who actually understands the brief, not a one-shot
   // dispatcher. We walk every dimension that materially changes the output
@@ -585,9 +611,10 @@ export function nextMissingDimension(
  */
 export function buildWizardClarification(
   text: string,
-  modality: ClarificationModality
+  modality: ClarificationModality,
+  remembered?: RememberedDimensionCoverage
 ): { question: string; options: string[]; dimension: ClarificationDimension } | null {
-  const dimension = nextMissingDimension(text, modality);
+  const dimension = nextMissingDimension(text, modality, remembered);
   if (!dimension) return null;
   const { options } = buildContextualClarificationOptions({
     userText: text,
@@ -623,9 +650,10 @@ export interface MultiDimWizardClarification {
  */
 export function countMissingHighSignalDimensions(
   text: string,
-  modality: ClarificationModality
+  modality: ClarificationModality,
+  remembered?: RememberedDimensionCoverage
 ): number {
-  const sig = inferConversationDimensions(text, modality);
+  const sig = inferConversationDimensions(text, modality, remembered);
   let missing = 0;
   if (!sig.hasSubject) missing += 1;
   if (!sig.hasStyle) missing += 1;
@@ -648,9 +676,10 @@ export function countMissingHighSignalDimensions(
  */
 export function buildMultiDimWizardClarification(
   text: string,
-  modality: ClarificationModality
+  modality: ClarificationModality,
+  remembered?: RememberedDimensionCoverage
 ): MultiDimWizardClarification | null {
-  const sig = inferConversationDimensions(text, modality);
+  const sig = inferConversationDimensions(text, modality, remembered);
   // Length is gating: if we don't have it, ask single-dim first.
   const lengthRequired = !(modality === "image" || modality === "lora");
   if (lengthRequired && !sig.hasLength) return null;

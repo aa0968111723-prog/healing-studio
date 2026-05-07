@@ -9,6 +9,8 @@
 
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -51,6 +53,13 @@ import {
   detectOrbSearchIntent,
   formatUnifiedSearchReply,
 } from "../../../shared/orb-search-intent";
+import { rememberedDimensionCoverage } from "../../../shared/orb-clarification-memory";
+import { useOrbState } from "./OrbStateContext";
+
+// Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
+// the initial chat context payload. The bullet-list fallback inside the same
+// panel renders synchronously while this resolves.
+const LazyWorkflowDAG = lazy(() => import("@/components/orb/OrbWorkflowDAG"));
 import { appendProcessLinkToReply } from "../../../shared/orb-reply-process-extractor";
 import {
   buildContextualClarificationOptions,
@@ -91,6 +100,24 @@ export interface ChatWebSource {
   source?: string;
 }
 
+/**
+ * Structured site-wide search results attached to a chat message. When set,
+ * a renderer that supports rich cards should display these instead of (or in
+ * addition to) the message's prose body.
+ */
+export interface ChatSearchResultItem {
+  kind: "asset" | "note" | "history" | "tutorial";
+  id: string;
+  title: string;
+  snippet: string;
+  path: string;
+  badge?: string;
+  at?: number;
+  score?: number;
+  thumbnailUrl?: string;
+  modality?: "image" | "video" | "audio" | "voice" | "script" | "zip_bundle";
+}
+
 export interface ChatMessage {
   role: ChatRole;
   text: string;
@@ -101,6 +128,13 @@ export interface ChatMessage {
   actions?: AgentAction[];
   /** Web sources cited by the orb (Brave / GitHub) for research-style answers. */
   webSources?: ChatWebSource[];
+  /**
+   * Site-wide search results returned for "找 / 搜尋 / 翻一下" queries.
+   * Renderers may show these as kind-tagged cards beneath the message body.
+   */
+  searchResults?: ChatSearchResultItem[];
+  /** Search query the results were drawn from (used for header + analytics). */
+  searchQuery?: string;
 }
 
 export interface ChatSuggestion {
@@ -859,6 +893,20 @@ function WorkflowExecutionFloatingPanel({
   workflowExecution: WorkflowExecutionState | null;
   onDismiss: () => void;
 }) {
+  // Default to flow view for workflows with 4+ steps where the DAG actually
+  // helps; short workflows look better as the dense bullet list.
+  const initialView: "list" | "flow" =
+    workflowExecution && workflowExecution.steps.length >= 4 ? "flow" : "list";
+  const [viewMode, setViewMode] = useState<"list" | "flow">(initialView);
+
+  // Reset to the "natural" view when a brand-new workflow starts so the user
+  // doesn't carry a stale toggle from the previous run.
+  useEffect(() => {
+    if (workflowExecution) {
+      setViewMode(workflowExecution.steps.length >= 4 ? "flow" : "list");
+    }
+  }, [workflowExecution?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!workflowExecution) return null;
 
   const current = workflowExecution.steps[workflowExecution.currentIndex];
@@ -875,19 +923,48 @@ function WorkflowExecutionFloatingPanel({
     : "待命";
 
   return (
-    <div className="fixed bottom-24 right-5 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div
+      className={`fixed bottom-24 right-5 z-[80] ${
+        viewMode === "flow" ? "w-[460px]" : "w-[360px]"
+      } max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl`}
+      data-testid="orb-workflow-execution-panel"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">AI Director Workflow</div>
           <div className="mt-1 text-sm font-semibold">{workflowExecution.name}</div>
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/20"
-        >
-          關閉
-        </button>
+        <div className="flex items-center gap-1">
+          <div className="flex rounded-full bg-white/10 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`px-2 py-0.5 text-[10px] rounded-full transition ${
+                viewMode === "list" ? "bg-white text-slate-900" : "text-white/60 hover:text-white"
+              }`}
+              data-testid="orb-workflow-view-list"
+            >
+              列表
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("flow")}
+              className={`px-2 py-0.5 text-[10px] rounded-full transition ${
+                viewMode === "flow" ? "bg-white text-slate-900" : "text-white/60 hover:text-white"
+              }`}
+              data-testid="orb-workflow-view-flow"
+            >
+              流程圖
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/20"
+          >
+            關閉
+          </button>
+        </div>
       </div>
 
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
@@ -901,7 +978,7 @@ function WorkflowExecutionFloatingPanel({
         <span>{completedCount}/{workflowExecution.total}</span>
       </div>
 
-      {current && (
+      {current && viewMode === "list" && (
         <div className="mt-3 rounded-2xl bg-white/10 p-3">
           <div className="text-xs text-white/50">目前步驟</div>
           <div className="mt-1 text-sm">{current.label}</div>
@@ -915,14 +992,34 @@ function WorkflowExecutionFloatingPanel({
         </div>
       )}
 
-      <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
-        {workflowExecution.steps.map(step => (
-          <div key={`${step.index}-${step.label}`} className="flex gap-2 text-xs">
-            <span className={statusDotClass(step.status)}>{statusDot(step.status)}</span>
-            <span className="text-white/70">{step.index + 1}. {step.label}</span>
-          </div>
-        ))}
-      </div>
+      {viewMode === "flow" ? (
+        <div className="mt-3">
+          <Suspense
+            fallback={
+              <div className="h-44 grid place-items-center text-xs text-white/50">
+                載入流程圖…
+              </div>
+            }
+          >
+            <LazyWorkflowDAG workflowExecution={workflowExecution} compact />
+          </Suspense>
+          {workflowExecution.error && (
+            <div className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
+              <div className="font-medium">需要補充的欄位</div>
+              <div className="mt-1">{workflowExecution.error}</div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+          {workflowExecution.steps.map(step => (
+            <div key={`${step.index}-${step.label}`} className="flex gap-2 text-xs">
+              <span className={statusDotClass(step.status)}>{statusDot(step.status)}</span>
+              <span className="text-white/70">{step.index + 1}. {step.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1219,6 +1316,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
   const aiChat = trpc.ai.chat.useMutation();
   const trpcUtils = trpc.useUtils();
+  const persistClarificationPicks =
+    trpc.orbProxy.persistClarificationPicks.useMutation();
+  const orbState = useOrbState();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
 
@@ -1424,6 +1524,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     const nextWorkflowExecution = buildWorkflowExecutionState(orchestratorActions);
     if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
+    orbState.setState(
+      "executing",
+      nextWorkflowExecution ? `${nextWorkflowExecution.name}（${nextWorkflowExecution.total} 步）` : "執行中"
+    );
+
     try {
       const results = await executeGlobalActions(orchestratorActions, {
         currentPage: pageAgent.snapshot,
@@ -1485,6 +1590,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         setWorkflowExecution(prev =>
           prev ? failWorkflowAtCurrentStep(prev, failedReason, now) : prev
         );
+        orbState.setState("error", `執行失敗：${failedReason.slice(0, 40)}`);
         const friendlyText =
           failedReason === "workflow disabled"
             ? "⚠️ 目前跨頁工作流程功能暫時關閉。我可以先提供手動步驟指引，或改成單一步驟幫你執行。"
@@ -1505,6 +1611,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       } else if (nextWorkflowExecution) {
         const now = Date.now();
         setWorkflowExecution(prev => (prev ? completeWorkflow(prev, now) : prev));
+        orbState.setState("success", `${nextWorkflowExecution.name} 完成`);
+      } else {
+        orbState.setState("success", "完成");
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -1512,6 +1621,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       setWorkflowExecution(prev =>
         prev ? failWorkflowAtCurrentStep(prev, reason, Date.now()) : prev
       );
+      orbState.setState("error", `執行錯誤：${reason.slice(0, 40)}`);
       setMessages(prev => [...prev, {
         role: "orb",
         text: `⚠️ 執行流程時遇到問題：${reason}`,
@@ -1519,7 +1629,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
       }]);
     }
-  }, [pageAgent, locationPath, setLocation]);
+  }, [pageAgent, locationPath, setLocation, orbState]);
 
   // Forward declaration for the auto-execute branch inside `sendMessage`.
   // The actual `startPendingWorkflow` callback is defined further down (it
@@ -1557,21 +1667,38 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     if (!requestedMode) {
       const searchIntent = detectOrbSearchIntent(trimmed);
       if (searchIntent) {
+        orbState.setState("searching", `搜尋「${searchIntent.query}」`);
         try {
           const result = await trpcUtils.orbProxy.unifiedSearch.fetch({
             query: searchIntent.query,
             ...(searchIntent.types ? { types: searchIntent.types } : {}),
           });
-          const reply = formatUnifiedSearchReply(searchIntent.query, result.items);
+          orbState.setState(
+            result.items.length > 0 ? "success" : "idle",
+            result.items.length > 0
+              ? `找到 ${result.items.length} 筆`
+              : `沒有命中`
+          );
+          const headerText =
+            result.items.length === 0
+              ? `🔍 全站翻找「${searchIntent.query}」沒有命中——可以試試把關鍵字改寬一點，或告訴我要找哪一類（素材／筆記／生成記錄／教學）。`
+              : `🔍 為「${searchIntent.query}」找到 ${result.items.length} 筆結果：`;
+          const fallbackText =
+            result.items.length > 0
+              ? `${headerText}\n\n${formatUnifiedSearchReply(searchIntent.query, result.items)}`
+              : headerText;
           setMessages(prev => [...prev, {
             role: "orb",
-            text: reply,
+            text: fallbackText,
             at: Date.now(),
             pagePath: locationPath,
             intent: `站內搜尋「${searchIntent.query}」`,
+            searchResults: result.items.length > 0 ? result.items : undefined,
+            searchQuery: searchIntent.query,
           }]);
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
+          orbState.setState("error", `搜尋失敗：${reason.slice(0, 40)}`);
           setMessages(prev => [...prev, {
             role: "orb",
             text: `🔍 搜尋時遇到問題：${reason}`,
@@ -1798,7 +1925,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         // pin everything down in one round-trip instead of bouncing through
         // four single-dim wizard turns.
         const detectedModality = inferModalityFromText(trimmed);
-        const multi = buildMultiDimWizardClarification(trimmed, detectedModality);
+        const rememberedCoverage = rememberedDimensionCoverage(rememberedPreferences);
+        const multi = buildMultiDimWizardClarification(
+          trimmed,
+          detectedModality,
+          rememberedCoverage
+        );
         const question = intentDetection.message;
 
         if (multi) {
@@ -2233,6 +2365,29 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const cleaned = answers.filter(a => a.value.trim().length > 0);
       if (cleaned.length === 0 && extraNote.trim().length === 0) return;
       setPendingClarification(null);
+
+      // Fire-and-forget: persist durable picks (style / platform / purpose)
+      // to the orb-memory store so the planner can skip these dimensions
+      // on future requests. Failure here must NOT block the user's reply —
+      // worst case the next turn re-asks, which is the existing behavior.
+      if (cleaned.length > 0) {
+        try {
+          persistClarificationPicks.mutate(
+            {
+              picks: cleaned,
+              traceId: active.id,
+            },
+            {
+              onError: () => {
+                // intentionally silent — user shouldn't see a memory write fail
+              },
+            }
+          );
+        } catch {
+          // mutate is sync-throw safe but guard belt-and-braces
+        }
+      }
+
       const serialized = serializeMultiDimAnswers(cleaned);
       const noteLine = extraNote.trim().length > 0
         ? `[使用者澄清/open]: ${extraNote.trim()}`
@@ -2244,7 +2399,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           : tail;
       await sendMessage(composed);
     },
-    [pendingClarification, sendMessage]
+    [pendingClarification, sendMessage, persistClarificationPicks]
   );
 
   const open = useCallback(() => setIsOpen(true), []);

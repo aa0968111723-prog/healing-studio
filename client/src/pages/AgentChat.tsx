@@ -58,6 +58,7 @@ import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
 import AgentSettingsSheet from "@/components/AgentSettingsSheet";
 import ChatMessageText from "@/components/ChatMessageText";
+import OrbSearchResultsCard from "@/components/orb/OrbSearchResultsCard";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -871,6 +872,12 @@ export default function AgentChat() {
                         </a>
                       ))}
                     </div>
+                  ) : null}
+                  {msg.searchResults?.length ? (
+                    <OrbSearchResultsCard
+                      query={msg.searchQuery}
+                      items={msg.searchResults}
+                    />
                   ) : null}
                   <div className="mt-1.5 text-[10px] opacity-60 flex items-center gap-1">
                     <Clock3 className="w-3 h-3" />
