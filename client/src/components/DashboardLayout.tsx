@@ -378,7 +378,7 @@ function DashboardLayoutContent({
   const visibleSidebarStructure = useMemo<SidebarEntry[]>(() => {
     if (!normalizedSidebarQuery) return sidebarStructure;
 
-    return sidebarStructure
+    const filteredEntries = sidebarStructure
       .map(entry => {
         if (isHeading(entry)) {
           // Headings are decorative — skip during search filtering.
@@ -407,8 +407,11 @@ function DashboardLayoutContent({
           ...entry,
           children: selfMatched ? entry.children : matchedChildren,
         } satisfies SidebarGroupItem;
-      })
-      .filter((entry): entry is SidebarEntry => Boolean(entry));
+      });
+
+    return filteredEntries.filter(
+      (entry): entry is Exclude<typeof entry, null> => entry !== null
+    );
   }, [normalizedSidebarQuery]);
 
   const isAdmin = user?.role === "admin";

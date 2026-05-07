@@ -95,6 +95,8 @@ export function expectedDeltaForAction(action: AgentAction): ActionExpectation {
     case "runWorkflow":
       // Nested workflow — outer perception ignores; inner steps are evaluated individually.
       return { expectsChange: false, description: "nested workflow; per-step perception applies inside" };
+    default:
+      return { expectsChange: false, description: "unknown action type" };
   }
 }
 
