@@ -182,18 +182,16 @@ const sidebarStructure: SidebarEntry[] = (() => {
     if (entry) entries.push(entry);
   };
   // Flat list — every feature is its own top-level entry, no categories.
-  const pageIds = ["agent-chat", "studio", "image-studio", "video-studio", "pro-studio", "director", "models", "assets", "notes", "learn"];
-
-  // Debug: log which pages are found vs missing
-  console.log("[Sidebar Debug] Available pages in sidebarPagesById:", Array.from(sidebarPagesById.keys()));
-  pageIds.forEach(id => {
-    const leaf = buildLeaf(id);
-    if (!leaf) {
-      console.warn(`[Sidebar Debug] Page not found: ${id}`);
-    }
-    push(leaf);
-  });
-
+  push(buildLeaf("agent-chat"));
+  push(buildLeaf("studio"));
+  push(buildLeaf("image-studio"));
+  push(buildLeaf("video-studio"));
+  push(buildLeaf("pro-studio"));
+  push(buildLeaf("director"));
+  push(buildLeaf("models"));
+  push(buildLeaf("assets"));
+  push(buildLeaf("notes"));
+  push(buildLeaf("learn"));
   return entries;
 })();
 
