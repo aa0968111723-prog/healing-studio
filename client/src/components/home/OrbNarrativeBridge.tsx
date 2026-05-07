@@ -29,6 +29,27 @@ function buildDust(count: number, baseRadius: number) {
 const DUST_DESKTOP = buildDust(14, 70);
 const DUST_MOBILE = buildDust(8, 48);
 
+function PhaseLabel({ num, tint }: { num: string; tint: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-4">
+      <span
+        className="block h-px w-8 rounded-full"
+        style={{ background: `linear-gradient(90deg, transparent, ${tint})` }}
+      />
+      <span
+        className="text-[10px] tracking-[0.4em] uppercase font-medium"
+        style={{ color: tint }}
+      >
+        Phase {num}
+      </span>
+      <span
+        className="block h-px w-8 rounded-full"
+        style={{ background: `linear-gradient(90deg, ${tint}, transparent)` }}
+      />
+    </div>
+  );
+}
+
 /**
  * OrbNarrativeBridge — a 3-frame scrollytelling block that bridges the hero
  * to the rest of the homepage.  Replaces the former "CORE CAPABILITIES"
@@ -168,10 +189,8 @@ export default function OrbNarrativeBridge() {
           style={{ opacity: frame1Opacity, y: frame1Y }}
         >
           <div className="max-w-xl">
-            <p className="text-[10px] tracking-[0.4em] uppercase text-purple-500/70 mb-4">
-              Phase 01
-            </p>
-            <h2 className="text-3xl sm:text-5xl font-semibold text-gray-800 leading-tight">
+            <PhaseLabel num="01" tint="rgba(168,85,247,0.85)" />
+            <h2 className="text-3xl sm:text-5xl font-semibold leading-tight bg-gradient-to-br from-purple-700 via-purple-500 to-fuchsia-400 bg-clip-text text-transparent">
               從一個念頭開始
             </h2>
             <p className="mt-5 text-sm sm:text-base text-gray-500 leading-relaxed">
@@ -186,10 +205,8 @@ export default function OrbNarrativeBridge() {
           style={{ opacity: frame2Opacity, y: frame2Y }}
         >
           <div className="max-w-xl">
-            <p className="text-[10px] tracking-[0.4em] uppercase text-sky-500/70 mb-4">
-              Phase 02
-            </p>
-            <h2 className="text-3xl sm:text-5xl font-semibold text-gray-800 leading-tight">
+            <PhaseLabel num="02" tint="rgba(56,189,248,0.85)" />
+            <h2 className="text-3xl sm:text-5xl font-semibold leading-tight bg-gradient-to-br from-sky-600 via-sky-400 to-cyan-300 bg-clip-text text-transparent">
               光球感應你的情緒
             </h2>
             <p className="mt-5 text-sm sm:text-base text-gray-500 leading-relaxed">
@@ -204,10 +221,8 @@ export default function OrbNarrativeBridge() {
           style={{ opacity: frame3Opacity, y: frame3Y }}
         >
           <div className="max-w-xl">
-            <p className="text-[10px] tracking-[0.4em] uppercase text-emerald-500/70 mb-4">
-              Phase 03
-            </p>
-            <h2 className="text-3xl sm:text-5xl font-semibold text-gray-800 leading-tight">
+            <PhaseLabel num="03" tint="rgba(16,185,129,0.85)" />
+            <h2 className="text-3xl sm:text-5xl font-semibold leading-tight bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-300 bg-clip-text text-transparent">
               在工作室具現
             </h2>
             <p className="mt-5 text-sm sm:text-base text-gray-500 leading-relaxed">

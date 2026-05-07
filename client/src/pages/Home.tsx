@@ -72,6 +72,8 @@ import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
 import MagneticTilt from "@/components/home/MagneticTilt";
 import ShimmerDivider from "@/components/home/ShimmerDivider";
 import PageRevealVeil from "@/components/home/PageRevealVeil";
+import AuroraBlobs from "@/components/home/AuroraBlobs";
+import GrainOverlay from "@/components/home/GrainOverlay";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
@@ -1096,6 +1098,7 @@ ${profileSnippet}`;
   return (
     <div className="min-h-screen relative overflow-x-hidden flex flex-col">
       <PageRevealVeil color={isDark ? "rgba(6,8,20,0.55)" : "rgba(252,247,240,0.55)"} />
+      <GrainOverlay opacity={isDark ? 0.08 : 0.05} />
       {/* ── Full-page gradient background (scene-adaptive, covers entire scroll height) ── */}
       <div
         className="fixed inset-0 w-full h-full -z-20 pointer-events-none"
@@ -1192,6 +1195,7 @@ ${profileSnippet}`;
         className="pt-24 sm:pt-36 lg:pt-44 pb-20 sm:pb-28 lg:pb-36 px-4 sm:px-6 relative z-10 min-h-[85vh] sm:min-h-[90vh] flex items-center"
         style={{ y: heroY }}
       >
+        <AuroraBlobs />
         <HeroMagneticSpotlight color={s.glowColor} />
         <motion.div
           className="max-w-4xl mx-auto text-center w-full relative"

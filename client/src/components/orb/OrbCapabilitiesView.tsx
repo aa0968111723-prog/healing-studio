@@ -51,23 +51,36 @@ export default function OrbCapabilitiesView({
           <motion.div
             key={cap.id}
             initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{
+              opacity: 1,
+              y: isOpen ? -2 : 0,
+            }}
             transition={{
-              duration: 0.45,
+              duration: reduceMotion ? 0 : 0.45,
               delay: reduceMotion ? 0 : idx * 0.04,
               ease: cubic,
             }}
-            className="relative rounded-xl overflow-hidden border bg-white/70"
+            className="relative rounded-xl overflow-hidden border bg-white/70 backdrop-blur-sm"
             style={{
               borderColor: isOpen
                 ? `${cap.accentColor}55`
                 : "rgba(0,0,0,0.06)",
               boxShadow: isOpen
-                ? `0 8px 24px ${cap.accentColor}1f`
+                ? `0 14px 32px ${cap.accentColor}26, 0 0 0 1px ${cap.accentColor}1a`
                 : "0 1px 2px rgba(0,0,0,0.03)",
               transition: "border-color 0.4s, box-shadow 0.4s",
             }}
           >
+            {/* Bottom accent line — only when expanded */}
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 left-0 right-0 h-px"
+              style={{
+                background: `linear-gradient(90deg, transparent, ${cap.accentColor}, transparent)`,
+              }}
+              animate={{ opacity: isOpen ? 1 : 0 }}
+              transition={{ duration: 0.4 }}
+            />
             {/* Accent glow background — only visible when expanded */}
             <motion.div
               aria-hidden
