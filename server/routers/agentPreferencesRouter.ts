@@ -189,4 +189,29 @@ export const agentPreferencesRouter = router({
         .map(([type, stat]) => ({ type, ...stat })),
     };
   }),
+
+  /**
+   * Flat activity feed for the settings-page 概覽 tab. Unlike
+   * `getDistilledProfile` (which collapses everything into ratios) this
+   * returns one row per event so the user can see what the orb actually
+   * did and when. Capped at 50.
+   */
+  getRecentActivity: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 20;
+      const rows = await getRecentOrbFeedback(ctx.user.id, limit).catch(() => []);
+      return {
+        events: rows.map(row => ({
+          id: row.id,
+          at: row.createdAt instanceof Date
+            ? row.createdAt.getTime()
+            : new Date(row.createdAt as unknown as string).getTime(),
+          status: row.status,
+          actionType: row.actionType,
+          note: row.note ?? null,
+          pageId: row.pageId ?? null,
+        })),
+      };
+    }),
 });

@@ -22,6 +22,9 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
+import OrbFeatureSpotlight from "@/components/orb/OrbFeatureSpotlight";
+import { useIsMobile } from "@/hooks/useMobile";
+import { motion, AnimatePresence } from "framer-motion";
 import { safeRenderAssistantMessage } from "@/lib/assistantMessageSafety";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
@@ -643,9 +646,11 @@ function ClarificationPromptCard({
 }) {
   const [draft, setDraft] = useState("");
   const [picks, setPicks] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     setDraft("");
     setPicks({});
+    setSubmitting(false);
   }, [prompt?.id]);
 
   if (!prompt) return null;
@@ -656,9 +661,11 @@ function ClarificationPromptCard({
   };
 
   const isMultiDim = Boolean(prompt.multiDim && prompt.multiDim.length > 0);
-  const multiAllAnswered = isMultiDim
-    ? (prompt.multiDim ?? []).every(entry => Boolean(picks[entry.dimension]))
-    : false;
+  const totalDims = prompt.multiDim?.length ?? 0;
+  const filledDims = prompt.multiDim
+    ? prompt.multiDim.filter(entry => Boolean(picks[entry.dimension])).length
+    : 0;
+  const multiAllAnswered = isMultiDim ? filledDims === totalDims : false;
 
   const submitMulti = () => {
     if (!prompt.multiDim) return;
@@ -666,20 +673,58 @@ function ClarificationPromptCard({
       .map(entry => ({ dimension: entry.dimension, value: picks[entry.dimension] ?? "" }))
       .filter(a => a.value.trim().length > 0);
     if (answers.length === 0 && draft.trim().length === 0) return;
-    onMultiAnswer(answers, draft.trim());
+    setSubmitting(true);
+    // Brief flash before bubbling up — gives the user a beat to register
+    // their full picks before the card unmounts. 300ms matches the spring.
+    setTimeout(() => onMultiAnswer(answers, draft.trim()), 300);
   };
 
   return (
-    <div
+    <motion.div
       role="dialog"
       aria-label="光球需要先確認需求"
       data-testid="orb-clarification-card"
-      className={`fixed bottom-24 right-5 z-[88] ${
-        isMultiDim ? "w-[420px]" : "w-[380px]"
-      } max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl`}
+      initial={{ opacity: 0, y: 16, scale: 0.96 }}
+      animate={{
+        opacity: submitting ? 0 : 1,
+        y: 0,
+        scale: submitting ? 1.02 : 1,
+        boxShadow: submitting
+          ? "0 0 50px rgba(251, 191, 36, 0.6), 0 0 100px rgba(251, 191, 36, 0.25)"
+          : "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+      }}
+      transition={{ type: "spring", stiffness: 300, damping: 26 }}
+      className={`pointer-events-auto w-full ${
+        isMultiDim ? "md:w-[420px]" : "md:w-[380px]"
+      } max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white backdrop-blur-xl`}
     >
-      <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
-        {isMultiDim ? "一次定方向" : "先確認一下"}
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
+          {isMultiDim ? "一次定方向" : "先確認一下"}
+        </div>
+        {isMultiDim && totalDims > 0 ? (
+          <div
+            className="flex items-center gap-1"
+            data-testid="orb-clarification-progress"
+            aria-label={`已選 ${filledDims} / ${totalDims}`}
+          >
+            {Array.from({ length: totalDims }).map((_, idx) => {
+              const filled = idx < filledDims;
+              return (
+                <motion.span
+                  key={idx}
+                  initial={false}
+                  animate={{
+                    scale: filled ? [1, 1.4, 1] : 1,
+                    backgroundColor: filled ? "#fcd34d" : "rgba(252, 211, 77, 0.2)",
+                  }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                  className="inline-block w-2 h-2 rounded-full"
+                />
+              );
+            })}
+          </div>
+        ) : null}
       </div>
       <div
         data-testid="orb-clarification-question"
@@ -698,57 +743,100 @@ function ClarificationPromptCard({
           className="mt-3 max-h-[50vh] overflow-y-auto pr-1 space-y-3"
           data-testid="orb-clarification-multidim"
         >
-          {prompt.multiDim.map(entry => (
-            <div
-              key={entry.dimension}
-              className="rounded-2xl border border-white/5 bg-white/5 p-3"
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <span className="rounded-full bg-amber-200/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">
-                  {DIMENSION_LABEL[entry.dimension]}
-                </span>
-                {picks[entry.dimension] ? (
-                  <span className="text-[11px] text-emerald-300">已選</span>
-                ) : (
-                  <span className="text-[11px] text-white/40">未選</span>
-                )}
-              </div>
-              <p className="mb-2 text-xs text-white/70 leading-snug">
-                {entry.question}
-              </p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {entry.options.map(option => {
-                  const isPicked = picks[entry.dimension] === option;
-                  const emoji = inferClarificationOptionEmoji(option);
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() =>
-                        setPicks(prev => ({
-                          ...prev,
-                          [entry.dimension]: isPicked ? "" : option,
-                        }))
-                      }
-                      disabled={isBusy}
-                      className={`group flex items-start gap-1.5 rounded-xl border px-2 py-2 text-left transition disabled:opacity-50 ${
-                        isPicked
-                          ? "border-amber-200/70 bg-amber-200/30"
-                          : "border-amber-200/15 bg-amber-200/5 hover:border-amber-200/40 hover:bg-amber-200/15"
-                      }`}
-                    >
-                      <span className="text-sm leading-none mt-0.5 shrink-0">
-                        {emoji}
-                      </span>
-                      <span className="text-[11px] leading-snug text-amber-50">
-                        {option}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+          {prompt.multiDim.map((entry, dimIdx) => {
+            const isAnswered = Boolean(picks[entry.dimension]);
+            return (
+              <motion.div
+                key={entry.dimension}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                  delay: 0.06 * dimIdx,
+                  type: "spring",
+                  stiffness: 320,
+                  damping: 24,
+                }}
+                className={`rounded-2xl border p-3 transition-colors ${
+                  isAnswered
+                    ? "border-amber-300/30 bg-amber-100/[0.04]"
+                    : "border-white/5 bg-white/5"
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="rounded-full bg-amber-200/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">
+                    {DIMENSION_LABEL[entry.dimension]}
+                  </span>
+                  <AnimatePresence mode="wait">
+                    {isAnswered ? (
+                      <motion.span
+                        key="picked"
+                        initial={{ opacity: 0, x: -4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -4 }}
+                        className="inline-flex items-center gap-1 text-[11px] text-emerald-300"
+                      >
+                        <span>✓</span>
+                        <span className="text-emerald-200/80 truncate max-w-[160px]">
+                          {picks[entry.dimension]}
+                        </span>
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="unpicked"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="text-[11px] text-white/40"
+                      >
+                        未選
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <p className="mb-2 text-xs text-white/70 leading-snug">
+                  {entry.question}
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {entry.options.map(option => {
+                    const isPicked = picks[entry.dimension] === option;
+                    const emoji = inferClarificationOptionEmoji(option);
+                    return (
+                      <motion.button
+                        key={option}
+                        type="button"
+                        whileHover={{ y: -1, scale: 1.02 }}
+                        whileTap={{ scale: 0.96 }}
+                        animate={
+                          isPicked
+                            ? { scale: [1, 1.08, 1], transition: { duration: 0.32 } }
+                            : { scale: 1 }
+                        }
+                        onClick={() =>
+                          setPicks(prev => ({
+                            ...prev,
+                            [entry.dimension]: isPicked ? "" : option,
+                          }))
+                        }
+                        disabled={isBusy || submitting}
+                        className={`group flex items-start gap-1.5 rounded-xl border px-2 py-2 text-left transition disabled:opacity-50 ${
+                          isPicked
+                            ? "border-amber-200/70 bg-amber-200/30 ring-2 ring-amber-200/40"
+                            : "border-amber-200/15 bg-amber-200/5 hover:border-amber-200/40 hover:bg-amber-200/15"
+                        }`}
+                      >
+                        <span className="text-sm leading-none mt-0.5 shrink-0">
+                          {emoji}
+                        </span>
+                        <span className="text-[11px] leading-snug text-amber-50">
+                          {option}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       ) : (
         prompt.options && prompt.options.length > 0 ? (
@@ -756,9 +844,11 @@ function ClarificationPromptCard({
             {prompt.options.map(option => {
               const emoji = inferClarificationOptionEmoji(option);
               return (
-                <button
+                <motion.button
                   key={option}
                   type="button"
+                  whileHover={{ y: -1, scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => submit(option)}
                   disabled={isBusy}
                   className="group flex items-start gap-2 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-3 py-2.5 text-left transition hover:border-amber-200/50 hover:bg-amber-200/20 disabled:opacity-50"
@@ -767,7 +857,7 @@ function ClarificationPromptCard({
                   <span className="text-xs leading-snug text-amber-50 group-hover:text-amber-100">
                     {option}
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -798,27 +888,55 @@ function ClarificationPromptCard({
           <button
             type="button"
             onClick={onCancel}
-            disabled={isBusy}
+            disabled={isBusy || submitting}
             className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/15 disabled:opacity-50"
           >
             取消
           </button>
-          <button
+          <motion.button
             type="button"
             onClick={() => (isMultiDim ? submitMulti() : submit(draft))}
             disabled={
               isBusy ||
+              submitting ||
               (isMultiDim
                 ? !multiAllAnswered && draft.trim().length === 0
                 : draft.trim().length === 0)
             }
+            whileTap={{ scale: 0.96 }}
+            animate={
+              isMultiDim && multiAllAnswered && !submitting
+                ? {
+                    boxShadow: [
+                      "0 0 0px rgba(251, 191, 36, 0)",
+                      "0 0 18px rgba(251, 191, 36, 0.55)",
+                      "0 0 0px rgba(251, 191, 36, 0)",
+                    ],
+                    scale: [1, 1.04, 1],
+                  }
+                : { boxShadow: "0 0 0px rgba(251, 191, 36, 0)", scale: 1 }
+            }
+            transition={{
+              duration: 1.6,
+              repeat:
+                isMultiDim && multiAllAnswered && !submitting ? Infinity : 0,
+              ease: "easeInOut",
+            }}
             className="rounded-2xl bg-amber-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-200 disabled:opacity-50"
+            data-testid="orb-clarification-submit"
+            data-ready={isMultiDim ? multiAllAnswered : draft.trim().length > 0}
           >
-            {isMultiDim ? "送出全部" : "傳給光球"}
-          </button>
+            {isMultiDim
+              ? submitting
+                ? "傳送中…"
+                : multiAllAnswered
+                  ? `送出全部 ✨`
+                  : `送出全部（${filledDims}/${totalDims}）`
+              : "傳給光球"}
+          </motion.button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -840,7 +958,7 @@ function WorkflowConfirmationCard({
   const remaining = Math.max(pendingWorkflow.steps.length - previewSteps.length, 0);
 
   return (
-    <div className="fixed bottom-24 right-5 z-[85] w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-cyan-200/20 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-full md:w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-cyan-200/20 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">需要你的確認</div>
       <div className="mt-1 text-base font-semibold">{pendingWorkflow.name}</div>
       <div className="mt-2 text-sm leading-6 text-white/70">
@@ -946,8 +1064,8 @@ function WorkflowExecutionFloatingPanel({
 
   return (
     <div
-      className={`fixed bottom-24 right-5 z-[80] ${
-        viewMode === "flow" ? "w-[460px]" : "w-[360px]"
+      className={`pointer-events-auto w-full ${
+        viewMode === "flow" ? "md:w-[460px]" : "md:w-[360px]"
       } max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl`}
       data-testid="orb-workflow-execution-panel"
     >
@@ -1062,7 +1180,7 @@ function ExecutorConfirmationCard({
   if (!pendingTask) return null;
   const { task } = pendingTask;
   return (
-    <div className="fixed bottom-24 left-5 z-[86] w-[400px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-full md:w-[400px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">Executor Approval</div>
       <div className="mt-1 text-base font-semibold">{task.summaryForUser}</div>
       <div className="mt-2 text-xs text-white/70">taskId: {task.taskId} · traceId: {task.traceId ?? "n/a"}</div>
@@ -1105,7 +1223,7 @@ function ExecutorProgressPanel({
 }) {
   if (!task || state.taskId !== task.taskId) return null;
   return (
-    <div className="fixed bottom-24 left-5 z-[84] w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/20 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-full md:w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/20 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="flex justify-between text-xs text-white/70">
         <span>{state.status}</span>
         <span>{state.currentStepId ?? (
@@ -1155,7 +1273,7 @@ function CodeTaskCard({
 }) {
   if (!codeTask) return null;
   return (
-    <div className="fixed bottom-24 left-5 z-[87] w-[440px] max-w-[calc(100vw-2rem)] rounded-3xl border border-violet-300/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div className="pointer-events-auto w-full md:w-[440px] max-w-[calc(100vw-2rem)] rounded-3xl border border-violet-300/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="text-xs uppercase tracking-[0.2em] text-violet-200/80">Code Collaboration Task</div>
       <div className="mt-1 text-base font-semibold">{codeTask.title}</div>
       <div className="mt-1 text-xs text-white/70">Provider: {codeTask.provider} · Risk: {codeTask.riskLevel}</div>
@@ -1341,6 +1459,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const persistClarificationPicks =
     trpc.orbProxy.persistClarificationPicks.useMutation();
   const orbState = useOrbState();
+  const isMobile = useIsMobile();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
 
@@ -1420,7 +1539,18 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   }, [personality, customWelcomeMessage]);
 
   useEffect(() => {
-    if (messages.length === 0) setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
+    if (messages.length === 0) {
+      setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
+      // Prime first-open quick replies with the four most-useful new shortcuts
+      // so users discover them without waiting for an LLM round-trip. The
+      // built-in detectors handle every one of these locally.
+      setSuggestions([
+        { text: "找我之前的素材" },
+        { text: "幫我做品牌貼文素材包" },
+        { text: "把今天的對話匯出成 PDF" },
+        { text: "光球記得我什麼？" },
+      ]);
+    }
     // initialize once only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2621,45 +2751,136 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   return (
     <GlobalOrbChatContext.Provider value={value}>
       {children}
-      <WorkflowConfirmationCard
-        pendingWorkflow={pendingWorkflow}
-        isBusy={isSending}
-        onStart={startPendingWorkflow}
-        onRevise={revisePendingWorkflow}
-        onCancel={cancelPendingWorkflow}
-      />
-      <WorkflowExecutionFloatingPanel
-        workflowExecution={pendingWorkflow ? null : workflowExecution}
-        onDismiss={clearWorkflowExecution}
-      />
-      <ExecutorConfirmationCard
-        pendingTask={pendingExecutorTask}
-        isBusy={isSending}
-        onApprove={approveExecutorTask}
-        onCancel={cancelExecutorTask}
-        onEditPlan={editExecutorPlan}
-      />
-      <ExecutorProgressPanel
-        task={activeExecutorTask}
-        state={orbExecutor.state}
-        onRetry={retryExecutorTask}
-        onCancel={() => void orbExecutor.cancelTask("cancelled during execution")}
-        onReplan={replanFromFailure}
-        onApproveStep={stepId => void orbExecutor.approveStep(stepId)}
-      />
-      <CodeTaskCard
-        codeTask={pendingCodeTask}
-        isBusy={isSending}
-        onApprove={approveCodeTask}
-        onCancel={cancelCodeTaskPreview}
-      />
-      <ClarificationPromptCard
-        prompt={pendingClarification}
-        isBusy={isSending}
-        onAnswer={text => void answerClarification(text)}
-        onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
-        onCancel={cancelClarification}
-      />
+      {/*
+        Card stacks — anchored to the orb's home corners on desktop; on mobile
+        we collapse both into a single full-width bottom-sheet stack so cards
+        stop overflowing 360-460px widths off the side of the phone.
+
+        Desktop layout:
+          - Right stack (bottom-right, items-end): clarification → workflow
+            confirm → workflow exec → spotlight
+          - Left stack (bottom-left, items-start): executor confirm → code
+            task → executor progress
+
+        Mobile layout (single stack, full-width):
+          All six card slots render in one container at `inset-x-2 bottom-2`
+          with `items-stretch` so each card consumes the available width via
+          `w-full`. Order is the same priority chain: most-actionable closest
+          to the orb (bottom) thanks to flex-col-reverse.
+
+        Cards keep `pointer-events-auto` so the gap between cards stays
+        click-through to the page beneath.
+      */}
+      {isMobile ? (
+        <div
+          data-testid="orb-card-stack-mobile"
+          className="fixed inset-x-2 z-[88] flex flex-col-reverse items-stretch gap-2 overflow-y-auto pointer-events-none"
+          style={{
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)",
+            maxHeight: "calc(100vh - 6.5rem - env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          <ClarificationPromptCard
+            prompt={pendingClarification}
+            isBusy={isSending}
+            onAnswer={text => void answerClarification(text)}
+            onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
+            onCancel={cancelClarification}
+          />
+          <WorkflowConfirmationCard
+            pendingWorkflow={pendingWorkflow}
+            isBusy={isSending}
+            onStart={startPendingWorkflow}
+            onRevise={revisePendingWorkflow}
+            onCancel={cancelPendingWorkflow}
+          />
+          <WorkflowExecutionFloatingPanel
+            workflowExecution={pendingWorkflow ? null : workflowExecution}
+            onDismiss={clearWorkflowExecution}
+          />
+          <ExecutorConfirmationCard
+            pendingTask={pendingExecutorTask}
+            isBusy={isSending}
+            onApprove={approveExecutorTask}
+            onCancel={cancelExecutorTask}
+            onEditPlan={editExecutorPlan}
+          />
+          <CodeTaskCard
+            codeTask={pendingCodeTask}
+            isBusy={isSending}
+            onApprove={approveCodeTask}
+            onCancel={cancelCodeTaskPreview}
+          />
+          <ExecutorProgressPanel
+            task={activeExecutorTask}
+            state={orbExecutor.state}
+            onRetry={retryExecutorTask}
+            onCancel={() => void orbExecutor.cancelTask("cancelled during execution")}
+            onReplan={replanFromFailure}
+            onApproveStep={stepId => void orbExecutor.approveStep(stepId)}
+          />
+          <OrbFeatureSpotlight
+            isChatOpen={isOpen}
+            onTry={text => void sendMessage(text)}
+          />
+        </div>
+      ) : (
+        <>
+          <div
+            data-testid="orb-card-stack-right"
+            className="fixed bottom-24 right-5 z-[88] flex flex-col-reverse items-end gap-3 max-h-[calc(100vh-7rem)] overflow-y-auto pointer-events-none"
+          >
+            <ClarificationPromptCard
+              prompt={pendingClarification}
+              isBusy={isSending}
+              onAnswer={text => void answerClarification(text)}
+              onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
+              onCancel={cancelClarification}
+            />
+            <WorkflowConfirmationCard
+              pendingWorkflow={pendingWorkflow}
+              isBusy={isSending}
+              onStart={startPendingWorkflow}
+              onRevise={revisePendingWorkflow}
+              onCancel={cancelPendingWorkflow}
+            />
+            <WorkflowExecutionFloatingPanel
+              workflowExecution={pendingWorkflow ? null : workflowExecution}
+              onDismiss={clearWorkflowExecution}
+            />
+            <OrbFeatureSpotlight
+              isChatOpen={isOpen}
+              onTry={text => void sendMessage(text)}
+            />
+          </div>
+          <div
+            data-testid="orb-card-stack-left"
+            className="fixed bottom-24 left-5 z-[87] flex flex-col-reverse items-start gap-3 max-h-[calc(100vh-7rem)] overflow-y-auto pointer-events-none"
+          >
+            <ExecutorConfirmationCard
+              pendingTask={pendingExecutorTask}
+              isBusy={isSending}
+              onApprove={approveExecutorTask}
+              onCancel={cancelExecutorTask}
+              onEditPlan={editExecutorPlan}
+            />
+            <CodeTaskCard
+              codeTask={pendingCodeTask}
+              isBusy={isSending}
+              onApprove={approveCodeTask}
+              onCancel={cancelCodeTaskPreview}
+            />
+            <ExecutorProgressPanel
+              task={activeExecutorTask}
+              state={orbExecutor.state}
+              onRetry={retryExecutorTask}
+              onCancel={() => void orbExecutor.cancelTask("cancelled during execution")}
+              onReplan={replanFromFailure}
+              onApproveStep={stepId => void orbExecutor.approveStep(stepId)}
+            />
+          </div>
+        </>
+      )}
       {latestServerTaskId && (
         <div className="fixed bottom-4 right-4 z-[83] w-[360px] max-w-[calc(100vw-2rem)] pointer-events-auto">
           <OrbTaskObservationStrip

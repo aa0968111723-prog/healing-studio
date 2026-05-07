@@ -17,6 +17,9 @@ import {
 } from "@shared/agent-preferences";
 import { APP_PAGE_REGISTRY } from "@shared/appRegistry";
 import ToolQuickSelectChips from "@/components/ToolQuickSelectChips";
+import OrbAgentPresetCards from "@/components/orb-agent/OrbAgentPresetCards";
+import OrbAgentActivityFeed from "@/components/orb-agent/OrbAgentActivityFeed";
+import OrbMemoryDashboard from "@/components/orb/OrbMemoryDashboard";
 
 type BehaviorMode = "pure_chat" | "semi_auto" | "auto";
 
@@ -311,8 +314,9 @@ export default function AgentPreferencesPage() {
         </p>
       </header>
 
-      <Tabs defaultValue="behavior" className="w-full" data-testid="agent-prefs-tabs">
+      <Tabs defaultValue="overview" className="w-full" data-testid="agent-prefs-tabs">
         <TabsList className="flex flex-wrap">
+          <TabsTrigger value="overview" data-testid="tab-overview">概覽</TabsTrigger>
           <TabsTrigger value="behavior" data-testid="tab-behavior">行為</TabsTrigger>
           <TabsTrigger value="budget" data-testid="tab-budget">成本預算</TabsTrigger>
           <TabsTrigger value="perception" data-testid="tab-perception">感知</TabsTrigger>
@@ -325,6 +329,37 @@ export default function AgentPreferencesPage() {
           <TabsTrigger value="ui" data-testid="tab-ui">助手 UI</TabsTrigger>
           <TabsTrigger value="schedule" data-testid="tab-schedule">自動排程</TabsTrigger>
         </TabsList>
+
+        {/* ───── 概覽 ───── */}
+        <TabsContent value="overview" className="space-y-4 pt-4" data-testid="overview-content">
+          <section className="space-y-2 rounded-2xl border bg-card p-4">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
+              <h2 className="text-base font-semibold">快速預設</h2>
+              <p className="text-xs text-muted-foreground">
+                點一張卡片，光球的行為、語音、感知、自我批判、自動步驟上限都會一次設好。可隨時去其他分頁微調。
+              </p>
+            </div>
+            <OrbAgentPresetCards current={prefsQuery.data ?? null} />
+          </section>
+          <section className="space-y-2 rounded-2xl border bg-card p-4">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
+              <h2 className="text-base font-semibold">光球記得你</h2>
+              <p className="text-xs text-muted-foreground">
+                從多輪對話中累積的偏好；點 ✕ 移除單一條，或按「重置」全部清掉。
+              </p>
+            </div>
+            <OrbMemoryDashboard />
+          </section>
+          <section className="space-y-2 rounded-2xl border bg-card p-4">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
+              <h2 className="text-base font-semibold">最近活動</h2>
+              <p className="text-xs text-muted-foreground">
+                光球替你做過的事 — 接受 / 取消 / 完成 / 失敗。下一輪偏好學習會以這些為依據。
+              </p>
+            </div>
+            <OrbAgentActivityFeed limit={15} />
+          </section>
+        </TabsContent>
 
         {/* ───── 行為 ───── */}
         <TabsContent value="behavior" className="space-y-4 pt-4">
