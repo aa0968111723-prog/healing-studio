@@ -10,12 +10,22 @@
  *   4. History reference — "你剛剛說什麼？"
  *   5. Repeat-loop detection — same prompt 3 times in a row
  *   6. Attachment-only message with no descriptive text
+ *   7. Long-script soft confirmation — when the user pastes a detailed brief,
+ *      surface what we parsed so they can correct it before we run anything.
  *
  * The detectors return a structured `OrbPromptScenarioOutcome` so the chat
  * context can short-circuit with a friendly reply instead of forwarding noise
  * to the planner. They never throw, never read globals, and never fetch —
  * which is what lets us unit-test them in node without React.
  */
+
+import {
+  extractScriptStructure,
+  scriptStructureDimensionCount,
+  summarizeScriptStructure,
+  SCRIPT_STRUCTURE_MIN_CHARS,
+  type ScriptStructure,
+} from "./orb-script-structure";
 
 export type OrbPromptScenario =
   | "boundary-empty"
@@ -28,7 +38,8 @@ export type OrbPromptScenario =
   | "emotional-frustration"
   | "self-help"
   | "history-reference"
-  | "loop";
+  | "loop"
+  | "long-script-summarised";
 
 export interface OrbPromptScenarioOutcome {
   /** Which scenario fired. */
@@ -48,6 +59,12 @@ export interface OrbPromptScenarioOutcome {
    * registry-driven feature summary that the explicit "ask-feature" mode uses.
    */
   followUp?: "show-feature-summary" | "open-history" | "reset-conversation";
+  /**
+   * When the long-script detector fires, callers can read back the parsed
+   * structure so the wizard can pre-fill covered dimensions and the next
+   * planner call can include the parse in its `context` hint.
+   */
+  parsedStructure?: ScriptStructure;
 }
 
 export interface DetectScenarioInput {
@@ -165,10 +182,23 @@ export function detectOrbPromptScenario(
   if (!text && !hasAttachments) return buildBoundaryEmpty();
   if (!text && hasAttachments) return buildAttachmentOnlyHint();
 
-  if (text.length > ORB_PROMPT_MAX_CHARS) return buildBoundaryTooLong(text.length);
+  if (text.length > ORB_PROMPT_MAX_CHARS) return buildBoundaryTooLong(text);
 
   const loopOutcome = detectLoop(text, input.recentUserTexts);
   if (loopOutcome) return loopOutcome;
+
+  // Long-script soft confirmation — only fires for substantial inputs the
+  // parser could meaningfully read. Below this size we let the regular
+  // creation/clarification flow handle it; the wizard already does fine on
+  // single-line briefs.
+  if (text.length >= SCRIPT_STRUCTURE_MIN_CHARS) {
+    const structure = extractScriptStructure(text);
+    // Need ≥ 2 dimensions populated before we bother showing a summary —
+    // otherwise the card just lists "成品：unknown" which is noise.
+    if (scriptStructureDimensionCount(structure) >= 2) {
+      return buildLongScriptSummary(structure, text.length);
+    }
+  }
 
   if (matchAny(text, CANCEL_PATTERNS)) return buildEmotionalCancel();
 
@@ -290,20 +320,52 @@ function buildAttachmentOnlyHint(): OrbPromptScenarioOutcome {
   };
 }
 
-function buildBoundaryTooLong(length: number): OrbPromptScenarioOutcome {
+function buildBoundaryTooLong(text: string): OrbPromptScenarioOutcome {
+  const length = text.length;
+  // Try to extract structure from the truncated head so the user sees what
+  // we DID manage to read instead of just being told "too long".
+  const head = text.slice(0, ORB_PROMPT_MAX_CHARS);
+  const structure = extractScriptStructure(head);
+  const hasSomething = scriptStructureDimensionCount(structure) >= 2;
+  const summaryBlock = hasSomething
+    ? `\n\n${summarizeScriptStructure(structure, head.length)}`
+    : "";
   return {
     scenario: "boundary-too-long",
     intent: "輸入過長",
     reply: [
-      `📏 這段輸入有 ${length.toLocaleString()} 字，超過我一次能完整處理的 ${ORB_PROMPT_MAX_CHARS.toLocaleString()} 字上限——後段可能會被截掉。`,
+      `📏 這段輸入有 ${length.toLocaleString()} 字，超過我一次能完整處理的 ${ORB_PROMPT_MAX_CHARS.toLocaleString()} 字上限——後段會被截掉。`,
       "",
-      "可以幫我把它縮成幾個重點，或拆成兩、三輪送過來嗎？例如：",
-      "• 第 1 輪先講「成品要什麼」",
-      "• 第 2 輪補「風格與長度」",
-      "• 第 3 輪附上參考素材",
-    ].join("\n"),
-    suggestions: ["改用條列重點", "拆成兩輪送", "先做摘要"],
+      "可以幫我把後段精簡，或拆成兩、三輪送過來。我先把已讀到的部份整理給你確認，方便的話告訴我截掉的部份要補哪些重點：",
+    ].join("\n") + summaryBlock,
+    suggestions: ["這樣開始", "拆成兩輪送", "先做摘要", "改用條列重點"],
+    parsedStructure: hasSomething ? structure : undefined,
   };
+}
+
+function buildLongScriptSummary(
+  structure: ScriptStructure,
+  charCount: number
+): OrbPromptScenarioOutcome {
+  return {
+    scenario: "long-script-summarised",
+    intent: "長腳本擷取確認",
+    reply: summarizeScriptStructure(structure, charCount),
+    suggestions: buildLongScriptSuggestions(structure),
+    parsedStructure: structure,
+  };
+}
+
+function buildLongScriptSuggestions(structure: ScriptStructure): string[] {
+  const out = ["這樣開始"];
+  // Surface the dimensions the user is most likely to want to tweak — these
+  // are the high-leverage knobs for a creative brief. Fall back to "重新描述"
+  // when nothing useful was extracted to revise.
+  if (structure.durationSec !== null) out.push("改長度");
+  if (structure.subject !== null) out.push("改主題");
+  if (structure.styles.length > 0) out.push("改風格");
+  if (out.length < 4) out.push("重新描述");
+  return out.slice(0, 4);
 }
 
 function buildBoundaryNoise(text: string): OrbPromptScenarioOutcome {

@@ -201,6 +201,58 @@ describe("detectOrbPromptScenario — priority ordering", () => {
   });
 });
 
+describe("detectOrbPromptScenario — long-script summary", () => {
+  const longBrief = [
+    "我想做一支 30 秒的短片，主題是森林清晨採茶體驗，",
+    "整支片走療癒、寫實風格，鏡頭從竹林開始，由遠至近最後落在主角的茶杯，",
+    "中段帶過茶具與水滾煙霧，整體節奏緩慢沉靜，色調偏暖綠。",
+    "目標放上 IG Reel，9:16 直式構圖，搭配輕慢的鋼琴前奏與鳥鳴白噪音，",
+    "片頭打上品牌 logo，片尾用淡入轉場帶到網店連結卡。",
+    "給品牌粉絲觀看，做品牌行銷曝光，輔助本季秋冬上新的銷售檔期。",
+    "字幕用繁體中文、淺米色襯底框，避免擋住主視覺。",
+    "整體希望可以延伸成 3 張 IG 主視覺與 1 篇貼文文案。",
+    "場景一：竹林空鏡，鳥鳴白噪音，主角從畫面右側緩步入鏡。",
+    "場景二：主角採茶，慢動作特寫指尖摘下嫩芽，背景虛化。",
+    "場景三：泡茶與分享，配溫柔旁白，最後鏡頭落在主角微笑的側臉。",
+  ].join("");
+
+  it("fires long-script-summarised when text is long with substantive structure", () => {
+    expect(longBrief.length).toBeGreaterThanOrEqual(280);
+    const out = detectOrbPromptScenario({
+      text: longBrief,
+      hasAttachments: false,
+    });
+    expect(out?.scenario).toBe("long-script-summarised");
+    expect(out?.reply).toContain("成品");
+    expect(out?.reply).toContain("長度");
+    expect(out?.reply).toContain("主題");
+    expect(out?.parsedStructure?.format).toBe("短片");
+    expect(out?.parsedStructure?.durationSec).toBe(30);
+    expect(out?.parsedStructure?.scenes).toBeGreaterThanOrEqual(3);
+    expect(out?.suggestions?.[0]).toBe("這樣開始");
+  });
+
+  it("does NOT fire when text is long but parser can't extract structure", () => {
+    // 400+ chars of meandering chitchat with no concrete dimensions.
+    const meandering = "今天天氣真的很好啊我想說來跟你聊聊天，".repeat(20);
+    expect(meandering.length).toBeGreaterThanOrEqual(280);
+    const out = detectOrbPromptScenario({
+      text: meandering,
+      hasAttachments: false,
+    });
+    // Either pass-through (null) or some other scenario, but NOT long-script.
+    expect(out?.scenario).not.toBe("long-script-summarised");
+  });
+
+  it("boundary-too-long now also embeds extracted summary when it can", () => {
+    const giant = `我要做一支 30 秒的森林短片，主題是森林。${"x".repeat(13_000)}`;
+    const out = detectOrbPromptScenario({ text: giant, hasAttachments: false });
+    expect(out?.scenario).toBe("boundary-too-long");
+    expect(out?.reply).toContain("成品");
+    expect(out?.parsedStructure).toBeDefined();
+  });
+});
+
 describe("detectOrbPromptScenario — pass-through cases", () => {
   it("returns null for a normal creation request", () => {
     expect(

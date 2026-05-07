@@ -40,6 +40,11 @@ import {
   type OrbPromptScenarioOutcome,
 } from "../../../shared/orb-prompt-scenarios";
 import {
+  extractScriptStructure,
+  structureToDimensionSignals,
+  SCRIPT_STRUCTURE_MIN_CHARS,
+} from "../../../shared/orb-script-structure";
+import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
   type OrbChatAttachmentMimeType,
@@ -1654,6 +1659,16 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // invoke the latest version without creating a circular hook dep.
   const startPendingWorkflowRef = useRef<(() => Promise<void>) | null>(null);
 
+  // Consecutive clarification round counter — bumps each time we surface a
+  // pending clarification card and resets the moment a non-clarification
+  // reply lands. We use it to cap the wizard at 2 rounds: on the third
+  // attempt we switch to a "best-guess + confirm" reply instead of asking
+  // yet another dimension question, so users don't get stuck in a 4-5 turn
+  // form. Stored as a ref to avoid re-renders for a counter only the next
+  // sendMessage cares about.
+  const clarificationRoundsRef = useRef(0);
+  const MAX_CLARIFICATION_ROUNDS = 2;
+
   const sendMessage = useCallback(async (
     text: string,
     attachments: ChatAttachment[] = [],
@@ -1855,6 +1870,26 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                 .disabledActionsByPage,
           }
         : undefined;
+      // When the user pasted a long brief, pre-parse it and stamp the
+      // covered dimensions into `context` so the LLM doesn't re-ask
+      // (matches the 反問節制守則 in the system prompt).
+      const parsedStructureHint =
+        trimmed.length >= SCRIPT_STRUCTURE_MIN_CHARS
+          ? (() => {
+              const parsed = extractScriptStructure(trimmed);
+              const parts: string[] = [];
+              if (parsed.format) parts.push(`format=${parsed.format}`);
+              if (parsed.durationLabel) parts.push(`length=${parsed.durationLabel}`);
+              if (parsed.subject) parts.push(`subject=${parsed.subject}`);
+              if (parsed.styles.length) parts.push(`styles=${parsed.styles.slice(0, 3).join("/")}`);
+              if (parsed.platforms.length) parts.push(`platforms=${parsed.platforms.slice(0, 3).join("/")}`);
+              if (parsed.purpose) parts.push(`purpose=${parsed.purpose}`);
+              if (parsed.scenes > 0) parts.push(`scenes=${parsed.scenes}`);
+              return parts.length > 0
+                ? ` · parsedScriptStructure: ${parts.join(", ")}`
+                : "";
+            })()
+          : "";
       const data = await aiChat.mutateAsync({
         messages: compactHistoryForRequest(nextHistory)
           .map(m => ({
@@ -1862,7 +1897,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             content: toLLMMessageContent(m),
           })),
         personality,
-        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}`,
+        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}${parsedStructureHint}`,
         pageSnapshot: pageAgent.snapshot ?? undefined,
         recentFeedback: pageAgent.recentFeedback,
         preferences: preferencesForChat,
@@ -1871,9 +1906,35 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       // Server signalled it needs to ask the user before acting. Skip every
       // downstream action / workflow / executor branch and surface the
       // ClarificationPromptCard so the user can disambiguate before the orb
-      // dispatches anything.
+      // dispatches anything. Counter bumps here too so server-side
+      // clarification rounds count against the same 2-round cap that the
+      // client-side fallback enforces below.
       const needsClarification = (data as { needsClarification?: boolean }).needsClarification === true;
       if (needsClarification) {
+        if (clarificationRoundsRef.current >= MAX_CLARIFICATION_ROUNDS) {
+          clarificationRoundsRef.current = 0;
+          const cappedReply = [
+            "🎯 我們繞了幾圈，我先用我目前理解的方向幫你跑：",
+            (data as { reply?: string }).reply ?? "依據前面對話我會挑最可能的選項組合執行。",
+            "",
+            "要修改任何一項，直接告訴我（例如「改 30 秒」「改成手繪風」）；想全部重來輸入「重置對話」。",
+          ].join("\n");
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: cappedReply,
+            at: Date.now(),
+            pagePath: locationPath,
+            intent: "反問次數已滿，先以最佳猜測前進",
+          }]);
+          setSuggestions([
+            { text: "這樣開始" },
+            { text: "改長度" },
+            { text: "改風格" },
+            { text: "重置對話" },
+          ]);
+          return;
+        }
+        clarificationRoundsRef.current += 1;
         const clarificationQuestion =
           typeof (data as { clarificationQuestion?: string }).clarificationQuestion === "string"
             ? (data as { clarificationQuestion: string }).clarificationQuestion
@@ -1975,16 +2036,53 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         ? detectChatIntent(trimmed, rememberedPreferences)
         : { kind: "none" } as const;
       if (intentDetection.kind === "needs-clarification") {
+        // Cap the wizard at MAX_CLARIFICATION_ROUNDS consecutive turns. On
+        // the third attempt we stop asking and ship a "best-guess + confirm"
+        // reply instead — the user can still correct us, but we never trap
+        // them in an open-ended form.
+        if (clarificationRoundsRef.current >= MAX_CLARIFICATION_ROUNDS) {
+          clarificationRoundsRef.current = 0;
+          const fallbackMsg = [
+            "🎯 我們繞了幾圈，我先用我目前理解的方向幫你跑：",
+            dataReply ? dataReply : intentDetection.message,
+            "",
+            "要修改任何一項，直接告訴我（例如「改 30 秒」「改成手繪風」）；想全部重來輸入「重置對話」。",
+          ].join("\n");
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: fallbackMsg,
+            at: Date.now(),
+            pagePath: locationPath,
+            intent: "反問次數已滿，先以最佳猜測前進",
+          }]);
+          setSuggestions([
+            { text: "這樣開始" },
+            { text: "改長度" },
+            { text: "改風格" },
+            { text: "重置對話" },
+          ]);
+          return;
+        }
+        clarificationRoundsRef.current += 1;
+
         // When the user's brief is severely under-specified (3+ high-signal
         // dimensions missing), upgrade to a multi-dimension card so they
         // pin everything down in one round-trip instead of bouncing through
-        // four single-dim wizard turns.
+        // four single-dim wizard turns. We also fold in the parsed
+        // structure from any long-form brief earlier in the message so
+        // dimensions the user already wrote out (length / style / platform)
+        // do NOT get re-asked.
         const detectedModality = inferModalityFromText(trimmed);
         const rememberedCoverage = rememberedDimensionCoverage(rememberedPreferences);
+        const prefilledFromScript =
+          trimmed.length >= SCRIPT_STRUCTURE_MIN_CHARS
+            ? structureToDimensionSignals(extractScriptStructure(trimmed))
+            : undefined;
         const multi = buildMultiDimWizardClarification(
           trimmed,
           detectedModality,
-          rememberedCoverage
+          rememberedCoverage,
+          prefilledFromScript
         );
         const question = intentDetection.message;
 
@@ -2026,6 +2124,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         setSuggestions(rawSuggestionsClarify.slice(0, 4).map(s => ({ text: s })));
         return;
       }
+      // Reaching here means either the LLM came back with actions, or the
+      // local fallback found a ready workflow. Either way the wizard is
+      // closed for this thread, so reset the round counter — the next
+      // under-specified prompt deserves a fresh 2-round budget.
+      clarificationRoundsRef.current = 0;
       const fallbackWorkflow = intentDetection.kind === "ready" ? intentDetection.workflow : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
       const effectiveIntent = intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined);
@@ -2465,6 +2568,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setSuggestions([]);
     setPendingWorkflow(null);
     setPendingClarification(null);
+    clarificationRoundsRef.current = 0;
     clearMessagesFromStorage();
   }, []);
   const resetConversation = useCallback(() => {
@@ -2473,6 +2577,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setSuggestions([]);
     setPendingWorkflow(null);
     setPendingClarification(null);
+    clarificationRoundsRef.current = 0;
     saveMessagesToStorage([welcome]);
   }, [welcomeMessage, locationPath]);
 
