@@ -416,6 +416,168 @@ export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
 }
 
 /**
+ * 品牌貼文工作流 — 一句話「我要做品牌貼文」就生出完整社群素材包：
+ *   1. 文案（主貼文 + hashtag + CTA）
+ *   2. 主視覺方圖（IG 1:1）
+ *   3. 三張延伸／carousel（限動 9:16 + 內頁）
+ *   4. 一段 15 秒 reel 短影音
+ *
+ * 設計上把 director 當成文案＋視覺方向產生器，再分流到 image / video，
+ * 這樣使用者不需要在三個工作室之間反覆貼提示詞。
+ */
+export function buildBrandContentWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt =
+    brief.trim() || "品牌週主題貼文，主視覺溫暖、文案有故事感、CTA 引導追蹤";
+  return {
+    type: "runWorkflow",
+    name: "品牌貼文素材包流程",
+    steps: [
+      {
+        path: "/director",
+        actionType: "fillPrompt",
+        payload:
+          `請把以下品牌需求展開成「社群貼文素材包」企劃，輸出時請分成` +
+          `【一句話定位】【主貼文文案（80–120 字、含 1 個記憶點）】` +
+          `【3–5 個 hashtag（含品牌、主題、情緒）】【CTA 一句】` +
+          `【主視覺風格與構圖建議（IG 方圖、留白給字、品牌色）】` +
+          `【3 張延伸視覺主題與運用（限動／內頁／引言）】` +
+          `【15 秒 reel 分鏡（3 鏡頭、節奏、字幕擺位）】` +
+          `七個區塊，方便後續直接送進圖片／影片工作室：\n\n需求：${basePrompt}`,
+        label: "導演 AI：產出貼文文案與視覺方向",
+      },
+      {
+        path: "/image-studio",
+        actionType: "fillPrompt",
+        payload:
+          `為品牌貼文生成主視覺方圖（1:1）：留白給標題與字幕、` +
+          `光線溫暖、構圖中心對稱、避免邊角複雜元素。畫面情緒呼應：${basePrompt}`,
+        label: "圖片創作室：填入主視覺提示詞",
+      },
+      {
+        id: "step_image_main",
+        path: "/image-studio",
+        actionType: "submit",
+        payload: "",
+        label: "圖片創作室：工具生成主視覺",
+        toolName: "studio.generateImage",
+        toolArgs: {
+          prompt:
+            `為品牌貼文生成主視覺方圖（1:1）：留白給標題與字幕、` +
+            `光線溫暖、構圖中心對稱、避免邊角複雜元素。畫面情緒呼應：${basePrompt}`,
+        },
+      },
+      {
+        path: "/image-studio",
+        actionType: "fillPrompt",
+        payload:
+          `延伸 3 張內頁／限動視覺（9:16 與 4:5），與主視覺同色系、` +
+          `各自聚焦一個情緒切片（場景／物件／人物特寫），` +
+          `留出文案疊字區。需求：${basePrompt}`,
+        label: "圖片創作室：填入延伸視覺",
+      },
+      {
+        path: "/video-studio",
+        actionType: "fillPrompt",
+        payload:
+          `把這套貼文素材延伸成 15 秒 reel 短影音：3 鏡頭切換、` +
+          `平滑運鏡、字幕擺中下、節奏跟著貼文文案的記憶點起伏。` +
+          `需求：${basePrompt}`,
+        label: "影片工作室：填入 reel 提示詞",
+      },
+      {
+        path: "/video-studio",
+        actionType: "submit",
+        payload: "",
+        label: "影片工作室：工具生成 reel",
+        toolName: "studio.generateVideo",
+        dependsOn: ["step_image_main"],
+        toolArgs: {
+          prompt:
+            `把這套貼文素材延伸成 15 秒 reel 短影音：3 鏡頭切換、` +
+            `平滑運鏡、字幕擺中下、節奏跟著貼文文案的記憶點起伏。` +
+            `需求：${basePrompt}`,
+          image_url: "${step_image_main.image_url}",
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Podcast 集數工作流 — 一句話「幫我做一集 podcast」就把腳本、片頭片尾配樂、
+ * 主旁白、章節音效全部串起來。輸出可直接放進剪輯軟體。
+ *
+ *   1. 導演：產出 logline + 三段大綱（intro / main / outro）+ 完整旁白稿
+ *   2. 配樂：片頭 15 秒 + 過場 5 秒 + 結尾 15 秒
+ *   3. 旁白：主稿 TTS（中段最長）
+ */
+export function buildPodcastEpisodeWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt =
+    brief.trim() || "10 分鐘的療癒主題 podcast，溫暖、敘事性、有引言與結尾";
+  return {
+    type: "runWorkflow",
+    name: "Podcast 集數製作流程",
+    steps: [
+      {
+        path: "/director",
+        actionType: "fillPrompt",
+        payload:
+          `請把這個 podcast 需求展開成完整集數企劃，輸出時請分成` +
+          `【一句話 logline】【目標聽眾】【三段大綱（intro 1 分、main 7–8 分、outro 1 分）】` +
+          `【完整旁白稿（含段落標記、換氣點、情緒提示，全長對應集數時長）】` +
+          `【片頭 15 秒 BGM 風格】【過場 5 秒音效風格】【結尾 15 秒 BGM 風格】` +
+          `七個區塊。旁白稿請直接以朗讀格式輸出，不要附說明：\n\n需求：${basePrompt}`,
+        label: "導演 AI：產出 podcast 企劃與旁白稿",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "music",
+        label: "音樂配音創作室：切換到音樂分頁",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload:
+          `請生成 podcast 片頭 BGM（15 秒）：曲風溫暖、開頭 3 秒鋪墊、` +
+          `中段堆疊主題、最後 3 秒漸弱接旁白。請於提示詞中標明` +
+          `「曲風」「情緒」「BPM」「主要樂器」「結構」。需求：${basePrompt}`,
+        label: "配樂：填入片頭 BGM 需求",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "tts",
+        label: "音樂配音創作室：切換到語音合成",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload:
+          `請以 podcast 旁白稿生成語音：語速自然、` +
+          `咬字清楚、段落間留呼吸停頓、情緒呼應內容、` +
+          `避免機械感。如稿子較長請保留段落停頓：\n\n${basePrompt}`,
+        label: "配音：填入旁白稿",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "music",
+        label: "音樂配音創作室：切回音樂分頁",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload:
+          `請生成 podcast 結尾 BGM（15 秒）：呼應片頭主題、` +
+          `情緒平穩、最後 5 秒淡出。需求：${basePrompt}`,
+        label: "配樂：填入結尾 BGM 需求",
+      },
+    ],
+  };
+}
+
+/**
  * Single-step navigate workflow. Used for "take me to <feature>" intents
  * (training / tutorials / settings / asset library / etc.) so the keyword
  * fallback isn't limited to creative pipelines.
@@ -708,6 +870,29 @@ const VIDEO_KEYWORDS = [
   "mv",
   "廣告",
 ];
+const BRAND_POST_KEYWORDS = [
+  "品牌貼文",
+  "社群貼文",
+  "ig 貼文",
+  "instagram 貼文",
+  "fb 貼文",
+  "facebook 貼文",
+  "貼文素材",
+  "貼文包",
+  "social post",
+  "brand post",
+  "social content",
+  "carousel post",
+];
+const PODCAST_KEYWORDS = [
+  "podcast",
+  "播客",
+  "節目集",
+  "podcast 集",
+  "podcast 一集",
+  "電台節目",
+  "podcast episode",
+];
 const IMAGE_KEYWORDS = ["圖片", "圖像", "海報", "插畫", "封面", "image", "picture", "illustration", "poster"];
 const MUSIC_KEYWORDS = ["音樂", "配樂", "背景音樂", "歌曲", "歌", "曲子", "旋律", "music", "song", "bgm"];
 const VOICE_KEYWORDS = ["旁白", "配音", "語音", "tts", "voice", "narration", "narrator"];
@@ -880,10 +1065,24 @@ export function detectCreationIntent(
 
   const hits = detectModalityHits(q);
   const wantsBuild = matchAny(q, BUILD_KEYWORDS);
+
+  // Composite intents take priority over single-modality hits — a "品牌貼文"
+  // request usually mentions both 圖 and 影片 / 文案, but the user actually
+  // wants the bundled output, not three separate runs.
+  const wantsBrandPost = matchAny(q, BRAND_POST_KEYWORDS);
+  const wantsPodcast = matchAny(q, PODCAST_KEYWORDS);
+  const enrichedBriefEarly = `${trimmed}${styleHint(preferences)}${platformHint(preferences)}`;
+  if (wantsBrandPost && wantsBuild) {
+    return { kind: "ready", workflow: buildBrandContentWorkflow(enrichedBriefEarly) };
+  }
+  if (wantsPodcast && wantsBuild) {
+    return { kind: "ready", workflow: buildPodcastEpisodeWorkflow(enrichedBriefEarly) };
+  }
+
   const anyHit = hits.video || hits.image || hits.music || hits.voice || hits.sfx || hits.script;
   if (!anyHit || !wantsBuild) return { kind: "none" };
 
-  const enrichedBrief = `${trimmed}${styleHint(preferences)}${platformHint(preferences)}`;
+  const enrichedBrief = enrichedBriefEarly;
 
   // Explicit "寫/規劃/設計 腳本/劇本/分鏡" — the user wants the script as a
   // text deliverable, not the actual film. Beat the video branch even when

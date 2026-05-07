@@ -42,6 +42,7 @@ import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
 import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
+import { orbProxyRouter } from "./routers/orbProxyRouter";
 import { adminRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { getOrchestrator } from "./services/modelClients";
@@ -1038,6 +1039,7 @@ export const appRouter = router({
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
   orbCapabilities: orbCapabilitiesRouter,
+  orbProxy: orbProxyRouter,
   agentCollaboration: agentCollaborationRouter,
   adminEval: adminRouter,
 

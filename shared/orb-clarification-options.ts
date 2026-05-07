@@ -33,6 +33,7 @@ export type ClarificationDimension =
   | "subject"
   | "platform"
   | "usecase"
+  | "purpose"
   | "open";
 
 export interface ClarificationOptionContext {
@@ -150,7 +151,14 @@ export function buildContextualClarificationOptions(
   const tPrefix = topic ? `${topic} ` : "";
   const tSuffix = topic ? ` ${topic}` : "";
 
-  const lib: Record<ClarificationModality, Record<ClarificationDimension, string[]>> = {
+  const PURPOSE_GENERIC = [
+    "個人收藏／興趣",
+    "社群曝光／追蹤成長",
+    "品牌行銷／業績轉換",
+    "教學分享／知識傳遞",
+  ];
+
+  const lib: Record<ClarificationModality, Partial<Record<ClarificationDimension, string[]>>> = {
     video: {
       format: [
         `${tPrefix}社群短片（15–30 秒）`,
@@ -158,6 +166,7 @@ export function buildContextualClarificationOptions(
         `${tPrefix}廣告或宣傳片（30–60 秒）`,
         `${tPrefix}微電影／長片（>3 分鐘）`,
       ],
+      purpose: PURPOSE_GENERIC,
       duration: [
         "15 秒之內（社群快剪）",
         "30 秒（廣告／預告）",
@@ -433,11 +442,17 @@ export function buildContextualClarificationOptions(
 
   const dims = lib[modality];
   let raw: string[] = dims?.[dimension] ?? [];
+  if (raw.length === 0 && dimension === "purpose") {
+    // `purpose` (用途) is intentionally cross-modality — collapse to the
+    // generic deck so brand / personal / education / social show up
+    // regardless of whether the user picked image / video / audio.
+    raw = PURPOSE_GENERIC;
+  }
   if (raw.length === 0) {
     // Fallback to format if the requested dimension has no entries for this modality.
     raw = dims?.format ?? [];
   }
-  if (raw.length === 0) raw = lib.unknown.format;
+  if (raw.length === 0) raw = lib.unknown.format ?? [];
 
   // Reserve the last slot for the open-input escape hatch so users are
   // never trapped in 4 pre-baked choices that don't fit their idea.
@@ -478,6 +493,8 @@ export interface ConversationDimensionSignals {
   hasPlatform?: boolean;
   /** The user mentioned a source (uploaded vs AI-generated material). */
   hasSource?: boolean;
+  /** The user mentioned a purpose / use case (brand / personal / teaching). */
+  hasPurpose?: boolean;
 }
 
 const STYLE_HINT_RE =
@@ -488,6 +505,8 @@ const AUDIENCE_HINT_RE =
   /給.{0,4}看|受眾|觀眾|客戶|投放|target|audience|品牌|內部|員工|教學|學生|玩家/i;
 const SOURCE_HINT_RE =
   /上傳|手邊|自己拍|現有素材|有素材|沒素材|純AI|全AI|AI\s*生成|無素材|reference|參考圖|參考影片/i;
+const PURPOSE_HINT_RE =
+  /用來|做給|要拿來|目的|用途|行銷|宣傳|品牌|曝光|轉換|教學|分享|個人|收藏|珍藏|社群成長|追蹤|粉絲|商業|業績|profit|marketing|promote|teach|tutorial|personal|hobby/i;
 
 export function inferConversationDimensions(
   text: string,
@@ -517,6 +536,7 @@ export function inferConversationDimensions(
     hasStyle: STYLE_HINT_RE.test(trimmed),
     hasPlatform: PLATFORM_HINT_RE.test(trimmed) || AUDIENCE_HINT_RE.test(trimmed),
     hasSource: SOURCE_HINT_RE.test(trimmed),
+    hasPurpose: PURPOSE_HINT_RE.test(trimmed),
   };
 }
 
@@ -578,6 +598,106 @@ export function buildWizardClarification(
   return { question, options, dimension };
 }
 
+// ─── Multi-dimension wizard (parallel asking) ──────────────────────────
+
+export interface MultiDimWizardEntry {
+  dimension: ClarificationDimension;
+  question: string;
+  options: string[];
+}
+
+export interface MultiDimWizardClarification {
+  /** Lead-in shown above the multi-dimension card. */
+  leadIn: string;
+  /** 2–4 dimensions the user should pick from in one go. */
+  entries: MultiDimWizardEntry[];
+}
+
+/**
+ * Count how many high-signal dimensions the user has covered already.
+ * Used to decide between single-dim wizard (1–2 missing) and multi-dim
+ * wizard (3+ missing). The four dimensions counted are the ones that
+ * materially change downstream output: subject, style, platform, purpose.
+ * Length / duration is excluded because it gets a dedicated single-dim ask
+ * (it has knock-on effects on every later step).
+ */
+export function countMissingHighSignalDimensions(
+  text: string,
+  modality: ClarificationModality
+): number {
+  const sig = inferConversationDimensions(text, modality);
+  let missing = 0;
+  if (!sig.hasSubject) missing += 1;
+  if (!sig.hasStyle) missing += 1;
+  if (!sig.hasPlatform) missing += 1;
+  if (!sig.hasPurpose) missing += 1;
+  return missing;
+}
+
+/**
+ * When the user's prompt is severely under-specified (3+ high-signal
+ * dimensions missing), batch the asks into a single multi-row card so the
+ * user can answer in one round-trip instead of bouncing through 4 separate
+ * single-dim wizard turns. Returns null when fewer than 3 dimensions are
+ * missing — the caller should fall back to `buildWizardClarification` for
+ * the standard single-dim flow.
+ *
+ * Length / duration intentionally stays in the single-dim wizard: it's the
+ * one dimension with downstream cascade (workflow shape, scene count,
+ * BGM length) that we'd rather pin down before any other choice.
+ */
+export function buildMultiDimWizardClarification(
+  text: string,
+  modality: ClarificationModality
+): MultiDimWizardClarification | null {
+  const sig = inferConversationDimensions(text, modality);
+  // Length is gating: if we don't have it, ask single-dim first.
+  const lengthRequired = !(modality === "image" || modality === "lora");
+  if (lengthRequired && !sig.hasLength) return null;
+
+  const missing: ClarificationDimension[] = [];
+  if (!sig.hasSubject) missing.push("subject");
+  if (!sig.hasStyle) missing.push("style");
+  if (!sig.hasPurpose) missing.push("purpose");
+  if (!sig.hasPlatform) missing.push("platform");
+
+  if (missing.length < 3) return null;
+
+  // Cap at 3 to keep the card scannable on mobile.
+  const picked = missing.slice(0, 3);
+  const entries: MultiDimWizardEntry[] = picked.map(dim => ({
+    dimension: dim,
+    question: wizardQuestionFor(modality, dim),
+    options: buildContextualClarificationOptions({
+      userText: text,
+      modality,
+      dimension: dim,
+    }).options,
+  }));
+
+  const leadIn =
+    `這個方向有點開放，我先一次問你 ${entries.length} 個重點，每題挑一個就好——` +
+    `回完我就能拼出貼合的工作流程，不用再多輪追問。`;
+
+  return { leadIn, entries };
+}
+
+/**
+ * Pure helper used by callers / tests: serialize a set of multi-dim answers
+ * into the same `[使用者澄清/<dim>]: <answer>` format that the single-dim
+ * wizard appends to user text. The router treats this exactly like multiple
+ * sequential clarifications, so all downstream code (intent detection,
+ * workflow builders, prompt assembly) keeps working without changes.
+ */
+export function serializeMultiDimAnswers(
+  answers: Array<{ dimension: ClarificationDimension; value: string }>
+): string {
+  return answers
+    .filter(a => a.value.trim().length > 0)
+    .map(a => `[使用者澄清/${a.dimension}]: ${a.value.trim()}`)
+    .join("\n");
+}
+
 function wizardQuestionFor(
   modality: ClarificationModality,
   dimension: ClarificationDimension
@@ -602,6 +722,8 @@ function wizardQuestionFor(
       return `主要用在哪個情境？我會根據投放點調整節奏與輸出規格。`;
     case "audience":
       return `主要觀眾是誰？影響文案語氣、節奏與梗的選擇──對品牌客戶要穩、對社群粉絲要快、對員工要實。`;
+    case "purpose":
+      return `做這個是為了什麼？用途決定整支作品的取捨──個人珍藏可任性、品牌行銷要精準、社群成長要鉤點、教學要清楚。`;
     case "format":
     case "open":
     default:
