@@ -67,7 +67,11 @@ import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore"
 import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
 import { orbTaskTracer } from "./services/orbTaskTracer";
 import { createReplanCallback, type ReplanCallbackContext } from "./services/orbTaskReplanIntegration";
-import { buildOrbMemorySummaryForPlanner } from "./services/orbMemory";
+import {
+  getRecentSpecialistTools,
+  getSpecialistMemoryHints,
+  recordToolAuditAsSpecialistInteraction,
+} from "./services/specializedAgentMemoryStore";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -4973,6 +4977,9 @@ export const appRouter = router({
             agentPreferences,
             onAuditEvent: event => {
               orbToolCallLogStore.append(event);
+              // 把每一筆 specialist tool 結果寫進 specialized_agent_interactions
+              // — 這是在這之前 dead schema 第一次有 production writer。
+              recordToolAuditAsSpecialistInteraction(event);
             },
             approved:
               !currentTask.needsApproval ||
@@ -5417,6 +5424,13 @@ export const appRouter = router({
                 .join("\n")
             : undefined;
 
+        // 從 specialized_agent_interactions 拉最近的 tool 名與專精助手習慣。
+        // 兩者並行，回傳空陣列 / 空字串都是合法（DB 不可用時不阻塞 chat）。
+        const [recentSpecialistTools, specialistHints] = await Promise.all([
+          getRecentSpecialistTools(ctx.user.id, 5),
+          getSpecialistMemoryHints(ctx.user.id),
+        ]);
+
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
@@ -5439,6 +5453,8 @@ export const appRouter = router({
             userIdentity,
             rememberedPreferences,
             userMessage: latestUserMessageText,
+            recentTools: recentSpecialistTools,
+            specialistHints,
           }
         );
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
@@ -5809,6 +5825,8 @@ export const appRouter = router({
               assetLibrary: assetLibrarySummary,
               apiTools: [],
               userMessage: latestUserMessageText,
+              recentTools: recentSpecialistTools,
+              specialistHints,
             });
             const chatOnlyResult = await withTimeout(
               invokeLLM({
@@ -6628,6 +6646,7 @@ export const appRouter = router({
           requestId: `adhoc_${ctx.user.id}_${Date.now()}`,
           onAuditEvent: event => {
             orbToolCallLogStore.append(event);
+            recordToolAuditAsSpecialistInteraction(event);
           },
         });
         return { results };

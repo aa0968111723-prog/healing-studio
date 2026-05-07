@@ -1335,6 +1335,12 @@ export interface OrbPromptExtras {
    * → image-specialist even if the latest message is short).
    */
   recentTools?: string[];
+  /**
+   * Pre-rendered specialist memory hints (from
+   * `getSpecialistMemoryHints`). Already a string so the prompt builder
+   * doesn't need a DB-aware section. Empty string = nothing to say.
+   */
+  specialistHints?: string;
 }
 
 function serializeSnapshotBlock(
@@ -1645,6 +1651,12 @@ export function buildOrbSystemPrompt(
   // userMessage 時跳過整個區塊，保留 legacy 單一人格 prompt 行為。
   const skillBlock = serializeSkillBlock(extras, pageContext);
 
+  // 使用者最近的專精助手習慣 — 由 caller 透過
+  // getSpecialistMemoryHints 預先渲染好；空字串時整段不出現在 prompt 裡。
+  const specialistHintsBlock = extras?.specialistHints?.trim()
+    ? `\n${extras.specialistHints.trim()}\n`
+    : "";
+
   // Phase 4：判斷是否在創作工作室，注入深度引導知識
   const isStudioPage =
     extras?.pageSnapshot?.pageId === "studio" ||
@@ -1675,7 +1687,7 @@ export function buildOrbSystemPrompt(
 
   return `${personalityPrompt}
 ${identityBlock}
-${skillBlock}
+${skillBlock}${specialistHintsBlock}
 【你的核心身份】
 你是一個以人為本的 AI 療癒創作夥伴。你的首要使命不是效率，而是讓使用者在創作過程中感到放鬆、愉悅和被支持。
 Healing Studio 是一個療癒放鬆的創作空間，使用者來這裡是為了找到內心的平靜和創作的喜悅。
