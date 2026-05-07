@@ -4062,15 +4062,29 @@ export default function VideoStudio() {
     pageLabel: "影片專業工作室",
     pagePath: "/video-studio",
     capabilities: agentCapabilities,
-    state: {
-      // 顯式宣告 modality 讓光球能直接挑選影像精靈；child state 來自當前
-      // tab 的子元件，通常包含 prompt、model、duration 等。
-      modality: "video",
-      activeTab,
-      activeTabLabel: TABS.find(t => t.id === activeTab)?.label ?? "",
-      modelCount: VIDEO_MODELS.length,
-      ...(agentBus.getChildState() ?? {}),
-    },
+    state: (() => {
+      const childState = agentBus.getChildState() ?? {};
+      // 從子 tab 抽出最常見的 prompt 欄位向光球暴露，讓 LLM 在進站時
+      // 第一眼就看到使用者目前在輸入什麼，而不必再 dispatch 一次取狀態。
+      const rawPrompt =
+        typeof childState.prompt === "string"
+          ? childState.prompt
+          : typeof childState.text === "string"
+          ? childState.text
+          : "";
+      return {
+        // 顯式宣告 modality 讓光球能直接挑選影像精靈；child state 來自當前
+        // tab 的子元件，通常包含 prompt、model、duration 等。
+        modality: "video",
+        activeTab,
+        activeTabLabel: TABS.find(t => t.id === activeTab)?.label ?? "",
+        modelCount: VIDEO_MODELS.length,
+        prompt: rawPrompt.slice(0, 120) || "(空)",
+        promptLength: rawPrompt.length,
+        promptPreview: rawPrompt.slice(0, 120) || "(空)",
+        ...childState,
+      };
+    })(),
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       const queueAgent = (
         update: (prev: PendingVideoAgentPayload) => PendingVideoAgentPayload,

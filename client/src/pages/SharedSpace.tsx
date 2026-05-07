@@ -263,7 +263,17 @@ export default function SharedSpace() {
     []
   );
   const SHARED_NAV_ALLOWLIST = useMemo<Set<string>>(
-    () => new Set(["/assets", "/models", "/studio", "/notes", "/image-studio"]),
+    () =>
+      new Set([
+        "/assets",
+        "/models",
+        "/studio",
+        "/notes",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
+        "/settings",
+      ]),
     []
   );
   const sharedAgentCapabilities: AgentCapability[] = useMemo(
@@ -300,8 +310,11 @@ export default function SharedSpace() {
           { id: "/studio", label: "創作工作室", meta: { bestFor: "套用素材創作", tip: "直接使用共享素材生成" } },
           { id: "/notes", label: "專案筆記", meta: { bestFor: "記錄靈感", tip: "將共享素材的靈感記下" } },
           { id: "/image-studio", label: "圖片工作室", meta: { bestFor: "精細圖像創作", tip: "用共享素材做參考圖" } },
+          { id: "/video-studio", label: "影片工作室", meta: { bestFor: "精細影片創作", tip: "把共享素材當成 i2v 起手圖" } },
+          { id: "/pro-studio", label: "音樂配音工作室", meta: { bestFor: "音樂與語音", tip: "把共享音檔當參考素材" } },
+          { id: "/settings", label: "個人設定", meta: { bestFor: "調整共享偏好", tip: "決定哪些資產自動共享" } },
         ],
-        hint: "navigate path='/assets' | '/models' | '/studio' | '/notes' | '/image-studio'",
+        hint: "navigate path='/assets' | '/models' | '/studio' | '/notes' | '/image-studio' | '/video-studio' | '/pro-studio' | '/settings'",
       },
     ],
     [activeTab, SHARED_TAB_OPTIONS, SHARED_TYPE_OPTIONS]
