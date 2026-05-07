@@ -427,7 +427,7 @@ export default function GenerativeShowcase({
     [activeId]
   );
 
-  const typed = useTypewriter(activeMode.prompt, 32, reduce ?? false);
+  const typed = useTypewriter(activeMode.prompt, 32, !!reduce);
 
   useEffect(() => {
     if (!autoplay || reduce) return;
