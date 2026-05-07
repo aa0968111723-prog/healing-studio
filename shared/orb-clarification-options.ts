@@ -140,7 +140,17 @@ export function buildContextualClarificationOptions(
   ctx: ClarificationOptionContext
 ): { options: string[]; modality: ClarificationModality; dimension: ClarificationDimension } {
   const modality = ctx.modality ?? inferModalityFromText(ctx.userText);
-  const dimension: ClarificationDimension = ctx.dimension ?? "format";
+  // When the caller didn't pin a dimension and the user already named a
+  // concrete modality (影片 / 圖片 / 音樂…), skip the generic "format"
+  // bucket — those questions ("社群短片？廣告片？") feel redundant after
+  // the user explicitly said 影片. Walk the wizard order instead and ask
+  // the next dimension that's actually missing. Fallback to "format" only
+  // when modality really is unknown.
+  const dimension: ClarificationDimension =
+    ctx.dimension ??
+    (modality !== "unknown"
+      ? nextMissingDimension(ctx.userText, modality) ?? "subject"
+      : "format");
   const topic = extractTopicWord(ctx.userText);
   // When the topic can't be inferred we drop it from the option label entirely
   // instead of substituting "你的主題" — the placeholder used to leak into the
@@ -523,18 +533,23 @@ const PURPOSE_HINT_RE =
 export function inferConversationDimensions(
   text: string,
   modality: ClarificationModality,
-  remembered?: RememberedDimensionCoverage
+  remembered?: RememberedDimensionCoverage,
+  prefilled?: ConversationDimensionSignals
 ): ConversationDimensionSignals {
   const trimmed = text.trim();
   if (!trimmed) {
-    // Even with empty text, remembered prefs still count.
-    return remembered
-      ? {
-          hasStyle: remembered.hasStyle,
-          hasPlatform: remembered.hasPlatform,
-          hasPurpose: remembered.hasPurpose,
-        }
-      : {};
+    // Even with empty text, remembered prefs still count — and a long-script
+    // pass on the upstream message may already have populated `prefilled`.
+    return mergeSignals(
+      remembered
+        ? {
+            hasStyle: remembered.hasStyle,
+            hasPlatform: remembered.hasPlatform,
+            hasPurpose: remembered.hasPurpose,
+          }
+        : {},
+      prefilled
+    );
   }
   const lengthRe =
     /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻|\d+\s*字/i;
@@ -552,7 +567,7 @@ export function inferConversationDimensions(
     (topicWord !== null && topicWord.length >= 2) ||
     subjectMarkers.test(trimmed) ||
     trimmed.length >= 35;
-  return {
+  const baseline: ConversationDimensionSignals = {
     hasLength,
     hasSubject,
     hasStyle: STYLE_HINT_RE.test(trimmed) || Boolean(remembered?.hasStyle),
@@ -563,14 +578,37 @@ export function inferConversationDimensions(
     hasSource: SOURCE_HINT_RE.test(trimmed),
     hasPurpose: PURPOSE_HINT_RE.test(trimmed) || Boolean(remembered?.hasPurpose),
   };
+  return mergeSignals(baseline, prefilled);
+}
+
+/**
+ * OR-merge two dimension signal objects. Used so prefilled signals coming
+ * from `extractScriptStructure` (long-script parse) can flip flags on
+ * without ever flipping them off — regex hits on the current message stay
+ * authoritative.
+ */
+function mergeSignals(
+  base: ConversationDimensionSignals,
+  extra?: ConversationDimensionSignals
+): ConversationDimensionSignals {
+  if (!extra) return base;
+  return {
+    hasLength: base.hasLength || extra.hasLength,
+    hasSubject: base.hasSubject || extra.hasSubject,
+    hasStyle: base.hasStyle || extra.hasStyle,
+    hasPlatform: base.hasPlatform || extra.hasPlatform,
+    hasSource: base.hasSource || extra.hasSource,
+    hasPurpose: base.hasPurpose || extra.hasPurpose,
+  };
 }
 
 export function nextMissingDimension(
   text: string,
   modality: ClarificationModality,
-  remembered?: RememberedDimensionCoverage
+  remembered?: RememberedDimensionCoverage,
+  prefilled?: ConversationDimensionSignals
 ): ClarificationDimension | null {
-  const sig = inferConversationDimensions(text, modality, remembered);
+  const sig = inferConversationDimensions(text, modality, remembered, prefilled);
   // Bar for "wizard satisfied" — kept intentionally thorough so the orb feels
   // like a real director who actually understands the brief, not a one-shot
   // dispatcher. We walk every dimension that materially changes the output
@@ -612,9 +650,10 @@ export function nextMissingDimension(
 export function buildWizardClarification(
   text: string,
   modality: ClarificationModality,
-  remembered?: RememberedDimensionCoverage
+  remembered?: RememberedDimensionCoverage,
+  prefilled?: ConversationDimensionSignals
 ): { question: string; options: string[]; dimension: ClarificationDimension } | null {
-  const dimension = nextMissingDimension(text, modality, remembered);
+  const dimension = nextMissingDimension(text, modality, remembered, prefilled);
   if (!dimension) return null;
   const { options } = buildContextualClarificationOptions({
     userText: text,
@@ -651,9 +690,10 @@ export interface MultiDimWizardClarification {
 export function countMissingHighSignalDimensions(
   text: string,
   modality: ClarificationModality,
-  remembered?: RememberedDimensionCoverage
+  remembered?: RememberedDimensionCoverage,
+  prefilled?: ConversationDimensionSignals
 ): number {
-  const sig = inferConversationDimensions(text, modality, remembered);
+  const sig = inferConversationDimensions(text, modality, remembered, prefilled);
   let missing = 0;
   if (!sig.hasSubject) missing += 1;
   if (!sig.hasStyle) missing += 1;
@@ -677,9 +717,10 @@ export function countMissingHighSignalDimensions(
 export function buildMultiDimWizardClarification(
   text: string,
   modality: ClarificationModality,
-  remembered?: RememberedDimensionCoverage
+  remembered?: RememberedDimensionCoverage,
+  prefilled?: ConversationDimensionSignals
 ): MultiDimWizardClarification | null {
-  const sig = inferConversationDimensions(text, modality, remembered);
+  const sig = inferConversationDimensions(text, modality, remembered, prefilled);
   // Length is gating: if we don't have it, ask single-dim first.
   const lengthRequired = !(modality === "image" || modality === "lora");
   if (lengthRequired && !sig.hasLength) return null;
