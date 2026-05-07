@@ -1600,6 +1600,56 @@ export async function getSystemDailyTrend(days = 30) {
     .orderBy(sql`DATE(${apiUsageLogs.createdAt})`);
 }
 
+export interface SiteModelUsageRow {
+  model: string;
+  totalCalls: number;
+  successCalls: number;
+  failedCalls: number;
+  totalTokens: number;
+  totalCostUsd: number;
+}
+
+/** Admin/Agent: site-wide model usage snapshot from api_usage_logs. */
+export async function getSiteWideModelUsageSnapshot(args?: {
+  days?: number;
+  limit?: number;
+}): Promise<SiteModelUsageRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const days = Math.max(1, Math.min(90, Math.trunc(args?.days ?? 14)));
+  const limit = Math.max(1, Math.min(20, Math.trunc(args?.limit ?? 8)));
+
+  const rows = await db
+    .select({
+      model: apiUsageLogs.model,
+      totalCalls: sql<number>`COUNT(*)`,
+      successCalls: sql<number>`SUM(CASE WHEN ${apiUsageLogs.success} = 1 THEN 1 ELSE 0 END)`,
+      failedCalls: sql<number>`SUM(CASE WHEN ${apiUsageLogs.success} = 0 THEN 1 ELSE 0 END)`,
+      totalTokens: sql<number>`COALESCE(SUM(${apiUsageLogs.tokensUsed}), 0)`,
+      totalCostUsd: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+    })
+    .from(apiUsageLogs)
+    .where(
+      and(
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`,
+        sql`${apiUsageLogs.model} IS NOT NULL`,
+        sql`TRIM(${apiUsageLogs.model}) <> ''`
+      )
+    )
+    .groupBy(apiUsageLogs.model)
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(limit);
+
+  return rows.map(row => ({
+    model: String(row.model ?? "unknown"),
+    totalCalls: Number(row.totalCalls ?? 0),
+    successCalls: Number(row.successCalls ?? 0),
+    failedCalls: Number(row.failedCalls ?? 0),
+    totalTokens: Number(row.totalTokens ?? 0),
+    totalCostUsd: Number(row.totalCostUsd ?? 0),
+  }));
+}
+
 /** Admin: Get all background jobs (for monitoring) */
 export async function getAllBackgroundJobs(limit = 100) {
   const db = await getDb();

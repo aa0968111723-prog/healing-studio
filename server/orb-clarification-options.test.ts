@@ -35,6 +35,9 @@ describe("inferModalityFromText", () => {
   it("detects script keywords", () => {
     expect(inferModalityFromText("幫我寫一個腳本")).toBe("script");
   });
+  it("detects research / perplexity keywords", () => {
+    expect(inferModalityFromText("用 perplexity 深度搜尋最新 AI 模型趨勢")).toBe("research");
+  });
   it("returns 'unknown' when no modality cue is present", () => {
     expect(inferModalityFromText("幫我做一個茶")).toBe("unknown");
   });
@@ -121,6 +124,15 @@ describe("buildContextualClarificationOptions", () => {
       dimension: "format",
     });
     expect(pack.options.length).toBeLessThanOrEqual(4);
+  });
+
+  it("returns research options for deep-search requests", () => {
+    const pack = buildContextualClarificationOptions({
+      userText: "幫我用 perplexity 深度研究 AI 影片模型",
+      dimension: "format",
+    });
+    expect(pack.modality).toBe("research");
+    expect(pack.options.join(" ")).toMatch(/深度搜尋|研究|模型/);
   });
 });
 

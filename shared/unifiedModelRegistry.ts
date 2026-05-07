@@ -54,6 +54,13 @@ import {
   pickBestVoiceModel,
 } from "./voiceModelRegistry";
 import {
+  IMAGE_TO_VIDEO_MODEL_REGISTRY,
+  type ImageToVideoModelProfile,
+  type ImageToVideoModelMatch,
+  rankImageToVideoModelsByPrompt,
+  pickBestImageToVideoModel,
+} from "./imageToVideoModelRegistry";
+import {
   FINE_TUNE_MODEL_REGISTRY,
   type FineTuneModelProfile,
   rankFineTuneModelsByPrompt,
@@ -72,6 +79,7 @@ export type ModelDomain =
   | "text-to-image"      // 文字生成影像
   | "image-to-3d"        // 影像生成 3D 模型
   | "image-to-world"     // 影像生成 3D 世界場景
+  | "image-to-video"     // 圖片生成影片（Director AI 常用）
   | "audio-music"        // 音樂/音效生成
   | "voice-tts"          // 語音合成
   | "fine-tune-training";// 模型微調/LoRA 訓練
@@ -184,17 +192,19 @@ function normalizeVoiceModel(model: VoiceModelProfile): UnifiedModelProfile {
   };
 }
 
-function normalizeFineTuneModel(model: FineTuneModelProfile): UnifiedModelProfile {
+function normalizeImageToVideoModel(model: ImageToVideoModelProfile): UnifiedModelProfile {
   return {
     modelId: model.modelId,
     label: model.label,
     provider: model.provider,
-    domain: "fine-tune-training",
+    domain: "image-to-video",
     strengths: model.strengths,
     avoidWhen: model.avoidWhen,
     promptKeywords: model.promptKeywords,
   };
 }
+
+function normalizeFineTuneModel(model: FineTuneModelProfile): UnifiedModelProfile {
 
 /**
  * 統一模型資料庫 - 所有模型的完整清單
@@ -203,6 +213,7 @@ export const UNIFIED_MODEL_REGISTRY: readonly UnifiedModelProfile[] = [
   ...IMAGE_UPSCALE_MODEL_REGISTRY.map(normalizeImageUpscaleModel),
   ...TEXT_TO_IMAGE_MODEL_REGISTRY.map(normalizeTextToImageModel),
   ...SKELETAL_MODEL_REGISTRY.map(normalizeSkeletalModel),
+  ...IMAGE_TO_VIDEO_MODEL_REGISTRY.map(normalizeImageToVideoModel),
   ...AUDIO_MODEL_REGISTRY.map(normalizeAudioModel),
   ...VOICE_MODEL_REGISTRY.map(normalizeVoiceModel),
   ...FINE_TUNE_MODEL_REGISTRY.map(normalizeFineTuneModel),
@@ -282,6 +293,20 @@ export function queryModelsByPrompt(
           rationale: m.rationale,
         };
       })
+    );
+  }
+
+  // 查詢音樂/音效模型
+  if (!domains || domains.includes("image-to-video")) {
+    const matches = rankImageToVideoModelsByPrompt(prompt);
+    results.push(
+      ...matches.map(m => ({
+        modelId: m.modelId,
+        domain: "image-to-video" as ModelDomain,
+        score: m.score,
+        matchedKeywords: m.matchedKeywords,
+        rationale: m.rationale,
+      }))
     );
   }
 
@@ -382,6 +407,16 @@ export function pickBestModelForDomain(
         rationale: match.rationale,
       };
     }
+    case "image-to-video": {
+      const match = pickBestImageToVideoModel(prompt);
+      return {
+        modelId: match.modelId,
+        domain,
+        score: match.score,
+        matchedKeywords: match.matchedKeywords,
+        rationale: match.rationale,
+      };
+    }
     case "audio-music": {
       const match = pickBestAudioModel(prompt);
       return {
@@ -449,6 +484,12 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
   }
 
   // 音樂/音效相關關鍵字
+  const imageToVideoKeywords = ["image to video", "i2v", "animate", "motion", "camera move", "影片", "短片", "運鏡", "轉影片"];
+  if (imageToVideoKeywords.some(kw => normalized.includes(kw))) {
+    domains.push("image-to-video");
+  }
+
+  // 音樂/音效相關關鍵字
   const audioKeywords = ["music", "音樂", "song", "歌曲", "audio", "音頻", "sound", "音效", "sfx", "background music", "配樂"];
   if (audioKeywords.some(kw => normalized.includes(kw))) {
     domains.push("audio-music");
@@ -466,7 +507,7 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
   }
 
   // 如果沒有匹配到任何關鍵字，返回所有領域
-  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "audio-music", "voice-tts", "fine-tune-training"];
+  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "image-to-video", "audio-music", "voice-tts", "fine-tune-training"];
 }
 
 /**
@@ -530,6 +571,7 @@ export function getModelRegistryStats() {
       "text-to-image": 0,
       "image-to-3d": 0,
       "image-to-world": 0,
+      "image-to-video": 0,
       "audio-music": 0,
       "voice-tts": 0,
       "fine-tune-training": 0,
@@ -560,6 +602,7 @@ export function generateModelRegistrySummary(): string {
 - 文字生成影像 (text-to-image): ${stats.byDomain["text-to-image"]} 個模型
 - 影像生成 3D 模型 (image-to-3d): ${stats.byDomain["image-to-3d"]} 個模型
 - 影像生成 3D 世界 (image-to-world): ${stats.byDomain["image-to-world"]} 個模型
+- 圖片生成影片 (image-to-video): ${stats.byDomain["image-to-video"]} 個模型
 - 音樂音效生成 (audio-music): ${stats.byDomain["audio-music"]} 個模型
 - 語音合成配音 (voice-tts): ${stats.byDomain["voice-tts"]} 個模型
 - 模型微調訓練 (fine-tune-training): ${stats.byDomain["fine-tune-training"]} 個模型
@@ -595,6 +638,13 @@ export {
   type SkeletalModelMatch,
   rankSkeletalModelsByPrompt,
   pickBestSkeletalModel,
+
+  // Audio/Music Model Registry
+  IMAGE_TO_VIDEO_MODEL_REGISTRY,
+  type ImageToVideoModelProfile,
+  type ImageToVideoModelMatch,
+  rankImageToVideoModelsByPrompt,
+  pickBestImageToVideoModel,
 
   // Audio/Music Model Registry
   AUDIO_MODEL_REGISTRY,

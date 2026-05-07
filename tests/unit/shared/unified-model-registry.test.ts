@@ -22,6 +22,7 @@ describe("unifiedModelRegistry", () => {
       expect(domains.has("image-upscale")).toBe(true);
       expect(domains.has("text-to-image")).toBe(true);
       expect(domains.has("image-to-3d")).toBe(true);
+      expect(domains.has("image-to-video")).toBe(true);
       expect(domains.has("audio-music")).toBe(true);
       expect(domains.has("voice-tts")).toBe(true);
       expect(domains.has("fine-tune-training")).toBe(true);
@@ -70,6 +71,14 @@ describe("unifiedModelRegistry", () => {
       expect(models.length).toBeGreaterThan(0);
       models.forEach(model => {
         expect(model.domain).toBe("audio-music");
+      });
+    });
+
+    it("returns only image-to-video models", () => {
+      const models = getModelsByDomain("image-to-video");
+      expect(models.length).toBeGreaterThan(0);
+      models.forEach(model => {
+        expect(model.domain).toBe("image-to-video");
       });
     });
 
@@ -225,6 +234,11 @@ describe("unifiedModelRegistry", () => {
       expect(domains).toContain("audio-music");
     });
 
+    it("infers image-to-video from i2v keywords", () => {
+      const domains = inferDomainFromPrompt("Please animate this image into a short i2v clip");
+      expect(domains).toContain("image-to-video");
+    });
+
     it("infers voice-tts from voice keywords", () => {
       const domains = inferDomainFromPrompt("Generate voice narration");
       expect(domains).toContain("voice-tts");
@@ -241,7 +255,7 @@ describe("unifiedModelRegistry", () => {
 
     it("returns all domains when no keywords match", () => {
       const domains = inferDomainFromPrompt("xyz abc nonsemantic");
-      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "audio-music", "voice-tts", "fine-tune-training"]);
+      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "image-to-video", "audio-music", "voice-tts", "fine-tune-training"]);
     });
   });
 
@@ -306,6 +320,7 @@ describe("unifiedModelRegistry", () => {
       expect(stats.byDomain["image-upscale"]).toBeGreaterThan(0);
       expect(stats.byDomain["text-to-image"]).toBeGreaterThan(0);
       expect(stats.byDomain["image-to-3d"]).toBeGreaterThan(0);
+      expect(stats.byDomain["image-to-video"]).toBeGreaterThan(0);
       expect(stats.byDomain["audio-music"]).toBeGreaterThan(0);
       expect(stats.byDomain["voice-tts"]).toBeGreaterThan(0);
       expect(Object.keys(stats.byProvider).length).toBeGreaterThan(0);
