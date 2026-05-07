@@ -9,10 +9,26 @@
  * Used by ProactiveOrbWidget + AgentChat alongside the prose message body.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ImageIcon, Notebook, Clock, BookOpen, ArrowUpRight, Video, Music, Mic, FileText } from "lucide-react";
+import {
+  ArrowDownAZ,
+  ArrowUpRight,
+  BookOpen,
+  CalendarRange,
+  Clock,
+  FileText,
+  ImageIcon,
+  Mic,
+  Music,
+  Notebook,
+  TrendingUp,
+  Video,
+} from "lucide-react";
 import type { ChatSearchResultItem } from "@/contexts/GlobalOrbChatContext";
+
+export type SearchKindFilter = "all" | ChatSearchResultItem["kind"];
+export type SearchSortMode = "relevance" | "recent";
 
 interface Props {
   query?: string;
@@ -51,14 +67,69 @@ function formatRelative(at?: number): string | null {
   return `${Math.floor(days / 365)} 年前`;
 }
 
+/** Pure helper — filter + sort items per the user's chip selection. Exported
+ *  so the unit tests can pin the exact precedence (filter before sort, sort
+ *  ties broken by score desc). */
+export function applySearchRefinement(
+  items: ChatSearchResultItem[],
+  options: { kind: SearchKindFilter; thisWeekOnly: boolean; sort: SearchSortMode },
+  now: number = Date.now()
+): ChatSearchResultItem[] {
+  const weekCutoff = now - 7 * 24 * 60 * 60 * 1000;
+  let filtered = items;
+  if (options.kind !== "all") {
+    filtered = filtered.filter(i => i.kind === options.kind);
+  }
+  if (options.thisWeekOnly) {
+    filtered = filtered.filter(i => typeof i.at === "number" && i.at >= weekCutoff);
+  }
+  if (options.sort === "recent") {
+    return [...filtered].sort((a, b) => {
+      const aAt = a.at ?? 0;
+      const bAt = b.at ?? 0;
+      if (aAt !== bAt) return bAt - aAt;
+      return (b.score ?? 0) - (a.score ?? 0);
+    });
+  }
+  // "relevance" preserves the server's score-desc order with recent tie-break.
+  return [...filtered].sort((a, b) => {
+    const sa = a.score ?? 0;
+    const sb = b.score ?? 0;
+    if (sa !== sb) return sb - sa;
+    return (b.at ?? 0) - (a.at ?? 0);
+  });
+}
+
 export default function OrbSearchResultsCard({ query, items, compact }: Props) {
   const [, navigate] = useLocation();
+  const [kindFilter, setKindFilter] = useState<SearchKindFilter>("all");
+  const [thisWeekOnly, setThisWeekOnly] = useState(false);
+  const [sort, setSort] = useState<SearchSortMode>("relevance");
+
+  // Group BEFORE filtering so chip counts always reflect the full result set
+  // (otherwise clicking "素材" would zero out every other chip).
+  const counts = useMemo(() => {
+    const out: Partial<Record<ChatSearchResultItem["kind"], number>> = {};
+    for (const item of items) out[item.kind] = (out[item.kind] ?? 0) + 1;
+    return out;
+  }, [items]);
+
+  const refined = useMemo(
+    () => applySearchRefinement(items, { kind: kindFilter, thisWeekOnly, sort }),
+    [items, kindFilter, thisWeekOnly, sort]
+  );
 
   if (!items || items.length === 0) return null;
 
-  // Group results by kind for the legend; kept in same order as items.
-  const counts: Partial<Record<ChatSearchResultItem["kind"], number>> = {};
-  for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+  // Only show the "本週" toggle when at least one item carries a timestamp;
+  // tutorials don't have createdAt, so for tutorial-only result sets the
+  // toggle would silently zero everything and be useless.
+  const hasAnyAt = items.some(i => typeof i.at === "number");
+
+  const kindOrder: SearchKindFilter[] = ["all"];
+  for (const k of ["asset", "note", "history", "tutorial"] as const) {
+    if (counts[k]) kindOrder.push(k);
+  }
 
   return (
     <div
@@ -67,30 +138,140 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
         compact ? "p-2" : "p-3"
       } shadow-sm`}
     >
-      <div className="flex flex-wrap items-center gap-1.5 mb-2 px-1">
+      {/* Header line: query echo + filter chips */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-1.5 px-1">
         {query ? (
           <span className="text-[11px] font-medium text-gray-700">「{query}」</span>
         ) : null}
-        {Object.entries(counts).map(([kind, count]) => {
-          const meta = KIND_META[kind as ChatSearchResultItem["kind"]];
+        {kindOrder.map(kind => {
+          const isActive = kindFilter === kind;
+          if (kind === "all") {
+            return (
+              <button
+                key="all"
+                type="button"
+                onClick={() => setKindFilter("all")}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
+                  isActive
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-400"
+                }`}
+                data-testid="orb-search-filter-chip"
+                data-chip-kind="all"
+                data-chip-active={isActive}
+              >
+                全部 · {items.length}
+              </button>
+            );
+          }
+          const meta = KIND_META[kind];
           return (
-            <span
+            <button
               key={kind}
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${meta.tone}`}
+              type="button"
+              onClick={() => setKindFilter(isActive ? "all" : kind)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
+                isActive
+                  ? `${meta.tone} ring-2 ring-offset-1 ring-current/20 font-medium`
+                  : `${meta.tone} opacity-60 hover:opacity-100`
+              }`}
+              data-testid="orb-search-filter-chip"
+              data-chip-kind={kind}
+              data-chip-active={isActive}
             >
               <meta.icon className="w-3 h-3" />
-              {meta.label} · {count}
-            </span>
+              {meta.label} · {counts[kind]}
+            </button>
           );
         })}
       </div>
-      <ul className={`grid gap-1.5 ${compact ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
-        {items.map(item => (
-          <li key={item.id}>
-            <SearchResultRow item={item} onOpen={() => navigate(item.path)} />
-          </li>
-        ))}
-      </ul>
+
+      {/* Second line: this-week toggle + sort mode */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2 px-1">
+        <div className="flex items-center gap-1.5">
+          {hasAnyAt ? (
+            <button
+              type="button"
+              onClick={() => setThisWeekOnly(prev => !prev)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
+                thisWeekOnly
+                  ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+              }`}
+              data-testid="orb-search-week-toggle"
+              data-active={thisWeekOnly}
+            >
+              <CalendarRange className="w-3 h-3" />
+              {thisWeekOnly ? "只看本週" : "包含過去全部"}
+            </button>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-0.5 rounded-full bg-gray-100 p-0.5">
+          <button
+            type="button"
+            onClick={() => setSort("relevance")}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition ${
+              sort === "relevance"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+            data-testid="orb-search-sort-relevance"
+            data-active={sort === "relevance"}
+          >
+            <TrendingUp className="w-3 h-3" />
+            相關度
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort("recent")}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition ${
+              sort === "recent"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+            data-testid="orb-search-sort-recent"
+            data-active={sort === "recent"}
+          >
+            <ArrowDownAZ className="w-3 h-3" />
+            時間
+          </button>
+        </div>
+      </div>
+
+      {refined.length === 0 ? (
+        <div
+          className="text-[11px] text-gray-400 px-2 py-3 text-center"
+          data-testid="orb-search-no-results"
+        >
+          這個篩選條件下沒有結果。
+          {thisWeekOnly ? (
+            <button
+              type="button"
+              onClick={() => setThisWeekOnly(false)}
+              className="ml-1 underline hover:text-gray-600"
+            >
+              關掉「只看本週」
+            </button>
+          ) : null}
+          {kindFilter !== "all" ? (
+            <button
+              type="button"
+              onClick={() => setKindFilter("all")}
+              className="ml-1 underline hover:text-gray-600"
+            >
+              改看「全部」
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <ul className={`grid gap-1.5 ${compact ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+          {refined.map(item => (
+            <li key={item.id}>
+              <SearchResultRow item={item} onOpen={() => navigate(item.path)} />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

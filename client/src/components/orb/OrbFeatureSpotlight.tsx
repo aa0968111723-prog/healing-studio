@@ -178,7 +178,7 @@ export default function OrbFeatureSpotlight({ onTry, isChatOpen }: Props) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.96 }}
       transition={{ type: "spring", stiffness: 320, damping: 28 }}
-      className="pointer-events-auto w-[340px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-gradient-to-br from-slate-950/95 via-slate-900/95 to-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+      className="pointer-events-auto w-full md:w-[340px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-gradient-to-br from-slate-950/95 via-slate-900/95 to-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
       data-testid="orb-feature-spotlight"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
