@@ -51,6 +51,121 @@ function PhaseLabel({ num, tint }: { num: string; tint: string }) {
 }
 
 /**
+ * Per-frame ambient decoration — small floating elements that match the
+ * theme of each phase: idea sparks (Frame 1), connection threads
+ * (Frame 2), and constellation glints (Frame 3).
+ */
+function FrameAmbient({
+  variant,
+  tint,
+}: {
+  variant: "spark" | "thread" | "glint";
+  tint: string;
+}) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) return null;
+
+  if (variant === "spark") {
+    // 6 floating sparks rising — represents an idea forming
+    return (
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        {[0, 1, 2, 3, 4, 5].map(i => (
+          <motion.span
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left: `${15 + i * 12}%`,
+              bottom: 0,
+              width: 4 + (i % 3),
+              height: 4 + (i % 3),
+              background: `radial-gradient(circle, ${tint} 0%, transparent 70%)`,
+              boxShadow: `0 0 8px ${tint}`,
+            }}
+            animate={{
+              y: [0, -160 - i * 12],
+              opacity: [0, 0.9, 0],
+              x: [0, (i % 2 === 0 ? 1 : -1) * 12],
+            }}
+            transition={{
+              duration: 4.5 + (i % 3) * 0.5,
+              delay: i * 0.4,
+              repeat: Infinity,
+              ease: "easeOut",
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "thread") {
+    // Pulsing concentric rings — represents the orb sensing
+    return (
+      <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        {[0, 1, 2].map(i => (
+          <motion.span
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              width: 200,
+              height: 200,
+              border: `1px solid ${tint}`,
+            }}
+            animate={{ scale: [0.6, 1.8], opacity: [0.55, 0] }}
+            transition={{
+              duration: 3.2,
+              delay: i * 1.0,
+              repeat: Infinity,
+              ease: "easeOut",
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // glint — small twinkle stars scattered, fading in/out
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      {[
+        { x: 18, y: 22 },
+        { x: 78, y: 28 },
+        { x: 30, y: 78 },
+        { x: 70, y: 70 },
+        { x: 50, y: 18 },
+        { x: 88, y: 50 },
+        { x: 12, y: 55 },
+      ].map((p, i) => (
+        <motion.span
+          key={i}
+          className="absolute"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: 8,
+            height: 8,
+            background: `conic-gradient(from 0deg, transparent 0deg, ${tint} 90deg, transparent 180deg, ${tint} 270deg, transparent 360deg)`,
+            borderRadius: "50%",
+            filter: `drop-shadow(0 0 4px ${tint})`,
+          }}
+          animate={{
+            opacity: [0, 1, 0],
+            scale: [0.4, 1.2, 0.4],
+            rotate: [0, 90, 180],
+          }}
+          transition={{
+            duration: 2.4 + (i % 3) * 0.3,
+            delay: (i * 0.3) % 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * OrbNarrativeBridge — a 3-frame scrollytelling block that bridges the hero
  * to the rest of the homepage.  Replaces the former "CORE CAPABILITIES"
  * showcase (which has moved into the global orb's capabilities view).
@@ -202,7 +317,8 @@ export default function OrbNarrativeBridge() {
             filter: frame1Filter,
           }}
         >
-          <div className="max-w-md sm:max-w-xl px-2">
+          <FrameAmbient variant="spark" tint="rgba(168,85,247,0.7)" />
+          <div className="relative max-w-md sm:max-w-xl px-2">
             <PhaseLabel num="01" tint="rgba(168,85,247,0.85)" />
             <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight bg-gradient-to-br from-purple-700 via-purple-500 to-fuchsia-400 bg-clip-text text-transparent">
               從一個念頭開始
@@ -223,7 +339,8 @@ export default function OrbNarrativeBridge() {
             filter: frame2Filter,
           }}
         >
-          <div className="max-w-md sm:max-w-xl px-2">
+          <FrameAmbient variant="thread" tint="rgba(56,189,248,0.6)" />
+          <div className="relative max-w-md sm:max-w-xl px-2">
             <PhaseLabel num="02" tint="rgba(56,189,248,0.85)" />
             <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight bg-gradient-to-br from-sky-600 via-sky-400 to-cyan-300 bg-clip-text text-transparent">
               光球感應你的情緒
@@ -244,7 +361,8 @@ export default function OrbNarrativeBridge() {
             filter: frame3Filter,
           }}
         >
-          <div className="max-w-md sm:max-w-xl px-2">
+          <FrameAmbient variant="glint" tint="rgba(16,185,129,0.75)" />
+          <div className="relative max-w-md sm:max-w-xl px-2">
             <PhaseLabel num="03" tint="rgba(16,185,129,0.85)" />
             <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-300 bg-clip-text text-transparent">
               在工作室具現
