@@ -22,7 +22,6 @@ import {
   Loader2,
   ArrowRight,
   Navigation2,
-  MessageCircle,
   ChevronDown,
   Clock3,
   Paperclip,
@@ -253,8 +252,11 @@ export default function AgentChat() {
   };
   const [needGuideOpen, setNeedGuideOpen] = useState(false);
   const [howToOpen, setHowToOpen] = useState(false);
+  const [showAdvancedEntry, setShowAdvancedEntry] = useState(false);
+  const [showAllIntents, setShowAllIntents] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<string | null>(null);
+  const [modeBarOpen, setModeBarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const starterEntries = useMemo(
     () =>
@@ -438,7 +440,7 @@ export default function AgentChat() {
         }}
       />
 
-      <div className="w-full max-w-2xl flex-1 flex flex-col px-4 sm:px-6 py-6 sm:py-8 gap-4 relative">
+      <div className="w-full max-w-3xl flex-1 flex flex-col px-4 sm:px-6 py-6 sm:py-8 gap-5 relative">
         {/* 右上角：低頻工具（清除對話 / 代理設定）做成圖示，不搶版面 */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 z-10">
           <button
@@ -479,7 +481,7 @@ export default function AgentChat() {
         </div>
 
         {/* 開場區塊 */}
-        <div className="flex flex-col items-center text-center gap-3">
+        <div className="flex flex-col items-center text-center gap-2.5">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -487,9 +489,14 @@ export default function AgentChat() {
           >
             <VisualSoul size="lg" personality={personality} />
           </motion.div>
-          <h1 className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100">
+          <motion.h1
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.1 }}
+            className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100"
+          >
             先聊聊看就好 🌿
-          </h1>
+          </motion.h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
             我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
           </p>
@@ -565,7 +572,7 @@ export default function AgentChat() {
           </AnimatePresence>
 
           {/* 需求釐清提示 */}
-          <div className="w-full mt-3 sm:mt-4">
+          <div className="w-full mt-2 sm:mt-3">
             <Collapsible
               open={needGuideOpen}
               onOpenChange={setNeedGuideOpen}
@@ -625,7 +632,11 @@ export default function AgentChat() {
                   你想做什麼？選一個，光球會先釐清需求，再帶你去對的地方：
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[]).map((intentId, i) => {
+                  {(
+                    showAllIntents
+                      ? (["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[])
+                      : (["image", "video", "script", "explore"] as Exclude<GuideIntent, null>[])
+                  ).map((intentId, i) => {
                     const cfg = INTENT_CONFIGS[intentId];
                     return (
                       <motion.div
@@ -633,7 +644,9 @@ export default function AgentChat() {
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.25 + i * 0.05 }}
-                        className="group relative flex items-center gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/40 pl-3 pr-1 py-2 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-sm transition-all"
+                        whileHover={{ y: -2, scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        className="group relative flex items-center gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/75 dark:bg-slate-900/45 px-3 py-2 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-md hover:shadow-emerald-100/60 dark:hover:shadow-none transition-all"
                       >
                         {/* 意圖主體：點擊 → 開啟引導流程 */}
                         <button
@@ -653,34 +666,40 @@ export default function AgentChat() {
                               {cfg.description}
                             </p>
                           </div>
-                          <Navigation2 className="w-3.5 h-3.5 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                        </button>
-                        {/* 次要：先聊聊這個（小圖示） */}
-                        <button
-                          type="button"
-                          title={`先聊聊「${cfg.label}」`}
-                          aria-label={`先聊聊 ${cfg.label}`}
-                          className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
-                          onClick={() => void send(`我想要${cfg.label}`)}
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
+                          <Navigation2 className="w-3.5 h-3.5 text-emerald-400 opacity-0 -translate-x-0.5 group-hover:translate-x-0 group-hover:opacity-100 transition-all shrink-0" />
                         </button>
                       </motion.div>
                     );
                   })}
                 </div>
+                <div className="flex items-center justify-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 text-slate-500 hover:text-slate-700"
+                    onClick={() => setShowAllIntents(prev => !prev)}
+                  >
+                    {showAllIntents ? "收合常用選項" : "顯示更多選項"}
+                  </Button>
+                </div>
 
-                {/* 進階：全部頁面入口（深度整合）— 預設收合，避免一次塞太多 */}
-                <Collapsible className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/30">
+                <Collapsible
+                  open={showAdvancedEntry}
+                  onOpenChange={setShowAdvancedEntry}
+                  className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/30"
+                >
                   <CollapsibleTrigger asChild>
                     <button
                       type="button"
                       className="w-full flex items-center justify-between gap-2 px-3 py-2 group"
                     >
                       <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                        瀏覽全部頁面入口（含參數、素材、模型子項目）
+                        進階入口（全部頁面 / 參數 / 素材）
                       </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showAdvancedEntry ? "rotate-180" : ""}`}
+                      />
                     </button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="px-2.5 pb-2.5 pt-0 space-y-2">
@@ -749,7 +768,7 @@ export default function AgentChat() {
         {/* 聊天區 */}
         <div
           ref={scrollRef}
-          className="flex-1 min-h-[22rem] max-h-[55vh] overflow-y-auto space-y-3 px-1 scroll-smooth"
+          className="flex-1 min-h-[22rem] max-h-[55vh] overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth"
         >
           <AnimatePresence initial={false}>
             {messages.map((msg, i) => (
@@ -858,17 +877,19 @@ export default function AgentChat() {
               {suggestions.map(s => {
                 const emoji = inferSuggestionEmoji(s);
                 return (
-                  <button
+                  <motion.button
                     key={s}
                     onClick={() => void send(s)}
                     disabled={isSending}
+                    whileHover={{ y: -1.5 }}
+                    whileTap={{ scale: 0.99 }}
                     className="group flex items-start gap-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/70 px-3 py-2.5 text-left shadow-sm backdrop-blur hover:border-emerald-300 hover:bg-emerald-50/70 dark:hover:border-emerald-500/50 dark:hover:bg-emerald-900/30 disabled:opacity-50 transition-all"
                   >
                     <span className="text-base leading-none mt-0.5 shrink-0">{emoji}</span>
                     <span className="text-xs leading-snug text-slate-700 dark:text-slate-200 line-clamp-3">
                       {s}
                     </span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -891,7 +912,7 @@ export default function AgentChat() {
         )}
 
         {/* 輸入列 */}
-        <div className="sticky bottom-4 space-y-2">
+        <div className="sticky bottom-4 space-y-2.5">
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-1">
               {attachments.map(attachment => (
@@ -921,43 +942,56 @@ export default function AgentChat() {
           />
 
           {/* 模式工具列：點下去會亮起來，再輸入自己的提示詞送出即可。 */}
-          <div className="flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 scrollbar-thin">
-            {modeOptions.map(option => {
-              const Icon = option.icon;
-              const isActive = activeMode === option.id;
-              const accentClasses = isActive
-                ? {
-                    violet:
-                      "border-violet-300 bg-violet-100 text-violet-700 shadow-sm shadow-violet-200/60 dark:border-violet-500/60 dark:bg-violet-500/20 dark:text-violet-200",
-                    emerald:
-                      "border-emerald-300 bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/60 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200",
-                    sky: "border-sky-300 bg-sky-100 text-sky-700 shadow-sm shadow-sky-200/60 dark:border-sky-500/60 dark:bg-sky-500/20 dark:text-sky-200",
-                    amber:
-                      "border-amber-300 bg-amber-100 text-amber-700 shadow-sm shadow-amber-200/60 dark:border-amber-500/60 dark:bg-amber-500/20 dark:text-amber-200",
-                  }[option.accent]
-                : "border-slate-200/70 bg-white/70 text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:text-slate-200";
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => toggleMode(option.id)}
-                  disabled={isSending}
-                  aria-pressed={isActive}
-                  title={option.description}
-                  className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all disabled:opacity-40 ${accentClasses}`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{option.label}</span>
-                  {isActive && (
-                    <span
-                      aria-hidden
-                      className="ml-0.5 inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse"
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <Collapsible open={modeBarOpen} onOpenChange={setModeBarOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-2 text-[11px] text-slate-500 dark:text-slate-400"
+              >
+                <span>進階模式（多步驟 / 計畫 / 跳頁 / 功能詢問）</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${modeBarOpen ? "rotate-180" : ""}`} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 scrollbar-thin">
+                {modeOptions.map(option => {
+                  const Icon = option.icon;
+                  const isActive = activeMode === option.id;
+                  const accentClasses = isActive
+                    ? {
+                        violet:
+                          "border-violet-300 bg-violet-100 text-violet-700 shadow-sm shadow-violet-200/60 dark:border-violet-500/60 dark:bg-violet-500/20 dark:text-violet-200",
+                        emerald:
+                          "border-emerald-300 bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/60 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200",
+                        sky: "border-sky-300 bg-sky-100 text-sky-700 shadow-sm shadow-sky-200/60 dark:border-sky-500/60 dark:bg-sky-500/20 dark:text-sky-200",
+                        amber:
+                          "border-amber-300 bg-amber-100 text-amber-700 shadow-sm shadow-amber-200/60 dark:border-amber-500/60 dark:bg-amber-500/20 dark:text-amber-200",
+                      }[option.accent]
+                    : "border-slate-200/70 bg-white/70 text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:text-slate-200";
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => toggleMode(option.id)}
+                      disabled={isSending}
+                      aria-pressed={isActive}
+                      title={option.description}
+                      className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all disabled:opacity-40 ${accentClasses}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{option.label}</span>
+                      {isActive && (
+                        <span
+                          aria-hidden
+                          className="ml-0.5 inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {/* 已點亮模式的提示條：清楚告訴使用者「現在輸入會以這個模式送出」 */}
           {activeModeOption && (
@@ -985,7 +1019,7 @@ export default function AgentChat() {
             </motion.div>
           )}
 
-          <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2">
+          <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2 ring-1 ring-emerald-100/60 dark:ring-emerald-900/20 focus-within:ring-emerald-300/70 dark:focus-within:ring-emerald-600/40 transition-all">
             <button
               type="button"
               onClick={pickAttachment}
