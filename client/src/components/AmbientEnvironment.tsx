@@ -13,6 +13,19 @@
  */
 
 import { useRef, useEffect, useCallback, useState, memo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
+// Per-scene glow tint used for the brief cross-fade flash that punctuates
+// time-of-day transitions.  Tuned for subtlety — opacity caps at ~0.3.
+const SCENE_FLASH_COLOR: Record<
+  "nightSky" | "morning" | "cafe" | "deepSea",
+  string
+> = {
+  nightSky: "rgba(110,140,220,0.32)",
+  morning: "rgba(255,200,150,0.30)",
+  cafe: "rgba(220,180,140,0.28)",
+  deepSea: "rgba(60,160,200,0.30)",
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -598,12 +611,29 @@ function AmbientEnvironmentInner({
   }, [currentScene, initParticles]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={`absolute inset-0 w-full h-full ${className ?? ""}`}
-      style={{ zIndex: 0 }}
-      aria-hidden="true"
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`absolute inset-0 w-full h-full ${className ?? ""}`}
+        style={{ zIndex: 0 }}
+        aria-hidden="true"
+      />
+      <AnimatePresence>
+        <motion.div
+          key={currentScene}
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            zIndex: 1,
+            background: `radial-gradient(circle at 50% 35%, ${SCENE_FLASH_COLOR[currentScene]} 0%, transparent 60%)`,
+            mixBlendMode: "screen",
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.85, 0] }}
+          transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </AnimatePresence>
+    </>
   );
 }
 
