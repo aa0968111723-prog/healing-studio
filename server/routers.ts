@@ -5401,6 +5401,22 @@ export const appRouter = router({
             }
           : undefined;
 
+        // 找到最近一則 user 訊息，給 buildOrbSystemPrompt 用來決定本回合
+        // 的 agent skill（image-specialist / director / ...）。如果取不到
+        // 就傳 undefined，serializeSkillBlock 會跳過整個區塊。
+        const latestUserMessageContent = [...input.messages]
+          .reverse()
+          .find(m => m.role === "user")?.content;
+        const latestUserMessageText =
+          typeof latestUserMessageContent === "string"
+            ? latestUserMessageContent
+            : Array.isArray(latestUserMessageContent)
+            ? latestUserMessageContent
+                .filter(part => part.type === "text")
+                .map(part => part.text)
+                .join("\n")
+            : undefined;
+
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
@@ -5422,6 +5438,7 @@ export const appRouter = router({
             })),
             userIdentity,
             rememberedPreferences,
+            userMessage: latestUserMessageText,
           }
         );
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
@@ -5791,6 +5808,7 @@ export const appRouter = router({
               alwaysConfirm: false,
               assetLibrary: assetLibrarySummary,
               apiTools: [],
+              userMessage: latestUserMessageText,
             });
             const chatOnlyResult = await withTimeout(
               invokeLLM({

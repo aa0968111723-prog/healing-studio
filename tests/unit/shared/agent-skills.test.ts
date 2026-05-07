@@ -78,6 +78,14 @@ describe("findSkillForTool", () => {
     expect(findSkillForTool("studio.trainLora")?.id).toBe("training-specialist");
   });
 
+  it("maps cross-cutting advisory tools to the right generic skill", () => {
+    // 之前 learning-specialist.primaryTools 把 director.suggestPlan 和
+    // research.deepSearch 也包進去，造成 findSkillForTool 抓到錯的擁有者；
+    // 現在這兩個 tool 由 director / researcher 認領。
+    expect(findSkillForTool("director.suggestPlan")?.id).toBe("director");
+    expect(findSkillForTool("research.deepSearch")?.id).toBe("researcher");
+  });
+
   it("returns null for unknown tools", () => {
     expect(findSkillForTool("totally.fake.tool")).toBeNull();
   });
@@ -149,6 +157,29 @@ describe("selectSkillForIntent — priority order", () => {
   it("empty text falls back to companion", () => {
     const r = selectSkillForIntent({ text: "" });
     expect(r.skill.id).toBe("companion");
+  });
+});
+
+describe("regression — keyword conflicts surfaced by deep-audit", () => {
+  it("voice cloning request routes to voice-specialist, not music-specialist", () => {
+    // 「我要 voice cloning 我的聲音」之前因為 music-specialist 也含 「聲音」
+    // 而誤路由；現已從 music-specialist 移除。
+    const r = selectSkillForIntent({ text: "我要 voice cloning 我的聲音" });
+    expect(r.skill.id).toBe("voice-specialist");
+  });
+
+  it("teaching intent on a domain topic routes to learning-specialist", () => {
+    // 「教我怎麼開始做影片」之前因為 video-specialist 的「影片」搶先；
+    // LEARNING_OVERRIDE_HINTS 現會優先處理「教我」「新手」這類教學訊號。
+    const r = selectSkillForIntent({ text: "教我怎麼開始做影片" });
+    expect(r.skill.id).toBe("learning-specialist");
+  });
+
+  it("but a director plan that happens to mention 教學 still routes to director", () => {
+    // 反訊號：「幫我做一支教學影片，從規劃到輸出」是規劃語氣，必須給
+    // director；不能被 LEARNING_OVERRIDE_HINTS 搶。
+    const r = selectSkillForIntent({ text: "幫我做一支教學影片，從規劃到輸出" });
+    expect(r.skill.id).toBe("director");
   });
 });
 

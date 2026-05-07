@@ -102,7 +102,7 @@ const GENERIC_SKILLS: Array<Pick<
     description: "把跨頁需求拆成分步驟工作流",
     modality: "general",
     recommendedPages: ["/agent", "/director"],
-    tools: ["director.suggestPlan", "research.deepSearch"],
+    tools: ["director.suggestPlan"],
     knowledgeDomains: ["multi-step planning", "workflow design", "task decomposition"],
     useCases: ["跨頁工作流規劃", "多步驟創作協調", "把模糊想法變成可執行步驟"],
     chain: ["director", "composer", "critic"],
