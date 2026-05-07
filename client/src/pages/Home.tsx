@@ -72,6 +72,7 @@ import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
 import MagneticTilt from "@/components/home/MagneticTilt";
 import ShimmerDivider from "@/components/home/ShimmerDivider";
 import PageRevealVeil from "@/components/home/PageRevealVeil";
+import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -659,6 +660,7 @@ export default function Home() {
   const ambient = useAmbient();
   const { sceneId, isDark, override, setOverride, allScenes } = ambient;
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
+  const isMobile = useIsMobile();
 
   const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
   const [quickGuideHidden, setQuickGuideHidden] = useState(false);
@@ -720,9 +722,23 @@ export default function Home() {
   // Hero orb visual handoff: as the user scrolls past the hero, the
   // central orb shrinks toward the bottom-right corner where the
   // floating ProactiveOrbWidget lives, signalling "the orb is your guide".
-  const heroOrbScale = useTransform(scrollY, [0, 700], [1, 0.32]);
-  const heroOrbDriftY = useTransform(scrollY, [0, 700], [0, 60]);
-  const heroOrbDriftX = useTransform(scrollY, [0, 700], [0, 80]);
+  // Mobile uses gentler drift since the orb starts closer to the edge and
+  // big translations would overflow the narrow viewport.
+  const heroOrbScale = useTransform(
+    scrollY,
+    [0, 700],
+    isMobile ? [1, 0.55] : [1, 0.32]
+  );
+  const heroOrbDriftY = useTransform(
+    scrollY,
+    [0, 700],
+    isMobile ? [0, 30] : [0, 60]
+  );
+  const heroOrbDriftX = useTransform(
+    scrollY,
+    [0, 700],
+    isMobile ? [0, 32] : [0, 80]
+  );
 
   // Nav background intensifies as ambient fades (more opaque for readability)
   const navOpacityBoost = useTransform(scrollY, [300, 800], [0, 0.3]);

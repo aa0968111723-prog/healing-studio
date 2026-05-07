@@ -7,20 +7,27 @@ import {
   useTransform,
 } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { useIsMobile } from "@/hooks/useMobile";
 
-// Pre-computed dust positions (deterministic so re-renders don't re-roll).
-const DUST = Array.from({ length: 14 }, (_, i) => {
-  const angle = (i / 14) * Math.PI * 2;
-  const r = 70 + (i % 3) * 28;
-  return {
-    id: i,
-    dx: Math.cos(angle) * r,
-    dy: Math.sin(angle) * r,
-    delay: (i * 0.18) % 2.4,
-    size: 4 + (i % 3) * 2,
-    opacity: 0.25 + ((i * 7) % 5) / 20,
-  };
-});
+// Pre-computed dust positions for desktop and mobile.  Mobile uses fewer,
+// tighter motes since the orb itself is smaller and the GPU budget is lower.
+function buildDust(count: number, baseRadius: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * Math.PI * 2;
+    const r = baseRadius + (i % 3) * (baseRadius * 0.32);
+    return {
+      id: i,
+      dx: Math.cos(angle) * r,
+      dy: Math.sin(angle) * r,
+      delay: (i * 0.18) % 2.4,
+      size: 4 + (i % 3) * 2,
+      opacity: 0.25 + ((i * 7) % 5) / 20,
+    };
+  });
+}
+
+const DUST_DESKTOP = buildDust(14, 70);
+const DUST_MOBILE = buildDust(8, 48);
 
 /**
  * OrbNarrativeBridge — a 3-frame scrollytelling block that bridges the hero
@@ -36,7 +43,12 @@ const DUST = Array.from({ length: 14 }, (_, i) => {
  */
 export default function OrbNarrativeBridge() {
   const reduceMotion = useReducedMotion();
+  const isMobile = useIsMobile();
   const sectionRef = useRef<HTMLElement | null>(null);
+
+  const dust = isMobile ? DUST_MOBILE : DUST_DESKTOP;
+  const sectionHeight = isMobile ? "180vh" : "240vh";
+  const orbSize = isMobile ? "w-28 h-28" : "w-40 h-40";
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start end", "end start"],
@@ -93,7 +105,7 @@ export default function OrbNarrativeBridge() {
       ref={sectionRef}
       aria-label="光球敘事"
       className="relative z-10"
-      style={{ height: "240vh" }}
+      style={{ height: sectionHeight }}
     >
       {/* Sticky stage that pins to viewport while the section scrolls */}
       <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center justify-center">
@@ -111,9 +123,9 @@ export default function OrbNarrativeBridge() {
             translateY: "-50%",
           }}
         >
-          <div className="relative w-40 h-40">
+          <div className={`relative ${orbSize}`}>
             {/* Dust particles orbiting the orb */}
-            {DUST.map(d => (
+            {dust.map(d => (
               <motion.span
                 key={d.id}
                 className="absolute top-1/2 left-1/2 rounded-full bg-white/80"
