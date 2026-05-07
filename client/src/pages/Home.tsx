@@ -73,7 +73,6 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
-import LocalAuthForm from "@/components/LocalAuthForm";
 import FeatureDetailDialog, {
   type FeatureDetail,
 } from "@/components/FeatureDetailDialog";
@@ -1378,7 +1377,7 @@ ${profileSnippet}`;
             </motion.div>
 
             <motion.div
-              className="mt-10 sm:mt-14 flex items-center justify-center gap-4"
+              className="mt-6 sm:mt-10 flex flex-col items-center justify-center gap-3 px-4 sm:px-0"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1387,58 +1386,23 @@ ${profileSnippet}`;
                 ease: [0.16, 1, 0.3, 1],
               }}
             >
-              {isAuthenticated ? (
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
-                  <Button
-                    size="lg"
-                    onClick={() => navigate("/agent")}
-                    className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    開始創作
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => navigate("/director")}
-                    className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnOutline} ${s.btnOutlineText}`}
-                  >
-                    <Clapperboard className="w-4 h-4" />
-                    導演 AI
-                  </Button>
-                </div>
-              ) : (
-                <div className="w-full px-4 sm:px-0 max-w-xl">
-                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <Button
-                      size="lg"
-                      onClick={() => {
-                        window.location.href = getLoginUrl();
-                      }}
-                      className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
-                    >
-                      立即開始
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      onClick={() => {
-                        window.location.href = getDemoLoginUrl();
-                      }}
-                      className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm border-dashed btn-healing ${s.btnOutline} ${s.btnOutlineText}`}
-                    >
-                      ✨ 訪客體驗
-                    </Button>
-                  </div>
-                  <div
-                    className="mt-4 rounded-2xl border p-3 text-left"
-                    style={{ background: s.cardBg, borderColor: s.cardBorder }}
-                  >
-                    <LocalAuthForm hideTitle redirectTo="/agent" />
-                  </div>
-                </div>
-              )}
+              <Button
+                size="lg"
+                onClick={() => navigate("/agent")}
+                className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+              >
+                <Sparkles className="w-4 h-4" />
+                進入光球入口
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/director")}
+                className={`rounded-xl h-9 px-3 gap-1.5 text-xs sm:text-sm btn-healing ${s.textSecondary}`}
+              >
+                <Clapperboard className="w-3.5 h-3.5" />
+                導演 AI
+              </Button>
             </motion.div>
 
             <motion.div
@@ -1449,7 +1413,7 @@ ${profileSnippet}`;
                 delay: 0.75,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="mt-5 sm:mt-6 px-4 sm:px-0"
+              className="hidden md:block mt-6 px-4 sm:px-0"
             >
               <div
                 className="max-w-3xl mx-auto rounded-2xl border p-4 sm:p-5 text-left"
@@ -1491,38 +1455,6 @@ ${profileSnippet}`;
                       </div>
                     </div>
                   ))}
-                </div>
-                <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
-                  {isAuthenticated ? (
-                    <Button
-                      size="sm"
-                      onClick={() => navigate("/agent")}
-                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      開始創作
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        window.location.href = getDemoLoginUrl();
-                      }}
-                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      免費體驗
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate("/learn/tutorial-overview")}
-                    className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
-                  >
-                    <Rocket className="w-3.5 h-3.5" />
-                    查看教學
-                  </Button>
                 </div>
               </div>
             </motion.div>
