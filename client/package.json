@@ -1,0 +1,7 @@
+{
+  "name": "healing-studio-client-tools",
+  "private": true,
+  "scripts": {
+    "lint": "npm --prefix .. run lint"
+  }
+}
