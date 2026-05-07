@@ -56,7 +56,6 @@ import {
   Zap,
   Target,
 } from "lucide-react";
-import { CREATIVE_CAPABILITIES } from "@/data/creativeCapabilities";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
@@ -88,6 +87,7 @@ import SceneVignette from "@/components/home/SceneVignette";
 import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
+import GenerativeShowcase from "@/components/home/GenerativeShowcase";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
@@ -1502,110 +1502,17 @@ ${profileSnippet}`;
       {/* ── Shimmering hairline divider between Hero and Narrative ── */}
       <ShimmerDivider color={s.dividerColor} />
 
-      {/* ── Site Capabilities Overview — 這網站能幫你做什麼 ── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 lg:py-20 relative z-10">
-        <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-8 sm:mb-12"
-          >
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs tracking-[0.15em] uppercase mb-4 ${s.textSecondary}`}
-              style={{ background: s.featureBg }}
-            >
-              <Sparkles className="w-3 h-3" />
-              這網站能幫你做什麼
-            </span>
-            <h2
-              className={`text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
-            >
-              一站完成圖、影、音、模型、導演
-            </h2>
-            <p
-              className={`mt-3 sm:mt-4 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
-            >
-              六大 AI 創作能力即點即用。從一句話描述，到可發佈成品，全程由光球代理引導下一步。
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
-            {CREATIVE_CAPABILITIES.map((cap, idx) => {
-              const Icon = cap.icon;
-              return (
-                <motion.button
-                  key={cap.id}
-                  type="button"
-                  onClick={() => navigate(cap.route)}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{
-                    duration: 0.6,
-                    delay: idx * 0.06,
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
-                  whileHover={{ y: -3 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="group relative text-left rounded-2xl p-4 sm:p-5 lg:p-6 backdrop-blur-md transition-all duration-300 overflow-hidden"
-                  style={{
-                    background: s.cardBg,
-                    border: `1px solid ${s.cardBorder}`,
-                  }}
-                >
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(ellipse at top right, ${cap.color} 0%, transparent 60%)`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0"
-                        style={{
-                          background: cap.color,
-                          border: `1px solid ${cap.borderColor}`,
-                        }}
-                      >
-                        <Icon
-                          className="w-5 h-5"
-                          style={{ color: cap.accentColor }}
-                        />
-                      </div>
-                      <span
-                        className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full ${s.textMuted}`}
-                        style={{ background: s.featureBg }}
-                      >
-                        {cap.tag}
-                      </span>
-                    </div>
-                    <h3
-                      className={`text-base sm:text-lg font-semibold mb-1.5 transition-colors duration-1000 ${s.textPrimary}`}
-                    >
-                      {cap.title}
-                    </h3>
-                    <p
-                      className={`text-xs sm:text-sm leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
-                    >
-                      {cap.description}
-                    </p>
-                    <div
-                      className={`mt-3 sm:mt-4 flex items-center gap-1.5 text-xs font-medium transition-colors duration-300 ${s.textSecondary} group-hover:gap-2.5`}
-                    >
-                      <span>進入工作室</span>
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      {/* ── Generative Showcase — 互動式 AI 生成劇場 ── */}
+      <GenerativeShowcase
+        textPrimary={s.textPrimary}
+        textMuted={s.textMuted}
+        cardBg={s.cardBg}
+        cardBorder={s.cardBorder}
+        featureBg={s.featureBg}
+        btnPrimary={s.btnPrimary}
+        btnPrimaryText={s.btnPrimaryText}
+        isDark={isDark}
+      />
 
       {/* ── Site Value Highlights — 為什麼選 Healing Studio ── */}
       <section className="px-4 sm:px-6 py-10 sm:py-14 relative z-10">
