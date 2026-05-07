@@ -467,6 +467,8 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
       return ["composer"];
     case "companion":
       return ["companion"];
+    default:
+      return ["companion"];
   }
 }
 

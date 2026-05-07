@@ -66,8 +66,6 @@ import { getOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore"
 import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
 import { orbTaskTracer } from "./services/orbTaskTracer";
-import { createReplanCallback, type ReplanCallbackContext } from "./services/orbTaskReplanIntegration";
-import { buildOrbMemorySummaryForPlanner } from "./services/orbMemory";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -337,7 +335,7 @@ async function driveOrbTaskInBackground(input: {
         agentPreferences,
         userMessage,
         pageSnapshot: plannerContext.pageSnapshot,
-        primaryRole: task?.assignedRole,
+        primaryRole: undefined,
         sessionId: `session_${Date.now()}_${input.userId}`,
         onToolAuditEvent,
       });
@@ -387,23 +385,9 @@ async function driveOrbTaskInBackground(input: {
           traceId,
           userId: input.userId,
           taskId: input.taskId,
-          taskIntent: task.objective || "Orb task execution",
+          taskIntent: task.intent || "Orb task execution",
         });
       }
-
-      // Create replanning callback for ReAct loop
-      const onRequestReplan = task ? createReplanCallback({
-        task,
-        userId: input.userId,
-        failedStep: task.steps[0], // Will be updated by orchestrator
-        observation: {
-          toolName: "",
-          errorCode: "",
-          issues: [],
-          toolArgs: {},
-        },
-        traceId,
-      }) : undefined;
 
       const result = await runOrbTaskToCompletion({
         taskId: input.taskId,
@@ -414,7 +398,6 @@ async function driveOrbTaskInBackground(input: {
         requestId: `orb_auto_${input.taskId}_${Date.now()}`,
         traceId,
         onToolAuditEvent,
-        onRequestReplan,
       });
 
       // End trace

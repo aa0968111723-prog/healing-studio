@@ -147,7 +147,8 @@ class AgentCollaborationOrchestratorClass {
    * Map agent ID to specializations
    */
   private mapToSpecializations(agentId: string): AgentCapabilityDeclaration["specializations"] {
-    const mapping: Record<string, AgentCapabilityDeclaration["specializations"][0]> = {
+    type AgentSpecialization = NonNullable<AgentCapabilityDeclaration["specializations"]>[number];
+    const mapping: Record<string, AgentSpecialization> = {
       "image-specialist": "image",
       "video-specialist": "video",
       "music-specialist": "audio",
@@ -164,7 +165,7 @@ class AgentCollaborationOrchestratorClass {
    */
   registerAgentCapability(capability: AgentCapabilityDeclaration): void {
     this.agentCapabilities.set(capability.agentId, capability);
-    logger.debug({
+    logger.debug("service event", {
       event: "agent_capability_registered",
       agentId: capability.agentId,
       capabilities: capability.capabilities,
@@ -196,7 +197,7 @@ class AgentCollaborationOrchestratorClass {
 
     this.activeSessions.set(collaborationId, session);
 
-    logger.info({
+    logger.info("service event", {
       event: "collaboration_started",
       collaborationId,
       taskDescription: request.task,
@@ -215,7 +216,7 @@ class AgentCollaborationOrchestratorClass {
         currentAgent: session.currentAgent,
         participatingAgents: session.participatingAgents,
         requiredCapabilities: request.requiredCapabilities || [],
-        sharedContext: session.sharedContext as Record<string, unknown>,
+        sharedContext: session.sharedContext as unknown as Record<string, unknown>,
         result: undefined,
         startedAt: session.startedAt,
         completedAt: undefined,
@@ -225,12 +226,12 @@ class AgentCollaborationOrchestratorClass {
       if (!db) throw new Error("Database not available");
       await db.insert(agentCollaborationSessions).values(dbSession);
 
-      logger.debug({
+      logger.debug("service event", {
         event: "collaboration_persisted",
         collaborationId,
       });
     } catch (error) {
-      logger.error({
+      logger.error("service event", {
         event: "collaboration_persist_failed",
         collaborationId,
         error: error instanceof Error ? error.message : String(error),
@@ -247,7 +248,7 @@ class AgentCollaborationOrchestratorClass {
   findBestAgent(requirements: {
     tools?: string[];
     domains?: string[];
-    specialization?: AgentCapabilityDeclaration["specializations"][0];
+    specialization?: NonNullable<AgentCapabilityDeclaration["specializations"]>[number];
     excludeAgents?: AgentRole[];
   }): AgentRole | null {
     const candidates: Array<{ agent: AgentRole; score: number }> = [];
@@ -317,7 +318,7 @@ class AgentCollaborationOrchestratorClass {
     );
 
     if (!session) {
-      logger.warn({
+      logger.warn("service event", {
         event: "handoff_no_session",
         collaborationId: handoff.context.collaborationId,
       });
@@ -339,7 +340,7 @@ class AgentCollaborationOrchestratorClass {
     const message = createHandoffMessage(handoff, session.collaborationId);
     await AgentCommunicationBus.publish(message);
 
-    logger.info({
+    logger.info("service event", {
       event: "agent_handoff",
       collaborationId: session.collaborationId,
       fromAgent: handoff.fromAgent,
@@ -355,7 +356,7 @@ class AgentCollaborationOrchestratorClass {
         fromAgent: handoff.fromAgent,
         toAgent: handoff.toAgent,
         handoffReason: handoff.reason,
-        contextTransferred: handoff.context as Record<string, unknown>,
+        contextTransferred: handoff.context as unknown as Record<string, unknown>,
         timestamp: Date.now(),
       };
 
@@ -369,16 +370,16 @@ class AgentCollaborationOrchestratorClass {
         .set({
           currentAgent: session.currentAgent,
           participatingAgents: session.participatingAgents,
-          sharedContext: session.sharedContext as Record<string, unknown>,
+          sharedContext: session.sharedContext as unknown as Record<string, unknown>,
         })
         .where(eq(agentCollaborationSessions.collaborationId, session.collaborationId));
 
-      logger.debug({
+      logger.debug("service event", {
         event: "handoff_persisted",
         collaborationId: session.collaborationId,
       });
     } catch (error) {
-      logger.error({
+      logger.error("service event", {
         event: "handoff_persist_failed",
         collaborationId: session.collaborationId,
         error: error instanceof Error ? error.message : String(error),
@@ -395,7 +396,7 @@ class AgentCollaborationOrchestratorClass {
   ): Promise<void> {
     const session = this.activeSessions.get(collaborationId);
     if (!session) {
-      logger.warn({
+      logger.warn("service event", {
         event: "complete_collaboration_no_session",
         collaborationId,
       });
@@ -405,7 +406,7 @@ class AgentCollaborationOrchestratorClass {
     session.status = result.success ? "completed" : "failed";
     session.result = result;
 
-    logger.info({
+    logger.info("service event", {
       event: "collaboration_completed",
       collaborationId,
       success: result.success,
@@ -427,12 +428,12 @@ class AgentCollaborationOrchestratorClass {
         })
         .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
 
-      logger.debug({
+      logger.debug("service event", {
         event: "collaboration_completion_persisted",
         collaborationId,
       });
     } catch (error) {
-      logger.error({
+      logger.error("service event", {
         event: "collaboration_completion_persist_failed",
         collaborationId,
         error: error instanceof Error ? error.message : String(error),
@@ -468,7 +469,7 @@ class AgentCollaborationOrchestratorClass {
     const session = this.activeSessions.get(collaborationId);
     if (session) {
       session.status = "cancelled";
-      logger.info({
+      logger.info("service event", {
         event: "collaboration_cancelled",
         collaborationId,
         reason,
@@ -486,12 +487,12 @@ class AgentCollaborationOrchestratorClass {
           })
           .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
 
-        logger.debug({
+        logger.debug("service event", {
           event: "collaboration_cancellation_persisted",
           collaborationId,
         });
       } catch (error) {
-        logger.error({
+        logger.error("service event", {
           event: "collaboration_cancellation_persist_failed",
           collaborationId,
           error: error instanceof Error ? error.message : String(error),

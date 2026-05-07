@@ -375,6 +375,8 @@ const HOME_ONBOARDING_MISSIONS = [
   },
 ] as const;
 
+const SHOW_NEW_USER_CARD = false;
+
 const NEW_USER_JOURNEY = [
   {
     id: "orb-agent",
@@ -1441,94 +1443,98 @@ ${profileSnippet}`;
               )}
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.7,
-                delay: 0.75,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              className="mt-5 sm:mt-6 px-4 sm:px-0"
-            >
-              <div
-                className="max-w-3xl mx-auto rounded-2xl border p-4 sm:p-5 text-left"
-                style={{ background: s.cardBg, borderColor: s.cardBorder }}
+            {SHOW_NEW_USER_CARD && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.7,
+                  delay: 0.75,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="mt-5 sm:mt-6 px-4 sm:px-0"
               >
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <p
-                    className={`text-sm sm:text-base font-semibold transition-colors duration-1000 ${s.textPrimary}`}
-                  >
-                    新手入口：第一次來，先走這條路
-                  </p>
-                  <span
-                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
-                    style={{ background: s.featureBg }}
-                  >
-                    3 steps
-                  </span>
-                </div>
-                <div className="space-y-2.5">
-                  {NEW_USER_JOURNEY.map((step, idx) => (
-                    <div key={step.id} className="flex items-start gap-2.5">
-                      <span
-                        className={`mt-0.5 inline-flex w-5 h-5 items-center justify-center rounded-full text-[11px] font-semibold ${s.textPrimary}`}
-                        style={{ background: s.featureBg }}
-                      >
-                        {idx + 1}
-                      </span>
-                      <div>
-                        <p
-                          className={`text-xs sm:text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                <div
+                  className="max-w-3xl mx-auto rounded-2xl border p-4 sm:p-5 text-left"
+                  style={{ background: s.cardBg, borderColor: s.cardBorder }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p
+                      className={`text-sm sm:text-base font-semibold transition-colors duration-1000 ${s.textPrimary}`}
+                    >
+                      新手入口：第一次來，先走這條路
+                    </p>
+                    <span
+                      className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.featureBg }}
+                    >
+                      3 steps
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {NEW_USER_JOURNEY.map((step, idx) => (
+                      <div key={step.id} className="flex items-start gap-2.5">
+                        <span
+                          className={`mt-0.5 inline-flex w-5 h-5 items-center justify-center rounded-full text-[11px] font-semibold ${s.textPrimary}`}
+                          style={{ background: s.featureBg }}
                         >
-                          {step.title}
-                        </p>
-                        <p
-                          className={`text-xs sm:text-sm mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
-                        >
-                          {step.description}
-                        </p>
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p
+                            className={`text-xs sm:text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                          >
+                            {step.title}
+                          </p>
+                          <p
+                            className={`text-xs sm:text-sm mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
+                          >
+                            {step.description}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
-                  {isAuthenticated ? (
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
+                    {isAuthenticated ? (
+                      <Button
+                        size="sm"
+                        onClick={() => navigate("/agent")}
+                        className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        開始創作
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          window.location.href = getDemoLoginUrl();
+                        }}
+                        className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        免費體驗
+                      </Button>
+                    )}
                     <Button
                       size="sm"
-                      onClick={() => navigate("/agent")}
-                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      variant="outline"
+                      onClick={() => navigate("/learn/tutorial-overview")}
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      開始創作
+                      <Rocket className="w-3.5 h-3.5" />
+                      查看教學
                     </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        window.location.href = getDemoLoginUrl();
-                      }}
-                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      免費體驗
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate("/learn/tutorial-overview")}
-                    className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
-                  >
-                    <Rocket className="w-3.5 h-3.5" />
-                    查看教學
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            )}
 
             {/* Scroll indicator — gentle invitation */}
-            <ScrollIndicator isDark={isDark} />
+            <div className={SHOW_NEW_USER_CARD ? "" : "mt-8 sm:mt-10"}>
+              <ScrollIndicator isDark={isDark} />
+            </div>
           </motion.div>
         </motion.div>
       </motion.section>

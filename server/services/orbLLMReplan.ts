@@ -88,7 +88,7 @@ You are the replanning module of the Orb AI Agent. A multi-step workflow has enc
 
 ## Context
 
-**Original Task:** ${input.task.userIntent || "Multi-step workflow"}
+**Original Task:** ${input.task.intent || "Multi-step workflow"}
 
 **Failed Step:**
 \`\`\`json
@@ -293,6 +293,7 @@ export function deterministicReplan(
         toolArgs: {
           prompt: args.prompt || "high quality cinematic image",
         },
+        payload: "",
       },
       {
         ...failedStep,

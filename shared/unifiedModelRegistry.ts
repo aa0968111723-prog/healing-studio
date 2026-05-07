@@ -205,6 +205,16 @@ function normalizeImageToVideoModel(model: ImageToVideoModelProfile): UnifiedMod
 }
 
 function normalizeFineTuneModel(model: FineTuneModelProfile): UnifiedModelProfile {
+  return {
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    domain: "fine-tune-training",
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  };
+}
 
 /**
  * 統一模型資料庫 - 所有模型的完整清單

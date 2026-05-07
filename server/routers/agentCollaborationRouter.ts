@@ -26,29 +26,33 @@ export const agentCollaborationRouter = router({
         taskDescription: z.string().min(1, "任務描述不能為空"),
         preferredAgents: z.array(z.string()).optional(),
         sessionId: z.string().optional(),
-        sharedContext: z.record(z.unknown()).optional(),
+        sharedContext: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        logger.info({
+        logger.info("agent collaboration info", {
           event: "collaboration_start_requested",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           taskDescription: input.taskDescription.slice(0, 100),
         });
 
         const session = await AgentCollaborationOrchestrator.startCollaboration({
-          userId: ctx.userId,
-          sessionId: input.sessionId || `session_${Date.now()}_${ctx.userId}`,
-          taskDescription: input.taskDescription,
-          initiatingAgent: "director",
-          requiredCapabilities: (input.preferredAgents as AgentRole[]) || [],
-          sharedContext: input.sharedContext || {},
+          requestingAgent: "director",
+          targetAgents: (input.preferredAgents as AgentRole[]) || "auto",
+          task: input.taskDescription,
+          taskType: "plan",
+          requiredCapabilities: input.preferredAgents,
+          context: {
+            userId: ctx.user.id,
+            sessionId: input.sessionId || `session_${Date.now()}_${ctx.user.id}`,
+            ...(input.sharedContext || {}),
+          },
         });
 
-        logger.info({
+        logger.info("agent collaboration info", {
           event: "collaboration_session_started",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           collaborationId: session.collaborationId,
           participatingAgents: session.participatingAgents,
         });
@@ -60,9 +64,9 @@ export const agentCollaborationRouter = router({
           status: session.status,
         };
       } catch (error) {
-        logger.error({
+        logger.error("agent collaboration error", {
           event: "collaboration_start_failed",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           error: error instanceof Error ? error.message : String(error),
         });
 
@@ -85,7 +89,7 @@ export const agentCollaborationRouter = router({
     )
     .query(async ({ ctx, input }) => {
       try {
-        const session = AgentCollaborationOrchestrator.getSessionStatus(
+        const session = AgentCollaborationOrchestrator.getSession(
           input.collaborationId
         );
 
@@ -97,7 +101,7 @@ export const agentCollaborationRouter = router({
         }
 
         // Verify user owns this session
-        if (session.userId !== ctx.userId) {
+        if (session.userId !== ctx.user.id) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "無權存取此協作 session",
@@ -112,16 +116,15 @@ export const agentCollaborationRouter = router({
           taskDescription: session.taskDescription,
           result: session.result,
           startedAt: session.startedAt,
-          completedAt: session.completedAt,
         };
       } catch (error) {
         if (error instanceof TRPCError) {
           throw error;
         }
 
-        logger.error({
+        logger.error("agent collaboration error", {
           event: "collaboration_status_query_failed",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           collaborationId: input.collaborationId,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -148,9 +151,9 @@ export const agentCollaborationRouter = router({
       try {
         // Note: This would query from database once persistence is added
         // For now, return empty array as in-memory sessions are ephemeral
-        logger.info({
+        logger.info("agent collaboration info", {
           event: "collaboration_list_requested",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           limit: input.limit,
           status: input.status,
         });
@@ -160,9 +163,9 @@ export const agentCollaborationRouter = router({
           message: "協作記錄持久化尚未實作，請等待資料庫 schema 完成",
         };
       } catch (error) {
-        logger.error({
+        logger.error("agent collaboration error", {
           event: "collaboration_list_failed",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           error: error instanceof Error ? error.message : String(error),
         });
 
@@ -186,7 +189,7 @@ export const agentCollaborationRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        const session = AgentCollaborationOrchestrator.getSessionStatus(
+        const session = AgentCollaborationOrchestrator.getSession(
           input.collaborationId
         );
 
@@ -198,7 +201,7 @@ export const agentCollaborationRouter = router({
         }
 
         // Verify user owns this session
-        if (session.userId !== ctx.userId) {
+        if (session.userId !== ctx.user.id) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "無權取消此協作 session",
@@ -213,19 +216,21 @@ export const agentCollaborationRouter = router({
         }
 
         // Complete collaboration with cancelled status
-        AgentCollaborationOrchestrator.completeCollaboration(
+        await AgentCollaborationOrchestrator.completeCollaboration(
           input.collaborationId,
           {
             success: false,
-            output: { cancelled: true, reason: input.reason },
-            participants: session.participatingAgents,
-            completedAt: Date.now(),
+            completedBy: session.currentAgent,
+            result: { cancelled: true, reason: input.reason },
+            context: session.sharedContext,
+            error: input.reason,
+            durationMs: Date.now() - session.startedAt,
           }
         );
 
-        logger.info({
+        logger.info("agent collaboration info", {
           event: "collaboration_cancelled",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           collaborationId: input.collaborationId,
           reason: input.reason,
         });
@@ -239,9 +244,9 @@ export const agentCollaborationRouter = router({
           throw error;
         }
 
-        logger.error({
+        logger.error("agent collaboration error", {
           event: "collaboration_cancel_failed",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           collaborationId: input.collaborationId,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -266,7 +271,7 @@ export const agentCollaborationRouter = router({
     )
     .query(async ({ ctx, input }) => {
       try {
-        const session = AgentCollaborationOrchestrator.getSessionStatus(
+        const session = AgentCollaborationOrchestrator.getSession(
           input.collaborationId
         );
 
@@ -278,7 +283,7 @@ export const agentCollaborationRouter = router({
         }
 
         // Verify user owns this session
-        if (session.userId !== ctx.userId) {
+        if (session.userId !== ctx.user.id) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "無權存取此協作 session",
@@ -308,9 +313,9 @@ export const agentCollaborationRouter = router({
           throw error;
         }
 
-        logger.error({
+        logger.error("agent collaboration error", {
           event: "collaboration_messages_query_failed",
-          userId: ctx.userId,
+          userId: ctx.user.id,
           collaborationId: input.collaborationId,
           error: error instanceof Error ? error.message : String(error),
         });

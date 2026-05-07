@@ -15,7 +15,7 @@ import { detectMultiAgentNeed, isObviouslySingleAgentTask } from "./multiAgentDe
 import { AgentCollaborationOrchestrator } from "./agentCollaborationOrchestrator";
 import { getOrbAgentTask } from "./orbTaskStateMachine";
 import { logger } from "../_core/logger";
-import type { AgentCollaborationRequest, CollaborationSession } from "../../shared/agent-communication-protocol";
+import type { AgentCollaborationRequest } from "../../shared/agent-communication-protocol";
 
 export interface MultiAgentIntegrationInput {
   /** Initial task ID from planner */
@@ -48,7 +48,7 @@ export interface MultiAgentIntegrationResult {
   /** Result from single-agent execution */
   chainResult?: OrbTaskChainResult;
   /** Collaboration session from multi-agent execution */
-  collaborationSession?: CollaborationSession;
+  collaborationSession?: Awaited<ReturnType<typeof AgentCollaborationOrchestrator.startCollaboration>>;
   /** Detection result that determined the mode */
   detectionResult: {
     shouldCollaborate: boolean;
@@ -68,7 +68,7 @@ export async function runOrbTaskWithAutoRouting(
 
   // Fast path: skip detection for obviously simple tasks
   if (isObviouslySingleAgentTask(input.userMessage)) {
-    logger.info({
+    logger.info("service event", {
       event: "multi_agent_detection_skipped",
       taskId: input.initialTaskId,
       reason: "obviously_simple_task",
@@ -102,7 +102,7 @@ export async function runOrbTaskWithAutoRouting(
     primaryRole: input.primaryRole,
   });
 
-  logger.info({
+  logger.info("service event", {
     event: "multi_agent_detection_result",
     taskId: input.initialTaskId,
     shouldCollaborate: detection.shouldCollaborate,
@@ -158,19 +158,23 @@ export async function runOrbTaskWithAutoRouting(
 
     // Start collaboration session
     const collaborationRequest: AgentCollaborationRequest = {
-      userId: input.userId,
-      sessionId: input.sessionId || sharedContext.sessionId,
-      taskDescription: input.userMessage,
-      initiatingAgent: input.primaryRole || "director",
-      requiredCapabilities: detection.suggestedAgents || ["director"],
-      sharedContext,
+      requestingAgent: input.primaryRole || "director",
+      targetAgents: detection.suggestedAgents || "auto",
+      task: input.userMessage,
+      taskType: "plan",
+      requiredCapabilities: detection.suggestedAgents,
+      context: {
+        userId: input.userId,
+        sessionId: input.sessionId || sharedContext.sessionId,
+        ...sharedContext,
+      },
     };
 
-    logger.info({
+    logger.info("service event", {
       event: "starting_multi_agent_collaboration",
       taskId: input.initialTaskId,
       collaborationRequest: {
-        initiatingAgent: collaborationRequest.initiatingAgent,
+        requestingAgent: collaborationRequest.requestingAgent,
         requiredCapabilities: collaborationRequest.requiredCapabilities,
       },
     });
@@ -179,7 +183,7 @@ export async function runOrbTaskWithAutoRouting(
       collaborationRequest
     );
 
-    logger.info({
+    logger.info("service event", {
       event: "multi_agent_collaboration_started",
       taskId: input.initialTaskId,
       collaborationId: collaborationSession.collaborationId,
@@ -197,7 +201,7 @@ export async function runOrbTaskWithAutoRouting(
     };
   } catch (error) {
     // Fallback to single-agent on collaboration failure
-    logger.error({
+    logger.error("service event", {
       event: "multi_agent_collaboration_failed",
       taskId: input.initialTaskId,
       error: error instanceof Error ? error.message : String(error),

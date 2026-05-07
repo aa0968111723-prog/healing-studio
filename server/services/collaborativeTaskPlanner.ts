@@ -70,7 +70,7 @@ class CollaborativeTaskPlannerClass {
       0
     );
 
-    logger.info({
+    logger.info("service event", {
       event: "task_decomposed",
       originalTask: task,
       subtaskCount: subtasks.length,

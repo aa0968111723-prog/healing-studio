@@ -84,7 +84,7 @@ export function createReplanCallback(context: ReplanCallbackContext) {
         // Record success
         appendOrbAgentTaskAuditEvent(
           payload.taskId,
-          "task.replanned",
+          "task.replanned" as any,
           `Deterministic replanning succeeded for ${payload.toolName}`,
           {
             stepId: payload.stepId,
@@ -138,7 +138,7 @@ export function createReplanCallback(context: ReplanCallbackContext) {
 
         appendOrbAgentTaskAuditEvent(
           payload.taskId,
-          "task.replanned",
+          "task.replanned" as any,
           `LLM replanning succeeded: ${llmResult.reasoning}`,
           {
             stepId: payload.stepId,
@@ -185,7 +185,7 @@ export function createReplanCallback(context: ReplanCallbackContext) {
 
       appendOrbAgentTaskAuditEvent(
         payload.taskId,
-        "task.replan_failed",
+        "task.replan_failed" as any,
         `Replanning failed: ${llmResult.error || "no viable alternative found"}`,
         {
           stepId: payload.stepId,
@@ -221,7 +221,7 @@ export function createReplanCallback(context: ReplanCallbackContext) {
 
       appendOrbAgentTaskAuditEvent(
         payload.taskId,
-        "task.replan_error",
+        "task.replan_error" as any,
         `Replanning error: ${error instanceof Error ? error.message : String(error)}`,
         { stepId: payload.stepId }
       );

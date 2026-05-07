@@ -72,7 +72,7 @@ class AgentCommunicationBusClass {
     this.addToHistory(message);
 
     // Log the message
-    logger.debug({
+    logger.debug("service event", {
       event: "agent_message_published",
       messageId: message.messageId,
       from: message.fromAgent,
@@ -101,7 +101,7 @@ class AgentCommunicationBusClass {
   ): Promise<void> {
     const handlers = this.subscriptions.get(agentId);
     if (!handlers || handlers.length === 0) {
-      logger.warn({
+      logger.warn("service event", {
         event: "agent_message_no_subscriber",
         messageId: message.messageId,
         targetAgent: agentId,
@@ -116,7 +116,7 @@ class AgentCommunicationBusClass {
         try {
           await handler(message);
         } catch (error) {
-          logger.error({
+          logger.error("service event", {
             event: "agent_message_handler_error",
             messageId: message.messageId,
             targetAgent: agentId,
@@ -196,11 +196,12 @@ class AgentCommunicationBusClass {
     let filtered = [...this.messageHistory];
 
     if (options?.agentId) {
+      const agentId = options.agentId;
       filtered = filtered.filter(
         msg =>
-          msg.fromAgent === options.agentId ||
-          msg.toAgent === options.agentId ||
-          (Array.isArray(msg.toAgent) && msg.toAgent.includes(options.agentId))
+          msg.fromAgent === agentId ||
+          msg.toAgent === agentId ||
+          (Array.isArray(msg.toAgent) && msg.toAgent.includes(agentId))
       );
     }
 
@@ -307,7 +308,7 @@ class AgentCommunicationBusClass {
           ) {
             resolved = true;
             unsubscribe();
-            resolve(message.content.data as AgentQueryResponse);
+            resolve(message.content.data as unknown as AgentQueryResponse);
           }
         },
         { messageTypes: ["response"] }
