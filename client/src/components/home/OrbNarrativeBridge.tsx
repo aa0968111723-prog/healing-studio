@@ -77,12 +77,21 @@ export default function OrbNarrativeBridge() {
 
   const frame1Opacity = useTransform(scrollYProgress, [0.0, 0.12, 0.34, 0.42], [0, 1, 1, 0]);
   const frame1Y = useTransform(scrollYProgress, [0.0, 0.42], [40, -20]);
+  const frame1Scale = useTransform(scrollYProgress, [0.0, 0.12, 0.34, 0.42], [0.94, 1, 1, 1.04]);
+  const frame1Blur = useTransform(scrollYProgress, [0.0, 0.12, 0.34, 0.42], [6, 0, 0, 4]);
+  const frame1Filter = useMotionTemplate`blur(${frame1Blur}px)`;
 
   const frame2Opacity = useTransform(scrollYProgress, [0.32, 0.42, 0.62, 0.7], [0, 1, 1, 0]);
   const frame2Y = useTransform(scrollYProgress, [0.32, 0.7], [40, -20]);
+  const frame2Scale = useTransform(scrollYProgress, [0.32, 0.42, 0.62, 0.7], [0.94, 1, 1, 1.04]);
+  const frame2Blur = useTransform(scrollYProgress, [0.32, 0.42, 0.62, 0.7], [6, 0, 0, 4]);
+  const frame2Filter = useMotionTemplate`blur(${frame2Blur}px)`;
 
   const frame3Opacity = useTransform(scrollYProgress, [0.6, 0.72, 1.0], [0, 1, 1]);
   const frame3Y = useTransform(scrollYProgress, [0.6, 1.0], [40, -20]);
+  const frame3Scale = useTransform(scrollYProgress, [0.6, 0.72, 1.0], [0.94, 1, 1.02]);
+  const frame3Blur = useTransform(scrollYProgress, [0.6, 0.72], [6, 0]);
+  const frame3Filter = useMotionTemplate`blur(${frame3Blur}px)`;
 
   // Drifting orb — takes the full scroll progress to fly from
   // center → upper-right (frame 2) → bottom-right corner (frame 3),
@@ -186,11 +195,16 @@ export default function OrbNarrativeBridge() {
         {/* Frame 1 — concept */}
         <motion.div
           className="absolute inset-0 flex items-center justify-center text-center px-6"
-          style={{ opacity: frame1Opacity, y: frame1Y }}
+          style={{
+            opacity: frame1Opacity,
+            y: frame1Y,
+            scale: frame1Scale,
+            filter: frame1Filter,
+          }}
         >
-          <div className="max-w-xl">
+          <div className="max-w-md sm:max-w-xl px-2">
             <PhaseLabel num="01" tint="rgba(168,85,247,0.85)" />
-            <h2 className="text-3xl sm:text-5xl font-semibold leading-tight bg-gradient-to-br from-purple-700 via-purple-500 to-fuchsia-400 bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight bg-gradient-to-br from-purple-700 via-purple-500 to-fuchsia-400 bg-clip-text text-transparent">
               從一個念頭開始
             </h2>
             <p className="mt-5 text-sm sm:text-base text-gray-500 leading-relaxed">
@@ -202,11 +216,16 @@ export default function OrbNarrativeBridge() {
         {/* Frame 2 — sensing */}
         <motion.div
           className="absolute inset-0 flex items-center justify-center text-center px-6"
-          style={{ opacity: frame2Opacity, y: frame2Y }}
+          style={{
+            opacity: frame2Opacity,
+            y: frame2Y,
+            scale: frame2Scale,
+            filter: frame2Filter,
+          }}
         >
-          <div className="max-w-xl">
+          <div className="max-w-md sm:max-w-xl px-2">
             <PhaseLabel num="02" tint="rgba(56,189,248,0.85)" />
-            <h2 className="text-3xl sm:text-5xl font-semibold leading-tight bg-gradient-to-br from-sky-600 via-sky-400 to-cyan-300 bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight bg-gradient-to-br from-sky-600 via-sky-400 to-cyan-300 bg-clip-text text-transparent">
               光球感應你的情緒
             </h2>
             <p className="mt-5 text-sm sm:text-base text-gray-500 leading-relaxed">
@@ -218,11 +237,16 @@ export default function OrbNarrativeBridge() {
         {/* Frame 3 — manifest */}
         <motion.div
           className="absolute inset-0 flex items-center justify-center text-center px-6"
-          style={{ opacity: frame3Opacity, y: frame3Y }}
+          style={{
+            opacity: frame3Opacity,
+            y: frame3Y,
+            scale: frame3Scale,
+            filter: frame3Filter,
+          }}
         >
-          <div className="max-w-xl">
+          <div className="max-w-md sm:max-w-xl px-2">
             <PhaseLabel num="03" tint="rgba(16,185,129,0.85)" />
-            <h2 className="text-3xl sm:text-5xl font-semibold leading-tight bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-300 bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-300 bg-clip-text text-transparent">
               在工作室具現
             </h2>
             <p className="mt-5 text-sm sm:text-base text-gray-500 leading-relaxed">

@@ -75,6 +75,8 @@ import PageRevealVeil from "@/components/home/PageRevealVeil";
 import AuroraBlobs from "@/components/home/AuroraBlobs";
 import GrainOverlay from "@/components/home/GrainOverlay";
 import SceneVignette from "@/components/home/SceneVignette";
+import JewelOrbStage from "@/components/home/JewelOrbStage";
+import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
@@ -1100,6 +1102,7 @@ ${profileSnippet}`;
     <div className="min-h-screen relative overflow-x-hidden flex flex-col">
       <PageRevealVeil color={isDark ? "rgba(6,8,20,0.55)" : "rgba(252,247,240,0.55)"} />
       <GrainOverlay opacity={isDark ? 0.05 : 0.03} />
+      <ScrollProgressBar color={s.glowColor} />
       {/* ── Full-page gradient background (scene-adaptive, covers entire scroll height) ── */}
       <div
         className="fixed inset-0 w-full h-full -z-20 pointer-events-none"
@@ -1224,9 +1227,11 @@ ${profileSnippet}`;
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </motion.div>
 
-            {/* Central Orb — ethereal, scene-adaptive glow.
-                Wrapped in a motion.div that scroll-morphs the orb toward
-                the bottom-right floating orb as the user descends. */}
+            {/* Central Orb — wrapped in JewelOrbStage so it becomes a
+                scene-aware "光球寶珠" (constellation field on nightSky,
+                light caustics + bubbles on deepSea), with cursor tilt
+                and click ripple.  Scroll-morphs toward the floating orb
+                as the user descends. */}
             <motion.div
               className="flex flex-col items-center mb-8 sm:mb-12"
               style={{
@@ -1235,44 +1240,51 @@ ${profileSnippet}`;
                 y: heroOrbDriftY,
               }}
             >
-              {/* Ambient glow ring behind orb — soft, scene-linked, smaller on mobile */}
-              <motion.div
-                className="absolute w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
-                style={{
-                  background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
-                }}
-                animate={{
-                  scale: [1, 1.08, 1],
-                  opacity: [0.25, 0.4, 0.25],
-                }}
-                transition={{
-                  duration: 8,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-              {/* Orb with subtle scene-matched aura */}
-              <motion.div
-                className="relative"
-                animate={{
-                  filter: [
-                    `drop-shadow(0 0 16px ${s.glowColor})`,
-                    `drop-shadow(0 0 28px ${s.glowColor})`,
-                    `drop-shadow(0 0 16px ${s.glowColor})`,
-                  ],
-                }}
-                transition={{
-                  duration: 6,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
+              <JewelOrbStage
+                sceneId={sceneId}
+                onTap={() =>
+                  window.dispatchEvent(new CustomEvent("orb-open-capabilities"))
+                }
               >
-                <VisualSoul
-                  size="md"
-                  personality={personality}
-                  className="sm:!w-16 sm:!h-16"
+                {/* Ambient glow ring behind orb — soft, scene-linked */}
+                <motion.div
+                  className="absolute inset-0 m-auto w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
+                  }}
+                  animate={{
+                    scale: [1, 1.08, 1],
+                    opacity: [0.25, 0.4, 0.25],
+                  }}
+                  transition={{
+                    duration: 8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
                 />
-              </motion.div>
+                {/* Orb with subtle scene-matched aura */}
+                <motion.div
+                  className="relative"
+                  animate={{
+                    filter: [
+                      `drop-shadow(0 0 16px ${s.glowColor})`,
+                      `drop-shadow(0 0 28px ${s.glowColor})`,
+                      `drop-shadow(0 0 16px ${s.glowColor})`,
+                    ],
+                  }}
+                  transition={{
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <VisualSoul
+                    size="md"
+                    personality={personality}
+                    className="sm:!w-16 sm:!h-16"
+                  />
+                </motion.div>
+              </JewelOrbStage>
             </motion.div>
 
             {/* OARS Contextual Greeting — replaces static title */}
@@ -1293,7 +1305,7 @@ ${profileSnippet}`;
             </motion.div>
 
             <motion.div
-              className="mt-6 sm:mt-10 flex flex-col items-center justify-center gap-3 px-4 sm:px-0"
+              className="mt-6 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 sm:px-0"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
