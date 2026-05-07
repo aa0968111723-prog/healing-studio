@@ -82,15 +82,27 @@ let ensureSchemaOnce: Promise<void> | null = null;
 async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   if (ensureSchemaOnce) return ensureSchemaOnce;
   ensureSchemaOnce = (async () => {
-    await db.execute(sql`
-      ALTER TABLE 
-        agent_preferences
-      ADD COLUMN IF NOT EXISTS preferredSpecialistAgent varchar(64) NULL,
-      ADD COLUMN IF NOT EXISTS specialistAutoActivate boolean NOT NULL DEFAULT true,
-      ADD COLUMN IF NOT EXISTS specialistProactiveMode boolean NOT NULL DEFAULT true,
-      ADD COLUMN IF NOT EXISTS specialistLearningEnabled boolean NOT NULL DEFAULT true,
-      ADD COLUMN IF NOT EXISTS disabledSpecialistAgents json NOT NULL
-    `);
+    const addColumnIfMissing = async (columnName: string, definitionSql: string) => {
+      const existsRows = (await db.execute(sql`
+        SELECT EXISTS(
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = DATABASE()
+            AND table_name = 'agent_preferences'
+            AND column_name = ${columnName}
+        ) AS existsFlag
+      `)) as unknown as Array<{ existsFlag: number }>;
+      const existsFlag = Number(existsRows[0]?.existsFlag ?? 0);
+      if (existsFlag === 1) return;
+      await db.execute(sql.raw(`ALTER TABLE agent_preferences ADD COLUMN ${definitionSql}`));
+    };
+
+    await addColumnIfMissing("preferredSpecialistAgent", "preferredSpecialistAgent varchar(64) NULL");
+    await addColumnIfMissing("specialistAutoActivate", "specialistAutoActivate boolean NOT NULL DEFAULT true");
+    await addColumnIfMissing("specialistProactiveMode", "specialistProactiveMode boolean NOT NULL DEFAULT true");
+    await addColumnIfMissing("specialistLearningEnabled", "specialistLearningEnabled boolean NOT NULL DEFAULT true");
+    await addColumnIfMissing("disabledSpecialistAgents", "disabledSpecialistAgents json NOT NULL");
+
     await db.execute(sql`
       UPDATE agent_preferences
       SET disabledSpecialistAgents = JSON_ARRAY()
