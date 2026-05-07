@@ -9,6 +9,8 @@ import {
 } from "framer-motion";
 import ConstellationField from "./ConstellationField";
 import CausticsPattern from "./CausticsPattern";
+import MorningSunRays from "./MorningSunRays";
+import CafeSteamWisps from "./CafeSteamWisps";
 
 export type JewelSceneId = "nightSky" | "morning" | "cafe" | "deepSea";
 
@@ -131,6 +133,8 @@ export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
       {/* Scene-specific backdrop decoration */}
       {sceneId === "nightSky" && <ConstellationField hovering={hovering} />}
       {sceneId === "deepSea" && <CausticsPattern hovering={hovering} />}
+      {sceneId === "morning" && <MorningSunRays hovering={hovering} />}
+      {sceneId === "cafe" && <CafeSteamWisps hovering={hovering} />}
 
       {/* Hover bloom — intensifies the scene's signature glow */}
       <motion.div
