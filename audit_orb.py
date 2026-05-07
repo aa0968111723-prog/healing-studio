@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
-"""Audit script: compare appRegistry supportedActions vs actual page handle capabilities."""
+"""Audit script: compare appRegistry supportedActions vs actual page handle capabilities.
+
+Some pages intentionally hide certain runtime capabilities from the static
+fallback ranker (so navigate/setTab on Hub-style pages doesn't outrank the real
+destination studio). Those are recorded in INTENTIONAL_HIDDEN_ACTIONS and
+treated as "OK" by this audit.
+"""
 import re, glob
+
+# (pageId, action) — page DOES handle this action at runtime, but registry
+# intentionally excludes it from supportedActions. Documented in appRegistry.ts
+# next to each entry.
+INTENTIONAL_HIDDEN_ACTIONS = {
+    ("create", "setTab"),         # Hub: setTab handled at runtime, not advertised
+    ("playground", "setTab"),     # Hub: setTab handled at runtime, not advertised
+    ("process-viewer", "navigate"),  # navigate only meaningful on /process itself
+}
 
 registry_file = 'shared/appRegistry.ts'
 with open(registry_file) as f:
@@ -14,7 +29,7 @@ for page_id, actions_str in entries:
     pages[page_id] = sorted(actions)
 
 # Parse actual page handle capabilities
-page_files = glob.glob('client/src/pages/*.tsx')
+page_files = glob.glob('client/src/pages/*.tsx') + glob.glob('client/src/pages/**/*.tsx', recursive=True)
 actual_caps = {}
 for pf in page_files:
     with open(pf) as f:
@@ -45,7 +60,11 @@ issues = []
 for pid in all_pids:
     reg = pages.get(pid, [])
     act = actual_caps.get(pid, [])
-    missing_in_registry = sorted(set(act) - set(reg))
+    # Filter out intentional hidden actions from "missing in registry"
+    missing_in_registry = sorted(
+        a for a in (set(act) - set(reg))
+        if (pid, a) not in INTENTIONAL_HIDDEN_ACTIONS
+    )
     missing_in_actual = sorted(set(reg) - set(act))
     mismatch = ''
     if missing_in_registry:
@@ -65,3 +84,6 @@ for pid, missing_reg, missing_page in issues:
         print(f"    - appRegistry.supportedActions should ADD: {missing_reg}")
     if missing_page:
         print(f"    - Page handle() should ADD support for: {missing_page}")
+
+if not issues:
+    print("\n✓ All pages aligned (intentional hidden actions documented in INTENTIONAL_HIDDEN_ACTIONS)")
