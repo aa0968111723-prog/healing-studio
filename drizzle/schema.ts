@@ -131,6 +131,12 @@ export const agentPreferences = mysqlTable(
       "impatient",
     ]).default("auto").notNull(),
     onboardingCompletedAt: timestamp("onboardingCompletedAt"),
+    // ── Specialized Agent Preferences ─────────────────────────────────
+    preferredSpecialistAgent: varchar("preferredSpecialistAgent", { length: 64 }),
+    specialistAutoActivate: boolean("specialistAutoActivate").default(true).notNull(),
+    specialistProactiveMode: boolean("specialistProactiveMode").default(true).notNull(),
+    specialistLearningEnabled: boolean("specialistLearningEnabled").default(true).notNull(),
+    disabledSpecialistAgents: json("disabledSpecialistAgents").$type<string[]>().default([]).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -618,6 +624,79 @@ export const aiDirectorPreferences = mysqlTable(
 export type AiDirectorPreference = typeof aiDirectorPreferences.$inferSelect;
 export type InsertAiDirectorPreference =
   typeof aiDirectorPreferences.$inferInsert;
+
+// ─── Specialized Agent Memory ────────────────────────────────────────────
+// Stores agent-specific context, preferences, and learned patterns for each user
+export const specializedAgentMemory = mysqlTable(
+  "specialized_agent_memory",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    agentId: varchar("agentId", { length: 64 }).notNull(),
+    memoryType: mysqlEnum("memoryType", [
+      "preference",
+      "pattern",
+      "context",
+      "feedback",
+    ]).default("preference").notNull(),
+    memoryKey: varchar("memoryKey", { length: 128 }).notNull(),
+    memoryValue: json("memoryValue").$type<Record<string, unknown>>().notNull(),
+    confidence: decimal("confidence", { precision: 3, scale: 2 }).default("0.50"),
+    usageCount: int("usageCount").default(1),
+    lastUsedAt: timestamp("lastUsedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userAgentIdx: index("sam_user_agent_idx").on(table.userId, table.agentId),
+    userAgentTypeIdx: index("sam_user_agent_type_idx").on(
+      table.userId,
+      table.agentId,
+      table.memoryType
+    ),
+    memoryKeyIdx: index("sam_memory_key_idx").on(table.memoryKey),
+  })
+);
+
+export type SpecializedAgentMemory = typeof specializedAgentMemory.$inferSelect;
+export type InsertSpecializedAgentMemory = typeof specializedAgentMemory.$inferInsert;
+
+// ─── Specialized Agent Interactions ──────────────────────────────────────
+// Tracks user interactions with specialized agents for analytics and improvement
+export const specializedAgentInteractions = mysqlTable(
+  "specialized_agent_interactions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    agentId: varchar("agentId", { length: 64 }).notNull(),
+    sessionId: varchar("sessionId", { length: 128 }),
+    interactionType: mysqlEnum("interactionType", [
+      "activated",
+      "tool_used",
+      "suggestion_accepted",
+      "suggestion_rejected",
+      "error",
+    ]).notNull(),
+    toolName: varchar("toolName", { length: 128 }),
+    contextData: json("contextData").$type<Record<string, unknown>>(),
+    userSatisfaction: mysqlEnum("userSatisfaction", [
+      "positive",
+      "neutral",
+      "negative",
+    ]),
+    durationMs: int("durationMs"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userAgentIdx: index("sai_user_agent_idx").on(table.userId, table.agentId),
+    sessionIdx: index("sai_session_idx").on(table.sessionId),
+    createdAtIdx: index("sai_created_at_idx").on(table.createdAt),
+  })
+);
+
+export type SpecializedAgentInteraction = typeof specializedAgentInteractions.$inferSelect;
+export type InsertSpecializedAgentInteraction = typeof specializedAgentInteractions.$inferInsert;
+
 
 // ─── Generation History ──────────────────────────────────────────────────
 export const generationHistory = mysqlTable(
