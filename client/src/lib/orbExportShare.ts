@@ -107,9 +107,11 @@ export function buildChatExportHtml(
   const messagesHtml = filtered
     .map(msg => {
       const roleLabel = msg.role === "user" ? "你" : "光球";
-      const pageBadge = msg.pagePath
-        ? `<span class="page">${escapeHtml(getPageLabelByPath(msg.pagePath))}</span>`
-        : "";
+      const pagePath = msg.pagePath;
+      const pageBadge =
+        typeof pagePath === "string" && pagePath.length > 0
+          ? `<span class="page">${escapeHtml(getPageLabelByPath(pagePath) ?? pagePath)}</span>`
+          : "";
       const intentBadge = msg.intent
         ? `<div class="intent">意圖：${escapeHtml(msg.intent)}</div>`
         : "";

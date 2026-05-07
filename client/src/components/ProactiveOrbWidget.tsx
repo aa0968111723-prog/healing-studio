@@ -1404,7 +1404,7 @@ export default memo(function ProactiveOrbWidget({
 
   // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
   const pageAgent = usePageAgent();
-  const [locationPath] = useLocation();
+  const [locationPath, setLocation] = useLocation();
   const currentRegistryPage = useMemo(
     () => getPageByPath(locationPath),
     [locationPath]

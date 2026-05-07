@@ -4,6 +4,7 @@ import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { trpc } from "@/lib/trpc";
 import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ProgressivePromptBuilder,
@@ -157,6 +158,42 @@ const MODALITY_TABS: {
   { value: "audio", label: "音樂", icon: <Music className="w-4 h-4" /> },
   { value: "voice", label: "語音", icon: <Mic className="w-4 h-4" /> },
 ];
+
+const REAL_API_PROMPT_SAMPLES: Record<GenerationType, string> = {
+  image:
+    "cinematic portrait of a teenage girl at sunset, side profile, shallow depth of field, 35mm film grain, natural rim light",
+  video:
+    "slow dolly-in shot of rainy neon alley at night, reflective puddles, volumetric fog, 6-second loop, cinematic color grading",
+  audio:
+    "lo-fi chill beat with soft piano and vinyl crackle, 92 BPM, warm nostalgic mood, seamless 20-second loop",
+  voice:
+    "大家好，這是今天的創作進度摘要：我們完成了第一版分鏡，接下來會做聲音設計與最終調色。",
+  multimodal:
+    "futuristic healing studio dashboard, holographic widgets, purple-blue ambience, clean product shot, ultra-detailed",
+};
+
+const FALLBACK_PROMPT_EXAMPLES: Record<GenerationType, string[]> = {
+  image: [
+    "日落下的少女側臉，電影感，淺景深，35mm 底片顆粒",
+    "極簡產品攝影，白色背景，柔光陰影，電商主圖",
+  ],
+  video: [
+    "夜晚霓虹街道，慢速推鏡，雨滴反光，6 秒循環",
+    "森林晨霧中的鹿，空拍環繞，詩意自然紀錄片風格",
+  ],
+  audio: [
+    "療癒 Lo-fi 鋼琴，80 BPM，雨聲氛圍，20 秒循環",
+    "電影預告片鼓點，緊張感漸進，15 秒短段",
+  ],
+  voice: [
+    "大家好，今天帶你快速完成一支 30 秒品牌短片。",
+    "這段旁白請用溫暖、平穩、具信任感的語氣。",
+  ],
+  multimodal: [
+    "未來感創作工作室，紫藍色光影，漂浮介面元素",
+    "高級時尚人物海報，柔焦光暈，低飽和冷色調",
+  ],
+};
 
 interface DirectorBatchTaskPayload {
   prompt: string;
@@ -492,6 +529,7 @@ export default function Studio() {
   // ── Shared state ──
   const [activeModality, setActiveModality] = useState<GenerationType>("image");
   const [mode, setMode] = useState<GenerationMode>("lightning");
+  const [quickUserInput, setQuickUserInput] = useState("");
   // ── Per-modality prompt state ──
   // 四模態各自獨立的提示詞 / vibeCards / advancedFields / tokenWeights，
   // 切換 modality 時自動 swap 對應的副本，使用者切回原模態時內容仍在。
@@ -2702,6 +2740,82 @@ export default function Studio() {
               id="prompt-builder-area"
               className={cn("relative z-20", isSimple && "p-6 sm:p-8")}
             >
+              <div className="mb-3 rounded-xl border border-border/40 bg-background/60 p-3 space-y-2.5">
+                <p className="text-xs text-muted-foreground">
+                  可直接串接真實 API，也可快速套用真實範例或貼上使用者輸入再生成。
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const sample = REAL_API_PROMPT_SAMPLES[activeModality];
+                      setPromptBuilder(prev => ({
+                        ...prev,
+                        rawPrompt: sample,
+                        compiledPrompt: sample,
+                      }));
+                      toast.success("已套用真實 API 範例提示詞");
+                    }}
+                  >
+                    套用真實範例
+                  </Button>
+                  <div className="flex min-w-[280px] flex-1 gap-2">
+                    <Input
+                      value={quickUserInput}
+                      onChange={(
+                        e: React.ChangeEvent<HTMLInputElement>
+                      ) => setQuickUserInput(e.target.value)}
+                      placeholder="貼上使用者輸入..."
+                      className="h-8"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const custom = quickUserInput.trim();
+                        if (!custom) {
+                          toast.error("請先輸入內容");
+                          return;
+                        }
+                        setPromptBuilder(prev => ({
+                          ...prev,
+                          rawPrompt: custom,
+                          compiledPrompt: custom,
+                        }));
+                        toast.success("已套用使用者輸入");
+                      }}
+                    >
+                      使用輸入
+                    </Button>
+                  </div>
+                </div>
+                {!promptBuilder.rawPrompt.trim() && (
+                  <div className="rounded-lg border border-dashed border-border/50 bg-background/40 p-2.5">
+                    <p className="mb-2 text-[11px] text-muted-foreground">
+                      尚未輸入內容？可直接套用以下範例：
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {FALLBACK_PROMPT_EXAMPLES[activeModality].map(example => (
+                        <button
+                          key={example}
+                          type="button"
+                          className="rounded-full border border-border/50 bg-background px-2.5 py-1 text-[11px] text-foreground/80 hover:bg-accent/40 transition-colors"
+                          onClick={() => {
+                            setPromptBuilder(prev => ({
+                              ...prev,
+                              rawPrompt: example,
+                              compiledPrompt: example,
+                            }));
+                            toast.success("已套用範例提示詞");
+                          }}
+                        >
+                          {example}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <ProgressivePromptBuilder
                 value={promptBuilder}
                 onChange={setPromptBuilder}
