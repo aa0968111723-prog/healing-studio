@@ -9,6 +9,8 @@
 
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -52,6 +54,12 @@ import {
   formatUnifiedSearchReply,
 } from "../../../shared/orb-search-intent";
 import { rememberedDimensionCoverage } from "../../../shared/orb-clarification-memory";
+import { useOrbState } from "./OrbStateContext";
+
+// Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
+// the initial chat context payload. The bullet-list fallback inside the same
+// panel renders synchronously while this resolves.
+const LazyWorkflowDAG = lazy(() => import("@/components/orb/OrbWorkflowDAG"));
 import { appendProcessLinkToReply } from "../../../shared/orb-reply-process-extractor";
 import {
   buildContextualClarificationOptions,
@@ -106,6 +114,8 @@ export interface ChatSearchResultItem {
   badge?: string;
   at?: number;
   score?: number;
+  thumbnailUrl?: string;
+  modality?: "image" | "video" | "audio" | "voice" | "script" | "zip_bundle";
 }
 
 export interface ChatMessage {
@@ -883,6 +893,20 @@ function WorkflowExecutionFloatingPanel({
   workflowExecution: WorkflowExecutionState | null;
   onDismiss: () => void;
 }) {
+  // Default to flow view for workflows with 4+ steps where the DAG actually
+  // helps; short workflows look better as the dense bullet list.
+  const initialView: "list" | "flow" =
+    workflowExecution && workflowExecution.steps.length >= 4 ? "flow" : "list";
+  const [viewMode, setViewMode] = useState<"list" | "flow">(initialView);
+
+  // Reset to the "natural" view when a brand-new workflow starts so the user
+  // doesn't carry a stale toggle from the previous run.
+  useEffect(() => {
+    if (workflowExecution) {
+      setViewMode(workflowExecution.steps.length >= 4 ? "flow" : "list");
+    }
+  }, [workflowExecution?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!workflowExecution) return null;
 
   const current = workflowExecution.steps[workflowExecution.currentIndex];
@@ -899,19 +923,48 @@ function WorkflowExecutionFloatingPanel({
     : "待命";
 
   return (
-    <div className="fixed bottom-24 right-5 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
+    <div
+      className={`fixed bottom-24 right-5 z-[80] ${
+        viewMode === "flow" ? "w-[460px]" : "w-[360px]"
+      } max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl`}
+      data-testid="orb-workflow-execution-panel"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">AI Director Workflow</div>
           <div className="mt-1 text-sm font-semibold">{workflowExecution.name}</div>
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/20"
-        >
-          關閉
-        </button>
+        <div className="flex items-center gap-1">
+          <div className="flex rounded-full bg-white/10 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`px-2 py-0.5 text-[10px] rounded-full transition ${
+                viewMode === "list" ? "bg-white text-slate-900" : "text-white/60 hover:text-white"
+              }`}
+              data-testid="orb-workflow-view-list"
+            >
+              列表
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("flow")}
+              className={`px-2 py-0.5 text-[10px] rounded-full transition ${
+                viewMode === "flow" ? "bg-white text-slate-900" : "text-white/60 hover:text-white"
+              }`}
+              data-testid="orb-workflow-view-flow"
+            >
+              流程圖
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/20"
+          >
+            關閉
+          </button>
+        </div>
       </div>
 
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
@@ -925,7 +978,7 @@ function WorkflowExecutionFloatingPanel({
         <span>{completedCount}/{workflowExecution.total}</span>
       </div>
 
-      {current && (
+      {current && viewMode === "list" && (
         <div className="mt-3 rounded-2xl bg-white/10 p-3">
           <div className="text-xs text-white/50">目前步驟</div>
           <div className="mt-1 text-sm">{current.label}</div>
@@ -939,14 +992,34 @@ function WorkflowExecutionFloatingPanel({
         </div>
       )}
 
-      <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
-        {workflowExecution.steps.map(step => (
-          <div key={`${step.index}-${step.label}`} className="flex gap-2 text-xs">
-            <span className={statusDotClass(step.status)}>{statusDot(step.status)}</span>
-            <span className="text-white/70">{step.index + 1}. {step.label}</span>
-          </div>
-        ))}
-      </div>
+      {viewMode === "flow" ? (
+        <div className="mt-3">
+          <Suspense
+            fallback={
+              <div className="h-44 grid place-items-center text-xs text-white/50">
+                載入流程圖…
+              </div>
+            }
+          >
+            <LazyWorkflowDAG workflowExecution={workflowExecution} compact />
+          </Suspense>
+          {workflowExecution.error && (
+            <div className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
+              <div className="font-medium">需要補充的欄位</div>
+              <div className="mt-1">{workflowExecution.error}</div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+          {workflowExecution.steps.map(step => (
+            <div key={`${step.index}-${step.label}`} className="flex gap-2 text-xs">
+              <span className={statusDotClass(step.status)}>{statusDot(step.status)}</span>
+              <span className="text-white/70">{step.index + 1}. {step.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1245,6 +1318,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const trpcUtils = trpc.useUtils();
   const persistClarificationPicks =
     trpc.orbProxy.persistClarificationPicks.useMutation();
+  const orbState = useOrbState();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
 
@@ -1450,6 +1524,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     const nextWorkflowExecution = buildWorkflowExecutionState(orchestratorActions);
     if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
+    orbState.setState(
+      "executing",
+      nextWorkflowExecution ? `${nextWorkflowExecution.name}（${nextWorkflowExecution.total} 步）` : "執行中"
+    );
+
     try {
       const results = await executeGlobalActions(orchestratorActions, {
         currentPage: pageAgent.snapshot,
@@ -1511,6 +1590,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         setWorkflowExecution(prev =>
           prev ? failWorkflowAtCurrentStep(prev, failedReason, now) : prev
         );
+        orbState.setState("error", `執行失敗：${failedReason.slice(0, 40)}`);
         const friendlyText =
           failedReason === "workflow disabled"
             ? "⚠️ 目前跨頁工作流程功能暫時關閉。我可以先提供手動步驟指引，或改成單一步驟幫你執行。"
@@ -1531,6 +1611,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       } else if (nextWorkflowExecution) {
         const now = Date.now();
         setWorkflowExecution(prev => (prev ? completeWorkflow(prev, now) : prev));
+        orbState.setState("success", `${nextWorkflowExecution.name} 完成`);
+      } else {
+        orbState.setState("success", "完成");
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -1538,6 +1621,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       setWorkflowExecution(prev =>
         prev ? failWorkflowAtCurrentStep(prev, reason, Date.now()) : prev
       );
+      orbState.setState("error", `執行錯誤：${reason.slice(0, 40)}`);
       setMessages(prev => [...prev, {
         role: "orb",
         text: `⚠️ 執行流程時遇到問題：${reason}`,
@@ -1545,7 +1629,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
       }]);
     }
-  }, [pageAgent, locationPath, setLocation]);
+  }, [pageAgent, locationPath, setLocation, orbState]);
 
   // Forward declaration for the auto-execute branch inside `sendMessage`.
   // The actual `startPendingWorkflow` callback is defined further down (it
@@ -1583,11 +1667,18 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     if (!requestedMode) {
       const searchIntent = detectOrbSearchIntent(trimmed);
       if (searchIntent) {
+        orbState.setState("searching", `搜尋「${searchIntent.query}」`);
         try {
           const result = await trpcUtils.orbProxy.unifiedSearch.fetch({
             query: searchIntent.query,
             ...(searchIntent.types ? { types: searchIntent.types } : {}),
           });
+          orbState.setState(
+            result.items.length > 0 ? "success" : "idle",
+            result.items.length > 0
+              ? `找到 ${result.items.length} 筆`
+              : `沒有命中`
+          );
           const headerText =
             result.items.length === 0
               ? `🔍 全站翻找「${searchIntent.query}」沒有命中——可以試試把關鍵字改寬一點，或告訴我要找哪一類（素材／筆記／生成記錄／教學）。`
@@ -1607,6 +1698,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           }]);
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
+          orbState.setState("error", `搜尋失敗：${reason.slice(0, 40)}`);
           setMessages(prev => [...prev, {
             role: "orb",
             text: `🔍 搜尋時遇到問題：${reason}`,

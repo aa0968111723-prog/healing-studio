@@ -12,15 +12,72 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { orbUnifiedSearch } from "../services/orbUnifiedSearch";
-import { recordOrbMemory } from "../services/orbMemory";
+import {
+  recordOrbMemory,
+  getRecentOrbMemories,
+  clearOrbMemoryByType,
+  removeMetadataValue,
+} from "../services/orbMemory";
+import { aggregatePreferenceProfile } from "../../shared/orb-memory";
 import {
   buildClarificationPickMemory,
   CLARIFICATION_DIMENSION_SCHEMA,
 } from "../../shared/orb-clarification-memory";
 
 const SEARCH_KIND_SCHEMA = z.enum(["asset", "note", "history", "tutorial"]);
+const PREFERENCE_KEY_SCHEMA = z.enum(["styles", "platforms", "outputs", "models"]);
 
 export const orbProxyRouter = router({
+  /**
+   * Surface what the orb currently remembers about the user — the
+   * memory-dashboard card consumes this to render the "光球記得你" panel
+   * with per-chip remove buttons.
+   */
+  getRememberedPreferences: protectedProcedure.query(async ({ ctx }) => {
+    const memories = getRecentOrbMemories({
+      userId: ctx.user.id,
+      limit: 100,
+      types: ["user_preference", "style_preference", "model_preference"],
+    });
+    const profile = aggregatePreferenceProfile(memories);
+    return {
+      profile,
+      hasMemory: profile.evidenceCount > 0,
+    };
+  }),
+
+  /**
+   * Remove a single chip (e.g. "電影感" out of styles, "IG Reel" out of
+   * platforms). Walks every preference memory and surgically removes the
+   * value from metadata + tags — keeps the memory rows around so the
+   * remaining values still aggregate.
+   */
+  removePreferenceValue: protectedProcedure
+    .input(
+      z.object({
+        key: PREFERENCE_KEY_SCHEMA,
+        value: z.string().min(1).max(120),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const removed = removeMetadataValue({ userId: ctx.user.id }, input.key, input.value);
+      return { ok: true, removed };
+    }),
+
+  /**
+   * Wipe ALL preference-type memories for the user. Used by the dashboard's
+   * "全部清掉" button — drops style / model / user preference rows so the
+   * orb starts asking from scratch again.
+   */
+  clearAllPreferenceMemory: protectedProcedure.mutation(async ({ ctx }) => {
+    const removed = clearOrbMemoryByType({ userId: ctx.user.id }, [
+      "user_preference",
+      "style_preference",
+      "model_preference",
+    ]);
+    return { ok: true, removed };
+  }),
+
   /**
    * Persist a batch of multi-dimension wizard picks as a `user_preference`
    * memory so future turns can skip re-asking the same dimensions. Uses the

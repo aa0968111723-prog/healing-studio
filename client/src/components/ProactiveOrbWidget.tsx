@@ -84,6 +84,8 @@ import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import ChatMessageText from "./ChatMessageText";
 import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
 import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
+import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
+import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -1069,6 +1071,8 @@ export default memo(function ProactiveOrbWidget({
   const { settings: personalSettings } = usePersonalSettings();
   const orbCuteMode = personalSettings.orbCuteMode;
   const orbRandomFly = personalSettings.orbRandomFly;
+  const { state: agentOrbState, message: agentOrbMessage, changedAt: agentOrbChangedAt } = useOrbState();
+  const agentOrbVisual = ORB_STATE_VISUAL[agentOrbState];
   const {
     isAnyTimerRunning,
     activeMode,
@@ -2908,6 +2912,9 @@ export default memo(function ProactiveOrbWidget({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
                       >
+                        <div className="px-4 pt-3">
+                          <OrbMemoryDashboard />
+                        </div>
                         <OrbCapabilitiesView onTryCapability={handleTryCapability} />
                       </motion.div>
                     )}
@@ -3466,6 +3473,9 @@ export default memo(function ProactiveOrbWidget({
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
                   >
+                    <div className="px-3 pt-3">
+                      <OrbMemoryDashboard compact />
+                    </div>
                     <OrbCapabilitiesView
                       onTryCapability={handleTryCapability}
                       compact
@@ -3639,6 +3649,68 @@ export default memo(function ProactiveOrbWidget({
             className="!w-12 !h-12"
             cuteMode={orbCuteMode}
           />
+
+          {/* Agent state ring — overlays a colored pulse when the orb is
+              actively doing something on behalf of the user. Idle = invisible. */}
+          {agentOrbState !== "idle" && (
+            <motion.div
+              key={agentOrbChangedAt}
+              aria-hidden
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{
+                opacity: [0.65, 0.95, 0.65],
+                scale: [1, 1.18, 1],
+                boxShadow: [
+                  `0 0 12px ${agentOrbVisual.hex}AA, 0 0 28px ${agentOrbVisual.hex}55`,
+                  `0 0 22px ${agentOrbVisual.hex}DD, 0 0 48px ${agentOrbVisual.hex}77`,
+                  `0 0 12px ${agentOrbVisual.hex}AA, 0 0 28px ${agentOrbVisual.hex}55`,
+                ],
+              }}
+              transition={{
+                duration: agentOrbState === "executing" ? 1.4 : 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                margin: "-6px",
+                border: `2px solid ${agentOrbVisual.hex}`,
+              }}
+            />
+          )}
+
+          {/* Status pip + tooltip — short message of what the orb is doing now. */}
+          <AnimatePresence>
+            {agentOrbState !== "idle" && agentOrbMessage ? (
+              <motion.div
+                key={`${agentOrbState}-${agentOrbChangedAt}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.25 }}
+                className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none"
+                role="status"
+                aria-live="polite"
+              >
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border backdrop-blur-md"
+                  style={{
+                    background: "rgba(15, 23, 42, 0.78)",
+                    borderColor: `${agentOrbVisual.hex}55`,
+                    color: agentOrbVisual.hex,
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: agentOrbVisual.hex }}
+                  />
+                  {agentOrbMessage.length > 22
+                    ? `${agentOrbMessage.slice(0, 21)}…`
+                    : agentOrbMessage}
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
           {/* 引導模式的蒯腳文字浮標 */}
           <AnimatePresence>

@@ -250,6 +250,68 @@ export function clearOrbMemoryForUser(owner: { userId?: number; anonymousSession
   return before - store.length;
 }
 
+/**
+ * Clear only memories whose `type` is in the given set. Used by the memory
+ * dashboard's per-category clear (e.g. "forget my style preferences"
+ * without wiping successful workflows / model picks).
+ */
+export function clearOrbMemoryByType(
+  owner: { userId?: number; anonymousSessionId?: string },
+  types: OrbMemoryType[]
+): number {
+  if (types.length === 0) return 0;
+  const typeSet = new Set(types);
+  const before = store.length;
+  for (let i = store.length - 1; i >= 0; i -= 1) {
+    const m = store[i];
+    if (!isOwner(m, owner.userId, owner.anonymousSessionId)) continue;
+    if (typeSet.has(m.type)) store.splice(i, 1);
+  }
+  return before - store.length;
+}
+
+/**
+ * Filter-and-rewrite a single memory's metadata in place — used to surgically
+ * remove one specific style/platform/output value from a memory without
+ * dropping the whole row. Returns the number of metadata entries actually
+ * removed across all matching memories.
+ */
+export function removeMetadataValue(
+  owner: { userId?: number; anonymousSessionId?: string },
+  metadataKey: "styles" | "platforms" | "outputs" | "models",
+  value: string
+): number {
+  const target = value.trim();
+  if (!target) return 0;
+  let removed = 0;
+  for (const memory of store) {
+    if (!isOwner(memory, owner.userId, owner.anonymousSessionId)) continue;
+    const meta = memory.metadata as Record<string, unknown>;
+    const current = meta?.[metadataKey];
+    if (!Array.isArray(current)) continue;
+    const filtered = current.filter(v => typeof v !== "string" || v !== target);
+    if (filtered.length !== current.length) {
+      meta[metadataKey] = filtered;
+      removed += current.length - filtered.length;
+    }
+    // Also strip matching prefixed tag (e.g. `style:電影感`)
+    const tagPrefix =
+      metadataKey === "styles"
+        ? "style:"
+        : metadataKey === "platforms"
+        ? "platform:"
+        : metadataKey === "outputs"
+        ? "output:"
+        : "model:";
+    const fullTag = `${tagPrefix}${target}`;
+    const tagIdx = memory.tags.indexOf(fullTag);
+    if (tagIdx >= 0) {
+      memory.tags.splice(tagIdx, 1);
+    }
+  }
+  return removed;
+}
+
 export function __unsafe_clearAllOrbMemoryForTests() {
   store.splice(0, store.length);
 }

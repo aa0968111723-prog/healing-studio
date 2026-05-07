@@ -22,6 +22,7 @@ import { AmbientProvider } from "./contexts/AmbientSoundContext";
 import { OrbGuideProvider } from "./contexts/OrbGuideContext";
 import { PageAgentProvider } from "./contexts/PageAgentContext";
 import { GlobalOrbChatProvider } from "./contexts/GlobalOrbChatContext";
+import { OrbStateProvider } from "./contexts/OrbStateContext";
 import { PersonalSettingsProvider } from "./contexts/PersonalSettingsContext";
 import SkipToContent from "./components/SkipToContent";
 import RouteTransition from "./components/RouteTransition";
@@ -330,6 +331,7 @@ function App() {
                     <AmbientProvider>
                     <OrbGuideProvider>
                     <PageAgentProvider>
+                    <OrbStateProvider>
                     <GlobalOrbChatProvider>
                     <TooltipProvider>
                       <SkipToContent />
@@ -349,6 +351,7 @@ function App() {
                       </Suspense>
                     </TooltipProvider>
                     </GlobalOrbChatProvider>
+                    </OrbStateProvider>
                     </PageAgentProvider>
                     </OrbGuideProvider>
                     </AmbientProvider>

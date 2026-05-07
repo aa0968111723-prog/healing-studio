@@ -33,6 +33,17 @@ export interface UnifiedSearchResultItem {
   at?: number;
   /** 0..1 score — higher means stronger match. */
   score: number;
+  /**
+   * Asset / history rows can carry a thumbnail URL — surfacing it in the
+   * search card lets the user spot the right item without hovering. Notes /
+   * tutorials don't have thumbnails so this is optional.
+   */
+  thumbnailUrl?: string;
+  /**
+   * For images / videos, the modality (image / video / audio / voice) so
+   * the card can pick the right placeholder when thumbnailUrl is missing.
+   */
+  modality?: "image" | "video" | "audio" | "voice" | "script" | "zip_bundle";
 }
 
 export interface UnifiedSearchInput {
@@ -155,6 +166,8 @@ interface AssetRow {
   description?: string | null;
   promptUsed?: string | null;
   assetType?: string | null;
+  thumbnailUrl?: string | null;
+  fileUrl?: string | null;
   createdAt?: Date | string | number | null;
 }
 
@@ -171,7 +184,25 @@ interface HistoryRow {
   prompt?: string | null;
   modality?: string | null;
   modelId?: string | null;
+  thumbnailUrl?: string | null;
+  resultUrl?: string | null;
   createdAt?: Date | string | number | null;
+}
+
+type AssetModality = NonNullable<UnifiedSearchResultItem["modality"]>;
+function coerceModality(v: string | null | undefined): AssetModality | undefined {
+  if (!v) return undefined;
+  switch (v) {
+    case "image":
+    case "video":
+    case "audio":
+    case "voice":
+    case "script":
+    case "zip_bundle":
+      return v;
+    default:
+      return undefined;
+  }
 }
 
 function toMs(v: Date | string | number | null | undefined): number | undefined {
@@ -203,6 +234,12 @@ async function searchAssets(
         badge: row.assetType ?? undefined,
         at: toMs(row.createdAt),
         score,
+        ...(row.thumbnailUrl
+          ? { thumbnailUrl: row.thumbnailUrl }
+          : row.fileUrl && row.assetType === "image"
+          ? { thumbnailUrl: row.fileUrl }
+          : {}),
+        modality: coerceModality(row.assetType),
       });
     }
     return out.sort(byScoreDesc).slice(0, perTypeLimit);
@@ -261,6 +298,12 @@ async function searchHistory(
         badge: row.modality ?? row.modelId ?? "history",
         at: toMs(row.createdAt),
         score,
+        ...(row.thumbnailUrl
+          ? { thumbnailUrl: row.thumbnailUrl }
+          : row.resultUrl && row.modality === "image"
+          ? { thumbnailUrl: row.resultUrl }
+          : {}),
+        modality: coerceModality(row.modality),
       });
     }
     return out.sort(byScoreDesc).slice(0, perTypeLimit);
