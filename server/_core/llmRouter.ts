@@ -78,14 +78,23 @@ interface CircuitBreakerEntry {
   lastFailureAt: number;
   lastSuccessAt: number;
   openedAt: number; // 進入 OPEN 狀態的時間
+  /** 連續斷路次數（用於 adaptive cooldown 指數增長） */
+  trips: number;
+  /** 最近 N 次成功呼叫的延遲滾動平均（毫秒），用於 latency-aware 排序 */
+  avgLatencyMs: number;
+  /** 累積成功次數，避免 EMA 在頭幾次成功時過度敏感 */
+  samples: number;
 }
 
 /** 連續失敗幾次後斷路 */
 const CIRCUIT_FAILURE_THRESHOLD = 3;
-/** 斷路後冷卻時間（毫秒），冷卻後進入 HALF_OPEN */
-const CIRCUIT_COOLDOWN_MS = 60_000; // 60 秒
+/** 斷路後冷卻時間基準值（毫秒）。Adaptive cooldown：第一次 15s、第二次 30s、第三次起 60s */
+const CIRCUIT_COOLDOWN_BASE_MS = 15_000;
+const CIRCUIT_COOLDOWN_MAX_MS = 60_000;
 /** 成功一次後重置計數器 */
 const CIRCUIT_SUCCESS_RESET = true;
+/** EMA 平滑係數 — 越接近 1，越偏重最近的延遲；0.3 在抗抖動與感應變化之間取得平衡 */
+const LATENCY_EMA_ALPHA = 0.3;
 
 const circuitBreakers = new Map<LLMEngine, CircuitBreakerEntry>();
 
@@ -97,9 +106,19 @@ function getCircuit(engine: LLMEngine): CircuitBreakerEntry {
       lastFailureAt: 0,
       lastSuccessAt: Date.now(),
       openedAt: 0,
+      trips: 0,
+      avgLatencyMs: 0,
+      samples: 0,
     });
   }
   return circuitBreakers.get(engine)!;
+}
+
+/** 計算當前 trip 對應的冷卻時間（指數退避，封頂於 CIRCUIT_COOLDOWN_MAX_MS） */
+function getCooldownMs(trips: number): number {
+  // trips 從 1 開始算：1→15s、2→30s、3+→60s
+  const factor = Math.min(2 ** Math.max(trips - 1, 0), CIRCUIT_COOLDOWN_MAX_MS / CIRCUIT_COOLDOWN_BASE_MS);
+  return Math.min(CIRCUIT_COOLDOWN_BASE_MS * factor, CIRCUIT_COOLDOWN_MAX_MS);
 }
 
 /** 引擎是否可用（斷路器判斷） */
@@ -107,8 +126,9 @@ export function isEngineAvailable(engine: LLMEngine): boolean {
   const cb = getCircuit(engine);
   if (cb.state === "CLOSED") return true;
   if (cb.state === "OPEN") {
-    // 檢查冷卻期是否結束
-    if (Date.now() - cb.openedAt >= CIRCUIT_COOLDOWN_MS) {
+    // 檢查冷卻期是否結束 — 採用 adaptive cooldown
+    const cooldown = getCooldownMs(cb.trips);
+    if (Date.now() - cb.openedAt >= cooldown) {
       cb.state = "HALF_OPEN";
       return true; // 允許一次試探
     }
@@ -118,14 +138,27 @@ export function isEngineAvailable(engine: LLMEngine): boolean {
   return true;
 }
 
-/** 記錄引擎成功（重置斷路器） */
-export function recordEngineSuccess(engine: LLMEngine): void {
+/** 記錄引擎成功（重置斷路器，更新延遲滾動平均） */
+export function recordEngineSuccess(engine: LLMEngine, latencyMs?: number): void {
   const cb = getCircuit(engine);
   if (CIRCUIT_SUCCESS_RESET) {
     cb.failures = 0;
   }
+  // 連續成功一段時間後，重置 trips 計數器（讓下次斷路從 15s 起算）
+  if (Date.now() - cb.lastSuccessAt > CIRCUIT_COOLDOWN_MAX_MS && cb.state === "CLOSED") {
+    cb.trips = 0;
+  }
   cb.lastSuccessAt = Date.now();
   cb.state = "CLOSED";
+
+  if (typeof latencyMs === "number" && latencyMs > 0 && Number.isFinite(latencyMs)) {
+    if (cb.samples === 0) {
+      cb.avgLatencyMs = latencyMs;
+    } else {
+      cb.avgLatencyMs = LATENCY_EMA_ALPHA * latencyMs + (1 - LATENCY_EMA_ALPHA) * cb.avgLatencyMs;
+    }
+    cb.samples++;
+  }
 }
 
 /** 記錄引擎失敗（累積失敗計數，達到閾值則斷路） */
@@ -135,36 +168,63 @@ export function recordEngineFailure(engine: LLMEngine): void {
   cb.lastFailureAt = Date.now();
 
   if (cb.state === "HALF_OPEN") {
-    // 試探失敗 → 重新打開
-    cb.state = "OPEN";
-    cb.openedAt = Date.now();
-    console.warn(`[CircuitBreaker] 🔴 ${engine} 試探失敗，重新斷路`);
-  } else if (cb.failures >= CIRCUIT_FAILURE_THRESHOLD) {
+    // 試探失敗 → 重新打開（trips 不變，本次仍算同一輪斷路）
     cb.state = "OPEN";
     cb.openedAt = Date.now();
     console.warn(
-      `[CircuitBreaker] 🔴 ${engine} 連續失敗 ${cb.failures} 次，斷路中（冷卻 ${CIRCUIT_COOLDOWN_MS / 1000}s）`
+      `[CircuitBreaker] 🔴 ${engine} 試探失敗，重新斷路（冷卻 ${getCooldownMs(cb.trips) / 1000}s）`
+    );
+  } else if (cb.failures >= CIRCUIT_FAILURE_THRESHOLD) {
+    cb.state = "OPEN";
+    cb.openedAt = Date.now();
+    cb.trips++;
+    console.warn(
+      `[CircuitBreaker] 🔴 ${engine} 連續失敗 ${cb.failures} 次，斷路中（第 ${cb.trips} 次，冷卻 ${getCooldownMs(cb.trips) / 1000}s）`
     );
   }
+}
+
+/** 取得單一引擎的最近平均延遲（毫秒）；無樣本時回 0 */
+export function getEngineAvgLatencyMs(engine: LLMEngine): number {
+  return getCircuit(engine).avgLatencyMs;
 }
 
 /** 取得所有斷路器狀態（供 debug / health endpoint 使用） */
 export function getCircuitBreakerStatus(): Record<
   string,
-  { state: CircuitState; failures: number; available: boolean }
+  { state: CircuitState; failures: number; available: boolean; avgLatencyMs: number; trips: number }
 > {
   const result: Record<
     string,
-    { state: CircuitState; failures: number; available: boolean }
+    { state: CircuitState; failures: number; available: boolean; avgLatencyMs: number; trips: number }
   > = {};
   for (const [engine, cb] of Array.from(circuitBreakers.entries())) {
     result[engine] = {
       state: cb.state,
       failures: cb.failures,
       available: isEngineAvailable(engine),
+      avgLatencyMs: Math.round(cb.avgLatencyMs),
+      trips: cb.trips,
     };
   }
   return result;
+}
+
+/**
+ * 重置單一引擎的斷路器狀態（含 trips 與延遲統計）— 僅供測試使用。
+ * 一般運作不應呼叫此函式；recordEngineSuccess 已能在連續成功後自動重置。
+ */
+export function __unsafeResetCircuitForTests(engine: LLMEngine): void {
+  circuitBreakers.set(engine, {
+    state: "CLOSED",
+    failures: 0,
+    lastFailureAt: 0,
+    lastSuccessAt: Date.now(),
+    openedAt: 0,
+    trips: 0,
+    avgLatencyMs: 0,
+    samples: 0,
+  });
 }
 
 // ─── 引擎偵測 ──────────────────────────────────────────────────────────────
@@ -377,9 +437,20 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
 /**
  * 取得 auto 模式下的引擎降級鏈（供 invokeLLM 自動降級使用）
  * 回傳從首選引擎開始的所有可用引擎列表（不含首選自身）
+ *
+ * 當 `latencyAware=true` 時，對 fallback 鏈用實測平均延遲做穩定排序：
+ *   - 有樣本的引擎優先按延遲遞增排（最快的先嘗試）
+ *   - 沒樣本的引擎維持原本靜態優先順序，且排在有樣本的引擎之後
+ *   - 主引擎永遠不在 fallback 鏈中
+ *   - HALF_OPEN（試探中）的引擎仍會被納入 — 試探失敗會自動重新斷路
+ *
+ * 為何有樣本的引擎排在沒樣本的之前：當系統還沒呼叫過某引擎時，無法判斷
+ * 它的延遲；如果先試它可能踩到冷啟動或網路卡頓。讓「已知快速」的引擎
+ * 優先處理 fallback，能讓使用者體感的「切換」幾乎無感。
  */
 export function getEngineFallbackChain(
-  primaryEngine: LLMEngine
+  primaryEngine: LLMEngine,
+  options: { latencyAware?: boolean } = {}
 ): EngineConfig[] {
   const allOrder: LLMEngine[] = [
     "openrouter",
@@ -400,6 +471,20 @@ export function getEngineFallbackChain(
     } catch {
       continue;
     }
+  }
+
+  if (options.latencyAware && fallbacks.length > 1) {
+    return fallbacks.slice().sort((a, b) => {
+      const la = getEngineAvgLatencyMs(a.engine);
+      const lb = getEngineAvgLatencyMs(b.engine);
+      const aHas = la > 0;
+      const bHas = lb > 0;
+      if (aHas && bHas) return la - lb;
+      if (aHas) return -1; // a 有樣本，b 沒 → a 先
+      if (bHas) return 1; // b 有樣本，a 沒 → b 先
+      // 都沒樣本 → 維持原順序（autoOrder 的相對位置）
+      return allOrder.indexOf(a.engine) - allOrder.indexOf(b.engine);
+    });
   }
 
   return fallbacks;

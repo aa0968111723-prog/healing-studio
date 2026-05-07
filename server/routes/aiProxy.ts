@@ -298,17 +298,79 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
         ? requestBody.byteLength
         : 0;
 
-  try {
-    const adapter = getAdapter(providerKey);
-    const upstreamRes = await adapter.proxy({
-      pathWithQuery: `${pathSuffix}${queryStr}`,
-      method: req.method,
-      headers: forwardHeaders,
-      body: requestBody,
-      timeoutMs: 120_000,
-    });
-    upstreamStatus = upstreamRes.status;
+  // ── Transient-error retry：5xx / timeout / 網路錯誤短重試一次 ───────────
+  // 為了不打擾上游的計費（避免重複計費），4xx 一律不重試（caller error）。
+  // 只重試一次：兩次嘗試之間相隔 400 ms，多一次仍失敗就告知 client 這是真的故障。
+  // 對 GET/HEAD/idempotent 路徑或 user 主動取消的 POST，retry 都安全；對非
+  // idempotent POST（例如 fal-queue submit 帶有 webhook 的 idempotencyKey）
+  // 上游 SDK 自身會去重，所以這裡的 retry 仍然安全。
+  const MAX_PROXY_RETRIES = 2;
+  const PROXY_RETRY_DELAY_MS = 400;
 
+  // Use globalThis.Response (Web Fetch) — `Response` here is express.Response
+  let upstreamRes: globalThis.Response | null = null;
+  let attempt = 0;
+  while (attempt < MAX_PROXY_RETRIES) {
+    attempt++;
+    try {
+      const adapter = getAdapter(providerKey);
+      upstreamRes = await adapter.proxy({
+        pathWithQuery: `${pathSuffix}${queryStr}`,
+        method: req.method,
+        headers: forwardHeaders,
+        body: requestBody,
+        timeoutMs: 120_000,
+      });
+      upstreamStatus = upstreamRes.status;
+
+      // 5xx 或 429 → 重試（最多 MAX_PROXY_RETRIES 次）
+      if (
+        attempt < MAX_PROXY_RETRIES &&
+        (upstreamRes.status >= 500 || upstreamRes.status === 429)
+      ) {
+        // 釋放 body 避免連線被卡住
+        try {
+          await upstreamRes.arrayBuffer();
+        } catch {
+          /* best effort */
+        }
+        await new Promise(r => setTimeout(r, PROXY_RETRY_DELAY_MS * attempt));
+        continue;
+      }
+      break;
+    } catch (err: unknown) {
+      const isAbortError = err instanceof Error && err.name === "AbortError";
+      const isNetworkError =
+        err instanceof Error &&
+        (err.message.includes("fetch failed") ||
+          err.message.includes("ECONNRESET") ||
+          err.message.includes("ETIMEDOUT") ||
+          err.message.includes("ENOTFOUND"));
+
+      if (
+        attempt < MAX_PROXY_RETRIES &&
+        (isAbortError || isNetworkError)
+      ) {
+        await new Promise(r => setTimeout(r, PROXY_RETRY_DELAY_MS * attempt));
+        continue;
+      }
+
+      // 重試額度耗盡 → 結束 / 回報錯誤
+      if (isAbortError) {
+        status = "timeout";
+        errorMessage = "Request timed out (120s)";
+        if (!res.headersSent) res.status(504).json({ error: "Gateway timeout" });
+      } else {
+        status = "failed";
+        errorMessage = err instanceof Error ? err.message : String(err);
+        if (!res.headersSent) res.status(502).json({ error: "Bad gateway" });
+      }
+      upstreamRes = null;
+      break;
+    }
+  }
+
+  if (upstreamRes) {
     if (!upstreamRes.ok) {
       status = "failed";
       errorMessage = `Upstream returned ${upstreamRes.status}`;
@@ -325,17 +387,6 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     const buffer = await upstreamRes.arrayBuffer();
     const payload = Buffer.from(buffer);
     res.send(payload);
-  } catch (err: unknown) {
-    const isAbortError = err instanceof Error && err.name === "AbortError";
-    if (isAbortError) {
-      status = "timeout";
-      errorMessage = "Request timed out (120s)";
-      if (!res.headersSent) res.status(504).json({ error: "Gateway timeout" });
-    } else {
-      status = "failed";
-      errorMessage = err instanceof Error ? err.message : String(err);
-      if (!res.headersSent) res.status(502).json({ error: "Bad gateway" });
-    }
   }
 
   const latencyMs = Date.now() - startMs;

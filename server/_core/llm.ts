@@ -15,6 +15,9 @@
 
 import { serverEnv } from "./env.validated";
 import { withLLMSlot } from "./llmConcurrency";
+import { cache } from "./cache";
+import { dedup } from "./deduplication";
+import { logger } from "./logger";
 import {
   resolveEngineConfig,
   getEngineFallbackChain,
@@ -168,6 +171,56 @@ export type InvokeParams = {
    * 8 秒就放棄，讓 OpenRouter 等備援引擎還有機會被嘗試）。
    */
   timeoutMs?: number;
+  /**
+   * 啟用回應快取（LRU + TTL，預設 600 秒）。
+   *
+   * 適用情境：
+   *   - 觀察者/分類器類型的呼叫（同一輸入該得到同一輸出）
+   *   - 提示詞模板裡無 Date.now / 隨機 ID 等變動值
+   *   - 不含 tool_use（工具回應通常依賴外部狀態）
+   *
+   * 安全性：cache key 由 model + messages + temperature + maxTokens 組合的
+   * djb2 hash 構成；不同內容/溫度產生不同 key，不會誤命中。命中時直接回傳
+   * 快取結果，不消耗 LLM 並行槽位（withLLMSlot），延遲 < 1ms。
+   *
+   * 預設關閉以保留歷史行為；呼叫端在確定可重複時才打開。
+   */
+  cacheable?: boolean;
+  /**
+   * 自訂快取 TTL（秒）。預設使用 cache.ts 的 namespace 預設（llm: 600）。
+   * 僅在 cacheable=true 時生效。
+   */
+  cacheTtlSeconds?: number;
+  /**
+   * 啟用請求 deduplication（in-flight 合併）。預設 ON。
+   *
+   * 機制：當完全相同的 prompt + tool 設定在 deduplicate 進行中再次觸發時，
+   * 第二個呼叫不會發出新的網路請求，而是等待第一個的結果。雙擊、重試風暴、
+   * 多個 agent 平行步驟撞上同一個子任務都會被合併。
+   *
+   * 設為 false 的情境：呼叫端明確需要每次拿到「不同」的回應（例如創意
+   * 寫作的 temperature > 0 場景，但 dedup 的 key 已涵蓋 temperature，
+   * 所以這個情境其實罕見；保留旗標僅供 escape hatch）。
+   */
+  dedupe?: boolean;
+  /**
+   * Hedged request — 在 hedgeDelayMs 毫秒後，若主引擎尚未回應，並行啟動
+   * 第一個備援引擎；任一引擎成功即回傳結果，落敗的呼叫被丟棄。
+   *
+   * 用途：對抗 P95/P99 長尾延遲。當主引擎偶發網路抖動 / 上游高負載時，
+   * 不需要等到 timeout 才切換 — 在還可能成功的時刻就讓備援引擎跑起來，
+   * 取最快的回應。代價是偶爾會多花一份 token 預算（被丟棄的那個）。
+   *
+   * 預設關閉；用戶體感敏感的路徑（例如全站光球的 clarification 對話）
+   * 應該打開。長文本生成、創意寫作等會佔用大量 token 的場景不建議打開。
+   */
+  hedge?: boolean;
+  /**
+   * Hedge 啟動的延遲（毫秒）。在這段時間內，只有主引擎在跑；超過後若仍未
+   * 收到回應，才會啟動備援引擎與主引擎賽跑。預設 600 ms — 大部分 LLM
+   * 健康呼叫的 TTFR 在 200-500 ms 之間，600 ms 後仍未回的多半是已踩雷。
+   */
+  hedgeDelayMs?: number;
 };
 
 export type ToolCall = {
@@ -987,6 +1040,76 @@ function getRetryDelayMs(attempt: number): number {
 
 // ─── 主要 LLM 呼叫函數 ────────────────────────────────────────────────────
 
+/**
+ * 為 cache / dedup 建構穩定的 fingerprint key。
+ *
+ * 包含：model + messages 內容 + temperature + maxTokens + tools 名稱 +
+ * tool_choice + responseFormat type。
+ *
+ * 不包含：runName、parentRunId、systemPrompt（已併入 messages）、engine 偏好
+ * （因為相同輸入不論走哪條引擎都該回相同的語義內容）— 這讓不同入口的
+ * 「相同提問」可以共用快取。
+ */
+function buildLlmFingerprint(p: {
+  model: string;
+  messages: Message[];
+  temperature?: number;
+  maxTokens?: number;
+  tools?: Tool[];
+  toolChoice?: ToolChoice;
+  responseFormat?: ResponseFormat;
+}): string {
+  return cache.buildLlmKey({
+    model: p.model,
+    messages: p.messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      ...(m.name ? { name: m.name } : {}),
+      ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+    })),
+    temperature: p.temperature,
+    maxTokens: p.maxTokens,
+  }) +
+    ":" +
+    (p.tools?.map(t => t.function.name).sort().join(",") ?? "") +
+    ":" +
+    (typeof p.toolChoice === "string"
+      ? p.toolChoice
+      : p.toolChoice && "name" in p.toolChoice
+        ? `name:${p.toolChoice.name}`
+        : p.toolChoice && "function" in p.toolChoice
+          ? `fn:${p.toolChoice.function.name}`
+          : "auto") +
+    ":" +
+    (p.responseFormat?.type ?? "text");
+}
+
+/**
+ * Race 多個 promise，回傳第一個成功 settle 的結果。
+ * 全部失敗時 reject，error 取最後一個（與原本順序 fallback 行為一致）。
+ */
+function raceSuccess<T>(promises: Array<Promise<T>>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let pending = promises.length;
+    let lastError: unknown = null;
+    if (pending === 0) {
+      reject(new Error("raceSuccess: empty promise array"));
+      return;
+    }
+    promises.forEach(p => {
+      p.then(
+        v => resolve(v),
+        err => {
+          lastError = err;
+          if (--pending === 0) {
+            reject(lastError ?? new Error("raceSuccess: all promises rejected"));
+          }
+        }
+      );
+    });
+  });
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages,
@@ -1008,6 +1131,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     model: overrideModel,
     systemPrompt,
     timeoutMs,
+    cacheable,
+    cacheTtlSeconds,
+    dedupe,
+    hedge,
+    hedgeDelayMs,
   } = params;
 
   // ── 注入系統提示詞（來自 ctx.brain）──────────────────────────
@@ -1038,6 +1166,31 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         { role: "system" as const, content: systemPrompt },
         ...messages,
       ];
+    }
+  }
+
+  // ── Cache lookup（最早 — 命中直接回傳，不消耗任何資源） ──────
+  const normalizedResponseFormatForKey = normalizeResponseFormat({
+    responseFormat,
+    response_format,
+    outputSchema,
+    output_schema,
+  });
+  const fingerprint = buildLlmFingerprint({
+    model: overrideModel ?? "auto",
+    messages: processedMessages,
+    temperature,
+    maxTokens: maxTokens ?? max_tokens,
+    tools,
+    toolChoice: toolChoice ?? tool_choice,
+    responseFormat: normalizedResponseFormatForKey,
+  });
+
+  if (cacheable) {
+    const hit = await cache.getLlmResponse<InvokeResult>(`llm:${fingerprint}`);
+    if (hit) {
+      logger.debug("[LLM] cache hit", { runName, model: overrideModel ?? "auto" });
+      return hit;
     }
   }
 
@@ -1080,70 +1233,138 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // 允許降級的情境：auto、未指定、或 preferEngine（偏好但可降級）
   const allowFallback = !engine || engine === "auto" || !!preferEngine;
   if (allowFallback) {
-    engineConfigs.push(...getEngineFallbackChain(primaryConfig.engine));
+    // latencyAware：根據 EMA 延遲對 fallback 排序，最快的引擎優先試
+    engineConfigs.push(
+      ...getEngineFallbackChain(primaryConfig.engine, { latencyAware: true })
+    );
   }
+
+  const inferredOverrideEngine =
+    typeof overrideModel === "string"
+      ? inferEngineFromModelIdSafe(overrideModel)
+      : null;
+
+  /**
+   * 對單一引擎呼叫 — 含 model ID 兼容性處理 + 短重試（fast-fail）邏輯。
+   * 當 chain 還有備援時，retriesOverride=1 讓主引擎僅試一次就交棒；
+   * 當已經是 chain 的最後一個引擎時，allow 預設 3 次重試（exponential backoff）。
+   */
+  const callEngine = async (
+    engineConfig: EngineConfig,
+    isLastEngine: boolean
+  ): Promise<InvokeResult> => {
+    const scopedOverrideModel =
+      inferredOverrideEngine && inferredOverrideEngine !== engineConfig.engine
+        ? undefined
+        : overrideModel;
+
+    const startMs = Date.now();
+    try {
+      const result = await invokeSingleEngine(engineConfig, {
+        messages: processedMessages,
+        tools,
+        toolChoice,
+        tool_choice,
+        maxTokens,
+        max_tokens,
+        outputSchema,
+        output_schema,
+        responseFormat,
+        response_format,
+        runName,
+        parentRunId,
+        temperature,
+        topP,
+        overrideModel: scopedOverrideModel,
+        timeoutMs,
+        // 還有備援引擎可用時，主引擎只試 1 次就快速交棒；最後一個引擎才允許完整重試。
+        // 這把整體尾延遲從 ~24s（3 次 × 8s backoff）降到單次呼叫即切換。
+        retriesOverride: isLastEngine ? undefined : 1,
+      });
+      const latencyMs = Date.now() - startMs;
+      recordEngineSuccess(engineConfig.engine, latencyMs);
+      return result;
+    } catch (err) {
+      recordEngineFailure(engineConfig.engine);
+      throw err;
+    }
+  };
 
   // 整個引擎迴圈（含降級）共用一個並行槽位，由 MAX_CONCURRENT_LLM_CALLS 控制。
   // 同一次 invokeLLM 呼叫即使要試 3 個引擎，也只佔一個槽，避免迴圈期間槽位反覆釋放。
-  return withLLMSlot(async () => {
-    let lastError: Error | null = null;
-    const inferredOverrideEngine =
-      typeof overrideModel === "string"
-        ? inferEngineFromModelIdSafe(overrideModel)
-        : null;
+  const runEngineLoop = async (): Promise<InvokeResult> =>
+    withLLMSlot(async () => {
+      // ── Hedge 模式：主引擎與第一個備援同時賽跑（延遲後啟動備援）─
+      if (hedge && engineConfigs.length >= 2) {
+        const primary = engineConfigs[0];
+        const secondary = engineConfigs[1];
+        const delay = typeof hedgeDelayMs === "number" && hedgeDelayMs >= 0 ? hedgeDelayMs : 600;
 
-    for (const engineConfig of engineConfigs) {
-      try {
-        // 避免把明確綁定特定供應商的 model ID（例如 gemini-2.5-pro）
-        // 送到不相容引擎（例如 perplexity）造成 400 invalid model。
-        // 若 fallback 到不同引擎，改用該引擎預設 model。
-        const scopedOverrideModel =
-          inferredOverrideEngine && inferredOverrideEngine !== engineConfig.engine
-            ? undefined
-            : overrideModel;
+        const primaryPromise = callEngine(primary, false);
+        const secondaryPromise = (async () => {
+          await new Promise(r => setTimeout(r, delay));
+          return callEngine(secondary, false);
+        })();
 
-        const result = await invokeSingleEngine(engineConfig, {
-          messages: processedMessages,
-          tools,
-          toolChoice,
-          tool_choice,
-          maxTokens,
-          max_tokens,
-          outputSchema,
-          output_schema,
-          responseFormat,
-          response_format,
-          runName,
-          parentRunId,
-          temperature,
-          topP,
-          overrideModel: scopedOverrideModel,
-          timeoutMs,
-        });
-
-        // 成功 — 更新斷路器
-        recordEngineSuccess(engineConfig.engine);
-        return result;
-      } catch (err: unknown) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        lastError = error;
-
-        // 記錄斷路器失敗
-        recordEngineFailure(engineConfig.engine);
-
-        // 如果還有備援引擎，繼續嘗試
-        if (engineConfigs.indexOf(engineConfig) < engineConfigs.length - 1) {
-          console.warn(
-            `[LLM] ⚠️ ${engineConfig.name} 失敗，嘗試備援引擎... 錯誤: ${error.message.slice(0, 200)}`
-          );
-          continue;
+        try {
+          // 任一成功即回傳；兩個都失敗則往下走 sequential fallback（從第三個引擎起）
+          return await raceSuccess([primaryPromise, secondaryPromise]);
+        } catch (err) {
+          logger.warn("[LLM] hedged race failed; continuing sequential fallback", {
+            runName,
+            primary: primary.name,
+            secondary: secondary.name,
+            error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+          });
+          // 從第三個引擎起繼續 sequential fallback
+          let lastError: Error =
+            err instanceof Error ? err : new Error(String(err));
+          for (let i = 2; i < engineConfigs.length; i++) {
+            const cfg = engineConfigs[i];
+            const isLast = i === engineConfigs.length - 1;
+            try {
+              return await callEngine(cfg, isLast);
+            } catch (e) {
+              lastError = e instanceof Error ? e : new Error(String(e));
+              console.warn(
+                `[LLM] ⚠️ ${cfg.name} 失敗，嘗試下一個備援... 錯誤: ${lastError.message.slice(0, 200)}`
+              );
+            }
+          }
+          throw lastError;
         }
       }
-    }
 
-    // 所有引擎都失敗
-    throw lastError ?? new Error("[LLM] 所有引擎都失敗");
-  });
+      // ── 預設 sequential fallback ──
+      let lastError: Error | null = null;
+      for (let i = 0; i < engineConfigs.length; i++) {
+        const cfg = engineConfigs[i];
+        const isLast = i === engineConfigs.length - 1;
+        try {
+          return await callEngine(cfg, isLast);
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          if (!isLast) {
+            console.warn(
+              `[LLM] ⚠️ ${cfg.name} 失敗，嘗試備援引擎... 錯誤: ${lastError.message.slice(0, 200)}`
+            );
+          }
+        }
+      }
+      throw lastError ?? new Error("[LLM] 所有引擎都失敗");
+    });
+
+  // ── Dedup wrapper（in-flight 合併）+ Cache write back ──
+  const shouldDedupe = dedupe !== false; // 預設 ON
+  const result = shouldDedupe
+    ? await dedup.deduplicate(`llm-invoke:${fingerprint}`, runEngineLoop)
+    : await runEngineLoop();
+
+  if (cacheable) {
+    await cache.setLlmResponse(`llm:${fingerprint}`, result, cacheTtlSeconds);
+  }
+
+  return result;
 }
 
 /**
@@ -1168,6 +1389,12 @@ async function invokeSingleEngine(
     topP?: number;
     overrideModel?: string;
     timeoutMs?: number;
+    /**
+     * 覆蓋此次呼叫的最大重試次數（預設 LLM_MAX_RETRIES = 3）。
+     * 上層 invokeLLM 會在 chain 還有備援時設為 1，讓主引擎快速交棒，
+     * 把 3 次 × backoff 的尾延遲（~24s）降到單次呼叫即切換。
+     */
+    retriesOverride?: number;
   }
 ): Promise<InvokeResult> {
   const {
@@ -1187,11 +1414,16 @@ async function invokeSingleEngine(
     topP,
     overrideModel,
     timeoutMs,
+    retriesOverride,
   } = params;
   const perEngineTimeoutMs =
     typeof timeoutMs === "number" && timeoutMs > 0
       ? timeoutMs
       : LLM_REQUEST_TIMEOUT_MS;
+  const maxRetries =
+    typeof retriesOverride === "number" && retriesOverride >= 1
+      ? Math.min(retriesOverride, LLM_MAX_RETRIES)
+      : LLM_MAX_RETRIES;
 
   // ── 解析最終模型名稱（含 engine 相容性正規化）───────────
   const rawModel = overrideModel ?? engineConfig.model;
@@ -1271,7 +1503,7 @@ async function invokeSingleEngine(
   let result: InvokeResult | undefined;
   try {
     let lastError: Error | null = null;
-    for (let attempt = 1; attempt <= LLM_MAX_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(
@@ -1315,7 +1547,7 @@ async function invokeSingleEngine(
           // Retry on 5xx server errors or 429 rate limit
           if (
             (response.status >= 500 || response.status === 429) &&
-            attempt < LLM_MAX_RETRIES
+            attempt < maxRetries
           ) {
             lastError = err;
             await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
@@ -1347,7 +1579,7 @@ async function invokeSingleEngine(
         lastError = error;
         const isRetryable =
           error.name === "AbortError" || error.message.includes("fetch failed");
-        if (isRetryable && attempt < LLM_MAX_RETRIES) {
+        if (isRetryable && attempt < maxRetries) {
           await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
           continue;
         }
