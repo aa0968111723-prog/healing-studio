@@ -425,6 +425,16 @@ const multimodalSchema = z.object({
   ENABLE_GLOBAL_AGENT_CAPABILITY_REGISTRY: z.string().optional().default("true"),
   ENABLE_GLOBAL_AGENT_TOOL_REGISTRY: z.string().optional().default("true"),
 
+  /**
+   * File path where the in-memory orb task store flushes its tasks/timeline.
+   * When set, OrbTaskStore loads on boot and writes on every mutation, so
+   * in-flight long workflows survive a server restart. Leave blank in test
+   * (state should be ephemeral); in production point this at a persistent
+   * volume mount, e.g. `/data/orb-task-store.json`. Without persistence the
+   * store is in-memory only and a restart drops all running tasks.
+   */
+  ORB_TASK_STORE_FILE: z.string().optional().default(""),
+
   // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人引擎）──────────────────────
 
   // ── Brave Search API ──────────────────────────────────────

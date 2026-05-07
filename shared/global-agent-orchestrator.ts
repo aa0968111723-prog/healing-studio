@@ -514,10 +514,11 @@ export function workflowsEnabled() {
  * Returns true when the parallel scheduler should be used. Two conditions
  * must BOTH hold:
  *
- *   1. The `VITE_ENABLE_ORB_PARALLEL_SCHEDULER` env flag is on. This is the
- *      kill-switch that lets ops disable parallel UI dispatch instantly if a
- *      regression is detected — defaults off until browser e2e runs against
- *      production.
+ *   1. The `VITE_ENABLE_ORB_PARALLEL_SCHEDULER` env flag is NOT explicitly
+ *      disabled (set to 0/false/off/no). The flag defaults ON so workflows
+ *      that already declare `dependsOn` (see global-agent-workflows.ts) get
+ *      DAG-aware parallelism out of the box. Ops can flip it back off
+ *      instantly if a regression is detected.
  *   2. The workflow declares at least one step with explicit `dependsOn`.
  *      Without explicit deps the planner just gave us declared order, and
  *      our same-page sequencing would already serialise everything, so
@@ -1156,10 +1157,11 @@ async function executeStepOnce(
 }
 
 export function parallelSchedulerEnabled(action: RunWorkflowAction): boolean {
-  const envOn = ["1", "true", "on"].includes(
-    flag("VITE_ENABLE_ORB_PARALLEL_SCHEDULER").toLowerCase()
-  );
-  if (!envOn) return false;
+  // Default ON — only an explicit disable flag turns it off. Without an
+  // explicit `dependsOn` declaration the parallel branch would still serialise
+  // the workflow (because same-page sequencing applies), so the default is
+  // safe even when ops haven't flipped any env var.
+  if (disabled(flag("VITE_ENABLE_ORB_PARALLEL_SCHEDULER"))) return false;
   return action.steps.some(step => Array.isArray(step.dependsOn) && step.dependsOn.length > 0);
 }
 

@@ -351,6 +351,27 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       }
       const pageMatches = page && (!targetPageId || page.snapshot.pageId === targetPageId);
       if (pageMatches && page) {
+        // Validation telemetry: when the page has declared its capability
+        // surface, warn loudly if the planner routed an action whose type the
+        // page never advertised. The handler may still succeed — declarations
+        // can drift from implementation — but a missing declaration is the
+        // single most common cause of silent "page returned ok:false" failures
+        // for cross-page workflows. We log instead of rejecting because that
+        // would punish pages whose capability list is merely incomplete.
+        // (navigate is short-circuited above so it never reaches here.)
+        if (
+          action.type !== "focusElement" &&
+          page.snapshot.capabilities.length > 0 &&
+          !page.snapshot.capabilities.some(cap => cap.action === action.type)
+        ) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[PageAgent] action "${action.type}" dispatched to page "${page.snapshot.pageId}" ` +
+              `but the page never declared this capability. Add it to the page's ` +
+              `useRegisterPageAgent({ capabilities: [...] }) call (or to ` +
+              `appRegistry.supportedActions) so the planner can route reliably.`
+          );
+        }
         try {
           const result = await page.handle(action);
           const norm = result ?? { ok: true };

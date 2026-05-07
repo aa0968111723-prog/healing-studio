@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Lock, ArrowLeft, CheckCircle2, Shield, Monitor } from "lucide-react";
 import TwoFactorSettings from "@/components/TwoFactorSettings";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type { AgentAction, AgentActionResult, AgentCapability } from "@/contexts/PageAgentContext";
+
+const ACCOUNT_TAB_IDS = ["profile", "security", "activity"] as const;
+type AccountTabId = (typeof ACCOUNT_TAB_IDS)[number];
+
+function isAccountTabId(value: string): value is AccountTabId {
+  return (ACCOUNT_TAB_IDS as readonly string[]).includes(value);
+}
 
 export default function AccountSettingsPage() {
   const { user: authUser, loading: authLoading, isAuthenticated } = useAuth({
@@ -13,6 +22,7 @@ export default function AccountSettingsPage() {
     redirectPath: "/",
   });
 
+  const [activeTab, setActiveTab] = useState<AccountTabId>("profile");
   const [user, setUser] = useState<{
     name: string;
     email: string;
@@ -193,6 +203,65 @@ export default function AccountSettingsPage() {
 
   const passwordStrength = getPasswordStrength();
 
+  const accountAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換分頁",
+        options: [
+          { id: "profile", label: "個人資料", meta: { tip: "查看與修改顯示名稱" } },
+          { id: "security", label: "安全設定", meta: { tip: "更改密碼、兩步驟驗證" } },
+          { id: "activity", label: "登入記錄", meta: { tip: "檢視最近裝置登入紀錄" } },
+        ],
+        currentId: activeTab,
+        hint: "setTab tabId='profile' | 'security' | 'activity'",
+      },
+      {
+        action: "navigate",
+        label: "離開帳號設定",
+        options: [
+          { id: "/", label: "返回首頁", meta: { tip: "回到登入後首頁" } },
+          { id: "/dashboard", label: "儀表板", meta: { tip: "查看創作概況" } },
+        ],
+        hint: "navigate path='/' | '/dashboard'",
+      },
+    ],
+    [activeTab]
+  );
+
+  useRegisterPageAgent({
+    pageId: "account-settings",
+    pageLabel: "帳號設定",
+    pagePath: "/account-settings",
+    capabilities: accountAgentCapabilities,
+    state: {
+      activeTab,
+      hasUser: !!user,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const id = String(action.tabId ?? "");
+          if (!isAccountTabId(id)) {
+            return { ok: false, reason: `unknown tab: ${id}` };
+          }
+          setActiveTab(id);
+          return { ok: true, message: `已切換到 ${id}` };
+        }
+        case "navigate": {
+          const path = String(action.path ?? "");
+          if (path !== "/" && path !== "/dashboard") {
+            return { ok: false, reason: `不在允許跳轉清單：${path}` };
+          }
+          window.location.href = path;
+          return { ok: true, message: `跳到 ${path}` };
+        }
+        default:
+          return { ok: false, reason: `unsupported action: ${action.type}` };
+      }
+    },
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -220,7 +289,13 @@ export default function AccountSettingsPage() {
             <CardDescription>管理您的個人資料和安全設定</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="profile" className="w-full">
+            <Tabs
+              value={activeTab}
+              onValueChange={value => {
+                if (isAccountTabId(value)) setActiveTab(value);
+              }}
+              className="w-full"
+            >
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="profile" className="flex items-center gap-2">
                   <User className="h-4 w-4" />
