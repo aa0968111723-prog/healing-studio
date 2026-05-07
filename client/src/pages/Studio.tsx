@@ -565,6 +565,7 @@ export default function Studio() {
   const [toolboxTab, setToolboxTab] = useState<
     "vault" | "assets" | "models" | "history" | "controls"
   >("vault");
+  const [isApplyingSuggestedModel, setIsApplyingSuggestedModel] = useState(false);
   const [selectedFalModelId, setSelectedFalModelId] = useState<string | undefined>();
   const [selectedModelParams, setSelectedModelParams] = useState<Record<string, string | number | boolean>>({});
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -1559,6 +1560,45 @@ export default function Studio() {
     submitAsyncMutation,
     requireAuth,
   ]);
+
+  const applySuggestedModel = useCallback(async () => {
+    if (isApplyingSuggestedModel) return false;
+    setIsApplyingSuggestedModel(true);
+    try {
+      const category =
+        activeModality === "voice" || activeModality === "multimodal"
+          ? "audio"
+          : activeModality;
+      const resp = await fetch(`/api/tools/models?category=${category}`);
+      if (!resp.ok) {
+        toast.error("模型服務暫時不可用，已為你切到模型頁");
+        setToolboxTab("models");
+        return false;
+      }
+      const list = await resp.json();
+      const candidate = Array.isArray(list)
+        ? list.find((m: any) => m?.default) ?? list[0]
+        : null;
+      if (!candidate?.id) {
+        toast.info("目前此模態沒有可用模型");
+        setToolboxTab("models");
+        return false;
+      }
+      const modalityLabel =
+        MODALITY_TABS.find(m => m.value === activeModality)?.label ?? "目前";
+      setSelectedFalModelId(candidate.id);
+      setSelectedModelParams({});
+      setToolboxTab("models");
+      toast.success(`已套用${modalityLabel}模型：${candidate.name ?? candidate.id}`);
+      return true;
+    } catch {
+      toast.error("模型讀取失敗，已為你切到模型頁");
+      setToolboxTab("models");
+      return false;
+    } finally {
+      setIsApplyingSuggestedModel(false);
+    }
+  }, [activeModality, isApplyingSuggestedModel]);
 
   const handleGenerate = useCallback(async () => {
     // Auth guard: show login modal instead of 500 error if session expired
@@ -3572,6 +3612,47 @@ export default function Studio() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+            <div className="px-2 pt-1">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium text-foreground">工具箱 × 工作區連結</p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setToolboxTab("vault")}
+                      className="text-[10px] px-2 py-1 rounded-full bg-primary/15 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      開啟保險庫
+                    </button>
+                    <button
+                      onClick={() => {
+                        void applySuggestedModel();
+                      }}
+                      disabled={isApplyingSuggestedModel}
+                      className="text-[10px] px-2 py-1 rounded-full bg-muted/60 text-foreground hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isApplyingSuggestedModel ? "套用中..." : "套用建議模型"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const applied = await applySuggestedModel();
+                        if (!applied) return;
+                        setToolboxSheetOpen(false);
+                        void handleGenerate();
+                      }}
+                      disabled={isApplyingSuggestedModel || submitAsyncMutation.isPending}
+                      className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {submitAsyncMutation.isPending ? "生成中..." : "套用並生成"}
+                    </button>
+                  </div>
+                </div>
+                <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground leading-relaxed">
+                  <li>• 先在「保險庫」選角色/場景，拖放到工作區保持一致性。</li>
+                  <li>• 到「參數」鎖定 seed 與模式，再切「歷史」比較最佳版本。</li>
+                  <li>• 若要跨模態延伸，先從上方切換圖片/影片/音樂/語音再生成。</li>
+                </ul>
               </div>
             </div>
             <div className="flex gap-1 p-2 mb-2 flex-wrap">
