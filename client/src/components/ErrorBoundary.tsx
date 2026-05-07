@@ -18,6 +18,7 @@ interface State {
 }
 
 const RELOAD_FLAG_KEY = "hs-chunk-reload-attempt";
+const RELOAD_COOLDOWN_MS = 15_000;
 
 // Stale lazy-load chunks (after a redeploy the cached index.html points at
 // chunk hashes that no longer exist) surface as ChunkLoadError or as dynamic
@@ -45,6 +46,29 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidMount() {
+    // 若頁面已正常掛載，代表至少當前路由可用，清掉舊的 chunk reload 標記
+    // 避免使用者先前遇到一次錯誤後，後續長時間被同一個 session 狀態影響。
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.removeItem(RELOAD_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  componentDidUpdate(_prevProps: Props, prevState: State) {
+    // 從錯誤狀態恢復後同步清除 reload 標記，讓下一次真的發生 chunk 錯誤時
+    // 仍可觸發自動刷新，不會被舊時間戳卡住。
+    if (prevState.hasError && !this.state.hasError && typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(RELOAD_FLAG_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   componentDidCatch(error: Error) {
     this.props.onError?.(error);
     console.error("[ErrorBoundary]", error);
@@ -53,9 +77,11 @@ class ErrorBoundary extends Component<Props, State> {
     // flag prevents a reload loop if the failure is genuinely persistent.
     if (isChunkLoadError(error) && typeof window !== "undefined") {
       try {
-        const already = sessionStorage.getItem(RELOAD_FLAG_KEY);
-        if (!already) {
-          sessionStorage.setItem(RELOAD_FLAG_KEY, String(Date.now()));
+        const lastReloadAt = Number(sessionStorage.getItem(RELOAD_FLAG_KEY) ?? "0");
+        const now = Date.now();
+
+        if (!Number.isFinite(lastReloadAt) || now - lastReloadAt > RELOAD_COOLDOWN_MS) {
+          sessionStorage.setItem(RELOAD_FLAG_KEY, String(now));
           window.location.reload();
         }
       } catch {
@@ -126,12 +152,12 @@ class ErrorBoundary extends Component<Props, State> {
           </div>
 
           <h2 className="text-xl font-semibold text-foreground mb-2">
-            系統暫時休息中
+            頁面暫時載入失敗
           </h2>
           <p className="text-muted-foreground mb-3 leading-relaxed">
-            AI 服務連線稍微異常，可能是暫時性的網路波動。
+            可能是網路波動或瀏覽器快取的舊資源造成。
             <br />
-            請稍後再試一次，通常很快就會恢復。
+            重新整理後通常就能恢復。
           </p>
 
           {/* Zero-anxiety credit assurance */}
