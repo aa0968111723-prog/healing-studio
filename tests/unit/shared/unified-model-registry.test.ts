@@ -25,6 +25,7 @@ describe("unifiedModelRegistry", () => {
       expect(domains.has("image-to-video")).toBe(true);
       expect(domains.has("audio-music")).toBe(true);
       expect(domains.has("voice-tts")).toBe(true);
+      expect(domains.has("fine-tune-training")).toBe(true);
     });
 
     it("all models have required fields", () => {
@@ -86,6 +87,14 @@ describe("unifiedModelRegistry", () => {
       expect(models.length).toBeGreaterThan(0);
       models.forEach(model => {
         expect(model.domain).toBe("voice-tts");
+      });
+    });
+
+    it("returns only fine-tune-training models", () => {
+      const models = getModelsByDomain("fine-tune-training");
+      expect(models.length).toBeGreaterThan(0);
+      models.forEach(model => {
+        expect(model.domain).toBe("fine-tune-training");
       });
     });
   });
@@ -234,6 +243,10 @@ describe("unifiedModelRegistry", () => {
       const domains = inferDomainFromPrompt("Generate voice narration");
       expect(domains).toContain("voice-tts");
     });
+    it("infers fine-tune-training from lora keywords", () => {
+      const domains = inferDomainFromPrompt("幫我訓練一個 portrait lora");
+      expect(domains).toContain("fine-tune-training");
+    });
 
     it("can infer multiple domains", () => {
       const domains = inferDomainFromPrompt("Generate a 4K quality 3D world scene");
@@ -242,7 +255,7 @@ describe("unifiedModelRegistry", () => {
 
     it("returns all domains when no keywords match", () => {
       const domains = inferDomainFromPrompt("xyz abc nonsemantic");
-      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "image-to-video", "audio-music", "voice-tts"]);
+      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "image-to-video", "audio-music", "voice-tts", "fine-tune-training"]);
     });
   });
 

@@ -3,7 +3,7 @@ import { FAL_MODEL_CATALOG } from "./falModels";
 export interface OrbModelDescriptor {
   modelId: string;
   label: string;
-  tier: "fast" | "standard" | "premium";
+  tier: "fast" | "standard" | "premium" | "ultra";
   description: string;
   category: string;
   intentTags: string[];
