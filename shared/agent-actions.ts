@@ -116,6 +116,34 @@ export interface ToggleSettingAction {
   value?: boolean;
 }
 
+/**
+ * 把目前聊天歷史匯出成 PDF（透過瀏覽器列印對話框 → 另存 PDF）。
+ * 由 GlobalOrbChatContext 在客戶端處理；不會被 dispatch 到任何頁面。
+ */
+export interface ExportChatPdfAction {
+  type: "exportChatPdf";
+  /** 匯出範圍。預設 "all"（最近 7 天 / 100 條訊息上限內全部）。 */
+  scope?: "all" | "today" | "this-week";
+  /** 自訂 PDF 標題。預設「光球聊天記錄」。 */
+  title?: string;
+}
+
+/**
+ * 用既有 process-spec encoder 把目標（例：上一個 pending workflow、目前聊天的
+ * 步驟摘要）打包成可分享的 `/process?spec=...` 連結，並複製到剪貼簿。
+ */
+export interface ShareViaLinkAction {
+  type: "shareViaLink";
+  /**
+   * 要分享什麼：
+   *  - "lastWorkflow"：最近一次的 pending / 已執行 workflow
+   *  - "currentChat"：目前聊天歷史摘要成一張流程清單
+   */
+  target: "lastWorkflow" | "currentChat";
+  /** 自訂分享標題。 */
+  title?: string;
+}
+
 /** 複合任務：光球可以一次描述多步驟計畫，前端依序執行 */
 export interface RunWorkflowAction {
   type: "runWorkflow";
@@ -203,7 +231,9 @@ export type AgentAction =
   | OpenDialogAction
   | SearchAction
   | ToggleSettingAction
-  | RunWorkflowAction;
+  | RunWorkflowAction
+  | ExportChatPdfAction
+  | ShareViaLinkAction;
 
 export type AgentActionType = AgentAction["type"];
 
@@ -499,6 +529,30 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
         value: typeof obj.value === "boolean" ? obj.value : undefined,
       };
     }
+    case "exportChatPdf":
+    case "exportPdf": {
+      const scope =
+        obj.scope === "today" || obj.scope === "this-week" || obj.scope === "all"
+          ? obj.scope
+          : undefined;
+      return {
+        type: "exportChatPdf",
+        ...(scope ? { scope } : {}),
+        ...(typeof obj.title === "string" && obj.title ? { title: obj.title } : {}),
+      };
+    }
+    case "shareViaLink":
+    case "share": {
+      const target =
+        obj.target === "lastWorkflow" || obj.target === "currentChat"
+          ? obj.target
+          : "lastWorkflow";
+      return {
+        type: "shareViaLink",
+        target,
+        ...(typeof obj.title === "string" && obj.title ? { title: obj.title } : {}),
+      };
+    }
     case "runWorkflow": {
       const name = obj.name ?? obj.payload;
       if (typeof name !== "string") return null;
@@ -652,6 +706,19 @@ export function summarizeAction(action: AgentAction): string {
       const stepCount = action.steps.length;
       return `想幫你執行「${action.name}」計畫（共 ${stepCount} 步）`;
     }
+    case "exportChatPdf": {
+      const scopeLabel =
+        action.scope === "today"
+          ? "今天"
+          : action.scope === "this-week"
+          ? "本週"
+          : "全部";
+      return `想幫你把${scopeLabel}的聊天記錄整理成 PDF`;
+    }
+    case "shareViaLink":
+      return action.target === "currentChat"
+        ? "想幫你把這段對話打包成可分享的流程連結"
+        : "想幫你把剛剛的工作流程打包成可分享連結";
   }
 }
 

@@ -42,12 +42,25 @@ import {
   buildProcessUrl,
   workflowActionToProcessSpec,
 } from "../../../shared/orb-process-link";
+import {
+  exportChatToPdf,
+  shareViaProcessLink,
+  type ChatMessageForExport,
+} from "@/lib/orbExportShare";
+import {
+  detectOrbSearchIntent,
+  formatUnifiedSearchReply,
+} from "../../../shared/orb-search-intent";
 import { appendProcessLinkToReply } from "../../../shared/orb-reply-process-extractor";
 import {
   buildContextualClarificationOptions,
+  buildMultiDimWizardClarification,
+  inferModalityFromText,
   isPhantomPlanReply,
   extractPhantomPlanQuestion,
+  serializeMultiDimAnswers,
   type ClarificationDimension,
+  type MultiDimWizardEntry,
 } from "../../../shared/orb-clarification-options";
 import type { RunWorkflowAction } from "../../../shared/agent-actions";
 import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
@@ -150,6 +163,12 @@ export interface PendingClarificationPrompt {
   dimension?: ClarificationDimension;
   originalUserText: string;
   createdAt: number;
+  /**
+   * When set, the card renders a multi-row picker (one row per dimension)
+   * with a "送出" button that batches every pick into a single follow-up
+   * message. The single-dim `options` field is ignored when this is present.
+   */
+  multiDim?: MultiDimWizardEntry[];
 }
 
 export interface PendingCodeTaskPreview {
@@ -538,20 +557,39 @@ function statusDot(status: WorkflowExecutionStepStatus): string {
   }
 }
 
+const DIMENSION_LABEL: Record<ClarificationDimension, string> = {
+  format: "形式",
+  duration: "長度",
+  style: "風格",
+  audience: "受眾",
+  subject: "主題",
+  platform: "投放",
+  usecase: "用途",
+  purpose: "目的",
+  open: "其他",
+};
+
 function ClarificationPromptCard({
   prompt,
   isBusy,
   onAnswer,
+  onMultiAnswer,
   onCancel,
 }: {
   prompt: PendingClarificationPrompt | null;
   isBusy: boolean;
   onAnswer: (text: string) => void;
+  onMultiAnswer: (
+    answers: Array<{ dimension: ClarificationDimension; value: string }>,
+    extraNote: string
+  ) => void;
   onCancel: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [picks, setPicks] = useState<Record<string, string>>({});
   useEffect(() => {
     setDraft("");
+    setPicks({});
   }, [prompt?.id]);
 
   if (!prompt) return null;
@@ -561,41 +599,123 @@ function ClarificationPromptCard({
     onAnswer(trimmed);
   };
 
+  const isMultiDim = Boolean(prompt.multiDim && prompt.multiDim.length > 0);
+  const multiAllAnswered = isMultiDim
+    ? (prompt.multiDim ?? []).every(entry => Boolean(picks[entry.dimension]))
+    : false;
+
+  const submitMulti = () => {
+    if (!prompt.multiDim) return;
+    const answers = prompt.multiDim
+      .map(entry => ({ dimension: entry.dimension, value: picks[entry.dimension] ?? "" }))
+      .filter(a => a.value.trim().length > 0);
+    if (answers.length === 0 && draft.trim().length === 0) return;
+    onMultiAnswer(answers, draft.trim());
+  };
+
   return (
     <div
       role="dialog"
       aria-label="光球需要先確認需求"
       data-testid="orb-clarification-card"
-      className="fixed bottom-24 right-5 z-[88] w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+      className={`fixed bottom-24 right-5 z-[88] ${
+        isMultiDim ? "w-[420px]" : "w-[380px]"
+      } max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl`}
     >
       <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
-        先確認一下
+        {isMultiDim ? "一次定方向" : "先確認一下"}
       </div>
-      <div data-testid="orb-clarification-question" className="mt-1 text-base font-semibold">{prompt.question}</div>
+      <div
+        data-testid="orb-clarification-question"
+        className="mt-1 text-base font-semibold"
+      >
+        {prompt.question}
+      </div>
       <div className="mt-2 text-xs text-white/60">
-        我需要先和你確認，避免做錯方向。可直接點下面意圖卡牌快選，或自己補充一句。
+        {isMultiDim
+          ? "每題挑一張卡片就好，全部選完按「送出」一次回給光球。"
+          : "我需要先和你確認，避免做錯方向。可直接點下面意圖卡牌快選，或自己補充一句。"}
       </div>
 
-      {prompt.options && prompt.options.length > 0 && (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {prompt.options.map(option => {
-            const emoji = inferClarificationOptionEmoji(option);
-            return (
-              <button
-                key={option}
-                type="button"
-                onClick={() => submit(option)}
-                disabled={isBusy}
-                className="group flex items-start gap-2 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-3 py-2.5 text-left transition hover:border-amber-200/50 hover:bg-amber-200/20 disabled:opacity-50"
-              >
-                <span className="text-base leading-none mt-0.5 shrink-0">{emoji}</span>
-                <span className="text-xs leading-snug text-amber-50 group-hover:text-amber-100">
-                  {option}
+      {isMultiDim && prompt.multiDim ? (
+        <div
+          className="mt-3 max-h-[50vh] overflow-y-auto pr-1 space-y-3"
+          data-testid="orb-clarification-multidim"
+        >
+          {prompt.multiDim.map(entry => (
+            <div
+              key={entry.dimension}
+              className="rounded-2xl border border-white/5 bg-white/5 p-3"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <span className="rounded-full bg-amber-200/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">
+                  {DIMENSION_LABEL[entry.dimension]}
                 </span>
-              </button>
-            );
-          })}
+                {picks[entry.dimension] ? (
+                  <span className="text-[11px] text-emerald-300">已選</span>
+                ) : (
+                  <span className="text-[11px] text-white/40">未選</span>
+                )}
+              </div>
+              <p className="mb-2 text-xs text-white/70 leading-snug">
+                {entry.question}
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {entry.options.map(option => {
+                  const isPicked = picks[entry.dimension] === option;
+                  const emoji = inferClarificationOptionEmoji(option);
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() =>
+                        setPicks(prev => ({
+                          ...prev,
+                          [entry.dimension]: isPicked ? "" : option,
+                        }))
+                      }
+                      disabled={isBusy}
+                      className={`group flex items-start gap-1.5 rounded-xl border px-2 py-2 text-left transition disabled:opacity-50 ${
+                        isPicked
+                          ? "border-amber-200/70 bg-amber-200/30"
+                          : "border-amber-200/15 bg-amber-200/5 hover:border-amber-200/40 hover:bg-amber-200/15"
+                      }`}
+                    >
+                      <span className="text-sm leading-none mt-0.5 shrink-0">
+                        {emoji}
+                      </span>
+                      <span className="text-[11px] leading-snug text-amber-50">
+                        {option}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
+      ) : (
+        prompt.options && prompt.options.length > 0 ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {prompt.options.map(option => {
+              const emoji = inferClarificationOptionEmoji(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => submit(option)}
+                  disabled={isBusy}
+                  className="group flex items-start gap-2 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-3 py-2.5 text-left transition hover:border-amber-200/50 hover:bg-amber-200/20 disabled:opacity-50"
+                >
+                  <span className="text-base leading-none mt-0.5 shrink-0">{emoji}</span>
+                  <span className="text-xs leading-snug text-amber-50 group-hover:text-amber-100">
+                    {option}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null
       )}
 
       <div className="mt-3 flex flex-col gap-2">
@@ -603,12 +723,17 @@ function ClarificationPromptCard({
           value={draft}
           onChange={event => setDraft(event.target.value)}
           rows={2}
-          placeholder="也可以自己用一句話說明..."
+          placeholder={
+            isMultiDim
+              ? "也可以再補一句話描述（選填）..."
+              : "也可以自己用一句話說明..."
+          }
           className="w-full rounded-2xl border border-white/10 bg-white/5 p-2 text-sm text-white placeholder:text-white/40 focus:border-amber-200/40 focus:outline-none"
           onKeyDown={event => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              submit(draft);
+              if (isMultiDim) submitMulti();
+              else submit(draft);
             }
           }}
           disabled={isBusy}
@@ -624,11 +749,16 @@ function ClarificationPromptCard({
           </button>
           <button
             type="button"
-            onClick={() => submit(draft)}
-            disabled={isBusy || draft.trim().length === 0}
+            onClick={() => (isMultiDim ? submitMulti() : submit(draft))}
+            disabled={
+              isBusy ||
+              (isMultiDim
+                ? !multiAllAnswered && draft.trim().length === 0
+                : draft.trim().length === 0)
+            }
             className="rounded-2xl bg-amber-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-200 disabled:opacity-50"
           >
-            傳給光球
+            {isMultiDim ? "送出全部" : "傳給光球"}
           </button>
         </div>
       </div>
@@ -955,6 +1085,14 @@ interface GlobalOrbChatContextValue {
   cancelPendingWorkflow: () => void;
   /** Submit the user's answer to the active clarification prompt. */
   answerClarification: (answer: string) => Promise<void>;
+  /**
+   * Submit batched answers to the active multi-dimension clarification card.
+   * `extraNote` is appended as an `open` clarification when non-empty.
+   */
+  answerMultiClarification: (
+    answers: Array<{ dimension: ClarificationDimension; value: string }>,
+    extraNote: string
+  ) => Promise<void>;
   /** Dismiss the clarification prompt without re-asking. */
   cancelClarification: () => void;
 }
@@ -1022,6 +1160,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   revisePendingWorkflow: () => {},
   cancelPendingWorkflow: () => {},
   answerClarification: async () => {},
+  answerMultiClarification: async () => {},
   cancelClarification: () => {},
 });
 
@@ -1071,7 +1210,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   );
   const orbExecutor = useGlobalOrbExecutor();
 
+  // ─── Meta-action handler ref (export PDF / share-via-link) ───────────
+  // The handler is created later (after `messages` + `setMessages` are in
+  // closure) but `executeActions` needs to reach it without re-binding the
+  // whole callback graph. We hold the latest impl in a ref and assign it
+  // below; refs are stable, so executeActions doesn't rebuild on each turn.
+  const runMetaActionRef = useRef<(action: AgentAction) => Promise<void>>(async () => {});
+
   const aiChat = trpc.ai.chat.useMutation();
+  const trpcUtils = trpc.useUtils();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
 
@@ -1160,15 +1307,125 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setWorkflowExecution(null);
   }, []);
 
+  // ─── Meta action implementation ─────────────────────────────────────
+  // Find the most recent runWorkflow action embedded in chat history; used
+  // by `shareViaLink` when target = "lastWorkflow". We scan from the newest
+  // message backward and prefer pending workflow if one is on screen.
+  const findLastWorkflow = useCallback((): RunWorkflowAction | null => {
+    if (pendingWorkflow) {
+      const action: RunWorkflowAction = {
+        type: "runWorkflow",
+        name: pendingWorkflow.name,
+        steps: pendingWorkflow.actions
+          .filter((a): a is RunWorkflowAction => a.type === "runWorkflow")
+          .flatMap(a => a.steps),
+      };
+      if (action.steps.length > 0) return action;
+    }
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const acts = messages[i]?.actions;
+      if (!acts) continue;
+      for (let j = acts.length - 1; j >= 0; j -= 1) {
+        const a = acts[j];
+        if (a.type === "runWorkflow" && a.steps.length > 0) return a;
+      }
+    }
+    return null;
+  }, [messages, pendingWorkflow]);
+
+  const messagesForExport = useMemo<ChatMessageForExport[]>(
+    () =>
+      messages.map(m => ({
+        role: m.role,
+        text: m.text,
+        at: m.at,
+        intent: m.intent,
+        pagePath: m.pagePath,
+      })),
+    [messages]
+  );
+
+  useEffect(() => {
+    runMetaActionRef.current = async (action: AgentAction) => {
+      if (action.type === "exportChatPdf") {
+        const result = exportChatToPdf({
+          messages: messagesForExport,
+          scope: action.scope,
+          title: action.title,
+        });
+        const text = result.ok
+          ? `📄 已開啟列印視窗，請在跳出來的對話框選「另存為 PDF」即可下載 ${result.count} 則訊息。`
+          : result.reason === "no-messages-in-scope"
+            ? "📄 這個範圍內還沒有訊息可以匯出。"
+            : result.reason === "popup-blocked"
+              ? "📄 瀏覽器擋下了新分頁，請在網址列附近允許彈出視窗後再試一次。"
+              : `📄 匯出時遇到問題：${result.reason ?? "unknown"}`;
+        setMessages(prev => [
+          ...prev,
+          { role: "orb", text, at: Date.now(), pagePath: locationPath },
+        ]);
+        return;
+      }
+      if (action.type === "shareViaLink") {
+        const result = await shareViaProcessLink({
+          target: action.target,
+          workflow: action.target === "lastWorkflow" ? findLastWorkflow() : null,
+          chatMessages: action.target === "currentChat" ? messagesForExport : undefined,
+          title: action.title,
+        });
+        let text: string;
+        if (!result.ok) {
+          text =
+            result.reason === "no-workflow-to-share"
+              ? "🔗 還沒有可分享的工作流程，先讓我跑過一次再分享吧。"
+              : result.reason === "no-chat-history-to-share"
+                ? "🔗 目前還沒有聊天內容可以打包成連結。"
+                : `🔗 產生分享連結時遇到問題：${result.reason ?? "unknown"}`;
+        } else {
+          const copyHint = result.copied
+            ? "已複製到剪貼簿"
+            : "請手動複製這個連結";
+          text =
+            `🔗 已把${
+              action.target === "currentChat" ? "這段對話" : "剛剛的工作流程"
+            }打包成可分享連結（共 ${result.stepCount ?? 0} 步），${copyHint}：\n${result.url ?? ""}`;
+        }
+        setMessages(prev => [
+          ...prev,
+          { role: "orb", text, at: Date.now(), pagePath: locationPath },
+        ]);
+      }
+    };
+  }, [messagesForExport, findLastWorkflow, locationPath]);
+
   const executeActions = useCallback(async (actionsToExecute: AgentAction[], options: {
     intent?: string;
     requireConfirmation?: boolean;
   } = {}) => {
-    const nextWorkflowExecution = buildWorkflowExecutionState(actionsToExecute);
+    // ─── Client-only meta actions ────────────────────────────────────────
+    // exportChatPdf / shareViaLink never reach the orchestrator — they run
+    // entirely in the browser and produce a system reply directly. We pull
+    // them out of the list first so the orchestrator only sees real actions.
+    const metaActions = actionsToExecute.filter(
+      a => a.type === "exportChatPdf" || a.type === "shareViaLink"
+    );
+    const orchestratorActions = actionsToExecute.filter(
+      a => a.type !== "exportChatPdf" && a.type !== "shareViaLink"
+    );
+
+    if (metaActions.length > 0) {
+      for (const meta of metaActions) {
+        await runMetaActionRef.current?.(meta);
+      }
+    }
+
+    if (orchestratorActions.length === 0) return;
+
+    const nextWorkflowExecution = buildWorkflowExecutionState(orchestratorActions);
     if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
     try {
-      const results = await executeGlobalActions(actionsToExecute, {
+      const results = await executeGlobalActions(orchestratorActions, {
         currentPage: pageAgent.snapshot,
         navigate: async path => {
           if (path !== locationPath) setLocation(path);
@@ -1242,7 +1499,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         }]);
         pageAgent.reportFeedback({
           status: "failed",
-          actionType: actionsToExecute[results.indexOf(failed)]?.type ?? "runWorkflow",
+          actionType: orchestratorActions[results.indexOf(failed)]?.type ?? "runWorkflow",
           note: failedReason,
         });
       } else if (nextWorkflowExecution) {
@@ -1292,6 +1549,41 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setInput("");
     setSuggestions([]);
     setIsSending(true);
+
+    // ─── Site-wide search shortcut ───────────────────────────────────────
+    // "找我之前的森林圖" / "搜尋 calm BGM" / "翻一下我的筆記提到禪意"
+    // 不走 LLM — 直接打 orbProxy.unifiedSearch 然後把結果 markdown 化。
+    // 只在 default mode 攔截，不影響使用者明確選了「跳頁／計畫／代理」模式。
+    if (!requestedMode) {
+      const searchIntent = detectOrbSearchIntent(trimmed);
+      if (searchIntent) {
+        try {
+          const result = await trpcUtils.orbProxy.unifiedSearch.fetch({
+            query: searchIntent.query,
+            ...(searchIntent.types ? { types: searchIntent.types } : {}),
+          });
+          const reply = formatUnifiedSearchReply(searchIntent.query, result.items);
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: reply,
+            at: Date.now(),
+            pagePath: locationPath,
+            intent: `站內搜尋「${searchIntent.query}」`,
+          }]);
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: `🔍 搜尋時遇到問題：${reason}`,
+            at: Date.now(),
+            pagePath: locationPath,
+          }]);
+        } finally {
+          setIsSending(false);
+        }
+        return;
+      }
+    }
 
     // ─── Mode shortcuts: hard-coded behavior so the user sees the prompt
     //     they typed instead of an LLM-rewritten reply, and we don't burn a
@@ -1501,22 +1793,48 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         ? detectChatIntent(trimmed, rememberedPreferences)
         : { kind: "none" } as const;
       if (intentDetection.kind === "needs-clarification") {
+        // When the user's brief is severely under-specified (3+ high-signal
+        // dimensions missing), upgrade to a multi-dimension card so they
+        // pin everything down in one round-trip instead of bouncing through
+        // four single-dim wizard turns.
+        const detectedModality = inferModalityFromText(trimmed);
+        const multi = buildMultiDimWizardClarification(trimmed, detectedModality);
         const question = intentDetection.message;
-        const replyForUser = dataReply ? `${dataReply}\n\n🎬 ${question}` : `🎬 ${question}`;
-        setMessages(prev => [...prev, {
-          role: "orb",
-          text: replyForUser,
-          at: Date.now(),
-          pagePath: locationPath,
-        }]);
-        setPendingClarification({
-          id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          question,
-          options: intentDetection.options,
-          dimension: "format",
-          originalUserText: trimmed,
-          createdAt: Date.now(),
-        });
+
+        if (multi) {
+          const replyForUser = dataReply
+            ? `${dataReply}\n\n🎬 ${multi.leadIn}`
+            : `🎬 ${multi.leadIn}`;
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: replyForUser,
+            at: Date.now(),
+            pagePath: locationPath,
+          }]);
+          setPendingClarification({
+            id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            question: multi.leadIn,
+            originalUserText: trimmed,
+            createdAt: Date.now(),
+            multiDim: multi.entries,
+          });
+        } else {
+          const replyForUser = dataReply ? `${dataReply}\n\n🎬 ${question}` : `🎬 ${question}`;
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: replyForUser,
+            at: Date.now(),
+            pagePath: locationPath,
+          }]);
+          setPendingClarification({
+            id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            question,
+            options: intentDetection.options,
+            dimension: "format",
+            originalUserText: trimmed,
+            createdAt: Date.now(),
+          });
+        }
         const rawSuggestionsClarify = (data as { suggestions?: string[] }).suggestions ?? [];
         setSuggestions(rawSuggestionsClarify.slice(0, 4).map(s => ({ text: s })));
         return;
@@ -1905,6 +2223,30 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     await sendMessage(composedUserText);
   }, [pendingClarification, sendMessage]);
 
+  const answerMultiClarification = useCallback(
+    async (
+      answers: Array<{ dimension: ClarificationDimension; value: string }>,
+      extraNote: string
+    ) => {
+      const active = pendingClarification;
+      if (!active) return;
+      const cleaned = answers.filter(a => a.value.trim().length > 0);
+      if (cleaned.length === 0 && extraNote.trim().length === 0) return;
+      setPendingClarification(null);
+      const serialized = serializeMultiDimAnswers(cleaned);
+      const noteLine = extraNote.trim().length > 0
+        ? `[使用者澄清/open]: ${extraNote.trim()}`
+        : "";
+      const tail = [serialized, noteLine].filter(Boolean).join("\n");
+      const composed =
+        active.originalUserText.length > 0
+          ? `${active.originalUserText}\n\n${tail}`
+          : tail;
+      await sendMessage(composed);
+    },
+    [pendingClarification, sendMessage]
+  );
+
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen(prev => !prev), []);
@@ -1949,8 +2291,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     revisePendingWorkflow,
     cancelPendingWorkflow,
     answerClarification,
+    answerMultiClarification,
     cancelClarification,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, cancelClarification]);
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
@@ -1991,6 +2334,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         prompt={pendingClarification}
         isBusy={isSending}
         onAnswer={text => void answerClarification(text)}
+        onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
         onCancel={cancelClarification}
       />
       {latestServerTaskId && (
