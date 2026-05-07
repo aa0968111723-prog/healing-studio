@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "./_router";
+import { router, protectedProcedure } from "../_core/trpc";
 import { AgentCollaborationOrchestrator } from "../services/agentCollaborationOrchestrator";
 import { AgentCommunicationBus } from "../services/agentCommunicationBus";
 import { TRPCError } from "@trpc/server";
