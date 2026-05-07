@@ -83,6 +83,7 @@ import {
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import ChatMessageText from "./ChatMessageText";
 import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
+import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -2788,6 +2789,13 @@ export default memo(function ProactiveOrbWidget({
                                       ))}
                                     </div>
                                   ) : null}
+                                  {msg.searchResults?.length ? (
+                                    <OrbSearchResultsCard
+                                      query={msg.searchQuery}
+                                      items={msg.searchResults}
+                                      compact
+                                    />
+                                  ) : null}
                                 </div>
                                 {msg.pagePath && msg.at && (
                                   <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
@@ -3277,6 +3285,13 @@ export default memo(function ProactiveOrbWidget({
                                     </a>
                                   ))}
                                 </div>
+                              ) : null}
+                              {msg.searchResults?.length ? (
+                                <OrbSearchResultsCard
+                                  query={msg.searchQuery}
+                                  items={msg.searchResults}
+                                  compact
+                                />
                               ) : null}
                             </div>
                             {msg.pagePath && msg.at && (

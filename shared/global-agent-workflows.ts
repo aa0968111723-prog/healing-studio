@@ -17,6 +17,7 @@ import type {
 } from "./agent-actions";
 import { APP_PAGE_REGISTRY } from "./appRegistry";
 import { buildWizardClarification } from "./orb-clarification-options";
+import { rememberedDimensionCoverage } from "./orb-clarification-memory";
 
 export interface ExpandedWorkflowStep {
   path?: string;
@@ -1034,7 +1035,11 @@ export function detectVideoIntent(
   // missing one (length → subject → style → platform) and returns null when
   // we have enough to commit. This keeps the orb from generating an 8-step
   // workflow on the first turn with placeholder text in every prompt slot.
-  const wizard = buildWizardClarification(trimmed, "video");
+  const wizard = buildWizardClarification(
+    trimmed,
+    "video",
+    rememberedDimensionCoverage(preferences)
+  );
   if (wizard) {
     return {
       kind: "needs-clarification",

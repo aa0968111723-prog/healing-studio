@@ -51,6 +51,7 @@ import {
   detectOrbSearchIntent,
   formatUnifiedSearchReply,
 } from "../../../shared/orb-search-intent";
+import { rememberedDimensionCoverage } from "../../../shared/orb-clarification-memory";
 import { appendProcessLinkToReply } from "../../../shared/orb-reply-process-extractor";
 import {
   buildContextualClarificationOptions,
@@ -91,6 +92,22 @@ export interface ChatWebSource {
   source?: string;
 }
 
+/**
+ * Structured site-wide search results attached to a chat message. When set,
+ * a renderer that supports rich cards should display these instead of (or in
+ * addition to) the message's prose body.
+ */
+export interface ChatSearchResultItem {
+  kind: "asset" | "note" | "history" | "tutorial";
+  id: string;
+  title: string;
+  snippet: string;
+  path: string;
+  badge?: string;
+  at?: number;
+  score?: number;
+}
+
 export interface ChatMessage {
   role: ChatRole;
   text: string;
@@ -101,6 +118,13 @@ export interface ChatMessage {
   actions?: AgentAction[];
   /** Web sources cited by the orb (Brave / GitHub) for research-style answers. */
   webSources?: ChatWebSource[];
+  /**
+   * Site-wide search results returned for "找 / 搜尋 / 翻一下" queries.
+   * Renderers may show these as kind-tagged cards beneath the message body.
+   */
+  searchResults?: ChatSearchResultItem[];
+  /** Search query the results were drawn from (used for header + analytics). */
+  searchQuery?: string;
 }
 
 export interface ChatSuggestion {
@@ -1219,6 +1243,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
   const aiChat = trpc.ai.chat.useMutation();
   const trpcUtils = trpc.useUtils();
+  const persistClarificationPicks =
+    trpc.orbProxy.persistClarificationPicks.useMutation();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
 
@@ -1562,13 +1588,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             query: searchIntent.query,
             ...(searchIntent.types ? { types: searchIntent.types } : {}),
           });
-          const reply = formatUnifiedSearchReply(searchIntent.query, result.items);
+          const headerText =
+            result.items.length === 0
+              ? `🔍 全站翻找「${searchIntent.query}」沒有命中——可以試試把關鍵字改寬一點，或告訴我要找哪一類（素材／筆記／生成記錄／教學）。`
+              : `🔍 為「${searchIntent.query}」找到 ${result.items.length} 筆結果：`;
+          const fallbackText =
+            result.items.length > 0
+              ? `${headerText}\n\n${formatUnifiedSearchReply(searchIntent.query, result.items)}`
+              : headerText;
           setMessages(prev => [...prev, {
             role: "orb",
-            text: reply,
+            text: fallbackText,
             at: Date.now(),
             pagePath: locationPath,
             intent: `站內搜尋「${searchIntent.query}」`,
+            searchResults: result.items.length > 0 ? result.items : undefined,
+            searchQuery: searchIntent.query,
           }]);
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
@@ -1798,7 +1833,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         // pin everything down in one round-trip instead of bouncing through
         // four single-dim wizard turns.
         const detectedModality = inferModalityFromText(trimmed);
-        const multi = buildMultiDimWizardClarification(trimmed, detectedModality);
+        const rememberedCoverage = rememberedDimensionCoverage(rememberedPreferences);
+        const multi = buildMultiDimWizardClarification(
+          trimmed,
+          detectedModality,
+          rememberedCoverage
+        );
         const question = intentDetection.message;
 
         if (multi) {
@@ -2233,6 +2273,29 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const cleaned = answers.filter(a => a.value.trim().length > 0);
       if (cleaned.length === 0 && extraNote.trim().length === 0) return;
       setPendingClarification(null);
+
+      // Fire-and-forget: persist durable picks (style / platform / purpose)
+      // to the orb-memory store so the planner can skip these dimensions
+      // on future requests. Failure here must NOT block the user's reply —
+      // worst case the next turn re-asks, which is the existing behavior.
+      if (cleaned.length > 0) {
+        try {
+          persistClarificationPicks.mutate(
+            {
+              picks: cleaned,
+              traceId: active.id,
+            },
+            {
+              onError: () => {
+                // intentionally silent — user shouldn't see a memory write fail
+              },
+            }
+          );
+        } catch {
+          // mutate is sync-throw safe but guard belt-and-braces
+        }
+      }
+
       const serialized = serializeMultiDimAnswers(cleaned);
       const noteLine = extraNote.trim().length > 0
         ? `[使用者澄清/open]: ${extraNote.trim()}`
@@ -2244,7 +2307,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           : tail;
       await sendMessage(composed);
     },
-    [pendingClarification, sendMessage]
+    [pendingClarification, sendMessage, persistClarificationPicks]
   );
 
   const open = useCallback(() => setIsOpen(true), []);

@@ -12,10 +12,59 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { orbUnifiedSearch } from "../services/orbUnifiedSearch";
+import { recordOrbMemory } from "../services/orbMemory";
+import {
+  buildClarificationPickMemory,
+  CLARIFICATION_DIMENSION_SCHEMA,
+} from "../../shared/orb-clarification-memory";
 
 const SEARCH_KIND_SCHEMA = z.enum(["asset", "note", "history", "tutorial"]);
 
 export const orbProxyRouter = router({
+  /**
+   * Persist a batch of multi-dimension wizard picks as a `user_preference`
+   * memory so future turns can skip re-asking the same dimensions. Uses the
+   * existing `aggregatePreferenceProfile` aggregation path — we only have to
+   * feed it metadata + tags in the shape it already understands.
+   */
+  persistClarificationPicks: protectedProcedure
+    .input(
+      z.object({
+        picks: z.array(
+          z.object({
+            dimension: CLARIFICATION_DIMENSION_SCHEMA,
+            value: z.string().min(1).max(160),
+          })
+        ).min(1).max(8),
+        traceId: z.string().min(1).max(120).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const draft = buildClarificationPickMemory(input.picks);
+      if (!draft) {
+        return { ok: false, reason: "no-durable-picks", recorded: 0 };
+      }
+      const memory = recordOrbMemory({
+        userId: ctx.user.id,
+        traceId: input.traceId ?? `clarify_${Date.now()}`,
+        type: "user_preference",
+        summary: draft.summary,
+        source: "orb-multi-dim-clarification",
+        confidence: 0.85,
+        tags: draft.tags,
+        metadata: draft.metadata,
+      });
+      if (!memory) {
+        return { ok: false, reason: "memory-disabled-or-redacted", recorded: 0 };
+      }
+      return {
+        ok: true,
+        memoryId: memory.memoryId,
+        recorded: Object.keys(draft.metadata).length,
+        captured: draft.metadata,
+      };
+    }),
+
   unifiedSearch: protectedProcedure
     .input(
       z.object({
