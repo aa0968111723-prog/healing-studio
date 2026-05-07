@@ -43,6 +43,7 @@ import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
 import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { adminRouter } from "./routers/adminRouter";
+import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -60,6 +61,8 @@ import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
 import { runSchemaFirstAgentPlanner, type AgentPlannerInput } from "./services/agentPlanner";
 import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
+import { runOrbTaskWithOptionalMultiAgent, isMultiAgentRoutingEnabled } from "./services/multiAgentIntegration";
+import { getOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
 import { orbTaskTracer } from "./services/orbTaskTracer";
@@ -311,15 +314,56 @@ async function driveOrbTaskInBackground(input: {
       }
     };
 
-    // Agent loop v1 + v2 — when ORB_OBSERVATION_LOOP=1 the chain runner
-    // wraps the orchestrator with post-mortem observation AND bounded
-    // continuation: if the observer says "continue", the planner is
-    // re-invoked with the original conversation + an execution recap and
-    // a fresh task is materialised + driven. Capped at 2 iterations
-    // (1 replan max). Off by default — preserves the legacy single-shot
-    // path so behaviour and cost don't change for production until
-    // explicitly opted in.
-    if (process.env.ORB_OBSERVATION_LOOP === "1") {
+    // ─── Multi-agent routing path (NEW) ────────────────────────────────
+    // When ORB_MULTI_AGENT_ENABLED=1, detect task complexity and route to
+    // multi-agent collaboration if needed. Falls back gracefully to
+    // single-agent on failure or if task is simple.
+    const plannerContext = getOrbTaskPlannerContext(input.taskId);
+
+    if (isMultiAgentRoutingEnabled() && plannerContext) {
+      // Extract user message from conversation
+      const userMessage = plannerContext.messages
+        .filter(m => m.role === "user")
+        .map(m => m.content)
+        .join(" ");
+
+      const task = getOrbAgentTask(input.taskId);
+
+      const multiAgentResult = await runOrbTaskWithOptionalMultiAgent({
+        initialTaskId: input.taskId,
+        userId: input.userId,
+        userRole: input.userRole,
+        tools,
+        agentPreferences,
+        userMessage,
+        pageSnapshot: plannerContext.pageSnapshot,
+        primaryRole: task?.assignedRole,
+        sessionId: `session_${Date.now()}_${input.userId}`,
+        onToolAuditEvent,
+      });
+
+      if (multiAgentResult.mode === "multi-agent-collaboration") {
+        console.log(
+          `[Orb] multi-agent collaboration completed: taskId=${input.taskId} collaborationId=${multiAgentResult.collaborationSession?.collaborationId}`
+        );
+      } else if (multiAgentResult.chainResult) {
+        const last = multiAgentResult.chainResult.iterations[multiAgentResult.chainResult.iterations.length - 1];
+        if (last?.runResult.outcome === "failed") {
+          console.warn(
+            `[Orb] single-agent fallback finished with failure: taskId=${input.taskId} reason=${multiAgentResult.detectionResult.reason}`
+          );
+        }
+      }
+    }
+    // ─── Agent loop v1 + v2 (continuation loop) ────────────────────────
+    // When ORB_OBSERVATION_LOOP=1 the chain runner wraps the orchestrator
+    // with post-mortem observation AND bounded continuation: if the
+    // observer says "continue", the planner is re-invoked with the
+    // original conversation + an execution recap and a fresh task is
+    // materialised + driven. Capped at 2 iterations (1 replan max).
+    // Off by default — preserves the legacy single-shot path so behaviour
+    // and cost don't change for production until explicitly opted in.
+    else if (process.env.ORB_OBSERVATION_LOOP === "1") {
       const chain = await runOrbTaskWithContinuationLoop({
         initialTaskId: input.taskId,
         userId: input.userId,
@@ -977,6 +1021,7 @@ export const appRouter = router({
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
   orbCapabilities: orbCapabilitiesRouter,
+  agentCollaboration: agentCollaborationRouter,
   adminEval: adminRouter,
 
   // ─── Orb Agent Observability ─────────────────────────────────────────────

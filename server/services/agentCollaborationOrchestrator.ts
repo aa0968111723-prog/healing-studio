@@ -28,6 +28,18 @@ import {
 } from "../../shared/orb-specialized-agents";
 import { AgentCommunicationBus } from "./agentCommunicationBus";
 import { logger } from "../_core/logger";
+import { db } from "../db";
+import {
+  agentCollaborationSessions,
+  agentCollaborationSteps,
+  agentCollaborationMessages,
+  agentCollaborationHandoffs,
+  agentPerformanceMetrics,
+  type InsertAgentCollaborationSession,
+  type InsertAgentCollaborationMessage,
+  type InsertAgentCollaborationHandoff,
+} from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 
 /** Active collaboration session */
 interface CollaborationSession {
@@ -162,9 +174,9 @@ class AgentCollaborationOrchestratorClass {
   /**
    * Start a collaboration session
    */
-  startCollaboration(
+  async startCollaboration(
     request: AgentCollaborationRequest
-  ): CollaborationSession {
+  ): Promise<CollaborationSession> {
     const collaborationId = request.context.collaborationId || generateCollaborationId();
     const session: CollaborationSession = {
       collaborationId,
@@ -190,6 +202,39 @@ class AgentCollaborationOrchestratorClass {
       taskDescription: request.task,
       requestingAgent: request.requestingAgent,
     });
+
+    // ─── Persist to database ────────────────────────────────────────────
+    try {
+      const dbSession: InsertAgentCollaborationSession = {
+        collaborationId,
+        userId: session.userId || 0,
+        sessionId: session.sessionId,
+        taskDescription: session.taskDescription,
+        status: session.status,
+        initiatingAgent: request.requestingAgent,
+        currentAgent: session.currentAgent,
+        participatingAgents: session.participatingAgents,
+        requiredCapabilities: request.requiredCapabilities || [],
+        sharedContext: session.sharedContext as Record<string, unknown>,
+        result: undefined,
+        startedAt: session.startedAt,
+        completedAt: undefined,
+      };
+
+      await db.insert(agentCollaborationSessions).values(dbSession);
+
+      logger.debug({
+        event: "collaboration_persisted",
+        collaborationId,
+      });
+    } catch (error) {
+      logger.error({
+        event: "collaboration_persist_failed",
+        collaborationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue even if persistence fails - in-memory session is still valid
+    }
 
     return session;
   }
@@ -299,15 +344,51 @@ class AgentCollaborationOrchestratorClass {
       toAgent: handoff.toAgent,
       reason: handoff.reason,
     });
+
+    // ─── Persist handoff to database ────────────────────────────────────
+    try {
+      const dbHandoff: InsertAgentCollaborationHandoff = {
+        handoffId: `handoff_${session.collaborationId}_${Date.now()}`,
+        collaborationId: session.collaborationId,
+        fromAgent: handoff.fromAgent,
+        toAgent: handoff.toAgent,
+        handoffReason: handoff.reason,
+        contextTransferred: handoff.context as Record<string, unknown>,
+        timestamp: Date.now(),
+      };
+
+      await db.insert(agentCollaborationHandoffs).values(dbHandoff);
+
+      // Update session in database
+      await db
+        .update(agentCollaborationSessions)
+        .set({
+          currentAgent: session.currentAgent,
+          participatingAgents: session.participatingAgents,
+          sharedContext: session.sharedContext as Record<string, unknown>,
+        })
+        .where(eq(agentCollaborationSessions.collaborationId, session.collaborationId));
+
+      logger.debug({
+        event: "handoff_persisted",
+        collaborationId: session.collaborationId,
+      });
+    } catch (error) {
+      logger.error({
+        event: "handoff_persist_failed",
+        collaborationId: session.collaborationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**
    * Complete a collaboration session
    */
-  completeCollaboration(
+  async completeCollaboration(
     collaborationId: string,
     result: AgentCollaborationResult
-  ): void {
+  ): Promise<void> {
     const session = this.activeSessions.get(collaborationId);
     if (!session) {
       logger.warn({
@@ -328,6 +409,29 @@ class AgentCollaborationOrchestratorClass {
       participatingAgents: session.participatingAgents,
       completedBy: result.completedBy,
     });
+
+    // ─── Persist completion to database ─────────────────────────────────
+    try {
+      await db
+        .update(agentCollaborationSessions)
+        .set({
+          status: session.status,
+          result: result as unknown as Record<string, unknown>,
+          completedAt: Date.now(),
+        })
+        .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
+
+      logger.debug({
+        event: "collaboration_completion_persisted",
+        collaborationId,
+      });
+    } catch (error) {
+      logger.error({
+        event: "collaboration_completion_persist_failed",
+        collaborationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     // Keep session for a while for history, then clean up
     setTimeout(() => {
@@ -354,7 +458,7 @@ class AgentCollaborationOrchestratorClass {
   /**
    * Cancel a collaboration session
    */
-  cancelCollaboration(collaborationId: string, reason: string): void {
+  async cancelCollaboration(collaborationId: string, reason: string): Promise<void> {
     const session = this.activeSessions.get(collaborationId);
     if (session) {
       session.status = "cancelled";
@@ -363,6 +467,28 @@ class AgentCollaborationOrchestratorClass {
         collaborationId,
         reason,
       });
+
+      // ─── Persist cancellation to database ───────────────────────────────
+      try {
+        await db
+          .update(agentCollaborationSessions)
+          .set({
+            status: "cancelled",
+            completedAt: Date.now(),
+          })
+          .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
+
+        logger.debug({
+          event: "collaboration_cancellation_persisted",
+          collaborationId,
+        });
+      } catch (error) {
+        logger.error({
+          event: "collaboration_cancellation_persist_failed",
+          collaborationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
