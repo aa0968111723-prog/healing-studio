@@ -25,6 +25,18 @@ import {
 } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 import { serverEnv } from "../_core/env.validated";
+import {
+  summarizeByCategory,
+  summarizeByEndpoint,
+  summarizeByUser,
+  summarizeByStatus,
+  latencyStats,
+  hourlyHeatmap,
+  calculateWasteCost,
+  projectMonthlyCost,
+  compareCatalogVsActual,
+  type UsageEventLike,
+} from "../services/costAnalytics";
 
 // ─── Shared Zod Schemas ──────────────────────────────────────────────────────
 
@@ -414,6 +426,103 @@ export const apiUsageRouter = router({
           totalUnits: Number(r.totalUnits),
           totalCostUsd: Number(r.totalCostUsd),
         })),
+      };
+    }),
+
+  // ── Deep Cost Analytics（深度成本分析）─────────────────────────────────────
+  // 為 admin 後台的「深度成本」面板提供進階拆解：
+  //   • 模態（LLM / TTS / 圖片 / 影片 / 訓練 …）
+  //   • Top-N 端點 / 使用者
+  //   • 狀態（success / failed / timeout / rate_limited）
+  //   • 延遲統計（p50 / p95 / p99）
+  //   • 7×24 熱力圖
+  //   • 浪費於失敗呼叫的金額
+  //   • 月底成本投影（線性外推）
+  //   • Catalog 預估 vs 實際扣費差異
+  deepCost: adminProcedure
+    .input(
+      z
+        .object({
+          provider: providerEnum.optional(),
+          startDate: dateStr.optional(),
+          endDate: dateStr.optional(),
+          topN: z.number().int().min(1).max(100).default(20),
+        })
+        .optional()
+    )
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const now = new Date();
+
+      // 預設視窗：當月迄今
+      const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const start = input?.startDate ? new Date(input.startDate) : defaultStart;
+      const end = input?.endDate ? new Date(input.endDate) : now;
+      // 結束日含當天
+      if (input?.endDate) end.setDate(end.getDate() + 1);
+
+      const conditions = [
+        gte(aiUsageEvents.createdAt, start),
+        lte(aiUsageEvents.createdAt, end),
+      ];
+      if (input?.provider) conditions.push(eq(aiUsageEvents.provider, input.provider));
+
+      const whereClause = and(...conditions);
+
+      // 限制掃描量級：最多 50,000 筆事件，避免 admin dashboard 拖垮 DB
+      const rows = await db
+        .select({
+          provider: aiUsageEvents.provider,
+          endpoint: aiUsageEvents.endpoint,
+          status: aiUsageEvents.status,
+          costUsd: aiUsageEvents.costUsd,
+          latencyMs: aiUsageEvents.latencyMs,
+          userId: aiUsageEvents.userId,
+          createdAt: aiUsageEvents.createdAt,
+        })
+        .from(aiUsageEvents)
+        .where(whereClause)
+        .orderBy(desc(aiUsageEvents.createdAt))
+        .limit(50_000);
+
+      const events: UsageEventLike[] = rows.map(r => ({
+        provider: r.provider,
+        endpoint: r.endpoint,
+        status: r.status,
+        costUsd: Number(r.costUsd ?? 0),
+        latencyMs: r.latencyMs ?? null,
+        userId: r.userId ?? null,
+        createdAt: r.createdAt,
+      }));
+
+      // 月底投影：以「當月 cost_aggregations 的累積金額」做為 MTD
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const [mtdRow] = await db
+        .select({
+          totalCost: sql<number>`COALESCE(SUM(${costAggregations.totalCostUsd}), 0)`,
+        })
+        .from(costAggregations)
+        .where(gte(costAggregations.date, monthStart));
+
+      const totalCost = events.reduce((s, e) => s + (Number(e.costUsd) || 0), 0);
+
+      return {
+        window: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          eventCount: events.length,
+          totalCostUsd: Math.round(totalCost * 1_000_000) / 1_000_000,
+          truncated: events.length >= 50_000,
+        },
+        byCategory: summarizeByCategory(events),
+        byStatus: summarizeByStatus(events),
+        topEndpoints: summarizeByEndpoint(events, input?.topN ?? 20),
+        topUsers: summarizeByUser(events, input?.topN ?? 20),
+        latency: latencyStats(events),
+        heatmap: hourlyHeatmap(events),
+        waste: calculateWasteCost(events),
+        projection: projectMonthlyCost(Number(mtdRow?.totalCost ?? 0), now),
+        catalogVsActual: compareCatalogVsActual(events).slice(0, input?.topN ?? 20),
       };
     }),
 
