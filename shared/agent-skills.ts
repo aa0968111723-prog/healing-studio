@@ -188,12 +188,12 @@ const SPECIALIST_PAGE_MAP: Record<string, { pages: string[]; modality: SkillModa
     modality: "voice",
   },
   "training-specialist": {
-    // /models is the canonical surface — ModelsPage renders both the model
-    // browser AND inlines LoraTrainer for new training jobs. /lora-trainer
-    // is a legacy redirect that resolves to /models, kept as an alias so
-    // explicit links still work. /studio is acceptable when the user wants
-    // to APPLY a trained LoRA rather than train one.
-    pages: ["/models", "/lora-trainer", "/studio"],
+    // ModelsPage renders both 角色鍛造所 (forge) and 模型訓練中心 (trainer)
+    // sub-tabs. The canonical training surface is /models?tab=trainer (which
+    // matches the lora-trainer registry entry); /models alone lands on the
+    // forge. /studio is acceptable when the user wants to APPLY a trained
+    // LoRA rather than train a new one.
+    pages: ["/models?tab=trainer", "/models", "/studio"],
     modality: "model",
   },
   "learning-specialist": {
