@@ -1032,7 +1032,16 @@ async function discussPlanningPhase(
     emotionalBeats?: ScriptPlanningSession["emotionalBeats"];
   },
   userId?: number
-): Promise<{ reply: string; phaseSummary?: string; proactiveQuestion?: string }> {
+): Promise<{
+  reply: string;
+  phaseSummary?: string;
+  proactiveQuestion?: string;
+  intentCard?: {
+    intent: string;
+    whyAsk: string;
+    options: string[];
+  };
+}> {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
   const phaseConfig = PLANNING_PHASE_PROMPTS[phase];
@@ -1132,7 +1141,12 @@ ${persona.proactiveHint}${memorySection}
 6. 回覆末尾如果有適合生成的摘要結構（如核心概念、大綱等），用 \`\`\`json 包裹
 7. 回覆最後一行**必須**獨立輸出一個反問句，格式為 \`[反問] <你的引導性問題>\`，
    問題必須針對當前階段缺少的、使用者可深入補充的元素（例如缺少的角色動機、
-   情感轉折、視覺意象等），用繁體中文且具體可回答`,
+   情感轉折、視覺意象等），用繁體中文且具體可回答
+8. 回覆末尾另外獨立輸出一行意圖卡，格式：
+   \`[意圖卡] {"intent":"...","whyAsk":"...","options":["選項1","選項2","選項3"]}\`
+   - intent：你理解的使用者當前核心意圖（20字內）
+   - whyAsk：為什麼現在要先問這個問題（35字內）
+   - options：提供 2-3 個可直接回覆的方向（短句）`,
         },
         {
           role: "user",
@@ -1149,11 +1163,43 @@ ${persona.proactiveHint}${memorySection}
 
   // 抽出 [反問] 行，作為結構化 proactiveQuestion；同時從 reply 主體中移除
   let proactiveQuestion: string | undefined;
+  let intentCard:
+    | {
+        intent: string;
+        whyAsk: string;
+        options: string[];
+      }
+    | undefined;
   let replyText = rawReply;
   const questionMatch = rawReply.match(/^\s*\[反問\]\s*(.+?)\s*$/m);
   if (questionMatch) {
     proactiveQuestion = questionMatch[1].trim();
     replyText = rawReply.replace(questionMatch[0], "").trimEnd();
+  }
+  const intentCardMatch = rawReply.match(/^\s*\[意圖卡\]\s*(\{.+\})\s*$/m);
+  if (intentCardMatch) {
+    try {
+      const parsed = JSON.parse(intentCardMatch[1]);
+      if (
+        parsed &&
+        typeof parsed.intent === "string" &&
+        typeof parsed.whyAsk === "string" &&
+        Array.isArray(parsed.options)
+      ) {
+        intentCard = {
+          intent: parsed.intent.trim(),
+          whyAsk: parsed.whyAsk.trim(),
+          options: parsed.options
+            .filter((v: unknown) => typeof v === "string")
+            .map((v: string) => v.trim())
+            .filter(Boolean)
+            .slice(0, 3),
+        };
+      }
+    } catch {
+      // ignore invalid intent-card json
+    }
+    replyText = replyText.replace(intentCardMatch[0], "").trimEnd();
   }
 
   // Try to extract structured summary from the reply
@@ -1163,7 +1209,7 @@ ${persona.proactiveHint}${memorySection}
     phaseSummary = jsonMatch[1];
   }
 
-  return { reply: replyText, phaseSummary, proactiveQuestion };
+  return { reply: replyText, phaseSummary, proactiveQuestion, intentCard };
 }
 
 async function analyzeEmotionalDepth(

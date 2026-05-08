@@ -2058,11 +2058,17 @@ const ExportPanel = memo(function ExportPanel({
 
 const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
   question,
+  intentCard,
   personality,
   onDismiss,
   onUse,
 }: {
   question: string;
+  intentCard?: {
+    intent: string;
+    whyAsk: string;
+    options: string[];
+  } | null;
   personality: Personality;
   onDismiss: () => void;
   onUse: (q: string) => void;
@@ -2095,6 +2101,27 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
           >
             導演主動提問
           </span>
+          {intentCard?.intent ? (
+            <div className="mt-1 rounded-md border border-current/15 bg-white/60 p-2">
+              <p className="text-[11px] font-medium">意圖：{intentCard.intent}</p>
+              <p className="text-[10px] text-foreground/70 mt-0.5">
+                為何先問：{intentCard.whyAsk}
+              </p>
+              {intentCard.options?.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {intentCard.options.map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => onUse(opt)}
+                      className="text-[10px] px-1.5 py-0.5 rounded border border-current/20 hover:bg-white/70"
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
           <p className="hs-small !mb-0 text-foreground/80 mt-1">{question}</p>
           <button
             onClick={() => onUse(question)}
@@ -2550,6 +2577,11 @@ export default function DirectorAI() {
   // 規劃模式的反問氣泡（來自 planningDiscuss 結構化欄位）
   const [planningProactiveQuestion, setPlanningProactiveQuestion] =
     useState<string | null>(null);
+  const [planningIntentCard, setPlanningIntentCard] = useState<{
+    intent: string;
+    whyAsk: string;
+    options: string[];
+  } | null>(null);
   // 「繼續上次規劃」橫幅
   const [resumePlanningCandidate, setResumePlanningCandidate] = useState<{
     id: number;
@@ -2720,6 +2752,7 @@ export default function DirectorAI() {
       if (data.proactiveQuestion?.trim()) {
         setPlanningProactiveQuestion(data.proactiveQuestion.trim());
       }
+      setPlanningIntentCard(data.intentCard ?? null);
     },
     onError: e => toast.error("規劃討論失敗：" + e.message),
   });
@@ -3080,6 +3113,7 @@ export default function DirectorAI() {
   const handleSend = useCallback(
     (content: string) => {
       setProactiveQuestion(null);
+      setPlanningIntentCard(null);
       const newMessages: Message[] = [...messages, { role: "user", content }];
       setMessages(newMessages);
       chatMutation.mutate({
@@ -3103,6 +3137,20 @@ export default function DirectorAI() {
           source: "director_ai",
           musicStyle: script.musicVibe,
           audioScript: script.audioScript,
+          batchTasks: [
+            {
+              generationType: "image",
+              prompt: script.visualPrompt,
+            },
+            {
+              generationType: "video",
+              prompt: `${script.visualPrompt}\n\n場景敘事：${script.action}`,
+            },
+            {
+              generationType: "audio",
+              prompt: script.musicVibe || script.result || script.situation,
+            },
+          ],
         })
       );
       navigate("/image-studio");
@@ -5431,11 +5479,12 @@ export default function DirectorAI() {
                     {/* Planning proactive question */}
                     <AnimatePresence>
                       {planningProactiveQuestion && (
-                        <ProactiveQuestionBubble
-                          question={planningProactiveQuestion}
-                          personality={personality}
-                          onDismiss={() => setPlanningProactiveQuestion(null)}
-                          onUse={q => {
+              <ProactiveQuestionBubble
+                question={planningProactiveQuestion}
+                intentCard={planningIntentCard}
+                personality={personality}
+                onDismiss={() => setPlanningProactiveQuestion(null)}
+                onUse={q => {
                             setPlanningProactiveQuestion(null);
                             setPlanningInput(q);
                           }}
