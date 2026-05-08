@@ -18,6 +18,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useRef,
   useMemo,
   type ReactNode,
@@ -29,7 +30,22 @@ import {
   type OrbGuideIntentId,
   type OrbGuideManualStep,
 } from "../../../shared/orb-guide-plans";
-import { getPageByPath } from "@/config/appRegistry";
+import { getAllPages, getPageByPath } from "@/config/appRegistry";
+
+/**
+ * 比 getPageByPath 嚴格的版本：先用「完整 path（含 querystring）」精準對到
+ * registry entry，找不到再退回 getPageByPath 的 normalize 比對。
+ *
+ * 為什麼需要：registry 裡 /assets?section=history、/assets?section=prompts、
+ * /assets 都共用 /assets 這個 normalize 路徑，所以 getPageByPath 回的是
+ * 「第一個」也就是「生成歷史」，跟使用者實際落點（提示詞庫）不一致。
+ * arrival 卡的 targetLabel 因此會顯示錯的頁面名稱。
+ */
+function resolveRegistryPage(path: string) {
+  const exact = getAllPages().find(page => page.path === path);
+  if (exact) return exact;
+  return getPageByPath(path);
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +73,21 @@ export interface GuideAnswer {
   answer: string;
 }
 
+export interface OrbArrivalChoice {
+  /** 用來追蹤使用者選了哪一張，避免重複 dispatch 同一張 */
+  id: string;
+  /** 卡片上顯示的主文字 */
+  label: string;
+  /** 副文字（選填） */
+  hint?: string;
+  /** 表情 emoji（選填） */
+  emoji?: string;
+  /** 按下後光球要替使用者執行的 actions（會自動 dispatch） */
+  actions: AgentAction[];
+  /** 按下後是否關掉 arrival 卡片，預設 false（讓使用者可以連按） */
+  dismissOnSelect?: boolean;
+}
+
 export interface GuidePlan {
   intent: GuideIntent;
   answers: GuideAnswer[];
@@ -68,6 +99,12 @@ export interface GuidePlan {
   actions: AgentAction[];
   /** 到站後使用者要親自完成的步驟（程式無法代勞，例如上傳檔案、按生成） */
   manualSteps: OrbGuideManualStep[];
+  /**
+   * 到站後給使用者「再選一個」的快速卡片。每張卡片帶一組 actions，按下去
+   * 光球就會替使用者執行（例如切分頁、套關鍵字、開對話框）。跟 manualSteps
+   * 不同：manualSteps 是純 checklist，arrivalChoices 是「光球替你做」按鈕。
+   */
+  arrivalChoices?: OrbArrivalChoice[];
 }
 
 // ─── 意圖對應的目標頁面與問題 ────────────────────────────────────────────────
@@ -301,6 +338,180 @@ export const INTENT_CONFIGS: Record<Exclude<GuideIntent, null>, IntentConfig> = 
   },
 };
 
+/**
+ * 依目標頁面提供「光球替你按一下」的快速選項。
+ * 沒有覆蓋到的頁面就回空陣列，arrival 卡片會自動省略這個區塊。
+ *
+ * 重點：每張卡片都帶 AgentAction[]，使用者按下去 = 光球用 PageAgent bus
+ * 替他執行（切分頁／套關鍵字／開對話框…）— 不會只是「告訴他怎麼做」。
+ */
+function buildDefaultArrivalChoices(targetPath: string): OrbArrivalChoice[] {
+  // 把 querystring 拆出來方便比對
+  const [pathOnly, queryStr = ""] = targetPath.split("?");
+  const query = new URLSearchParams(queryStr);
+  const section = query.get("section");
+
+  // /assets?section=prompts — 提示詞庫
+  // 注意：這頁的 PageAgent 用 setParam(category) 做精確分類篩選，不是用
+  // search(text) 做模糊比對 — search 只搜標題文字，會漏掉 category 為
+  // image 但標題沒寫 "image" 的提示詞。所以這裡用 setParam。
+  if (pathOnly === "/assets" && section === "prompts") {
+    return [
+      {
+        id: "prompts-image",
+        label: "我要找圖像 prompt",
+        emoji: "🖼",
+        actions: [{ type: "setParam", key: "category", value: "image" }],
+      },
+      {
+        id: "prompts-music",
+        label: "我要找音訊 prompt",
+        emoji: "🎵",
+        actions: [{ type: "setParam", key: "category", value: "audio" }],
+      },
+      {
+        id: "prompts-video",
+        label: "我要找影片 prompt",
+        emoji: "🎬",
+        actions: [{ type: "setParam", key: "category", value: "video" }],
+      },
+      {
+        id: "prompts-favorites",
+        label: "只看我收藏的",
+        emoji: "⭐",
+        actions: [{ type: "setParam", key: "favoritesOnly", value: true }],
+      },
+    ];
+  }
+
+  // /assets — 數位資產庫主頁（無 section 或預設 section=assets）
+  // assets handler 只認 tabId="my" / "team"，所以「切 tab」要用查詢字串導頁
+  // 而不是 setTab — 用 navigate 走 wouter，重新載入正確的 sub-page。
+  if (pathOnly === "/assets" && (!section || section === "assets")) {
+    return [
+      {
+        id: "assets-history",
+        label: "看我最近的生成歷史",
+        emoji: "🕒",
+        actions: [{ type: "navigate", path: "/assets?section=history" }],
+        dismissOnSelect: true,
+      },
+      {
+        id: "assets-prompts",
+        label: "去提示詞庫挑模板",
+        emoji: "📚",
+        actions: [{ type: "navigate", path: "/assets?section=prompts" }],
+        dismissOnSelect: true,
+      },
+      {
+        id: "assets-shared",
+        label: "看共享空間",
+        emoji: "🤝",
+        actions: [{ type: "navigate", path: "/assets?section=shared" }],
+        dismissOnSelect: true,
+      },
+    ];
+  }
+
+  // 圖像工作室
+  if (pathOnly === "/image-studio") {
+    return [
+      {
+        id: "image-photoreal",
+        label: "我要寫實風格",
+        emoji: "📷",
+        actions: [
+          {
+            type: "fillPrompt",
+            text: "photorealistic, high quality, detailed, natural lighting",
+          },
+        ],
+      },
+      {
+        id: "image-illustration",
+        label: "我要插畫風格",
+        emoji: "🎨",
+        actions: [
+          {
+            type: "fillPrompt",
+            text: "illustration, soft colors, hand-drawn, expressive",
+          },
+        ],
+      },
+      {
+        id: "image-watercolor",
+        label: "我要療癒水彩",
+        emoji: "🌸",
+        actions: [
+          {
+            type: "fillPrompt",
+            text: "watercolor, healing, soft pastel, gentle brush strokes",
+          },
+        ],
+      },
+    ];
+  }
+
+  // 影片工作室
+  if (pathOnly === "/video-studio") {
+    return [
+      {
+        id: "video-nature",
+        label: "自然風景動態",
+        emoji: "🌄",
+        actions: [
+          {
+            type: "fillPrompt",
+            text: "cinematic nature landscape, smooth camera motion, golden hour",
+          },
+        ],
+      },
+      {
+        id: "video-portrait",
+        label: "人物特寫動態",
+        emoji: "👤",
+        actions: [
+          {
+            type: "fillPrompt",
+            text: "portrait close-up, subtle motion, soft lighting",
+          },
+        ],
+      },
+      {
+        id: "video-abstract",
+        label: "抽象動態",
+        emoji: "🌀",
+        actions: [
+          {
+            type: "fillPrompt",
+            text: "abstract motion, flowing colors, dreamy atmosphere",
+          },
+        ],
+      },
+    ];
+  }
+
+  // 專業創作室（音樂/配音）
+  if (pathOnly === "/pro-studio") {
+    return [
+      {
+        id: "pro-music",
+        label: "做一段背景音樂",
+        emoji: "🎵",
+        actions: [{ type: "setTab", tabId: "music" }],
+      },
+      {
+        id: "pro-tts",
+        label: "做配音 / TTS",
+        emoji: "🎤",
+        actions: [{ type: "setTab", tabId: "voice" }],
+      },
+    ];
+  }
+
+  return [];
+}
+
 function resolveIntentTarget(cfg: IntentConfig): {
   targetPath: string;
   targetLabel: string;
@@ -355,6 +566,18 @@ interface OrbGuideContextType {
     orbMessage?: string;
     autoFillPrompt?: string;
   }) => void;
+  // 給「不是走完整意圖問答、但仍然發生跳頁」的入口（/agent starter 快速動作、
+  // 聊天驅動的 navigate）用：直接把 panel 切到「navigating → arrived」並
+  // 帶上一份合成的 plan，讓使用者到站後仍然看得到「已自動完成 / 接下來請
+  // 你做」這張引導卡，而不是只剩光球底下那顆「完成」泡泡。
+  attachArrivalGuide: (input: {
+    targetPath: string;
+    targetLabel?: string;
+    orbMessage?: string;
+    actions?: AgentAction[];
+    manualSteps?: OrbGuideManualStep[];
+    arrivalChoices?: OrbArrivalChoice[];
+  }) => void;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -377,6 +600,7 @@ const OrbGuideContext = createContext<OrbGuideContextType>({
   arrivedMessage: null,
   clearArrivedMessage: () => {},
   patchPlan: () => {},
+  attachArrivalGuide: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -397,10 +621,24 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setStep("ask_intent");
   }, []);
 
+  const arrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelArrivalTimer = useCallback(() => {
+    if (arrivalTimerRef.current) {
+      clearTimeout(arrivalTimerRef.current);
+      arrivalTimerRef.current = null;
+    }
+  }, []);
+
+  // 防止 provider unmount（例如 SPA 在嚴格模式下二次掛載）後計時器
+  // 仍然回呼 setStep，雖然 React 18 會默默忽略，但留下未清的計時器
+  // 是潛在洩漏。
+  useEffect(() => cancelArrivalTimer, [cancelArrivalTimer]);
+
   const closePanel = useCallback(() => {
+    cancelArrivalTimer();
     setIsPanelOpen(false);
     setStep("idle");
-  }, []);
+  }, [cancelArrivalTimer]);
 
   const selectIntent = useCallback((chosen: GuideIntent) => {
     setIntent(chosen);
@@ -483,6 +721,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   }, [plan]);
 
   const reset = useCallback(() => {
+    cancelArrivalTimer();
     setStep("idle");
     setIntent(null);
     setAnswers({});
@@ -490,7 +729,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setIsPanelOpen(false);
     setCompletedManualStepIds([]);
     questionIndexRef.current = 0;
-  }, []);
+  }, [cancelArrivalTimer]);
 
   const clearArrivedMessage = useCallback(() => {
     // 只清掉短暫的到站問候訊息（toast 用），不影響 step；
@@ -507,6 +746,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dismissArrival = useCallback(() => {
+    cancelArrivalTimer();
     setStep("idle");
     setIsPanelOpen(false);
     setIntent(null);
@@ -515,7 +755,59 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setCompletedManualStepIds([]);
     setArrivedMessage(null);
     questionIndexRef.current = 0;
-  }, []);
+  }, [cancelArrivalTimer]);
+
+  const attachArrivalGuide = useCallback(
+    (input: {
+      targetPath: string;
+      targetLabel?: string;
+      orbMessage?: string;
+      actions?: AgentAction[];
+      manualSteps?: OrbGuideManualStep[];
+      arrivalChoices?: OrbArrivalChoice[];
+    }) => {
+      const registryPage = resolveRegistryPage(input.targetPath);
+      const label =
+        input.targetLabel ?? registryPage?.label ?? input.targetPath;
+      const orbMessage =
+        input.orbMessage ?? `已帶你到「${label}」，下面有我幫你做好的事。`;
+      const actions = input.actions ?? [];
+      const manualSteps = input.manualSteps ?? [];
+      const arrivalChoices = input.arrivalChoices ?? buildDefaultArrivalChoices(input.targetPath);
+
+      // 合成一份不走 intent 問答的 plan：targetLabel/actions 會餵給
+      // OrbGuidePanel 的 arrival 緊湊卡，列出已自動完成 + 接下來要做的事。
+      const synthesized: GuidePlan = {
+        intent: null,
+        answers: [],
+        targetPath: input.targetPath,
+        targetLabel: label,
+        orbMessage,
+        actions,
+        manualSteps,
+        arrivalChoices: arrivalChoices.length > 0 ? arrivalChoices : undefined,
+      };
+
+      cancelArrivalTimer();
+
+      setIntent(null);
+      setAnswers({});
+      questionIndexRef.current = 0;
+      setCompletedManualStepIds([]);
+      setPlan(synthesized);
+      setStep("navigating");
+      setIsPanelOpen(true);
+      // 不設 arrivedMessage — ProactiveOrbWidget 會把它當 feedback 泡泡
+      // 顯示在光球旁邊，但 arrival 卡本身已經把訊息寫在 header 了，重複
+      // 只會吵到使用者。
+
+      arrivalTimerRef.current = setTimeout(() => {
+        arrivalTimerRef.current = null;
+        setStep("arrived");
+      }, 600);
+    },
+    [cancelArrivalTimer]
+  );
 
   const patchPlan = useCallback(
     (patch: { orbMessage?: string; autoFillPrompt?: string }) => {
@@ -565,6 +857,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       arrivedMessage,
       clearArrivedMessage,
       patchPlan,
+      attachArrivalGuide,
     }),
     [
       step,
@@ -584,6 +877,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       arrivedMessage,
       clearArrivedMessage,
       patchPlan,
+      attachArrivalGuide,
     ]
   );
 

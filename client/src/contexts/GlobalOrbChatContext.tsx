@@ -72,6 +72,7 @@ import {
 } from "../../../shared/orb-search-intent";
 import { rememberedDimensionCoverage } from "../../../shared/orb-clarification-memory";
 import { useOrbState } from "./OrbStateContext";
+import { useOrbGuide } from "./OrbGuideContext";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
 // the initial chat context payload. The bullet-list fallback inside the same
@@ -1473,6 +1474,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const persistClarificationPicks =
     trpc.orbProxy.persistClarificationPicks.useMutation();
   const orbState = useOrbState();
+  const { attachArrivalGuide } = useOrbGuide();
   const isMobile = useIsMobile();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
@@ -1714,7 +1716,20 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               );
             }
           }
-          if (path !== locationPath) setLocation(path);
+          if (path !== locationPath) {
+            // 把光球幫使用者要做的整套 actions 預先掛到 OrbGuide 的 arrival 卡。
+            // 即使 setLocation 後 page 還沒 hydrate，arrival 緊湊卡也已經告訴
+            // 使用者「光球幫你做了什麼、接下來可以選什麼」，不會只剩底下那顆
+            // 「完成」泡泡。
+            attachArrivalGuide({
+              targetPath: path,
+              actions: orchestratorActions,
+              orbMessage: options.intent
+                ? `已帶你來處理：${options.intent}`
+                : undefined,
+            });
+            setLocation(path);
+          }
         },
         dispatch: pageAgent.dispatch,
         requireConfirmation: options.requireConfirmation === true,
@@ -1810,7 +1825,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
       }]);
     }
-  }, [pageAgent, locationPath, setLocation, orbState]);
+  }, [pageAgent, locationPath, setLocation, orbState, attachArrivalGuide]);
 
   // Forward declaration for the auto-execute branch inside `sendMessage`.
   // The actual `startPendingWorkflow` callback is defined further down (it
