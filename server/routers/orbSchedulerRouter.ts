@@ -188,11 +188,15 @@ export const orbSchedulerRouter = router({
   previewCron: protectedProcedure
     .input(
       z.object({
-        cronExpression: z
-          .string()
-          .min(1)
-          .max(128)
-          .refine(isValidCronExpression, "無效的 cron 表達式"),
+        // No `.refine(isValidCronExpression)` here on purpose: previewCron
+        // is the live-typing inline-validation endpoint. The handler
+        // already returns a structured `{ ok: false, error }` payload
+        // for invalid cron, and `CronPreview` renders `data.error` as a
+        // red helper message while the user is still typing. Refining
+        // at the schema layer would convert that into a tRPC input
+        // error, leaving the helper component (which only consumes
+        // `query.data`, not `query.error`) silently empty.
+        cronExpression: z.string().min(1).max(128),
         count: z.number().int().min(1).max(10).default(3),
       })
     )
