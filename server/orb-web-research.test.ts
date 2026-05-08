@@ -79,7 +79,10 @@ describe("buildResearchQuery", () => {
   it("caps the query length to keep search calls focused", () => {
     const long = `${"製茶"}${"a".repeat(500)}`;
     const query = buildResearchQuery(long);
-    expect(query.length).toBeLessThanOrEqual(120);
+    // Source bumped the cap to 150 (`RESEARCH_QUERY_MAX_LEN`) when the
+    // research stage started accepting longer prompts; keep the test in
+    // sync so it still pins down the actual upper bound.
+    expect(query.length).toBeLessThanOrEqual(150);
   });
 });
 

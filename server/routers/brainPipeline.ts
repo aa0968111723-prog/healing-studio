@@ -521,6 +521,28 @@ const ROUTER_TO_PROVIDERS: Array<{
     providers: [],
     files: ["server/routers/adminRouter.ts"],
   },
+  {
+    id: "router:orbProxy",
+    label: "orbProxy（光球代理代用層）",
+    description: "全站統一搜尋（資產／筆記／歷史／教學）、光球記憶與澄清偏好",
+    providers: [],
+    files: [
+      "server/routers/orbProxyRouter.ts",
+      "server/services/orbUnifiedSearch.ts",
+      "server/services/orbMemory.ts",
+    ],
+  },
+  {
+    id: "router:agentCollaboration",
+    label: "agentCollaboration（多代理協作）",
+    description: "多代理會議協調、訊息匯流排與會話狀態管理",
+    providers: [],
+    files: [
+      "server/routers/agentCollaborationRouter.ts",
+      "server/services/agentCollaborationOrchestrator.ts",
+      "server/services/agentCommunicationBus.ts",
+    ],
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════

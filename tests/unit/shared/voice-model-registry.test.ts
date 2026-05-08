@@ -18,14 +18,14 @@ describe("voiceModelRegistry", () => {
 
   it("ranks fast narration prompt toward ElevenLabs Turbo V2.5", () => {
     const ranked = rankVoiceModelsByPrompt("Quick narration for video content");
-    expect(ranked[0]?.modelId).toBe("elevenlabs/eleven-turbo-v2.5");
+    expect(ranked[0]?.modelId).toBe("elevenlabs/turbo-v2.5");
     expect(ranked[0]?.score).toBeGreaterThan(0);
   });
 
   it("ranks multilingual prompt toward multilingual models", () => {
     const ranked = rankVoiceModelsByPrompt("Create multilingual voice synthesis");
     const topModelIds = ranked.slice(0, 3).map(m => m.modelId);
-    expect(topModelIds).toContain("elevenlabs/eleven-multilingual-v2");
+    expect(topModelIds).toContain("elevenlabs/multilingual-v2");
   });
 
   it("falls back to default model when no keyword is matched", () => {

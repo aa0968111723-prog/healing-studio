@@ -154,7 +154,15 @@ describe("dispatchFalQueueTask", () => {
     expect(result.degraded).toBe(true);
     expect(result.originalModel).toBe("fal-ai/flux-pro/v1.1");
     expect(result.modelId).not.toBe("fal-ai/flux-pro/v1.1");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The dispatcher also fires auxiliary fetches (langsmith trace,
+    // brain-auto-repair telemetry) that share the stubbed `fetch`.
+    // What we actually care about is the queue submit count — primary
+    // (503) + first successful fallback = 2 — so filter by host like
+    // the 4xx-short-circuit test does above.
+    const queueCalls = fetchMock.mock.calls.filter(c =>
+      String(c[0]).startsWith("https://queue.fal.run/"),
+    );
+    expect(queueCalls).toHaveLength(2);
   }, 10_000);
 
   it("throws when FAL_API_KEY missing", async () => {

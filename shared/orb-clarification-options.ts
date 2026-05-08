@@ -551,8 +551,14 @@ export function inferConversationDimensions(
       prefilled
     );
   }
+  // `\b` is anchored on ASCII word boundaries, so after a CJK unit like
+  // 秒/分/小時 it never fires (CJK chars aren't word chars in JS regex,
+  // and end-of-string is also non-word — no boundary). That meant
+  // "做一支 30 秒影片" had hasLength=false, which gated out the multi-dim
+  // wizard. Drop the `\b` for the CJK branch and keep it for the ASCII
+  // branch where it still does meaningful work.
   const lengthRe =
-    /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻|\d+\s*字/i;
+    /\d+\s*(?:秒|分鐘?|小時)|\d+\s*(?:second|minute|hour|min|sec|mins|secs)\b|\d+s\b|短片|長片|長影片|長視頻|\d+\s*字/i;
   const subjectMarkers =
     /[:：]|主題|題目|關於|介紹|品牌|產品|內容是|主角|story|theme|brand|product/i;
   const hasLength = modality === "image" || modality === "lora"
