@@ -50,6 +50,7 @@ import {
   type PersonalSettings,
 } from "@/contexts/PersonalSettingsContext";
 import { useViewMode } from "@/hooks/useMobile";
+import { AvatarStudio } from "@/components/AvatarStudio";
 
 const FeedbackPage = lazy(() => import("@/pages/FeedbackPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
@@ -591,6 +592,20 @@ export default function SettingsPage() {
               <User className="w-4 h-4" />
               帳號與偏好
             </h2>
+
+            <div className="space-y-1.5">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-medium">
+                虛擬頭像
+              </p>
+              <div className="pt-1.5">
+                <AvatarStudio
+                  currentAvatarUrl={user?.avatarUrl ?? null}
+                  fallbackInitial={(user?.name || "U").slice(0, 1).toUpperCase()}
+                />
+              </div>
+            </div>
+
+            <div className="my-5 border-t border-border/40" />
 
             <div className="space-y-1.5">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-medium">

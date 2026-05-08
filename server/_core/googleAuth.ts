@@ -275,6 +275,7 @@ export const DEMO_USER = {
   quotaJson: { image: 100, video: 50, audio: 50, voice: 50 },
   remainingGenerations: 999,
   onboardingDone: true,
+  avatarUrl: null,
   createdAt: new Date("2024-01-01"),
   updatedAt: new Date("2024-01-01"),
   lastSignedIn: new Date(),
