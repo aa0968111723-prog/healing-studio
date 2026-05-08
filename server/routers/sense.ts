@@ -9,6 +9,13 @@ import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM, extractMessageJson } from "../_core/llm";
 import { extractJsonObjectFromText } from "../../shared/agent-plan-adapter";
+import { serverEnv } from "../_core/env.validated";
+
+// Sense intent 推論逾時 — 讀 SENSE_INTENT_TIMEOUT_SECONDS，預設 45s
+const SENSE_INTENT_TIMEOUT_MS = (() => {
+  const parsed = parseInt(serverEnv.SENSE_INTENT_TIMEOUT_SECONDS, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 45_000;
+})();
 
 // ─── Input Schema ──────────────────────────────────────────────────────────
 
@@ -182,9 +189,9 @@ ${
     : "- 尚無明確模態偏好"
 }
 
-### 最近事件序列（最新 10 筆）
+### 最近事件序列（最新 5 筆）
 ${events
-  .slice(-10)
+  .slice(-5)
   .map(e => {
     const time = new Date(e.timestamp).toLocaleTimeString("zh-TW");
     const metaStr = e.meta.cardTitle ? `「${e.meta.cardTitle}」` : e.targetId;
@@ -277,7 +284,7 @@ ${events
         },
       },
     }),
-    30_000,
+    SENSE_INTENT_TIMEOUT_MS,
     "意圖推論"
   );
 
