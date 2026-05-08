@@ -833,3 +833,514 @@ export const IMAGE_STUDIO_EDIT_PROFILE: ImageStudioEditProfile = {
   outputSizes: IMAGE_STUDIO_EDIT_OUTPUT_SIZES,
   collaborations: IMAGE_STUDIO_EDIT_COLLABORATION_LINKS,
 };
+
+// ─── 圖片創作室 / 影像放大（Image Studio Upscale） ───────────────────────
+
+export interface ImageStudioUpscaleModeOption {
+  id: "factor" | "target";
+  label: string;
+  description: string;
+}
+
+export const IMAGE_STUDIO_UPSCALE_MODES: ImageStudioUpscaleModeOption[] = [
+  { id: "factor", label: "倍率放大", description: "依 ×2 / ×4 等倍數放大" },
+  { id: "target", label: "目標解析度", description: "指定到目標長寬" },
+];
+
+export const IMAGE_STUDIO_UPSCALE_FACTORS: Array<{
+  id: string;
+  label: string;
+  value: number;
+}> = [
+  { id: "x2", label: "×2", value: 2 },
+  { id: "x4", label: "×4", value: 4 },
+];
+
+export interface ImageStudioUpscaleModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+export const IMAGE_STUDIO_UPSCALE_MODELS: ImageStudioUpscaleModelOption[] = [
+  {
+    id: "seedVRUpscale",
+    label: "SeedVR Upscale",
+    emoji: "🔍",
+    description: "ByteDance SeedVR，720p → 2160p，畫質保留好",
+  },
+];
+
+export function buildImageStudioUpscaleSetModelActions(
+  modelId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "upscale" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildImageStudioUpscaleSetModeActions(
+  mode: "factor" | "target"
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "upscale" },
+    { type: "setParam", key: "upscaleMode", value: mode },
+  ];
+}
+
+export function buildImageStudioUpscaleSetFactorActions(
+  factor: number
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "upscale" },
+    { type: "setParam", key: "upscaleMode", value: "factor" },
+    { type: "setParam", key: "upscaleFactor", value: factor },
+  ];
+}
+
+export const IMAGE_STUDIO_UPSCALE_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "upscale-recommend-factor",
+    label: "幫我選放大倍率",
+    emoji: "🧭",
+    description: "依原圖解析度與用途推薦 ×2 或 ×4",
+    chatPrompt:
+      "我在影像放大頁。請依我目前上傳圖片的解析度與用途，推薦 ×2 或 ×4 比較合適，並用 [ACTION:setParam:upscaleFactor=...] 幫我直接套用。",
+  },
+  {
+    id: "upscale-after-t2i",
+    label: "從 t2i 接過來放大",
+    emoji: "🔁",
+    description: "把剛才生成的圖直接帶到放大頁",
+    chatPrompt:
+      "把我剛才在 t2i 分頁生成的最後一張圖當作要放大的素材，自動帶我到 upscale 分頁並設好倍率。",
+  },
+  {
+    id: "upscale-after-edit",
+    label: "從 edit 接過來放大",
+    emoji: "✂️",
+    description: "把剛剛編輯完的成品直接帶到放大頁",
+    chatPrompt:
+      "把我剛才在 edit 分頁編輯完成的圖直接帶到 upscale 分頁，建議一個合適的倍率並準備送出。",
+  },
+  {
+    id: "upscale-batch-flow",
+    label: "交給導演 AI 批次放大",
+    emoji: "🎬",
+    description: "把多張圖整成批次放大流程",
+    chatPrompt:
+      "我有多張圖要放大。請把我目前資產庫裡最近 N 張圖整成一個批次放大工作流，導演 AI 接手後可以排程跑。",
+  },
+];
+
+export interface ImageStudioUpscaleProfile {
+  pageId: "image-studio";
+  pagePath: "/image-studio";
+  activeTab: "upscale";
+  models: ImageStudioUpscaleModelOption[];
+  modes: ImageStudioUpscaleModeOption[];
+  factors: typeof IMAGE_STUDIO_UPSCALE_FACTORS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const IMAGE_STUDIO_UPSCALE_PROFILE: ImageStudioUpscaleProfile = {
+  pageId: "image-studio",
+  pagePath: "/image-studio",
+  activeTab: "upscale",
+  models: IMAGE_STUDIO_UPSCALE_MODELS,
+  modes: IMAGE_STUDIO_UPSCALE_MODES,
+  factors: IMAGE_STUDIO_UPSCALE_FACTORS,
+  collaborations: IMAGE_STUDIO_UPSCALE_COLLABORATION_LINKS,
+};
+
+// ─── 圖片創作室 / 骨骼姿勢（Image Studio Pose） ─────────────────────────
+
+export interface ImageStudioPoseModeOption {
+  id: string;
+  label: string;
+  emoji: string;
+  /**
+   * ImageStudio.tsx 的 setParam drawMode 目前只在 allow-list 接受 4 個基本姿勢
+   * （full-pose / body-pose / face-pose / hand-pose）。Mask 變體（face-hand-mask /
+   * face-mask / hand-mask）使用者可以在 UI 上點，但光球用 setParam 過去會被退回。
+   * 修復：把 allow-list 同步擴成 7 個（已在 ImageStudio.tsx 修正）。
+   */
+  acceptedBySetParam: boolean;
+}
+
+export const IMAGE_STUDIO_POSE_MODES: ImageStudioPoseModeOption[] = [
+  { id: "full-pose", label: "完整姿勢", emoji: "🧍", acceptedBySetParam: true },
+  { id: "body-pose", label: "身體", emoji: "💪", acceptedBySetParam: true },
+  { id: "face-pose", label: "臉部", emoji: "😊", acceptedBySetParam: true },
+  { id: "hand-pose", label: "手部", emoji: "✋", acceptedBySetParam: true },
+  { id: "face-hand-mask", label: "臉+手遮罩", emoji: "🎭", acceptedBySetParam: true },
+  { id: "face-mask", label: "臉遮罩", emoji: "😷", acceptedBySetParam: true },
+  { id: "hand-mask", label: "手遮罩", emoji: "🤚", acceptedBySetParam: true },
+];
+
+export interface ImageStudioPoseModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+export const IMAGE_STUDIO_POSE_MODELS: ImageStudioPoseModelOption[] = [
+  {
+    id: "dwPose",
+    label: "DWPose 骨骼偵測",
+    emoji: "🦴",
+    description: "Mediapipe DWPose，全身/臉部/手部 7 種偵測模式",
+  },
+];
+
+export function buildImageStudioPoseSetModelActions(
+  modelId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "pose" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildImageStudioPoseSetDrawModeActions(
+  mode: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "pose" },
+    { type: "setParam", key: "drawMode", value: mode },
+  ];
+}
+
+export const IMAGE_STUDIO_POSE_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "pose-recommend-mode",
+    label: "幫我選偵測模式",
+    emoji: "🧭",
+    description: "依用途（人物動作 / 表情 / 手勢）推薦最合的偵測模式",
+    chatPrompt:
+      "我在骨骼姿勢頁。請依我的用途（人物動作參考 / 表情捕捉 / 手部姿勢…）推薦 7 個 drawMode 中最合的一個，說明原因，並用 [ACTION:setParam:drawMode=...] 直接幫我套用。",
+  },
+  {
+    id: "pose-feed-controlnet",
+    label: "送骨骼圖到 SD ControlNet",
+    emoji: "🧬",
+    description: "把產生的骨骼圖當 ControlNet 條件，回 SD 分頁生圖",
+    chatPrompt:
+      "把我這次抓到的骨骼圖當作 ControlNet 條件，帶我到 sd 分頁，自動幫我設定 controlnet 並推薦一個合適的 SD 模型。",
+  },
+  {
+    id: "pose-feed-t2i-edit",
+    label: "把姿勢套到 t2i / edit",
+    emoji: "🎯",
+    description: "把骨骼姿勢當參考，回 t2i 或 edit 生新角色",
+    chatPrompt:
+      "把這次的骨骼姿勢圖當作姿勢參考，帶我回 t2i 或 edit 分頁，建議用哪個模型可以最穩定地套用該姿勢。",
+  },
+  {
+    id: "pose-director-flow",
+    label: "交給導演 AI 規劃多角色姿勢",
+    emoji: "🎬",
+    description: "把姿勢應用到一段分鏡的多個角色上",
+    chatPrompt:
+      "我有一段分鏡需要不同角色擺出不同姿勢。請依目前的骨骼姿勢圖規劃一個 3-5 步的姿勢套用流程，每步指定模型 + 動作 + 提示詞，完成後帶我去 /director。",
+  },
+];
+
+export interface ImageStudioPoseProfile {
+  pageId: "image-studio";
+  pagePath: "/image-studio";
+  activeTab: "pose";
+  models: ImageStudioPoseModelOption[];
+  modes: ImageStudioPoseModeOption[];
+  collaborations: StudioCollaborationLink[];
+}
+
+export const IMAGE_STUDIO_POSE_PROFILE: ImageStudioPoseProfile = {
+  pageId: "image-studio",
+  pagePath: "/image-studio",
+  activeTab: "pose",
+  models: IMAGE_STUDIO_POSE_MODELS,
+  modes: IMAGE_STUDIO_POSE_MODES,
+  collaborations: IMAGE_STUDIO_POSE_COLLABORATION_LINKS,
+};
+
+// ─── 圖片創作室 / Stable Diffusion ─────────────────────────────────────
+
+export type ImageStudioSDCapability =
+  | "neg"
+  | "guidance"
+  | "lora"
+  | "controlnet";
+
+export interface ImageStudioSDModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: ImageStudioSDCapability[];
+  fast?: boolean;
+}
+
+export const IMAGE_STUDIO_SD_MODELS: ImageStudioSDModelOption[] = [
+  {
+    id: "stableDiffusion35",
+    label: "SD 3.5 Large",
+    emoji: "🎯",
+    description: "Stability AI 旗艦，支援 ControlNet / LoRA，畫質最高",
+    capabilities: ["neg", "guidance", "lora", "controlnet"],
+  },
+  {
+    id: "fastSdxl",
+    label: "Fast SDXL",
+    emoji: "⚡",
+    description: "SDXL 快速生圖，支援 LoRA 與多種尺寸",
+    capabilities: ["neg", "lora"],
+    fast: true,
+  },
+  {
+    id: "sdLora",
+    label: "SD + LoRA",
+    emoji: "🧬",
+    description: "Stable Diffusion + 任意 HuggingFace LoRA URL",
+    capabilities: ["neg", "lora"],
+  },
+];
+
+export const IMAGE_STUDIO_SD_CAPABILITY_LABELS: Record<
+  ImageStudioSDCapability,
+  string
+> = {
+  neg: "負向詞",
+  guidance: "引導值",
+  lora: "LoRA",
+  controlnet: "ControlNet",
+};
+
+/** 與 ImageStudio.tsx 的 IMAGE_SIZES 對齊（fal SD 系列接受的字串） */
+export const IMAGE_STUDIO_SD_IMAGE_SIZES: Array<{ id: string; label: string }> = [
+  { id: "square_hd", label: "正方 HD" },
+  { id: "square", label: "正方" },
+  { id: "portrait_4_3", label: "直 4:3" },
+  { id: "portrait_16_9", label: "直 16:9" },
+  { id: "landscape_4_3", label: "橫 4:3" },
+  { id: "landscape_16_9", label: "橫 16:9" },
+];
+
+/** SD 提示詞模板：包含主提示詞與負向詞兩個槽位 */
+export interface ImageStudioSDPromptTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  prompt: string;
+  negPrompt?: string;
+}
+
+export const IMAGE_STUDIO_SD_PROMPT_TEMPLATES: ImageStudioSDPromptTemplate[] = [
+  {
+    id: "sd-portrait-realistic",
+    label: "寫實人像",
+    emoji: "📸",
+    prompt:
+      "professional portrait photography, natural lighting, soft skin tones, sharp focus on eyes, shallow depth of field, 85mm lens, high detail",
+    negPrompt: "blurry, deformed, low quality, watermark, extra fingers, bad anatomy",
+  },
+  {
+    id: "sd-anime-character",
+    label: "動漫角色",
+    emoji: "🌸",
+    prompt:
+      "anime character illustration, detailed clean lineart, vibrant cel shading, expressive eyes, dynamic pose, studio lighting",
+    negPrompt: "low quality, blurry, deformed hands, extra limbs, bad proportions, sketchy",
+  },
+  {
+    id: "sd-concept-art",
+    label: "概念美術",
+    emoji: "🏰",
+    prompt:
+      "epic concept art, painterly style, dramatic atmospheric lighting, intricate details, fantasy environment, high contrast",
+    negPrompt: "blurry, low quality, watermark, text, deformed, ugly",
+  },
+  {
+    id: "sd-product-shot",
+    label: "產品攝影",
+    emoji: "📦",
+    prompt:
+      "studio product photography, clean white background, soft diffused lighting, sharp focus, professional commercial style, ultra detailed",
+    negPrompt: "blurry, low quality, watermark, busy background, color cast",
+  },
+  {
+    id: "sd-architecture",
+    label: "建築環境",
+    emoji: "🏛",
+    prompt:
+      "architectural visualization, golden hour lighting, ultra-detailed materials, photorealistic, wide-angle, 8k",
+    negPrompt: "blurry, low quality, distorted geometry, watermark, sketchy",
+  },
+];
+
+export function buildImageStudioSDSetModelActions(modelId: string): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildImageStudioSDFillPromptActions(
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "fillPrompt", text, append },
+  ];
+}
+
+export function buildImageStudioSDFillNegPromptActions(
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "fillPrompt", text, append, slot: "negativePrompt" },
+  ];
+}
+
+export function buildImageStudioSDApplyPromptTemplateActions(
+  template: ImageStudioSDPromptTemplate
+): AgentAction[] {
+  const actions: AgentAction[] = [
+    { type: "setTab", tabId: "sd" },
+    { type: "fillPrompt", text: template.prompt, append: false },
+  ];
+  if (template.negPrompt) {
+    actions.push({
+      type: "fillPrompt",
+      text: template.negPrompt,
+      append: false,
+      slot: "negativePrompt",
+    });
+  }
+  return actions;
+}
+
+export function buildImageStudioSDSetImageSizeActions(
+  size: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "setParam", key: "sdImageSize", value: size },
+  ];
+}
+
+export function buildImageStudioSDSetGuidanceActions(
+  value: number
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "setParam", key: "sdGuidance", value },
+  ];
+}
+
+export function buildImageStudioSDSetInferStepsActions(
+  value: number
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "setParam", key: "sdInferSteps", value },
+  ];
+}
+
+export function buildImageStudioSDSetLoraActions(
+  loraPath: string,
+  scale = 1
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "sd" },
+    { type: "setParam", key: "loraPath", value: loraPath },
+    { type: "setParam", key: "loraScale", value: scale },
+  ];
+}
+
+export const IMAGE_STUDIO_SD_GUIDANCE_PRESETS: Array<{
+  id: string;
+  label: string;
+  value: number;
+  description: string;
+}> = [
+  { id: "low", label: "低 3", value: 3, description: "更自由、創造性高" },
+  { id: "balanced", label: "平衡 7.5", value: 7.5, description: "預設" },
+  { id: "strict", label: "嚴格 12", value: 12, description: "嚴格貼合提示詞" },
+];
+
+export const IMAGE_STUDIO_SD_INFER_STEPS_PRESETS: Array<{
+  id: string;
+  label: string;
+  value: number;
+  description: string;
+}> = [
+  { id: "fast", label: "快 20", value: 20, description: "草稿" },
+  { id: "default", label: "標準 30", value: 30, description: "預設" },
+  { id: "quality", label: "高品質 40", value: 40, description: "細節更精緻" },
+];
+
+export const IMAGE_STUDIO_SD_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "sd-prompt-coach",
+    label: "幫我寫 SD 提示詞",
+    emoji: "✍️",
+    description: "把想法擴寫成 SD 風格的主提示詞 + 負向詞",
+    chatPrompt:
+      "我在 SD 分頁。請依我目前的想法擴寫成 Stable Diffusion 風格的主提示詞與負向提示詞，分別用 [ACTION:fillPrompt:...] 與 [ACTION:fillPrompt:slot=negativePrompt:...] 直接幫我覆寫。",
+  },
+  {
+    id: "sd-find-lora",
+    label: "幫我找 LoRA",
+    emoji: "🧬",
+    description: "依風格需求推薦一個 HuggingFace LoRA URL",
+    chatPrompt:
+      "我想要某種風格但找不到合適的 LoRA。請依我的描述推薦一個 HuggingFace LoRA URL，並用 [ACTION:setParam:loraPath=...] 幫我套上。",
+  },
+  {
+    id: "sd-recommend-model",
+    label: "幫我選 SD 模型",
+    emoji: "🧭",
+    description: "依需求挑 SD 3.5 / Fast SDXL / SD+LoRA",
+    chatPrompt:
+      "我在 SD 分頁。請依需求（高品質 / 速度 / LoRA / ControlNet）幫我從 3 個 SD 模型中選一個，說明原因，並用 [ACTION:setModel:...] 直接套用。",
+  },
+  {
+    id: "sd-controlnet-from-pose",
+    label: "用骨骼圖當 ControlNet",
+    emoji: "🦴",
+    description: "把上一張骨骼圖當 ControlNet 條件",
+    chatPrompt:
+      "把我上一次在骨骼姿勢頁產出的圖當 ControlNet 條件，自動幫我設定 controlnetImageUrl 與 controlnetScale 並建議模型。",
+  },
+];
+
+export interface ImageStudioSDProfile {
+  pageId: "image-studio";
+  pagePath: "/image-studio";
+  activeTab: "sd";
+  models: ImageStudioSDModelOption[];
+  imageSizes: typeof IMAGE_STUDIO_SD_IMAGE_SIZES;
+  templates: ImageStudioSDPromptTemplate[];
+  guidancePresets: typeof IMAGE_STUDIO_SD_GUIDANCE_PRESETS;
+  inferStepsPresets: typeof IMAGE_STUDIO_SD_INFER_STEPS_PRESETS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const IMAGE_STUDIO_SD_PROFILE: ImageStudioSDProfile = {
+  pageId: "image-studio",
+  pagePath: "/image-studio",
+  activeTab: "sd",
+  models: IMAGE_STUDIO_SD_MODELS,
+  imageSizes: IMAGE_STUDIO_SD_IMAGE_SIZES,
+  templates: IMAGE_STUDIO_SD_PROMPT_TEMPLATES,
+  guidancePresets: IMAGE_STUDIO_SD_GUIDANCE_PRESETS,
+  inferStepsPresets: IMAGE_STUDIO_SD_INFER_STEPS_PRESETS,
+  collaborations: IMAGE_STUDIO_SD_COLLABORATION_LINKS,
+};

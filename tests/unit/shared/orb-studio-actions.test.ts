@@ -27,6 +27,33 @@ import {
   buildImageStudioEditFillPromptActions,
   buildImageStudioEditSetStrengthActions,
   buildImageStudioEditSetOutputSizeActions,
+  IMAGE_STUDIO_UPSCALE_PROFILE,
+  IMAGE_STUDIO_UPSCALE_MODELS,
+  IMAGE_STUDIO_UPSCALE_FACTORS,
+  IMAGE_STUDIO_UPSCALE_COLLABORATION_LINKS,
+  buildImageStudioUpscaleSetModelActions,
+  buildImageStudioUpscaleSetModeActions,
+  buildImageStudioUpscaleSetFactorActions,
+  IMAGE_STUDIO_POSE_PROFILE,
+  IMAGE_STUDIO_POSE_MODELS,
+  IMAGE_STUDIO_POSE_MODES,
+  IMAGE_STUDIO_POSE_COLLABORATION_LINKS,
+  buildImageStudioPoseSetModelActions,
+  buildImageStudioPoseSetDrawModeActions,
+  IMAGE_STUDIO_SD_PROFILE,
+  IMAGE_STUDIO_SD_MODELS,
+  IMAGE_STUDIO_SD_IMAGE_SIZES,
+  IMAGE_STUDIO_SD_PROMPT_TEMPLATES,
+  IMAGE_STUDIO_SD_GUIDANCE_PRESETS,
+  IMAGE_STUDIO_SD_INFER_STEPS_PRESETS,
+  IMAGE_STUDIO_SD_COLLABORATION_LINKS,
+  IMAGE_STUDIO_SD_CAPABILITY_LABELS,
+  buildImageStudioSDSetModelActions,
+  buildImageStudioSDApplyPromptTemplateActions,
+  buildImageStudioSDSetImageSizeActions,
+  buildImageStudioSDSetGuidanceActions,
+  buildImageStudioSDSetInferStepsActions,
+  buildImageStudioSDSetLoraActions,
 } from "../../../shared/orb-studio-actions";
 
 describe("orb-studio-actions: four-modal deep operations", () => {
@@ -214,6 +241,209 @@ describe("orb-studio-actions: image studio Edit profile", () => {
       "edit-recommend-model",
     ]);
     for (const link of IMAGE_STUDIO_EDIT_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: image studio Upscale profile", () => {
+  it("profile points at upscale tab with seedVRUpscale", () => {
+    expect(IMAGE_STUDIO_UPSCALE_PROFILE.activeTab).toBe("upscale");
+    expect(IMAGE_STUDIO_UPSCALE_MODELS.map(m => m.id)).toEqual(["seedVRUpscale"]);
+  });
+
+  it("setModel + setMode actions land on upscale tab", () => {
+    const m = buildImageStudioUpscaleSetModelActions("seedVRUpscale");
+    expect(m[0]).toEqual({ type: "setTab", tabId: "upscale" });
+    expect(m[1]).toEqual({ type: "setModel", modelId: "seedVRUpscale" });
+    const mode = buildImageStudioUpscaleSetModeActions("target");
+    expect(mode[1]).toEqual({ type: "setParam", key: "upscaleMode", value: "target" });
+  });
+
+  it("setFactor forces mode=factor before applying factor value", () => {
+    const actions = buildImageStudioUpscaleSetFactorActions(4);
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "upscale" });
+    expect(actions[1]).toEqual({ type: "setParam", key: "upscaleMode", value: "factor" });
+    expect(actions[2]).toEqual({ type: "setParam", key: "upscaleFactor", value: 4 });
+  });
+
+  it("factors expose ×2 and ×4", () => {
+    const values = IMAGE_STUDIO_UPSCALE_FACTORS.map(f => f.value).sort();
+    expect(values).toEqual([2, 4]);
+  });
+
+  it("upscale collaboration links cover 4 cross-tab handoffs", () => {
+    expect(IMAGE_STUDIO_UPSCALE_COLLABORATION_LINKS).toHaveLength(4);
+    for (const link of IMAGE_STUDIO_UPSCALE_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: image studio Pose profile", () => {
+  it("profile lists all 7 detection modes (matches ImageStudio.tsx UI)", () => {
+    const ids = IMAGE_STUDIO_POSE_MODES.map(m => m.id).sort();
+    expect(ids).toEqual([
+      "body-pose",
+      "face-hand-mask",
+      "face-mask",
+      "face-pose",
+      "full-pose",
+      "hand-mask",
+      "hand-pose",
+    ]);
+    // 全部都應該被 PageAgent setParam 接受（修復 allow-list 後）
+    for (const m of IMAGE_STUDIO_POSE_MODES) {
+      expect(m.acceptedBySetParam).toBe(true);
+    }
+  });
+
+  it("setModel + setDrawMode actions land on pose tab", () => {
+    const m = buildImageStudioPoseSetModelActions("dwPose");
+    expect(m[0]).toEqual({ type: "setTab", tabId: "pose" });
+    expect(m[1]).toEqual({ type: "setModel", modelId: "dwPose" });
+    const draw = buildImageStudioPoseSetDrawModeActions("face-mask");
+    expect(draw[1]).toEqual({ type: "setParam", key: "drawMode", value: "face-mask" });
+  });
+
+  it("pose has DWPose model and 4 collaboration links", () => {
+    expect(IMAGE_STUDIO_POSE_MODELS.map(m => m.id)).toEqual(["dwPose"]);
+    expect(IMAGE_STUDIO_POSE_COLLABORATION_LINKS).toHaveLength(4);
+    for (const link of IMAGE_STUDIO_POSE_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: image studio SD profile", () => {
+  it("profile points at sd tab with the 3 SD models", () => {
+    expect(IMAGE_STUDIO_SD_PROFILE.activeTab).toBe("sd");
+    expect(IMAGE_STUDIO_SD_MODELS.map(m => m.id).sort()).toEqual([
+      "fastSdxl",
+      "sdLora",
+      "stableDiffusion35",
+    ]);
+  });
+
+  it("each SD model declares only known capabilities and labels exist", () => {
+    const allowed = new Set(["neg", "guidance", "lora", "controlnet"]);
+    for (const m of IMAGE_STUDIO_SD_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(IMAGE_STUDIO_SD_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("only SD 3.5 advertises ControlNet support (matches MODELS array)", () => {
+    const sd35 = IMAGE_STUDIO_SD_MODELS.find(m => m.id === "stableDiffusion35");
+    expect(sd35?.capabilities).toContain("controlnet");
+    const others = IMAGE_STUDIO_SD_MODELS.filter(m => m.id !== "stableDiffusion35");
+    for (const m of others) {
+      expect(m.capabilities).not.toContain("controlnet");
+    }
+  });
+
+  it("image sizes match ImageStudio.tsx IMAGE_SIZES (6 entries)", () => {
+    const ids = IMAGE_STUDIO_SD_IMAGE_SIZES.map(s => s.id).sort();
+    expect(ids).toEqual([
+      "landscape_16_9",
+      "landscape_4_3",
+      "portrait_16_9",
+      "portrait_4_3",
+      "square",
+      "square_hd",
+    ]);
+  });
+
+  it("guidance presets stay within 1..20 and infer steps within 10..50", () => {
+    for (const p of IMAGE_STUDIO_SD_GUIDANCE_PRESETS) {
+      expect(p.value).toBeGreaterThanOrEqual(1);
+      expect(p.value).toBeLessThanOrEqual(20);
+    }
+    for (const p of IMAGE_STUDIO_SD_INFER_STEPS_PRESETS) {
+      expect(p.value).toBeGreaterThanOrEqual(10);
+      expect(p.value).toBeLessThanOrEqual(50);
+    }
+  });
+
+  it("apply prompt template fills both positive and negative slots", () => {
+    const template = IMAGE_STUDIO_SD_PROMPT_TEMPLATES[0];
+    expect(template.negPrompt).toBeTruthy();
+    const actions = buildImageStudioSDApplyPromptTemplateActions(template);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "sd" });
+    expect(actions[1]).toMatchObject({
+      type: "fillPrompt",
+      text: template.prompt,
+      append: false,
+    });
+    expect(actions[2]).toMatchObject({
+      type: "fillPrompt",
+      slot: "negativePrompt",
+      text: template.negPrompt,
+    });
+  });
+
+  it("apply prompt template skips negative slot when template lacks negPrompt", () => {
+    const template = {
+      id: "no-neg",
+      label: "純正向",
+      emoji: "🎯",
+      prompt: "just positive",
+    };
+    const actions = buildImageStudioSDApplyPromptTemplateActions(template);
+    expect(actions).toHaveLength(2);
+    expect(actions[1]).toMatchObject({ type: "fillPrompt", text: "just positive" });
+  });
+
+  it("setImageSize / setGuidance / setInferSteps land on SD tab", () => {
+    expect(buildImageStudioSDSetImageSizeActions("square_hd")[1]).toEqual({
+      type: "setParam",
+      key: "sdImageSize",
+      value: "square_hd",
+    });
+    expect(buildImageStudioSDSetGuidanceActions(7.5)[1]).toEqual({
+      type: "setParam",
+      key: "sdGuidance",
+      value: 7.5,
+    });
+    expect(buildImageStudioSDSetInferStepsActions(30)[1]).toEqual({
+      type: "setParam",
+      key: "sdInferSteps",
+      value: 30,
+    });
+  });
+
+  it("setLora applies path + scale together", () => {
+    const actions = buildImageStudioSDSetLoraActions(
+      "https://huggingface.co/example/lora",
+      0.8
+    );
+    expect(actions).toHaveLength(3);
+    expect(actions[1]).toMatchObject({
+      type: "setParam",
+      key: "loraPath",
+      value: "https://huggingface.co/example/lora",
+    });
+    expect(actions[2]).toMatchObject({ type: "setParam", key: "loraScale", value: 0.8 });
+  });
+
+  it("SD setModel lands on sd tab", () => {
+    const actions = buildImageStudioSDSetModelActions("stableDiffusion35");
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "sd" });
+    expect(actions[1]).toEqual({ type: "setModel", modelId: "stableDiffusion35" });
+  });
+
+  it("SD collaboration links cover 4 expected ids", () => {
+    const ids = IMAGE_STUDIO_SD_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "sd-controlnet-from-pose",
+      "sd-find-lora",
+      "sd-prompt-coach",
+      "sd-recommend-model",
+    ]);
+    for (const link of IMAGE_STUDIO_SD_COLLABORATION_LINKS) {
       expect(link.chatPrompt.length).toBeGreaterThan(0);
     }
   });
