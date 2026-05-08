@@ -34,8 +34,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
-import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
+import type { SceneId } from "@/components/AmbientEnvironment";
+import { SCENE_PALETTES } from "@/components/LoginCosmicScene";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // Lazy-load the heavy WebGL orb so the rest of the overlay can paint immediately.
@@ -110,9 +111,39 @@ const STATIC_KEYFRAMES = [
   // Cloud band drift across planet surface
   "@keyframes hs-clouds{0%{background-position:0% 50%}100%{background-position:-200% 50%}}",
   // 3D orb entrance — scale + opacity reveal at convergence
-  "@keyframes hs-orb3d-reveal{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:0}40%{transform:translate3d(-50%,-50%,0) scale(1.18);opacity:1}70%{transform:translate3d(-50%,-50%,0) scale(0.96);opacity:1}100%{transform:translate3d(-50%,-50%,0) scale(1);opacity:1}}",
+  // (The inner div is layout-centered inside its wrapper, so the keyframe
+  // only needs scale/translate around its own center — no -50% recentering.)
+  "@keyframes hs-orb3d-reveal{0%{transform:scale(0.2);opacity:0}40%{transform:scale(1.18);opacity:1}70%{transform:scale(0.96);opacity:1}100%{transform:scale(1);opacity:1}}",
   // 3D orb gentle hover (post-reveal)
-  "@keyframes hs-orb3d-hover{0%,100%{transform:translate3d(-50%,-50%,0) scale(1)}50%{transform:translate3d(-50%,calc(-50% - 4px),0) scale(1.03)}}",
+  "@keyframes hs-orb3d-hover{0%,100%{transform:scale(1) translate3d(0,0,0)}50%{transform:scale(1.03) translate3d(0,-4px,0)}}",
+  // Distant spiral galaxy — slow rotation
+  "@keyframes hs-galaxy-spin{0%{transform:translate3d(-50%,-50%,0) rotate(0deg)}100%{transform:translate3d(-50%,-50%,0) rotate(360deg)}}",
+  // Distant spiral galaxy — gentle breath
+  "@keyframes hs-galaxy-breath{0%,100%{opacity:.42}50%{opacity:.62}}",
+  // Convergence energy dust — spiral inward from edge to center
+  "@keyframes hs-dust-spiral{0%{transform:translate3d(0,0,0) scale(0.6);opacity:0}10%{opacity:.85}80%{opacity:.5}100%{transform:translate3d(var(--hs-dx),var(--hs-dy),0) scale(0.1);opacity:0}}",
+  // Bottom atmospheric horizon — gentle pulse
+  "@keyframes hs-horizon{0%,100%{opacity:.55}50%{opacity:.78}}",
+  // Cinematic title char reveal — slide up + fade in
+  "@keyframes hs-char-reveal{0%{transform:translate3d(0,18px,0);opacity:0;filter:none}60%{opacity:1}100%{transform:translate3d(0,0,0);opacity:1}}",
+  // Constellation line shimmer
+  "@keyframes hs-constellation{0%,100%{opacity:.16}50%{opacity:.4}}",
+  // Long comet sweep — only first ~8% visible per cycle (loops every 18s)
+  "@keyframes hs-comet{0%{transform:translate3d(0,0,0) scaleX(.3);opacity:0}1%{opacity:.85}4%{transform:translate3d(-180px,144px,0) scaleX(.85);opacity:.85}8%{transform:translate3d(-340px,272px,0) scaleX(1);opacity:0}100%{transform:translate3d(-340px,272px,0) scaleX(1);opacity:0}}",
+  // Aurora curtain — horizontal slow shimmer (background-position sweep)
+  "@keyframes hs-aurora-curtain{0%{background-position:0% 50%;opacity:.32}50%{opacity:.5}100%{background-position:200% 50%;opacity:.32}}",
+  // Energy filament — radial flicker around orb at convergence (rotate around left-edge pivot, scaleX 0→1)
+  "@keyframes hs-filament{0%{transform:rotate(var(--hs-rot,0deg)) scaleX(0);opacity:0}20%{opacity:.55}45%{transform:rotate(var(--hs-rot,0deg)) scaleX(1);opacity:.7}80%{opacity:.3}100%{transform:rotate(var(--hs-rot,0deg)) scaleX(0.9);opacity:0}}",
+  // Distant planet drift — start AT LoginCosmicScene's planet position
+  // (50%, 52%) and ease into parked spot (18%, 70%). Offset = (+32vw, -18vh).
+  // Provides seamless visual continuity from the login screen handoff.
+  "@keyframes hs-planet-drift{0%{transform:translate3d(32vw,-18vh,0)}100%{transform:translate3d(0,0,0)}}",
+  // Convergence chromatic ripple — thin expanding ring outward from orb
+  "@keyframes hs-conv-ripple{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:.65}70%{opacity:.18}100%{transform:translate3d(-50%,-50%,0) scale(2.6);opacity:0}}",
+  // Login-screen nebula cloud breath (mirrors LoginCosmicScene's lcs-nebula)
+  "@keyframes hs-login-nebula{0%,100%{opacity:.42;transform:translate3d(-50%,-50%,0) scale(1)}50%{opacity:.62;transform:translate3d(-50%,-50%,0) scale(1.08)}}",
+  // Login-screen cosmic dust (mirrors LoginCosmicScene's lcs-dust)
+  "@keyframes hs-login-dust{0%{transform:translate3d(-50%,-50%,0) rotate(0deg)}100%{transform:translate3d(-50%,-50%,0) rotate(360deg)}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -192,39 +223,118 @@ function buildPalette(personality: Personality): PaletteConfig {
   };
 }
 
-interface SceneVariant {
+/**
+ * Login screen cosmic identity — derived per-scene from LoginCosmicScene's
+ * SCENE_PALETTES so the post-login animation is a seamless continuation of
+ * the exact scene the user just saw (nightSky / morning / cafe / deepSea),
+ * not a jarring color swap into the ambient theme or a fixed purple-only
+ * look.
+ *
+ * Backdrop + accents come straight from SCENE_PALETTES (single source of
+ * truth — no drift). Cosmic-only elements (nebula tones, sun core, lens
+ * flares) carry per-scene overrides so warm scenes don't get a violet
+ * nebula or a sunless orange morning.
+ */
+type SceneCosmic = {
   backdrop: string;
   accentLayer: string;
-}
+  /** Whether the cosmic backdrop calls for stars / milky way / constellations */
+  showCosmicLayers: boolean;
+  /** Whether to show planet + moon (login screen gates these to nightSky only) */
+  showPlanetMoon: boolean;
+  /** Whether to show off-screen sun + lens flares (login: nightSky/morning/cafe) */
+  showSun: boolean;
+  /** Nebula tones used by AuroraCurtain — tinted to match the scene base */
+  nebula: [string, string];
+  /** Sun core gradient (matches LoginCosmicScene's SunWithLensFlare per scene) */
+  sunCore: string;
+  /** Hex flare chain colors */
+  flares: ReadonlyArray<{ t: number; size: number; color: string }>;
+};
 
-function buildSceneVariant(sceneId: SceneId): SceneVariant {
-  const variants: Record<SceneId, SceneVariant> = {
-    nightSky: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 42%, rgba(16,14,34,0.96) 0%, rgba(5,5,16,0.99) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 20% 22%, rgba(70,55,150,0.18) 0%, transparent 56%),radial-gradient(ellipse at 78% 74%, rgba(26,64,120,0.16) 0%, transparent 58%)",
-    },
-    morning: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 40%, rgba(58,42,78,0.9) 0%, rgba(24,18,42,0.96) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 24% 20%, rgba(255,180,120,0.2) 0%, transparent 54%),radial-gradient(ellipse at 72% 78%, rgba(255,120,180,0.14) 0%, transparent 60%)",
-    },
-    cafe: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 44%, rgba(54,34,34,0.92) 0%, rgba(20,13,18,0.97) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 30% 28%, rgba(255,186,136,0.16) 0%, transparent 52%),radial-gradient(ellipse at 76% 72%, rgba(198,122,76,0.14) 0%, transparent 56%)",
-    },
-    deepSea: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 45%, rgba(12,34,50,0.95) 0%, rgba(5,14,24,0.99) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 28% 24%, rgba(82,178,220,0.18) 0%, transparent 55%),radial-gradient(ellipse at 70% 76%, rgba(44,112,170,0.16) 0%, transparent 58%)",
-    },
-  };
-  return variants[sceneId];
+function getLoginCosmic(sceneId: SceneId): SceneCosmic {
+  const p = SCENE_PALETTES[sceneId];
+  // Backdrop + accents are LITERALLY whatever LoginCosmicScene used.
+  const backdrop = p.body.join(",");
+  const accentLayer = p.accents.join(",");
+
+  // Per-scene overrides for cosmic-feature tinting.
+  // nightSky / deepSea: cosmic features make sense — render normally.
+  // morning / cafe: cosmic features feel out of place; we hide planet/moon
+  // (matching LoginCosmicScene which only shows them on nightSky), and
+  // recolor nebula / sun to match the scene's warm/sepia palette.
+  switch (sceneId) {
+    case "nightSky":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: true,
+        showPlanetMoon: true,
+        showSun: true,
+        nebula: ["rgba(120,80,200,0.18)", "rgba(200,120,180,0.14)"],
+        sunCore:
+          "radial-gradient(circle, rgba(255,235,200,0.9) 0%, rgba(255,200,150,0.4) 22%, rgba(255,160,120,0.16) 45%, transparent 70%)",
+        flares: [
+          { t: 0.18, size: 28, color: "rgba(255,210,160,0.45)" },
+          { t: 0.34, size: 18, color: "rgba(180,200,255,0.32)" },
+          { t: 0.52, size: 42, color: "rgba(255,180,180,0.22)" },
+          { t: 0.7, size: 22, color: "rgba(160,220,255,0.28)" },
+          { t: 0.86, size: 14, color: "rgba(255,235,210,0.4)" },
+        ],
+      };
+    case "morning":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: false,
+        showPlanetMoon: false,
+        showSun: true,
+        nebula: ["rgba(255,180,140,0.20)", "rgba(255,140,160,0.14)"],
+        sunCore:
+          "radial-gradient(circle, rgba(255,240,210,0.95) 0%, rgba(255,220,170,0.5) 22%, rgba(255,180,130,0.2) 45%, transparent 70%)",
+        flares: [
+          { t: 0.18, size: 32, color: "rgba(255,220,170,0.5)" },
+          { t: 0.34, size: 18, color: "rgba(255,200,160,0.32)" },
+          { t: 0.52, size: 44, color: "rgba(255,180,150,0.24)" },
+          { t: 0.7, size: 22, color: "rgba(255,210,180,0.30)" },
+          { t: 0.86, size: 14, color: "rgba(255,235,200,0.42)" },
+        ],
+      };
+    case "cafe":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: false,
+        showPlanetMoon: false,
+        showSun: true,
+        nebula: ["rgba(180,110,70,0.18)", "rgba(140,80,50,0.14)"],
+        sunCore:
+          "radial-gradient(circle, rgba(255,210,160,0.85) 0%, rgba(220,160,100,0.4) 22%, rgba(180,100,60,0.16) 45%, transparent 70%)",
+        flares: [
+          { t: 0.18, size: 28, color: "rgba(255,200,140,0.45)" },
+          { t: 0.34, size: 18, color: "rgba(220,160,100,0.32)" },
+          { t: 0.52, size: 42, color: "rgba(180,110,70,0.22)" },
+          { t: 0.7, size: 22, color: "rgba(220,170,120,0.28)" },
+          { t: 0.86, size: 14, color: "rgba(255,225,180,0.4)" },
+        ],
+      };
+    case "deepSea":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: true,
+        showPlanetMoon: false,
+        showSun: false,
+        nebula: ["rgba(60,160,210,0.20)", "rgba(40,120,170,0.14)"],
+        sunCore: "transparent",
+        flares: [],
+      };
+    default: {
+      // Exhaustiveness guard — unreachable for known SceneIds.
+      const _exhaustive: never = sceneId;
+      return _exhaustive;
+    }
+  }
 }
 
 // ─── Orb flight configuration ───────────────────────────────────────────────
@@ -871,7 +981,7 @@ function CentralOrb({
         />
       ))}
 
-      {/* Welcome text — main + subtitle */}
+      {/* Welcome text — cinematic letter-by-letter reveal + shimmer + thin underline */}
       <motion.div
         className="absolute flex flex-col items-center"
         style={{
@@ -880,10 +990,11 @@ function CentralOrb({
           transform: "translateX(-50%)",
           willChange: "opacity",
         }}
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: [0, 0.95, 0.95, 0.8], y: [18, 0, 0, 0] }}
-        transition={{ duration: 2.2, delay: 2.0, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 1, 0.85] }}
+        transition={{ duration: 2.6, delay: 2.0, ease: [0.16, 1, 0.3, 1] }}
       >
+        {/* Char-by-char cinematic reveal */}
         <span
           className="font-light"
           style={{
@@ -895,11 +1006,38 @@ function CentralOrb({
             backgroundClip: "text",
             textShadow: `0 0 24px ${palette.textGlow}`,
             backgroundSize: "220% 100%",
-            animation: "hs-text-shimmer 4.2s linear 2.1s infinite",
+            animation: "hs-text-shimmer 4.2s linear 2.4s infinite",
+            display: "inline-flex",
           }}
         >
-          歡迎回來
+          {Array.from("歡迎回來").map((ch, i) => (
+            <span
+              key={i}
+              style={{
+                display: "inline-block",
+                opacity: 0,
+                animation: `hs-char-reveal 0.9s cubic-bezier(0.16,1,0.3,1) ${2.0 + i * 0.13}s forwards`,
+                willChange: "transform, opacity",
+              }}
+            >
+              {ch}
+            </span>
+          ))}
         </span>
+
+        {/* Thin underline ribbon — premium cinematic touch (CSS only, no blur) */}
+        <motion.div
+          className="mt-2"
+          style={{
+            height: 1,
+            background: `linear-gradient(90deg, transparent 0%, ${palette.textGlow} 50%, transparent 100%)`,
+            transformOrigin: "center",
+          }}
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: [0, s(96), s(96), s(96)], opacity: [0, 0.65, 0.5, 0.4] }}
+          transition={{ duration: 2.2, delay: 2.6, ease: [0.16, 1, 0.3, 1] }}
+        />
+
         <motion.span
           className="font-light mt-2"
           style={{
@@ -908,8 +1046,8 @@ function CentralOrb({
             letterSpacing: `${Math.max(0.08, 0.15 * scale)}em`,
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 0.5, 0.5, 0.35] }}
-          transition={{ duration: 2.0, delay: 2.6, ease: "easeInOut" }}
+          animate={{ opacity: [0, 0.55, 0.55, 0.35] }}
+          transition={{ duration: 2.0, delay: 3.0, ease: "easeInOut" }}
         >
           Healing Studio
         </motion.span>
@@ -1030,9 +1168,11 @@ const MilkyWayBand = memo(function MilkyWayBand() {
         width: "140%",
         height: "120%",
         transform: "rotate(-22deg)",
+        // Identical opacities to LoginCosmicScene's MilkyWay (lines 213-215)
+        // so the band matches in brightness when the user transitions in.
         background: [
-          "linear-gradient(180deg, transparent 38%, rgba(220,210,255,0.10) 46%, rgba(255,240,255,0.16) 50%, rgba(220,210,255,0.10) 54%, transparent 62%)",
-          "linear-gradient(180deg, transparent 40%, rgba(150,110,220,0.09) 48%, rgba(110,180,240,0.07) 52%, transparent 60%)",
+          "linear-gradient(180deg, transparent 38%, rgba(220,210,255,0.12) 46%, rgba(255,240,255,0.18) 50%, rgba(220,210,255,0.12) 54%, transparent 62%)",
+          "linear-gradient(180deg, transparent 40%, rgba(150,110,220,0.10) 48%, rgba(110,180,240,0.08) 52%, transparent 60%)",
         ].join(","),
         backgroundBlendMode: "screen",
         mixBlendMode: "screen",
@@ -1040,10 +1180,83 @@ const MilkyWayBand = memo(function MilkyWayBand() {
           "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
         maskImage:
           "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
-        opacity: 0.6,
+        opacity: 0.7,
         animation: "hs-milky 14s ease-in-out infinite",
       }}
     />
+  );
+});
+
+// ─── Login-screen nebula clouds — exact mirror of LoginCosmicScene Nebula ──
+
+/**
+ * Two large offset radial clouds (purple lower-left, pink upper-right) plus
+ * a slow-rotating conic dust ring — ported verbatim from LoginCosmicScene's
+ * Nebula component so the animation reads as the SAME cosmic environment.
+ *
+ * Note: the keyframes apply translate3d(-50%, -50%, 0) on top of the
+ * elements' existing margin-based centering — this double-offset positions
+ * the clouds toward the corner quadrants rather than at their nominal
+ * left/top, which is the exact behavior of LoginCosmicScene. Mirroring the
+ * quirk preserves visual continuity instead of breaking the look.
+ */
+const LoginNebula = memo(function LoginNebula({ scale }: { scale: number }) {
+  const big = 1100 * scale;
+  return (
+    <>
+      {/* Purple cloud — drifts into upper-left quadrant via keyframe offset */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        aria-hidden
+        style={{
+          left: "30%",
+          top: "55%",
+          width: big,
+          height: big,
+          marginLeft: -big / 2,
+          marginTop: -big / 2,
+          background:
+            "radial-gradient(ellipse at 40% 45%, rgba(120,80,200,0.22) 0%, rgba(80,50,160,0.10) 30%, transparent 60%)",
+          mixBlendMode: "screen",
+          animation: "hs-login-nebula 18s ease-in-out infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+      {/* Pink-purple cloud — drifts into upper-mid quadrant */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        aria-hidden
+        style={{
+          left: "72%",
+          top: "32%",
+          width: big * 0.85,
+          height: big * 0.85,
+          marginLeft: (-big * 0.85) / 2,
+          marginTop: (-big * 0.85) / 2,
+          background:
+            "radial-gradient(ellipse at 55% 50%, rgba(200,120,180,0.16) 0%, rgba(140,80,180,0.08) 32%, transparent 62%)",
+          mixBlendMode: "screen",
+          animation: "hs-login-nebula 22s ease-in-out 2s infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+      {/* Slow swirling cosmic dust — centered conic gradient (90s rotation) */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        aria-hidden
+        style={{
+          left: "50%",
+          top: "50%",
+          width: big * 1.4,
+          height: big * 1.4,
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, rgba(160,140,230,0.06) 80deg, transparent 160deg, rgba(120,180,255,0.05) 240deg, transparent 360deg)",
+          mixBlendMode: "screen",
+          animation: "hs-login-dust 90s linear infinite",
+          willChange: "transform",
+        }}
+      />
+    </>
   );
 });
 
@@ -1051,18 +1264,15 @@ const MilkyWayBand = memo(function MilkyWayBand() {
 
 const SunLensFlare = memo(function SunLensFlare({
   parallax,
+  sunCore,
+  flares,
 }: {
   parallax: [number, number];
+  sunCore: string;
+  flares: ReadonlyArray<{ t: number; size: number; color: string }>;
 }) {
   const [px, py] = parallax;
-  // Optical axis: sun (~108%, -10%) → opposite corner. Hex flare chain.
-  const flares = [
-    { t: 0.18, size: 24, color: "rgba(255,210,160,0.42)" },
-    { t: 0.34, size: 16, color: "rgba(180,200,255,0.28)" },
-    { t: 0.52, size: 36, color: "rgba(255,180,180,0.20)" },
-    { t: 0.7, size: 18, color: "rgba(160,220,255,0.26)" },
-    { t: 0.86, size: 12, color: "rgba(255,235,210,0.36)" },
-  ];
+  // Sun position matches LoginCosmicScene (slightly different but visually identical).
   const SUN_X = 108;
   const SUN_Y = -10;
   const END_X = -10;
@@ -1070,7 +1280,8 @@ const SunLensFlare = memo(function SunLensFlare({
 
   return (
     <>
-      {/* Sun core glow (mostly off-screen, top-right) */}
+      {/* Sun core glow (mostly off-screen, top-right) — gradient comes from
+          getLoginCosmic per scene (warm dawn for morning, sepia for cafe). */}
       <div
         className="absolute rounded-full pointer-events-none"
         style={{
@@ -1080,8 +1291,7 @@ const SunLensFlare = memo(function SunLensFlare({
           height: 280,
           marginLeft: -140,
           marginTop: -140,
-          background:
-            "radial-gradient(circle, rgba(255,235,200,0.85) 0%, rgba(255,200,150,0.36) 22%, rgba(255,160,120,0.14) 45%, transparent 70%)",
+          background: sunCore,
           mixBlendMode: "screen",
           animation: "hs-sun 9s ease-in-out infinite",
           willChange: "transform, opacity",
@@ -1130,12 +1340,34 @@ const DistantPlanet = memo(function DistantPlanet({
   const ty = py * 8 * scale;
 
   return (
+    // Drift wrapper: positioned at the PARKED location (18%, 70%). The CSS
+    // animation translates the whole sub-tree from the login screen's planet
+    // position (50%, 52%) — offset (+32vw, -18vh) — to (0, 0), so the planet
+    // appears to be the SAME planet drifting aside as the user enters.
+    // Inner parallax+content wrapper handles mouse parallax independently
+    // (composes with the drift transform).
     <div
       className="absolute pointer-events-none"
       aria-hidden
       style={{
         left: "18%",
         top: "70%",
+        // Drift timing is locked to the phase pipeline:
+        //   0.0–0.4s : stars only — planet stays at login screen position
+        //   0.4–2.4s : orbs flying — planet drifts to parked spot
+        //   2.4s+    : convergence — planet settled, 3D orb takes over center
+        // 0.4s delay + 2.0s duration ⇒ settles exactly when convergence
+        // begins, so the drifting planet never overlaps the hero orb at climax.
+        // `both` fill mode applies the 0% keyframe (login position) on mount
+        // so there's no first-frame flash at parked position.
+        animation:
+          "hs-planet-drift 2.0s cubic-bezier(0.4,0,0.2,1) 0.4s both",
+        willChange: "transform",
+      }}
+    >
+    <div
+      style={{
+        position: "absolute",
         width: size,
         height: size,
         marginLeft: -size / 2,
@@ -1266,6 +1498,7 @@ const DistantPlanet = memo(function DistantPlanet({
         }}
       />
     </div>
+    </div>
   );
 });
 
@@ -1287,8 +1520,10 @@ const DistantMoon = memo(function DistantMoon({
       className="absolute pointer-events-none"
       aria-hidden
       style={{
-        left: "84%",
-        top: "20%",
+        // Exact-match LoginCosmicScene's Moon position (82%, 22%) so the
+        // user sees the same satellite they just had on the login screen.
+        left: "82%",
+        top: "22%",
         width: size,
         height: size,
         transform: `translate3d(${tx}px, ${ty}px, 0)`,
@@ -1320,6 +1555,488 @@ const DistantMoon = memo(function DistantMoon({
             "radial-gradient(circle, rgba(80,68,58,0.55) 0%, transparent 70%)",
         }}
       />
+    </div>
+  );
+});
+
+// ─── Distant spiral galaxy — fine cosmic background detail ─────────────────
+
+/**
+ * A small, slowly rotating galaxy with conic-gradient spiral arms + a
+ * brighter core. Sits in the upper-left quadrant for compositional balance
+ * with the lower-left planet and upper-right moon.
+ */
+const SpiralGalaxy = memo(function SpiralGalaxy({
+  parallax,
+  scale,
+}: {
+  parallax: [number, number];
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  const size = 260 * scale;
+  const tx = px * -8 * scale;
+  const ty = py * -6 * scale;
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "16%",
+        top: "26%",
+        width: size,
+        height: size,
+        marginLeft: -size / 2,
+        marginTop: -size / 2,
+        transform: `translate3d(${tx}px, ${ty}px, 0)`,
+        willChange: "transform",
+        opacity: 0.55,
+        animation: "hs-galaxy-breath 16s ease-in-out infinite",
+        mixBlendMode: "screen",
+      }}
+    >
+      {/* Spiral arms — conic gradient with slow rotation */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: 0,
+          background: [
+            "conic-gradient(from 0deg, transparent 0deg, rgba(180,160,255,0.22) 30deg, transparent 70deg, rgba(140,200,255,0.18) 130deg, transparent 180deg, rgba(220,180,255,0.20) 230deg, transparent 290deg, rgba(160,180,255,0.16) 330deg, transparent 360deg)",
+            "radial-gradient(circle, rgba(255,240,220,0.45) 0%, rgba(220,200,255,0.16) 18%, transparent 50%)",
+          ].join(","),
+          backgroundBlendMode: "screen",
+          left: "50%",
+          top: "50%",
+          transform: "translate3d(-50%,-50%,0)",
+          width: "100%",
+          height: "100%",
+          WebkitMaskImage:
+            "radial-gradient(circle, #000 0%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.4) 65%, transparent 88%)",
+          maskImage:
+            "radial-gradient(circle, #000 0%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.4) 65%, transparent 88%)",
+          animation: "hs-galaxy-spin 180s linear infinite",
+        }}
+      />
+      {/* Bright galactic core */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: size * 0.18,
+          height: size * 0.18,
+          marginLeft: -(size * 0.18) / 2,
+          marginTop: -(size * 0.18) / 2,
+          background:
+            "radial-gradient(circle, rgba(255,245,225,0.95) 0%, rgba(255,220,180,0.55) 30%, rgba(220,180,255,0.18) 65%, transparent 100%)",
+          boxShadow: "0 0 24px rgba(255,230,200,0.5)",
+        }}
+      />
+    </div>
+  );
+});
+
+// ─── Convergence energy dust — sparks spiraling into the central orb ────────
+
+interface DustParticle {
+  /** Start position offset (px from center) */
+  startX: number;
+  startY: number;
+  size: number;
+  delay: number;
+  duration: number;
+}
+
+/**
+ * Pre-computed energy dust particles: each starts at a perimeter point and
+ * spirals into the center via a CSS variable–driven keyframe. The end-point
+ * delta is `-startX, -startY`, so the @keyframes consume it via
+ * `translate3d(var(--hs-dx), var(--hs-dy), 0)`.
+ *
+ * 18 sparks gives a rich convergence climax without flooding the GPU.
+ */
+const DUST_PARTICLES: DustParticle[] = (() => {
+  const out: DustParticle[] = [];
+  const COUNT = 18;
+  for (let i = 0; i < COUNT; i++) {
+    // Polar distribution — even angle spacing + jitter for organic feel
+    const angle = (i / COUNT) * Math.PI * 2 + ((i * 17) % 5) * 0.06;
+    const radius = 220 + (i % 4) * 40;
+    out.push({
+      startX: Math.cos(angle) * radius,
+      startY: Math.sin(angle) * radius,
+      size: 2 + (i % 3),
+      delay: (i % 6) * 0.08,
+      duration: 1.6 + (i % 5) * 0.15,
+    });
+  }
+  return out;
+})();
+
+const ConvergenceDust = memo(function ConvergenceDust({
+  color,
+  scale,
+}: {
+  color: string;
+  scale: number;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "50%",
+        top: "50%",
+        width: 0,
+        height: 0,
+        willChange: "transform",
+      }}
+    >
+      {DUST_PARTICLES.map((p, i) => {
+        const sx = p.startX * scale;
+        const sy = p.startY * scale;
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={
+              {
+                left: sx,
+                top: sy,
+                width: p.size,
+                height: p.size,
+                marginLeft: -p.size / 2,
+                marginTop: -p.size / 2,
+                background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                boxShadow: `0 0 ${p.size * 3}px ${color}`,
+                animation: `hs-dust-spiral ${p.duration}s cubic-bezier(0.4,0,0.2,1) ${p.delay}s forwards`,
+                willChange: "transform, opacity",
+                opacity: 0,
+                // CSS custom properties consumed by hs-dust-spiral keyframes
+                "--hs-dx": `${-sx}px`,
+                "--hs-dy": `${-sy}px`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </div>
+  );
+});
+
+// ─── Bottom atmospheric horizon — warm gradient grounds the deep space ──────
+
+const BottomHorizon = memo(function BottomHorizon({
+  palette,
+}: {
+  palette: PaletteConfig;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: "38%",
+        background: [
+          // Warm low-horizon glow (dawn-like)
+          `linear-gradient(180deg, transparent 0%, ${palette.haloOuter} 70%, rgba(255,180,140,0.06) 100%)`,
+          // Cool atmospheric tint to harmonize with cosmic palette
+          `linear-gradient(180deg, transparent 0%, ${palette.nebula[0]} 100%)`,
+        ].join(","),
+        backgroundBlendMode: "screen",
+        mixBlendMode: "screen",
+        animation: "hs-horizon 12s ease-in-out infinite",
+        opacity: 0.65,
+      }}
+    />
+  );
+});
+
+// ─── Constellation lines — hand-placed bright-star network ─────────────────
+
+interface ConstAnchor {
+  x: number;
+  y: number;
+  size: number;
+  delay: number;
+}
+
+const CONST_ANCHORS: ConstAnchor[] = [
+  // Cassiopeia-like zigzag near the top
+  { x: 22, y: 12, size: 3.6, delay: 0.0 },
+  { x: 33, y: 7, size: 4.2, delay: 0.5 },
+  { x: 44, y: 14, size: 3.4, delay: 1.0 },
+  { x: 56, y: 8, size: 4.0, delay: 1.5 },
+  { x: 68, y: 16, size: 3.6, delay: 2.0 },
+  // Lower-right triangle
+  { x: 78, y: 82, size: 3.2, delay: 3.0 },
+  { x: 88, y: 88, size: 3.8, delay: 3.5 },
+  { x: 82, y: 94, size: 3.0, delay: 4.0 },
+];
+
+const CONST_LINES: Array<[number, number]> = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [5, 6],
+  [6, 7],
+  [5, 7],
+];
+
+const Constellations = memo(function Constellations() {
+  return (
+    <>
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        width="100%"
+        height="100%"
+        style={{ opacity: 0.6, mixBlendMode: "screen" }}
+        aria-hidden
+      >
+        <defs>
+          <linearGradient id="hs-const-line" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(180,160,240,0.0)" />
+            <stop offset="50%" stopColor="rgba(220,200,255,0.5)" />
+            <stop offset="100%" stopColor="rgba(180,160,240,0.0)" />
+          </linearGradient>
+        </defs>
+        {CONST_LINES.map(([a, b], i) => {
+          const A = CONST_ANCHORS[a];
+          const B = CONST_ANCHORS[b];
+          return (
+            <line
+              key={i}
+              x1={A.x}
+              y1={A.y}
+              x2={B.x}
+              y2={B.y}
+              stroke="url(#hs-const-line)"
+              strokeWidth={0.16}
+              vectorEffect="non-scaling-stroke"
+              style={{
+                animation: `hs-constellation ${8 + (i % 4)}s ease-in-out ${i * 0.3}s infinite`,
+              }}
+            />
+          );
+        })}
+      </svg>
+      {CONST_ANCHORS.map((a, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          aria-hidden
+          style={{
+            left: `${a.x}%`,
+            top: `${a.y}%`,
+            width: a.size,
+            height: a.size,
+            marginLeft: -a.size / 2,
+            marginTop: -a.size / 2,
+            background:
+              "radial-gradient(circle, rgba(255,250,240,0.95) 0%, rgba(255,235,210,0.55) 40%, transparent 80%)",
+            boxShadow: `0 0 ${a.size * 4}px rgba(255,235,210,0.55)`,
+            animation: `hs-tw2 ${4 + (i % 3)}s ease-in-out ${a.delay}s infinite`,
+          }}
+        />
+      ))}
+    </>
+  );
+});
+
+// ─── Comet — slow long-tailed sweep across the screen (looped) ──────────────
+
+const Comet = memo(function Comet() {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "98%",
+        top: "12%",
+        width: 180,
+        height: 3,
+        borderRadius: 1.5,
+        transformOrigin: "100% 50%",
+        transform: "rotate(218deg)",
+        background:
+          "linear-gradient(90deg, transparent 0%, rgba(180,210,255,0.35) 35%, rgba(220,235,255,0.85) 75%, rgba(255,255,255,1) 100%)",
+        boxShadow:
+          "0 0 14px rgba(200,220,255,0.7), 0 0 32px rgba(160,200,255,0.4)",
+        animation: "hs-comet 18s ease-out 3s infinite",
+        opacity: 0,
+        willChange: "transform, opacity",
+      }}
+    />
+  );
+});
+
+// ─── Aurora curtain — wavy translucent ribbon at the top of the sky ─────────
+
+const AuroraCurtain = memo(function AuroraCurtain({
+  nebula,
+}: {
+  nebula: [string, string];
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: 0,
+        right: 0,
+        top: "-2%",
+        height: "40%",
+        // Tilted (~95deg) gradients with wide background-size so horizontal
+        // background-position sweep produces a visible wavy shimmer. Two
+        // layers run at slightly different angles + sizes to feel organic.
+        // The ribbon shape comes from the vertical mask below.
+        // Second layer uses scene-tinted nebula tones (from getLoginCosmic)
+        // so the curtain harmonizes with whatever LoginCosmicScene rendered
+        // (purple-violet for nightSky, warm dawn for morning, sepia for cafe,
+        // teal for deepSea).
+        background: [
+          "linear-gradient(95deg, transparent 0%, rgba(120,220,200,0.20) 18%, rgba(140,200,240,0.14) 38%, rgba(180,160,255,0.18) 60%, transparent 82%)",
+          `linear-gradient(100deg, transparent 0%, ${nebula[0]} 22%, ${nebula[1]} 52%, transparent 80%)`,
+        ].join(","),
+        backgroundSize: "240% 100%, 220% 100%",
+        backgroundRepeat: "no-repeat, no-repeat",
+        backgroundBlendMode: "screen",
+        mixBlendMode: "screen",
+        WebkitMaskImage:
+          "linear-gradient(180deg, transparent 0%, #000 35%, #000 65%, transparent 100%)",
+        maskImage:
+          "linear-gradient(180deg, transparent 0%, #000 35%, #000 65%, transparent 100%)",
+        animation: "hs-aurora-curtain 22s ease-in-out infinite",
+        willChange: "background-position, opacity",
+      }}
+    />
+  );
+});
+
+// ─── Energy filaments — radial lightning tendrils at convergence ────────────
+
+interface Filament {
+  rot: number;
+  length: number;
+  delay: number;
+  duration: number;
+}
+
+const FILAMENTS: Filament[] = (() => {
+  const out: Filament[] = [];
+  const COUNT = 8;
+  for (let i = 0; i < COUNT; i++) {
+    out.push({
+      rot: (i / COUNT) * 360 + ((i * 23) % 11) * 1.3,
+      length: 110 + (i % 3) * 22,
+      delay: (i % 4) * 0.08,
+      duration: 1.4 + (i % 3) * 0.18,
+    });
+  }
+  return out;
+})();
+
+// ─── Convergence chromatic ripple — gravitational-wave style impact ring ───
+
+/**
+ * Two concentric expanding rings with slight delay between them, simulating a
+ * subtle chromatic aberration on the impact wave. Color tinted with cosmic
+ * purple to feel like a continuation of LoginCosmicScene's identity.
+ */
+const ConvergenceRipple = memo(function ConvergenceRipple({
+  scale,
+}: {
+  scale: number;
+}) {
+  const baseSize = 200 * scale;
+  const rings = [
+    {
+      delay: 0,
+      duration: 1.4,
+      borderColor: "rgba(180,160,255,0.55)",
+    },
+    {
+      delay: 0.16,
+      duration: 1.5,
+      borderColor: "rgba(255,200,200,0.42)",
+    },
+  ];
+  return (
+    <>
+      {rings.map((r, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          aria-hidden
+          style={{
+            left: "50%",
+            top: "50%",
+            width: baseSize,
+            height: baseSize,
+            border: `1px solid ${r.borderColor}`,
+            background: "transparent",
+            mixBlendMode: "screen",
+            animation: `hs-conv-ripple ${r.duration}s cubic-bezier(0.16,1,0.3,1) ${r.delay}s forwards`,
+            willChange: "transform, opacity",
+            opacity: 0,
+          }}
+        />
+      ))}
+    </>
+  );
+});
+
+const EnergyFilaments = memo(function EnergyFilaments({
+  color,
+  scale,
+}: {
+  color: string;
+  scale: number;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "50%",
+        top: "50%",
+        width: 0,
+        height: 0,
+        willChange: "transform",
+      }}
+    >
+      {FILAMENTS.map((f, i) => (
+        <div
+          key={i}
+          className="absolute"
+          style={
+            {
+              // Position the filament line so its left edge sits exactly at
+              // the orb center (the wrapper's origin). top: -0.7 vertically
+              // centers the 1.4px line on the y=0 axis so rotation produces
+              // a clean radial spoke around the orb.
+              left: 0,
+              top: -0.7,
+              width: f.length * scale,
+              height: 1.4,
+              background: `linear-gradient(90deg, ${color} 0%, rgba(255,255,255,0.4) 60%, transparent 100%)`,
+              transformOrigin: "0% 50%",
+              animation: `hs-filament ${f.duration}s cubic-bezier(0.4,0,0.2,1) ${f.delay}s forwards`,
+              willChange: "transform, opacity",
+              opacity: 0,
+              mixBlendMode: "screen",
+              boxShadow: `0 0 6px ${color}`,
+              "--hs-rot": `${f.rot}deg`,
+            } as React.CSSProperties
+          }
+        />
+      ))}
     </div>
   );
 });
@@ -1356,8 +2073,8 @@ function Hero3DOrb({
 
   return (
     // Outer: anchors center + applies static upscale so the inner keyframe
-    // animation can own `transform` exclusively. This avoids the keyframe
-    // overriding the centering translate.
+    // animation can own `transform` exclusively. The static scale lives here
+    // because keyframes overwrite `transform`, not its parent's transform.
     <div
       className="absolute pointer-events-none"
       style={{
@@ -1370,19 +2087,26 @@ function Hero3DOrb({
         willChange: "transform",
       }}
     >
-      {/* Inner: reveal + hover animation drives its own transform/opacity */}
+      {/* Inner: fills the 80x80 outer exactly (NO Tailwind `inset-0` + 50%
+          mix that collapsed the box to 40x40 in v2). Explicit position +
+          left/top: 0 + width/height: 100% keeps the WebGL canvas precisely
+          inside the 80x80 container — extra centering transforms here can
+          shift the canvas and expose a rectangular clipping box on some
+          mobile GPUs (see commit 8a6bad2). The animation then transforms
+          relative to the inner's own center via simplified scale-only
+          keyframes, with no -50% recentering needed. */}
       <div
-        className="absolute inset-0"
         style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
           opacity: 0,
           animation:
             "hs-orb3d-reveal 1.4s cubic-bezier(0.16,1,0.3,1) forwards, hs-orb3d-hover 5.2s ease-in-out 1.4s infinite",
+          transformOrigin: "center center",
           willChange: "transform, opacity",
-          // Keep the WebGL canvas fully inside the 80x80 container.
-          // Avoid extra centering transforms here; they can shift the canvas
-          // and expose a rectangular clipping box on some mobile GPUs.
-          left: 0,
-          top: 0,
         }}
       >
         <Suspense fallback={null}>
@@ -1459,8 +2183,12 @@ export default function LoginOrbAnimation() {
   const isMobile = useIsMobile();
   const ambient = useAmbient();
   const palette = useMemo(() => buildPalette(personality), [personality]);
-  const sceneVariant = useMemo(
-    () => buildSceneVariant(ambient.sceneId),
+  // Cosmic backdrop derived from the active LoginCosmicScene scene so the
+  // post-login animation reads as a continuation of the EXACT scene the user
+  // just saw (nightSky / morning / cafe / deepSea). Personality still tints
+  // the hero orb / flying orbs / text glow via `palette`.
+  const cosmic = useMemo(
+    () => getLoginCosmic(ambient.sceneId),
     [ambient.sceneId]
   );
   const responsiveScale = useMemo(() => {
@@ -1641,8 +2369,11 @@ export default function LoginOrbAnimation() {
           className="fixed inset-0 overflow-hidden"
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
-            background:
-              sceneVariant.backdrop,
+            // Per-scene backdrop sourced directly from LoginCosmicScene's
+            // SCENE_PALETTES — guarantees pixel-level continuity from the
+            // exact scene the user just saw (nightSky / morning / cafe / deepSea).
+            background: cosmic.backdrop,
+            backgroundBlendMode: "screen, normal",
             isolation: "isolate",
             contain: "layout paint style",
             pointerEvents: isFading ? "none" : "auto",
@@ -1668,20 +2399,38 @@ export default function LoginOrbAnimation() {
           {/* eslint-disable-next-line react/no-danger */}
           <style dangerouslySetInnerHTML={{ __html: STATIC_KEYFRAMES }} />
 
-          {/* Deepened cosmic backdrop — secondary radial gradient layer */}
+          {/* Per-scene corner glow accents — sourced from SCENE_PALETTES so
+              they match the login screen's accent layer exactly. */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              background:
-                sceneVariant.accentLayer,
+              background: cosmic.accentLayer,
               animation: "hs-depth-breathe 8s ease-in-out infinite",
             }}
           />
 
-          {/* Galactic plane — deepest atmospheric layer (mirrors login screen) */}
-          <MilkyWayBand />
+          {/* Cosmic-only layers (Milky Way, nebula clouds, constellations,
+              spiral galaxy, comet, meteors) only render for scenes where
+              LoginCosmicScene itself would show them — nightSky and deepSea.
+              For warm scenes (morning / cafe) these would clash with the
+              dawn / sepia palette. */}
+          {cosmic.showCosmicLayers && (
+            <>
+              <MilkyWayBand />
+              <LoginNebula scale={responsiveScale} />
+              <Constellations />
+              <SpiralGalaxy parallax={parallax} scale={responsiveScale} />
+              <ShootingStars tint={palette.meteorTint} />
+              <Comet />
+            </>
+          )}
 
-          {/* Star field — pure CSS animations */}
+          {/* Aurora curtain — wavy translucent ribbon at top of sky.
+              Tinted per scene via getLoginCosmic().nebula. */}
+          <AuroraCurtain nebula={cosmic.nebula} />
+
+          {/* Star field — pure CSS animations (always shown; LoginCosmicScene
+              also keeps stars in every scene, just with different tints). */}
           <StarField />
           <DepthParallaxPlanes parallax={parallax} scale={responsiveScale} />
           <VolumetricMist
@@ -1690,15 +2439,31 @@ export default function LoginOrbAnimation() {
             scale={responsiveScale}
           />
 
-          {/* Off-screen sun + lens flare chain — cinematic optical axis */}
-          <SunLensFlare parallax={parallax} />
+          {/* Off-screen sun + lens flare chain — only when the active scene
+              has a visible sun (LoginCosmicScene gates this to nightSky /
+              morning / cafe; deepSea has no sun). */}
+          {cosmic.showSun && (
+            <SunLensFlare
+              parallax={parallax}
+              sunCore={cosmic.sunCore}
+              flares={cosmic.flares}
+            />
+          )}
 
-          {/* Distant planet (lower-left) + moon (upper-right) for parallax depth */}
-          <DistantPlanet parallax={parallax} scale={responsiveScale} />
-          <DistantMoon parallax={parallax} scale={responsiveScale} />
+          {/* Bottom atmospheric horizon — grounds the composition. Rendered
+              BEFORE planet/moon/galaxy so they sit on top of the warm tint
+              instead of having their dark sides washed by additive blend. */}
+          <BottomHorizon palette={palette} />
 
-          {/* Shooting stars — cinematic depth */}
-          <ShootingStars tint={palette.meteorTint} />
+          {/* Distant planet + moon — only when LoginCosmicScene would show
+              them (nightSky-only, per its own sceneId gating). For warm
+              scenes the planet would feel like an alien addition. */}
+          {cosmic.showPlanetMoon && (
+            <>
+              <DistantPlanet parallax={parallax} scale={responsiveScale} />
+              <DistantMoon parallax={parallax} scale={responsiveScale} />
+            </>
+          )}
 
           {/* Subtle vignette overlay — focuses the eye on the central orb */}
           <div
@@ -1716,6 +2481,27 @@ export default function LoginOrbAnimation() {
 
           {/* Convergence flash */}
           {phase === "converged" && <ConvergenceFlash scale={responsiveScale} />}
+
+          {/* Convergence chromatic ripple — gravitational-wave impact ring */}
+          {phase === "converged" && (
+            <ConvergenceRipple scale={responsiveScale} />
+          )}
+
+          {/* Convergence energy dust — sparks spiraling into the central orb */}
+          {phase === "converged" && (
+            <ConvergenceDust
+              color={palette.sparkleColor}
+              scale={responsiveScale}
+            />
+          )}
+
+          {/* Energy filaments — radial lightning tendrils at climax */}
+          {phase === "converged" && (
+            <EnergyFilaments
+              color={palette.sparkleColor}
+              scale={responsiveScale}
+            />
+          )}
 
           {/* Nebula aura (appears with central orb) */}
           {(phase === "converged" || phase === "fadeout") && (
