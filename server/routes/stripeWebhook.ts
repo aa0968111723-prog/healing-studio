@@ -15,6 +15,10 @@ export const stripeWebhookRouter = Router();
  * 驗證 Stripe-Signature header。
  * 若 STRIPE_WEBHOOK_SECRET 未設定，log 警告並跳過驗證。
  * TODO: 整合 Stripe 時使用 stripe.webhooks.constructEvent() 取代此骨架。
+ *
+ * 重要：完善時務必使用 req.rawBody（由 _core/index.ts 的 express.json verify
+ * 鉤子保留的原始位元組）— Stripe 簽名是基於原始 payload bytes，不可重新
+ * stringify 已 parse 過的 req.body。
  */
 function verifyStripeSignature(req: Request): boolean {
   const secret = serverEnv.STRIPE_WEBHOOK_SECRET;
@@ -32,7 +36,8 @@ function verifyStripeSignature(req: Request): boolean {
     return false;
   }
 
-  // TODO: 完善時改為 stripe.webhooks.constructEvent(req.body, signature, secret)
+  // TODO: 完善時改為 stripe.webhooks.constructEvent(req.rawBody, signature, secret)
+  // const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
   // 目前骨架僅檢查 header 存在性
   console.log(
     "[StripeWebhook] ℹ️  Stripe-Signature header 存在（骨架模式，未執行 HMAC 驗證）。"

@@ -17,7 +17,7 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   "gemini-2.5-pro": [
     "gemini-2.5-flash",
     "google/gemini-2.5-pro",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
   ],
   "gemini-2.5-flash": [
     "gemini-2.5-pro",
@@ -26,7 +26,7 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   ],
   // OpenRouter 推理大腦
   "google/gemini-2.5-pro": [
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-flash",
     "gemini-2.5-pro",
   ],
@@ -35,12 +35,20 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
     "google/gemini-2.5-pro",
     "gemini-2.5-flash",
   ],
+  "anthropic/claude-sonnet-4.6": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+    "anthropic/claude-haiku-4.5",
+    "gemini-2.5-pro",
+  ],
   "anthropic/claude-sonnet-4.5": [
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
     "anthropic/claude-haiku-4.5",
     "gemini-2.5-pro",
   ],
   "anthropic/claude-opus-4.7": [
+    "anthropic/claude-sonnet-4.6",
     "anthropic/claude-sonnet-4.5",
     "google/gemini-2.5-pro",
     "gemini-2.5-pro",
@@ -49,15 +57,15 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   // OpenRouter perplexity/sonar-* 同名 ID;再失敗才降級到 Claude / Gemini)
   "perplexity/sonar-reasoning-pro": [
     "anthropic/claude-opus-4.7",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
   ],
   "perplexity/sonar-pro": [
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
   ],
   "perplexity/sonar-reasoning": [
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-flash",
   ],
   "perplexity/sonar": [
@@ -70,18 +78,18 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   ],
   "anthropic/claude-haiku-4.5": [
     "google/gemini-2.5-flash",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "gemini-2.5-flash",
   ],
   "minimax/minimax-m2": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
   "mistralai/mistral-nemo": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
   "meta-llama/llama-3.1-405b-instruct": [
     "google/gemini-2.5-pro",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
   ],
   "meta-llama/llama-3.2-90b-vision-instruct": [
     "google/gemini-2.5-pro",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
   ],
   // MiniMax M2.7(NVIDIA NIM 代理人引擎)→ 降級到 Gemini
   "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],

@@ -393,7 +393,7 @@ const multimodalSchema = z.object({
 
   // ── OpenRouter（統一 LLM 閘道，OpenAI 相容）─────────────
   // 取得金鑰：https://openrouter.ai/keys
-  // 模型 ID 格式：<provider>/<model>，例：anthropic/claude-sonnet-4.5、google/gemini-2.5-pro
+  // 模型 ID 格式：<provider>/<model>，例：anthropic/claude-sonnet-4.6、google/gemini-2.5-pro
   OPENROUTER_API_KEY: z.string().min(1).optional().default(""),
   OPENROUTER_BASE_URL: z
     .string()
