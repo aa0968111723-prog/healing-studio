@@ -76,8 +76,9 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
-import OrbNarrativeBridge from "@/components/home/OrbNarrativeBridge";
+import OrbCreationStage from "@/components/home/OrbCreationStage";
 import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
+import PointerAura from "@/components/home/PointerAura";
 import MagneticTilt from "@/components/home/MagneticTilt";
 import ShimmerDivider from "@/components/home/ShimmerDivider";
 import PageRevealVeil from "@/components/home/PageRevealVeil";
@@ -87,7 +88,6 @@ import SceneVignette from "@/components/home/SceneVignette";
 import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
-import GenerativeShowcase from "@/components/home/GenerativeShowcase";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
@@ -1204,6 +1204,10 @@ ${profileSnippet}`;
       {/* ── Scene-tinted vignette: deepens edges per time-of-day ── */}
       <SceneVignette sceneId={sceneId} />
 
+      {/* ── Page-wide pointer aura (mouse + touch) — gentle scene-tinted glow
+          that follows the cursor / finger across the homepage. */}
+      <PointerAura color={s.glowColor} />
+
       {/* ── Full-screen Ambient Background (Video + Particles) ── */}
       {/* Opacity driven by scroll position via Framer Motion useTransform */}
       <motion.div
@@ -1502,8 +1506,8 @@ ${profileSnippet}`;
       {/* ── Shimmering hairline divider between Hero and Narrative ── */}
       <ShimmerDivider color={s.dividerColor} />
 
-      {/* ── Generative Showcase — 互動式 AI 生成劇場 ── */}
-      <GenerativeShowcase
+      {/* ── Orb Creation Stage — Phase 01 + 02 合併互動劇場 ── */}
+      <OrbCreationStage
         textPrimary={s.textPrimary}
         textMuted={s.textMuted}
         cardBg={s.cardBg}
@@ -1692,12 +1696,9 @@ ${profileSnippet}`;
 
       {/* 首頁快速導覽已完整移至 /learn/tutorial-overview */}
 
-      {/* ── Cinematic Orb Narrative Bridge ── */}
-      {/* Replaces the former CORE CAPABILITIES showcase. Capability cards
-          now live inside the global orb's "✨ 創作能力" view; this narrative
-          orchestrates the visual handoff from the hero orb to the floating
-          orb at the bottom-right of the viewport. */}
-      <OrbNarrativeBridge />
+      {/* OrbCreationStage now subsumes the former OrbNarrativeBridge: the
+          merged stage above carries the "從一個念頭開始" narrative AND the
+          interactive prompt → live generation experience in one panel. */}
 
       {/* ── Intent Inference Whisper (意圖推論低語) ── */}
       {intentResult && intentResult.confidence > 0.4 && (
