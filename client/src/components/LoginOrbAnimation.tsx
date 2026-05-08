@@ -138,6 +138,10 @@ const STATIC_KEYFRAMES = [
   "@keyframes hs-planet-drift{0%{transform:translate3d(32vw,-18vh,0)}100%{transform:translate3d(0,0,0)}}",
   // Convergence chromatic ripple — thin expanding ring outward from orb
   "@keyframes hs-conv-ripple{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:.65}70%{opacity:.18}100%{transform:translate3d(-50%,-50%,0) scale(2.6);opacity:0}}",
+  // Login-screen nebula cloud breath (mirrors LoginCosmicScene's lcs-nebula)
+  "@keyframes hs-login-nebula{0%,100%{opacity:.42;transform:translate3d(-50%,-50%,0) scale(1)}50%{opacity:.62;transform:translate3d(-50%,-50%,0) scale(1.08)}}",
+  // Login-screen cosmic dust (mirrors LoginCosmicScene's lcs-dust)
+  "@keyframes hs-login-dust{0%{transform:translate3d(-50%,-50%,0) rotate(0deg)}100%{transform:translate3d(-50%,-50%,0) rotate(360deg)}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -1104,6 +1108,79 @@ const MilkyWayBand = memo(function MilkyWayBand() {
   );
 });
 
+// ─── Login-screen nebula clouds — exact mirror of LoginCosmicScene Nebula ──
+
+/**
+ * Two large offset radial clouds (purple lower-left, pink upper-right) plus
+ * a slow-rotating conic dust ring — ported verbatim from LoginCosmicScene's
+ * Nebula component so the animation reads as the SAME cosmic environment.
+ *
+ * Note: the keyframes apply translate3d(-50%, -50%, 0) on top of the
+ * elements' existing margin-based centering — this double-offset positions
+ * the clouds toward the corner quadrants rather than at their nominal
+ * left/top, which is the exact behavior of LoginCosmicScene. Mirroring the
+ * quirk preserves visual continuity instead of breaking the look.
+ */
+const LoginNebula = memo(function LoginNebula({ scale }: { scale: number }) {
+  const big = 1100 * scale;
+  return (
+    <>
+      {/* Purple cloud — drifts into upper-left quadrant via keyframe offset */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        aria-hidden
+        style={{
+          left: "30%",
+          top: "55%",
+          width: big,
+          height: big,
+          marginLeft: -big / 2,
+          marginTop: -big / 2,
+          background:
+            "radial-gradient(ellipse at 40% 45%, rgba(120,80,200,0.22) 0%, rgba(80,50,160,0.10) 30%, transparent 60%)",
+          mixBlendMode: "screen",
+          animation: "hs-login-nebula 18s ease-in-out infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+      {/* Pink-purple cloud — drifts into upper-mid quadrant */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        aria-hidden
+        style={{
+          left: "72%",
+          top: "32%",
+          width: big * 0.85,
+          height: big * 0.85,
+          marginLeft: (-big * 0.85) / 2,
+          marginTop: (-big * 0.85) / 2,
+          background:
+            "radial-gradient(ellipse at 55% 50%, rgba(200,120,180,0.16) 0%, rgba(140,80,180,0.08) 32%, transparent 62%)",
+          mixBlendMode: "screen",
+          animation: "hs-login-nebula 22s ease-in-out 2s infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+      {/* Slow swirling cosmic dust — centered conic gradient (90s rotation) */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        aria-hidden
+        style={{
+          left: "50%",
+          top: "50%",
+          width: big * 1.4,
+          height: big * 1.4,
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, rgba(160,140,230,0.06) 80deg, transparent 160deg, rgba(120,180,255,0.05) 240deg, transparent 360deg)",
+          mixBlendMode: "screen",
+          animation: "hs-login-dust 90s linear infinite",
+          willChange: "transform",
+        }}
+      />
+    </>
+  );
+});
+
 // ─── Off-screen sun + lens flare chain (cinematic optical axis) ─────────────
 
 const SunLensFlare = memo(function SunLensFlare({
@@ -1193,8 +1270,16 @@ const DistantPlanet = memo(function DistantPlanet({
       style={{
         left: "18%",
         top: "70%",
+        // Drift timing is locked to the phase pipeline:
+        //   0.0–0.4s : stars only — planet stays at login screen position
+        //   0.4–2.4s : orbs flying — planet drifts to parked spot
+        //   2.4s+    : convergence — planet settled, 3D orb takes over center
+        // 0.4s delay + 2.0s duration ⇒ settles exactly when convergence
+        // begins, so the drifting planet never overlaps the hero orb at climax.
+        // `both` fill mode applies the 0% keyframe (login position) on mount
+        // so there's no first-frame flash at parked position.
         animation:
-          "hs-planet-drift 3.5s cubic-bezier(0.16,1,0.3,1) forwards",
+          "hs-planet-drift 2.0s cubic-bezier(0.4,0,0.2,1) 0.4s both",
         willChange: "transform",
       }}
     >
@@ -2229,6 +2314,11 @@ export default function LoginOrbAnimation() {
 
           {/* Galactic plane — deepest atmospheric layer (mirrors login screen) */}
           <MilkyWayBand />
+
+          {/* Login-screen nebula clouds — purple lower-left, pink upper-right
+              + slow conic dust ring. Exact mirror of LoginCosmicScene's
+              Nebula so the animation IS the same cosmic environment. */}
+          <LoginNebula scale={responsiveScale} />
 
           {/* Aurora curtain — wavy translucent ribbon at top of sky */}
           <AuroraCurtain />
