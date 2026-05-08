@@ -9,11 +9,14 @@
  */
 
 import { z } from "zod";
+import { and, desc, eq } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
 import { AgentCollaborationOrchestrator } from "../services/agentCollaborationOrchestrator";
 import { AgentCommunicationBus } from "../services/agentCommunicationBus";
 import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
+import { agentCollaborationSessions } from "../../drizzle/schema";
 import type { AgentRole } from "../../shared/orb-agent-roles";
 
 export const agentCollaborationRouter = router({
@@ -143,13 +146,11 @@ export const agentCollaborationRouter = router({
     .input(
       z.object({
         limit: z.number().min(1).max(50).default(10),
-        status: z.enum(["active", "completed", "failed"]).optional(),
+        status: z.enum(["active", "completed", "failed", "cancelled"]).optional(),
       })
     )
     .query(async ({ ctx, input }) => {
       try {
-        // Note: This would query from database once persistence is added
-        // For now, return empty array as in-memory sessions are ephemeral
         logger.info("collaboration_list_requested", {
           userId: ctx.user.id,
           limit: input.limit,
@@ -157,10 +158,29 @@ export const agentCollaborationRouter = router({
 
         });
 
-        return {
-          collaborations: [],
-          message: "協作記錄持久化尚未實作，請等待資料庫 schema 完成",
-        };
+        const db = await getDb();
+        if (!db) {
+          // DB unavailable: no persisted history yet, return empty so the UI
+          // doesn't crash. The orchestrator's in-memory state is ephemeral
+          // and not useful for "recent collaborations" anyway.
+          return { collaborations: [] };
+        }
+
+        const conditions = [
+          eq(agentCollaborationSessions.userId, ctx.user.id),
+        ];
+        if (input.status) {
+          conditions.push(eq(agentCollaborationSessions.status, input.status));
+        }
+
+        const rows = await db
+          .select()
+          .from(agentCollaborationSessions)
+          .where(and(...conditions))
+          .orderBy(desc(agentCollaborationSessions.startedAt))
+          .limit(input.limit);
+
+        return { collaborations: rows };
       } catch (error) {
         logger.error("collaboration_list_failed", {
           userId: ctx.user.id,

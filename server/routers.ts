@@ -5822,13 +5822,27 @@ export const appRouter = router({
                 preferredEngine: "auto",
                 warnings: ["provider unavailable"],
               });
+              // Tailor the message to what the user actually attached so the
+              // suggestion is something they can act on (paste text vs. describe
+              // the asset) instead of a generic "try again" line.
+              const attachmentReply =
+                routeIntent === "planner_pdf"
+                  ? "我現在沒辦法讀取這個 PDF（多模態服務暫時離線）。請把腳本內容直接貼到對話裡，我就能繼續幫你拆解、改寫或配音。"
+                  : routeIntent === "planner_multimodal"
+                  ? "我現在沒辦法讀取你上傳的附件（多模態服務暫時離線）。請改用文字描述內容，或稍後再試。"
+                  : "目前模型服務暫時不可用，請稍後再試。";
+              const attachmentSuggestions =
+                routeIntent === "planner_pdf"
+                  ? ["把腳本內容貼到這裡", "稍後再試"]
+                  : routeIntent === "planner_multimodal"
+                  ? ["改用文字描述內容", "稍後再試"]
+                  : ["稍後再試"];
               return {
-                reply:
-                  "目前這個模型服務暫時不可用，我可以改用替代模型，或稍後再試。",
+                reply: attachmentReply,
                 actions: [],
                 intent: null,
                 askBeforeAct: false,
-                suggestions: [],
+                suggestions: attachmentSuggestions,
                 toolCalls: [],
                 telemetry: {
                   traceId: meta.traceId,
