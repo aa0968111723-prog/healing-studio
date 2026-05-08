@@ -176,22 +176,35 @@ const buildLeaf = (id: string): SidebarLeafItem | null => {
   return page ? toLeafItem(page) : null;
 };
 
+const buildGroup = (
+  label: string,
+  icon: LucideIcon,
+  ids: string[]
+): SidebarGroupItem | null => {
+  const children = ids
+    .map(buildLeaf)
+    .filter((leaf): leaf is SidebarLeafItem => leaf !== null);
+  if (children.length === 0) return null;
+  return { kind: "group", label, icon, children };
+};
+
 const sidebarStructure: SidebarEntry[] = (() => {
   const entries: SidebarEntry[] = [];
   const push = (entry: SidebarEntry | null) => {
     if (entry) entries.push(entry);
   };
-  // Flat list — every feature is its own top-level entry, no categories.
   push(buildLeaf("agent-chat"));
-  push(buildLeaf("studio"));
-  push(buildLeaf("image-studio"));
-  push(buildLeaf("video-studio"));
-  push(buildLeaf("pro-studio"));
-  push(buildLeaf("director"));
-  push(buildLeaf("models"));
-  push(buildLeaf("assets"));
-  push(buildLeaf("notes"));
-  push(buildLeaf("learn"));
+  push(
+    buildGroup("創作工作室", Wand2, [
+      "studio",
+      "image-studio",
+      "video-studio",
+      "pro-studio",
+      "director",
+    ])
+  );
+  push(buildGroup("資源庫", Package, ["models", "assets"]));
+  push(buildGroup("知識中心", BookOpen, ["notes", "learn"]));
   return entries;
 })();
 
@@ -583,7 +596,7 @@ function DashboardLayoutContent({
           className="border-r-0"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center sidebar-zen-glow">
+          <SidebarHeader className="h-14 justify-center sidebar-zen-glow">
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
@@ -604,9 +617,9 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             {!isCollapsed && (
-              <div className="px-3 pt-2 pb-1">
+              <div className="px-3 pt-1.5 pb-0.5">
                 <label
-                  className="surface-1 flex items-center gap-2 rounded-xl px-2.5 py-2 transition-healing focus-within:[outline:2px_solid_var(--ring-healing)] focus-within:outline-offset-1"
+                  className="surface-1 flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-healing focus-within:[outline:2px_solid_var(--ring-healing)] focus-within:outline-offset-1"
                   aria-label="搜尋側邊欄功能"
                 >
                   <input
@@ -626,7 +639,7 @@ function DashboardLayoutContent({
               </div>
             )}
             <SidebarMenu
-              className="px-2 py-1"
+              className="px-2 py-0.5 gap-0.5"
               id="sidebar-nav"
               role="navigation"
               aria-label="主導覽"
@@ -657,7 +670,7 @@ function DashboardLayoutContent({
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             tooltip={entry.label}
-                            className="h-11 transition-all duration-200 ease-out font-normal rounded-xl"
+                            className="h-10 transition-all duration-200 ease-out font-normal rounded-xl"
                           >
                             <entry.icon className="h-4 w-4" />
                             <span>{entry.label}</span>
@@ -701,7 +714,7 @@ function DashboardLayoutContent({
                       onClick={() => setLocation(entry.path)}
                       tooltip={entry.label}
                       data-pageid={entry.pageId}
-                      className="sidebar-leaf-button h-11 transition-all duration-200 ease-out font-normal rounded-xl"
+                      className="sidebar-leaf-button h-10 transition-all duration-200 ease-out font-normal rounded-xl"
                       id={entry.id}
                     >
                       <entry.icon
@@ -724,32 +737,30 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="px-3 py-2 gap-1.5">
             {/* 背景任務面板 */}
             {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
               <Link
                 href="/dashboard?section=credits"
-                className="block cursor-pointer group"
+                className="hidden md:block cursor-pointer group mb-1.5"
                 aria-label="查看積分說明"
               >
-                <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center transition-colors group-hover:bg-accent/40">
-                  <p className="hs-small !mb-0 text-muted-foreground tracking-wide uppercase">
+                <div className="surface-1 flex items-center justify-between rounded-xl px-3 py-2 transition-colors group-hover:bg-accent/40">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Zap className="w-3.5 h-3.5 text-primary" />
                     剩餘配額
-                  </p>
-                  <p className="hs-h2 !mb-0 text-foreground tabular-nums mt-0.5">
+                  </span>
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
                     {user?.remainingGenerations ?? 0}
-                  </p>
-                  <p className="hs-small !mb-0 text-muted-foreground/70 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    點擊查看積分說明
-                  </p>
+                  </span>
                 </div>
               </Link>
             )}
             {/* 檢視模式按鈕已移除 — 功能保留在個人設定頁面，不需在側邊欄常駐 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
+                <button className="hidden md:flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
                   <Avatar className="h-10 w-10 border shrink-0">
                     <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
                       {displayInitial}
