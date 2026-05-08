@@ -287,11 +287,10 @@ function ThemeToggleDockButton({
 
   const cycle = () => {
     const order: AppearanceMode[] = ["light", "dark", "system"];
-    const currentIdx = order.indexOf(
-      (appearanceMode === "auto" ? "system" : appearanceMode) as AppearanceMode
-    );
-    const nextIdx =
-      currentIdx === -1 ? 0 : (currentIdx + 1) % order.length;
+    const normalized: AppearanceMode =
+      appearanceMode === "auto" ? "system" : appearanceMode;
+    const currentIdx = order.indexOf(normalized);
+    const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % order.length;
     setAppearanceMode(order[nextIdx]);
   };
 
@@ -419,6 +418,66 @@ function AppleDock({
     [onNavigate]
   );
 
+  // ── While immersive AND revealed, watch the pointer globally so that the
+  //    dock only auto-hides after the cursor has truly left both the nav and
+  //    any portalled Radix popover (flyouts, dropdown, tasks popover). The
+  //    delay also bridges the small sideOffset gap when moving from the dock
+  //    into a child popover. ───────────────────────────────────────────────
+  React.useEffect(() => {
+    if (!immersive || !revealed) return;
+
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const isInSafeZone = (el: Element | null): boolean => {
+      if (!el) return false;
+      return (
+        el.closest("#sidebar-nav") !== null ||
+        el.closest("[data-radix-popper-content-wrapper]") !== null ||
+        el.closest(".apple-dock-peek-zone") !== null
+      );
+    };
+
+    const cancelHide = () => {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    };
+
+    const scheduleHide = () => {
+      if (hideTimer) return;
+      hideTimer = setTimeout(() => {
+        setRevealed(false);
+        hideTimer = null;
+      }, 350);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Keep visible while keyboard focus lives in the dock or its popovers.
+      const focused = document.activeElement;
+      if (
+        focused &&
+        focused !== document.body &&
+        isInSafeZone(focused as Element)
+      ) {
+        cancelHide();
+        return;
+      }
+      const target = e.target as Element | null;
+      if (isInSafeZone(target)) {
+        cancelHide();
+      } else {
+        scheduleHide();
+      }
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      cancelHide();
+    };
+  }, [immersive, revealed]);
+
   // ── In immersive mode, ESC retracts the dock if it was peeked open ─────
   React.useEffect(() => {
     if (!immersive || !revealed) return;
@@ -501,18 +560,22 @@ function AppleDock({
 
   return (
     <>
-      {/* ── Immersive-mode peek zone: invisible hover trigger + thin visual
-            pip on the screen edge that invites a reveal. Lives outside the
-            nav so it stays hoverable while the nav is translated offscreen. */}
+      {/* ── Immersive-mode peek zone: an invisible hit strip + breathing pip
+            on the viewport edge. Lives OUTSIDE the nav so it stays hoverable
+            while the dock body is translated offscreen. Supports touch /
+            click for devices without hover. ─────────────────────────────── */}
       {immersive && !revealed && (
-        <div
-          aria-hidden="true"
+        <button
+          type="button"
+          aria-label="顯示導覽列"
           data-position={position}
           className="apple-dock-peek-zone"
           onMouseEnter={() => setRevealed(true)}
+          onClick={() => setRevealed(true)}
+          onTouchStart={() => setRevealed(true)}
         >
-          <span className="apple-dock-peek-pip" />
-        </div>
+          <span aria-hidden="true" className="apple-dock-peek-pip" />
+        </button>
       )}
 
       <nav
@@ -523,18 +586,12 @@ function AppleDock({
         data-immersive={immersive ? "true" : "false"}
         data-immersive-revealed={revealed ? "true" : "false"}
         onMouseEnter={() => immersive && setRevealed(true)}
-        onMouseLeave={() => immersive && setRevealed(false)}
         onFocus={() => immersive && setRevealed(true)}
-        onBlur={e => {
-          if (immersive && !e.currentTarget.contains(e.relatedTarget as Node)) {
-            setRevealed(false);
-          }
-        }}
         className={cn(
-          "flex fixed z-30 apple-dock-glass overflow-y-auto no-scrollbar overscroll-contain",
+          "flex fixed z-30 apple-dock-glass no-scrollbar overscroll-contain",
           isHorizontal
-            ? "flex-row items-center gap-1.5 py-2 px-2.5"
-            : "flex-col items-center gap-1.5 px-2 py-2.5",
+            ? "flex-row items-center gap-1.5 py-2 px-2.5 overflow-x-auto"
+            : "flex-col items-center gap-1.5 px-2 py-2.5 overflow-y-auto",
           positionClasses,
           position === "right" && "apple-dock-right",
           position === "top" && "apple-dock-top",
@@ -542,13 +599,10 @@ function AppleDock({
           immersiveHidden && "apple-dock-immersive-hidden"
         )}
       >
-      {/* ── Compact controls header: minimize · position · immersive ── */}
-      <div
-        className={cn(
-          "apple-dock-controls flex items-center justify-center",
-          isHorizontal ? "flex-col gap-1" : "flex-row gap-1"
-        )}
-      >
+      {/* ── Compact controls header: minimize · position · immersive.
+            Always a small horizontal triplet — keeps the dock thin even
+            when the dock itself is laid out horizontally. ─────────────── */}
+      <div className="apple-dock-controls flex flex-row items-center justify-center gap-1">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
