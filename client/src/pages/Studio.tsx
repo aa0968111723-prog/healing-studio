@@ -568,6 +568,34 @@ export default function Studio() {
   const [isApplyingSuggestedModel, setIsApplyingSuggestedModel] = useState(false);
   const [selectedFalModelId, setSelectedFalModelId] = useState<string | undefined>();
   const [selectedModelParams, setSelectedModelParams] = useState<Record<string, string | number | boolean>>({});
+  // 光球 setModel 能力用的 Fal 模型清單（依 activeModality 切換）。
+  // 真正的下拉選單在 MiniModelsPanel 各自 fetch；這裡只是給 orb agent 看「可選什麼」。
+  const [orbFalModelOptions, setOrbFalModelOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  useEffect(() => {
+    const cat =
+      activeModality === "voice" || activeModality === "audio"
+        ? "audio"
+        : activeModality === "image"
+          ? "image"
+          : "video";
+    let cancelled = false;
+    fetch(`/api/tools/models?category=${cat}`)
+      .then(r => r.json())
+      .then((rows: Array<{ id: string; name: string }>) => {
+        if (cancelled) return;
+        setOrbFalModelOptions(
+          Array.isArray(rows) ? rows.slice(0, 30).map(r => ({ id: r.id, name: r.name })) : []
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setOrbFalModelOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeModality]);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(
     null
@@ -2226,8 +2254,38 @@ export default function Studio() {
       );
     }
 
+    // ── 模型挑選能力 ──
+    // 光球可以用 [ACTION:setModel:<falModelId>] 直接套用 Fal 模型；
+    // 也接受純數字 LoRA fineTuned id（保留舊行為）。
+    caps.push({
+      action: "setModel",
+      label: "生成模型",
+      currentId: selectedFalModelId,
+      options: orbFalModelOptions.map(m => ({
+        id: m.id,
+        label: m.name,
+        description: m.id,
+      })),
+      hint: "Fal 模型用 modelId（含 / 或 fal: 前綴）；LoRA 微調模型用 myModels 的數字 id。",
+    });
+
+    // ── 工具箱深度操作 ──
+    // 光球可以用 [ACTION:openDialog:toolbox?tab=<key>] 直接打開對應分頁。
+    caps.push({
+      action: "openDialog",
+      label: "工具箱",
+      options: [
+        { id: "toolbox?tab=models", label: "模型挑選", description: "Fal 模型 / LoRA 微調" },
+        { id: "toolbox?tab=controls", label: "進階控制", description: "溫度 / 種子 / LoRA 權重 / 模式" },
+        { id: "toolbox?tab=vault", label: "一致性保險庫", description: "角色 / 場景一致性綁定" },
+        { id: "toolbox?tab=assets", label: "數位資產", description: "翻過去用過的素材" },
+        { id: "toolbox?tab=history", label: "歷史紀錄", description: "重組 / fork 過去作品" },
+      ],
+      hint: "使用 dialogId='toolbox'，params.tab 可填 models / controls / vault / assets / history",
+    });
+
     return caps;
-  }, [activeModality, mode, creativeMode, imageState, videoState, audioState, voiceState]);
+  }, [activeModality, mode, creativeMode, imageState, videoState, audioState, voiceState, selectedFalModelId, orbFalModelOptions]);
 
   useRegisterPageAgent({
     pageId: "studio",
@@ -2507,12 +2565,27 @@ export default function Studio() {
           return { ok: false, reason: `unknown dialogId: ${action.dialogId}` };
         }
         case "setModel": {
-          const id = Number(action.modelId);
+          // 兩種來源：
+          //  1) 純數字 → 視為 LoRA fineTuned modelId（保留舊行為）
+          //  2) 帶 "/" 或 "fal:" 前綴的字串 → 視為 Fal 模型 id（例如 fal-ai/flux/dev
+          //     或 fal:fal-ai/flux/dev），把 selectedFalModelId 切過去
+          const raw = String(action.modelId).trim();
+          if (!raw) return { ok: false, reason: "setModel 需要 modelId" };
+          const id = Number(raw);
           if (!Number.isNaN(id) && id > 0) {
             setFineTunedModelId(id);
             return { ok: true, message: `LoRA 模型已套用（id: ${id}）` };
           }
-          return { ok: false, reason: `setModel 需要正整數型 fineTuned modelId，收到: ${action.modelId}` };
+          const falId = raw.startsWith("fal:") ? raw.slice(4) : raw;
+          if (falId.includes("/")) {
+            setSelectedFalModelId(falId);
+            setSelectedModelParams({});
+            return { ok: true, message: `Fal 模型已套用：${falId}` };
+          }
+          return {
+            ok: false,
+            reason: `setModel 需要 LoRA 數字 id 或 Fal 模型 id（例如 fal-ai/flux/dev），收到：${raw}`,
+          };
         }
         case "focusElement":
           return { ok: true };

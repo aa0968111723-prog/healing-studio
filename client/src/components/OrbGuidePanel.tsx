@@ -13,15 +13,22 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip, Image as ImageIcon, Video, Music, Mic, Check, Circle, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip, Image as ImageIcon, Video, Music, Mic, Check, Circle, CheckCircle2, Briefcase, Wand2 } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import { usePageAgent, type AgentAction } from "@/contexts/PageAgentContext";
 import { trpc } from "@/lib/trpc";
-import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
+import type { OrbGuideStepRewrite, AgentModality } from "../../../shared/agent-actions";
 import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
+import {
+  STUDIO_MODALITY_PROFILES,
+  STUDIO_TOOLBOX_ENTRIES,
+  STUDIO_COLLABORATION_LINKS,
+  buildToolboxOpenAction,
+  getStudioModalityProfile,
+} from "../../../shared/orb-studio-actions";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useGlobalOrbChat, formatRelativeTime, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
@@ -295,9 +302,11 @@ const STUDIO_MODALITY_CARDS: Array<{
 
 function StudioModalityGrid({
   fullscreen,
+  activeModality,
   onPick,
 }: {
   fullscreen: boolean;
+  activeModality?: AgentModality;
   onPick: (modality: "image" | "video" | "audio" | "voice") => void | Promise<void>;
 }) {
   return (
@@ -309,26 +318,34 @@ function StudioModalityGrid({
     >
       {STUDIO_MODALITY_CARDS.map((card, i) => {
         const Icon = card.icon;
+        const isActive = activeModality === card.modality;
         return (
           <motion.button
             key={card.modality}
             onClick={() => void onPick(card.modality)}
             className={cn(
-              "rounded-xl border border-white/10 bg-white/5 hover:bg-white/12 hover:border-white/25",
-              "transition-all p-3 text-left flex items-start gap-3",
-              "focus:outline-none focus:ring-2 focus:ring-white/30"
+              "rounded-xl border transition-all p-3 text-left flex items-start gap-3",
+              "focus:outline-none focus:ring-2 focus:ring-white/30",
+              isActive
+                ? "border-cyan-300/40 bg-cyan-300/10 hover:bg-cyan-300/15"
+                : "border-white/10 bg-white/5 hover:bg-white/12 hover:border-white/25"
             )}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
             whileTap={{ scale: 0.98 }}
           >
-            <div className="rounded-lg bg-white/10 p-2 shrink-0">
+            <div className={cn("rounded-lg p-2 shrink-0", isActive ? "bg-cyan-300/20" : "bg-white/10")}>
               <Icon className="w-4 h-4 text-white/85" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white/90 truncate">
+              <p className="text-sm font-medium text-white/90 truncate flex items-center gap-1.5">
                 {card.title}
+                {isActive && (
+                  <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                    目前
+                  </span>
+                )}
               </p>
               <p className="text-[11px] text-white/55 mt-0.5 line-clamp-2">
                 {card.description}
@@ -338,6 +355,218 @@ function StudioModalityGrid({
           </motion.button>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Studio deep-action grid: per-modality细節操作 ─────────────────────────
+
+function StudioDeepActionGrid({
+  fullscreen,
+  modality,
+  onRun,
+}: {
+  fullscreen: boolean;
+  modality: AgentModality;
+  onRun: (label: string, actions: AgentAction[]) => void | Promise<void>;
+}) {
+  const profile = getStudioModalityProfile(modality);
+  if (!profile) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+        {profile.emoji} {profile.label}・細節操作
+      </p>
+      <div
+        className={cn(
+          "gap-1.5",
+          fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+        )}
+      >
+        {profile.deepActions.map((act, i) => (
+          <motion.button
+            key={`${profile.modality}-${act.label}`}
+            onClick={() => void onRun(act.label, act.buildActions())}
+            className={cn(
+              "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+              "transition-all px-3 py-2 text-left flex items-start gap-2",
+              "focus:outline-none focus:ring-1 focus:ring-white/30"
+            )}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <span className="text-base leading-none mt-0.5">{act.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-white/90 truncate">{act.label}</p>
+              <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                {act.description}
+              </p>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Studio toolbox quick-access row ──────────────────────────────────────
+
+function StudioToolboxRow({
+  fullscreen,
+  onOpenToolbox,
+}: {
+  fullscreen: boolean;
+  onOpenToolbox: (tab: typeof STUDIO_TOOLBOX_ENTRIES[number]["tab"]) => void | Promise<void>;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+        <Briefcase className="w-3 h-3" /> 工具箱深度操作
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {STUDIO_TOOLBOX_ENTRIES.map((entry, i) => (
+          <motion.button
+            key={entry.tab}
+            onClick={() => void onOpenToolbox(entry.tab)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full",
+              "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30",
+              "text-white/80 hover:text-white transition-all",
+              fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]"
+            )}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.03 }}
+            whileTap={{ scale: 0.97 }}
+            title={entry.description}
+          >
+            <span>{entry.emoji}</span>
+            <span>{entry.label}</span>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Studio collaboration links（模型推薦／導演 AI／API 深度連結／全站光球）─
+
+function StudioCollaborationRow({
+  fullscreen,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+        <Wand2 className="w-3 h-3" /> 生成模型 / 導演 AI / API 連結
+      </p>
+      <div
+        className={cn(
+          "gap-1.5",
+          fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+        )}
+      >
+        {STUDIO_COLLABORATION_LINKS.map((link, i) => (
+          <motion.button
+            key={link.id}
+            onClick={() => void onSendChat(link.chatPrompt)}
+            className={cn(
+              "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+              "transition-all px-3 py-2 text-left flex items-start gap-2",
+              "focus:outline-none focus:ring-1 focus:ring-white/30"
+            )}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <span className="text-base leading-none mt-0.5">{link.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-white/90 truncate">{link.label}</p>
+              <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                {link.description}
+              </p>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Studio Deep Actions (modality grid + deep actions + toolbox + collab) ──
+
+function StudioOrbDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  pageAgent: ReturnType<typeof usePageAgent>;
+  onClose: () => void;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  // Studio.tsx 的 useRegisterPageAgent state 會把 activeModality 揭示出來
+  const rawModality = pageAgent.snapshot?.state?.activeModality as
+    | string
+    | undefined;
+  const activeModality: AgentModality | undefined =
+    rawModality === "image" ||
+    rawModality === "video" ||
+    rawModality === "audio" ||
+    rawModality === "voice"
+      ? rawModality
+      : undefined;
+
+  return (
+    <div className="space-y-3">
+      <StudioModalityGrid
+        fullscreen={fullscreen}
+        activeModality={activeModality}
+        onPick={async modality => {
+          await pageAgent.dispatchMany(
+            [{ type: "setModality", modality }],
+            { source: "manual" }
+          );
+          // 切完模態先讓使用者看到深度操作再決定下一步，不立刻 onClose
+        }}
+      />
+
+      {activeModality && (
+        <StudioDeepActionGrid
+          fullscreen={fullscreen}
+          modality={activeModality}
+          onRun={async (label, actions) => {
+            const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
+            if (ok) {
+              toast.success(`已執行：${label}`);
+              onClose();
+            }
+          }}
+        />
+      )}
+
+      <StudioToolboxRow
+        fullscreen={fullscreen}
+        onOpenToolbox={async tab => {
+          await pageAgent.dispatchMany(
+            [buildToolboxOpenAction(tab)],
+            { source: "manual" }
+          );
+          onClose();
+        }}
+      />
+
+      <StudioCollaborationRow
+        fullscreen={fullscreen}
+        onSendChat={onSendChat}
+      />
     </div>
   );
 }
@@ -946,15 +1175,15 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               />
 
               {isStudioPage ? (
-                /* Studio 頁面專屬：當頁模態切換卡（不跳頁） */
-                <StudioModalityGrid
+                /* Studio 頁面專屬：四模態 + 細節操作 + 工具箱 + 全站協作 */
+                <StudioOrbDeepActions
                   fullscreen={fullscreen}
-                  onPick={async modality => {
-                    await pageAgent.dispatchMany(
-                      [{ type: "setModality", modality }],
-                      { source: "manual" }
-                    );
+                  pageAgent={pageAgent}
+                  onClose={onClose}
+                  onSendChat={async prompt => {
                     onClose();
+                    await globalChat.sendMessage(prompt);
+                    globalChat.open();
                   }}
                 />
               ) : (
