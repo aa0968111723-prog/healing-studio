@@ -9,6 +9,11 @@ import {
   Sparkles,
   Loader2,
   Zap,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  PanelLeftClose,
+  PanelRightClose,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AvatarRenderer } from "@/components/AvatarStudio";
@@ -55,6 +60,8 @@ export type DockGroup = {
 
 export type DockEntry = DockLeaf | DockGroup;
 
+export type DockPosition = "left" | "right";
+
 type AppleDockProps = {
   entries: DockEntry[];
   activePath: string;
@@ -69,11 +76,15 @@ type AppleDockProps = {
   isAdmin: boolean;
   onLogout: () => void;
   onRestartTour: () => void;
+  position: DockPosition;
+  onTogglePosition: () => void;
+  minimized: boolean;
+  onToggleMinimized: () => void;
 };
 
 // ─── Background tasks dock trigger ──────────────────────────────────────────
 
-function BackgroundTasksDockButton() {
+function BackgroundTasksDockButton({ side }: { side: "left" | "right" }) {
   const { tasks, activeCount } = useBackgroundTasks();
   const [open, setOpen] = React.useState(false);
 
@@ -88,6 +99,7 @@ function BackgroundTasksDockButton() {
   );
 
   const hasAny = tasks.length > 0;
+  const popoverSide = side === "left" ? "right" : "left";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -97,23 +109,23 @@ function BackgroundTasksDockButton() {
             <button
               type="button"
               aria-label="背景任務"
-              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] text-foreground/75 outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
             >
               {activeCount > 0 ? (
                 <Loader2
                   className="h-[18px] w-[18px] animate-spin text-primary"
-                  strokeWidth={1.75}
+                  strokeWidth={1.85}
                 />
               ) : (
                 <ListChecks
                   className="h-[18px] w-[18px]"
-                  strokeWidth={1.75}
+                  strokeWidth={1.85}
                 />
               )}
               {activeCount > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums"
+                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-br from-[oklch(0.6_0.18_30)] to-[oklch(0.55_0.16_350)] text-white text-[10px] font-bold flex items-center justify-center tabular-nums shadow-[0_2px_8px_oklch(0.55_0.16_30/0.5)]"
                 >
                   {activeCount > 9 ? "9+" : activeCount}
                 </span>
@@ -121,13 +133,13 @@ function BackgroundTasksDockButton() {
             </button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={10}>
+        <TooltipContent side={popoverSide} sideOffset={10}>
           背景任務{activeCount > 0 ? ` · ${activeCount} 進行中` : ""}
         </TooltipContent>
       </Tooltip>
 
       <PopoverContent
-        side="right"
+        side={popoverSide}
         align="end"
         sideOffset={14}
         className="apple-dock-flyout w-[280px] p-2 border-0"
@@ -201,6 +213,64 @@ function BackgroundTasksDockButton() {
   );
 }
 
+// ─── Minimized "bubble" form ────────────────────────────────────────────────
+
+function MinimizedBubble({
+  position,
+  user,
+  displayInitial,
+  onExpand,
+}: {
+  position: DockPosition;
+  user: AppleDockProps["user"];
+  displayInitial: string;
+  onExpand: () => void;
+}) {
+  const sideClass = position === "left" ? "left-3" : "right-3";
+  return (
+    <div
+      className={cn(
+        "hidden md:block fixed top-1/2 -translate-y-1/2 z-30",
+        sideClass
+      )}
+    >
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="展開導覽列"
+            onClick={onExpand}
+            className="apple-dock-bubble relative flex h-12 w-12 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) transition-transform hover:scale-110 active:scale-95"
+            style={{
+              background:
+                "linear-gradient(135deg, oklch(0.99 0.005 75 / 0.85), oklch(0.96 0.02 300 / 0.75))",
+              backdropFilter: "blur(20px) saturate(160%)",
+              WebkitBackdropFilter: "blur(20px) saturate(160%)",
+              border: "1px solid oklch(1 0 0 / 0.5)",
+            }}
+          >
+            <AvatarRenderer
+              avatarUrl={user?.avatarUrl ?? null}
+              fallback={displayInitial}
+              className="h-10 w-10"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-gradient-to-br from-[oklch(0.55_0.1_300)] to-[oklch(0.5_0.1_320)] border-2 border-background shadow-[0_0_8px_oklch(0.55_0.12_300/0.6)]"
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side={position === "left" ? "right" : "left"}
+          sideOffset={12}
+        >
+          展開導覽列
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
 // ─── Main AppleDock ─────────────────────────────────────────────────────────
 
 function AppleDock({
@@ -213,6 +283,10 @@ function AppleDock({
   isAdmin,
   onLogout,
   onRestartTour,
+  position,
+  onTogglePosition,
+  minimized,
+  onToggleMinimized,
 }: AppleDockProps) {
   const [openGroup, setOpenGroup] = React.useState<string | null>(null);
 
@@ -224,27 +298,97 @@ function AppleDock({
     [onNavigate]
   );
 
+  if (minimized) {
+    return (
+      <MinimizedBubble
+        position={position}
+        user={user}
+        displayInitial={displayInitial}
+        onExpand={onToggleMinimized}
+      />
+    );
+  }
+
+  const sideClass = position === "left" ? "left-3" : "right-3";
+  const popoverSide = position === "left" ? "right" : "left";
+  const TogglePositionIcon =
+    position === "left" ? PanelRightClose : PanelLeftClose;
+
+  // ── Compose stagger animation delays so items wave in on first mount ──
+  let staggerIndex = 0;
+  const staggerDelay = (i: number) => ({
+    animationDelay: `${i * 45}ms`,
+  });
+
   return (
     <nav
       id="sidebar-nav"
       aria-label="主導覽"
-      className="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass max-h-[calc(100svh-1.5rem)] overflow-y-auto no-scrollbar overscroll-contain"
+      data-position={position}
+      className={cn(
+        "hidden md:flex fixed top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass max-h-[calc(100svh-1.5rem)] overflow-y-auto no-scrollbar overscroll-contain",
+        sideClass,
+        position === "right" && "apple-dock-right"
+      )}
     >
+      {/* ── Compact controls header: minimize + position toggle ── */}
+      <div className="flex items-center gap-0.5 -mt-0.5 mb-0.5 opacity-65 hover:opacity-100 transition-opacity">
+        <Tooltip delayDuration={350}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="最小化導覽列"
+              onClick={onToggleMinimized}
+              className="apple-dock-item flex h-5 w-5 items-center justify-center rounded-full text-foreground/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+            >
+              <Minus className="h-3 w-3" strokeWidth={2.4} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side={popoverSide} sideOffset={10}>
+            最小化導覽列
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip delayDuration={350}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={
+                position === "left" ? "移到右側" : "移到左側"
+              }
+              onClick={onTogglePosition}
+              className="apple-dock-item flex h-5 w-5 items-center justify-center rounded-full text-foreground/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+            >
+              <TogglePositionIcon className="h-3 w-3" strokeWidth={2.2} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side={popoverSide} sideOffset={10}>
+            {position === "left" ? "移到右側" : "移到左側"}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
       {/* ── Top cluster: navigation entries ── */}
       <div className="flex flex-col items-center gap-1.5">
         {entries.map((entry, idx) => {
+          const itemStyle = staggerDelay(staggerIndex++);
           if (entry.kind === "leaf") {
             const isActive = activePath === entry.path;
             return (
-              <AppleDockItem
+              <div
                 key={entry.id}
-                icon={entry.icon}
-                label={entry.label}
-                isActive={isActive}
-                onClick={() => handleNavigate(entry.path)}
-                id={entry.id}
-                data-pageid={entry.pageId}
-              />
+                className="apple-dock-stagger"
+                style={itemStyle}
+              >
+                <AppleDockItem
+                  icon={entry.icon}
+                  label={entry.label}
+                  isActive={isActive}
+                  onClick={() => handleNavigate(entry.path)}
+                  id={entry.id}
+                  data-pageid={entry.pageId}
+                  tooltipSide={popoverSide}
+                />
+              </div>
             );
           }
 
@@ -261,12 +405,17 @@ function AppleDock({
           }));
 
           return (
-            <div key={`${entry.label}-${idx}`} className="relative">
+            <div
+              key={`${entry.label}-${idx}`}
+              className="apple-dock-stagger relative"
+              style={itemStyle}
+            >
               <AppleDockFlyout
                 title={entry.label}
                 items={flyoutItems}
                 open={isOpen}
                 onOpenChange={next => setOpenGroup(next ? entry.label : null)}
+                side={popoverSide}
                 trigger={
                   <AppleDockItem
                     icon={entry.icon}
@@ -274,6 +423,7 @@ function AppleDock({
                     isActive={hasActiveChild}
                     showActiveDot={hasActiveChild && !isOpen}
                     showTooltip={!isOpen}
+                    tooltipSide={popoverSide}
                     aria-haspopup="menu"
                     aria-expanded={isOpen}
                   />
@@ -300,105 +450,139 @@ function AppleDock({
 
       {/* ── Bottom cluster: tasks · credits · avatar ── */}
       <div className="flex flex-col items-center gap-1.5">
-        <BackgroundTasksDockButton />
+        <div
+          className="apple-dock-stagger"
+          style={staggerDelay(staggerIndex++)}
+        >
+          <BackgroundTasksDockButton side={position} />
+        </div>
 
-        <Tooltip delayDuration={350}>
-          <TooltipTrigger asChild>
-            <Link
-              href="/dashboard?section=credits"
-              aria-label="查看積分"
-              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] text-foreground/75 outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
-            >
-              <Zap className="h-[18px] w-[18px]" strokeWidth={1.75} />
-              <span
-                aria-hidden="true"
-                className="absolute -bottom-1 left-1/2 -translate-x-1/2 min-w-[22px] px-1 h-[14px] rounded-full bg-foreground/85 text-background text-[9px] font-semibold flex items-center justify-center tabular-nums leading-none"
-              >
-                {user?.remainingGenerations ?? 0}
-              </span>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={10}>
-            剩餘配額 · {user?.remainingGenerations ?? 0}
-          </TooltipContent>
-        </Tooltip>
-
-        <DropdownMenu>
+        <div
+          className="apple-dock-stagger"
+          style={staggerDelay(staggerIndex++)}
+        >
           <Tooltip delayDuration={350}>
             <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="使用者選單"
-                  className="apple-dock-item flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+              <Link
+                href="/dashboard?section=credits"
+                aria-label="查看積分"
+                className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+              >
+                <Zap className="h-[18px] w-[18px]" strokeWidth={1.85} />
+                <span
+                  aria-hidden="true"
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 min-w-[22px] px-1 h-[14px] rounded-full bg-gradient-to-br from-[oklch(0.45_0.07_300)] to-[oklch(0.4_0.08_320)] text-white text-[9px] font-semibold flex items-center justify-center tabular-nums leading-none shadow-[0_2px_6px_oklch(0.45_0.08_300/0.45)]"
                 >
-                  <AvatarRenderer
-                    avatarUrl={user?.avatarUrl ?? null}
-                    fallback={displayInitial}
-                    className="h-9 w-9 border border-border/40"
-                  />
-                </button>
-              </DropdownMenuTrigger>
+                  {user?.remainingGenerations ?? 0}
+                </span>
+              </Link>
             </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={10}>
-              {displayName}
+            <TooltipContent side={popoverSide} sideOffset={10}>
+              剩餘配額 · {user?.remainingGenerations ?? 0}
             </TooltipContent>
           </Tooltip>
-          <DropdownMenuContent
-            side="right"
-            align="end"
-            sideOffset={14}
-            className="w-60 apple-dock-flyout border-0 p-1.5"
-          >
-            <DropdownMenuLabel className="px-2.5 pb-1.5 pt-1.5">
-              <p className="text-sm font-medium truncate text-foreground">
+        </div>
+
+        <div
+          className="apple-dock-stagger"
+          style={staggerDelay(staggerIndex++)}
+        >
+          <DropdownMenu>
+            <Tooltip delayDuration={350}>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="使用者選單"
+                    className="apple-dock-item flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) shadow-[0_4px_12px_-4px_oklch(0.55_0.1_300/0.35)]"
+                  >
+                    <AvatarRenderer
+                      avatarUrl={user?.avatarUrl ?? null}
+                      fallback={displayInitial}
+                      className="h-9 w-9 ring-1 ring-foreground/10"
+                    />
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side={popoverSide} sideOffset={10}>
                 {displayName}
-              </p>
-              <p className="text-xs font-normal text-muted-foreground truncate mt-0.5">
-                {user?.email || "-"}
-              </p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => onNavigate("/")}
-              className="cursor-pointer rounded-[10px]"
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+              side={popoverSide}
+              align="end"
+              sideOffset={14}
+              className="w-60 apple-dock-flyout border-0 p-1.5"
             >
-              <Home className="mr-2 h-4 w-4" />
-              <span>首頁</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onNavigate("/settings")}
-              className="cursor-pointer rounded-[10px]"
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              <span>個人設定</span>
-            </DropdownMenuItem>
-            {isAdmin && (
+              <DropdownMenuLabel className="px-2.5 pb-1.5 pt-1.5">
+                <p className="text-sm font-medium truncate text-foreground">
+                  {displayName}
+                </p>
+                <p className="text-xs font-normal text-muted-foreground truncate mt-0.5">
+                  {user?.email || "-"}
+                </p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => onNavigate("/admin")}
+                onClick={() => onNavigate("/")}
                 className="cursor-pointer rounded-[10px]"
               >
-                <Shield className="mr-2 h-4 w-4" />
-                <span>管理後台</span>
+                <Home className="mr-2 h-4 w-4" />
+                <span>首頁</span>
               </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onRestartTour}
-              className="cursor-pointer rounded-[10px]"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              <span>重新開始導覽</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onLogout}
-              className="cursor-pointer rounded-[10px] text-destructive focus:text-destructive"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>登出</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem
+                onClick={() => onNavigate("/settings")}
+                className="cursor-pointer rounded-[10px]"
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                <span>個人設定</span>
+              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem
+                  onClick={() => onNavigate("/admin")}
+                  className="cursor-pointer rounded-[10px]"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  <span>管理後台</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={onTogglePosition}
+                className="cursor-pointer rounded-[10px]"
+              >
+                {position === "left" ? (
+                  <ChevronRight className="mr-2 h-4 w-4" />
+                ) : (
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                )}
+                <span>{position === "left" ? "移到右側" : "移到左側"}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onToggleMinimized}
+                className="cursor-pointer rounded-[10px]"
+              >
+                <Minus className="mr-2 h-4 w-4" />
+                <span>最小化導覽列</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={onRestartTour}
+                className="cursor-pointer rounded-[10px]"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                <span>重新開始導覽</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onLogout}
+                className="cursor-pointer rounded-[10px] text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>登出</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </nav>
   );

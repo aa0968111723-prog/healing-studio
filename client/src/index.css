@@ -364,90 +364,257 @@
 
   /* ─── Apple-Style Floating Dock ─── */
   .apple-dock-glass {
-    background: var(--sidebar);
+    position: relative;
+    background:
+      linear-gradient(
+        180deg,
+        oklch(0.99 0.005 75 / 0.7) 0%,
+        oklch(0.97 0.015 300 / 0.55) 45%,
+        oklch(0.98 0.012 30 / 0.6) 100%
+      ),
+      var(--sidebar);
+    background-size: 100% 220%;
     border: 1px solid var(--surface-border);
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
     box-shadow:
-      0 8px 32px -8px oklch(0.2 0.01 280 / 0.18),
-      0 2px 8px -2px oklch(0.2 0.01 280 / 0.12),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
+      0 12px 40px -10px oklch(0.55 0.06 300 / 0.18),
+      0 4px 14px -4px oklch(0.2 0.01 280 / 0.12),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.5),
+      inset 0 -1px 0 0 oklch(0.9 0.02 280 / 0.12);
     border-radius: 28px;
+    animation:
+      apple-dock-pop var(--duration-gentle) var(--ease-healing-out),
+      apple-dock-aurora 14s ease-in-out 0.5s infinite;
   }
   :is(.dark) .apple-dock-glass {
+    background:
+      linear-gradient(
+        180deg,
+        oklch(0.26 0.025 300 / 0.7) 0%,
+        oklch(0.22 0.018 280 / 0.55) 45%,
+        oklch(0.24 0.025 320 / 0.65) 100%
+      ),
+      var(--sidebar);
+    background-size: 100% 220%;
     box-shadow:
-      0 8px 32px -8px oklch(0 0 0 / 0.5),
-      0 2px 8px -2px oklch(0 0 0 / 0.35),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+      0 12px 40px -10px oklch(0.55 0.08 300 / 0.4),
+      0 4px 14px -4px oklch(0 0 0 / 0.4),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.07),
+      inset 0 -1px 0 0 oklch(0 0 0 / 0.2);
   }
 
   .apple-dock-divider {
     height: 1px;
     margin: 6px 8px;
-    background: color-mix(in oklch, currentColor 12%, transparent);
+    background: linear-gradient(
+      to right,
+      transparent,
+      color-mix(in oklch, currentColor 18%, transparent),
+      transparent
+    );
     border-radius: 9999px;
   }
 
   .apple-dock-item {
+    color: var(--text-on-glass-strong);
     transition:
-      background-color var(--duration-gentle) var(--ease-healing-out),
-      transform var(--duration-gentle) var(--ease-healing-out),
-      color var(--duration-gentle) var(--ease-healing-out);
+      background-color 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+      transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      color var(--duration-gentle) var(--ease-healing-out),
+      box-shadow var(--duration-gentle) var(--ease-healing-out);
   }
   .apple-dock-item:hover {
-    background: color-mix(in oklch, currentColor 8%, transparent);
-    transform: scale(1.04);
+    background: color-mix(in oklch, var(--color-zen-lavender) 22%, transparent);
+    color: oklch(0.45 0.08 300);
+    transform: scale(1.08);
+  }
+  :is(.dark) .apple-dock-item:hover {
+    background: color-mix(in oklch, var(--color-zen-lavender) 24%, transparent);
+    color: oklch(0.92 0.05 300);
   }
   .apple-dock-item:active {
-    transform: scale(0.95);
+    transform: scale(0.92);
   }
   .apple-dock-item[data-active="true"] {
-    background: var(--sidebar-primary);
-    color: var(--sidebar-primary-foreground);
+    background:
+      linear-gradient(
+        135deg,
+        oklch(0.55 0.08 300) 0%,
+        oklch(0.45 0.07 320) 50%,
+        oklch(0.5 0.09 270) 100%
+      );
+    color: oklch(0.99 0.005 75);
+    box-shadow:
+      0 4px 14px -2px oklch(0.55 0.1 300 / 0.5),
+      0 2px 6px -1px oklch(0.45 0.08 320 / 0.35),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.25);
+  }
+  :is(.dark) .apple-dock-item[data-active="true"] {
+    background:
+      linear-gradient(
+        135deg,
+        oklch(0.78 0.1 300) 0%,
+        oklch(0.7 0.09 320) 50%,
+        oklch(0.74 0.11 270) 100%
+      );
+    color: oklch(0.18 0.012 280);
+    box-shadow:
+      0 4px 16px -2px oklch(0.78 0.12 300 / 0.5),
+      0 2px 6px -1px oklch(0.7 0.1 320 / 0.4),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.25);
+  }
+  .apple-dock-item[data-active="true"]:hover {
+    transform: scale(1.08);
   }
 
   .apple-dock-active-dot {
     position: absolute;
     left: 50%;
-    bottom: -4px;
-    width: 3px;
+    bottom: -5px;
+    width: 14px;
     height: 3px;
     border-radius: 9999px;
-    background: var(--sidebar-primary);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.55 0.1 300),
+      oklch(0.5 0.1 320),
+      transparent
+    );
     transform: translateX(-50%);
-    box-shadow: 0 0 6px oklch(from var(--sidebar-primary) l c h / 0.5);
+    box-shadow: 0 0 8px oklch(0.55 0.1 300 / 0.6);
+    animation: apple-dock-dot-glow 2.4s ease-in-out infinite;
+  }
+  :is(.dark) .apple-dock-active-dot {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.82 0.12 300),
+      oklch(0.78 0.11 320),
+      transparent
+    );
+    box-shadow: 0 0 10px oklch(0.82 0.14 300 / 0.7);
   }
 
   .apple-dock-flyout {
-    background: var(--surface-2);
+    background:
+      linear-gradient(
+        180deg,
+        oklch(0.99 0.005 75 / 0.85) 0%,
+        oklch(0.97 0.015 300 / 0.78) 100%
+      ),
+      var(--surface-2);
     border: 1px solid var(--surface-border);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     box-shadow:
-      0 10px 40px -10px oklch(0.2 0.01 280 / 0.22),
-      0 4px 12px -4px oklch(0.2 0.01 280 / 0.12),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.35);
+      0 12px 44px -10px oklch(0.55 0.06 300 / 0.22),
+      0 4px 14px -4px oklch(0.2 0.01 280 / 0.14),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
     border-radius: 18px;
   }
   :is(.dark) .apple-dock-flyout {
+    background:
+      linear-gradient(
+        180deg,
+        oklch(0.26 0.025 300 / 0.92) 0%,
+        oklch(0.22 0.018 280 / 0.85) 100%
+      ),
+      var(--surface-2);
     box-shadow:
-      0 10px 40px -10px oklch(0 0 0 / 0.6),
-      0 4px 12px -4px oklch(0 0 0 / 0.4),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+      0 12px 44px -10px oklch(0.55 0.08 300 / 0.4),
+      0 4px 14px -4px oklch(0 0 0 / 0.45),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.06);
   }
 
   @keyframes apple-dock-pop {
     0% {
       opacity: 0;
-      transform: scale(0.92);
+      transform: scale(0.9) translateY(10px);
     }
     100% {
       opacity: 1;
-      transform: scale(1);
+      transform: scale(1) translateY(0);
     }
   }
-  .apple-dock-glass {
-    animation: apple-dock-pop var(--duration-gentle) var(--ease-healing-out);
+
+  @keyframes apple-dock-aurora {
+    0%,
+    100% {
+      background-position:
+        0% 0%,
+        0 0;
+    }
+    50% {
+      background-position:
+        0% 100%,
+        0 0;
+    }
+  }
+
+  @keyframes apple-dock-dot-glow {
+    0%,
+    100% {
+      opacity: 0.85;
+      transform: translateX(-50%) scaleX(1);
+    }
+    50% {
+      opacity: 1;
+      transform: translateX(-50%) scaleX(1.18);
+    }
+  }
+
+  @keyframes apple-dock-stagger-in {
+    0% {
+      opacity: 0;
+      transform: translateX(var(--apple-dock-stagger-from, -8px)) scale(0.85);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+  .apple-dock-stagger {
+    animation: apple-dock-stagger-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1)
+      backwards;
+  }
+
+  /* When the dock is on the right side, stagger items slide in from the right */
+  .apple-dock-right .apple-dock-stagger {
+    --apple-dock-stagger-from: 8px;
+  }
+
+  @keyframes apple-dock-bubble-pulse {
+    0%,
+    100% {
+      box-shadow:
+        0 8px 28px -6px oklch(0.55 0.1 300 / 0.4),
+        0 0 0 0 oklch(0.55 0.1 300 / 0.35);
+    }
+    70% {
+      box-shadow:
+        0 8px 28px -6px oklch(0.55 0.1 300 / 0.4),
+        0 0 0 14px oklch(0.55 0.1 300 / 0);
+    }
+  }
+  .apple-dock-bubble {
+    animation:
+      apple-dock-pop 0.45s var(--ease-healing-out),
+      apple-dock-bubble-pulse 2.6s ease-in-out infinite 0.45s;
+  }
+
+  /* Reduced motion: stop the heavier animations */
+  @media (prefers-reduced-motion: reduce) {
+    .apple-dock-glass,
+    .apple-dock-active-dot,
+    .apple-dock-bubble,
+    .apple-dock-stagger {
+      animation: none !important;
+    }
+    .apple-dock-item {
+      transition-duration: 0.15s !important;
+    }
   }
 
   /* ─── Shimmer Animation ──────────────────────────────────────────── */

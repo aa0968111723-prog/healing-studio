@@ -70,7 +70,7 @@ import {
   useSiteOnboarding,
   type PageId,
 } from "@/contexts/SiteOnboardingContext";
-import { Suspense, useCallback, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
@@ -82,7 +82,25 @@ import {
   type AppPageRegistryItem,
 } from "@/config/appRegistry";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
-import AppleDock, { type DockEntry, type DockLeaf } from "./AppleDock";
+import AppleDock, {
+  type DockEntry,
+  type DockLeaf,
+  type DockPosition,
+} from "./AppleDock";
+
+const DOCK_POSITION_KEY = "apple-dock-position";
+const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
+
+function readDockPosition(): DockPosition {
+  if (typeof window === "undefined") return "left";
+  const v = window.localStorage.getItem(DOCK_POSITION_KEY);
+  return v === "right" ? "right" : "left";
+}
+
+function readDockMinimized(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(DOCK_MINIMIZED_KEY) === "1";
+}
 
 
 type SidebarLeafItem = DockLeaf;
@@ -267,6 +285,23 @@ function DashboardLayoutContent({
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 
+  // ── Dock position + minimize (persisted) ───────────────────────────────
+  const [dockPosition, setDockPosition] =
+    useState<DockPosition>(readDockPosition);
+  const [dockMinimized, setDockMinimized] = useState<boolean>(readDockMinimized);
+  useEffect(() => {
+    window.localStorage.setItem(DOCK_POSITION_KEY, dockPosition);
+  }, [dockPosition]);
+  useEffect(() => {
+    window.localStorage.setItem(DOCK_MINIMIZED_KEY, dockMinimized ? "1" : "0");
+  }, [dockMinimized]);
+  const toggleDockPosition = useCallback(() => {
+    setDockPosition(p => (p === "left" ? "right" : "left"));
+  }, []);
+  const toggleDockMinimized = useCallback(() => {
+    setDockMinimized(v => !v);
+  }, []);
+
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
   const { startTour, hasSeen } = useSiteOnboarding();
   useEffect(() => {
@@ -354,6 +389,10 @@ function DashboardLayoutContent({
           isAdmin={isAdmin}
           onLogout={logout}
           onRestartTour={handleRestartWelcomeTour}
+          position={dockPosition}
+          onTogglePosition={toggleDockPosition}
+          minimized={dockMinimized}
+          onToggleMinimized={toggleDockMinimized}
         />
       )}
 
@@ -547,7 +586,17 @@ function DashboardLayoutContent({
           tabIndex={-1}
           className={`relative flex-1 overflow-y-auto ${
             settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
-          } ${!isMobile ? "md:pl-24" : ""} pb-safe-area-inset-bottom focus:outline-none`}
+          } ${
+            !isMobile
+              ? dockMinimized
+                ? dockPosition === "left"
+                  ? "md:pl-20"
+                  : "md:pr-20"
+                : dockPosition === "left"
+                  ? "md:pl-24"
+                  : "md:pr-24"
+              : ""
+          } pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
           data-scroll-area
           style={{
             paddingBottom: settings.compactMode
