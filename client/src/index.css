@@ -1451,4 +1451,88 @@
     background-size: 300% 300%;
     animation: healing-wash 30s cubic-bezier(0.37, 0, 0.63, 1) infinite;
   }
+
+  /* ─── Login cosmic scene — dark glass card overrides ─────────────────
+   * Scoped so the auth controls remain readable on the deep-space backdrop
+   * without affecting the rest of the app.
+   */
+  .login-cosmic {
+    color-scheme: dark;
+    background: #06041a;
+  }
+
+  .login-card {
+    /* Soft floating animation for cinematic feel */
+    animation: login-card-rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes login-card-rise {
+    0% {
+      opacity: 0;
+      transform: translateY(14px) scale(0.985);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .login-auth-form .text-muted-foreground,
+  .login-cosmic .text-muted-foreground {
+    color: rgba(220, 210, 250, 0.58) !important;
+  }
+
+  .login-auth-form input,
+  .login-auth-form [role="tab"],
+  .login-auth-form [role="tablist"] {
+    color: rgba(245, 240, 255, 0.95);
+  }
+
+  .login-auth-form input {
+    background: rgba(20, 14, 40, 0.55) !important;
+    border: 1px solid rgba(180, 160, 240, 0.22) !important;
+    color: rgba(245, 240, 255, 0.95) !important;
+  }
+  .login-auth-form input::placeholder {
+    color: rgba(220, 210, 250, 0.42) !important;
+  }
+  .login-auth-form input:focus-visible {
+    border-color: rgba(200, 170, 255, 0.55) !important;
+    box-shadow: 0 0 0 3px rgba(170, 130, 240, 0.22) !important;
+    outline: none;
+  }
+
+  .login-auth-form [role="tablist"] {
+    background: rgba(20, 14, 40, 0.5);
+    border: 1px solid rgba(180, 160, 240, 0.18);
+  }
+  .login-auth-form [role="tab"][data-state="active"] {
+    background: linear-gradient(
+      135deg,
+      rgba(170, 140, 240, 0.85),
+      rgba(120, 90, 210, 0.85)
+    );
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(110, 80, 200, 0.35);
+  }
+  .login-auth-form [role="tab"]:not([data-state="active"]) {
+    color: rgba(220, 210, 250, 0.7);
+  }
+
+  .login-auth-form a {
+    color: rgba(200, 170, 255, 0.9);
+  }
+  .login-auth-form a:hover {
+    color: rgba(220, 200, 255, 1);
+  }
+
+  /* Show/hide password icon button */
+  .login-auth-form button[aria-label="隱藏密碼"],
+  .login-auth-form button[aria-label="顯示密碼"] {
+    color: rgba(220, 210, 250, 0.6);
+  }
+  .login-auth-form button[aria-label="隱藏密碼"]:hover,
+  .login-auth-form button[aria-label="顯示密碼"]:hover {
+    color: rgba(245, 240, 255, 0.95);
+  }
 }
