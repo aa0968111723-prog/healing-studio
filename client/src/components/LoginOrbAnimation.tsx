@@ -1378,11 +1378,11 @@ function Hero3DOrb({
           animation:
             "hs-orb3d-reveal 1.4s cubic-bezier(0.16,1,0.3,1) forwards, hs-orb3d-hover 5.2s ease-in-out 1.4s infinite",
           willChange: "transform, opacity",
-          // Keyframes assume centered layout — neutralize the absolute inset
-          // by translating from natural top-left to centered before scaling.
-          transform: "translate3d(-50%,-50%,0)",
-          left: "50%",
-          top: "50%",
+          // Keep the WebGL canvas fully inside the 80x80 container.
+          // Avoid extra centering transforms here; they can shift the canvas
+          // and expose a rectangular clipping box on some mobile GPUs.
+          left: 0,
+          top: 0,
         }}
       >
         <Suspense fallback={null}>
