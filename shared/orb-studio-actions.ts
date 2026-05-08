@@ -2554,3 +2554,467 @@ export const VIDEO_STUDIO_CONTROL_PROFILE: VideoStudioControlProfile = {
   controlNets: VIDEO_STUDIO_CONTROL_CONTROLNETS,
   collaborations: VIDEO_STUDIO_CONTROL_COLLABORATION_LINKS,
 };
+
+// ════════════════════════════════════════════════════════════════════════
+// ─── 音樂配音創作室（Pro Studio）/ 7 大分頁深度操作 ────────────────────
+// ════════════════════════════════════════════════════════════════════════
+//
+// /pro-studio 有 7 個分頁：music / sfx / tts / clone / process / asr / avatar。
+// ProStudio.tsx 透過 ProStudioAgentBridge ref 與子分頁對接，PageAgent setModel
+// 會自動切到該模型的 tab。光球面板的責任是產出對的 AgentAction[] 並串到
+// 對應的 setTab → setModel → fillPrompt → setParam → submit 流程。
+
+export interface ProStudioGenericModel {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  tags?: string[];
+  fast?: boolean;
+}
+
+// ─── Music（音樂生成）─────────────────────────────────────────────────
+
+export const PRO_STUDIO_MUSIC_MODELS: ProStudioGenericModel[] = [
+  { id: "sonauto", label: "Sonauto", emoji: "🎵", description: "AI 作曲、支援歌詞，快速從文字到完整歌曲", tags: ["歌詞", "快"], fast: true },
+  { id: "ace-step", label: "ACE-Step", emoji: "💎", description: "高品質音樂生成，適合最終成片用配樂", tags: ["高品質"] },
+  { id: "stable-audio", label: "Stable Audio", emoji: "🎚", description: "Stability 音樂模型，可控參數穩定輸出", tags: ["穩定", "可控"] },
+  { id: "musicgen", label: "MusicGen", emoji: "🧪", description: "Meta 音樂生成，研究與風格探索", tags: ["探索"] },
+];
+
+export interface ProStudioPromptTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  prompt: string;
+  suggestedModelId?: string;
+  /** 套用模板時順便設定的參數（例：duration / instrumental / voiceId…） */
+  params?: Array<{ key: string; value: unknown }>;
+}
+
+export const PRO_STUDIO_MUSIC_TEMPLATES: ProStudioPromptTemplate[] = [
+  {
+    id: "music-meditation",
+    label: "冥想引導",
+    emoji: "🧘",
+    prompt: "ambient meditation, soft pads, gentle nature sounds, peaceful, 60bpm",
+    suggestedModelId: "stable-audio",
+    params: [{ key: "duration", value: 60 }, { key: "instrumental", value: true }],
+  },
+  {
+    id: "music-cafe",
+    label: "咖啡廳輕音樂",
+    emoji: "☕",
+    prompt: "soft jazz, acoustic guitar, mellow piano, warm cafe ambience, 80bpm",
+    suggestedModelId: "ace-step",
+    params: [{ key: "duration", value: 90 }, { key: "instrumental", value: true }],
+  },
+  {
+    id: "music-cinematic",
+    label: "電影配樂",
+    emoji: "🎬",
+    prompt: "cinematic orchestral score, emotional strings, gentle piano, slow build, 70bpm",
+    suggestedModelId: "ace-step",
+    params: [{ key: "duration", value: 60 }, { key: "instrumental", value: true }],
+  },
+  {
+    id: "music-healing",
+    label: "療癒音樂",
+    emoji: "🌿",
+    prompt: "healing ambient, crystal bowls, gentle synths, slow flowing pads, 432Hz, calm",
+    suggestedModelId: "stable-audio",
+    params: [{ key: "duration", value: 120 }, { key: "instrumental", value: true }],
+  },
+  {
+    id: "music-lofi",
+    label: "Lo-Fi 學習",
+    emoji: "📚",
+    prompt: "lo-fi hip hop beats, vinyl crackle, mellow keys, chill study vibes, 75bpm",
+    suggestedModelId: "ace-step",
+    params: [{ key: "duration", value: 90 }, { key: "instrumental", value: true }],
+  },
+  {
+    id: "music-pop-vocal",
+    label: "流行歌（含歌詞）",
+    emoji: "🎤",
+    prompt:
+      "Pop song with vocals, catchy chorus, modern production, uplifting mood. [Verse 1] / [Chorus] / [Bridge]",
+    suggestedModelId: "sonauto",
+    params: [{ key: "duration", value: 120 }, { key: "instrumental", value: false }],
+  },
+];
+
+export const PRO_STUDIO_MUSIC_DURATIONS: Array<{ id: string; label: string; value: number }> = [
+  { id: "d30", label: "30 秒", value: 30 },
+  { id: "d60", label: "60 秒", value: 60 },
+  { id: "d90", label: "90 秒", value: 90 },
+  { id: "d120", label: "2 分鐘", value: 120 },
+  { id: "d180", label: "3 分鐘", value: 180 },
+];
+
+export const PRO_STUDIO_MUSIC_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "music-prompt-coach", label: "幫我寫音樂 prompt", emoji: "✍️", description: "依情境擴寫成完整音樂提示詞與歌詞結構", chatPrompt: "我在音樂生成頁。請依我的需求擴寫成完整的英文音樂 prompt（含節奏 BPM / 樂器 / 情緒 / 結構），並用 [ACTION:fillPrompt:...] 直接幫我覆寫。" },
+  { id: "music-recommend-model", label: "幫我選音樂模型", emoji: "🧭", description: "依需求挑 Sonauto / ACE-Step / Stable Audio / MusicGen", chatPrompt: "我在音樂分頁。請依我目前的需求（含人聲 / 高品質 / 穩定可控 / 風格探索），從 4 個音樂模型中推薦一個並用 [ACTION:setModel:...] 套用。" },
+  { id: "music-handoff-sfx", label: "切到音效層", emoji: "🌧", description: "需要環境音效時把任務交給 sfx", chatPrompt: "我想為這段音樂加環境氛圍音（雨聲 / 海浪 / 森林…），帶我去 sfx 分頁並建議一個音效 prompt 與時長。" },
+  { id: "music-director-score", label: "交給導演 AI 配樂", emoji: "🎬", description: "依分鏡規劃多段配樂", chatPrompt: "我有一段分鏡需要配樂。請依分鏡情緒幫我規劃 3-5 段音樂（每段指定模型 / 時長 / prompt），完成後帶我去 /director。" },
+];
+
+export interface ProStudioMusicProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "music";
+  models: ProStudioGenericModel[];
+  templates: ProStudioPromptTemplate[];
+  durations: typeof PRO_STUDIO_MUSIC_DURATIONS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_MUSIC_PROFILE: ProStudioMusicProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "music",
+  models: PRO_STUDIO_MUSIC_MODELS,
+  templates: PRO_STUDIO_MUSIC_TEMPLATES,
+  durations: PRO_STUDIO_MUSIC_DURATIONS,
+  collaborations: PRO_STUDIO_MUSIC_COLLABORATION_LINKS,
+};
+
+// ─── SFX（音效生成）───────────────────────────────────────────────────
+
+export const PRO_STUDIO_SFX_MODELS: ProStudioGenericModel[] = [
+  { id: "sfx", label: "Sound Effects", emoji: "🔊", description: "ElevenLabs 文字生音效，環境音 / Foley / 擬真聲" },
+];
+
+export const PRO_STUDIO_SFX_TEMPLATES: ProStudioPromptTemplate[] = [
+  { id: "sfx-rain", label: "雨聲", emoji: "🌧", prompt: "gentle rain on leaves, distant thunder, calm forest atmosphere", suggestedModelId: "sfx", params: [{ key: "duration_seconds", value: 30 }] },
+  { id: "sfx-forest", label: "森林環境", emoji: "🌲", prompt: "forest ambience, birds chirping, leaves rustling, distant stream", suggestedModelId: "sfx", params: [{ key: "duration_seconds", value: 30 }] },
+  { id: "sfx-ocean", label: "海浪聲", emoji: "🌊", prompt: "ocean waves on a calm beach, distant seagulls, gentle wind", suggestedModelId: "sfx", params: [{ key: "duration_seconds", value: 30 }] },
+  { id: "sfx-fire", label: "壁爐火聲", emoji: "🔥", prompt: "crackling fireplace, warm cozy atmosphere, gentle wood pops", suggestedModelId: "sfx", params: [{ key: "duration_seconds", value: 30 }] },
+  { id: "sfx-footsteps", label: "腳步聲", emoji: "👣", prompt: "footsteps on wooden floor, slow walking pace, indoor reverb", suggestedModelId: "sfx", params: [{ key: "duration_seconds", value: 10 }] },
+  { id: "sfx-door", label: "開關門", emoji: "🚪", prompt: "wooden door creaking open, then closing softly with latch click", suggestedModelId: "sfx", params: [{ key: "duration_seconds", value: 5 }] },
+];
+
+export const PRO_STUDIO_SFX_DURATIONS: Array<{ id: string; label: string; value: number }> = [
+  { id: "d3", label: "3 秒", value: 3 },
+  { id: "d5", label: "5 秒", value: 5 },
+  { id: "d10", label: "10 秒", value: 10 },
+  { id: "d22", label: "22 秒（最長）", value: 22 },
+];
+
+export const PRO_STUDIO_SFX_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "sfx-prompt-coach", label: "幫我寫音效 prompt", emoji: "✍️", description: "擴寫含材質 / 距離 / 空間感的擬真 Foley 描述", chatPrompt: "我在音效分頁。請依我想要的場景，擴寫成含材質 / 距離 / 空間感的英文 SFX prompt，並用 [ACTION:fillPrompt:...] 直接幫我覆寫。" },
+  { id: "sfx-from-music", label: "搭配剛才的音樂", emoji: "🎵", description: "為剛生成的音樂加環境音層", chatPrompt: "我剛在 music 分頁生了一段音樂。請依音樂情緒推薦一個合適的環境音效當底層，幫我設好 prompt 與時長。" },
+  { id: "sfx-handoff-process", label: "送去合成", emoji: "🧬", description: "音樂 + 音效合在一起", chatPrompt: "把音樂與音效兩段送到 process 分頁的 merge 工具合成一條完整音軌，建議混音策略。" },
+  { id: "sfx-director-foley", label: "交給導演 AI 排 Foley", emoji: "🎬", description: "依分鏡規劃 Foley 列表", chatPrompt: "我需要一份分鏡 Foley 清單。請依分鏡情境列出每顆鏡頭的音效 prompt 與時長，完成後帶我去 /director。" },
+];
+
+export interface ProStudioSFXProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "sfx";
+  models: ProStudioGenericModel[];
+  templates: ProStudioPromptTemplate[];
+  durations: typeof PRO_STUDIO_SFX_DURATIONS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_SFX_PROFILE: ProStudioSFXProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "sfx",
+  models: PRO_STUDIO_SFX_MODELS,
+  templates: PRO_STUDIO_SFX_TEMPLATES,
+  durations: PRO_STUDIO_SFX_DURATIONS,
+  collaborations: PRO_STUDIO_SFX_COLLABORATION_LINKS,
+};
+
+// ─── TTS（語音合成）───────────────────────────────────────────────────
+
+export const PRO_STUDIO_TTS_MODELS: ProStudioGenericModel[] = [
+  { id: "eleven-tts", label: "ElevenLabs TTS", emoji: "🎤", description: "多語言 / 多情緒，商業配音首選", tags: ["情緒", "多語"] },
+  { id: "qwen-tts", label: "Qwen TTS", emoji: "🀄", description: "中文友善，自然語氣最穩", tags: ["中文"], fast: true },
+];
+
+export const PRO_STUDIO_TTS_TEMPLATES: ProStudioPromptTemplate[] = [
+  { id: "tts-narration", label: "旁白朗讀", emoji: "📖", prompt: "在那個遙遠的午後，陽光穿過窗簾的縫隙，溫柔地撫過她的臉龐。", suggestedModelId: "qwen-tts" },
+  { id: "tts-meditation", label: "冥想引導", emoji: "🧘", prompt: "輕輕閉上眼睛，深深地吸一口氣……感受空氣進入身體，慢慢地、慢慢地呼出。", suggestedModelId: "eleven-tts", params: [{ key: "speed", value: 0.85 }, { key: "stability", value: 0.7 }] },
+  { id: "tts-advert", label: "廣告口播", emoji: "📢", prompt: "全新升級，限時優惠！立即點擊下方連結，享受獨家折扣。", suggestedModelId: "eleven-tts", params: [{ key: "speed", value: 1.05 }] },
+  { id: "tts-teaching", label: "教學講解", emoji: "🎓", prompt: "今天我們要學的是反射動詞。它的核心概念是動作回到主詞自己身上……", suggestedModelId: "qwen-tts" },
+  { id: "tts-children", label: "童書朗讀", emoji: "🐰", prompt: "從前從前，在一個彩虹的盡頭，住著一隻會說話的小兔子。", suggestedModelId: "eleven-tts", params: [{ key: "speed", value: 0.95 }, { key: "stability", value: 0.6 }] },
+];
+
+export const PRO_STUDIO_TTS_SPEED_PRESETS: Array<{ id: string; label: string; value: number; description: string }> = [
+  { id: "slow", label: "慢 0.85", value: 0.85, description: "冥想 / 兒童朗讀" },
+  { id: "natural", label: "自然 1.0", value: 1.0, description: "預設" },
+  { id: "fast", label: "快 1.15", value: 1.15, description: "廣告 / 新聞口播" },
+];
+
+export const PRO_STUDIO_TTS_STABILITY_PRESETS: Array<{ id: string; label: string; value: number; description: string }> = [
+  { id: "expressive", label: "情緒 0.4", value: 0.4, description: "戲劇 / 角色配音" },
+  { id: "balanced", label: "平衡 0.6", value: 0.6, description: "預設" },
+  { id: "stable", label: "穩定 0.85", value: 0.85, description: "教學 / 旁白" },
+];
+
+export const PRO_STUDIO_TTS_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "tts-prompt-coach", label: "幫我潤稿", emoji: "✍️", description: "把口語稿件潤成適合朗讀的版本", chatPrompt: "我在 TTS 分頁。請把我貼的稿件潤成適合朗讀的版本（標點 / 換氣 / 短句），並用 [ACTION:fillPrompt:...] 幫我覆寫。" },
+  { id: "tts-recommend-engine", label: "幫我選 TTS 引擎", emoji: "🧭", description: "依語言與情緒挑 Eleven / Qwen", chatPrompt: "依我稿件的語言與情緒，幫我從 ElevenLabs / Qwen 兩個引擎中挑一個並用 [ACTION:setModel:...] 套用。" },
+  { id: "tts-from-clone", label: "用克隆聲線朗讀", emoji: "🎭", description: "切到 clone 建 voice_id 後回 TTS", chatPrompt: "我想用自己的聲線朗讀。先帶我去 clone 分頁建一個 voice_id（推薦 ElevenLabs IVC），完成後回 TTS 分頁套上 voiceId。" },
+  { id: "tts-handoff-avatar", label: "交給 Avatar 變影片", emoji: "🎥", description: "TTS 結果接到 Avatar 嘴型同步", chatPrompt: "把這段 TTS 結果送到 avatar 分頁做嘴型同步影片，建議一個合適的 Avatar 模型與圖片來源。" },
+];
+
+export interface ProStudioTTSProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "tts";
+  models: ProStudioGenericModel[];
+  templates: ProStudioPromptTemplate[];
+  speedPresets: typeof PRO_STUDIO_TTS_SPEED_PRESETS;
+  stabilityPresets: typeof PRO_STUDIO_TTS_STABILITY_PRESETS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_TTS_PROFILE: ProStudioTTSProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "tts",
+  models: PRO_STUDIO_TTS_MODELS,
+  templates: PRO_STUDIO_TTS_TEMPLATES,
+  speedPresets: PRO_STUDIO_TTS_SPEED_PRESETS,
+  stabilityPresets: PRO_STUDIO_TTS_STABILITY_PRESETS,
+  collaborations: PRO_STUDIO_TTS_COLLABORATION_LINKS,
+};
+
+// ─── Clone（聲音克隆）─────────────────────────────────────────────────
+
+export const PRO_STUDIO_CLONE_MODELS: ProStudioGenericModel[] = [
+  { id: "qwen-clone", label: "Qwen 克隆並朗讀", emoji: "🎙", description: "上傳樣本 → 用樣本聲朗讀，中文友善", fast: true },
+  { id: "dia-clone", label: "Dia TTS 聲音克隆", emoji: "📢", description: "Dia TTS voice clone，旁白播報穩定" },
+  { id: "voice-design", label: "Qwen 聲音設計", emoji: "🎭", description: "從零自定義音色，虛擬角色設計首選" },
+  { id: "eleven-ivc", label: "ElevenLabs IVC", emoji: "💎", description: "建 voice_id，可跨 ElevenLabs 全家族重用" },
+  { id: "kling-voice", label: "Kling 建立聲音", emoji: "🎬", description: "Kling 聲音檔，後續 Kling 影片流程銜接" },
+];
+
+export const PRO_STUDIO_CLONE_TEMPLATES: ProStudioPromptTemplate[] = [
+  { id: "clone-narration", label: "克隆旁白", emoji: "📖", prompt: "請以溫暖、療癒的語氣朗讀這段內容。", suggestedModelId: "qwen-clone", params: [{ key: "mode", value: "qwen" }] },
+  { id: "clone-dialog", label: "多人對話", emoji: "💬", prompt: "[S1] 你今天感覺如何？ [S2] 我覺得心情輕鬆了不少。", suggestedModelId: "dia-clone", params: [{ key: "mode", value: "dia" }] },
+  { id: "clone-ivc", label: "建 voice_id", emoji: "🆔", prompt: "請示範 30 秒以上的乾淨語音用作參考樣本。", suggestedModelId: "eleven-ivc", params: [{ key: "mode", value: "elevenlabs" }] },
+  { id: "clone-design-warm", label: "設計：溫暖女聲", emoji: "🌸", prompt: "你好，我是你設計出的聲音。", suggestedModelId: "voice-design", params: [{ key: "mode", value: "design" }, { key: "voice_description", value: "warm, gentle female voice, calm pace, healing tone" }] },
+  { id: "clone-design-narrator", label: "設計：專業旁白男聲", emoji: "🎙", prompt: "歡迎收聽今天的故事。", suggestedModelId: "voice-design", params: [{ key: "mode", value: "design" }, { key: "voice_description", value: "deep, professional male narrator voice, steady pace, authoritative" }] },
+];
+
+export const PRO_STUDIO_CLONE_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "clone-recommend-mode", label: "幫我選克隆模式", emoji: "🧭", description: "依需求挑 5 個克隆工具", chatPrompt: "我想克隆聲音。請依我的需求（中文 / 多角色 / 跨工具復用 / 自訂音色 / Kling 流程），從 5 個克隆工具中挑一個並用 [ACTION:setModel:...] 套用。" },
+  { id: "clone-prompt-coach", label: "幫我寫聲音設計描述", emoji: "✍️", description: "擴寫 voice_description 含年齡 / 情緒 / 語速", chatPrompt: "我在 voice-design 模式。請依我想要的角色，擴寫一段 voice_description（含年齡 / 性別 / 情緒 / 語速 / 音域），並用 [ACTION:setParam:voice_description=...] 幫我套上。" },
+  { id: "clone-handoff-tts", label: "拿到 voice_id 後送去 TTS", emoji: "🎤", description: "用建好的聲線到 TTS 朗讀", chatPrompt: "我已經拿到 voice_id 了。帶我回 tts 分頁並把 voiceId 自動填好，再建議一段測試稿件。" },
+  { id: "clone-handoff-avatar", label: "送去 Avatar 變影片", emoji: "🎥", description: "克隆聲線 + Avatar 嘴型同步", chatPrompt: "把克隆出的聲音送到 avatar 分頁做嘴型同步影片，建議一個合適的 Avatar 模型。" },
+];
+
+export interface ProStudioCloneProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "clone";
+  models: ProStudioGenericModel[];
+  templates: ProStudioPromptTemplate[];
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_CLONE_PROFILE: ProStudioCloneProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "clone",
+  models: PRO_STUDIO_CLONE_MODELS,
+  templates: PRO_STUDIO_CLONE_TEMPLATES,
+  collaborations: PRO_STUDIO_CLONE_COLLABORATION_LINKS,
+};
+
+// ─── Process（音訊處理）──────────────────────────────────────────────
+
+export const PRO_STUDIO_PROCESS_MODELS: ProStudioGenericModel[] = [
+  { id: "demucs", label: "Demucs 分軌", emoji: "🧬", description: "人聲 / 樂器分離，Remix 與伴奏抽離首選" },
+  { id: "iso", label: "Audio Isolation", emoji: "🧹", description: "去噪 / 單軌萃取，口語修復" },
+  { id: "merge", label: "音訊合併", emoji: "🎚", description: "多軌混音，背景音樂 + 人聲整合" },
+  { id: "voice-changer", label: "變聲器", emoji: "🎭", description: "Voice Changer，角色變聲與語氣轉換" },
+];
+
+export const PRO_STUDIO_PROCESS_DEMUCS_MODELS: Array<{ id: string; label: string }> = [
+  { id: "htdemucs", label: "HT Demucs（推薦）" },
+  { id: "htdemucs_ft", label: "HT Demucs FT（精修）" },
+  { id: "mdx_extra", label: "MDX Extra" },
+  { id: "mdx_extra_q", label: "MDX Extra Q" },
+];
+
+export const PRO_STUDIO_PROCESS_MERGE_STRATEGIES: Array<{ id: string; label: string; description: string }> = [
+  { id: "concat", label: "首尾相接", description: "把多段串接成一條" },
+  { id: "overlay", label: "疊加混音", description: "多軌同時播放並混音" },
+  { id: "crossfade", label: "交叉淡入淡出", description: "段落切換更自然" },
+];
+
+export const PRO_STUDIO_PROCESS_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "process-recommend-tool", label: "幫我選處理工具", emoji: "🧭", description: "依素材挑 demucs / iso / merge / voice-changer", chatPrompt: "我在音訊處理分頁。請依素材狀況推薦 demucs / isolation / merge / voice-changer 其中一個，說明原因，並用 [ACTION:setModel:...] 套用。" },
+  { id: "process-pipeline", label: "規劃多步處理", emoji: "🧪", description: "去噪 + 分軌 + 合併排成順序", chatPrompt: "我有一段未處理素材想做完整 cleanup。請依推薦順序排出 isolation → demucs → merge 工作流，每步指定工具與參數，完成後帶我去 /director。" },
+  { id: "process-from-asr", label: "從 ASR 抓人聲", emoji: "📝", description: "ASR 後送到 isolation 萃取人聲", chatPrompt: "我先做 ASR 抓出文字，再來把 isolation 套上去萃取乾淨人聲，自動填好 audioUrl。" },
+  { id: "process-director-postprod", label: "交給導演 AI 後製", emoji: "🎬", description: "完整影片後製音訊流", chatPrompt: "我有一段影片需要完整後製音訊（去噪 / 分軌 / 加環境音 / 合成）。請排出工作流，完成後帶我去 /director。" },
+];
+
+export interface ProStudioProcessProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "process";
+  models: ProStudioGenericModel[];
+  demucsModels: typeof PRO_STUDIO_PROCESS_DEMUCS_MODELS;
+  mergeStrategies: typeof PRO_STUDIO_PROCESS_MERGE_STRATEGIES;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_PROCESS_PROFILE: ProStudioProcessProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "process",
+  models: PRO_STUDIO_PROCESS_MODELS,
+  demucsModels: PRO_STUDIO_PROCESS_DEMUCS_MODELS,
+  mergeStrategies: PRO_STUDIO_PROCESS_MERGE_STRATEGIES,
+  collaborations: PRO_STUDIO_PROCESS_COLLABORATION_LINKS,
+};
+
+// ─── ASR（語音識別）──────────────────────────────────────────────────
+
+export const PRO_STUDIO_ASR_MODELS: ProStudioGenericModel[] = [
+  { id: "asr", label: "Speech to Text", emoji: "📝", description: "多語言語音轉文字，逐字稿與字幕初稿" },
+];
+
+export const PRO_STUDIO_ASR_ACCELERATIONS: Array<{ id: string; label: string; description: string }> = [
+  { id: "none", label: "標準", description: "原模型品質最佳" },
+  { id: "regular", label: "Regular", description: "速度 / 品質平衡" },
+  { id: "high", label: "High", description: "速度最快" },
+];
+
+export const PRO_STUDIO_ASR_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "asr-from-asset", label: "從資產拉一段音訊", emoji: "📦", description: "把過去生成的音訊拉過來轉字幕", chatPrompt: "把我最近在 pro-studio 生成的音訊拉過來做 ASR，自動填好 audioUrl。" },
+  { id: "asr-handoff-tts", label: "ASR → 重新潤稿 → TTS", emoji: "🔁", description: "ASR 出稿後送到 TTS 重唸", chatPrompt: "我想做轉錄 → 潤稿 → 重唸的流程。先把這段做 ASR，把結果潤過再帶我去 tts 分頁朗讀。" },
+  { id: "asr-handoff-process", label: "送去清音", emoji: "🧹", description: "辨識前先做 isolation 提升準確率", chatPrompt: "我素材有背景噪音。先帶我去 process/isolation 清音，再回 ASR 做轉錄，整條工作流幫我排好。" },
+  { id: "asr-director-subtitle", label: "交給導演 AI 排字幕", emoji: "🎬", description: "規劃多語字幕翻譯流程", chatPrompt: "我需要把這段 ASR 結果做多語字幕。請規劃一份字幕工作流（含翻譯 / 校對），完成後帶我去 /director。" },
+];
+
+export interface ProStudioASRProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "asr";
+  models: ProStudioGenericModel[];
+  accelerations: typeof PRO_STUDIO_ASR_ACCELERATIONS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_ASR_PROFILE: ProStudioASRProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "asr",
+  models: PRO_STUDIO_ASR_MODELS,
+  accelerations: PRO_STUDIO_ASR_ACCELERATIONS,
+  collaborations: PRO_STUDIO_ASR_COLLABORATION_LINKS,
+};
+
+// ─── Avatar（AI 形像影片）────────────────────────────────────────────
+
+export const PRO_STUDIO_AVATAR_MODELS: ProStudioGenericModel[] = [
+  { id: "wan-s2v", label: "Wan Speech-to-Video", emoji: "🎬", description: "語音 → 角色說話影片，快速口播", fast: true },
+  { id: "echo-mimic", label: "EchoMimic", emoji: "👄", description: "口型同步精準，表情連動佳" },
+  { id: "stable-avatar", label: "Stable Avatar", emoji: "🪞", description: "穩定主播型內容，一致性高" },
+  { id: "longcat", label: "LongCat Avatar", emoji: "🐱", description: "長時段講解影片首選" },
+  { id: "ltx-a2v", label: "LTX 音訊轉影片", emoji: "🎞", description: "音訊驅動動態視覺，開源流程" },
+  { id: "dubbing", label: "Dubbing 配音", emoji: "🌐", description: "影片語言重配與本地化" },
+];
+
+export const PRO_STUDIO_AVATAR_DUBBING_LANGS: Array<{ id: string; label: string }> = [
+  { id: "en", label: "英文 EN" },
+  { id: "zh", label: "中文 ZH" },
+  { id: "ja", label: "日文 JA" },
+  { id: "ko", label: "韓文 KO" },
+  { id: "es", label: "西班牙文 ES" },
+  { id: "fr", label: "法文 FR" },
+  { id: "de", label: "德文 DE" },
+];
+
+export const PRO_STUDIO_AVATAR_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  { id: "avatar-recommend-model", label: "幫我選 Avatar 模型", emoji: "🧭", description: "依需求挑 6 個 Avatar 工具", chatPrompt: "我在 avatar 分頁。請依需求（口型精準 / 長片 / 配音翻譯 / 開源），從 6 個 Avatar 模型中推薦一個並用 [ACTION:setModel:...] 套用。" },
+  { id: "avatar-from-tts", label: "用剛才的 TTS 當音源", emoji: "🎤", description: "TTS 結果接到 Avatar", chatPrompt: "把我剛在 tts 分頁生成的音訊當作 Avatar 的 audioUrl，建議一個合適的人像圖片來源。" },
+  { id: "avatar-from-image", label: "從 image-studio 拿人像", emoji: "🖼", description: "用生成的人像當 Avatar 主體", chatPrompt: "把我最近在 image-studio 生成的人像當作 avatar 的 imageUrl，自動切到 avatar 分頁並建議一個 Avatar 模型。" },
+  { id: "avatar-director-narration", label: "交給導演 AI 排講解片", emoji: "🎬", description: "規劃多段講解影片", chatPrompt: "我要做一支系列講解影片。請依主題切成 3-5 段，每段指定 Avatar 模型 / 音源 / 圖源，完成後帶我去 /director。" },
+];
+
+export interface ProStudioAvatarProfile {
+  pageId: "pro-studio";
+  pagePath: "/pro-studio";
+  activeTab: "avatar";
+  models: ProStudioGenericModel[];
+  dubbingLangs: typeof PRO_STUDIO_AVATAR_DUBBING_LANGS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const PRO_STUDIO_AVATAR_PROFILE: ProStudioAvatarProfile = {
+  pageId: "pro-studio",
+  pagePath: "/pro-studio",
+  activeTab: "avatar",
+  models: PRO_STUDIO_AVATAR_MODELS,
+  dubbingLangs: PRO_STUDIO_AVATAR_DUBBING_LANGS,
+  collaborations: PRO_STUDIO_AVATAR_COLLABORATION_LINKS,
+};
+
+// ─── Pro Studio 共用 builder ─────────────────────────────────────────
+
+export type ProStudioTab =
+  | "music"
+  | "sfx"
+  | "tts"
+  | "clone"
+  | "process"
+  | "asr"
+  | "avatar";
+
+export function buildProStudioSetModelActions(
+  tab: ProStudioTab,
+  modelId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: tab },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildProStudioFillPromptActions(
+  tab: ProStudioTab,
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: tab },
+    { type: "fillPrompt", text, append },
+  ];
+}
+
+export function buildProStudioSetParamActions(
+  tab: ProStudioTab,
+  key: string,
+  value: unknown
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: tab },
+    { type: "setParam", key, value },
+  ];
+}
+
+export function buildProStudioApplyTemplateActions(
+  tab: ProStudioTab,
+  template: ProStudioPromptTemplate
+): AgentAction[] {
+  const actions: AgentAction[] = [{ type: "setTab", tabId: tab }];
+  if (template.suggestedModelId) {
+    actions.push({ type: "setModel", modelId: template.suggestedModelId });
+  }
+  actions.push({ type: "fillPrompt", text: template.prompt, append: false });
+  if (template.params) {
+    for (const p of template.params) {
+      actions.push({ type: "setParam", key: p.key, value: p.value });
+    }
+  }
+  return actions;
+}

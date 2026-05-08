@@ -111,6 +111,37 @@ import {
   buildVideoStudioControlSetCameraMotionActions,
   buildVideoStudioControlSetControlNetActions,
   buildVideoStudioControlSetParamActions,
+  PRO_STUDIO_MUSIC_PROFILE,
+  PRO_STUDIO_MUSIC_MODELS,
+  PRO_STUDIO_MUSIC_TEMPLATES,
+  PRO_STUDIO_MUSIC_DURATIONS,
+  PRO_STUDIO_MUSIC_COLLABORATION_LINKS,
+  PRO_STUDIO_SFX_PROFILE,
+  PRO_STUDIO_SFX_MODELS,
+  PRO_STUDIO_SFX_TEMPLATES,
+  PRO_STUDIO_SFX_DURATIONS,
+  PRO_STUDIO_TTS_PROFILE,
+  PRO_STUDIO_TTS_MODELS,
+  PRO_STUDIO_TTS_TEMPLATES,
+  PRO_STUDIO_TTS_SPEED_PRESETS,
+  PRO_STUDIO_TTS_STABILITY_PRESETS,
+  PRO_STUDIO_CLONE_PROFILE,
+  PRO_STUDIO_CLONE_MODELS,
+  PRO_STUDIO_CLONE_TEMPLATES,
+  PRO_STUDIO_PROCESS_PROFILE,
+  PRO_STUDIO_PROCESS_MODELS,
+  PRO_STUDIO_PROCESS_DEMUCS_MODELS,
+  PRO_STUDIO_PROCESS_MERGE_STRATEGIES,
+  PRO_STUDIO_ASR_PROFILE,
+  PRO_STUDIO_ASR_MODELS,
+  PRO_STUDIO_ASR_ACCELERATIONS,
+  PRO_STUDIO_AVATAR_PROFILE,
+  PRO_STUDIO_AVATAR_MODELS,
+  PRO_STUDIO_AVATAR_DUBBING_LANGS,
+  buildProStudioSetModelActions,
+  buildProStudioFillPromptActions,
+  buildProStudioSetParamActions,
+  buildProStudioApplyTemplateActions,
 } from "../../../shared/orb-studio-actions";
 
 describe("orb-studio-actions: four-modal deep operations", () => {
@@ -965,5 +996,205 @@ describe("orb-studio-actions: video studio Control profile", () => {
       "control-from-pose",
       "control-recommend-tool",
     ]);
+  });
+});
+
+describe("orb-studio-actions: pro studio common builders", () => {
+  it("setTab actions land on the requested ProStudio tab", () => {
+    expect(buildProStudioSetModelActions("music", "sonauto")[0]).toEqual({
+      type: "setTab",
+      tabId: "music",
+    });
+    expect(buildProStudioFillPromptActions("tts", "hello")[0]).toEqual({
+      type: "setTab",
+      tabId: "tts",
+    });
+    expect(buildProStudioSetParamActions("clone", "mode", "design")[0]).toEqual({
+      type: "setTab",
+      tabId: "clone",
+    });
+  });
+
+  it("apply template emits setTab → setModel → fillPrompt → setParam in order", () => {
+    const tpl = PRO_STUDIO_MUSIC_TEMPLATES[0];
+    const actions = buildProStudioApplyTemplateActions("music", tpl);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "music" });
+    expect(actions[1]).toEqual({ type: "setModel", modelId: tpl.suggestedModelId });
+    expect(actions[2]).toMatchObject({ type: "fillPrompt", text: tpl.prompt });
+    // params 在 fillPrompt 之後依序加入
+    if (tpl.params) {
+      for (let i = 0; i < tpl.params.length; i++) {
+        const a = actions[3 + i];
+        expect(a).toEqual({ type: "setParam", key: tpl.params[i].key, value: tpl.params[i].value });
+      }
+    }
+  });
+
+  it("apply template skips setModel when template has no suggestedModelId", () => {
+    const tpl = { id: "x", label: "x", emoji: "x", prompt: "x" };
+    const actions = buildProStudioApplyTemplateActions("music", tpl);
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "music" });
+    expect(actions[1]).toMatchObject({ type: "fillPrompt", text: "x" });
+  });
+});
+
+describe("orb-studio-actions: pro studio Music profile", () => {
+  it("profile points at /pro-studio music with 4 music models", () => {
+    expect(PRO_STUDIO_MUSIC_PROFILE.activeTab).toBe("music");
+    expect(PRO_STUDIO_MUSIC_MODELS.map(m => m.id).sort()).toEqual([
+      "ace-step",
+      "musicgen",
+      "sonauto",
+      "stable-audio",
+    ]);
+  });
+
+  it("durations stay positive and templates each carry a non-empty prompt", () => {
+    for (const d of PRO_STUDIO_MUSIC_DURATIONS) {
+      expect(d.value).toBeGreaterThan(0);
+    }
+    for (const tpl of PRO_STUDIO_MUSIC_TEMPLATES) {
+      expect(tpl.prompt.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("only sonauto template has instrumental=false (含人聲)", () => {
+    const vocalTpl = PRO_STUDIO_MUSIC_TEMPLATES.find(t =>
+      t.params?.some(p => p.key === "instrumental" && p.value === false)
+    );
+    expect(vocalTpl?.suggestedModelId).toBe("sonauto");
+  });
+
+  it("collaboration links cover 4 expected ids", () => {
+    const ids = PRO_STUDIO_MUSIC_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "music-director-score",
+      "music-handoff-sfx",
+      "music-prompt-coach",
+      "music-recommend-model",
+    ]);
+  });
+});
+
+describe("orb-studio-actions: pro studio SFX profile", () => {
+  it("profile has 1 model and 6 templates with duration_seconds params", () => {
+    expect(PRO_STUDIO_SFX_PROFILE.activeTab).toBe("sfx");
+    expect(PRO_STUDIO_SFX_MODELS.map(m => m.id)).toEqual(["sfx"]);
+    expect(PRO_STUDIO_SFX_TEMPLATES.length).toBeGreaterThanOrEqual(6);
+    for (const tpl of PRO_STUDIO_SFX_TEMPLATES) {
+      expect(tpl.params?.some(p => p.key === "duration_seconds")).toBe(true);
+    }
+  });
+
+  it("durations stay within ElevenLabs SFX 22-second cap", () => {
+    for (const d of PRO_STUDIO_SFX_DURATIONS) {
+      expect(d.value).toBeLessThanOrEqual(22);
+      expect(d.value).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: pro studio TTS profile", () => {
+  it("profile has 2 engines (Eleven + Qwen)", () => {
+    expect(PRO_STUDIO_TTS_PROFILE.activeTab).toBe("tts");
+    expect(PRO_STUDIO_TTS_MODELS.map(m => m.id).sort()).toEqual([
+      "eleven-tts",
+      "qwen-tts",
+    ]);
+  });
+
+  it("speed and stability presets stay within sensible ranges", () => {
+    for (const p of PRO_STUDIO_TTS_SPEED_PRESETS) {
+      expect(p.value).toBeGreaterThan(0);
+      expect(p.value).toBeLessThanOrEqual(2);
+    }
+    for (const p of PRO_STUDIO_TTS_STABILITY_PRESETS) {
+      expect(p.value).toBeGreaterThanOrEqual(0);
+      expect(p.value).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("templates fan out across 5 Chinese scenarios", () => {
+    expect(PRO_STUDIO_TTS_TEMPLATES.length).toBeGreaterThanOrEqual(5);
+    for (const tpl of PRO_STUDIO_TTS_TEMPLATES) {
+      expect(tpl.prompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: pro studio Clone profile", () => {
+  it("profile has 5 clone tools matching ProStudio.tsx PRO_MODELS clone subset", () => {
+    expect(PRO_STUDIO_CLONE_PROFILE.activeTab).toBe("clone");
+    expect(PRO_STUDIO_CLONE_MODELS.map(m => m.id).sort()).toEqual([
+      "dia-clone",
+      "eleven-ivc",
+      "kling-voice",
+      "qwen-clone",
+      "voice-design",
+    ]);
+  });
+
+  it("each template carries a mode param matching ProStudio.tsx AUDIO_PRESETS", () => {
+    const allowedModes = new Set(["qwen", "dia", "elevenlabs", "design"]);
+    for (const tpl of PRO_STUDIO_CLONE_TEMPLATES) {
+      const mode = tpl.params?.find(p => p.key === "mode")?.value;
+      expect(typeof mode).toBe("string");
+      expect(allowedModes.has(mode as string)).toBe(true);
+    }
+  });
+});
+
+describe("orb-studio-actions: pro studio Process profile", () => {
+  it("profile has 4 processing tools", () => {
+    expect(PRO_STUDIO_PROCESS_PROFILE.activeTab).toBe("process");
+    expect(PRO_STUDIO_PROCESS_MODELS.map(m => m.id).sort()).toEqual([
+      "demucs",
+      "iso",
+      "merge",
+      "voice-changer",
+    ]);
+  });
+
+  it("Demucs sub-models are non-empty and merge strategies cover 3 options", () => {
+    expect(PRO_STUDIO_PROCESS_DEMUCS_MODELS.length).toBeGreaterThan(0);
+    expect(PRO_STUDIO_PROCESS_MERGE_STRATEGIES.map(s => s.id).sort()).toEqual([
+      "concat",
+      "crossfade",
+      "overlay",
+    ]);
+  });
+});
+
+describe("orb-studio-actions: pro studio ASR profile", () => {
+  it("profile has 1 ASR tool with 3 acceleration tiers", () => {
+    expect(PRO_STUDIO_ASR_PROFILE.activeTab).toBe("asr");
+    expect(PRO_STUDIO_ASR_MODELS.map(m => m.id)).toEqual(["asr"]);
+    expect(PRO_STUDIO_ASR_ACCELERATIONS.map(a => a.id).sort()).toEqual([
+      "high",
+      "none",
+      "regular",
+    ]);
+  });
+});
+
+describe("orb-studio-actions: pro studio Avatar profile", () => {
+  it("profile has 6 avatar tools", () => {
+    expect(PRO_STUDIO_AVATAR_PROFILE.activeTab).toBe("avatar");
+    expect(PRO_STUDIO_AVATAR_MODELS.map(m => m.id).sort()).toEqual([
+      "dubbing",
+      "echo-mimic",
+      "longcat",
+      "ltx-a2v",
+      "stable-avatar",
+      "wan-s2v",
+    ]);
+  });
+
+  it("dubbing langs cover at least the 7 common locales used in product", () => {
+    const ids = new Set(PRO_STUDIO_AVATAR_DUBBING_LANGS.map(l => l.id));
+    for (const expected of ["en", "zh", "ja", "ko", "es", "fr", "de"]) {
+      expect(ids.has(expected)).toBe(true);
+    }
   });
 });

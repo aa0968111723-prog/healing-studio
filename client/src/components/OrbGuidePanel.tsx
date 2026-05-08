@@ -45,6 +45,16 @@ import {
   VIDEO_STUDIO_ENHANCE_CAPABILITY_LABELS,
   VIDEO_STUDIO_CONTROL_PROFILE,
   VIDEO_STUDIO_CONTROL_CAPABILITY_LABELS,
+  PRO_STUDIO_MUSIC_PROFILE,
+  PRO_STUDIO_SFX_PROFILE,
+  PRO_STUDIO_TTS_PROFILE,
+  PRO_STUDIO_CLONE_PROFILE,
+  PRO_STUDIO_PROCESS_PROFILE,
+  PRO_STUDIO_ASR_PROFILE,
+  PRO_STUDIO_AVATAR_PROFILE,
+  type ProStudioTab,
+  type ProStudioGenericModel,
+  type ProStudioPromptTemplate,
   buildImageStudioSetModelActions,
   buildImageStudioApplyVibeActions,
   buildImageStudioFillPromptActions,
@@ -79,6 +89,10 @@ import {
   buildVideoStudioControlSetCameraMotionActions,
   buildVideoStudioControlSetControlNetActions,
   buildVideoStudioControlSetParamActions,
+  buildProStudioSetModelActions,
+  buildProStudioFillPromptActions,
+  buildProStudioSetParamActions,
+  buildProStudioApplyTemplateActions,
 } from "../../../shared/orb-studio-actions";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -141,6 +155,23 @@ function getVideoStudioTab(
     tab === "v2v" ||
     tab === "enhance" ||
     tab === "control"
+    ? tab
+    : null;
+}
+
+/** 與 ProStudio.tsx 7 個分頁對齊 */
+function getProStudioTab(
+  pageAgent: ReturnType<typeof usePageAgent>
+): ProStudioTab | null {
+  if (pageAgent.snapshot?.pageId !== "pro-studio") return null;
+  const tab = pageAgent.snapshot?.state?.activeTab;
+  return tab === "music" ||
+    tab === "sfx" ||
+    tab === "tts" ||
+    tab === "clone" ||
+    tab === "process" ||
+    tab === "asr" ||
+    tab === "avatar"
     ? tab
     : null;
 }
@@ -3166,6 +3197,400 @@ function VideoStudioDeepActionsForTab({
   return <Panel {...common} />;
 }
 
+// ─── Pro Studio Deep Actions（7 分頁共用同一架構） ───────────────────────
+//
+// 七個分頁的結構高度一致：模型卡 + 模板（部分分頁無）+ 分頁專屬參數晶片 +
+// 一鍵送出 + 跨頁協作。所以走「設定驅動」的單一元件 + 一張查表，新增分頁
+// 只要動 PRO_STUDIO_TAB_CONFIGS 即可，不用新增元件。
+
+interface ProStudioTabConfig {
+  profile: {
+    pageId: "pro-studio";
+    pagePath: "/pro-studio";
+    activeTab: ProStudioTab;
+    models: ProStudioGenericModel[];
+    templates?: ProStudioPromptTemplate[];
+    collaborations: { id: string; label: string; emoji: string; description: string; chatPrompt: string }[];
+  };
+  /** 分頁標題上的提示文字 */
+  greeting: string;
+  /** 模型卡片區塊標題 */
+  modelsTitle: string;
+  /** 是否顯示「一鍵送出」（avatar / clone 等需要先上傳 → 由模型自身控制） */
+  showSubmit: boolean;
+  submitLabel?: string;
+  /**
+   * 分頁專屬參數區塊：每個物件包含 title 與 chips 陣列。chips 自帶 label
+   * + 點擊時要 dispatch 的動作。各分頁可以覆寫。
+   */
+  paramSections?: Array<{
+    title: string;
+    chips: Array<{ id: string; label: string; build: () => AgentAction[]; description?: string; activeWhen?: (state: Record<string, unknown> | undefined) => boolean }>;
+  }>;
+}
+
+const PRO_STUDIO_TAB_CONFIGS: Record<ProStudioTab, ProStudioTabConfig> = {
+  music: {
+    profile: PRO_STUDIO_MUSIC_PROFILE,
+    greeting: "嘿 👋 你在音樂生成。挑模型、套模板，按一下就開始作曲。",
+    modelsTitle: "音樂模型（4 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出作曲",
+    paramSections: [
+      {
+        title: "⏱ 時長（duration）",
+        chips: PRO_STUDIO_MUSIC_PROFILE.durations.map(d => ({
+          id: d.id,
+          label: d.label,
+          build: () => buildProStudioSetParamActions("music", "duration", d.value),
+          activeWhen: state => state?.duration === d.value,
+        })),
+      },
+      {
+        title: "🎤 純音樂 / 含人聲",
+        chips: [
+          {
+            id: "instrumental-on",
+            label: "純音樂",
+            build: () => buildProStudioSetParamActions("music", "instrumental", true),
+            activeWhen: state => state?.isInstrumental === true,
+          },
+          {
+            id: "instrumental-off",
+            label: "含人聲",
+            build: () => buildProStudioSetParamActions("music", "instrumental", false),
+            activeWhen: state => state?.isInstrumental === false,
+          },
+        ],
+      },
+    ],
+  },
+  sfx: {
+    profile: PRO_STUDIO_SFX_PROFILE,
+    greeting: "嘿 👋 你在音效生成。描述要包含材質 / 距離 / 空間感，會更像真實 Foley。",
+    modelsTitle: "音效模型",
+    showSubmit: true,
+    submitLabel: "一鍵送出音效",
+    paramSections: [
+      {
+        title: "⏱ 時長（duration_seconds）",
+        chips: PRO_STUDIO_SFX_PROFILE.durations.map(d => ({
+          id: d.id,
+          label: d.label,
+          build: () => buildProStudioSetParamActions("sfx", "duration_seconds", d.value),
+          activeWhen: state => state?.duration_seconds === d.value,
+        })),
+      },
+    ],
+  },
+  tts: {
+    profile: PRO_STUDIO_TTS_PROFILE,
+    greeting: "嘿 👋 你在語音合成。挑引擎、貼稿件、調語速與穩定度。",
+    modelsTitle: "TTS 引擎（2 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出語音",
+    paramSections: [
+      {
+        title: "🚀 語速（speed）",
+        chips: PRO_STUDIO_TTS_PROFILE.speedPresets.map(p => ({
+          id: p.id,
+          label: p.label,
+          description: p.description,
+          build: () => buildProStudioSetParamActions("tts", "speed", p.value),
+          activeWhen: state =>
+            typeof state?.speed === "number" && Math.abs((state.speed as number) - p.value) < 0.05,
+        })),
+      },
+      {
+        title: "🎚 穩定度（stability）",
+        chips: PRO_STUDIO_TTS_PROFILE.stabilityPresets.map(p => ({
+          id: p.id,
+          label: p.label,
+          description: p.description,
+          build: () => buildProStudioSetParamActions("tts", "stability", p.value),
+          activeWhen: state =>
+            typeof state?.stability === "number" && Math.abs((state.stability as number) - p.value) < 0.05,
+        })),
+      },
+    ],
+  },
+  clone: {
+    profile: PRO_STUDIO_CLONE_PROFILE,
+    greeting: "嘿 👋 你在聲音克隆。挑模式、上傳參考音，按一下就建立聲線。",
+    modelsTitle: "克隆模式（5 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出克隆",
+  },
+  process: {
+    profile: PRO_STUDIO_PROCESS_PROFILE,
+    greeting: "嘿 👋 你在音訊處理。挑工具，上傳音訊，按一下就修。",
+    modelsTitle: "處理工具（4 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出處理",
+    paramSections: [
+      {
+        title: "🧬 Demucs 模型",
+        chips: PRO_STUDIO_PROCESS_PROFILE.demucsModels.map(m => ({
+          id: m.id,
+          label: m.label,
+          build: () => buildProStudioSetParamActions("process", "demucsModel", m.id),
+        })),
+      },
+      {
+        title: "🎚 合併策略",
+        chips: PRO_STUDIO_PROCESS_PROFILE.mergeStrategies.map(s => ({
+          id: s.id,
+          label: s.label,
+          description: s.description,
+          build: () => buildProStudioSetParamActions("process", "mergeStrategy", s.id),
+        })),
+      },
+    ],
+  },
+  asr: {
+    profile: PRO_STUDIO_ASR_PROFILE,
+    greeting: "嘿 👋 你在語音識別。上傳音訊就能轉成逐字稿與字幕。",
+    modelsTitle: "ASR 工具",
+    showSubmit: true,
+    submitLabel: "一鍵送出辨識",
+    paramSections: [
+      {
+        title: "⚡ 加速等級（acceleration）",
+        chips: PRO_STUDIO_ASR_PROFILE.accelerations.map(a => ({
+          id: a.id,
+          label: a.label,
+          description: a.description,
+          build: () => buildProStudioSetParamActions("asr", "acceleration", a.id),
+        })),
+      },
+    ],
+  },
+  avatar: {
+    profile: PRO_STUDIO_AVATAR_PROFILE,
+    greeting: "嘿 👋 你在 AI 形像影片。挑工具、上傳人像 + 音訊，按一下就生影片。",
+    modelsTitle: "Avatar 工具（6 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出 Avatar",
+    paramSections: [
+      {
+        title: "🌐 Dubbing 目標語言（targetLang）",
+        chips: PRO_STUDIO_AVATAR_PROFILE.dubbingLangs.map(l => ({
+          id: l.id,
+          label: l.label,
+          build: () => buildProStudioSetParamActions("avatar", "targetLang", l.id),
+        })),
+      },
+    ],
+  },
+};
+
+function ProStudioDeepActions({
+  tab,
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: { tab: ProStudioTab } & StudioDeepActionsCommonProps) {
+  const config = PRO_STUDIO_TAB_CONFIGS[tab];
+  const profile = config.profile;
+  const snapshotState = pageAgent.snapshot?.state;
+  // ProStudio 透過 child bridge 把 modelId 暴露在 snapshot.modelId / activeModel
+  const currentModelId =
+    (snapshotState?.modelId as string | undefined) ??
+    (snapshotState?.activeModel as string | undefined);
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble text={config.greeting} />
+
+      {/* 模型卡 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> {config.modelsTitle}
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => {
+            const isActive = currentModelId === m.id;
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() =>
+                  void runActions(
+                    `切到 ${m.label}`,
+                    buildProStudioSetModelActions(tab, m.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "rounded-xl border transition-all px-3 py-2 text-left flex items-start gap-2",
+                  isActive
+                    ? "border-cyan-300/40 bg-cyan-300/10"
+                    : "border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                    {m.label}
+                    {m.fast && (
+                      <span className="text-[9px] uppercase tracking-wide text-amber-100/80 rounded-full bg-amber-300/20 px-1.5 py-0.5">
+                        快
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                        目前
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {m.description}
+                  </p>
+                  {m.tags && m.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.tags.map(t => (
+                        <span
+                          key={t}
+                          className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 模板 */}
+      {profile.templates && profile.templates.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+            <Lightbulb className="w-3 h-3" /> 起手式模板
+          </p>
+          <div
+            className={cn(
+              "gap-1.5",
+              fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+            )}
+          >
+            {profile.templates.map((tpl, i) => (
+              <motion.button
+                key={tpl.id}
+                onClick={() =>
+                  void runActions(
+                    `套用「${tpl.label}」模板`,
+                    buildProStudioApplyTemplateActions(tab, tpl)
+                  )
+                }
+                className="rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25 transition-all px-3 py-2 text-left flex items-start gap-2"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                whileTap={{ scale: 0.97 }}
+                title={tpl.prompt}
+              >
+                <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">{tpl.prompt}</p>
+                  {tpl.suggestedModelId && (
+                    <p className="text-[9px] text-white/40 mt-1 truncate">
+                      建議搭配：{tpl.suggestedModelId}
+                    </p>
+                  )}
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 分頁專屬參數晶片 */}
+      {config.paramSections?.map(section => (
+        <div key={section.title} className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+            {section.title}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {section.chips.map(chip => {
+              const isActive = chip.activeWhen?.(snapshotState);
+              return (
+                <motion.button
+                  key={chip.id}
+                  onClick={() => void runActions(chip.label, chip.build(), false)}
+                  className={cn(
+                    "inline-flex items-center rounded-full transition-all",
+                    fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                    isActive
+                      ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                      : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                  )}
+                  whileTap={{ scale: 0.95 }}
+                  title={chip.description}
+                >
+                  {chip.label}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* 一鍵送出 + 重設 */}
+      {config.showSubmit && (
+        <div className="flex gap-1.5">
+          <motion.button
+            onClick={() =>
+              void runActions(config.submitLabel ?? "送出生成", [{ type: "submit" }])
+            }
+            className={cn(
+              "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+              "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+              "text-emerald-50 transition-all",
+              fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+            )}
+            whileTap={{ scale: 0.97 }}
+          >
+            <Sparkles className="w-3 h-3" /> {config.submitLabel ?? "一鍵送出"}
+          </motion.button>
+          <motion.button
+            onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-xl",
+              "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+              fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+            )}
+            whileTap={{ scale: 0.97 }}
+          >
+            <RotateCcw className="w-3 h-3" /> 重設
+          </motion.button>
+        </div>
+      )}
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="提示詞 / 模型推薦 / 跨分頁串接 / 導演 AI"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
 // 通用：渲染一組 collaboration links（給 Studio 與 ImageStudio 共用）
 
 function StudioCollaborationLinkGrid({
@@ -3262,9 +3687,12 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   // 加新分頁時只要動 ImageStudioTab 與 IMAGE_STUDIO_PANELS 表，不會散落各處。
   const imageStudioTab = getImageStudioTab(pageAgent);
   const isImageStudioPage = imageStudioTab !== null;
-  // 影片專業工作室目前接 t2v / i2v 兩個分頁；其他分頁仍走通用流程
+  // 影片專業工作室 5 個分頁（t2v / i2v / v2v / enhance / control）全部接深度面板
   const videoStudioTab = getVideoStudioTab(pageAgent);
   const isVideoStudioPage = videoStudioTab !== null;
+  // 音樂配音創作室 7 個分頁（music / sfx / tts / clone / process / asr / avatar）
+  const proStudioTab = getProStudioTab(pageAgent);
+  const isProStudioPage = proStudioTab !== null;
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -3831,7 +4259,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {!isImageStudioPage && !isVideoStudioPage && (
+              {!isImageStudioPage && !isVideoStudioPage && !isProStudioPage && (
                 <OrbSpeechBubble
                   text={
                     isStudioPage
@@ -3852,6 +4280,14 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               ) : videoStudioTab ? (
                 <VideoStudioDeepActionsForTab
                   tab={videoStudioTab}
+                  fullscreen={fullscreen}
+                  pageAgent={pageAgent}
+                  onClose={onClose}
+                  onSendChat={handleStudioCollabChat}
+                />
+              ) : proStudioTab ? (
+                <ProStudioDeepActions
+                  tab={proStudioTab}
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
