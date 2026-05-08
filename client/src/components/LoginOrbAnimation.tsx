@@ -113,6 +113,16 @@ const STATIC_KEYFRAMES = [
   "@keyframes hs-orb3d-reveal{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:0}40%{transform:translate3d(-50%,-50%,0) scale(1.18);opacity:1}70%{transform:translate3d(-50%,-50%,0) scale(0.96);opacity:1}100%{transform:translate3d(-50%,-50%,0) scale(1);opacity:1}}",
   // 3D orb gentle hover (post-reveal)
   "@keyframes hs-orb3d-hover{0%,100%{transform:translate3d(-50%,-50%,0) scale(1)}50%{transform:translate3d(-50%,calc(-50% - 4px),0) scale(1.03)}}",
+  // Distant spiral galaxy — slow rotation
+  "@keyframes hs-galaxy-spin{0%{transform:translate3d(-50%,-50%,0) rotate(0deg)}100%{transform:translate3d(-50%,-50%,0) rotate(360deg)}}",
+  // Distant spiral galaxy — gentle breath
+  "@keyframes hs-galaxy-breath{0%,100%{opacity:.42}50%{opacity:.62}}",
+  // Convergence energy dust — spiral inward from edge to center
+  "@keyframes hs-dust-spiral{0%{transform:translate3d(0,0,0) scale(0.6);opacity:0}10%{opacity:.85}80%{opacity:.5}100%{transform:translate3d(var(--hs-dx),var(--hs-dy),0) scale(0.1);opacity:0}}",
+  // Bottom atmospheric horizon — gentle pulse
+  "@keyframes hs-horizon{0%,100%{opacity:.55}50%{opacity:.78}}",
+  // Cinematic title char reveal — slide up + fade in
+  "@keyframes hs-char-reveal{0%{transform:translate3d(0,18px,0);opacity:0;filter:none}60%{opacity:1}100%{transform:translate3d(0,0,0);opacity:1}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -871,7 +881,7 @@ function CentralOrb({
         />
       ))}
 
-      {/* Welcome text — main + subtitle */}
+      {/* Welcome text — cinematic letter-by-letter reveal + shimmer + thin underline */}
       <motion.div
         className="absolute flex flex-col items-center"
         style={{
@@ -880,10 +890,11 @@ function CentralOrb({
           transform: "translateX(-50%)",
           willChange: "opacity",
         }}
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: [0, 0.95, 0.95, 0.8], y: [18, 0, 0, 0] }}
-        transition={{ duration: 2.2, delay: 2.0, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 1, 0.85] }}
+        transition={{ duration: 2.6, delay: 2.0, ease: [0.16, 1, 0.3, 1] }}
       >
+        {/* Char-by-char cinematic reveal */}
         <span
           className="font-light"
           style={{
@@ -895,11 +906,38 @@ function CentralOrb({
             backgroundClip: "text",
             textShadow: `0 0 24px ${palette.textGlow}`,
             backgroundSize: "220% 100%",
-            animation: "hs-text-shimmer 4.2s linear 2.1s infinite",
+            animation: "hs-text-shimmer 4.2s linear 2.4s infinite",
+            display: "inline-flex",
           }}
         >
-          歡迎回來
+          {Array.from("歡迎回來").map((ch, i) => (
+            <span
+              key={i}
+              style={{
+                display: "inline-block",
+                opacity: 0,
+                animation: `hs-char-reveal 0.9s cubic-bezier(0.16,1,0.3,1) ${2.0 + i * 0.13}s forwards`,
+                willChange: "transform, opacity",
+              }}
+            >
+              {ch}
+            </span>
+          ))}
         </span>
+
+        {/* Thin underline ribbon — premium cinematic touch (CSS only, no blur) */}
+        <motion.div
+          className="mt-2"
+          style={{
+            height: 1,
+            background: `linear-gradient(90deg, transparent 0%, ${palette.textGlow} 50%, transparent 100%)`,
+            transformOrigin: "center",
+          }}
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: [0, s(96), s(96), s(96)], opacity: [0, 0.65, 0.5, 0.4] }}
+          transition={{ duration: 2.2, delay: 2.6, ease: [0.16, 1, 0.3, 1] }}
+        />
+
         <motion.span
           className="font-light mt-2"
           style={{
@@ -908,8 +946,8 @@ function CentralOrb({
             letterSpacing: `${Math.max(0.08, 0.15 * scale)}em`,
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 0.5, 0.5, 0.35] }}
-          transition={{ duration: 2.0, delay: 2.6, ease: "easeInOut" }}
+          animate={{ opacity: [0, 0.55, 0.55, 0.35] }}
+          transition={{ duration: 2.0, delay: 3.0, ease: "easeInOut" }}
         >
           Healing Studio
         </motion.span>
@@ -1324,6 +1362,202 @@ const DistantMoon = memo(function DistantMoon({
   );
 });
 
+// ─── Distant spiral galaxy — fine cosmic background detail ─────────────────
+
+/**
+ * A small, slowly rotating galaxy with conic-gradient spiral arms + a
+ * brighter core. Sits in the upper-left quadrant for compositional balance
+ * with the lower-left planet and upper-right moon.
+ */
+const SpiralGalaxy = memo(function SpiralGalaxy({
+  parallax,
+  scale,
+}: {
+  parallax: [number, number];
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  const size = 260 * scale;
+  const tx = px * -8 * scale;
+  const ty = py * -6 * scale;
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "16%",
+        top: "26%",
+        width: size,
+        height: size,
+        marginLeft: -size / 2,
+        marginTop: -size / 2,
+        transform: `translate3d(${tx}px, ${ty}px, 0)`,
+        willChange: "transform",
+        opacity: 0.55,
+        animation: "hs-galaxy-breath 16s ease-in-out infinite",
+        mixBlendMode: "screen",
+      }}
+    >
+      {/* Spiral arms — conic gradient with slow rotation */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: 0,
+          background: [
+            "conic-gradient(from 0deg, transparent 0deg, rgba(180,160,255,0.22) 30deg, transparent 70deg, rgba(140,200,255,0.18) 130deg, transparent 180deg, rgba(220,180,255,0.20) 230deg, transparent 290deg, rgba(160,180,255,0.16) 330deg, transparent 360deg)",
+            "radial-gradient(circle, rgba(255,240,220,0.45) 0%, rgba(220,200,255,0.16) 18%, transparent 50%)",
+          ].join(","),
+          backgroundBlendMode: "screen",
+          left: "50%",
+          top: "50%",
+          transform: "translate3d(-50%,-50%,0)",
+          width: "100%",
+          height: "100%",
+          WebkitMaskImage:
+            "radial-gradient(circle, #000 0%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.4) 65%, transparent 88%)",
+          maskImage:
+            "radial-gradient(circle, #000 0%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.4) 65%, transparent 88%)",
+          animation: "hs-galaxy-spin 180s linear infinite",
+        }}
+      />
+      {/* Bright galactic core */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: size * 0.18,
+          height: size * 0.18,
+          marginLeft: -(size * 0.18) / 2,
+          marginTop: -(size * 0.18) / 2,
+          background:
+            "radial-gradient(circle, rgba(255,245,225,0.95) 0%, rgba(255,220,180,0.55) 30%, rgba(220,180,255,0.18) 65%, transparent 100%)",
+          boxShadow: "0 0 24px rgba(255,230,200,0.5)",
+        }}
+      />
+    </div>
+  );
+});
+
+// ─── Convergence energy dust — sparks spiraling into the central orb ────────
+
+interface DustParticle {
+  /** Start position offset (px from center) */
+  startX: number;
+  startY: number;
+  size: number;
+  delay: number;
+  duration: number;
+}
+
+/**
+ * Pre-computed energy dust particles: each starts at a perimeter point and
+ * spirals into the center via a CSS variable–driven keyframe. The end-point
+ * delta is `-startX, -startY`, so the @keyframes consume it via
+ * `translate3d(var(--hs-dx), var(--hs-dy), 0)`.
+ *
+ * 18 sparks gives a rich convergence climax without flooding the GPU.
+ */
+const DUST_PARTICLES: DustParticle[] = (() => {
+  const out: DustParticle[] = [];
+  const COUNT = 18;
+  for (let i = 0; i < COUNT; i++) {
+    // Polar distribution — even angle spacing + jitter for organic feel
+    const angle = (i / COUNT) * Math.PI * 2 + ((i * 17) % 5) * 0.06;
+    const radius = 220 + (i % 4) * 40;
+    out.push({
+      startX: Math.cos(angle) * radius,
+      startY: Math.sin(angle) * radius,
+      size: 2 + (i % 3),
+      delay: (i % 6) * 0.08,
+      duration: 1.6 + (i % 5) * 0.15,
+    });
+  }
+  return out;
+})();
+
+const ConvergenceDust = memo(function ConvergenceDust({
+  color,
+  scale,
+}: {
+  color: string;
+  scale: number;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "50%",
+        top: "50%",
+        width: 0,
+        height: 0,
+        willChange: "transform",
+      }}
+    >
+      {DUST_PARTICLES.map((p, i) => {
+        const sx = p.startX * scale;
+        const sy = p.startY * scale;
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={
+              {
+                left: sx,
+                top: sy,
+                width: p.size,
+                height: p.size,
+                marginLeft: -p.size / 2,
+                marginTop: -p.size / 2,
+                background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                boxShadow: `0 0 ${p.size * 3}px ${color}`,
+                animation: `hs-dust-spiral ${p.duration}s cubic-bezier(0.4,0,0.2,1) ${p.delay}s forwards`,
+                willChange: "transform, opacity",
+                opacity: 0,
+                // CSS custom properties consumed by hs-dust-spiral keyframes
+                "--hs-dx": `${-sx}px`,
+                "--hs-dy": `${-sy}px`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </div>
+  );
+});
+
+// ─── Bottom atmospheric horizon — warm gradient grounds the deep space ──────
+
+const BottomHorizon = memo(function BottomHorizon({
+  palette,
+}: {
+  palette: PaletteConfig;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: "38%",
+        background: [
+          // Warm low-horizon glow (dawn-like)
+          `linear-gradient(180deg, transparent 0%, ${palette.haloOuter} 70%, rgba(255,180,140,0.06) 100%)`,
+          // Cool atmospheric tint to harmonize with cosmic palette
+          `linear-gradient(180deg, transparent 0%, ${palette.nebula[0]} 100%)`,
+        ].join(","),
+        backgroundBlendMode: "screen",
+        mixBlendMode: "screen",
+        animation: "hs-horizon 12s ease-in-out infinite",
+        opacity: 0.65,
+      }}
+    />
+  );
+});
+
 // ─── Hero 3D orb — real Three.js + GLSL Fresnel orb ─────────────────────────
 
 /**
@@ -1697,6 +1931,12 @@ export default function LoginOrbAnimation() {
           <DistantPlanet parallax={parallax} scale={responsiveScale} />
           <DistantMoon parallax={parallax} scale={responsiveScale} />
 
+          {/* Distant spiral galaxy (upper-left) — completes the cosmic triad */}
+          <SpiralGalaxy parallax={parallax} scale={responsiveScale} />
+
+          {/* Bottom atmospheric horizon — grounds the composition */}
+          <BottomHorizon palette={palette} />
+
           {/* Shooting stars — cinematic depth */}
           <ShootingStars tint={palette.meteorTint} />
 
@@ -1716,6 +1956,14 @@ export default function LoginOrbAnimation() {
 
           {/* Convergence flash */}
           {phase === "converged" && <ConvergenceFlash scale={responsiveScale} />}
+
+          {/* Convergence energy dust — sparks spiraling into the central orb */}
+          {phase === "converged" && (
+            <ConvergenceDust
+              color={palette.sparkleColor}
+              scale={responsiveScale}
+            />
+          )}
 
           {/* Nebula aura (appears with central orb) */}
           {(phase === "converged" || phase === "fadeout") && (
