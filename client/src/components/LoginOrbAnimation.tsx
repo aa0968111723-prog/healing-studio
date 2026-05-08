@@ -110,9 +110,11 @@ const STATIC_KEYFRAMES = [
   // Cloud band drift across planet surface
   "@keyframes hs-clouds{0%{background-position:0% 50%}100%{background-position:-200% 50%}}",
   // 3D orb entrance — scale + opacity reveal at convergence
-  "@keyframes hs-orb3d-reveal{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:0}40%{transform:translate3d(-50%,-50%,0) scale(1.18);opacity:1}70%{transform:translate3d(-50%,-50%,0) scale(0.96);opacity:1}100%{transform:translate3d(-50%,-50%,0) scale(1);opacity:1}}",
+  // (The inner div is layout-centered inside its wrapper, so the keyframe
+  // only needs scale/translate around its own center — no -50% recentering.)
+  "@keyframes hs-orb3d-reveal{0%{transform:scale(0.2);opacity:0}40%{transform:scale(1.18);opacity:1}70%{transform:scale(0.96);opacity:1}100%{transform:scale(1);opacity:1}}",
   // 3D orb gentle hover (post-reveal)
-  "@keyframes hs-orb3d-hover{0%,100%{transform:translate3d(-50%,-50%,0) scale(1)}50%{transform:translate3d(-50%,calc(-50% - 4px),0) scale(1.03)}}",
+  "@keyframes hs-orb3d-hover{0%,100%{transform:scale(1) translate3d(0,0,0)}50%{transform:scale(1.03) translate3d(0,-4px,0)}}",
   // Distant spiral galaxy — slow rotation
   "@keyframes hs-galaxy-spin{0%{transform:translate3d(-50%,-50%,0) rotate(0deg)}100%{transform:translate3d(-50%,-50%,0) rotate(360deg)}}",
   // Distant spiral galaxy — gentle breath
@@ -1703,20 +1705,25 @@ const AuroraCurtain = memo(function AuroraCurtain({
         right: 0,
         top: "-2%",
         height: "40%",
+        // Tilted (~95deg) gradients with wide background-size so horizontal
+        // background-position sweep produces a visible wavy shimmer. Two
+        // layers run at slightly different angles + sizes to feel organic.
+        // The ribbon shape comes from the vertical mask below.
         background: [
-          // Wavy color band 1 — green-cyan
-          "linear-gradient(180deg, transparent 0%, rgba(120,220,200,0.16) 22%, rgba(140,200,240,0.12) 42%, transparent 65%)",
-          // Wavy color band 2 — purple-pink for variety
-          `linear-gradient(180deg, transparent 0%, ${palette.nebula[0]} 24%, ${palette.nebula[1]} 50%, transparent 70%)`,
+          "linear-gradient(95deg, transparent 0%, rgba(120,220,200,0.20) 18%, rgba(140,200,240,0.14) 38%, rgba(180,160,255,0.18) 60%, transparent 82%)",
+          `linear-gradient(100deg, transparent 0%, ${palette.nebula[0]} 22%, ${palette.nebula[1]} 52%, transparent 80%)`,
         ].join(","),
-        backgroundSize: "200% 100%, 220% 100%",
+        backgroundSize: "240% 100%, 220% 100%",
+        backgroundRepeat: "no-repeat, no-repeat",
         backgroundBlendMode: "screen",
         mixBlendMode: "screen",
+        // Vertical mask = the curtain ribbon shape (soft top + soft bottom)
         WebkitMaskImage:
-          "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
+          "linear-gradient(180deg, transparent 0%, #000 35%, #000 65%, transparent 100%)",
         maskImage:
-          "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
+          "linear-gradient(180deg, transparent 0%, #000 35%, #000 65%, transparent 100%)",
         animation: "hs-aurora-curtain 22s ease-in-out infinite",
+        willChange: "background-position, opacity",
       }}
     />
   );
@@ -1826,8 +1833,8 @@ function Hero3DOrb({
 
   return (
     // Outer: anchors center + applies static upscale so the inner keyframe
-    // animation can own `transform` exclusively. This avoids the keyframe
-    // overriding the centering translate.
+    // animation can own `transform` exclusively. The static scale lives here
+    // because keyframes overwrite `transform`, not its parent's transform.
     <div
       className="absolute pointer-events-none"
       style={{
@@ -1840,19 +1847,21 @@ function Hero3DOrb({
         willChange: "transform",
       }}
     >
-      {/* Inner: reveal + hover animation drives its own transform/opacity */}
+      {/* Inner: fills the 80x80 outer exactly (NO inset-0 + 50% mix that
+          collapsed the box to 40x40 in v2). Animation transforms relative to
+          the inner's own center, scaling up and down without re-centering. */}
       <div
-        className="absolute inset-0"
         style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
           opacity: 0,
           animation:
             "hs-orb3d-reveal 1.4s cubic-bezier(0.16,1,0.3,1) forwards, hs-orb3d-hover 5.2s ease-in-out 1.4s infinite",
+          transformOrigin: "center center",
           willChange: "transform, opacity",
-          // Keyframes assume centered layout — neutralize the absolute inset
-          // by translating from natural top-left to centered before scaling.
-          transform: "translate3d(-50%,-50%,0)",
-          left: "50%",
-          top: "50%",
         }}
       >
         <Suspense fallback={null}>
@@ -2169,15 +2178,17 @@ export default function LoginOrbAnimation() {
           {/* Off-screen sun + lens flare chain — cinematic optical axis */}
           <SunLensFlare parallax={parallax} />
 
+          {/* Bottom atmospheric horizon — grounds the composition. Rendered
+              BEFORE planet/moon/galaxy so they sit on top of the warm tint
+              instead of having their dark sides washed by additive blend. */}
+          <BottomHorizon palette={palette} />
+
           {/* Distant planet (lower-left) + moon (upper-right) for parallax depth */}
           <DistantPlanet parallax={parallax} scale={responsiveScale} />
           <DistantMoon parallax={parallax} scale={responsiveScale} />
 
           {/* Distant spiral galaxy (upper-left) — completes the cosmic triad */}
           <SpiralGalaxy parallax={parallax} scale={responsiveScale} />
-
-          {/* Bottom atmospheric horizon — grounds the composition */}
-          <BottomHorizon palette={palette} />
 
           {/* Shooting stars — cinematic depth */}
           <ShootingStars tint={palette.meteorTint} />
