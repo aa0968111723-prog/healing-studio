@@ -2307,29 +2307,46 @@ export default function DirectorAI() {
   // 來：(1) 在聊天頂端注入一段 assistant 開場，承接話題；(2) 把使用者最後
   // 一句話預填到輸入框，按 Enter 就能繼續；(3) 顯示一張「從光球延續討論」
   // 的小卡，預覽剛剛聊了什麼，並提供「先從三個方向開始」一鍵動作。
-  const [agentHandoff, setAgentHandoff] =
-    useState<DirectorHandoffPayload | null>(null);
-  const [showHandoffDetails, setShowHandoffDetails] = useState(false);
-  useEffect(() => {
-    const payload = readAndClearDirectorHandoff();
-    if (payload) setAgentHandoff(payload);
-  }, []);
+  //
+  // sessionStorage 必須只讀一次（讀完即清），但兩個 useState 初始化器都需
+  // 要這份 payload。先用 ref 抓一次、暫存，兩個 lazy initialiser 都從同一
+  // 份 ref 讀，避免第二個 useState 拿到 null 然後在第一個 render 就把開場
+  // 訊息漏掉。
+  const handoffOnMountRef = useRef<DirectorHandoffPayload | null | undefined>(
+    undefined,
+  );
+  if (handoffOnMountRef.current === undefined) {
+    handoffOnMountRef.current = readAndClearDirectorHandoff();
+  }
+  const initialHandoff = handoffOnMountRef.current;
 
-  const handoffOpening = useMemo(() => {
-    if (!agentHandoff) return null;
-    const topic = agentHandoff.topic?.trim();
-    const preview = topic ? `「${topic}」` : "你剛剛分享的構想";
-    return [
-      `🌿 我從光球那裡接到你${preview}。`,
-      "",
-      "我們可以這樣往下走：",
-      "1. 我先給你 **三個方向**，挑一個最接近的我們再展開。",
-      "2. 直接從你最想做的那一段開始，我陪你逐段拆。",
-      "3. 把剛剛那段話整理成 **腳本大綱 / 分鏡** 給你過目。",
-      "",
-      "想先從哪一條開始？或者直接告訴我下一步，我來接手 ✨",
-    ].join("\n");
-  }, [agentHandoff]);
+  const [agentHandoff, setAgentHandoff] = useState<DirectorHandoffPayload | null>(
+    initialHandoff,
+  );
+  const [showHandoffDetails, setShowHandoffDetails] = useState(false);
+
+  const buildHandoffOpening = useCallback(
+    (payload: DirectorHandoffPayload): string => {
+      const topic = payload.topic?.trim();
+      const preview = topic ? `「${topic}」` : "你剛剛分享的構想";
+      return [
+        `🌿 我從光球那裡接到你${preview}。`,
+        "",
+        "我們可以這樣往下走：",
+        "1. 我先給你 **三個方向**，挑一個最接近的我們再展開。",
+        "2. 直接從你最想做的那一段開始，我陪你逐段拆。",
+        "3. 把剛剛那段話整理成 **腳本大綱 / 分鏡** 給你過目。",
+        "",
+        "想先從哪一條開始？或者直接告訴我下一步，我來接手 ✨",
+      ].join("\n");
+    },
+    [],
+  );
+
+  const handoffOpening = useMemo(
+    () => (agentHandoff ? buildHandoffOpening(agentHandoff) : null),
+    [agentHandoff, buildHandoffOpening],
+  );
 
   const [messages, setMessages] = useState<Message[]>(() => {
     const baseSystem: Message = {
@@ -2338,14 +2355,16 @@ export default function DirectorAI() {
         PERSONALITY_SYSTEM_PROMPTS[globalPersonality] ??
         PERSONALITY_SYSTEM_PROMPTS.creative,
     };
-    return [baseSystem];
+    if (!initialHandoff) return [baseSystem];
+    return [
+      baseSystem,
+      { role: "assistant", content: buildHandoffOpening(initialHandoff) },
+    ];
   });
 
-  // Inject the handoff opening as an assistant message once the payload is
-  // read. Kept as a separate effect (rather than computed in initial state)
-  // so it lands even if the payload is read on a later render and so it's
-  // safe to re-run if the system prompt switches mid-session — we de-dupe
-  // by checking whether the opening text already exists in `messages`.
+  // Belt-and-braces: if `agentHandoff` is set later (e.g. HMR replays mount)
+  // but the message wasn't already injected, add it now. De-duped against
+  // existing content so it never doubles up.
   useEffect(() => {
     if (!handoffOpening) return;
     setMessages(prev => {
@@ -4115,6 +4134,20 @@ export default function DirectorAI() {
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5 pl-6">
+            {agentHandoff.userIntent && (
+              <button
+                type="button"
+                onClick={() => {
+                  // 「不會幫我執行」← 使用者最痛的一點。把他在光球講的最
+                  // 後一句直接塞回去送出，導演 AI 立刻接手往下做。
+                  handleSend(agentHandoff.userIntent);
+                  setAgentHandoff(null);
+                }}
+                className="rounded-lg border border-emerald-500/60 bg-emerald-500/15 px-2.5 py-1 font-medium text-emerald-800 dark:text-emerald-100 hover:bg-emerald-500/25 transition"
+              >
+                直接照剛剛說的開始 →
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
