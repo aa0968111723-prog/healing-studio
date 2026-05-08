@@ -18,6 +18,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useRef,
   useMemo,
   type ReactNode,
@@ -29,7 +30,22 @@ import {
   type OrbGuideIntentId,
   type OrbGuideManualStep,
 } from "../../../shared/orb-guide-plans";
-import { getPageByPath } from "@/config/appRegistry";
+import { getAllPages, getPageByPath } from "@/config/appRegistry";
+
+/**
+ * 比 getPageByPath 嚴格的版本：先用「完整 path（含 querystring）」精準對到
+ * registry entry，找不到再退回 getPageByPath 的 normalize 比對。
+ *
+ * 為什麼需要：registry 裡 /assets?section=history、/assets?section=prompts、
+ * /assets 都共用 /assets 這個 normalize 路徑，所以 getPageByPath 回的是
+ * 「第一個」也就是「生成歷史」，跟使用者實際落點（提示詞庫）不一致。
+ * arrival 卡的 targetLabel 因此會顯示錯的頁面名稱。
+ */
+function resolveRegistryPage(path: string) {
+  const exact = getAllPages().find(page => page.path === path);
+  if (exact) return exact;
+  return getPageByPath(path);
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -336,55 +352,63 @@ function buildDefaultArrivalChoices(targetPath: string): OrbArrivalChoice[] {
   const section = query.get("section");
 
   // /assets?section=prompts — 提示詞庫
+  // 注意：這頁的 PageAgent 用 setParam(category) 做精確分類篩選，不是用
+  // search(text) 做模糊比對 — search 只搜標題文字，會漏掉 category 為
+  // image 但標題沒寫 "image" 的提示詞。所以這裡用 setParam。
   if (pathOnly === "/assets" && section === "prompts") {
     return [
       {
         id: "prompts-image",
         label: "我要找圖像 prompt",
         emoji: "🖼",
-        actions: [{ type: "search", query: "image" }],
+        actions: [{ type: "setParam", key: "category", value: "image" }],
       },
       {
         id: "prompts-music",
-        label: "我要找音樂 prompt",
+        label: "我要找音訊 prompt",
         emoji: "🎵",
-        actions: [{ type: "search", query: "music" }],
+        actions: [{ type: "setParam", key: "category", value: "audio" }],
       },
       {
         id: "prompts-video",
         label: "我要找影片 prompt",
         emoji: "🎬",
-        actions: [{ type: "search", query: "video" }],
+        actions: [{ type: "setParam", key: "category", value: "video" }],
       },
       {
-        id: "prompts-healing",
-        label: "找療癒風格的 prompt",
-        emoji: "🌿",
-        actions: [{ type: "search", query: "healing" }],
+        id: "prompts-favorites",
+        label: "只看我收藏的",
+        emoji: "⭐",
+        actions: [{ type: "setParam", key: "favoritesOnly", value: true }],
       },
     ];
   }
 
-  // /assets — 數位資產庫主頁
-  if (pathOnly === "/assets" && !section) {
+  // /assets — 數位資產庫主頁（無 section 或預設 section=assets）
+  // assets handler 只認 tabId="my" / "team"，所以「切 tab」要用查詢字串導頁
+  // 而不是 setTab — 用 navigate 走 wouter，重新載入正確的 sub-page。
+  if (pathOnly === "/assets" && (!section || section === "assets")) {
     return [
       {
         id: "assets-history",
         label: "看我最近的生成歷史",
         emoji: "🕒",
-        actions: [{ type: "setTab", tabId: "history" }],
+        actions: [{ type: "navigate", path: "/assets?section=history" }],
+        dismissOnSelect: true,
       },
       {
         id: "assets-prompts",
         label: "去提示詞庫挑模板",
         emoji: "📚",
-        actions: [{ type: "setTab", tabId: "prompts" }],
+        actions: [{ type: "navigate", path: "/assets?section=prompts" }],
+        dismissOnSelect: true,
       },
       {
         id: "assets-shared",
         label: "看共享空間",
         emoji: "🤝",
-        actions: [{ type: "setTab", tabId: "shared" }],
+        actions: [{ type: "navigate", path: "/assets?section=shared" }],
+        dismissOnSelect: true,
       },
     ];
   }
@@ -597,10 +621,24 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setStep("ask_intent");
   }, []);
 
+  const arrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelArrivalTimer = useCallback(() => {
+    if (arrivalTimerRef.current) {
+      clearTimeout(arrivalTimerRef.current);
+      arrivalTimerRef.current = null;
+    }
+  }, []);
+
+  // 防止 provider unmount（例如 SPA 在嚴格模式下二次掛載）後計時器
+  // 仍然回呼 setStep，雖然 React 18 會默默忽略，但留下未清的計時器
+  // 是潛在洩漏。
+  useEffect(() => cancelArrivalTimer, [cancelArrivalTimer]);
+
   const closePanel = useCallback(() => {
+    cancelArrivalTimer();
     setIsPanelOpen(false);
     setStep("idle");
-  }, []);
+  }, [cancelArrivalTimer]);
 
   const selectIntent = useCallback((chosen: GuideIntent) => {
     setIntent(chosen);
@@ -683,6 +721,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   }, [plan]);
 
   const reset = useCallback(() => {
+    cancelArrivalTimer();
     setStep("idle");
     setIntent(null);
     setAnswers({});
@@ -690,7 +729,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setIsPanelOpen(false);
     setCompletedManualStepIds([]);
     questionIndexRef.current = 0;
-  }, []);
+  }, [cancelArrivalTimer]);
 
   const clearArrivedMessage = useCallback(() => {
     // 只清掉短暫的到站問候訊息（toast 用），不影響 step；
@@ -707,6 +746,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dismissArrival = useCallback(() => {
+    cancelArrivalTimer();
     setStep("idle");
     setIsPanelOpen(false);
     setIntent(null);
@@ -715,9 +755,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setCompletedManualStepIds([]);
     setArrivedMessage(null);
     questionIndexRef.current = 0;
-  }, []);
-
-  const arrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  }, [cancelArrivalTimer]);
 
   const attachArrivalGuide = useCallback(
     (input: {
@@ -728,7 +766,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       manualSteps?: OrbGuideManualStep[];
       arrivalChoices?: OrbArrivalChoice[];
     }) => {
-      const registryPage = getPageByPath(input.targetPath);
+      const registryPage = resolveRegistryPage(input.targetPath);
       const label =
         input.targetLabel ?? registryPage?.label ?? input.targetPath;
       const orbMessage =
@@ -750,10 +788,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
         arrivalChoices: arrivalChoices.length > 0 ? arrivalChoices : undefined,
       };
 
-      if (arrivalTimerRef.current) {
-        clearTimeout(arrivalTimerRef.current);
-        arrivalTimerRef.current = null;
-      }
+      cancelArrivalTimer();
 
       setIntent(null);
       setAnswers({});
@@ -771,7 +806,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
         setStep("arrived");
       }, 600);
     },
-    []
+    [cancelArrivalTimer]
   );
 
   const patchPlan = useCallback(

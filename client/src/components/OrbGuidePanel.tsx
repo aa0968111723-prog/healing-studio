@@ -1221,8 +1221,12 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
     const handleArrivalChoice = async (choice: typeof arrivalChoices[number]) => {
       // 光球替使用者按下這張卡的 actions — 全部走 PageAgent bus，所以
       // 跨頁、queue 暫存、回報 feedback 都和原本的多步驟工作流共用一條路。
+      // 如果裡面包含 navigate（會把使用者帶到別頁），這張 arrival 卡上
+      // 列的「已自動完成 / 接下來請你做」就跟新頁面對不上了，所以
+      // 強制收掉，讓新頁面如果有自己的引導再彈出來，不會疊一張舊卡。
+      const hasNavigate = choice.actions.some(a => a.type === "navigate");
       await pageAgent.dispatchMany(choice.actions, { source: "manual" });
-      if (choice.dismissOnSelect) dismissArrival();
+      if (choice.dismissOnSelect || hasNavigate) dismissArrival();
     };
 
     return (
