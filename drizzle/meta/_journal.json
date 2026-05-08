@@ -183,6 +183,27 @@
       "when": 1778889600000,
       "tag": "0028_user_avatar_url",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1778976000001,
+      "tag": "0024_orb_scheduled_jobs_results",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1778976000002,
+      "tag": "0025_specialized_agent_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1778976000003,
+      "tag": "0027_agent_collaboration_persistence",
+      "breakpoints": true
     }
   ]
 }
