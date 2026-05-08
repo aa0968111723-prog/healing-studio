@@ -336,6 +336,44 @@ const normalizeMessage = (message: Message) => {
   return { role, name, content: contentParts };
 };
 
+
+const adaptMessagesForGeminiCompat = (messages: ReturnType<typeof normalizeMessage>[]) => {
+  return messages.map(msg => {
+    const c = (msg as { content?: unknown }).content;
+    if (!Array.isArray(c)) return msg;
+
+    const adapted = c.map(part => {
+      if (
+        part &&
+        typeof part === "object" &&
+        "type" in (part as Record<string, unknown>) &&
+        (part as { type?: string }).type === "file_url"
+      ) {
+        const file = (part as { file_url?: { url?: string; mime_type?: string } }).file_url;
+        const url = typeof file?.url === "string" ? file.url : "";
+        const mime = typeof file?.mime_type === "string" ? file.mime_type : "application/octet-stream";
+        return {
+          type: "text" as const,
+          text: `[Attached file: ${mime}] ${url}`,
+        };
+      }
+      return part;
+    });
+
+    if (
+      adapted.length === 1 &&
+      adapted[0] &&
+      typeof adapted[0] === "object" &&
+      "type" in (adapted[0] as Record<string, unknown>) &&
+      (adapted[0] as { type?: string }).type === "text" &&
+      typeof (adapted[0] as { text?: unknown }).text === "string"
+    ) {
+      return { ...msg, content: (adapted[0] as { text: string }).text };
+    }
+
+    return { ...msg, content: adapted };
+  });
+};
 const normalizeToolChoice = (
   toolChoice: ToolChoice | undefined,
   tools: Tool[] | undefined
@@ -1443,7 +1481,12 @@ async function invokeSingleEngine(
       })()
     : {
         model: resolvedModel,
-        messages: messages.map(normalizeMessage),
+        messages: (() => {
+          const normalized = messages.map(normalizeMessage);
+          return engineConfig.engine === "gemini" || engineConfig.engine === "vertex"
+            ? adaptMessagesForGeminiCompat(normalized)
+            : normalized;
+        })(),
         max_tokens: maxTokens ?? max_tokens ?? 8192,
       };
 

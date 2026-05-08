@@ -2000,9 +2000,14 @@ function Hero3DOrb({
         willChange: "transform",
       }}
     >
-      {/* Inner: fills the 80x80 outer exactly (NO inset-0 + 50% mix that
-          collapsed the box to 40x40 in v2). Animation transforms relative to
-          the inner's own center, scaling up and down without re-centering. */}
+      {/* Inner: fills the 80x80 outer exactly (NO Tailwind `inset-0` + 50%
+          mix that collapsed the box to 40x40 in v2). Explicit position +
+          left/top: 0 + width/height: 100% keeps the WebGL canvas precisely
+          inside the 80x80 container — extra centering transforms here can
+          shift the canvas and expose a rectangular clipping box on some
+          mobile GPUs (see commit 8a6bad2). The animation then transforms
+          relative to the inner's own center via simplified scale-only
+          keyframes, with no -50% recentering needed. */}
       <div
         style={{
           position: "absolute",

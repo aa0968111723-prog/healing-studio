@@ -3,7 +3,10 @@ import VisualSoul from "@/components/VisualSoul";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import LocalAuthForm from "@/components/LocalAuthForm";
-import LoginCosmicScene from "@/components/LoginCosmicScene";
+import LoginCosmicScene, { getSceneFrameHues } from "@/components/LoginCosmicScene";
+import type { SceneId } from "@/components/AmbientEnvironment";
+import { useAmbient } from "@/contexts/AmbientSoundContext";
+import { SoundControl } from "@/components/AmbientSoundEngine";
 import {
   Wand2,
   Clapperboard,
@@ -39,7 +42,7 @@ import {
   useSiteOnboarding,
   type PageId,
 } from "@/contexts/SiteOnboardingContext";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
@@ -59,17 +62,28 @@ import AppleDock, {
 
 const DOCK_POSITION_KEY = "apple-dock-position";
 const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
+const DOCK_IMMERSIVE_KEY = "apple-dock-immersive";
 
 function readDockPosition(): DockPosition {
   if (typeof window === "undefined") return "left";
   const v = window.localStorage.getItem(DOCK_POSITION_KEY);
-  return v === "right" ? "right" : "left";
+  if (v === "right" || v === "top" || v === "bottom" || v === "left") {
+    return v;
+  }
+  return "left";
 }
 
 function readDockMinimized(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(DOCK_MINIMIZED_KEY) === "1";
 }
+
+function readDockImmersive(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(DOCK_IMMERSIVE_KEY) === "1";
+}
+
+const POSITION_CYCLE: DockPosition[] = ["left", "top", "right", "bottom"];
 
 
 type SidebarLeafItem = DockLeaf;
@@ -161,6 +175,361 @@ const sidebarStructure: SidebarEntry[] = (() => {
   return entries;
 })();
 
+// ─── Per-scene login card chrome ────────────────────────────────────────────
+
+type LoginSceneTheme = {
+  /** Glass body gradient */
+  cardBg: string;
+  /** Glass body border */
+  cardBorder: string;
+  /** Card outer halo / boxShadow */
+  cardShadow: string;
+  /** Subtitle copy + colour */
+  subtitleText: string;
+  subtitleColor: string;
+  /** Primary button gradient + outline */
+  primaryBg: string;
+  primaryBorder: string;
+  primaryShadow: string;
+  /** Demo button outline + tint */
+  demoBg: string;
+  demoBorder: string;
+  demoText: string;
+  /** Friendly scene label for the indicator pill */
+  label: string;
+  /** Pill emoji */
+  glyph: string;
+};
+
+const LOGIN_THEMES: Record<SceneId, LoginSceneTheme> = {
+  nightSky: {
+    cardBg:
+      "linear-gradient(160deg, rgba(28,22,52,0.62) 0%, rgba(18,12,38,0.72) 100%)",
+    cardBorder: "1px solid rgba(180,160,240,0.22)",
+    cardShadow: [
+      "0 1px 0 rgba(255,255,255,0.08) inset",
+      "0 0 0 1px rgba(120,100,200,0.12) inset",
+      "0 24px 80px rgba(0,0,0,0.55)",
+      "0 0 60px rgba(120,90,200,0.18)",
+    ].join(","),
+    subtitleText: "在星河之間，讓 AI 陪伴你舒適地創作",
+    subtitleColor: "rgba(230,222,255,0.78)",
+    primaryBg:
+      "linear-gradient(135deg, rgba(170,140,240,0.95) 0%, rgba(120,90,210,0.95) 100%)",
+    primaryBorder: "1px solid rgba(220,200,255,0.32)",
+    primaryShadow:
+      "0 8px 24px rgba(110,80,200,0.4), 0 0 0 1px rgba(255,255,255,0.06) inset",
+    demoBg: "rgba(255,255,255,0.04)",
+    demoBorder: "rgba(200,180,240,0.28)",
+    demoText: "rgba(230,222,255,0.85)",
+    label: "夜空",
+    glyph: "🌌",
+  },
+  morning: {
+    cardBg:
+      "linear-gradient(160deg, rgba(82,42,68,0.55) 0%, rgba(48,24,46,0.7) 100%)",
+    cardBorder: "1px solid rgba(255,210,170,0.30)",
+    cardShadow: [
+      "0 1px 0 rgba(255,225,200,0.14) inset",
+      "0 0 0 1px rgba(255,180,140,0.16) inset",
+      "0 24px 80px rgba(60,18,30,0.5)",
+      "0 0 60px rgba(255,170,130,0.22)",
+    ].join(","),
+    subtitleText: "在晨光之間，讓 AI 陪伴你舒適地創作",
+    subtitleColor: "rgba(255,235,215,0.85)",
+    primaryBg:
+      "linear-gradient(135deg, rgba(255,180,130,0.95) 0%, rgba(230,120,120,0.95) 100%)",
+    primaryBorder: "1px solid rgba(255,225,200,0.42)",
+    primaryShadow:
+      "0 8px 24px rgba(220,110,90,0.4), 0 0 0 1px rgba(255,255,255,0.08) inset",
+    demoBg: "rgba(255,235,215,0.05)",
+    demoBorder: "rgba(255,210,170,0.32)",
+    demoText: "rgba(255,235,210,0.92)",
+    label: "晨光",
+    glyph: "🌅",
+  },
+  cafe: {
+    cardBg:
+      "linear-gradient(160deg, rgba(46,28,18,0.62) 0%, rgba(30,18,12,0.74) 100%)",
+    cardBorder: "1px solid rgba(255,200,140,0.26)",
+    cardShadow: [
+      "0 1px 0 rgba(255,220,180,0.12) inset",
+      "0 0 0 1px rgba(220,150,90,0.18) inset",
+      "0 24px 80px rgba(20,10,4,0.55)",
+      "0 0 60px rgba(220,150,90,0.22)",
+    ].join(","),
+    subtitleText: "在咖啡香之間，讓 AI 陪伴你舒適地創作",
+    subtitleColor: "rgba(255,225,190,0.82)",
+    primaryBg:
+      "linear-gradient(135deg, rgba(220,150,90,0.95) 0%, rgba(160,90,55,0.95) 100%)",
+    primaryBorder: "1px solid rgba(255,225,180,0.36)",
+    primaryShadow:
+      "0 8px 24px rgba(120,60,30,0.45), 0 0 0 1px rgba(255,235,200,0.08) inset",
+    demoBg: "rgba(255,220,180,0.05)",
+    demoBorder: "rgba(255,200,140,0.30)",
+    demoText: "rgba(255,225,190,0.90)",
+    label: "咖啡廳",
+    glyph: "☕",
+  },
+  deepSea: {
+    cardBg:
+      "linear-gradient(160deg, rgba(12,38,58,0.62) 0%, rgba(8,22,38,0.78) 100%)",
+    cardBorder: "1px solid rgba(120,200,230,0.28)",
+    cardShadow: [
+      "0 1px 0 rgba(180,230,255,0.10) inset",
+      "0 0 0 1px rgba(60,160,210,0.16) inset",
+      "0 24px 80px rgba(0,4,12,0.6)",
+      "0 0 60px rgba(60,160,210,0.22)",
+    ].join(","),
+    subtitleText: "在深海之間，讓 AI 陪伴你舒適地創作",
+    subtitleColor: "rgba(210,235,250,0.82)",
+    primaryBg:
+      "linear-gradient(135deg, rgba(80,180,220,0.95) 0%, rgba(40,110,170,0.95) 100%)",
+    primaryBorder: "1px solid rgba(200,235,250,0.36)",
+    primaryShadow:
+      "0 8px 24px rgba(20,80,130,0.45), 0 0 0 1px rgba(255,255,255,0.06) inset",
+    demoBg: "rgba(160,230,255,0.05)",
+    demoBorder: "rgba(120,200,230,0.32)",
+    demoText: "rgba(210,235,250,0.90)",
+    label: "深海",
+    glyph: "🌊",
+  },
+};
+
+function LoginScreen() {
+  const ambient = useAmbient();
+  const { sceneId, override, setOverride, allScenes, isDark } = ambient;
+  const theme = LOGIN_THEMES[sceneId];
+
+  // Stable controls object for SoundControl — strip scene fields. Memoised so
+  // SoundControl's React.memo wrapper isn't invalidated on every parent
+  // render (otherwise the slider/state would feel stuttery).
+  const soundControls = useMemo(
+    () => ({
+      isPlaying: ambient.isPlaying,
+      isMuted: ambient.isMuted,
+      volume: ambient.volume,
+      isUnlocked: ambient.isUnlocked,
+      toggleMute: ambient.toggleMute,
+      setVolume: ambient.setVolume,
+      unlock: ambient.unlock,
+    }),
+    [
+      ambient.isPlaying,
+      ambient.isMuted,
+      ambient.volume,
+      ambient.isUnlocked,
+      ambient.toggleMute,
+      ambient.setVolume,
+      ambient.unlock,
+    ]
+  );
+
+  // Pointer-driven 3D card tilt — subtle parallax that responds to the
+  // visitor's mouse, giving a tactile "physical glass" feel.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [tilt, setTilt] = useState<{ rx: number; ry: number; sx: number; sy: number }>(
+    { rx: 0, ry: 0, sx: 50, sy: 50 }
+  );
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (reduced) return;
+      const el = cardRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width;
+      const py = (e.clientY - rect.top) / rect.height;
+      // Tilt range ~±5deg — gentle, never disorienting
+      const rx = (0.5 - py) * 6;
+      const ry = (px - 0.5) * 8;
+      setTilt({ rx, ry, sx: px * 100, sy: py * 100 });
+    },
+    [reduced]
+  );
+
+  const handlePointerLeave = useCallback(() => {
+    setTilt({ rx: 0, ry: 0, sx: 50, sy: 50 });
+  }, []);
+
+  // CSS custom properties must live on a COMMON ANCESTOR of both the scene
+  // background and the auth card (the card reads them via `var(--login-frame-
+  // hue-*)`). LoginCosmicScene and the card are siblings, so we set the vars
+  // on the .login-cosmic wrapper here.
+  const frameHues = getSceneFrameHues(sceneId);
+
+  return (
+    <div
+      className="login-cosmic relative flex items-center justify-center min-h-screen overflow-hidden"
+      data-scene={sceneId}
+      style={{
+        ["--login-frame-hue-a" as string]: frameHues.a,
+        ["--login-frame-hue-b" as string]: frameHues.b,
+        ["--login-frame-hue-c" as string]: frameHues.c,
+      }}
+    >
+      <LoginCosmicScene sceneId={sceneId} />
+
+      {/* ── Sound control — top-left, lets visitors enable scene-aware light music. */}
+      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
+        <SoundControl
+          controls={soundControls}
+          isDark={isDark}
+          sceneLabel={theme.label}
+          compact
+        />
+      </div>
+
+      {/* ── Scene picker — small chip row in the top-right so visitors can
+       *    preview/lock any of the four scenes before logging in. ── */}
+      <div
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs"
+        style={{
+          background: "rgba(10,8,22,0.42)",
+          backdropFilter: "blur(14px) saturate(140%)",
+          WebkitBackdropFilter: "blur(14px) saturate(140%)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.32)",
+        }}
+        role="group"
+        aria-label="切換背景場景"
+      >
+        {allScenes.map(s => {
+          const t = LOGIN_THEMES[s.id as SceneId];
+          const isActive = sceneId === s.id;
+          const isLocked = override === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setOverride(isLocked ? null : (s.id as SceneId))}
+              className="rounded-full px-2.5 py-1 transition-all"
+              title={
+                isLocked
+                  ? `已鎖定為「${s.label}」（再次點擊恢復自動）`
+                  : `切換為「${s.label}」`
+              }
+              style={{
+                background: isActive
+                  ? "rgba(255,255,255,0.12)"
+                  : "transparent",
+                color: isActive
+                  ? "rgba(255,255,255,0.96)"
+                  : "rgba(255,255,255,0.62)",
+                boxShadow: isLocked
+                  ? "inset 0 0 0 1px rgba(255,210,140,0.55)"
+                  : "none",
+              }}
+            >
+              <span className="mr-1" aria-hidden>
+                {t.glyph}
+              </span>
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        ref={cardRef}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        className="login-card relative z-10 p-10 sm:p-12 max-w-md w-full mx-4 text-center"
+        style={{
+          background: theme.cardBg,
+          backdropFilter: "blur(22px) saturate(160%)",
+          WebkitBackdropFilter: "blur(22px) saturate(160%)",
+          border: theme.cardBorder,
+          borderRadius: "1.5rem",
+          boxShadow: theme.cardShadow,
+          transform: `perspective(1100px) rotateX(${tilt.rx.toFixed(2)}deg) rotateY(${tilt.ry.toFixed(2)}deg)`,
+          transformStyle: "preserve-3d",
+          transition: "transform 320ms cubic-bezier(0.22,1,0.36,1)",
+        }}
+      >
+        {/* Specular highlight that follows the pointer (glass sheen) */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-[1.5rem]"
+          style={{
+            background: `radial-gradient(circle at ${tilt.sx}% ${tilt.sy}%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 28%, transparent 55%)`,
+            mixBlendMode: "screen",
+            opacity: reduced ? 0 : 1,
+            transition: "opacity 200ms",
+          }}
+        />
+
+        {/* Corner star glyphs — twinkling crosses at the four corners */}
+        <span className="login-card-glyph tl" aria-hidden />
+        <span className="login-card-glyph tr" aria-hidden />
+        <span className="login-card-glyph bl" aria-hidden />
+        <span className="login-card-glyph br" aria-hidden />
+
+        <div className="relative flex justify-center mb-6" style={{ transform: "translateZ(28px)" }}>
+          <Suspense fallback={null}>
+            <VisualSoul size="lg" personality="creative" state="idle" />
+          </Suspense>
+        </div>
+        <h1
+          className="hs-h1 !mb-0 login-title"
+          style={{ transform: "translateZ(20px)" }}
+        >
+          AI Director 創作平台
+        </h1>
+        <p
+          className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
+          style={{ color: theme.subtitleColor, transform: "translateZ(14px)" }}
+        >
+          {theme.subtitleText}
+        </p>
+        <Button
+          onClick={() => {
+            window.location.href = getLoginUrl();
+          }}
+          size="lg"
+          className="w-full mt-8 h-12 rounded-2xl btn-healing"
+          style={{
+            background: theme.primaryBg,
+            color: "#fff",
+            border: theme.primaryBorder,
+            boxShadow: theme.primaryShadow,
+            transform: "translateZ(10px)",
+          }}
+        >
+          Google 登入
+        </Button>
+        <LocalAuthForm className="mt-3 text-left login-auth-form" />
+        <Button
+          onClick={() => {
+            window.location.href = getDemoLoginUrl();
+          }}
+          variant="outline"
+          size="lg"
+          className="w-full mt-3 h-12 rounded-2xl btn-healing"
+          style={{
+            background: theme.demoBg,
+            borderStyle: "dashed",
+            borderColor: theme.demoBorder,
+            color: theme.demoText,
+          }}
+        >
+          ✨ 訪客體驗（免登入）
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -173,81 +542,7 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    return (
-      <div className="login-cosmic relative flex items-center justify-center min-h-screen overflow-hidden">
-        <LoginCosmicScene />
-        <div
-          className="login-card relative z-10 p-10 sm:p-12 max-w-md w-full mx-4 text-center"
-          style={{
-            background:
-              "linear-gradient(160deg, rgba(28,22,52,0.62) 0%, rgba(18,12,38,0.72) 100%)",
-            backdropFilter: "blur(22px) saturate(160%)",
-            WebkitBackdropFilter: "blur(22px) saturate(160%)",
-            border: "1px solid rgba(180,160,240,0.22)",
-            borderRadius: "1.5rem",
-            boxShadow: [
-              "0 1px 0 rgba(255,255,255,0.08) inset",
-              "0 0 0 1px rgba(120,100,200,0.12) inset",
-              "0 24px 80px rgba(0,0,0,0.55)",
-              "0 0 60px rgba(120,90,200,0.18)",
-            ].join(","),
-          }}
-        >
-          {/* Corner star glyphs — twinkling crosses at the four corners */}
-          <span className="login-card-glyph tl" aria-hidden />
-          <span className="login-card-glyph tr" aria-hidden />
-          <span className="login-card-glyph bl" aria-hidden />
-          <span className="login-card-glyph br" aria-hidden />
-
-          <div className="flex justify-center mb-6">
-            <Suspense fallback={null}>
-              <VisualSoul size="lg" personality="creative" state="idle" />
-            </Suspense>
-          </div>
-          <h1 className="hs-h1 !mb-0 login-title">AI Director 創作平台</h1>
-          <p
-            className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
-            style={{ color: "rgba(230,222,255,0.72)" }}
-          >
-            在星河之間，讓 AI 陪伴你舒適地創作
-          </p>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full mt-8 h-12 rounded-2xl btn-healing"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(170,140,240,0.95) 0%, rgba(120,90,210,0.95) 100%)",
-              color: "#fff",
-              border: "1px solid rgba(220,200,255,0.32)",
-              boxShadow:
-                "0 8px 24px rgba(110,80,200,0.4), 0 0 0 1px rgba(255,255,255,0.06) inset",
-            }}
-          >
-            Google 登入
-          </Button>
-          <LocalAuthForm className="mt-3 text-left login-auth-form" />
-          <Button
-            onClick={() => {
-              window.location.href = getDemoLoginUrl();
-            }}
-            variant="outline"
-            size="lg"
-            className="w-full mt-3 h-12 rounded-2xl btn-healing"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              borderStyle: "dashed",
-              borderColor: "rgba(200,180,240,0.28)",
-              color: "rgba(230,222,255,0.85)",
-            }}
-          >
-            ✨ 訪客體驗（免登入）
-          </Button>
-        </div>
-      </div>
-    );
+    return <LoginScreen />;
   }
 
   return (
@@ -272,21 +567,32 @@ function DashboardLayoutContent({
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 
-  // ── Dock position + minimize (persisted) ───────────────────────────────
+  // ── Dock position + minimize + immersive (persisted) ────────────────────
   const [dockPosition, setDockPosition] =
     useState<DockPosition>(readDockPosition);
   const [dockMinimized, setDockMinimized] = useState<boolean>(readDockMinimized);
+  const [dockImmersive, setDockImmersive] = useState<boolean>(readDockImmersive);
   useEffect(() => {
     window.localStorage.setItem(DOCK_POSITION_KEY, dockPosition);
   }, [dockPosition]);
   useEffect(() => {
     window.localStorage.setItem(DOCK_MINIMIZED_KEY, dockMinimized ? "1" : "0");
   }, [dockMinimized]);
-  const toggleDockPosition = useCallback(() => {
-    setDockPosition(p => (p === "left" ? "right" : "left"));
+  useEffect(() => {
+    window.localStorage.setItem(DOCK_IMMERSIVE_KEY, dockImmersive ? "1" : "0");
+  }, [dockImmersive]);
+  const cycleDockPosition = useCallback(() => {
+    setDockPosition(p => {
+      const idx = POSITION_CYCLE.indexOf(p);
+      const next = idx === -1 ? 0 : (idx + 1) % POSITION_CYCLE.length;
+      return POSITION_CYCLE[next];
+    });
   }, []);
   const toggleDockMinimized = useCallback(() => {
     setDockMinimized(v => !v);
+  }, []);
+  const toggleDockImmersive = useCallback(() => {
+    setDockImmersive(v => !v);
   }, []);
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
@@ -362,14 +668,44 @@ function DashboardLayoutContent({
     startTour("welcome", true);
   }, [startTour]);
 
-  // ── Main-content padding mirrors the dock side and tightens when minimized ──
-  const dockPadClass = dockMinimized
-    ? dockPosition === "left"
-      ? "pl-[56px] sm:pl-[68px]"
-      : "pr-[56px] sm:pr-[68px]"
-    : dockPosition === "left"
-      ? "pl-16 sm:pl-24"
-      : "pr-16 sm:pr-24";
+  // ── Main-content padding mirrors the dock side and tightens when minimized.
+  //    In immersive mode we leave only a thin gutter for the edge peek handle. ──
+  const dockPadClass = (() => {
+    if (dockImmersive) {
+      switch (dockPosition) {
+        case "left":
+          return "pl-3";
+        case "right":
+          return "pr-3";
+        case "top":
+          return "pt-3";
+        case "bottom":
+          return "pb-3";
+      }
+    }
+    if (dockMinimized) {
+      switch (dockPosition) {
+        case "left":
+          return "pl-[56px] sm:pl-[68px]";
+        case "right":
+          return "pr-[56px] sm:pr-[68px]";
+        case "top":
+          return "pt-[56px] sm:pt-[68px]";
+        case "bottom":
+          return "pb-[56px] sm:pb-[68px]";
+      }
+    }
+    switch (dockPosition) {
+      case "left":
+        return "pl-16 sm:pl-24";
+      case "right":
+        return "pr-16 sm:pr-24";
+      case "top":
+        return "pt-16 sm:pt-24";
+      case "bottom":
+        return "pb-16 sm:pb-24";
+    }
+  })();
 
   return (
     <>
@@ -385,9 +721,12 @@ function DashboardLayoutContent({
         onLogout={logout}
         onRestartTour={handleRestartWelcomeTour}
         position={dockPosition}
-        onTogglePosition={toggleDockPosition}
+        onCyclePosition={cycleDockPosition}
+        onSetPosition={setDockPosition}
         minimized={dockMinimized}
         onToggleMinimized={toggleDockMinimized}
+        immersive={dockImmersive}
+        onToggleImmersive={toggleDockImmersive}
       />
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">
