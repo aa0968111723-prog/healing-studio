@@ -57,6 +57,14 @@ export type AIChatBoxProps = {
    * Click to send directly
    */
   suggestedPrompts?: string[];
+
+  /**
+   * Pre-fills the input field once on mount (e.g. when continuing a thread
+   * handed off from another page). When this string changes, the input is
+   * reset to the new value so a parent can re-seed it after consuming a
+   * fresh handoff payload.
+   */
+  initialInput?: string;
 };
 
 /**
@@ -119,12 +127,24 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Start a conversation with AI",
   suggestedPrompts,
+  initialInput,
 }: AIChatBoxProps) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialInput ?? "");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputAreaRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Re-apply seed when the parent hands us a fresh value (e.g. a new
+  // handoff payload arrived). Skip empty / unchanged updates so the user's
+  // own typing never gets clobbered mid-edit.
+  const lastSeedRef = useRef<string | undefined>(initialInput);
+  useEffect(() => {
+    if (initialInput && initialInput !== lastSeedRef.current) {
+      lastSeedRef.current = initialInput;
+      setInput(initialInput);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+  }, [initialInput]);
 
   // Filter out system messages (memoized to avoid recalculating on every render)
   const displayMessages = useMemo(

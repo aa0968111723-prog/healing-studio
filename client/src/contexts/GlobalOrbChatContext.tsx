@@ -62,6 +62,10 @@ import {
   type ChatMessageForExport,
 } from "@/lib/orbExportShare";
 import {
+  buildDirectorHandoffPayload,
+  writeDirectorHandoff,
+} from "@/lib/director-handoff";
+import {
   detectOrbSearchIntent,
   formatUnifiedSearchReply,
 } from "../../../shared/orb-search-intent";
@@ -1454,6 +1458,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // below; refs are stable, so executeActions doesn't rebuild on each turn.
   const runMetaActionRef = useRef<(action: AgentAction) => Promise<void>>(async () => {});
 
+  // Mirror of `messages` for callbacks that don't list it as a dep (e.g.
+  // `executeActions`). Without this, the navigate handler captured a stale
+  // history and the director-handoff payload missed the message that
+  // triggered the redirect.
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   const aiChat = trpc.ai.chat.useMutation();
   const trpcUtils = trpc.useUtils();
   const persistClarificationPicks =
@@ -1685,6 +1698,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const results = await executeGlobalActions(orchestratorActions, {
         currentPage: pageAgent.snapshot,
         navigate: async path => {
+          // Carry recent chat context into 導演 AI so the user doesn't land on
+          // an empty page after the orb says "我帶你過去". Only fires for the
+          // /agent → /director hop; other targets keep their existing flow.
+          if (path === "/director" && locationPath !== "/director") {
+            try {
+              writeDirectorHandoff(
+                buildDirectorHandoffPayload(messagesRef.current),
+              );
+            } catch (err) {
+              console.warn(
+                "[GlobalOrbChat] Failed to write director handoff:",
+                err,
+              );
+            }
+          }
           if (path !== locationPath) setLocation(path);
         },
         dispatch: pageAgent.dispatch,
