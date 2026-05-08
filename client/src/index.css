@@ -362,6 +362,94 @@
     }
   }
 
+  /* ─── Apple-Style Floating Dock ─── */
+  .apple-dock-glass {
+    background: var(--sidebar);
+    border: 1px solid var(--surface-border);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    box-shadow:
+      0 8px 32px -8px oklch(0.2 0.01 280 / 0.18),
+      0 2px 8px -2px oklch(0.2 0.01 280 / 0.12),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
+    border-radius: 28px;
+  }
+  :is(.dark) .apple-dock-glass {
+    box-shadow:
+      0 8px 32px -8px oklch(0 0 0 / 0.5),
+      0 2px 8px -2px oklch(0 0 0 / 0.35),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+  }
+
+  .apple-dock-divider {
+    height: 1px;
+    margin: 6px 8px;
+    background: color-mix(in oklch, currentColor 12%, transparent);
+    border-radius: 9999px;
+  }
+
+  .apple-dock-item {
+    transition:
+      background-color var(--duration-gentle) var(--ease-healing-out),
+      transform var(--duration-gentle) var(--ease-healing-out),
+      color var(--duration-gentle) var(--ease-healing-out);
+  }
+  .apple-dock-item:hover {
+    background: color-mix(in oklch, currentColor 8%, transparent);
+    transform: scale(1.04);
+  }
+  .apple-dock-item:active {
+    transform: scale(0.95);
+  }
+  .apple-dock-item[data-active="true"] {
+    background: var(--sidebar-primary);
+    color: var(--sidebar-primary-foreground);
+  }
+
+  .apple-dock-active-dot {
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--sidebar-primary);
+    transform: translateX(-50%);
+    box-shadow: 0 0 6px oklch(from var(--sidebar-primary) l c h / 0.5);
+  }
+
+  .apple-dock-flyout {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow:
+      0 10px 40px -10px oklch(0.2 0.01 280 / 0.22),
+      0 4px 12px -4px oklch(0.2 0.01 280 / 0.12),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.35);
+    border-radius: 18px;
+  }
+  :is(.dark) .apple-dock-flyout {
+    box-shadow:
+      0 10px 40px -10px oklch(0 0 0 / 0.6),
+      0 4px 12px -4px oklch(0 0 0 / 0.4),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.05);
+  }
+
+  @keyframes apple-dock-pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .apple-dock-glass {
+    animation: apple-dock-pop var(--duration-gentle) var(--ease-healing-out);
+  }
+
   /* ─── Shimmer Animation ──────────────────────────────────────────── */
   @keyframes shimmer {
     0% {

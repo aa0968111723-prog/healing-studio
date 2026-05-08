@@ -1,18 +1,14 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import VisualSoul from "@/components/VisualSoul";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -23,16 +19,16 @@ import {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { ChevronRight } from "lucide-react";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import LocalAuthForm from "@/components/LocalAuthForm";
-import { useIsMobile, useViewMode } from "@/hooks/useMobile";
+import { useIsMobile } from "@/hooks/useMobile";
 import {
   Wand2,
   Clapperboard,
@@ -40,9 +36,7 @@ import {
   BarChart3,
   Shield,
   LogOut,
-  PanelLeft,
   Home,
-  Users,
   Settings,
   StickyNote,
   CalendarDays,
@@ -55,39 +49,28 @@ import {
   Film,
   BookOpen,
   BookMarked,
-  ChevronRight,
   ListChecks,
   Coins,
   Monitor,
   Music,
-  GripVertical,
   Bot,
   Sparkles,
   LayoutGrid,
   Palette,
   FolderOpen,
   GraduationCap,
+  Users,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
-import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
 import type { LucideIcon } from "lucide-react";
 import {
   useSiteOnboarding,
   type PageId,
 } from "@/contexts/SiteOnboardingContext";
-import {
-  CSSProperties,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { Link, useLocation } from "wouter";
+import { Suspense, useCallback, useEffect } from "react";
+import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
@@ -96,16 +79,10 @@ import {
   type AppPageRegistryItem,
 } from "@/config/appRegistry";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
+import AppleDock, { type DockEntry, type DockLeaf } from "./AppleDock";
 
 
-type SidebarLeafItem = {
-  kind: "leaf";
-  icon: LucideIcon;
-  label: string;
-  path: string;
-  id: string;
-  pageId: string;
-};
+type SidebarLeafItem = DockLeaf;
 
 type SidebarGroupItem = {
   kind: "group";
@@ -114,19 +91,10 @@ type SidebarGroupItem = {
   children: SidebarLeafItem[];
 };
 
-type SidebarHeadingItem = {
-  kind: "heading";
-  label: string;
-};
-
-type SidebarEntry = SidebarLeafItem | SidebarGroupItem | SidebarHeadingItem;
+type SidebarEntry = DockEntry;
 
 function isGroup(entry: SidebarEntry): entry is SidebarGroupItem {
   return entry.kind === "group";
-}
-
-function isHeading(entry: SidebarEntry): entry is SidebarHeadingItem {
-  return entry.kind === "heading";
 }
 
 function isLeaf(entry: SidebarEntry): entry is SidebarLeafItem {
@@ -217,93 +185,12 @@ const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry => {
   return [];
 });
 
-const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 260;
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 400;
-
-/** Tablet breakpoint range — auto-collapse to icon mode */
-const TABLET_MIN_PX = 768;
-const TABLET_MAX_PX = 1024;
-
-const PAGE_HINTS: Record<string, string[]> = {
-  "image-studio": [
-    "先用快速模型找方向，再切高品質模型定稿。",
-    "每次只改一個參數，結果更容易比較與回溯。",
-  ],
-  "video-studio": [
-    "先短時長預演，確認節奏後再產出完整片段。",
-    "要省成本可先用經濟模型做分鏡驗證。",
-  ],
-  "pro-studio": [
-    "先確認語氣與情緒，再細調速度與穩定度。",
-    "音訊流程建議先去噪/分軌，再做配音或混音。",
-  ],
-  models: [
-    "先做最小可用模型，再逐輪微調超參數。",
-    "共享前補上推薦情境與禁用場景，團隊更好用。",
-  ],
-};
-
-function GlobalPageHint() {
-  const { pageContext } = useAIState();
-  const [open, setOpen] = useState(false);
-  if (!pageContext) return null;
-
-  const hints = PAGE_HINTS[pageContext.pageId] ?? [
-    "先完成一個最小可用成果，再逐步細化。",
-    "若卡住可先用光球拆解任務，再執行下一步。",
-  ];
-
-  return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="rounded-2xl border border-border/50 bg-background/70 p-3 mb-4"
-    >
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="w-full flex items-center justify-between gap-2"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <Bot className="w-4 h-4 text-primary shrink-0" />
-            <p className="text-xs sm:text-sm font-medium text-left truncate">
-              {pageContext.pageLabel} 操作提示
-            </p>
-          </div>
-          <ChevronRight
-            className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
-          />
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2">
-        <ul className="space-y-1 list-disc pl-5">
-          {hints.map(h => (
-            <li key={h} className="text-xs text-muted-foreground">
-              {h}
-            </li>
-          ))}
-        </ul>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-  });
   const { loading, user } = useAuth();
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
-  }, [sidebarWidth]);
 
   if (loading) {
     return <DashboardLayoutSkeleton />;
@@ -354,95 +241,28 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-      className="h-svh overflow-hidden"
-    >
+    <SidebarProvider className="h-svh overflow-hidden">
       <BackgroundTasksProvider>
-        <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-          {children}
-        </DashboardLayoutContent>
+        <DashboardLayoutContent>{children}</DashboardLayoutContent>
       </BackgroundTasksProvider>
     </SidebarProvider>
   );
 }
 
-type DashboardLayoutContentProps = {
-  children: React.ReactNode;
-  setSidebarWidth: (width: number) => void;
-};
-
 function DashboardLayoutContent({
   children,
-  setSidebarWidth,
-}: DashboardLayoutContentProps) {
+}: {
+  children: React.ReactNode;
+}) {
   const { user, logout } = useAuth();
   const { settings } = usePersonalSettings();
   const [location, setLocation] = useLocation();
-  const { state, toggleSidebar, setOpen } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  const [isResizing, setIsResizing] = useState(false);
-  const [resizeDisplayWidth, setResizeDisplayWidth] = useState<number | null>(
-    null
-  );
-  const [sidebarQuery, setSidebarQuery] = useState("");
-  const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = flatMenuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
-  const { viewMode } = useViewMode();
-  const normalizedSidebarQuery = sidebarQuery.trim().toLowerCase();
-  const visibleSidebarStructure = useMemo<SidebarEntry[]>(() => {
-    if (!normalizedSidebarQuery) return sidebarStructure;
-
-    return sidebarStructure
-      .map(entry => {
-        if (isHeading(entry)) {
-          // Headings are decorative — skip during search filtering.
-          return null;
-        }
-        if (isLeaf(entry)) {
-          const matched =
-            entry.label.toLowerCase().includes(normalizedSidebarQuery) ||
-            entry.path.toLowerCase().includes(normalizedSidebarQuery);
-          return matched ? entry : null;
-        }
-
-        const matchedChildren = entry.children.filter(child => {
-          return (
-            child.label.toLowerCase().includes(normalizedSidebarQuery) ||
-            child.path.toLowerCase().includes(normalizedSidebarQuery)
-          );
-        });
-
-        const selfMatched = entry.label
-          .toLowerCase()
-          .includes(normalizedSidebarQuery);
-
-        if (!selfMatched && matchedChildren.length === 0) return null;
-        return {
-          ...entry,
-          children: selfMatched ? entry.children : matchedChildren,
-        } satisfies SidebarGroupItem;
-      })
-      .filter((entry): entry is Exclude<typeof entry, null> => entry !== null);
-  }, [normalizedSidebarQuery]);
 
   const isAdmin = user?.role === "admin";
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
-
-  // ── Tablet auto-collapse: icon mode for 768–1024 px ───────────────────
-  useEffect(() => {
-    const mql = window.matchMedia(
-      `(min-width: ${TABLET_MIN_PX}px) and (max-width: ${TABLET_MAX_PX}px)`
-    );
-    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      if (e.matches) setOpen(false); // collapse to icon mode
-    };
-    handleChange(mql); // check on mount
-    mql.addEventListener("change", handleChange);
-    return () => mql.removeEventListener("change", handleChange);
-  }, [setOpen]);
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
   const { startTour, hasSeen } = useSiteOnboarding();
@@ -455,84 +275,6 @@ function DashboardLayoutContent({
     }, 1200);
     return () => clearTimeout(timer);
   }, [user, startTour, hasSeen]);
-
-  useEffect(() => {
-    if (isCollapsed) setIsResizing(false);
-  }, [isCollapsed]);
-
-  // ── Unified resize handler (mouse + touch) ───────────────────────────
-  useEffect(() => {
-    let rafId: number | null = null;
-    let latestClientX = 0;
-
-    const applyResize = () => {
-      rafId = null;
-      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-      const newWidth = latestClientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-        setResizeDisplayWidth(Math.round(newWidth));
-      }
-    };
-
-    const handlePointerMove = (clientX: number) => {
-      if (!isResizing) return;
-      latestClientX = clientX;
-      if (rafId !== null) return;
-      rafId = requestAnimationFrame(applyResize);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX);
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        e.preventDefault(); // prevent page scroll while resizing
-        handlePointerMove(e.touches[0].clientX);
-      }
-    };
-    const handleEnd = () => {
-      setIsResizing(false);
-      setResizeDisplayWidth(null);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleEnd);
-      document.addEventListener("touchmove", handleTouchMove, {
-        passive: false,
-      });
-      document.addEventListener("touchend", handleEnd);
-      document.addEventListener("touchcancel", handleEnd);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      // -webkit-user-select needed for Safari on iPad during touch-resize
-      (
-        document.body.style as unknown as Record<string, string>
-      ).webkitUserSelect = "none";
-    }
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleEnd);
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleEnd);
-      document.removeEventListener("touchcancel", handleEnd);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      (
-        document.body.style as unknown as Record<string, string>
-      ).webkitUserSelect = "";
-    };
-  }, [isResizing, setSidebarWidth]);
-
-  /** Start resize from mouse or touch */
-  const startResize = useCallback(() => {
-    if (!isCollapsed) setIsResizing(true);
-  }, [isCollapsed]);
-
-  /** Double-click / double-tap resets sidebar to default width */
-  const resetWidth = useCallback(() => {
-    setSidebarWidth(DEFAULT_WIDTH);
-  }, [setSidebarWidth]);
 
   // ── Memoized ProactiveOrbWidget callbacks ──────────────────────────────
   const handleOrbRestartTour = useCallback(() => {
@@ -591,75 +333,45 @@ function DashboardLayoutContent({
     []
   );
 
+  const handleRestartWelcomeTour = useCallback(() => {
+    startTour("welcome", true);
+  }, [startTour]);
+
   return (
     <>
-      <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
-          disableTransition={isResizing}
-        >
-          <SidebarHeader className="h-14 justify-center sidebar-zen-glow">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
-              <button
-                onClick={toggleSidebar}
-                className="h-10 w-10 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="切換導覽列"
-              >
-                <PanelLeft className="h-4.5 w-4.5 text-muted-foreground" />
-              </button>
-              {!isCollapsed && (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate text-foreground text-sm">
-                    AI Director
-                  </span>
-                </div>
-              )}
+      {/* ── Apple-style floating dock (desktop / tablet) ── */}
+      {!isMobile && (
+        <AppleDock
+          entries={sidebarStructure}
+          activePath={location}
+          onNavigate={setLocation}
+          user={user}
+          displayName={displayName}
+          displayInitial={displayInitial}
+          isAdmin={isAdmin}
+          onLogout={logout}
+          onRestartTour={handleRestartWelcomeTour}
+        />
+      )}
+
+      {/* ── Mobile sidebar drawer (Sheet) — opened by SidebarTrigger in top bar ── */}
+      {isMobile && (
+        <Sidebar collapsible="offcanvas" className="border-r-0">
+          <SidebarHeader className="h-14 justify-center">
+            <div className="flex items-center gap-2 px-2">
+              <span className="font-semibold tracking-tight text-foreground text-sm">
+                AI Director
+              </span>
             </div>
           </SidebarHeader>
-
           <SidebarContent className="gap-0">
-            {!isCollapsed && (
-              <div className="px-3 pt-1.5 pb-0.5">
-                <label
-                  className="surface-1 flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-healing focus-within:[outline:2px_solid_var(--ring-healing)] focus-within:outline-offset-1"
-                  aria-label="搜尋側邊欄功能"
-                >
-                  <input
-                    value={sidebarQuery}
-                    onChange={e => setSidebarQuery(e.target.value)}
-                    placeholder="搜尋功能..."
-                    className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/80"
-                    aria-label="搜尋側邊欄功能"
-                  />
-                  <kbd
-                    className="hidden md:inline-flex items-center gap-0.5 rounded-md border border-border/60 bg-background/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                    title="⌘K / Ctrl+K 全站指令面板"
-                  >
-                    ⌘K
-                  </kbd>
-                </label>
-              </div>
-            )}
             <SidebarMenu
               className="px-2 py-0.5 gap-0.5"
-              id="sidebar-nav"
               role="navigation"
               aria-label="主導覽"
             >
-              {visibleSidebarStructure.map((entry, index) => {
-                if (isHeading(entry)) {
-                  return (
-                    <li
-                      key={`heading-${entry.label}-${index}`}
-                      className="sidebar-section-heading group-data-[collapsible=icon]:hidden list-none px-3 pt-4 pb-1.5 text-[10px] font-medium tracking-[0.16em] uppercase text-muted-foreground/55"
-                      role="presentation"
-                    >
-                      <span>{entry.label}</span>
-                    </li>
-                  );
-                }
-                if (isGroup(entry)) {
+              {sidebarStructure.map(entry => {
+                if (entry.kind === "group") {
                   const hasActiveChild = entry.children.some(
                     child => location === child.path
                   );
@@ -671,27 +383,12 @@ function DashboardLayoutContent({
                     >
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            tooltip={entry.label}
-                            className="h-10 transition-all duration-200 ease-out font-normal rounded-xl"
-                          >
+                          <SidebarMenuButton className="h-10 font-normal rounded-xl">
                             <entry.icon
                               className={`h-4 w-4 ${hasActiveChild ? "text-primary" : ""}`}
                             />
-                            <span
-                              className={
-                                hasActiveChild ? "text-foreground" : ""
-                              }
-                            >
-                              {entry.label}
-                            </span>
-                            {hasActiveChild && (
-                              <span
-                                aria-hidden="true"
-                                className="ml-1 h-1.5 w-1.5 rounded-full bg-primary group-data-[state=open]/collapsible:opacity-0 transition-opacity"
-                              />
-                            )}
-                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-data-[state=open]/collapsible:rotate-90" />
+                            <span>{entry.label}</span>
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -704,7 +401,6 @@ function DashboardLayoutContent({
                                     onClick={() => setLocation(child.path)}
                                     isActive={isChildActive}
                                     className="cursor-pointer rounded-lg h-9"
-                                    id={child.id}
                                   >
                                     <child.icon
                                       className={`h-4 w-4 ${isChildActive ? "text-primary" : ""}`}
@@ -726,10 +422,7 @@ function DashboardLayoutContent({
                     <SidebarMenuButton
                       isActive={isActive}
                       onClick={() => setLocation(entry.path)}
-                      tooltip={entry.label}
-                      data-pageid={entry.pageId}
-                      className="sidebar-leaf-button h-10 transition-all duration-200 ease-out font-normal rounded-xl"
-                      id={entry.id}
+                      className="h-10 font-normal rounded-xl"
                     >
                       <entry.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
@@ -739,155 +432,10 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
-              {visibleSidebarStructure.filter(e => !isHeading(e)).length ===
-                0 &&
-                !isCollapsed && (
-                  <SidebarMenuItem>
-                    <div className="px-3 py-6 text-center text-xs text-muted-foreground rounded-xl border border-dashed border-border/70">
-                      找不到符合的頁面，請換個關鍵字試試。
-                    </div>
-                  </SidebarMenuItem>
-                )}
             </SidebarMenu>
           </SidebarContent>
-
-          <SidebarFooter className="px-3 py-2 gap-1.5">
-            {/* 背景任務面板 */}
-            {!isCollapsed && <BackgroundTasksDrawer />}
-            {!isCollapsed && (
-              <Link
-                href="/dashboard?section=credits"
-                className="hidden md:block cursor-pointer group mb-1.5"
-                aria-label="查看積分說明"
-              >
-                <div className="surface-1 flex items-center justify-between rounded-xl px-3 py-2 transition-colors group-hover:bg-accent/40">
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Zap className="w-3.5 h-3.5 text-primary" />
-                    剩餘配額
-                  </span>
-                  <span className="text-sm font-semibold text-foreground tabular-nums">
-                    {user?.remainingGenerations ?? 0}
-                  </span>
-                </div>
-              </Link>
-            )}
-            {/* 檢視模式按鈕已移除 — 功能保留在個人設定頁面，不需在側邊欄常駐 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="hidden md:flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
-                  <Avatar className="h-10 w-10 border shrink-0">
-                    <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
-                      {displayInitial}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none text-foreground">
-                      {displayName}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuLabel className="px-3 pb-1.5 pt-2">
-                  <p className="text-sm font-medium truncate text-foreground">
-                    {displayName}
-                  </p>
-                  <p className="text-xs font-normal text-muted-foreground truncate mt-0.5">
-                    {user?.email || "-"}
-                  </p>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setLocation("/")}
-                  className="cursor-pointer"
-                >
-                  <Home className="mr-2 h-4 w-4" />
-                  <span>首頁</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setLocation("/settings")}
-                  className="cursor-pointer"
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>個人設定</span>
-                </DropdownMenuItem>
-                {isAdmin && (
-                  <DropdownMenuItem
-                    onClick={() => setLocation("/admin")}
-                    className="cursor-pointer"
-                  >
-                    <Shield className="mr-2 h-4 w-4" />
-                    <span>管理後台</span>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => startTour("welcome", true)}
-                  className="cursor-pointer"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  <span>重新開始導覽</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>登出</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarFooter>
         </Sidebar>
-        {/* ── Resize handle: mouse + touch, wider hit area ── */}
-        {!isCollapsed && (
-          <div
-            className="absolute top-0 right-0 w-[6px] h-full cursor-col-resize group/resize-handle select-none touch-none"
-            onMouseDown={startResize}
-            onTouchStart={startResize}
-            onDoubleClick={resetWidth}
-            style={{ zIndex: 50 }}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="調整側邊欄寬度（雙擊重設）"
-            tabIndex={0}
-            onKeyDown={e => {
-              if (e.key === "Enter") resetWidth();
-            }}
-          >
-            {/* Visual line — appears on hover / during resize */}
-            <div
-              className={`absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] rounded-full transition-colors duration-200 ${
-                isResizing
-                  ? "bg-primary/40"
-                  : "bg-transparent group-hover/resize-handle:bg-primary/20"
-              }`}
-            />
-            {/* Grip dots — visible on hover */}
-            <div
-              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200 ${
-                isResizing
-                  ? "opacity-60"
-                  : "opacity-0 group-hover/resize-handle:opacity-40"
-              }`}
-            >
-              <GripVertical className="w-3 h-3 text-muted-foreground" />
-            </div>
-          </div>
-        )}
-        {/* ── Width indicator tooltip during resize ── */}
-        {isResizing && resizeDisplayWidth !== null && (
-          <div
-            className="fixed top-1/2 -translate-y-1/2 pointer-events-none z-[100] px-2 py-1 rounded-md bg-foreground/80 text-background text-xs font-mono tabular-nums shadow-lg"
-            style={{ left: `${resizeDisplayWidth + 8}px` }}
-          >
-            {resizeDisplayWidth}px
-          </div>
-        )}
-      </div>
+      )}
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">
         {/* ── Workspace ambient background decorations ── */}
@@ -913,21 +461,17 @@ function DashboardLayoutContent({
           >
             <div className="flex items-center gap-2.5">
               <SidebarTrigger className="h-10 w-10 rounded-lg bg-background" />
-              {/* Truncate long page titles on narrow mobile screens to avoid pushing right controls off-screen */}
               <span className="tracking-tight text-foreground text-sm font-medium truncate max-w-[140px]">
                 {activeMenuItem?.label ?? "AI Director"}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {/* 檢視模式按鈕已移除 — 簡化行動端頂部列 */}
-              {/* Quota badge */}
               <div className="flex items-center gap-1.5 bg-primary/10 rounded-lg px-2.5 py-1.5">
                 <Zap className="w-3.5 h-3.5 text-primary" />
                 <span className="text-xs font-semibold text-primary tabular-nums">
                   {user?.remainingGenerations ?? 0}
                 </span>
               </div>
-              {/* User avatar dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -972,7 +516,7 @@ function DashboardLayoutContent({
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
-                    onClick={() => startTour("welcome", true)}
+                    onClick={handleRestartWelcomeTour}
                     className="cursor-pointer h-10"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
@@ -995,7 +539,7 @@ function DashboardLayoutContent({
           tabIndex={-1}
           className={`relative flex-1 overflow-y-auto ${
             settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
-          } pb-safe-area-inset-bottom focus:outline-none`}
+          } ${!isMobile ? "md:pl-24" : ""} pb-safe-area-inset-bottom focus:outline-none`}
           data-scroll-area
           style={{
             paddingBottom: settings.compactMode
@@ -1003,7 +547,6 @@ function DashboardLayoutContent({
               : "calc(2rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
-          {/* GlobalPageHint 已移除 — 操作提示功能已由光球助手替代，減少頁面雜訊 */}
           {children}
         </main>
       </SidebarInset>
