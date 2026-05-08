@@ -628,7 +628,7 @@ const DIMENSION_LABEL: Record<ClarificationDimension, string> = {
   open: "其他",
 };
 
-function ClarificationPromptCard({
+export function ClarificationPromptCard({
   prompt,
   isBusy,
   onAnswer,
@@ -940,7 +940,7 @@ function ClarificationPromptCard({
   );
 }
 
-function WorkflowConfirmationCard({
+export function WorkflowConfirmationCard({
   pendingWorkflow,
   isBusy,
   onStart,
@@ -1026,7 +1026,7 @@ function WorkflowConfirmationCard({
   );
 }
 
-function WorkflowExecutionFloatingPanel({
+export function WorkflowExecutionFloatingPanel({
   workflowExecution,
   onDismiss,
 }: {
@@ -2771,7 +2771,20 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         Cards keep `pointer-events-auto` so the gap between cards stays
         click-through to the page beneath.
       */}
-      {isMobile ? (
+      {/*
+        Card visibility:
+          /agent 頁自己會在聊天區內 inline 顯示 Clarification / Workflow
+          confirm / Workflow exec 三張卡（讓使用者覺得是對話延伸而非彈窗）。
+          這裡偵測到 /agent 時把這三張卡的 prompt 設為 null 給 floating
+          版本，避免重複渲染。其它（executor / code task / spotlight）
+          仍維持 floating，因為它們是跨頁的長任務指示器。
+       */}
+      {(() => {
+        const onAgentPage = locationPath === "/agent";
+        const floatingClarification = onAgentPage ? null : pendingClarification;
+        const floatingWorkflow = onAgentPage ? null : pendingWorkflow;
+        const floatingExecution = onAgentPage ? null : (pendingWorkflow ? null : workflowExecution);
+        return isMobile ? (
         <div
           data-testid="orb-card-stack-mobile"
           className="fixed inset-x-2 z-[88] flex flex-col-reverse items-stretch gap-2 overflow-y-auto pointer-events-none"
@@ -2781,21 +2794,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           }}
         >
           <ClarificationPromptCard
-            prompt={pendingClarification}
+            prompt={floatingClarification}
             isBusy={isSending}
             onAnswer={text => void answerClarification(text)}
             onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
             onCancel={cancelClarification}
           />
           <WorkflowConfirmationCard
-            pendingWorkflow={pendingWorkflow}
+            pendingWorkflow={floatingWorkflow}
             isBusy={isSending}
             onStart={startPendingWorkflow}
             onRevise={revisePendingWorkflow}
             onCancel={cancelPendingWorkflow}
           />
           <WorkflowExecutionFloatingPanel
-            workflowExecution={pendingWorkflow ? null : workflowExecution}
+            workflowExecution={floatingExecution}
             onDismiss={clearWorkflowExecution}
           />
           <ExecutorConfirmationCard
@@ -2831,21 +2844,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             className="fixed bottom-24 right-5 z-[88] flex flex-col-reverse items-end gap-3 max-h-[calc(100vh-7rem)] overflow-y-auto pointer-events-none"
           >
             <ClarificationPromptCard
-              prompt={pendingClarification}
+              prompt={floatingClarification}
               isBusy={isSending}
               onAnswer={text => void answerClarification(text)}
               onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
               onCancel={cancelClarification}
             />
             <WorkflowConfirmationCard
-              pendingWorkflow={pendingWorkflow}
+              pendingWorkflow={floatingWorkflow}
               isBusy={isSending}
               onStart={startPendingWorkflow}
               onRevise={revisePendingWorkflow}
               onCancel={cancelPendingWorkflow}
             />
             <WorkflowExecutionFloatingPanel
-              workflowExecution={pendingWorkflow ? null : workflowExecution}
+              workflowExecution={floatingExecution}
               onDismiss={clearWorkflowExecution}
             />
             <OrbFeatureSpotlight
@@ -2880,7 +2893,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             />
           </div>
         </>
-      )}
+      );
+      })()}
       {latestServerTaskId && (
         <div className="fixed bottom-4 right-4 z-[83] w-[360px] max-w-[calc(100vw-2rem)] pointer-events-auto">
           <OrbTaskObservationStrip

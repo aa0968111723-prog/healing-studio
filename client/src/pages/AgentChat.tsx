@@ -67,7 +67,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { getAgentHomeEntries } from "@/config/appRegistry";
-import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import {
+  useGlobalOrbChat,
+  ClarificationPromptCard,
+  WorkflowConfirmationCard,
+  WorkflowExecutionFloatingPanel,
+} from "@/contexts/GlobalOrbChatContext";
 import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
@@ -1741,6 +1746,64 @@ export default function AgentChat() {
             </motion.section>
           )}
         </div>
+
+        {/* ── 對話內 Pending 卡（反問 / 計畫確認 / 執行進度）─────────────
+            這三種互動原本以 floating panel 漂在右下角，在 /agent 頁
+            重複疊在輸入框上方很擾人。改成 inline 卡片放在聊天區上方，
+            「光球正在等你決定」就直接出現在使用者注意力中心。
+            GlobalOrbChatProvider 也偵測 /agent 路徑時自動 suppress
+            floating 版本，避免雙重顯示。 */}
+        {(globalChat.pendingClarification ||
+          globalChat.pendingWorkflow ||
+          globalChat.workflowExecution) && (
+          <motion.section
+            key="inline-pending-cards"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="w-full space-y-2"
+            data-testid="agent-inline-pending-stack"
+          >
+            <div className="flex items-center gap-1.5 px-1">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                {globalChat.pendingClarification
+                  ? "光球正在問你"
+                  : globalChat.pendingWorkflow
+                    ? "光球擬好計畫，等你確認"
+                    : "光球正在執行中"}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 items-stretch">
+              {globalChat.pendingClarification && (
+                <ClarificationPromptCard
+                  prompt={globalChat.pendingClarification}
+                  isBusy={globalChat.isSending}
+                  onAnswer={text => void globalChat.answerClarification(text)}
+                  onMultiAnswer={(answers, extra) =>
+                    void globalChat.answerMultiClarification(answers, extra)
+                  }
+                  onCancel={globalChat.cancelClarification}
+                />
+              )}
+              {globalChat.pendingWorkflow && (
+                <WorkflowConfirmationCard
+                  pendingWorkflow={globalChat.pendingWorkflow}
+                  isBusy={globalChat.isSending}
+                  onStart={globalChat.startPendingWorkflow}
+                  onRevise={globalChat.revisePendingWorkflow}
+                  onCancel={globalChat.cancelPendingWorkflow}
+                />
+              )}
+              {!globalChat.pendingWorkflow && globalChat.workflowExecution && (
+                <WorkflowExecutionFloatingPanel
+                  workflowExecution={globalChat.workflowExecution}
+                  onDismiss={globalChat.clearWorkflowExecution}
+                />
+              )}
+            </div>
+          </motion.section>
+        )}
 
         {/* 聊天區 */}
         <div
