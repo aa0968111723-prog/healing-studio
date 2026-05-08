@@ -33,6 +33,8 @@ import {
   Network,
   Brain,
   Route,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
@@ -244,11 +246,60 @@ const SCENARIOS: readonly Scenario[] = [
   },
 ] as const;
 
-const DEMO_FORMS = [
-  { id: "quick", label: "快啟演示" },
-  { id: "multimodal", label: "多模態演示" },
-  { id: "multi-step", label: "多步驟演示" },
-  { id: "style", label: "風格一致演示" },
+interface DemoForm {
+  id: "quick" | "multimodal" | "multi-step" | "style";
+  label: string;
+  description: string;
+  layers: { name: string; detail: string }[];
+}
+
+const DEMO_FORMS: readonly DemoForm[] = [
+  {
+    id: "quick",
+    label: "快啟演示",
+    description: "一句話 → 直送單一工具 → 8 秒內出第一版可用素材。",
+    layers: [
+      { name: "感應層", detail: "解析輸入語意，鎖定唯一模態（圖／影／音）。" },
+      { name: "派工層", detail: "直送對應工具，省去跨工具編排成本。" },
+      { name: "回收層", detail: "輪詢 fal queue → 取回成品與可重跑 seed。" },
+    ],
+  },
+  {
+    id: "multimodal",
+    label: "多模態演示",
+    description: "同時處理圖／影／音／配音 — 跨模態風格與情緒一致。",
+    layers: [
+      { name: "感應層", detail: "辨識多模態需求，先建立風格與情緒錨點。" },
+      { name: "規劃層", detail: "依模態相依排程：先主視覺 → 短片 → 音樂 → 旁白。" },
+      { name: "派工層", detail: "並行呼叫圖片、影片、音樂、配音工具。" },
+      { name: "對齊層", detail: "字幕節拍、色票、人聲音量自動對齊主視覺。" },
+      { name: "交付層", detail: "回傳整包素材 + 跨模態一致性報告。" },
+    ],
+  },
+  {
+    id: "multi-step",
+    label: "多步驟演示",
+    description: "拆解里程碑 → 多階段 DAG → 失敗自動重試與恢復。",
+    layers: [
+      { name: "感應層", detail: "識別跨工具專案，估算總時長與成本守門。" },
+      { name: "規劃層", detail: "建立有向相依（DAG）與里程碑檢核點。" },
+      { name: "派工層", detail: "依序呼叫導演、圖片、影片、音樂、配音。" },
+      { name: "監看層", detail: "監看每段 queue，失敗自動重試並保留最佳候選。" },
+      { name: "交付層", detail: "回傳成品包 + 重跑配方 + 風險與下一步建議。" },
+    ],
+  },
+  {
+    id: "style",
+    label: "風格一致演示",
+    description: "用 LoRA 鎖角色與風格 — 跨作品同一造型不走鐘。",
+    layers: [
+      { name: "感應層", detail: "讀取參考圖集，量化角色／風格一致性指標。" },
+      { name: "規劃層", detail: "決定 rank / steps / 觸發詞與訓練預算。" },
+      { name: "訓練層", detail: "監看 loss 曲線並自動取樣驗證收斂。" },
+      { name: "驗證層", detail: "跨景測試臉部、服裝與光線一致性。" },
+      { name: "交付層", detail: "輸出 LoRA 權重 + 觸發詞 + 推薦 prompt。" },
+    ],
+  },
 ] as const;
 
 // ─── Inline value strip — folded in from the former site value highlights. ──
@@ -1888,6 +1939,10 @@ export default function OrbCreationStage({
     () => SCENARIOS.find((scenario) => scenario.id === activeScenarioId) ?? null,
     [activeScenarioId]
   );
+  const activeDemoFormDef = useMemo(
+    () => DEMO_FORMS.find((form) => form.id === activeDemoForm) ?? DEMO_FORMS[0],
+    [activeDemoForm]
+  );
 
   const handlePromptChange = (next: string) => {
     setPrompt(next);
@@ -2104,18 +2159,96 @@ export default function OrbCreationStage({
                     setActiveDemoForm(form.id);
                     setActiveScenarioId(null);
                   }}
-                  className="px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs transition-all"
+                  className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium transition-all ${
+                    isActive ? "text-white" : textPrimary
+                  }`}
                   style={{
                     background: isActive ? activeMode.tint : featureBg,
-                    color: isActive ? "#fff" : undefined,
                     border: `1px solid ${isActive ? activeMode.tint : cardBorder}`,
+                    boxShadow: isActive ? `0 4px 14px ${activeMode.glow}` : "none",
                   }}
+                  aria-pressed={isActive}
                 >
                   {form.label}
                 </button>
               );
             })}
           </div>
+          {/* ── Layer-by-layer breakdown for the active demo form ── */}
+          <motion.div
+            key={`demo-layers-${activeDemoFormDef.id}`}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="mb-3 sm:mb-4 rounded-2xl p-3 sm:p-3.5"
+            style={{
+              background: featureBg,
+              border: `1px solid ${cardBorder}`,
+            }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold tracking-wider"
+                style={{
+                  background: activeMode.tint,
+                  color: "#fff",
+                  boxShadow: `0 0 10px ${activeMode.glow}`,
+                }}
+              >
+                <Layers className="w-2.5 h-2.5" />
+                {activeDemoFormDef.label}
+              </span>
+              <span className={`text-[11px] sm:text-xs leading-snug ${textPrimary}`}>
+                {activeDemoFormDef.description}
+              </span>
+            </div>
+            <ol className="space-y-1">
+              {activeDemoFormDef.layers.map((layer, i) => (
+                <li
+                  key={layer.name}
+                  className="flex items-start gap-2 rounded-lg px-2 py-1.5"
+                  style={{
+                    background: isDark
+                      ? "rgba(255,255,255,0.04)"
+                      : "rgba(255,255,255,0.55)",
+                    border: `1px solid ${cardBorder}`,
+                  }}
+                >
+                  <span
+                    className="flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold shrink-0 mt-[1px]"
+                    style={{
+                      background: activeMode.tint,
+                      color: "#fff",
+                      boxShadow: `0 0 8px ${activeMode.glow}`,
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className={`text-[10.5px] sm:text-[11.5px] font-semibold leading-tight ${textPrimary}`}
+                    >
+                      {layer.name}
+                      <span
+                        className="ml-1.5 font-mono text-[9px] sm:text-[10px] tracking-wider"
+                        style={{ color: activeMode.tint }}
+                      >
+                        layer {i + 1}/{activeDemoFormDef.layers.length}
+                      </span>
+                    </div>
+                    <div
+                      className={`text-[10px] sm:text-[11px] leading-snug mt-0.5 ${textMuted}`}
+                    >
+                      {layer.detail}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p className={`mt-2 text-[10px] sm:text-[11px] ${textMuted}`}>
+              <span className={textPrimary}>選一個情境</span> 即可看到對應的代理運行細節（感知 / 規劃 / 派工 / 交付）。
+            </p>
+          </motion.div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
             {filteredScenarios.map(scenario => {
               const mode = MODES.find(m => m.id === scenario.modeId)!;
@@ -2512,7 +2645,46 @@ export default function OrbCreationStage({
             {/* Status hints */}
             <div className={`text-center text-[11px] sm:text-xs ${textMuted}`}>
               {errorMsg ? (
-                <span className="text-red-400">{errorMsg}</span>
+                <div
+                  role="alert"
+                  className="mx-auto inline-flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 py-2"
+                  style={{
+                    background: isDark
+                      ? "rgba(248,113,113,0.10)"
+                      : "rgba(254,226,226,0.85)",
+                    border: "1px solid rgba(248,113,113,0.45)",
+                  }}
+                >
+                  <span className="inline-flex items-center gap-1.5 text-red-400">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-left">
+                      {errorMsg.replace(/[，,]?\s*(?:請)?再試一次。?$/u, "")}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleGenerate}
+                      disabled={isBusy}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                      style={{
+                        background: activeMode.tint,
+                        color: "#fff",
+                        boxShadow: `0 4px 14px ${activeMode.glow}`,
+                      }}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      再試一次
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setErrorMsg(null)}
+                      className={`text-[10px] sm:text-[11px] underline-offset-2 hover:underline ${textMuted}`}
+                    >
+                      關閉
+                    </button>
+                  </span>
+                </div>
               ) : isBusy && activeMode.liveGenerate && (pendingVideo || pendingAudio) ? (
                 <span>光球代理已提交 fal queue，每 3 秒輪詢 {activeMode.tool}…</span>
               ) : isBusy && activeMode.liveGenerate ? (
