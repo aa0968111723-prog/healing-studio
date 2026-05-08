@@ -35,6 +35,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
+import type { SceneId } from "@/components/AmbientEnvironment";
+import { SCENE_PALETTES } from "@/components/LoginCosmicScene";
 import { useIsMobile } from "@/hooks/useMobile";
 
 // Lazy-load the heavy WebGL orb so the rest of the overlay can paint immediately.
@@ -222,41 +224,118 @@ function buildPalette(personality: Personality): PaletteConfig {
 }
 
 /**
- * Login screen cosmic identity — mirrored verbatim from LoginCosmicScene.tsx
- * so the post-login animation is a seamless continuation of the exact scene
- * the user just saw, not a jarring color swap into the ambient theme.
+ * Login screen cosmic identity — derived per-scene from LoginCosmicScene's
+ * SCENE_PALETTES so the post-login animation is a seamless continuation of
+ * the exact scene the user just saw (nightSky / morning / cafe / deepSea),
+ * not a jarring color swap into the ambient theme or a fixed purple-only
+ * look.
  *
- * If LoginCosmicScene's backdrop / corner accents / nebula / flare palette
- * change, update these in lockstep. Personality (calm/creative/technical)
- * still tints the hero orb + flying orbs + text glow, but the cosmic base
- * is locked to the login screen.
+ * Backdrop + accents come straight from SCENE_PALETTES (single source of
+ * truth — no drift). Cosmic-only elements (nebula tones, sun core, lens
+ * flares) carry per-scene overrides so warm scenes don't get a violet
+ * nebula or a sunless orange morning.
  */
-const LOGIN_COSMIC = {
-  // Root <div> background of LoginCosmicScene
-  backdrop: [
-    "radial-gradient(ellipse at 50% 42%, rgba(36,22,68,0.92) 0%, rgba(14,8,30,0.98) 55%, rgba(4,2,14,1) 100%)",
-    "linear-gradient(180deg, #0b0820 0%, #110a2a 100%)",
-  ].join(","),
-  // Three-radial corner accents (purple top-left, blue lower-right, pink bottom)
-  accentLayer: [
-    "radial-gradient(ellipse at 18% 22%, rgba(80,60,160,0.32) 0%, transparent 55%)",
-    "radial-gradient(ellipse at 82% 76%, rgba(40,90,170,0.26) 0%, transparent 58%)",
-    "radial-gradient(ellipse at 50% 88%, rgba(180,90,160,0.14) 0%, transparent 55%)",
-  ].join(","),
-  // Nebula tones used by AuroraCurtain (replaces personality-themed nebula
-  // for the cosmic-base layers — keeps purple-violet identity intact)
-  nebula: ["rgba(120,80,200,0.18)", "rgba(200,120,180,0.14)"] as [string, string],
-  // Sun + lens flare colors from LoginCosmicScene's SunWithLensFlare
-  sunCore:
-    "radial-gradient(circle, rgba(255,235,200,0.9) 0%, rgba(255,200,150,0.4) 22%, rgba(255,160,120,0.16) 45%, transparent 70%)",
-  flares: [
-    { t: 0.18, size: 28, color: "rgba(255,210,160,0.45)" },
-    { t: 0.34, size: 18, color: "rgba(180,200,255,0.32)" },
-    { t: 0.52, size: 42, color: "rgba(255,180,180,0.22)" },
-    { t: 0.7, size: 22, color: "rgba(160,220,255,0.28)" },
-    { t: 0.86, size: 14, color: "rgba(255,235,210,0.4)" },
-  ],
-} as const;
+type SceneCosmic = {
+  backdrop: string;
+  accentLayer: string;
+  /** Whether the cosmic backdrop calls for stars / milky way / constellations */
+  showCosmicLayers: boolean;
+  /** Whether to show planet + moon (login screen gates these to nightSky only) */
+  showPlanetMoon: boolean;
+  /** Whether to show off-screen sun + lens flares (login: nightSky/morning/cafe) */
+  showSun: boolean;
+  /** Nebula tones used by AuroraCurtain — tinted to match the scene base */
+  nebula: [string, string];
+  /** Sun core gradient (matches LoginCosmicScene's SunWithLensFlare per scene) */
+  sunCore: string;
+  /** Hex flare chain colors */
+  flares: ReadonlyArray<{ t: number; size: number; color: string }>;
+};
+
+function getLoginCosmic(sceneId: SceneId): SceneCosmic {
+  const p = SCENE_PALETTES[sceneId];
+  // Backdrop + accents are LITERALLY whatever LoginCosmicScene used.
+  const backdrop = p.body.join(",");
+  const accentLayer = p.accents.join(",");
+
+  // Per-scene overrides for cosmic-feature tinting.
+  // nightSky / deepSea: cosmic features make sense — render normally.
+  // morning / cafe: cosmic features feel out of place; we hide planet/moon
+  // (matching LoginCosmicScene which only shows them on nightSky), and
+  // recolor nebula / sun to match the scene's warm/sepia palette.
+  switch (sceneId) {
+    case "nightSky":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: true,
+        showPlanetMoon: true,
+        showSun: true,
+        nebula: ["rgba(120,80,200,0.18)", "rgba(200,120,180,0.14)"],
+        sunCore:
+          "radial-gradient(circle, rgba(255,235,200,0.9) 0%, rgba(255,200,150,0.4) 22%, rgba(255,160,120,0.16) 45%, transparent 70%)",
+        flares: [
+          { t: 0.18, size: 28, color: "rgba(255,210,160,0.45)" },
+          { t: 0.34, size: 18, color: "rgba(180,200,255,0.32)" },
+          { t: 0.52, size: 42, color: "rgba(255,180,180,0.22)" },
+          { t: 0.7, size: 22, color: "rgba(160,220,255,0.28)" },
+          { t: 0.86, size: 14, color: "rgba(255,235,210,0.4)" },
+        ],
+      };
+    case "morning":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: false,
+        showPlanetMoon: false,
+        showSun: true,
+        nebula: ["rgba(255,180,140,0.20)", "rgba(255,140,160,0.14)"],
+        sunCore:
+          "radial-gradient(circle, rgba(255,240,210,0.95) 0%, rgba(255,220,170,0.5) 22%, rgba(255,180,130,0.2) 45%, transparent 70%)",
+        flares: [
+          { t: 0.18, size: 32, color: "rgba(255,220,170,0.5)" },
+          { t: 0.34, size: 18, color: "rgba(255,200,160,0.32)" },
+          { t: 0.52, size: 44, color: "rgba(255,180,150,0.24)" },
+          { t: 0.7, size: 22, color: "rgba(255,210,180,0.30)" },
+          { t: 0.86, size: 14, color: "rgba(255,235,200,0.42)" },
+        ],
+      };
+    case "cafe":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: false,
+        showPlanetMoon: false,
+        showSun: true,
+        nebula: ["rgba(180,110,70,0.18)", "rgba(140,80,50,0.14)"],
+        sunCore:
+          "radial-gradient(circle, rgba(255,210,160,0.85) 0%, rgba(220,160,100,0.4) 22%, rgba(180,100,60,0.16) 45%, transparent 70%)",
+        flares: [
+          { t: 0.18, size: 28, color: "rgba(255,200,140,0.45)" },
+          { t: 0.34, size: 18, color: "rgba(220,160,100,0.32)" },
+          { t: 0.52, size: 42, color: "rgba(180,110,70,0.22)" },
+          { t: 0.7, size: 22, color: "rgba(220,170,120,0.28)" },
+          { t: 0.86, size: 14, color: "rgba(255,225,180,0.4)" },
+        ],
+      };
+    case "deepSea":
+      return {
+        backdrop,
+        accentLayer,
+        showCosmicLayers: true,
+        showPlanetMoon: false,
+        showSun: false,
+        nebula: ["rgba(60,160,210,0.20)", "rgba(40,120,170,0.14)"],
+        sunCore: "transparent",
+        flares: [],
+      };
+    default: {
+      // Exhaustiveness guard — unreachable for known SceneIds.
+      const _exhaustive: never = sceneId;
+      return _exhaustive;
+    }
+  }
+}
 
 // ─── Orb flight configuration ───────────────────────────────────────────────
 
@@ -1185,12 +1264,14 @@ const LoginNebula = memo(function LoginNebula({ scale }: { scale: number }) {
 
 const SunLensFlare = memo(function SunLensFlare({
   parallax,
+  sunCore,
+  flares,
 }: {
   parallax: [number, number];
+  sunCore: string;
+  flares: ReadonlyArray<{ t: number; size: number; color: string }>;
 }) {
   const [px, py] = parallax;
-  // Hex flare chain — exact colors/sizes from LoginCosmicScene's SunWithLensFlare.
-  const flares = LOGIN_COSMIC.flares;
   // Sun position matches LoginCosmicScene (slightly different but visually identical).
   const SUN_X = 108;
   const SUN_Y = -10;
@@ -1199,7 +1280,8 @@ const SunLensFlare = memo(function SunLensFlare({
 
   return (
     <>
-      {/* Sun core glow (mostly off-screen, top-right) — same gradient as login screen */}
+      {/* Sun core glow (mostly off-screen, top-right) — gradient comes from
+          getLoginCosmic per scene (warm dawn for morning, sepia for cafe). */}
       <div
         className="absolute rounded-full pointer-events-none"
         style={{
@@ -1209,7 +1291,7 @@ const SunLensFlare = memo(function SunLensFlare({
           height: 280,
           marginLeft: -140,
           marginTop: -140,
-          background: LOGIN_COSMIC.sunCore,
+          background: sunCore,
           mixBlendMode: "screen",
           animation: "hs-sun 9s ease-in-out infinite",
           willChange: "transform, opacity",
@@ -1796,7 +1878,11 @@ const Comet = memo(function Comet() {
 
 // ─── Aurora curtain — wavy translucent ribbon at the top of the sky ─────────
 
-const AuroraCurtain = memo(function AuroraCurtain() {
+const AuroraCurtain = memo(function AuroraCurtain({
+  nebula,
+}: {
+  nebula: [string, string];
+}) {
   return (
     <div
       className="absolute pointer-events-none"
@@ -1810,12 +1896,13 @@ const AuroraCurtain = memo(function AuroraCurtain() {
         // background-position sweep produces a visible wavy shimmer. Two
         // layers run at slightly different angles + sizes to feel organic.
         // The ribbon shape comes from the vertical mask below.
-        // Color #2 uses LOGIN_COSMIC.nebula (purple-violet) instead of the
-        // personality-themed palette so the cosmic identity stays locked
-        // to whatever the user just saw on LoginCosmicScene.
+        // Second layer uses scene-tinted nebula tones (from getLoginCosmic)
+        // so the curtain harmonizes with whatever LoginCosmicScene rendered
+        // (purple-violet for nightSky, warm dawn for morning, sepia for cafe,
+        // teal for deepSea).
         background: [
           "linear-gradient(95deg, transparent 0%, rgba(120,220,200,0.20) 18%, rgba(140,200,240,0.14) 38%, rgba(180,160,255,0.18) 60%, transparent 82%)",
-          `linear-gradient(100deg, transparent 0%, ${LOGIN_COSMIC.nebula[0]} 22%, ${LOGIN_COSMIC.nebula[1]} 52%, transparent 80%)`,
+          `linear-gradient(100deg, transparent 0%, ${nebula[0]} 22%, ${nebula[1]} 52%, transparent 80%)`,
         ].join(","),
         backgroundSize: "240% 100%, 220% 100%",
         backgroundRepeat: "no-repeat, no-repeat",
@@ -2096,9 +2183,14 @@ export default function LoginOrbAnimation() {
   const isMobile = useIsMobile();
   const ambient = useAmbient();
   const palette = useMemo(() => buildPalette(personality), [personality]);
-  // Cosmic backdrop is locked to LOGIN_COSMIC for visual continuity with
-  // the login screen — see comment on LOGIN_COSMIC. Personality still tints
-  // the orbs / hero / text glow via `palette`.
+  // Cosmic backdrop derived from the active LoginCosmicScene scene so the
+  // post-login animation reads as a continuation of the EXACT scene the user
+  // just saw (nightSky / morning / cafe / deepSea). Personality still tints
+  // the hero orb / flying orbs / text glow via `palette`.
+  const cosmic = useMemo(
+    () => getLoginCosmic(ambient.sceneId),
+    [ambient.sceneId]
+  );
   const responsiveScale = useMemo(() => {
     const viewportWidth = containerSize[0] || 1280;
     const baseByWidth = Math.max(0.68, Math.min(1.05, viewportWidth / 1280));
@@ -2277,9 +2369,10 @@ export default function LoginOrbAnimation() {
           className="fixed inset-0 overflow-hidden"
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
-            // Locked to LoginCosmicScene's exact backdrop so the user feels
-            // the login screen continue, not a switch to ambient theme.
-            background: LOGIN_COSMIC.backdrop,
+            // Per-scene backdrop sourced directly from LoginCosmicScene's
+            // SCENE_PALETTES — guarantees pixel-level continuity from the
+            // exact scene the user just saw (nightSky / morning / cafe / deepSea).
+            background: cosmic.backdrop,
             backgroundBlendMode: "screen, normal",
             isolation: "isolate",
             contain: "layout paint style",
@@ -2306,33 +2399,39 @@ export default function LoginOrbAnimation() {
           {/* eslint-disable-next-line react/no-danger */}
           <style dangerouslySetInnerHTML={{ __html: STATIC_KEYFRAMES }} />
 
-          {/* Deepened cosmic accent — three-radial corner glows from
-              LoginCosmicScene (purple top-left / blue lower-right / pink
-              bottom). hs-depth-breathe gives a subtle atmospheric pulse. */}
+          {/* Per-scene corner glow accents — sourced from SCENE_PALETTES so
+              they match the login screen's accent layer exactly. */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              background: LOGIN_COSMIC.accentLayer,
+              background: cosmic.accentLayer,
               animation: "hs-depth-breathe 8s ease-in-out infinite",
             }}
           />
 
-          {/* Galactic plane — deepest atmospheric layer (mirrors login screen) */}
-          <MilkyWayBand />
+          {/* Cosmic-only layers (Milky Way, nebula clouds, constellations,
+              spiral galaxy, comet, meteors) only render for scenes where
+              LoginCosmicScene itself would show them — nightSky and deepSea.
+              For warm scenes (morning / cafe) these would clash with the
+              dawn / sepia palette. */}
+          {cosmic.showCosmicLayers && (
+            <>
+              <MilkyWayBand />
+              <LoginNebula scale={responsiveScale} />
+              <Constellations />
+              <SpiralGalaxy parallax={parallax} scale={responsiveScale} />
+              <ShootingStars tint={palette.meteorTint} />
+              <Comet />
+            </>
+          )}
 
-          {/* Login-screen nebula clouds — purple lower-left, pink upper-right
-              + slow conic dust ring. Exact mirror of LoginCosmicScene's
-              Nebula so the animation IS the same cosmic environment. */}
-          <LoginNebula scale={responsiveScale} />
+          {/* Aurora curtain — wavy translucent ribbon at top of sky.
+              Tinted per scene via getLoginCosmic().nebula. */}
+          <AuroraCurtain nebula={cosmic.nebula} />
 
-          {/* Aurora curtain — wavy translucent ribbon at top of sky */}
-          <AuroraCurtain />
-
-          {/* Star field — pure CSS animations */}
+          {/* Star field — pure CSS animations (always shown; LoginCosmicScene
+              also keeps stars in every scene, just with different tints). */}
           <StarField />
-
-          {/* Constellation network — hand-placed bright-star groupings */}
-          <Constellations />
           <DepthParallaxPlanes parallax={parallax} scale={responsiveScale} />
           <VolumetricMist
             parallax={parallax}
@@ -2340,26 +2439,31 @@ export default function LoginOrbAnimation() {
             scale={responsiveScale}
           />
 
-          {/* Off-screen sun + lens flare chain — cinematic optical axis */}
-          <SunLensFlare parallax={parallax} />
+          {/* Off-screen sun + lens flare chain — only when the active scene
+              has a visible sun (LoginCosmicScene gates this to nightSky /
+              morning / cafe; deepSea has no sun). */}
+          {cosmic.showSun && (
+            <SunLensFlare
+              parallax={parallax}
+              sunCore={cosmic.sunCore}
+              flares={cosmic.flares}
+            />
+          )}
 
           {/* Bottom atmospheric horizon — grounds the composition. Rendered
               BEFORE planet/moon/galaxy so they sit on top of the warm tint
               instead of having their dark sides washed by additive blend. */}
           <BottomHorizon palette={palette} />
 
-          {/* Distant planet (lower-left) + moon (upper-right) for parallax depth */}
-          <DistantPlanet parallax={parallax} scale={responsiveScale} />
-          <DistantMoon parallax={parallax} scale={responsiveScale} />
-
-          {/* Distant spiral galaxy (upper-left) — completes the cosmic triad */}
-          <SpiralGalaxy parallax={parallax} scale={responsiveScale} />
-
-          {/* Shooting stars — cinematic depth */}
-          <ShootingStars tint={palette.meteorTint} />
-
-          {/* Long-tailed comet — slow looping cinematic sweep */}
-          <Comet />
+          {/* Distant planet + moon — only when LoginCosmicScene would show
+              them (nightSky-only, per its own sceneId gating). For warm
+              scenes the planet would feel like an alien addition. */}
+          {cosmic.showPlanetMoon && (
+            <>
+              <DistantPlanet parallax={parallax} scale={responsiveScale} />
+              <DistantMoon parallax={parallax} scale={responsiveScale} />
+            </>
+          )}
 
           {/* Subtle vignette overlay — focuses the eye on the central orb */}
           <div

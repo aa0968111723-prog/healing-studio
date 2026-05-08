@@ -110,7 +110,7 @@ const KEYFRAMES = [
 
 // ─── Scene palette tables (single source of truth per scene) ────────────────
 
-interface ScenePalette {
+export interface ScenePalette {
   // Body background — full-screen gradient
   body: string[];
   // Corner color accent overlays
@@ -125,7 +125,7 @@ interface ScenePalette {
   frameC: string;
 }
 
-const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
+export const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
   nightSky: {
     body: [
       "radial-gradient(ellipse at 50% 42%, rgba(36,22,68,0.92) 0%, rgba(14,8,30,0.98) 55%, rgba(4,2,14,1) 100%)",
