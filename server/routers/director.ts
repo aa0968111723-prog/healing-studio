@@ -649,8 +649,12 @@ async function discussSegmentWithAI(
   }
 
   if (imageUrl) {
+    // 提示 LLM 注意附帶圖片；實際圖片本身會以 ImageContent block 形式接在
+    // user message content array 上（見下方 effectiveContent），讓視覺能力
+    // 模型（gemini-2.5-pro vision / claude-3.5 / gpt-4o）真的看到圖片，
+    // 而不只是讀到一個 URL 字串。
     contextParts.push(
-      `\n【使用者附上了參考圖片】URL: ${imageUrl}\n請在回覆中參考這張圖片的風格、構圖或色調來調整建議。`
+      `\n【使用者附上了參考圖片】請參考下方附帶的圖片風格、構圖或色調來調整建議。`
     );
   }
 
@@ -671,6 +675,19 @@ async function discussSegmentWithAI(
   const effectiveMessage = quickAction
     ? `${quickAction.promptTemplate}\n\n使用者補充：${userMessage || "（無額外補充）"}`
     : userMessage;
+
+  // 多模態 user message：附參考圖時改送 [text, image_url] array，讓視覺
+  // 能力模型真的能「看到」使用者的參考圖；無圖時保留純字串以與沒升級的
+  // engine 路徑相容。
+  const effectiveContent: string | Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string } }
+  > = imageUrl
+    ? [
+        { type: "text", text: effectiveMessage || "（請參考附圖）" },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ]
+    : effectiveMessage;
 
   const result = await withTimeout(
     invokeLLM({
@@ -697,7 +714,7 @@ ${contextParts.join("\n")}
         },
         {
           role: "user",
-          content: effectiveMessage,
+          content: effectiveContent,
         },
       ],
       maxTokens: 4096,
