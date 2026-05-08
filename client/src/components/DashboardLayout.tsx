@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import VisualSoul from "@/components/VisualSoul";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarRenderer } from "@/components/AvatarStudio";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -775,11 +775,11 @@ function DashboardLayoutContent({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="hidden md:flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
-                  <Avatar className="h-10 w-10 border shrink-0">
-                    <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
-                      {displayInitial}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarRenderer
+                    avatarUrl={user?.avatarUrl ?? null}
+                    fallback={displayInitial}
+                    className="h-10 w-10 border shrink-0"
+                  />
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-medium truncate leading-none text-foreground">
                       {displayName}
@@ -932,11 +932,13 @@ function DashboardLayoutContent({
                 <DropdownMenuTrigger asChild>
                   <button
                     aria-label="使用者選單"
-                    className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-10 w-10 rounded-full overflow-hidden border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span className="text-sm font-medium text-primary">
-                      {displayInitial}
-                    </span>
+                    <AvatarRenderer
+                      avatarUrl={user?.avatarUrl ?? null}
+                      fallback={displayInitial}
+                      className="h-10 w-10"
+                    />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52 sm:w-56">

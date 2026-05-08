@@ -44,6 +44,8 @@ export const users = mysqlTable(
     autoCreditLastAt: timestamp("autoCreditLastAt"),
     remainingGenerations: int("remainingGenerations").default(50).notNull(),
     onboardingDone: boolean("onboardingDone").default(false).notNull(),
+    /** User-controlled avatar (preset id, AI-generated URL, or data URL ≤ 64 KB). Null = use initials. */
+    avatarUrl: text("avatarUrl"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

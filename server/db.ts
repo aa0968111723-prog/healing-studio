@@ -272,6 +272,18 @@ export async function updateUserQuota(userId: number, amount: number) {
     .where(eq(users.id, userId));
 }
 
+export async function updateUserAvatar(
+  userId: number,
+  avatarUrl: string | null
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(users)
+    .set({ avatarUrl })
+    .where(eq(users.id, userId));
+}
+
 export async function updateUserAutoCreditPolicy(input: {
   userId: number;
   enabled: boolean;
