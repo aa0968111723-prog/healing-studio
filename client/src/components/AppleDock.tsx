@@ -230,7 +230,7 @@ function MinimizedBubble({
   return (
     <div
       className={cn(
-        "hidden md:block fixed top-1/2 -translate-y-1/2 z-30",
+        "block fixed top-1/2 -translate-y-1/2 z-30",
         sideClass
       )}
     >
@@ -326,7 +326,7 @@ function AppleDock({
       aria-label="主導覽"
       data-position={position}
       className={cn(
-        "hidden md:flex fixed top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass max-h-[calc(100svh-1.5rem)] overflow-y-auto no-scrollbar overscroll-contain",
+        "flex fixed top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass overflow-y-auto no-scrollbar overscroll-contain",
         sideClass,
         position === "right" && "apple-dock-right"
       )}

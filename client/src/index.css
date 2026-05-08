@@ -365,6 +365,11 @@
   /* ─── Apple-Style Floating Dock ─── */
   .apple-dock-glass {
     position: relative;
+    /* Stay clear of notch + home indicator on mobile */
+    max-height: calc(
+      100svh - 1.5rem - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
     background:
       linear-gradient(
         180deg,

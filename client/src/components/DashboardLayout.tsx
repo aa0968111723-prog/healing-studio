@@ -1,45 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import VisualSoul from "@/components/VisualSoul";
-import { AvatarRenderer } from "@/components/AvatarStudio";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronRight } from "lucide-react";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import LocalAuthForm from "@/components/LocalAuthForm";
-import { useIsMobile } from "@/hooks/useMobile";
 import {
   Wand2,
   Clapperboard,
   Cpu,
   BarChart3,
-  Shield,
-  LogOut,
-  Home,
   Settings,
   StickyNote,
   CalendarDays,
@@ -113,14 +81,6 @@ type SidebarGroupItem = {
 };
 
 type SidebarEntry = DockEntry;
-
-function isGroup(entry: SidebarEntry): entry is SidebarGroupItem {
-  return entry.kind === "group";
-}
-
-function isLeaf(entry: SidebarEntry): entry is SidebarLeafItem {
-  return entry.kind === "leaf";
-}
 
 const sidebarIconByPageId: Record<string, LucideIcon> = {
   "agent-chat": Bot,
@@ -200,12 +160,6 @@ const sidebarStructure: SidebarEntry[] = (() => {
   return entries;
 })();
 
-const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry => {
-  if (isGroup(entry)) return entry.children;
-  if (isLeaf(entry)) return [entry];
-  return [];
-});
-
 export default function DashboardLayout({
   children,
 }: {
@@ -278,8 +232,6 @@ function DashboardLayoutContent({
   const { user, logout } = useAuth();
   const { settings } = usePersonalSettings();
   const [location, setLocation] = useLocation();
-  const activeMenuItem = flatMenuItems.find(item => item.path === location);
-  const isMobile = useIsMobile();
 
   const isAdmin = user?.role === "admin";
   const displayName = settings.displayName.trim() || user?.name || "使用者";
@@ -375,112 +327,33 @@ function DashboardLayoutContent({
     startTour("welcome", true);
   }, [startTour]);
 
+  // ── Main-content padding mirrors the dock side and tightens when minimized ──
+  const dockPadClass = dockMinimized
+    ? dockPosition === "left"
+      ? "pl-[68px]"
+      : "pr-[68px]"
+    : dockPosition === "left"
+      ? "pl-20 sm:pl-24"
+      : "pr-20 sm:pr-24";
+
   return (
     <>
-      {/* ── Apple-style floating dock (desktop / tablet) ── */}
-      {!isMobile && (
-        <AppleDock
-          entries={sidebarStructure}
-          activePath={location}
-          onNavigate={setLocation}
-          user={user}
-          displayName={displayName}
-          displayInitial={displayInitial}
-          isAdmin={isAdmin}
-          onLogout={logout}
-          onRestartTour={handleRestartWelcomeTour}
-          position={dockPosition}
-          onTogglePosition={toggleDockPosition}
-          minimized={dockMinimized}
-          onToggleMinimized={toggleDockMinimized}
-        />
-      )}
-
-      {/* ── Mobile sidebar drawer (Sheet) — opened by SidebarTrigger in top bar ── */}
-      {isMobile && (
-        <Sidebar collapsible="offcanvas" className="border-r-0">
-          <SidebarHeader className="h-14 justify-center">
-            <div className="flex items-center gap-2 px-2">
-              <span className="font-semibold tracking-tight text-foreground text-sm">
-                AI Director
-              </span>
-            </div>
-          </SidebarHeader>
-          <SidebarContent className="gap-0">
-            <SidebarMenu
-              className="px-2 py-0.5 gap-0.5"
-              role="navigation"
-              aria-label="主導覽"
-            >
-              {sidebarStructure.map(entry => {
-                if (entry.kind === "group") {
-                  const hasActiveChild = entry.children.some(
-                    child => location === child.path
-                  );
-                  return (
-                    <Collapsible
-                      key={entry.label}
-                      defaultOpen={hasActiveChild}
-                      className="group/collapsible"
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="h-10 font-normal rounded-xl">
-                            <entry.icon
-                              className={`h-4 w-4 ${hasActiveChild ? "text-primary" : ""}`}
-                            />
-                            <span>{entry.label}</span>
-                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {entry.children.map(child => {
-                              const isChildActive = location === child.path;
-                              return (
-                                <SidebarMenuSubItem key={child.path}>
-                                  <SidebarMenuSubButton
-                                    onClick={() => setLocation(child.path)}
-                                    isActive={isChildActive}
-                                    className="cursor-pointer rounded-lg h-9"
-                                  >
-                                    <child.icon
-                                      className={`h-4 w-4 ${isChildActive ? "text-primary" : ""}`}
-                                    />
-                                    <span>{child.label}</span>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              );
-                            })}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  );
-                }
-                const isActive = location === entry.path;
-                return (
-                  <SidebarMenuItem key={entry.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(entry.path)}
-                      className="h-10 font-normal rounded-xl"
-                    >
-                      <entry.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{entry.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarContent>
-          <SidebarFooter className="px-3 py-2 gap-1.5">
-            <BackgroundTasksDrawer />
-          </SidebarFooter>
-        </Sidebar>
-      )}
+      {/* ── Apple-style floating dock (all viewports) ── */}
+      <AppleDock
+        entries={sidebarStructure}
+        activePath={location}
+        onNavigate={setLocation}
+        user={user}
+        displayName={displayName}
+        displayInitial={displayInitial}
+        isAdmin={isAdmin}
+        onLogout={logout}
+        onRestartTour={handleRestartWelcomeTour}
+        position={dockPosition}
+        onTogglePosition={toggleDockPosition}
+        minimized={dockMinimized}
+        onToggleMinimized={toggleDockMinimized}
+      />
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">
         {/* ── Workspace ambient background decorations ── */}
@@ -494,111 +367,15 @@ function DashboardLayoutContent({
           <div className="workspace-orb workspace-orb-3" />
         </div>
 
-        {isMobile && (
-          <div
-            className="flex border-b h-14 items-center justify-between px-3 shrink-0 sticky top-0 z-40"
-            style={{
-              background: "rgba(245,243,240,0.92)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              paddingTop: "env(safe-area-inset-top, 0px)",
-            }}
-          >
-            <div className="flex items-center gap-2.5">
-              <SidebarTrigger className="h-10 w-10 rounded-lg bg-background" />
-              <span className="tracking-tight text-foreground text-sm font-medium truncate max-w-[140px]">
-                {activeMenuItem?.label ?? "AI Director"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-primary/10 rounded-lg px-2.5 py-1.5">
-                <Zap className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-semibold text-primary tabular-nums">
-                  {user?.remainingGenerations ?? 0}
-                </span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    aria-label="使用者選單"
-                    className="h-10 w-10 rounded-full overflow-hidden border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <AvatarRenderer
-                      avatarUrl={user?.avatarUrl ?? null}
-                      fallback={displayInitial}
-                      className="h-10 w-10"
-                    />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 sm:w-56">
-                  <div className="px-3 py-2 border-b mb-1">
-                    <p className="text-sm font-medium truncate">
-                      {displayName}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                  <DropdownMenuItem
-                    onClick={() => setLocation("/")}
-                    className="cursor-pointer h-10"
-                  >
-                    <Home className="mr-2 h-4 w-4" />
-                    <span>首頁</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setLocation("/settings")}
-                    className="cursor-pointer h-10"
-                  >
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>個人設定</span>
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem
-                      onClick={() => setLocation("/admin")}
-                      className="cursor-pointer h-10"
-                    >
-                      <Shield className="mr-2 h-4 w-4" />
-                      <span>管理後台</span>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onClick={handleRestartWelcomeTour}
-                    className="cursor-pointer h-10"
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    <span>重新開始導覽</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={logout}
-                    className="cursor-pointer text-destructive focus:text-destructive h-10"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>登出</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        )}
         <main
           id="main-content"
           tabIndex={-1}
           className={`relative flex-1 overflow-y-auto ${
             settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
-          } ${
-            !isMobile
-              ? dockMinimized
-                ? dockPosition === "left"
-                  ? "md:pl-20"
-                  : "md:pr-20"
-                : dockPosition === "left"
-                  ? "md:pl-24"
-                  : "md:pr-24"
-              : ""
-          } pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
+          } ${dockPadClass} pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
           data-scroll-area
           style={{
+            paddingTop: `calc(${settings.compactMode ? "0.75rem" : "1rem"} + env(safe-area-inset-top, 0px))`,
             paddingBottom: settings.compactMode
               ? "calc(1rem + env(safe-area-inset-bottom, 0px))"
               : "calc(2rem + env(safe-area-inset-bottom, 0px))",
