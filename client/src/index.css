@@ -445,29 +445,29 @@
     background:
       linear-gradient(
         135deg,
-        oklch(0.55 0.08 300) 0%,
-        oklch(0.45 0.07 320) 50%,
-        oklch(0.5 0.09 270) 100%
+        oklch(0.9 0.08 300) 0%,
+        oklch(0.84 0.1 320) 50%,
+        oklch(0.86 0.09 270) 100%
       );
-    color: oklch(0.99 0.005 75);
+    color: oklch(0.32 0.06 300);
     box-shadow:
-      0 4px 14px -2px oklch(0.55 0.1 300 / 0.5),
-      0 2px 6px -1px oklch(0.45 0.08 320 / 0.35),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.25);
+      0 4px 14px -2px oklch(0.74 0.12 300 / 0.42),
+      0 2px 6px -1px oklch(0.8 0.1 320 / 0.3),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
   }
   :is(.dark) .apple-dock-item[data-active="true"] {
     background:
       linear-gradient(
         135deg,
-        oklch(0.78 0.1 300) 0%,
-        oklch(0.7 0.09 320) 50%,
-        oklch(0.74 0.11 270) 100%
+        oklch(0.92 0.08 300) 0%,
+        oklch(0.86 0.1 320) 50%,
+        oklch(0.88 0.1 270) 100%
       );
-    color: oklch(0.18 0.012 280);
+    color: oklch(0.34 0.06 290);
     box-shadow:
-      0 4px 16px -2px oklch(0.78 0.12 300 / 0.5),
-      0 2px 6px -1px oklch(0.7 0.1 320 / 0.4),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.25);
+      0 4px 16px -2px oklch(0.82 0.14 300 / 0.46),
+      0 2px 6px -1px oklch(0.78 0.12 320 / 0.35),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
   }
   .apple-dock-item[data-active="true"]:hover {
     transform: scale(1.08);
@@ -483,23 +483,23 @@
     background: linear-gradient(
       90deg,
       transparent,
-      oklch(0.55 0.1 300),
-      oklch(0.5 0.1 320),
+      oklch(0.86 0.1 300),
+      oklch(0.8 0.11 320),
       transparent
     );
     transform: translateX(-50%);
-    box-shadow: 0 0 8px oklch(0.55 0.1 300 / 0.6);
+    box-shadow: 0 0 10px oklch(0.82 0.12 300 / 0.52);
     animation: apple-dock-dot-glow 2.4s ease-in-out infinite;
   }
   :is(.dark) .apple-dock-active-dot {
     background: linear-gradient(
       90deg,
       transparent,
-      oklch(0.82 0.12 300),
-      oklch(0.78 0.11 320),
+      oklch(0.9 0.09 300),
+      oklch(0.84 0.1 320),
       transparent
     );
-    box-shadow: 0 0 10px oklch(0.82 0.14 300 / 0.7);
+    box-shadow: 0 0 11px oklch(0.86 0.12 300 / 0.58);
   }
 
   .apple-dock-flyout {
