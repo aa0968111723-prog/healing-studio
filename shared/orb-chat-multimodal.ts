@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type OrbChatAttachmentKind = "image" | "video" | "audio" | "pdf";
+export type OrbChatAttachmentKind = "image" | "video" | "audio" | "pdf" | "text";
 
 export const ORB_CHAT_ATTACHMENT_MIME_TYPES = [
   "application/pdf",
@@ -21,9 +21,29 @@ export const ORB_CHAT_ATTACHMENT_MIME_TYPES = [
   "video/webm",
   "video/ogg",
   "video/quicktime",
+  // Text-like documents — their bytes are extracted client-side into
+  // `OrbChatAttachment.extractedText` and inlined into the LLM message as
+  // plain text, so the model can actually read scripts users upload.
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 
 export type OrbChatAttachmentMimeType = (typeof ORB_CHAT_ATTACHMENT_MIME_TYPES)[number];
+
+const TEXT_LIKE_MIME_TYPES: ReadonlySet<OrbChatAttachmentMimeType> = new Set<
+  OrbChatAttachmentMimeType
+>([
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export function isTextLikeOrbAttachmentMime(
+  mime: OrbChatAttachmentMimeType
+): boolean {
+  return TEXT_LIKE_MIME_TYPES.has(mime);
+}
 
 export interface OrbChatAttachment {
   id: string;
@@ -31,6 +51,13 @@ export interface OrbChatAttachment {
   url: string;
   mimeType: OrbChatAttachmentMimeType;
   kind: OrbChatAttachmentKind;
+  /**
+   * Plain-text content extracted from a text-like document (txt / md / docx)
+   * on the client. When present, `chatMessageToLLMContent` inlines this into
+   * the user's message body so the LLM can read it directly — `file_url`
+   * parts can't help for formats the model doesn't natively parse.
+   */
+  extractedText?: string;
 }
 
 export type OrbChatLLMMessagePart =
@@ -49,31 +76,87 @@ export type OrbChatLLMMessagePart =
 
 export type OrbChatLLMMessageContent = string | OrbChatLLMMessagePart[];
 
-export const ORB_UPLOAD_ACCEPT = "image/*,video/*,audio/*,.pdf";
+export const ORB_UPLOAD_ACCEPT =
+  "image/*,video/*,audio/*,.pdf,.txt,.md,.docx";
 
 export const ORB_ALLOWED_MIME_TYPES = new Set<OrbChatAttachmentMimeType>(
   ORB_CHAT_ATTACHMENT_MIME_TYPES
 );
 
+/**
+ * Some browsers (notably mobile Chrome/Safari pickers) report office documents
+ * with vendor-specific MIME strings like `application/msword` or hand back an
+ * empty `file.type`. We map those to the canonical types the rest of the
+ * pipeline understands so a `.docx` script doesn't get silently rejected.
+ */
+const FALLBACK_MIME_BY_EXTENSION: Record<string, OrbChatAttachmentMimeType> = {
+  txt: "text/plain",
+  md: "text/markdown",
+  markdown: "text/markdown",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+
+const LEGACY_MIME_ALIASES: Record<string, OrbChatAttachmentMimeType> = {
+  "application/msword":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/x-markdown": "text/markdown",
+};
+
 export const ORB_UNSUPPORTED_ATTACHMENT_MESSAGE =
-  "這個格式我目前不能直接讀取，請轉成 PDF / PNG / MP3 / MP4，或貼文字內容。";
+  "這個格式我目前不能直接讀取，請轉成 PDF / PNG / MP3 / MP4 / TXT / DOCX，或直接貼文字內容。";
+
+function fileExtension(fileName: string | undefined): string {
+  if (!fileName) return "";
+  const dot = fileName.lastIndexOf(".");
+  if (dot < 0) return "";
+  return fileName.slice(dot + 1).toLowerCase().trim();
+}
 
 export function resolveOrbAttachmentKind(
-  mimeType: string
+  mimeType: string,
+  fileName?: string
 ): { kind: OrbChatAttachmentKind; mimeType: OrbChatAttachmentMimeType } | null {
-  const mime = mimeType.toLowerCase().trim();
-  if (!ORB_ALLOWED_MIME_TYPES.has(mime as OrbChatAttachmentMimeType)) return null;
-  const normalized = mime as OrbChatAttachmentMimeType;
+  const declared = mimeType.toLowerCase().trim();
+  const aliased = (LEGACY_MIME_ALIASES[declared] ?? declared) as string;
+  let normalized = aliased as OrbChatAttachmentMimeType;
+  if (!ORB_ALLOWED_MIME_TYPES.has(normalized)) {
+    const ext = fileExtension(fileName);
+    const byExt = ext ? FALLBACK_MIME_BY_EXTENSION[ext] : undefined;
+    if (!byExt) return null;
+    normalized = byExt;
+  }
   if (normalized.startsWith("image/")) return { kind: "image", mimeType: normalized };
   if (normalized.startsWith("video/")) return { kind: "video", mimeType: normalized };
   if (normalized.startsWith("audio/")) return { kind: "audio", mimeType: normalized };
   if (normalized === "application/pdf") return { kind: "pdf", mimeType: normalized };
+  if (isTextLikeOrbAttachmentMime(normalized)) return { kind: "text", mimeType: normalized };
   return null;
+}
+
+/**
+ * Maximum text characters inlined per text-kind attachment. Long scripts get
+ * truncated with a marker so the LLM call doesn't blow through the token
+ * budget on a 200-page document. 30k chars ≈ 7-8k tokens — generous for a
+ * full short-film script while still bounded.
+ */
+const MAX_INLINED_TEXT_CHARS = 30_000;
+
+function clipExtractedText(raw: string): string {
+  const trimmed = raw.replace(/\r\n?/g, "\n").trim();
+  if (trimmed.length <= MAX_INLINED_TEXT_CHARS) return trimmed;
+  return `${trimmed.slice(0, MAX_INLINED_TEXT_CHARS)}\n…(此處省略，原文較長)`;
+}
+
+function formatInlinedAttachment(attachment: OrbChatAttachment): string | null {
+  if (attachment.kind !== "text") return null;
+  const body = (attachment.extractedText ?? "").trim();
+  if (!body) return null;
+  return `📎 附件「${attachment.name}」內容：\n${clipExtractedText(body)}`;
 }
 
 export function attachmentToLLMMessagePart(
   attachment: OrbChatAttachment
-): Extract<OrbChatLLMMessagePart, { type: "image_url" | "file_url" }> {
+): OrbChatLLMMessagePart {
   if (attachment.kind === "image") {
     return {
       type: "image_url",
@@ -81,6 +164,17 @@ export function attachmentToLLMMessagePart(
         url: attachment.url,
         detail: "auto",
       },
+    };
+  }
+
+  if (attachment.kind === "text") {
+    // Text-like documents (txt / md / docx) are inlined as plain text by
+    // `chatMessageToLLMContent`. When a caller still asks for the part shape
+    // (e.g. legacy code paths), surface the extracted body directly so the
+    // model can read it instead of receiving a useless dead URL.
+    return {
+      type: "text",
+      text: formatInlinedAttachment(attachment) ?? `📎 附件：${attachment.name}`,
     };
   }
 
@@ -100,12 +194,34 @@ export function chatMessageToLLMContent(input: {
   const attachments = input.attachments ?? [];
   if (!attachments.length) return input.text;
 
+  const textAttachments = attachments.filter(a => a.kind === "text");
+  const binaryAttachments = attachments.filter(a => a.kind !== "text");
+
+  const inlinedTextBlocks = textAttachments
+    .map(formatInlinedAttachment)
+    .filter((s): s is string => Boolean(s));
+
+  const userBody = input.text.trim();
+  const composedText = [userBody, ...inlinedTextBlocks]
+    .filter(s => s.length > 0)
+    .join("\n\n")
+    .trim();
+
+  if (binaryAttachments.length === 0) {
+    // Pure text payload (or text + inlined script): return a string so the
+    // server's existing text-only path keeps working.
+    return composedText || "請參考我上傳的附件內容。";
+  }
+
   return [
     {
       type: "text",
-      text: input.text.trim() || "請參考我上傳的附件內容。",
+      text: composedText || "請參考我上傳的附件內容。",
     },
-    ...attachments.map(attachmentToLLMMessagePart),
+    ...binaryAttachments.map(a => {
+      const part = attachmentToLLMMessagePart(a);
+      return part as Extract<OrbChatLLMMessagePart, { type: "image_url" | "file_url" }>;
+    }),
   ];
 }
 
