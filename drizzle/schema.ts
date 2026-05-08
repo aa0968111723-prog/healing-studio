@@ -2152,3 +2152,70 @@ export type OrbConversationMessage =
   typeof orbConversationMessages.$inferSelect;
 export type InsertOrbConversationMessage =
   typeof orbConversationMessages.$inferInsert;
+
+// ─── Studio Recipes ─────────────────────────────────────────────────────
+// Persists 創作工作室 RecipeLibraryPanel SavedRecipe[] across sessions / devices.
+// Was previously kept only in component state (Studio.tsx:686), so a refresh
+// wiped every saved recipe — that defeats the "library" promise.
+export const studioRecipes = mysqlTable(
+  "studio_recipes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    modality: mysqlEnum("modality", ["image", "video", "music", "voice"]).notNull(),
+    /** Full SavedRecipe payload — blocks / thoughtIslands / advancedPrompt /
+     *  references / promptStrength / generationParams. We keep it as JSON
+     *  rather than splitting into columns because the shape is owned by
+     *  client/src/stores/workspaceStore.ts and may evolve faster than the
+     *  schema migration cadence. */
+    payload: json("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("sr_userId_idx").on(table.userId),
+    userIdModalityIdx: index("sr_userId_modality_idx").on(
+      table.userId,
+      table.modality
+    ),
+  })
+);
+
+export type StudioRecipe = typeof studioRecipes.$inferSelect;
+export type InsertStudioRecipe = typeof studioRecipes.$inferInsert;
+
+// ─── Studio Versions ────────────────────────────────────────────────────
+// Persists 創作工作室 VersionHistoryPanel VersionEntry[] across sessions.
+// Previously also in-memory only — versions disappeared on refresh, so the
+// "回到上一版" UX was broken across sessions.
+export const studioVersions = mysqlTable(
+  "studio_versions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    modality: mysqlEnum("modality", ["image", "video", "music", "voice"]).notNull(),
+    /** Client-supplied stable id (matches VersionEntry.id) so the frontend's
+     *  pinnedVersionId / restore flow keeps working without a server round-trip. */
+    versionKey: varchar("versionKey", { length: 64 }).notNull(),
+    pinned: boolean("pinned").default(false).notNull(),
+    /** Full VersionEntry payload (blocks / thoughtIslands / compiledPrompt /
+     *  changedFields / generationSettings / outputUrl / actionMode). */
+    payload: json("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("sv_userId_idx").on(table.userId),
+    userIdModalityIdx: index("sv_userId_modality_idx").on(
+      table.userId,
+      table.modality
+    ),
+    userIdVersionKeyIdx: index("sv_userId_versionKey_idx").on(
+      table.userId,
+      table.versionKey
+    ),
+  })
+);
+
+export type StudioVersion = typeof studioVersions.$inferSelect;
+export type InsertStudioVersion = typeof studioVersions.$inferInsert;

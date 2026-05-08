@@ -1637,40 +1637,61 @@ export const appRouter = router({
         }
 
         // ── Vault injection: resolve vault items to image URLs ──
+        // 之前用 try/catch 把錯誤吞掉再 console.warn，使用者點「使用此角色」
+        // 後送出，看到的結果跟沒選一樣，完全沒辦法分辨「角色找不到」「DB 連
+        // 不上」「正常生成」。改成清楚的 BAD_REQUEST，使用者會看到 toast。
         if (input.vaultCharacterId) {
+          let vaultChar: Awaited<ReturnType<typeof db.getVaultItem>> | undefined;
           try {
-            const vaultChar = await db.getVaultItem(input.vaultCharacterId);
-            if (vaultChar && vaultChar.imageUrl) {
-              debug(
-                `[Vault] Injecting character ref from vault #${vaultChar.id}: ${vaultChar.name}`
-              );
-              // For video: override characterRefUrl; for image: override styleReferenceUrl
-              if (input.generationType === "video") {
-                input.characterRefUrl =
-                  input.characterRefUrl || vaultChar.imageUrl;
-                input.firstFrameUrl = input.firstFrameUrl || vaultChar.imageUrl;
-              } else {
-                input.styleReferenceUrl =
-                  input.styleReferenceUrl || vaultChar.imageUrl;
-              }
-            }
+            vaultChar = await db.getVaultItem(input.vaultCharacterId);
           } catch (e) {
             console.warn("[Vault] Failed to load character vault item:", e);
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "讀取角色保險庫失敗，請稍後重試",
+            });
+          }
+          if (!vaultChar?.imageUrl) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `保險庫角色 #${input.vaultCharacterId} 找不到或缺少參考圖`,
+            });
+          }
+          debug(
+            `[Vault] Injecting character ref from vault #${vaultChar.id}: ${vaultChar.name}`
+          );
+          // For video: override characterRefUrl; for image: override styleReferenceUrl
+          if (input.generationType === "video") {
+            input.characterRefUrl =
+              input.characterRefUrl || vaultChar.imageUrl;
+            input.firstFrameUrl = input.firstFrameUrl || vaultChar.imageUrl;
+          } else {
+            input.styleReferenceUrl =
+              input.styleReferenceUrl || vaultChar.imageUrl;
           }
         }
         if (input.vaultSceneId) {
+          let vaultScene: Awaited<ReturnType<typeof db.getVaultItem>> | undefined;
           try {
-            const vaultScene = await db.getVaultItem(input.vaultSceneId);
-            if (vaultScene && vaultScene.imageUrl) {
-              debug(
-                `[Vault] Injecting scene ref from vault #${vaultScene.id}: ${vaultScene.name}`
-              );
-              input.vibeReferenceUrl =
-                input.vibeReferenceUrl || vaultScene.imageUrl;
-            }
+            vaultScene = await db.getVaultItem(input.vaultSceneId);
           } catch (e) {
             console.warn("[Vault] Failed to load scene vault item:", e);
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "讀取場景保險庫失敗，請稍後重試",
+            });
           }
+          if (!vaultScene?.imageUrl) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `保險庫場景 #${input.vaultSceneId} 找不到或缺少參考圖`,
+            });
+          }
+          debug(
+            `[Vault] Injecting scene ref from vault #${vaultScene.id}: ${vaultScene.name}`
+          );
+          input.vibeReferenceUrl =
+            input.vibeReferenceUrl || vaultScene.imageUrl;
         }
 
         // ── Fine-tuned model injection: append triggerWord + inject LoRA URL ──
@@ -2676,44 +2697,62 @@ export const appRouter = router({
         const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
 
         // ── 2.4 Vault 注入：把使用者從寶庫挑的角色 / 場景換成參考圖 URL ──
-        // 與同步 generate.execute（routers.ts:1305+）行為對齊。
-        // 之前 submitMultimodalAsync 完全沒處理這兩個欄位，使用者點「使用此角色」
-        // 後送出,角色完全沒注入,結果跟空寶庫一樣 — 看起來像「無法生成」。
+        // 與同步 generate.multimodal 對齊：用 TRPCError 明確報錯，不再 silent
+        // fallback。否則使用者點「使用此角色」、提交後生成完全沒角色，無法
+        // 分辨「角色找不到」/「DB 故障」/「忘記注入」。
         if (input.vaultCharacterId) {
+          let vaultChar: Awaited<ReturnType<typeof db.getVaultItem>> | undefined;
           try {
-            const vaultChar = await db.getVaultItem(input.vaultCharacterId);
-            if (vaultChar && vaultChar.imageUrl) {
-              if (input.generationType === "video") {
-                input.characterRefUrl =
-                  input.characterRefUrl || vaultChar.imageUrl;
-                input.firstFrameUrl =
-                  input.firstFrameUrl || vaultChar.imageUrl;
-              } else if (input.generationType === "image") {
-                input.styleReferenceUrl =
-                  input.styleReferenceUrl || vaultChar.imageUrl;
-              }
-            }
+            vaultChar = await db.getVaultItem(input.vaultCharacterId);
           } catch (e) {
             console.warn(
               "[submitAsync][Vault] Failed to load character vault item:",
               e
             );
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "讀取角色保險庫失敗，請稍後重試",
+            });
+          }
+          if (!vaultChar?.imageUrl) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `保險庫角色 #${input.vaultCharacterId} 找不到或缺少參考圖`,
+            });
+          }
+          if (input.generationType === "video") {
+            input.characterRefUrl =
+              input.characterRefUrl || vaultChar.imageUrl;
+            input.firstFrameUrl =
+              input.firstFrameUrl || vaultChar.imageUrl;
+          } else if (input.generationType === "image") {
+            input.styleReferenceUrl =
+              input.styleReferenceUrl || vaultChar.imageUrl;
           }
         }
         if (input.vaultSceneId) {
+          let vaultScene: Awaited<ReturnType<typeof db.getVaultItem>> | undefined;
           try {
-            const vaultScene = await db.getVaultItem(input.vaultSceneId);
-            if (vaultScene && vaultScene.imageUrl) {
-              if (input.generationType === "image") {
-                input.vibeReferenceUrl =
-                  input.vibeReferenceUrl || vaultScene.imageUrl;
-              }
-            }
+            vaultScene = await db.getVaultItem(input.vaultSceneId);
           } catch (e) {
             console.warn(
               "[submitAsync][Vault] Failed to load scene vault item:",
               e
             );
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "讀取場景保險庫失敗，請稍後重試",
+            });
+          }
+          if (!vaultScene?.imageUrl) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `保險庫場景 #${input.vaultSceneId} 找不到或缺少參考圖`,
+            });
+          }
+          if (input.generationType === "image") {
+            input.vibeReferenceUrl =
+              input.vibeReferenceUrl || vaultScene.imageUrl;
           }
         }
 
@@ -4851,6 +4890,125 @@ export const appRouter = router({
         await db.deleteHistoryEntry(input.id);
         return { success: true };
       }),
+  }),
+
+  // ─── 創作工作室持久化（RecipeLibraryPanel / VersionHistoryPanel）─────────
+  // Studio.tsx 之前把 savedRecipes / versions 放在 useState，重新整理就消失。
+  // 兩個 sub-router 把它們搬到 MySQL；schema 見 drizzle/schema.ts
+  // studioRecipes / studioVersions（migration 0030）。
+  studio: router({
+    recipes: router({
+      list: protectedProcedure
+        .input(
+          z
+            .object({
+              modality: z
+                .enum(["image", "video", "music", "voice"])
+                .optional(),
+            })
+            .optional()
+        )
+        .query(async ({ ctx, input }) => {
+          try {
+            return await db.listStudioRecipes(ctx.user.id, input?.modality);
+          } catch {
+            return [];
+          }
+        }),
+
+      create: protectedProcedure
+        .input(
+          z.object({
+            name: z.string().min(1).max(255),
+            modality: z.enum(["image", "video", "music", "voice"]),
+            payload: z.record(z.string(), z.unknown()),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const id = await db.createStudioRecipe({
+            userId: ctx.user.id,
+            name: input.name,
+            modality: input.modality,
+            payload: input.payload,
+          });
+          return { id, success: true };
+        }),
+
+      delete: protectedProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ ctx, input }) => {
+          await db.deleteStudioRecipe(input.id, ctx.user.id);
+          return { success: true };
+        }),
+    }),
+
+    versions: router({
+      list: protectedProcedure
+        .input(
+          z
+            .object({
+              modality: z
+                .enum(["image", "video", "music", "voice"])
+                .optional(),
+              limit: z.number().min(1).max(200).optional(),
+            })
+            .optional()
+        )
+        .query(async ({ ctx, input }) => {
+          try {
+            return await db.listStudioVersions(
+              ctx.user.id,
+              input?.modality,
+              input?.limit ?? 50
+            );
+          } catch {
+            return [];
+          }
+        }),
+
+      create: protectedProcedure
+        .input(
+          z.object({
+            modality: z.enum(["image", "video", "music", "voice"]),
+            versionKey: z.string().min(1).max(64),
+            pinned: z.boolean().optional(),
+            payload: z.record(z.string(), z.unknown()),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          const id = await db.createStudioVersion({
+            userId: ctx.user.id,
+            modality: input.modality,
+            versionKey: input.versionKey,
+            pinned: input.pinned ?? false,
+            payload: input.payload,
+          });
+          return { id, success: true };
+        }),
+
+      setPinned: protectedProcedure
+        .input(
+          z.object({
+            versionKey: z.string().min(1).max(64),
+            pinned: z.boolean(),
+          })
+        )
+        .mutation(async ({ ctx, input }) => {
+          await db.setStudioVersionPinned(
+            ctx.user.id,
+            input.versionKey,
+            input.pinned
+          );
+          return { success: true };
+        }),
+
+      delete: protectedProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ ctx, input }) => {
+          await db.deleteStudioVersion(input.id, ctx.user.id);
+          return { success: true };
+        }),
+    }),
   }),
 
   // ─── AI 全站光球代理（含上下文 + AI 代理人行為） ──────────────────────────────
