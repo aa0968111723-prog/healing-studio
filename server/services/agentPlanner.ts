@@ -12,6 +12,7 @@ import { IMAGE_TO_IMAGE_MODEL_REGISTRY } from "../../shared/imageToImageModelReg
 import { SKELETAL_MODEL_REGISTRY } from "../../shared/skeletalModelRegistry";
 import { IMAGE_UPSCALE_MODEL_REGISTRY } from "../../shared/imageUpscaleModelRegistry";
 import { summarizeStudioModelKnowledgeForAgent } from "../../shared/studioModelIntelligence";
+import { summarizeModelPromptTemplates } from "../../shared/modelPromptTemplates";
 import {
   adaptAgentPlanV3ToActions,
   buildAgentPlanV3SystemPrompt,
@@ -340,6 +341,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const skeletalModelSummary = summarizeSkeletalModelRegistryForPlanner();
   const imageUpscaleModelSummary = summarizeImageUpscaleModelRegistryForPlanner();
   const studioModelKnowledgeSummary = summarizeStudioModelKnowledgeForAgent();
+  const modelPromptTemplateSummary = summarizeModelPromptTemplates();
   const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
   const quotaSummary = input.quotaSnapshot
     ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
@@ -404,6 +406,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `Image-to-image (advanced control) model registry summary:\n${imageToImageModelSummary}`,
     `Skeletal / 3D model registry summary:\n${skeletalModelSummary}`,
     `Image upscale model registry summary:\n${imageUpscaleModelSummary}`,
+    `Per-model prompt template policy（執行器會自動套用，請在挑模型時把模板特性納入考量；不要把這裡的 prefix/suffix 重複塞進 toolArgs.prompt）:\n${modelPromptTemplateSummary}`,
     `Multimodal attachments:\n${multimodalSummary}`,
     `User agent preferences:\n${preferencesSummary}`,
     quotaSummary

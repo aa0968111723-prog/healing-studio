@@ -37,6 +37,7 @@
 import { z } from "zod";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { signWebhookToken } from "../_core/webhookTokens";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
@@ -1923,8 +1924,13 @@ export const proStudioRouter = router({
         typeof insertId === "number" && insertId > 0 ? insertId : null;
 
       const siteUrl = process.env.VITE_SITE_URL?.trim();
+      const sunoWebhookToken = jobId ? signWebhookToken("suno", jobId) : null;
       const callBackUrl =
-        siteUrl && jobId ? `${siteUrl}/api/webhook/suno?jobId=${jobId}` : undefined;
+        siteUrl && jobId
+          ? `${siteUrl}/api/webhook/suno?jobId=${jobId}${
+              sunoWebhookToken ? `&token=${sunoWebhookToken}` : ""
+            }`
+          : undefined;
 
       try {
         const { taskId } = await suno.generateMusic({ ...input, callBackUrl });

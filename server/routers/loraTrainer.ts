@@ -12,6 +12,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
+import { signWebhookToken } from "../_core/webhookTokens";
 
 export const loraTrainerRouter = router({
   /**
@@ -213,8 +214,11 @@ export const loraTrainerRouter = router({
         const destination = `user-${ctx.user.id}/${slug || `lora-${modelId}`}`;
 
         const siteUrl = process.env.VITE_SITE_URL?.trim();
+        const webhookToken = signWebhookToken("replicate", modelId);
         const webhook = siteUrl
-          ? `${siteUrl}/api/webhook/replicate?modelId=${modelId}`
+          ? `${siteUrl}/api/webhook/replicate?modelId=${modelId}${
+              webhookToken ? `&token=${webhookToken}` : ""
+            }`
           : undefined;
 
         const { trainingId, status } = await startReplicateTraining({
