@@ -2084,3 +2084,71 @@ export type AgentPerformanceMetric =
   typeof agentPerformanceMetrics.$inferSelect;
 export type InsertAgentPerformanceMetric =
   typeof agentPerformanceMetrics.$inferInsert;
+
+// ─── Orb Multi-Session Conversations ───────────────────────────────────────
+// Stores user-facing chat sessions so a single user can keep several parallel
+// conversations open in tabs. The chat itself stays stateless on the server
+// (`ai.chat` doesn't read from these tables); the client persists each turn
+// here so history survives device switches and a tab list is available on
+// reload.
+
+export const orbConversations = mysqlTable(
+  "orb_conversations",
+  {
+    conversationId: varchar("conversation_id", { length: 48 }).primaryKey(),
+    userId: int("user_id").notNull(),
+    title: varchar("title", { length: 120 }).notNull(),
+    pinned: boolean("pinned").default(false).notNull(),
+    archivedAt: timestamp("archived_at"),
+    lastMessageAt: timestamp("last_message_at"),
+    messageCount: int("message_count").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userUpdatedIdx: index("orbc_user_updated_idx").on(
+      table.userId,
+      table.updatedAt
+    ),
+    userArchivedIdx: index("orbc_user_archived_idx").on(
+      table.userId,
+      table.archivedAt
+    ),
+  })
+);
+
+export type OrbConversation = typeof orbConversations.$inferSelect;
+export type InsertOrbConversation = typeof orbConversations.$inferInsert;
+
+export const orbConversationMessages = mysqlTable(
+  "orb_conversation_messages",
+  {
+    messageId: bigint("message_id", { mode: "number" })
+      .autoincrement()
+      .primaryKey(),
+    conversationId: varchar("conversation_id", { length: 48 }).notNull(),
+    userId: int("user_id").notNull(),
+    role: mysqlEnum("role", ["user", "orb"]).notNull(),
+    text: text("text").notNull(),
+    /** Client-side message timestamp (ms since epoch) — used for ordering. */
+    at: bigint("at", { mode: "number" }).notNull(),
+    /** Optional structured metadata: attachments, intent, actions, sources. */
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    convAtIdx: index("orbcm_conv_at_idx").on(
+      table.conversationId,
+      table.at
+    ),
+    userConvIdx: index("orbcm_user_conv_idx").on(
+      table.userId,
+      table.conversationId
+    ),
+  })
+);
+
+export type OrbConversationMessage =
+  typeof orbConversationMessages.$inferSelect;
+export type InsertOrbConversationMessage =
+  typeof orbConversationMessages.$inferInsert;

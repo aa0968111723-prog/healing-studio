@@ -280,6 +280,7 @@ describe("brainPipeline graph builder", () => {
       "promptLibrary", // 已可選擇納入；目前 ROUTER_TO_PROVIDERS 未列即視為豁免
       "sense", // 感測訊號，獨立子系統
       "orbCapabilities", // 純 capability registry 查詢，不觸發 AI
+      "orbConversations", // 對話分頁 CRUD，純資料持久化，不觸發 AI
     ]);
 
     const inGraph = new Set(

@@ -246,13 +246,131 @@ export interface PendingCodeTaskPreview {
   testStatusSummary?: string;
 }
 
-const STORAGE_KEY_MESSAGES = "orb-chat-messages";
-const STORAGE_KEY_TIMESTAMP = "orb-chat-timestamp";
+// Legacy keys (single-session) — kept for the one-shot migration that lifts
+// existing chat history into the first multi-session conversation. Once a user
+// has been migrated they're cleared.
+const LEGACY_STORAGE_KEY_MESSAGES = "orb-chat-messages";
+const LEGACY_STORAGE_KEY_TIMESTAMP = "orb-chat-timestamp";
+
+// Multi-session storage. Each conversation gets its own messages key so a tab
+// switch is just "save current → load target" without rewriting the whole
+// list. The list itself + the active id live in two top-level keys.
+const STORAGE_KEY_CONV_LIST = "orb-chat-conversation-list";
+const STORAGE_KEY_ACTIVE_CONV = "orb-chat-active-conversation";
+const STORAGE_KEY_MESSAGES_PREFIX = "orb-chat-messages:";
+const STORAGE_KEY_TIMESTAMP_PREFIX = "orb-chat-timestamp:";
 const STORAGE_KEY_CLARIFICATION = "orb-chat-pending-clarification";
+const STORAGE_KEY_PERSIST_WATERMARK = "orb-chat-persist-watermark";
 const MAX_STORED_MESSAGES = 100;
 const MAX_CHAT_REQUEST_MESSAGES = 18;
 const MAX_CHAT_REQUEST_CHARS = 12_000;
 const STORAGE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+const CONVERSATION_TITLE_MAX = 24;
+const DEFAULT_CONVERSATION_TITLE = "新對話";
+
+export interface ConversationSummary {
+  conversationId: string;
+  title: string;
+  pinned: boolean;
+  archivedAt: number | null;
+  lastMessageAt: number | null;
+  messageCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+function generateLocalConversationId(): string {
+  return `conv_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+}
+
+function messagesKeyFor(conversationId: string): string {
+  return `${STORAGE_KEY_MESSAGES_PREFIX}${conversationId}`;
+}
+
+function timestampKeyFor(conversationId: string): string {
+  return `${STORAGE_KEY_TIMESTAMP_PREFIX}${conversationId}`;
+}
+
+function deriveTitleFromMessages(messages: ChatMessage[]): string {
+  const firstUser = messages.find(m => m.role === "user");
+  if (!firstUser) return DEFAULT_CONVERSATION_TITLE;
+  const cleaned = firstUser.text.trim().replace(/\s+/g, " ");
+  if (!cleaned) return DEFAULT_CONVERSATION_TITLE;
+  return cleaned.slice(0, CONVERSATION_TITLE_MAX);
+}
+
+function loadConversationListFromStorage(): ConversationSummary[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CONV_LIST);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is ConversationSummary =>
+        typeof c?.conversationId === "string" &&
+        typeof c?.title === "string"
+    );
+  } catch (err) {
+    console.warn("[GlobalOrbChat] Failed to load conversation list:", err);
+    return [];
+  }
+}
+
+function saveConversationListToStorage(list: ConversationSummary[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY_CONV_LIST, JSON.stringify(list));
+  } catch (err) {
+    console.warn("[GlobalOrbChat] Failed to save conversation list:", err);
+  }
+}
+
+function loadActiveConversationIdFromStorage(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY_ACTIVE_CONV);
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveConversationIdToStorage(id: string | null) {
+  try {
+    if (id) {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_CONV, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_CONV);
+    }
+  } catch (err) {
+    console.warn("[GlobalOrbChat] Failed to save active conversation:", err);
+  }
+}
+
+function loadPersistWatermarkFromStorage(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PERSIST_WATERMARK);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, number>;
+    }
+  } catch {
+    /* fall through */
+  }
+  return {};
+}
+
+function savePersistWatermarkToStorage(map: Map<string, number>) {
+  try {
+    const obj: Record<string, number> = {};
+    map.forEach((v, k) => {
+      obj[k] = v;
+    });
+    localStorage.setItem(STORAGE_KEY_PERSIST_WATERMARK, JSON.stringify(obj));
+  } catch {
+    /* best-effort */
+  }
+}
 
 function inferUserMultimodalIntent(text: string): string {
   const q = text.toLowerCase();
@@ -333,15 +451,15 @@ function summarizeProviderPing(pingData: unknown): string {
   return offline.length ? `${summary}；離線: ${offline.join(", ")}` : summary;
 }
 
-function loadMessagesFromStorage(): ChatMessage[] {
+function loadMessagesFromStorage(conversationId: string): ChatMessage[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY_MESSAGES);
-    const timestamp = localStorage.getItem(STORAGE_KEY_TIMESTAMP);
+    const stored = localStorage.getItem(messagesKeyFor(conversationId));
+    const timestamp = localStorage.getItem(timestampKeyFor(conversationId));
     if (!stored || !timestamp) return [];
     const savedAt = parseInt(timestamp, 10);
     if (isNaN(savedAt) || Date.now() - savedAt > STORAGE_EXPIRY_MS) {
-      localStorage.removeItem(STORAGE_KEY_MESSAGES);
-      localStorage.removeItem(STORAGE_KEY_TIMESTAMP);
+      localStorage.removeItem(messagesKeyFor(conversationId));
+      localStorage.removeItem(timestampKeyFor(conversationId));
       return [];
     }
     const parsed = JSON.parse(stored);
@@ -352,23 +470,79 @@ function loadMessagesFromStorage(): ChatMessage[] {
   }
 }
 
-function saveMessagesToStorage(messages: ChatMessage[]) {
+function saveMessagesToStorage(conversationId: string, messages: ChatMessage[]) {
   try {
-    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)));
-    localStorage.setItem(STORAGE_KEY_TIMESTAMP, Date.now().toString());
+    localStorage.setItem(
+      messagesKeyFor(conversationId),
+      JSON.stringify(messages.slice(-MAX_STORED_MESSAGES))
+    );
+    localStorage.setItem(timestampKeyFor(conversationId), Date.now().toString());
   } catch (err) {
     console.warn("[GlobalOrbChat] Failed to save messages to storage:", err);
   }
 }
 
-function clearMessagesFromStorage() {
+function clearMessagesFromStorage(conversationId: string) {
   try {
-    localStorage.removeItem(STORAGE_KEY_MESSAGES);
-    localStorage.removeItem(STORAGE_KEY_TIMESTAMP);
+    localStorage.removeItem(messagesKeyFor(conversationId));
+    localStorage.removeItem(timestampKeyFor(conversationId));
     localStorage.removeItem(STORAGE_KEY_CLARIFICATION);
   } catch (err) {
     console.warn("[GlobalOrbChat] Failed to clear messages from storage:", err);
   }
+}
+
+/**
+ * One-shot migration: lift the legacy single-session `orb-chat-messages` /
+ * `orb-chat-timestamp` keys into the first multi-session conversation so
+ * users don't lose history when this feature ships. Idempotent — once the
+ * legacy keys are absent, this becomes a no-op.
+ */
+function migrateLegacyConversationIfNeeded(): {
+  list: ConversationSummary[];
+  activeId: string | null;
+} {
+  let list = loadConversationListFromStorage();
+  let activeId = loadActiveConversationIdFromStorage();
+
+  try {
+    const legacyMessages = localStorage.getItem(LEGACY_STORAGE_KEY_MESSAGES);
+    const legacyTimestamp = localStorage.getItem(LEGACY_STORAGE_KEY_TIMESTAMP);
+    if (legacyMessages) {
+      const parsed = JSON.parse(legacyMessages);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const conversationId = generateLocalConversationId();
+        const now = Date.now();
+        const savedAt = legacyTimestamp ? parseInt(legacyTimestamp, 10) : now;
+        localStorage.setItem(messagesKeyFor(conversationId), legacyMessages);
+        localStorage.setItem(
+          timestampKeyFor(conversationId),
+          (Number.isFinite(savedAt) ? savedAt : now).toString()
+        );
+        const summary: ConversationSummary = {
+          conversationId,
+          title: deriveTitleFromMessages(parsed as ChatMessage[]),
+          pinned: false,
+          archivedAt: null,
+          lastMessageAt:
+            (parsed[parsed.length - 1] as ChatMessage)?.at ?? now,
+          messageCount: parsed.length,
+          createdAt: Number.isFinite(savedAt) ? savedAt : now,
+          updatedAt: now,
+        };
+        list = [summary, ...list.filter(c => c.conversationId !== conversationId)];
+        if (!activeId) activeId = conversationId;
+        saveConversationListToStorage(list);
+        saveActiveConversationIdToStorage(activeId);
+      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY_MESSAGES);
+      localStorage.removeItem(LEGACY_STORAGE_KEY_TIMESTAMP);
+    }
+  } catch (err) {
+    console.warn("[GlobalOrbChat] Legacy migration failed:", err);
+  }
+
+  return { list, activeId };
 }
 
 function compactHistoryForRequest(history: ChatMessage[]): ChatMessage[] {
@@ -1317,6 +1491,10 @@ interface GlobalOrbChatContextValue {
   pendingClarification: PendingClarificationPrompt | null;
   /** When false, the orb delivers text replies only — no actions, no workflows. */
   orbAgentEnabled: boolean;
+  /** Multi-session: list of the user's conversation tabs, newest first. */
+  conversations: ConversationSummary[];
+  /** Id of the conversation whose messages are currently shown in `messages`. */
+  activeConversationId: string;
   setInput: (text: string) => void;
   sendMessage: (
     text: string,
@@ -1344,6 +1522,15 @@ interface GlobalOrbChatContextValue {
   ) => Promise<void>;
   /** Dismiss the clarification prompt without re-asking. */
   cancelClarification: () => void;
+  // ─── Multi-session controls (tabs) ─────────────────────────────────────
+  /** Open a brand-new empty conversation and switch to it. */
+  createConversation: (title?: string) => Promise<string>;
+  /** Save current conversation, swap state to the target one, and load it. */
+  switchConversation: (conversationId: string) => Promise<void>;
+  /** Rename a conversation (defaults to current active). */
+  renameConversation: (conversationId: string, title: string) => Promise<void>;
+  /** Hard-delete a conversation; if it was active, switch to the next one. */
+  deleteConversation: (conversationId: string) => Promise<void>;
 }
 
 /**
@@ -1397,6 +1584,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   pendingWorkflow: null,
   pendingClarification: null,
   orbAgentEnabled: ORB_AGENT_ENV_ENABLED,
+  conversations: [],
+  activeConversationId: "",
   setInput: () => {},
   sendMessage: async () => {},
   open: () => {},
@@ -1411,13 +1600,43 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   answerClarification: async () => {},
   answerMultiClarification: async () => {},
   cancelClarification: () => {},
+  createConversation: async () => "",
+  switchConversation: async () => {},
+  renameConversation: async () => {},
+  deleteConversation: async () => {},
 });
 
 export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
   const [locationPath, setLocation] = useLocation();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessagesFromStorage());
+
+  // ─── Multi-session bootstrap ──────────────────────────────────────────
+  // Migrate any legacy single-session payload into a fresh conversation, then
+  // hydrate the conversation list + active id from localStorage. If neither
+  // exists, defer creating one until the user actually arrives at /agent —
+  // the first useEffect below handles that.
+  const bootstrap = useMemo(() => migrateLegacyConversationIfNeeded(), []);
+  const [conversations, setConversations] = useState<ConversationSummary[]>(
+    () => bootstrap.list
+  );
+  const [activeConversationId, setActiveConversationId] = useState<string>(
+    () => {
+      if (bootstrap.activeId) return bootstrap.activeId;
+      if (bootstrap.list.length > 0) return bootstrap.list[0].conversationId;
+      const fresh = generateLocalConversationId();
+      saveActiveConversationIdToStorage(fresh);
+      return fresh;
+    }
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    loadMessagesFromStorage(
+      bootstrap.activeId ??
+        bootstrap.list[0]?.conversationId ??
+        loadActiveConversationIdFromStorage() ??
+        ""
+    )
+  );
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
@@ -1479,6 +1698,19 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const trpcUtils = trpc.useUtils();
   const persistClarificationPicks =
     trpc.orbProxy.persistClarificationPicks.useMutation();
+  // Multi-session backend wiring. All four are fire-and-forget — failure
+  // never blocks the UI; the client-side localStorage copy is the source of
+  // truth for the active session.
+  const createConversationServer =
+    trpc.orbConversations.create.useMutation();
+  const updateConversationServer =
+    trpc.orbConversations.update.useMutation();
+  const deleteConversationServer =
+    trpc.orbConversations.delete.useMutation();
+  const clearConversationServer =
+    trpc.orbConversations.clearMessages.useMutation();
+  const appendMessagesServer =
+    trpc.orbConversations.appendMessages.useMutation();
   const orbState = useOrbState();
   const { attachArrivalGuide } = useOrbGuide();
   const isMobile = useIsMobile();
@@ -1505,9 +1737,147 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           enabled: isAuthenticated,
     });
 
+  // ─── Server → client conversation sync ──────────────────────────────
+  // When we go from "guest" → "authenticated" (or first paint while logged
+  // in) pull the user's existing conversation list and merge it with the
+  // local one so other devices' sessions show up as tabs.
+  const conversationListQuery = trpc.orbConversations.list.useQuery(
+    undefined,
+    {
+      enabled: isAuthenticated,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    }
+  );
   useEffect(() => {
-    if (messages.length > 0) saveMessagesToStorage(messages);
-  }, [messages]);
+    const remote = conversationListQuery.data?.conversations;
+    if (!remote) return;
+    setConversations(prev => {
+      const byId = new Map<string, ConversationSummary>();
+      for (const c of prev) byId.set(c.conversationId, c);
+      for (const r of remote) {
+        const existing = byId.get(r.conversationId);
+        const merged: ConversationSummary = {
+          conversationId: r.conversationId,
+          title: r.title,
+          pinned: Boolean(r.pinned),
+          archivedAt: r.archivedAt
+            ? new Date(r.archivedAt as unknown as string).getTime()
+            : null,
+          lastMessageAt: r.lastMessageAt
+            ? new Date(r.lastMessageAt as unknown as string).getTime()
+            : existing?.lastMessageAt ?? null,
+          messageCount: r.messageCount ?? existing?.messageCount ?? 0,
+          createdAt: r.createdAt
+            ? new Date(r.createdAt as unknown as string).getTime()
+            : existing?.createdAt ?? Date.now(),
+          updatedAt: r.updatedAt
+            ? new Date(r.updatedAt as unknown as string).getTime()
+            : existing?.updatedAt ?? Date.now(),
+        };
+        byId.set(r.conversationId, merged);
+      }
+      const merged = Array.from(byId.values()).sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+      return merged;
+    });
+  }, [conversationListQuery.data]);
+
+  useEffect(() => {
+    if (messages.length > 0)
+      saveMessagesToStorage(activeConversationId, messages);
+  }, [messages, activeConversationId]);
+
+  // ─── Persist conversation list + active id whenever they change ────────
+  useEffect(() => {
+    saveConversationListToStorage(conversations);
+  }, [conversations]);
+
+  useEffect(() => {
+    saveActiveConversationIdToStorage(activeConversationId);
+  }, [activeConversationId]);
+
+  // ─── Push new turns to the server ──────────────────────────────────────
+  // The watermark map (conversationId → newest persisted `at`) is the guard
+  // that stops the same message getting POSTed twice when React re-renders
+  // or the user switches tabs back. It's persisted to localStorage so a
+  // page reload doesn't reset everything to zero and re-push history.
+  const lastPersistedAtRef = useRef<Map<string, number>>(
+    new Map(Object.entries(loadPersistWatermarkFromStorage()))
+  );
+  useEffect(() => {
+    if (!isAuthenticated || !activeConversationId || messages.length === 0)
+      return;
+    const lastAt = lastPersistedAtRef.current.get(activeConversationId) ?? 0;
+    const fresh = messages.filter(m => m.at > lastAt);
+    if (fresh.length === 0) return;
+    const payload = fresh.slice(-20).map(m => ({
+      role: m.role,
+      text: m.text,
+      at: m.at,
+      metadata: {
+        ...(m.intent ? { intent: m.intent } : {}),
+        ...(m.pagePath ? { pagePath: m.pagePath } : {}),
+        ...(m.attachments ? { attachments: m.attachments } : {}),
+        ...(m.actions ? { actions: m.actions } : {}),
+        ...(m.webSources ? { webSources: m.webSources } : {}),
+      },
+    }));
+    appendMessagesServer.mutate(
+      { conversationId: activeConversationId, messages: payload },
+      {
+        onSuccess: () => {
+          const newest = fresh[fresh.length - 1].at;
+          lastPersistedAtRef.current.set(activeConversationId, newest);
+          savePersistWatermarkToStorage(lastPersistedAtRef.current);
+        },
+        onError: () => {
+          // Stay quiet — local copy is fine, retry on next message
+        },
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, activeConversationId, isAuthenticated]);
+
+  // Keep the active conversation's summary up to date (last message time +
+  // count) so the tab list reflects activity without an extra round-trip.
+  useEffect(() => {
+    if (!activeConversationId || messages.length === 0) return;
+    setConversations(prev => {
+      const idx = prev.findIndex(
+        c => c.conversationId === activeConversationId
+      );
+      const lastAt = messages[messages.length - 1]?.at ?? Date.now();
+      const next: ConversationSummary = idx >= 0
+        ? {
+            ...prev[idx],
+            messageCount: messages.length,
+            lastMessageAt: lastAt,
+            updatedAt: Date.now(),
+            // Auto-fill placeholder titles once we have a user turn
+            title:
+              prev[idx].title === DEFAULT_CONVERSATION_TITLE
+                ? deriveTitleFromMessages(messages)
+                : prev[idx].title,
+          }
+        : {
+            conversationId: activeConversationId,
+            title: deriveTitleFromMessages(messages),
+            pinned: false,
+            archivedAt: null,
+            lastMessageAt: lastAt,
+            messageCount: messages.length,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+      const others = prev.filter(
+        c => c.conversationId !== activeConversationId
+      );
+      return [next, ...others];
+    });
+  }, [messages, activeConversationId]);
 
   // Persist the open clarification so it survives a reload — otherwise the
   // user loses context if they refresh while waiting to disambiguate.
@@ -2845,8 +3215,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setPendingWorkflow(null);
     setPendingClarification(null);
     clarificationRoundsRef.current = 0;
-    clearMessagesFromStorage();
-  }, [setPendingClarification]);
+    clearMessagesFromStorage(activeConversationId);
+    if (isAuthenticated) {
+      clearConversationServer.mutate(
+        { conversationId: activeConversationId },
+        { onError: () => {} }
+      );
+    }
+  }, [activeConversationId, isAuthenticated, setPendingClarification]);
   const resetConversation = useCallback(() => {
     sendRequestIdRef.current += 1;
     const welcome: ChatMessage = { role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath };
@@ -2855,8 +3231,270 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setPendingWorkflow(null);
     setPendingClarification(null);
     clarificationRoundsRef.current = 0;
-    saveMessagesToStorage([welcome]);
-  }, [welcomeMessage, locationPath, setPendingClarification]);
+    saveMessagesToStorage(activeConversationId, [welcome]);
+    if (isAuthenticated) {
+      clearConversationServer.mutate(
+        { conversationId: activeConversationId },
+        { onError: () => {} }
+      );
+    }
+  }, [
+    welcomeMessage,
+    locationPath,
+    activeConversationId,
+    isAuthenticated,
+    setPendingClarification,
+  ]);
+
+  // ─── Multi-session controls ────────────────────────────────────────────
+  const buildLocalSummary = useCallback(
+    (conversationId: string, title?: string): ConversationSummary => ({
+      conversationId,
+      title: title?.trim() || DEFAULT_CONVERSATION_TITLE,
+      pinned: false,
+      archivedAt: null,
+      lastMessageAt: null,
+      messageCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }),
+    []
+  );
+
+  const createConversation = useCallback(
+    async (title?: string): Promise<string> => {
+      // Optimistic local create — server creation runs in the background so
+      // the new tab is interactive immediately. If the server call fails we
+      // keep the local row; the next backend sync will reconcile.
+      const localId = generateLocalConversationId();
+      const summary = buildLocalSummary(localId, title);
+
+      // Save current conversation's state before swapping
+      saveMessagesToStorage(activeConversationId, messagesRef.current);
+
+      sendRequestIdRef.current += 1;
+      setConversations(prev => [
+        summary,
+        ...prev.filter(c => c.conversationId !== localId),
+      ]);
+      setActiveConversationId(localId);
+      const seed: ChatMessage = {
+        role: "orb",
+        text: welcomeMessage,
+        at: Date.now(),
+        pagePath: locationPath,
+      };
+      setMessages([seed]);
+      setSuggestions([]);
+      setPendingWorkflow(null);
+      setPendingClarification(null);
+      clarificationRoundsRef.current = 0;
+
+      if (isAuthenticated) {
+        try {
+          const result = await createConversationServer.mutateAsync({
+            title: summary.title,
+          });
+          const serverId = result?.conversation?.conversationId;
+          if (serverId && serverId !== localId) {
+            // Server picked a different id — rename the local entry so future
+            // appends land in the right row. Migrate the empty messages key.
+            const stored = localStorage.getItem(messagesKeyFor(localId));
+            if (stored) {
+              localStorage.setItem(messagesKeyFor(serverId), stored);
+              localStorage.removeItem(messagesKeyFor(localId));
+            }
+            setConversations(prev =>
+              prev.map(c =>
+                c.conversationId === localId
+                  ? { ...c, conversationId: serverId }
+                  : c
+              )
+            );
+            setActiveConversationId(prev =>
+              prev === localId ? serverId : prev
+            );
+            return serverId;
+          }
+        } catch (err) {
+          console.warn("[GlobalOrbChat] Server create failed:", err);
+        }
+      }
+      return localId;
+    },
+    [
+      activeConversationId,
+      buildLocalSummary,
+      isAuthenticated,
+      setPendingClarification,
+      welcomeMessage,
+      locationPath,
+    ]
+  );
+
+  const switchConversation = useCallback(
+    async (conversationId: string) => {
+      if (conversationId === activeConversationId) return;
+      // Persist the outgoing conversation's state, then load the target's
+      saveMessagesToStorage(activeConversationId, messagesRef.current);
+
+      sendRequestIdRef.current += 1;
+      setActiveConversationId(conversationId);
+      const loaded = loadMessagesFromStorage(conversationId);
+      if (loaded.length > 0) {
+        setMessages(loaded);
+      } else {
+        // New / freshly-cleared tab — seed the welcome message just like
+        // first-load so the user isn't staring at an empty pane.
+        setMessages([
+          {
+            role: "orb",
+            text: welcomeMessage,
+            at: Date.now(),
+            pagePath: locationPath,
+          },
+        ]);
+      }
+      setSuggestions([]);
+      setPendingWorkflow(null);
+      setPendingClarification(null);
+      clarificationRoundsRef.current = 0;
+
+      // Background pull from server so any messages added on another device
+      // surface here. Quietly ignored when offline / unauthenticated.
+      if (isAuthenticated) {
+        try {
+          const remote = await trpcUtils.orbConversations.getMessages.fetch({
+            conversationId,
+          });
+          if (remote?.messages?.length) {
+            const remoteMessages: ChatMessage[] = remote.messages.map(m => ({
+              role: m.role as ChatRole,
+              text: m.text,
+              at: Number(m.at),
+              ...((m.metadata ?? {}) as Partial<ChatMessage>),
+            }));
+            // Treat the freshest server message as already-persisted so the
+            // append effect doesn't bounce them straight back as duplicates.
+            const newest = Math.max(...remoteMessages.map(m => m.at));
+            const prevWatermark =
+              lastPersistedAtRef.current.get(conversationId) ?? 0;
+            if (newest > prevWatermark) {
+              lastPersistedAtRef.current.set(conversationId, newest);
+              savePersistWatermarkToStorage(lastPersistedAtRef.current);
+            }
+            setMessages(prev => {
+              // Merge by `at` so we don't double-show a message the local
+              // store already has (e.g. user just sent it on this device).
+              const seen = new Set(prev.map(p => p.at));
+              const merged = [
+                ...prev,
+                ...remoteMessages.filter(r => !seen.has(r.at)),
+              ];
+              merged.sort((a, b) => a.at - b.at);
+              return merged;
+            });
+          }
+        } catch (err) {
+          console.warn("[GlobalOrbChat] getMessages failed:", err);
+        }
+      }
+    },
+    [
+      activeConversationId,
+      isAuthenticated,
+      setPendingClarification,
+      trpcUtils,
+      welcomeMessage,
+      locationPath,
+    ]
+  );
+
+  const renameConversation = useCallback(
+    async (conversationId: string, title: string) => {
+      const cleaned = title.trim().slice(0, 120) || DEFAULT_CONVERSATION_TITLE;
+      setConversations(prev =>
+        prev.map(c =>
+          c.conversationId === conversationId
+            ? { ...c, title: cleaned, updatedAt: Date.now() }
+            : c
+        )
+      );
+      if (isAuthenticated) {
+        try {
+          await updateConversationServer.mutateAsync({
+            conversationId,
+            title: cleaned,
+          });
+        } catch (err) {
+          console.warn("[GlobalOrbChat] rename failed:", err);
+        }
+      }
+    },
+    [isAuthenticated]
+  );
+
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      // Drop server-side first so a successful tab close doesn't leave a
+      // ghost row. We tolerate 404s — the local list is the source of truth
+      // for the optimistic UX.
+      if (isAuthenticated) {
+        try {
+          await deleteConversationServer.mutateAsync({ conversationId });
+        } catch (err) {
+          console.warn("[GlobalOrbChat] delete failed:", err);
+        }
+      }
+      try {
+        localStorage.removeItem(messagesKeyFor(conversationId));
+        localStorage.removeItem(timestampKeyFor(conversationId));
+      } catch {
+        /* noop */
+      }
+      if (lastPersistedAtRef.current.delete(conversationId)) {
+        savePersistWatermarkToStorage(lastPersistedAtRef.current);
+      }
+      const remaining = conversations.filter(
+        c => c.conversationId !== conversationId
+      );
+      setConversations(remaining);
+      if (conversationId === activeConversationId) {
+        sendRequestIdRef.current += 1;
+        const seed: ChatMessage = {
+          role: "orb",
+          text: welcomeMessage,
+          at: Date.now(),
+          pagePath: locationPath,
+        };
+        if (remaining.length > 0) {
+          const next = remaining[0].conversationId;
+          setActiveConversationId(next);
+          const loaded = loadMessagesFromStorage(next);
+          setMessages(loaded.length > 0 ? loaded : [seed]);
+        } else {
+          // No tabs left — open a fresh one so the chat doesn't get stuck
+          const fresh = generateLocalConversationId();
+          setConversations([buildLocalSummary(fresh)]);
+          setActiveConversationId(fresh);
+          setMessages([seed]);
+        }
+        setSuggestions([]);
+        setPendingWorkflow(null);
+        setPendingClarification(null);
+        clarificationRoundsRef.current = 0;
+      }
+    },
+    [
+      activeConversationId,
+      buildLocalSummary,
+      conversations,
+      isAuthenticated,
+      setPendingClarification,
+      welcomeMessage,
+      locationPath,
+    ]
+  );
 
   const userOrbAgentOverride = (agentPreferencesQuery.data as { orbAgentEnabled?: boolean | null } | undefined)?.orbAgentEnabled ?? null;
   const orbAgentEnabledResolved = resolveOrbAgentEnabled(userOrbAgentOverride);
@@ -2871,6 +3509,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     pendingWorkflow,
     pendingClarification,
     orbAgentEnabled: orbAgentEnabledResolved,
+    conversations,
+    activeConversationId,
     setInput,
     sendMessage,
     open,
@@ -2885,7 +3525,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     answerClarification,
     answerMultiClarification,
     cancelClarification,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification]);
+    createConversation,
+    switchConversation,
+    renameConversation,
+    deleteConversation,
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, createConversation, switchConversation, renameConversation, deleteConversation]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
