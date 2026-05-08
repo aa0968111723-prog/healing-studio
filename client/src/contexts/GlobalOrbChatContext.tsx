@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
 import OrbFeatureSpotlight from "@/components/orb/OrbFeatureSpotlight";
@@ -2586,14 +2587,48 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
   const approveCodeTask = useCallback(async () => {
     if (!pendingCodeTask) return;
-    await codeTaskApprove.mutateAsync({ codeTaskId: pendingCodeTask.codeTaskId });
-    setMessages(prev => [...prev, { role: "orb", text: `已確認程式任務，交由 ${pendingCodeTask.provider} 執行。`, at: Date.now(), pagePath: locationPath }]);
+    const task = pendingCodeTask;
+    try {
+      await codeTaskApprove.mutateAsync({ codeTaskId: task.codeTaskId });
+    } catch (err) {
+      // Without this catch the rejection silently propagates: the orb
+      // confirmation message is never appended and `pendingCodeTask`
+      // stays pinned, so the user is stuck staring at the preview card
+      // with no idea their click failed.
+      const reason = err instanceof Error ? err.message : String(err);
+      toast.error(`確認程式任務失敗：${reason.slice(0, 120)}`);
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: `⚠️ 沒辦法確認這個程式任務：${reason.slice(0, 200)}`,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+      return;
+    }
+    setMessages(prev => [...prev, { role: "orb", text: `已確認程式任務，交由 ${task.provider} 執行。`, at: Date.now(), pagePath: locationPath }]);
     setPendingCodeTask(null);
   }, [pendingCodeTask, codeTaskApprove, locationPath]);
 
   const cancelCodeTaskPreview = useCallback(async () => {
     if (!pendingCodeTask) return;
-    await codeTaskCancel.mutateAsync({ codeTaskId: pendingCodeTask.codeTaskId, reason: "cancelled by user" });
+    const task = pendingCodeTask;
+    try {
+      await codeTaskCancel.mutateAsync({ codeTaskId: task.codeTaskId, reason: "cancelled by user" });
+    } catch (err) {
+      // Cancellation that fails server-side leaves the task running but
+      // the UI thinks it's gone. Surface the error so the user can retry
+      // (or escalate); leave the preview card pinned so they have a
+      // re-cancel target.
+      const reason = err instanceof Error ? err.message : String(err);
+      toast.error(`取消程式任務失敗：${reason.slice(0, 120)}`);
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: `⚠️ 沒辦法取消這個程式任務：${reason.slice(0, 200)}。再點一次試試，或先讓它跑完。`,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+      return;
+    }
     setMessages(prev => [...prev, { role: "orb", text: "已取消程式任務，不會執行任何 code write 動作。", at: Date.now(), pagePath: locationPath }]);
     setPendingCodeTask(null);
   }, [pendingCodeTask, codeTaskCancel, locationPath]);

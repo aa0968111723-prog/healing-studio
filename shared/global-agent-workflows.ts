@@ -924,8 +924,13 @@ const BUILD_KEYWORDS = [
   "generate",
 ];
 
+// `\b` is anchored on ASCII word boundaries, so after a CJK unit
+// (秒/分/小時) it never fires — `30 秒影片` parsed as no-length and
+// gated out the length-aware planner. Drop `\b` for the CJK branch
+// and keep it for the ASCII branch where it still does work. Mirrors
+// the same fix in `shared/orb-clarification-options.ts`.
 const LENGTH_HINT_RE =
-  /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻/i;
+  /\d+\s*(?:秒|分鐘?|小時)|\d+\s*(?:second|minute|hour|min|sec|mins|secs)\b|\d+s\b|短片|長片|長影片|長視頻/i;
 const LONG_HINT_RE = /長片|長影片|長視頻|長.{0,4}的?(影片|video)/i;
 const SHORT_HINT_RE = /短片|reel|30\s*秒|15\s*秒|\b(short|teaser)\b/i;
 const SUBJECT_HINT_RE = /[:：]|主題|題目|關於|介紹|品牌|產品|內容是|story|theme|brand|product/i;

@@ -68,6 +68,20 @@ import {
   rankFineTuneModelsByPrompt,
   pickBestFineTuneModel,
 } from "./fineTuneModelRegistry";
+import {
+  V2V_MODEL_REGISTRY,
+  type V2VModelProfile,
+  type V2VModelMatch,
+  rankV2VModelsByPrompt,
+  pickBestV2VModel,
+} from "./v2vModelRegistry";
+import {
+  IMAGE_TO_IMAGE_MODEL_REGISTRY,
+  type ImageToImageModelProfile,
+  type ImageToImageModelMatch,
+  rankImageToImageModelsByPrompt,
+  pickBestImageToImageModel,
+} from "./imageToImageModelRegistry";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 類型定義 (Type Definitions)
@@ -79,9 +93,11 @@ import {
 export type ModelDomain =
   | "image-upscale"      // 影像畫質優化/放大
   | "text-to-image"      // 文字生成影像
+  | "image-to-image"     // 圖生圖（ControlNet / 姿勢 / 邊緣 / 風格遷移）
   | "image-to-3d"        // 影像生成 3D 模型
   | "image-to-world"     // 影像生成 3D 世界場景
   | "image-to-video"     // 圖片生成影片（Director AI 常用）
+  | "video-to-video"     // 影片轉影片（風格化、畫質提升、插幀）
   | "audio-music"        // 音樂/音效生成
   | "voice-tts"          // 語音合成
   | "fine-tune-training";// 模型微調/LoRA 訓練
@@ -219,14 +235,44 @@ function normalizeFineTuneModel(model: FineTuneModelProfile): UnifiedModelProfil
   };
 }
 
+function normalizeV2VModel(model: V2VModelProfile): UnifiedModelProfile {
+  return {
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    domain: "video-to-video",
+    category: model.tier,
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  };
+}
+
+function normalizeImageToImageModel(
+  model: ImageToImageModelProfile
+): UnifiedModelProfile {
+  return {
+    modelId: model.modelId,
+    label: model.label,
+    provider: model.provider,
+    domain: "image-to-image",
+    category: model.category,
+    strengths: model.strengths,
+    avoidWhen: model.avoidWhen,
+    promptKeywords: model.promptKeywords,
+  };
+}
+
 /**
  * 統一模型資料庫 - 所有模型的完整清單
  */
 export const UNIFIED_MODEL_REGISTRY: readonly UnifiedModelProfile[] = [
   ...IMAGE_UPSCALE_MODEL_REGISTRY.map(normalizeImageUpscaleModel),
   ...TEXT_TO_IMAGE_MODEL_REGISTRY.map(normalizeTextToImageModel),
+  ...IMAGE_TO_IMAGE_MODEL_REGISTRY.map(normalizeImageToImageModel),
   ...SKELETAL_MODEL_REGISTRY.map(normalizeSkeletalModel),
   ...IMAGE_TO_VIDEO_MODEL_REGISTRY.map(normalizeImageToVideoModel),
+  ...V2V_MODEL_REGISTRY.map(normalizeV2VModel),
   ...AUDIO_MODEL_REGISTRY.map(normalizeAudioModel),
   ...VOICE_MODEL_REGISTRY.map(normalizeVoiceModel),
   ...FINE_TUNE_MODEL_REGISTRY.map(normalizeFineTuneModel),
@@ -292,6 +338,20 @@ export function queryModelsByPrompt(
     );
   }
 
+  // 查詢圖生圖 / 進階控制模型（ControlNet / 姿勢 / 邊緣 / 風格遷移）
+  if (!domains || domains.includes("image-to-image")) {
+    const matches = rankImageToImageModelsByPrompt(prompt);
+    results.push(
+      ...matches.map(m => ({
+        modelId: m.modelId,
+        domain: "image-to-image" as ModelDomain,
+        score: m.score,
+        matchedKeywords: m.matchedKeywords,
+        rationale: m.rationale,
+      }))
+    );
+  }
+
   // 查詢 3D 模型（包含 image-to-3d 和 image-to-world）
   if (!domains || domains.includes("image-to-3d") || domains.includes("image-to-world")) {
     const matches = rankSkeletalModelsByPrompt(prompt);
@@ -309,13 +369,27 @@ export function queryModelsByPrompt(
     );
   }
 
-  // 查詢音樂/音效模型
+  // 查詢圖生影片模型
   if (!domains || domains.includes("image-to-video")) {
     const matches = rankImageToVideoModelsByPrompt(prompt);
     results.push(
       ...matches.map(m => ({
         modelId: m.modelId,
         domain: "image-to-video" as ModelDomain,
+        score: m.score,
+        matchedKeywords: m.matchedKeywords,
+        rationale: m.rationale,
+      }))
+    );
+  }
+
+  // 查詢影片轉影片模型（風格化、畫質提升、插幀）
+  if (!domains || domains.includes("video-to-video")) {
+    const matches = rankV2VModelsByPrompt(prompt);
+    results.push(
+      ...matches.map(m => ({
+        modelId: m.modelId,
+        domain: "video-to-video" as ModelDomain,
         score: m.score,
         matchedKeywords: m.matchedKeywords,
         rationale: m.rationale,
@@ -408,6 +482,16 @@ export function pickBestModelForDomain(
         rationale: match.rationale,
       };
     }
+    case "image-to-image": {
+      const match = pickBestImageToImageModel(prompt);
+      return {
+        modelId: match.modelId,
+        domain,
+        score: match.score,
+        matchedKeywords: match.matchedKeywords,
+        rationale: match.rationale,
+      };
+    }
     case "image-to-3d":
     case "image-to-world": {
       const match = pickBestSkeletalModel(prompt);
@@ -415,6 +499,16 @@ export function pickBestModelForDomain(
       return {
         modelId: match.modelId,
         domain: model?.category === "image-to-world" ? "image-to-world" : "image-to-3d",
+        score: match.score,
+        matchedKeywords: match.matchedKeywords,
+        rationale: match.rationale,
+      };
+    }
+    case "video-to-video": {
+      const match = pickBestV2VModel(prompt);
+      return {
+        modelId: match.modelId,
+        domain,
         score: match.score,
         matchedKeywords: match.matchedKeywords,
         rationale: match.rationale,
@@ -484,6 +578,16 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
     domains.push("text-to-image");
   }
 
+  // 圖生圖 / 進階控制（ControlNet、姿勢、邊緣、風格遷移）
+  const imageToImageKeywords = [
+    "controlnet", "control net", "pose", "姿勢", "skeleton", "骨架",
+    "edge", "邊緣", "depth", "深度", "ip-adapter", "ip adapter",
+    "圖生圖", "img2img", "image to image", "i2i", "風格遷移", "style transfer",
+  ];
+  if (imageToImageKeywords.some(kw => normalized.includes(kw))) {
+    domains.push("image-to-image");
+  }
+
   // 3D 模型相關關鍵字
   const image3DKeywords = ["3d", "model", "模型", "mesh", "object", "物件"];
   if (image3DKeywords.some(kw => normalized.includes(kw))) {
@@ -496,10 +600,21 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
     domains.push("image-to-world");
   }
 
-  // 音樂/音效相關關鍵字
+  // 圖生影片相關關鍵字
   const imageToVideoKeywords = ["image to video", "i2v", "animate", "motion", "camera move", "影片", "短片", "運鏡", "轉影片"];
   if (imageToVideoKeywords.some(kw => normalized.includes(kw))) {
     domains.push("image-to-video");
+  }
+
+  // 影片轉影片相關關鍵字（風格化、畫質提升、插幀）
+  const videoToVideoKeywords = [
+    "video to video", "v2v", "風格化", "重繪", "影片風格",
+    "video upscale", "影片放大", "畫質提升",
+    "frame interpolation", "插幀", "慢動作", "slow motion",
+    "kling v2v", "wan v2v", "topaz video",
+  ];
+  if (videoToVideoKeywords.some(kw => normalized.includes(kw))) {
+    domains.push("video-to-video");
   }
 
   // 音樂/音效相關關鍵字
@@ -520,7 +635,7 @@ export function inferDomainFromPrompt(prompt: string): ModelDomain[] {
   }
 
   // 如果沒有匹配到任何關鍵字，返回所有領域
-  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "image-to-video", "audio-music", "voice-tts", "fine-tune-training"];
+  return domains.length > 0 ? domains : ["image-upscale", "text-to-image", "image-to-image", "image-to-3d", "image-to-world", "image-to-video", "video-to-video", "audio-music", "voice-tts", "fine-tune-training"];
 }
 
 /**
@@ -582,13 +697,15 @@ export function getModelRegistryStats() {
     byDomain: {
       "image-upscale": 0,
       "text-to-image": 0,
+      "image-to-image": 0,
       "image-to-3d": 0,
       "image-to-world": 0,
       "image-to-video": 0,
+      "video-to-video": 0,
       "audio-music": 0,
       "voice-tts": 0,
       "fine-tune-training": 0,
-    },
+    } satisfies Record<ModelDomain, number>,
     byProvider: {} as Record<string, number>,
   };
 

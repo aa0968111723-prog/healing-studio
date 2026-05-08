@@ -257,11 +257,21 @@ export default function AgentChat() {
         return { ok: true, message: "navigated" };
       }
       if (action.type === "search") {
-        // 在聊天頁搜尋：用搜尋關鍵字自動送出一次 chat
-        try {
-          void sendRef.current?.(`搜尋：${action.query}`);
-        } catch {
-          console.warn("[AgentChat] search dispatch failed for:", action.query);
+        // 在聊天頁搜尋：用搜尋關鍵字自動送出一次 chat。
+        // sendRef.current 回傳的是 Promise — 同步 try/catch 抓不到非同步
+        // rejection，會默默吞掉錯誤讓使用者按了沒反應。改用 .catch()
+        // 把失敗 surface 出來。
+        const promise = sendRef.current?.(`搜尋：${action.query}`);
+        if (promise) {
+          promise.catch(err => {
+            const reason = err instanceof Error ? err.message : String(err);
+            console.warn(
+              "[AgentChat] search dispatch failed for:",
+              action.query,
+              reason
+            );
+            toast.error(`搜尋送出失敗：${reason.slice(0, 120)}`);
+          });
         }
         return { ok: true, message: "searching" };
       }
