@@ -13,6 +13,7 @@
 import { useMemo, useEffect, useState, lazy, Suspense, memo } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { OrbCustomColors } from "./VisualSoul3D";
+import OrbErrorBoundary from "./OrbErrorBoundary";
 
 // ─── Helper: parse "r,g,b" cute color string to 0-1 normalized tuple ────────
 
@@ -888,7 +889,7 @@ export default memo(function VisualSoul({
   if (size === "sm") {
     if (!cuteMode && state === "thinking") {
       return (
-        <Suspense
+        <OrbErrorBoundary
           fallback={
             <CSSOrb
               state={state}
@@ -899,13 +900,25 @@ export default memo(function VisualSoul({
             />
           }
         >
-          <VisualSoul3D
-            state={state}
-            personality={personality}
-            size={size}
-            className={className}
-          />
-        </Suspense>
+          <Suspense
+            fallback={
+              <CSSOrb
+                state={state}
+                personality={personality}
+                size={size}
+                className={className}
+                cuteMode={cuteMode}
+              />
+            }
+          >
+            <VisualSoul3D
+              state={state}
+              personality={personality}
+              size={size}
+              className={className}
+            />
+          </Suspense>
+        </OrbErrorBoundary>
       );
     }
 
@@ -939,7 +952,7 @@ export default memo(function VisualSoul({
         {/* Soft ground halo behind everything */}
         <CuteGroundHalo state={state} size={size} />
 
-        <Suspense
+        <OrbErrorBoundary
           fallback={
             <CSSOrb
               state={state}
@@ -949,13 +962,24 @@ export default memo(function VisualSoul({
             />
           }
         >
-          <VisualSoul3D
-            state={state}
-            personality={personality}
-            size={size}
-            customColors={customColors}
-          />
-        </Suspense>
+          <Suspense
+            fallback={
+              <CSSOrb
+                state={state}
+                personality={personality}
+                size={size}
+                cuteMode={cuteMode}
+              />
+            }
+          >
+            <VisualSoul3D
+              state={state}
+              personality={personality}
+              size={size}
+              customColors={customColors}
+            />
+          </Suspense>
+        </OrbErrorBoundary>
 
         {/* Glossy top-rim highlight + pin-point specular */}
         <div
@@ -999,7 +1023,7 @@ export default memo(function VisualSoul({
   }
 
   return (
-    <Suspense
+    <OrbErrorBoundary
       fallback={
         <CSSOrb
           state={state}
@@ -1010,12 +1034,24 @@ export default memo(function VisualSoul({
         />
       }
     >
-      <VisualSoul3D
-        state={state}
-        personality={personality}
-        size={size}
-        className={className}
-      />
-    </Suspense>
+      <Suspense
+        fallback={
+          <CSSOrb
+            state={state}
+            personality={personality}
+            size={size}
+            className={className}
+            cuteMode={cuteMode}
+          />
+        }
+      >
+        <VisualSoul3D
+          state={state}
+          personality={personality}
+          size={size}
+          className={className}
+        />
+      </Suspense>
+    </OrbErrorBoundary>
   );
 });
