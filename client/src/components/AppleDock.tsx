@@ -400,7 +400,6 @@ function AppleDock({
   onLogout,
   onRestartTour,
   position,
-  onCyclePosition,
   onSetPosition,
   minimized,
   onToggleMinimized,
@@ -478,15 +477,24 @@ function AppleDock({
     };
   }, [immersive, revealed]);
 
-  // ── In immersive mode, ESC retracts the dock if it was peeked open ─────
+  // ── ESC behaviour in immersive mode:
+  //    1) If the dock is currently peeked → retract it.
+  //    2) Otherwise → exit immersive mode entirely.
+  //    Pairs with the floating "退出沉浸" button below so users always have a
+  //    discoverable way out (mouse + keyboard). ─────────────────────────────
   React.useEffect(() => {
-    if (!immersive || !revealed) return;
+    if (!immersive) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setRevealed(false);
+      if (e.key !== "Escape") return;
+      if (revealed) {
+        setRevealed(false);
+      } else {
+        onToggleImmersive();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [immersive, revealed]);
+  }, [immersive, revealed, onToggleImmersive]);
 
   if (minimized) {
     return (
@@ -529,32 +537,6 @@ function AppleDock({
     window.dispatchEvent(new CustomEvent("open-command-palette"));
   }, []);
 
-  // Cycle through left → top → right → bottom → left
-  const NextPositionIcon = (() => {
-    switch (position) {
-      case "left":
-        return ArrowUp;
-      case "top":
-        return ArrowRight;
-      case "right":
-        return ArrowDown;
-      case "bottom":
-        return ArrowLeft;
-    }
-  })();
-  const nextPositionLabel = (() => {
-    switch (position) {
-      case "left":
-        return "移到上方";
-      case "top":
-        return "移到右側";
-      case "right":
-        return "移到下方";
-      case "bottom":
-        return "移到左側";
-    }
-  })();
-
   // In immersive mode the nav is hidden but reveals on hover/focus
   const immersiveHidden = immersive && !revealed;
 
@@ -575,6 +557,23 @@ function AppleDock({
           onTouchStart={() => setRevealed(true)}
         >
           <span aria-hidden="true" className="apple-dock-peek-pip" />
+        </button>
+      )}
+
+      {/* ── Persistent exit-immersive pill: top-right corner so it never
+            overlaps the centered peek strip on any dock side. Always visible
+            while immersive is on (whether peek is open or not), giving users
+            a one-click way out alongside the ESC shortcut. ──────────────── */}
+      {immersive && (
+        <button
+          type="button"
+          onClick={onToggleImmersive}
+          className="apple-dock-immersive-exit"
+          aria-label="退出沉浸模式"
+        >
+          <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+          <span>退出沉浸</span>
+          <kbd aria-hidden="true">ESC</kbd>
         </button>
       )}
 
@@ -599,83 +598,11 @@ function AppleDock({
           immersiveHidden && "apple-dock-immersive-hidden"
         )}
       >
-      {/* ── Compact controls header: minimize · position · immersive.
-            Always a small horizontal triplet — keeps the dock thin even
-            when the dock itself is laid out horizontally. ─────────────── */}
-      <div className="apple-dock-controls flex flex-row items-center justify-center gap-1">
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label="最小化導覽列"
-              onClick={onToggleMinimized}
-              className="apple-dock-control"
-            >
-              <Minus className="h-3.5 w-3.5" strokeWidth={2.2} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent
-            side={tooltipSide}
-            sideOffset={12}
-            className="apple-dock-tooltip"
-          >
-            最小化導覽列
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={nextPositionLabel}
-              onClick={onCyclePosition}
-              className="apple-dock-control"
-            >
-              <NextPositionIcon className="h-3.5 w-3.5" strokeWidth={2} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent
-            side={tooltipSide}
-            sideOffset={12}
-            className="apple-dock-tooltip"
-          >
-            {nextPositionLabel}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={immersive ? "退出沉浸模式" : "進入沉浸模式"}
-              onClick={onToggleImmersive}
-              data-active={immersive ? "true" : "false"}
-              className="apple-dock-control"
-            >
-              {immersive ? (
-                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-              ) : (
-                <EyeOff className="h-3.5 w-3.5" strokeWidth={2} />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent
-            side={tooltipSide}
-            sideOffset={12}
-            className="apple-dock-tooltip"
-          >
-            {immersive ? "退出沉浸模式（顯示導覽）" : "沉浸模式（自動隱藏導覽）"}
-          </TooltipContent>
-        </Tooltip>
-      </div>
-
-      <div
-        className={cn(
-          "apple-dock-divider self-center",
-          isHorizontal ? "apple-dock-divider-vertical" : "w-9 -mt-0.5 mb-0.5"
-        )}
-        aria-hidden="true"
-      />
-
-      {/* ── Top cluster: navigation entries ── */}
+      {/* ── Top cluster: navigation entries ──
+            (Window-control triplet — minimize / position / immersive — was
+            removed from the dock header. All three actions live in the
+            avatar dropdown menu below; the persistent floating exit button
+            covers immersive mode for one-click discoverability.) */}
       <div
         className={cn(
           "flex items-center gap-1.5",

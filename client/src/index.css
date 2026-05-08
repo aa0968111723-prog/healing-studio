@@ -550,6 +550,107 @@
     max-width: calc(100vw - 1.5rem);
   }
 
+  /* Floating "exit immersive" pill — pinned to the top-right corner so it
+     never overlaps the centered peek strip on any of the four dock sides.
+     Stays visible the entire time immersive mode is on, giving users a
+     discoverable one-click way out (paired with the ESC keyboard shortcut). */
+  .apple-dock-immersive-exit {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    z-index: 32;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 6px 9px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: oklch(0.32 0.04 300);
+    background: oklch(1 0 0 / 0.72);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid oklch(1 0 0 / 0.4);
+    box-shadow:
+      0 4px 14px oklch(0 0 0 / 0.14),
+      0 0 0 1px oklch(0.4 0.02 300 / 0.06),
+      inset 0 1px 0 oklch(1 0 0 / 0.5);
+    cursor: pointer;
+    outline: none;
+    opacity: 0.78;
+    transition:
+      opacity 0.25s var(--ease-healing-out),
+      transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.25s var(--ease-healing-out);
+    animation: apple-dock-peek-fade-in 0.35s var(--ease-healing-out) backwards;
+  }
+  .apple-dock-immersive-exit:hover {
+    opacity: 1;
+    transform: scale(1.04);
+    box-shadow:
+      0 6px 18px oklch(0 0 0 / 0.18),
+      0 0 0 1px oklch(0.4 0.02 300 / 0.1),
+      inset 0 1px 0 oklch(1 0 0 / 0.6);
+  }
+  .apple-dock-immersive-exit:active {
+    transform: scale(0.97);
+  }
+  .apple-dock-immersive-exit:focus-visible {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px var(--ring-healing-strong),
+      0 4px 14px oklch(0 0 0 / 0.16);
+  }
+  .apple-dock-immersive-exit kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 16px;
+    padding: 0 5px;
+    font-family: inherit;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    color: oklch(0.42 0.04 300);
+    background: oklch(0.96 0.01 300 / 0.9);
+    border: 1px solid oklch(0.4 0.02 300 / 0.18);
+    box-shadow: inset 0 -1px 0 oklch(0.4 0.02 300 / 0.12);
+  }
+  :is(.dark) .apple-dock-immersive-exit {
+    color: oklch(0.95 0.02 300);
+    background: oklch(0.22 0.02 280 / 0.7);
+    border-color: oklch(1 0 0 / 0.1);
+    box-shadow:
+      0 4px 14px oklch(0 0 0 / 0.4),
+      0 0 0 1px oklch(1 0 0 / 0.04),
+      inset 0 1px 0 oklch(1 0 0 / 0.08);
+  }
+  :is(.dark) .apple-dock-immersive-exit:hover {
+    box-shadow:
+      0 6px 18px oklch(0 0 0 / 0.5),
+      0 0 0 1px oklch(1 0 0 / 0.08),
+      inset 0 1px 0 oklch(1 0 0 / 0.12);
+  }
+  :is(.dark) .apple-dock-immersive-exit kbd {
+    color: oklch(0.92 0.02 300);
+    background: oklch(0.32 0.02 280 / 0.8);
+    border-color: oklch(1 0 0 / 0.1);
+    box-shadow: inset 0 -1px 0 oklch(0 0 0 / 0.2);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .apple-dock-immersive-exit {
+      animation: none;
+      transition: opacity 0.2s linear;
+    }
+    .apple-dock-immersive-exit:hover,
+    .apple-dock-immersive-exit:active {
+      transform: none;
+    }
+  }
+
   /* Edge peek "zone" — a fixed, invisible 16px strip on the viewport edge
      that triggers reveal on hover/focus, with a thin gradient pip inside
      to visually invite the user. Lives outside the nav so it stays
@@ -702,72 +803,6 @@
     background: oklch(0.96 0.005 75 / 0.92);
     color: oklch(0.22 0.014 280);
     border-color: oklch(0 0 0 / 0.08);
-  }
-
-  /* Active-state on the immersive toggle in the header controls */
-  .apple-dock-control[data-active="true"] {
-    background: linear-gradient(
-      135deg,
-      oklch(0.9 0.08 300 / 0.85),
-      oklch(0.84 0.1 320 / 0.7)
-    );
-    color: oklch(0.32 0.06 300);
-    box-shadow:
-      0 2px 6px -1px oklch(0.74 0.12 300 / 0.35),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
-  }
-  :is(.dark) .apple-dock-control[data-active="true"] {
-    background: linear-gradient(
-      135deg,
-      oklch(0.92 0.08 300 / 0.55),
-      oklch(0.86 0.1 320 / 0.45)
-    );
-    color: oklch(0.95 0.06 300);
-  }
-
-  /* ─── Compact controls in dock header ─── */
-  .apple-dock-controls {
-    --control-opacity: 0.55;
-    opacity: var(--control-opacity);
-    transition: opacity 0.3s var(--ease-healing-out);
-  }
-  .apple-dock-glass:hover .apple-dock-controls,
-  .apple-dock-controls:focus-within {
-    opacity: 1;
-  }
-  .apple-dock-control {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 9999px;
-    color: oklch(0.4 0.012 60 / 0.7);
-    background: oklch(1 0 0 / 0);
-    transition:
-      background-color 0.25s var(--ease-healing-out),
-      color 0.25s var(--ease-healing-out),
-      transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    outline: none;
-  }
-  .apple-dock-control:hover {
-    background: oklch(0.4 0.02 300 / 0.08);
-    color: oklch(0.32 0.05 300);
-    transform: scale(1.1);
-  }
-  .apple-dock-control:active {
-    transform: scale(0.92);
-  }
-  .apple-dock-control:focus-visible {
-    outline: 2px solid var(--ring-healing-strong);
-    outline-offset: 1px;
-  }
-  :is(.dark) .apple-dock-control {
-    color: oklch(0.85 0.02 60 / 0.7);
-  }
-  :is(.dark) .apple-dock-control:hover {
-    background: oklch(0.85 0.04 300 / 0.12);
-    color: oklch(0.95 0.05 300);
   }
 
   /* ─── Item base ─── */
@@ -1415,7 +1450,6 @@
     .apple-dock-item,
     .apple-dock-icon,
     .apple-dock-halo,
-    .apple-dock-control,
     .apple-dock-flyout-item-icon,
     .apple-dock-avatar {
       transition-duration: 0.15s !important;
