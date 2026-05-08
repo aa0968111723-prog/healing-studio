@@ -171,7 +171,7 @@ export default function BackgroundTasksDrawer() {
       {/* Toggle Button */}
       <button
         onClick={() => setDrawerOpen(!drawerOpen)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors text-left"
+        className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg hover:bg-accent/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
           <Loader2

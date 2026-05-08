@@ -64,6 +64,9 @@ import {
   Bot,
   Sparkles,
   LayoutGrid,
+  Palette,
+  FolderOpen,
+  GraduationCap,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -195,7 +198,7 @@ const sidebarStructure: SidebarEntry[] = (() => {
   };
   push(buildLeaf("agent-chat"));
   push(
-    buildGroup("創作工作室", Wand2, [
+    buildGroup("創作工作室", Palette, [
       "studio",
       "image-studio",
       "video-studio",
@@ -203,8 +206,8 @@ const sidebarStructure: SidebarEntry[] = (() => {
       "director",
     ])
   );
-  push(buildGroup("資源庫", Package, ["models", "assets"]));
-  push(buildGroup("知識中心", BookOpen, ["notes", "learn"]));
+  push(buildGroup("資源庫", FolderOpen, ["models", "assets"]));
+  push(buildGroup("知識中心", GraduationCap, ["notes", "learn"]));
   return entries;
 })();
 
@@ -672,11 +675,22 @@ function DashboardLayoutContent({
                             tooltip={entry.label}
                             className="h-10 transition-all duration-200 ease-out font-normal rounded-xl"
                           >
-                            <entry.icon className="h-4 w-4" />
-                            <span>{entry.label}</span>
-                            <span className="ml-1 text-[10px] text-muted-foreground">
-                              {entry.children.length}
+                            <entry.icon
+                              className={`h-4 w-4 ${hasActiveChild ? "text-primary" : ""}`}
+                            />
+                            <span
+                              className={
+                                hasActiveChild ? "text-foreground" : ""
+                              }
+                            >
+                              {entry.label}
                             </span>
+                            {hasActiveChild && (
+                              <span
+                                aria-hidden="true"
+                                className="ml-1 h-1.5 w-1.5 rounded-full bg-primary group-data-[state=open]/collapsible:opacity-0 transition-opacity"
+                              />
+                            )}
                             <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
