@@ -97,6 +97,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useGlobalOrbChat, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
+import OrbActionFlow from "./orb/OrbActionFlow";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
@@ -4064,30 +4065,26 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                 )}
                 {msg.role === "orb" && msg.actions && msg.actions.length > 0 && (
                   <div className={cn(
-                    "max-w-[88%] mt-1 rounded-xl border border-white/10 bg-white/4 px-2.5 py-2 space-y-2",
-                    "self-start"
+                    "max-w-[88%] mt-1 space-y-2 self-start"
                   )}>
-                    <p className={cn("text-white/55", fullscreen ? "text-[11px]" : "text-[10px]")}>
-                      導覽路徑圖
-                    </p>
-                    <ol className="space-y-1.5">
-                      {msg.actions.slice(0, 4).map((action, actionIdx) => (
-                        <li key={`${action.type}-${actionIdx}`} className="flex items-start gap-1.5">
-                          <span className={cn(
-                            "w-4 h-4 rounded-full bg-white/10 border border-white/15 text-white/70 inline-flex items-center justify-center mt-0.5",
-                            "text-[9px]"
-                          )}>
-                            {actionIdx + 1}
-                          </span>
-                          <span className={cn(
-                            "px-2 py-1 rounded-md bg-white/8 border border-white/10 text-white/75 flex-1",
-                            fullscreen ? "text-[10px]" : "text-[9px]"
-                          )}>
-                            {actionToGuideLabel(action)}
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
+                    {/* 用視覺流程圖呈現多步引導；單步沿用文字標籤 */}
+                    {msg.actions.length >= 2 ? (
+                      <OrbActionFlow
+                        actions={msg.actions}
+                        theme="dark"
+                        title="導覽路徑圖"
+                        maxSteps={5}
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-white/10 bg-white/4 px-2.5 py-2">
+                        <span className={cn(
+                          "px-2 py-1 rounded-md bg-white/8 border border-white/10 text-white/75 inline-block",
+                          fullscreen ? "text-[10px]" : "text-[9px]"
+                        )}>
+                          {actionToGuideLabel(msg.actions[0]!)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {msg.actions.some(a => a.type === "navigate") && (
                         <button

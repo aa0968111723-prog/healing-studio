@@ -87,6 +87,7 @@ import type { IntentOption } from "@/lib/intentOptions";
 import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
 import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
 import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
+import OrbActionFlow from "./orb/OrbActionFlow";
 import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -2840,6 +2841,14 @@ export default memo(function ProactiveOrbWidget({
                                     />
                                   ) : null}
                                 </div>
+                                {/* Visual flow diagram for orb actions ≥ 2 — 文字抽象時用圖示代替 */}
+                                {msg.role === "orb" && msg.actions && msg.actions.length >= 2 ? (
+                                  <OrbActionFlow
+                                    actions={msg.actions}
+                                    theme="light"
+                                    className="mt-1.5 max-w-full"
+                                  />
+                                ) : null}
                                 {msg.pagePath && msg.at && (
                                   <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
                                     msg.role === "user" ? "justify-end" : "justify-start"
@@ -2855,9 +2864,9 @@ export default memo(function ProactiveOrbWidget({
                             <div className="flex justify-start">
                               <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
                                 <div className="flex items-center gap-1">
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0 }} />
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }} />
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0.2 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0.4 }} />
                                 </div>
                               </div>
                             </div>
@@ -3370,6 +3379,14 @@ export default memo(function ProactiveOrbWidget({
                                 />
                               ) : null}
                             </div>
+                            {/* Visual flow diagram for orb actions ≥ 2 */}
+                            {msg.role === "orb" && msg.actions && msg.actions.length >= 2 ? (
+                              <OrbActionFlow
+                                actions={msg.actions}
+                                theme="light"
+                                className="max-w-full"
+                              />
+                            ) : null}
                             {msg.pagePath && msg.at && (
                               <div className={`text-[9px] text-muted-foreground px-1 flex items-center gap-0.5 ${
                                 msg.role === "user" ? "justify-end" : "justify-start"
