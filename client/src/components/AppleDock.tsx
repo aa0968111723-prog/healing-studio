@@ -694,64 +694,6 @@ function AppleDock({
         aria-hidden="true"
       />
 
-      {/* ── Quick utilities cluster: home · search · theme ── */}
-      <div
-        className={cn(
-          "flex items-center gap-1.5",
-          isHorizontal ? "flex-row" : "flex-col"
-        )}
-      >
-        <div
-          className="apple-dock-stagger"
-          style={staggerDelay(staggerIndex++)}
-        >
-          <AppleDockItem
-            icon={Home}
-            label="回首頁"
-            isActive={activePath === "/"}
-            onClick={() => handleNavigate("/")}
-            tooltipSide={tooltipSide}
-          />
-        </div>
-        <div
-          className="apple-dock-stagger"
-          style={staggerDelay(staggerIndex++)}
-        >
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label="搜尋（⌘K）"
-                onClick={openCommandPalette}
-                className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
-              >
-                <span aria-hidden="true" className="apple-dock-halo" />
-                <Search
-                  className="apple-dock-icon relative h-[19px] w-[19px]"
-                  strokeWidth={1.85}
-                />
-                <span aria-hidden="true" className="apple-dock-kbd-hint">
-                  ⌘K
-                </span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent
-              side={tooltipSide}
-              sideOffset={12}
-              className="apple-dock-tooltip"
-            >
-              搜尋與快捷指令 · ⌘K
-            </TooltipContent>
-          </Tooltip>
-        </div>
-        <div
-          className="apple-dock-stagger"
-          style={staggerDelay(staggerIndex++)}
-        >
-          <ThemeToggleDockButton tooltipSide={tooltipSide} />
-        </div>
-      </div>
-
       <div
         className={cn(
           "apple-dock-divider self-center",
