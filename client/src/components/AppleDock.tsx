@@ -694,14 +694,6 @@ function AppleDock({
         aria-hidden="true"
       />
 
-      <div
-        className={cn(
-          "apple-dock-divider self-center",
-          isHorizontal ? "apple-dock-divider-vertical" : "w-9"
-        )}
-        aria-hidden="true"
-      />
-
       {/* ── Bottom cluster: tasks · credits · avatar ── */}
       <div
         className={cn(
