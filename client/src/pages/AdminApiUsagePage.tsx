@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
@@ -1344,9 +1344,63 @@ function DeepCostTab() {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
+const ADMIN_API_USAGE_TAB_IDS = [
+  "overview",
+  "providers",
+  "deep-cost",
+  "rate-limit",
+  "billing",
+] as const;
+type AdminApiUsageTabId = (typeof ADMIN_API_USAGE_TAB_IDS)[number];
+
+function isAdminApiUsageTabId(value: string): value is AdminApiUsageTabId {
+  return (ADMIN_API_USAGE_TAB_IDS as readonly string[]).includes(value);
+}
+
 export default function AdminApiUsagePage() {
-  const [activeTab, setActiveTab] = useState("overview");
   const [, navigate] = useLocation();
+  const search = useSearch();
+
+  // URL ↔ activeTab 雙向同步：?tab=billing 直接打開帳單分頁，且切換 tab 會
+  // replaceState 寫回 URL，讓 reload / 分享連結都能保持當前位置。
+  const initialTab = (() => {
+    try {
+      const params = new URLSearchParams(search);
+      const v = params.get("tab");
+      return v && isAdminApiUsageTabId(v) ? v : "overview";
+    } catch {
+      return "overview";
+    }
+  })();
+  const [activeTab, setActiveTab] = useState<AdminApiUsageTabId>(
+    initialTab as AdminApiUsageTabId
+  );
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(search);
+      const v = params.get("tab");
+      if (v && isAdminApiUsageTabId(v) && v !== activeTab) {
+        setActiveTab(v);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handleTabChange = (next: string) => {
+    if (!isAdminApiUsageTabId(next) || next === activeTab) return;
+    setActiveTab(next);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", next);
+      const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+      window.history.replaceState(null, "", nextUrl);
+    } catch {
+      // ignore
+    }
+  };
 
   // 與 AdminPage 同樣只暴露 navigate / setTab；不開放 destructive 動作。
   // NAV_ALLOWLIST 與 capabilities.options 必須一致；TAB_ALLOWLIST 對應 setTab。
@@ -1354,13 +1408,6 @@ export default function AdminApiUsagePage() {
     "/admin",
     "/admin/api-usage",
     "/admin/brain-pipeline",
-  ]);
-  const ADMIN_API_TAB_ALLOWLIST = new Set<string>([
-    "overview",
-    "providers",
-    "deep-cost",
-    "rate-limit",
-    "billing",
   ]);
   useRegisterPageAgent({
     pageId: "admin-api-usage",
@@ -1403,13 +1450,13 @@ export default function AdminApiUsagePage() {
         return { ok: true };
       }
       if (action.type === "setTab" && typeof action.tabId === "string") {
-        if (!ADMIN_API_TAB_ALLOWLIST.has(action.tabId)) {
+        if (!isAdminApiUsageTabId(action.tabId)) {
           return {
             ok: false,
             reason: `admin-api-usage: 未知 tabId：${action.tabId}`,
           };
         }
-        setActiveTab(action.tabId);
+        handleTabChange(action.tabId);
         return { ok: true };
       }
       return { ok: false, reason: `admin-api-usage: unsupported action "${action.type}"` };
@@ -1428,7 +1475,7 @@ export default function AdminApiUsagePage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">
           <TabsTrigger value="overview">總覽</TabsTrigger>
           <TabsTrigger value="providers">供應商</TabsTrigger>
