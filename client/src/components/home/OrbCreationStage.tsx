@@ -70,9 +70,9 @@ const MODES: readonly Mode[] = [
     tint: "rgba(59,130,246,0.85)",
     glow: "rgba(59,130,246,0.5)",
     prompt: "城市夜景慢速推軌，霓虹倒影、雨後濕地、9:16 直式",
-    meta: "輸出 6 秒短片 · 約 30 秒",
-    tool: "video_generator.kling_v2",
-    liveGenerate: false,
+    meta: "輸出 5 秒短片 · 約 60-120 秒",
+    tool: "videoStudio.klingTextToVideo",
+    liveGenerate: true,
   },
   {
     id: "music",
@@ -81,9 +81,9 @@ const MODES: readonly Mode[] = [
     tint: "rgba(236,72,153,0.85)",
     glow: "rgba(236,72,153,0.55)",
     prompt: "冷冽雨夜，慢板鋼琴主旋律 + 弦樂氛圍墊底，BPM 72",
-    meta: "輸出 30 秒原創曲 · 約 20 秒",
-    tool: "music_generator.compose",
-    liveGenerate: false,
+    meta: "輸出原創曲 · 約 30-60 秒",
+    tool: "proStudio.textToMusic",
+    liveGenerate: true,
   },
   {
     id: "voice",
@@ -91,10 +91,10 @@ const MODES: readonly Mode[] = [
     icon: Mic,
     tint: "rgba(249,115,22,0.85)",
     glow: "rgba(249,115,22,0.5)",
-    prompt: "溫暖女聲旁白，語速中等、情緒平靜，繁體中文",
-    meta: "輸出 1 段配音 · 約 12 秒",
-    tool: "voice_synth.warm_female_zh",
-    liveGenerate: false,
+    prompt: "在每一次的呼吸之間，世界都重新誕生一次。",
+    meta: "輸出 1 段配音 · 約 10-20 秒",
+    tool: "proStudio.qwenTTS",
+    liveGenerate: true,
   },
   {
     id: "director",
@@ -713,15 +713,16 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
  * so users can see the global orb agent dispatch every modality (image,
  * video, music, voice, director, LoRA) in place — no studio detour.
  *
- * Real APIs wired:
+ * Real APIs wired (live generation, all gated on auth + FAL_API_KEY):
+ *   - `imageStudio.nanoBanana2` → image (synchronous fal call)
+ *   - `videoStudio.klingTextToVideo` → 5s video; polled via `checkVideoStatus`
+ *   - `proStudio.textToMusic` (sonauto) → music; polled via `checkAudioStatus`
+ *   - `proStudio.qwenTTS` → AI voiceover; polled via `checkAudioStatus`
  *   - `sense.inferIntent` (public) → "光球感應" the prompt as user types
- *   - `imageStudio.checkApiKey` (public) → reveal whether live generation works
- *   - `imageStudio.nanoBanana2` (auth) → real image generation when user is
- *     logged in and the image modality is selected.
  *
- * For the other five modalities the agent dispatch is shown as a
- * tool-call trace + animated preview, so users feel the orb agent calling
- * those tools without leaving the homepage.
+ * Director and LoRA need full studio flows (multi-turn planning / 12-image
+ * upload), so the orb agent dispatches them as a tool-call trace inline and
+ * the user can hop into the dedicated studio for the real flow.
  */
 export default function OrbCreationStage({
   textPrimary,
@@ -743,7 +744,17 @@ export default function OrbCreationStage({
     [activeId]
   );
   const [prompt, setPrompt] = useState<string>(activeMode.prompt);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  type MediaResult = { kind: "image" | "video" | "audio"; url: string; label?: string };
+  const [mediaResult, setMediaResult] = useState<MediaResult | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<{
+    requestId: string;
+    modelId: string;
+  } | null>(null);
+  const [pendingAudio, setPendingAudio] = useState<{
+    requestId: string;
+    model: string;
+    label: "music" | "voice";
+  } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   const [dispatch, setDispatch] = useState<DispatchState | null>(null);
@@ -773,17 +784,158 @@ export default function OrbCreationStage({
     onSuccess: data => {
       const url = (data?.image_url as string | null) ?? data?.images?.[0] ?? null;
       if (url) {
-        setResultUrl(url);
+        setMediaResult({ kind: "image", url });
         setErrorMsg(null);
       } else {
         setErrorMsg("光球暫時沒拿到結果，再試一次。");
       }
     },
     onError: err => {
-      setResultUrl(null);
+      setMediaResult(null);
       setErrorMsg(err.message || "生成失敗，請再試一次。");
     },
   });
+  const videoGenMut = trpc.videoStudio.klingTextToVideo.useMutation({
+    onSuccess: data => {
+      const requestId = data?.request_id ?? null;
+      const modelId = (data?.raw as { raw_model_id?: string } | null)?.raw_model_id ?? null;
+      if (!requestId || !modelId) {
+        setErrorMsg("光球代理未拿到 fal queue 任務，請再試一次。");
+        setDispatch(null);
+        return;
+      }
+      setPendingVideo({ requestId, modelId });
+      setDispatch(d => (d ? { ...d, step: "stream" } : d));
+    },
+    onError: err => {
+      setMediaResult(null);
+      setPendingVideo(null);
+      setDispatch(null);
+      setErrorMsg(err.message || "影片生成失敗，請再試一次。");
+    },
+  });
+  const musicGenMut = trpc.proStudio.textToMusic.useMutation({
+    onSuccess: data => {
+      const requestId = (data as { request_id?: string } | null)?.request_id ?? null;
+      const model = (data as { model?: string } | null)?.model ?? null;
+      if (!requestId || !model) {
+        setErrorMsg("光球代理未拿到 fal queue 任務，請再試一次。");
+        setDispatch(null);
+        return;
+      }
+      setPendingAudio({ requestId, model, label: "music" });
+      setDispatch(d => (d ? { ...d, step: "stream" } : d));
+    },
+    onError: err => {
+      setMediaResult(null);
+      setPendingAudio(null);
+      setDispatch(null);
+      setErrorMsg(err.message || "音樂生成失敗，請再試一次。");
+    },
+  });
+  const voiceGenMut = trpc.proStudio.qwenTTS.useMutation({
+    onSuccess: data => {
+      const requestId = (data as { request_id?: string } | null)?.request_id ?? null;
+      const model = (data as { model?: string } | null)?.model ?? null;
+      if (!requestId || !model) {
+        setErrorMsg("光球代理未拿到 fal queue 任務，請再試一次。");
+        setDispatch(null);
+        return;
+      }
+      setPendingAudio({ requestId, model, label: "voice" });
+      setDispatch(d => (d ? { ...d, step: "stream" } : d));
+    },
+    onError: err => {
+      setMediaResult(null);
+      setPendingAudio(null);
+      setDispatch(null);
+      setErrorMsg(err.message || "配音生成失敗，請再試一次。");
+    },
+  });
+
+  // ── Polling: video ──
+  const videoStatusQuery = trpc.videoStudio.checkVideoStatus.useQuery(
+    {
+      requestId: pendingVideo?.requestId ?? "",
+      modelId: pendingVideo?.modelId ?? "",
+    },
+    {
+      enabled: !!pendingVideo,
+      refetchInterval: q => {
+        const s = (q.state.data as { status?: string } | undefined)?.status;
+        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+      },
+      refetchIntervalInBackground: true,
+      retry: 5,
+    }
+  );
+  useEffect(() => {
+    const data = videoStatusQuery.data as
+      | { status?: string; video_url?: string | null }
+      | undefined;
+    if (!pendingVideo || !data) return;
+    if (data.status === "COMPLETED" && data.video_url) {
+      setMediaResult({ kind: "video", url: data.video_url });
+      setPendingVideo(null);
+      setDispatch(d => (d ? { ...d, step: "done" } : d));
+    } else if (data.status === "FAILED") {
+      setErrorMsg("影片任務失敗，請再試一次。");
+      setPendingVideo(null);
+      setDispatch(null);
+    }
+  }, [videoStatusQuery.data, pendingVideo]);
+  useEffect(() => {
+    if (videoStatusQuery.isError && pendingVideo) {
+      setErrorMsg(videoStatusQuery.error?.message || "影片任務失敗，請再試一次。");
+      setPendingVideo(null);
+      setDispatch(null);
+    }
+  }, [videoStatusQuery.isError, videoStatusQuery.error, pendingVideo]);
+
+  // ── Polling: audio (music + voice share the same status endpoint) ──
+  const audioStatusQuery = trpc.proStudio.checkAudioStatus.useQuery(
+    {
+      requestId: pendingAudio?.requestId ?? "",
+      model: pendingAudio?.model ?? "",
+    },
+    {
+      enabled: !!pendingAudio,
+      refetchInterval: q => {
+        const s = (q.state.data as { status?: string } | undefined)?.status;
+        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+      },
+      refetchIntervalInBackground: true,
+      retry: 5,
+    }
+  );
+  useEffect(() => {
+    const data = audioStatusQuery.data as
+      | { status?: string; audio_url?: string | null }
+      | undefined;
+    if (!pendingAudio || !data) return;
+    if (data.status === "COMPLETED" && data.audio_url) {
+      setMediaResult({
+        kind: "audio",
+        url: data.audio_url,
+        label: pendingAudio.label,
+      });
+      setPendingAudio(null);
+      setDispatch(d => (d ? { ...d, step: "done" } : d));
+    } else if (data.status === "FAILED") {
+      setErrorMsg(
+        `${pendingAudio.label === "music" ? "音樂" : "配音"}任務失敗，請再試一次。`
+      );
+      setPendingAudio(null);
+      setDispatch(null);
+    }
+  }, [audioStatusQuery.data, pendingAudio]);
+  useEffect(() => {
+    if (audioStatusQuery.isError && pendingAudio) {
+      setErrorMsg(audioStatusQuery.error?.message || "音訊任務失敗，請再試一次。");
+      setPendingAudio(null);
+      setDispatch(null);
+    }
+  }, [audioStatusQuery.isError, audioStatusQuery.error, pendingAudio]);
 
   // ── Debounced sense inference (real public API) ──
   const debouncedPrompt = useDebouncedValue(prompt.trim(), 700);
@@ -862,7 +1014,9 @@ export default function OrbCreationStage({
   const handleSelectMode = (id: ModeId) => {
     setActiveId(id);
     userEditedRef.current = false;
-    setResultUrl(null);
+    setMediaResult(null);
+    setPendingVideo(null);
+    setPendingAudio(null);
     setErrorMsg(null);
     setDispatch(null);
     setSimulating(false);
@@ -875,7 +1029,9 @@ export default function OrbCreationStage({
     setActiveId(s.modeId);
     userEditedRef.current = false;
     setPrompt(s.prompt);
-    setResultUrl(null);
+    setMediaResult(null);
+    setPendingVideo(null);
+    setPendingAudio(null);
     setErrorMsg(null);
     setDispatch(null);
     setSimulating(false);
@@ -918,8 +1074,9 @@ export default function OrbCreationStage({
       setErrorMsg("先寫一句話，光球代理才能感應。");
       return;
     }
-    // Image modality has a real backend wired. All others are dispatched
-    // by the orb agent as a tool-call trace, in place.
+    // Director / LoRA need full studio flows (multi-turn planning or 12-image
+    // upload), so the orb agent dispatches them as a tool-call trace inline
+    // and the user can open the studio for the real flow.
     if (!activeMode.liveGenerate) {
       runSimulatedDispatch(activeMode);
       return;
@@ -933,39 +1090,81 @@ export default function OrbCreationStage({
       runSimulatedDispatch(activeMode);
       return;
     }
-    setResultUrl(null);
+    setMediaResult(null);
+    setPendingVideo(null);
+    setPendingAudio(null);
     setDispatch({ tool: activeMode.tool, step: "parse", live: true });
-    imageGenMut.mutate({
-      prompt: trimmed,
-      aspect_ratio: "1:1",
-      num_images: 1,
-    });
+    switch (activeMode.id) {
+      case "image":
+        imageGenMut.mutate({
+          prompt: trimmed,
+          aspect_ratio: "1:1",
+          num_images: 1,
+        });
+        break;
+      case "video":
+        videoGenMut.mutate({
+          prompt: trimmed,
+          aspectRatio: "9:16",
+          duration: "5",
+          cfgScale: 0.5,
+        });
+        break;
+      case "music":
+        musicGenMut.mutate({
+          prompt: trimmed,
+          model: "sonauto",
+        });
+        break;
+      case "voice":
+        voiceGenMut.mutate({
+          text: trimmed,
+          language: "Auto",
+        });
+        break;
+      default:
+        runSimulatedDispatch(activeMode);
+    }
   }, [
     prompt,
     activeMode,
     isAuthenticated,
     apiKeyQuery.data,
     imageGenMut,
+    videoGenMut,
+    musicGenMut,
+    voiceGenMut,
     runSimulatedDispatch,
   ]);
 
   // Drive the LIVE dispatch trace through its phases as the real mutation
   // progresses, so the trace mirrors the actual API call rather than just
   // appearing at completion.
+  const anyLiveSubmitPending =
+    imageGenMut.isPending ||
+    videoGenMut.isPending ||
+    musicGenMut.isPending ||
+    voiceGenMut.isPending;
   useEffect(() => {
     if (!dispatch?.live) return;
-    if (imageGenMut.isPending) {
+    if (anyLiveSubmitPending) {
       setDispatch(d => (d ? { ...d, step: "call" } : d));
-      const id = window.setTimeout(() => {
-        setDispatch(d => (d && d.live ? { ...d, step: "stream" } : d));
-      }, 600);
-      dispatchTimers.current.push(id);
-    } else if (imageGenMut.isSuccess) {
+    } else if (imageGenMut.isSuccess && activeMode.id === "image") {
+      // Image is synchronous — jump straight to done once the URL is back.
       setDispatch(d => (d ? { ...d, step: "done" } : d));
     }
-  }, [dispatch?.live, imageGenMut.isPending, imageGenMut.isSuccess]);
+  }, [
+    dispatch?.live,
+    anyLiveSubmitPending,
+    imageGenMut.isSuccess,
+    activeMode.id,
+  ]);
 
-  const isBusy = imageGenMut.isPending || simulating;
+  const isBusy =
+    anyLiveSubmitPending ||
+    !!pendingVideo ||
+    !!pendingAudio ||
+    simulating;
   const apiKeyConfigured = apiKeyQuery.data?.configured ?? null;
 
   return (
@@ -1219,21 +1418,50 @@ export default function OrbCreationStage({
               </div>
               <div className="absolute inset-0 pt-7">
                 <AnimatePresence mode="wait">
-                  {resultUrl && activeMode.id === "image" ? (
+                  {mediaResult ? (
                     <motion.div
-                      key="result"
+                      key={`result-${mediaResult.kind}-${mediaResult.url}`}
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.4 }}
-                      className="w-full h-full p-2"
+                      className="w-full h-full p-2 flex items-center justify-center"
                     >
-                      <img
-                        src={resultUrl}
-                        alt={prompt}
-                        className="w-full h-full object-contain rounded-xl"
-                        loading="lazy"
-                      />
+                      {mediaResult.kind === "image" && (
+                        <img
+                          src={mediaResult.url}
+                          alt={prompt}
+                          className="w-full h-full object-contain rounded-xl"
+                          loading="lazy"
+                        />
+                      )}
+                      {mediaResult.kind === "video" && (
+                        <video
+                          src={mediaResult.url}
+                          className="w-full h-full object-contain rounded-xl bg-black"
+                          controls
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                        />
+                      )}
+                      {mediaResult.kind === "audio" && (
+                        <div className="w-full flex flex-col items-center justify-center gap-3 px-3">
+                          <div
+                            className="text-[10px] tracking-[0.25em] uppercase"
+                            style={{ color: activeMode.tint }}
+                          >
+                            {mediaResult.label === "music" ? "原創音樂" : "AI 配音"}
+                          </div>
+                          <audio
+                            src={mediaResult.url}
+                            controls
+                            autoPlay
+                            className="w-full max-w-xs"
+                          />
+                        </div>
+                      )}
                     </motion.div>
                   ) : (
                     <motion.div
@@ -1334,8 +1562,10 @@ export default function OrbCreationStage({
                   <Sparkles className="w-4 h-4" />
                 )}
                 {isBusy
-                  ? activeMode.liveGenerate && imageGenMut.isPending
-                    ? "光球代理串流中…"
+                  ? activeMode.liveGenerate
+                    ? pendingVideo || pendingAudio
+                      ? "光球代理輪詢 fal queue…"
+                      : "光球代理串流中…"
                     : "光球代理派工中…"
                   : "✨ 讓光球代理生成"}
                 <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -1355,12 +1585,14 @@ export default function OrbCreationStage({
             <div className={`text-center text-[11px] sm:text-xs ${textMuted}`}>
               {errorMsg ? (
                 <span className="text-red-400">{errorMsg}</span>
-              ) : isBusy && activeMode.liveGenerate && imageGenMut.isPending ? (
+              ) : isBusy && activeMode.liveGenerate && (pendingVideo || pendingAudio) ? (
+                <span>光球代理已提交 fal queue，每 3 秒輪詢 {activeMode.tool}…</span>
+              ) : isBusy && activeMode.liveGenerate ? (
                 <span>光球代理正在呼叫 {activeMode.tool} 真實 API…</span>
               ) : isBusy ? (
-                <span>光球代理示範呼叫 {activeMode.tool}（多模態流以 LIVE 串接後上線）。</span>
+                <span>光球代理示範呼叫 {activeMode.tool}（導演 / LoRA 需於工作室啟動完整流程）。</span>
               ) : activeMode.liveGenerate && !isAuthenticated ? (
-                <span>登入後光球代理即可呼叫真實 API；其他模態目前以代理示範呼叫展示。</span>
+                <span>登入後光球代理即可呼叫真實 API；導演與 LoRA 仍以代理示範展示完整流程。</span>
               ) : activeMode.liveGenerate && apiKeyConfigured === false ? (
                 <span>提示：尚未設定 FAL_API_KEY，光球代理僅以示範流呼叫。</span>
               ) : (
