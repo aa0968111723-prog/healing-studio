@@ -193,25 +193,18 @@ export default function DashboardLayout({
             ].join(","),
           }}
         >
+          {/* Corner star glyphs — twinkling crosses at the four corners */}
+          <span className="login-card-glyph tl" aria-hidden />
+          <span className="login-card-glyph tr" aria-hidden />
+          <span className="login-card-glyph bl" aria-hidden />
+          <span className="login-card-glyph br" aria-hidden />
+
           <div className="flex justify-center mb-6">
             <Suspense fallback={null}>
               <VisualSoul size="lg" personality="creative" state="idle" />
             </Suspense>
           </div>
-          <h1
-            className="hs-h1 !mb-0"
-            style={{
-              background:
-                "linear-gradient(120deg, #ffffff 0%, #e8d8ff 45%, #c8b4ff 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              textShadow: "0 0 24px rgba(180,150,240,0.25)",
-              letterSpacing: "0.02em",
-            }}
-          >
-            AI Director 創作平台
-          </h1>
+          <h1 className="hs-h1 !mb-0 login-title">AI Director 創作平台</h1>
           <p
             className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
             style={{ color: "rgba(230,222,255,0.72)" }}
