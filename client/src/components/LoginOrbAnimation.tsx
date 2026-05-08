@@ -34,7 +34,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
-import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
 import { useIsMobile } from "@/hooks/useMobile";
 
@@ -212,40 +211,42 @@ function buildPalette(personality: Personality): PaletteConfig {
   };
 }
 
-interface SceneVariant {
-  backdrop: string;
-  accentLayer: string;
-}
-
-function buildSceneVariant(sceneId: SceneId): SceneVariant {
-  const variants: Record<SceneId, SceneVariant> = {
-    nightSky: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 42%, rgba(16,14,34,0.96) 0%, rgba(5,5,16,0.99) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 20% 22%, rgba(70,55,150,0.18) 0%, transparent 56%),radial-gradient(ellipse at 78% 74%, rgba(26,64,120,0.16) 0%, transparent 58%)",
-    },
-    morning: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 40%, rgba(58,42,78,0.9) 0%, rgba(24,18,42,0.96) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 24% 20%, rgba(255,180,120,0.2) 0%, transparent 54%),radial-gradient(ellipse at 72% 78%, rgba(255,120,180,0.14) 0%, transparent 60%)",
-    },
-    cafe: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 44%, rgba(54,34,34,0.92) 0%, rgba(20,13,18,0.97) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 30% 28%, rgba(255,186,136,0.16) 0%, transparent 52%),radial-gradient(ellipse at 76% 72%, rgba(198,122,76,0.14) 0%, transparent 56%)",
-    },
-    deepSea: {
-      backdrop:
-        "radial-gradient(ellipse at 50% 45%, rgba(12,34,50,0.95) 0%, rgba(5,14,24,0.99) 100%)",
-      accentLayer:
-        "radial-gradient(ellipse at 28% 24%, rgba(82,178,220,0.18) 0%, transparent 55%),radial-gradient(ellipse at 70% 76%, rgba(44,112,170,0.16) 0%, transparent 58%)",
-    },
-  };
-  return variants[sceneId];
-}
+/**
+ * Login screen cosmic identity — mirrored verbatim from LoginCosmicScene.tsx
+ * so the post-login animation is a seamless continuation of the exact scene
+ * the user just saw, not a jarring color swap into the ambient theme.
+ *
+ * If LoginCosmicScene's backdrop / corner accents / nebula / flare palette
+ * change, update these in lockstep. Personality (calm/creative/technical)
+ * still tints the hero orb + flying orbs + text glow, but the cosmic base
+ * is locked to the login screen.
+ */
+const LOGIN_COSMIC = {
+  // Root <div> background of LoginCosmicScene
+  backdrop: [
+    "radial-gradient(ellipse at 50% 42%, rgba(36,22,68,0.92) 0%, rgba(14,8,30,0.98) 55%, rgba(4,2,14,1) 100%)",
+    "linear-gradient(180deg, #0b0820 0%, #110a2a 100%)",
+  ].join(","),
+  // Three-radial corner accents (purple top-left, blue lower-right, pink bottom)
+  accentLayer: [
+    "radial-gradient(ellipse at 18% 22%, rgba(80,60,160,0.32) 0%, transparent 55%)",
+    "radial-gradient(ellipse at 82% 76%, rgba(40,90,170,0.26) 0%, transparent 58%)",
+    "radial-gradient(ellipse at 50% 88%, rgba(180,90,160,0.14) 0%, transparent 55%)",
+  ].join(","),
+  // Nebula tones used by AuroraCurtain (replaces personality-themed nebula
+  // for the cosmic-base layers — keeps purple-violet identity intact)
+  nebula: ["rgba(120,80,200,0.18)", "rgba(200,120,180,0.14)"] as [string, string],
+  // Sun + lens flare colors from LoginCosmicScene's SunWithLensFlare
+  sunCore:
+    "radial-gradient(circle, rgba(255,235,200,0.9) 0%, rgba(255,200,150,0.4) 22%, rgba(255,160,120,0.16) 45%, transparent 70%)",
+  flares: [
+    { t: 0.18, size: 28, color: "rgba(255,210,160,0.45)" },
+    { t: 0.34, size: 18, color: "rgba(180,200,255,0.32)" },
+    { t: 0.52, size: 42, color: "rgba(255,180,180,0.22)" },
+    { t: 0.7, size: 22, color: "rgba(160,220,255,0.28)" },
+    { t: 0.86, size: 14, color: "rgba(255,235,210,0.4)" },
+  ],
+} as const;
 
 // ─── Orb flight configuration ───────────────────────────────────────────────
 
@@ -1078,9 +1079,11 @@ const MilkyWayBand = memo(function MilkyWayBand() {
         width: "140%",
         height: "120%",
         transform: "rotate(-22deg)",
+        // Identical opacities to LoginCosmicScene's MilkyWay (lines 213-215)
+        // so the band matches in brightness when the user transitions in.
         background: [
-          "linear-gradient(180deg, transparent 38%, rgba(220,210,255,0.10) 46%, rgba(255,240,255,0.16) 50%, rgba(220,210,255,0.10) 54%, transparent 62%)",
-          "linear-gradient(180deg, transparent 40%, rgba(150,110,220,0.09) 48%, rgba(110,180,240,0.07) 52%, transparent 60%)",
+          "linear-gradient(180deg, transparent 38%, rgba(220,210,255,0.12) 46%, rgba(255,240,255,0.18) 50%, rgba(220,210,255,0.12) 54%, transparent 62%)",
+          "linear-gradient(180deg, transparent 40%, rgba(150,110,220,0.10) 48%, rgba(110,180,240,0.08) 52%, transparent 60%)",
         ].join(","),
         backgroundBlendMode: "screen",
         mixBlendMode: "screen",
@@ -1088,7 +1091,7 @@ const MilkyWayBand = memo(function MilkyWayBand() {
           "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
         maskImage:
           "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
-        opacity: 0.6,
+        opacity: 0.7,
         animation: "hs-milky 14s ease-in-out infinite",
       }}
     />
@@ -1103,14 +1106,9 @@ const SunLensFlare = memo(function SunLensFlare({
   parallax: [number, number];
 }) {
   const [px, py] = parallax;
-  // Optical axis: sun (~108%, -10%) → opposite corner. Hex flare chain.
-  const flares = [
-    { t: 0.18, size: 24, color: "rgba(255,210,160,0.42)" },
-    { t: 0.34, size: 16, color: "rgba(180,200,255,0.28)" },
-    { t: 0.52, size: 36, color: "rgba(255,180,180,0.20)" },
-    { t: 0.7, size: 18, color: "rgba(160,220,255,0.26)" },
-    { t: 0.86, size: 12, color: "rgba(255,235,210,0.36)" },
-  ];
+  // Hex flare chain — exact colors/sizes from LoginCosmicScene's SunWithLensFlare.
+  const flares = LOGIN_COSMIC.flares;
+  // Sun position matches LoginCosmicScene (slightly different but visually identical).
   const SUN_X = 108;
   const SUN_Y = -10;
   const END_X = -10;
@@ -1118,7 +1116,7 @@ const SunLensFlare = memo(function SunLensFlare({
 
   return (
     <>
-      {/* Sun core glow (mostly off-screen, top-right) */}
+      {/* Sun core glow (mostly off-screen, top-right) — same gradient as login screen */}
       <div
         className="absolute rounded-full pointer-events-none"
         style={{
@@ -1128,8 +1126,7 @@ const SunLensFlare = memo(function SunLensFlare({
           height: 280,
           marginLeft: -140,
           marginTop: -140,
-          background:
-            "radial-gradient(circle, rgba(255,235,200,0.85) 0%, rgba(255,200,150,0.36) 22%, rgba(255,160,120,0.14) 45%, transparent 70%)",
+          background: LOGIN_COSMIC.sunCore,
           mixBlendMode: "screen",
           animation: "hs-sun 9s ease-in-out infinite",
           willChange: "transform, opacity",
@@ -1691,11 +1688,7 @@ const Comet = memo(function Comet() {
 
 // ─── Aurora curtain — wavy translucent ribbon at the top of the sky ─────────
 
-const AuroraCurtain = memo(function AuroraCurtain({
-  palette,
-}: {
-  palette: PaletteConfig;
-}) {
+const AuroraCurtain = memo(function AuroraCurtain() {
   return (
     <div
       className="absolute pointer-events-none"
@@ -1709,15 +1702,17 @@ const AuroraCurtain = memo(function AuroraCurtain({
         // background-position sweep produces a visible wavy shimmer. Two
         // layers run at slightly different angles + sizes to feel organic.
         // The ribbon shape comes from the vertical mask below.
+        // Color #2 uses LOGIN_COSMIC.nebula (purple-violet) instead of the
+        // personality-themed palette so the cosmic identity stays locked
+        // to whatever the user just saw on LoginCosmicScene.
         background: [
           "linear-gradient(95deg, transparent 0%, rgba(120,220,200,0.20) 18%, rgba(140,200,240,0.14) 38%, rgba(180,160,255,0.18) 60%, transparent 82%)",
-          `linear-gradient(100deg, transparent 0%, ${palette.nebula[0]} 22%, ${palette.nebula[1]} 52%, transparent 80%)`,
+          `linear-gradient(100deg, transparent 0%, ${LOGIN_COSMIC.nebula[0]} 22%, ${LOGIN_COSMIC.nebula[1]} 52%, transparent 80%)`,
         ].join(","),
         backgroundSize: "240% 100%, 220% 100%",
         backgroundRepeat: "no-repeat, no-repeat",
         backgroundBlendMode: "screen",
         mixBlendMode: "screen",
-        // Vertical mask = the curtain ribbon shape (soft top + soft bottom)
         WebkitMaskImage:
           "linear-gradient(180deg, transparent 0%, #000 35%, #000 65%, transparent 100%)",
         maskImage:
@@ -1938,10 +1933,9 @@ export default function LoginOrbAnimation() {
   const isMobile = useIsMobile();
   const ambient = useAmbient();
   const palette = useMemo(() => buildPalette(personality), [personality]);
-  const sceneVariant = useMemo(
-    () => buildSceneVariant(ambient.sceneId),
-    [ambient.sceneId]
-  );
+  // Cosmic backdrop is locked to LOGIN_COSMIC for visual continuity with
+  // the login screen — see comment on LOGIN_COSMIC. Personality still tints
+  // the orbs / hero / text glow via `palette`.
   const responsiveScale = useMemo(() => {
     const viewportWidth = containerSize[0] || 1280;
     const baseByWidth = Math.max(0.68, Math.min(1.05, viewportWidth / 1280));
@@ -2120,8 +2114,10 @@ export default function LoginOrbAnimation() {
           className="fixed inset-0 overflow-hidden"
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
-            background:
-              sceneVariant.backdrop,
+            // Locked to LoginCosmicScene's exact backdrop so the user feels
+            // the login screen continue, not a switch to ambient theme.
+            background: LOGIN_COSMIC.backdrop,
+            backgroundBlendMode: "screen, normal",
             isolation: "isolate",
             contain: "layout paint style",
             pointerEvents: isFading ? "none" : "auto",
@@ -2147,12 +2143,13 @@ export default function LoginOrbAnimation() {
           {/* eslint-disable-next-line react/no-danger */}
           <style dangerouslySetInnerHTML={{ __html: STATIC_KEYFRAMES }} />
 
-          {/* Deepened cosmic backdrop — secondary radial gradient layer */}
+          {/* Deepened cosmic accent — three-radial corner glows from
+              LoginCosmicScene (purple top-left / blue lower-right / pink
+              bottom). hs-depth-breathe gives a subtle atmospheric pulse. */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              background:
-                sceneVariant.accentLayer,
+              background: LOGIN_COSMIC.accentLayer,
               animation: "hs-depth-breathe 8s ease-in-out infinite",
             }}
           />
@@ -2161,7 +2158,7 @@ export default function LoginOrbAnimation() {
           <MilkyWayBand />
 
           {/* Aurora curtain — wavy translucent ribbon at top of sky */}
-          <AuroraCurtain palette={palette} />
+          <AuroraCurtain />
 
           {/* Star field — pure CSS animations */}
           <StarField />
