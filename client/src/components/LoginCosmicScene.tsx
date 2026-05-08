@@ -82,6 +82,34 @@ const KEYFRAMES = [
   "@keyframes lcs-window{0%,100%{opacity:.7}50%{opacity:.92}}",
   // Floating leaf / wisp (cafe + morning)
   "@keyframes lcs-wisp{0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}10%{opacity:.5}90%{opacity:.4}100%{transform:translate3d(140px,-90px,0) rotate(40deg);opacity:0}}",
+  // Figure breathing — subtle vertical scale
+  "@keyframes lcs-breathe{0%,100%{transform:translate3d(0,0,0) scaleY(1)}50%{transform:translate3d(0,-2px,0) scaleY(1.015)}}",
+  // Grass blade sway — pivot from base
+  "@keyframes lcs-grass{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(7deg)}}",
+  "@keyframes lcs-grass2{0%,100%{transform:rotate(4deg)}50%{transform:rotate(-6deg)}}",
+  // Wind drift (leaves / petals across screen)
+  "@keyframes lcs-wind{0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}10%{opacity:.7}90%{opacity:.6}100%{transform:translate3d(180vw,-32px,0) rotate(160deg);opacity:0}}",
+  // Bird flying across sky (full traversal with subtle bob)
+  "@keyframes lcs-bird-fly{0%{transform:translate3d(-8vw,0,0) scale(.9)}40%{transform:translate3d(40vw,-18px,0) scale(1)}80%{transform:translate3d(86vw,-6px,0) scale(.95)}100%{transform:translate3d(108vw,-14px,0) scale(.9)}}",
+  // Bird wing flap — toggles SVG transform-style on the wing path container
+  "@keyframes lcs-flap{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.55)}}",
+  // Cat tail sway
+  "@keyframes lcs-tail{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(18deg)}}",
+  // Steam from coffee cup (dedicated spot)
+  "@keyframes lcs-cup-steam{0%{transform:translate3d(0,0,0) scale(.7);opacity:0}15%{opacity:.7}80%{opacity:.45}100%{transform:translate3d(6px,-46px,0) scale(1.4);opacity:0}}",
+  // Fish swim across (deep sea)
+  "@keyframes lcs-fish{0%{transform:translate3d(-12vw,0,0)}100%{transform:translate3d(112vw,-8px,0)}}",
+  "@keyframes lcs-fish-rev{0%{transform:translate3d(112vw,0,0) scaleX(-1)}100%{transform:translate3d(-12vw,12px,0) scaleX(-1)}}",
+  // Kelp / seaweed sway (deep sea)
+  "@keyframes lcs-kelp{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}",
+  // Jellyfish pulse
+  "@keyframes lcs-jelly{0%,100%{transform:translate3d(0,0,0) scaleY(1)}50%{transform:translate3d(0,-12px,0) scaleY(.78)}}",
+  // Owl head turn
+  "@keyframes lcs-owl{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}",
+  // Yoga arms gentle rise
+  "@keyframes lcs-yoga{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-3deg)}}",
+  // Faster visible planet body rotation (background-position only)
+  "@keyframes lcs-planet-spin-fast{0%{background-position:0% 50%}100%{background-position:300% 50%}}",
 ].join("");
 
 // ─── Scene palette tables (single source of truth per scene) ────────────────
@@ -664,7 +692,7 @@ function Planet({
             "conic-gradient(from 30deg, transparent 0deg, rgba(180,150,255,0.16) 60deg, transparent 130deg, rgba(120,200,255,0.12) 220deg, transparent 320deg)",
           mixBlendMode: "screen",
           opacity: 0.55,
-          animation: "lcs-aurora 60s linear infinite",
+          animation: "lcs-aurora 36s linear infinite",
           willChange: "transform",
         }}
       />
@@ -734,7 +762,7 @@ function Planet({
             "0 0 180px rgba(90,60,170,0.28)",
           ].join(","),
           animation:
-            "lcs-planet-spin 90s linear infinite, lcs-planet-bob 12s ease-in-out infinite",
+            "lcs-planet-spin 55s linear infinite, lcs-planet-bob 12s ease-in-out infinite",
           willChange: "background-position, transform",
         }}
       />
@@ -759,7 +787,7 @@ function Planet({
             background:
               "linear-gradient(180deg, transparent 22%, rgba(230,210,255,0.16) 32%, transparent 42%, rgba(200,180,255,0.12) 56%, transparent 66%, rgba(220,200,255,0.14) 78%, transparent 88%)",
             backgroundSize: "300% 100%",
-            animation: "lcs-clouds 110s linear infinite",
+            animation: "lcs-clouds 60s linear infinite",
             mixBlendMode: "screen",
             opacity: 0.7,
           }}
@@ -1252,6 +1280,747 @@ const Bubbles = memo(function Bubbles() {
   );
 });
 
+// ─── Foreground figures: people / animals / grass / wind ────────────────────
+//
+// SVG silhouettes layered along the bottom of the screen. Each scene gets a
+// curated cast: a quietly breathing human figure, an animal companion with its
+// own idle motion, and (for outdoor scenes) grass / kelp blades that sway in
+// the breeze. Wind drifts a few petals or leaves across the screen above.
+// All figures sit BELOW the auth card (zIndex: 2 vs card's z-10) and pin to
+// the bottom — they read as a horizon stage, not page content.
+
+const FigureBase = ({
+  children,
+  left,
+  bottom,
+  width,
+  opacity = 0.78,
+  z = 2,
+  animation,
+  transformOrigin = "50% 100%",
+}: {
+  children: React.ReactNode;
+  left: string;
+  bottom: string;
+  width: number;
+  opacity?: number;
+  z?: number;
+  animation?: string;
+  transformOrigin?: string;
+}) => (
+  <div
+    aria-hidden
+    className="absolute pointer-events-none"
+    style={{
+      left,
+      bottom,
+      width,
+      height: width,
+      opacity,
+      zIndex: z,
+      transformOrigin,
+      animation,
+      willChange: animation ? "transform" : undefined,
+    }}
+  >
+    {children}
+  </div>
+);
+
+// Generic vertical grass/kelp blades — count blades evenly across a band.
+const GrassBlades = memo(function GrassBlades({
+  count,
+  bottom,
+  height,
+  color,
+  opacity = 0.55,
+  swayBase = 4,
+}: {
+  count: number;
+  bottom: string;
+  height: number;
+  color: string;
+  opacity?: number;
+  swayBase?: number;
+}) {
+  const blades = Array.from({ length: count }, (_, i) => {
+    const x = (i / (count - 1)) * 100;
+    const h = height * (0.7 + ((i * 13) % 30) / 100);
+    const w = 2 + ((i * 7) % 3);
+    const dur = swayBase + ((i * 5) % 4);
+    const delay = (i % 5) * 0.4;
+    const swayKf = i % 2 === 0 ? "lcs-grass" : "lcs-grass2";
+    return (
+      <div
+        key={i}
+        className="absolute"
+        style={{
+          left: `${x}%`,
+          bottom,
+          width: w,
+          height: h,
+          marginLeft: -w / 2,
+          background: `linear-gradient(180deg, transparent 0%, ${color} 18%, ${color} 100%)`,
+          borderRadius: "50% 50% 6px 6px / 80% 80% 6px 6px",
+          transformOrigin: "50% 100%",
+          opacity,
+          animation: `${swayKf} ${dur}s ease-in-out ${delay}s infinite`,
+          willChange: "transform",
+        }}
+      />
+    );
+  });
+  return <>{blades}</>;
+});
+
+// ── nightSky cast: Stargazer + Owl ──────────────────────────────────────────
+
+const NightFigures = memo(function NightFigures() {
+  return (
+    <>
+      {/* Distant tree silhouette + perched owl */}
+      <FigureBase left="6%" bottom="0%" width={160} opacity={0.85}>
+        <svg viewBox="0 0 160 160" width="100%" height="100%" aria-hidden>
+          {/* Tree trunk */}
+          <path
+            d="M78 160 L78 96 Q72 90 76 78 Q70 60 78 44 Q72 30 80 18"
+            stroke="rgba(8,4,18,0.92)"
+            strokeWidth="6"
+            fill="none"
+            strokeLinecap="round"
+          />
+          {/* Branch */}
+          <path
+            d="M78 70 Q56 64 36 56 M78 80 Q102 72 124 64"
+            stroke="rgba(8,4,18,0.92)"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+          />
+          {/* Foliage clumps */}
+          <ellipse cx="34" cy="50" rx="22" ry="14" fill="rgba(10,6,22,0.85)" />
+          <ellipse cx="120" cy="58" rx="20" ry="13" fill="rgba(10,6,22,0.85)" />
+          <ellipse cx="78" cy="22" rx="26" ry="16" fill="rgba(10,6,22,0.85)" />
+          {/* Owl on left branch */}
+          <g
+            style={{
+              transformOrigin: "34px 38px",
+              animation: "lcs-owl 5s ease-in-out infinite",
+            }}
+          >
+            {/* body */}
+            <ellipse cx="34" cy="42" rx="9" ry="11" fill="rgba(20,14,30,1)" />
+            {/* head */}
+            <circle cx="34" cy="32" r="7" fill="rgba(20,14,30,1)" />
+            {/* ear tufts */}
+            <path
+              d="M29 26 L26 22 M39 26 L42 22"
+              stroke="rgba(20,14,30,1)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            {/* glowing eyes */}
+            <circle cx="31" cy="32" r="1.2" fill="rgba(255,220,140,0.95)" />
+            <circle cx="37" cy="32" r="1.2" fill="rgba(255,220,140,0.95)" />
+          </g>
+        </svg>
+      </FigureBase>
+
+      {/* Stargazer person — sitting on a rock looking up */}
+      <FigureBase
+        left="18%"
+        bottom="0%"
+        width={150}
+        opacity={0.92}
+        animation="lcs-breathe 5.5s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 150 150" width="100%" height="100%" aria-hidden>
+          {/* Rock */}
+          <path
+            d="M14 150 Q18 120 32 116 Q60 108 92 116 Q124 120 130 150 Z"
+            fill="rgba(14,10,28,0.95)"
+          />
+          {/* Person sitting, head tilted up */}
+          <g fill="rgba(8,4,16,0.98)">
+            {/* leg */}
+            <path d="M62 116 Q64 132 78 136 L86 136 Q82 122 80 114 Z" />
+            {/* torso */}
+            <path d="M58 112 Q56 96 64 86 Q72 78 80 82 Q86 92 84 110 Z" />
+            {/* arm propped behind */}
+            <path d="M58 100 Q42 96 36 108 L40 116 Q52 110 60 108 Z" />
+            {/* head */}
+            <circle cx="68" cy="74" r="7.5" />
+            {/* hair tuft */}
+            <path d="M62 70 Q66 64 74 70 Q72 66 68 65 Q64 66 62 70" fill="rgba(0,0,0,0.92)" />
+          </g>
+          {/* faint breath wisp from mouth */}
+          <ellipse
+            cx="76"
+            cy="74"
+            rx="3"
+            ry="1.4"
+            fill="rgba(220,225,255,0.55)"
+            style={{
+              transformOrigin: "76px 74px",
+              animation: "lcs-cup-steam 4s ease-out infinite",
+            }}
+          />
+        </svg>
+      </FigureBase>
+
+      {/* Tiny "fireflies" — actual small twinkling dots dancing low */}
+      {[
+        { x: 30, y: 86, dur: 6, delay: 0 },
+        { x: 38, y: 82, dur: 7, delay: 1.5 },
+        { x: 70, y: 88, dur: 6.5, delay: 3 },
+        { x: 86, y: 84, dur: 7.2, delay: 0.8 },
+      ].map((f, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            left: `${f.x}%`,
+            top: `${f.y}%`,
+            width: 3,
+            height: 3,
+            zIndex: 2,
+            background:
+              "radial-gradient(circle, rgba(255,235,150,0.95) 0%, rgba(255,215,120,0.4) 50%, transparent 100%)",
+            boxShadow: "0 0 8px rgba(255,220,130,0.7)",
+            animation: `lcs-tw2 ${f.dur}s ease-in-out ${f.delay}s infinite`,
+          }}
+        />
+      ))}
+    </>
+  );
+});
+
+// ── morning cast: Yoga person + Bird flying + Grass + Petals ────────────────
+
+const MorningFigures = memo(function MorningFigures() {
+  return (
+    <>
+      {/* Distant rolling hill silhouette */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 160,
+          background:
+            "linear-gradient(180deg, transparent 0%, rgba(80,30,40,0.55) 30%, rgba(60,18,30,0.78) 100%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 100% at 50% 100%, #000 60%, transparent 100%)",
+          maskImage:
+            "radial-gradient(ellipse 80% 100% at 50% 100%, #000 60%, transparent 100%)",
+          zIndex: 2,
+        }}
+      />
+
+      {/* Grass blades along the horizon */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2 }}>
+        <GrassBlades
+          count={48}
+          bottom="0%"
+          height={26}
+          color="rgba(40,16,24,0.9)"
+          opacity={0.85}
+          swayBase={3.6}
+        />
+      </div>
+
+      {/* Yoga person — silhouette doing tree pose, breathing */}
+      <FigureBase
+        left="62%"
+        bottom="3%"
+        width={130}
+        opacity={0.95}
+        animation="lcs-breathe 6s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 130 180" width="100%" height="100%" aria-hidden>
+          <g fill="rgba(20,8,16,0.98)">
+            {/* head */}
+            <circle cx="65" cy="22" r="9" />
+            {/* neck + torso */}
+            <path d="M60 30 Q56 56 60 86 Q66 96 70 86 Q74 56 70 30 Z" />
+            {/* arms raised — slow gentle sway */}
+            <g
+              style={{
+                transformOrigin: "65px 56px",
+                animation: "lcs-yoga 7s ease-in-out infinite",
+              }}
+            >
+              <path d="M61 50 Q44 40 48 16 Q50 12 54 14 Q52 32 64 50 Z" />
+              <path d="M69 50 Q86 40 82 16 Q80 12 76 14 Q78 32 66 50 Z" />
+            </g>
+            {/* hands meeting overhead */}
+            <ellipse cx="65" cy="10" rx="4" ry="3" />
+            {/* standing leg */}
+            <path d="M62 86 Q60 124 60 158 L70 158 Q70 124 70 86 Z" />
+            {/* tucked foot on knee — tree pose detail */}
+            <path d="M70 110 Q86 102 82 90 Q76 88 72 96 Z" />
+          </g>
+        </svg>
+      </FigureBase>
+
+      {/* Bird flying across — wing flap + traversal */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          left: 0,
+          top: "26%",
+          width: 36,
+          height: 18,
+          zIndex: 2,
+          animation: "lcs-bird-fly 26s linear infinite",
+          willChange: "transform",
+        }}
+      >
+        <svg viewBox="0 0 36 18" width="100%" height="100%" aria-hidden>
+          <g
+            style={{
+              transformOrigin: "18px 12px",
+              animation: "lcs-flap 0.45s ease-in-out infinite",
+            }}
+          >
+            <path
+              d="M4 12 Q12 2 18 9 Q24 2 32 12"
+              stroke="rgba(40,14,24,0.95)"
+              strokeWidth="2.4"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </g>
+        </svg>
+      </div>
+
+      {/* Second bird, slightly later, lower altitude */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          left: 0,
+          top: "38%",
+          width: 28,
+          height: 14,
+          zIndex: 2,
+          animation: "lcs-bird-fly 32s linear 8s infinite",
+          willChange: "transform",
+        }}
+      >
+        <svg viewBox="0 0 28 14" width="100%" height="100%" aria-hidden>
+          <g
+            style={{
+              transformOrigin: "14px 9px",
+              animation: "lcs-flap 0.5s ease-in-out infinite",
+            }}
+          >
+            <path
+              d="M3 9 Q9 2 14 7 Q19 2 25 9"
+              stroke="rgba(50,18,28,0.85)"
+              strokeWidth="1.8"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </g>
+        </svg>
+      </div>
+
+      {/* Wind-blown petals drifting across screen */}
+      {[
+        { y: 48, size: 8, dur: 22, delay: 0, c: "rgba(255,200,160,0.78)" },
+        { y: 60, size: 6, dur: 28, delay: 8, c: "rgba(255,220,180,0.7)" },
+        { y: 72, size: 7, dur: 25, delay: 14, c: "rgba(255,180,150,0.7)" },
+      ].map((p, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            left: "-4%",
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size * 0.55,
+            background: p.c,
+            borderRadius: "50% 8px 50% 8px",
+            zIndex: 2,
+            animation: `lcs-wind ${p.dur}s linear ${p.delay}s infinite`,
+            willChange: "transform, opacity",
+            opacity: 0,
+          }}
+        />
+      ))}
+    </>
+  );
+});
+
+// ── cafe cast: Person at table with coffee + Cat + Plant ────────────────────
+
+const CafeFigures = memo(function CafeFigures() {
+  return (
+    <>
+      {/* Counter / table baseline */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 90,
+          background:
+            "linear-gradient(180deg, transparent 0%, rgba(20,10,4,0.55) 35%, rgba(10,4,2,0.92) 100%)",
+          zIndex: 2,
+        }}
+      />
+
+      {/* Cafe customer — seated at small bistro table */}
+      <FigureBase
+        left="14%"
+        bottom="4%"
+        width={170}
+        opacity={0.95}
+        animation="lcs-breathe 6.5s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 170 170" width="100%" height="100%" aria-hidden>
+          <g fill="rgba(14,6,2,0.98)">
+            {/* Table top */}
+            <rect x="76" y="118" width="86" height="6" rx="2" />
+            {/* Table leg */}
+            <rect x="115" y="124" width="6" height="38" />
+            <ellipse cx="118" cy="164" rx="22" ry="3" fill="rgba(0,0,0,0.7)" />
+            {/* Person torso */}
+            <path d="M30 118 Q26 88 38 70 Q56 56 72 70 Q80 92 76 118 Z" />
+            {/* Head with hat */}
+            <circle cx="54" cy="58" r="11" />
+            <path d="M40 50 Q54 40 70 50 Z" fill="rgba(0,0,0,0.9)" />
+            {/* Arm reaching for cup */}
+            <path d="M68 90 Q92 96 110 110 L108 116 Q86 110 70 102 Z" />
+            {/* Coffee cup on table */}
+            <g>
+              <path
+                d="M104 102 L122 102 L120 116 L106 116 Z"
+                fill="rgba(245,235,220,0.92)"
+              />
+              {/* cup handle */}
+              <path
+                d="M122 104 Q130 108 122 114"
+                stroke="rgba(245,235,220,0.92)"
+                strokeWidth="2"
+                fill="none"
+              />
+              {/* coffee surface */}
+              <ellipse cx="113" cy="103" rx="8" ry="1.6" fill="rgba(80,40,20,0.95)" />
+            </g>
+          </g>
+          {/* Steam — three rising puffs from cup */}
+          {[0, 0.6, 1.2].map((d, i) => (
+            <ellipse
+              key={i}
+              cx={111 + i * 2}
+              cy={92}
+              rx="3.5"
+              ry="2"
+              fill="rgba(255,250,240,0.58)"
+              style={{
+                transformOrigin: `${111 + i * 2}px 92px`,
+                animation: `lcs-cup-steam ${3.4 + i * 0.4}s ease-out ${d}s infinite`,
+              }}
+            />
+          ))}
+        </svg>
+      </FigureBase>
+
+      {/* Sleeping cat curled on counter */}
+      <FigureBase
+        left="48%"
+        bottom="4%"
+        width={130}
+        opacity={0.92}
+        animation="lcs-breathe 4.5s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 130 90" width="100%" height="100%" aria-hidden>
+          <g fill="rgba(20,8,2,0.98)">
+            {/* body curled */}
+            <path d="M14 70 Q14 36 60 28 Q104 26 116 56 Q116 76 80 80 Q40 82 14 70 Z" />
+            {/* head tucked */}
+            <ellipse cx="38" cy="56" rx="14" ry="11" />
+            {/* ears */}
+            <path d="M28 46 L24 38 L36 44 Z" />
+            <path d="M44 44 L48 38 L52 46 Z" />
+            {/* tail wrapping */}
+            <g
+              style={{
+                transformOrigin: "108px 60px",
+                animation: "lcs-tail 4s ease-in-out infinite",
+              }}
+            >
+              <path d="M104 56 Q126 54 124 78 Q120 88 110 84 Q116 78 110 64 Z" />
+            </g>
+          </g>
+          {/* sleepy "Z" */}
+          <text
+            x="58"
+            y="20"
+            fontFamily="serif"
+            fontSize="14"
+            fill="rgba(255,220,180,0.7)"
+            style={{
+              transformOrigin: "58px 20px",
+              animation: "lcs-flare 3s ease-in-out infinite",
+            }}
+          >
+            z
+          </text>
+        </svg>
+      </FigureBase>
+
+      {/* Potted plant gently swaying */}
+      <FigureBase left="78%" bottom="4%" width={110} opacity={0.94}>
+        <svg viewBox="0 0 110 160" width="100%" height="100%" aria-hidden>
+          {/* pot */}
+          <path
+            d="M30 120 L80 120 L74 156 L36 156 Z"
+            fill="rgba(70,32,18,0.95)"
+          />
+          {/* plant leaves — sway from pot */}
+          <g
+            style={{
+              transformOrigin: "55px 120px",
+              animation: "lcs-grass 6s ease-in-out infinite",
+            }}
+          >
+            <path d="M55 120 Q40 80 18 60 Q20 88 38 110 Z" fill="rgba(40,68,30,0.95)" />
+            <path d="M55 120 Q70 70 96 50 Q92 88 70 112 Z" fill="rgba(48,82,38,0.95)" />
+            <path d="M55 120 Q56 70 50 30 Q60 70 60 116 Z" fill="rgba(56,96,44,0.95)" />
+          </g>
+        </svg>
+      </FigureBase>
+
+      {/* Drifting leaves (wind from open window) */}
+      {[
+        { y: 44, size: 8, dur: 26, delay: 0, c: "rgba(120,180,90,0.7)" },
+        { y: 56, size: 6, dur: 32, delay: 10, c: "rgba(140,200,100,0.65)" },
+      ].map((p, i) => (
+        <div
+          key={i}
+          className="absolute pointer-events-none"
+          style={{
+            left: "-4%",
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size * 0.5,
+            background: p.c,
+            borderRadius: "50% 8px 50% 8px",
+            zIndex: 2,
+            animation: `lcs-wind ${p.dur}s linear ${p.delay}s infinite`,
+            willChange: "transform, opacity",
+            opacity: 0,
+          }}
+        />
+      ))}
+    </>
+  );
+});
+
+// ── deepSea cast: Diver + Fish school + Kelp + Jellyfish ────────────────────
+
+const DeepSeaFigures = memo(function DeepSeaFigures() {
+  // School of fish — multiple swimming across at slightly different rates
+  const fishSchool = [
+    { y: 32, size: 18, dur: 28, delay: 0, rev: false, c: "rgba(180,220,240,0.85)" },
+    { y: 42, size: 14, dur: 34, delay: 4, rev: true, c: "rgba(200,235,250,0.75)" },
+    { y: 38, size: 12, dur: 30, delay: 9, rev: false, c: "rgba(160,210,230,0.78)" },
+    { y: 56, size: 16, dur: 36, delay: 14, rev: false, c: "rgba(190,225,245,0.8)" },
+    { y: 50, size: 11, dur: 32, delay: 19, rev: true, c: "rgba(150,200,225,0.7)" },
+  ];
+  return (
+    <>
+      {/* Sea floor silhouette */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 130,
+          background:
+            "linear-gradient(180deg, transparent 0%, rgba(2,12,22,0.55) 30%, rgba(0,4,10,0.95) 100%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 100% 100% at 50% 100%, #000 70%, transparent 100%)",
+          maskImage:
+            "radial-gradient(ellipse 100% 100% at 50% 100%, #000 70%, transparent 100%)",
+          zIndex: 2,
+        }}
+      />
+
+      {/* Kelp forest — left and right swaying blades */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2 }}>
+        {[
+          { x: 6, h: 220, w: 6, dur: 7, delay: 0 },
+          { x: 12, h: 180, w: 5, dur: 8, delay: 1.2 },
+          { x: 16, h: 240, w: 7, dur: 9, delay: 2.4 },
+          { x: 84, h: 200, w: 6, dur: 7.5, delay: 0.6 },
+          { x: 88, h: 260, w: 7, dur: 9.5, delay: 1.8 },
+          { x: 94, h: 180, w: 5, dur: 8.2, delay: 3 },
+        ].map((k, i) => (
+          <div
+            key={i}
+            className="absolute"
+            style={{
+              left: `${k.x}%`,
+              bottom: 0,
+              width: k.w,
+              height: k.h,
+              marginLeft: -k.w / 2,
+              background:
+                "linear-gradient(180deg, rgba(30,90,80,0.0) 0%, rgba(20,90,90,0.85) 30%, rgba(8,60,70,0.92) 100%)",
+              borderRadius: "50% 50% 6px 6px / 80% 80% 6px 6px",
+              transformOrigin: "50% 100%",
+              animation: `lcs-kelp ${k.dur}s ease-in-out ${k.delay}s infinite`,
+              willChange: "transform",
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Diver silhouette — descending pose, fins down */}
+      <FigureBase
+        left="38%"
+        bottom="14%"
+        width={170}
+        opacity={0.9}
+        animation="lcs-breathe 7s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 170 200" width="100%" height="100%" aria-hidden>
+          <g fill="rgba(2,8,14,0.98)">
+            {/* tank */}
+            <rect x="76" y="40" width="14" height="36" rx="6" fill="rgba(8,28,40,0.95)" />
+            {/* head with mask */}
+            <circle cx="84" cy="36" r="13" />
+            <rect x="76" y="32" width="16" height="6" rx="2" fill="rgba(120,200,230,0.8)" />
+            {/* torso */}
+            <path d="M68 56 Q60 92 72 124 Q86 130 96 124 Q108 92 100 56 Z" />
+            {/* outstretched arms (gliding) */}
+            <path d="M68 64 Q44 72 30 96 L36 102 Q56 86 70 80 Z" />
+            <path d="M100 64 Q124 72 138 96 L132 102 Q112 86 98 80 Z" />
+            {/* legs together with fins */}
+            <path d="M76 124 Q74 156 80 178 L92 178 Q98 156 96 124 Z" />
+            <path d="M74 178 Q66 188 80 190 L92 190 Q106 188 98 178 Z" fill="rgba(8,28,40,0.95)" />
+          </g>
+          {/* bubble trail from regulator */}
+          {[0, 0.8, 1.6].map((d, i) => (
+            <circle
+              key={i}
+              cx={70 + i * 1.5}
+              cy={36}
+              r={2 + i * 0.4}
+              fill="rgba(220,245,255,0.85)"
+              style={{
+                transformOrigin: `${70 + i * 1.5}px 36px`,
+                animation: `lcs-bubble ${5 + i}s ease-out ${d}s infinite`,
+              }}
+            />
+          ))}
+        </svg>
+      </FigureBase>
+
+      {/* Fish school */}
+      {fishSchool.map((f, i) => (
+        <div
+          key={i}
+          className="absolute pointer-events-none"
+          style={{
+            left: 0,
+            top: `${f.y}%`,
+            width: f.size * 1.6,
+            height: f.size,
+            zIndex: 2,
+            animation: `${f.rev ? "lcs-fish-rev" : "lcs-fish"} ${f.dur}s linear ${f.delay}s infinite`,
+            willChange: "transform",
+          }}
+        >
+          <svg viewBox="0 0 32 18" width="100%" height="100%" aria-hidden>
+            <path
+              d="M2 9 Q10 0 22 4 Q30 8 22 14 Q10 18 2 9 Z"
+              fill={f.c}
+            />
+            {/* tail */}
+            <path d="M22 4 L30 2 L26 9 L30 16 L22 14 Z" fill={f.c} opacity={0.85} />
+            {/* eye */}
+            <circle cx="10" cy="8" r="0.9" fill="rgba(0,0,0,0.95)" />
+          </svg>
+        </div>
+      ))}
+
+      {/* Jellyfish drifting */}
+      <FigureBase
+        left="72%"
+        bottom="42%"
+        width={84}
+        opacity={0.7}
+        z={2}
+        animation="lcs-jelly 4.6s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 84 120" width="100%" height="100%" aria-hidden>
+          {/* bell */}
+          <path
+            d="M8 40 Q42 -6 76 40 Q72 56 42 56 Q12 56 8 40 Z"
+            fill="rgba(220,180,240,0.55)"
+            stroke="rgba(255,220,255,0.55)"
+            strokeWidth="1"
+          />
+          {/* inner glow */}
+          <ellipse cx="42" cy="36" rx="20" ry="10" fill="rgba(255,230,255,0.32)" />
+          {/* tentacles */}
+          {[18, 28, 38, 48, 58, 68].map((tx, i) => (
+            <path
+              key={i}
+              d={`M${tx} 56 Q${tx + (i % 2 ? 4 : -4)} 80 ${tx} 110`}
+              stroke="rgba(220,180,240,0.45)"
+              strokeWidth="1.4"
+              fill="none"
+              style={{
+                transformOrigin: `${tx}px 56px`,
+                animation: `lcs-kelp ${4 + i * 0.3}s ease-in-out ${i * 0.2}s infinite`,
+              }}
+            />
+          ))}
+        </svg>
+      </FigureBase>
+
+      {/* Smaller jellyfish further away */}
+      <FigureBase
+        left="14%"
+        bottom="58%"
+        width={48}
+        opacity={0.55}
+        z={2}
+        animation="lcs-jelly 5.5s ease-in-out infinite"
+      >
+        <svg viewBox="0 0 48 70" width="100%" height="100%" aria-hidden>
+          <path
+            d="M5 24 Q24 -2 43 24 Q40 32 24 32 Q8 32 5 24 Z"
+            fill="rgba(180,220,240,0.5)"
+          />
+          {[12, 18, 24, 30, 36].map((tx, i) => (
+            <path
+              key={i}
+              d={`M${tx} 32 Q${tx + (i % 2 ? 2 : -2)} 50 ${tx} 64`}
+              stroke="rgba(180,220,240,0.4)"
+              strokeWidth="1"
+              fill="none"
+            />
+          ))}
+        </svg>
+      </FigureBase>
+    </>
+  );
+});
+
 // ─── Main component ─────────────────────────────────────────────────────────
 
 interface LoginCosmicSceneProps {
@@ -1398,6 +2167,12 @@ export default function LoginCosmicScene({
 
       {/* Foreground motes — drift on every scene, tinted */}
       <ForegroundMotes tint={moteTint} />
+
+      {/* Foreground figures — people, animals, grass, wind effects per scene */}
+      {sceneId === "nightSky" && <NightFigures />}
+      {sceneId === "morning" && <MorningFigures />}
+      {sceneId === "cafe" && <CafeFigures />}
+      {sceneId === "deepSea" && <DeepSeaFigures />}
 
       {/* Vignette — keeps focus on the auth card */}
       <div

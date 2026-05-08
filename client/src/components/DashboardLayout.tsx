@@ -4,8 +4,9 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import LocalAuthForm from "@/components/LocalAuthForm";
 import LoginCosmicScene from "@/components/LoginCosmicScene";
-import { useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
+import { useAmbient } from "@/contexts/AmbientSoundContext";
+import { SoundControl } from "@/components/AmbientSoundEngine";
 import {
   Wand2,
   Clapperboard,
@@ -285,8 +286,20 @@ const LOGIN_THEMES: Record<SceneId, LoginSceneTheme> = {
 };
 
 function LoginScreen() {
-  const { sceneId, override, setOverride, allScenes } = useCurrentScene();
+  const ambient = useAmbient();
+  const { sceneId, override, setOverride, allScenes, isDark } = ambient;
   const theme = LOGIN_THEMES[sceneId];
+
+  // Stable controls object for SoundControl — strip scene fields
+  const soundControls = {
+    isPlaying: ambient.isPlaying,
+    isMuted: ambient.isMuted,
+    volume: ambient.volume,
+    isUnlocked: ambient.isUnlocked,
+    toggleMute: ambient.toggleMute,
+    setVolume: ambient.setVolume,
+    unlock: ambient.unlock,
+  };
 
   // Pointer-driven 3D card tilt — subtle parallax that responds to the
   // visitor's mouse, giving a tactile "physical glass" feel.
@@ -331,6 +344,16 @@ function LoginScreen() {
       data-scene={sceneId}
     >
       <LoginCosmicScene sceneId={sceneId} />
+
+      {/* ── Sound control — top-left, lets visitors enable scene-aware light music. */}
+      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
+        <SoundControl
+          controls={soundControls}
+          isDark={isDark}
+          sceneLabel={theme.label}
+          compact
+        />
+      </div>
 
       {/* ── Scene picker — small chip row in the top-right so visitors can
        *    preview/lock any of the four scenes before logging in. ── */}
