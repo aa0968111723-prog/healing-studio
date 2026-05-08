@@ -13,6 +13,10 @@ import {
   ORB_UNSUPPORTED_ATTACHMENT_MESSAGE,
   resolveOrbAttachmentKind,
 } from "../../../shared/orb-chat-multimodal";
+import {
+  extractAttachmentText,
+  AttachmentTextExtractionError,
+} from "@/lib/extractAttachmentText";
 import type { ChatAttachment } from "@/contexts/GlobalOrbChatContext";
 
 type Notify = (message: string) => void;
@@ -44,7 +48,10 @@ export function useOrbAttachments(notify?: Notify): UseOrbAttachmentsResult {
       if (!files || files.length === 0 || isUploading) return;
       const candidates = Array.from(files);
       const validFiles = candidates
-        .map(file => ({ file, resolved: resolveOrbAttachmentKind(file.type) }))
+        .map(file => ({
+          file,
+          resolved: resolveOrbAttachmentKind(file.type, file.name),
+        }))
         .filter(
           (
             entry
@@ -63,6 +70,30 @@ export function useOrbAttachments(notify?: Notify): UseOrbAttachmentsResult {
       try {
         const uploaded = await Promise.all(
           validFiles.map(async ({ file, resolved }) => {
+            // Text-like documents (txt / md / docx) are unreadable by the
+            // LLM as `file_url` parts — so we extract their text on the
+            // client and stash it on the attachment so
+            // `chatMessageToLLMContent` can inline it. Failure to extract
+            // surfaces a friendly error; we still upload the file so the
+            // chip in the bubble keeps a working download link.
+            let extractedText: string | undefined;
+            if (resolved.kind === "text") {
+              try {
+                extractedText = await extractAttachmentText(file, resolved.mimeType);
+                if (!extractedText.trim()) {
+                  throw new AttachmentTextExtractionError(
+                    "附件看起來是空的，沒有可讀取的內容。",
+                  );
+                }
+              } catch (err) {
+                const reason =
+                  err instanceof AttachmentTextExtractionError
+                    ? err.message
+                    : shortErrorMsg(err);
+                notify?.(`無法讀取「${file.name}」：${reason}`);
+                throw err;
+              }
+            }
             const result = await uploadFileToS3(file);
             return {
               id: generateId(),
@@ -70,12 +101,15 @@ export function useOrbAttachments(notify?: Notify): UseOrbAttachmentsResult {
               url: result.url,
               mimeType: resolved.mimeType,
               kind: resolved.kind,
+              ...(extractedText ? { extractedText } : {}),
             } satisfies ChatAttachment;
           })
         );
         setAttachments(prev => [...prev, ...uploaded]);
       } catch (err) {
-        notify?.(`附件上傳失敗：${shortErrorMsg(err)}`);
+        if (!(err instanceof AttachmentTextExtractionError)) {
+          notify?.(`附件上傳失敗：${shortErrorMsg(err)}`);
+        }
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -118,6 +152,8 @@ export function attachmentKindEmoji(kind: ChatAttachment["kind"]): string {
       return "🎵";
     case "pdf":
       return "📄";
+    case "text":
+      return "📝";
     default:
       return "📎";
   }

@@ -81,6 +81,43 @@ describe("orb-chat-multimodal contract", () => {
       expect(resolveOrbAttachmentKind("text/csv")).toBeNull();
       expect(resolveOrbAttachmentKind("")).toBeNull();
     });
+
+    it("recognises text-like document MIME types", () => {
+      expect(resolveOrbAttachmentKind("text/plain")).toEqual({
+        kind: "text",
+        mimeType: "text/plain",
+      });
+      expect(resolveOrbAttachmentKind("text/markdown")).toEqual({
+        kind: "text",
+        mimeType: "text/markdown",
+      });
+      expect(
+        resolveOrbAttachmentKind(
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
+      ).toEqual({
+        kind: "text",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+    });
+
+    it("falls back to filename extension when the browser hands us an empty MIME (mobile docx pickers)", () => {
+      expect(resolveOrbAttachmentKind("", "script.docx")).toEqual({
+        kind: "text",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      expect(resolveOrbAttachmentKind("application/octet-stream", "notes.txt")).toEqual({
+        kind: "text",
+        mimeType: "text/plain",
+      });
+      expect(resolveOrbAttachmentKind("application/msword", "legacy.docx")).toEqual({
+        kind: "text",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+    });
   });
 
   describe("attachmentToLLMMessagePart", () => {
@@ -237,6 +274,58 @@ describe("orb-chat-multimodal contract", () => {
       });
     });
 
+    it("inlines text-kind attachments (txt / md / docx) into the user message body so the LLM can read scripts", () => {
+      const content = chatMessageToLLMContent({
+        text: "把這個腳本做成影片",
+        attachments: [
+          {
+            id: "doc",
+            name: "禪定入門篇 影片腳本.docx",
+            url: "https://cdn.test/script.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            kind: "text",
+            extractedText: "場景一：清晨森林\n旁白：呼吸，慢慢來。",
+          },
+        ],
+      });
+      expect(typeof content).toBe("string");
+      expect(content as string).toContain("把這個腳本做成影片");
+      expect(content as string).toContain(
+        "📎 附件「禪定入門篇 影片腳本.docx」內容：",
+      );
+      expect(content as string).toContain("場景一：清晨森林");
+    });
+
+    it("keeps text-attachment inlining alongside binary attachments (mixed payload)", () => {
+      const content = chatMessageToLLMContent({
+        text: "幫我搭配這張圖",
+        attachments: [
+          {
+            id: "doc",
+            name: "腳本.txt",
+            url: "https://cdn.test/script.txt",
+            mimeType: "text/plain",
+            kind: "text",
+            extractedText: "第一幕：海邊。",
+          },
+          {
+            id: "img",
+            name: "ref.png",
+            url: "https://cdn.test/ref.png",
+            mimeType: "image/png",
+            kind: "image",
+          },
+        ],
+      });
+      expect(Array.isArray(content)).toBe(true);
+      const parts = content as Array<{ type: string; text?: string }>;
+      expect(parts.map(p => p.type)).toEqual(["text", "image_url"]);
+      expect(parts[0].text).toContain("幫我搭配這張圖");
+      expect(parts[0].text).toContain("📎 附件「腳本.txt」內容：");
+      expect(parts[0].text).toContain("第一幕：海邊。");
+    });
+
     it("merges every supported attachment kind in a single content array", () => {
       const attachments: OrbChatAttachment[] = [
         {
@@ -284,7 +373,7 @@ describe("orb-chat-multimodal contract", () => {
   describe("friendly fallback for unsupported formats", () => {
     it("ORB_UNSUPPORTED_ATTACHMENT_MESSAGE matches the production-required wording", () => {
       expect(ORB_UNSUPPORTED_ATTACHMENT_MESSAGE).toBe(
-        "這個格式我目前不能直接讀取，請轉成 PDF / PNG / MP3 / MP4，或貼文字內容。"
+        "這個格式我目前不能直接讀取，請轉成 PDF / PNG / MP3 / MP4 / TXT / DOCX，或直接貼文字內容。"
       );
     });
 

@@ -101,7 +101,7 @@ export {
 } from "@/lib/orbChatHelpers";
 
 export type ChatRole = "user" | "orb";
-export type ChatAttachmentKind = "image" | "video" | "audio" | "pdf";
+export type ChatAttachmentKind = "image" | "video" | "audio" | "pdf" | "text";
 export type ChatAttachmentMimeType = OrbChatAttachmentMimeType;
 
 export interface ChatAttachment {
@@ -110,6 +110,12 @@ export interface ChatAttachment {
   url: string;
   mimeType: ChatAttachmentMimeType;
   kind: ChatAttachmentKind;
+  /**
+   * Plain-text content extracted from a text-like document on the client.
+   * `chatMessageToLLMContent` inlines this into the user's message body so
+   * the LLM can read scripts (.txt / .md / .docx) directly.
+   */
+  extractedText?: string;
 }
 
 export interface ChatWebSource {

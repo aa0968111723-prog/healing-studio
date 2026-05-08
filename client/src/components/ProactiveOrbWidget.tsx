@@ -81,6 +81,10 @@ import {
   ORB_UPLOAD_ACCEPT,
   resolveOrbAttachmentKind,
 } from "../../../shared/orb-chat-multimodal";
+import {
+  AttachmentTextExtractionError,
+  extractAttachmentText,
+} from "@/lib/extractAttachmentText";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import ChatMessageText from "./ChatMessageText";
 import type { IntentOption } from "@/lib/intentOptions";
@@ -2360,7 +2364,10 @@ export default memo(function ProactiveOrbWidget({
 
       const candidates = Array.from(files);
       const validFiles = candidates
-        .map(file => ({ file, resolved: resolveOrbAttachmentKind(file.type) }))
+        .map(file => ({
+          file,
+          resolved: resolveOrbAttachmentKind(file.type, file.name),
+        }))
         .filter(
           (
             entry
@@ -2378,6 +2385,27 @@ export default memo(function ProactiveOrbWidget({
       try {
         const uploaded = await Promise.all(
           validFiles.map(async ({ file, resolved }) => {
+            // For text-like docs (txt / md / docx), parse the body client-
+            // side so the LLM actually sees the script. file_url parts can't
+            // help here — Claude / Gemini won't natively parse `.docx`.
+            let extractedText: string | undefined;
+            if (resolved.kind === "text") {
+              try {
+                extractedText = await extractAttachmentText(file, resolved.mimeType);
+                if (!extractedText.trim()) {
+                  throw new AttachmentTextExtractionError(
+                    "附件看起來是空的，沒有可讀取的內容。",
+                  );
+                }
+              } catch (err) {
+                const reason =
+                  err instanceof AttachmentTextExtractionError
+                    ? err.message
+                    : shortErrorMsg(err);
+                showFeedback(`無法讀取「${file.name}」：${reason}`);
+                throw err;
+              }
+            }
             const result = await uploadFileToS3(file);
             const id =
               typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -2389,12 +2417,15 @@ export default memo(function ProactiveOrbWidget({
               url: result.url,
               mimeType: resolved.mimeType,
               kind: resolved.kind,
+              ...(extractedText ? { extractedText } : {}),
             } satisfies ChatAttachment;
           })
         );
         setChatAttachments(prev => [...prev, ...uploaded]);
       } catch (err) {
-        showFeedback(`附件上傳失敗：${shortErrorMsg(err)}`);
+        if (!(err instanceof AttachmentTextExtractionError)) {
+          showFeedback(`附件上傳失敗：${shortErrorMsg(err)}`);
+        }
       } finally {
         setIsUploadingAttachments(false);
         if (uploadInputRef.current) {
@@ -2810,7 +2841,7 @@ export default memo(function ProactiveOrbWidget({
                                           rel="noreferrer"
                                           className={`inline-flex items-center gap-1 text-xs underline ${msg.role === "user" ? "text-white/90" : "text-emerald-700"}`}
                                         >
-                                          {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}
+                                          {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : attachment.kind === "text" ? "📝" : "📄"}
                                           <span className="truncate max-w-[220px]">{attachment.name}</span>
                                         </a>
                                       ))}
@@ -2903,7 +2934,7 @@ export default memo(function ProactiveOrbWidget({
                                   className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
                                   title="移除附件"
                                 >
-                                  <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}</span>
+                                  <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : attachment.kind === "text" ? "📝" : "📄"}</span>
                                   <span className="max-w-[120px] truncate">{attachment.name}</span>
                                   <X className="w-3 h-3" />
                                 </button>
@@ -3348,7 +3379,7 @@ export default memo(function ProactiveOrbWidget({
                                       rel="noreferrer"
                                       className={`inline-flex items-center gap-1 text-[11px] underline ${msg.role === "user" ? "text-white/90" : "text-emerald-700"}`}
                                     >
-                                      {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}
+                                      {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : attachment.kind === "text" ? "📝" : "📄"}
                                       <span className="truncate max-w-[180px]">{attachment.name}</span>
                                     </a>
                                   ))}
@@ -3469,7 +3500,7 @@ export default memo(function ProactiveOrbWidget({
                               className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
                               title="移除附件"
                             >
-                              <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}</span>
+                              <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : attachment.kind === "text" ? "📝" : "📄"}</span>
                               <span className="max-w-[110px] truncate">{attachment.name}</span>
                               <X className="w-3 h-3" />
                             </button>
