@@ -27,6 +27,12 @@ import {
   Layers,
   Terminal,
   CheckCircle2,
+  ChevronRight,
+  GitBranch,
+  Workflow,
+  Network,
+  Brain,
+  Route,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
@@ -438,25 +444,136 @@ function InteractiveOrb({ tint, glow, excitement, busy }: InteractiveOrbProps) {
 // ─── Output previews (placeholder + real image) ─────────────────────────────
 
 function PlaceholderImage({ tint }: { tint: string }) {
+  // Each card represents a different cinematographic interpretation that the
+  // agent would dispatch in parallel — shot type, lens, palette, subject pos.
+  const variants = [
+    {
+      shot: "CU",
+      lens: "85mm f/1.4",
+      mood: "戲劇",
+      subject: { x: 32, y: 48 },
+      palette: ["#1f1535", "#7e3ad6", "#fde7c1"],
+    },
+    {
+      shot: "MS",
+      lens: "50mm f/1.8",
+      mood: "情緒",
+      subject: { x: 65, y: 58 },
+      palette: ["#231a3a", "#a85cd8", "#fdb1a7"],
+    },
+    {
+      shot: "WS",
+      lens: "35mm f/2.0",
+      mood: "氛圍",
+      subject: { x: 50, y: 70 },
+      palette: ["#3a2255", "#c478e8", "#fdf0d7"],
+    },
+    {
+      shot: "OTS",
+      lens: "24mm f/2.8",
+      mood: "敘事",
+      subject: { x: 38, y: 60 },
+      palette: ["#101a3a", "#5a8de8", "#cfe1ff"],
+    },
+  ] as const;
+
   return (
     <div className="grid grid-cols-2 gap-1.5 w-full h-full p-1">
-      {[0, 1, 2, 3].map(i => (
+      {variants.map((v, i) => (
         <motion.div
           key={i}
           className="rounded-lg relative overflow-hidden"
           style={{
-            background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.06))`,
+            background: `linear-gradient(135deg, ${v.palette[0]} 0%, ${v.palette[1]} 60%, ${v.palette[2]} 100%)`,
             border: `1px solid ${tint}`,
           }}
           initial={{ opacity: 0, scale: 0.9, filter: "blur(8px)" }}
           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
           transition={{ delay: 0.15 + i * 0.12, duration: 0.5 }}
         >
+          {/* Rule-of-thirds composition guide */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-30"
+            style={{
+              backgroundImage:
+                "linear-gradient(to right, transparent 32.66%, rgba(255,255,255,0.5) 32.66%, rgba(255,255,255,0.5) 33.33%, transparent 33.33%, transparent 66%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 66.66%, transparent 66.66%), linear-gradient(to bottom, transparent 32.66%, rgba(255,255,255,0.5) 32.66%, rgba(255,255,255,0.5) 33.33%, transparent 33.33%, transparent 66%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 66.66%, transparent 66.66%)",
+            }}
+          />
+          {/* Subject silhouette — positioned per rule-of-thirds intersection */}
+          <div
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              left: `${v.subject.x}%`,
+              top: `${v.subject.y}%`,
+              width: "32%",
+              height: "38%",
+              background: `radial-gradient(circle, rgba(255,255,255,0.9) 0%, ${v.palette[2]}88 55%, transparent 100%)`,
+              transform: "translate(-50%, -50%)",
+              filter: "blur(3px)",
+            }}
+          />
+          {/* Shot label */}
+          <div
+            className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-semibold tracking-wider"
+            style={{
+              background: "rgba(0,0,0,0.65)",
+              color: "#fff",
+              border: `1px solid ${tint}`,
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            {v.shot}
+          </div>
+          {/* Variant badge */}
+          <div
+            className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8px] font-semibold"
+            style={{ background: tint, color: "#fff" }}
+          >
+            V{i + 1}
+          </div>
+          {/* Bottom info: lens, mood, palette dots */}
+          <div className="absolute left-1 right-1 bottom-1 flex items-center gap-1 text-[7.5px]">
+            <span
+              className="px-1 py-0.5 rounded font-mono"
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                color: "rgba(255,255,255,0.95)",
+                border: `1px solid ${tint}`,
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              {v.lens}
+            </span>
+            <span
+              className="px-1 py-0.5 rounded"
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                color: "rgba(255,255,255,0.95)",
+                border: `1px solid ${tint}`,
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              {v.mood}
+            </span>
+            <span className="ml-auto flex items-center gap-0.5">
+              {v.palette.map((c, j) => (
+                <span
+                  key={j}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: c,
+                    boxShadow: "0 0 0 1px rgba(255,255,255,0.5)",
+                  }}
+                />
+              ))}
+            </span>
+          </div>
+          {/* Shimmer */}
           <motion.div
-            className="absolute inset-0"
+            className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.25) 50%, transparent 70%)",
+                "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%)",
             }}
             animate={{ x: ["-100%", "100%"] }}
             transition={{
@@ -473,33 +590,101 @@ function PlaceholderImage({ tint }: { tint: string }) {
 }
 
 function PlaceholderVideo({ tint }: { tint: string }) {
+  // Storyboard frames — each frame has a timecode, motion hint, and tone tint
+  // so the preview reads as a real shot list rather than empty boxes.
+  const frames = [
+    { tc: "00:00", motion: "fade-in", palette: ["#0d1230", "#3b82f6"] },
+    { tc: "00:01", motion: "push-in", palette: ["#142048", "#60a5fa"] },
+    { tc: "00:02", motion: "tilt-up", palette: ["#1c2c5e", "#93c5fd"] },
+    { tc: "00:03", motion: "track-L", palette: ["#0f1d4a", "#3b82f6"] },
+    { tc: "00:04", motion: "hold", palette: ["#0a1532", "#1d4ed8"] },
+  ] as const;
   return (
-    <div className="flex flex-col gap-2 w-full h-full p-2 justify-center">
+    <div className="flex flex-col gap-1.5 w-full h-full p-2 justify-center">
       <div className="flex gap-1.5">
-        {[0, 1, 2, 3, 4].map(i => (
+        {frames.map((f, i) => (
           <motion.div
             key={i}
             className="flex-1 aspect-[3/4] rounded-md relative overflow-hidden"
             style={{
-              background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.05))`,
+              background: `linear-gradient(160deg, ${f.palette[0]}, ${f.palette[1]})`,
               border: `1px solid ${tint}`,
             }}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08, duration: 0.4 }}
-          />
+          >
+            {/* subject silhouette */}
+            <div
+              className="absolute rounded-full"
+              style={{
+                left: `${30 + i * 10}%`,
+                top: "55%",
+                width: "38%",
+                height: "30%",
+                background: `radial-gradient(circle, rgba(255,255,255,0.85), ${f.palette[1]}66 60%, transparent)`,
+                transform: "translate(-50%, -50%)",
+                filter: "blur(2px)",
+              }}
+            />
+            {/* timecode */}
+            <span
+              className="absolute top-0.5 left-0.5 text-[7.5px] font-mono px-1 py-[1px] rounded"
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                color: "#fff",
+                border: `1px solid ${tint}`,
+              }}
+            >
+              {f.tc}
+            </span>
+            {/* frame number */}
+            <span
+              className="absolute top-0.5 right-0.5 text-[7.5px] font-semibold px-1 py-[1px] rounded-full"
+              style={{ background: tint, color: "#fff" }}
+            >
+              F{i + 1}
+            </span>
+            {/* motion label */}
+            <span
+              className="absolute left-0.5 right-0.5 bottom-0.5 text-[7.5px] font-mono text-center px-0.5 py-[1px] rounded"
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                color: "rgba(255,255,255,0.95)",
+                border: `1px solid ${tint}`,
+              }}
+            >
+              {f.motion}
+            </span>
+          </motion.div>
         ))}
       </div>
-      <div
-        className="h-1 rounded-full overflow-hidden mt-2"
-        style={{ background: "rgba(255,255,255,0.08)" }}
-      >
-        <motion.div
-          className="h-full"
-          style={{ background: tint }}
-          animate={{ width: ["0%", "100%"] }}
-          transition={{ duration: 3.0, repeat: Infinity, ease: "linear" }}
-        />
+      {/* Timeline ruler */}
+      <div className="flex items-center gap-1 mt-1 text-[8px] font-mono">
+        <span style={{ color: tint }}>00:00</span>
+        <div
+          className="flex-1 h-1.5 rounded-full overflow-hidden relative"
+          style={{ background: "rgba(255,255,255,0.08)" }}
+        >
+          <motion.div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{
+              background: `linear-gradient(90deg, ${tint}, rgba(255,255,255,0.85))`,
+              boxShadow: `0 0 8px ${tint}`,
+            }}
+            animate={{ width: ["0%", "100%"] }}
+            transition={{ duration: 3.0, repeat: Infinity, ease: "linear" }}
+          />
+          {/* frame markers */}
+          {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
+            <span
+              key={i}
+              className="absolute top-0 bottom-0 w-px"
+              style={{ left: `${p * 100}%`, background: "rgba(255,255,255,0.4)" }}
+            />
+          ))}
+        </div>
+        <span style={{ color: tint }}>00:05</span>
       </div>
     </div>
   );
@@ -563,23 +748,60 @@ function PlaceholderVoice({ tint }: { tint: string }) {
 }
 
 function PlaceholderDirector({ tint }: { tint: string }) {
+  // 5 scenes + 1 deliverables panel — each card declares its scene type so
+  // viewers can read the director's plan at a glance.
+  const scenes = [
+    { tag: "S1", role: "開場", detail: "品牌主題", dur: "4s" },
+    { tag: "S2", role: "鋪陳", detail: "情緒鋪墊", dur: "6s" },
+    { tag: "S3", role: "高潮", detail: "產品特寫", dur: "5s" },
+    { tag: "S4", role: "轉折", detail: "使用情境", dur: "5s" },
+    { tag: "S5", role: "收束", detail: "標語+LOGO", dur: "4s" },
+    { tag: "✓", role: "成品包", detail: "影 + 樂 + 字", dur: "24s" },
+  ] as const;
   return (
     <div className="grid grid-cols-3 gap-1.5 w-full h-full p-2">
-      {[0, 1, 2, 3, 4, 5].map(i => (
+      {scenes.map((s, i) => (
         <motion.div
           key={i}
-          className="rounded-md relative overflow-hidden flex items-center justify-center"
+          className="rounded-md relative overflow-hidden p-1.5 flex flex-col"
           style={{
-            background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.05))`,
+            background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.06))`,
             border: `1px solid ${tint}`,
           }}
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: i * 0.1, duration: 0.4 }}
+          transition={{ delay: i * 0.08, duration: 0.4 }}
         >
-          <span className="text-[9px] font-medium" style={{ color: tint }}>
-            S{i + 1}
+          <div className="flex items-center justify-between mb-0.5">
+            <span
+              className="text-[8px] font-mono font-semibold px-1 py-[1px] rounded"
+              style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+            >
+              {s.tag}
+            </span>
+            <span
+              className="text-[8px] font-mono px-1 py-[1px] rounded-full"
+              style={{ background: tint, color: "#fff" }}
+            >
+              {s.dur}
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold leading-tight text-white">
+            {s.role}
           </span>
+          <span className="text-[8.5px] font-mono mt-0.5 leading-tight text-white/85">
+            {s.detail}
+          </span>
+          {/* Arrow connector to next scene (skip last) */}
+          {i < scenes.length - 1 && (i + 1) % 3 !== 0 && (
+            <span
+              className="absolute right-[-7px] top-1/2 -translate-y-1/2 text-[10px]"
+              style={{ color: tint }}
+              aria-hidden="true"
+            >
+              ›
+            </span>
+          )}
         </motion.div>
       ))}
     </div>
@@ -587,27 +809,81 @@ function PlaceholderDirector({ tint }: { tint: string }) {
 }
 
 function PlaceholderLora({ tint }: { tint: string }) {
+  // Each card represents an angle of the same character — together they show
+  // cross-shot consistency, which is the entire point of LoRA training.
+  const looks = [
+    { name: "正面", angle: "front · 0°", consistency: 96 },
+    { name: "3/4", angle: "3-quarter · 30°", consistency: 94 },
+    { name: "側臉", angle: "profile · 90°", consistency: 92 },
+  ] as const;
   return (
-    <div className="flex items-center justify-center gap-3 w-full h-full">
-      {[0, 1, 2].map(i => (
+    <div className="flex items-center justify-center gap-2 w-full h-full px-2">
+      {looks.map((l, i) => (
         <motion.div
           key={i}
-          className="w-12 h-16 sm:w-14 sm:h-20 rounded-xl relative overflow-hidden"
+          className="flex-1 max-w-[34%] rounded-xl relative overflow-hidden p-1.5"
           style={{
-            background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.05))`,
+            background: `linear-gradient(160deg, #082c3d 0%, ${tint} 70%, rgba(255,255,255,0.12))`,
             border: `1px solid ${tint}`,
           }}
-          animate={{ y: [0, -4, 0], scale: [1, 1.05, 1] }}
-          transition={{ duration: 2.4, delay: i * 0.3, repeat: Infinity, ease: "easeInOut" }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: [0, -3, 0] }}
+          transition={{
+            opacity: { delay: i * 0.12, duration: 0.4 },
+            y: { duration: 2.4, delay: i * 0.3, repeat: Infinity, ease: "easeInOut" },
+          }}
         >
+          {/* face / hair silhouette */}
           <div
-            className="absolute inset-x-2 top-2 h-3 rounded-full"
-            style={{ background: tint, opacity: 0.6 }}
+            className="absolute left-1/2 top-[28%] -translate-x-1/2 rounded-full"
+            style={{
+              width: "55%",
+              aspectRatio: "1 / 1.2",
+              background: `radial-gradient(ellipse at 50% 30%, rgba(255,235,210,0.95), rgba(120,80,60,0.6) 60%, transparent 90%)`,
+              filter: "blur(2px)",
+            }}
           />
-          <div
-            className="absolute inset-x-2 bottom-2 h-1 rounded-full"
-            style={{ background: tint, opacity: 0.4 }}
-          />
+          {/* name + angle */}
+          <div className="absolute left-1 right-1 top-1 flex items-center justify-between">
+            <span
+              className="text-[8.5px] font-semibold px-1 py-[1px] rounded"
+              style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+            >
+              {l.name}
+            </span>
+            <span
+              className="text-[7.5px] font-mono px-1 py-[1px] rounded"
+              style={{ background: tint, color: "#fff" }}
+            >
+              v{i + 1}
+            </span>
+          </div>
+          {/* consistency bar */}
+          <div className="absolute left-1 right-1 bottom-1.5">
+            <div className="flex justify-between text-[7.5px] font-mono mb-0.5 text-white/95">
+              <span>{l.angle}</span>
+              <span style={{ color: tint }}>{l.consistency}%</span>
+            </div>
+            <div
+              className="h-1 rounded-full overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.18)" }}
+            >
+              <motion.div
+                className="h-full rounded-full"
+                style={{
+                  background: `linear-gradient(90deg, ${tint}, rgba(255,255,255,0.85))`,
+                }}
+                animate={{ width: [`${l.consistency - 10}%`, `${l.consistency}%`] }}
+                transition={{
+                  duration: 2.0,
+                  delay: i * 0.2,
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                  ease: "easeInOut",
+                }}
+              />
+            </div>
+          </div>
         </motion.div>
       ))}
     </div>
@@ -746,6 +1022,503 @@ function ToolDispatchTrace({
         );
       })}
     </motion.div>
+  );
+}
+
+// ─── Agent blueprint — flowchart / mind map / process timeline ──────────────
+//
+// The preview card shows what the agent *generates*. The blueprint shows
+// what the agent *thinks* — the same way a human would sketch it on a
+// whiteboard before pressing run. Three panels:
+//
+//   1. 流程圖 (flowchart): vertical pipeline from prompt to output variants.
+//   2. 心智圖 (mind map): the prompt fans out into concept / style /
+//      lens / mood — the agent's parallel reasoning.
+//   3. 過程圖 (process timeline): step-by-step execution with timing chips.
+
+interface BlueprintMode {
+  id: ModeId;
+  tint: string;
+  glow: string;
+  prompt: string;
+  tool: string;
+  liveGenerate: boolean;
+}
+
+interface BlueprintCopy {
+  /** Tool route label shown in the flowchart's "工具" node. */
+  toolLabel: string;
+  /** Output label shown in the flowchart's terminal node. */
+  output: string;
+  /** Mind-map branches — 4 clusters around the central prompt. */
+  branches: {
+    label: string;
+    nodes: readonly string[];
+    icon: typeof Brain;
+  }[];
+  /** Process-timeline steps — title + tiny detail + ms hint. */
+  steps: { title: string; detail: string; ms: string }[];
+}
+
+const BLUEPRINT_COPY: Record<ModeId, BlueprintCopy> = {
+  image: {
+    toolLabel: "image_generator",
+    output: "4 張變體",
+    branches: [
+      { label: "主體", nodes: ["少女側臉", "夕陽逆光", "情緒留白"], icon: Target },
+      { label: "風格", nodes: ["電影感", "film-grain", "淺景深"], icon: Palette },
+      { label: "鏡頭", nodes: ["35mm", "85mm CU", "rule-of-thirds"], icon: Eye },
+      { label: "氛圍", nodes: ["黃昏暖光", "霓虹冷光", "底片顆粒"], icon: Sparkles },
+    ],
+    steps: [
+      { title: "感知", detail: "意圖 / 模態 / 主體", ms: "120ms" },
+      { title: "規劃", detail: "建立 4 變體計畫", ms: "180ms" },
+      { title: "派工", detail: "image_generator", ms: "220ms" },
+      { title: "串流", detail: "queue → 部分結果", ms: "5.4s" },
+      { title: "交付", detail: "成品 + seed", ms: "8.2s" },
+    ],
+  },
+  video: {
+    toolLabel: "videoStudio",
+    output: "5 秒短片 + 字幕",
+    branches: [
+      { label: "鏡頭", nodes: ["慢速推軌", "9:16 直式", "手持微震"], icon: Eye },
+      { label: "場景", nodes: ["雨後濕地", "霓虹倒影", "夜景街道"], icon: Target },
+      { label: "節奏", nodes: ["呼吸感", "5 秒 25fps", "緩入緩出"], icon: Clock },
+      { label: "氛圍", nodes: ["賽博龐克", "孤獨感", "電影調光"], icon: Palette },
+    ],
+    steps: [
+      { title: "感知", detail: "判定影片模態", ms: "140ms" },
+      { title: "規劃", detail: "鏡頭 + 時長 + 比例", ms: "220ms" },
+      { title: "派工", detail: "klingTextToVideo", ms: "260ms" },
+      { title: "串流", detail: "queue → 進度回推", ms: "60-120s" },
+      { title: "交付", detail: "MP4 + 重跑 seed", ms: "≈2 分鐘" },
+    ],
+  },
+  music: {
+    toolLabel: "proStudio.music",
+    output: "30-60 秒原創曲",
+    branches: [
+      { label: "情緒", nodes: ["冷冽", "雨夜", "孤獨"], icon: Brain },
+      { label: "編制", nodes: ["鋼琴主旋律", "弦樂墊底", "微氛圍鼓"], icon: Layers },
+      { label: "節奏", nodes: ["BPM 72", "4/4", "慢板"], icon: Clock },
+      { label: "結構", nodes: ["intro 8s", "verse 12s", "outro 6s"], icon: Workflow },
+    ],
+    steps: [
+      { title: "感知", detail: "解析情緒 / BPM / 編制", ms: "150ms" },
+      { title: "規劃", detail: "段落結構 + 配器", ms: "210ms" },
+      { title: "派工", detail: "textToMusic", ms: "240ms" },
+      { title: "串流", detail: "渲染 → 預覽段", ms: "30-60s" },
+      { title: "交付", detail: "WAV + MIDI hint", ms: "≈1 分鐘" },
+    ],
+  },
+  voice: {
+    toolLabel: "proStudio.qwenTTS",
+    output: "10-20 秒配音",
+    branches: [
+      { label: "語者", nodes: ["女聲 · 溫柔", "中性低音", "敘事旁白"], icon: Mic },
+      { label: "情緒", nodes: ["平靜", "微笑", "沉思"], icon: Brain },
+      { label: "節奏", nodes: ["呼吸停頓", "0.92x 語速", "段落間距"], icon: Clock },
+      { label: "音場", nodes: ["乾淨人聲", "微殘響", "去口水音"], icon: Sparkles },
+    ],
+    steps: [
+      { title: "感知", detail: "判定語者 / 情緒", ms: "110ms" },
+      { title: "規劃", detail: "段落 + 停頓地圖", ms: "160ms" },
+      { title: "派工", detail: "qwenTTS", ms: "200ms" },
+      { title: "串流", detail: "合成 → 後處理", ms: "10-20s" },
+      { title: "交付", detail: "MP3 + SRT 對齊", ms: "≈25s" },
+    ],
+  },
+  director: {
+    toolLabel: "director.plan",
+    output: "5 鏡 + 配樂 + 字幕",
+    branches: [
+      { label: "敘事", nodes: ["品牌調性", "情緒弧線", "Call-to-Action"], icon: Brain },
+      { label: "分鏡", nodes: ["S1 開場", "S2-3 鋪陳", "S4-5 收束"], icon: Layers },
+      { label: "視覺", nodes: ["主視覺", "色票", "字幕風格"], icon: Palette },
+      { label: "聲音", nodes: ["配樂", "旁白", "音效層"], icon: Music },
+    ],
+    steps: [
+      { title: "感知", detail: "拆解品牌 / 受眾 / 平台", ms: "180ms" },
+      { title: "規劃", detail: "5 鏡 DAG + 相依", ms: "320ms" },
+      { title: "派工", detail: "→ 圖片 / 影片 / 音樂", ms: "—" },
+      { title: "編排", detail: "監看 queue + 重試", ms: "5-10 分鐘" },
+      { title: "交付", detail: "成品包 + 重跑配方", ms: "≈12 分鐘" },
+    ],
+  },
+  lora: {
+    toolLabel: "lora_trainer.create",
+    output: "專屬角色模型",
+    branches: [
+      { label: "資料", nodes: ["12 張參考圖", "去背 + 對齊", "風格標註"], icon: Layers },
+      { label: "訓練", nodes: ["rank 32", "lr 1e-4", "1200 steps"], icon: Workflow },
+      { label: "驗證", nodes: ["臉部一致", "服裝一致", "跨景測試"], icon: Shield },
+      { label: "輸出", nodes: ["LoRA .safetensors", "trigger word", "推薦 prompt"], icon: Target },
+    ],
+    steps: [
+      { title: "感知", detail: "讀取參考圖集", ms: "300ms" },
+      { title: "規劃", detail: "建議 rank / steps", ms: "400ms" },
+      { title: "派工", detail: "lora_trainer.create", ms: "500ms" },
+      { title: "訓練", detail: "monitor loss + sample", ms: "≈8 分鐘" },
+      { title: "交付", detail: "權重 + 用法說明", ms: "≈8.5 分鐘" },
+    ],
+  },
+};
+
+function FlowchartPanel({
+  mode,
+  tint,
+  isDark,
+  cardBorder,
+  copy,
+}: {
+  mode: BlueprintMode;
+  tint: string;
+  isDark: boolean;
+  cardBorder: string;
+  copy: BlueprintCopy;
+}) {
+  const reduce = useReducedMotion();
+  const node = (label: string, sub?: string, accent = false) => (
+    <div
+      className="rounded-md px-2 py-1.5 text-center"
+      style={{
+        background: accent
+          ? `linear-gradient(135deg, ${tint}, ${mode.glow})`
+          : isDark
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(255,255,255,0.55)",
+        border: `1px solid ${accent ? tint : cardBorder}`,
+        color: accent ? "#fff" : isDark ? "rgba(255,255,255,0.92)" : "rgba(20,20,30,0.85)",
+      }}
+    >
+      <div className="text-[10px] font-semibold leading-tight">{label}</div>
+      {sub && (
+        <div
+          className="text-[8.5px] font-mono mt-0.5 leading-tight opacity-90 truncate"
+          style={{ color: accent ? "rgba(255,255,255,0.92)" : tint }}
+        >
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+  const arrow = (
+    <div className="flex justify-center" aria-hidden="true">
+      <motion.div
+        animate={reduce ? undefined : { y: [0, 2, 0] }}
+        transition={{ duration: 1.6, repeat: Infinity }}
+        style={{ color: tint }}
+      >
+        <svg width="14" height="10" viewBox="0 0 14 10">
+          <path
+            d="M7 0 V 7 M3 5 L 7 9 L 11 5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </motion.div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="flex items-center gap-1 text-[8.5px] tracking-[0.18em] uppercase font-mono"
+        style={{ color: tint }}
+      >
+        <Network className="w-2.5 h-2.5" />
+        流程圖 · flowchart
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {node("念頭 prompt", "user input")}
+        {arrow}
+        {node("解析 · 模態判讀", "intent + modality")}
+        {arrow}
+        {node("路由 router", copy.toolLabel)}
+        {arrow}
+        {node(copy.output, mode.tool, true)}
+      </div>
+    </div>
+  );
+}
+
+function MindMapPanel({
+  tint,
+  isDark,
+  cardBorder,
+  copy,
+}: {
+  tint: string;
+  isDark: boolean;
+  cardBorder: string;
+  copy: BlueprintCopy;
+}) {
+  const reduce = useReducedMotion();
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="flex items-center gap-1 text-[8.5px] tracking-[0.18em] uppercase font-mono"
+        style={{ color: tint }}
+      >
+        <GitBranch className="w-2.5 h-2.5" />
+        心智圖 · mind map
+      </div>
+      <div
+        className="relative rounded-md px-2 py-2"
+        style={{
+          background: isDark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.45)",
+          border: `1px dashed ${cardBorder}`,
+        }}
+      >
+        {/* central node */}
+        <div className="flex justify-center mb-1.5">
+          <motion.div
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1"
+            style={{
+              background: tint,
+              color: "#fff",
+              boxShadow: `0 0 16px ${tint}`,
+            }}
+            animate={reduce ? undefined : { scale: [1, 1.05, 1] }}
+            transition={{ duration: 2.4, repeat: Infinity }}
+          >
+            <Brain className="w-2.5 h-2.5" />
+            <span className="text-[9px] font-semibold tracking-wider">prompt</span>
+          </motion.div>
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          {copy.branches.map((b, i) => {
+            const Icon = b.icon;
+            return (
+              <motion.div
+                key={b.label}
+                className="rounded px-1.5 py-1"
+                style={{
+                  background: isDark
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(255,255,255,0.6)",
+                  border: `1px solid ${cardBorder}`,
+                }}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.08, duration: 0.4 }}
+              >
+                <div
+                  className="flex items-center gap-1 text-[9px] font-semibold mb-0.5"
+                  style={{ color: tint }}
+                >
+                  <Icon className="w-2.5 h-2.5" />
+                  {b.label}
+                </div>
+                <div
+                  className="flex flex-wrap gap-0.5"
+                  style={{
+                    color: isDark
+                      ? "rgba(255,255,255,0.85)"
+                      : "rgba(20,20,30,0.82)",
+                  }}
+                >
+                  {b.nodes.map(n => (
+                    <span
+                      key={n}
+                      className="text-[8.5px] px-1 py-[1px] rounded"
+                      style={{
+                        background: isDark
+                          ? "rgba(255,255,255,0.05)"
+                          : "rgba(255,255,255,0.55)",
+                        border: `1px solid ${cardBorder}`,
+                      }}
+                    >
+                      {n}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProcessTimelinePanel({
+  tint,
+  isDark,
+  cardBorder,
+  copy,
+  liveGenerate,
+}: {
+  tint: string;
+  isDark: boolean;
+  cardBorder: string;
+  copy: BlueprintCopy;
+  liveGenerate: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="flex items-center gap-1 text-[8.5px] tracking-[0.18em] uppercase font-mono"
+        style={{ color: tint }}
+      >
+        <Workflow className="w-2.5 h-2.5" />
+        過程圖 · timeline
+        <span
+          className="ml-auto text-[8px] font-mono px-1 py-[1px] rounded"
+          style={{
+            background: liveGenerate ? tint : "transparent",
+            color: liveGenerate ? "#fff" : tint,
+            border: `1px solid ${tint}`,
+          }}
+        >
+          {liveGenerate ? "LIVE" : "AGENT"}
+        </span>
+      </div>
+      <ol className="flex flex-col gap-1">
+        {copy.steps.map((s, i) => (
+          <motion.li
+            key={s.title}
+            className="flex items-start gap-1.5 rounded px-1.5 py-1"
+            style={{
+              background: isDark
+                ? "rgba(255,255,255,0.04)"
+                : "rgba(255,255,255,0.5)",
+              border: `1px solid ${cardBorder}`,
+            }}
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.05 + i * 0.06, duration: 0.4 }}
+          >
+            <span
+              className="flex items-center justify-center w-3.5 h-3.5 rounded-full text-[8px] font-semibold shrink-0"
+              style={{
+                background: tint,
+                color: "#fff",
+                boxShadow: `0 0 8px ${tint}`,
+              }}
+            >
+              {i + 1}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div
+                className="flex items-center gap-1 text-[9.5px] font-semibold leading-tight"
+                style={{
+                  color: isDark
+                    ? "rgba(255,255,255,0.95)"
+                    : "rgba(20,20,30,0.9)",
+                }}
+              >
+                {s.title}
+                <span
+                  className="ml-auto text-[8px] font-mono px-1 py-[1px] rounded"
+                  style={{
+                    background: isDark
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(255,255,255,0.55)",
+                    border: `1px solid ${cardBorder}`,
+                    color: tint,
+                  }}
+                >
+                  {s.ms}
+                </span>
+              </div>
+              <div
+                className="text-[8.5px] mt-0.5 leading-tight font-mono opacity-90 truncate"
+                style={{
+                  color: isDark
+                    ? "rgba(255,255,255,0.78)"
+                    : "rgba(20,20,30,0.72)",
+                }}
+              >
+                {s.detail}
+              </div>
+            </div>
+          </motion.li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function AgentBlueprint({
+  mode,
+  isDark,
+  cardBg,
+  cardBorder,
+  textPrimary,
+  textMuted,
+}: {
+  mode: BlueprintMode;
+  isDark: boolean;
+  cardBg: string;
+  cardBorder: string;
+  textPrimary: string;
+  textMuted: string;
+}) {
+  const copy = BLUEPRINT_COPY[mode.id];
+
+  return (
+    <motion.section
+      key={`blueprint-${mode.id}`}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      className="relative mt-3 sm:mt-4 rounded-2xl backdrop-blur-md p-3 sm:p-4"
+      style={{
+        background: cardBg,
+        border: `1px solid ${cardBorder}`,
+      }}
+      aria-label="光球代理推論藍圖"
+    >
+      <div className="flex items-center gap-2 mb-2 sm:mb-3">
+        <div
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
+          style={{
+            background: mode.tint,
+            color: "#fff",
+            boxShadow: `0 0 14px ${mode.glow}`,
+          }}
+        >
+          <Route className="w-3 h-3" />
+          <span className="text-[10px] tracking-wider font-semibold">
+            代理推論藍圖
+          </span>
+        </div>
+        <span className={`text-[10px] sm:text-[11px] ${textMuted}`}>
+          流程圖 · 心智圖 · 過程圖（細節同步刷新）
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <FlowchartPanel
+          mode={mode}
+          tint={mode.tint}
+          isDark={isDark}
+          cardBorder={cardBorder}
+          copy={copy}
+        />
+        <MindMapPanel
+          tint={mode.tint}
+          isDark={isDark}
+          cardBorder={cardBorder}
+          copy={copy}
+        />
+        <ProcessTimelinePanel
+          tint={mode.tint}
+          isDark={isDark}
+          cardBorder={cardBorder}
+          copy={copy}
+          liveGenerate={mode.liveGenerate}
+        />
+      </div>
+      <p className={`mt-2 sm:mt-3 text-[10px] sm:text-[11px] ${textMuted}`}>
+        <span className={textPrimary}>細節：</span>左側流程圖呈現代理的工具路由，
+        中間心智圖列出代理同時思考的概念分支，右側過程圖標出每一步的耗時與動作 — 三者同步隨模態切換。
+      </p>
+    </motion.section>
   );
 }
 
@@ -1265,6 +2038,11 @@ export default function OrbCreationStage({
           <PhaseLabel tint={activeMode.tint} label={`Phase 01 → 02 · 光球創作劇場`} />
           <h2
             className={`text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight tracking-tight transition-colors duration-1000 ${textPrimary}`}
+            style={{
+              textShadow: isDark
+                ? "0 2px 18px rgba(0,0,0,0.55)"
+                : "0 1px 12px rgba(255,255,255,0.65)",
+            }}
           >
             從一個念頭開始 ·
             <span
@@ -1277,12 +2055,30 @@ export default function OrbCreationStage({
               即時生成
             </span>
           </h2>
-          <p
-            className={`mt-3 sm:mt-5 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${textMuted}`}
+          <div
+            className="mt-3 sm:mt-5 mx-auto max-w-2xl rounded-2xl px-4 sm:px-5 py-3 sm:py-3.5 backdrop-blur-md transition-all duration-1000"
+            style={{
+              background: isDark
+                ? "linear-gradient(180deg, rgba(8,12,30,0.55), rgba(8,12,30,0.32))"
+                : "linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.42))",
+              border: `1px solid ${cardBorder}`,
+              boxShadow: isDark
+                ? "0 8px 24px rgba(0,0,0,0.25)"
+                : "0 8px 24px rgba(120,90,60,0.08)",
+            }}
           >
-            寫下你想創作的畫面或情緒 — 光球代理會即時感應、判斷模態，
-            並為你呼叫對應的生成工具：圖片、影片、音樂、配音、導演與角色 LoRA，全部在這個畫面完成。
-          </p>
+            <p
+              className={`text-sm sm:text-base leading-relaxed transition-colors duration-1000 ${textMuted}`}
+              style={{
+                textShadow: isDark
+                  ? "0 1px 8px rgba(0,0,0,0.5)"
+                  : "0 1px 4px rgba(255,255,255,0.55)",
+              }}
+            >
+              寫下你想創作的畫面或情緒 — 光球代理會即時感應、判斷模態，
+              並為你呼叫對應的生成工具：圖片、影片、音樂、配音、導演與角色 LoRA，全部在這個畫面完成。
+            </p>
+          </div>
         </motion.div>
 
         {/* ── Scenario presets — 首頁改為多種形式演示 ── */}
@@ -1607,6 +2403,19 @@ export default function OrbCreationStage({
               </AnimatePresence>
             </div>
           </div>
+
+          {/* ── Agent blueprint: flowchart / mind map / process timeline ── */}
+          <AnimatePresence mode="wait">
+            <AgentBlueprint
+              key={activeMode.id}
+              mode={activeMode}
+              isDark={isDark}
+              cardBg={cardBg}
+              cardBorder={cardBorder}
+              textPrimary={textPrimary}
+              textMuted={textMuted}
+            />
+          </AnimatePresence>
 
           {/* ── Modality selector — the agent's tool palette ── */}
           <div
