@@ -1593,9 +1593,15 @@ export const proStudioRouter = router({
     }),
 
   /**
-   * 結合狀態+結果的通用輪詢 API
-   * 前端每 3 秒呼叫：若已完成則回傳音訊 URL
-   * 支援超時偵測：若任務執行超過 10 分鐘仍未完成，自動標記為失敗
+   * 結合狀態+結果的通用輪詢 API（音訊 / 影片 / ASR 共用）
+   *
+   * 前端每 3 秒呼叫：若已完成則回傳已 S3 本地化的 audio_url / video_url / text。
+   * 支援超時偵測：若任務執行超過 10 分鐘仍未完成，自動標記為失敗。
+   *
+   * ⚠️ 此 endpoint 取代 jobStatus + 自行讀取 output.video_url 的舊流程：
+   * - jobStatus 只回 queue 狀態，不含 result.payload，無法解析 video URL
+   * - fal.ai CDN URL 約幾小時就會過期；checkAudioStatus 會走 localizeResultUrls
+   *   把媒體存到自家 S3，前端拿到的 URL 不會 404
    */
   checkAudioStatus: brainProcedure
     .input(
@@ -1641,8 +1647,21 @@ export const proStudioRouter = router({
           localized?.audio?.url ??
           localized?.audio_url ??
           (Array.isArray(localized?.audio) ? localized.audio[0]?.url : null) ??
-          localized?.output?.url ??
+          localized?.output?.audio?.url ??
+          localized?.output?.audio_url ??
           localized?.audio_file?.url ??
+          null;
+
+        // 通用提取 video_url（dubbing / avatar 影片任務共用）
+        // ElevenLabs Dubbing 回 { video?: { url }, audio?: { url } }；
+        // wan/echomimic/longcat/ltx 回 { video: { url } }；
+        // 部分模型把媒體包在 output 子物件，故兩層都要掃。
+        const videoUrl =
+          localized?.video?.url ??
+          localized?.video_url ??
+          (Array.isArray(localized?.video) ? localized.video[0]?.url : null) ??
+          localized?.output?.video?.url ??
+          localized?.output?.video_url ??
           null;
 
         // 如果是 ASR 結果，提取文字
@@ -1657,8 +1676,9 @@ export const proStudioRouter = router({
             .join(" ");
 
         return {
-          status: "COMPLETED",
+          status: "COMPLETED" as const,
           audio_url: audioUrl,
+          video_url: videoUrl,
           text: text.trim() || null,
           raw: localized,
         };
@@ -1681,7 +1701,7 @@ export const proStudioRouter = router({
         });
       }
 
-      return { status: "IN_PROGRESS" };
+      return { status: "IN_PROGRESS" as const };
     }),
 
   // ═══════════════════════════════════════════════════════════════

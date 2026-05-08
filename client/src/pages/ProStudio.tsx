@@ -1002,6 +1002,14 @@ const MUSIC_TEMPLATES = [
   },
 ];
 
+type MusicModelChoice =
+  | "sonauto"
+  | "ace-step"
+  | "stable-audio"
+  | "musicgen"
+  | "suno-v3.5"
+  | "suno-v4";
+
 function MusicTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
@@ -1010,11 +1018,11 @@ function MusicTab() {
   const [instrumental, setInstrumental] = useState(false);
   const [tags, setTags] = useState("");
   // DEF-14 修正：預設改為 ACE-Step（Sonauto v2 在 fal.ai 上不穩定，除非話概可用時才切回）
-  const [musicModel, setMusicModel] = useState<
-    "sonauto" | "ace-step" | "stable-audio" | "musicgen"
-  >("ace-step");
+  const [musicModel, setMusicModel] = useState<MusicModelChoice>("ace-step");
   const [duration, setDuration] = useState(30);
   const [result, setResult] = useState<AudioResult | null>(null);
+  // Suno 走獨立 task 流程（taskId/jobId），用單獨 state 追蹤輪詢
+  const [sunoJob, setSunoJob] = useState<{ taskId: string; jobId?: number; modelVersion: string } | null>(null);
 
   // ── Agent Bridge：讓光球能控制音樂分頁參數 ──
   useProStudioAgentBridge({
@@ -1022,8 +1030,10 @@ function MusicTab() {
     setParam: (key: string, value: string) => {
       switch (key) {
         case "musicModel": case "model": {
-          const valid = ["sonauto", "ace-step", "stable-audio", "musicgen"];
-          if (valid.includes(value)) { setMusicModel(value as typeof musicModel); return true; }
+          const valid: MusicModelChoice[] = [
+            "sonauto", "ace-step", "stable-audio", "musicgen", "suno-v3.5", "suno-v4",
+          ];
+          if ((valid as string[]).includes(value)) { setMusicModel(value as MusicModelChoice); return true; }
           return false;
         }
         case "duration": { const n = parseInt(value, 10); if (n >= 5 && n <= 180) { setDuration(n); return true; } return false; }
@@ -1042,12 +1052,32 @@ function MusicTab() {
       setInstrumental(false);
       setDuration(30);
       setResult(null);
+      setSunoJob(null);
     },
   });
 
   // 載入可用模型清單
   const modelsQuery = trpc.proStudio.musicModels.useQuery();
-  const models = modelsQuery.data ?? [];
+  const falModels = modelsQuery.data ?? [];
+  // Suno 模型由前端直接定義（後端 generateMusicSuno 已支援 v3.5/v4）
+  const SUNO_MODELS = [
+    {
+      id: "suno-v3.5",
+      label: "Suno v3.5",
+      description: "Suno API · 完整歌曲 · 穩定預設（含人聲＋伴奏）",
+      badge: "歌詞",
+      tier: "premium" as const,
+    },
+    {
+      id: "suno-v4",
+      label: "Suno v4",
+      description: "Suno API · 高品質頂規（含人聲＋伴奏）",
+      badge: "Pro",
+      tier: "premium" as const,
+    },
+  ];
+  const models = [...falModels, ...SUNO_MODELS];
+  const isSunoModel = musicModel === "suno-v3.5" || musicModel === "suno-v4";
 
   const mutation = trpc.proStudio.textToMusic.useMutation({
     onMutate: () => setAIState("generating"),
@@ -1066,10 +1096,70 @@ function MusicTab() {
     onSettled: () => setAIState("idle"),
   });
 
+  // Suno 走獨立 endpoint：generateMusicSuno → checkMusicSunoStatus
+  const sunoMutation = trpc.proStudio.generateMusicSuno.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: data => {
+      setSunoJob({
+        taskId: data.taskId,
+        jobId: data.jobId ?? undefined,
+        modelVersion: data.modelVersion,
+      });
+      setResult(null);
+      registerBgTask(
+        { request_id: data.taskId, model: `suno/${data.modelVersion}` } as AudioResult,
+        "audio",
+        "🎵 Suno 音樂生成",
+        prompt
+      );
+      toast.success("📤 Suno 任務已提交！背景生成 1-3 分鐘，完成後自動顯示");
+      reportSuccess();
+    },
+    onError: e => {
+      toast.error(`Suno 生成失敗：${e.message}`);
+      reportFailure();
+    },
+    onSettled: () => setAIState("idle"),
+  });
+
+  // Suno 輪詢：完成後自動把 audioUrl 灌進 result，重用既有播放器
+  const sunoStatusQuery = trpc.proStudio.checkMusicSunoStatus.useQuery(
+    { taskId: sunoJob?.taskId ?? "", jobId: sunoJob?.jobId },
+    {
+      enabled: !!sunoJob?.taskId,
+      refetchInterval: query => {
+        const s = (query.state.data as any)?.status;
+        return s === "COMPLETED" || s === "completed" ? false : 5000;
+      },
+      refetchIntervalInBackground: true,
+      retry: 5,
+    }
+  );
+
+  useEffect(() => {
+    if (!sunoJob) return;
+    const data = sunoStatusQuery.data as any;
+    if (!data) return;
+    if (data.status === "COMPLETED" && data.audioUrl) {
+      setResult({
+        audio_url: data.audioUrl,
+        url: data.audioUrl,
+        request_id: sunoJob.taskId,
+        model: `suno/${sunoJob.modelVersion}`,
+      });
+      toast.success("🎵 Suno 音樂生成完成！");
+    }
+  }, [sunoStatusQuery.data, sunoJob]);
+
   const audioUrl =
     result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
-  const showDuration = musicModel !== "sonauto"; // Sonauto 不支援 duration
-  const showLyrics = musicModel === "sonauto" || musicModel === "ace-step"; // 只有支援歌詞的模型才顯示
+  // Sonauto 不支援 duration；Suno 由 API 控制時長
+  const showDuration = !isSunoModel && musicModel !== "sonauto";
+  // 支援歌詞的模型：sonauto / ace-step / suno
+  const showLyrics =
+    musicModel === "sonauto" ||
+    musicModel === "ace-step" ||
+    isSunoModel;
 
   const applyTemplate = (t: (typeof MUSIC_TEMPLATES)[number]) => {
     setPrompt(t.desc);
@@ -1083,11 +1173,13 @@ function MusicTab() {
         icon={Music2}
         title="文字轉音樂"
         description="多模型支援 — 輸入描述，AI 為你作曲"
-        badge={models.find(m => m.id === musicModel)?.label ?? "Sonauto v2"}
+        badge={models.find(m => m.id === musicModel)?.label ?? "ACE-Step"}
         modelId={
           musicModel === "sonauto"
             ? "sonauto/v2/text-to-music"
-            : `fal-ai/${musicModel}`
+            : isSunoModel
+              ? `suno/${musicModel === "suno-v4" ? "v4" : "v3.5"}`
+              : `fal-ai/${musicModel}`
         }
         color="purple"
         defaultOpen
@@ -1102,22 +1194,22 @@ function MusicTab() {
                 （主模型失敗可切換備選）
               </span>
             </Label>
-            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               {(models.length > 0
                 ? models
                 : [
-                    {
-                      id: "sonauto",
-                      label: "Sonauto v2",
-                      description: "完整歌曲生成",
-                      badge: "預設",
-                      tier: "premium",
-                    },
                     {
                       id: "ace-step",
                       label: "ACE-Step",
                       description: "高品質音樂",
                       badge: "推薦",
+                      tier: "premium",
+                    },
+                    {
+                      id: "sonauto",
+                      label: "Sonauto v2",
+                      description: "完整歌曲生成",
+                      badge: "預設",
                       tier: "premium",
                     },
                     {
@@ -1134,33 +1226,49 @@ function MusicTab() {
                       badge: "快速",
                       tier: "standard",
                     },
+                    ...SUNO_MODELS,
                   ]
-              ).map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setMusicModel(m.id as typeof musicModel)}
-                  className={`p-2 rounded-lg border text-left transition-all text-[11px] ${
-                    musicModel === m.id
-                      ? "bg-purple-50 border-purple-300 ring-1 ring-purple-300"
-                      : "bg-background border-border hover:bg-accent"
-                  }`}
-                >
-                  <div className="font-medium flex items-center gap-1">
-                    {m.label}
-                    {m.badge && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[8px] px-1 py-0"
-                      >
-                        {m.badge}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">
-                    {m.description}
-                  </p>
-                </button>
-              ))}
+              ).map(m => {
+                const isSuno = m.id === "suno-v3.5" || m.id === "suno-v4";
+                const isActive = musicModel === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setMusicModel(m.id as MusicModelChoice);
+                      // 切換引擎時清掉舊結果，避免狀態混淆
+                      setResult(null);
+                      setSunoJob(null);
+                    }}
+                    className={`p-2 rounded-lg border text-left transition-all text-[11px] ${
+                      isActive
+                        ? isSuno
+                          ? "bg-violet-50 border-violet-400 ring-1 ring-violet-400"
+                          : "bg-purple-50 border-purple-300 ring-1 ring-purple-300"
+                        : "bg-background border-border hover:bg-accent"
+                    }`}
+                  >
+                    <div className="font-medium flex items-center gap-1">
+                      {m.label}
+                      {m.badge && (
+                        <Badge
+                          variant="secondary"
+                          className={`text-[8px] px-1 py-0 ${
+                            isSuno && isActive
+                              ? "bg-violet-200 text-violet-800"
+                              : ""
+                          }`}
+                        >
+                          {m.badge}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-muted-foreground mt-0.5">
+                      {m.description}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1249,21 +1357,46 @@ function MusicTab() {
               </p>
             </div>
           )}
+          {/* Suno 注意事項 */}
+          {isSunoModel && (
+            <div className="p-2.5 rounded-lg bg-violet-50/60 border border-violet-200/40">
+              <p className="text-[10px] text-violet-700">
+                🎼 <strong>Suno {musicModel === "suno-v4" ? "v4" : "v3.5"}</strong> 走 Suno API
+                （非 fal.ai），自動產出完整歌曲（含人聲＋伴奏）。1-3 分鐘完成；填歌詞會啟用 Custom
+                Mode。需設定 <code className="bg-violet-100 px-0.5 rounded">SUNO_API_KEY</code>。
+              </p>
+            </div>
+          )}
           <Button
-            onClick={() =>
-              mutation.mutate({
-                prompt,
-                lyrics: lyrics || undefined,
-                instrumental,
-                tags: tags || undefined,
-                model: musicModel,
-                duration: showDuration ? duration : undefined,
-              })
+            onClick={() => {
+              if (isSunoModel) {
+                // Suno 走獨立 endpoint：generateMusicSuno
+                const customMode = !!lyrics && !instrumental;
+                sunoMutation.mutate({
+                  prompt,
+                  style: tags || undefined,
+                  instrumental,
+                  customMode,
+                  lyrics: customMode ? lyrics : undefined,
+                  modelVersion: musicModel === "suno-v4" ? "v4" : "v3.5",
+                });
+              } else {
+                mutation.mutate({
+                  prompt,
+                  lyrics: lyrics || undefined,
+                  instrumental,
+                  tags: tags || undefined,
+                  model: musicModel as "sonauto" | "ace-step" | "stable-audio" | "musicgen",
+                  duration: showDuration ? duration : undefined,
+                });
+              }
+            }}
+            disabled={
+              mutation.isPending || sunoMutation.isPending || !prompt.trim()
             }
-            disabled={mutation.isPending || !prompt.trim()}
             className="w-full btn-healing"
           >
-            {mutation.isPending ? (
+            {mutation.isPending || sunoMutation.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 AI 作曲中...
@@ -1276,12 +1409,35 @@ function MusicTab() {
             )}
           </Button>
         </div>
+        {/* Suno 任務進行中提示（在拿到 audioUrl 之前） */}
+        {sunoJob && !result && (
+          <div className="mt-4 p-5 rounded-xl bg-gradient-to-br from-violet-500/5 to-purple-500/5 border border-violet-200/40 flex flex-col items-center gap-2">
+            <Loader2 className="w-6 h-6 text-violet-600 animate-spin" />
+            <div className="text-center">
+              <p className="text-sm font-semibold">Suno 音樂背景生成中...</p>
+              <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+                狀態：{(sunoStatusQuery.data as any)?.status ?? "PENDING"}
+                <br />
+                <span className="text-violet-700/70">
+                  通常 1-3 分鐘完成，可關閉此分頁繼續其他操作
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
         {result ? (
-          <AsyncAudioPoller
-            result={result}
-            onUpdate={setResult}
-            label="✨ 音樂生成結果"
-          />
+          isSunoModel ? (
+            // Suno 完成後直接拿到 audioUrl，不需再走 fal poller
+            audioUrl ? (
+              <AudioPlayer url={audioUrl as string} label="🎵 Suno 音樂結果" />
+            ) : null
+          ) : (
+            <AsyncAudioPoller
+              result={result}
+              onUpdate={setResult}
+              label="✨ 音樂生成結果"
+            />
+          )
         ) : null}
       </ToolCard>
 
@@ -3657,9 +3813,26 @@ function AvatarVideoTab() {
     onSettled: () => setAIState("idle"),
   });
 
-  const statusQuery = trpc.proStudio.jobStatus.useQuery(
-    { request_id: jobInfo?.request_id ?? "", model: jobInfo?.model ?? "" },
-    { enabled: !!jobInfo && !!jobInfo.request_id, refetchInterval: 3000 }
+  // 使用 checkAudioStatus（已擴充 video_url 萃取）取代裸 jobStatus：
+  // - jobStatus 只回 queue state，沒有 result payload，前端永遠拿不到 video URL
+  // - checkAudioStatus 在 COMPLETED 時會自動 falQueueResult + localizeResultUrls
+  //   ，回傳的 video_url 已持久化到自家 S3，不受 fal.ai CDN 過期影響
+  const [statusSubmittedAt] = useState(() => Date.now());
+  const statusQuery = trpc.proStudio.checkAudioStatus.useQuery(
+    {
+      requestId: jobInfo?.request_id ?? "",
+      model: jobInfo?.model ?? "",
+      submittedAt: statusSubmittedAt,
+    },
+    {
+      enabled: !!jobInfo && !!jobInfo.request_id,
+      refetchInterval: query => {
+        const s = (query.state.data as any)?.status;
+        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+      },
+      refetchIntervalInBackground: true,
+      retry: 5,
+    }
   );
 
   const isPending =
@@ -3670,7 +3843,11 @@ function AvatarVideoTab() {
     ltxMut.isPending ||
     dubbingMut.isPending;
   const jobStatus = (statusQuery.data as any)?.status;
-  const videoResult = (statusQuery.data as any)?.output?.video_url;
+  // checkAudioStatus 已 S3 本地化並萃取出 video_url（支援 dubbing / avatar 全部模型）
+  const videoResult =
+    (statusQuery.data as any)?.video_url ??
+    (statusQuery.data as any)?.audio_url ??
+    null;
 
   // 每個模型的必填欄位驗證
   const isGenerateDisabled =
@@ -3915,9 +4092,21 @@ function AvatarVideoTab() {
               <p className="text-[10px] text-muted-foreground font-mono truncate">
                 ID: {jobInfo.request_id}
               </p>
-              {videoResult && (
-                <VideoPlayer url={videoResult} label="🎬 生成影片" />
+              {/* 影片結果（wan / echo / stable / longcat / ltx / dubbing 共用）*/}
+              {(statusQuery.data as any)?.video_url && (
+                <VideoPlayer
+                  url={(statusQuery.data as any).video_url}
+                  label={model === "dubbing" ? "🎬 配音影片" : "🎬 生成影片"}
+                />
               )}
+              {/* 配音「純音訊」回傳路徑（dubbing 上傳音訊時 fal 只給 audio.url）*/}
+              {!(statusQuery.data as any)?.video_url &&
+                (statusQuery.data as any)?.audio_url && (
+                  <AudioPlayer
+                    url={(statusQuery.data as any).audio_url}
+                    label="🎙️ 配音音訊"
+                  />
+                )}
             </div>
           )}
         </ToolCard>
@@ -4212,11 +4401,13 @@ export default function ProStudio() {
     tip?: string;
     advantages?: string[];
   }> = [
-    // music (4)
+    // music (6 — fal.ai 4 + Suno 2)
     { id: "sonauto", label: "Sonauto", tab: "music", desc: "AI 作曲、支援歌詞", bestFor: "快速從文字到完整歌曲", tip: "要快速做 demo 或旋律草稿，Sonauto 很省時間。", advantages: ["出歌快", "歌詞友善"] },
     { id: "ace-step", label: "ACE-Step", tab: "music", desc: "高品質音樂生成", bestFor: "高品質成品導向", tip: "適合最終成片用配樂，先確定情緒再生成。", advantages: ["品質高", "層次感佳"] },
     { id: "stable-audio", label: "Stable Audio", tab: "music", desc: "Stability 音樂模型", bestFor: "可控參數與穩定輸出", tip: "要做可重複測試的工作流，Stable Audio 很穩。", advantages: ["穩定", "可控"] },
     { id: "musicgen", label: "MusicGen", tab: "music", desc: "Meta 音樂生成", bestFor: "研究與風格探索", tip: "先做多版風格探索，再挑方向精修。", advantages: ["探索彈性高", "迭代快"] },
+    { id: "suno-v3.5", label: "Suno v3.5", tab: "music", desc: "Suno API 完整歌曲（穩定預設）", bestFor: "需要人聲＋伴奏的完整歌曲", tip: "Custom Mode 可指定歌詞與風格；產出是真完整歌曲。", advantages: ["人聲＋伴奏", "歌詞友善", "Suno 直連"] },
+    { id: "suno-v4", label: "Suno v4", tab: "music", desc: "Suno API 高品質頂規", bestFor: "對音質與和聲層次要求最高的成品", tip: "成本較高但音樂張力與層次最豐富，適合 final cut。", advantages: ["最高品質", "情緒層次佳"] },
     // sfx (1)
     { id: "sfx", label: "Sound Effects", tab: "sfx", desc: "文字生音效", bestFor: "場景音效製作", tip: "描述要包含材質、距離與空間感，會更像真實 Foley。", advantages: ["擬真音效", "快速產出"] },
     // tts (2+)
