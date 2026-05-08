@@ -1186,26 +1186,96 @@ function HistoryPanel({ onReuse }: { onReuse: (item: HistoryItem) => void }) {
   const [keyword, setKeyword] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
 
+  // 同步從伺服器拉「圖片」歷史（webhook / polling 完成的非同步任務）
+  // 與 localStorage 中的歷史合併。伺服器是來源真相、跨裝置可用；localStorage
+  // 只保留尚未被伺服器同步的項目（以及舊版資料）。dedupe by resultUrl + prompt。
+  const serverHistoryQuery = trpc.history.list.useQuery(
+    { limit: 50 },
+    { staleTime: 30_000, refetchOnWindowFocus: true }
+  );
+
   useEffect(() => {
-    setItems(loadHistory());
-  }, []);
+    const local = loadHistory();
+    const server = (serverHistoryQuery.data ?? [])
+      .filter((h: any) => h.modality === "image" && h.resultUrl)
+      .map((h: any): HistoryItem => {
+        const params = (h.parameterSnapshot ?? {}) as Record<string, unknown>;
+        const modelId = (params.modelId as string) ?? "";
+        const matched = MODELS.find(m => m.id === modelId || m.falId === modelId);
+        return {
+          id: `s-${h.id}`,
+          prompt: h.prompt ?? h.compiledPrompt ?? "",
+          imageUrl: h.resultUrl,
+          modelId: matched?.id ?? modelId,
+          modelName: matched?.name ?? (params.label as string) ?? modelId,
+          timestamp: h.createdAt
+            ? new Date(h.createdAt).getTime()
+            : Date.now(),
+          bookmarked: !!h.isBookmarked,
+          params,
+        };
+      });
+    // dedupe：同 imageUrl 的優先取伺服器版本
+    const serverUrls = new Set(server.map(s => s.imageUrl));
+    const merged = [
+      ...server,
+      ...local.filter(l => !serverUrls.has(l.imageUrl)),
+    ];
+    setItems(merged);
+  }, [serverHistoryQuery.data]);
+
+  const toggleBookmarkMut = trpc.history.toggleBookmark.useMutation({
+    onSuccess: () => {
+      void serverHistoryQuery.refetch();
+    },
+  });
+  const deleteHistoryMut = trpc.history.delete.useMutation({
+    onSuccess: () => {
+      void serverHistoryQuery.refetch();
+    },
+  });
 
   const toggleBookmark = (id: string) => {
-    const updated = items.map(i =>
-      i.id === id ? { ...i, bookmarked: !i.bookmarked } : i
+    const target = items.find(i => i.id === id);
+    if (!target) return;
+    const next = !target.bookmarked;
+    // Optimistic
+    setItems(prev =>
+      prev.map(i => (i.id === id ? { ...i, bookmarked: next } : i))
     );
-    setItems(updated);
-    saveHistory(updated);
+    if (id.startsWith("s-")) {
+      const serverId = Number(id.slice(2));
+      if (Number.isFinite(serverId)) {
+        toggleBookmarkMut.mutate({ id: serverId, isBookmarked: next });
+      }
+    } else {
+      // 本地舊資料：仍寫回 localStorage
+      saveHistory(loadHistory().map(i =>
+        i.id === id ? { ...i, bookmarked: next } : i
+      ));
+    }
   };
   const remove = (id: string) => {
-    const updated = items.filter(i => i.id !== id);
-    setItems(updated);
-    saveHistory(updated);
+    setItems(prev => prev.filter(i => i.id !== id));
+    if (id.startsWith("s-")) {
+      const serverId = Number(id.slice(2));
+      if (Number.isFinite(serverId)) {
+        deleteHistoryMut.mutate({ id: serverId });
+      }
+    } else {
+      saveHistory(loadHistory().filter(i => i.id !== id));
+    }
   };
   const clearAll = () => {
-    setItems([]);
+    // 只清本地（伺服器逐筆刪太重；提示使用者透過明細刪除即可）
+    const localItems = loadHistory();
+    if (localItems.length === 0) {
+      toast.info("沒有本地歷史可清除（伺服器歷史請逐筆刪除）");
+      return;
+    }
     saveHistory([]);
-    toast.success("已清除所有歷史");
+    setItems(prev => prev.filter(i => i.id.startsWith("s-")));
+    toast.success("已清除本地歷史");
   };
   const shown = items
     .filter(i => (filter === "bookmarked" ? i.bookmarked : true))

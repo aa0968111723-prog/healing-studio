@@ -178,8 +178,11 @@ import {
   storeResult,
 } from "./services/orbIdempotency";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
-import { addGenerationLog } from "./services/brainAutoRepair";
 import { runOrbWebResearch } from "./services/orbWebResearch";
+import {
+  doPostGenComplete,
+  runPostGenForJob,
+} from "./services/postGenActions";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
@@ -749,109 +752,8 @@ async function storeBase64Media(params: {
 }
 
 // ─── Post-Generation Completion Helper ───────────────────────────────────────
-
-// Minimum prompt text length to save to prompt library
-const MIN_PROMPT_LENGTH_FOR_LIBRARY = 4;
-// Max lengths for stored fields
-const MAX_PROMPT_TITLE_LENGTH = 80;
-const MAX_MODEL_HINT_LENGTH = 128;
-const MAX_ASSET_DESCRIPTION_LENGTH = 500;
-const MAX_LOG_FIELD_LENGTH = 200;
-
-/**
- * doPostGenComplete — 背景任務完成後自動執行的後置動作：
- *   1-2. 儲存提示詞到提示詞庫（prompt_library）
- *   1-3. 儲存到數位資產庫（digital_asset_library）+ 生成歷史（generation_history）
- *   1-4. 記錄到 AI 監控室（brainAutoRepair generationLogs）
- *
- * 所有操作為 fire-and-forget，不影響主流程。
- */
-async function doPostGenComplete(params: {
-  userId: number;
-  modality: "image" | "video" | "audio" | "voice";
-  modelId: string;
-  prompt?: string;
-  resultUrl?: string;
-  label?: string;
-  sourceStudio?: string;
-}): Promise<void> {
-  const { userId, modality, modelId, prompt, resultUrl, label, sourceStudio } = params;
-  const promptText = (prompt ?? "").trim();
-
-  // 1-2. 自動儲存到提示詞庫
-  if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
-    try {
-      const dbConn = await getDb();
-      if (dbConn) {
-        await dbConn.insert(promptLibrary).values({
-          userId,
-          title: promptText.slice(0, MAX_PROMPT_TITLE_LENGTH) || `${label ?? modality}提示詞`,
-          content: promptText,
-          category: modality as "image" | "video" | "audio" | "voice",
-          tags: [],
-          isPublic: false,
-          modelHint: modelId.slice(0, MAX_MODEL_HINT_LENGTH),
-          language: "zh",
-        });
-      }
-    } catch {
-      // 靜默忽略（可能是重複等原因）
-    }
-  }
-
-  // 1-3a. 自動儲存到數位資產庫
-  if (resultUrl) {
-    try {
-      const assetType = (["image", "video", "audio", "voice"] as const).includes(
-        modality as any
-      )
-        ? (modality as "image" | "video" | "audio" | "voice")
-        : "image";
-      await db.createDigitalAsset({
-        userId,
-        title: label ?? `AI 生成 ${modality}`,
-        description: promptText ? promptText.slice(0, MAX_ASSET_DESCRIPTION_LENGTH) : undefined,
-        assetType,
-        fileUrl: resultUrl,
-        fileKey: resultUrl,
-        promptUsed: promptText || undefined,
-      });
-    } catch {
-      // 靜默忽略
-    }
-  }
-
-  // 1-3b. 自動儲存到生成歷史
-  if (resultUrl) {
-    try {
-      await db.createHistoryEntry({
-        userId,
-        modality,
-        prompt: promptText || undefined,
-        compiledPrompt: promptText || undefined,
-        resultUrl,
-        costCredits: 1,
-      });
-    } catch {
-      // 靜默忽略
-    }
-  }
-
-  // 1-4. 記錄到 AI 監控室
-  try {
-    addGenerationLog({
-      userId,
-      modality,
-      modelId: modelId.slice(0, MAX_LOG_FIELD_LENGTH),
-      promptSnippet: promptText.slice(0, MAX_LOG_FIELD_LENGTH),
-      resultUrl,
-      success: !!resultUrl,
-      sourceStudio: sourceStudio ?? "unknown",
-    });
-  } catch {
-    // 靜默忽略
-  }
-}
+// Implementation moved to ./services/postGenActions so it can be called from
+// webhookFal too — webhook completion previously skipped library/history.
 
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
 
@@ -3255,16 +3157,9 @@ export const appRouter = router({
               resultJson: { ...meta, resultUrl, result: localizedResult },
             });
 
-            // 後置動作：儲存提示詞庫 + 數位資產 + 生成歷史 + AI 監控室
-            void doPostGenComplete({
-              userId: ctx.user.id,
-              modality: (meta?.studioType as "image" | "video" | "audio" | "voice") ?? job.jobType as any,
-              modelId: (meta?.modelId as string) ?? modelId,
-              prompt: (meta?.prompt as string) ?? undefined,
-              resultUrl: resultUrl ?? undefined,
-              label: (meta?.label as string) ?? undefined,
-              sourceStudio: "pro",
-            });
+            // 後置動作（idempotent，與 webhookFal 同時抵達也只跑一次）：
+            // 儲存提示詞庫 + 數位資產 + 生成歷史 + AI 監控室
+            void runPostGenForJob(job.id);
 
             return {
               ...job,

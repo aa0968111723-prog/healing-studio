@@ -19,6 +19,7 @@ const getBackgroundJobMock = vi.fn(async (id: number) => ({
   resultJson: {},
 }));
 const findProcessingJobByRequestIdMock = vi.fn();
+const runPostGenForJobMock = vi.fn(async () => true);
 
 vi.mock("../../db.js", () => ({
   getBackgroundJob: (...args: unknown[]) => getBackgroundJobMock(...(args as [number])),
@@ -31,6 +32,11 @@ vi.mock("../../db.js", () => ({
 vi.mock("../../services/internalMedia.js", () => ({
   // 直接回原物件，不打 S3
   localizeResultUrls: async (raw: unknown) => raw,
+}));
+
+vi.mock("../../services/postGenActions.js", () => ({
+  runPostGenForJob: (...args: unknown[]) =>
+    runPostGenForJobMock(...(args as [number])),
 }));
 
 import { falWebhookRouter } from "../webhookFal";
@@ -64,6 +70,8 @@ describe("webhookFal /api/webhook/fal", () => {
     } as any);
     findProcessingJobByRequestIdMock.mockReset();
     findProcessingJobByRequestIdMock.mockResolvedValue(undefined);
+    runPostGenForJobMock.mockReset();
+    runPostGenForJobMock.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -71,6 +79,20 @@ describe("webhookFal /api/webhook/fal", () => {
   });
 
   it("以 query string ?jobId 命中 backgroundJob 並標記 completed + 推 SSE", async () => {
+    // 模擬 submitStudioJob 寫進去的 meta（studioType / modelId / prompt / label）
+    // 一定要保留，後續 runPostGenForJob 才能反查使用者語意。
+    getBackgroundJobMock.mockResolvedValue({
+      id: 42,
+      userId: 99,
+      status: "processing",
+      resultJson: {
+        studioType: "image",
+        modelId: "fal-ai/nano-banana-2",
+        prompt: "a cute cat",
+        label: "🖼️ Nano Banana",
+        requestId: "fal-uuid-abc",
+      },
+    } as any);
     const events: unknown[] = [];
     const unsubscribe = generationBus.subscribe(42, e => events.push(e));
     const { server, baseUrl } = await startTestServer();
@@ -95,8 +117,19 @@ describe("webhookFal /api/webhook/fal", () => {
     expect(jobId).toBe(42);
     expect(patch.status).toBe("completed");
     expect(patch.progress).toBe(100);
+    // 既有 meta 必須保留（studioType / modelId / prompt / label）
+    const resultJson = patch.resultJson as Record<string, unknown>;
+    expect(resultJson.studioType).toBe("image");
+    expect(resultJson.modelId).toBe("fal-ai/nano-banana-2");
+    expect(resultJson.prompt).toBe("a cute cat");
+    expect(resultJson.label).toBe("🖼️ Nano Banana");
+    // 也要把萃取到的 imageUrl 補上 + 統一鍵名 resultUrl
+    expect(resultJson.imageUrl).toBe("https://fal.media/x.png");
+    expect(resultJson.resultUrl).toBe("https://fal.media/x.png");
     // SSE 事件
     expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    // 後置動作（資產庫/歷史/監控）必須被觸發 — 這是這次修復的核心
+    expect(runPostGenForJobMock).toHaveBeenCalledWith(42);
     unsubscribe();
     server.close();
   });
