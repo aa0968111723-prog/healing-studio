@@ -207,7 +207,7 @@ export default function DashboardLayout({
           <h1 className="hs-h1 !mb-0 login-title">AI Director 創作平台</h1>
           <p
             className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
-            style={{ color: "rgba(230,222,255,0.72)" }}
+            style={{ color: "rgba(233,255,249,0.86)" }}
           >
             在星河之間，讓 AI 陪伴你舒適地創作
           </p>
@@ -219,11 +219,11 @@ export default function DashboardLayout({
             className="w-full mt-8 h-12 rounded-2xl btn-healing"
             style={{
               background:
-                "linear-gradient(135deg, rgba(170,140,240,0.95) 0%, rgba(120,90,210,0.95) 100%)",
+                "linear-gradient(135deg, rgba(72,214,191,0.96) 0%, rgba(61,156,255,0.95) 100%)",
               color: "#fff",
-              border: "1px solid rgba(220,200,255,0.32)",
+              border: "1px solid rgba(211,255,245,0.45)",
               boxShadow:
-                "0 8px 24px rgba(110,80,200,0.4), 0 0 0 1px rgba(255,255,255,0.06) inset",
+                "0 10px 26px rgba(35,142,214,0.42), 0 0 0 1px rgba(255,255,255,0.08) inset",
             }}
           >
             Google 登入
@@ -237,10 +237,10 @@ export default function DashboardLayout({
             size="lg"
             className="w-full mt-3 h-12 rounded-2xl btn-healing"
             style={{
-              background: "rgba(255,255,255,0.04)",
+              background: "rgba(139,244,219,0.1)",
               borderStyle: "dashed",
-              borderColor: "rgba(200,180,240,0.28)",
-              color: "rgba(230,222,255,0.85)",
+              borderColor: "rgba(159,233,255,0.4)",
+              color: "rgba(225,255,249,0.95)",
             }}
           >
             ✨ 訪客體驗（免登入）
