@@ -213,6 +213,21 @@ const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
   },
 };
 
+/**
+ * Frame-hue accessor consumed by `LoginScreen` to set
+ * `--login-frame-hue-{a,b,c}` on the `.login-cosmic` wrapper, so the
+ * `.login-card::before` border (which is a sibling of this scene element)
+ * can pick up scene-specific colors via custom-property inheritance.
+ */
+export function getSceneFrameHues(sceneId: SceneId): {
+  a: string;
+  b: string;
+  c: string;
+} {
+  const p = SCENE_PALETTES[sceneId];
+  return { a: p.frameA, b: p.frameB, c: p.frameC };
+}
+
 // ─── Star data (computed once at module load) ────────────────────────────────
 
 interface StarData {
@@ -2047,10 +2062,11 @@ export default function LoginCosmicScene({
         background: palette.body.join(","),
         backgroundBlendMode: "screen, normal",
         isolation: "isolate",
-        // Expose frame hue CSS vars to the auth card border (consumed by CSS)
-        ["--login-frame-hue-a" as string]: palette.frameA,
-        ["--login-frame-hue-b" as string]: palette.frameB,
-        ["--login-frame-hue-c" as string]: palette.frameC,
+        // NOTE: --login-frame-hue-{a,b,c} are NOT set here. CSS custom
+        // properties only inherit to descendants, and the auth card is a
+        // SIBLING of LoginCosmicScene inside LoginScreen — so the vars must
+        // be set on a common ancestor (the .login-cosmic wrapper). See
+        // getSceneFrameHues() consumed by LoginScreen.
       }}
     >
       {/* eslint-disable-next-line react/no-danger */}

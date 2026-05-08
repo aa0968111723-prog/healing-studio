@@ -3,7 +3,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import LocalAuthForm from "@/components/LocalAuthForm";
-import LoginCosmicScene from "@/components/LoginCosmicScene";
+import LoginCosmicScene, { getSceneFrameHues } from "@/components/LoginCosmicScene";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
 import { SoundControl } from "@/components/AmbientSoundEngine";
@@ -351,10 +351,21 @@ function LoginScreen() {
     setTilt({ rx: 0, ry: 0, sx: 50, sy: 50 });
   }, []);
 
+  // CSS custom properties must live on a COMMON ANCESTOR of both the scene
+  // background and the auth card (the card reads them via `var(--login-frame-
+  // hue-*)`). LoginCosmicScene and the card are siblings, so we set the vars
+  // on the .login-cosmic wrapper here.
+  const frameHues = getSceneFrameHues(sceneId);
+
   return (
     <div
       className="login-cosmic relative flex items-center justify-center min-h-screen overflow-hidden"
       data-scene={sceneId}
+      style={{
+        ["--login-frame-hue-a" as string]: frameHues.a,
+        ["--login-frame-hue-b" as string]: frameHues.b,
+        ["--login-frame-hue-c" as string]: frameHues.c,
+      }}
     >
       <LoginCosmicScene sceneId={sceneId} />
 
