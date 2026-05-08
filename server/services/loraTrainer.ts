@@ -16,6 +16,7 @@ import {
 import { storagePut } from "../storage.js";
 import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
 import { traceToolRun } from "./langsmithTracer";
+import { signWebhookToken } from "../_core/webhookTokens";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -146,8 +147,11 @@ async function submitReplicateTraining(params: {
   const destination = `user-${params.userId}/${slug || `lora-${params.modelId}`}`;
 
   const siteUrl = process.env.VITE_SITE_URL?.trim();
+  const webhookToken = signWebhookToken("replicate", params.modelId);
   const webhook = siteUrl
-    ? `${siteUrl}/api/webhook/replicate?modelId=${params.modelId}`
+    ? `${siteUrl}/api/webhook/replicate?modelId=${params.modelId}${
+        webhookToken ? `&token=${webhookToken}` : ""
+      }`
     : undefined;
 
   log(

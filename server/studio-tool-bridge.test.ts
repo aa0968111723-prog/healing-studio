@@ -296,7 +296,14 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
 
     expect(captured).toHaveLength(1);
     const body = captured[0]!.body as Record<string, unknown>;
-    expect(body.prompt).toBe("stylize as oil painting");
+    // The model-prompt-template registry enriches the user's intent with
+    // a model-specific suffix (FLUX Pro adds cinematic lighting; FLUX dev
+    // adds high quality, detailed; etc.). The intent text stays at the
+    // front; we just verify it's prefixed correctly and was extended.
+    expect(body.prompt).toMatch(/^stylize as oil painting/);
+    expect(String(body.prompt).length).toBeGreaterThan(
+      "stylize as oil painting".length
+    );
     expect(body.image_url).toBe("https://fal.media/source.png");
     expect(body.strength).toBe(0.7);
     expect(body.seed).toBe(42);

@@ -25,6 +25,7 @@ import { Router, Request, Response } from "express";
 import { updateFineTunedModel, getFineTunedModel } from "../db.js";
 import type { InsertFineTunedModel } from "../../drizzle/schema";
 import { generationBus } from "../generationEvents";
+import { verifyWebhookToken } from "../_core/webhookTokens";
 
 export const replicateWebhookRouter = Router();
 
@@ -84,6 +85,19 @@ replicateWebhookRouter.post(
       if (!modelId) {
         console.warn(
           "[WebhookReplicate] Missing modelId query param, dropping payload"
+        );
+        return;
+      }
+
+      // Capability token: server signs `replicate:<modelId>` with JWT_SECRET
+      // when constructing the webhook URL (loraTrainer / routers/loraTrainer).
+      // Reject any callback whose token doesn't match the expected HMAC so a
+      // forged POST cannot mark someone else's model as ready / failed.
+      const token =
+        typeof req.query.token === "string" ? req.query.token : null;
+      if (!verifyWebhookToken("replicate", modelId, token)) {
+        console.warn(
+          `[WebhookReplicate] Token mismatch for modelId=${modelId}, dropping payload`
         );
         return;
       }

@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
 import { checkAndConsumeQuota } from "./orbQuota";
+import { injectModelPrompt } from "../../shared/modelPromptTemplates";
 
 /** Tool names that consume a `generation` daily slot when executed. */
 const GENERATION_SLOT_TOOLS = new Set([
@@ -878,7 +879,24 @@ async function dispatchStudioTool(
           hardcodedDefault
         );
         const input: Record<string, unknown> = {};
-        if (typeof args.prompt === "string") input.prompt = args.prompt;
+        // Inject the per-model prompt template so SD-style models get their
+        // quality tags + negative defaults, FLUX gets cinematic suffixes,
+        // SeeDream gets oriental aesthetic, etc. The user's literal prompt
+        // and any user-supplied negative_prompt are always preserved; we
+        // only add hints the model is documented to respond to.
+        if (typeof args.prompt === "string") {
+          const injection = injectModelPrompt(args.prompt, modelId, {
+            userNegativePrompt:
+              typeof args.negative_prompt === "string" ? args.negative_prompt : undefined,
+          });
+          input.prompt = injection.prompt;
+          if (
+            typeof args.negative_prompt !== "string" &&
+            injection.defaultNegativePrompt
+          ) {
+            input.negative_prompt = injection.defaultNegativePrompt;
+          }
+        }
         if (typeof args.aspect_ratio === "string")
           input.aspect_ratio = args.aspect_ratio;
         if (typeof args.num_images === "number")
@@ -1063,7 +1081,22 @@ async function dispatchStudioTool(
               )
             : (args.modelId as string) || defaultModelByCategory[category];
         const input: Record<string, unknown> = {};
-        if (typeof args.prompt === "string") input.prompt = args.prompt;
+        // Same per-model prompt enrichment as generateImage — Kling and Veo
+        // benefit from cinematic motion descriptors, others fall back to
+        // pass-through. User's negative_prompt is preserved if provided.
+        if (typeof args.prompt === "string") {
+          const injection = injectModelPrompt(args.prompt, modelId, {
+            userNegativePrompt:
+              typeof args.negative_prompt === "string" ? args.negative_prompt : undefined,
+          });
+          input.prompt = injection.prompt;
+          if (
+            typeof args.negative_prompt !== "string" &&
+            injection.defaultNegativePrompt
+          ) {
+            input.negative_prompt = injection.defaultNegativePrompt;
+          }
+        }
         if (typeof args.image_url === "string") input.image_url = args.image_url;
         if (typeof args.end_image_url === "string")
           input.end_image_url = args.end_image_url;

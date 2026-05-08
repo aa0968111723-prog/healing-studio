@@ -235,6 +235,67 @@ export class OrbTaskStore {
     return valid;
   }
 
+  /**
+   * Replace the step at `atIndex` with `revisedSteps` and resume execution.
+   *
+   * Used by the replan integration when a step fails and either deterministic
+   * or LLM-based replanning produces a viable replacement chain. Without this
+   * method the revised steps were generated but never applied — see
+   * `orbTaskReplanIntegration.ts`.
+   *
+   * Behaviour:
+   *   - The target step is spliced out and replaced with `revisedSteps`.
+   *   - `currentStepIndex` stays at `atIndex` so the orchestrator picks up
+   *     the first injected step on the next tick.
+   *   - If the task had been forced to `failed` for this attempt, transition
+   *     it back to `running` so the next orchestrator run actually executes
+   *     the new plan. (`canTransition` blocks `failed → running`, so we set
+   *     status directly here — the replan path is the documented exception.)
+   *   - Total step count is capped at 24 (the schema allows up to 12 in the
+   *     initial plan; we double that to leave headroom for repeated replans
+   *     without unbounded growth).
+   *
+   * Returns the updated task on success, or null when the task is missing,
+   * the index is out of range, or `revisedSteps` is empty.
+   */
+  injectRevisedSteps(
+    taskId: string,
+    userId: number,
+    atIndex: number,
+    revisedSteps: OrbPlanStep[],
+    now: number = Date.now()
+  ): OrbTask | null {
+    const task = this.get(taskId, userId, now);
+    if (!task) return null;
+    if (revisedSteps.length === 0) return null;
+    if (atIndex < 0 || atIndex >= task.steps.length) return null;
+
+    const MAX_STEPS = 24;
+    const projectedLength =
+      task.steps.length - 1 + revisedSteps.length;
+    if (projectedLength > MAX_STEPS) {
+      console.warn(
+        `[OrbTaskStore] injectRevisedSteps refused: would grow steps to ${projectedLength} (cap ${MAX_STEPS})`
+      );
+      return null;
+    }
+
+    const next: OrbPlanStep[] = [
+      ...task.steps.slice(0, atIndex),
+      ...revisedSteps,
+      ...task.steps.slice(atIndex + 1),
+    ];
+    task.steps = next;
+    task.currentStepIndex = atIndex;
+    // Replan recovers a failed run; force-revive into running so the next
+    // orchestrator iteration picks up the injected steps.
+    task.status = "running";
+    task.updatedAt = now;
+    this.tasks.set(task.taskId, task);
+    this.persistToDisk();
+    return task;
+  }
+
   reportStep(input: ReportStepInput, userId: number, now: number = Date.now()): OrbTask | null {
     const task = this.get(input.taskId, userId, now);
     if (!task) return null;

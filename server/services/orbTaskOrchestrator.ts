@@ -135,6 +135,14 @@ export interface ExecuteStepToolsResult {
   toolResults: OrbToolCallResult[];
   ok: boolean;
   blockedByApproval?: boolean;
+  /**
+   * True when the replan integration successfully replaced the failing step
+   * with revised steps in the store mid-iteration. The outer driver should
+   * skip the usual `reportStep(ok:false)` failure path and re-iterate the
+   * outer loop so the newly injected steps execute, otherwise the task
+   * would be force-marked failed even though recovery succeeded.
+   */
+  replanApplied?: boolean;
 }
 
 export async function executeCurrentStepTools(
@@ -290,6 +298,7 @@ export async function executeCurrentStepTools(
         `Replan requested after verifier failure on ${observation.toolName}`,
         { attempt, stepId: step.id, observation }
       );
+      const stepIdBeforeReplan = step.id;
       await input.onRequestReplan?.({
         taskId: input.task.taskId,
         stepId: step.id,
@@ -297,6 +306,25 @@ export async function executeCurrentStepTools(
         observation,
         reason: "deterministic-retry-unavailable",
       });
+      // The replan callback uses the OrbTaskStore which holds the same task
+      // object reference we received in `input.task` (Map<id, task>), so a
+      // successful `injectRevisedSteps` mutates `task.steps` in place. If the
+      // step at the current index now has a different id, recovery succeeded
+      // and the outer driver should re-iterate instead of force-failing.
+      const currentStepAfterReplan =
+        input.task.steps[input.task.currentStepIndex];
+      const replanApplied =
+        Boolean(currentStepAfterReplan) &&
+        currentStepAfterReplan.id !== stepIdBeforeReplan;
+      if (replanApplied) {
+        return {
+          attempted: true,
+          toolResults: [],
+          ok: true,
+          blockedByApproval: false,
+          replanApplied: true,
+        };
+      }
       break;
     }
     callPlan = callPlan.map(call =>
@@ -552,7 +580,11 @@ export async function runOrbTaskToCompletion(
     }
   };
 
-  const maxIterations = Math.max(
+  // Initial iteration ceiling. Increases dynamically when the replan
+  // integration injects revised steps (capped at MAX_DYNAMIC_ITERATIONS so
+  // a runaway recovery loop can still terminate).
+  const MAX_DYNAMIC_ITERATIONS = 32;
+  let maxIterations = Math.max(
     1,
     input.maxSteps ?? store.get(input.taskId, input.userId, clock())?.steps.length ?? 1
   );
@@ -712,6 +744,19 @@ export async function runOrbTaskToCompletion(
         outputHash: hashPayload(r.data ?? r.error ?? null),
         errorCode: r.ok ? null : (r.error ?? "tool_failed"),
       });
+    }
+
+    // Replan rescued the step: the store now has a different step at the
+    // current index. Skip this iteration's failure bookkeeping, give the
+    // loop a few extra ticks (capped) so the freshly injected steps can
+    // run, then re-iterate.
+    if (stepRun.replanApplied) {
+      flushNewFsmEvents();
+      maxIterations = Math.min(
+        MAX_DYNAMIC_ITERATIONS,
+        maxIterations + 4
+      );
+      continue;
     }
 
     const failureReason = stepRun.toolResults.find(r => !r.ok)?.error;

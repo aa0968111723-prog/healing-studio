@@ -12,12 +12,13 @@
  *   5. Orchestrator continues with new plan
  */
 
-import type { OrbTask } from "../../shared/orb-agent-contract";
+import type { OrbTask, OrbPlanStep } from "../../shared/orb-agent-contract";
 import type { AgentWorkflowStep } from "../../shared/agent-actions";
 import { orbLLMReplan, deterministicReplan, type OrbLLMReplanInput } from "./orbLLMReplan";
 import { appendOrbAgentTaskAuditEvent } from "./orbTaskStateMachine";
 import { recordOrbMemory } from "./orbMemory";
 import { orbTaskTracer } from "./orbTaskTracer";
+import { orbTaskStore } from "./orbTaskStore";
 
 export interface ReplanCallbackContext {
   task: OrbTask;
@@ -30,6 +31,102 @@ export interface ReplanCallbackContext {
     toolArgs: unknown;
   };
   traceId?: string;
+}
+
+/**
+ * Convert an `AgentWorkflowStep` (LLM/deterministic replan output shape) into
+ * an `OrbPlanStep` (the orb task store's persisted shape).
+ *
+ * Replan emits the leaner workflow-step shape (toolName + toolArgs + path),
+ * while the store keeps the richer plan-step shape (toolCalls[] + uiActions[]
+ * + pagePath). Without this bridge the revised steps couldn't be persisted
+ * even after `injectRevisedSteps` landed.
+ *
+ * Rules:
+ *   - When `toolName` is set, emit a single `toolCalls[0]` entry; per the
+ *     contract docstring on AgentWorkflowStep, actionType/payload are then
+ *     ignored, so we don't double-fire as a UI action.
+ *   - When `toolName` is absent, emit a single `uiActions[0]` from
+ *     actionType/payload — replan rarely produces these but the converter
+ *     stays total so deterministic patterns that flip back to UI dispatch
+ *     keep working.
+ *   - Step id must be present in the store; we synthesise one if the
+ *     replan output left it blank.
+ *   - `requiresApproval` is hard-set to false; the store has its own
+ *     approval gating via `task.needsApproval` and step-level approvals,
+ *     and replan never re-adds UI confirmation gates by itself.
+ */
+function workflowStepToPlanStep(step: AgentWorkflowStep): OrbPlanStep {
+  const id =
+    step.id && step.id.length > 0
+      ? step.id
+      : `replanned_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  if (step.toolName && step.toolName.length > 0) {
+    return {
+      id,
+      label: step.label,
+      pagePath: step.path,
+      uiActions: [],
+      toolCalls: [
+        {
+          name: step.toolName,
+          args: (step.toolArgs ?? {}) as Record<string, unknown>,
+          requiresApproval: false,
+        },
+      ],
+    };
+  }
+
+  return {
+    id,
+    label: step.label,
+    pagePath: step.path,
+    uiActions: [
+      {
+        type: step.actionType,
+        payload: step.payload,
+      },
+    ],
+    toolCalls: [],
+  };
+}
+
+/**
+ * Apply a list of revised `AgentWorkflowStep`s to the task in the store by
+ * splicing them into the position of the failed step.
+ *
+ * Returns true on success, false if the store rejected the splice (task gone,
+ * index out of range, would exceed cap, etc.) so the caller can fall through
+ * to the failure path instead of pretending the replan landed.
+ */
+function applyRevisedSteps(
+  context: ReplanCallbackContext,
+  revisedWorkflowSteps: AgentWorkflowStep[]
+): boolean {
+  if (revisedWorkflowSteps.length === 0) return false;
+
+  const failedStepId = context.failedStep.id;
+  if (!failedStepId) {
+    console.warn("[replan] failedStep has no id; cannot locate splice point");
+    return false;
+  }
+  const atIndex = context.task.steps.findIndex(s => s.id === failedStepId);
+  if (atIndex < 0) {
+    console.warn(
+      `[replan] failedStep id ${failedStepId} not found in task.steps; skipping injection`
+    );
+    return false;
+  }
+
+  const planSteps = revisedWorkflowSteps.map(workflowStepToPlanStep);
+  const updated = orbTaskStore.injectRevisedSteps(
+    context.task.taskId,
+    context.userId,
+    atIndex,
+    planSteps
+  );
+  return updated !== null;
 }
 
 /**
@@ -81,15 +178,20 @@ export function createReplanCallback(context: ReplanCallbackContext) {
       if (deterministicResult && deterministicResult.length > 0) {
         console.log(`[replan] Deterministic replan succeeded with ${deterministicResult.length} steps`);
 
+        const applied = applyRevisedSteps(context, deterministicResult);
+
         // Record success
         appendOrbAgentTaskAuditEvent(
           payload.taskId,
-          "task.replanned",
-          `Deterministic replanning succeeded for ${payload.toolName}`,
+          applied ? "task.replanned" : "task.replan_failed",
+          applied
+            ? `Deterministic replanning succeeded for ${payload.toolName}`
+            : `Deterministic replan generated steps but injection was rejected for ${payload.toolName}`,
           {
             stepId: payload.stepId,
             strategy: "deterministic",
             revisedStepCount: deterministicResult.length,
+            applied,
           }
         );
 
@@ -98,24 +200,34 @@ export function createReplanCallback(context: ReplanCallbackContext) {
           traceId,
           taskId: payload.taskId,
           type: "recovery_event",
-          summary: `Deterministic replan fixed ${payload.toolName} (${payload.observation.errorCode})`,
+          summary: applied
+            ? `Deterministic replan fixed ${payload.toolName} (${payload.observation.errorCode})`
+            : `Deterministic replan rejected by store for ${payload.toolName}`,
           source: "orchestrator.replan.deterministic",
-          confidence: 0.95,
-          tags: ["replan-success", "deterministic", payload.toolName],
+          confidence: applied ? 0.95 : 0.4,
+          tags: [
+            applied ? "replan-success" : "replan-applied-fail",
+            "deterministic",
+            payload.toolName,
+          ],
           metadata: {
             errorCode: payload.observation.errorCode,
             revisedSteps: deterministicResult.map(s => s.id),
+            applied,
           },
         });
 
         orbTaskTracer.endSpan(traceId, spanId, {
-          status: "success",
-          output: { strategy: "deterministic", stepCount: deterministicResult.length },
+          status: applied ? "success" : "failed",
+          output: {
+            strategy: "deterministic",
+            stepCount: deterministicResult.length,
+            applied,
+          },
+          ...(applied
+            ? {}
+            : { error: "store rejected revised steps", errorCode: "replan-inject-rejected" }),
         });
-
-        // TODO: Actually apply the revised steps to the task
-        // This requires extending the orchestrator to support dynamic step injection
-        console.warn("[replan] Deterministic replan generated steps but orchestrator doesn't support dynamic injection yet");
         return;
       }
 
@@ -136,16 +248,21 @@ export function createReplanCallback(context: ReplanCallbackContext) {
           `[replan] LLM replan succeeded with ${llmResult.revisedSteps.length} steps: ${llmResult.reasoning}`
         );
 
+        const applied = applyRevisedSteps(context, llmResult.revisedSteps);
+
         appendOrbAgentTaskAuditEvent(
           payload.taskId,
-          "task.replanned",
-          `LLM replanning succeeded: ${llmResult.reasoning}`,
+          applied ? "task.replanned" : "task.replan_failed",
+          applied
+            ? `LLM replanning succeeded: ${llmResult.reasoning}`
+            : `LLM replan generated steps but injection was rejected: ${llmResult.reasoning}`,
           {
             stepId: payload.stepId,
             strategy: "llm",
             revisedStepCount: llmResult.revisedSteps.length,
             reasoning: llmResult.reasoning,
             fallbackAction: llmResult.fallbackAction,
+            applied,
           }
         );
 
@@ -154,29 +271,37 @@ export function createReplanCallback(context: ReplanCallbackContext) {
           traceId,
           taskId: payload.taskId,
           type: "recovery_event",
-          summary: `LLM replan fixed ${payload.toolName}: ${llmResult.reasoning}`,
+          summary: applied
+            ? `LLM replan fixed ${payload.toolName}: ${llmResult.reasoning}`
+            : `LLM replan rejected by store: ${llmResult.reasoning}`,
           source: "orchestrator.replan.llm",
-          confidence: 0.85,
-          tags: ["replan-success", "llm", payload.toolName],
+          confidence: applied ? 0.85 : 0.4,
+          tags: [
+            applied ? "replan-success" : "replan-applied-fail",
+            "llm",
+            payload.toolName,
+          ],
           metadata: {
             errorCode: payload.observation.errorCode,
             reasoning: llmResult.reasoning,
             revisedSteps: llmResult.revisedSteps.map(s => s.id),
             fallbackAction: llmResult.fallbackAction,
+            applied,
           },
         });
 
         orbTaskTracer.endSpan(traceId, spanId, {
-          status: "success",
+          status: applied ? "success" : "failed",
           output: {
             strategy: "llm",
             stepCount: llmResult.revisedSteps.length,
             reasoning: llmResult.reasoning,
+            applied,
           },
+          ...(applied
+            ? {}
+            : { error: "store rejected revised steps", errorCode: "replan-inject-rejected" }),
         });
-
-        // TODO: Apply revised steps to task
-        console.warn("[replan] LLM replan generated steps but orchestrator doesn't support dynamic injection yet");
         return;
       }
 

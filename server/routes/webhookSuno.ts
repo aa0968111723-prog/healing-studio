@@ -31,6 +31,7 @@ import {
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
+import { verifyWebhookToken } from "../_core/webhookTokens";
 
 export const sunoWebhookRouter = Router();
 
@@ -139,6 +140,19 @@ sunoWebhookRouter.post(
       const jobId = pickJobId(req);
       if (!jobId) {
         console.warn("[WebhookSuno] Missing jobId query param, dropping payload");
+        return;
+      }
+
+      // Capability token: server signs `suno:<jobId>` with JWT_SECRET when
+      // constructing the callBackUrl (proStudio router). Without this any
+      // POST that guesses the numeric jobId can mark a job completed with
+      // attacker-controlled audio/image URLs.
+      const token =
+        typeof req.query.token === "string" ? req.query.token : null;
+      if (!verifyWebhookToken("suno", jobId, token)) {
+        console.warn(
+          `[WebhookSuno] Token mismatch for jobId=${jobId}, dropping payload`
+        );
         return;
       }
 
