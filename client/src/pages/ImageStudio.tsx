@@ -3620,7 +3620,7 @@ export default function ImageStudio() {
             : activeTab === "upscale"
               ? "upscale 可調: upscaleFactor(2/4) / upscaleMode(factor/target)"
               : activeTab === "pose"
-                ? "pose 可調: drawMode(full-pose/body-pose/face-pose/hand-pose) — 偵測模式決定輸出哪個部位的骨骼圖"
+                ? "pose 可調: drawMode(full-pose/body-pose/face-pose/hand-pose/face-hand-mask/face-mask/hand-mask) — 偵測模式決定輸出哪個部位的骨骼圖或遮罩"
                 : activeTab === "3d"
                   ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / hunyuanFaceCount(40000~1500000) / hunyuanPolygonType(triangle/quadrilateral) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded) / rodinGeometryFormat(glb/usdz/fbx/obj/stl) / rodinConditionMode(fuse/concat) / rodinUseHyper(bool) / worldExportDrc(bool)"
                   : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / drawMode / enablePbr / hunyuanGenType / rodinQuality",
@@ -3847,7 +3847,17 @@ export default function ImageStudio() {
               return { ok: true };
             // ── Pose tab params ──
             case "drawMode": {
-              const allowed = ["full-pose", "body-pose", "face-pose", "hand-pose"];
+              // PosePanel 提供 7 個偵測模式，先前 allow-list 只放 4 個基礎姿勢，
+              // 導致光球用 setParam 帶入 mask 變體會被退回。同步擴成 7 個與 UI 對齊。
+              const allowed = [
+                "full-pose",
+                "body-pose",
+                "face-pose",
+                "hand-pose",
+                "face-hand-mask",
+                "face-mask",
+                "hand-mask",
+              ];
               if (typeof value === "string" && allowed.includes(value)) {
                 setDrawMode(value);
                 return { ok: true, message: `骨骼偵測模式已設為 ${value}` };
