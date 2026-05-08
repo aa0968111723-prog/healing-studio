@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   motion,
   useMotionTemplate,
@@ -24,7 +24,6 @@ export default function HeroMagneticSpotlight({
   radius = 360,
 }: Props) {
   const reduceMotion = useReducedMotion();
-  const [enabled, setEnabled] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Motion values track raw pointer position; spring smooths them.
@@ -37,22 +36,20 @@ export default function HeroMagneticSpotlight({
 
   useEffect(() => {
     if (reduceMotion) return;
-    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const update = () => setEnabled(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, [reduceMotion]);
-
-  useEffect(() => {
-    if (!enabled) return;
     const el = containerRef.current?.parentElement;
     if (!el) return;
 
-    const onMove = (e: PointerEvent) => {
+    // Pointer events fire for both mouse + touch, so the spotlight follows
+    // a finger drag on mobile too (centred under the touch point).
+    const setFromClient = (clientX: number, clientY: number) => {
       const rect = el.getBoundingClientRect();
-      x.set(e.clientX - rect.left);
-      y.set(e.clientY - rect.top);
+      x.set(clientX - rect.left);
+      y.set(clientY - rect.top);
+    };
+    const onMove = (e: PointerEvent) => setFromClient(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) setFromClient(t.clientX, t.clientY);
     };
     const onLeave = () => {
       x.set(-9999);
@@ -61,13 +58,17 @@ export default function HeroMagneticSpotlight({
 
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerleave", onLeave);
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("touchend", onLeave);
     return () => {
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onLeave);
     };
-  }, [enabled, x, y]);
+  }, [reduceMotion, x, y]);
 
-  if (!enabled) return null;
+  if (reduceMotion) return null;
 
   return (
     <motion.div

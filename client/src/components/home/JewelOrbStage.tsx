@@ -86,26 +86,35 @@ export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
   });
 
   useEffect(() => {
-    if (reduceMotion) return;
-    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const update = () => setTiltEnabled(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
+    if (reduceMotion) {
+      setTiltEnabled(false);
+      return;
+    }
+    // Tilt is now enabled for both mouse + touch — pointer events fire for
+    // both, and the touch handlers below explicitly cover finger-drag too.
+    setTiltEnabled(true);
   }, [reduceMotion]);
 
   useEffect(() => {
     if (!tiltEnabled) return;
     const el = containerRef.current;
     if (!el) return;
-    const onMove = (e: PointerEvent) => {
+    const setFromClient = (clientX: number, clientY: number) => {
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      const ratioX = (e.clientX - cx) / (rect.width / 2);
-      const ratioY = (e.clientY - cy) / (rect.height / 2);
+      const ratioX = (clientX - cx) / Math.max(rect.width / 2, 1);
+      const ratioY = (clientY - cy) / Math.max(rect.height / 2, 1);
       px.set(Math.max(-1.5, Math.min(1.5, ratioX)));
       py.set(Math.max(-1.5, Math.min(1.5, ratioY)));
+    };
+    const onMove = (e: PointerEvent) => setFromClient(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) {
+        setFromClient(t.clientX, t.clientY);
+        setHovering(true);
+      }
     };
     const onLeave = () => {
       px.set(0);
@@ -116,10 +125,14 @@ export default function JewelOrbStage({ sceneId, children, onTap }: Props) {
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerleave", onLeave);
     el.addEventListener("pointerenter", onEnter);
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("touchend", onLeave);
     return () => {
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);
       el.removeEventListener("pointerenter", onEnter);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onLeave);
     };
   }, [tiltEnabled, px, py]);
 
