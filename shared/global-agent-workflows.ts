@@ -160,8 +160,78 @@ export function expandWorkflowAction(action: RunWorkflowAction): ExpandedWorkflo
   return expanded;
 }
 
+/**
+ * Strip the meta-instruction tail and the multi-stage process chain that
+ * users often append to a creative brief. Without this the workflow
+ * builders previously concatenated phrases like
+ *   「…請逐步問我描述。」
+ *   「先在 X 生成 …，再用這些圖在 Y 訓練 LoRA，最後…」
+ * into the `fillPrompt` payload, so the destination studio page would
+ * receive an unusable prompt full of orchestration instructions.
+ *
+ * Heuristic-only — we never *guess* a creative subject, we just remove
+ * obvious orchestration noise and trim. Returns the cleaned brief; if
+ * everything was noise, returns an empty string so callers can fall
+ * back to their default prompt.
+ */
+export function sanitiseBriefForPrompt(brief: string): string {
+  let text = brief.trim();
+  if (!text) return "";
+
+  // 1) Drop a meta-instruction tail anywhere it appears at the end of
+  //    the brief (the user's "by the way please ask me step by step"
+  //    addendum). Patterns match the keyword + optional surrounding
+  //    Chinese / Latin punctuation so a trailing period or "—" doesn't
+  //    block the strip. We slice from the keyword's start to end so
+  //    the headline goal survives. Order matters — try the longest
+  //    phrase first.
+  const META_TAIL_PATTERNS: RegExp[] = [
+    /逐步\s*問\s*我[^\n]*$/,
+    /逐步\s*(?:描述|引導|告訴)\s*我[^\n]*$/,
+    /請\s*問\s*我[^\n]*$/,
+    /請\s*反問[^\n]*$/,
+    /問\s*清楚\s*我[^\n]*$/,
+    /step[\s-]*by[\s-]*step[^.\n]*\.?$/i,
+    /(?:please|kindly)?\s*ask\s+me\s+(?:step\s*by\s*step|one\s+by\s+one)[^.\n]*\.?$/i,
+  ];
+  for (const re of META_TAIL_PATTERNS) {
+    const match = text.match(re);
+    if (match?.index !== undefined && match.index >= 0) {
+      text = text.slice(0, match.index);
+      // Trim leading separators left over from the strip ("。", " — ", "，").
+      text = text.replace(/[\s。.！?？，,;；:：—\-—]+$/, "");
+      break;
+    }
+  }
+
+  // 2) Drop a multi-stage chain ("先 X，再 Y，最後 Z") — keep just the
+  //    part before "先". Only collapse when the chain spans both
+  //    先...再... markers AND a closing marker (最後 / 然後 / 接著);
+  //    isolated 先 / 再 sentences could be legitimate flavour text.
+  const stageMatch = text.match(
+    /^([\s\S]+?)[，,。\n：:]\s*先[^。\n]{1,120}[，,]\s*再[^。\n]{1,120}[，,]?\s*(?:最後|然後|接著)[^。\n]*$/
+  );
+  if (stageMatch) {
+    text = stageMatch[1];
+  }
+
+  text = text.replace(/[\s。.！?？，,;；:：—\-—]+$/, "").trim();
+
+  // After stripping the meta tail, a standalone filler word ("請" /
+  // "麻煩") sometimes survives at the head — return empty so the caller
+  // hits the default-prompt fallback rather than building a workflow
+  // around a one-character "brief".
+  if (text.length === 0) return "";
+  if (text.length < 3 && /^[請麻煩問我可以幫]+$/.test(text)) return "";
+  if (/^[請麻煩可以幫]\s*$/.test(text)) return "";
+
+  return text;
+}
+
 export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
-  const basePrompt = brief.trim() || "30 秒電影感短片，清楚主題、三幕節奏、可生成分鏡";
+  const basePrompt =
+    sanitiseBriefForPrompt(brief) ||
+    "30 秒電影感短片，清楚主題、三幕節奏、可生成分鏡";
   // Richer per-step prompts — each downstream step inlines an explicit
   // creative direction so the destination page receives an actually-runnable
   // prompt even when the user / LLM didn't customize the brief. The previous
@@ -283,7 +353,9 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
 }
 
 export function buildImageWorkflow(brief: string): RunWorkflowAction {
-  const basePrompt = brief.trim() || "一張電影感的療癒風景圖，柔和光線、低噪、構圖留白";
+  const basePrompt =
+    sanitiseBriefForPrompt(brief) ||
+    "一張電影感的療癒風景圖，柔和光線、低噪、構圖留白";
   return {
     type: "runWorkflow",
     name: "圖片生成流程",
@@ -308,7 +380,9 @@ export function buildImageWorkflow(brief: string): RunWorkflowAction {
 }
 
 export function buildMusicWorkflow(brief: string): RunWorkflowAction {
-  const basePrompt = brief.trim() || "請生成一段放鬆療癒的背景音樂，120 秒、舒緩節奏";
+  const basePrompt =
+    sanitiseBriefForPrompt(brief) ||
+    "請生成一段放鬆療癒的背景音樂，120 秒、舒緩節奏";
   return {
     type: "runWorkflow",
     name: "音樂生成流程",
@@ -338,7 +412,8 @@ export function buildMusicWorkflow(brief: string): RunWorkflowAction {
 }
 
 export function buildVoiceWorkflow(brief: string): RunWorkflowAction {
-  const basePrompt = brief.trim() || "請朗讀以下旁白稿，語速自然、情緒平穩";
+  const basePrompt =
+    sanitiseBriefForPrompt(brief) || "請朗讀以下旁白稿，語速自然、情緒平穩";
   return {
     type: "runWorkflow",
     name: "語音合成流程",
@@ -368,7 +443,8 @@ export function buildVoiceWorkflow(brief: string): RunWorkflowAction {
 }
 
 export function buildSfxWorkflow(brief: string): RunWorkflowAction {
-  const basePrompt = brief.trim() || "請產生一段環境音效，10 秒、清晰、可循環";
+  const basePrompt =
+    sanitiseBriefForPrompt(brief) || "請產生一段環境音效，10 秒、清晰、可循環";
   return {
     type: "runWorkflow",
     name: "音效生成流程",
@@ -398,7 +474,7 @@ export function buildSfxWorkflow(brief: string): RunWorkflowAction {
 }
 
 export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
-  const basePrompt = brief.trim() || "30 秒療癒短片企劃";
+  const basePrompt = sanitiseBriefForPrompt(brief) || "30 秒療癒短片企劃";
   return {
     type: "runWorkflow",
     name: "腳本規劃流程",
@@ -428,7 +504,8 @@ export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
  */
 export function buildBrandContentWorkflow(brief: string): RunWorkflowAction {
   const basePrompt =
-    brief.trim() || "品牌週主題貼文，主視覺溫暖、文案有故事感、CTA 引導追蹤";
+    sanitiseBriefForPrompt(brief) ||
+    "品牌週主題貼文，主視覺溫暖、文案有故事感、CTA 引導追蹤";
   return {
     type: "runWorkflow",
     name: "品牌貼文素材包流程",
@@ -514,7 +591,8 @@ export function buildBrandContentWorkflow(brief: string): RunWorkflowAction {
  */
 export function buildPodcastEpisodeWorkflow(brief: string): RunWorkflowAction {
   const basePrompt =
-    brief.trim() || "10 分鐘的療癒主題 podcast，溫暖、敘事性、有引言與結尾";
+    sanitiseBriefForPrompt(brief) ||
+    "10 分鐘的療癒主題 podcast，溫暖、敘事性、有引言與結尾";
   return {
     type: "runWorkflow",
     name: "Podcast 集數製作流程",
@@ -663,7 +741,7 @@ export function buildLongVideoWorkflow(
   brief: string,
   options: LongVideoWorkflowOptions = {}
 ): RunWorkflowAction {
-  const trimmedBrief = brief.trim();
+  const trimmedBrief = sanitiseBriefForPrompt(brief);
   const chapters = Math.max(
     2,
     Math.min(6, options.chapters ?? inferLongVideoChapters(trimmedBrief || ""))
@@ -1091,6 +1169,44 @@ export function detectCreationIntent(
 
   const anyHit = hits.video || hits.image || hits.music || hits.voice || hits.sfx || hits.script;
   if (!anyHit || !wantsBuild) return { kind: "none" };
+
+  // ── Bug 3 guard: 使用者明確要求逐步反問 / 描述了多階段流程時，不要直接 ─
+  // 把整段話塞進 single-modality workflow。截圖案例：「我要打造一個原創
+  // 角色：先在圖片創作室生成正面/側面/背面立繪，再用這些圖在角色鍛造所
+  // 訓練 LoRA，最後我能用這個 LoRA 一致性產角色。請逐步問我描述。」 —
+  // 這時 detectCreationIntent 原本會回 ready+buildImageWorkflow，但使用者
+  // 顯然沒準備好讓我們用「請依以下需求生成一張高品質圖片：…」把整段話原
+  // 文當提示詞送進 image-studio。改成回 needs-clarification，把選擇權
+  // 還給使用者。
+  const wantsStepByStep =
+    /(?:請|麻煩)?\s*(?:逐步|一步一步|step\s*by\s*step|step-by-step)\s*(?:問|描述|引導|聊|解說|解釋)?/i.test(
+      trimmed
+    ) ||
+    /(?:請|麻煩)?\s*(?:問|反問)\s*(?:我|清楚|細節)/.test(trimmed) ||
+    /逐步(?:問|描述|聊)/.test(trimmed);
+  // Allow Chinese commas between stages — a typical "先 X，再 Y，最後 Z"
+  // sentence puts a comma after each stage, so excluding "，" inside the
+  // span made the detector miss the most common phrasing.
+  const isMultiStage =
+    /先[^。\n]{1,80}[，,]\s*再[^。\n]{1,80}[，,]\s*(?:最後|然後|接著)/.test(
+      trimmed
+    ) ||
+    /(?:第一步|step\s*1)[^。\n]{0,160}(?:第二步|step\s*2)/i.test(trimmed);
+  if (wantsStepByStep || isMultiStage) {
+    const focusOptions: string[] = [];
+    if (hits.image) focusOptions.push("先聚焦在圖片這一段");
+    if (hits.video) focusOptions.push("先聚焦在影片這一段");
+    if (hits.music || hits.voice || hits.sfx) focusOptions.push("先聚焦在聲音這一段");
+    if (hits.script) focusOptions.push("先把腳本/分鏡定下來");
+    focusOptions.push("我來逐步描述細節，你陪我一段一段問");
+    return {
+      kind: "needs-clarification",
+      message: wantsStepByStep
+        ? "好，我陪你慢慢來——你想先從哪一段開始？挑一個，我再針對那段問你細節，不會一次把整段話當成提示詞送出去。"
+        : "我看到這是一個多階段的流程。我建議我們先聚焦在第一階段，把細節敲定再進到下一段——你想先從哪一段切入？",
+      options: focusOptions.slice(0, 4),
+    };
+  }
 
   const enrichedBrief = enrichedBriefEarly;
 
