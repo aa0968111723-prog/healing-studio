@@ -12,6 +12,7 @@ import {
   AnimatePresence,
   type PanInfo,
   useAnimation,
+  useReducedMotion,
 } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import {
@@ -86,6 +87,7 @@ import type { IntentOption } from "@/lib/intentOptions";
 import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
 import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
 import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
+import OrbActionFlow from "./orb/OrbActionFlow";
 import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -1083,6 +1085,9 @@ export default memo(function ProactiveOrbWidget({
   } = useFocusFlow();
   const orbControls = useAnimation();
   const isMobile = useIsMobile();
+  // Honor system "reduce motion" preference: disable continuous breathing,
+  // pulsing glow, and infinite scale loops; keep one-shot transitions short.
+  const reduceMotion = useReducedMotion() ?? false;
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -2508,11 +2513,13 @@ export default memo(function ProactiveOrbWidget({
       <AnimatePresence>
         {onboardingActive && (
           <motion.button
+            type="button"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             onClick={skipOnboarding}
-            className="pointer-events-auto fixed top-4 right-4 z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/80 backdrop-blur-md border border-gray-200/50 text-gray-500 hover:text-gray-700 hover:bg-white transition-all shadow-lg"
+            className="pointer-events-auto fixed top-4 right-4 z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/85 backdrop-blur-md border border-gray-200/50 text-gray-600 hover:text-gray-800 hover:bg-white transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            aria-label="跳過光球引導流程"
           >
             <X className="w-3 h-3" />
             跳過引導
@@ -2553,13 +2560,21 @@ export default memo(function ProactiveOrbWidget({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setShowPanel(false)}
+                aria-hidden
               />
               <motion.div
                 data-orb-panel
+                role="dialog"
+                aria-modal="true"
+                aria-label="光球助手互動面板"
                 initial={{ opacity: 0, y: "100%" }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: "60%" }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                transition={
+                  reduceMotion
+                    ? { duration: 0.18 }
+                    : { type: "spring", stiffness: 300, damping: 30 }
+                }
                 className="fixed inset-x-0 bottom-0 z-[56] pointer-events-auto rounded-t-3xl overflow-hidden"
                 style={{
                   maxHeight: "85vh",
@@ -2612,23 +2627,32 @@ export default memo(function ProactiveOrbWidget({
                   </div>
                   <div className="flex items-center gap-1">
                     <button
+                      type="button"
                       onClick={() => setQuietMode(!quietMode)}
-                      className={`p-2 rounded-full transition-colors ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                      className={`p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
                       title={quietMode ? "開啟提示" : "靜音模式"}
+                      aria-label={quietMode ? "開啟主動提示" : "關閉主動提示"}
+                      aria-pressed={quietMode}
                     >
                       {quietMode ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </button>
                     {panelView !== "main" && (
                       <button
+                        type="button"
                         onClick={() => setPanelView("main")}
-                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                        aria-label="返回主面板"
+                        title="返回主面板"
                       >
                         <RotateCcw className="w-4 h-4 text-gray-400" />
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => setShowPanel(false)}
-                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                      aria-label="關閉光球面板"
+                      title="關閉"
                     >
                       <X className="w-4 h-4 text-gray-400" />
                     </button>
@@ -2817,6 +2841,14 @@ export default memo(function ProactiveOrbWidget({
                                     />
                                   ) : null}
                                 </div>
+                                {/* Visual flow diagram for orb actions ≥ 2 — 文字抽象時用圖示代替 */}
+                                {msg.role === "orb" && msg.actions && msg.actions.length >= 2 ? (
+                                  <OrbActionFlow
+                                    actions={msg.actions}
+                                    theme="light"
+                                    className="mt-1.5 max-w-full"
+                                  />
+                                ) : null}
                                 {msg.pagePath && msg.at && (
                                   <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
                                     msg.role === "user" ? "justify-end" : "justify-start"
@@ -2832,9 +2864,9 @@ export default memo(function ProactiveOrbWidget({
                             <div className="flex justify-start">
                               <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
                                 <div className="flex items-center gap-1">
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0 }} />
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }} />
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0.2 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0.4 }} />
                                 </div>
                               </div>
                             </div>
@@ -2878,12 +2910,14 @@ export default memo(function ProactiveOrbWidget({
                               ))}
                             </div>
                           )}
-                          <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-4 py-3 focus-within:border-gray-300 transition-colors">
+                          <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-4 py-3 focus-within:border-gray-300 focus-within:ring-2 focus-within:ring-emerald-200/60 transition-colors">
                             <button
+                              type="button"
                               onClick={handlePickAttachment}
                               disabled={isUploadingAttachments || isChatLoading}
-                              className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
+                              className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                               title="上傳圖像、影片、音訊或 PDF"
+                              aria-label="上傳檔案"
                             >
                               {isUploadingAttachments ? (
                                 <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
@@ -2898,9 +2932,17 @@ export default memo(function ProactiveOrbWidget({
                               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
                               placeholder="分享你的想法，或問我任何事⋯⋯"
                               className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
+                              aria-label="輸入訊息給光球"
                               autoFocus
                             />
-                            <button onClick={handleChatSend} disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments} className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30">
+                            <button
+                              type="button"
+                              onClick={handleChatSend}
+                              disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments}
+                              className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                              aria-label={isChatLoading ? "傳送中" : "傳送訊息"}
+                              title={isChatLoading ? "傳送中" : "傳送 (Enter)"}
+                            >
                               {isChatLoading ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : <Send className="w-4 h-4 text-gray-500" />}
                             </button>
                           </div>
@@ -3016,10 +3058,16 @@ export default memo(function ProactiveOrbWidget({
           {showPanel && (
             <motion.div
               data-orb-panel
+              role="dialog"
+              aria-label="光球助手互動面板"
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0.18 }
+                  : { type: "spring", stiffness: 300, damping: 25 }
+              }
               className="w-72 sm:w-80 rounded-2xl overflow-hidden"
               style={{
                 background: "rgba(255, 255, 255, 0.92)",
@@ -3068,13 +3116,16 @@ export default memo(function ProactiveOrbWidget({
                 <div className="flex items-center gap-0.5">
                   {/* Quiet mode toggle */}
                   <button
+                    type="button"
                     onClick={() => setQuietMode(!quietMode)}
-                    className={`p-1.5 rounded-full transition-colors ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
                     title={
                       quietMode
                         ? "開啟提示（目前靜音中）"
                         : "靜音模式（不再主動提示）"
                     }
+                    aria-label={quietMode ? "開啟主動提示" : "關閉主動提示"}
+                    aria-pressed={quietMode}
                   >
                     {quietMode ? (
                       <VolumeX className="w-3.5 h-3.5" />
@@ -3084,15 +3135,21 @@ export default memo(function ProactiveOrbWidget({
                   </button>
                   {panelView !== "main" && (
                     <button
+                      type="button"
                       onClick={() => setPanelView("main")}
-                      className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                      className="p-1.5 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                      aria-label="返回主面板"
+                      title="返回主面板"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-gray-400" />
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => setShowPanel(false)}
-                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                    aria-label="關閉光球面板"
+                    title="關閉"
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -3322,6 +3379,14 @@ export default memo(function ProactiveOrbWidget({
                                 />
                               ) : null}
                             </div>
+                            {/* Visual flow diagram for orb actions ≥ 2 */}
+                            {msg.role === "orb" && msg.actions && msg.actions.length >= 2 ? (
+                              <OrbActionFlow
+                                actions={msg.actions}
+                                theme="light"
+                                className="max-w-full"
+                              />
+                            ) : null}
                             {msg.pagePath && msg.at && (
                               <div className={`text-[9px] text-muted-foreground px-1 flex items-center gap-0.5 ${
                                 msg.role === "user" ? "justify-end" : "justify-start"
@@ -3529,7 +3594,13 @@ export default memo(function ProactiveOrbWidget({
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0.18 }
+                  : { type: "spring", stiffness: 300, damping: 25 }
+              }
+              role="status"
+              aria-live="polite"
               className={`max-w-xs rounded-2xl border p-4 shadow-lg backdrop-blur-md ${personalityBubbleColors[personality]}`}
             >
               <div className="flex items-start gap-2">
@@ -3562,11 +3633,14 @@ export default memo(function ProactiveOrbWidget({
                 </div>
                 {!isGuideMsg && !isFeedback && (
                   <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation();
                       dismissProactive();
                     }}
-                    className="shrink-0 p-0.5 rounded-full hover:bg-gray-200/50 transition-colors"
+                    className="shrink-0 p-1 -m-1 rounded-full hover:bg-gray-200/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                    aria-label="關閉提示氣泡"
+                    title="關閉提示"
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -3580,13 +3654,32 @@ export default memo(function ProactiveOrbWidget({
         <motion.div
           data-orb-trigger
           animate={orbControls}
-          whileHover={guiding ? undefined : { scale: 1.1 }}
+          whileHover={guiding || reduceMotion ? undefined : { scale: 1.1 }}
           whileTap={guiding ? undefined : { scale: 0.95 }}
-          className="relative cursor-pointer"
+          className="relative cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-300"
           title={guiding ? "引導中..." : "🌸 點我開始對話"}
+          role="button"
+          tabIndex={0}
+          aria-label={
+            guiding
+              ? "光球引導中"
+              : showPanel
+                ? "關閉光球助手面板"
+                : "開啟光球助手面板"
+          }
+          aria-expanded={showPanel}
+          aria-haspopup="dialog"
           onClick={e => {
             e.stopPropagation();
             if (!guiding) handleOrbClick();
+          }}
+          onKeyDown={e => {
+            if (guiding) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              handleOrbClick();
+            }
           }}
           // HTML5 drop zone
           onDragOver={handleNativeDragOver as any}
@@ -3626,31 +3719,43 @@ export default memo(function ProactiveOrbWidget({
             )}
           </AnimatePresence>
 
-          {/* Neon glow ring — softer, healing-like breathing */}
+          {/* Neon glow ring — softer, healing-like breathing.
+              When user prefers reduced motion, render a single static halo
+              instead of an infinite keyframe loop. */}
           <motion.div
             className="absolute inset-0 rounded-full"
-            animate={{
-              boxShadow: guiding
-                ? [
-                    `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
-                    `0 0 24px ${personalityGlowColors[personality]}, 0 0 56px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
-                    `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
-                  ]
-                : showPanel
-                  ? [
-                      `0 0 18px ${personalityGlowColors[personality]}, 0 0 36px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
-                    ]
-                  : [
-                      `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
-                      `0 0 14px ${personalityGlowColors[personality].replace("0.8", "0.35")}, 0 0 28px ${personalityGlowColors[personality].replace("0.8", "0.15")}`,
-                      `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
-                    ],
-            }}
-            transition={{
-              duration: guiding ? 1 : 3.5,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+            animate={
+              reduceMotion
+                ? {
+                    boxShadow: `0 0 14px ${personalityGlowColors[personality].replace("0.8", "0.35")}, 0 0 28px ${personalityGlowColors[personality].replace("0.8", "0.15")}`,
+                  }
+                : {
+                    boxShadow: guiding
+                      ? [
+                          `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
+                          `0 0 24px ${personalityGlowColors[personality]}, 0 0 56px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
+                          `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
+                        ]
+                      : showPanel
+                        ? [
+                            `0 0 18px ${personalityGlowColors[personality]}, 0 0 36px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
+                          ]
+                        : [
+                            `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
+                            `0 0 14px ${personalityGlowColors[personality].replace("0.8", "0.35")}, 0 0 28px ${personalityGlowColors[personality].replace("0.8", "0.15")}`,
+                            `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
+                          ],
+                  }
+            }
+            transition={
+              reduceMotion
+                ? { duration: 0.2 }
+                : {
+                    duration: guiding ? 1 : 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }
+            }
             style={{ margin: "-4px", borderRadius: "50%" }}
           />
 
@@ -3678,20 +3783,32 @@ export default memo(function ProactiveOrbWidget({
               key={agentOrbChangedAt}
               aria-hidden
               initial={{ opacity: 0, scale: 0.85 }}
-              animate={{
-                opacity: [0.65, 0.95, 0.65],
-                scale: [1, 1.18, 1],
-                boxShadow: [
-                  `0 0 12px ${agentOrbVisual.hex}AA, 0 0 28px ${agentOrbVisual.hex}55`,
-                  `0 0 22px ${agentOrbVisual.hex}DD, 0 0 48px ${agentOrbVisual.hex}77`,
-                  `0 0 12px ${agentOrbVisual.hex}AA, 0 0 28px ${agentOrbVisual.hex}55`,
-                ],
-              }}
-              transition={{
-                duration: agentOrbState === "executing" ? 1.4 : 1.8,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+              animate={
+                reduceMotion
+                  ? {
+                      opacity: 0.85,
+                      scale: 1,
+                      boxShadow: `0 0 16px ${agentOrbVisual.hex}AA, 0 0 32px ${agentOrbVisual.hex}55`,
+                    }
+                  : {
+                      opacity: [0.65, 0.95, 0.65],
+                      scale: [1, 1.18, 1],
+                      boxShadow: [
+                        `0 0 12px ${agentOrbVisual.hex}AA, 0 0 28px ${agentOrbVisual.hex}55`,
+                        `0 0 22px ${agentOrbVisual.hex}DD, 0 0 48px ${agentOrbVisual.hex}77`,
+                        `0 0 12px ${agentOrbVisual.hex}AA, 0 0 28px ${agentOrbVisual.hex}55`,
+                      ],
+                    }
+              }
+              transition={
+                reduceMotion
+                  ? { duration: 0.2 }
+                  : {
+                      duration: agentOrbState === "executing" ? 1.4 : 1.8,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }
+              }
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{
                 margin: "-6px",
@@ -3733,19 +3850,21 @@ export default memo(function ProactiveOrbWidget({
             ) : null}
           </AnimatePresence>
 
-          {/* 引導模式的蒯腳文字浮標 */}
+          {/* 引導模式的腳註文字浮標 — 提示尚未互動的使用者點擊光球。
+              提高字級與背景對比，並讓裝飾不被輔助技術朗讀。 */}
           <AnimatePresence>
             {!isGuideOpen && !showPanel && !guiding && !isAnyTimerRunning && (
               <motion.div
                 initial={{ opacity: 0, y: 4, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 4, scale: 0.9 }}
-                transition={{ delay: 2, duration: 0.4 }}
-                className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                transition={{ delay: 2, duration: reduceMotion ? 0.2 : 0.4 }}
+                className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none"
+                aria-hidden
               >
-                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
-                  <Sparkles className="w-2.5 h-2.5 text-white/70" />
-                  <span className="text-[10px] text-white/80 font-medium">點我開始</span>
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 shadow-md">
+                  <Sparkles className="w-3 h-3 text-amber-200" />
+                  <span className="text-[11px] text-white font-medium tracking-wide">點我開始</span>
                 </div>
               </motion.div>
             )}
@@ -3754,15 +3873,25 @@ export default memo(function ProactiveOrbWidget({
           {/* Personality indicator dot */}
           <motion.div
             className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white"
-            animate={{
-              boxShadow: [
-                `0 0 4px ${personalityDotColors[personality]}`,
-                `0 0 8px ${personalityDotColors[personality]}`,
-                `0 0 4px ${personalityDotColors[personality]}`,
-              ],
-            }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            aria-hidden
+            animate={
+              reduceMotion
+                ? { boxShadow: `0 0 6px ${personalityDotColors[personality]}` }
+                : {
+                    boxShadow: [
+                      `0 0 4px ${personalityDotColors[personality]}`,
+                      `0 0 8px ${personalityDotColors[personality]}`,
+                      `0 0 4px ${personalityDotColors[personality]}`,
+                    ],
+                  }
+            }
+            transition={
+              reduceMotion
+                ? { duration: 0.2 }
+                : { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+            }
             style={{ backgroundColor: personalityDotColors[personality] }}
+            title={personalityLabels[personality]}
           />
 
           {/* Active timer indicator (shown when a focus-flow timer is running) */}
@@ -3776,8 +3905,9 @@ export default memo(function ProactiveOrbWidget({
               >
                 <motion.div
                   className="w-1.5 h-1.5 rounded-full"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
+                  aria-hidden
+                  animate={reduceMotion ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
+                  transition={reduceMotion ? { duration: 0.2 } : { duration: 1, repeat: Infinity }}
                   style={{
                     backgroundColor:
                       activeMode === "pomodoro"
