@@ -64,6 +64,11 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── OpenRouter Unified Gateway ──
       {
+        value: "anthropic/claude-sonnet-4.6",
+        label: "Claude Sonnet 4.6 (OpenRouter) 🟣 ✦ 最新",
+        tier: "premium",
+      },
+      {
         value: "anthropic/claude-sonnet-4.5",
         label: "Claude Sonnet 4.5 (OpenRouter) 🟣",
         tier: "premium",
@@ -162,6 +167,11 @@ export const REASONING_MODEL_CATALOG = {
         value: "anthropic/claude-opus-4.7",
         label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
         tier: "ultra",
+      },
+      {
+        value: "anthropic/claude-sonnet-4.6",
+        label: "Claude Sonnet 4.6 (OpenRouter) 🟣 ✦ 最新",
+        tier: "premium",
       },
       {
         value: "anthropic/claude-sonnet-4.5",
@@ -735,6 +745,7 @@ const LEGACY_LLM_ALIASES = new Set([
   // MiniMax via NVIDIA NIM(catalog 用 nvidia/...,brainContext 用 minimaxai/...)
   "minimaxai/minimax-m2.7",
   // OpenRouter Unified Gateway 路徑(provider/model 格式)
+  "anthropic/claude-sonnet-4.6",
   "anthropic/claude-sonnet-4.5",
   "anthropic/claude-haiku-4.5",
   "anthropic/claude-opus-4.7",

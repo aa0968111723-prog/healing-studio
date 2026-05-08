@@ -329,6 +329,7 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   // ── OpenRouter Unified Gateway 推理大腦 ──
   "google/gemini-2.5-pro": "openrouter",
   "google/gemini-2.5-flash": "openrouter",
+  "anthropic/claude-sonnet-4.6": "openrouter",
   "anthropic/claude-sonnet-4.5": "openrouter",
   "anthropic/claude-opus-4.7": "openrouter",
   "anthropic/claude-haiku-4.5": "openrouter",
@@ -446,7 +447,7 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "gemini-2.5-pro": [
     "gemini-2.5-flash",
     "google/gemini-2.5-pro",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "minimaxai/minimax-m2.7",
   ],
   "gemini-2.5-flash": [
@@ -457,7 +458,7 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   ],
   // ── OpenRouter Unified Gateway 推理大腦 ──
   "google/gemini-2.5-pro": [
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-flash",
     "gemini-2.5-pro",
   ],
@@ -466,27 +467,35 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
     "google/gemini-2.5-pro",
     "gemini-2.5-flash",
   ],
+  "anthropic/claude-sonnet-4.6": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+    "anthropic/claude-haiku-4.5",
+    "gemini-2.5-pro",
+  ],
   "anthropic/claude-sonnet-4.5": [
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
     "anthropic/claude-haiku-4.5",
     "gemini-2.5-pro",
   ],
   "anthropic/claude-opus-4.7": [
+    "anthropic/claude-sonnet-4.6",
     "anthropic/claude-sonnet-4.5",
     "google/gemini-2.5-pro",
   ],
   // Perplexity Sonar：PERPLEXITY_API_KEY 不可用時降級到 Claude / Gemini。
   "perplexity/sonar-reasoning-pro": [
     "anthropic/claude-opus-4.7",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
   ],
   "perplexity/sonar-pro": [
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
   ],
   "perplexity/sonar-reasoning": [
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-flash",
   ],
   "perplexity/sonar": [
@@ -499,18 +508,18 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   ],
   "anthropic/claude-haiku-4.5": [
     "google/gemini-2.5-flash",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
     "gemini-2.5-flash",
   ],
   "minimax/minimax-m2": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
   "mistralai/mistral-nemo": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
   "meta-llama/llama-3.1-405b-instruct": [
     "google/gemini-2.5-pro",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
   ],
   "meta-llama/llama-3.2-90b-vision-instruct": [
     "google/gemini-2.5-pro",
-    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-sonnet-4.6",
   ],
   // ── MiniMax M2.7（NVIDIA NIM 代理人引擎）──
   "minimaxai/minimax-m2.7": [

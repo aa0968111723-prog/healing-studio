@@ -290,8 +290,22 @@ async function startServer() {
   app.use("/api/auth/change-password", rateLimiters.auth);
   app.use("/api/", rateLimiters.api);
 
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
+  // Configure body parser with larger size limit for file uploads.
+  // The `verify` callback exposes the original byte buffer on `req.rawBody`
+  // so webhook handlers (fal / suno / replicate / stripe) can compute HMAC /
+  // Ed25519 signatures over the exact bytes the upstream service signed —
+  // re-stringifying `req.body` after JSON parse can re-order keys and break
+  // signature verification.
+  app.use(
+    express.json({
+      limit: "50mb",
+      verify: (req, _res, buf) => {
+        if (buf && buf.length) {
+          (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+        }
+      },
+    })
+  );
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(googleAuthRouter);
   // OAuth callback under /api/oauth/callback

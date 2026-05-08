@@ -88,7 +88,16 @@ export type FileContent = {
       | "video/mp4"
       | "video/webm"
       | "video/ogg"
-      | "video/quicktime";
+      | "video/quicktime"
+      // Text-like document attachments — see shared/orb-chat-multimodal.ts
+      // ORB_CHAT_ATTACHMENT_MIME_TYPES; the chat pipeline routes them through
+      // file_url parts even though the actual text is inlined via extractedText.
+      | "text/plain"
+      | "text/markdown"
+      | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    size_bytes?: number;
+    duration_sec?: number;
+    page_count?: number;
   };
 };
 
@@ -447,6 +456,7 @@ function estimateTokenCostUsd(
     "google/gemini-2.5-pro": { input: 1.25, output: 5.0 },
     "google/gemini-2.5-flash": { input: 0.075, output: 0.3 },
     "anthropic/claude-opus-4.7": { input: 15.0, output: 75.0 },
+    "anthropic/claude-sonnet-4.6": { input: 3.0, output: 15.0 },
     "anthropic/claude-sonnet-4.5": { input: 3.0, output: 15.0 },
     "anthropic/claude-haiku-4.5": { input: 0.8, output: 4.0 },
     "minimax/minimax-m2": { input: 0.3, output: 1.2 },
@@ -604,6 +614,7 @@ const GEMINI_MODEL_REMAP: Record<string, string> = {
   "claude-3-haiku": "gemini-2.5-flash",
   "claude-instant-1": "gemini-2.5-flash",
   "claude-sonnet-4.5": "gemini-2.5-pro",
+  "claude-sonnet-4.6": "gemini-2.5-pro",
   "claude-opus-4.7": "gemini-2.5-pro",
   "claude-haiku-4.5": "gemini-2.5-flash",
   // Mistral → Gemini
@@ -637,6 +648,7 @@ const ANTHROPIC_MODEL_REMAP: Record<string, string> = {
   "gpt-3.5-turbo": "claude-haiku-4-5-20251001",
   // OpenRouter canonical IDs → Anthropic native IDs
   "anthropic/claude-sonnet-4.5": "claude-sonnet-4-6",
+  "anthropic/claude-sonnet-4.6": "claude-sonnet-4-6",
   "anthropic/claude-opus-4.7": "claude-opus-4-7",
   "anthropic/claude-haiku-4.5": "claude-haiku-4-5-20251001",
   // Friendly aliases
@@ -644,6 +656,7 @@ const ANTHROPIC_MODEL_REMAP: Record<string, string> = {
   "claude-sonnet": "claude-sonnet-4-6",
   "claude-opus": "claude-opus-4-7",
   "claude-sonnet-4.5": "claude-sonnet-4-6",
+  "claude-sonnet-4.6": "claude-sonnet-4-6",
   "claude-opus-4.7": "claude-opus-4-7",
   "claude-haiku-4.5": "claude-haiku-4-5-20251001",
 };
@@ -674,13 +687,13 @@ const OPENROUTER_CATALOG_REMAP: Record<string, string> = {
   // Anthropic native(date-suffixed)→ OpenRouter canonical
   "claude-haiku-4-5-20251001": "anthropic/claude-haiku-4.5",
   "claude-haiku-4-5": "anthropic/claude-haiku-4.5",
-  "claude-sonnet-4-6": "anthropic/claude-sonnet-4.5",
+  "claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
   "claude-sonnet-4-5": "anthropic/claude-sonnet-4.5",
   "claude-opus-4-7": "anthropic/claude-opus-4.7",
-  // Legacy Claude 3 系列 → OpenRouter 4.x
+  // Legacy Claude 3 系列 → OpenRouter 4.x（保留向後相容；指向最新 4.6 Sonnet）
   "claude-3-opus": "anthropic/claude-opus-4.7",
-  "claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
-  "claude-3-sonnet": "anthropic/claude-sonnet-4.5",
+  "claude-3.5-sonnet": "anthropic/claude-sonnet-4.6",
+  "claude-3-sonnet": "anthropic/claude-sonnet-4.6",
   "claude-3-haiku": "anthropic/claude-haiku-4.5",
   // Legacy OpenAI → OpenRouter equivalents
   "gpt-4o": "openai/gpt-4o",
@@ -714,8 +727,8 @@ function normalizeModelForEngine(model: string, engineName: string): string {
     if (model.startsWith("gpt-")) return `openai/${model}`;
     if (model.startsWith("minimax")) return `minimax/${model}`;
     if (/^sonar(-|$)/.test(model)) return `perplexity/${model}`;
-    // 未知裸模型名 → 預設安全選擇，避免送出去被 OpenRouter 直接 400
-    return "anthropic/claude-sonnet-4.5";
+    // 未知裸模型名 → 預設安全選擇（最新 Sonnet），避免送出去被 OpenRouter 直接 400
+    return "anthropic/claude-sonnet-4.6";
   }
 
   if (isAnthropicEndpoint) {

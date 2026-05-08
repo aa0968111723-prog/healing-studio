@@ -24,7 +24,15 @@ import { generationBus } from "../generationEvents";
 
 export const falWebhookRouter = Router();
 
-// ─── Webhook 簽名驗證（可選，fal.ai 支援 HMAC-SHA256）─────────────────────────
+// ─── Webhook 簽名驗證（可選，HMAC-SHA256 共享密鑰）─────────────────────────
+// 注意：fal.ai 官方 webhook 用 Ed25519 + JWKS（見 https://fal.ai/docs/private-serverless-models/webhooks）。
+// 本函式驗證的是「自家共用 HMAC 機密」(FAL_WEBHOOK_SECRET) — 適合在 fal.ai
+// 與本服務之間放一層 proxy / 自家 enqueue 服務時使用。原生 fal Ed25519 驗證
+// 應在另外一條路徑做 (TODO: 補完整 Ed25519 驗證 with caching)。
+//
+// 重要：必須使用 req.rawBody（由 _core/index.ts 的 express.json verify 鉤子保留）
+// 而非 JSON.stringify(req.body)，因為 JSON.stringify 不保證鍵序與 whitespace
+// 與原始位元組相同，HMAC 會失敗。
 function verifyFalSignature(req: Request): boolean {
   const secret = serverEnv.FAL_WEBHOOK_SECRET;
   // 若未設定 secret，跳過驗證（開發期間可接受）
@@ -33,15 +41,20 @@ function verifyFalSignature(req: Request): boolean {
   const signature = req.headers["x-fal-signature"] as string | undefined;
   if (!signature) return false;
 
-  const body = JSON.stringify(req.body);
+  const rawBody =
+    (req as Request & { rawBody?: Buffer }).rawBody ??
+    Buffer.from(JSON.stringify(req.body ?? {}));
   const expected = crypto
     .createHmac("sha256", secret)
-    .update(body)
+    .update(rawBody)
     .digest("hex");
+  const expectedHeader = `sha256=${expected}`;
 
+  // 長度不一致時直接 false，避免 timingSafeEqual 因長度不同直接 throw
+  if (signature.length !== expectedHeader.length) return false;
   return crypto.timingSafeEqual(
     Buffer.from(signature),
-    Buffer.from(`sha256=${expected}`)
+    Buffer.from(expectedHeader)
   );
 }
 
