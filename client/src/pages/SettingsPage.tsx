@@ -52,6 +52,8 @@ import {
 import { useViewMode } from "@/hooks/useMobile";
 
 const FeedbackPage = lazy(() => import("@/pages/FeedbackPage"));
+const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
+const LangSmithPage = lazy(() => import("@/pages/LangSmithPage"));
 
 // ─── Appearance Mode Definitions ────────────────────────────────────────────
 
@@ -270,6 +272,8 @@ export default function SettingsPage() {
   const SETTINGS_TAB_OPTIONS = useMemo<AgentCapability["options"]>(() => {
     const base = [
       { id: "profile", label: "個人資料", meta: { bestFor: "帳戶資訊管理", tip: "定期檢查顯示名稱與偏好" } },
+      { id: "dashboard", label: "儀表板", meta: { bestFor: "用量總覽", tip: "查看使用統計、積分與成本分析" } },
+      { id: "data", label: "數據", meta: { bestFor: "資料追蹤與洞察", tip: "查看 LLM 呼叫追蹤與分析" } },
       { id: "appearance", label: "外觀", meta: { bestFor: "視覺舒適度", tip: "依作業時段切換明暗模式" } },
       { id: "notifications", label: "通知", meta: { bestFor: "訊息節奏控管", tip: "保留關鍵通知避免干擾" } },
       { id: "onboarding", label: "引導", meta: { bestFor: "流程重置", tip: "需求變動時可重新走引導" } },
@@ -535,6 +539,18 @@ export default function SettingsPage() {
             <User className="w-3 h-3" /> 個人資料
           </TabsTrigger>
           <TabsTrigger
+            value="dashboard"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
+          >
+            <BarChart3 className="w-3 h-3" /> 儀表板
+          </TabsTrigger>
+          <TabsTrigger
+            value="data"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
+          >
+            <Activity className="w-3 h-3" /> 數據
+          </TabsTrigger>
+          <TabsTrigger
             value="appearance"
             className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
           >
@@ -573,46 +589,52 @@ export default function SettingsPage() {
           <GlassCard>
             <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
               <User className="w-4 h-4" />
-              帳號資訊
+              帳號與偏好
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs text-muted-foreground">名稱</Label>
-                <p className="text-sm font-medium text-foreground mt-1">
-                  {user?.name || "未設定"}
-                </p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  電子郵件
-                </Label>
-                <p className="text-sm font-medium text-foreground mt-1">
-                  {user?.email || "未設定"}
-                </p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">角色</Label>
-                <p className="text-sm font-medium text-foreground mt-1">
-                  {isAdmin ? "管理員" : "使用者"}
-                </p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  剩餘配額
-                </Label>
-                <p className="text-sm font-medium text-foreground mt-1 tabular-nums">
-                  {user?.remainingGenerations ?? 0} 次
-                </p>
+
+            <div className="space-y-1.5">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-medium">
+                帳號資訊
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">名稱</Label>
+                  <p className="text-sm font-medium text-foreground mt-1">
+                    {user?.name || "未設定"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    電子郵件
+                  </Label>
+                  <p className="text-sm font-medium text-foreground mt-1">
+                    {user?.email || "未設定"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">角色</Label>
+                  <p className="text-sm font-medium text-foreground mt-1">
+                    {isAdmin ? "管理員" : "使用者"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    剩餘配額
+                  </Label>
+                  <p className="text-sm font-medium text-foreground mt-1 tabular-nums">
+                    {user?.remainingGenerations ?? 0} 次
+                  </p>
+                </div>
               </div>
             </div>
-          </GlassCard>
 
-          <GlassCard>
-            <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
-              <User className="w-4 h-4" />
-              個人化偏好（可儲存）
-            </h2>
-            <div className="space-y-4">
+            <div className="my-5 border-t border-border/40" />
+
+            <div className="space-y-1.5">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-medium">
+                個人化偏好（可儲存）
+              </p>
+              <div className="space-y-4 pt-1.5">
               <div>
                 <Label className="text-xs text-muted-foreground">
                   偏好顯示名稱
@@ -718,6 +740,7 @@ export default function SettingsPage() {
                   {personalPrefsDirty ? "有未儲存變更" : "已同步最新儲存內容"}
                 </span>
               </div>
+              </div>
             </div>
           </GlassCard>
 
@@ -805,7 +828,37 @@ export default function SettingsPage() {
           </GlassCard>
         </TabsContent>
 
-        {/* ═══ Tab 2: Appearance ═══ */}
+        {/* ═══ Tab 2: Dashboard (embed full dashboard with sub-sections) ═══ */}
+        {activeTab === "dashboard" && (
+          <div className="mt-4">
+            <Suspense
+              fallback={
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  載入儀表板中...
+                </div>
+              }
+            >
+              <DashboardPage />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ═══ Tab 3: Data (LangSmith tracing) ═══ */}
+        {activeTab === "data" && (
+          <div className="mt-4">
+            <Suspense
+              fallback={
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  載入數據中...
+                </div>
+              }
+            >
+              <LangSmithPage />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ═══ Tab 4: Appearance ═══ */}
         <TabsContent value="appearance" className="mt-4 space-y-4">
           {/* ── Section 1: Appearance Mode ── */}
           <GlassCard>
