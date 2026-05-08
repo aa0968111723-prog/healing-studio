@@ -1462,23 +1462,29 @@
   }
 
   .login-card {
-    /* Soft floating animation for cinematic feel */
+    /* Soft fade-in for cinematic feel. We avoid animating transform here so
+     * the inline pointer-driven 3D tilt set on the card's style attribute is
+     * not overridden by the animation's persisted end state (animation-fill-
+     * mode: both). The "rise" feel is reproduced via the wrapper using
+     * filter / opacity instead. */
     animation: login-card-rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   @keyframes login-card-rise {
     0% {
       opacity: 0;
-      transform: translateY(14px) scale(0.985);
+      filter: blur(4px);
     }
     100% {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      filter: blur(0);
     }
   }
 
-  /* Static gradient border — keep the premium edge glow but remove rotating
-   * wireframe-like motion per latest visual direction. */
+  /* Static gradient border — uses mask-composite to cut a 1px ring out of
+   * a conic gradient so the card itself stays clean. Per latest visual
+   * direction the ring no longer rotates; instead the hue gently breathes
+   * via opacity (no transform) for a calmer, less distracting frame. */
   .login-card::before {
     content: "";
     position: absolute;
@@ -1487,12 +1493,11 @@
     padding: 1.2px;
     background: conic-gradient(
       from 0deg,
-      rgba(180, 150, 255, 0) 0deg,
-      rgba(200, 170, 255, 0.65) 60deg,
-      rgba(120, 200, 255, 0.55) 130deg,
-      rgba(180, 150, 255, 0) 220deg,
-      rgba(255, 200, 230, 0.5) 290deg,
-      rgba(180, 150, 255, 0) 360deg
+      var(--login-frame-hue-a, rgba(200, 170, 255, 0.55)) 0deg,
+      var(--login-frame-hue-b, rgba(120, 200, 255, 0.45)) 90deg,
+      var(--login-frame-hue-c, rgba(255, 200, 230, 0.4)) 180deg,
+      var(--login-frame-hue-b, rgba(120, 200, 255, 0.45)) 270deg,
+      var(--login-frame-hue-a, rgba(200, 170, 255, 0.55)) 360deg
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -1502,9 +1507,19 @@
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
     mask-composite: exclude;
-    opacity: 0.9;
+    animation: login-card-frame-breath 8s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
+  }
+
+  @keyframes login-card-frame-breath {
+    0%,
+    100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 
   /* Outer breathing glow — soft purple aura */
