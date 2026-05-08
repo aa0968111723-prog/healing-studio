@@ -15,8 +15,13 @@
 import JSZip from "jszip";
 import { createFalClient } from "@fal-ai/client";
 import { storagePut } from "../storage.js";
-import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
+import {
+  updateFineTunedModel,
+  updateBackgroundJob,
+  getFineTunedModel,
+} from "../db.js";
 import type { TrainingModelType } from "../../shared/types.js";
+import { generationBus } from "../generationEvents";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -277,8 +282,14 @@ export async function runFalTrainingJob(
       resultJson: { modelId, modelName, engine: "fal", falModelId },
     });
 
+    // 保留現有的 datasetImages / datasetVideos 等欄位（不要被覆蓋）
+    const existingModel = await getFineTunedModel(modelId);
+    const existingConfig =
+      (existingModel?.configJson as Record<string, unknown> | null) ?? {};
     await updateFineTunedModel(modelId, {
+      trainingEngine: "fal",
       configJson: {
+        ...existingConfig,
         falModelId,
         falRequestId: "pending",
         triggerWord,
@@ -307,16 +318,22 @@ export async function runFalTrainingJob(
       falInput.do_caption = true;
     }
 
-    // Update progress periodically in background
+    // 依 elapsed time 線性估算進度（30%~85%），避免 Math.random() 造成跳動
     const trainingStartTime = Date.now();
+    // 根據 steps 估計訓練時長：圖片 LoRA 約每步 1.5 秒，視訊 LoRA 約每步 6 秒
+    const estimatedDurationMs = falModelId.includes("video")
+      ? steps * 6_000
+      : steps * 1_500;
     const progressInterval = setInterval(async () => {
       try {
-        const elapsedMin = Math.round(
-          (Date.now() - trainingStartTime) / 60_000
-        );
+        const elapsedMs = Date.now() - trainingStartTime;
+        const elapsedMin = Math.floor(elapsedMs / 60_000);
+        const elapsedSec = Math.floor(elapsedMs / 1_000) % 60;
+        const ratio = Math.min(elapsedMs / estimatedDurationMs, 1);
+        const progress = Math.min(85, 30 + Math.floor(ratio * 55));
         await updateBackgroundJob(jobId, {
-          progress: Math.min(85, 30 + Math.floor(Math.random() * 40)),
-          progressMessage: `Fal.ai 訓練進行中...（已耗時 ${elapsedMin} 分鐘）`,
+          progress,
+          progressMessage: `Fal.ai 訓練中...（已耗時 ${elapsedMin}m ${elapsedSec}s）`,
         });
       } catch {
         /* ignore */
@@ -354,12 +371,18 @@ export async function runFalTrainingJob(
       (typeof result.output === "string" ? result.output : null) ??
       (Array.isArray(result.output) ? (result.output as string[])[0] : null);
 
+    // 取最新 configJson 後再 merge，避免覆蓋 datasetImages / datasetVideos
+    const finalModel = await getFineTunedModel(modelId);
+    const finalConfig =
+      (finalModel?.configJson as Record<string, unknown> | null) ?? {};
+
     if (outputUrl) {
       await updateFineTunedModel(modelId, {
         status: "ready",
         trainedLoraUrl: typeof outputUrl === "string" ? outputUrl : undefined,
         fileUrl: typeof outputUrl === "string" ? outputUrl : undefined,
         configJson: {
+          ...finalConfig,
           falModelId,
           falRequestId: "completed",
           triggerWord,
@@ -367,7 +390,6 @@ export async function runFalTrainingJob(
           learningRate,
           isStyle,
           zipUrl,
-          submittedAt: Date.now(),
           completedAt: Date.now(),
         },
       });
@@ -383,16 +405,23 @@ export async function runFalTrainingJob(
           outputUrl,
         },
       });
+      // 推送 SSE，讓 LoraTrainer 頁面立即收到完成通知
+      generationBus.emitTraining(modelId, {
+        type: "complete",
+        thoughtChain: [],
+      });
       log("info", `模型 ${modelId} Fal.ai 訓練完成！輸出：${outputUrl}`);
     } else {
-      // No output URL found — treat as completed but warn
+      // 找不到輸出 URL，視為失敗（避免讓使用者拿到無法載入的 LoRA）
+      const rawSnippet = JSON.stringify(result).slice(0, 500);
       log(
         "warn",
-        `模型 ${modelId} Fal.ai 訓練完成但未找到輸出 URL。結果：${JSON.stringify(result).slice(0, 500)}`
+        `模型 ${modelId} Fal.ai 訓練完成但未找到輸出 URL，標記為 failed。原始結果：${rawSnippet}`
       );
       await updateFineTunedModel(modelId, {
-        status: "ready",
+        status: "failed",
         configJson: {
+          ...finalConfig,
           falModelId,
           falRequestId: "completed-no-url",
           triggerWord,
@@ -400,14 +429,14 @@ export async function runFalTrainingJob(
           learningRate,
           isStyle,
           zipUrl,
-          submittedAt: Date.now(),
           completedAt: Date.now(),
         },
       });
       await updateBackgroundJob(jobId, {
-        status: "completed",
+        status: "failed",
         progress: 100,
-        progressMessage: "訓練完成（輸出待確認）",
+        errorMessage: "Fal.ai 完成但未回傳 LoRA 權重 URL，請重試或檢查訓練類型",
+        progressMessage: "訓練失敗（無輸出 URL）",
         resultJson: {
           modelId,
           modelName,
@@ -415,6 +444,10 @@ export async function runFalTrainingJob(
           falModelId,
           rawOutput: result,
         },
+      });
+      generationBus.emitTraining(modelId, {
+        type: "error",
+        message: "Fal.ai 完成但未回傳 LoRA 權重 URL",
       });
     }
   } catch (err) {
@@ -427,5 +460,13 @@ export async function runFalTrainingJob(
       errorMessage: errMsg,
       progressMessage: "訓練失敗",
     }).catch(() => {});
+    try {
+      generationBus.emitTraining(modelId, {
+        type: "error",
+        message: errMsg,
+      });
+    } catch {
+      /* ignore */
+    }
   }
 }

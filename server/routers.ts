@@ -4200,6 +4200,28 @@ export const appRouter = router({
           }
         }
 
+        // ── 訓練引擎可用性檢查（提早失敗，避免 model 卡在 queued） ──────
+        if (
+          input.trainingEngine === "fal" &&
+          !process.env.FAL_API_KEY
+        ) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "FAL_API_KEY 未設定，無法執行 Fal.ai 訓練。請聯絡管理員或改用 Replicate 引擎。",
+          });
+        }
+        if (
+          input.trainingEngine === "replicate" &&
+          !process.env.REPLICATE_API_TOKEN
+        ) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "REPLICATE_API_TOKEN 未設定，無法執行 Replicate 訓練。請聯絡管理員或改用 Fal.ai 引擎。",
+          });
+        }
+
         const STEPS_PER_EPOCH = 30;
         const MIN_TRAINING_STEPS = 200;
         const MAX_TRAINING_STEPS = 2000;
@@ -4230,6 +4252,7 @@ export const appRouter = router({
           name: input.name,
           description: input.description,
           modelType: input.modelType,
+          trainingEngine: input.trainingEngine,
           fileUrl: input.datasetImages?.[0]?.url || input.fileUrl,
           fileKey: input.datasetImages?.[0]?.fileKey || input.fileKey,
           configJson,
@@ -4261,62 +4284,62 @@ export const appRouter = router({
         // Dispatch to the correct training engine
         if (input.trainingEngine === "fal") {
           // ── Fal.ai training path ──
-          if (!process.env.FAL_API_KEY) {
-            console.warn(
-              `[FalTrainer] FAL_API_KEY not set — model ${modelId} will remain queued`
-            );
-          } else if (totalDataCount >= 1) {
-            import("./services/falTrainer").then(
-              ({ runFalTrainingJob, resolveFalTrainingModel }) => {
-                const resolvedFalModel =
-                  input.falModelId || resolveFalTrainingModel(input.modelType);
-                runFalTrainingJob({
-                  userId: ctx.user.id,
-                  modelId,
-                  jobId,
-                  modelName: input.name,
-                  modelType: input.modelType,
-                  triggerWord: input.triggerWord || "",
-                  steps: effectiveSteps,
-                  learningRate: input.learningRate ?? 0.0001,
-                  isStyle: input.isStyle,
-                  imageUrls,
-                  videoUrls,
-                  falModelId: resolvedFalModel,
-                }).catch(err => {
-                  console.error(
-                    `[FalTrainer] Background job failed for model ${modelId}:`,
-                    err
-                  );
-                });
-              }
-            );
+          if (totalDataCount < 1) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Fal.ai 訓練至少需要 1 份已上傳資料",
+            });
           }
-        } else {
-          // ── Replicate training path (existing) ──
-          if (!process.env.REPLICATE_API_TOKEN) {
-            console.warn(
-              `[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`
-            );
-          } else if (imageUrls.length >= 3) {
-            import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
-              runLoraTrainingJob({
+          import("./services/falTrainer").then(
+            ({ runFalTrainingJob, resolveFalTrainingModel }) => {
+              const resolvedFalModel =
+                input.falModelId || resolveFalTrainingModel(input.modelType);
+              runFalTrainingJob({
                 userId: ctx.user.id,
                 modelId,
                 jobId,
                 modelName: input.name,
+                modelType: input.modelType,
                 triggerWord: input.triggerWord || "",
-                epochs: input.epochs ?? 20,
+                steps: effectiveSteps,
                 learningRate: input.learningRate ?? 0.0001,
+                isStyle: input.isStyle,
                 imageUrls,
+                videoUrls,
+                falModelId: resolvedFalModel,
               }).catch(err => {
                 console.error(
-                  `[LoraTrainer] Background job failed for model ${modelId}:`,
+                  `[FalTrainer] Background job failed for model ${modelId}:`,
                   err
                 );
               });
+            }
+          );
+        } else {
+          // ── Replicate training path ──
+          if (imageUrls.length < 3) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Replicate LoRA 訓練至少需要 3 張已上傳圖片",
             });
           }
+          import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
+            runLoraTrainingJob({
+              userId: ctx.user.id,
+              modelId,
+              jobId,
+              modelName: input.name,
+              triggerWord: input.triggerWord || "",
+              epochs: input.epochs ?? 20,
+              learningRate: input.learningRate ?? 0.0001,
+              imageUrls,
+            }).catch(err => {
+              console.error(
+                `[LoraTrainer] Background job failed for model ${modelId}:`,
+                err
+              );
+            });
+          });
         }
 
         return { id: modelId, jobId };

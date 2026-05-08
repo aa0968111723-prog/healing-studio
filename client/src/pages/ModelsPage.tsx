@@ -513,6 +513,7 @@ export default function ModelsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
+  const [trainingModelId, setTrainingModelId] = useState<number | null>(null);
   const [analysisModelId, setAnalysisModelId] = useState<number | null>(null);
   const [guideOpenId, setGuideOpenId] = useState<string | null>("start");
 
@@ -539,10 +540,40 @@ export default function ModelsPage() {
     retry: false,
   });
 
+  // ── SSE: webhook 完成時立即收到通知（避免 15s 輪詢延遲）──
+  useEffect(() => {
+    if (!trainingModelId) return;
+    if (typeof EventSource === "undefined") return;
+    const es = new EventSource(
+      `/api/model-training-events/${trainingModelId}`
+    );
+    es.onmessage = ev => {
+      try {
+        const event = JSON.parse(ev.data) as { type: string };
+        if (event.type === "complete" || event.type === "error") {
+          void myModelsQuery.refetch();
+          void trainingStatusQuery.refetch();
+          es.close();
+        }
+      } catch {
+        // 忽略 heartbeat
+      }
+    };
+    es.onerror = () => {
+      // 後端 SSE 斷線時不重連，輪詢仍能 fallback
+      es.close();
+    };
+    return () => {
+      es.close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingModelId]);
+
   const createMutation = trpc.models.create.useMutation({
     onSuccess: data => {
       toast.success("角色模型訓練任務已建立");
       setTrainingJobId(data.jobId);
+      setTrainingModelId(data.id);
       myModelsQuery.refetch();
     },
     onError: e => toast.error(e.message),
@@ -564,8 +595,9 @@ export default function ModelsPage() {
   });
 
   const retrainMutation = trpc.models.retrain.useMutation({
-    onSuccess: data => {
+    onSuccess: (data, variables) => {
       setTrainingJobId(data.jobId);
+      setTrainingModelId(variables.modelId);
       myModelsQuery.refetch();
       toast.success("重新訓練已啟動");
     },
@@ -613,6 +645,7 @@ export default function ModelsPage() {
     setIsUploading(false);
     setIsCaptioning(false);
     setTrainingJobId(null);
+    setTrainingModelId(null);
   };
 
   const currentStepIndex = FORGE_STEPS.findIndex(s => s.id === step);
