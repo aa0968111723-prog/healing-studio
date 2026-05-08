@@ -330,11 +330,11 @@ function DashboardLayoutContent({
   // ── Main-content padding mirrors the dock side and tightens when minimized ──
   const dockPadClass = dockMinimized
     ? dockPosition === "left"
-      ? "pl-[68px]"
-      : "pr-[68px]"
+      ? "pl-[56px] sm:pl-[68px]"
+      : "pr-[56px] sm:pr-[68px]"
     : dockPosition === "left"
-      ? "pl-20 sm:pl-24"
-      : "pr-20 sm:pr-24";
+      ? "pl-16 sm:pl-24"
+      : "pr-16 sm:pr-24";
 
   return (
     <>
