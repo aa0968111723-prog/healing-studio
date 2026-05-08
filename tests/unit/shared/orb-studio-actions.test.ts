@@ -78,6 +78,39 @@ import {
   buildVideoStudioI2VApplyTemplateActions,
   buildVideoStudioI2VSetParamActions,
   buildVideoStudioI2VSetImageActions,
+  VIDEO_STUDIO_V2V_PROFILE,
+  VIDEO_STUDIO_V2V_MODELS,
+  VIDEO_STUDIO_V2V_TEMPLATES,
+  VIDEO_STUDIO_V2V_STRENGTH_PRESETS,
+  VIDEO_STUDIO_V2V_CFG_PRESETS,
+  VIDEO_STUDIO_V2V_COLLABORATION_LINKS,
+  VIDEO_STUDIO_V2V_CAPABILITY_LABELS,
+  buildVideoStudioV2VSetModelActions,
+  buildVideoStudioV2VApplyTemplateActions,
+  buildVideoStudioV2VSetParamActions,
+  VIDEO_STUDIO_ENHANCE_PROFILE,
+  VIDEO_STUDIO_ENHANCE_MODELS,
+  VIDEO_STUDIO_ENHANCE_UPSCALE_FACTORS,
+  VIDEO_STUDIO_ENHANCE_RIFE_MULTIPLIERS,
+  VIDEO_STUDIO_ENHANCE_RIFE_FPS,
+  VIDEO_STUDIO_ENHANCE_TOPAZ_MODELS,
+  VIDEO_STUDIO_ENHANCE_TOPAZ_SCALES,
+  VIDEO_STUDIO_ENHANCE_COLLABORATION_LINKS,
+  VIDEO_STUDIO_ENHANCE_CAPABILITY_LABELS,
+  buildVideoStudioEnhanceSetModelActions,
+  buildVideoStudioEnhanceSetParamActions,
+  VIDEO_STUDIO_CONTROL_PROFILE,
+  VIDEO_STUDIO_CONTROL_MODELS,
+  VIDEO_STUDIO_CONTROL_CAMERA_MOTIONS,
+  VIDEO_STUDIO_CONTROL_CONTROLNETS,
+  VIDEO_STUDIO_CONTROL_TEMPLATES,
+  VIDEO_STUDIO_CONTROL_COLLABORATION_LINKS,
+  VIDEO_STUDIO_CONTROL_CAPABILITY_LABELS,
+  buildVideoStudioControlSetModelActions,
+  buildVideoStudioControlApplyTemplateActions,
+  buildVideoStudioControlSetCameraMotionActions,
+  buildVideoStudioControlSetControlNetActions,
+  buildVideoStudioControlSetParamActions,
 } from "../../../shared/orb-studio-actions";
 
 describe("orb-studio-actions: four-modal deep operations", () => {
@@ -657,5 +690,280 @@ describe("orb-studio-actions: video studio I2V profile", () => {
     for (const link of VIDEO_STUDIO_I2V_COLLABORATION_LINKS) {
       expect(link.chatPrompt.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("orb-studio-actions: video studio V2V profile", () => {
+  it("profile points at /video-studio v2v with the 3 V2V models", () => {
+    expect(VIDEO_STUDIO_V2V_PROFILE.activeTab).toBe("v2v");
+    expect(VIDEO_STUDIO_V2V_MODELS.map(m => m.id).sort()).toEqual([
+      "kling-v2v",
+      "ltx-v2v",
+      "wan-v2v",
+    ]);
+  });
+
+  it("each V2V model declares only known capabilities", () => {
+    const allowed = new Set([
+      "strength",
+      "cfg",
+      "neg",
+      "imageInput",
+      "frames",
+      "guidance",
+    ]);
+    for (const m of VIDEO_STUDIO_V2V_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(VIDEO_STUDIO_V2V_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("only ltx-v2v advertises imageInput (matches VideoStudio.tsx routing)", () => {
+    const ltx = VIDEO_STUDIO_V2V_MODELS.find(m => m.id === "ltx-v2v");
+    expect(ltx?.capabilities).toContain("imageInput");
+    const others = VIDEO_STUDIO_V2V_MODELS.filter(m => m.id !== "ltx-v2v");
+    for (const m of others) {
+      expect(m.capabilities).not.toContain("imageInput");
+    }
+  });
+
+  it("V2V actions all start by switching to v2v tab", () => {
+    expect(buildVideoStudioV2VSetModelActions("wan-v2v")[0]).toEqual({
+      type: "setTab",
+      tabId: "v2v",
+    });
+    expect(buildVideoStudioV2VSetParamActions("strength", 0.5)[0]).toEqual({
+      type: "setTab",
+      tabId: "v2v",
+    });
+  });
+
+  it("strength presets stay within 0..1 and CFG presets within 0..1", () => {
+    for (const p of VIDEO_STUDIO_V2V_STRENGTH_PRESETS) {
+      expect(p.value).toBeGreaterThanOrEqual(0);
+      expect(p.value).toBeLessThanOrEqual(1);
+    }
+    for (const p of VIDEO_STUDIO_V2V_CFG_PRESETS) {
+      expect(p.value).toBeGreaterThanOrEqual(0);
+      expect(p.value).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("template apply uses suggested model, fills prompt and (when present) negPrompt slot", () => {
+    const tpl = VIDEO_STUDIO_V2V_TEMPLATES.find(t => !!t.negPrompt);
+    expect(tpl).toBeTruthy();
+    if (!tpl) return;
+    const actions = buildVideoStudioV2VApplyTemplateActions(tpl);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "v2v" });
+    if (tpl.suggestedModelId) {
+      expect(actions[1]).toEqual({ type: "setModel", modelId: tpl.suggestedModelId });
+    }
+    expect(actions[actions.length - 1]).toMatchObject({
+      type: "fillPrompt",
+      slot: "negativePrompt",
+      text: tpl.negPrompt,
+    });
+  });
+
+  it("V2V collaboration links cover 4 cross-handoffs", () => {
+    const ids = VIDEO_STUDIO_V2V_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "v2v-after-i2v",
+      "v2v-director-batch",
+      "v2v-prompt-coach",
+      "v2v-recommend-model",
+    ]);
+  });
+});
+
+describe("orb-studio-actions: video studio Enhance profile", () => {
+  it("profile points at /video-studio enhance with the 3 enhance tools", () => {
+    expect(VIDEO_STUDIO_ENHANCE_PROFILE.activeTab).toBe("enhance");
+    expect(VIDEO_STUDIO_ENHANCE_MODELS.map(m => m.id).sort()).toEqual([
+      "frame-interp",
+      "topaz-enhance",
+      "video-upscale",
+    ]);
+  });
+
+  it("each enhance tool declares only known capabilities", () => {
+    const allowed = new Set(["upscale", "frameInterp", "topazModel", "outputScale"]);
+    for (const m of VIDEO_STUDIO_ENHANCE_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(VIDEO_STUDIO_ENHANCE_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("upscale factors and RIFE multipliers use string values matching VideoStudio.tsx", () => {
+    expect(VIDEO_STUDIO_ENHANCE_UPSCALE_FACTORS.map(f => f.value).sort()).toEqual([
+      "2",
+      "4",
+    ]);
+    expect(VIDEO_STUDIO_ENHANCE_RIFE_MULTIPLIERS.map(m => m.value).sort()).toEqual([
+      "2",
+      "4",
+    ]);
+  });
+
+  it("RIFE fps presets stay within 24..120", () => {
+    for (const f of VIDEO_STUDIO_ENHANCE_RIFE_FPS) {
+      expect(f.value).toBeGreaterThanOrEqual(24);
+      expect(f.value).toBeLessThanOrEqual(120);
+    }
+  });
+
+  it("Topaz model ids match VideoStudio.tsx allow-list (iris/artemis/theia/gaia/nyx)", () => {
+    const ids = VIDEO_STUDIO_ENHANCE_TOPAZ_MODELS.map(m => m.id).sort();
+    expect(ids).toEqual(["artemis", "gaia", "iris", "nyx", "theia"]);
+  });
+
+  it("Topaz output scales are numeric 1/2/4", () => {
+    expect(VIDEO_STUDIO_ENHANCE_TOPAZ_SCALES.map(s => s.value).sort((a, b) => a - b)).toEqual([
+      1,
+      2,
+      4,
+    ]);
+  });
+
+  it("enhance actions all start by switching to enhance tab", () => {
+    expect(buildVideoStudioEnhanceSetModelActions("video-upscale")[0]).toEqual({
+      type: "setTab",
+      tabId: "enhance",
+    });
+    expect(buildVideoStudioEnhanceSetParamActions("upscaleFactor", "4")[0]).toEqual({
+      type: "setTab",
+      tabId: "enhance",
+    });
+  });
+
+  it("enhance collaboration links cover 4 expected ids", () => {
+    const ids = VIDEO_STUDIO_ENHANCE_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "enhance-director-batch",
+      "enhance-from-history",
+      "enhance-pipeline",
+      "enhance-recommend-tool",
+    ]);
+  });
+});
+
+describe("orb-studio-actions: video studio Control profile", () => {
+  it("profile points at /video-studio control with 4 tools", () => {
+    expect(VIDEO_STUDIO_CONTROL_PROFILE.activeTab).toBe("control");
+    expect(VIDEO_STUDIO_CONTROL_MODELS.map(m => m.id).sort()).toEqual([
+      "animate-diff",
+      "cam-master",
+      "depth-crafter",
+      "vidu-ref",
+    ]);
+  });
+
+  it("each control tool declares only known capabilities", () => {
+    const allowed = new Set([
+      "cameraMotion",
+      "controlNet",
+      "guidance",
+      "neg",
+      "imageInput",
+      "videoInput",
+      "multiRef",
+    ]);
+    for (const m of VIDEO_STUDIO_CONTROL_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(VIDEO_STUDIO_CONTROL_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("camera motions cover the 17 values in VideoStudio.tsx CAMERA_MOTIONS", () => {
+    const ids = new Set(VIDEO_STUDIO_CONTROL_CAMERA_MOTIONS.map(c => c.id));
+    expect(ids).toEqual(
+      new Set([
+        "static",
+        "push_in",
+        "pull_out",
+        "pan_left",
+        "pan_right",
+        "tilt_up",
+        "tilt_down",
+        "orbit_left",
+        "orbit_right",
+        "crane_up",
+        "crane_down",
+        "roll_clockwise",
+        "roll_counterclockwise",
+        "move_left",
+        "move_right",
+        "move_up",
+        "move_down",
+      ])
+    );
+  });
+
+  it("ControlNet conditions are exactly openpose/canny/depth/none", () => {
+    const ids = VIDEO_STUDIO_CONTROL_CONTROLNETS.map(c => c.id).sort();
+    expect(ids).toEqual(["canny", "depth", "none", "openpose"]);
+  });
+
+  it("setCameraMotion forces selecting cam-master before applying motion", () => {
+    const actions = buildVideoStudioControlSetCameraMotionActions("orbit_left");
+    expect(actions).toEqual([
+      { type: "setTab", tabId: "control" },
+      { type: "setModel", modelId: "cam-master" },
+      { type: "setParam", key: "cameraMotion", value: "orbit_left" },
+    ]);
+  });
+
+  it("setControlNet forces selecting animate-diff before applying controlNet", () => {
+    const actions = buildVideoStudioControlSetControlNetActions("openpose");
+    expect(actions).toEqual([
+      { type: "setTab", tabId: "control" },
+      { type: "setModel", modelId: "animate-diff" },
+      { type: "setParam", key: "controlNet", value: "openpose" },
+    ]);
+  });
+
+  it("control template apply uses suggested model and optional neg slot", () => {
+    const tpl = VIDEO_STUDIO_CONTROL_TEMPLATES.find(t => !!t.negPrompt);
+    expect(tpl).toBeTruthy();
+    if (!tpl) return;
+    const actions = buildVideoStudioControlApplyTemplateActions(tpl);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "control" });
+    expect(actions[actions.length - 1]).toMatchObject({
+      type: "fillPrompt",
+      slot: "negativePrompt",
+      text: tpl.negPrompt,
+    });
+  });
+
+  it("generic setParam still works for guidanceScale / negativePrompt", () => {
+    expect(buildVideoStudioControlSetParamActions("guidanceScale", 7.5)[1]).toEqual({
+      type: "setParam",
+      key: "guidanceScale",
+      value: 7.5,
+    });
+  });
+
+  it("control setModel lands on control tab with chosen model", () => {
+    const actions = buildVideoStudioControlSetModelActions("vidu-ref");
+    expect(actions).toEqual([
+      { type: "setTab", tabId: "control" },
+      { type: "setModel", modelId: "vidu-ref" },
+    ]);
+  });
+
+  it("control collaboration links cover 4 expected ids", () => {
+    const ids = VIDEO_STUDIO_CONTROL_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "control-director-storyboard",
+      "control-from-image-studio",
+      "control-from-pose",
+      "control-recommend-tool",
+    ]);
   });
 });

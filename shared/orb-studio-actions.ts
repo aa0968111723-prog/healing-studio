@@ -1887,3 +1887,670 @@ export const VIDEO_STUDIO_I2V_PROFILE: VideoStudioI2VProfile = {
   aspects: VIDEO_STUDIO_I2V_ASPECTS,
   collaborations: VIDEO_STUDIO_I2V_COLLABORATION_LINKS,
 };
+
+// ─── 影片專業工作室 / 影生影（Video Studio V2V）深度操作 ─────────────────
+//
+// 與 VideoStudio.tsx 的 V2VModel 三個模型對齊。每個模型支援的能力不同：
+//  - wan-v2v: 影片重風格化，可調 strength（0~1，越高越偏向新風格）
+//  - kling-v2v: CFG 控制原片保留度 + 負向詞
+//  - ltx-v2v: 走 image-to-video 路徑（吃 imageUrl），可調 frames / guidance
+
+export type VideoStudioV2VCapability =
+  | "strength"   // wan-v2v
+  | "cfg"        // kling-v2v
+  | "neg"        // kling-v2v / ltx-v2v
+  | "imageInput" // ltx-v2v 收 imageUrl 而非 videoUrl
+  | "frames"     // ltx-v2v
+  | "guidance";  // ltx-v2v
+
+export interface VideoStudioV2VModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: VideoStudioV2VCapability[];
+  fast?: boolean;
+}
+
+export const VIDEO_STUDIO_V2V_MODELS: VideoStudioV2VModelOption[] = [
+  {
+    id: "wan-v2v",
+    label: "Wan 2.1 影生影",
+    emoji: "⚡",
+    description: "風格轉換、strength 0~1 可調，便宜快速試風格",
+    capabilities: ["strength"],
+    fast: true,
+  },
+  {
+    id: "kling-v2v",
+    label: "Kling 影生影",
+    emoji: "🎬",
+    description: "CFG 控制原片保留度，搭配負向詞做高可控風格化",
+    capabilities: ["cfg", "neg"],
+  },
+  {
+    id: "ltx-v2v",
+    label: "LTX 影生影",
+    emoji: "🧰",
+    description: "開源 LTX，吃 imageUrl 起手，可調 frames 與 guidance",
+    capabilities: ["neg", "imageInput", "frames", "guidance"],
+  },
+];
+
+export const VIDEO_STUDIO_V2V_CAPABILITY_LABELS: Record<
+  VideoStudioV2VCapability,
+  string
+> = {
+  strength: "改動強度",
+  cfg: "CFG",
+  neg: "負向詞",
+  imageInput: "圖起手",
+  frames: "幀數",
+  guidance: "引導值",
+};
+
+/** Wan v2v 強度預設 — 越高越偏向新風格 */
+export const VIDEO_STUDIO_V2V_STRENGTH_PRESETS: Array<{
+  id: string;
+  label: string;
+  value: number;
+  description: string;
+}> = [
+  { id: "subtle", label: "保留 0.35", value: 0.35, description: "保留原片運鏡，僅疊薄薄一層風格" },
+  { id: "balanced", label: "平衡 0.55", value: 0.55, description: "風格與原片各半（預設起手）" },
+  { id: "strong", label: "重塑 0.75", value: 0.75, description: "明顯新風格，但仍認得原片構圖" },
+  { id: "extreme", label: "重畫 0.9", value: 0.9, description: "幾乎重畫，僅保留動作走向" },
+];
+
+/** Kling v2v CFG 預設 — 越高越貼合 prompt（同時越偏離原片） */
+export const VIDEO_STUDIO_V2V_CFG_PRESETS: Array<{
+  id: string;
+  label: string;
+  value: number;
+  description: string;
+}> = [
+  { id: "loose", label: "鬆 0.3", value: 0.3, description: "保留原片較多" },
+  { id: "balanced", label: "平衡 0.5", value: 0.5, description: "預設" },
+  { id: "tight", label: "緊 0.8", value: 0.8, description: "嚴格貼合 prompt" },
+];
+
+export const VIDEO_STUDIO_V2V_TEMPLATES: VideoStudioPromptTemplate[] = [
+  {
+    id: "v2v-anime-style",
+    label: "動漫化",
+    emoji: "🌸",
+    prompt:
+      "Re-style this video into clean anime illustration: cel shading, vibrant flat colors, expressive linework, while keeping the camera and subject motion intact.",
+    suggestedModelId: "wan-v2v",
+  },
+  {
+    id: "v2v-watercolor",
+    label: "水彩化",
+    emoji: "🎨",
+    prompt:
+      "Transform this clip into flowing watercolor painting style with soft edges, paper texture, gentle pastel palette, while preserving the original motion.",
+    suggestedModelId: "wan-v2v",
+  },
+  {
+    id: "v2v-cinematic",
+    label: "電影化",
+    emoji: "🎞",
+    prompt:
+      "Re-grade this video with a cinematic look: teal-orange palette, film grain, anamorphic flares, deep shadows, while keeping subject identity stable.",
+    negPrompt: "blurry, jittery, oversaturated, low quality",
+    suggestedModelId: "kling-v2v",
+  },
+  {
+    id: "v2v-noir",
+    label: "黑色電影",
+    emoji: "🖤",
+    prompt:
+      "Convert into film noir black-and-white style, hard chiaroscuro lighting, high contrast, dramatic shadows, while preserving motion and timing.",
+    negPrompt: "color, washed out, low contrast",
+    suggestedModelId: "kling-v2v",
+  },
+  {
+    id: "v2v-ghibli",
+    label: "吉卜力風",
+    emoji: "🍃",
+    prompt:
+      "Restyle into Studio Ghibli inspired hand-painted look: warm sunlight, soft brushwork, painterly skies, gentle atmosphere, while preserving the original camera and motion.",
+    suggestedModelId: "ltx-v2v",
+  },
+];
+
+export function buildVideoStudioV2VSetModelActions(modelId: string): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "v2v" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildVideoStudioV2VApplyTemplateActions(
+  template: VideoStudioPromptTemplate
+): AgentAction[] {
+  const actions: AgentAction[] = [{ type: "setTab", tabId: "v2v" }];
+  if (template.suggestedModelId) {
+    actions.push({ type: "setModel", modelId: template.suggestedModelId });
+  }
+  actions.push({ type: "fillPrompt", text: template.prompt, append: false });
+  if (template.negPrompt) {
+    actions.push({
+      type: "fillPrompt",
+      text: template.negPrompt,
+      append: false,
+      slot: "negativePrompt",
+    });
+  }
+  return actions;
+}
+
+export function buildVideoStudioV2VSetParamActions(
+  key: string,
+  value: unknown
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "v2v" },
+    { type: "setParam", key, value },
+  ];
+}
+
+export const VIDEO_STUDIO_V2V_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "v2v-prompt-coach",
+    label: "幫我寫風格化指令",
+    emoji: "✍️",
+    description: "依原片內容擴寫成精準的英文 v2v 風格化指令",
+    chatPrompt:
+      "我在影生影分頁。請依我目前已上傳的影片與想要的風格，擴寫成精準的英文 v2v 提示詞（強調保留動作 / 變更風格），並用 [ACTION:fillPrompt:...] 直接幫我覆寫。",
+  },
+  {
+    id: "v2v-recommend-model",
+    label: "幫我選 V2V 模型",
+    emoji: "🧭",
+    description: "依需求挑 Wan / Kling / LTX",
+    chatPrompt:
+      "我在 v2v 分頁。請依需求（速度 / 高可控 / 開源），從 3 個 V2V 模型中推薦一個最合的，並用 [ACTION:setModel:...] 套用。",
+  },
+  {
+    id: "v2v-after-i2v",
+    label: "從 i2v 接過來重風格化",
+    emoji: "🔁",
+    description: "把剛才在 i2v 生成的成品直接帶到 v2v 風格化",
+    chatPrompt:
+      "把我剛才在 i2v 分頁生成的影片當作 v2v 的素材（videoUrl），自動帶我到 v2v 分頁並建議一個合適的模型與 strength。",
+  },
+  {
+    id: "v2v-director-batch",
+    label: "交給導演 AI 批次風格化",
+    emoji: "🎬",
+    description: "把多段影片整成批次風格化流程",
+    chatPrompt:
+      "我有多段影片要做相同風格化處理。請整理成一份批次工作流（每段指定模型 / strength / 提示詞），完成後帶我去 /director 繼續展開。",
+  },
+];
+
+export interface VideoStudioV2VProfile {
+  pageId: "video-studio";
+  pagePath: "/video-studio";
+  activeTab: "v2v";
+  models: VideoStudioV2VModelOption[];
+  templates: VideoStudioPromptTemplate[];
+  strengthPresets: typeof VIDEO_STUDIO_V2V_STRENGTH_PRESETS;
+  cfgPresets: typeof VIDEO_STUDIO_V2V_CFG_PRESETS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const VIDEO_STUDIO_V2V_PROFILE: VideoStudioV2VProfile = {
+  pageId: "video-studio",
+  pagePath: "/video-studio",
+  activeTab: "v2v",
+  models: VIDEO_STUDIO_V2V_MODELS,
+  templates: VIDEO_STUDIO_V2V_TEMPLATES,
+  strengthPresets: VIDEO_STUDIO_V2V_STRENGTH_PRESETS,
+  cfgPresets: VIDEO_STUDIO_V2V_CFG_PRESETS,
+  collaborations: VIDEO_STUDIO_V2V_COLLABORATION_LINKS,
+};
+
+// ─── 影片專業工作室 / 畫質優化（Video Studio Enhance）深度操作 ───────────
+//
+// 三個工具：超解析（ByteDance ×2/×4）/ RIFE 補幀 / Topaz 增強。
+// 不需要 prompt（agentBus 收到 fillPrompt 會 no-op），只吃 videoUrl + 各自參數。
+
+export type VideoStudioEnhanceCapability =
+  | "upscale"        // 倍率放大
+  | "frameInterp"    // 補幀
+  | "topazModel"     // Topaz 模型
+  | "outputScale";   // Topaz 輸出比例
+
+export interface VideoStudioEnhanceModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: VideoStudioEnhanceCapability[];
+}
+
+export const VIDEO_STUDIO_ENHANCE_MODELS: VideoStudioEnhanceModelOption[] = [
+  {
+    id: "video-upscale",
+    label: "ByteDance 影片超解析",
+    emoji: "🔍",
+    description: "業界頂尖 ×2 / ×4 影片超分辨率，720p → 2160p",
+    capabilities: ["upscale"],
+  },
+  {
+    id: "frame-interp",
+    label: "RIFE 4.6 補幀",
+    emoji: "🌊",
+    description: "業界最佳補幀演算法，2× / 4× 幀率提升、24-120fps 可調",
+    capabilities: ["frameInterp"],
+  },
+  {
+    id: "topaz-enhance",
+    label: "Topaz 畫質增強",
+    emoji: "💎",
+    description: "去噪、去模糊、專業級增強，5 種 Topaz 模型可選",
+    capabilities: ["topazModel", "outputScale"],
+  },
+];
+
+export const VIDEO_STUDIO_ENHANCE_CAPABILITY_LABELS: Record<
+  VideoStudioEnhanceCapability,
+  string
+> = {
+  upscale: "倍率放大",
+  frameInterp: "補幀",
+  topazModel: "Topaz 模型",
+  outputScale: "輸出比例",
+};
+
+/** ByteDance 超解析倍率：與 VideoStudio.tsx 對齊（"2"/"4" 字串） */
+export const VIDEO_STUDIO_ENHANCE_UPSCALE_FACTORS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "x2", label: "×2", value: "2" },
+  { id: "x4", label: "×4", value: "4" },
+];
+
+/** RIFE 補幀倍率：字串 "2"/"4" */
+export const VIDEO_STUDIO_ENHANCE_RIFE_MULTIPLIERS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "x2", label: "2× 補幀", value: "2" },
+  { id: "x4", label: "4× 補幀", value: "4" },
+];
+
+/** RIFE 目標 fps（24~120 範圍內常見值） */
+export const VIDEO_STUDIO_ENHANCE_RIFE_FPS: Array<{
+  id: string;
+  label: string;
+  value: number;
+}> = [
+  { id: "fps24", label: "24 fps", value: 24 },
+  { id: "fps30", label: "30 fps", value: 30 },
+  { id: "fps60", label: "60 fps", value: 60 },
+  { id: "fps120", label: "120 fps", value: 120 },
+];
+
+/** Topaz 5 種模型：與 VideoStudio.tsx allow-list 對齊 */
+export const VIDEO_STUDIO_ENHANCE_TOPAZ_MODELS: Array<{
+  id: string;
+  label: string;
+  description: string;
+}> = [
+  { id: "iris", label: "Iris", description: "通用，平衡細節與真實感" },
+  { id: "artemis", label: "Artemis", description: "去噪去壓縮，老素材首選" },
+  { id: "theia", label: "Theia", description: "細節恢復，硬邊銳利化" },
+  { id: "gaia", label: "Gaia", description: "電腦動畫 / CG 素材" },
+  { id: "nyx", label: "Nyx", description: "極低光降噪" },
+];
+
+/** Topaz 輸出比例（2x / 4x，與 ByteDance 不同的是 Topaz 走 number） */
+export const VIDEO_STUDIO_ENHANCE_TOPAZ_SCALES: Array<{
+  id: string;
+  label: string;
+  value: number;
+}> = [
+  { id: "x1", label: "原比例", value: 1 },
+  { id: "x2", label: "×2", value: 2 },
+  { id: "x4", label: "×4", value: 4 },
+];
+
+export function buildVideoStudioEnhanceSetModelActions(
+  modelId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "enhance" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildVideoStudioEnhanceSetParamActions(
+  key: string,
+  value: unknown
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "enhance" },
+    { type: "setParam", key, value },
+  ];
+}
+
+export const VIDEO_STUDIO_ENHANCE_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "enhance-recommend-tool",
+    label: "幫我選優化工具",
+    emoji: "🧭",
+    description: "依素材狀況推薦 超解析 / 補幀 / Topaz",
+    chatPrompt:
+      "我在畫質優化頁。請依我素材的狀況（解析度低 / fps 太低 / 噪點多），從 3 個工具中挑一個最合的，說明原因，並用 [ACTION:setModel:...] 直接套用。",
+  },
+  {
+    id: "enhance-pipeline",
+    label: "規劃多工具流程",
+    emoji: "🧬",
+    description: "把超解析 + 補幀 + Topaz 排成一條順序",
+    chatPrompt:
+      "我想對一段影片同時做超解析、補幀與 Topaz 增強。請排出推薦的執行順序與每步參數，完成後帶我去 /director 排成 workflow。",
+  },
+  {
+    id: "enhance-from-history",
+    label: "從歷史拉一段影片",
+    emoji: "🕰",
+    description: "把過去生成的影片帶過來做後製優化",
+    chatPrompt:
+      "把我最近在 video-studio 生成的最後一段影片拉過來做畫質優化，自動填好 videoUrl 並建議一個工具。",
+  },
+  {
+    id: "enhance-director-batch",
+    label: "交給導演 AI 批次優化",
+    emoji: "🎬",
+    description: "多段影片同規格優化的批次工作流",
+    chatPrompt:
+      "我有多段影片需要同樣規格的畫質優化。請整成一份批次工作流（每段一致的模型 / 倍率 / 模型參數），完成後帶我去 /director。",
+  },
+];
+
+export interface VideoStudioEnhanceProfile {
+  pageId: "video-studio";
+  pagePath: "/video-studio";
+  activeTab: "enhance";
+  models: VideoStudioEnhanceModelOption[];
+  upscaleFactors: typeof VIDEO_STUDIO_ENHANCE_UPSCALE_FACTORS;
+  rifeMultipliers: typeof VIDEO_STUDIO_ENHANCE_RIFE_MULTIPLIERS;
+  rifeFps: typeof VIDEO_STUDIO_ENHANCE_RIFE_FPS;
+  topazModels: typeof VIDEO_STUDIO_ENHANCE_TOPAZ_MODELS;
+  topazScales: typeof VIDEO_STUDIO_ENHANCE_TOPAZ_SCALES;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const VIDEO_STUDIO_ENHANCE_PROFILE: VideoStudioEnhanceProfile = {
+  pageId: "video-studio",
+  pagePath: "/video-studio",
+  activeTab: "enhance",
+  models: VIDEO_STUDIO_ENHANCE_MODELS,
+  upscaleFactors: VIDEO_STUDIO_ENHANCE_UPSCALE_FACTORS,
+  rifeMultipliers: VIDEO_STUDIO_ENHANCE_RIFE_MULTIPLIERS,
+  rifeFps: VIDEO_STUDIO_ENHANCE_RIFE_FPS,
+  topazModels: VIDEO_STUDIO_ENHANCE_TOPAZ_MODELS,
+  topazScales: VIDEO_STUDIO_ENHANCE_TOPAZ_SCALES,
+  collaborations: VIDEO_STUDIO_ENHANCE_COLLABORATION_LINKS,
+};
+
+// ─── 影片專業工作室 / 進階控制（Video Studio Control）深度操作 ───────────
+//
+// 4 個工具：CamMaster 鏡頭控制 / AnimateDiff 動作控制 / DepthCrafter 深度
+// 感知 / Vidu Q1 角色一致性。每個吃的輸入不同，控制能力也不同。
+
+export type VideoStudioControlCapability =
+  | "cameraMotion"
+  | "controlNet"
+  | "guidance"
+  | "neg"
+  | "imageInput"
+  | "videoInput"
+  | "multiRef";
+
+export interface VideoStudioControlModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: VideoStudioControlCapability[];
+}
+
+export const VIDEO_STUDIO_CONTROL_MODELS: VideoStudioControlModelOption[] = [
+  {
+    id: "cam-master",
+    label: "CamMaster 運鏡控制",
+    emoji: "🎥",
+    description: "從靜態圖出發，依鏡頭運動指令生成影片，導演式運鏡規劃",
+    capabilities: ["cameraMotion", "imageInput"],
+  },
+  {
+    id: "animate-diff",
+    label: "AnimateDiff 動作控制",
+    emoji: "💃",
+    description: "用 ControlNet 條件（openpose / canny / depth）精準控制動作",
+    capabilities: ["controlNet", "guidance", "neg", "videoInput"],
+  },
+  {
+    id: "depth-crafter",
+    label: "DepthCrafter 深度感知",
+    emoji: "🌐",
+    description: "從影片產生深度圖，做空間層次重建（無 prompt）",
+    capabilities: ["videoInput"],
+  },
+  {
+    id: "vidu-ref",
+    label: "Vidu Q1 角色一致性",
+    emoji: "🎯",
+    description: "多參考圖角色一致性，連續鏡頭穩定主體外觀",
+    capabilities: ["multiRef", "imageInput"],
+  },
+];
+
+export const VIDEO_STUDIO_CONTROL_CAPABILITY_LABELS: Record<
+  VideoStudioControlCapability,
+  string
+> = {
+  cameraMotion: "鏡頭運動",
+  controlNet: "ControlNet",
+  guidance: "引導值",
+  neg: "負向詞",
+  imageInput: "圖起手",
+  videoInput: "影片起手",
+  multiRef: "多參考圖",
+};
+
+/** CamMaster 17 種鏡頭運動，與 VideoStudio.tsx CAMERA_MOTIONS 對齊 */
+export const VIDEO_STUDIO_CONTROL_CAMERA_MOTIONS: Array<{
+  id: string;
+  label: string;
+  emoji: string;
+}> = [
+  { id: "static", label: "靜態", emoji: "🟦" },
+  { id: "push_in", label: "推鏡", emoji: "➡️" },
+  { id: "pull_out", label: "拉鏡", emoji: "⬅️" },
+  { id: "pan_left", label: "搖鏡左", emoji: "↖️" },
+  { id: "pan_right", label: "搖鏡右", emoji: "↗️" },
+  { id: "tilt_up", label: "仰鏡", emoji: "⬆️" },
+  { id: "tilt_down", label: "俯鏡", emoji: "⬇️" },
+  { id: "orbit_left", label: "環繞左", emoji: "🔄" },
+  { id: "orbit_right", label: "環繞右", emoji: "🔃" },
+  { id: "crane_up", label: "升鏡", emoji: "🆙" },
+  { id: "crane_down", label: "降鏡", emoji: "🔽" },
+  { id: "roll_clockwise", label: "荷蘭角順", emoji: "↩️" },
+  { id: "roll_counterclockwise", label: "荷蘭角逆", emoji: "↪️" },
+  { id: "move_left", label: "橫移左", emoji: "⏮" },
+  { id: "move_right", label: "橫移右", emoji: "⏭" },
+  { id: "move_up", label: "上移", emoji: "🔼" },
+  { id: "move_down", label: "下移", emoji: "🔽" },
+];
+
+/** AnimateDiff ControlNet 條件 4 選 1 */
+export const VIDEO_STUDIO_CONTROL_CONTROLNETS: Array<{
+  id: string;
+  label: string;
+  description: string;
+}> = [
+  { id: "openpose", label: "OpenPose", description: "骨架控制動作（人物動作首選）" },
+  { id: "canny", label: "Canny", description: "邊緣偵測控制構圖" },
+  { id: "depth", label: "Depth", description: "深度圖控制空間層次" },
+  { id: "none", label: "不啟用", description: "純 prompt 引導" },
+];
+
+export const VIDEO_STUDIO_CONTROL_TEMPLATES: VideoStudioPromptTemplate[] = [
+  {
+    id: "control-cinematic-pushin",
+    label: "電影感推鏡",
+    emoji: "🎞",
+    prompt:
+      "Slow cinematic dolly push-in toward the subject, shallow depth of field, soft golden light, atmospheric haze, while keeping subject identity stable.",
+    suggestedModelId: "cam-master",
+  },
+  {
+    id: "control-orbit-product",
+    label: "產品環繞",
+    emoji: "📦",
+    prompt:
+      "Smooth 360-degree orbit shot around the subject, even three-point lighting, clean studio background, sharp product details preserved.",
+    suggestedModelId: "cam-master",
+  },
+  {
+    id: "control-character-dance",
+    label: "角色動作",
+    emoji: "💃",
+    prompt:
+      "Character performs a smooth fluid action driven by the openpose skeleton, keeping costume / lighting / facial identity faithful to the reference.",
+    negPrompt: "deformed limbs, jittery motion, identity drift",
+    suggestedModelId: "animate-diff",
+  },
+  {
+    id: "control-character-consistency",
+    label: "角色連戲",
+    emoji: "🎯",
+    prompt:
+      "Continuous shot of the same character across changing scenes, keeping hair, outfit, and facial features identical to the reference images.",
+    suggestedModelId: "vidu-ref",
+  },
+];
+
+export function buildVideoStudioControlSetModelActions(
+  modelId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "control" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildVideoStudioControlApplyTemplateActions(
+  template: VideoStudioPromptTemplate
+): AgentAction[] {
+  const actions: AgentAction[] = [{ type: "setTab", tabId: "control" }];
+  if (template.suggestedModelId) {
+    actions.push({ type: "setModel", modelId: template.suggestedModelId });
+  }
+  actions.push({ type: "fillPrompt", text: template.prompt, append: false });
+  if (template.negPrompt) {
+    actions.push({
+      type: "fillPrompt",
+      text: template.negPrompt,
+      append: false,
+      slot: "negativePrompt",
+    });
+  }
+  return actions;
+}
+
+export function buildVideoStudioControlSetCameraMotionActions(
+  motion: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "control" },
+    { type: "setModel", modelId: "cam-master" },
+    { type: "setParam", key: "cameraMotion", value: motion },
+  ];
+}
+
+export function buildVideoStudioControlSetControlNetActions(
+  controlNet: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "control" },
+    { type: "setModel", modelId: "animate-diff" },
+    { type: "setParam", key: "controlNet", value: controlNet },
+  ];
+}
+
+export function buildVideoStudioControlSetParamActions(
+  key: string,
+  value: unknown
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "control" },
+    { type: "setParam", key, value },
+  ];
+}
+
+export const VIDEO_STUDIO_CONTROL_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "control-recommend-tool",
+    label: "幫我選控制工具",
+    emoji: "🧭",
+    description: "依需求挑 CamMaster / AnimateDiff / DepthCrafter / Vidu",
+    chatPrompt:
+      "我在進階控制頁。請依我的需求（鏡頭運動 / 動作精準 / 深度感 / 角色一致性），從 4 個工具中推薦一個最合的，並用 [ACTION:setModel:...] 套用。",
+  },
+  {
+    id: "control-from-pose",
+    label: "用 ImageStudio 骨骼當條件",
+    emoji: "🦴",
+    description: "把先前在圖片創作室抓的骨骼圖當 AnimateDiff 條件",
+    chatPrompt:
+      "把我先前在 image-studio 骨骼姿勢頁產生的骨骼圖當作 AnimateDiff 的 ControlNet 條件，自動切到 control 分頁、選 animate-diff 並套上 controlNet=openpose。",
+  },
+  {
+    id: "control-from-image-studio",
+    label: "從 image-studio 拿圖當運鏡起點",
+    emoji: "🖼",
+    description: "把上一張 image-studio 生成的圖當 CamMaster / Vidu 起點",
+    chatPrompt:
+      "把我最近在 image-studio 生成的最後一張圖當作運鏡起點（imageUrl），自動帶我到 control 分頁、選 cam-master 並建議一個鏡頭運動。",
+  },
+  {
+    id: "control-director-storyboard",
+    label: "交給導演 AI 排運鏡腳本",
+    emoji: "🎬",
+    description: "把多鏡頭運鏡排成一份故事板",
+    chatPrompt:
+      "我有一個敘事需要規劃多顆運鏡。請依我目前的素材設計 4-6 鏡的故事板（每顆指定模型 / 鏡頭運動 / 提示詞），完成後帶我去 /director 展開。",
+  },
+];
+
+export interface VideoStudioControlProfile {
+  pageId: "video-studio";
+  pagePath: "/video-studio";
+  activeTab: "control";
+  models: VideoStudioControlModelOption[];
+  templates: VideoStudioPromptTemplate[];
+  cameraMotions: typeof VIDEO_STUDIO_CONTROL_CAMERA_MOTIONS;
+  controlNets: typeof VIDEO_STUDIO_CONTROL_CONTROLNETS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const VIDEO_STUDIO_CONTROL_PROFILE: VideoStudioControlProfile = {
+  pageId: "video-studio",
+  pagePath: "/video-studio",
+  activeTab: "control",
+  models: VIDEO_STUDIO_CONTROL_MODELS,
+  templates: VIDEO_STUDIO_CONTROL_TEMPLATES,
+  cameraMotions: VIDEO_STUDIO_CONTROL_CAMERA_MOTIONS,
+  controlNets: VIDEO_STUDIO_CONTROL_CONTROLNETS,
+  collaborations: VIDEO_STUDIO_CONTROL_COLLABORATION_LINKS,
+};
