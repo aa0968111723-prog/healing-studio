@@ -45,6 +45,10 @@ describe("Asset Pipeline: Step Reference Resolution", () => {
   });
 
   it("should resolve ${stepId.output.field} references", () => {
+    // The resolver strips an optional `output` segment from the path
+    // (LLMs love the word) and then looks the remaining keys up directly
+    // on `data` — so the canonical tool-result shape is FLAT, e.g.
+    // `data: { url: "..." }` rather than `data: { output: { url: "..." } }`.
     const input: ResolveStepRefsInput = {
       args: {
         video_url: "${step_video.output.url}",
@@ -56,9 +60,7 @@ describe("Asset Pipeline: Step Reference Resolution", () => {
             {
               ok: true,
               data: {
-                output: {
-                  url: "https://cdn.example.com/video.mp4",
-                },
+                url: "https://cdn.example.com/video.mp4",
               },
             },
           ],
@@ -290,10 +292,14 @@ describe("Asset Pipeline: Step Reference Resolution", () => {
 });
 
 describe("Asset Pipeline: buildShortVideoWorkflow Integration", () => {
-  it("should have correct step IDs and dependencies in workflow", () => {
-    // This is a structural test to ensure the workflow is set up correctly
-    // We'll import and check the actual workflow structure
-    const { buildShortVideoWorkflow } = require("../../../shared/global-agent-workflows");
+  it("should have correct step IDs and dependencies in workflow", async () => {
+    // The test originally used a synchronous CommonJS `require()` which
+    // doesn't resolve under the vitest ESM loader (`Cannot find module`).
+    // Switch to a dynamic `await import()` so the same module reference
+    // works regardless of module system.
+    const { buildShortVideoWorkflow } = await import(
+      "../../../shared/global-agent-workflows"
+    );
 
     const workflow = buildShortVideoWorkflow("test brief");
 

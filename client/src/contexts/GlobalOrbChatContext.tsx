@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
 import OrbFeatureSpotlight from "@/components/orb/OrbFeatureSpotlight";
@@ -2531,17 +2532,25 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         error: reason,
         completedAt: Date.now(),
       } : prev);
+      // Restore the failed text into the composer. Previously the orb said
+      // "直接按送出再試一次" but the input was already cleared at the top of
+      // sendMessage (line ~1850), so the user had to manually re-type the
+      // entire prompt — exactly the bug the support screenshots showed when
+      // "開始規劃腳本" had to be entered twice. Putting the text back makes
+      // the suggested action ("press send again") actually work.
+      if (trimmed.length > 0) setInput(trimmed);
       const userEcho = trimmed.length > 0 ? `
 
-我有收到你剛剛說的：
+我把你剛剛輸入的這段話放回輸入框了，按一下送出就會重試：
 「${trimmed.slice(0, 1200)}」` : "";
       setMessages(prev => [...prev, {
         role: "orb",
         text: `🌸 抱歉，剛剛連線有點不穩，我沒有完整處理成功。${userEcho}
 
-你可以直接按送出再試一次，或我也可以先幫你把需求整理成分鏡／腳本大綱。`,
+如果想換個方式說，也可以直接修改後再送；或我也可以先幫你把需求整理成分鏡／腳本大綱。`,
         at: Date.now(),
         pagePath: locationPath,
+        intent: "send-error",
       }]);
     } finally {
       setIsSending(false);
@@ -2586,14 +2595,48 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
   const approveCodeTask = useCallback(async () => {
     if (!pendingCodeTask) return;
-    await codeTaskApprove.mutateAsync({ codeTaskId: pendingCodeTask.codeTaskId });
-    setMessages(prev => [...prev, { role: "orb", text: `已確認程式任務，交由 ${pendingCodeTask.provider} 執行。`, at: Date.now(), pagePath: locationPath }]);
+    const task = pendingCodeTask;
+    try {
+      await codeTaskApprove.mutateAsync({ codeTaskId: task.codeTaskId });
+    } catch (err) {
+      // Without this catch the rejection silently propagates: the orb
+      // confirmation message is never appended and `pendingCodeTask`
+      // stays pinned, so the user is stuck staring at the preview card
+      // with no idea their click failed.
+      const reason = err instanceof Error ? err.message : String(err);
+      toast.error(`確認程式任務失敗：${reason.slice(0, 120)}`);
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: `⚠️ 沒辦法確認這個程式任務：${reason.slice(0, 200)}`,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+      return;
+    }
+    setMessages(prev => [...prev, { role: "orb", text: `已確認程式任務，交由 ${task.provider} 執行。`, at: Date.now(), pagePath: locationPath }]);
     setPendingCodeTask(null);
   }, [pendingCodeTask, codeTaskApprove, locationPath]);
 
   const cancelCodeTaskPreview = useCallback(async () => {
     if (!pendingCodeTask) return;
-    await codeTaskCancel.mutateAsync({ codeTaskId: pendingCodeTask.codeTaskId, reason: "cancelled by user" });
+    const task = pendingCodeTask;
+    try {
+      await codeTaskCancel.mutateAsync({ codeTaskId: task.codeTaskId, reason: "cancelled by user" });
+    } catch (err) {
+      // Cancellation that fails server-side leaves the task running but
+      // the UI thinks it's gone. Surface the error so the user can retry
+      // (or escalate); leave the preview card pinned so they have a
+      // re-cancel target.
+      const reason = err instanceof Error ? err.message : String(err);
+      toast.error(`取消程式任務失敗：${reason.slice(0, 120)}`);
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: `⚠️ 沒辦法取消這個程式任務：${reason.slice(0, 200)}。再點一次試試，或先讓它跑完。`,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+      return;
+    }
     setMessages(prev => [...prev, { role: "orb", text: "已取消程式任務，不會執行任何 code write 動作。", at: Date.now(), pagePath: locationPath }]);
     setPendingCodeTask(null);
   }, [pendingCodeTask, codeTaskCancel, locationPath]);

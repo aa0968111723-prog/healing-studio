@@ -336,7 +336,18 @@ class AgentCommunicationBusClass {
         correlationId: `query_${Date.now()}`,
       };
 
-      void this.publish(queryMessage);
+      // `void` only suppresses the unused-expression lint — it does not
+      // attach a rejection handler. If `publish` throws (handler error,
+      // shutdown, etc.) the rejection bubbles as `unhandledRejection`
+      // and the timeout still fires, so the caller silently sees `null`
+      // with no log trail. Attach a `.catch` so the failure is at least
+      // visible in server logs.
+      this.publish(queryMessage).catch(err => {
+        console.warn(
+          "[agentBus] queryAgent publish failed:",
+          err instanceof Error ? err.message : String(err),
+        );
+      });
 
       // Timeout
       setTimeout(() => {

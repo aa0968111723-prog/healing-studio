@@ -14,8 +14,12 @@
 // Keep in sync with server/services/orbUnifiedSearch.ts.
 export type UnifiedSearchKind = "asset" | "note" | "history" | "tutorial";
 
+// Regex alternation matches left-to-right and takes the first hit, not the
+// longest. So multi-character triggers (搜尋, 查一下) MUST appear before
+// their shorter prefixes (搜, 查) — otherwise the engine consumes the
+// single character and leaves the trailing one inside the captured query.
 const TRIGGER_RE =
-  /^(?:幫我|麻煩|可以幫我|請)?\s*(?:找一下|找|搜|搜尋|翻一下|翻|查|查一下|search|find|look\s*up)\s*(.+?)\s*$/i;
+  /^(?:幫我|麻煩|可以幫我|請)?\s*(?:找一下|找|搜尋|搜|翻一下|翻|查一下|查|search|find|look\s*up)\s*(.+?)\s*$/i;
 const POSSESSIVE_RE =
   /(?:我之前|之前我|我那個|我那邊|我手邊|我的)\s*(?:做過的|生成過的|存過的|拍過的|寫過的|看過的)?\s*(.+?)$/i;
 const NOTE_HINT_RE = /(?:我的)?筆記|note/i;

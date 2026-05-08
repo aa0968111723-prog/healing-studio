@@ -255,7 +255,21 @@ describe("unifiedModelRegistry", () => {
 
     it("returns all domains when no keywords match", () => {
       const domains = inferDomainFromPrompt("xyz abc nonsemantic");
-      expect(domains).toEqual(["image-upscale", "text-to-image", "image-to-3d", "image-to-world", "image-to-video", "audio-music", "voice-tts", "fine-tune-training"]);
+      // Two more domains were added when V2V + image-to-image registries
+      // were merged into the unified registry. Keep the assertion in sync
+      // with the canonical fallback list.
+      expect(domains).toEqual([
+        "image-upscale",
+        "text-to-image",
+        "image-to-image",
+        "image-to-3d",
+        "image-to-world",
+        "image-to-video",
+        "video-to-video",
+        "audio-music",
+        "voice-tts",
+        "fine-tune-training",
+      ]);
     });
   });
 

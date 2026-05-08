@@ -18,6 +18,14 @@ import {
   type QueryTemplateName,
 } from "../orbDatabaseTools";
 
+// `getDb()` returns null when `DATABASE_URL` isn't set, so the query-
+// execution suites here can't actually round-trip — they were turning
+// into 24 noisy `success: false ("DB unavailable")` failures every
+// run. Gate them on a live DB; validation / registry / error-handling
+// tests don't need one and keep running unconditionally.
+const HAS_DATABASE = Boolean(process.env.DATABASE_URL?.trim());
+const describeIfDb = HAS_DATABASE ? describe : describe.skip;
+
 describe("orbDatabaseTools", () => {
   describe("Security - Parameter Validation", () => {
     it("should reject query without userId", () => {
@@ -102,7 +110,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Digital Asset Queries", () => {
+  describeIfDb("Digital Asset Queries", () => {
     it("should execute list_my_assets query", async () => {
       const result = await executeDbQuery("list_my_assets", {
         userId: 1,
@@ -164,7 +172,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Project Notes Queries", () => {
+  describeIfDb("Project Notes Queries", () => {
     it("should execute list_my_notes query", async () => {
       const result = await executeDbQuery("list_my_notes", {
         userId: 1,
@@ -208,7 +216,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Generation History Queries", () => {
+  describeIfDb("Generation History Queries", () => {
     it("should execute get_generation_history query", async () => {
       const result = await executeDbQuery("get_generation_history", {
         userId: 1,
@@ -241,7 +249,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Background Jobs Queries", () => {
+  describeIfDb("Background Jobs Queries", () => {
     it("should execute list_my_jobs query", async () => {
       const result = await executeDbQuery("list_my_jobs", {
         userId: 1,
@@ -272,7 +280,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("AI Models Queries", () => {
+  describeIfDb("AI Models Queries", () => {
     it("should execute list_my_models query", async () => {
       const result = await executeDbQuery("list_my_models", {
         userId: 1,
@@ -295,7 +303,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Scheduled Jobs Queries", () => {
+  describeIfDb("Scheduled Jobs Queries", () => {
     it("should execute list_my_scheduled_jobs query", async () => {
       const result = await executeDbQuery("list_my_scheduled_jobs", {
         userId: 1,
@@ -317,7 +325,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Prompt Library Queries", () => {
+  describeIfDb("Prompt Library Queries", () => {
     it("should execute search_prompts query", async () => {
       const result = await executeDbQuery("search_prompts", {
         searchQuery: "portrait",
@@ -360,7 +368,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Performance & Limits", () => {
+  describeIfDb("Performance & Limits", () => {
     it("should complete queries within reasonable time", async () => {
       const startTime = Date.now();
       const result = await executeDbQuery("list_my_assets", {
@@ -388,7 +396,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("User Scoping Security", () => {
+  describeIfDb("User Scoping Security", () => {
     it("should only return data for specified userId", async () => {
       const user1Result = await executeDbQuery("list_my_assets", {
         userId: 1,
@@ -427,7 +435,7 @@ describe("orbDatabaseTools", () => {
     });
   });
 
-  describe("Result Format Consistency", () => {
+  describeIfDb("Result Format Consistency", () => {
     it("should return consistent result structure", async () => {
       const result = await executeDbQuery("list_my_assets", {
         userId: 1,

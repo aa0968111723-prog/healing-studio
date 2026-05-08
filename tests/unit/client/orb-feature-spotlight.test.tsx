@@ -11,7 +11,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import OrbFeatureSpotlight, {
   __SPOTLIGHT_TIPS_FOR_TESTS,
   __unsafe_resetSpotlightStateForTests,
@@ -23,6 +23,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // No global RTL auto-cleanup is configured (no setupFiles, no
+  // `globals: true`), so each test's DOM would otherwise survive into
+  // the next test and the second `render()` would put a duplicate
+  // card alongside the prior one — `getByTestId` then sees two.
+  cleanup();
   __unsafe_resetSpotlightStateForTests();
   vi.useRealTimers();
 });

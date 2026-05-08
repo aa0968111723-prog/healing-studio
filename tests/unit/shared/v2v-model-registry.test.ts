@@ -33,7 +33,10 @@ describe("V2VModelRegistry", () => {
     const ranked = rankV2VModelsByPrompt(prompt);
 
     const topMatch = ranked[0];
-    expect(topMatch.matchedKeywords).toContain("風格");
+    // Registry stores the more specific phrase "藝術風格" rather than the
+    // bare "風格" radical, so we just assert that any matched keyword
+    // contains the radical instead of a literal equality.
+    expect(topMatch.matchedKeywords.some(k => k.includes("風格"))).toBe(true);
   });
 
   it("should detect quality enhancement keywords", () => {
@@ -112,7 +115,13 @@ describe("V2VModelRegistry", () => {
     const ranked = rankV2VModelsByPrompt(prompt);
 
     const topMatch = ranked[0];
-    expect(["premium", "ultra"]).toContain(topMatch.modelId);
+    // The ranked entry exposes modelId; resolve back to the registry to
+    // assert on tier (the original assertion compared a model-id string
+    // to tier names, which never matched).
+    const topModelTier = V2V_MODEL_REGISTRY.find(
+      m => m.modelId === topMatch.modelId,
+    )?.tier;
+    expect(["premium", "ultra"]).toContain(topModelTier);
   });
 
   it("should prioritize fast models for speed keywords", () => {
