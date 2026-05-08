@@ -42,7 +42,7 @@ import {
   useSiteOnboarding,
   type PageId,
 } from "@/contexts/SiteOnboardingContext";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
@@ -326,43 +326,6 @@ function LoginScreen() {
     ]
   );
 
-  // Pointer-driven 3D card tilt — subtle parallax that responds to the
-  // visitor's mouse, giving a tactile "physical glass" feel.
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [tilt, setTilt] = useState<{ rx: number; ry: number; sx: number; sy: number }>(
-    { rx: 0, ry: 0, sx: 50, sy: 50 }
-  );
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (reduced) return;
-      const el = cardRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const px = (e.clientX - rect.left) / rect.width;
-      const py = (e.clientY - rect.top) / rect.height;
-      // Tilt range ~±5deg — gentle, never disorienting
-      const rx = (0.5 - py) * 6;
-      const ry = (px - 0.5) * 8;
-      setTilt({ rx, ry, sx: px * 100, sy: py * 100 });
-    },
-    [reduced]
-  );
-
-  const handlePointerLeave = useCallback(() => {
-    setTilt({ rx: 0, ry: 0, sx: 50, sy: 50 });
-  }, []);
-
   // CSS custom properties must live on a COMMON ANCESTOR of both the scene
   // background and the auth card (the card reads them via `var(--login-frame-
   // hue-*)`). LoginCosmicScene and the card are siblings, so we set the vars
@@ -442,9 +405,6 @@ function LoginScreen() {
       </div>
 
       <div
-        ref={cardRef}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
         className="login-card relative z-10 p-10 sm:p-12 max-w-md w-full mx-4 text-center"
         style={{
           background: theme.cardBg,
@@ -453,43 +413,25 @@ function LoginScreen() {
           border: theme.cardBorder,
           borderRadius: "1.5rem",
           boxShadow: theme.cardShadow,
-          transform: `perspective(1100px) rotateX(${tilt.rx.toFixed(2)}deg) rotateY(${tilt.ry.toFixed(2)}deg)`,
-          transformStyle: "preserve-3d",
-          transition: "transform 320ms cubic-bezier(0.22,1,0.36,1)",
         }}
       >
-        {/* Specular highlight that follows the pointer (glass sheen) */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[1.5rem]"
-          style={{
-            background: `radial-gradient(circle at ${tilt.sx}% ${tilt.sy}%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 28%, transparent 55%)`,
-            mixBlendMode: "screen",
-            opacity: reduced ? 0 : 1,
-            transition: "opacity 200ms",
-          }}
-        />
-
         {/* Corner star glyphs — twinkling crosses at the four corners */}
         <span className="login-card-glyph tl" aria-hidden />
         <span className="login-card-glyph tr" aria-hidden />
         <span className="login-card-glyph bl" aria-hidden />
         <span className="login-card-glyph br" aria-hidden />
 
-        <div className="relative flex justify-center mb-6" style={{ transform: "translateZ(28px)" }}>
+        <div className="relative flex justify-center mb-6">
           <Suspense fallback={null}>
             <VisualSoul size="lg" personality="creative" state="idle" />
           </Suspense>
         </div>
-        <h1
-          className="hs-h1 !mb-0 login-title"
-          style={{ transform: "translateZ(20px)" }}
-        >
+        <h1 className="hs-h1 !mb-0 login-title">
           AI Director 創作平台
         </h1>
         <p
           className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
-          style={{ color: theme.subtitleColor, transform: "translateZ(14px)" }}
+          style={{ color: theme.subtitleColor }}
         >
           {theme.subtitleText}
         </p>
@@ -504,7 +446,6 @@ function LoginScreen() {
             color: "#fff",
             border: theme.primaryBorder,
             boxShadow: theme.primaryShadow,
-            transform: "translateZ(10px)",
           }}
         >
           Google 登入
