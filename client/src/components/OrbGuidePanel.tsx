@@ -11,7 +11,7 @@
  *   在 ProactiveOrbWidget 的 showPanel 時 render 此元件
  */
 
-import { useRef, useEffect, useMemo, useState, useCallback } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback, type ComponentType } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip, Image as ImageIcon, Video, Music, Mic, Check, Circle, CheckCircle2, Briefcase, Wand2 } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
@@ -61,17 +61,43 @@ import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachment
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
 
-// ─── Typewriter hook ──────────────────────────────────────────────────────────
+// ─── Shared deep-action runner ──────────────────────────────────────────────
+// 五個圖片創作室分頁面板（t2i / edit / upscale / pose / sd）和 Studio 都共用
+// 同一段 dispatch 流程：跑完 dispatchMany → toast → 視情況 onClose。把它收成
+// 一個 hook，元件內只關心「按下後要 dispatch 哪些 action」，避免重複定義。
 
-function useTypewriter(text: string, speed = 35) {
-  const [displayed, setDisplayed] = [
-    useRef(""),
-    useRef<ReturnType<typeof setInterval> | null>(null),
-  ];
-  const [, forceUpdate] = [useRef(0), (n: number) => n];
+function useOrbActionRunner(
+  pageAgent: ReturnType<typeof usePageAgent>,
+  onClose: () => void
+) {
+  return useCallback(
+    async (label: string, actions: AgentAction[], closeAfter = true) => {
+      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
+      if (ok) {
+        toast.success(`已執行：${label}`);
+        if (closeAfter) onClose();
+      }
+      return ok;
+    },
+    [pageAgent, onClose]
+  );
+}
 
-  // simple approach: just return text for now, animate via CSS
-  return text;
+/** 與 ImageStudio.tsx StudioTab 對齊的有限聯集，方便在路由表使用 */
+type ImageStudioTab = "t2i" | "edit" | "upscale" | "pose" | "sd";
+
+function getImageStudioTab(
+  pageAgent: ReturnType<typeof usePageAgent>
+): ImageStudioTab | null {
+  if (pageAgent.snapshot?.pageId !== "image-studio") return null;
+  const tab = pageAgent.snapshot?.state?.activeTab;
+  return tab === "t2i" ||
+    tab === "edit" ||
+    tab === "upscale" ||
+    tab === "pose" ||
+    tab === "sd"
+    ? tab
+    : null;
 }
 
 // ─── Intent Card ─────────────────────────────────────────────────────────────
@@ -519,44 +545,32 @@ function StudioOrbDeepActions({
     rawModality === "voice"
       ? rawModality
       : undefined;
+  const runActions = useOrbActionRunner(pageAgent, onClose);
 
   return (
     <div className="space-y-3">
       <StudioModalityGrid
         fullscreen={fullscreen}
         activeModality={activeModality}
-        onPick={async modality => {
-          await pageAgent.dispatchMany(
-            [{ type: "setModality", modality }],
-            { source: "manual" }
-          );
+        onPick={modality =>
           // 切完模態先讓使用者看到深度操作再決定下一步，不立刻 onClose
-        }}
+          void runActions(`切到 ${modality}`, [{ type: "setModality", modality }], false)
+        }
       />
 
       {activeModality && (
         <StudioDeepActionGrid
           fullscreen={fullscreen}
           modality={activeModality}
-          onRun={async (label, actions) => {
-            const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
-            if (ok) {
-              toast.success(`已執行：${label}`);
-              onClose();
-            }
-          }}
+          onRun={(label, actions) => void runActions(label, actions)}
         />
       )}
 
       <StudioToolboxRow
         fullscreen={fullscreen}
-        onOpenToolbox={async tab => {
-          await pageAgent.dispatchMany(
-            [buildToolboxOpenAction(tab)],
-            { source: "manual" }
-          );
-          onClose();
-        }}
+        onOpenToolbox={tab =>
+          void runActions(`開工具箱 ${tab}`, [buildToolboxOpenAction(tab)])
+        }
       />
 
       <StudioCollaborationRow
@@ -593,16 +607,7 @@ function ImageStudioT2IDeepActions({
     );
   }, [snapshotState?.appliedVibes]);
 
-  const runActions = useCallback(
-    async (label: string, actions: AgentAction[], closeAfter = true) => {
-      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
-      if (ok) {
-        toast.success(`已執行：${label}`);
-        if (closeAfter) onClose();
-      }
-    },
-    [pageAgent, onClose]
-  );
+  const runActions = useOrbActionRunner(pageAgent, onClose);
 
   return (
     <div className="space-y-3">
@@ -851,16 +856,7 @@ function ImageStudioEditDeepActions({
   const supportsStrength = currentModel?.capabilities.includes("strength");
   const supportsOutputSize = currentModel?.capabilities.includes("size");
 
-  const runActions = useCallback(
-    async (label: string, actions: AgentAction[], closeAfter = true) => {
-      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
-      if (ok) {
-        toast.success(`已執行：${label}`);
-        if (closeAfter) onClose();
-      }
-    },
-    [pageAgent, onClose]
-  );
+  const runActions = useOrbActionRunner(pageAgent, onClose);
 
   return (
     <div className="space-y-3">
@@ -1140,16 +1136,7 @@ function ImageStudioUpscaleDeepActions({
   const currentFactor = snapshotState?.upscaleFactor as number | undefined;
   const hasUpscaleImage = Boolean(snapshotState?.hasUpscaleImage);
 
-  const runActions = useCallback(
-    async (label: string, actions: AgentAction[], closeAfter = true) => {
-      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
-      if (ok) {
-        toast.success(`已執行：${label}`);
-        if (closeAfter) onClose();
-      }
-    },
-    [pageAgent, onClose]
-  );
+  const runActions = useOrbActionRunner(pageAgent, onClose);
 
   return (
     <div className="space-y-3">
@@ -1338,16 +1325,7 @@ function ImageStudioPoseDeepActions({
   const currentDrawMode = snapshotState?.drawMode as string | undefined;
   const hasPoseImage = Boolean(snapshotState?.hasPoseImage);
 
-  const runActions = useCallback(
-    async (label: string, actions: AgentAction[], closeAfter = true) => {
-      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
-      if (ok) {
-        toast.success(`已執行：${label}`);
-        if (closeAfter) onClose();
-      }
-    },
-    [pageAgent, onClose]
-  );
+  const runActions = useOrbActionRunner(pageAgent, onClose);
 
   return (
     <div className="space-y-3">
@@ -1522,16 +1500,7 @@ function ImageStudioSDDeepActions({
   );
   const supportsGuidance = currentModel?.capabilities.includes("guidance");
 
-  const runActions = useCallback(
-    async (label: string, actions: AgentAction[], closeAfter = true) => {
-      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
-      if (ok) {
-        toast.success(`已執行：${label}`);
-        if (closeAfter) onClose();
-      }
-    },
-    [pageAgent, onClose]
-  );
+  const runActions = useOrbActionRunner(pageAgent, onClose);
 
   return (
     <div className="space-y-3">
@@ -1809,6 +1778,35 @@ function ImageStudioSDDeepActions({
   );
 }
 
+// ─── Image Studio tab → component dispatcher ────────────────────────────
+// 路由表化：新增分頁只要在這裡加一筆，不用改 Main Panel 的條件分支。
+
+interface ImageStudioDeepActionsCommonProps {
+  fullscreen: boolean;
+  pageAgent: ReturnType<typeof usePageAgent>;
+  onClose: () => void;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}
+
+const IMAGE_STUDIO_PANELS: Record<
+  ImageStudioTab,
+  ComponentType<ImageStudioDeepActionsCommonProps>
+> = {
+  t2i: ImageStudioT2IDeepActions,
+  edit: ImageStudioEditDeepActions,
+  upscale: ImageStudioUpscaleDeepActions,
+  pose: ImageStudioPoseDeepActions,
+  sd: ImageStudioSDDeepActions,
+};
+
+function ImageStudioDeepActionsForTab({
+  tab,
+  ...common
+}: { tab: ImageStudioTab } & ImageStudioDeepActionsCommonProps) {
+  const Panel = IMAGE_STUDIO_PANELS[tab];
+  return <Panel {...common} />;
+}
+
 // 通用：渲染一組 collaboration links（給 Studio 與 ImageStudio 共用）
 
 function StudioCollaborationLinkGrid({
@@ -1900,28 +1898,24 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
   const isStudioPage = pageAgent.snapshot?.pageId === "studio";
-  // 圖片創作室文字生圖（/image-studio 的 t2i 分頁）走自己一套深度操作面板，
-  // 因為它的能力是 setTab/setModel/applyPreset/setParam 而非 setModality。
-  const isImageStudioT2I =
-    pageAgent.snapshot?.pageId === "image-studio" &&
-    pageAgent.snapshot?.state?.activeTab === "t2i";
-  // 圖片編輯（/image-studio 的 edit 分頁）— 模型 / 模板 / 強度 / 尺寸都不同
-  const isImageStudioEdit =
-    pageAgent.snapshot?.pageId === "image-studio" &&
-    pageAgent.snapshot?.state?.activeTab === "edit";
-  // 影像放大 / 骨骼姿勢 / Stable Diffusion 三個分頁也走自己一套深度面板
-  const isImageStudioUpscale =
-    pageAgent.snapshot?.pageId === "image-studio" &&
-    pageAgent.snapshot?.state?.activeTab === "upscale";
-  const isImageStudioPose =
-    pageAgent.snapshot?.pageId === "image-studio" &&
-    pageAgent.snapshot?.state?.activeTab === "pose";
-  const isImageStudioSD =
-    pageAgent.snapshot?.pageId === "image-studio" &&
-    pageAgent.snapshot?.state?.activeTab === "sd";
+  // 圖片創作室 5 個分頁（t2i / edit / upscale / pose / sd）各自走自己一套深度
+  // 操作面板。把 5 個 boolean 收成一個有限聯集，後面路由就能用單一表達式分派，
+  // 加新分頁時只要動 ImageStudioTab 與 IMAGE_STUDIO_PANELS 表，不會散落各處。
+  const imageStudioTab = getImageStudioTab(pageAgent);
+  const isImageStudioPage = imageStudioTab !== null;
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
+
+  // 統一 collaboration row 的點擊行為：先收掉面板，再把 prompt 推進全站光球聊天
+  const handleStudioCollabChat = useCallback(
+    async (prompt: string) => {
+      onClose();
+      await globalChat.sendMessage(prompt);
+      globalChat.open();
+    },
+    [onClose, globalChat]
+  );
 
   // ── Panel mode: guided flow or free chat ──────────────────────────────────
   const [panelMode, setPanelMode] = useState<"guide" | "chat">("guide");
@@ -2475,79 +2469,23 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {!isImageStudioT2I &&
-                !isImageStudioEdit &&
-                !isImageStudioUpscale &&
-                !isImageStudioPose &&
-                !isImageStudioSD && (
-                  <OrbSpeechBubble
-                    text={
-                      isStudioPage
-                        ? "嘿 👋 你已經在創作工作室。要做哪個？我幫你切到對應模態。"
-                        : "嘿 👋 今天想做什麼？選一個，我帶你去。"
-                    }
-                  />
-                )}
+              {!isImageStudioPage && (
+                <OrbSpeechBubble
+                  text={
+                    isStudioPage
+                      ? "嘿 👋 你已經在創作工作室。要做哪個？我幫你切到對應模態。"
+                      : "嘿 👋 今天想做什麼？選一個，我帶你去。"
+                  }
+                />
+              )}
 
-              {isImageStudioT2I ? (
-                /* 圖片創作室文字生圖：模型 + 氛圍 + 模板 + 比例 + 一鍵送出 + 跨頁協作 */
-                <ImageStudioT2IDeepActions
+              {imageStudioTab ? (
+                <ImageStudioDeepActionsForTab
+                  tab={imageStudioTab}
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
-                  onSendChat={async prompt => {
-                    onClose();
-                    await globalChat.sendMessage(prompt);
-                    globalChat.open();
-                  }}
-                />
-              ) : isImageStudioEdit ? (
-                /* 圖片創作室圖片編輯：9 模型 + 任務模板 + 強度 + 尺寸 + 一鍵編輯 + 跨頁協作 */
-                <ImageStudioEditDeepActions
-                  fullscreen={fullscreen}
-                  pageAgent={pageAgent}
-                  onClose={onClose}
-                  onSendChat={async prompt => {
-                    onClose();
-                    await globalChat.sendMessage(prompt);
-                    globalChat.open();
-                  }}
-                />
-              ) : isImageStudioUpscale ? (
-                /* 影像放大：模型 + 模式 + 倍率 + 一鍵送出 + 跨頁串接 */
-                <ImageStudioUpscaleDeepActions
-                  fullscreen={fullscreen}
-                  pageAgent={pageAgent}
-                  onClose={onClose}
-                  onSendChat={async prompt => {
-                    onClose();
-                    await globalChat.sendMessage(prompt);
-                    globalChat.open();
-                  }}
-                />
-              ) : isImageStudioPose ? (
-                /* 骨骼姿勢：模型 + 7 偵測模式 + 一鍵送出 + 串到 SD ControlNet */
-                <ImageStudioPoseDeepActions
-                  fullscreen={fullscreen}
-                  pageAgent={pageAgent}
-                  onClose={onClose}
-                  onSendChat={async prompt => {
-                    onClose();
-                    await globalChat.sendMessage(prompt);
-                    globalChat.open();
-                  }}
-                />
-              ) : isImageStudioSD ? (
-                /* SD：3 模型 + 正/負模板 + 尺寸 + 引導 + 步數 + LoRA / ControlNet 狀態 */
-                <ImageStudioSDDeepActions
-                  fullscreen={fullscreen}
-                  pageAgent={pageAgent}
-                  onClose={onClose}
-                  onSendChat={async prompt => {
-                    onClose();
-                    await globalChat.sendMessage(prompt);
-                    globalChat.open();
-                  }}
+                  onSendChat={handleStudioCollabChat}
                 />
               ) : isStudioPage ? (
                 /* Studio 頁面專屬：四模態 + 細節操作 + 工具箱 + 全站協作 */
@@ -2555,11 +2493,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
-                  onSendChat={async prompt => {
-                    onClose();
-                    await globalChat.sendMessage(prompt);
-                    globalChat.open();
-                  }}
+                  onSendChat={handleStudioCollabChat}
                 />
               ) : (
                 <div
