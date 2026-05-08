@@ -212,4 +212,60 @@ describe("OrbTaskStore", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // ─── injectRevisedSteps (replan integration) ───────────────────────────
+  it("injectRevisedSteps splices new steps in place of the failing one and revives running", () => {
+    const store = new OrbTaskStore();
+    const task = store.create({ userId: 1, intent: "replan-test", steps: demoSteps, now: 1000 });
+    // Force failed status to mimic the orchestrator marking the task failed
+    // before replan kicked in.
+    store.reportStep({ taskId: task.taskId, stepId: "wrong-id", ok: true }, 1, 1010);
+    expect(store.get(task.taskId, 1, 1020)?.status).toBe("failed");
+
+    const updated = store.injectRevisedSteps(
+      task.taskId,
+      1,
+      0,
+      [
+        { id: "s1_retry_a", label: "first half", uiActions: [], toolCalls: [] },
+        { id: "s1_retry_b", label: "second half", uiActions: [], toolCalls: [] },
+      ],
+      1100
+    );
+    expect(updated).not.toBeNull();
+    expect(updated!.status).toBe("running");
+    expect(updated!.steps.map(s => s.id)).toEqual(["s1_retry_a", "s1_retry_b", "s2"]);
+    expect(updated!.currentStepIndex).toBe(0);
+  });
+
+  it("injectRevisedSteps refuses out-of-range index, empty steps, and respects the cap", () => {
+    const store = new OrbTaskStore();
+    const task = store.create({ userId: 1, intent: "replan-edge", steps: demoSteps, now: 1000 });
+    expect(store.injectRevisedSteps(task.taskId, 1, -1, [{ id: "x", label: "x", uiActions: [], toolCalls: [] }], 1100)).toBeNull();
+    expect(store.injectRevisedSteps(task.taskId, 1, 99, [{ id: "x", label: "x", uiActions: [], toolCalls: [] }], 1100)).toBeNull();
+    expect(store.injectRevisedSteps(task.taskId, 1, 0, [], 1100)).toBeNull();
+
+    const tooMany = Array.from({ length: 30 }, (_, i) => ({
+      id: `over_${i}`,
+      label: `over ${i}`,
+      uiActions: [],
+      toolCalls: [],
+    }));
+    expect(store.injectRevisedSteps(task.taskId, 1, 0, tooMany, 1100)).toBeNull();
+  });
+
+  it("injectRevisedSteps is wallet-locked to the owning user", () => {
+    const store = new OrbTaskStore();
+    const task = store.create({ userId: 1, intent: "owner-check", steps: demoSteps, now: 1000 });
+    const intruder = store.injectRevisedSteps(
+      task.taskId,
+      999,
+      0,
+      [{ id: "x", label: "x", uiActions: [], toolCalls: [] }],
+      1100
+    );
+    expect(intruder).toBeNull();
+    // Original task untouched.
+    expect(store.get(task.taskId, 1, 1200)?.steps[0]?.id).toBe("s1");
+  });
 });
