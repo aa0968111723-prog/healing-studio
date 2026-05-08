@@ -664,6 +664,7 @@ export default function AgentChat() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<string | null>(null);
   const [modeBarOpen, setModeBarOpen] = useState(false);
+  const [modeCatalogOpen, setModeCatalogOpen] = useState(false);
   const [recent, setRecent] = useState<RecentEntry[]>(() => readRecent());
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroInputRef = useRef<HTMLInputElement | null>(null);
@@ -969,7 +970,7 @@ export default function AgentChat() {
         }}
       />
 
-      <div className="w-full max-w-3xl flex-1 flex flex-col px-4 sm:px-6 py-6 sm:py-8 gap-5 relative">
+      <div className="w-full max-w-3xl flex-1 flex flex-col pl-12 pr-4 sm:px-6 py-4 sm:py-8 gap-4 sm:gap-5 relative">
         {/* 右上角：低頻工具（清除對話 / 代理設定）做成圖示，不搶版面 */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 z-10">
           <button
@@ -1009,46 +1010,73 @@ export default function AgentChat() {
           </button>
         </div>
 
-        {/* 開場區塊 */}
+        {/* 開場區塊 — isFirstTurn 顯示完整 hero；對話開始後壓成一條
+            極簡 bar，把垂直空間還給聊天本身。 */}
         <div className="flex flex-col items-center text-center gap-2.5">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-          >
-            <VisualSoul size="lg" personality={personality} />
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.1 }}
-            className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100"
-          >
-            先聊聊看就好 🌿
-          </motion.h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-            我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
-          </p>
+          {isFirstTurn ? (
+            <>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              >
+                <VisualSoul size="lg" personality={personality} />
+              </motion.div>
+              <motion.h1
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.1 }}
+                className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100"
+              >
+                先聊聊看就好 🌿
+              </motion.h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
+                我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
+              </p>
+            </>
+          ) : (
+            <motion.div
+              key="compact-hero"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className="w-full flex items-center gap-2 px-1 pr-16 sm:pr-20"
+            >
+              <div className="shrink-0">
+                <VisualSoul size="sm" personality={personality} />
+              </div>
+              <div className="min-w-0 text-left flex-1">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                  繼續和光球聊 🌿
+                </p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                  輸入想做的事，我會幫你串好流程
+                </p>
+              </div>
+            </motion.div>
+          )}
 
-          {/* 主要輔助按鈕：如何使用光球（單一） */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setHowToOpen(prev => !prev)}
-            className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-            aria-expanded={howToOpen}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-            如何使用光球
-            <ChevronDown
-              className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
-            />
-          </Button>
+          {/* 主要輔助按鈕：如何使用光球（單一）— 只在初始狀態顯示 */}
+          {isFirstTurn && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHowToOpen(prev => !prev)}
+              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+              aria-expanded={howToOpen}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              如何使用光球
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          )}
 
           {/* 如何使用 — 分步說明 */}
           <AnimatePresence initial={false}>
-            {howToOpen && (
+            {isFirstTurn && howToOpen && (
               <motion.div
                 key="how-to"
                 initial={{ opacity: 0, height: 0 }}
@@ -1100,7 +1128,8 @@ export default function AgentChat() {
             )}
           </AnimatePresence>
 
-          {/* 需求釐清提示 */}
+          {/* 需求釐清提示 — 只在初始狀態顯示，避免在對話進行時擠壓聊天區 */}
+          {isFirstTurn && (
           <div className="w-full mt-2 sm:mt-3">
             <Collapsible
               open={needGuideOpen}
@@ -1147,6 +1176,7 @@ export default function AgentChat() {
               </CollapsibleContent>
             </Collapsible>
           </div>
+          )}
           {/* ── 第一輪：Hero composer + Recent + Task templates ────────────
               真實使用者帶著任務來，光球真正強項是把多個工具串成 workflow。
               這個區塊用「先說目標 → 套任務範本 → 光球幫你串好」的順序，
@@ -1326,10 +1356,9 @@ export default function AgentChat() {
           )}
 
           {/* ── 代理風格：4 個視覺化模式卡 ───────────────────────────
-              4 個模式（多步驟 / 計畫 / 跳頁 / 功能詢問）從藏在折疊條
-              後的小 pill 升級為 hero 視覺卡：每張卡顯示模式漸層、
-              三段 flow pictogram、範例 prompt。讓使用者一眼能看懂
-              四種代理風格各會做什麼，再決定按哪個。 */}
+              4 個模式（多步驟 / 計畫 / 跳頁 / 功能詢問）。手機首屏密度
+              太高，所以預設摺起：使用者大多帶著任務來，先看到 hero
+              composer + 任務範本就夠；想細調代理風格再展開。 */}
           {isFirstTurn && (
             <motion.section
               key="mode-catalog"
@@ -1338,18 +1367,33 @@ export default function AgentChat() {
               transition={{ duration: 0.35, delay: 0.18 }}
               className="w-full mt-1 space-y-2 text-left"
             >
-              <header className="flex items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-violet-500" />
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    切換代理風格（光球做事的方式）
-                  </p>
-                </div>
-                <span className="text-[10px] text-slate-400">
-                  {activeModeOption ? "點同一個取消" : "可選一個"}
-                </span>
-              </header>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <Collapsible open={modeCatalogOpen} onOpenChange={setModeCatalogOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                      <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                      切換代理風格（光球做事的方式）
+                      {activeModeOption && (
+                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200 text-[10px] font-medium">
+                          {activeModeOption.label}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-400 transition-transform ${modeCatalogOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2 space-y-2">
+                  <div className="flex items-center justify-end px-1">
+                    <span className="text-[10px] text-slate-400">
+                      {activeModeOption ? "點同一個取消" : "可選一個"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {modeOptions.map((mode, i) => {
                   const Icon = mode.icon;
                   const isActive = activeMode === mode.id;
@@ -1440,7 +1484,9 @@ export default function AgentChat() {
                     </motion.button>
                   );
                 })}
-              </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </motion.section>
           )}
 
@@ -1862,7 +1908,11 @@ export default function AgentChat() {
           aria-live="polite"
           aria-relevant="additions"
           aria-label="光球對話"
-          className="flex-1 min-h-[22rem] max-h-[55vh] overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth"
+          className={`overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth ${
+            isFirstTurn
+              ? "min-h-[14rem] max-h-[40vh]"
+              : "flex-1 min-h-[16rem]"
+          }`}
         >
           <AnimatePresence initial={false}>
             {messages.map((msg, i) => (
@@ -2028,9 +2078,14 @@ export default function AgentChat() {
           }}
         />
 
-        {/* 輸入列 — 第二輪以後才顯示在底部，第一輪改用上方 hero composer */}
+        {/* 輸入列 — 第二輪以後才顯示在底部，第一輪改用上方 hero composer
+            負向 margin + safe-area padding 讓輸入列真的貼齊視窗底部，
+            手機橫式 home indicator 也不會擋到送出鍵。 */}
         {!isFirstTurn && (
-        <div className="sticky bottom-4 space-y-2.5">
+        <div
+          className="sticky bottom-0 -ml-12 -mr-4 sm:-mx-6 -mb-4 sm:-mb-8 pl-12 pr-4 sm:px-6 pt-3 space-y-2 bg-gradient-to-b from-white/0 via-white/85 to-white dark:via-slate-950/85 dark:to-slate-950 backdrop-blur-sm"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 0.75rem)" }}
+        >
           {/* Soft fade above the sticky composer so scrolled messages don't
               read as "overlapping" the input on small screens — the gradient
               dissolves chat text into the page background instead of hard
