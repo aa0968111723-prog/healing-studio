@@ -320,9 +320,11 @@ const coreSchema = z.object({
   // CACHE_TTL_SECONDS：LRU 快取預設 TTL（秒），cache.ts 的 DEFAULT_TTL_SECONDS
   // LLM_TIMEOUT_SECONDS：所有 LLM 呼叫的 AbortSignal timeout（秒），llm.ts 全域生效
   // MAX_CONCURRENT_LLM_CALLS：同時並行的 LLM 呼叫上限，超過排隊（_core/llmConcurrency.ts）
+  // SENSE_INTENT_TIMEOUT_SECONDS：Sense intent 推論的 withTimeout 上限（秒），預設 45
   CACHE_TTL_SECONDS: z.string().optional().default("300"),
   LLM_TIMEOUT_SECONDS: z.string().optional().default("60"),
   MAX_CONCURRENT_LLM_CALLS: z.string().optional().default("5"),
+  SENSE_INTENT_TIMEOUT_SECONDS: z.string().optional().default("45"),
 
   // ── Stripe 收款（沒設則跳過 webhook 簽章驗證 / 不建立訂單）─
   STRIPE_SECRET_KEY: z.string().optional().default(""),
