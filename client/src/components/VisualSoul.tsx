@@ -884,8 +884,31 @@ export default memo(function VisualSoul({
 }: Props) {
   if (!visible) return null;
 
-  // sm → 輕量 CSS（側欄、工具列等小型使用場景）
+  // sm → 預設輕量 CSS；但 thinking 狀態改為 3D，讓「思考光球」更有生命感
   if (size === "sm") {
+    if (!cuteMode && state === "thinking") {
+      return (
+        <Suspense
+          fallback={
+            <CSSOrb
+              state={state}
+              personality={personality}
+              size={size}
+              className={className}
+              cuteMode={cuteMode}
+            />
+          }
+        >
+          <VisualSoul3D
+            state={state}
+            personality={personality}
+            size={size}
+            className={className}
+          />
+        </Suspense>
+      );
+    }
+
     return (
       <CSSOrb
         state={state}
