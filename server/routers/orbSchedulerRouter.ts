@@ -42,7 +42,15 @@ const OrbScheduleInput = z.object({
     .min(1)
     .max(128)
     .regex(/^[A-Za-z0-9._:-]+$/, "ID 只能包含英數、'.'、'_'、':'、'-'"),
-  cronExpression: z.string().min(1).max(128),
+  // Validate cron syntax at the schema layer so invalid expressions are
+  // rejected at the tRPC boundary regardless of which procedure receives
+  // them. The procedure-level fallback (line ~54) becomes a defence-in-
+  // depth guard rather than the only check.
+  cronExpression: z
+    .string()
+    .min(1)
+    .max(128)
+    .refine(isValidCronExpression, "無效的 cron 表達式"),
   taskDescription: z.string().min(1).max(1024),
   enabled: z.boolean().default(true),
 });
@@ -180,7 +188,11 @@ export const orbSchedulerRouter = router({
   previewCron: protectedProcedure
     .input(
       z.object({
-        cronExpression: z.string().min(1).max(128),
+        cronExpression: z
+          .string()
+          .min(1)
+          .max(128)
+          .refine(isValidCronExpression, "無效的 cron 表達式"),
         count: z.number().int().min(1).max(10).default(3),
       })
     )

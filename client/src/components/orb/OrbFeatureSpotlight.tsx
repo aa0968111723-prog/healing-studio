@@ -193,10 +193,13 @@ export default function OrbFeatureSpotlight({ onTry, isChatOpen }: Props) {
         <button
           type="button"
           onClick={dismissOne}
-          className="rounded-full bg-white/10 p-1 text-white/60 hover:bg-white/20 hover:text-white transition"
+          // 44px square hit target so iOS/Android tap target guidelines
+          // are met — the previous `p-1 + 12px icon` came out at ~28px on
+          // mobile and was easy to miss.
+          className="-mr-1.5 -mt-1.5 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-full bg-white/10 text-white/60 hover:bg-white/20 hover:text-white transition"
           aria-label="略過這張提示"
         >
-          <X className="w-3 h-3" />
+          <X className="w-4 h-4" />
         </button>
       </div>
 

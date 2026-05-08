@@ -808,9 +808,15 @@ export default function AgentChat() {
           )}
         </div>
 
-        {/* 聊天區 */}
+        {/* 聊天區 — `aria-live="polite"` so screen readers announce new
+           orb replies as they land instead of staying silent and forcing
+           the user to navigate the message list manually. */}
         <div
           ref={scrollRef}
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-label="光球對話"
           className="flex-1 min-h-[22rem] max-h-[55vh] overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth"
         >
           <AnimatePresence initial={false}>
@@ -1074,6 +1080,9 @@ export default function AgentChat() {
               onClick={pickAttachment}
               disabled={isSending || isUploading}
               title="上傳圖片 / 影片 / 音訊 / PDF"
+              aria-label={
+                isUploading ? "正在上傳附件" : "上傳圖片、影片、音訊或 PDF 附件"
+              }
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
             >
               {isUploading ? (

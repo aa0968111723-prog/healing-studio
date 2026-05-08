@@ -2532,17 +2532,25 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         error: reason,
         completedAt: Date.now(),
       } : prev);
+      // Restore the failed text into the composer. Previously the orb said
+      // "直接按送出再試一次" but the input was already cleared at the top of
+      // sendMessage (line ~1850), so the user had to manually re-type the
+      // entire prompt — exactly the bug the support screenshots showed when
+      // "開始規劃腳本" had to be entered twice. Putting the text back makes
+      // the suggested action ("press send again") actually work.
+      if (trimmed.length > 0) setInput(trimmed);
       const userEcho = trimmed.length > 0 ? `
 
-我有收到你剛剛說的：
+我把你剛剛輸入的這段話放回輸入框了，按一下送出就會重試：
 「${trimmed.slice(0, 1200)}」` : "";
       setMessages(prev => [...prev, {
         role: "orb",
         text: `🌸 抱歉，剛剛連線有點不穩，我沒有完整處理成功。${userEcho}
 
-你可以直接按送出再試一次，或我也可以先幫你把需求整理成分鏡／腳本大綱。`,
+如果想換個方式說，也可以直接修改後再送；或我也可以先幫你把需求整理成分鏡／腳本大綱。`,
         at: Date.now(),
         pagePath: locationPath,
+        intent: "send-error",
       }]);
     } finally {
       setIsSending(false);
