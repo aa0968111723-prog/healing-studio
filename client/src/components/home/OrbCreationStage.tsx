@@ -126,67 +126,123 @@ const MODES: readonly Mode[] = [
 interface Scenario {
   id: string;
   modeId: ModeId;
+  demoForm: "quick" | "multimodal" | "multi-step" | "style";
   label: string;
   eta: string;
   summary: string;
   prompt: string;
+  runbook: {
+    perceive: string;
+    plan: string;
+    tools: string;
+    output: string;
+  };
 }
 
 const SCENARIOS: readonly Scenario[] = [
   {
     id: "brand-short-film",
     modeId: "director",
+    demoForm: "multimodal",
     label: "品牌形象短片",
     eta: "20-30 分鐘",
     summary: "代理拆鏡 + 配樂 + 字幕一次到位",
     prompt:
       "幫我做一支 20 秒品牌形象短片，溫暖療癒、自動分鏡、配樂、繁中字幕。",
+    runbook: {
+      perceive: "辨識品牌調性、受眾與投放平台，先判斷是導演多模態流程。",
+      plan: "拆成分鏡、主視覺、配樂、字幕四段任務，依相依順序排程。",
+      tools: "先呼叫導演規劃，再串圖片/影片/音樂/配音工具並追蹤 queue。",
+      output: "回傳可重跑版本、素材清單、每段耗時與下一步微調建議。",
+    },
   },
   {
     id: "product-key-visual",
     modeId: "image",
+    demoForm: "quick",
     label: "商品主視覺",
     eta: "8-12 分鐘",
     summary: "代理產出多版可比較設計稿",
     prompt:
       "極簡質感商品攝影，純色背景、柔光、淺景深、4K，產出 4 版差異稿。",
+    runbook: {
+      perceive: "解析產品類型與風格關鍵詞，判定以圖片模式為主。",
+      plan: "建立 4 組風格差異（構圖、光線、鏡頭語言）快速並行。",
+      tools: "呼叫圖片生成工具，失敗自動重試並保留最佳候選。",
+      output: "輸出可比較版本與推薦首選，附下一輪優化提示詞。",
+    },
   },
   {
     id: "social-short",
     modeId: "video",
+    demoForm: "quick",
     label: "社群短影音",
     eta: "10-15 分鐘",
     summary: "9:16 直式，自動節奏點與字幕",
     prompt:
       "15 秒 9:16 社群短影音，霓虹城市夜景慢推軌，自動節奏點切換、配字幕。",
+    runbook: {
+      perceive: "判斷社群平台與直式比例，映射到短影音模板。",
+      plan: "先做節奏與分鏡，再進入單支 15 秒影片生成與字幕對齊。",
+      tools: "呼叫影片生成並輪詢 fal queue，完成後補字幕節點。",
+      output: "交付可直接發佈短片與字幕稿，含下一版節奏調整建議。",
+    },
   },
   {
     id: "podcast-music",
     modeId: "music",
+    demoForm: "multimodal",
     label: "Podcast 配樂與旁白",
     eta: "10-15 分鐘",
     summary: "原創配樂 + 語音克隆旁白",
     prompt:
       "Podcast 開場 30 秒原創配樂，BPM 76、慢板鋼琴 + 弦樂氛圍，搭配溫暖女聲旁白。",
+    runbook: {
+      perceive: "辨識音樂 + 配音雙模態，先做風格一致性約束。",
+      plan: "先生成配樂情緒曲線，再套旁白語速與停頓。",
+      tools: "依序呼叫 text-to-music 與 qwenTTS，最後做音量平衡。",
+      output: "輸出混音結果與分軌素材，方便後續剪輯。",
+    },
   },
   {
     id: "character-series",
     modeId: "lora",
+    demoForm: "style",
     label: "角色一致系列圖",
     eta: "25-40 分鐘",
     summary: "LoRA 鎖風格，跨作品一致",
     prompt:
       "上傳 12 張參考圖，訓練專屬角色 LoRA，後續以同一造型產出 6 張系列圖。",
+    runbook: {
+      perceive: "檢查參考圖品質與角色一致性，評估可訓練性。",
+      plan: "先訓練 LoRA，再建立系列圖任務與風格約束。",
+      tools: "呼叫 LoRA 訓練流程，完成後回切圖片生成批次出圖。",
+      output: "交付模型代碼、最佳觸發詞與系列圖結果。",
+    },
   },
   {
     id: "campaign-pack",
     modeId: "director",
+    demoForm: "multi-step",
     label: "完整行銷素材包",
     eta: "30-45 分鐘",
     summary: "主視覺 + 短片 + 配樂 + 旁白",
     prompt:
       "產出完整行銷素材包：主視覺、15 秒短片、30 秒配樂、繁中旁白，跨格式同步。",
+    runbook: {
+      perceive: "判斷是跨工具多步驟專案，需先建立里程碑與依賴。",
+      plan: "先主視覺、再短片、再配樂與旁白，最後做跨素材一致性檢查。",
+      tools: "混合呼叫導演、圖片、影片、音樂與配音工具並集中追蹤狀態。",
+      output: "回傳完整素材包、交付清單、風險與重跑入口。",
+    },
   },
+] as const;
+
+const DEMO_FORMS = [
+  { id: "quick", label: "快啟演示" },
+  { id: "multimodal", label: "多模態演示" },
+  { id: "multi-step", label: "多步驟演示" },
+  { id: "style", label: "風格一致演示" },
 ] as const;
 
 // ─── Inline value strip — folded in from the former site value highlights. ──
@@ -757,6 +813,7 @@ export default function OrbCreationStage({
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+  const [activeDemoForm, setActiveDemoForm] = useState<(typeof DEMO_FORMS)[number]["id"]>("quick");
   const [dispatch, setDispatch] = useState<DispatchState | null>(null);
   const [simulating, setSimulating] = useState(false);
   const dispatchTimers = useRef<number[]>([]);
@@ -1038,6 +1095,15 @@ export default function OrbCreationStage({
     clearDispatchTimers();
   };
 
+  const filteredScenarios = useMemo(
+    () => SCENARIOS.filter((scenario) => scenario.demoForm === activeDemoForm),
+    [activeDemoForm]
+  );
+  const activeScenario = useMemo(
+    () => SCENARIOS.find((scenario) => scenario.id === activeScenarioId) ?? null,
+    [activeScenarioId]
+  );
+
   const handlePromptChange = (next: string) => {
     setPrompt(next);
     userEditedRef.current = true;
@@ -1204,8 +1270,7 @@ export default function OrbCreationStage({
           </p>
         </motion.div>
 
-        {/* ── Scenario presets — fold the former "六種常見創作情境" inline so
-            the orb agent can dispatch each scenario right here ── */}
+        {/* ── Scenario presets — 首頁改為多種形式演示 ── */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -1215,10 +1280,33 @@ export default function OrbCreationStage({
         >
           <div className={`flex items-center justify-center gap-2 mb-3 text-[10px] sm:text-[11px] tracking-[0.2em] uppercase ${textMuted}`}>
             <Layers className="w-3 h-3" style={{ color: activeMode.tint }} />
-            <span>常見情境 · 一鍵交給光球代理</span>
+            <span>首頁演示 · 可切換多種形式</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 mb-2.5 sm:mb-3">
+            {DEMO_FORMS.map((form) => {
+              const isActive = form.id === activeDemoForm;
+              return (
+                <button
+                  key={form.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveDemoForm(form.id);
+                    setActiveScenarioId(null);
+                  }}
+                  className="px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs transition-all"
+                  style={{
+                    background: isActive ? activeMode.tint : featureBg,
+                    color: isActive ? "#fff" : undefined,
+                    border: `1px solid ${isActive ? activeMode.tint : cardBorder}`,
+                  }}
+                >
+                  {form.label}
+                </button>
+              );
+            })}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
-            {SCENARIOS.map(scenario => {
+            {filteredScenarios.map(scenario => {
               const mode = MODES.find(m => m.id === scenario.modeId)!;
               const isActive = scenario.id === activeScenarioId;
               const Icon = mode.icon;
@@ -1270,6 +1358,22 @@ export default function OrbCreationStage({
               );
             })}
           </div>
+          {activeScenario && (
+            <div
+              className="mt-3 rounded-xl p-3 sm:p-3.5"
+              style={{ background: featureBg, border: `1px solid ${cardBorder}` }}
+            >
+              <p className={`text-[11px] sm:text-xs font-medium mb-2 ${textPrimary}`}>
+                代理運行細節（{activeScenario.label}）
+              </p>
+              <ol className={`list-decimal pl-4 space-y-1 text-[11px] sm:text-xs ${textMuted}`}>
+                <li><span className={textPrimary}>感知：</span>{activeScenario.runbook.perceive}</li>
+                <li><span className={textPrimary}>規劃：</span>{activeScenario.runbook.plan}</li>
+                <li><span className={textPrimary}>派工：</span>{activeScenario.runbook.tools}</li>
+                <li><span className={textPrimary}>交付：</span>{activeScenario.runbook.output}</li>
+              </ol>
+            </div>
+          )}
         </motion.div>
 
         {/* ── Interactive panel ── */}
