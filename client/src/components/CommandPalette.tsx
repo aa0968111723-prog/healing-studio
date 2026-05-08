@@ -64,7 +64,8 @@ export default function CommandPalette() {
     onError: err => toast.error(`清除失敗：${err.message}`),
   });
 
-  // Toggle on ⌘K / Ctrl-K
+  // Toggle on ⌘K / Ctrl-K, plus a programmatic event hook so other UI
+  // (e.g. dock search button) can open the palette without faking keypresses.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const isToggle =
@@ -74,8 +75,20 @@ export default function CommandPalette() {
         setOpen(prev => !prev);
       }
     }
+    function onOpenEvent() {
+      setOpen(true);
+    }
+    function onToggleEvent() {
+      setOpen(prev => !prev);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("open-command-palette", onOpenEvent);
+    window.addEventListener("toggle-command-palette", onToggleEvent);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("open-command-palette", onOpenEvent);
+      window.removeEventListener("toggle-command-palette", onToggleEvent);
+    };
   }, []);
 
   const navigate = useCallback(

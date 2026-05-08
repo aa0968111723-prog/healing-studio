@@ -40,13 +40,22 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
         aria-current={isActive ? "page" : undefined}
         data-active={isActive ? "true" : "false"}
         className={cn(
-          "apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0",
-          "text-foreground/75",
+          "apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0",
+          "text-foreground/80",
           className
         )}
         {...props}
       >
-        <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+        {/* Outer side rail — appears on the dock's outer edge when active */}
+        {isActive && (
+          <span aria-hidden="true" className="apple-dock-side-rail" />
+        )}
+        {/* Soft inner halo on hover for a magnetic, breathing feel */}
+        <span aria-hidden="true" className="apple-dock-halo" />
+        <Icon
+          className="apple-dock-icon relative h-[19px] w-[19px]"
+          strokeWidth={isActive ? 2 : 1.85}
+        />
         {isActive && showActiveDot && (
           <span aria-hidden="true" className="apple-dock-active-dot" />
         )}
@@ -56,9 +65,13 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
     if (!showTooltip) return button;
 
     return (
-      <Tooltip delayDuration={350}>
+      <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent side={tooltipSide} sideOffset={10}>
+        <TooltipContent
+          side={tooltipSide}
+          sideOffset={12}
+          className="apple-dock-tooltip"
+        >
           {label}
         </TooltipContent>
       </Tooltip>
