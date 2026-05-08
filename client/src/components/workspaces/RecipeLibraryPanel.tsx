@@ -145,19 +145,19 @@ const STARTER_TEMPLATES: Record<Modality, StarterTemplate[]> = {
           makeBlock(
             "subject",
             "主題",
-            "event poster, bold typography",
+            "event poster mockup, bold typography, realistic print texture, subtle paper grain",
             "required"
           ),
           makeBlock(
             "style",
             "風格",
-            "graphic design, vibrant colors",
+            "graphic design, vibrant but harmonious palette, text color matched to background tones",
             "control"
           ),
           makeBlock(
             "composition",
             "構圖",
-            "vertical layout, eye-catching hierarchy",
+            "vertical layout, eye-catching hierarchy, clear title-subtitle-detail information structure",
             "control"
           ),
           makeBlock("mood", "氛圍", "energetic, modern", "control"),

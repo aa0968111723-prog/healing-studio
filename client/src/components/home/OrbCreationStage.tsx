@@ -633,7 +633,7 @@ function PlaceholderForMode({ mode }: { mode: Mode }) {
 
 // ─── Agent tool-dispatch trace ──────────────────────────────────────────────
 
-type DispatchStep = "parse" | "call" | "stream" | "done";
+type DispatchStep = "parse" | "plan" | "call" | "stream" | "done";
 
 interface DispatchState {
   tool: string;
@@ -644,6 +644,7 @@ interface DispatchState {
 
 const DISPATCH_STEP_ORDER: readonly DispatchStep[] = [
   "parse",
+  "plan",
   "call",
   "stream",
   "done",
@@ -664,16 +665,27 @@ function ToolDispatchTrace({
     prompt.length > 48 ? `${prompt.slice(0, 46)}…` : prompt;
 
   const lines: { key: DispatchStep; text: string }[] = [
-    { key: "parse", text: "光球代理 · 解析意圖與模態" },
+    { key: "parse", text: "光球代理 · 解析意圖 / 模態 / 輸出格式" },
+    {
+      key: "plan",
+      text: "→ 建立執行計畫：工具路由、參數補全、成本守門",
+    },
     {
       key: "call",
       text: `→ ${state.tool}({ prompt: "${promptPreview}" })`,
     },
     {
       key: "stream",
-      text: state.live ? "← 串流真實 API 預覽…" : "← 串流模擬預覽（示範）…",
+      text: state.live
+        ? "← 串流真實 API：隊列進度、部分結果、重試訊號…"
+        : "← 串流模擬預覽：示範代理逐步產生中繼結果…",
     },
-    { key: "done", text: state.live ? "✓ 已完成" : "✓ 代理示範完成" },
+    {
+      key: "done",
+      text: state.live
+        ? "✓ 完成：輸出成品 + metadata + 可重跑 seed"
+        : "✓ 代理示範完成：顯示流程軌跡與可呼叫工具",
+    },
   ];
 
   return (
@@ -682,11 +694,11 @@ function ToolDispatchTrace({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 6 }}
       transition={{ duration: 0.25 }}
-      className="absolute left-2 right-2 bottom-2 rounded-lg backdrop-blur-md px-2.5 py-1.5 font-mono text-[9.5px] sm:text-[10px] leading-relaxed pointer-events-none"
+      className="absolute left-2 right-2 bottom-2 rounded-lg backdrop-blur-md px-2.5 py-1.5 font-mono text-[9.5px] sm:text-[10px] leading-relaxed pointer-events-none shadow-[0_0_0_1px_rgba(34,197,94,0.18),0_10px_30px_rgba(16,185,129,0.16)]"
       style={{
-        background: "rgba(0,0,0,0.45)",
+        background: "linear-gradient(160deg, rgba(6,14,24,0.86), rgba(5,32,28,0.76))",
         border: `1px solid ${tint}`,
-        color: "rgba(255,255,255,0.92)",
+        color: "rgba(229,255,245,0.96)",
       }}
     >
       <div
@@ -1126,9 +1138,10 @@ export default function OrbCreationStage({
         }, delay);
         dispatchTimers.current.push(id);
       };
-      queue(450, "call");
-      queue(1100, "stream");
-      queue(2100, "done", true);
+      queue(320, "plan");
+      queue(780, "call");
+      queue(1360, "stream");
+      queue(2360, "done", true);
     },
     [clearDispatchTimers]
   );
@@ -1213,7 +1226,9 @@ export default function OrbCreationStage({
     voiceGenMut.isPending;
   useEffect(() => {
     if (!dispatch?.live) return;
-    if (anyLiveSubmitPending) {
+    if (dispatch.step === "parse" && anyLiveSubmitPending) {
+      setDispatch(d => (d ? { ...d, step: "plan" } : d));
+    } else if (anyLiveSubmitPending) {
       setDispatch(d => (d ? { ...d, step: "call" } : d));
     } else if (imageGenMut.isSuccess && activeMode.id === "image") {
       // Image is synchronous — jump straight to done once the URL is back.
