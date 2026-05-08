@@ -29,10 +29,16 @@ import {
   buildToolboxOpenAction,
   getStudioModalityProfile,
   IMAGE_STUDIO_T2I_PROFILE,
+  IMAGE_STUDIO_EDIT_PROFILE,
+  IMAGE_STUDIO_EDIT_CAPABILITY_LABELS,
   buildImageStudioSetModelActions,
   buildImageStudioApplyVibeActions,
   buildImageStudioFillPromptActions,
   buildImageStudioSetAspectRatioActions,
+  buildImageStudioEditSetModelActions,
+  buildImageStudioEditFillPromptActions,
+  buildImageStudioEditSetStrengthActions,
+  buildImageStudioEditSetOutputSizeActions,
 } from "../../../shared/orb-studio-actions";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -564,7 +570,14 @@ function ImageStudioT2IDeepActions({
   const snapshotState = pageAgent.snapshot?.state;
   const currentModelId = snapshotState?.selectedModelId as string | undefined;
   const currentAspect = snapshotState?.aspectRatio as string | undefined;
-  const appliedVibes = String(snapshotState?.appliedVibes ?? "");
+  // ImageStudio.tsx 把 vibeIds.join(", ") 放進 snapshot；解析回 set 才能避免
+  // 一個 id 是另一個 id 子字串的潛在誤判（目前 8 張卡無此問題，仍保險寫法）
+  const appliedVibeSet = useMemo(() => {
+    const raw = String(snapshotState?.appliedVibes ?? "");
+    return new Set(
+      raw.split(",").map(s => s.trim()).filter(Boolean)
+    );
+  }, [snapshotState?.appliedVibes]);
 
   const runActions = useCallback(
     async (label: string, actions: AgentAction[], closeAfter = true) => {
@@ -641,7 +654,7 @@ function ImageStudioT2IDeepActions({
         </p>
         <div className="flex flex-wrap gap-1.5">
           {profile.vibes.map((v, i) => {
-            const isApplied = appliedVibes.includes(v.id);
+            const isApplied = appliedVibeSet.has(v.id);
             return (
               <motion.button
                 key={v.id}
@@ -798,6 +811,301 @@ function ImageStudioT2IDeepActions({
   );
 }
 
+// ─── Image Studio Edit Deep Actions (model + capability badges + 模板 + 強度) ─
+
+function ImageStudioEditDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  pageAgent: ReturnType<typeof usePageAgent>;
+  onClose: () => void;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  const profile = IMAGE_STUDIO_EDIT_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const currentModelId = snapshotState?.selectedModelId as string | undefined;
+  const currentStrength = snapshotState?.strength as number | undefined;
+  const currentOutputSize = snapshotState?.outputSize as string | undefined;
+  const hasRefImage = Boolean(snapshotState?.hasRefImage);
+  const currentModel = useMemo(
+    () => profile.models.find(m => m.id === currentModelId),
+    [profile.models, currentModelId]
+  );
+  const supportsStrength = currentModel?.capabilities.includes("strength");
+  const supportsOutputSize = currentModel?.capabilities.includes("size");
+
+  const runActions = useCallback(
+    async (label: string, actions: AgentAction[], closeAfter = true) => {
+      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
+      if (ok) {
+        toast.success(`已執行：${label}`);
+        if (closeAfter) onClose();
+      }
+    },
+    [pageAgent, onClose]
+  );
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble
+        text={
+          hasRefImage
+            ? "嘿 👋 你已經在圖片編輯（edit）。我幫你選對模型、寫好指令，按一下就改完。"
+            : "嘿 👋 你在圖片編輯頁。記得先上傳一張要編輯的圖，我才能幫你動手。"
+        }
+      />
+
+      {/* 模型快選 + 能力徽章 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 圖片編輯模型（9 種）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => {
+            const isActive = currentModelId === m.id;
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() =>
+                  void runActions(
+                    `切到 ${m.label}`,
+                    buildImageStudioEditSetModelActions(m.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "rounded-xl border transition-all px-3 py-2 text-left flex items-start gap-2",
+                  "focus:outline-none focus:ring-1 focus:ring-white/30",
+                  isActive
+                    ? "border-cyan-300/40 bg-cyan-300/10 hover:bg-cyan-300/15"
+                    : "border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                    {m.label}
+                    {m.fast && (
+                      <span className="text-[9px] uppercase tracking-wide text-amber-100/80 rounded-full bg-amber-300/20 px-1.5 py-0.5">
+                        快
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                        目前
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {m.description}
+                  </p>
+                  {m.capabilities.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.capabilities.map(cap => (
+                        <span
+                          key={cap}
+                          className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                        >
+                          {IMAGE_STUDIO_EDIT_CAPABILITY_LABELS[cap]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 編輯任務模板 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" /> 常見編輯任務（fillPrompt）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.templates.slice(0, fullscreen ? 8 : 6).map((tpl, i) => {
+            const suggestedModel = tpl.suggestedModelId
+              ? profile.models.find(m => m.id === tpl.suggestedModelId)
+              : undefined;
+            return (
+              <motion.button
+                key={tpl.id}
+                onClick={() =>
+                  void runActions(
+                    `填入「${tpl.label}」指令`,
+                    buildImageStudioEditFillPromptActions(tpl.text)
+                  )
+                }
+                className={cn(
+                  "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                  "transition-all px-3 py-2 text-left flex items-start gap-2",
+                  "focus:outline-none focus:ring-1 focus:ring-white/30"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                whileTap={{ scale: 0.97 }}
+                title={tpl.text}
+              >
+                <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {tpl.text}
+                  </p>
+                  {suggestedModel && (
+                    <p className="text-[9px] text-white/40 mt-1 truncate">
+                      建議搭配：{suggestedModel.label}
+                    </p>
+                  )}
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 改動強度（只在當前模型支援 strength 時顯示） */}
+      {supportsStrength && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+            🎚 改動強度（setParam strength）
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {profile.strengthPresets.map((p, i) => {
+              const isActive =
+                typeof currentStrength === "number" &&
+                Math.abs(currentStrength - p.value) < 0.05;
+              return (
+                <motion.button
+                  key={p.id}
+                  onClick={() =>
+                    void runActions(
+                      `強度設為 ${p.label}`,
+                      buildImageStudioEditSetStrengthActions(p.value),
+                      false
+                    )
+                  }
+                  className={cn(
+                    "inline-flex items-center rounded-full transition-all",
+                    fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                    isActive
+                      ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                      : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                  )}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  title={p.description}
+                >
+                  {p.label}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 輸出尺寸（僅 GPT Image 1.5 等支援 size 的模型） */}
+      {supportsOutputSize && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+            📐 輸出尺寸（setParam outputSize）
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {profile.outputSizes.map((s, i) => {
+              const isActive = currentOutputSize === s.id;
+              return (
+                <motion.button
+                  key={s.id}
+                  onClick={() =>
+                    void runActions(
+                      `尺寸切到 ${s.label}`,
+                      buildImageStudioEditSetOutputSizeActions(s.id),
+                      false
+                    )
+                  }
+                  className={cn(
+                    "inline-flex items-center rounded-full transition-all",
+                    fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                    isActive
+                      ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                      : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                  )}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.02 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {s.label}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 一鍵送出生成 + 重設 */}
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() =>
+            void runActions("送出編輯（API）", [{ type: "submit" }])
+          }
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+          disabled={!hasRefImage}
+          title={hasRefImage ? "送出生成" : "先上傳要編輯的圖再送"}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出編輯
+        </motion.button>
+        <motion.button
+          onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      {/* 跨頁協作 */}
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="編輯指令 / 模型推薦 / 導演 AI 連結"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
 // 通用：渲染一組 collaboration links（給 Studio 與 ImageStudio 共用）
 
 function StudioCollaborationLinkGrid({
@@ -894,6 +1202,10 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const isImageStudioT2I =
     pageAgent.snapshot?.pageId === "image-studio" &&
     pageAgent.snapshot?.state?.activeTab === "t2i";
+  // 圖片編輯（/image-studio 的 edit 分頁）— 模型 / 模板 / 強度 / 尺寸都不同
+  const isImageStudioEdit =
+    pageAgent.snapshot?.pageId === "image-studio" &&
+    pageAgent.snapshot?.state?.activeTab === "edit";
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -1450,7 +1762,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {!isImageStudioT2I && (
+              {!isImageStudioT2I && !isImageStudioEdit && (
                 <OrbSpeechBubble
                   text={
                     isStudioPage
@@ -1463,6 +1775,18 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               {isImageStudioT2I ? (
                 /* 圖片創作室文字生圖：模型 + 氛圍 + 模板 + 比例 + 一鍵送出 + 跨頁協作 */
                 <ImageStudioT2IDeepActions
+                  fullscreen={fullscreen}
+                  pageAgent={pageAgent}
+                  onClose={onClose}
+                  onSendChat={async prompt => {
+                    onClose();
+                    await globalChat.sendMessage(prompt);
+                    globalChat.open();
+                  }}
+                />
+              ) : isImageStudioEdit ? (
+                /* 圖片創作室圖片編輯：9 模型 + 任務模板 + 強度 + 尺寸 + 一鍵編輯 + 跨頁協作 */
+                <ImageStudioEditDeepActions
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}

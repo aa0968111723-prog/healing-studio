@@ -534,3 +534,302 @@ export const IMAGE_STUDIO_T2I_PROFILE: ImageStudioT2IProfile = {
   aspectRatios: IMAGE_STUDIO_T2I_ASPECT_RATIOS,
   collaborations: IMAGE_STUDIO_T2I_COLLABORATION_LINKS,
 };
+
+// ─── 圖片創作室 / 圖片編輯（Image Studio Edit）深度操作 ─────────────────
+//
+// 與 ImageStudio.tsx 的 MODELS array 中 category="edit" 的九個模型對齊。
+// 不同模型支援的能力（多圖參考 / 強度 / 負向 / 遮罩 / 引導 / 輸出尺寸）會
+// 在面板上顯示為徽章，方便使用者依需求挑模型，避免送出後才發現不支援。
+
+export type ImageStudioEditCapability =
+  | "multiRef"
+  | "strength"
+  | "neg"
+  | "mask"
+  | "guidance"
+  | "size";
+
+export interface ImageStudioEditModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: ImageStudioEditCapability[];
+  fast?: boolean;
+}
+
+export const IMAGE_STUDIO_EDIT_MODELS: ImageStudioEditModelOption[] = [
+  {
+    id: "nanoBananaProEdit",
+    label: "Nano Banana Pro Edit",
+    emoji: "💎",
+    description: "Gemini 3 Pro 語意式編輯，14 圖融合，定稿首選",
+    capabilities: ["multiRef"],
+  },
+  {
+    id: "nanoBananaEdit",
+    label: "Nano Banana Edit",
+    emoji: "🍌",
+    description: "Gemini 2.0 Flash，速度最快，多圖融合",
+    capabilities: ["multiRef"],
+    fast: true,
+  },
+  {
+    id: "nanoBanana2Edit",
+    label: "Nano Banana 2 Edit",
+    emoji: "🍌",
+    description: "Gemini 3.1 Flash，0.5K-4K 多圖融合",
+    capabilities: ["multiRef"],
+    fast: true,
+  },
+  {
+    id: "seedreamV45Edit",
+    label: "SeeDream v4.5 Edit",
+    emoji: "🀄",
+    description: "ByteDance 高品質語意編輯，可調強度與負向詞",
+    capabilities: ["strength", "neg"],
+  },
+  {
+    id: "seedreamV5LiteEdit",
+    label: "SeeDream v5 Lite",
+    emoji: "🀄",
+    description: "BD v5 Lite，輕量快速編輯，可調強度",
+    capabilities: ["strength", "neg"],
+    fast: true,
+  },
+  {
+    id: "grokEdit",
+    label: "Grok Imagine Edit",
+    emoji: "🪄",
+    description: "xAI Grok 原生多模態，語意精確",
+    capabilities: [],
+  },
+  {
+    id: "gptImage15Edit",
+    label: "GPT Image 1.5 Edit",
+    emoji: "🎯",
+    description: "OpenAI，遮罩編輯首選，頂尖語意",
+    capabilities: ["mask", "size"],
+  },
+  {
+    id: "fluxKontext",
+    label: "FLUX Kontext Pro",
+    emoji: "🧪",
+    description: "BFL，精準局部修改，可調引導強度",
+    capabilities: ["guidance"],
+  },
+  {
+    id: "flux2ProEdit",
+    label: "FLUX 2 Pro Edit",
+    emoji: "🔬",
+    description: "BFL Flux2 Pro，高真實感、多圖融合",
+    capabilities: ["multiRef"],
+  },
+];
+
+export const IMAGE_STUDIO_EDIT_CAPABILITY_LABELS: Record<
+  ImageStudioEditCapability,
+  string
+> = {
+  multiRef: "多圖融合",
+  strength: "改動強度",
+  neg: "負向詞",
+  mask: "遮罩",
+  guidance: "引導值",
+  size: "輸出尺寸",
+};
+
+export function buildImageStudioEditSetModelActions(
+  modelId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "edit" },
+    { type: "setModel", modelId },
+  ];
+}
+
+/** 圖片編輯常見任務模板：點擊後填到主提示詞 */
+export interface ImageStudioEditTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  text: string;
+  /** 建議搭配的模型（顯示在卡片上，不強制） */
+  suggestedModelId?: string;
+}
+
+export const IMAGE_STUDIO_EDIT_TEMPLATES: ImageStudioEditTemplate[] = [
+  {
+    id: "edit-remove-bg",
+    label: "去背景",
+    emoji: "🪄",
+    text:
+      "Remove the background completely, keep only the main subject with clean cutout edges, transparent background.",
+    suggestedModelId: "gptImage15Edit",
+  },
+  {
+    id: "edit-replace-bg",
+    label: "換背景",
+    emoji: "🌅",
+    text:
+      "Replace the background with a soft blurred natural scene while preserving the subject's lighting and edges.",
+    suggestedModelId: "nanoBananaProEdit",
+  },
+  {
+    id: "edit-add-text",
+    label: "加文字",
+    emoji: "🔤",
+    text:
+      "Add the text \"[YOUR TEXT]\" to the top-right corner with a clean modern sans-serif typeface, white with subtle shadow.",
+    suggestedModelId: "nanoBananaProEdit",
+  },
+  {
+    id: "edit-remove-element",
+    label: "移除元素",
+    emoji: "🧹",
+    text:
+      "Remove the [object/person] from the image and seamlessly fill in the background as if it was never there.",
+    suggestedModelId: "fluxKontext",
+  },
+  {
+    id: "edit-touchup",
+    label: "修飾美化",
+    emoji: "✨",
+    text:
+      "Professional retouching: even out the lighting, enhance the details, smooth the skin naturally, keep the original style.",
+    suggestedModelId: "seedreamV45Edit",
+  },
+  {
+    id: "edit-style-transfer",
+    label: "風格轉換",
+    emoji: "🎨",
+    text:
+      "Transform the image into watercolor painting style while keeping the subject and composition intact.",
+    suggestedModelId: "seedreamV45Edit",
+  },
+  {
+    id: "edit-outpaint",
+    label: "擴圖延伸",
+    emoji: "🖼",
+    text:
+      "Extend the canvas outward, intelligently filling the new area to match the existing scene and lighting.",
+    suggestedModelId: "fluxKontext",
+  },
+  {
+    id: "edit-merge-refs",
+    label: "多圖融合",
+    emoji: "🧬",
+    text:
+      "Combine the reference images into one coherent scene: subject from image 1, environment from image 2, lighting from image 3.",
+    suggestedModelId: "nanoBananaProEdit",
+  },
+];
+
+export function buildImageStudioEditFillPromptActions(
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "edit" },
+    { type: "fillPrompt", text, append },
+  ];
+}
+
+/** 改動強度快選（給支援 strength 的模型用） */
+export const IMAGE_STUDIO_EDIT_STRENGTH_PRESETS: Array<{
+  id: string;
+  label: string;
+  description: string;
+  value: number;
+}> = [
+  { id: "subtle", label: "微調 0.3", description: "幾乎保留原圖", value: 0.3 },
+  { id: "moderate", label: "中改 0.5", description: "平衡保留與改動", value: 0.5 },
+  { id: "strong", label: "重改 0.7", description: "明顯重繪", value: 0.7 },
+  { id: "extreme", label: "重塑 0.9", description: "大幅改變原圖", value: 0.9 },
+];
+
+export function buildImageStudioEditSetStrengthActions(
+  value: number
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "edit" },
+    { type: "setParam", key: "strength", value },
+  ];
+}
+
+/** 輸出尺寸快選（給支援 size 的模型，例如 GPT Image 1.5 Edit） */
+export const IMAGE_STUDIO_EDIT_OUTPUT_SIZES: Array<{
+  id: string;
+  label: string;
+}> = [
+  { id: "auto", label: "自動" },
+  { id: "1024x1024", label: "1024² 正方形" },
+  { id: "1536x1024", label: "1536×1024 橫式" },
+  { id: "1024x1536", label: "1024×1536 直式" },
+];
+
+export function buildImageStudioEditSetOutputSizeActions(
+  size: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "edit" },
+    { type: "setParam", key: "outputSize", value: size },
+  ];
+}
+
+export const IMAGE_STUDIO_EDIT_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "edit-prompt-coach",
+    label: "幫我寫編輯指令",
+    emoji: "✍️",
+    description: "把模糊想法擴寫成精準的英文編輯指令並 fillPrompt",
+    chatPrompt:
+      "我在圖片編輯頁。請依我目前的提示詞與參考圖，擴寫成精準的英文編輯指令（明確指出要改什麼、要保留什麼），並用 [ACTION:fillPrompt:...] 直接幫我覆寫。",
+  },
+  {
+    id: "edit-recommend-model",
+    label: "幫我選 Edit 模型",
+    emoji: "🧭",
+    description: "依任務性質推薦最合適的 9 個編輯模型之一",
+    chatPrompt:
+      "我在圖片編輯頁。請依我的編輯需求（多圖融合 / 局部遮罩 / 風格轉換 / 重繪強度），從 9 個 edit 模型中推薦一個最合的，說明原因，並用 [ACTION:setModel:...] 幫我直接套用。",
+  },
+  {
+    id: "edit-from-t2i",
+    label: "回 t2i 重生圖",
+    emoji: "🔁",
+    description: "覺得原圖不夠好？回 t2i 重新生一張再來編輯",
+    chatPrompt:
+      "把我目前在編輯的圖當作不夠好，帶我回 t2i 分頁，依我的編輯指令反推出更精準的生成提示詞並 fillPrompt。",
+  },
+  {
+    id: "edit-director-flow",
+    label: "交給導演 AI 規劃流程",
+    emoji: "🎬",
+    description: "把多步編輯（去背→換背→加文字…）交給導演 AI 排好順序",
+    chatPrompt:
+      "我有一連串編輯需求（例如：先去背、再換背景、再加文字）。請把我的需求拆成 3-5 步可執行的 edit 工作流（每步指定模型 + 提示詞），完成後帶我去 /director 繼續展開。",
+  },
+];
+
+export interface ImageStudioEditProfile {
+  pageId: "image-studio";
+  pagePath: "/image-studio";
+  activeTab: "edit";
+  models: ImageStudioEditModelOption[];
+  templates: ImageStudioEditTemplate[];
+  strengthPresets: typeof IMAGE_STUDIO_EDIT_STRENGTH_PRESETS;
+  outputSizes: typeof IMAGE_STUDIO_EDIT_OUTPUT_SIZES;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const IMAGE_STUDIO_EDIT_PROFILE: ImageStudioEditProfile = {
+  pageId: "image-studio",
+  pagePath: "/image-studio",
+  activeTab: "edit",
+  models: IMAGE_STUDIO_EDIT_MODELS,
+  templates: IMAGE_STUDIO_EDIT_TEMPLATES,
+  strengthPresets: IMAGE_STUDIO_EDIT_STRENGTH_PRESETS,
+  outputSizes: IMAGE_STUDIO_EDIT_OUTPUT_SIZES,
+  collaborations: IMAGE_STUDIO_EDIT_COLLABORATION_LINKS,
+};

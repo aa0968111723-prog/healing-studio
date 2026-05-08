@@ -16,6 +16,17 @@ import {
   buildImageStudioApplyVibeActions,
   buildImageStudioFillPromptActions,
   buildImageStudioSetAspectRatioActions,
+  IMAGE_STUDIO_EDIT_PROFILE,
+  IMAGE_STUDIO_EDIT_MODELS,
+  IMAGE_STUDIO_EDIT_TEMPLATES,
+  IMAGE_STUDIO_EDIT_STRENGTH_PRESETS,
+  IMAGE_STUDIO_EDIT_OUTPUT_SIZES,
+  IMAGE_STUDIO_EDIT_COLLABORATION_LINKS,
+  IMAGE_STUDIO_EDIT_CAPABILITY_LABELS,
+  buildImageStudioEditSetModelActions,
+  buildImageStudioEditFillPromptActions,
+  buildImageStudioEditSetStrengthActions,
+  buildImageStudioEditSetOutputSizeActions,
 } from "../../../shared/orb-studio-actions";
 
 describe("orb-studio-actions: four-modal deep operations", () => {
@@ -130,6 +141,79 @@ describe("orb-studio-actions: image studio T2I profile", () => {
       "t2i-recommend-model",
     ]);
     for (const link of IMAGE_STUDIO_T2I_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: image studio Edit profile", () => {
+  it("profile points at /image-studio edit tab with the nine edit models", () => {
+    expect(IMAGE_STUDIO_EDIT_PROFILE.pageId).toBe("image-studio");
+    expect(IMAGE_STUDIO_EDIT_PROFILE.activeTab).toBe("edit");
+    expect(IMAGE_STUDIO_EDIT_MODELS.map(m => m.id).sort()).toEqual([
+      "flux2ProEdit",
+      "fluxKontext",
+      "gptImage15Edit",
+      "grokEdit",
+      "nanoBanana2Edit",
+      "nanoBananaEdit",
+      "nanoBananaProEdit",
+      "seedreamV45Edit",
+      "seedreamV5LiteEdit",
+    ]);
+  });
+
+  it("each model declares only known capabilities and they have a Chinese label", () => {
+    const allowed = new Set(["multiRef", "strength", "neg", "mask", "guidance", "size"]);
+    for (const m of IMAGE_STUDIO_EDIT_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(IMAGE_STUDIO_EDIT_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("buildImageStudioEditSetModelActions starts with setTab=edit", () => {
+    const actions = buildImageStudioEditSetModelActions("seedreamV45Edit");
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "edit" });
+    expect(actions[1]).toEqual({ type: "setModel", modelId: "seedreamV45Edit" });
+  });
+
+  it("templates emit fillPrompt actions (overwrite & append) on the edit tab", () => {
+    expect(IMAGE_STUDIO_EDIT_TEMPLATES.length).toBeGreaterThanOrEqual(6);
+    const overwrite = buildImageStudioEditFillPromptActions("clean cutout");
+    expect(overwrite[0]).toEqual({ type: "setTab", tabId: "edit" });
+    expect(overwrite[1]).toEqual({ type: "fillPrompt", text: "clean cutout", append: false });
+    const append = buildImageStudioEditFillPromptActions(", style", true);
+    expect(append[1]).toEqual({ type: "fillPrompt", text: ", style", append: true });
+  });
+
+  it("strength presets are within 0..1 and emit setParam strength", () => {
+    expect(IMAGE_STUDIO_EDIT_STRENGTH_PRESETS).toHaveLength(4);
+    for (const p of IMAGE_STUDIO_EDIT_STRENGTH_PRESETS) {
+      expect(p.value).toBeGreaterThanOrEqual(0);
+      expect(p.value).toBeLessThanOrEqual(1);
+    }
+    const actions = buildImageStudioEditSetStrengthActions(0.5);
+    expect(actions[1]).toEqual({ type: "setParam", key: "strength", value: 0.5 });
+  });
+
+  it("output sizes match Studio.tsx select values and emit setParam outputSize", () => {
+    const ids = IMAGE_STUDIO_EDIT_OUTPUT_SIZES.map(s => s.id).sort();
+    expect(ids).toEqual(["1024x1024", "1024x1536", "1536x1024", "auto"]);
+    const actions = buildImageStudioEditSetOutputSizeActions("1536x1024");
+    expect(actions[1]).toEqual({ type: "setParam", key: "outputSize", value: "1536x1024" });
+  });
+
+  it("Edit collaboration links cover prompt coach / model recommender / re-shoot t2i / director flow", () => {
+    const ids = IMAGE_STUDIO_EDIT_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "edit-director-flow",
+      "edit-from-t2i",
+      "edit-prompt-coach",
+      "edit-recommend-model",
+    ]);
+    for (const link of IMAGE_STUDIO_EDIT_COLLABORATION_LINKS) {
       expect(link.chatPrompt.length).toBeGreaterThan(0);
     }
   });
