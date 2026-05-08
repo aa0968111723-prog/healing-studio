@@ -1269,13 +1269,14 @@ ${profileSnippet}`;
                     Lower opacity on mobile so it doesn't stack with the
                     JewelOrbStage bloom into a heavy amber ring. */}
                 <motion.div
-                  className="absolute inset-0 m-auto w-28 h-28 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
+                  className="absolute inset-0 m-auto w-32 h-32 sm:w-52 sm:h-52 lg:w-60 lg:h-60 rounded-full pointer-events-none"
                   style={{
-                    background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
+                    background: `radial-gradient(circle, ${s.glowColor} 0%, rgba(255,255,255,0.02) 42%, transparent 78%)`,
+                    filter: "blur(12px)",
                   }}
                   animate={{
-                    scale: [1, 1.08, 1],
-                    opacity: isMobile ? [0.15, 0.25, 0.15] : [0.25, 0.4, 0.25],
+                    scale: [1, 1.06, 1],
+                    opacity: isMobile ? [0.1, 0.18, 0.1] : [0.16, 0.28, 0.16],
                   }}
                   transition={{
                     duration: 8,

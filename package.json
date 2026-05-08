@@ -22,7 +22,8 @@
     "lint": "npm run check",
     "gitnexus": "node scripts/gitnexus-launcher.mjs",
     "check:navigation": "node scripts/check-internal-navigation.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "eslint": "npm run lint --"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
