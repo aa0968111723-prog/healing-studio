@@ -1031,7 +1031,8 @@ async function discussPlanningPhase(
     scenes?: ScriptPlanningSession["scenes"];
     emotionalBeats?: ScriptPlanningSession["emotionalBeats"];
   },
-  userId?: number
+  userId?: number,
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ): Promise<{
   reply: string;
   phaseSummary?: string;
@@ -1117,6 +1118,10 @@ async function discussPlanningPhase(
   const result = await withTimeout(
     invokeLLM({
       runName: "director-planning-discuss",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1216,7 +1221,8 @@ async function analyzeEmotionalDepth(
   scenes: ScriptPlanningSession["scenes"],
   concept: ScriptPlanningSession["concept"],
   outline: ScriptPlanningSession["outline"],
-  personality: "calm" | "creative" | "technical"
+  personality: "calm" | "creative" | "technical",
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ): Promise<{
   emotionalBeats: ScriptPlanningSession["emotionalBeats"];
   warmthScore: number;
@@ -1243,6 +1249,10 @@ async function analyzeEmotionalDepth(
   const result = await withTimeout(
     invokeLLM({
       runName: "director-emotional-analysis",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -2083,10 +2093,11 @@ export const directorRouter = router({
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const persona =
         PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
       const fullPrompt = buildDirectorSystemPrompt(input.personality);
+      const director = ctx.brain.getBrain("director");
 
       // Build discussion summary if available — informs CO-STAR with refinements discussed
       const discussionInsights =
@@ -2113,6 +2124,10 @@ export const directorRouter = router({
       const result = await withTimeout(
         invokeLLM({
           runName: "director-segment-costar",
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
           messages: [
             {
               role: "system",
@@ -2235,10 +2250,11 @@ ${persona.proactiveHint}
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const persona =
         PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
       const fullPrompt = buildDirectorSystemPrompt(input.personality);
+      const director = ctx.brain.getBrain("director");
 
       // Build a combined prompt for all segments
       const segmentsList = input.segments
@@ -2251,6 +2267,10 @@ ${persona.proactiveHint}
       const result = await withTimeout(
         invokeLLM({
           runName: "director-batch-costar",
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
           messages: [
             {
               role: "system",
@@ -2370,9 +2390,10 @@ ${persona.proactiveHint}
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const persona =
         PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
+      const director = ctx.brain.getBrain("director");
 
       const segmentSummaries = input.segments
         .map(
@@ -2391,6 +2412,10 @@ ${persona.proactiveHint}
       const result = await withTimeout(
         invokeLLM({
           runName: "director-global-analysis",
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
           messages: [
             {
               role: "system",
@@ -2694,13 +2719,20 @@ ${segmentSummaries}
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       return discussPlanningPhase(
         input.phase,
         input.previousMessages as PlanningMessage[],
         input.message,
         input.personality,
         input.sessionContext,
-        ctx.user.id
+        ctx.user.id,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
     }),
 
@@ -2748,12 +2780,19 @@ ${segmentSummaries}
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       return analyzeEmotionalDepth(
         input.scenes,
         input.concept,
         input.outline,
-        input.personality
+        input.personality,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
     }),
 
