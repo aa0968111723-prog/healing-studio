@@ -88,58 +88,6 @@ interface DispatchOptions {
   source?: "ai-chat" | "orb-guide" | "manual";
 }
 
-export type AgentExecutionErrorCode =
-  | "NOT_APPROVED"
-  | "NO_PAGE_HANDLER"
-  | "ACTION_REJECTED"
-  | "ACTION_EXCEPTION"
-  | "TIMEOUT";
-
-export interface ApprovedTask {
-  taskId: string;
-  approvedByB: boolean;
-  source: "B";
-  pageId?: string;
-  actions: AgentAction[];
-}
-
-export type AgentExecutionStepStatus =
-  | "pending"
-  | "running"
-  | "success"
-  | "failed"
-  | "skipped";
-
-export interface AgentExecutionStep {
-  index: number;
-  actionType: AgentAction["type"];
-  summary: string;
-  status: AgentExecutionStepStatus;
-  reason?: string;
-}
-
-export interface AgentTaskExecutionState {
-  taskId: string;
-  totalSteps: number;
-  currentStep: number;
-  status: "idle" | "running" | "completed" | "failed";
-  successCount: number;
-  failCount: number;
-  skippedCount: number;
-  steps: AgentExecutionStep[];
-}
-
-export interface AgentFailureContext {
-  taskId: string;
-  pageId?: string;
-  actionType: string;
-  actionSummary?: string;
-  stepIndex: number;
-  totalSteps: number;
-  reason?: string;
-  at: number;
-}
-
 export interface PendingConfirmation {
   id: string;
   action: AgentAction;
@@ -196,22 +144,6 @@ interface PageAgentContextValue {
     opts?: { autoHideMs?: number; source?: DispatchOptions["source"] }
   ) => void;
   dismissSpotlight: () => void;
-  taskExecution: AgentTaskExecutionState | null;
-  executeApprovedTask: (
-    task: ApprovedTask,
-    opts?: {
-      timeoutMsPerAction?: number;
-      onFailure?: (payload: {
-        errorCode: AgentExecutionErrorCode;
-        context: AgentFailureContext;
-      }) => void;
-      source?: DispatchOptions["source"];
-    }
-  ) => Promise<{
-    ok: boolean;
-    errorCode?: AgentExecutionErrorCode;
-    context?: AgentFailureContext;
-  }>;
 }
 
 const noop: PageAgentContextValue = {
@@ -230,8 +162,6 @@ const noop: PageAgentContextValue = {
   spotlight: null,
   showSpotlight: () => {},
   dismissSpotlight: () => {},
-  taskExecution: null,
-  executeApprovedTask: async () => ({ ok: false, errorCode: "NO_PAGE_HANDLER" }),
 };
 
 const PageAgentContext = createContext<PageAgentContextValue>(noop);
@@ -247,7 +177,6 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [recentFeedback, setRecentFeedback] = useState<AgentFeedbackEvent[]>([]);
   const [spotlight, setSpotlight] = useState<AgentSpotlight | null>(null);
-  const [taskExecution, setTaskExecution] = useState<AgentTaskExecutionState | null>(null);
   const spotlightTimerRef = useRef<number | null>(null);
 
   const clearSpotlightTimer = useCallback(() => {
@@ -457,60 +386,6 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     return results;
   }, [dispatch]);
 
-  const runWithTimeout = useCallback(async (promise: Promise<AgentActionResult>, timeoutMs: number): Promise<AgentActionResult> => {
-    if (timeoutMs <= 0) return promise;
-    return await Promise.race([
-      promise,
-      new Promise<AgentActionResult>(resolve => window.setTimeout(() => resolve({ ok: false, reason: "timeout waiting action result" }), timeoutMs)),
-    ]);
-  }, []);
-
-  const executeApprovedTask = useCallback(async (task: ApprovedTask, opts?: {
-    timeoutMsPerAction?: number;
-    onFailure?: (payload: { errorCode: AgentExecutionErrorCode; context: AgentFailureContext }) => void;
-    source?: DispatchOptions["source"];
-  }) => {
-    const totalSteps = task.actions.length;
-    const initialSteps: AgentExecutionStep[] = task.actions.map((action, i) => ({ index: i, actionType: action.type, summary: summarizeAction(action), status: "pending" }));
-    setTaskExecution({ taskId: task.taskId, totalSteps, currentStep: 0, status: "running", successCount: 0, failCount: 0, skippedCount: 0, steps: initialSteps });
-
-    const fail = (errorCode: AgentExecutionErrorCode, context: AgentFailureContext) => {
-      opts?.onFailure?.({ errorCode, context });
-      setTaskExecution(prev => {
-        if (!prev) return prev;
-        const nextSteps = prev.steps.map(step => step.index === context.stepIndex ? { ...step, status: "failed" as const, reason: context.reason } : step);
-        return { ...prev, status: "failed", currentStep: Math.min(context.stepIndex + 1, prev.totalSteps), failCount: prev.failCount + 1, steps: nextSteps };
-      });
-      return { ok: false as const, errorCode, context };
-    };
-
-    if (!task.approvedByB || task.source !== "B") {
-      return fail("NOT_APPROVED", { taskId: task.taskId, pageId: task.pageId, actionType: "taskGate", actionSummary: "Task missing B approval gate", stepIndex: 0, totalSteps, reason: "approvedByB must be true and source must be B", at: Date.now() });
-    }
-
-    for (let i = 0; i < task.actions.length; i += 1) {
-      const action = task.actions[i];
-      setTaskExecution(prev => {
-        if (!prev) return prev;
-        const nextSteps = prev.steps.map(step => step.index === i ? { ...step, status: "running" as const } : step);
-        return { ...prev, currentStep: i + 1, steps: nextSteps };
-      });
-      const result = await runWithTimeout(dispatch(action, { targetPageId: task.pageId, enqueueIfNoHandler: false, requireConfirmation: false, source: opts?.source ?? "ai-chat" }), opts?.timeoutMsPerAction ?? 15_000);
-      if (!result.ok) {
-        const reason = result.reason ?? "unknown action failure";
-        const errorCode: AgentExecutionErrorCode = reason.includes("timeout") ? "TIMEOUT" : reason.includes("threw") ? "ACTION_EXCEPTION" : reason === "no matching page handler" ? "NO_PAGE_HANDLER" : "ACTION_REJECTED";
-        return fail(errorCode, { taskId: task.taskId, pageId: task.pageId, actionType: action.type, actionSummary: summarizeAction(action), stepIndex: i, totalSteps, reason, at: Date.now() });
-      }
-      setTaskExecution(prev => {
-        if (!prev) return prev;
-        const nextSteps = prev.steps.map(step => step.index === i ? { ...step, status: "success" as const } : step);
-        return { ...prev, successCount: prev.successCount + 1, steps: nextSteps };
-      });
-    }
-    setTaskExecution(prev => prev ? { ...prev, status: "completed" } : prev);
-    return { ok: true as const };
-  }, [dispatch, runWithTimeout]);
-
   const registerPage = useCallback((page: RegisteredPage) => {
     pageRef.current = page;
     setSnapshot(page.snapshot);
@@ -551,9 +426,7 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     spotlight,
     showSpotlight,
     dismissSpotlight,
-    taskExecution,
-    executeApprovedTask,
-  }), [snapshot, dispatch, dispatchMany, registerPage, pendingCount, pendingConfirmation, confirmPending, cancelPending, reportFeedback, setReportingTaskId, recentFeedback, spotlight, showSpotlight, dismissSpotlight, taskExecution, executeApprovedTask]);
+  }), [snapshot, dispatch, dispatchMany, registerPage, pendingCount, pendingConfirmation, confirmPending, cancelPending, reportFeedback, setReportingTaskId, recentFeedback, spotlight, showSpotlight, dismissSpotlight]);
 
   return <PageAgentContext.Provider value={value}>{children}</PageAgentContext.Provider>;
 }
