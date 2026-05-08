@@ -14,8 +14,13 @@ import {
   getReplicateTrainingStatus,
 } from "./replicateClient.js";
 import { storagePut } from "../storage.js";
-import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
+import {
+  updateFineTunedModel,
+  updateBackgroundJob,
+  getFineTunedModel,
+} from "../db.js";
 import { traceToolRun } from "./langsmithTracer";
+import { generationBus } from "../generationEvents";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -262,9 +267,16 @@ export async function runLoraTrainingJob(
     });
 
     // 同時存入 model 的 configJson 與 replicatePredictionId（方便後續同步查詢）
+    // 重要：保留現有的 datasetImages / batchSize / steps 等欄位，避免 getAnalysis
+    // 顯示空的資料集 gallery
+    const existingModel = await getFineTunedModel(modelId);
+    const existingConfig =
+      (existingModel?.configJson as Record<string, unknown> | null) ?? {};
     await updateFineTunedModel(modelId, {
       replicatePredictionId: predictionId,
+      trainingEngine: "replicate",
       configJson: {
+        ...existingConfig,
         predictionId,
         triggerWord,
         epochs,
@@ -311,17 +323,21 @@ export async function runLoraTrainingJob(
                 ? ((out as { weights?: string }).weights ?? null)
                 : null;
 
+        // 保留 submittedAt 等既有欄位
+        const finalModel = await getFineTunedModel(modelId);
+        const finalConfig =
+          (finalModel?.configJson as Record<string, unknown> | null) ?? {};
         await updateFineTunedModel(modelId, {
           status: "ready",
           trainedLoraUrl: outputUrl || undefined,
           fileUrl: outputUrl || undefined,
           configJson: {
+            ...finalConfig,
             predictionId,
             triggerWord,
             epochs,
             learningRate,
             zipUrl,
-            submittedAt: Date.now(),
             completedAt: Date.now(),
           },
         });
@@ -331,6 +347,11 @@ export async function runLoraTrainingJob(
           progressMessage: "訓練完成！模型已就緒。",
           resultJson: { modelId, modelName, predictionId, outputUrl },
         });
+        // 推送 SSE 完成事件，讓 LoraTrainer 頁面立即解除 SSE 監聽
+        generationBus.emitTraining(modelId, {
+          type: "complete",
+          thoughtChain: [],
+        });
         log("info", `模型 ${modelId} 訓練完成！輸出：${outputUrl}`);
         return;
       }
@@ -338,13 +359,18 @@ export async function runLoraTrainingJob(
       if (prediction.status === "failed" || prediction.status === "canceled") {
         const errorMsg =
           prediction.error || `Replicate 任務 ${prediction.status}`;
+        const errorStr =
+          typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg);
         await updateFineTunedModel(modelId, { status: "failed" });
         await updateBackgroundJob(jobId, {
           status: "failed",
-          errorMessage:
-            typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
+          errorMessage: errorStr,
           progress: 0,
           progressMessage: "訓練失敗",
+        });
+        generationBus.emitTraining(modelId, {
+          type: "error",
+          message: errorStr,
         });
         log("error", `模型 ${modelId} 訓練失敗：${errorMsg}`);
         return;
@@ -372,6 +398,10 @@ export async function runLoraTrainingJob(
       errorMessage: "訓練超時（超過 1 小時）",
       progressMessage: "訓練超時",
     });
+    generationBus.emitTraining(modelId, {
+      type: "error",
+      message: "訓練超時（超過 1 小時）",
+    });
     log("error", `模型 ${modelId} 訓練超時（超過 1 小時）`);
   } catch (err) {
     // ── Global catch: any unhandled error ──
@@ -384,6 +414,14 @@ export async function runLoraTrainingJob(
       errorMessage: errMsg,
       progressMessage: "訓練失敗（內部錯誤）",
     }).catch(() => {});
+    try {
+      generationBus.emitTraining(modelId, {
+        type: "error",
+        message: errMsg,
+      });
+    } catch {
+      /* ignore */
+    }
     // 不 throw，因為此函數在背景執行
   }
 }

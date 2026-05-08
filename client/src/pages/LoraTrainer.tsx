@@ -332,6 +332,8 @@ export default function LoraTrainer() {
     onSuccess: data => {
       toast.success("LoRA 訓練任務已建立");
       setTrainingJobId(data.jobId);
+      // 自動切換到剛建立的模型詳情頁，方便用戶觀察 SSE 即時狀態
+      setSelectedModelId(data.id);
       historyQuery.refetch();
       statsQuery.refetch();
       reportSuccess();

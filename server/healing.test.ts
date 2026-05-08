@@ -225,19 +225,88 @@ describe("input validation", () => {
   });
 
   it("accepts models.create with triggerWord and hyperparams", async () => {
-    const user = createMockUser();
-    const ctx = createMockContext(user);
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.models.create({
-      name: "Test Model",
-      triggerWord: "zen_test",
-      epochs: 20,
-      learningRate: 0.0001,
-      batchSize: 4,
-    });
-    // Result should have id or be a job id
-    expect(result).toBeDefined();
-    expect(result).toHaveProperty("id");
+    const previousToken = process.env.REPLICATE_API_TOKEN;
+    process.env.REPLICATE_API_TOKEN = "test-replicate-token";
+    try {
+      const user = createMockUser();
+      const ctx = createMockContext(user);
+      const caller = appRouter.createCaller(ctx);
+      const result = await caller.models.create({
+        name: "Test Model",
+        triggerWord: "zen_test",
+        epochs: 20,
+        learningRate: 0.0001,
+        batchSize: 4,
+        datasetImages: [
+          {
+            url: "https://cdn.example/img1.png",
+            fileKey: "k1",
+            angle: "front",
+          },
+          {
+            url: "https://cdn.example/img2.png",
+            fileKey: "k2",
+            angle: "side",
+          },
+          {
+            url: "https://cdn.example/img3.png",
+            fileKey: "k3",
+            angle: "back",
+          },
+        ],
+      });
+      // Result should have id or be a job id
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty("id");
+    } finally {
+      if (previousToken === undefined) delete process.env.REPLICATE_API_TOKEN;
+      else process.env.REPLICATE_API_TOKEN = previousToken;
+    }
+  });
+
+  it("rejects models.create when API key is missing", async () => {
+    const previousToken = process.env.REPLICATE_API_TOKEN;
+    delete process.env.REPLICATE_API_TOKEN;
+    try {
+      const user = createMockUser();
+      const ctx = createMockContext(user);
+      const caller = appRouter.createCaller(ctx);
+      await expect(
+        caller.models.create({
+          name: "Test Model",
+          triggerWord: "zen_test",
+        })
+      ).rejects.toThrow(/REPLICATE_API_TOKEN/);
+    } finally {
+      if (previousToken !== undefined)
+        process.env.REPLICATE_API_TOKEN = previousToken;
+    }
+  });
+
+  it("rejects models.create when dataset has fewer than 3 images for replicate", async () => {
+    const previousToken = process.env.REPLICATE_API_TOKEN;
+    process.env.REPLICATE_API_TOKEN = "test-replicate-token";
+    try {
+      const user = createMockUser();
+      const ctx = createMockContext(user);
+      const caller = appRouter.createCaller(ctx);
+      await expect(
+        caller.models.create({
+          name: "Test Model",
+          triggerWord: "zen_test",
+          datasetImages: [
+            {
+              url: "https://cdn.example/img1.png",
+              fileKey: "k1",
+              angle: "front",
+            },
+          ],
+        })
+      ).rejects.toThrow(/至少需要 3 張/);
+    } finally {
+      if (previousToken === undefined) delete process.env.REPLICATE_API_TOKEN;
+      else process.env.REPLICATE_API_TOKEN = previousToken;
+    }
   });
 
   it("validates generation type enum", async () => {
