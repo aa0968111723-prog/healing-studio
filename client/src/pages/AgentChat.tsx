@@ -46,6 +46,8 @@ import {
   Calendar,
   Users,
   Compass,
+  MessageCircle,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -688,6 +690,10 @@ export default function AgentChat() {
   // 不再把長段中文指令塞到使用者的 prompt 前面 — 使用者打的字就是聊天紀錄
   // 看到的字。每個模式的行為由程式直接處理（navigate / ask-feature 走純客
   // 端捷徑；plan / multi-step 走 LLM 但用 context 帶模式提示）。
+  //
+  // 每個模式還帶 `flowSteps` — 三段視覺化 pictogram，告訴使用者「按下去
+  // 之後光球會做什麼」。在 hero 模式選擇器上用，讓四種代理風格一眼能
+  // 看懂差異。
   const modeOptions = useMemo(
     () => [
       {
@@ -695,40 +701,88 @@ export default function AgentChat() {
         label: "多步驟代理",
         shortLabel: "自動",
         description: "全自動拆解工作流程並執行",
+        tagline: "把目標丟給光球，它自己跑完整條任務",
         accent: "violet" as const,
+        gradient: "from-violet-400 via-purple-500 to-indigo-500",
+        glow: "shadow-violet-200/60 dark:shadow-violet-900/40",
+        ring: "ring-violet-200/70 dark:ring-violet-700/50",
+        bg: "from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20",
         icon: Workflow,
         defaultPrompt: "幫我把這件事拆成完整流程並自動執行到完成。",
         placeholder: "說一句目標，光球會自動拆步驟…",
+        example: "做支 30 秒 IG 預告片",
+        flowSteps: [
+          { icon: ListChecks, label: "拆步驟" },
+          { icon: Workflow, label: "自動跑" },
+          { icon: Sparkles, label: "出成品" },
+        ],
+        previewText: "光球會把目標拆成多步驟，自動跨工具執行；卡關時才會打斷你。",
       },
       {
         id: "plan" as const,
         label: "計畫",
         shortLabel: "計畫",
         description: "先擬一份可執行的計畫",
+        tagline: "光球先給你看計畫表，你說「開始」它才動",
         accent: "emerald" as const,
+        gradient: "from-emerald-400 via-teal-500 to-green-500",
+        glow: "shadow-emerald-200/60 dark:shadow-emerald-900/40",
+        ring: "ring-emerald-200/70 dark:ring-emerald-700/50",
+        bg: "from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20",
         icon: ListChecks,
         defaultPrompt: "幫我擬一份可執行的計畫。",
         placeholder: "說一個想完成的目標，光球先擬計畫…",
+        example: "幫我規劃這週的影片產出",
+        flowSteps: [
+          { icon: HelpCircle, label: "問需求" },
+          { icon: ListChecks, label: "出計畫" },
+          { icon: ArrowRight, label: "你說好" },
+        ],
+        previewText: "光球先擬步驟清單給你看，你檢視、修改、按「開始」後才會執行。",
       },
       {
         id: "navigate" as const,
         label: "跳頁",
         shortLabel: "跳頁",
         description: "幫我帶到對應的功能頁面",
+        tagline: "說一句目的地，光球幫你判斷該去哪頁",
         accent: "sky" as const,
+        gradient: "from-sky-400 via-blue-500 to-cyan-500",
+        glow: "shadow-sky-200/60 dark:shadow-sky-900/40",
+        ring: "ring-sky-200/70 dark:ring-sky-700/50",
+        bg: "from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20",
         icon: CornerUpRight,
         defaultPrompt: "帶我去合適的功能頁。",
         placeholder: "想去哪個工具頁？描述一下…",
+        example: "我要做配音，帶我去對的頁",
+        flowSteps: [
+          { icon: HelpCircle, label: "懂需求" },
+          { icon: Compass, label: "選頁" },
+          { icon: CornerUpRight, label: "跳轉" },
+        ],
+        previewText: "光球會解析你的需求，挑出全站最相關的工具頁，並自動把你帶過去。",
       },
       {
         id: "ask-feature" as const,
         label: "功能詢問",
         shortLabel: "功能",
         description: "問光球這個站有什麼功能",
+        tagline: "純問答模式，光球解釋功能但不動手",
         accent: "amber" as const,
+        gradient: "from-amber-400 via-orange-500 to-yellow-500",
+        glow: "shadow-amber-200/60 dark:shadow-amber-900/40",
+        ring: "ring-amber-200/70 dark:ring-amber-700/50",
+        bg: "from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20",
         icon: HelpCircle,
         defaultPrompt: "這個站目前有哪些功能可以用？",
         placeholder: "想知道哪個功能？問我吧…",
+        example: "這站有什麼模型可以做角色一致性？",
+        flowSteps: [
+          { icon: HelpCircle, label: "你問" },
+          { icon: BookOpen, label: "光球查" },
+          { icon: MessageCircle, label: "解釋" },
+        ],
+        previewText: "純問答 — 光球只會解釋功能、列出可選方案，不會幫你動手或跳頁。",
       },
     ],
     []
@@ -1110,25 +1164,98 @@ export default function AgentChat() {
                 </div>
               </div>
 
-              {/* 已點亮模式提示（hero 版） */}
-              {activeModeOption && (
-                <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-900/20 px-3 py-1.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300 truncate">
-                      目前模式：<span className="font-semibold">{activeModeOption.label}</span>
-                      <span className="opacity-70"> · {activeModeOption.description}</span>
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveMode(null)}
-                    className="text-[11px] text-emerald-700/70 hover:text-emerald-800 shrink-0"
+              {/* 已點亮模式：視覺化流程預覽卡 ─────────────────────────
+                  原本只是一條淡綠色 banner 寫「目前模式：xxx」。改成用
+                  漸層卡 + 三段 pictogram flow + 範例 prompt，讓使用者
+                  按下送出前就能直觀理解光球接下來會做什麼。 */}
+              <AnimatePresence initial={false}>
+                {activeModeOption && (() => {
+                  const ActiveModeIcon = activeModeOption.icon;
+                  return (
+                  <motion.div
+                    key={`mode-preview-${activeModeOption.id}`}
+                    initial={{ opacity: 0, y: 6, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -4, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
                   >
-                    取消
-                  </button>
-                </div>
-              )}
+                    <div
+                      className={`relative overflow-hidden rounded-2xl ring-1 ${activeModeOption.ring} bg-gradient-to-br ${activeModeOption.bg} p-3`}
+                      data-testid={`mode-preview-${activeModeOption.id}`}
+                    >
+                      <div
+                        aria-hidden
+                        className={`absolute -top-8 -right-6 w-24 h-24 rounded-full bg-gradient-to-br ${activeModeOption.gradient} opacity-20 blur-2xl`}
+                      />
+                      <div className="relative flex items-start gap-2.5">
+                        <div
+                          className={`shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br ${activeModeOption.gradient} flex items-center justify-center text-white shadow-md ${activeModeOption.glow}`}
+                        >
+                          <ActiveModeIcon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                              已啟用：{activeModeOption.label}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setActiveMode(null)}
+                              className="text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 shrink-0"
+                            >
+                              取消模式
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                            {activeModeOption.tagline}
+                          </p>
+
+                          {/* 三段 pictogram flow */}
+                          <div className="mt-2 flex items-center gap-1 flex-wrap">
+                            {activeModeOption.flowSteps.map((step, idx) => {
+                              const StepIcon = step.icon;
+                              return (
+                                <div
+                                  key={`${step.label}-${idx}`}
+                                  className="flex items-center gap-1"
+                                >
+                                  <div
+                                    className={`flex items-center gap-1 rounded-full bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/60 px-2 py-0.5`}
+                                  >
+                                    <StepIcon className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                                    <span className="text-[10px] text-slate-700 dark:text-slate-200 font-medium">
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                  {idx < activeModeOption.flowSteps.length - 1 && (
+                                    <ArrowRight className="w-3 h-3 text-slate-400 mx-0.5" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* 一鍵範例：直接套這個模式送出 */}
+                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">範例：</span>
+                            <button
+                              type="button"
+                              onClick={() => void send(activeModeOption.example)}
+                              disabled={isSending}
+                              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-white/85 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-600/50 text-slate-700 dark:text-slate-200 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                            >
+                              <Play className="w-2.5 h-2.5" />
+                              {activeModeOption.example}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
 
               {/* 三個極簡示範 prompt — 取代原本長段「示範 1/2/3」按鈕 */}
               <div className="flex flex-wrap gap-1.5 px-1">
@@ -1149,6 +1276,125 @@ export default function AgentChat() {
                 ))}
               </div>
             </motion.div>
+          )}
+
+          {/* ── 代理風格：4 個視覺化模式卡 ───────────────────────────
+              4 個模式（多步驟 / 計畫 / 跳頁 / 功能詢問）從藏在折疊條
+              後的小 pill 升級為 hero 視覺卡：每張卡顯示模式漸層、
+              三段 flow pictogram、範例 prompt。讓使用者一眼能看懂
+              四種代理風格各會做什麼，再決定按哪個。 */}
+          {isFirstTurn && (
+            <motion.section
+              key="mode-catalog"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.18 }}
+              className="w-full mt-1 space-y-2 text-left"
+            >
+              <header className="flex items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    切換代理風格（光球做事的方式）
+                  </p>
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  {activeModeOption ? "點同一個取消" : "可選一個"}
+                </span>
+              </header>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {modeOptions.map((mode, i) => {
+                  const Icon = mode.icon;
+                  const isActive = activeMode === mode.id;
+                  return (
+                    <motion.button
+                      key={mode.id}
+                      type="button"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 + i * 0.04 }}
+                      whileHover={{ y: -2, scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => toggleMode(mode.id)}
+                      disabled={isSending}
+                      aria-pressed={isActive}
+                      title={mode.previewText}
+                      className={`group relative overflow-hidden rounded-2xl text-left p-2.5 transition-all disabled:opacity-40 ${
+                        isActive
+                          ? `ring-2 ${mode.ring} bg-gradient-to-br ${mode.gradient} text-white shadow-lg ${mode.glow}`
+                          : `border border-slate-200/70 dark:border-slate-700/50 bg-gradient-to-br ${mode.bg} hover:border-transparent hover:shadow-md ${mode.glow}`
+                      }`}
+                    >
+                      {isActive && (
+                        <div
+                          aria-hidden
+                          className="absolute -top-6 -right-6 w-16 h-16 rounded-full bg-white/30 blur-xl"
+                        />
+                      )}
+                      <div className="relative flex flex-col gap-1.5 min-h-[5.5rem]">
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${
+                            isActive
+                              ? "bg-white/25 text-white"
+                              : `bg-gradient-to-br ${mode.gradient} text-white ${mode.glow}`
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p
+                            className={`text-xs font-semibold truncate ${
+                              isActive ? "text-white" : "text-slate-800 dark:text-slate-100"
+                            }`}
+                          >
+                            {mode.label}
+                          </p>
+                          <p
+                            className={`text-[10px] leading-tight line-clamp-2 mt-0.5 ${
+                              isActive
+                                ? "text-white/90"
+                                : "text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            {mode.tagline}
+                          </p>
+                        </div>
+                        {/* 微型 flow indicator — 三顆小圓 + 連線，視覺暗示這是流程 */}
+                        <div className="mt-auto flex items-center gap-0.5">
+                          {mode.flowSteps.map((step, idx) => {
+                            const StepIcon = step.icon;
+                            return (
+                              <div key={`${step.label}-${idx}`} className="flex items-center gap-0.5">
+                                <span
+                                  className={`w-4 h-4 rounded-md flex items-center justify-center ${
+                                    isActive
+                                      ? "bg-white/25 text-white"
+                                      : "bg-white/85 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60"
+                                  }`}
+                                  title={step.label}
+                                >
+                                  <StepIcon className="w-2.5 h-2.5" />
+                                </span>
+                                {idx < mode.flowSteps.length - 1 && (
+                                  <span
+                                    className={`block w-1 h-px ${
+                                      isActive ? "bg-white/50" : "bg-slate-300 dark:bg-slate-600"
+                                    }`}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+                          {isActive && (
+                            <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          )}
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </motion.section>
           )}
 
           {/* ── 繼續上次：個人化 strip（只在 localStorage 有資料才出現） ── */}
