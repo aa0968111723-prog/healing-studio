@@ -132,6 +132,12 @@ const STATIC_KEYFRAMES = [
   "@keyframes hs-aurora-curtain{0%{background-position:0% 50%;opacity:.32}50%{opacity:.5}100%{background-position:200% 50%;opacity:.32}}",
   // Energy filament — radial flicker around orb at convergence (rotate around left-edge pivot, scaleX 0→1)
   "@keyframes hs-filament{0%{transform:rotate(var(--hs-rot,0deg)) scaleX(0);opacity:0}20%{opacity:.55}45%{transform:rotate(var(--hs-rot,0deg)) scaleX(1);opacity:.7}80%{opacity:.3}100%{transform:rotate(var(--hs-rot,0deg)) scaleX(0.9);opacity:0}}",
+  // Distant planet drift — start AT LoginCosmicScene's planet position
+  // (50%, 52%) and ease into parked spot (18%, 70%). Offset = (+32vw, -18vh).
+  // Provides seamless visual continuity from the login screen handoff.
+  "@keyframes hs-planet-drift{0%{transform:translate3d(32vw,-18vh,0)}100%{transform:translate3d(0,0,0)}}",
+  // Convergence chromatic ripple — thin expanding ring outward from orb
+  "@keyframes hs-conv-ripple{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:.65}70%{opacity:.18}100%{transform:translate3d(-50%,-50%,0) scale(2.6);opacity:0}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -1175,12 +1181,26 @@ const DistantPlanet = memo(function DistantPlanet({
   const ty = py * 8 * scale;
 
   return (
+    // Drift wrapper: positioned at the PARKED location (18%, 70%). The CSS
+    // animation translates the whole sub-tree from the login screen's planet
+    // position (50%, 52%) — offset (+32vw, -18vh) — to (0, 0), so the planet
+    // appears to be the SAME planet drifting aside as the user enters.
+    // Inner parallax+content wrapper handles mouse parallax independently
+    // (composes with the drift transform).
     <div
       className="absolute pointer-events-none"
       aria-hidden
       style={{
         left: "18%",
         top: "70%",
+        animation:
+          "hs-planet-drift 3.5s cubic-bezier(0.16,1,0.3,1) forwards",
+        willChange: "transform",
+      }}
+    >
+    <div
+      style={{
+        position: "absolute",
         width: size,
         height: size,
         marginLeft: -size / 2,
@@ -1311,6 +1331,7 @@ const DistantPlanet = memo(function DistantPlanet({
         }}
       />
     </div>
+    </div>
   );
 });
 
@@ -1332,8 +1353,10 @@ const DistantMoon = memo(function DistantMoon({
       className="absolute pointer-events-none"
       aria-hidden
       style={{
-        left: "84%",
-        top: "20%",
+        // Exact-match LoginCosmicScene's Moon position (82%, 22%) so the
+        // user sees the same satellite they just had on the login screen.
+        left: "82%",
+        top: "22%",
         width: size,
         height: size,
         transform: `translate3d(${tx}px, ${ty}px, 0)`,
@@ -1746,6 +1769,56 @@ const FILAMENTS: Filament[] = (() => {
   }
   return out;
 })();
+
+// ─── Convergence chromatic ripple — gravitational-wave style impact ring ───
+
+/**
+ * Two concentric expanding rings with slight delay between them, simulating a
+ * subtle chromatic aberration on the impact wave. Color tinted with cosmic
+ * purple to feel like a continuation of LoginCosmicScene's identity.
+ */
+const ConvergenceRipple = memo(function ConvergenceRipple({
+  scale,
+}: {
+  scale: number;
+}) {
+  const baseSize = 200 * scale;
+  const rings = [
+    {
+      delay: 0,
+      duration: 1.4,
+      borderColor: "rgba(180,160,255,0.55)",
+    },
+    {
+      delay: 0.16,
+      duration: 1.5,
+      borderColor: "rgba(255,200,200,0.42)",
+    },
+  ];
+  return (
+    <>
+      {rings.map((r, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          aria-hidden
+          style={{
+            left: "50%",
+            top: "50%",
+            width: baseSize,
+            height: baseSize,
+            border: `1px solid ${r.borderColor}`,
+            background: "transparent",
+            mixBlendMode: "screen",
+            animation: `hs-conv-ripple ${r.duration}s cubic-bezier(0.16,1,0.3,1) ${r.delay}s forwards`,
+            willChange: "transform, opacity",
+            opacity: 0,
+          }}
+        />
+      ))}
+    </>
+  );
+});
 
 const EnergyFilaments = memo(function EnergyFilaments({
   color,
@@ -2209,6 +2282,11 @@ export default function LoginOrbAnimation() {
 
           {/* Convergence flash */}
           {phase === "converged" && <ConvergenceFlash scale={responsiveScale} />}
+
+          {/* Convergence chromatic ripple — gravitational-wave impact ring */}
+          {phase === "converged" && (
+            <ConvergenceRipple scale={responsiveScale} />
+          )}
 
           {/* Convergence energy dust — sparks spiraling into the central orb */}
           {phase === "converged" && (
