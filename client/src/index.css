@@ -373,40 +373,64 @@
     background:
       linear-gradient(
         180deg,
-        oklch(0.99 0.005 75 / 0.7) 0%,
-        oklch(0.97 0.015 300 / 0.55) 45%,
-        oklch(0.98 0.012 30 / 0.6) 100%
+        oklch(0.995 0.005 75 / 0.78) 0%,
+        oklch(0.97 0.018 300 / 0.6) 45%,
+        oklch(0.985 0.012 30 / 0.66) 100%
       ),
       var(--sidebar);
     background-size: 100% 220%;
-    border: 1px solid var(--surface-border);
-    backdrop-filter: blur(28px) saturate(170%);
-    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    border: 1px solid oklch(1 0 0 / 0.55);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
     box-shadow:
-      0 12px 40px -10px oklch(0.55 0.06 300 / 0.18),
-      0 4px 14px -4px oklch(0.2 0.01 280 / 0.12),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.5),
-      inset 0 -1px 0 0 oklch(0.9 0.02 280 / 0.12);
-    border-radius: 28px;
+      0 18px 48px -14px oklch(0.55 0.08 300 / 0.22),
+      0 6px 18px -6px oklch(0.2 0.01 280 / 0.14),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.62),
+      inset 0 -1px 0 0 oklch(0.9 0.03 280 / 0.14);
+    border-radius: 26px;
     animation:
       apple-dock-pop var(--duration-gentle) var(--ease-healing-out),
-      apple-dock-aurora 14s ease-in-out 0.5s infinite;
+      apple-dock-aurora 16s ease-in-out 0.5s infinite;
+  }
+  /* Subtle inner top-light reflection for depth (Apple-style "glass") */
+  .apple-dock-glass::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto 1px;
+    height: 38%;
+    border-radius: 25px 25px 60% 60% / 25px 25px 24% 24%;
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.32) 0%,
+      oklch(1 0 0 / 0.06) 60%,
+      transparent 100%
+    );
+    pointer-events: none;
   }
   :is(.dark) .apple-dock-glass {
     background:
       linear-gradient(
         180deg,
-        oklch(0.26 0.025 300 / 0.7) 0%,
-        oklch(0.22 0.018 280 / 0.55) 45%,
-        oklch(0.24 0.025 320 / 0.65) 100%
+        oklch(0.27 0.025 300 / 0.78) 0%,
+        oklch(0.22 0.02 280 / 0.62) 45%,
+        oklch(0.24 0.028 320 / 0.7) 100%
       ),
       var(--sidebar);
     background-size: 100% 220%;
+    border-color: oklch(1 0 0 / 0.08);
     box-shadow:
-      0 12px 40px -10px oklch(0.55 0.08 300 / 0.4),
-      0 4px 14px -4px oklch(0 0 0 / 0.4),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.07),
-      inset 0 -1px 0 0 oklch(0 0 0 / 0.2);
+      0 18px 48px -14px oklch(0.55 0.08 300 / 0.45),
+      0 6px 18px -6px oklch(0 0 0 / 0.45),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.08),
+      inset 0 -1px 0 0 oklch(0 0 0 / 0.22);
+  }
+  :is(.dark) .apple-dock-glass::before {
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.07) 0%,
+      oklch(1 0 0 / 0.015) 60%,
+      transparent 100%
+    );
   }
 
   .apple-dock-divider {
@@ -415,62 +439,200 @@
     background: linear-gradient(
       to right,
       transparent,
-      color-mix(in oklch, currentColor 18%, transparent),
+      color-mix(in oklch, currentColor 22%, transparent),
       transparent
     );
     border-radius: 9999px;
   }
 
-  .apple-dock-item {
-    color: var(--text-on-glass-strong);
+  /* ─── Compact controls in dock header ─── */
+  .apple-dock-controls {
+    --control-opacity: 0.55;
+    opacity: var(--control-opacity);
+    transition: opacity 0.3s var(--ease-healing-out);
+  }
+  .apple-dock-glass:hover .apple-dock-controls,
+  .apple-dock-controls:focus-within {
+    opacity: 1;
+  }
+  .apple-dock-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    color: oklch(0.4 0.012 60 / 0.7);
+    background: oklch(1 0 0 / 0);
     transition:
-      background-color 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.25s var(--ease-healing-out),
+      color 0.25s var(--ease-healing-out),
+      transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    outline: none;
+  }
+  .apple-dock-control:hover {
+    background: oklch(0.4 0.02 300 / 0.08);
+    color: oklch(0.32 0.05 300);
+    transform: scale(1.1);
+  }
+  .apple-dock-control:active {
+    transform: scale(0.92);
+  }
+  .apple-dock-control:focus-visible {
+    outline: 2px solid var(--ring-healing-strong);
+    outline-offset: 1px;
+  }
+  :is(.dark) .apple-dock-control {
+    color: oklch(0.85 0.02 60 / 0.7);
+  }
+  :is(.dark) .apple-dock-control:hover {
+    background: oklch(0.85 0.04 300 / 0.12);
+    color: oklch(0.95 0.05 300);
+  }
+
+  /* ─── Item base ─── */
+  .apple-dock-item {
+    color: oklch(0.34 0.012 60);
+    transition:
       transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      color var(--duration-gentle) var(--ease-healing-out),
-      box-shadow var(--duration-gentle) var(--ease-healing-out);
+      color var(--duration-gentle) var(--ease-healing-out);
+  }
+  :is(.dark) .apple-dock-item {
+    color: oklch(0.88 0.02 60);
   }
   .apple-dock-item:hover {
-    background: color-mix(in oklch, var(--color-zen-lavender) 22%, transparent);
-    color: oklch(0.45 0.08 300);
+    color: oklch(0.4 0.08 300);
     transform: scale(1.08);
   }
   :is(.dark) .apple-dock-item:hover {
-    background: color-mix(in oklch, var(--color-zen-lavender) 24%, transparent);
-    color: oklch(0.92 0.05 300);
+    color: oklch(0.95 0.05 300);
   }
   .apple-dock-item:active {
     transform: scale(0.92);
   }
+
+  /* Soft halo behind icon — appears on hover, magnetic feel */
+  .apple-dock-halo {
+    position: absolute;
+    inset: 2px;
+    border-radius: 12px;
+    background: radial-gradient(
+      circle at 50% 50%,
+      oklch(0.86 0.07 300 / 0.45) 0%,
+      oklch(0.86 0.08 320 / 0.18) 55%,
+      transparent 80%
+    );
+    opacity: 0;
+    transform: scale(0.8);
+    transition:
+      opacity 0.32s var(--ease-healing-out),
+      transform 0.32s var(--ease-healing-out);
+    pointer-events: none;
+  }
+  .apple-dock-item:hover .apple-dock-halo {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .apple-dock-icon {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .apple-dock-item:hover .apple-dock-icon {
+    transform: scale(1.05);
+  }
+
+  /* ─── Active state — refined gradient + soft inner light ─── */
   .apple-dock-item[data-active="true"] {
     background:
+      radial-gradient(
+        140% 100% at 30% 0%,
+        oklch(1 0 0 / 0.55) 0%,
+        oklch(1 0 0 / 0) 60%
+      ),
       linear-gradient(
         135deg,
-        oklch(0.9 0.08 300) 0%,
-        oklch(0.84 0.1 320) 50%,
-        oklch(0.86 0.09 270) 100%
+        oklch(0.92 0.07 300) 0%,
+        oklch(0.86 0.1 320) 55%,
+        oklch(0.88 0.08 270) 100%
       );
     color: oklch(0.32 0.06 300);
     box-shadow:
-      0 4px 14px -2px oklch(0.74 0.12 300 / 0.42),
-      0 2px 6px -1px oklch(0.8 0.1 320 / 0.3),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
+      0 6px 18px -4px oklch(0.74 0.12 300 / 0.45),
+      0 2px 8px -2px oklch(0.8 0.1 320 / 0.32),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55),
+      inset 0 -1px 0 0 oklch(0.6 0.08 300 / 0.18);
   }
   :is(.dark) .apple-dock-item[data-active="true"] {
     background:
+      radial-gradient(
+        140% 100% at 30% 0%,
+        oklch(1 0 0 / 0.18) 0%,
+        oklch(1 0 0 / 0) 60%
+      ),
       linear-gradient(
         135deg,
-        oklch(0.92 0.08 300) 0%,
-        oklch(0.86 0.1 320) 50%,
-        oklch(0.88 0.1 270) 100%
+        oklch(0.93 0.08 300) 0%,
+        oklch(0.86 0.11 320) 55%,
+        oklch(0.9 0.09 270) 100%
       );
-    color: oklch(0.34 0.06 290);
+    color: oklch(0.32 0.06 290);
     box-shadow:
-      0 4px 16px -2px oklch(0.82 0.14 300 / 0.46),
-      0 2px 6px -1px oklch(0.78 0.12 320 / 0.35),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
+      0 6px 22px -4px oklch(0.82 0.14 300 / 0.55),
+      0 2px 8px -2px oklch(0.78 0.12 320 / 0.4),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
+  }
+  /* Soft "soft" highlight (e.g. background-tasks active count) */
+  .apple-dock-item[data-active="soft"] {
+    background: color-mix(
+      in oklch,
+      var(--color-zen-lavender) 14%,
+      transparent
+    );
+    color: oklch(0.4 0.08 300);
+  }
+  :is(.dark) .apple-dock-item[data-active="soft"] {
+    background: color-mix(
+      in oklch,
+      var(--color-zen-lavender) 18%,
+      transparent
+    );
+    color: oklch(0.92 0.05 300);
   }
   .apple-dock-item[data-active="true"]:hover {
     transform: scale(1.08);
+  }
+  /* Hide the halo on active state (already glowing) */
+  .apple-dock-item[data-active="true"] .apple-dock-halo {
+    display: none;
+  }
+
+  /* Vertical pill rail on the dock's outer edge — appears next to active item */
+  .apple-dock-side-rail {
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    width: 3px;
+    height: 22px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      180deg,
+      oklch(0.88 0.1 300),
+      oklch(0.82 0.12 320)
+    );
+    transform: translateY(-50%);
+    box-shadow: 0 0 10px oklch(0.82 0.13 300 / 0.55);
+    animation: apple-dock-rail-in 0.45s var(--ease-healing-out) backwards;
+  }
+  [data-position="right"] .apple-dock-side-rail {
+    left: auto;
+    right: -10px;
+  }
+  :is(.dark) .apple-dock-side-rail {
+    background: linear-gradient(
+      180deg,
+      oklch(0.92 0.1 300),
+      oklch(0.86 0.12 320)
+    );
+    box-shadow: 0 0 12px oklch(0.86 0.14 300 / 0.6);
   }
 
   .apple-dock-active-dot {
@@ -502,35 +664,277 @@
     box-shadow: 0 0 11px oklch(0.86 0.12 300 / 0.58);
   }
 
+  /* ─── Avatar trigger ─── */
+  .apple-dock-avatar {
+    color: var(--text-on-glass-strong);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .apple-dock-avatar:hover {
+    transform: scale(1.08);
+  }
+  .apple-dock-avatar:active {
+    transform: scale(0.94);
+  }
+  .apple-dock-avatar-ring {
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    padding: 1.5px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.86 0.09 300 / 0.85) 0%,
+      oklch(0.78 0.11 320 / 0.7) 50%,
+      oklch(0.84 0.08 230 / 0.65) 100%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    box-shadow: 0 4px 14px -4px oklch(0.55 0.1 300 / 0.45);
+    pointer-events: none;
+  }
+
+  /* ─── Credits badge under Zap icon ─── */
+  .apple-dock-credit-badge {
+    position: absolute;
+    bottom: -3px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 22px;
+    padding: 0 5px;
+    height: 14px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.88 0.08 300) 0%,
+      oklch(0.82 0.1 320) 100%
+    );
+    color: oklch(0.3 0.06 300);
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow:
+      0 2px 8px oklch(0.78 0.12 300 / 0.4),
+      inset 0 1px 0 oklch(1 0 0 / 0.4);
+    border: 1px solid oklch(1 0 0 / 0.3);
+  }
+  :is(.dark) .apple-dock-credit-badge {
+    background: linear-gradient(
+      135deg,
+      oklch(0.9 0.09 300) 0%,
+      oklch(0.84 0.11 320) 100%
+    );
+    color: oklch(0.3 0.06 290);
+    border-color: oklch(1 0 0 / 0.18);
+  }
+
+  /* ─── Count badge for background tasks ─── */
+  .apple-dock-count-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.92 0.12 40) 0%,
+      oklch(0.84 0.15 12) 100%
+    );
+    color: oklch(0.32 0.08 20);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow:
+      0 2px 8px oklch(0.82 0.14 24 / 0.45),
+      inset 0 1px 0 oklch(1 0 0 / 0.4);
+    border: 1.5px solid oklch(0.99 0.005 75 / 0.95);
+    animation: apple-dock-badge-pop 0.4s var(--ease-healing-out) backwards;
+  }
+  :is(.dark) .apple-dock-count-badge {
+    border-color: oklch(0.22 0.018 280 / 0.95);
+  }
+
+  /* ─── Tooltip styling ─── */
+  .apple-dock-tooltip {
+    background: linear-gradient(
+      180deg,
+      oklch(0.22 0.018 280 / 0.95),
+      oklch(0.18 0.014 280 / 0.95)
+    );
+    color: oklch(0.97 0.005 75);
+    border: 1px solid oklch(1 0 0 / 0.08);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 9px;
+    box-shadow: 0 6px 18px -4px oklch(0 0 0 / 0.25);
+    letter-spacing: 0.01em;
+  }
+  :is(.dark) .apple-dock-tooltip {
+    background: linear-gradient(
+      180deg,
+      oklch(0.96 0.006 75 / 0.95),
+      oklch(0.92 0.012 75 / 0.95)
+    );
+    color: oklch(0.22 0.014 280);
+    border-color: oklch(0 0 0 / 0.06);
+  }
+
+  /* ─── Flyout ─── */
   .apple-dock-flyout {
     background:
       linear-gradient(
         180deg,
-        oklch(0.99 0.005 75 / 0.85) 0%,
-        oklch(0.97 0.015 300 / 0.78) 100%
+        oklch(0.995 0.005 75 / 0.92) 0%,
+        oklch(0.97 0.018 300 / 0.85) 100%
       ),
       var(--surface-2);
-    border: 1px solid var(--surface-border);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid oklch(1 0 0 / 0.55);
+    backdrop-filter: blur(28px) saturate(190%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
     box-shadow:
-      0 12px 44px -10px oklch(0.55 0.06 300 / 0.22),
-      0 4px 14px -4px oklch(0.2 0.01 280 / 0.14),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
+      0 18px 50px -10px oklch(0.55 0.08 300 / 0.28),
+      0 6px 16px -4px oklch(0.2 0.01 280 / 0.16),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.6);
     border-radius: 18px;
   }
   :is(.dark) .apple-dock-flyout {
     background:
       linear-gradient(
         180deg,
-        oklch(0.26 0.025 300 / 0.92) 0%,
-        oklch(0.22 0.018 280 / 0.85) 100%
+        oklch(0.27 0.025 300 / 0.94) 0%,
+        oklch(0.22 0.02 280 / 0.88) 100%
       ),
       var(--surface-2);
+    border-color: oklch(1 0 0 / 0.08);
     box-shadow:
-      0 12px 44px -10px oklch(0.55 0.08 300 / 0.4),
-      0 4px 14px -4px oklch(0 0 0 / 0.45),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.06);
+      0 18px 50px -10px oklch(0.55 0.08 300 / 0.5),
+      0 6px 16px -4px oklch(0 0 0 / 0.5),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.08);
+  }
+  .apple-dock-flyout-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px 6px 10px;
+    margin-bottom: 2px;
+    border-bottom: 1px solid oklch(0.5 0.02 280 / 0.08);
+  }
+  :is(.dark) .apple-dock-flyout-header {
+    border-bottom-color: oklch(1 0 0 / 0.06);
+  }
+  .apple-dock-flyout-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: oklch(0.5 0.025 280 / 0.9);
+  }
+  :is(.dark) .apple-dock-flyout-title {
+    color: oklch(0.82 0.025 280 / 0.85);
+  }
+  .apple-dock-flyout-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 11px;
+    text-align: left;
+    font-size: 13.5px;
+    color: oklch(0.32 0.014 60);
+    transition: color 0.2s var(--ease-healing-out);
+    outline: none;
+  }
+  :is(.dark) .apple-dock-flyout-item {
+    color: oklch(0.9 0.014 60);
+  }
+  .apple-dock-flyout-item-bg {
+    position: absolute;
+    inset: 0;
+    border-radius: 11px;
+    background: oklch(0.4 0.04 300 / 0);
+    transition: background-color 0.22s var(--ease-healing-out);
+    pointer-events: none;
+  }
+  .apple-dock-flyout-item:hover .apple-dock-flyout-item-bg {
+    background: oklch(0.5 0.04 300 / 0.08);
+  }
+  :is(.dark) .apple-dock-flyout-item:hover .apple-dock-flyout-item-bg {
+    background: oklch(0.85 0.06 300 / 0.1);
+  }
+  .apple-dock-flyout-item:focus-visible {
+    outline: 2px solid var(--ring-healing-strong);
+    outline-offset: 1px;
+  }
+  .apple-dock-flyout-item-icon {
+    color: oklch(0.45 0.015 60 / 0.85);
+    transition:
+      color 0.2s var(--ease-healing-out),
+      transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  :is(.dark) .apple-dock-flyout-item-icon {
+    color: oklch(0.82 0.02 60 / 0.85);
+  }
+  .apple-dock-flyout-item:hover .apple-dock-flyout-item-icon {
+    color: oklch(0.4 0.08 300);
+    transform: scale(1.08);
+  }
+  :is(.dark) .apple-dock-flyout-item:hover .apple-dock-flyout-item-icon {
+    color: oklch(0.92 0.06 300);
+  }
+  .apple-dock-flyout-item[data-active="true"] {
+    color: oklch(0.32 0.06 300);
+    font-weight: 600;
+  }
+  :is(.dark) .apple-dock-flyout-item[data-active="true"] {
+    color: oklch(0.95 0.06 300);
+  }
+  .apple-dock-flyout-item[data-active="true"] .apple-dock-flyout-item-bg {
+    background: linear-gradient(
+      135deg,
+      oklch(0.92 0.06 300 / 0.6) 0%,
+      oklch(0.86 0.08 320 / 0.45) 100%
+    );
+  }
+  :is(.dark) .apple-dock-flyout-item[data-active="true"] .apple-dock-flyout-item-bg {
+    background: linear-gradient(
+      135deg,
+      oklch(0.5 0.08 300 / 0.45) 0%,
+      oklch(0.42 0.1 320 / 0.35) 100%
+    );
+  }
+  .apple-dock-flyout-item[data-active="true"] .apple-dock-flyout-item-icon {
+    color: oklch(0.45 0.1 300);
+  }
+  :is(.dark) .apple-dock-flyout-item[data-active="true"] .apple-dock-flyout-item-icon {
+    color: oklch(0.92 0.08 300);
+  }
+  .apple-dock-flyout-item-pin {
+    position: relative;
+    margin-left: auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.78 0.13 300),
+      oklch(0.72 0.14 320)
+    );
+    box-shadow: 0 0 8px oklch(0.78 0.14 300 / 0.55);
   }
 
   @keyframes apple-dock-pop {
@@ -604,9 +1008,96 @@
     }
   }
   .apple-dock-bubble {
+    background: linear-gradient(
+      135deg,
+      oklch(0.99 0.005 75 / 0.88) 0%,
+      oklch(0.96 0.025 300 / 0.78) 100%
+    );
+    backdrop-filter: blur(22px) saturate(170%);
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    border: 1px solid oklch(1 0 0 / 0.55);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     animation:
       apple-dock-pop 0.45s var(--ease-healing-out),
       apple-dock-bubble-pulse 2.6s ease-in-out infinite 0.45s;
+  }
+  :is(.dark) .apple-dock-bubble {
+    background: linear-gradient(
+      135deg,
+      oklch(0.27 0.025 300 / 0.92) 0%,
+      oklch(0.22 0.02 280 / 0.85) 100%
+    );
+    border-color: oklch(1 0 0 / 0.1);
+  }
+  .apple-dock-bubble:hover {
+    transform: scale(1.1);
+  }
+  .apple-dock-bubble:active {
+    transform: scale(0.95);
+  }
+  .apple-dock-bubble-glow {
+    position: absolute;
+    inset: -3px;
+    border-radius: 9999px;
+    background: conic-gradient(
+      from 180deg,
+      oklch(0.86 0.1 300 / 0.45),
+      oklch(0.82 0.12 320 / 0.35),
+      oklch(0.86 0.08 230 / 0.4),
+      oklch(0.86 0.1 300 / 0.45)
+    );
+    filter: blur(6px);
+    opacity: 0.7;
+    pointer-events: none;
+    animation: apple-dock-bubble-spin 9s linear infinite;
+  }
+  .apple-dock-bubble-pip {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.86 0.09 300),
+      oklch(0.8 0.12 320)
+    );
+    border: 2px solid var(--background);
+    box-shadow: 0 0 10px oklch(0.8 0.12 300 / 0.5);
+  }
+  @keyframes apple-dock-bubble-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Vertical pill rail entrance */
+  @keyframes apple-dock-rail-in {
+    0% {
+      opacity: 0;
+      transform: translateY(-50%) scaleY(0.4);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(-50%) scaleY(1);
+    }
+  }
+
+  /* Badge pop entrance */
+  @keyframes apple-dock-badge-pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.4) translate(50%, -50%);
+      transform-origin: top right;
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translate(0, 0);
+    }
   }
 
   /* Reduced motion: stop the heavier animations */
@@ -614,10 +1105,18 @@
     .apple-dock-glass,
     .apple-dock-active-dot,
     .apple-dock-bubble,
+    .apple-dock-bubble-glow,
+    .apple-dock-side-rail,
+    .apple-dock-count-badge,
     .apple-dock-stagger {
       animation: none !important;
     }
-    .apple-dock-item {
+    .apple-dock-item,
+    .apple-dock-icon,
+    .apple-dock-halo,
+    .apple-dock-control,
+    .apple-dock-flyout-item-icon,
+    .apple-dock-avatar {
       transition-duration: 0.15s !important;
     }
   }
