@@ -444,6 +444,261 @@
     );
     border-radius: 9999px;
   }
+  /* Horizontal-orientation flavor (used when dock sits on top/bottom) */
+  .apple-dock-divider-vertical {
+    width: 1px;
+    height: 28px;
+    margin: 0 6px;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in oklch, currentColor 22%, transparent),
+      transparent
+    );
+    border-radius: 9999px;
+  }
+
+  /* ─── Top / Bottom orientation: stagger items slide in from above/below ─── */
+  .apple-dock-top .apple-dock-stagger {
+    --apple-dock-stagger-from-x: 0px;
+    --apple-dock-stagger-from-y: -8px;
+  }
+  .apple-dock-bottom .apple-dock-stagger {
+    --apple-dock-stagger-from-x: 0px;
+    --apple-dock-stagger-from-y: 8px;
+  }
+
+  /* Side rail orientation overrides for horizontal docks */
+  .apple-dock-top .apple-dock-side-rail,
+  [data-orientation="horizontal"][data-position="top"] .apple-dock-side-rail {
+    left: 50%;
+    right: auto;
+    top: auto;
+    bottom: -10px;
+    width: 22px;
+    height: 3px;
+    transform: translateX(-50%);
+    background: linear-gradient(
+      90deg,
+      oklch(0.88 0.1 300),
+      oklch(0.82 0.12 320)
+    );
+    animation: apple-dock-rail-in-h 0.45s var(--ease-healing-out) backwards;
+  }
+  .apple-dock-bottom .apple-dock-side-rail,
+  [data-orientation="horizontal"][data-position="bottom"] .apple-dock-side-rail {
+    left: 50%;
+    right: auto;
+    top: -10px;
+    bottom: auto;
+    width: 22px;
+    height: 3px;
+    transform: translateX(-50%);
+    background: linear-gradient(
+      90deg,
+      oklch(0.88 0.1 300),
+      oklch(0.82 0.12 320)
+    );
+    animation: apple-dock-rail-in-h 0.45s var(--ease-healing-out) backwards;
+  }
+
+  /* ─── Immersive mode ──────────────────────────────────────────────────── */
+  .apple-dock-immersive-hidden {
+    pointer-events: auto;
+  }
+  /* When immersive AND not revealed, slide the dock body off-screen but keep
+     the peek handle visible to invite reveal on hover/focus. */
+  /* Hidden state — offscreen + preserved centering on the cross axis.
+     Note: transform doesn't compose, so we restate the centering offset. */
+  [data-immersive="true"][data-immersive-revealed="false"][data-position="left"] {
+    transform: translate(calc(-100% - 4px), -50%);
+  }
+  [data-immersive="true"][data-immersive-revealed="false"][data-position="right"] {
+    transform: translate(calc(100% + 4px), -50%);
+  }
+  [data-immersive="true"][data-immersive-revealed="false"][data-position="top"] {
+    transform: translate(-50%, calc(-100% - 4px));
+  }
+  [data-immersive="true"][data-immersive-revealed="false"][data-position="bottom"] {
+    transform: translate(-50%, calc(100% + 4px));
+  }
+  /* Revealed state — restate the centering transform so we transition back
+     to the resting position cleanly. */
+  [data-position="top"][data-immersive="true"][data-immersive-revealed="true"],
+  [data-position="bottom"][data-immersive="true"][data-immersive-revealed="true"] {
+    transform: translateX(-50%);
+  }
+  [data-position="left"][data-immersive="true"][data-immersive-revealed="true"],
+  [data-position="right"][data-immersive="true"][data-immersive-revealed="true"] {
+    transform: translateY(-50%);
+  }
+  [data-immersive="true"] {
+    transition:
+      transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 0.3s var(--ease-healing-out);
+  }
+  [data-immersive="true"][data-immersive-revealed="false"] {
+    opacity: 0;
+  }
+
+  /* Edge peek "zone" — a fixed, invisible 16px strip on the viewport edge
+     that triggers reveal on hover/focus, with a thin gradient pip inside
+     to visually invite the user. Lives outside the nav so it stays
+     hoverable while the dock body is translated offscreen. */
+  .apple-dock-peek-zone {
+    position: fixed;
+    z-index: 31;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    cursor: e-resize;
+    animation: apple-dock-peek-fade-in 0.3s var(--ease-healing-out) backwards;
+  }
+  .apple-dock-peek-zone[data-position="left"] {
+    left: 0;
+    top: 30%;
+    bottom: 30%;
+    width: 16px;
+    flex-direction: column;
+    cursor: e-resize;
+  }
+  .apple-dock-peek-zone[data-position="right"] {
+    right: 0;
+    top: 30%;
+    bottom: 30%;
+    width: 16px;
+    flex-direction: column;
+    cursor: w-resize;
+  }
+  .apple-dock-peek-zone[data-position="top"] {
+    top: 0;
+    left: 30%;
+    right: 30%;
+    height: 16px;
+    cursor: s-resize;
+  }
+  .apple-dock-peek-zone[data-position="bottom"] {
+    bottom: 0;
+    left: 30%;
+    right: 30%;
+    height: 16px;
+    cursor: n-resize;
+  }
+  /* Visible "pip" inside the peek zone */
+  .apple-dock-peek-pip {
+    background: linear-gradient(
+      180deg,
+      oklch(0.88 0.1 300 / 0.85),
+      oklch(0.82 0.12 320 / 0.7)
+    );
+    border-radius: 9999px;
+    box-shadow:
+      0 0 14px oklch(0.82 0.13 300 / 0.5),
+      inset 0 1px 0 oklch(1 0 0 / 0.3);
+    transition:
+      width 0.25s var(--ease-healing-out),
+      height 0.25s var(--ease-healing-out),
+      box-shadow 0.25s var(--ease-healing-out);
+    animation: apple-dock-peek-breathe 2.4s ease-in-out infinite;
+  }
+  .apple-dock-peek-zone[data-position="left"] .apple-dock-peek-pip,
+  .apple-dock-peek-zone[data-position="right"] .apple-dock-peek-pip {
+    width: 4px;
+    height: 56px;
+  }
+  .apple-dock-peek-zone[data-position="top"] .apple-dock-peek-pip,
+  .apple-dock-peek-zone[data-position="bottom"] .apple-dock-peek-pip {
+    width: 56px;
+    height: 4px;
+  }
+  .apple-dock-peek-zone:hover .apple-dock-peek-pip {
+    box-shadow:
+      0 0 22px oklch(0.82 0.13 300 / 0.7),
+      inset 0 1px 0 oklch(1 0 0 / 0.4);
+  }
+  .apple-dock-peek-zone[data-position="left"]:hover .apple-dock-peek-pip,
+  .apple-dock-peek-zone[data-position="right"]:hover .apple-dock-peek-pip {
+    width: 5px;
+    height: 80px;
+  }
+  .apple-dock-peek-zone[data-position="top"]:hover .apple-dock-peek-pip,
+  .apple-dock-peek-zone[data-position="bottom"]:hover .apple-dock-peek-pip {
+    width: 80px;
+    height: 5px;
+  }
+  @keyframes apple-dock-peek-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes apple-dock-peek-breathe {
+    0%,
+    100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* Keyboard-shortcut hint chip (e.g. "⌘K" under the search button) */
+  .apple-dock-kbd-hint {
+    position: absolute;
+    bottom: -3px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8.5px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    padding: 2px 5px;
+    border-radius: 9999px;
+    background: oklch(0.4 0.018 280 / 0.92);
+    color: oklch(0.97 0.005 75);
+    border: 1px solid oklch(1 0 0 / 0.12);
+    box-shadow: 0 2px 6px oklch(0 0 0 / 0.18);
+    pointer-events: none;
+    opacity: 0;
+    transform-origin: center;
+    transition:
+      opacity 0.25s var(--ease-healing-out),
+      transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .apple-dock-item:hover .apple-dock-kbd-hint,
+  .apple-dock-item:focus-visible .apple-dock-kbd-hint {
+    opacity: 1;
+    transform: translate(-50%, -1px);
+  }
+  :is(.dark) .apple-dock-kbd-hint {
+    background: oklch(0.96 0.005 75 / 0.92);
+    color: oklch(0.22 0.014 280);
+    border-color: oklch(0 0 0 / 0.08);
+  }
+
+  /* Active-state on the immersive toggle in the header controls */
+  .apple-dock-control[data-active="true"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.9 0.08 300 / 0.85),
+      oklch(0.84 0.1 320 / 0.7)
+    );
+    color: oklch(0.32 0.06 300);
+    box-shadow:
+      0 2px 6px -1px oklch(0.74 0.12 300 / 0.35),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
+  }
+  :is(.dark) .apple-dock-control[data-active="true"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.92 0.08 300 / 0.55),
+      oklch(0.86 0.1 320 / 0.45)
+    );
+    color: oklch(0.95 0.06 300);
+  }
 
   /* ─── Compact controls in dock header ─── */
   .apple-dock-controls {
@@ -977,11 +1232,15 @@
   @keyframes apple-dock-stagger-in {
     0% {
       opacity: 0;
-      transform: translateX(var(--apple-dock-stagger-from, -8px)) scale(0.85);
+      transform: translate(
+          var(--apple-dock-stagger-from-x, var(--apple-dock-stagger-from, -8px)),
+          var(--apple-dock-stagger-from-y, 0)
+        )
+        scale(0.85);
     }
     100% {
       opacity: 1;
-      transform: translateX(0) scale(1);
+      transform: translate(0, 0) scale(1);
     }
   }
   .apple-dock-stagger {
@@ -992,6 +1251,18 @@
   /* When the dock is on the right side, stagger items slide in from the right */
   .apple-dock-right .apple-dock-stagger {
     --apple-dock-stagger-from: 8px;
+  }
+
+  /* Horizontal rail-in (top/bottom dock active indicator) */
+  @keyframes apple-dock-rail-in-h {
+    0% {
+      opacity: 0;
+      transform: translateX(-50%) scaleX(0.4);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(-50%) scaleX(1);
+    }
   }
 
   @keyframes apple-dock-bubble-pulse {
@@ -1108,6 +1379,8 @@
     .apple-dock-bubble-glow,
     .apple-dock-side-rail,
     .apple-dock-count-badge,
+    .apple-dock-peek-zone,
+    .apple-dock-peek-pip,
     .apple-dock-stagger {
       animation: none !important;
     }

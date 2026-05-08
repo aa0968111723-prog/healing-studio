@@ -59,17 +59,28 @@ import AppleDock, {
 
 const DOCK_POSITION_KEY = "apple-dock-position";
 const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
+const DOCK_IMMERSIVE_KEY = "apple-dock-immersive";
 
 function readDockPosition(): DockPosition {
   if (typeof window === "undefined") return "left";
   const v = window.localStorage.getItem(DOCK_POSITION_KEY);
-  return v === "right" ? "right" : "left";
+  if (v === "right" || v === "top" || v === "bottom" || v === "left") {
+    return v;
+  }
+  return "left";
 }
 
 function readDockMinimized(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(DOCK_MINIMIZED_KEY) === "1";
 }
+
+function readDockImmersive(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(DOCK_IMMERSIVE_KEY) === "1";
+}
+
+const POSITION_CYCLE: DockPosition[] = ["left", "top", "right", "bottom"];
 
 
 type SidebarLeafItem = DockLeaf;
@@ -272,21 +283,32 @@ function DashboardLayoutContent({
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 
-  // ── Dock position + minimize (persisted) ───────────────────────────────
+  // ── Dock position + minimize + immersive (persisted) ────────────────────
   const [dockPosition, setDockPosition] =
     useState<DockPosition>(readDockPosition);
   const [dockMinimized, setDockMinimized] = useState<boolean>(readDockMinimized);
+  const [dockImmersive, setDockImmersive] = useState<boolean>(readDockImmersive);
   useEffect(() => {
     window.localStorage.setItem(DOCK_POSITION_KEY, dockPosition);
   }, [dockPosition]);
   useEffect(() => {
     window.localStorage.setItem(DOCK_MINIMIZED_KEY, dockMinimized ? "1" : "0");
   }, [dockMinimized]);
-  const toggleDockPosition = useCallback(() => {
-    setDockPosition(p => (p === "left" ? "right" : "left"));
+  useEffect(() => {
+    window.localStorage.setItem(DOCK_IMMERSIVE_KEY, dockImmersive ? "1" : "0");
+  }, [dockImmersive]);
+  const cycleDockPosition = useCallback(() => {
+    setDockPosition(p => {
+      const idx = POSITION_CYCLE.indexOf(p);
+      const next = idx === -1 ? 0 : (idx + 1) % POSITION_CYCLE.length;
+      return POSITION_CYCLE[next];
+    });
   }, []);
   const toggleDockMinimized = useCallback(() => {
     setDockMinimized(v => !v);
+  }, []);
+  const toggleDockImmersive = useCallback(() => {
+    setDockImmersive(v => !v);
   }, []);
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
@@ -362,14 +384,44 @@ function DashboardLayoutContent({
     startTour("welcome", true);
   }, [startTour]);
 
-  // ── Main-content padding mirrors the dock side and tightens when minimized ──
-  const dockPadClass = dockMinimized
-    ? dockPosition === "left"
-      ? "pl-[56px] sm:pl-[68px]"
-      : "pr-[56px] sm:pr-[68px]"
-    : dockPosition === "left"
-      ? "pl-16 sm:pl-24"
-      : "pr-16 sm:pr-24";
+  // ── Main-content padding mirrors the dock side and tightens when minimized.
+  //    In immersive mode we leave only a thin gutter for the edge peek handle. ──
+  const dockPadClass = (() => {
+    if (dockImmersive) {
+      switch (dockPosition) {
+        case "left":
+          return "pl-3";
+        case "right":
+          return "pr-3";
+        case "top":
+          return "pt-3";
+        case "bottom":
+          return "pb-3";
+      }
+    }
+    if (dockMinimized) {
+      switch (dockPosition) {
+        case "left":
+          return "pl-[56px] sm:pl-[68px]";
+        case "right":
+          return "pr-[56px] sm:pr-[68px]";
+        case "top":
+          return "pt-[56px] sm:pt-[68px]";
+        case "bottom":
+          return "pb-[56px] sm:pb-[68px]";
+      }
+    }
+    switch (dockPosition) {
+      case "left":
+        return "pl-16 sm:pl-24";
+      case "right":
+        return "pr-16 sm:pr-24";
+      case "top":
+        return "pt-16 sm:pt-24";
+      case "bottom":
+        return "pb-16 sm:pb-24";
+    }
+  })();
 
   return (
     <>
@@ -385,9 +437,12 @@ function DashboardLayoutContent({
         onLogout={logout}
         onRestartTour={handleRestartWelcomeTour}
         position={dockPosition}
-        onTogglePosition={toggleDockPosition}
+        onCyclePosition={cycleDockPosition}
+        onSetPosition={setDockPosition}
         minimized={dockMinimized}
         onToggleMinimized={toggleDockMinimized}
+        immersive={dockImmersive}
+        onToggleImmersive={toggleDockImmersive}
       />
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">

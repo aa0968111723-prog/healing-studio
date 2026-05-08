@@ -9,13 +9,20 @@ import {
   Sparkles,
   Loader2,
   Zap,
-  ChevronLeft,
-  ChevronRight,
   Minus,
-  PanelLeftClose,
-  PanelRightClose,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Search,
+  Sun,
+  Moon,
+  Laptop,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
 import { AvatarRenderer } from "@/components/AvatarStudio";
 import {
   DropdownMenu,
@@ -60,7 +67,12 @@ export type DockGroup = {
 
 export type DockEntry = DockLeaf | DockGroup;
 
-export type DockPosition = "left" | "right";
+export type DockPosition = "left" | "right" | "top" | "bottom";
+export type DockOrientation = "vertical" | "horizontal";
+
+export function dockOrientation(position: DockPosition): DockOrientation {
+  return position === "top" || position === "bottom" ? "horizontal" : "vertical";
+}
 
 type AppleDockProps = {
   entries: DockEntry[];
@@ -77,14 +89,23 @@ type AppleDockProps = {
   onLogout: () => void;
   onRestartTour: () => void;
   position: DockPosition;
-  onTogglePosition: () => void;
+  onCyclePosition: () => void;
+  onSetPosition?: (position: DockPosition) => void;
   minimized: boolean;
   onToggleMinimized: () => void;
+  immersive: boolean;
+  onToggleImmersive: () => void;
 };
 
 // ─── Background tasks dock trigger ──────────────────────────────────────────
 
-function BackgroundTasksDockButton({ side }: { side: "left" | "right" }) {
+function BackgroundTasksDockButton({
+  popoverSide,
+  tooltipSide,
+}: {
+  popoverSide: "left" | "right" | "top" | "bottom";
+  tooltipSide: "left" | "right" | "top" | "bottom";
+}) {
   const { tasks, activeCount } = useBackgroundTasks();
   const [open, setOpen] = React.useState(false);
 
@@ -99,7 +120,6 @@ function BackgroundTasksDockButton({ side }: { side: "left" | "right" }) {
   );
 
   const hasAny = tasks.length > 0;
-  const popoverSide = side === "left" ? "right" : "left";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -136,7 +156,7 @@ function BackgroundTasksDockButton({ side }: { side: "left" | "right" }) {
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent
-          side={popoverSide}
+          side={tooltipSide}
           sideOffset={12}
           className="apple-dock-tooltip"
         >
@@ -217,6 +237,105 @@ function BackgroundTasksDockButton({ side }: { side: "left" | "right" }) {
   );
 }
 
+// ─── Position helpers ───────────────────────────────────────────────────────
+
+function bubblePositionClasses(position: DockPosition): string {
+  switch (position) {
+    case "left":
+      return "left-3 top-1/2 -translate-y-1/2";
+    case "right":
+      return "right-3 top-1/2 -translate-y-1/2";
+    case "top":
+      return "top-3 left-1/2 -translate-x-1/2";
+    case "bottom":
+      return "bottom-3 left-1/2 -translate-x-1/2";
+  }
+}
+
+function bubbleTooltipSide(
+  position: DockPosition
+): "left" | "right" | "top" | "bottom" {
+  switch (position) {
+    case "left":
+      return "right";
+    case "right":
+      return "left";
+    case "top":
+      return "bottom";
+    case "bottom":
+      return "top";
+  }
+}
+
+// Choose where flyouts/dropdowns/tooltips should expand from, given dock side.
+// Items that sit on the dock's outer edge (popovers) should open AWAY from
+// that edge — opposite of the dock side.
+function popoverAwaySide(
+  position: DockPosition
+): "left" | "right" | "top" | "bottom" {
+  return bubbleTooltipSide(position);
+}
+
+// ─── Theme cycle button ─────────────────────────────────────────────────────
+
+function ThemeToggleDockButton({
+  tooltipSide,
+}: {
+  tooltipSide: "left" | "right" | "top" | "bottom";
+}) {
+  const { appearanceMode, setAppearanceMode, theme } = useTheme();
+
+  const cycle = () => {
+    const order: AppearanceMode[] = ["light", "dark", "system"];
+    const currentIdx = order.indexOf(
+      (appearanceMode === "auto" ? "system" : appearanceMode) as AppearanceMode
+    );
+    const nextIdx =
+      currentIdx === -1 ? 0 : (currentIdx + 1) % order.length;
+    setAppearanceMode(order[nextIdx]);
+  };
+
+  const Icon =
+    appearanceMode === "system" || appearanceMode === "auto"
+      ? Laptop
+      : theme === "dark"
+        ? Moon
+        : Sun;
+
+  const label =
+    appearanceMode === "light"
+      ? "外觀：明亮"
+      : appearanceMode === "dark"
+        ? "外觀：深色"
+        : "外觀：跟隨系統";
+
+  return (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          onClick={cycle}
+          className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+        >
+          <span aria-hidden="true" className="apple-dock-halo" />
+          <Icon
+            className="apple-dock-icon relative h-[19px] w-[19px]"
+            strokeWidth={1.85}
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side={tooltipSide}
+        sideOffset={12}
+        className="apple-dock-tooltip"
+      >
+        {label}（點擊切換）
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ─── Minimized "bubble" form ────────────────────────────────────────────────
 
 function MinimizedBubble({
@@ -230,12 +349,11 @@ function MinimizedBubble({
   displayInitial: string;
   onExpand: () => void;
 }) {
-  const sideClass = position === "left" ? "left-3" : "right-3";
   return (
     <div
       className={cn(
-        "block fixed top-1/2 -translate-y-1/2 z-30",
-        sideClass
+        "block fixed z-30",
+        bubblePositionClasses(position)
       )}
     >
       <Tooltip delayDuration={300}>
@@ -259,7 +377,7 @@ function MinimizedBubble({
           </button>
         </TooltipTrigger>
         <TooltipContent
-          side={position === "left" ? "right" : "left"}
+          side={bubbleTooltipSide(position)}
           sideOffset={12}
           className="apple-dock-tooltip"
         >
@@ -283,11 +401,15 @@ function AppleDock({
   onLogout,
   onRestartTour,
   position,
-  onTogglePosition,
+  onCyclePosition,
+  onSetPosition,
   minimized,
   onToggleMinimized,
+  immersive,
+  onToggleImmersive,
 }: AppleDockProps) {
   const [openGroup, setOpenGroup] = React.useState<string | null>(null);
+  const [revealed, setRevealed] = React.useState(false);
 
   const handleNavigate = React.useCallback(
     (path: string) => {
@@ -296,6 +418,16 @@ function AppleDock({
     },
     [onNavigate]
   );
+
+  // ── In immersive mode, ESC retracts the dock if it was peeked open ─────
+  React.useEffect(() => {
+    if (!immersive || !revealed) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setRevealed(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [immersive, revealed]);
 
   if (minimized) {
     return (
@@ -308,10 +440,24 @@ function AppleDock({
     );
   }
 
-  const sideClass = position === "left" ? "left-3" : "right-3";
-  const popoverSide = position === "left" ? "right" : "left";
-  const TogglePositionIcon =
-    position === "left" ? PanelRightClose : PanelLeftClose;
+  const orientation = dockOrientation(position);
+  const isHorizontal = orientation === "horizontal";
+
+  const positionClasses = (() => {
+    switch (position) {
+      case "left":
+        return "left-3 top-1/2 -translate-y-1/2";
+      case "right":
+        return "right-3 top-1/2 -translate-y-1/2";
+      case "top":
+        return "top-3 left-1/2 -translate-x-1/2";
+      case "bottom":
+        return "bottom-3 left-1/2 -translate-x-1/2";
+    }
+  })();
+
+  const popoverSide = popoverAwaySide(position);
+  const tooltipSide = popoverSide;
 
   // ── Compose stagger animation delays so items wave in on first mount ──
   let staggerIndex = 0;
@@ -319,19 +465,90 @@ function AppleDock({
     animationDelay: `${i * 45}ms`,
   });
 
+  // Open command palette via the global event we wired in CommandPalette.tsx
+  const openCommandPalette = React.useCallback(() => {
+    window.dispatchEvent(new CustomEvent("open-command-palette"));
+  }, []);
+
+  // Cycle through left → top → right → bottom → left
+  const NextPositionIcon = (() => {
+    switch (position) {
+      case "left":
+        return ArrowUp;
+      case "top":
+        return ArrowRight;
+      case "right":
+        return ArrowDown;
+      case "bottom":
+        return ArrowLeft;
+    }
+  })();
+  const nextPositionLabel = (() => {
+    switch (position) {
+      case "left":
+        return "移到上方";
+      case "top":
+        return "移到右側";
+      case "right":
+        return "移到下方";
+      case "bottom":
+        return "移到左側";
+    }
+  })();
+
+  // In immersive mode the nav is hidden but reveals on hover/focus
+  const immersiveHidden = immersive && !revealed;
+
   return (
-    <nav
-      id="sidebar-nav"
-      aria-label="主導覽"
-      data-position={position}
-      className={cn(
-        "flex fixed top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-2 py-2.5 apple-dock-glass overflow-y-auto no-scrollbar overscroll-contain",
-        sideClass,
-        position === "right" && "apple-dock-right"
+    <>
+      {/* ── Immersive-mode peek zone: invisible hover trigger + thin visual
+            pip on the screen edge that invites a reveal. Lives outside the
+            nav so it stays hoverable while the nav is translated offscreen. */}
+      {immersive && !revealed && (
+        <div
+          aria-hidden="true"
+          data-position={position}
+          className="apple-dock-peek-zone"
+          onMouseEnter={() => setRevealed(true)}
+        >
+          <span className="apple-dock-peek-pip" />
+        </div>
       )}
-    >
-      {/* ── Compact controls header: minimize + position toggle ── */}
-      <div className="apple-dock-controls flex items-center justify-center gap-1">
+
+      <nav
+        id="sidebar-nav"
+        aria-label="主導覽"
+        data-position={position}
+        data-orientation={orientation}
+        data-immersive={immersive ? "true" : "false"}
+        data-immersive-revealed={revealed ? "true" : "false"}
+        onMouseEnter={() => immersive && setRevealed(true)}
+        onMouseLeave={() => immersive && setRevealed(false)}
+        onFocus={() => immersive && setRevealed(true)}
+        onBlur={e => {
+          if (immersive && !e.currentTarget.contains(e.relatedTarget as Node)) {
+            setRevealed(false);
+          }
+        }}
+        className={cn(
+          "flex fixed z-30 apple-dock-glass overflow-y-auto no-scrollbar overscroll-contain",
+          isHorizontal
+            ? "flex-row items-center gap-1.5 py-2 px-2.5"
+            : "flex-col items-center gap-1.5 px-2 py-2.5",
+          positionClasses,
+          position === "right" && "apple-dock-right",
+          position === "top" && "apple-dock-top",
+          position === "bottom" && "apple-dock-bottom",
+          immersiveHidden && "apple-dock-immersive-hidden"
+        )}
+      >
+      {/* ── Compact controls header: minimize · position · immersive ── */}
+      <div
+        className={cn(
+          "apple-dock-controls flex items-center justify-center",
+          isHorizontal ? "flex-col gap-1" : "flex-row gap-1"
+        )}
+      >
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
@@ -344,7 +561,7 @@ function AppleDock({
             </button>
           </TooltipTrigger>
           <TooltipContent
-            side={popoverSide}
+            side={tooltipSide}
             sideOffset={12}
             className="apple-dock-tooltip"
           >
@@ -355,32 +572,62 @@ function AppleDock({
           <TooltipTrigger asChild>
             <button
               type="button"
-              aria-label={
-                position === "left" ? "移到右側" : "移到左側"
-              }
-              onClick={onTogglePosition}
+              aria-label={nextPositionLabel}
+              onClick={onCyclePosition}
               className="apple-dock-control"
             >
-              <TogglePositionIcon className="h-3.5 w-3.5" strokeWidth={2} />
+              <NextPositionIcon className="h-3.5 w-3.5" strokeWidth={2} />
             </button>
           </TooltipTrigger>
           <TooltipContent
-            side={popoverSide}
+            side={tooltipSide}
             sideOffset={12}
             className="apple-dock-tooltip"
           >
-            {position === "left" ? "移到右側" : "移到左側"}
+            {nextPositionLabel}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={immersive ? "退出沉浸模式" : "進入沉浸模式"}
+              onClick={onToggleImmersive}
+              data-active={immersive ? "true" : "false"}
+              className="apple-dock-control"
+            >
+              {immersive ? (
+                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" strokeWidth={2} />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side={tooltipSide}
+            sideOffset={12}
+            className="apple-dock-tooltip"
+          >
+            {immersive ? "退出沉浸模式（顯示導覽）" : "沉浸模式（自動隱藏導覽）"}
           </TooltipContent>
         </Tooltip>
       </div>
 
       <div
-        className="apple-dock-divider w-9 self-center -mt-0.5 mb-0.5"
+        className={cn(
+          "apple-dock-divider self-center",
+          isHorizontal ? "apple-dock-divider-vertical" : "w-9 -mt-0.5 mb-0.5"
+        )}
         aria-hidden="true"
       />
 
       {/* ── Top cluster: navigation entries ── */}
-      <div className="flex flex-col items-center gap-1.5">
+      <div
+        className={cn(
+          "flex items-center gap-1.5",
+          isHorizontal ? "flex-row" : "flex-col"
+        )}
+      >
         {entries.map((entry, idx) => {
           const itemStyle = staggerDelay(staggerIndex++);
           if (entry.kind === "leaf") {
@@ -398,7 +645,7 @@ function AppleDock({
                   onClick={() => handleNavigate(entry.path)}
                   id={entry.id}
                   data-pageid={entry.pageId}
-                  tooltipSide={popoverSide}
+                  tooltipSide={tooltipSide}
                 />
               </div>
             );
@@ -435,7 +682,7 @@ function AppleDock({
                     isActive={hasActiveChild}
                     showActiveDot={hasActiveChild && !isOpen}
                     showTooltip={!isOpen}
-                    tooltipSide={popoverSide}
+                    tooltipSide={tooltipSide}
                     aria-haspopup="menu"
                     aria-expanded={isOpen}
                   />
@@ -458,15 +705,95 @@ function AppleDock({
       </div>
 
       {/* ── Hairline divider ── */}
-      <div className="apple-dock-divider w-9 self-center" aria-hidden="true" />
+      <div
+        className={cn(
+          "apple-dock-divider self-center",
+          isHorizontal ? "apple-dock-divider-vertical" : "w-9"
+        )}
+        aria-hidden="true"
+      />
 
-      {/* ── Bottom cluster: tasks · credits · avatar ── */}
-      <div className="flex flex-col items-center gap-1.5">
+      {/* ── Quick utilities cluster: home · search · theme ── */}
+      <div
+        className={cn(
+          "flex items-center gap-1.5",
+          isHorizontal ? "flex-row" : "flex-col"
+        )}
+      >
         <div
           className="apple-dock-stagger"
           style={staggerDelay(staggerIndex++)}
         >
-          <BackgroundTasksDockButton side={position} />
+          <AppleDockItem
+            icon={Home}
+            label="回首頁"
+            isActive={activePath === "/"}
+            onClick={() => handleNavigate("/")}
+            tooltipSide={tooltipSide}
+          />
+        </div>
+        <div
+          className="apple-dock-stagger"
+          style={staggerDelay(staggerIndex++)}
+        >
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="搜尋（⌘K）"
+                onClick={openCommandPalette}
+                className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+              >
+                <span aria-hidden="true" className="apple-dock-halo" />
+                <Search
+                  className="apple-dock-icon relative h-[19px] w-[19px]"
+                  strokeWidth={1.85}
+                />
+                <span aria-hidden="true" className="apple-dock-kbd-hint">
+                  ⌘K
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side={tooltipSide}
+              sideOffset={12}
+              className="apple-dock-tooltip"
+            >
+              搜尋與快捷指令 · ⌘K
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <div
+          className="apple-dock-stagger"
+          style={staggerDelay(staggerIndex++)}
+        >
+          <ThemeToggleDockButton tooltipSide={tooltipSide} />
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "apple-dock-divider self-center",
+          isHorizontal ? "apple-dock-divider-vertical" : "w-9"
+        )}
+        aria-hidden="true"
+      />
+
+      {/* ── Bottom cluster: tasks · credits · avatar ── */}
+      <div
+        className={cn(
+          "flex items-center gap-1.5",
+          isHorizontal ? "flex-row" : "flex-col"
+        )}
+      >
+        <div
+          className="apple-dock-stagger"
+          style={staggerDelay(staggerIndex++)}
+        >
+          <BackgroundTasksDockButton
+            popoverSide={popoverSide}
+            tooltipSide={tooltipSide}
+          />
         </div>
 
         <div
@@ -494,7 +821,7 @@ function AppleDock({
               </Link>
             </TooltipTrigger>
             <TooltipContent
-              side={popoverSide}
+              side={tooltipSide}
               sideOffset={12}
               className="apple-dock-tooltip"
             >
@@ -529,7 +856,7 @@ function AppleDock({
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent
-                side={popoverSide}
+                side={tooltipSide}
                 sideOffset={12}
                 className="apple-dock-tooltip"
               >
@@ -540,7 +867,7 @@ function AppleDock({
               side={popoverSide}
               align="end"
               sideOffset={14}
-              className="w-60 apple-dock-flyout border-0 p-1.5"
+              className="w-64 apple-dock-flyout border-0 p-1.5"
             >
               <DropdownMenuLabel className="px-2.5 pb-1.5 pt-1.5">
                 <p className="text-sm font-medium truncate text-foreground">
@@ -575,16 +902,44 @@ function AppleDock({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2.5 pt-1 pb-1 text-[10px] font-semibold tracking-[0.18em] uppercase text-muted-foreground/80">
+                導覽列位置
+              </DropdownMenuLabel>
+              {(
+                [
+                  { value: "left", label: "靠左", icon: ArrowLeft },
+                  { value: "top", label: "置頂", icon: ArrowUp },
+                  { value: "right", label: "靠右", icon: ArrowRight },
+                  { value: "bottom", label: "置底", icon: ArrowDown },
+                ] as const
+              ).map(opt => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => onSetPosition?.(opt.value)}
+                  className="cursor-pointer rounded-[10px]"
+                  data-active={position === opt.value ? "true" : "false"}
+                >
+                  <opt.icon className="mr-2 h-4 w-4" />
+                  <span>{opt.label}</span>
+                  {position === opt.value && (
+                    <span
+                      aria-hidden="true"
+                      className="ml-auto h-1.5 w-1.5 rounded-full bg-primary"
+                    />
+                  )}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={onTogglePosition}
+                onClick={onToggleImmersive}
                 className="cursor-pointer rounded-[10px]"
               >
-                {position === "left" ? (
-                  <ChevronRight className="mr-2 h-4 w-4" />
+                {immersive ? (
+                  <Eye className="mr-2 h-4 w-4" />
                 ) : (
-                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  <EyeOff className="mr-2 h-4 w-4" />
                 )}
-                <span>{position === "left" ? "移到右側" : "移到左側"}</span>
+                <span>{immersive ? "退出沉浸模式" : "沉浸模式"}</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={onToggleMinimized}
@@ -612,7 +967,8 @@ function AppleDock({
           </DropdownMenu>
         </div>
       </div>
-    </nav>
+      </nav>
+    </>
   );
 }
 
