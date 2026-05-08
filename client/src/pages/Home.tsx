@@ -676,6 +676,12 @@ export default function Home() {
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const isMobile = useIsMobile();
 
+  const ambientOverlayOpacity = useMemo(() => {
+    if (sceneId === "nightSky") return 0.16;
+    if (sceneId === "deepSea") return 0.18;
+    return 0.12;
+  }, [sceneId]);
+
   const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
   const [quickGuideHidden, setQuickGuideHidden] = useState(false);
   const [advancedQuickGuideOpen, setAdvancedQuickGuideOpen] = useState(false);
@@ -1138,7 +1144,7 @@ ${profileSnippet}`;
       >
         {isAmbientVisible && (
           <>
-            <AmbientVideo src="" overlayOpacity={0.35} fadeInDuration={1200} />
+            <AmbientVideo src="" overlayOpacity={ambientOverlayOpacity} fadeInDuration={1200} />
             <AmbientEnvironment forceScene={sceneId} />
           </>
         )}

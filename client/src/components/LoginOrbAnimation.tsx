@@ -1,17 +1,20 @@
 /**
- * LoginOrbAnimation.tsx — 登入光球飛入動畫（高效能療癒美化版 v3）
+ * LoginOrbAnimation.tsx — 登入光球飛入動畫（深空 3D 美化版 v4）
  *
  * 當使用者成功登入（URL 帶有 ?welcome=1）時播放：
- *   1. 深邃星空背景漸顯 — 三層深度星場 + 色彩點綴 + 流星劃過
- *   2. 柔光球沿弧線軌跡飛入，每顆帶柔和殘像拖尾
- *   3. 匯聚瞬間爆發溫暖光芒（多層 convergence flash）
- *   4. 形成主光球 — 多層光暈 + 高光捕光 + 環繞微粒
- *   5. 星雲般漸層氛圍在中央暈散
- *   6. 「歡迎回來」與副標以發光漸層文字浮現
- *   7. 輕柔淡出，回歸日常
+ *   1. 深邃星空背景漸顯 — 三層深度星場 + 銀河帶 + 流星劃過
+ *   2. 遠景行星 + 月亮緩慢漂移 + 太陽鏡頭眩光（cinematic depth）
+ *   3. 柔光球沿弧線軌跡飛入，每顆帶柔和殘像拖尾
+ *   4. 匯聚瞬間爆發溫暖光芒（多層 convergence flash）
+ *   5. 主光球 = 真正的 3D 著色光球（VisualSoul3D / Three.js + GLSL Fresnel）
+ *      包覆多層光暈、極光紗、捕光高光、呼吸脈衝環、環繞微粒
+ *   6. 星雲漸層氛圍在中央暈散
+ *   7. 「歡迎回來」與副標以發光漸層文字浮現
+ *   8. 輕柔淡出，回歸日常
  *
- * 效能保證（延續 v2 架構）：
- *   - 星場 + 流星 + 光球飛行 + 殘像拖尾 + 環繞微粒：全部純 CSS @keyframes
+ * 效能保證：
+ *   - 星場 + 流星 + 銀河帶 + 行星 + 月亮 + 太陽眩光：全部純 CSS @keyframes
+ *   - 3D 光球以 lazy import + Suspense 載入，僅在 converge 階段掛載
  *   - 無 SVG filter / 無 CSS filter:blur()
  *   - framer-motion 僅用於遮罩進出場 + 中央光球（~12 實例）
  *   - will-change / CSS containment / translate3d GPU 合成
@@ -25,6 +28,8 @@ import {
   useMemo,
   useRef,
   memo,
+  lazy,
+  Suspense,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
@@ -32,6 +37,9 @@ import type { Personality } from "@/contexts/PersonalityContext";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
 import { useIsMobile } from "@/hooks/useMobile";
+
+// Lazy-load the heavy WebGL orb so the rest of the overlay can paint immediately.
+const VisualSoul3D = lazy(() => import("./VisualSoul3D"));
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -86,6 +94,25 @@ const STATIC_KEYFRAMES = [
   "@keyframes hs-mist-swirl{0%{transform:translate3d(-50%,-50%,0) rotate(0deg) scale(0.95);opacity:0.08}50%{opacity:0.18}100%{transform:translate3d(-50%,-50%,0) rotate(360deg) scale(1.05);opacity:0.08}}",
   // Shimmer highlight on welcome text
   "@keyframes hs-text-shimmer{0%{background-position:0% 50%}100%{background-position:200% 50%}}",
+  // Distant planet — gentle bob + slow surface drift (gas-giant feel)
+  "@keyframes hs-planet-bob{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-8px,0)}}",
+  "@keyframes hs-planet-spin{0%{background-position:0% 50%,30% 25%,70% 75%,35% 30%}100%{background-position:200% 50%,30% 25%,70% 75%,35% 30%}}",
+  // Planet atmospheric rim breath
+  "@keyframes hs-planet-rim{0%,100%{opacity:.55}50%{opacity:.85}}",
+  // Moon gentle orbital drift
+  "@keyframes hs-moon-drift{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(6px,-5px,0)}}",
+  // Milky Way galactic plane breath (brightness only)
+  "@keyframes hs-milky{0%,100%{opacity:.45}50%{opacity:.70}}",
+  // Off-screen sun pulse
+  "@keyframes hs-sun{0%,100%{opacity:.55;transform:translate3d(-50%,-50%,0) scale(1)}50%{opacity:.85;transform:translate3d(-50%,-50%,0) scale(1.05)}}",
+  // Lens flare drift
+  "@keyframes hs-flare{0%,100%{opacity:.32}50%{opacity:.62}}",
+  // Cloud band drift across planet surface
+  "@keyframes hs-clouds{0%{background-position:0% 50%}100%{background-position:-200% 50%}}",
+  // 3D orb entrance — scale + opacity reveal at convergence
+  "@keyframes hs-orb3d-reveal{0%{transform:translate3d(-50%,-50%,0) scale(0.2);opacity:0}40%{transform:translate3d(-50%,-50%,0) scale(1.18);opacity:1}70%{transform:translate3d(-50%,-50%,0) scale(0.96);opacity:1}100%{transform:translate3d(-50%,-50%,0) scale(1);opacity:1}}",
+  // 3D orb gentle hover (post-reveal)
+  "@keyframes hs-orb3d-hover{0%,100%{transform:translate3d(-50%,-50%,0) scale(1)}50%{transform:translate3d(-50%,calc(-50% - 4px),0) scale(1.03)}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -754,7 +781,9 @@ function CentralOrb({
         transition={{ duration: 3.0, delay: 0.5, ease: "easeInOut" }}
       />
 
-      {/* Inner bright core */}
+      {/* Inner bright core — additive bloom on top of the 3D orb's center.
+          mix-blend-mode: screen lets the WebGL orb show through while the
+          climax burst still adds a punchy white-hot peak. */}
       <motion.div
         className="absolute rounded-full"
         style={{
@@ -762,18 +791,19 @@ function CentralOrb({
           height: s(48),
           left: -s(24),
           top: -s(24),
-          background: `radial-gradient(circle, rgba(255,255,248,0.95) 0%, rgba(255,230,200,0.75) 30%, ${palette.coreTint} 55%, transparent 100%)`,
+          background: `radial-gradient(circle, rgba(255,255,248,0.85) 0%, rgba(255,230,200,0.55) 30%, ${palette.coreTint} 55%, transparent 100%)`,
+          mixBlendMode: "screen",
           willChange: "transform, opacity",
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{
           scale: [0, 1.5, 1.0, 1.12, 1.0, 1.08, 1.0],
-          opacity: [0, 1, 0.92, 1, 0.9, 0.96, 0.9],
+          opacity: [0, 0.85, 0.5, 0.6, 0.45, 0.55, 0.45],
         }}
         transition={{ duration: 3.5, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
       />
 
-      {/* Hero orb shell for stronger "single protagonist" feeling */}
+      {/* Hero orb shell — additive thin shell ring around the 3D orb */}
       <motion.div
         className="absolute rounded-full"
         style={{
@@ -783,15 +813,18 @@ function CentralOrb({
           top: -s(38),
           border: `1px solid ${palette.haloInner}`,
           background:
-            "radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)",
+            "radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 70%)",
+          mixBlendMode: "screen",
           willChange: "transform, opacity",
         }}
         initial={{ scale: 0.75, opacity: 0 }}
-        animate={{ scale: [0.75, 1.06, 0.98, 1.02], opacity: [0, 0.8, 0.6, 0.72] }}
+        animate={{ scale: [0.75, 1.06, 0.98, 1.02], opacity: [0, 0.55, 0.4, 0.45] }}
         transition={{ duration: 2.8, delay: 0.8, ease: "easeInOut" }}
       />
 
-      {/* Specular highlight — top-left catchlight for dimensionality */}
+      {/* Specular highlight — top-left catchlight (additive screen blend).
+          The 3D orb has its own GLSL spec; this CSS catchlight reinforces
+          the front-lit feeling at the orb's upper-left rim. */}
       <motion.div
         className="absolute rounded-full"
         style={{
@@ -800,11 +833,12 @@ function CentralOrb({
           left: -s(14),
           top: -s(16),
           background:
-            "radial-gradient(ellipse, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.2) 70%, transparent 100%)",
+            "radial-gradient(ellipse, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.18) 70%, transparent 100%)",
+          mixBlendMode: "screen",
           transform: "rotate(-25deg)",
         }}
         initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 0.85, 0.55, 0.7] }}
+        animate={{ opacity: [0, 0.7, 0.42, 0.55] }}
         transition={{ duration: 2.0, delay: 1.2, ease: "easeInOut" }}
       />
 
@@ -982,6 +1016,382 @@ const VolumetricMist = memo(function VolumetricMist({
     />
   );
 });
+
+// ─── Milky Way galactic plane — diagonal soft band for cosmic depth ─────────
+
+const MilkyWayBand = memo(function MilkyWayBand() {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "-20%",
+        top: "-10%",
+        width: "140%",
+        height: "120%",
+        transform: "rotate(-22deg)",
+        background: [
+          "linear-gradient(180deg, transparent 38%, rgba(220,210,255,0.10) 46%, rgba(255,240,255,0.16) 50%, rgba(220,210,255,0.10) 54%, transparent 62%)",
+          "linear-gradient(180deg, transparent 40%, rgba(150,110,220,0.09) 48%, rgba(110,180,240,0.07) 52%, transparent 60%)",
+        ].join(","),
+        backgroundBlendMode: "screen",
+        mixBlendMode: "screen",
+        WebkitMaskImage:
+          "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
+        maskImage:
+          "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
+        opacity: 0.6,
+        animation: "hs-milky 14s ease-in-out infinite",
+      }}
+    />
+  );
+});
+
+// ─── Off-screen sun + lens flare chain (cinematic optical axis) ─────────────
+
+const SunLensFlare = memo(function SunLensFlare({
+  parallax,
+}: {
+  parallax: [number, number];
+}) {
+  const [px, py] = parallax;
+  // Optical axis: sun (~108%, -10%) → opposite corner. Hex flare chain.
+  const flares = [
+    { t: 0.18, size: 24, color: "rgba(255,210,160,0.42)" },
+    { t: 0.34, size: 16, color: "rgba(180,200,255,0.28)" },
+    { t: 0.52, size: 36, color: "rgba(255,180,180,0.20)" },
+    { t: 0.7, size: 18, color: "rgba(160,220,255,0.26)" },
+    { t: 0.86, size: 12, color: "rgba(255,235,210,0.36)" },
+  ];
+  const SUN_X = 108;
+  const SUN_Y = -10;
+  const END_X = -10;
+  const END_Y = 110;
+
+  return (
+    <>
+      {/* Sun core glow (mostly off-screen, top-right) */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          left: `${SUN_X}%`,
+          top: `${SUN_Y}%`,
+          width: 280,
+          height: 280,
+          marginLeft: -140,
+          marginTop: -140,
+          background:
+            "radial-gradient(circle, rgba(255,235,200,0.85) 0%, rgba(255,200,150,0.36) 22%, rgba(255,160,120,0.14) 45%, transparent 70%)",
+          mixBlendMode: "screen",
+          animation: "hs-sun 9s ease-in-out infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+      {/* Hex flare chain along optical axis */}
+      {flares.map((f, i) => {
+        const cx = SUN_X + (END_X - SUN_X) * f.t + px * 1.2;
+        const cy = SUN_Y + (END_Y - SUN_Y) * f.t + py * 1.0;
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              left: `${cx}%`,
+              top: `${cy}%`,
+              width: f.size,
+              height: f.size,
+              marginLeft: -f.size / 2,
+              marginTop: -f.size / 2,
+              background: `radial-gradient(circle, ${f.color} 0%, transparent 70%)`,
+              mixBlendMode: "screen",
+              animation: `hs-flare ${5 + (i % 3)}s ease-in-out ${i * 0.4}s infinite`,
+              willChange: "opacity",
+            }}
+          />
+        );
+      })}
+    </>
+  );
+});
+
+// ─── Distant 3D planet — gas giant with terminator + ring + cloud band ──────
+
+const DistantPlanet = memo(function DistantPlanet({
+  parallax,
+  scale,
+}: {
+  parallax: [number, number];
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  // Smaller and offset to lower-left so it doesn't compete with the central orb
+  const size = 360 * scale;
+  const tx = px * 12 * scale;
+  const ty = py * 8 * scale;
+
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "18%",
+        top: "70%",
+        width: size,
+        height: size,
+        marginLeft: -size / 2,
+        marginTop: -size / 2,
+        transform: `translate3d(${tx}px, ${ty}px, 0)`,
+        willChange: "transform",
+      }}
+    >
+      {/* Outer atmospheric halo */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: -size * 0.28,
+          background:
+            "radial-gradient(circle, rgba(160,140,230,0.16) 0%, rgba(120,90,200,0.08) 28%, rgba(80,60,160,0.03) 50%, transparent 70%)",
+          animation: "hs-planet-rim 7s ease-in-out infinite",
+        }}
+      />
+
+      {/* Subtle planet ring */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: size * 1.45,
+          height: size * 0.18,
+          marginLeft: -(size * 1.45) / 2,
+          marginTop: -(size * 0.18) / 2,
+          transform: "rotate(-18deg)",
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(200,180,255,0.10) 18%, rgba(230,210,255,0.28) 50%, rgba(200,180,255,0.10) 82%, transparent 100%)",
+          boxShadow:
+            "0 0 24px rgba(180,160,240,0.16), inset 0 0 18px rgba(255,240,255,0.18)",
+          opacity: 0.78,
+        }}
+      />
+
+      {/* Planet body — gas-giant gradient with terminator */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: size * 0.78,
+          height: size * 0.78,
+          marginLeft: -(size * 0.78) / 2,
+          marginTop: -(size * 0.78) / 2,
+          background: [
+            "linear-gradient(180deg, rgba(255,235,210,0.05) 0%, rgba(160,120,200,0.05) 22%, rgba(120,90,180,0.0) 38%, rgba(180,140,220,0.04) 56%, rgba(110,80,170,0.0) 72%, rgba(200,160,240,0.05) 92%)",
+            "radial-gradient(circle at 30% 25%, rgba(255,225,190,0.28) 0%, rgba(255,210,180,0.0) 32%)",
+            "radial-gradient(circle at 72% 78%, rgba(20,10,38,0.74) 0%, rgba(34,18,60,0.42) 38%, rgba(70,40,120,0.0) 62%)",
+            "radial-gradient(circle at 36% 32%, #8a6fc5 0%, #5b3f95 28%, #36256a 55%, #1a1138 88%)",
+          ].join(","),
+          backgroundSize: "300% 100%, auto, auto, auto",
+          backgroundRepeat: "repeat-x, no-repeat, no-repeat, no-repeat",
+          boxShadow: [
+            "inset -32px -36px 92px rgba(0,0,0,0.62)",
+            "inset 24px 22px 76px rgba(190,160,255,0.16)",
+            "0 0 60px rgba(160,130,230,0.28)",
+            "0 0 150px rgba(90,60,170,0.22)",
+          ].join(","),
+          animation:
+            "hs-planet-spin 110s linear infinite, hs-planet-bob 14s ease-in-out infinite",
+          willChange: "background-position, transform",
+        }}
+      />
+
+      {/* Cloud band drift */}
+      <div
+        className="absolute rounded-full overflow-hidden"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: size * 0.78,
+          height: size * 0.78,
+          marginLeft: -(size * 0.78) / 2,
+          marginTop: -(size * 0.78) / 2,
+          WebkitMaskImage:
+            "radial-gradient(circle, #000 60%, rgba(0,0,0,0.5) 78%, transparent 92%)",
+          maskImage:
+            "radial-gradient(circle, #000 60%, rgba(0,0,0,0.5) 78%, transparent 92%)",
+        }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent 22%, rgba(230,210,255,0.14) 32%, transparent 42%, rgba(200,180,255,0.10) 56%, transparent 66%, rgba(220,200,255,0.12) 78%, transparent 88%)",
+            backgroundSize: "300% 100%",
+            animation: "hs-clouds 130s linear infinite",
+            mixBlendMode: "screen",
+            opacity: 0.65,
+          }}
+        />
+      </div>
+
+      {/* Atmospheric rim — Rayleigh limb glow */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: size * 0.82,
+          height: size * 0.82,
+          marginLeft: -(size * 0.82) / 2,
+          marginTop: -(size * 0.82) / 2,
+          background:
+            "radial-gradient(circle at 32% 26%, transparent 54%, rgba(120,180,255,0.20) 60%, rgba(200,225,255,0.38) 63%, rgba(255,235,255,0.28) 65%, transparent 70%)",
+          mixBlendMode: "screen",
+          opacity: 0.85,
+          animation: "hs-planet-rim 6s ease-in-out infinite",
+        }}
+      />
+
+      {/* Specular catchlight */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: `calc(50% - ${size * 0.18}px)`,
+          top: `calc(50% - ${size * 0.22}px)`,
+          width: size * 0.06,
+          height: size * 0.04,
+          background:
+            "radial-gradient(ellipse, rgba(255,255,255,0.8) 0%, rgba(255,240,220,0.22) 60%, transparent 100%)",
+          transform: "rotate(-22deg)",
+          opacity: 0.65,
+        }}
+      />
+    </div>
+  );
+});
+
+// ─── Distant moon for parallax depth ────────────────────────────────────────
+
+const DistantMoon = memo(function DistantMoon({
+  parallax,
+  scale,
+}: {
+  parallax: [number, number];
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  const size = 72 * scale;
+  const tx = px * -18 * scale;
+  const ty = py * -12 * scale;
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "84%",
+        top: "20%",
+        width: size,
+        height: size,
+        transform: `translate3d(${tx}px, ${ty}px, 0)`,
+        willChange: "transform",
+        animation: "hs-moon-drift 18s ease-in-out infinite",
+      }}
+    >
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: 0,
+          background: [
+            "radial-gradient(circle at 35% 30%, #e8dfd0 0%, #b8a99a 48%, #5a4d44 92%)",
+            "radial-gradient(circle at 70% 75%, rgba(0,0,0,0.55) 0%, transparent 55%)",
+          ].join(","),
+          boxShadow:
+            "inset -8px -10px 22px rgba(0,0,0,0.55), 0 0 24px rgba(200,180,160,0.20)",
+        }}
+      />
+      {/* Crater detail */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: "32%",
+          top: "40%",
+          width: size * 0.12,
+          height: size * 0.12,
+          background:
+            "radial-gradient(circle, rgba(80,68,58,0.55) 0%, transparent 70%)",
+        }}
+      />
+    </div>
+  );
+});
+
+// ─── Hero 3D orb — real Three.js + GLSL Fresnel orb ─────────────────────────
+
+/**
+ * Maps the welcome animation's personality + scene into shader-uniform colors
+ * for VisualSoul3D. We use the personality theme directly so it matches the
+ * user's existing 「光球助手」 (non-cute) aesthetic across the app.
+ */
+function Hero3DOrb({
+  personality,
+  scale,
+}: {
+  personality: Personality;
+  scale: number;
+}) {
+  // Render the orb at xl (80px native) and CSS-transform-scale it up for
+  // crisp, GPU-accelerated upscaling without blowing up the WebGL canvas.
+  const NATIVE_PX = 80;
+  // Final visible size ≈ 220px at scale=1 (~280 on large monitors)
+  const targetSizePx = 220 * scale;
+  const cssScale = targetSizePx / NATIVE_PX;
+
+  // State arc: burst on entrance (white-hot generating) → settle to idle.
+  // The 1.4s entrance keyframe overlaps with this so the orb feels alive
+  // from the moment it materializes out of the convergence flash.
+  const [orbState, setOrbState] = useState<"generating" | "idle">("generating");
+  useEffect(() => {
+    const t = setTimeout(() => setOrbState("idle"), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    // Outer: anchors center + applies static upscale so the inner keyframe
+    // animation can own `transform` exclusively. This avoids the keyframe
+    // overriding the centering translate.
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        left: "50%",
+        top: "50%",
+        width: NATIVE_PX,
+        height: NATIVE_PX,
+        transform: `translate3d(-50%,-50%,0) scale(${cssScale})`,
+        transformOrigin: "center center",
+        willChange: "transform",
+      }}
+    >
+      {/* Inner: reveal + hover animation drives its own transform/opacity */}
+      <div
+        className="absolute inset-0"
+        style={{
+          opacity: 0,
+          animation:
+            "hs-orb3d-reveal 1.4s cubic-bezier(0.16,1,0.3,1) forwards, hs-orb3d-hover 5.2s ease-in-out 1.4s infinite",
+          willChange: "transform, opacity",
+          // Keep the WebGL canvas fully inside the 80x80 container.
+          // Avoid extra centering transforms here; they can shift the canvas
+          // and expose a rectangular clipping box on some mobile GPUs.
+          left: 0,
+          top: 0,
+        }}
+      >
+        <Suspense fallback={null}>
+          <VisualSoul3D personality={personality} state={orbState} size="xl" />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
 
 // ─── Reduced motion variant — simple, elegant fade ──────────────────────────
 
@@ -1268,6 +1678,9 @@ export default function LoginOrbAnimation() {
             }}
           />
 
+          {/* Galactic plane — deepest atmospheric layer (mirrors login screen) */}
+          <MilkyWayBand />
+
           {/* Star field — pure CSS animations */}
           <StarField />
           <DepthParallaxPlanes parallax={parallax} scale={responsiveScale} />
@@ -1277,15 +1690,22 @@ export default function LoginOrbAnimation() {
             scale={responsiveScale}
           />
 
+          {/* Off-screen sun + lens flare chain — cinematic optical axis */}
+          <SunLensFlare parallax={parallax} />
+
+          {/* Distant planet (lower-left) + moon (upper-right) for parallax depth */}
+          <DistantPlanet parallax={parallax} scale={responsiveScale} />
+          <DistantMoon parallax={parallax} scale={responsiveScale} />
+
           {/* Shooting stars — cinematic depth */}
           <ShootingStars tint={palette.meteorTint} />
 
-          {/* Subtle vignette overlay */}
+          {/* Subtle vignette overlay — focuses the eye on the central orb */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 50%, transparent 25%, rgba(5,3,12,0.45) 100%)",
+                "radial-gradient(ellipse at 50% 50%, transparent 25%, rgba(5,3,12,0.55) 100%)",
             }}
           />
 
@@ -1312,7 +1732,15 @@ export default function LoginOrbAnimation() {
             <HeroLightRays color={palette.haloOuter} scale={responsiveScale} />
           )}
 
-          {/* Central orb */}
+          {/* Hero 3D orb (Three.js + GLSL Fresnel) — protagonist sits behind
+              the CSS halo/text layers so the welcome label stays readable
+              while the orb provides the dimensional core glow. Uses the
+              user's personality theme to match the 「光球助手」 aesthetic. */}
+          {(phase === "converged" || phase === "fadeout") && (
+            <Hero3DOrb personality={personality} scale={responsiveScale} />
+          )}
+
+          {/* Central orb (CSS halos, aurora, pulse rings, welcome text) */}
           {(phase === "converged" || phase === "fadeout") && (
             <CentralOrb
               palette={palette}

@@ -1482,8 +1482,9 @@
   }
 
   /* Static gradient border — uses mask-composite to cut a 1px ring out of
-   * a conic gradient so the card itself stays clean. The hue gently breathes
-   * via opacity (no rotation) for a calmer, less distracting frame. */
+   * a conic gradient so the card itself stays clean. Per latest visual
+   * direction the ring no longer rotates; instead the hue gently breathes
+   * via opacity (no transform) for a calmer, less distracting frame. */
   .login-card::before {
     content: "";
     position: absolute;
@@ -1529,11 +1530,11 @@
     border-radius: 2rem;
     background: radial-gradient(
       ellipse at 50% 50%,
-      rgba(160, 130, 230, 0.18) 0%,
-      rgba(120, 90, 200, 0.08) 40%,
+      rgba(160, 130, 230, 0.26) 0%,
+      rgba(120, 90, 200, 0.14) 40%,
       transparent 70%
     );
-    filter: blur(8px);
+    filter: blur(12px);
     pointer-events: none;
     z-index: -1;
     animation: login-card-aura 7s ease-in-out infinite;
@@ -1542,12 +1543,12 @@
   @keyframes login-card-aura {
     0%,
     100% {
-      opacity: 0.7;
+      opacity: 0.82;
       transform: scale(1);
     }
     50% {
       opacity: 1;
-      transform: scale(1.04);
+      transform: scale(1.06);
     }
   }
 

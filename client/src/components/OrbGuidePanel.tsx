@@ -97,6 +97,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useGlobalOrbChat, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
+import OrbActionFlow from "./orb/OrbActionFlow";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
@@ -3870,6 +3871,9 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   // ── Fullscreen (mobile bottom-sheet) wrapper ──
   const panelContent = (
     <motion.div
+      role="dialog"
+      aria-label="光球助手引導面板"
+      aria-modal={fullscreen ? "true" : undefined}
       className={cn(
         "relative flex flex-col overflow-hidden",
         fullscreen
@@ -3913,24 +3917,29 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
         <div className="flex items-center gap-1">
           {panelMode === "guide" && step !== "ask_intent" && (
             <motion.button
+              type="button"
               onClick={reset}
               className={cn(
-                "rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all",
+                "rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
                 fullscreen ? "p-2" : "p-1.5"
               )}
               whileTap={{ scale: 0.9 }}
               title="重新選擇"
+              aria-label="重新選擇引導步驟"
             >
               <RotateCcw className={fullscreen ? "w-4 h-4" : "w-3.5 h-3.5"} />
             </motion.button>
           )}
           <motion.button
+            type="button"
             onClick={onClose}
             className={cn(
-              "rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all",
+              "rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
               fullscreen ? "p-2" : "p-1.5"
             )}
             whileTap={{ scale: 0.9 }}
+            aria-label="關閉光球引導面板"
+            title={fullscreen ? "收起" : "關閉"}
           >
             {fullscreen ? (
               <ChevronDown className="w-5 h-5" />
@@ -3947,9 +3956,12 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
         fullscreen ? "px-5 pb-3" : "px-4 pb-3"
       )}>
         <button
+          type="button"
           onClick={() => setPanelMode("guide")}
+          aria-pressed={panelMode === "guide"}
+          aria-label="切換到引導帶路模式"
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all",
+            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
             fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
             panelMode === "guide"
               ? "bg-white/15 text-white"
@@ -3960,9 +3972,12 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
           引導帶路
         </button>
         <button
+          type="button"
           onClick={() => setPanelMode("chat")}
+          aria-pressed={panelMode === "chat"}
+          aria-label="切換到自由聊天模式"
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all",
+            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
             fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
             panelMode === "chat"
               ? "bg-white/15 text-white"
@@ -4050,30 +4065,26 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                 )}
                 {msg.role === "orb" && msg.actions && msg.actions.length > 0 && (
                   <div className={cn(
-                    "max-w-[88%] mt-1 rounded-xl border border-white/10 bg-white/4 px-2.5 py-2 space-y-2",
-                    "self-start"
+                    "max-w-[88%] mt-1 space-y-2 self-start"
                   )}>
-                    <p className={cn("text-white/55", fullscreen ? "text-[11px]" : "text-[10px]")}>
-                      導覽路徑圖
-                    </p>
-                    <ol className="space-y-1.5">
-                      {msg.actions.slice(0, 4).map((action, actionIdx) => (
-                        <li key={`${action.type}-${actionIdx}`} className="flex items-start gap-1.5">
-                          <span className={cn(
-                            "w-4 h-4 rounded-full bg-white/10 border border-white/15 text-white/70 inline-flex items-center justify-center mt-0.5",
-                            "text-[9px]"
-                          )}>
-                            {actionIdx + 1}
-                          </span>
-                          <span className={cn(
-                            "px-2 py-1 rounded-md bg-white/8 border border-white/10 text-white/75 flex-1",
-                            fullscreen ? "text-[10px]" : "text-[9px]"
-                          )}>
-                            {actionToGuideLabel(action)}
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
+                    {/* 用視覺流程圖呈現多步引導；單步沿用文字標籤 */}
+                    {msg.actions.length >= 2 ? (
+                      <OrbActionFlow
+                        actions={msg.actions}
+                        theme="dark"
+                        title="導覽路徑圖"
+                        maxSteps={5}
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-white/10 bg-white/4 px-2.5 py-2">
+                        <span className={cn(
+                          "px-2 py-1 rounded-md bg-white/8 border border-white/10 text-white/75 inline-block",
+                          fullscreen ? "text-[10px]" : "text-[9px]"
+                        )}>
+                          {actionToGuideLabel(msg.actions[0]!)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {msg.actions.some(a => a.type === "navigate") && (
                         <button
@@ -4197,8 +4208,9 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                 onClick={pickChatAttachment}
                 disabled={isUploadingAttachments || isChatLoading}
                 title="上傳圖片 / 影片 / 音訊 / PDF"
+                aria-label="上傳檔案附件"
                 className={cn(
-                  "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all",
+                  "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
                   fullscreen ? "p-1.5" : "p-1"
                 )}
               >
@@ -4219,20 +4231,26 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   }
                 }}
                 placeholder={fullscreen ? "輸入你的問題或想法…" : "說一句話就好…"}
+                aria-label="輸入訊息給光球"
                 className={cn(
                   "flex-1 bg-transparent text-white placeholder:text-white/30 outline-none",
                   fullscreen ? "text-sm" : "text-xs"
                 )}
               />
               <button
+                type="button"
                 onClick={() => void handleChatSend()}
                 disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments}
+                aria-label={isChatLoading ? "傳送中" : "傳送訊息"}
+                title={isChatLoading ? "傳送中" : "傳送 (Enter)"}
                 className={cn(
-                  "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all",
+                  "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
                   fullscreen ? "p-1.5" : "p-1"
                 )}
               >
-                <Send className={fullscreen ? "w-4 h-4 text-white/70" : "w-3 h-3 text-white/70"} />
+                {isChatLoading
+                  ? <Loader2 className={fullscreen ? "w-4 h-4 text-white/70 animate-spin" : "w-3 h-3 text-white/70 animate-spin"} />
+                  : <Send className={fullscreen ? "w-4 h-4 text-white/70" : "w-3 h-3 text-white/70"} />}
               </button>
             </div>
           </div>
