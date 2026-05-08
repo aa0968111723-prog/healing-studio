@@ -83,6 +83,10 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+import {
+  readAndClearDirectorHandoff,
+  type DirectorHandoffPayload,
+} from "@/lib/director-handoff";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2297,14 +2301,86 @@ export default function DirectorAI() {
     }
   }, []);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
+  // ── 接收光球代理（/agent）的對話脈絡 ──
+  // 光球提示「我帶你過去導演 AI」後，會把最後一輪的 userIntent + 最近幾段
+  // 對話塞進 sessionStorage["directorHandoff"]。我們在這裡讀出來，稍後用
+  // 來：(1) 在聊天頂端注入一段 assistant 開場，承接話題；(2) 把使用者最後
+  // 一句話預填到輸入框，按 Enter 就能繼續；(3) 顯示一張「從光球延續討論」
+  // 的小卡，預覽剛剛聊了什麼，並提供「先從三個方向開始」一鍵動作。
+  //
+  // sessionStorage 必須只讀一次（讀完即清），但兩個 useState 初始化器都需
+  // 要這份 payload。先用 ref 抓一次、暫存，兩個 lazy initialiser 都從同一
+  // 份 ref 讀，避免第二個 useState 拿到 null 然後在第一個 render 就把開場
+  // 訊息漏掉。
+  const handoffOnMountRef = useRef<DirectorHandoffPayload | null | undefined>(
+    undefined,
+  );
+  if (handoffOnMountRef.current === undefined) {
+    handoffOnMountRef.current = readAndClearDirectorHandoff();
+  }
+  const initialHandoff = handoffOnMountRef.current;
+
+  const [agentHandoff, setAgentHandoff] = useState<DirectorHandoffPayload | null>(
+    initialHandoff,
+  );
+  const [showHandoffDetails, setShowHandoffDetails] = useState(false);
+
+  const buildHandoffOpening = useCallback(
+    (payload: DirectorHandoffPayload): string => {
+      const topic = payload.topic?.trim();
+      const preview = topic ? `「${topic}」` : "你剛剛分享的構想";
+      return [
+        `🌿 我從光球那裡接到你${preview}。`,
+        "",
+        "我們可以這樣往下走：",
+        "1. 我先給你 **三個方向**，挑一個最接近的我們再展開。",
+        "2. 直接從你最想做的那一段開始，我陪你逐段拆。",
+        "3. 把剛剛那段話整理成 **腳本大綱 / 分鏡** 給你過目。",
+        "",
+        "想先從哪一條開始？或者直接告訴我下一步，我來接手 ✨",
+      ].join("\n");
+    },
+    [],
+  );
+
+  const handoffOpening = useMemo(
+    () => (agentHandoff ? buildHandoffOpening(agentHandoff) : null),
+    [agentHandoff, buildHandoffOpening],
+  );
+
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const baseSystem: Message = {
       role: "system",
       content:
         PERSONALITY_SYSTEM_PROMPTS[globalPersonality] ??
         PERSONALITY_SYSTEM_PROMPTS.creative,
-    },
-  ]);
+    };
+    if (!initialHandoff) return [baseSystem];
+    return [
+      baseSystem,
+      { role: "assistant", content: buildHandoffOpening(initialHandoff) },
+    ];
+  });
+
+  // Belt-and-braces: if `agentHandoff` is set later (e.g. HMR replays mount)
+  // but the message wasn't already injected, add it now. De-duped against
+  // existing content so it never doubles up.
+  useEffect(() => {
+    if (!handoffOpening) return;
+    setMessages(prev => {
+      const alreadyInjected = prev.some(
+        m => m.role === "assistant" && m.content === handoffOpening,
+      );
+      if (alreadyInjected) return prev;
+      const nonSystem = prev.filter(m => m.role !== "system");
+      const system = prev.find(m => m.role === "system");
+      return [
+        ...(system ? [system] : []),
+        { role: "assistant", content: handoffOpening },
+        ...nonSystem,
+      ];
+    });
+  }, [handoffOpening]);
 
   // When personality changes, update the system prompt
   useEffect(() => {
@@ -4023,6 +4099,112 @@ export default function DirectorAI() {
         腳本可一鍵發送到工作室，也可微調修改
       </p>
 
+      {/* ── 從光球代理延續討論 橫幅 ──
+         * 觸發條件：使用者剛剛在 /agent 跟光球聊到「規劃腳本」之類的話題，
+         * 光球已寫入 directorHandoff payload。我們把上下文做成可摺疊小卡：
+         *   • 主訊息：承接話題 + 點明「我已經把脈絡帶過來了」
+         *   • 三個一鍵動作：給三方向 / 整理大綱 / 從某段開始
+         *   • 收合：預覽最近幾輪對話 + 完整 userIntent
+         * 重點是讓使用者一眼知道 AI 沒丟掉脈絡，按 Enter 就能繼續。 */}
+      {agentHandoff && (
+        <div
+          className="rounded-xl border border-emerald-300/40 bg-emerald-50/40 dark:bg-emerald-900/10 px-3 py-2.5 text-xs space-y-2"
+          data-testid="director-agent-handoff-banner"
+        >
+          <div className="flex items-start gap-2">
+            <span aria-hidden className="text-base leading-tight">🌿</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-emerald-800 dark:text-emerald-200 mb-0.5">
+                從光球延續討論
+              </p>
+              <p className="text-emerald-700/80 dark:text-emerald-200/80 line-clamp-2">
+                {agentHandoff.topic
+                  ? `話題：${agentHandoff.topic}`
+                  : "我已經把剛剛的對話脈絡帶過來了，可以接著聊。"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAgentHandoff(null)}
+              className="rounded-lg px-1.5 py-1 text-emerald-700/70 hover:text-emerald-800 dark:hover:text-emerald-100 transition shrink-0"
+              title="收起這張卡片"
+              aria-label="收起從光球延續討論的提示"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 pl-6">
+            {agentHandoff.userIntent && (
+              <button
+                type="button"
+                onClick={() => {
+                  // 「不會幫我執行」← 使用者最痛的一點。把他在光球講的最
+                  // 後一句直接塞回去送出，導演 AI 立刻接手往下做。
+                  handleSend(agentHandoff.userIntent);
+                  setAgentHandoff(null);
+                }}
+                className="rounded-lg border border-emerald-500/60 bg-emerald-500/15 px-2.5 py-1 font-medium text-emerald-800 dark:text-emerald-100 hover:bg-emerald-500/25 transition"
+              >
+                直接照剛剛說的開始 →
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                handleSend("先給我三個方向，每個一句話講重點。");
+                setAgentHandoff(null);
+              }}
+              className="rounded-lg border border-emerald-400/40 bg-background/60 px-2.5 py-1 font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/20 transition"
+            >
+              給我三個方向
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleSend(
+                  "把我剛剛跟光球聊的內容整理成腳本大綱，先列三幕結構就好。"
+                );
+                setAgentHandoff(null);
+              }}
+              className="rounded-lg border border-emerald-400/40 bg-background/60 px-2.5 py-1 font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/20 transition"
+            >
+              整理成腳本大綱
+            </button>
+            {agentHandoff.recentTurns.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowHandoffDetails(prev => !prev)}
+                className="rounded-lg border border-transparent px-2.5 py-1 text-emerald-700/80 dark:text-emerald-200/80 hover:bg-emerald-100/40 dark:hover:bg-emerald-900/20 transition"
+                aria-expanded={showHandoffDetails}
+              >
+                {showHandoffDetails ? "收合對話脈絡" : "看剛剛聊了什麼"}
+              </button>
+            )}
+          </div>
+          {showHandoffDetails && agentHandoff.recentTurns.length > 0 && (
+            <div className="rounded-lg bg-background/60 border border-emerald-300/30 p-2.5 space-y-1.5 max-h-48 overflow-y-auto">
+              {agentHandoff.recentTurns.map((turn, idx) => (
+                <div key={idx} className="flex gap-2 text-[11px] leading-relaxed">
+                  <span
+                    className={cn(
+                      "shrink-0 font-medium",
+                      turn.role === "user"
+                        ? "text-emerald-800 dark:text-emerald-100"
+                        : "text-emerald-600 dark:text-emerald-300"
+                    )}
+                  >
+                    {turn.role === "user" ? "你" : "光球"}
+                  </span>
+                  <span className="text-foreground/80 whitespace-pre-wrap break-words">
+                    {turn.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── 繼續上次規劃橫幅 ── */}
       {resumePlanningCandidate && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-50/40 dark:bg-amber-900/10 px-3 py-2 text-xs">
@@ -4142,6 +4324,7 @@ export default function DirectorAI() {
                 }
                 emptyStateMessage="告訴導演 AI 你的創作構想，或從模板庫選擇一個起點"
                 suggestedPrompts={suggestedPrompts}
+                initialInput={agentHandoff?.userIntent}
               />
             </div>
 
