@@ -1,6 +1,7 @@
 import { eq, desc, and, sql, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
+import fs from "fs";
 import path from "path";
 import {
   InsertUser,
@@ -79,6 +80,51 @@ let _migrationsLastFailedAt = 0;
 const MIGRATION_RETRY_COOLDOWN_MS = 30_000;
 
 /**
+ * Warn at boot when a numbered SQL file exists in `drizzle/` but is not
+ * registered in `_journal.json`. The avatar PR (commit 6e08723) appended
+ * 0028's journal entry while skipping 0024–0027, so the underlying tables
+ * (`specialized_agent_interactions`, `agent_collaboration_*`, plus
+ * `orb_scheduled_jobs.lastResult`) never got created in production and
+ * every chat request logged `specialist_*_failed`. Surface that mismatch
+ * loudly so the next time someone forgets a journal entry it's caught
+ * immediately instead of after deploy.
+ *
+ * This is best-effort: if reading the journal fails we just log and
+ * continue, never block startup.
+ */
+function logOrphanedMigrationFiles(): void {
+  try {
+    const dir = path.join(process.cwd(), "drizzle");
+    const journalPath = path.join(dir, "meta", "_journal.json");
+    if (!fs.existsSync(journalPath)) return;
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8")) as {
+      entries?: Array<{ tag?: string }>;
+    };
+    const registered = new Set(
+      (journal.entries ?? [])
+        .map(entry => entry.tag)
+        .filter((tag): tag is string => typeof tag === "string")
+    );
+    const sqlFiles = fs
+      .readdirSync(dir)
+      .filter(name => /^\d{4}_.+\.sql$/.test(name))
+      .map(name => name.replace(/\.sql$/, ""));
+    const orphans = sqlFiles.filter(tag => !registered.has(tag));
+    if (orphans.length > 0) {
+      console.warn(
+        "[Database] orphaned migration SQL files (not registered in drizzle/meta/_journal.json — drizzle migrate will skip them):",
+        orphans.join(", ")
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "[Database] failed to scan for orphaned migration files:",
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+/**
  * Internal: applies pending migrations against an already-connected db.
  * Uses a singleton in-flight promise so concurrent callers wait for the
  * same run rather than triggering multiple simultaneous migrations.
@@ -104,6 +150,7 @@ async function applyMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
   _migrationsInFlight = (async () => {
     try {
       console.info("[Database] Checking for pending migrations…");
+      logOrphanedMigrationFiles();
       // Absolute path so the folder resolves correctly regardless of cwd.
       await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
       _migrationsDone = true;
