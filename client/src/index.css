@@ -1462,18 +1462,22 @@
   }
 
   .login-card {
-    /* Soft floating animation for cinematic feel */
+    /* Soft fade-in for cinematic feel. We avoid animating transform here so
+     * the inline pointer-driven 3D tilt set on the card's style attribute is
+     * not overridden by the animation's persisted end state (animation-fill-
+     * mode: both). The "rise" feel is reproduced via the wrapper using
+     * filter / opacity instead. */
     animation: login-card-rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   @keyframes login-card-rise {
     0% {
       opacity: 0;
-      transform: translateY(14px) scale(0.985);
+      filter: blur(4px);
     }
     100% {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      filter: blur(0);
     }
   }
 

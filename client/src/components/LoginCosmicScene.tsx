@@ -80,8 +80,6 @@ const KEYFRAMES = [
   "@keyframes lcs-bokeh{0%,100%{opacity:.5;transform:translate3d(0,0,0) scale(1)}50%{opacity:.85;transform:translate3d(0,-4px,0) scale(1.08)}}",
   // Window light pulse (cafe)
   "@keyframes lcs-window{0%,100%{opacity:.7}50%{opacity:.92}}",
-  // Floating leaf / wisp (cafe + morning)
-  "@keyframes lcs-wisp{0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}10%{opacity:.5}90%{opacity:.4}100%{transform:translate3d(140px,-90px,0) rotate(40deg);opacity:0}}",
   // Figure breathing — subtle vertical scale
   "@keyframes lcs-breathe{0%,100%{transform:translate3d(0,0,0) scaleY(1)}50%{transform:translate3d(0,-2px,0) scaleY(1.015)}}",
   // Grass blade sway — pivot from base
@@ -108,8 +106,6 @@ const KEYFRAMES = [
   "@keyframes lcs-owl{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}",
   // Yoga arms gentle rise
   "@keyframes lcs-yoga{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-3deg)}}",
-  // Faster visible planet body rotation (background-position only)
-  "@keyframes lcs-planet-spin-fast{0%{background-position:0% 50%}100%{background-position:300% 50%}}",
 ].join("");
 
 // ─── Scene palette tables (single source of truth per scene) ────────────────

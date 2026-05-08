@@ -42,7 +42,7 @@ import {
   useSiteOnboarding,
   type PageId,
 } from "@/contexts/SiteOnboardingContext";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
@@ -290,16 +290,29 @@ function LoginScreen() {
   const { sceneId, override, setOverride, allScenes, isDark } = ambient;
   const theme = LOGIN_THEMES[sceneId];
 
-  // Stable controls object for SoundControl — strip scene fields
-  const soundControls = {
-    isPlaying: ambient.isPlaying,
-    isMuted: ambient.isMuted,
-    volume: ambient.volume,
-    isUnlocked: ambient.isUnlocked,
-    toggleMute: ambient.toggleMute,
-    setVolume: ambient.setVolume,
-    unlock: ambient.unlock,
-  };
+  // Stable controls object for SoundControl — strip scene fields. Memoised so
+  // SoundControl's React.memo wrapper isn't invalidated on every parent
+  // render (otherwise the slider/state would feel stuttery).
+  const soundControls = useMemo(
+    () => ({
+      isPlaying: ambient.isPlaying,
+      isMuted: ambient.isMuted,
+      volume: ambient.volume,
+      isUnlocked: ambient.isUnlocked,
+      toggleMute: ambient.toggleMute,
+      setVolume: ambient.setVolume,
+      unlock: ambient.unlock,
+    }),
+    [
+      ambient.isPlaying,
+      ambient.isMuted,
+      ambient.volume,
+      ambient.isUnlocked,
+      ambient.toggleMute,
+      ambient.setVolume,
+      ambient.unlock,
+    ]
+  );
 
   // Pointer-driven 3D card tilt — subtle parallax that responds to the
   // visitor's mouse, giving a tactile "physical glass" feel.
