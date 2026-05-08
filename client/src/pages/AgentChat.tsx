@@ -21,7 +21,6 @@ import {
   Send,
   Loader2,
   ArrowRight,
-  Navigation2,
   ChevronDown,
   Clock3,
   Paperclip,
@@ -33,6 +32,21 @@ import {
   ListChecks,
   CornerUpRight,
   HelpCircle,
+  Brush,
+  Wand2,
+  Image as ImageIcon,
+  Film,
+  Music,
+  Mic2,
+  Clapperboard,
+  FolderHeart,
+  GraduationCap,
+  Layers,
+  BookOpen,
+  Calendar,
+  Users,
+  Compass,
+  type LucideIcon,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
@@ -155,6 +169,190 @@ const NEED_PROMPTS = [
   "我想把這張圖做成影片，最終想在 IG Reels 用。幫我安排流程、比例與模型，先帶我去適合的頁面。",
   "我要做一支 ______ 秒的影片，受眾是 ______。我有的素材：______。請問要先去哪裡、按哪些按鈕？",
 ];
+
+// ─── 視覺資源 ─────────────────────────────────────────────────────────
+//
+// 每個意圖／工作室都有自己的識別色與圖示。這個 map 取代了過去純文字
+// 列表的呆板感，讓使用者一眼就能用視覺定位到要去的地方。
+//
+// 命名規則：tailwind class 字串而非物件 — 直接組進 className 比較快。
+
+type IntentVisual = {
+  gradient: string;
+  glow: string;
+  ring: string;
+  shortHint: string;
+};
+
+const INTENT_VISUALS: Record<Exclude<GuideIntent, null>, IntentVisual> = {
+  image: {
+    gradient: "from-rose-400 via-pink-500 to-fuchsia-500",
+    glow: "shadow-rose-200/60 dark:shadow-rose-900/40",
+    ring: "ring-rose-200/70 dark:ring-rose-700/50",
+    shortHint: "海報 · 風景 · 角色",
+  },
+  video: {
+    gradient: "from-orange-400 via-amber-500 to-yellow-500",
+    glow: "shadow-orange-200/60 dark:shadow-orange-900/40",
+    ring: "ring-orange-200/70 dark:ring-orange-700/50",
+    shortHint: "Reels · 動態 · 短片",
+  },
+  music: {
+    gradient: "from-violet-400 via-indigo-500 to-blue-500",
+    glow: "shadow-violet-200/60 dark:shadow-violet-900/40",
+    ring: "ring-violet-200/70 dark:ring-violet-700/50",
+    shortHint: "BGM · 配樂 · 環境",
+  },
+  voice: {
+    gradient: "from-cyan-400 via-teal-500 to-emerald-500",
+    glow: "shadow-cyan-200/60 dark:shadow-cyan-900/40",
+    ring: "ring-cyan-200/70 dark:ring-cyan-700/50",
+    shortHint: "TTS · 旁白 · 克隆",
+  },
+  script: {
+    gradient: "from-emerald-400 via-green-500 to-lime-500",
+    glow: "shadow-emerald-200/60 dark:shadow-emerald-900/40",
+    ring: "ring-emerald-200/70 dark:ring-emerald-700/50",
+    shortHint: "故事 · 分鏡 · 旁白",
+  },
+  lora: {
+    gradient: "from-fuchsia-400 via-purple-500 to-pink-500",
+    glow: "shadow-fuchsia-200/60 dark:shadow-fuchsia-900/40",
+    ring: "ring-fuchsia-200/70 dark:ring-fuchsia-700/50",
+    shortHint: "角色 · 風格 · 訓練",
+  },
+  explore: {
+    gradient: "from-sky-400 via-blue-500 to-indigo-500",
+    glow: "shadow-sky-200/60 dark:shadow-sky-900/40",
+    ring: "ring-sky-200/70 dark:ring-sky-700/50",
+    shortHint: "讓光球帶路",
+  },
+};
+
+type StudioVisual = {
+  icon: LucideIcon;
+  gradient: string;
+  glow: string;
+  bg: string;
+};
+
+// 工作室視覺：用色塊 + 圖示取代過去的冗長文字卡片，讓「全站能力地圖」
+// 一眼可讀。fallback 用泛綠色保證未列出的頁面也不會破版。
+const STUDIO_VISUALS: Record<string, StudioVisual> = {
+  create: {
+    icon: Layers,
+    gradient: "from-emerald-400 to-teal-500",
+    glow: "shadow-emerald-200/50 dark:shadow-emerald-900/30",
+    bg: "from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20",
+  },
+  studio: {
+    icon: Brush,
+    gradient: "from-sky-400 to-blue-500",
+    glow: "shadow-sky-200/50 dark:shadow-sky-900/30",
+    bg: "from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20",
+  },
+  playground: {
+    icon: Wand2,
+    gradient: "from-fuchsia-400 to-purple-500",
+    glow: "shadow-fuchsia-200/50 dark:shadow-fuchsia-900/30",
+    bg: "from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20",
+  },
+  "image-studio": {
+    icon: ImageIcon,
+    gradient: "from-rose-400 to-pink-500",
+    glow: "shadow-rose-200/50 dark:shadow-rose-900/30",
+    bg: "from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20",
+  },
+  "video-studio": {
+    icon: Film,
+    gradient: "from-orange-400 to-amber-500",
+    glow: "shadow-orange-200/50 dark:shadow-orange-900/30",
+    bg: "from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20",
+  },
+  "pro-studio": {
+    icon: Music,
+    gradient: "from-violet-400 to-indigo-500",
+    glow: "shadow-violet-200/50 dark:shadow-violet-900/30",
+    bg: "from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20",
+  },
+  director: {
+    icon: Clapperboard,
+    gradient: "from-slate-500 to-zinc-600",
+    glow: "shadow-slate-300/50 dark:shadow-slate-900/30",
+    bg: "from-slate-50 to-zinc-50 dark:from-slate-900/20 dark:to-zinc-900/20",
+  },
+  assets: {
+    icon: FolderHeart,
+    gradient: "from-lime-400 to-green-500",
+    glow: "shadow-lime-200/50 dark:shadow-lime-900/30",
+    bg: "from-lime-50 to-green-50 dark:from-lime-900/20 dark:to-green-900/20",
+  },
+  "lora-trainer": {
+    icon: GraduationCap,
+    gradient: "from-cyan-400 to-teal-500",
+    glow: "shadow-cyan-200/50 dark:shadow-cyan-900/30",
+    bg: "from-cyan-50 to-teal-50 dark:from-cyan-900/20 dark:to-teal-900/20",
+  },
+  models: {
+    icon: Users,
+    gradient: "from-amber-400 to-orange-500",
+    glow: "shadow-amber-200/50 dark:shadow-amber-900/30",
+    bg: "from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20",
+  },
+  "prompt-library": {
+    icon: BookOpen,
+    gradient: "from-teal-400 to-emerald-500",
+    glow: "shadow-teal-200/50 dark:shadow-teal-900/30",
+    bg: "from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20",
+  },
+  vault: {
+    icon: Mic2,
+    gradient: "from-pink-400 to-rose-500",
+    glow: "shadow-pink-200/50 dark:shadow-pink-900/30",
+    bg: "from-pink-50 to-rose-50 dark:from-pink-900/20 dark:to-rose-900/20",
+  },
+  calendar: {
+    icon: Calendar,
+    gradient: "from-blue-400 to-indigo-500",
+    glow: "shadow-blue-200/50 dark:shadow-blue-900/30",
+    bg: "from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20",
+  },
+  shared: {
+    icon: Users,
+    gradient: "from-purple-400 to-fuchsia-500",
+    glow: "shadow-purple-200/50 dark:shadow-purple-900/30",
+    bg: "from-purple-50 to-fuchsia-50 dark:from-purple-900/20 dark:to-fuchsia-900/20",
+  },
+};
+
+const DEFAULT_STUDIO_VISUAL: StudioVisual = {
+  icon: Sparkles,
+  gradient: "from-slate-400 to-slate-500",
+  glow: "shadow-slate-200/50 dark:shadow-slate-900/30",
+  bg: "from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20",
+};
+
+function getStudioVisual(id: string): StudioVisual {
+  return STUDIO_VISUALS[id] ?? DEFAULT_STUDIO_VISUAL;
+}
+
+// 短標題：把資料庫的長 description 壓成一行簡短語，避免卡片堆字。
+const STUDIO_SHORT_HINT: Record<string, string> = {
+  create: "全部創作工作流",
+  studio: "跨模態主入口",
+  playground: "進階模型總覽",
+  "image-studio": "AI 生圖 / 改圖",
+  "video-studio": "動態短片生成",
+  "pro-studio": "音樂 · 配音",
+  director: "腳本與分鏡",
+  assets: "素材 · 提示詞",
+  "lora-trainer": "LoRA 訓練",
+  models: "角色與模型",
+  "prompt-library": "提示詞庫",
+  vault: "一致性保險庫",
+  calendar: "創作排程",
+  shared: "團隊共享",
+};
 
 function buildStarterEntry(page: (typeof AGENT_HOME_ENTRIES)[number]): StarterEntry {
   const primaryQuickAction = page.quickActions[0];
@@ -294,18 +492,10 @@ export default function AgentChat() {
   const starterEntries = useMemo(
     () =>
       AGENT_HOME_ENTRIES
-        .filter(page => page.id !== "home")
-        .slice(0, 9)
+        .filter(page => page.id !== "home" && page.id !== "agent-chat")
+        .slice(0, 12)
         .map(buildStarterEntry),
     []
-  );
-  const groupedStarterEntries = useMemo(
-    () => ({
-      create: starterEntries.filter(entry => entry.group === "create"),
-      assets: starterEntries.filter(entry => entry.group === "assets"),
-      train: starterEntries.filter(entry => entry.group === "train"),
-    }),
-    [starterEntries]
   );
 
   const {
@@ -651,126 +841,175 @@ export default function AgentChat() {
               </CollapsibleContent>
             </Collapsible>
           </div>
-          {/* ── 第一輪：意圖選擇 grid（主要 CTA） ── */}
+          {/* ── 第一輪：意圖大卡 + 全站能力地圖 ────────────────────────────
+              這兩個區塊取代了過去純文字、堆疊 8+ 張卡片的「進階入口」。
+              意圖大卡：用大型漸層圖塊呈現「光球能陪你做什麼」。
+              能力地圖：把全站工作室壓成 icon-tile 啟動器，一眼能看完。 */}
           {isFirstTurn && (
             <AnimatePresence>
               <motion.div
-                key="intent-grid"
-                className="w-full mt-1 space-y-3"
+                key="visual-launcher"
+                className="w-full mt-1 space-y-5"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.2 }}
               >
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  你想做什麼？選一個，光球會先釐清需求，再帶你去對的地方：
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(
-                    showAllIntents
-                      ? (["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[])
-                      : (["image", "video", "script", "explore"] as Exclude<GuideIntent, null>[])
-                  ).map((intentId, i) => {
-                    const cfg = INTENT_CONFIGS[intentId];
-                    return (
-                      <motion.div
-                        key={intentId}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.25 + i * 0.05 }}
-                        whileHover={{ y: -2, scale: 1.01 }}
-                        whileTap={{ scale: 0.99 }}
-                        className="group relative flex items-center gap-2 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/75 dark:bg-slate-900/45 px-3 py-2 hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-md hover:shadow-emerald-100/60 dark:hover:shadow-none transition-all"
-                      >
-                        {/* 意圖主體：點擊 → 開啟引導流程 */}
-                        <button
+                {/* ── 意圖大卡 ────────────────────────────────────────── */}
+                <section className="space-y-2.5 text-left">
+                  <header className="flex items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        想做什麼？選一個，光球先釐清需求再帶路
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllIntents(prev => !prev)}
+                      className="text-[11px] text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 transition-colors"
+                    >
+                      {showAllIntents ? "收起" : "更多 +"}
+                    </button>
+                  </header>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {(
+                      showAllIntents
+                        ? (["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[])
+                        : (["image", "video", "script", "explore"] as Exclude<GuideIntent, null>[])
+                    ).map((intentId, i) => {
+                      const cfg = INTENT_CONFIGS[intentId];
+                      const visual = INTENT_VISUALS[intentId];
+                      return (
+                        <motion.button
+                          key={intentId}
                           type="button"
-                          className="flex items-center gap-2 flex-1 min-w-0 text-left py-0.5"
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.25 + i * 0.04 }}
+                          whileHover={{ y: -3, scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={() => {
                             selectOrbIntent(intentId);
                             openOrbGuide();
                           }}
+                          className={`group relative overflow-hidden rounded-2xl text-left p-3 ring-1 ${visual.ring} shadow-md ${visual.glow} bg-gradient-to-br ${visual.gradient} text-white transition-all`}
+                          aria-label={`選擇意圖：${cfg.label}`}
                         >
-                          <span className="text-lg leading-none shrink-0">{cfg.emoji}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
+                          {/* 光暈裝飾 */}
+                          <div
+                            aria-hidden
+                            className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/20 blur-2xl group-hover:bg-white/30 transition"
+                          />
+                          <div
+                            aria-hidden
+                            className="absolute -bottom-8 -left-4 w-16 h-16 rounded-full bg-white/10 blur-xl"
+                          />
+                          <div className="relative flex flex-col gap-1.5 min-h-[5rem]">
+                            <span className="text-2xl leading-none drop-shadow-sm">
+                              {cfg.emoji}
+                            </span>
+                            <p className="text-sm font-semibold tracking-wide">
                               {cfg.label}
                             </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                              {cfg.description}
+                            <p className="text-[11px] text-white/85 leading-snug line-clamp-2">
+                              {visual.shortHint}
                             </p>
+                            <div className="mt-auto flex items-center gap-1 text-[11px] text-white/90 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all">
+                              <span>讓光球帶我做</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </div>
                           </div>
-                          <Navigation2 className="w-3.5 h-3.5 text-emerald-400 opacity-0 -translate-x-0.5 group-hover:translate-x-0 group-hover:opacity-100 transition-all shrink-0" />
-                        </button>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center justify-center">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-7 text-slate-500 hover:text-slate-700"
-                    onClick={() => setShowAllIntents(prev => !prev)}
-                  >
-                    {showAllIntents ? "收合常用選項" : "顯示更多選項"}
-                  </Button>
-                </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </section>
 
-                <Collapsible
-                  open={showAdvancedEntry}
-                  onOpenChange={setShowAdvancedEntry}
-                  className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/30"
-                >
-                  <CollapsibleTrigger asChild>
+                {/* ── 全站能力地圖（icon-tile launcher） ─────────────── */}
+                <section className="space-y-2.5 text-left">
+                  <header className="flex items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5 text-sky-500" />
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        全站能力地圖（直接跳到工具）
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      className="w-full flex items-center justify-between gap-2 px-3 py-2 group"
+                      onClick={() => setShowAdvancedEntry(prev => !prev)}
+                      className="text-[11px] text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-300 transition-colors"
                     >
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                        進階入口（全部頁面 / 參數 / 素材）
-                      </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showAdvancedEntry ? "rotate-180" : ""}`}
-                      />
+                      {showAdvancedEntry ? "收起快速動作" : "展開快速動作"}
                     </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="px-2.5 pb-2.5 pt-0 space-y-2">
-                    {([
-                      ["create", "創作工作流"],
-                      ["assets", "素材 / 模型整合"],
-                      ["train", "訓練流程"],
-                    ] as const).map(([groupKey, groupLabel]) => {
-                      const entries = groupedStarterEntries[groupKey];
-                      if (!entries.length) return null;
+                  </header>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {starterEntries.map((entry, i) => {
+                      const visual = getStudioVisual(entry.id);
+                      const Icon = visual.icon;
+                      const hint = STUDIO_SHORT_HINT[entry.id] ?? entry.description;
                       return (
-                        <div key={groupKey} className="space-y-1.5">
-                          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 px-1">
-                            {groupLabel}
+                        <motion.button
+                          key={entry.id}
+                          type="button"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 + i * 0.03 }}
+                          whileHover={{ y: -2, scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => void handleStarterEntryClick(entry)}
+                          className={`group relative flex flex-col items-center gap-1.5 rounded-2xl p-2.5 border border-slate-200/70 dark:border-slate-700/50 bg-gradient-to-br ${visual.bg} hover:border-transparent hover:shadow-lg ${visual.glow} transition-all`}
+                          aria-label={`前往${entry.label}`}
+                        >
+                          <div
+                            className={`w-10 h-10 rounded-xl bg-gradient-to-br ${visual.gradient} flex items-center justify-center text-white shadow-md ${visual.glow} group-hover:scale-110 transition-transform`}
+                          >
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <p className="text-[11px] sm:text-xs font-medium text-slate-700 dark:text-slate-200 text-center leading-tight line-clamp-2">
+                            {entry.label}
                           </p>
-                          <div className="space-y-1.5">
-                            {entries.map(entry => (
-                              <div
-                                key={entry.id}
-                                className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 p-2"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => void handleStarterEntryClick(entry)}
-                                  className="w-full flex items-center justify-between gap-2 text-left"
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-tight line-clamp-1">
+                            {hint}
+                          </p>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 快速動作抽屜 — 只在使用者主動展開後才出現，預設不擾人 */}
+                  <AnimatePresence initial={false}>
+                    {showAdvancedEntry && (
+                      <motion.div
+                        key="quick-actions-drawer"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 p-2.5 space-y-2">
+                          {starterEntries
+                            .filter(entry => entry.quickActions.length > 0)
+                            .map(entry => {
+                              const visual = getStudioVisual(entry.id);
+                              const Icon = visual.icon;
+                              return (
+                                <div
+                                  key={entry.id}
+                                  className="flex items-center gap-2 flex-wrap"
                                 >
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
+                                  <div className="flex items-center gap-1.5 min-w-[7rem] sm:min-w-[8rem]">
+                                    <div
+                                      className={`w-5 h-5 rounded-md bg-gradient-to-br ${visual.gradient} flex items-center justify-center text-white shrink-0`}
+                                    >
+                                      <Icon className="w-3 h-3" />
+                                    </div>
+                                    <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate">
                                       {entry.label}
-                                    </p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                      {entry.description}
-                                    </p>
+                                    </span>
                                   </div>
-                                  <ArrowRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                </button>
-                                {entry.quickActions.length > 0 && (
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                  <div className="flex flex-wrap gap-1 flex-1">
                                     {entry.quickActions.slice(0, 3).map(action => (
                                       <button
                                         type="button"
@@ -778,21 +1017,20 @@ export default function AgentChat() {
                                         onClick={() =>
                                           void handleStarterQuickAction(entry, action)
                                         }
-                                        className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-200/80 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 transition-colors"
+                                        className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-200/80 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 dark:border-emerald-700/50 dark:text-emerald-300 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 transition-colors"
                                       >
                                         {action.label}
                                       </button>
                                     ))}
                                   </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                                </div>
+                              );
+                            })}
                         </div>
-                      );
-                    })}
-                  </CollapsibleContent>
-                </Collapsible>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </section>
               </motion.div>
             </AnimatePresence>
           )}
