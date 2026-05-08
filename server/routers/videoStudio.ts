@@ -28,6 +28,12 @@ import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
+import { getFalModelById } from "../services/falModels";
+import {
+  getVideoCompiler,
+  type CameraModeId,
+  type VideoBlock,
+} from "../services/videoCompiler";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
 
@@ -191,12 +197,176 @@ function extractVideoUrl(result: any): string | null {
   );
 }
 
+// ─── Pre-flight model availability ────────────────────────────────────────
+// Many fal-ai endpoints we expose were short-circuited or removed upstream
+// (cammaster / depthcrafter / topaz / rife / bytedance upscaler / kling
+// standard t2v / sora). The catalog tracks this via `disabled: true`.
+// We block the dispatch here so the user gets an immediate, descriptive
+// error instead of the long async wait + cryptic failure.
+function assertModelEnabled(modelId: string): void {
+  const cfg = getFalModelById(modelId);
+  if (!cfg) return; // unknown id falls through to dispatcher (it has its own fallbacks)
+  if (cfg.disabled) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        `模型 ${cfg.label}（${modelId}）目前在 fal.ai 上游不可用。` +
+        (cfg.disabledReason ? ` 原因：${cfg.disabledReason}` : "") +
+        " 請改選同分頁中其他可用的模型。",
+    });
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const videoStudioRouter = router({
   /** FAL_API_KEY 是否設定（前端用來顯示提示） */
   checkApiKey: publicProcedure.query(() => {
     return { configured: !!process.env.FAL_API_KEY };
+  }),
+
+  /**
+   * 列出所有 router-mapped fal modelId 的可用狀態。
+   * 前端用來顯示「上游已停用」的灰底卡片，避免使用者按下後等 5 分鐘失敗。
+   */
+  modelAvailability: publicProcedure.query(() => {
+    const ROUTER_MODEL_IDS = [
+      // t2v
+      "fal-ai/kling-video/v2.1/standard/text-to-video",
+      "fal-ai/wan-t2v",
+      "fal-ai/minimax/hailuo-02/pro/text-to-video",
+      "fal-ai/veo3",
+      "fal-ai/veo3/pro",
+      "fal-ai/ltx-video-13b-distilled",
+      "fal-ai/sora",
+      // i2v
+      "fal-ai/kling-video/v2.1/standard/image-to-video",
+      "fal-ai/kling-video/v2.1/pro/image-to-video",
+      "fal-ai/wan-i2v",
+      "fal-ai/runway-gen4-turbo/image-to-video",
+      "fal-ai/pixverse/v4.5/image-to-video",
+      "fal-ai/minimax/hailuo-02/pro/image-to-video",
+      "fal-ai/ltx-video/image-to-video",
+      // v2v
+      "fal-ai/wan/v2.1/video-to-video",
+      "fal-ai/kling-video/v2.1/standard/video-to-video",
+      // enhance
+      "fal-ai/bytedance/upscaler/video",
+      "fal-ai/rife-v4.6/video",
+      "fal-ai/topaz/video-enhance",
+      // control
+      "fal-ai/cammaster",
+      "fal-ai/animatediff-v2v",
+      "fal-ai/depthcrafter",
+      "fal-ai/vidu/q1/reference-to-video",
+    ] as const;
+
+    const out: Record<
+      string,
+      { disabled: boolean; reason?: string; label?: string }
+    > = {};
+    for (const id of ROUTER_MODEL_IDS) {
+      const cfg = getFalModelById(id);
+      out[id] = {
+        disabled: !!cfg?.disabled,
+        reason: cfg?.disabledReason,
+        label: cfg?.label,
+      };
+    }
+    return out;
+  }),
+
+  /**
+   * compilePrompt — 把使用者的情緒/積木轉為「相機運動 + 主體 + 動作 + 環境光影」
+   * 完整提詞。包裝 server/services/videoCompiler.ts，先前完全未接 tRPC，
+   * 現在前端可以直接呼叫並把結果寫回任一 t2v / i2v 模型的 prompt 欄位。
+   */
+  compilePrompt: brainProcedure
+    .input(
+      z.object({
+        blocks: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              category: z.enum([
+                "subject",
+                "action",
+                "environment",
+                "camera",
+                "mood",
+                "style",
+              ]),
+              label: z.string().min(1),
+              prompt: z.string().min(1),
+            })
+          )
+          .max(20)
+          .default([]),
+        freePrompt: z.string().max(2500).optional(),
+        moodKeywords: z.array(z.string().max(60)).max(10).optional(),
+        targetDurationSec: z.number().int().min(3).max(20).optional(),
+        forceCameraMode: z
+          .enum([
+            "static",
+            "dolly_in",
+            "dolly_out",
+            "pan_left",
+            "pan_right",
+            "tilt_up",
+            "tilt_down",
+            "orbit",
+            "crane_up",
+            "crane_down",
+            "tracking",
+            "handheld",
+            "aerial_descent",
+            "aerial_ascent",
+            "push_in",
+            "pull_out",
+          ])
+          .optional(),
+        firstFrameUrl: z.string().url().optional(),
+        lastFrameUrl: z.string().url().optional(),
+        firstFrameDesc: z.string().max(500).optional(),
+        lastFrameDesc: z.string().max(500).optional(),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:3"]).optional(),
+        slowMotion: z.boolean().optional(),
+        styleOverride: z.string().max(80).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const compiler = getVideoCompiler();
+      const result = compiler.compile({
+        blocks: input.blocks as VideoBlock[],
+        freePrompt: input.freePrompt,
+        moodKeywords: input.moodKeywords,
+        targetDurationSec: input.targetDurationSec,
+        forceCameraMode: input.forceCameraMode as CameraModeId | undefined,
+        firstFrameUrl: input.firstFrameUrl,
+        lastFrameUrl: input.lastFrameUrl,
+        firstFrameDesc: input.firstFrameDesc,
+        lastFrameDesc: input.lastFrameDesc,
+        aspectRatio: input.aspectRatio,
+        slowMotion: input.slowMotion,
+        styleOverride: input.styleOverride,
+      });
+      // 對前端只回必要欄位（編譯日誌龐大但對 UI 無用）
+      return {
+        prompt: result.prompt,
+        shotCount: result.shotCount,
+        estimatedDurationSec: result.estimatedDurationSec,
+        cameraMode: result.cameraMode,
+        cameraStabilityScore: result.cameraStabilityScore,
+        styleTag: result.styleTag,
+        aspectRatio: result.aspectRatio,
+        emotionTranslations: result.emotionTranslations,
+        jumpBlockCount: result.jumpBlockCount,
+      };
+    }),
+
+  /** 列出所有支援的相機運動模式（給前端 dropdown 用） */
+  listCameraModes: publicProcedure.query(() => {
+    return getVideoCompiler().getAvailableCameraModes();
   }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -231,6 +401,7 @@ export const videoStudioRouter = router({
       if (input.motionIntensity !== undefined)
         payload.motion_intensity = input.motionIntensity;
 
+      assertModelEnabled("fal-ai/kling-video/v2.1/standard/text-to-video");
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/text-to-video",
         payload,
@@ -274,6 +445,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled(modelId);
       const result = (await falQueueRun(modelId, payload, 300)) as any;
       return {
         video_url: extractVideoUrl(result),
@@ -306,6 +478,7 @@ export const videoStudioRouter = router({
         aspect_ratio: input.aspectRatio,
       };
       // MiniMax Hailuo-02 Pro 升級版端點（原 video-01 已升級）
+      assertModelEnabled("fal-ai/minimax/hailuo-02/pro/text-to-video");
       const result = (await falQueueRun(
         "fal-ai/minimax/hailuo-02/pro/text-to-video",
         payload,
@@ -346,6 +519,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/veo3");
       const result = (await falQueueRun("fal-ai/veo3", payload, 480)) as any;
       return {
         video_url: extractVideoUrl(result),
@@ -381,6 +555,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/veo3/pro");
       const result = (await falQueueRun(
         "fal-ai/veo3/pro",
         payload,
@@ -430,6 +605,7 @@ export const videoStudioRouter = router({
       if (input.numInferenceSteps !== undefined)
         payload.num_inference_steps = input.numInferenceSteps;
 
+      assertModelEnabled("fal-ai/ltx-video-13b-distilled");
       const result = (await falQueueRun(
         "fal-ai/ltx-video-13b-distilled",
         payload,
@@ -553,6 +729,7 @@ export const videoStudioRouter = router({
         payload.motion_intensity = input.motionIntensity;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/kling-video/v2.1/standard/image-to-video");
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/image-to-video",
         payload,
@@ -599,6 +776,7 @@ export const videoStudioRouter = router({
         payload.motion_intensity = input.motionIntensity;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/kling-video/v2.1/pro/image-to-video");
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/pro/image-to-video",
         payload,
@@ -641,6 +819,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled(modelId);
       const result = (await falQueueRun(modelId, payload, 300)) as any;
       return {
         video_url: extractVideoUrl(result),
@@ -682,6 +861,7 @@ export const videoStudioRouter = router({
       };
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/runway-gen4-turbo/image-to-video");
       const result = (await falQueueRun(
         "fal-ai/runway-gen4-turbo/image-to-video",
         payload,
@@ -730,6 +910,7 @@ export const videoStudioRouter = router({
       if (input.style) payload.style = input.style;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/pixverse/v4.5/image-to-video");
       const result = (await falQueueRun(
         "fal-ai/pixverse/v4.5/image-to-video",
         payload,
@@ -766,6 +947,7 @@ export const videoStudioRouter = router({
         resolution: input.resolution,
       };
       // MiniMax Hailuo-02 Pro 升級版端點
+      assertModelEnabled("fal-ai/minimax/hailuo-02/pro/image-to-video");
       const result = (await falQueueRun(
         "fal-ai/minimax/hailuo-02/pro/image-to-video",
         payload,
@@ -807,6 +989,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/wan/v2.1/video-to-video");
       const result = (await falQueueRun(
         "fal-ai/wan/v2.1/video-to-video",
         payload,
@@ -843,6 +1026,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/kling-video/v2.1/standard/video-to-video");
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/video-to-video",
         payload,
@@ -886,6 +1070,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
+      assertModelEnabled("fal-ai/ltx-video/image-to-video");
       const result = (await falQueueRun(
         "fal-ai/ltx-video/image-to-video",
         payload,
@@ -919,6 +1104,7 @@ export const videoStudioRouter = router({
         video_url: input.videoUrl,
         upscale_factor: parseInt(input.upscaleFactor),
       };
+      assertModelEnabled("fal-ai/bytedance/upscaler/video");
       const result = (await falQueueRun(
         "fal-ai/bytedance/upscaler/video",
         payload,
@@ -950,6 +1136,7 @@ export const videoStudioRouter = router({
         multiplier: parseInt(input.multiplier),
         output_fps: input.outputFps,
       };
+      assertModelEnabled("fal-ai/rife-v4.6/video");
       const result = (await falQueueRun(
         "fal-ai/rife-v4.6/video",
         payload,
@@ -984,6 +1171,7 @@ export const videoStudioRouter = router({
         model: input.model,
         output_scale: input.outputScale,
       };
+      assertModelEnabled("fal-ai/topaz/video-enhance");
       const result = (await falQueueRun(
         "fal-ai/topaz/video-enhance",
         payload,
@@ -1042,6 +1230,7 @@ export const videoStudioRouter = router({
         camera_motion: input.cameraMotion,
         duration: input.duration,
       };
+      assertModelEnabled("fal-ai/cammaster");
       const result = (await falQueueRun(
         "fal-ai/cammaster",
         payload,
@@ -1091,6 +1280,7 @@ export const videoStudioRouter = router({
         payload.controlnet_type = input.controlNet;
       }
 
+      assertModelEnabled("fal-ai/animatediff-v2v");
       const result = (await falQueueRun(
         "fal-ai/animatediff-v2v",
         payload,
@@ -1130,6 +1320,7 @@ export const videoStudioRouter = router({
         overlap: input.overlap,
         max_res: input.maxRes,
       };
+      assertModelEnabled("fal-ai/depthcrafter");
       const result = (await falQueueRun(
         "fal-ai/depthcrafter",
         payload,
@@ -1165,6 +1356,7 @@ export const videoStudioRouter = router({
         aspect_ratio: input.aspectRatio,
         resolution: input.resolution,
       };
+      assertModelEnabled("fal-ai/vidu/q1/reference-to-video");
       const result = (await falQueueRun(
         "fal-ai/vidu/q1/reference-to-video",
         payload,
