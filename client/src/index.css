@@ -1477,9 +1477,9 @@
     }
   }
 
-  /* Rotating gradient border — uses mask-composite to cut a 1px ring out of
-   * a conic gradient so the card itself stays clean. Slow rotation (24s) so
-   * the border breathes without distracting. */
+  /* Static gradient border — uses mask-composite to cut a 1px ring out of
+   * a conic gradient so the card itself stays clean. The hue gently breathes
+   * via opacity (no rotation) for a calmer, less distracting frame. */
   .login-card::before {
     content: "";
     position: absolute;
@@ -1488,12 +1488,11 @@
     padding: 1.2px;
     background: conic-gradient(
       from 0deg,
-      rgba(180, 150, 255, 0) 0deg,
-      rgba(200, 170, 255, 0.65) 60deg,
-      rgba(120, 200, 255, 0.55) 130deg,
-      rgba(180, 150, 255, 0) 220deg,
-      rgba(255, 200, 230, 0.5) 290deg,
-      rgba(180, 150, 255, 0) 360deg
+      var(--login-frame-hue-a, rgba(200, 170, 255, 0.55)) 0deg,
+      var(--login-frame-hue-b, rgba(120, 200, 255, 0.45)) 90deg,
+      var(--login-frame-hue-c, rgba(255, 200, 230, 0.4)) 180deg,
+      var(--login-frame-hue-b, rgba(120, 200, 255, 0.45)) 270deg,
+      var(--login-frame-hue-a, rgba(200, 170, 255, 0.55)) 360deg
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -1503,14 +1502,18 @@
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
     mask-composite: exclude;
-    animation: login-card-spin 24s linear infinite;
+    animation: login-card-frame-breath 8s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
   }
 
-  @keyframes login-card-spin {
-    to {
-      transform: rotate(360deg);
+  @keyframes login-card-frame-breath {
+    0%,
+    100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
     }
   }
 
