@@ -40,7 +40,7 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
         aria-current={isActive ? "page" : undefined}
         data-active={isActive ? "true" : "false"}
         className={cn(
-          "apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-[--ring-healing-strong] focus-visible:ring-offset-0",
+          "apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0",
           "text-foreground/75",
           className
         )}

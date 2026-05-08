@@ -176,6 +176,13 @@
       "when": 1777736542000,
       "tag": "0023_agent_preferences_phase_d",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1778889600000,
+      "tag": "0028_user_avatar_url",
+      "breakpoints": true
     }
   ]
 }

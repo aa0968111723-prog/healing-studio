@@ -11,7 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarRenderer } from "@/components/AvatarStudio";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +62,7 @@ type AppleDockProps = {
   user: {
     email?: string | null;
     remainingGenerations?: number | null;
+    avatarUrl?: string | null;
   } | null;
   displayName: string;
   displayInitial: string;
@@ -96,7 +97,7 @@ function BackgroundTasksDockButton() {
             <button
               type="button"
               aria-label="背景任務"
-              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] text-foreground/75 outline-none focus-visible:ring-2 focus-visible:ring-[--ring-healing-strong]"
+              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] text-foreground/75 outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
             >
               {activeCount > 0 ? (
                 <Loader2
@@ -225,11 +226,12 @@ function AppleDock({
 
   return (
     <nav
+      id="sidebar-nav"
       aria-label="主導覽"
-      className="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1 px-1.5 py-2 apple-dock-glass"
+      className="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass"
     >
       {/* ── Top cluster: navigation entries ── */}
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1.5">
         {entries.map((entry, idx) => {
           if (entry.kind === "leaf") {
             const isActive = activePath === entry.path;
@@ -240,7 +242,7 @@ function AppleDock({
                 label={entry.label}
                 isActive={isActive}
                 onClick={() => handleNavigate(entry.path)}
-                id={`dock-${entry.pageId}-link`}
+                id={entry.id}
                 data-pageid={entry.pageId}
               />
             );
@@ -259,24 +261,36 @@ function AppleDock({
           }));
 
           return (
-            <AppleDockFlyout
-              key={`${entry.label}-${idx}`}
-              title={entry.label}
-              items={flyoutItems}
-              open={isOpen}
-              onOpenChange={next => setOpenGroup(next ? entry.label : null)}
-              trigger={
-                <AppleDockItem
-                  icon={entry.icon}
-                  label={entry.label}
-                  isActive={hasActiveChild}
-                  showActiveDot={hasActiveChild && !isOpen}
-                  showTooltip={!isOpen}
-                  aria-haspopup="menu"
-                  aria-expanded={isOpen}
+            <div key={`${entry.label}-${idx}`} className="relative">
+              <AppleDockFlyout
+                title={entry.label}
+                items={flyoutItems}
+                open={isOpen}
+                onOpenChange={next => setOpenGroup(next ? entry.label : null)}
+                trigger={
+                  <AppleDockItem
+                    icon={entry.icon}
+                    label={entry.label}
+                    isActive={hasActiveChild}
+                    showActiveDot={hasActiveChild && !isOpen}
+                    showTooltip={!isOpen}
+                    aria-haspopup="menu"
+                    aria-expanded={isOpen}
+                  />
+                }
+              />
+              {/* Onboarding-tour anchors: invisible spans that share the
+                  group icon's bounding box so the welcome tour can highlight
+                  the parent button when targeting a child link id. */}
+              {entry.children.map(child => (
+                <span
+                  key={`anchor-${child.id}`}
+                  id={child.id}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0"
                 />
-              }
-            />
+              ))}
+            </div>
           );
         })}
       </div>
@@ -285,7 +299,7 @@ function AppleDock({
       <div className="apple-dock-divider w-9 self-center" aria-hidden="true" />
 
       {/* ── Bottom cluster: tasks · credits · avatar ── */}
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1.5">
         <BackgroundTasksDockButton />
 
         <Tooltip delayDuration={350}>
@@ -293,7 +307,7 @@ function AppleDock({
             <Link
               href="/dashboard?section=credits"
               aria-label="查看積分"
-              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] text-foreground/75 outline-none focus-visible:ring-2 focus-visible:ring-[--ring-healing-strong]"
+              className="apple-dock-item relative flex h-11 w-11 items-center justify-center rounded-[14px] text-foreground/75 outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
             >
               <Zap className="h-[18px] w-[18px]" strokeWidth={1.75} />
               <span
@@ -316,13 +330,13 @@ function AppleDock({
                 <button
                   type="button"
                   aria-label="使用者選單"
-                  className="apple-dock-item flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[--ring-healing-strong]"
+                  className="apple-dock-item flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
                 >
-                  <Avatar className="h-9 w-9 border border-border/40">
-                    <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
-                      {displayInitial}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarRenderer
+                    avatarUrl={user?.avatarUrl ?? null}
+                    fallback={displayInitial}
+                    className="h-9 w-9 border border-border/40"
+                  />
                 </button>
               </DropdownMenuTrigger>
             </TooltipTrigger>

@@ -66,7 +66,7 @@ function AppleDockFlyout({
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-sm transition-colors",
                     "hover:bg-foreground/8",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--ring-healing-strong]",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)",
                     item.isActive
                       ? "bg-foreground/10 text-foreground font-medium"
                       : "text-foreground/85"

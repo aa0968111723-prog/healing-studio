@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import VisualSoul from "@/components/VisualSoul";
+import { AvatarRenderer } from "@/components/AvatarStudio";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +10,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -20,6 +22,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
 import {
   Collapsible,
   CollapsibleContent,
@@ -434,6 +437,9 @@ function DashboardLayoutContent({
               })}
             </SidebarMenu>
           </SidebarContent>
+          <SidebarFooter className="px-3 py-2 gap-1.5">
+            <BackgroundTasksDrawer />
+          </SidebarFooter>
         </Sidebar>
       )}
 
@@ -476,11 +482,13 @@ function DashboardLayoutContent({
                 <DropdownMenuTrigger asChild>
                   <button
                     aria-label="使用者選單"
-                    className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-10 w-10 rounded-full overflow-hidden border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span className="text-sm font-medium text-primary">
-                      {displayInitial}
-                    </span>
+                    <AvatarRenderer
+                      avatarUrl={user?.avatarUrl ?? null}
+                      fallback={displayInitial}
+                      className="h-10 w-10"
+                    />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52 sm:w-56">
