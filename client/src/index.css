@@ -1611,17 +1611,17 @@
     background: linear-gradient(
       120deg,
       rgba(255, 255, 255, 0.85) 0%,
-      rgba(232, 216, 255, 1) 22%,
+      rgba(208, 255, 242, 1) 22%,
       rgba(255, 255, 255, 1) 38%,
-      rgba(200, 180, 255, 0.95) 60%,
-      rgba(255, 230, 250, 1) 78%,
-      rgba(232, 216, 255, 0.85) 100%
+      rgba(171, 237, 255, 0.95) 60%,
+      rgba(236, 255, 250, 1) 78%,
+      rgba(208, 255, 242, 0.85) 100%
     );
     background-size: 220% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 24px rgba(180, 150, 240, 0.25);
+    text-shadow: 0 0 24px rgba(106, 219, 199, 0.25);
     letter-spacing: 0.02em;
     animation: login-title-shimmer 7s linear infinite;
   }
@@ -1637,60 +1637,60 @@
 
   .login-auth-form .text-muted-foreground,
   .login-cosmic .text-muted-foreground {
-    color: rgba(220, 210, 250, 0.58) !important;
+    color: rgba(196, 231, 246, 0.72) !important;
   }
 
   .login-auth-form input,
   .login-auth-form [role="tab"],
   .login-auth-form [role="tablist"] {
-    color: rgba(245, 240, 255, 0.95);
+    color: rgba(236, 255, 250, 0.98);
   }
 
   .login-auth-form input {
-    background: rgba(20, 14, 40, 0.55) !important;
-    border: 1px solid rgba(180, 160, 240, 0.22) !important;
-    color: rgba(245, 240, 255, 0.95) !important;
+    background: rgba(10, 28, 56, 0.48) !important;
+    border: 1px solid rgba(130, 218, 246, 0.36) !important;
+    color: rgba(236, 255, 250, 0.98) !important;
   }
   .login-auth-form input::placeholder {
-    color: rgba(220, 210, 250, 0.42) !important;
+    color: rgba(194, 230, 245, 0.48) !important;
   }
   .login-auth-form input:focus-visible {
-    border-color: rgba(200, 170, 255, 0.55) !important;
-    box-shadow: 0 0 0 3px rgba(170, 130, 240, 0.22) !important;
+    border-color: rgba(111, 225, 212, 0.72) !important;
+    box-shadow: 0 0 0 3px rgba(73, 204, 187, 0.25) !important;
     outline: none;
   }
 
   .login-auth-form [role="tablist"] {
-    background: rgba(20, 14, 40, 0.5);
-    border: 1px solid rgba(180, 160, 240, 0.18);
+    background: rgba(12, 34, 66, 0.46);
+    border: 1px solid rgba(127, 213, 239, 0.25);
   }
   .login-auth-form [role="tab"][data-state="active"] {
     background: linear-gradient(
       135deg,
-      rgba(170, 140, 240, 0.85),
-      rgba(120, 90, 210, 0.85)
+      rgba(82, 223, 199, 0.9),
+      rgba(70, 164, 255, 0.88)
     );
     color: #fff;
-    box-shadow: 0 4px 16px rgba(110, 80, 200, 0.35);
+    box-shadow: 0 4px 16px rgba(51, 165, 220, 0.36);
   }
   .login-auth-form [role="tab"]:not([data-state="active"]) {
-    color: rgba(220, 210, 250, 0.7);
+    color: rgba(204, 236, 248, 0.82);
   }
 
   .login-auth-form a {
-    color: rgba(200, 170, 255, 0.9);
+    color: rgba(127, 232, 218, 0.95);
   }
   .login-auth-form a:hover {
-    color: rgba(220, 200, 255, 1);
+    color: rgba(198, 255, 243, 1);
   }
 
   /* Show/hide password icon button */
   .login-auth-form button[aria-label="隱藏密碼"],
   .login-auth-form button[aria-label="顯示密碼"] {
-    color: rgba(220, 210, 250, 0.6);
+    color: rgba(194, 230, 245, 0.7);
   }
   .login-auth-form button[aria-label="隱藏密碼"]:hover,
   .login-auth-form button[aria-label="顯示密碼"]:hover {
-    color: rgba(245, 240, 255, 0.95);
+    color: rgba(236, 255, 250, 0.98);
   }
 }
