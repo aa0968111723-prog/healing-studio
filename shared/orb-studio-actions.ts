@@ -1344,3 +1344,546 @@ export const IMAGE_STUDIO_SD_PROFILE: ImageStudioSDProfile = {
   inferStepsPresets: IMAGE_STUDIO_SD_INFER_STEPS_PRESETS,
   collaborations: IMAGE_STUDIO_SD_COLLABORATION_LINKS,
 };
+
+// ─── 影片專業工作室 / 文生影（Video Studio T2V）深度操作 ─────────────────
+//
+// 與 VideoStudio.tsx 的 VIDEO_MODELS array 中 tab="t2v" 的 6 個模型對齊。
+// 不同模型支援的能力（負向詞 / CFG / 解析度 / 幀數 / 提詞優化器 / 生成音訊）
+// 在面板上顯示為徽章；使用者點哪個模型，下面的參數晶片才會露出對應選項。
+
+export type VideoStudioT2VCapability =
+  | "neg"          // 支援負向提示詞
+  | "cfg"          // 支援 cfg scale（Kling）
+  | "resolution"   // 支援解析度切換
+  | "numFrames"    // 支援自訂幀數（Wan）
+  | "promptOptimizer" // 提詞優化開關（MiniMax）
+  | "generateAudio";  // 生成音訊（Veo3）
+
+export interface VideoStudioModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: VideoStudioT2VCapability[];
+  fast?: boolean;
+}
+
+export const VIDEO_STUDIO_T2V_MODELS: VideoStudioModelOption[] = [
+  {
+    id: "kling-t2v",
+    label: "Kling 2.1 文生影",
+    emoji: "🎬",
+    description: "高品質、5/10s、支援負向詞與 CFG，電影感敘事首選",
+    capabilities: ["neg", "cfg"],
+  },
+  {
+    id: "wan-t2v",
+    label: "Wan 2.1 文生影",
+    emoji: "⚡",
+    description: "480p / 720p、可調 frames，便宜快速試節奏",
+    capabilities: ["neg", "resolution", "numFrames"],
+    fast: true,
+  },
+  {
+    id: "minimax-t2v",
+    label: "MiniMax Hailuo 文生影",
+    emoji: "🪄",
+    description: "支援提詞優化（不確定怎麼下 prompt 時開）",
+    capabilities: ["promptOptimizer"],
+    fast: true,
+  },
+  {
+    id: "veo3-t2v",
+    label: "Veo 3 文生影",
+    emoji: "🌐",
+    description: "Google Veo、可加音訊、16:9 / 9:16，高擬真",
+    capabilities: ["generateAudio"],
+  },
+  {
+    id: "ltx-t2v",
+    label: "LTX 13B 文生影",
+    emoji: "🧰",
+    description: "開源、支援負向詞，重視可重現工作流時挑這個",
+    capabilities: ["neg"],
+  },
+  {
+    id: "sora-t2v",
+    label: "Sora 文生影",
+    emoji: "🎥",
+    description: "OpenAI Sora、480p/720p/1080p、複雜敘事鏡頭",
+    capabilities: ["resolution"],
+  },
+];
+
+export const VIDEO_STUDIO_T2V_CAPABILITY_LABELS: Record<
+  VideoStudioT2VCapability,
+  string
+> = {
+  neg: "負向詞",
+  cfg: "CFG",
+  resolution: "解析度",
+  numFrames: "幀數",
+  promptOptimizer: "提詞優化",
+  generateAudio: "生成音訊",
+};
+
+/** Kling / Sora 共用的時長字串（agent bus 接收 "5" / "10" 字串） */
+export const VIDEO_STUDIO_T2V_DURATIONS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "d5", label: "5 秒", value: "5" },
+  { id: "d10", label: "10 秒", value: "10" },
+];
+
+export const VIDEO_STUDIO_T2V_ASPECTS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "16-9", label: "16:9 寬螢幕", value: "16:9" },
+  { id: "9-16", label: "9:16 直式", value: "9:16" },
+  { id: "1-1", label: "1:1 正方", value: "1:1" },
+];
+
+export const VIDEO_STUDIO_T2V_RESOLUTIONS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "r480", label: "480p", value: "480p" },
+  { id: "r720", label: "720p", value: "720p" },
+  { id: "r1080", label: "1080p", value: "1080p" },
+];
+
+export interface VideoStudioPromptTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  prompt: string;
+  negPrompt?: string;
+  /** 建議搭配的模型 id（顯示在卡片上，不強制） */
+  suggestedModelId?: string;
+}
+
+export const VIDEO_STUDIO_T2V_TEMPLATES: VideoStudioPromptTemplate[] = [
+  {
+    id: "t2v-cinematic-portrait",
+    label: "電影感人像",
+    emoji: "🎞",
+    prompt:
+      "A cinematic portrait shot of a young woman by a sunlit window, slow camera dolly-in, shallow depth of field, soft golden hour light, film grain.",
+    negPrompt: "blurry, distorted face, jittery motion, low quality, watermark",
+    suggestedModelId: "kling-t2v",
+  },
+  {
+    id: "t2v-nature-landscape",
+    label: "自然景觀",
+    emoji: "🌄",
+    prompt:
+      "Sweeping aerial shot over a misty mountain range at sunrise, slow drone push-in, low clouds rolling between peaks, cinematic color grade.",
+    negPrompt: "warped horizon, shaky camera, low quality",
+    suggestedModelId: "veo3-t2v",
+  },
+  {
+    id: "t2v-cyberpunk-city",
+    label: "賽博城市",
+    emoji: "🏙",
+    prompt:
+      "Cyberpunk city street at night, neon signs reflecting on wet pavement, slow tracking shot, light rain, atmospheric fog, anamorphic flares.",
+    negPrompt: "static, low fps, jpeg artefacts",
+    suggestedModelId: "sora-t2v",
+  },
+  {
+    id: "t2v-anime-action",
+    label: "動漫動作",
+    emoji: "🌸",
+    prompt:
+      "Anime style action sequence, dynamic camera, energetic motion lines, vibrant cel shading, 24fps frame timing, expressive character pose.",
+    suggestedModelId: "wan-t2v",
+  },
+  {
+    id: "t2v-product-spin",
+    label: "產品旋轉",
+    emoji: "📦",
+    prompt:
+      "Studio product shot of a sleek wireless headphone slowly rotating on a clean white turntable, soft three-point lighting, sharp focus, commercial style.",
+    negPrompt: "cluttered background, harsh shadows, low quality",
+    suggestedModelId: "kling-t2v",
+  },
+  {
+    id: "t2v-meditation-ambient",
+    label: "冥想療癒",
+    emoji: "🌿",
+    prompt:
+      "Slow gentle drift over a calm forest pond at dawn, soft mist, golden sun rays through trees, slow rhythmic motion, healing meditative mood.",
+    suggestedModelId: "ltx-t2v",
+  },
+];
+
+export function buildVideoStudioT2VSetModelActions(modelId: string): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "t2v" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildVideoStudioT2VFillPromptActions(
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "t2v" },
+    { type: "fillPrompt", text, append },
+  ];
+}
+
+export function buildVideoStudioT2VApplyTemplateActions(
+  template: VideoStudioPromptTemplate
+): AgentAction[] {
+  const actions: AgentAction[] = [
+    { type: "setTab", tabId: "t2v" },
+  ];
+  if (template.suggestedModelId) {
+    actions.push({ type: "setModel", modelId: template.suggestedModelId });
+  }
+  actions.push({ type: "fillPrompt", text: template.prompt, append: false });
+  if (template.negPrompt) {
+    actions.push({
+      type: "fillPrompt",
+      text: template.negPrompt,
+      append: false,
+      slot: "negativePrompt",
+    });
+  }
+  return actions;
+}
+
+export function buildVideoStudioT2VSetParamActions(
+  key: string,
+  value: unknown
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "t2v" },
+    { type: "setParam", key, value },
+  ];
+}
+
+export const VIDEO_STUDIO_T2V_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "t2v-prompt-coach",
+    label: "幫我寫影片提示詞",
+    emoji: "✍️",
+    description: "把想法擴寫成含鏡頭運動 / 光線 / 節奏的英文 prompt",
+    chatPrompt:
+      "我在影片專業工作室文生影分頁。請依我目前的提示詞與當前模型，擴寫成含鏡頭運動 / 光線 / 節奏 / 鏡頭語言的英文 video prompt（與必要的 negative prompt），並用 [ACTION:fillPrompt:...] 直接幫我覆寫。",
+  },
+  {
+    id: "t2v-recommend-model",
+    label: "幫我選 T2V 模型",
+    emoji: "🧭",
+    description: "依需求挑 Kling / Wan / MiniMax / Veo3 / LTX / Sora",
+    chatPrompt:
+      "我在 t2v 分頁。請依我目前的提示詞與需求（電影感 / 速度 / 含音訊 / 高擬真 / 開源），從 6 個 T2V 模型中推薦一個最合的，說明原因，並用 [ACTION:setModel:...] 幫我直接套用。",
+  },
+  {
+    id: "t2v-handoff-i2v",
+    label: "改用圖生影",
+    emoji: "🖼",
+    description: "覺得文生影不穩？改去 i2v 用一張圖當錨點生影片",
+    chatPrompt:
+      "把我目前的文生影 prompt 改成適合圖生影的版本，帶我去 i2v 分頁，並建議一個最合適的圖生影模型；如果歷史中有合適的圖，把它當錨點圖。",
+  },
+  {
+    id: "t2v-director-storyboard",
+    label: "交給導演 AI 拆分鏡",
+    emoji: "🎬",
+    description: "把單條 prompt 拆成 3-6 鏡的腳本與分鏡",
+    chatPrompt:
+      "把我目前的文生影 prompt 拆成 3-6 鏡的故事板，每鏡指定模型 / 時長 / 鏡頭運動 / 提示詞，完成後帶我去 /director。",
+  },
+];
+
+export interface VideoStudioT2VProfile {
+  pageId: "video-studio";
+  pagePath: "/video-studio";
+  activeTab: "t2v";
+  models: VideoStudioModelOption[];
+  templates: VideoStudioPromptTemplate[];
+  durations: typeof VIDEO_STUDIO_T2V_DURATIONS;
+  aspects: typeof VIDEO_STUDIO_T2V_ASPECTS;
+  resolutions: typeof VIDEO_STUDIO_T2V_RESOLUTIONS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const VIDEO_STUDIO_T2V_PROFILE: VideoStudioT2VProfile = {
+  pageId: "video-studio",
+  pagePath: "/video-studio",
+  activeTab: "t2v",
+  models: VIDEO_STUDIO_T2V_MODELS,
+  templates: VIDEO_STUDIO_T2V_TEMPLATES,
+  durations: VIDEO_STUDIO_T2V_DURATIONS,
+  aspects: VIDEO_STUDIO_T2V_ASPECTS,
+  resolutions: VIDEO_STUDIO_T2V_RESOLUTIONS,
+  collaborations: VIDEO_STUDIO_T2V_COLLABORATION_LINKS,
+};
+
+// ─── 影片專業工作室 / 圖生影（Video Studio I2V）深度操作 ─────────────────
+
+export type VideoStudioI2VCapability =
+  | "tail"        // 支援尾幀（Kling）
+  | "duration"    // 可選 5/10s 或 4/8s
+  | "resolution"  // 解析度切換（Wan / PixVerse）
+  | "aspect"      // 比例切換（Runway）
+  | "promptOptimizer"; // MiniMax
+
+export interface VideoStudioI2VModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  capabilities: VideoStudioI2VCapability[];
+  fast?: boolean;
+}
+
+export const VIDEO_STUDIO_I2V_MODELS: VideoStudioI2VModelOption[] = [
+  {
+    id: "kling-i2v",
+    label: "Kling 2.1 圖生影",
+    emoji: "🎬",
+    description: "首尾幀、5/10s，角色一致性最強",
+    capabilities: ["tail", "duration"],
+  },
+  {
+    id: "wan-i2v",
+    label: "Wan 2.1 圖生影",
+    emoji: "⚡",
+    description: "480p / 720p，便宜快速",
+    capabilities: ["resolution"],
+    fast: true,
+  },
+  {
+    id: "runway-i2v",
+    label: "Runway Gen4 圖生影",
+    emoji: "🎯",
+    description: "5/10s、可設 aspect ratio，商業視覺動效首選",
+    capabilities: ["duration", "aspect"],
+  },
+  {
+    id: "pixverse-i2v",
+    label: "PixVerse 4.5 圖生影",
+    emoji: "🌸",
+    description: "4s / 8s、多品質檔次（360p–1080p）",
+    capabilities: ["duration", "resolution"],
+    fast: true,
+  },
+  {
+    id: "minimax-i2v",
+    label: "MiniMax 圖生影",
+    emoji: "🪄",
+    description: "支援提詞優化，描述會邊走邊改的任務首選",
+    capabilities: ["promptOptimizer"],
+  },
+];
+
+export const VIDEO_STUDIO_I2V_CAPABILITY_LABELS: Record<
+  VideoStudioI2VCapability,
+  string
+> = {
+  tail: "尾幀",
+  duration: "時長",
+  resolution: "解析度",
+  aspect: "比例",
+  promptOptimizer: "提詞優化",
+};
+
+/** 圖生影常見動作模板（強調動作、相機運動、表情變化） */
+export const VIDEO_STUDIO_I2V_TEMPLATES: VideoStudioPromptTemplate[] = [
+  {
+    id: "i2v-subtle-motion",
+    label: "微動",
+    emoji: "🍃",
+    prompt:
+      "Subtle ambient motion: leaves swaying gently, hair drifting in breeze, eyes blinking slowly, the rest stays still and faithful to the image.",
+    suggestedModelId: "kling-i2v",
+  },
+  {
+    id: "i2v-camera-push-in",
+    label: "推鏡",
+    emoji: "🎥",
+    prompt:
+      "Slow cinematic camera push-in toward the subject in the image, while the subject stays mostly static, soft parallax in the background.",
+    suggestedModelId: "runway-i2v",
+  },
+  {
+    id: "i2v-character-action",
+    label: "角色動作",
+    emoji: "💪",
+    prompt:
+      "The character in the image performs the described action smoothly while keeping their face, outfit, and lighting consistent with the reference frame.",
+    suggestedModelId: "kling-i2v",
+  },
+  {
+    id: "i2v-environment-ambience",
+    label: "環境氛圍",
+    emoji: "🌫",
+    prompt:
+      "Add atmospheric motion to the scene: gentle mist drifting, particles floating, subtle light flicker, water rippling, while preserving the overall composition.",
+    suggestedModelId: "wan-i2v",
+  },
+  {
+    id: "i2v-dynamic-action",
+    label: "動感大動作",
+    emoji: "🔥",
+    prompt:
+      "Dynamic full-body motion with strong directional camera move, energetic action consistent with the subject in the reference image, vivid motion blur.",
+    suggestedModelId: "pixverse-i2v",
+  },
+];
+
+export const VIDEO_STUDIO_I2V_DURATIONS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "d4", label: "4 秒", value: "4" },
+  { id: "d5", label: "5 秒", value: "5" },
+  { id: "d8", label: "8 秒", value: "8" },
+  { id: "d10", label: "10 秒", value: "10" },
+];
+
+export const VIDEO_STUDIO_I2V_RESOLUTIONS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "r360", label: "360p", value: "360p" },
+  { id: "r540", label: "540p", value: "540p" },
+  { id: "r480", label: "480p", value: "480p" },
+  { id: "r720", label: "720p", value: "720p" },
+  { id: "r1080", label: "1080p", value: "1080p" },
+];
+
+export const VIDEO_STUDIO_I2V_ASPECTS: Array<{
+  id: string;
+  label: string;
+  value: string;
+}> = [
+  { id: "16-9", label: "16:9 寬螢幕", value: "16:9" },
+  { id: "9-16", label: "9:16 直式", value: "9:16" },
+  { id: "1-1", label: "1:1 正方", value: "1:1" },
+];
+
+export function buildVideoStudioI2VSetModelActions(modelId: string): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "i2v" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export function buildVideoStudioI2VFillPromptActions(
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "i2v" },
+    { type: "fillPrompt", text, append },
+  ];
+}
+
+export function buildVideoStudioI2VApplyTemplateActions(
+  template: VideoStudioPromptTemplate
+): AgentAction[] {
+  const actions: AgentAction[] = [
+    { type: "setTab", tabId: "i2v" },
+  ];
+  if (template.suggestedModelId) {
+    actions.push({ type: "setModel", modelId: template.suggestedModelId });
+  }
+  actions.push({ type: "fillPrompt", text: template.prompt, append: false });
+  return actions;
+}
+
+export function buildVideoStudioI2VSetParamActions(
+  key: string,
+  value: unknown
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "i2v" },
+    { type: "setParam", key, value },
+  ];
+}
+
+export function buildVideoStudioI2VSetImageActions(
+  imageUrl: string,
+  tailImageUrl?: string
+): AgentAction[] {
+  const actions: AgentAction[] = [
+    { type: "setTab", tabId: "i2v" },
+    { type: "setParam", key: "imageUrl", value: imageUrl },
+  ];
+  if (tailImageUrl) {
+    actions.push({ type: "setParam", key: "tailImageUrl", value: tailImageUrl });
+  }
+  return actions;
+}
+
+export const VIDEO_STUDIO_I2V_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "i2v-prompt-coach",
+    label: "幫我寫圖生影指令",
+    emoji: "✍️",
+    description: "依錨點圖擴寫適合圖生影的動作 / 鏡頭描述",
+    chatPrompt:
+      "我在影片專業工作室圖生影分頁。請依我已上傳的錨點圖與當前模型，擴寫成適合圖生影的英文 prompt（強調動作、鏡頭運動、保留主體一致），並用 [ACTION:fillPrompt:...] 直接幫我覆寫。",
+  },
+  {
+    id: "i2v-recommend-model",
+    label: "幫我選 I2V 模型",
+    emoji: "🧭",
+    description: "依錨點圖與動作需求推薦 5 個 I2V 模型之一",
+    chatPrompt:
+      "我在 i2v 分頁。請依錨點圖與我想要的動作（角色一致 / 廣告動效 / 微動 / 高解析 / 提詞優化），從 5 個 I2V 模型中推薦一個最合的並用 [ACTION:setModel:...] 套用。",
+  },
+  {
+    id: "i2v-from-image-studio",
+    label: "從圖片創作室拿一張",
+    emoji: "🖼",
+    description: "把上一張 image-studio 生成的圖當錨點圖",
+    chatPrompt:
+      "把我最近在 image-studio 生成的最後一張圖當作 i2v 的錨點圖（imageUrl），自動帶我到 i2v 分頁並建議一個合適的模型與動作 prompt。",
+  },
+  {
+    id: "i2v-director-sequence",
+    label: "交給導演 AI 排片段",
+    emoji: "🎬",
+    description: "把單張圖延伸成連續鏡頭片段",
+    chatPrompt:
+      "我有一張關鍵幀想做成連續鏡頭。請依我的錨點圖與想要的故事走向，規劃 3-5 段 i2v 片段（每段指定模型 / 時長 / 動作），完成後帶我去 /director。",
+  },
+];
+
+export interface VideoStudioI2VProfile {
+  pageId: "video-studio";
+  pagePath: "/video-studio";
+  activeTab: "i2v";
+  models: VideoStudioI2VModelOption[];
+  templates: VideoStudioPromptTemplate[];
+  durations: typeof VIDEO_STUDIO_I2V_DURATIONS;
+  resolutions: typeof VIDEO_STUDIO_I2V_RESOLUTIONS;
+  aspects: typeof VIDEO_STUDIO_I2V_ASPECTS;
+  collaborations: StudioCollaborationLink[];
+}
+
+export const VIDEO_STUDIO_I2V_PROFILE: VideoStudioI2VProfile = {
+  pageId: "video-studio",
+  pagePath: "/video-studio",
+  activeTab: "i2v",
+  models: VIDEO_STUDIO_I2V_MODELS,
+  templates: VIDEO_STUDIO_I2V_TEMPLATES,
+  durations: VIDEO_STUDIO_I2V_DURATIONS,
+  resolutions: VIDEO_STUDIO_I2V_RESOLUTIONS,
+  aspects: VIDEO_STUDIO_I2V_ASPECTS,
+  collaborations: VIDEO_STUDIO_I2V_COLLABORATION_LINKS,
+};

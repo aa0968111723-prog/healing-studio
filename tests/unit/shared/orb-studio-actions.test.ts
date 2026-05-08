@@ -54,6 +54,30 @@ import {
   buildImageStudioSDSetGuidanceActions,
   buildImageStudioSDSetInferStepsActions,
   buildImageStudioSDSetLoraActions,
+  VIDEO_STUDIO_T2V_PROFILE,
+  VIDEO_STUDIO_T2V_MODELS,
+  VIDEO_STUDIO_T2V_TEMPLATES,
+  VIDEO_STUDIO_T2V_DURATIONS,
+  VIDEO_STUDIO_T2V_ASPECTS,
+  VIDEO_STUDIO_T2V_RESOLUTIONS,
+  VIDEO_STUDIO_T2V_COLLABORATION_LINKS,
+  VIDEO_STUDIO_T2V_CAPABILITY_LABELS,
+  buildVideoStudioT2VSetModelActions,
+  buildVideoStudioT2VFillPromptActions,
+  buildVideoStudioT2VApplyTemplateActions,
+  buildVideoStudioT2VSetParamActions,
+  VIDEO_STUDIO_I2V_PROFILE,
+  VIDEO_STUDIO_I2V_MODELS,
+  VIDEO_STUDIO_I2V_TEMPLATES,
+  VIDEO_STUDIO_I2V_DURATIONS,
+  VIDEO_STUDIO_I2V_RESOLUTIONS,
+  VIDEO_STUDIO_I2V_ASPECTS,
+  VIDEO_STUDIO_I2V_COLLABORATION_LINKS,
+  VIDEO_STUDIO_I2V_CAPABILITY_LABELS,
+  buildVideoStudioI2VSetModelActions,
+  buildVideoStudioI2VApplyTemplateActions,
+  buildVideoStudioI2VSetParamActions,
+  buildVideoStudioI2VSetImageActions,
 } from "../../../shared/orb-studio-actions";
 
 describe("orb-studio-actions: four-modal deep operations", () => {
@@ -444,6 +468,193 @@ describe("orb-studio-actions: image studio SD profile", () => {
       "sd-recommend-model",
     ]);
     for (const link of IMAGE_STUDIO_SD_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: video studio T2V profile", () => {
+  it("profile points at /video-studio t2v with the 6 T2V models", () => {
+    expect(VIDEO_STUDIO_T2V_PROFILE.pageId).toBe("video-studio");
+    expect(VIDEO_STUDIO_T2V_PROFILE.activeTab).toBe("t2v");
+    expect(VIDEO_STUDIO_T2V_MODELS.map(m => m.id).sort()).toEqual([
+      "kling-t2v",
+      "ltx-t2v",
+      "minimax-t2v",
+      "sora-t2v",
+      "veo3-t2v",
+      "wan-t2v",
+    ]);
+  });
+
+  it("each T2V model declares only known capabilities and they have a label", () => {
+    const allowed = new Set([
+      "neg",
+      "cfg",
+      "resolution",
+      "numFrames",
+      "promptOptimizer",
+      "generateAudio",
+    ]);
+    for (const m of VIDEO_STUDIO_T2V_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(VIDEO_STUDIO_T2V_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("T2V actions all start by switching to t2v tab", () => {
+    expect(buildVideoStudioT2VSetModelActions("kling-t2v")[0]).toEqual({
+      type: "setTab",
+      tabId: "t2v",
+    });
+    expect(buildVideoStudioT2VFillPromptActions("hello")[0]).toEqual({
+      type: "setTab",
+      tabId: "t2v",
+    });
+    expect(buildVideoStudioT2VSetParamActions("duration", "10")[0]).toEqual({
+      type: "setTab",
+      tabId: "t2v",
+    });
+  });
+
+  it("template apply also sets the suggested model and (when present) fills neg slot", () => {
+    const tplWithNeg = VIDEO_STUDIO_T2V_TEMPLATES.find(t => !!t.negPrompt && !!t.suggestedModelId);
+    expect(tplWithNeg).toBeTruthy();
+    if (!tplWithNeg) return;
+    const actions = buildVideoStudioT2VApplyTemplateActions(tplWithNeg);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "t2v" });
+    expect(actions[1]).toEqual({ type: "setModel", modelId: tplWithNeg.suggestedModelId });
+    expect(actions[2]).toMatchObject({
+      type: "fillPrompt",
+      text: tplWithNeg.prompt,
+      append: false,
+    });
+    expect(actions[3]).toMatchObject({
+      type: "fillPrompt",
+      slot: "negativePrompt",
+      text: tplWithNeg.negPrompt,
+    });
+  });
+
+  it("durations / aspects / resolutions match VideoStudio.tsx accepted values", () => {
+    expect(VIDEO_STUDIO_T2V_DURATIONS.map(d => d.value)).toEqual(["5", "10"]);
+    const aspectValues = new Set(VIDEO_STUDIO_T2V_ASPECTS.map(a => a.value));
+    expect(aspectValues).toEqual(new Set(["1:1", "16:9", "9:16"]));
+    expect(VIDEO_STUDIO_T2V_RESOLUTIONS.map(r => r.value)).toEqual([
+      "480p",
+      "720p",
+      "1080p",
+    ]);
+  });
+
+  it("T2V collaboration links cover 4 cross-handoffs", () => {
+    const ids = VIDEO_STUDIO_T2V_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "t2v-director-storyboard",
+      "t2v-handoff-i2v",
+      "t2v-prompt-coach",
+      "t2v-recommend-model",
+    ]);
+    for (const link of VIDEO_STUDIO_T2V_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("orb-studio-actions: video studio I2V profile", () => {
+  it("profile points at /video-studio i2v with the 5 I2V models", () => {
+    expect(VIDEO_STUDIO_I2V_PROFILE.pageId).toBe("video-studio");
+    expect(VIDEO_STUDIO_I2V_PROFILE.activeTab).toBe("i2v");
+    expect(VIDEO_STUDIO_I2V_MODELS.map(m => m.id).sort()).toEqual([
+      "kling-i2v",
+      "minimax-i2v",
+      "pixverse-i2v",
+      "runway-i2v",
+      "wan-i2v",
+    ]);
+  });
+
+  it("only Kling i2v advertises tail-frame support (matches VideoStudio.tsx)", () => {
+    const kling = VIDEO_STUDIO_I2V_MODELS.find(m => m.id === "kling-i2v");
+    expect(kling?.capabilities).toContain("tail");
+    const others = VIDEO_STUDIO_I2V_MODELS.filter(m => m.id !== "kling-i2v");
+    for (const m of others) {
+      expect(m.capabilities).not.toContain("tail");
+    }
+  });
+
+  it("each I2V model declares only known capabilities and they have a label", () => {
+    const allowed = new Set(["tail", "duration", "resolution", "aspect", "promptOptimizer"]);
+    for (const m of VIDEO_STUDIO_I2V_MODELS) {
+      for (const cap of m.capabilities) {
+        expect(allowed.has(cap)).toBe(true);
+        expect(VIDEO_STUDIO_I2V_CAPABILITY_LABELS[cap]).toBeTruthy();
+      }
+    }
+  });
+
+  it("I2V actions all start by switching to i2v tab", () => {
+    expect(buildVideoStudioI2VSetModelActions("kling-i2v")[0]).toEqual({
+      type: "setTab",
+      tabId: "i2v",
+    });
+    expect(buildVideoStudioI2VSetParamActions("duration", "5")[0]).toEqual({
+      type: "setTab",
+      tabId: "i2v",
+    });
+  });
+
+  it("setImage emits imageUrl and optionally tailImageUrl", () => {
+    const single = buildVideoStudioI2VSetImageActions("https://x/a.png");
+    expect(single).toHaveLength(2);
+    expect(single[1]).toEqual({ type: "setParam", key: "imageUrl", value: "https://x/a.png" });
+    const both = buildVideoStudioI2VSetImageActions("https://x/a.png", "https://x/b.png");
+    expect(both).toHaveLength(3);
+    expect(both[2]).toEqual({
+      type: "setParam",
+      key: "tailImageUrl",
+      value: "https://x/b.png",
+    });
+  });
+
+  it("apply template uses suggested model and skips neg slot (i2v has no neg)", () => {
+    const tpl = VIDEO_STUDIO_I2V_TEMPLATES[0];
+    const actions = buildVideoStudioI2VApplyTemplateActions(tpl);
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "i2v" });
+    if (tpl.suggestedModelId) {
+      expect(actions[1]).toEqual({ type: "setModel", modelId: tpl.suggestedModelId });
+    }
+    const lastAction = actions[actions.length - 1];
+    expect(lastAction).toMatchObject({ type: "fillPrompt", text: tpl.prompt });
+    // i2v 模板沒有 negPrompt 槽位，因此不該有 negativePrompt 的 fillPrompt
+    for (const a of actions) {
+      if (a.type === "fillPrompt") {
+        expect(a.slot).toBeUndefined();
+      }
+    }
+  });
+
+  it("durations / resolutions / aspects match VideoStudio.tsx i2v accepted values", () => {
+    const durationValues = new Set(VIDEO_STUDIO_I2V_DURATIONS.map(d => d.value));
+    expect(durationValues).toEqual(new Set(["4", "5", "8", "10"]));
+    const resolutions = VIDEO_STUDIO_I2V_RESOLUTIONS.map(r => r.value);
+    expect(resolutions).toContain("360p");
+    expect(resolutions).toContain("1080p");
+    const aspectValues = new Set(VIDEO_STUDIO_I2V_ASPECTS.map(a => a.value));
+    expect(aspectValues).toEqual(new Set(["1:1", "16:9", "9:16"]));
+  });
+
+  it("I2V collaboration links cover 4 cross-handoffs", () => {
+    const ids = VIDEO_STUDIO_I2V_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "i2v-director-sequence",
+      "i2v-from-image-studio",
+      "i2v-prompt-coach",
+      "i2v-recommend-model",
+    ]);
+    for (const link of VIDEO_STUDIO_I2V_COLLABORATION_LINKS) {
       expect(link.chatPrompt.length).toBeGreaterThan(0);
     }
   });
