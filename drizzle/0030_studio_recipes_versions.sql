@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS `studio_recipes` (
   INDEX `sr_userId_idx` (`userId`),
   INDEX `sr_userId_modality_idx` (`userId`, `modality`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `studio_versions` (
   `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

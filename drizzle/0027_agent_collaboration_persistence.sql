@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS agent_collaboration_sessions (
   INDEX idx_status (status),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 -- Table: agent_collaboration_steps
 -- Tracks individual steps within a collaboration workflow
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS agent_collaboration_steps (
   INDEX idx_status (status),
   FOREIGN KEY (collaboration_id) REFERENCES agent_collaboration_sessions(collaboration_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 -- Table: agent_collaboration_messages
 -- Stores inter-agent communication messages for debugging and audit
@@ -74,6 +76,7 @@ CREATE TABLE IF NOT EXISTS agent_collaboration_messages (
   INDEX idx_timestamp (timestamp DESC),
   FOREIGN KEY (collaboration_id) REFERENCES agent_collaboration_sessions(collaboration_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 -- Table: agent_collaboration_handoffs
 -- Tracks control handoffs between agents
@@ -90,6 +93,7 @@ CREATE TABLE IF NOT EXISTS agent_collaboration_handoffs (
   INDEX idx_from_to (from_agent, to_agent),
   FOREIGN KEY (collaboration_id) REFERENCES agent_collaboration_sessions(collaboration_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 -- Table: agent_performance_metrics
 -- Aggregated performance metrics per agent type

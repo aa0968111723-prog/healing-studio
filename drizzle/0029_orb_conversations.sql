@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `orb_conversations` (
   INDEX `orbc_user_updated_idx` (`user_id`, `updated_at`),
   INDEX `orbc_user_archived_idx` (`user_id`, `archived_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `orb_conversation_messages` (
   `message_id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
