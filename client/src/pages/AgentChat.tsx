@@ -73,6 +73,7 @@ import {
   WorkflowConfirmationCard,
   WorkflowExecutionFloatingPanel,
 } from "@/contexts/GlobalOrbChatContext";
+import ConversationTabs from "@/components/orb/ConversationTabs";
 import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
@@ -1845,6 +1846,12 @@ export default function AgentChat() {
             </div>
           </motion.section>
         )}
+
+        {/* Multi-session tab bar — sits directly above the chat scroll
+           area so switching between parallel conversations feels like the
+           browser tabs in the screenshot. Tabs persist across reloads via
+           GlobalOrbChatContext (localStorage + tRPC mirror). */}
+        <ConversationTabs />
 
         {/* 聊天區 — `aria-live="polite"` so screen readers announce new
            orb replies as they land instead of staying silent and forcing
