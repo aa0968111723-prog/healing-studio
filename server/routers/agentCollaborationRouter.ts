@@ -89,34 +89,67 @@ export const agentCollaborationRouter = router({
     )
     .query(async ({ ctx, input }) => {
       try {
+        // Fast path: in-memory store has the session for active runs and for
+        // the first hour after completion (orchestrator cleans up after 1h).
         const session = AgentCollaborationOrchestrator.getSessionStatus(
           input.collaborationId
         );
+        if (session) {
+          if (session.userId !== ctx.user.id) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "無權存取此協作 session",
+            });
+          }
+          return {
+            collaborationId: session.collaborationId,
+            status: session.status,
+            participatingAgents: session.participatingAgents,
+            currentAgent: session.currentAgent,
+            taskDescription: session.taskDescription,
+            result: session.result,
+            startedAt: session.startedAt,
+            completedAt: session.completedAt,
+          };
+        }
 
-        if (!session) {
+        // Fall back to the persisted row so older completed/cancelled
+        // sessions don't disappear on the user once the in-memory copy
+        // is evicted. Without this they'd see "找不到此協作 session" even
+        // though `listUserCollaborations` happily lists the same row.
+        const db = await getDb();
+        if (!db) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "找不到此協作 session",
           });
         }
-
-        // Verify user owns this session
-        if (session.userId !== ctx.user.id) {
+        const [row] = await db
+          .select()
+          .from(agentCollaborationSessions)
+          .where(eq(agentCollaborationSessions.collaborationId, input.collaborationId))
+          .limit(1);
+        if (!row) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "找不到此協作 session",
+          });
+        }
+        if (row.userId !== ctx.user.id) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "無權存取此協作 session",
           });
         }
-
         return {
-          collaborationId: session.collaborationId,
-          status: session.status,
-          participatingAgents: session.participatingAgents,
-          currentAgent: session.currentAgent,
-          taskDescription: session.taskDescription,
-          result: session.result,
-          startedAt: session.startedAt,
-          completedAt: session.completedAt,
+          collaborationId: row.collaborationId,
+          status: row.status,
+          participatingAgents: row.participatingAgents,
+          currentAgent: row.currentAgent,
+          taskDescription: row.taskDescription,
+          result: row.result,
+          startedAt: row.startedAt,
+          completedAt: row.completedAt,
         };
       } catch (error) {
         if (error instanceof TRPCError) {
@@ -295,26 +328,47 @@ export const agentCollaborationRouter = router({
     )
     .query(async ({ ctx, input }) => {
       try {
-        const session = AgentCollaborationOrchestrator.getSessionStatus(
+        // Resolve userId for auth check from in-memory first; fall back to
+        // the persisted session row when the orchestrator's 1h cleanup has
+        // already evicted it. Without the DB fallback the user gets NOT_FOUND
+        // on completed-but-aged sessions even though they appear in
+        // listUserCollaborations.
+        const liveSession = AgentCollaborationOrchestrator.getSessionStatus(
           input.collaborationId
         );
-
-        if (!session) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "找不到此協作 session",
-          });
+        let ownerUserId: number | null = liveSession?.userId ?? null;
+        if (ownerUserId === null) {
+          const db = await getDb();
+          if (!db) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "找不到此協作 session",
+            });
+          }
+          const [row] = await db
+            .select({ userId: agentCollaborationSessions.userId })
+            .from(agentCollaborationSessions)
+            .where(eq(agentCollaborationSessions.collaborationId, input.collaborationId))
+            .limit(1);
+          if (!row) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "找不到此協作 session",
+            });
+          }
+          ownerUserId = row.userId;
         }
 
-        // Verify user owns this session
-        if (session.userId !== ctx.user.id) {
+        if (ownerUserId !== ctx.user.id) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "無權存取此協作 session",
           });
         }
 
-        // Get messages from communication bus
+        // Messages still come from the in-memory bus. Once the bus history
+        // is rotated out, this returns an empty list — that's accurate
+        // (we don't persist per-message rows yet) and better than 404.
         const messages = AgentCommunicationBus.getHistory({
           correlationId: input.collaborationId,
           limit: input.limit,

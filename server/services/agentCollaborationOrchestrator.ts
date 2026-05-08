@@ -32,15 +32,11 @@ import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import {
   agentCollaborationSessions,
-  agentCollaborationSteps,
-  agentCollaborationMessages,
   agentCollaborationHandoffs,
-  agentPerformanceMetrics,
   type InsertAgentCollaborationSession,
-  type InsertAgentCollaborationMessage,
   type InsertAgentCollaborationHandoff,
 } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 // CollaborationSession is now defined in the shared protocol so the
 // router and the orchestrator agree on the shape (the router imports
