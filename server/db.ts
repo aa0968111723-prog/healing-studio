@@ -29,6 +29,10 @@ import {
   InsertCustomBlock,
   blockCombos,
   InsertBlockCombo,
+  studioRecipes,
+  InsertStudioRecipe,
+  studioVersions,
+  InsertStudioVersion,
   systemSettings,
   InsertSystemSetting,
   orbFeedbackEvents,
@@ -1431,6 +1435,111 @@ export async function deleteBlockCombo(id: number, userId: number) {
   await db
     .delete(blockCombos)
     .where(and(eq(blockCombos.id, id), eq(blockCombos.userId, userId)));
+}
+
+// ─── Studio Recipes (RecipeLibraryPanel) ───────────────────────────────────
+// Backs trpc.studio.recipes.* — see server/routers.ts. Studio.tsx used to
+// keep these in component state only, so refresh erased the user's library.
+
+export async function listStudioRecipes(
+  userId: number,
+  modality?: "image" | "video" | "music" | "voice"
+) {
+  const db = await getDb();
+  if (!db) return [];
+  if (modality) {
+    return db
+      .select()
+      .from(studioRecipes)
+      .where(
+        and(eq(studioRecipes.userId, userId), eq(studioRecipes.modality, modality))
+      )
+      .orderBy(desc(studioRecipes.updatedAt));
+  }
+  return db
+    .select()
+    .from(studioRecipes)
+    .where(eq(studioRecipes.userId, userId))
+    .orderBy(desc(studioRecipes.updatedAt));
+}
+
+export async function createStudioRecipe(data: InsertStudioRecipe) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(studioRecipes).values(data);
+  return result[0].insertId;
+}
+
+export async function deleteStudioRecipe(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(studioRecipes)
+    .where(and(eq(studioRecipes.id, id), eq(studioRecipes.userId, userId)));
+}
+
+// ─── Studio Versions (VersionHistoryPanel) ─────────────────────────────────
+// Backs trpc.studio.versions.* — Studio.tsx versions[] was in-memory only.
+
+export async function listStudioVersions(
+  userId: number,
+  modality?: "image" | "video" | "music" | "voice",
+  limit = 50
+) {
+  const db = await getDb();
+  if (!db) return [];
+  if (modality) {
+    return db
+      .select()
+      .from(studioVersions)
+      .where(
+        and(
+          eq(studioVersions.userId, userId),
+          eq(studioVersions.modality, modality)
+        )
+      )
+      .orderBy(desc(studioVersions.createdAt))
+      .limit(limit);
+  }
+  return db
+    .select()
+    .from(studioVersions)
+    .where(eq(studioVersions.userId, userId))
+    .orderBy(desc(studioVersions.createdAt))
+    .limit(limit);
+}
+
+export async function createStudioVersion(data: InsertStudioVersion) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(studioVersions).values(data);
+  return result[0].insertId;
+}
+
+export async function setStudioVersionPinned(
+  userId: number,
+  versionKey: string,
+  pinned: boolean
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(studioVersions)
+    .set({ pinned })
+    .where(
+      and(
+        eq(studioVersions.userId, userId),
+        eq(studioVersions.versionKey, versionKey)
+      )
+    );
+}
+
+export async function deleteStudioVersion(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(studioVersions)
+    .where(and(eq(studioVersions.id, id), eq(studioVersions.userId, userId)));
 }
 
 // ─── System Settings ────────────────────────────────────────────────────────

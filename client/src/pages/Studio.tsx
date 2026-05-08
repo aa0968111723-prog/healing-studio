@@ -558,12 +558,18 @@ export default function Studio() {
     useState<CreativeMode>(loadCreativeMode);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [leftDrawerTab, setLeftDrawerTab] = useState<
-    "vault" | "assets" | "models"
+    "vault" | "assets" | "models" | "recipes" | "versions"
   >("vault");
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
   const [toolboxTab, setToolboxTab] = useState<
-    "vault" | "assets" | "models" | "history" | "controls"
+    | "vault"
+    | "assets"
+    | "models"
+    | "history"
+    | "controls"
+    | "recipes"
+    | "versions"
   >("vault");
   const [isApplyingSuggestedModel, setIsApplyingSuggestedModel] = useState(false);
   const [selectedFalModelId, setSelectedFalModelId] = useState<string | undefined>();
@@ -681,9 +687,86 @@ export default function Studio() {
   const [references, setReferences] = useState<Record<string, ReferenceItem[]>>(
     { image: [], video: [], music: [], voice: [] }
   );
-  const [versions, setVersions] = useState<VersionEntry[]>([]);
-  const [pinnedVersionId, setPinnedVersionId] = useState<string | null>(null);
-  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+  // ── Recipes & Versions（持久化到 MySQL）──────────────────────────────
+  // 之前 savedRecipes / versions 只存在 useState，重新整理就消失，
+  // RecipeLibraryPanel / VersionHistoryPanel 形同失效。改成從
+  // trpc.studio.recipes.list / trpc.studio.versions.list 讀，所有寫入
+  // 都同步到 studio_recipes / studio_versions（drizzle schema、migration 0030）。
+  const recipesQuery = trpc.studio.recipes.list.useQuery(undefined, {
+    retry: false,
+    staleTime: 30_000,
+  });
+  const versionsQuery = trpc.studio.versions.list.useQuery(
+    { limit: 50 },
+    { retry: false, staleTime: 30_000 }
+  );
+  const createRecipeMutation = trpc.studio.recipes.create.useMutation({
+    onSuccess: () => recipesQuery.refetch(),
+  });
+  const deleteRecipeMutation = trpc.studio.recipes.delete.useMutation({
+    onSuccess: () => recipesQuery.refetch(),
+  });
+  const createVersionMutation = trpc.studio.versions.create.useMutation({
+    onSuccess: () => versionsQuery.refetch(),
+  });
+  const setVersionPinnedMutation = trpc.studio.versions.setPinned.useMutation({
+    onSuccess: () => versionsQuery.refetch(),
+  });
+
+  // 把 server payload 還原成 frontend 用的 SavedRecipe / VersionEntry 形狀。
+  // payload 由 useState 寫入時就是這個形狀，所以只要 spread 即可。
+  const savedRecipes = useMemo<SavedRecipe[]>(
+    () =>
+      (recipesQuery.data ?? []).map((row): SavedRecipe => {
+        const p = (row.payload ?? {}) as Partial<SavedRecipe>;
+        return {
+          id: `recipe-db-${row.id}`,
+          name: row.name,
+          modality: row.modality,
+          blocks: p.blocks ?? [],
+          thoughtIslands: p.thoughtIslands ?? [],
+          promptStrength: p.promptStrength ?? "medium",
+          advancedPrompt: p.advancedPrompt ?? "",
+          references: p.references ?? [],
+          generationParams: p.generationParams ?? {},
+          createdAt: row.createdAt
+            ? new Date(row.createdAt).getTime()
+            : Date.now(),
+        };
+      }),
+    [recipesQuery.data]
+  );
+
+  const versions = useMemo<VersionEntry[]>(
+    () =>
+      (versionsQuery.data ?? []).map((row): VersionEntry => {
+        const p = (row.payload ?? {}) as Partial<VersionEntry>;
+        return {
+          id: row.versionKey,
+          timestamp: row.createdAt
+            ? new Date(row.createdAt).getTime()
+            : Date.now(),
+          modality: row.modality,
+          blocks: p.blocks ?? [],
+          thoughtIslands: p.thoughtIslands ?? [],
+          promptStrength: p.promptStrength ?? "medium",
+          advancedPrompt: p.advancedPrompt ?? "",
+          compiledPrompt: p.compiledPrompt ?? "",
+          changedFields: p.changedFields ?? [],
+          references: p.references ?? [],
+          generationSettings: p.generationSettings ?? {},
+          outputUrl: p.outputUrl ?? null,
+          pinned: !!row.pinned,
+          actionMode: p.actionMode ?? "generate",
+        };
+      }),
+    [versionsQuery.data]
+  );
+
+  const pinnedVersionId = useMemo(
+    () => versions.find(v => v.pinned)?.id ?? null,
+    [versions]
+  );
   const previousBlocksRef = useRef<StructuredBlock[]>([]);
 
   // ── Compiled prompt (derived from structured blocks) ──
@@ -769,6 +852,47 @@ export default function Studio() {
         },
       });
       utils.auth.me.invalidate();
+      // 模型自動降級提醒：dispatcher 找不到使用者選的模型時會 fallback 到
+      // catalog 首選，若 originalModel 不同就告訴使用者「實際送出的不是你選的」。
+      // 之前這個資訊已從伺服器回來但沒人講，使用者會以為自己用了 flux-pro
+      // 但其實跑的是 flux-realism。
+      if (data.degraded && data.originalModel) {
+        toast.warning(
+          `已改用備援模型 ${data.modelId}（你選的 ${data.originalModel} 暫不可用）`,
+          { duration: 6000 }
+        );
+      }
+      // 自動快照當前工作區成版本歷史，讓 VersionHistoryPanel 真的能用。
+      // 之前 versions 永遠是空陣列、面板形同失效。
+      try {
+        const versionKey = `v-${Date.now()}`;
+        createVersionMutation.mutate({
+          modality: modalityKey,
+          versionKey,
+          payload: {
+            blocks: structuredBlocks[modalityKey] || [],
+            thoughtIslands: thoughtIslands[modalityKey] || [],
+            promptStrength,
+            advancedPrompt: advancedPrompt[modalityKey] || "",
+            compiledPrompt:
+              compileResult.compiledPrompt || promptBuilder.compiledPrompt || "",
+            changedFields: [],
+            references: references[modalityKey] || [],
+            generationSettings: {
+              temperature,
+              seed,
+              mode,
+              loraWeight,
+              modelId: data.modelId,
+              jobId: data.jobId,
+            },
+            outputUrl: null,
+            actionMode,
+          },
+        });
+      } catch {
+        // version snapshot is best-effort — never block the main flow.
+      }
     },
     onError: (error) => {
       setAIState("idle");
@@ -1968,9 +2092,17 @@ export default function Studio() {
     [modalityKey]
   );
 
-  const handleVersionPin = useCallback((versionId: string) => {
-    setPinnedVersionId(prev => (prev === versionId ? null : versionId));
-  }, []);
+  const handleVersionPin = useCallback(
+    (versionId: string) => {
+      const target = versions.find(v => v.id === versionId);
+      if (!target) return;
+      setVersionPinnedMutation.mutate({
+        versionKey: versionId,
+        pinned: !target.pinned,
+      });
+    },
+    [versions, setVersionPinnedMutation]
+  );
 
   const handleVersionRestore = useCallback(
     (versionId: string) => {
@@ -2005,20 +2137,22 @@ export default function Studio() {
 
   const handleSaveRecipe = useCallback(
     (name: string) => {
-      const recipe: SavedRecipe = {
-        id: `recipe-${Date.now()}`,
-        name,
-        modality: modalityKey,
+      const payload = {
         blocks: structuredBlocks[modalityKey] || [],
         thoughtIslands: thoughtIslands[modalityKey] || [],
         promptStrength,
         advancedPrompt: advancedPrompt[modalityKey] || "",
         references: references[modalityKey] || [],
         generationParams: { temperature, seed, mode, loraWeight },
-        createdAt: Date.now(),
       };
-      setSavedRecipes(prev => [recipe, ...prev]);
-      toast.success(`已保存配方「${name}」`);
+      createRecipeMutation.mutate(
+        { name, modality: modalityKey, payload },
+        {
+          onSuccess: () => toast.success(`已保存配方「${name}」`),
+          onError: err =>
+            toast.error(`保存配方失敗：${err.message || "請稍後重試"}`),
+        }
+      );
     },
     [
       modalityKey,
@@ -2031,6 +2165,7 @@ export default function Studio() {
       seed,
       mode,
       loraWeight,
+      createRecipeMutation,
     ]
   );
 
@@ -2063,10 +2198,26 @@ export default function Studio() {
     [modalityKey]
   );
 
-  const handleDeleteRecipe = useCallback((recipeId: string) => {
-    setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
-    toast.success("已刪除配方");
-  }, []);
+  const handleDeleteRecipe = useCallback(
+    (recipeId: string) => {
+      // SavedRecipe.id 形如 "recipe-db-<dbId>"（見 recipesQuery 還原）。
+      const match = /^recipe-db-(\d+)$/.exec(recipeId);
+      if (!match) {
+        toast.error("無法刪除：配方未持久化");
+        return;
+      }
+      const dbId = Number(match[1]);
+      deleteRecipeMutation.mutate(
+        { id: dbId },
+        {
+          onSuccess: () => toast.success("已刪除配方"),
+          onError: err =>
+            toast.error(`刪除配方失敗：${err.message || "請稍後重試"}`),
+        }
+      );
+    },
+    [deleteRecipeMutation]
+  );
 
   const handleRefineAction = useCallback(
     (blockUpdates: { fieldKey: string; instruction: string }[]) => {
@@ -2658,13 +2809,21 @@ export default function Studio() {
                 ? "一致性保險庫"
                 : leftDrawerTab === "models"
                   ? "角色鍛造所"
-                  : "數位資產"
+                  : leftDrawerTab === "recipes"
+                    ? "配方庫"
+                    : leftDrawerTab === "versions"
+                      ? "版本歷史"
+                      : "數位資產"
             }
             icon={
               leftDrawerTab === "vault" ? (
                 <Layers className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "models" ? (
                 <Cpu className="w-4 h-4 text-primary" />
+              ) : leftDrawerTab === "recipes" ? (
+                <Bookmark className="w-4 h-4 text-primary" />
+              ) : leftDrawerTab === "versions" ? (
+                <Clock className="w-4 h-4 text-primary" />
               ) : (
                 <Package className="w-4 h-4 text-primary" />
               )
@@ -2706,6 +2865,28 @@ export default function Studio() {
                 >
                   <Cpu className="w-3 h-3 inline mr-1" />
                   模型
+                </button>
+                <button
+                  onClick={() => setLeftDrawerTab("recipes")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "recipes"
+                      ? "bg-white shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Bookmark className="w-3 h-3 inline mr-1" />
+                  配方
+                </button>
+                <button
+                  onClick={() => setLeftDrawerTab("versions")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "versions"
+                      ? "bg-white shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Clock className="w-3 h-3 inline mr-1" />
+                  版本
                 </button>
               </div>
             </div>
@@ -2771,6 +2952,25 @@ export default function Studio() {
                   toast.info("已移除微調模型");
                 }}
               />
+            ) : leftDrawerTab === "recipes" ? (
+              <div className="px-2 pb-3">
+                <RecipeLibraryPanel
+                  modality={modalityKey}
+                  savedRecipes={savedRecipes}
+                  onApplyRecipe={handleApplyRecipe}
+                  onSaveRecipe={handleSaveRecipe}
+                  onDeleteRecipe={handleDeleteRecipe}
+                />
+              </div>
+            ) : leftDrawerTab === "versions" ? (
+              <div className="px-2 pb-3">
+                <VersionHistoryPanel
+                  versions={versions}
+                  onPin={handleVersionPin}
+                  onRestore={handleVersionRestore}
+                  pinnedVersionId={pinnedVersionId}
+                />
+              </div>
             ) : (
               <MiniAssetsPanel />
             )}
@@ -3741,7 +3941,15 @@ export default function Studio() {
             </div>
             <div className="flex gap-1 p-2 mb-2 flex-wrap">
               {(
-                ["vault", "assets", "models", "controls", "history"] as const
+                [
+                  "vault",
+                  "assets",
+                  "models",
+                  "controls",
+                  "history",
+                  "recipes",
+                  "versions",
+                ] as const
               ).map(tab => {
                 const labels: Record<string, string> = {
                   vault: "保險庫",
@@ -3749,6 +3957,8 @@ export default function Studio() {
                   models: "模型",
                   controls: "參數",
                   history: "歷史",
+                  recipes: "配方",
+                  versions: "版本",
                 };
                 return (
                   <button
@@ -3804,6 +4014,27 @@ export default function Studio() {
             )}
             {toolboxTab === "history" && (
               <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
+            )}
+            {toolboxTab === "recipes" && (
+              <div className="px-2 pb-3">
+                <RecipeLibraryPanel
+                  modality={modalityKey}
+                  savedRecipes={savedRecipes}
+                  onApplyRecipe={handleApplyRecipe}
+                  onSaveRecipe={handleSaveRecipe}
+                  onDeleteRecipe={handleDeleteRecipe}
+                />
+              </div>
+            )}
+            {toolboxTab === "versions" && (
+              <div className="px-2 pb-3">
+                <VersionHistoryPanel
+                  versions={versions}
+                  onPin={handleVersionPin}
+                  onRestore={handleVersionRestore}
+                  pinnedVersionId={pinnedVersionId}
+                />
+              </div>
             )}
           </BottomSheet>
         </>
