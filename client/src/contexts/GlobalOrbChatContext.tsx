@@ -93,6 +93,10 @@ export {
   getPageEmoji,
   inferSuggestionEmoji,
 } from "@/lib/orbChatHelpers";
+import {
+  persistRunState as persistWorkflowRun,
+  loadRunState as loadWorkflowRun,
+} from "@/lib/workflowRunStateStore";
 
 export type ChatRole = "user" | "orb";
 export type ChatAttachmentKind = "image" | "video" | "audio" | "pdf";
@@ -1693,6 +1697,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         intentSummary: options.intent,
         source: "ai-chat",
         waitAfterNavigateMs: 450,
+        // Workflow run-state persistence — gives every multi-step workflow a
+        // durable record so a partial failure (step 5 of 9) doesn't lose the
+        // tool-result cache from steps 1-4. The orchestrator only resumes when
+        // we explicitly pass `resumeFromRunId`; calling persist alone is a safe
+        // additive — pure observability with no behaviour change today.
+        persistRunState: persistWorkflowRun,
+        loadRunState: loadWorkflowRun,
         // Precision over speed: after navigate + the 450ms settle, poll the
         // global registry up to 4s waiting for the destination page to call
         // useRegisterPageAgent. This eliminates the silent-enqueue race where
