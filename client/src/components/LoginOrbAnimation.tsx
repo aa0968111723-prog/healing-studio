@@ -123,6 +123,14 @@ const STATIC_KEYFRAMES = [
   "@keyframes hs-horizon{0%,100%{opacity:.55}50%{opacity:.78}}",
   // Cinematic title char reveal — slide up + fade in
   "@keyframes hs-char-reveal{0%{transform:translate3d(0,18px,0);opacity:0;filter:none}60%{opacity:1}100%{transform:translate3d(0,0,0);opacity:1}}",
+  // Constellation line shimmer
+  "@keyframes hs-constellation{0%,100%{opacity:.16}50%{opacity:.4}}",
+  // Long comet sweep — only first ~8% visible per cycle (loops every 18s)
+  "@keyframes hs-comet{0%{transform:translate3d(0,0,0) scaleX(.3);opacity:0}1%{opacity:.85}4%{transform:translate3d(-180px,144px,0) scaleX(.85);opacity:.85}8%{transform:translate3d(-340px,272px,0) scaleX(1);opacity:0}100%{transform:translate3d(-340px,272px,0) scaleX(1);opacity:0}}",
+  // Aurora curtain — horizontal slow shimmer (background-position sweep)
+  "@keyframes hs-aurora-curtain{0%{background-position:0% 50%;opacity:.32}50%{opacity:.5}100%{background-position:200% 50%;opacity:.32}}",
+  // Energy filament — radial flicker around orb at convergence (rotate around left-edge pivot, scaleX 0→1)
+  "@keyframes hs-filament{0%{transform:rotate(var(--hs-rot,0deg)) scaleX(0);opacity:0}20%{opacity:.55}45%{transform:rotate(var(--hs-rot,0deg)) scaleX(1);opacity:.7}80%{opacity:.3}100%{transform:rotate(var(--hs-rot,0deg)) scaleX(0.9);opacity:0}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -1558,6 +1566,234 @@ const BottomHorizon = memo(function BottomHorizon({
   );
 });
 
+// ─── Constellation lines — hand-placed bright-star network ─────────────────
+
+interface ConstAnchor {
+  x: number;
+  y: number;
+  size: number;
+  delay: number;
+}
+
+const CONST_ANCHORS: ConstAnchor[] = [
+  // Cassiopeia-like zigzag near the top
+  { x: 22, y: 12, size: 3.6, delay: 0.0 },
+  { x: 33, y: 7, size: 4.2, delay: 0.5 },
+  { x: 44, y: 14, size: 3.4, delay: 1.0 },
+  { x: 56, y: 8, size: 4.0, delay: 1.5 },
+  { x: 68, y: 16, size: 3.6, delay: 2.0 },
+  // Lower-right triangle
+  { x: 78, y: 82, size: 3.2, delay: 3.0 },
+  { x: 88, y: 88, size: 3.8, delay: 3.5 },
+  { x: 82, y: 94, size: 3.0, delay: 4.0 },
+];
+
+const CONST_LINES: Array<[number, number]> = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [5, 6],
+  [6, 7],
+  [5, 7],
+];
+
+const Constellations = memo(function Constellations() {
+  return (
+    <>
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        width="100%"
+        height="100%"
+        style={{ opacity: 0.6, mixBlendMode: "screen" }}
+        aria-hidden
+      >
+        <defs>
+          <linearGradient id="hs-const-line" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(180,160,240,0.0)" />
+            <stop offset="50%" stopColor="rgba(220,200,255,0.5)" />
+            <stop offset="100%" stopColor="rgba(180,160,240,0.0)" />
+          </linearGradient>
+        </defs>
+        {CONST_LINES.map(([a, b], i) => {
+          const A = CONST_ANCHORS[a];
+          const B = CONST_ANCHORS[b];
+          return (
+            <line
+              key={i}
+              x1={A.x}
+              y1={A.y}
+              x2={B.x}
+              y2={B.y}
+              stroke="url(#hs-const-line)"
+              strokeWidth={0.16}
+              vectorEffect="non-scaling-stroke"
+              style={{
+                animation: `hs-constellation ${8 + (i % 4)}s ease-in-out ${i * 0.3}s infinite`,
+              }}
+            />
+          );
+        })}
+      </svg>
+      {CONST_ANCHORS.map((a, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full pointer-events-none"
+          aria-hidden
+          style={{
+            left: `${a.x}%`,
+            top: `${a.y}%`,
+            width: a.size,
+            height: a.size,
+            marginLeft: -a.size / 2,
+            marginTop: -a.size / 2,
+            background:
+              "radial-gradient(circle, rgba(255,250,240,0.95) 0%, rgba(255,235,210,0.55) 40%, transparent 80%)",
+            boxShadow: `0 0 ${a.size * 4}px rgba(255,235,210,0.55)`,
+            animation: `hs-tw2 ${4 + (i % 3)}s ease-in-out ${a.delay}s infinite`,
+          }}
+        />
+      ))}
+    </>
+  );
+});
+
+// ─── Comet — slow long-tailed sweep across the screen (looped) ──────────────
+
+const Comet = memo(function Comet() {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "98%",
+        top: "12%",
+        width: 180,
+        height: 3,
+        borderRadius: 1.5,
+        transformOrigin: "100% 50%",
+        transform: "rotate(218deg)",
+        background:
+          "linear-gradient(90deg, transparent 0%, rgba(180,210,255,0.35) 35%, rgba(220,235,255,0.85) 75%, rgba(255,255,255,1) 100%)",
+        boxShadow:
+          "0 0 14px rgba(200,220,255,0.7), 0 0 32px rgba(160,200,255,0.4)",
+        animation: "hs-comet 18s ease-out 3s infinite",
+        opacity: 0,
+        willChange: "transform, opacity",
+      }}
+    />
+  );
+});
+
+// ─── Aurora curtain — wavy translucent ribbon at the top of the sky ─────────
+
+const AuroraCurtain = memo(function AuroraCurtain({
+  palette,
+}: {
+  palette: PaletteConfig;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: 0,
+        right: 0,
+        top: "-2%",
+        height: "40%",
+        background: [
+          // Wavy color band 1 — green-cyan
+          "linear-gradient(180deg, transparent 0%, rgba(120,220,200,0.16) 22%, rgba(140,200,240,0.12) 42%, transparent 65%)",
+          // Wavy color band 2 — purple-pink for variety
+          `linear-gradient(180deg, transparent 0%, ${palette.nebula[0]} 24%, ${palette.nebula[1]} 50%, transparent 70%)`,
+        ].join(","),
+        backgroundSize: "200% 100%, 220% 100%",
+        backgroundBlendMode: "screen",
+        mixBlendMode: "screen",
+        WebkitMaskImage:
+          "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
+        maskImage:
+          "linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)",
+        animation: "hs-aurora-curtain 22s ease-in-out infinite",
+      }}
+    />
+  );
+});
+
+// ─── Energy filaments — radial lightning tendrils at convergence ────────────
+
+interface Filament {
+  rot: number;
+  length: number;
+  delay: number;
+  duration: number;
+}
+
+const FILAMENTS: Filament[] = (() => {
+  const out: Filament[] = [];
+  const COUNT = 8;
+  for (let i = 0; i < COUNT; i++) {
+    out.push({
+      rot: (i / COUNT) * 360 + ((i * 23) % 11) * 1.3,
+      length: 110 + (i % 3) * 22,
+      delay: (i % 4) * 0.08,
+      duration: 1.4 + (i % 3) * 0.18,
+    });
+  }
+  return out;
+})();
+
+const EnergyFilaments = memo(function EnergyFilaments({
+  color,
+  scale,
+}: {
+  color: string;
+  scale: number;
+}) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      aria-hidden
+      style={{
+        left: "50%",
+        top: "50%",
+        width: 0,
+        height: 0,
+        willChange: "transform",
+      }}
+    >
+      {FILAMENTS.map((f, i) => (
+        <div
+          key={i}
+          className="absolute"
+          style={
+            {
+              // Position the filament line so its left edge sits exactly at
+              // the orb center (the wrapper's origin). top: -0.7 vertically
+              // centers the 1.4px line on the y=0 axis so rotation produces
+              // a clean radial spoke around the orb.
+              left: 0,
+              top: -0.7,
+              width: f.length * scale,
+              height: 1.4,
+              background: `linear-gradient(90deg, ${color} 0%, rgba(255,255,255,0.4) 60%, transparent 100%)`,
+              transformOrigin: "0% 50%",
+              animation: `hs-filament ${f.duration}s cubic-bezier(0.4,0,0.2,1) ${f.delay}s forwards`,
+              willChange: "transform, opacity",
+              opacity: 0,
+              mixBlendMode: "screen",
+              boxShadow: `0 0 6px ${color}`,
+              "--hs-rot": `${f.rot}deg`,
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+});
+
 // ─── Hero 3D orb — real Three.js + GLSL Fresnel orb ─────────────────────────
 
 /**
@@ -1915,8 +2151,14 @@ export default function LoginOrbAnimation() {
           {/* Galactic plane — deepest atmospheric layer (mirrors login screen) */}
           <MilkyWayBand />
 
+          {/* Aurora curtain — wavy translucent ribbon at top of sky */}
+          <AuroraCurtain palette={palette} />
+
           {/* Star field — pure CSS animations */}
           <StarField />
+
+          {/* Constellation network — hand-placed bright-star groupings */}
+          <Constellations />
           <DepthParallaxPlanes parallax={parallax} scale={responsiveScale} />
           <VolumetricMist
             parallax={parallax}
@@ -1940,6 +2182,9 @@ export default function LoginOrbAnimation() {
           {/* Shooting stars — cinematic depth */}
           <ShootingStars tint={palette.meteorTint} />
 
+          {/* Long-tailed comet — slow looping cinematic sweep */}
+          <Comet />
+
           {/* Subtle vignette overlay — focuses the eye on the central orb */}
           <div
             className="absolute inset-0 pointer-events-none"
@@ -1960,6 +2205,14 @@ export default function LoginOrbAnimation() {
           {/* Convergence energy dust — sparks spiraling into the central orb */}
           {phase === "converged" && (
             <ConvergenceDust
+              color={palette.sparkleColor}
+              scale={responsiveScale}
+            />
+          )}
+
+          {/* Energy filaments — radial lightning tendrils at climax */}
+          {phase === "converged" && (
+            <EnergyFilaments
               color={palette.sparkleColor}
               scale={responsiveScale}
             />
