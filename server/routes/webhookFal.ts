@@ -21,6 +21,7 @@ import {
 import { serverEnv } from "../_core/env.validated";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
+import { runPostGenForJob } from "../services/postGenActions.js";
 
 export const falWebhookRouter = Router();
 
@@ -118,12 +119,32 @@ falWebhookRouter.post(
           `generated/webhook/${jobId}`
         )) as typeof rawResult;
         (resultData as Record<string, unknown>).orbTraceId = orbTraceId;
+        // 合併既有 meta（studioType / modelId / prompt / label，由 submitStudioJob
+        // 寫入）與本次 webhook 的結果欄位。原本是直接 overwrite，會造成
+        // runPostGenForJob 找不到 studioType/modelId/prompt → 永不持久化到
+        // 資產庫/歷史/提示詞庫。
+        const existingMeta = (job.resultJson ?? {}) as Record<string, unknown>;
+        // resultUrl 統一鍵名，下游（runPostGenForJob、前端）優先讀此欄位
+        const resultUrl =
+          (resultData as Record<string, unknown>).imageUrl ??
+          (resultData as Record<string, unknown>).videoUrl ??
+          (resultData as Record<string, unknown>).audioUrl ??
+          undefined;
         await updateBackgroundJob(jobId, {
           status: "completed",
           progress: 100,
           progressMessage: "生成完成",
-          resultJson: resultData as any,
+          resultJson: {
+            ...existingMeta,
+            ...resultData,
+            ...(resultUrl ? { resultUrl } : {}),
+          } as any,
         });
+        // 後置動作（idempotent）：寫入提示詞庫 / 資產庫 / 歷史 / AI 監控室
+        // 這層原本只在 polling 跑，但 webhook 通常先抵達 → polling 走 short
+        // circuit → 資產永遠不入庫。修這條後 ImageStudio / VideoStudio /
+        // ProStudio 三條 studio 的成品都會自動進使用者的「我的資產」。
+        void runPostGenForJob(jobId);
         generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
         console.log(
           `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
