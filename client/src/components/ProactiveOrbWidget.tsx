@@ -82,6 +82,7 @@ import {
 } from "../../../shared/orb-chat-multimodal";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import ChatMessageText from "./ChatMessageText";
+import type { IntentOption } from "@/lib/intentOptions";
 import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
 import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
 import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
@@ -2426,6 +2427,16 @@ export default memo(function ProactiveOrbWidget({
     [setChatInput]
   );
 
+  // ─── Intent-card handler — picks send the option directly ─────────────
+  // The user already chose; no need to make them tap again in the input.
+  const handleIntentCardSelect = useCallback(
+    (option: IntentOption) => {
+      if (isChatLoading) return;
+      void globalChat.sendMessage(option.pickText, []);
+    },
+    [globalChat, isChatLoading]
+  );
+
   // ─── Personality theme maps ───────────────────────────────────────────
 
   const personalityLabels: Record<string, string> = {
@@ -2758,6 +2769,10 @@ export default memo(function ProactiveOrbWidget({
                                             ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
                                             : "underline decoration-emerald-400 underline-offset-2 text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5"
                                         }
+                                        onIntentSelect={
+                                          msg.role !== "user" ? handleIntentCardSelect : undefined
+                                        }
+                                        intentDisabled={isChatLoading}
                                       />
                                     </div>
                                   )}
@@ -3258,6 +3273,11 @@ export default memo(function ProactiveOrbWidget({
                                         ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
                                         : "underline decoration-emerald-400 underline-offset-2 text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5"
                                     }
+                                    onIntentSelect={
+                                      msg.role !== "user" ? handleIntentCardSelect : undefined
+                                    }
+                                    intentCompact
+                                    intentDisabled={isChatLoading}
                                   />
                                 </div>
                               )}
