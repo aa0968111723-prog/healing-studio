@@ -272,20 +272,24 @@ const HOME_ONBOARDING_MISSIONS = [
 const NEW_USER_JOURNEY = [
   {
     id: "orb-agent",
-    title: "先用全站光球代理帶路",
+    title: "全站光球代理：一句話直接帶你做",
     description:
-      "先從光球代理開始，直接用對話告訴它你的目標，系統會帶你到對應工作室並推薦下一步。",
+      "右下角光球在每一頁都跟著你。把目標講出來——「幫我做一支 30 秒品牌短片」——它會替你選工作室、套範本、填參數，連跨頁切換都不用自己點。",
+    featured: true,
   },
   {
     id: "first-output",
     title: "10 分鐘做出第一個作品",
     description:
-      "先選一個工作室（建議圖片或影片），使用範本與預設參數快速生成第一版。",
+      "光球把你帶進工作室後，會自動推薦範本與預設參數，你只要按生成就有第一版可以看。",
+    featured: false,
   },
   {
     id: "iterate",
     title: "再做精修與版本管理",
-    description: "回到模型/素材/歷史頁面做迭代，逐步把草稿升級成可發佈成品。",
+    description:
+      "在任何頁面再叫一次光球：它記得你剛剛的草稿，能跨頁打開模型、素材、歷史，幫你把版本一路推到可發佈。",
+    featured: false,
   },
 ] as const;
 
@@ -1377,7 +1381,7 @@ ${profileSnippet}`;
                   <p
                     className={`text-sm sm:text-base font-semibold transition-colors duration-1000 ${s.textPrimary}`}
                   >
-                    新手入口：第一次來，先走這條路
+                    新手入口：先讓全站光球代理帶路
                   </p>
                   <span
                     className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
@@ -1387,28 +1391,72 @@ ${profileSnippet}`;
                   </span>
                 </div>
                 <div className="space-y-2.5">
-                  {NEW_USER_JOURNEY.map((step, idx) => (
-                    <div key={step.id} className="flex items-start gap-2.5">
-                      <span
-                        className={`mt-0.5 inline-flex w-5 h-5 items-center justify-center rounded-full text-[11px] font-semibold ${s.textPrimary}`}
-                        style={{ background: s.featureBg }}
+                  {NEW_USER_JOURNEY.map((step, idx) => {
+                    const isFeatured = step.featured;
+                    return (
+                      <div
+                        key={step.id}
+                        className={`flex items-start gap-2.5 ${
+                          isFeatured ? "rounded-xl p-2.5 -mx-1" : ""
+                        }`}
+                        style={
+                          isFeatured
+                            ? {
+                                background: s.featureBg,
+                                boxShadow: `0 0 0 1px ${s.cardBorder}, 0 0 24px -8px ${s.glowColor}`,
+                              }
+                            : undefined
+                        }
                       >
-                        {idx + 1}
-                      </span>
-                      <div>
-                        <p
-                          className={`text-xs sm:text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                        <span
+                          className={`mt-0.5 inline-flex w-5 h-5 items-center justify-center rounded-full text-[11px] font-semibold ${s.textPrimary}`}
+                          style={{ background: s.featureBg }}
                         >
-                          {step.title}
-                        </p>
-                        <p
-                          className={`text-xs sm:text-sm mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
-                        >
-                          {step.description}
-                        </p>
+                          {isFeatured ? (
+                            <Sparkles className="w-3 h-3" />
+                          ) : (
+                            idx + 1
+                          )}
+                        </span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p
+                              className={`text-xs sm:text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                            >
+                              {step.title}
+                            </p>
+                            {isFeatured && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${s.textPrimary}`}
+                                style={{
+                                  background: s.glowColor,
+                                }}
+                              >
+                                推薦起點
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            className={`text-xs sm:text-sm mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
+                          >
+                            {step.description}
+                          </p>
+                          {isFeatured && (
+                            <Button
+                              size="sm"
+                              onClick={startOrbGuidedOnboarding}
+                              className={`mt-2 h-7 px-3 rounded-lg gap-1.5 text-[11px] sm:text-xs ${s.btnPrimary} ${s.btnPrimaryText}`}
+                              data-testid="button-orb-onboarding-cta"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              現在叫光球幫我帶路
+                              <ArrowRight className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
