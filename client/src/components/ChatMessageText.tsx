@@ -1,9 +1,14 @@
 /**
- * ChatMessageText.tsx — Render a chat message string with clickable links.
+ * ChatMessageText.tsx — Render a chat message string with clickable links and
+ * (optionally) intent-option cards.
  *
  * The orb may include URLs in its text replies (`/process?spec=…`,
  * `https://example.com/...`). We don't want full markdown — just enough so
  * those URLs become real anchors instead of raw text users have to copy.
+ *
+ * When an `onIntentSelect` callback is supplied, we additionally pull out any
+ * `**選項 X：…**` blocks and render them as clickable IntentCardOptions so the
+ * user can pick instead of retyping. See `lib/intentOptions.ts`.
  *
  * Internal SPA paths (starting with `/`) navigate via wouter so we don't
  * full-reload the page; absolute URLs open in a new tab.
@@ -12,11 +17,27 @@
 import { Fragment, useMemo } from "react";
 import { useLocation } from "wouter";
 import { ExternalLink } from "lucide-react";
+import IntentCardOptions from "./IntentCardOptions";
+import {
+  parseIntentSegments,
+  type IntentOption,
+} from "@/lib/intentOptions";
 
 interface Props {
   text: string;
   /** Optional className applied to each anchor for tone alignment with the bubble. */
   linkClassName?: string;
+  /**
+   * When provided, intent-option blocks (`**選項 A：…**`) are rendered as
+   * clickable cards. The callback receives the option's reconstructed text
+   * (e.g. "選項 A：繼續風景圖創作"). Omit on user messages to leave them
+   * as-is.
+   */
+  onIntentSelect?: (option: IntentOption) => void;
+  /** Render intent cards in compact mode (smaller paddings/text). */
+  intentCompact?: boolean;
+  /** Disable intent cards (e.g. while a request is in-flight). */
+  intentDisabled?: boolean;
 }
 
 const URL_PATTERN =
@@ -61,7 +82,12 @@ function trimTrailingPunct(url: string): { url: string; tail: string } {
   return { url: url.slice(0, -match[0].length), tail: match[0] };
 }
 
-export default function ChatMessageText({ text, linkClassName }: Props) {
+interface PlainTextProps {
+  text: string;
+  linkClassName?: string;
+}
+
+function PlainTextWithLinks({ text, linkClassName }: PlainTextProps) {
   const [, navigate] = useLocation();
   const segments = useMemo(() => splitSegments(text), [text]);
 
@@ -106,6 +132,50 @@ export default function ChatMessageText({ text, linkClassName }: Props) {
             </a>
             {tail}
           </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+export default function ChatMessageText({
+  text,
+  linkClassName,
+  onIntentSelect,
+  intentCompact,
+  intentDisabled,
+}: Props) {
+  // Without an intent handler we fall through to the plain link renderer —
+  // keeps user messages and other contexts unchanged.
+  const intentSegments = useMemo(
+    () => (onIntentSelect ? parseIntentSegments(text) : null),
+    [text, onIntentSelect]
+  );
+
+  if (!intentSegments || !intentSegments.some(s => s.kind === "options")) {
+    return <PlainTextWithLinks text={text} linkClassName={linkClassName} />;
+  }
+
+  return (
+    <>
+      {intentSegments.map((seg, i) => {
+        if (seg.kind === "options") {
+          return (
+            <IntentCardOptions
+              key={`opts-${i}`}
+              options={seg.options}
+              onSelect={onIntentSelect!}
+              compact={intentCompact}
+              disabled={intentDisabled}
+            />
+          );
+        }
+        return (
+          <PlainTextWithLinks
+            key={`txt-${i}`}
+            text={seg.value}
+            linkClassName={linkClassName}
+          />
         );
       })}
     </>

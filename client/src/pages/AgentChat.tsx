@@ -79,6 +79,7 @@ import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
 import AgentSettingsSheet from "@/components/AgentSettingsSheet";
 import ChatMessageText from "@/components/ChatMessageText";
+import type { IntentOption } from "@/lib/intentOptions";
 import OrbSearchResultsCard from "@/components/orb/OrbSearchResultsCard";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
@@ -837,6 +838,15 @@ export default function AgentChat() {
 
   // Keep sendRef in sync with the latest `send` callback
   sendRef.current = send;
+
+  // ─── 意圖卡片：使用者點選後直接送出該選項 ─────────────────────────────
+  const handleIntentCardSelect = useCallback(
+    (option: IntentOption) => {
+      if (isSending) return;
+      void globalChat.sendMessage(option.pickText, []);
+    },
+    [globalChat, isSending]
+  );
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1877,6 +1887,10 @@ export default function AgentChat() {
                         ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
                         : "underline decoration-cyan-400 underline-offset-2 text-cyan-700 hover:text-cyan-800 inline-flex items-center gap-0.5"
                     }
+                    onIntentSelect={
+                      msg.role === "orb" ? handleIntentCardSelect : undefined
+                    }
+                    intentDisabled={isSending}
                   />
                   {msg.attachments?.length ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
