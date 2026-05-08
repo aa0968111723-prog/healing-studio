@@ -306,3 +306,231 @@ export function getStudioCollaborationLink(
 ): StudioCollaborationLink | undefined {
   return STUDIO_COLLABORATION_LINKS.find(l => l.id === id);
 }
+
+// ─── 圖片創作室 / 文字生圖（Image Studio T2I）深度操作 ───────────────────
+//
+// ImageStudio.tsx 的 useRegisterPageAgent 已經宣告了 setTab / setModel /
+// fillPrompt / applyPreset / setParam / submit 等能力；這裡只是把光球面板
+// 點擊時要 dispatch 的 AgentAction[] 包成資料。新增 T2I 模型 / 氛圍 / 提示詞
+// 模板時直接改這裡，OrbGuidePanel 與 vitest 都會自動跟上。
+
+export interface ImageStudioModelOption {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+/** 與 ImageStudio.tsx 的 MODELS array 中 category="t2i" 的四個模型對齊 */
+export const IMAGE_STUDIO_T2I_MODELS: ImageStudioModelOption[] = [
+  {
+    id: "nanoBanana2",
+    label: "Nano Banana 2",
+    emoji: "🍌",
+    description: "快速生成 / 14 圖參考 / 推薦起手",
+  },
+  {
+    id: "nanoBananaPro",
+    label: "Nano Banana Pro",
+    emoji: "💎",
+    description: "最高品質 / 商業授權 / 適合定稿",
+  },
+  {
+    id: "seedreamV4",
+    label: "SeeDream v4",
+    emoji: "🀄",
+    description: "中文提示詞最強 / 東方美學",
+  },
+  {
+    id: "imagen4",
+    label: "Imagen 4",
+    emoji: "📸",
+    description: "Google • 寫實感最強 / 人像風景",
+  },
+];
+
+export function buildImageStudioSetModelActions(
+  modelId: string
+): AgentAction[] {
+  // setTab=t2i 確保切到文字生圖分頁，再切模型；ImageStudio 也會自動把 tab 對齊
+  // 模型 category，這裡仍顯式宣告以避免使用者目前在 edit/sd 等分頁時誤套。
+  return [
+    { type: "setTab", tabId: "t2i" },
+    { type: "setModel", modelId },
+  ];
+}
+
+export interface ImageStudioVibeOption {
+  id: string;
+  label: string;
+  emoji: string;
+}
+
+/** 與 ImageStudio.tsx 的 VIBE_CARDS 對齊；orb 點一下就 applyPreset */
+export const IMAGE_STUDIO_VIBE_CARDS: ImageStudioVibeOption[] = [
+  { id: "cinematic", label: "電影感", emoji: "🎬" },
+  { id: "dreamy", label: "夢幻", emoji: "✨" },
+  { id: "minimal", label: "極簡", emoji: "⬜" },
+  { id: "dark", label: "暗黑", emoji: "🖤" },
+  { id: "anime", label: "動漫風", emoji: "🌸" },
+  { id: "photo", label: "寫實攝影", emoji: "📷" },
+  { id: "watercolor", label: "水彩畫", emoji: "🎨" },
+  { id: "vintage", label: "復古", emoji: "📸" },
+];
+
+export function buildImageStudioApplyVibeActions(
+  vibeId: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "t2i" },
+    { type: "applyPreset", presetId: vibeId },
+  ];
+}
+
+export interface ImageStudioPromptTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  text: string;
+}
+
+/** 提示詞模板：與 ImageStudio.tsx 的 PROMPT_TEMPLATES 對齊 */
+export const IMAGE_STUDIO_PROMPT_TEMPLATES: ImageStudioPromptTemplate[] = [
+  {
+    id: "landscape-golden-hour",
+    label: "自然風光",
+    emoji: "🌅",
+    text:
+      "A breathtaking landscape at golden hour, dramatic sky with warm orange and pink clouds, mountain peaks reflecting in a still lake",
+  },
+  {
+    id: "portrait-natural",
+    label: "人物肖像",
+    emoji: "👤",
+    text:
+      "Professional portrait photography, natural light, soft bokeh background, sharp focus on face, editorial style",
+  },
+  {
+    id: "cyberpunk-night",
+    label: "城市夜景",
+    emoji: "🏙️",
+    text:
+      "Cyberpunk cityscape at night, neon lights reflecting on wet streets, futuristic architecture, cinematic atmosphere",
+  },
+  {
+    id: "abstract-art",
+    label: "抽象藝術",
+    emoji: "🎨",
+    text:
+      "Abstract digital art, vibrant color palette, geometric shapes, flowing lines, modern aesthetic, high contrast",
+  },
+  {
+    id: "japanese-spring",
+    label: "日系清新",
+    emoji: "🌸",
+    text:
+      "Japanese spring scene, cherry blossoms, soft natural light, pastel colors, tranquil atmosphere, film photography style",
+  },
+  {
+    id: "fantasy-epic",
+    label: "奇幻場景",
+    emoji: "🔮",
+    text:
+      "Epic fantasy landscape, magical floating islands, ancient ruins, ethereal glowing lights, detailed illustration",
+  },
+];
+
+export function buildImageStudioFillPromptActions(
+  text: string,
+  append = false
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "t2i" },
+    { type: "fillPrompt", text, append },
+  ];
+}
+
+export interface ImageStudioAspectOption {
+  id: string;
+  label: string;
+}
+
+/** 文字生圖支援的畫面比例（對齊 ImageStudio.tsx 的 t2i 比例選單） */
+export const IMAGE_STUDIO_T2I_ASPECT_RATIOS: ImageStudioAspectOption[] = [
+  { id: "1:1", label: "1:1" },
+  { id: "16:9", label: "16:9" },
+  { id: "9:16", label: "9:16" },
+  { id: "4:3", label: "4:3" },
+  { id: "3:4", label: "3:4" },
+  { id: "3:2", label: "3:2" },
+  { id: "2:3", label: "2:3" },
+  { id: "auto", label: "自動" },
+];
+
+export function buildImageStudioSetAspectRatioActions(
+  ratio: string
+): AgentAction[] {
+  return [
+    { type: "setTab", tabId: "t2i" },
+    { type: "setParam", key: "aspectRatio", value: ratio },
+  ];
+}
+
+/**
+ * 跨分頁 / 跨頁協作快捷：把使用者目前的 T2I 想法接力到其他能力。
+ * label / chatPrompt 會由 OrbGuidePanel 顯示與送進 GlobalOrbChat。
+ */
+export const IMAGE_STUDIO_T2I_COLLABORATION_LINKS: StudioCollaborationLink[] = [
+  {
+    id: "t2i-prompt-coach",
+    label: "幫我寫提示詞",
+    emoji: "✍️",
+    description: "依我目前的想法擴寫成完整 T2I 提示詞，並用 fillPrompt 套用",
+    chatPrompt:
+      "我在圖片創作室文字生圖。請依我現在的提示詞與當前模型，擴寫成完整的英文 prompt（主體 + 環境 + 光線 + 風格 + 品質），並用 [ACTION:fillPrompt:...] 直接幫我覆寫。",
+  },
+  {
+    id: "t2i-recommend-model",
+    label: "幫我選 T2I 模型",
+    emoji: "🧭",
+    description: "依提示詞特性推薦 nanoBanana2 / Pro / SeeDream v4 / Imagen4",
+    chatPrompt:
+      "我在文字生圖。請依我目前提示詞推薦 4 個 T2I 模型中最合的一個（nanoBanana2 / nanoBananaPro / seedreamV4 / imagen4），說明原因，並用 [ACTION:setModel:...] 幫我直接套用。",
+  },
+  {
+    id: "t2i-handoff-edit",
+    label: "送去圖片編輯",
+    emoji: "✂️",
+    description: "拿生出來的圖到 edit 分頁做局部修改",
+    chatPrompt:
+      "把目前文字生圖的成品作為輸入，帶我去 edit 分頁，並建議一個適合的編輯模型與遮罩策略。",
+  },
+  {
+    id: "t2i-director-storyboard",
+    label: "交給導演 AI 變分鏡",
+    emoji: "🎬",
+    description: "把這張圖延伸成故事 / 分鏡腳本",
+    chatPrompt:
+      "把我目前文字生圖的提示詞延伸成一份 6 鏡分鏡腳本，導演 AI 接手後可以直接用。完成後帶我去 /director。",
+  },
+];
+
+export interface ImageStudioT2IProfile {
+  pageId: "image-studio";
+  pagePath: "/image-studio";
+  models: ImageStudioModelOption[];
+  vibes: ImageStudioVibeOption[];
+  templates: ImageStudioPromptTemplate[];
+  aspectRatios: ImageStudioAspectOption[];
+  collaborations: StudioCollaborationLink[];
+}
+
+export const IMAGE_STUDIO_T2I_PROFILE: ImageStudioT2IProfile = {
+  pageId: "image-studio",
+  pagePath: "/image-studio",
+  models: IMAGE_STUDIO_T2I_MODELS,
+  vibes: IMAGE_STUDIO_VIBE_CARDS,
+  templates: IMAGE_STUDIO_PROMPT_TEMPLATES,
+  aspectRatios: IMAGE_STUDIO_T2I_ASPECT_RATIOS,
+  collaborations: IMAGE_STUDIO_T2I_COLLABORATION_LINKS,
+};

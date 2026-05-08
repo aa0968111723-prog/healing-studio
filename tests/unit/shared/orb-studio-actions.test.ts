@@ -6,6 +6,16 @@ import {
   buildToolboxOpenAction,
   getStudioModalityProfile,
   getStudioCollaborationLink,
+  IMAGE_STUDIO_T2I_PROFILE,
+  IMAGE_STUDIO_T2I_MODELS,
+  IMAGE_STUDIO_VIBE_CARDS,
+  IMAGE_STUDIO_PROMPT_TEMPLATES,
+  IMAGE_STUDIO_T2I_ASPECT_RATIOS,
+  IMAGE_STUDIO_T2I_COLLABORATION_LINKS,
+  buildImageStudioSetModelActions,
+  buildImageStudioApplyVibeActions,
+  buildImageStudioFillPromptActions,
+  buildImageStudioSetAspectRatioActions,
 } from "../../../shared/orb-studio-actions";
 
 describe("orb-studio-actions: four-modal deep operations", () => {
@@ -69,5 +79,58 @@ describe("orb-studio-actions: collaboration links", () => {
   it("getStudioCollaborationLink resolves by id", () => {
     expect(getStudioCollaborationLink("director-handoff")?.label).toBe("交給導演 AI");
     expect(getStudioCollaborationLink("nope")).toBeUndefined();
+  });
+});
+
+describe("orb-studio-actions: image studio T2I profile", () => {
+  it("profile points at /image-studio with the four T2I models", () => {
+    expect(IMAGE_STUDIO_T2I_PROFILE.pageId).toBe("image-studio");
+    expect(IMAGE_STUDIO_T2I_PROFILE.pagePath).toBe("/image-studio");
+    expect(IMAGE_STUDIO_T2I_MODELS.map(m => m.id).sort()).toEqual([
+      "imagen4",
+      "nanoBanana2",
+      "nanoBananaPro",
+      "seedreamV4",
+    ]);
+  });
+
+  it("buildImageStudioSetModelActions starts with setTab=t2i to avoid stranded edit/SD context", () => {
+    const actions = buildImageStudioSetModelActions("nanoBanana2");
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "t2i" });
+    expect(actions[1]).toEqual({ type: "setModel", modelId: "nanoBanana2" });
+  });
+
+  it("vibes catalog matches ImageStudio's 8 cards and emits applyPreset actions", () => {
+    expect(IMAGE_STUDIO_VIBE_CARDS).toHaveLength(8);
+    const actions = buildImageStudioApplyVibeActions("cinematic");
+    expect(actions[0]).toEqual({ type: "setTab", tabId: "t2i" });
+    expect(actions[1]).toEqual({ type: "applyPreset", presetId: "cinematic" });
+  });
+
+  it("prompt templates emit fillPrompt actions and respect append flag", () => {
+    expect(IMAGE_STUDIO_PROMPT_TEMPLATES.length).toBeGreaterThanOrEqual(6);
+    const overwrite = buildImageStudioFillPromptActions("hello");
+    expect(overwrite[1]).toEqual({ type: "fillPrompt", text: "hello", append: false });
+    const append = buildImageStudioFillPromptActions(", more", true);
+    expect(append[1]).toEqual({ type: "fillPrompt", text: ", more", append: true });
+  });
+
+  it("aspect ratio shortcut emits setParam aspectRatio", () => {
+    expect(IMAGE_STUDIO_T2I_ASPECT_RATIOS.map(a => a.id)).toContain("16:9");
+    const actions = buildImageStudioSetAspectRatioActions("16:9");
+    expect(actions[1]).toEqual({ type: "setParam", key: "aspectRatio", value: "16:9" });
+  });
+
+  it("T2I collaboration links cover prompt coach / model recommender / handoff edit / director", () => {
+    const ids = IMAGE_STUDIO_T2I_COLLABORATION_LINKS.map(l => l.id).sort();
+    expect(ids).toEqual([
+      "t2i-director-storyboard",
+      "t2i-handoff-edit",
+      "t2i-prompt-coach",
+      "t2i-recommend-model",
+    ]);
+    for (const link of IMAGE_STUDIO_T2I_COLLABORATION_LINKS) {
+      expect(link.chatPrompt.length).toBeGreaterThan(0);
+    }
   });
 });

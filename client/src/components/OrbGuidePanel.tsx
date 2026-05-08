@@ -28,10 +28,15 @@ import {
   STUDIO_COLLABORATION_LINKS,
   buildToolboxOpenAction,
   getStudioModalityProfile,
+  IMAGE_STUDIO_T2I_PROFILE,
+  buildImageStudioSetModelActions,
+  buildImageStudioApplyVibeActions,
+  buildImageStudioFillPromptActions,
+  buildImageStudioSetAspectRatioActions,
 } from "../../../shared/orb-studio-actions";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
-import { useGlobalOrbChat, formatRelativeTime, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
+import { useGlobalOrbChat, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
@@ -461,41 +466,12 @@ function StudioCollaborationRow({
   onSendChat: (prompt: string) => void | Promise<void>;
 }) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
-        <Wand2 className="w-3 h-3" /> 生成模型 / 導演 AI / API 連結
-      </p>
-      <div
-        className={cn(
-          "gap-1.5",
-          fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
-        )}
-      >
-        {STUDIO_COLLABORATION_LINKS.map((link, i) => (
-          <motion.button
-            key={link.id}
-            onClick={() => void onSendChat(link.chatPrompt)}
-            className={cn(
-              "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
-              "transition-all px-3 py-2 text-left flex items-start gap-2",
-              "focus:outline-none focus:ring-1 focus:ring-white/30"
-            )}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <span className="text-base leading-none mt-0.5">{link.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-white/90 truncate">{link.label}</p>
-              <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
-                {link.description}
-              </p>
-            </div>
-          </motion.button>
-        ))}
-      </div>
-    </div>
+    <StudioCollaborationLinkGrid
+      fullscreen={fullscreen}
+      title="生成模型 / 導演 AI / API 連結"
+      links={STUDIO_COLLABORATION_LINKS}
+      onSendChat={onSendChat}
+    />
   );
 }
 
@@ -571,6 +547,309 @@ function StudioOrbDeepActions({
   );
 }
 
+// ─── Image Studio T2I Deep Actions (model + vibe + template + ratio + collab) ─
+
+function ImageStudioT2IDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  pageAgent: ReturnType<typeof usePageAgent>;
+  onClose: () => void;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  const profile = IMAGE_STUDIO_T2I_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const currentModelId = snapshotState?.selectedModelId as string | undefined;
+  const currentAspect = snapshotState?.aspectRatio as string | undefined;
+  const appliedVibes = String(snapshotState?.appliedVibes ?? "");
+
+  const runActions = useCallback(
+    async (label: string, actions: AgentAction[], closeAfter = true) => {
+      const ok = await pageAgent.dispatchMany(actions, { source: "manual" });
+      if (ok) {
+        toast.success(`已執行：${label}`);
+        if (closeAfter) onClose();
+      }
+    },
+    [pageAgent, onClose]
+  );
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble
+        text="嘿 👋 你已經在文字生圖（T2I）。想換模型、加氛圍、套模板，還是幫你寫提示詞？"
+      />
+
+      {/* 模型快選 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 文字生圖模型
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => {
+            const isActive = currentModelId === m.id;
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() =>
+                  void runActions(`切到 ${m.label}`, buildImageStudioSetModelActions(m.id))
+                }
+                className={cn(
+                  "rounded-xl border transition-all px-3 py-2 text-left flex items-start gap-2",
+                  "focus:outline-none focus:ring-1 focus:ring-white/30",
+                  isActive
+                    ? "border-cyan-300/40 bg-cyan-300/10 hover:bg-cyan-300/15"
+                    : "border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                    {m.label}
+                    {isActive && (
+                      <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                        目前
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {m.description}
+                  </p>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 氛圍卡 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🌈 氛圍卡（applyPreset）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.vibes.map((v, i) => {
+            const isApplied = appliedVibes.includes(v.id);
+            return (
+              <motion.button
+                key={v.id}
+                onClick={() =>
+                  void runActions(
+                    `加入「${v.label}」氛圍`,
+                    buildImageStudioApplyVibeActions(v.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full transition-all",
+                  fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                  isApplied
+                    ? "border border-emerald-300/40 bg-emerald-300/15 text-emerald-50"
+                    : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 hover:text-white"
+                )}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                whileTap={{ scale: 0.95 }}
+                title={isApplied ? "已套用" : "點擊套用"}
+              >
+                <span>{v.emoji}</span>
+                <span>{v.label}</span>
+                {isApplied && <Check className="w-2.5 h-2.5" />}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 提示詞模板 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" /> 提示詞起手式（fillPrompt）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.templates.slice(0, fullscreen ? 6 : 4).map((tpl, i) => (
+            <motion.button
+              key={tpl.id}
+              onClick={() =>
+                void runActions(
+                  `填入「${tpl.label}」模板`,
+                  buildImageStudioFillPromptActions(tpl.text)
+                )
+              }
+              className={cn(
+                "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                "transition-all px-3 py-2 text-left flex items-start gap-2",
+                "focus:outline-none focus:ring-1 focus:ring-white/30"
+              )}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                  {tpl.text}
+                </p>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 畫面比例 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          📐 畫面比例（setParam aspectRatio）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.aspectRatios.map((ar, i) => {
+            const isActive = currentAspect === ar.id;
+            return (
+              <motion.button
+                key={ar.id}
+                onClick={() =>
+                  void runActions(
+                    `比例切到 ${ar.label}`,
+                    buildImageStudioSetAspectRatioActions(ar.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "inline-flex items-center rounded-full transition-all min-w-[2.5rem] justify-center",
+                  fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                  isActive
+                    ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                    : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                )}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.02 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {ar.label}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 一鍵生成 + 重設 */}
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() =>
+            void runActions(
+              "送出生成（API）",
+              [{ type: "submit" }]
+            )
+          }
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出生成
+        </motion.button>
+        <motion.button
+          onClick={() =>
+            void runActions("重設此頁", [{ type: "reset" }], false)
+          }
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      {/* T2I 跨頁協作（含模型推薦 / 提示詞擴寫 / 導演 AI 等） */}
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="提示詞 / 模型 / 導演 AI 連結"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
+// 通用：渲染一組 collaboration links（給 Studio 與 ImageStudio 共用）
+
+function StudioCollaborationLinkGrid({
+  fullscreen,
+  title,
+  links,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  title: string;
+  links: Array<{ id: string; label: string; emoji: string; description: string; chatPrompt: string }>;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+        <Wand2 className="w-3 h-3" /> {title}
+      </p>
+      <div
+        className={cn(
+          "gap-1.5",
+          fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+        )}
+      >
+        {links.map((link, i) => (
+          <motion.button
+            key={link.id}
+            onClick={() => void onSendChat(link.chatPrompt)}
+            className={cn(
+              "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+              "transition-all px-3 py-2 text-left flex items-start gap-2",
+              "focus:outline-none focus:ring-1 focus:ring-white/30"
+            )}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <span className="text-base leading-none mt-0.5">{link.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-white/90 truncate">{link.label}</p>
+              <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                {link.description}
+              </p>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 interface OrbGuidePanelProps {
@@ -610,6 +889,11 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
   const isStudioPage = pageAgent.snapshot?.pageId === "studio";
+  // 圖片創作室文字生圖（/image-studio 的 t2i 分頁）走自己一套深度操作面板，
+  // 因為它的能力是 setTab/setModel/applyPreset/setParam 而非 setModality。
+  const isImageStudioT2I =
+    pageAgent.snapshot?.pageId === "image-studio" &&
+    pageAgent.snapshot?.state?.activeTab === "t2i";
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -1166,15 +1450,29 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <OrbSpeechBubble
-                text={
-                  isStudioPage
-                    ? "嘿 👋 你已經在創作工作室。要做哪個？我幫你切到對應模態。"
-                    : "嘿 👋 今天想做什麼？選一個，我帶你去。"
-                }
-              />
+              {!isImageStudioT2I && (
+                <OrbSpeechBubble
+                  text={
+                    isStudioPage
+                      ? "嘿 👋 你已經在創作工作室。要做哪個？我幫你切到對應模態。"
+                      : "嘿 👋 今天想做什麼？選一個，我帶你去。"
+                  }
+                />
+              )}
 
-              {isStudioPage ? (
+              {isImageStudioT2I ? (
+                /* 圖片創作室文字生圖：模型 + 氛圍 + 模板 + 比例 + 一鍵送出 + 跨頁協作 */
+                <ImageStudioT2IDeepActions
+                  fullscreen={fullscreen}
+                  pageAgent={pageAgent}
+                  onClose={onClose}
+                  onSendChat={async prompt => {
+                    onClose();
+                    await globalChat.sendMessage(prompt);
+                    globalChat.open();
+                  }}
+                />
+              ) : isStudioPage ? (
                 /* Studio 頁面專屬：四模態 + 細節操作 + 工具箱 + 全站協作 */
                 <StudioOrbDeepActions
                   fullscreen={fullscreen}
