@@ -1652,12 +1652,17 @@ const MODALITY_BADGES: Record<
 const GenerationTaskRow = memo(function GenerationTaskRow({
   task,
   onUpdate,
+  onRetry,
 }: {
   task: DirectorGenTaskRow;
   onUpdate: (
     segmentId: string,
     modality: DirectorGenTaskRow["modality"],
     patch: Partial<DirectorGenTaskRow>
+  ) => void;
+  onRetry?: (
+    segmentId: string,
+    modality: DirectorGenTaskRow["modality"]
   ) => void;
 }) {
   const isPolling =
@@ -1740,6 +1745,16 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
           查看成品
         </a>
       )}
+      {task.status === "failed" && onRetry && (
+        <button
+          type="button"
+          onClick={() => onRetry(task.segmentId, task.modality)}
+          title={task.errorMessage ?? "重試"}
+          className="text-[10px] font-medium text-rose-700 hover:text-rose-900 underline-offset-2 hover:underline shrink-0"
+        >
+          重試
+        </button>
+      )}
       <span className={cn("text-[10px] font-medium shrink-0", statusColor)}>
         {statusLabel}
       </span>
@@ -1751,6 +1766,7 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
   tasks,
   onUpdate,
   onClear,
+  onRetry,
 }: {
   tasks: DirectorGenTaskRow[];
   onUpdate: (
@@ -1759,6 +1775,10 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
     patch: Partial<DirectorGenTaskRow>
   ) => void;
   onClear: () => void;
+  onRetry?: (
+    segmentId: string,
+    modality: DirectorGenTaskRow["modality"]
+  ) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const completed = tasks.filter(t => t.status === "completed").length;
@@ -1812,6 +1832,7 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
                 key={`${t.segmentId}-${t.modality}`}
                 task={t}
                 onUpdate={onUpdate}
+                onRetry={onRetry}
               />
             ))}
           </div>
@@ -2558,23 +2579,10 @@ export default function DirectorAI() {
   //   1. 顯示生成進度面板（modality、progress、resultUrl）
   //   2. 在上游 image 任務完成後自動觸發 dependent video（i2v）
   //   3. 失敗時提供使用者重試入口
-  type DirectorGenTask = {
-    segmentId: string;
-    segmentIndex: number;
-    modality: "image" | "video" | "audio" | "voice" | "sfx";
-    modelId: string;
-    prompt: string;
-    voiceText?: string;
-    params: Record<string, unknown>;
-    estimatedPoints: number;
-    dependsOn?: { segmentId: string; modality: string };
-    jobId?: number;
-    requestId?: string;
-    status: "pending" | "processing" | "completed" | "failed";
-    resultUrl?: string | null;
-    errorMessage?: string | null;
-  };
-  const [generationTasks, setGenerationTasks] = useState<DirectorGenTask[]>([]);
+  // 使用模組層 DirectorGenTaskRow 作為共用形狀，避免父層／面板／列三處重複定義。
+  const [generationTasks, setGenerationTasks] = useState<DirectorGenTaskRow[]>(
+    []
+  );
 
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
@@ -2781,10 +2789,10 @@ export default function DirectorAI() {
       // 把完整的任務定義（含 modelId/prompt/params/dependsOn）存入 state，
       // 讓 GenerationProgressPanel 能輪詢狀態 + 在上游 image 完成後自動觸發
       // 對應的 i2v video 任務。
-      const tasksWithDef: DirectorGenTask[] = data.tasks.map(t => ({
+      const tasksWithDef: DirectorGenTaskRow[] = data.tasks.map(t => ({
         segmentId: t.segmentId,
         segmentIndex: t.segmentIndex,
-        modality: t.modality as DirectorGenTask["modality"],
+        modality: t.modality as DirectorGenTaskRow["modality"],
         modelId: t.modelId,
         prompt: t.prompt,
         voiceText: t.voiceText,
@@ -2853,7 +2861,7 @@ export default function DirectorAI() {
     (
       segmentId: string,
       modality: "image" | "video" | "audio" | "voice" | "sfx",
-      patch: Partial<DirectorGenTask>
+      patch: Partial<DirectorGenTaskRow>
     ) => {
       setGenerationTasks(prev =>
         prev.map(t =>
@@ -2870,6 +2878,79 @@ export default function DirectorAI() {
     setGenerationTasks([]);
   }, []);
 
+  // 失敗任務重試 — 從目前 state 取出原始 modelId / prompt / params，
+  // 重新觸發 executeGenerationTask。對 i2v 影片任務，從上游已完成的 image
+  // 任務取回 resultUrl 當 firstFrameUrl；若上游還沒完成就拒絕重試（避免
+  // 在沒有首幀時送出 image-to-video 請求）。
+  // 用 ref 持有最新的 generationTasks 快照，避免把 generationTasks 放進 useCallback
+  // dependencies 而導致每次任務狀態變動就讓 GenerationProgressPanel/Row 重新訂閱
+  // 這個 callback —— 進而觸發 GenerationTaskRow 內部 pollQuery 的重新註冊。
+  const generationTasksRef = useRef<DirectorGenTaskRow[]>(generationTasks);
+  useEffect(() => {
+    generationTasksRef.current = generationTasks;
+  }, [generationTasks]);
+
+  const handleRetryGenerationTask = useCallback(
+    (
+      segmentId: string,
+      modality: "image" | "video" | "audio" | "voice" | "sfx"
+    ) => {
+      const snapshot = generationTasksRef.current;
+      const target = snapshot.find(
+        t => t.segmentId === segmentId && t.modality === modality
+      );
+      if (!target || target.status !== "failed") return;
+
+      let firstFrameUrl: string | undefined;
+      if (
+        target.dependsOn &&
+        target.dependsOn.modality === "image" &&
+        modality === "video"
+      ) {
+        const upstream = snapshot.find(
+          t =>
+            t.segmentId === target.dependsOn!.segmentId &&
+            t.modality === "image" &&
+            t.status === "completed" &&
+            typeof t.resultUrl === "string" &&
+            (t.resultUrl as string).length > 0
+        );
+        if (!upstream) {
+          toast.error("無法重試 i2v：上游圖像尚未完成或失敗");
+          return;
+        }
+        firstFrameUrl = upstream.resultUrl as string;
+      }
+
+      setGenerationTasks(prev =>
+        prev.map(t =>
+          t.segmentId === segmentId && t.modality === modality
+            ? {
+                ...t,
+                status: "processing" as const,
+                errorMessage: null,
+                jobId: undefined,
+                requestId: undefined,
+              }
+            : t
+        )
+      );
+
+      executeTaskMut.mutate({
+        segmentId: target.segmentId,
+        segmentIndex: target.segmentIndex,
+        modality: target.modality,
+        modelId: target.modelId,
+        prompt: target.prompt,
+        voiceText: target.voiceText,
+        params: target.params,
+        mode: batchGenerationOptions.mode,
+        ...(firstFrameUrl ? { firstFrameUrl } : {}),
+      });
+    },
+    [executeTaskMut, batchGenerationOptions.mode]
+  );
+
   // 自動觸發 i2v 影片任務 — 監聽 generationTasks，當 image 任務完成且 resultUrl
   // 可用時，找出依賴它的 video 任務（dependsOn.modality === "image"）並用
   // resultUrl 當 firstFrameUrl 觸發 executeGenerationTask。
@@ -2885,7 +2966,7 @@ export default function DirectorAI() {
     );
     if (completedImages.length === 0) return;
 
-    const fired: Array<{ task: DirectorGenTask; firstFrameUrl: string }> = [];
+    const fired: Array<{ task: DirectorGenTaskRow; firstFrameUrl: string }> = [];
     for (const upstream of completedImages) {
       const url = upstream.resultUrl;
       if (!url) continue;
@@ -5622,6 +5703,7 @@ export default function DirectorAI() {
         tasks={generationTasks}
         onUpdate={handleGenerationTaskUpdate}
         onClear={handleClearGenerationTasks}
+        onRetry={handleRetryGenerationTask}
       />
     </div>
   );
