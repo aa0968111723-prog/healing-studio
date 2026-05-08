@@ -180,7 +180,17 @@ export function detectOrbPromptScenario(
   const hasAttachments = Boolean(input.hasAttachments);
 
   if (!text && !hasAttachments) return buildBoundaryEmpty();
-  if (!text && hasAttachments) return buildAttachmentOnlyHint();
+  if (!text && hasAttachments) {
+    const lastMeaningfulUserText = (input.recentUserTexts ?? [])
+      .slice()
+      .reverse()
+      .find(prev => countMeaningfulChars((prev ?? "").trim()) >= MIN_MEANINGFUL_CHARS);
+    // If the user just gave a meaningful instruction in the previous turn and
+    // then sends only an attachment (common mobile flow), treat it as a
+    // continuation instead of resetting with the generic attachment hint.
+    if (!lastMeaningfulUserText) return buildAttachmentOnlyHint();
+    return null;
+  }
 
   if (text.length > ORB_PROMPT_MAX_CHARS) return buildBoundaryTooLong(text);
 

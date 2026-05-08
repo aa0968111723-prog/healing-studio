@@ -46,6 +46,15 @@ describe("detectOrbPromptScenario — boundary input", () => {
     expect(out?.scenario).toBe("attachment-only-hint");
   });
 
+  it("does not show attachment-only hint when it is clearly a continuation", () => {
+    const out = detectOrbPromptScenario({
+      text: "",
+      hasAttachments: true,
+      recentUserTexts: ["我想把這個腳本做成一步影片"],
+    });
+    expect(out).toBeNull();
+  });
+
   it("returns boundary-noise for punctuation-only or emoji-only input", () => {
     expect(detectOrbPromptScenario({ text: "！！！", hasAttachments: false })?.scenario).toBe(
       "boundary-noise"
