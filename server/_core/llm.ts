@@ -1089,6 +1089,111 @@ function getRetryDelayMs(attempt: number): number {
   return Math.min(1000 * Math.pow(2, attempt - 1), LLM_MAX_RETRY_DELAY_MS);
 }
 
+// ─── Permanent error classification ───────────────────────────────────────
+//
+// 為什麼需要分類：當 Anthropic 回 400「credit balance is too low」、OpenRouter
+// 回 401 「invalid api key」或 402「payment required」時，那不是「重試會恢復」
+// 的網路抖動。每次重試都會：
+//   (1) 浪費 5-10 秒等 timeout / 連線；
+//   (2) 讓 fallback 鏈每次都先撞到壞掉的引擎再降級；
+//   (3) 在 LangSmith 累積一堆假的 error trace 蓋住真正的問題。
+//
+// classifyLLMError 用來區分：
+//   - permanent_quota：額度耗盡 / 帳單問題（402、credit balance、insufficient quota）
+//   - permanent_auth ：API key 失效 / 未授權（401、403、invalid api key）
+//   - transient      ：其他（5xx、429、網路錯誤等，繼續走原本的退避重試）
+//
+// 永久錯誤觸發 recordEngineFailure({ permanent: true }) → 立即斷路 10 分鐘，
+// 讓系統把流量交給其他健康引擎，直到金鑰修好。
+
+const PERMANENT_QUOTA_PATTERNS = [
+  "credit balance is too low",
+  "credit balance too low",
+  "insufficient credit",
+  "insufficient_quota",
+  "insufficient quota",
+  "quota exceeded",
+  "quota_exceeded",
+  "exceeded your current quota",
+  "billing",
+  "payment required",
+  "you exceeded your current usage",
+  "monthly spend limit",
+];
+
+const PERMANENT_AUTH_PATTERNS = [
+  "invalid api key",
+  "invalid_api_key",
+  "incorrect api key",
+  "api key not valid",
+  "authentication failed",
+  "authentication_error",
+  "unauthorized",
+  "forbidden",
+  "no auth credentials",
+];
+
+export type LLMErrorClassification = {
+  permanent: boolean;
+  reason: "permanent_quota" | "permanent_auth" | "transient";
+};
+
+export function classifyLLMError(
+  status: number,
+  body: string
+): LLMErrorClassification {
+  const lower = (body || "").toLowerCase();
+
+  // 402 Payment Required 一定是額度 / 帳單問題
+  if (status === 402) {
+    return { permanent: true, reason: "permanent_quota" };
+  }
+
+  // body 內出現額度耗盡的關鍵詞 → quota（即使狀態碼是 400/403）
+  if (PERMANENT_QUOTA_PATTERNS.some(p => lower.includes(p))) {
+    return { permanent: true, reason: "permanent_quota" };
+  }
+
+  // 401/403 通常代表金鑰失效
+  if (status === 401 || status === 403) {
+    return { permanent: true, reason: "permanent_auth" };
+  }
+
+  // body 出現典型 auth 字眼
+  if (PERMANENT_AUTH_PATTERNS.some(p => lower.includes(p))) {
+    return { permanent: true, reason: "permanent_auth" };
+  }
+
+  return { permanent: false, reason: "transient" };
+}
+
+/**
+ * 帶有「永久錯誤」標記的 LLM 錯誤類別。callEngine 會檢查此屬性並把訊息
+ * 傳給 recordEngineFailure({ permanent: true })，讓斷路器立刻打開。
+ */
+export class LLMPermanentError extends Error {
+  readonly permanent = true as const;
+  readonly reason: LLMErrorClassification["reason"];
+  readonly status: number;
+  constructor(
+    message: string,
+    reason: LLMErrorClassification["reason"],
+    status: number
+  ) {
+    super(message);
+    this.name = "LLMPermanentError";
+    this.reason = reason;
+    this.status = status;
+  }
+}
+
+function isPermanentLLMError(err: unknown): err is LLMPermanentError {
+  return (
+    err instanceof Error &&
+    (err as Error & { permanent?: boolean }).permanent === true
+  );
+}
+
 // ─── 主要 LLM 呼叫函數 ────────────────────────────────────────────────────
 
 /**
@@ -1336,7 +1441,16 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       recordEngineSuccess(engineConfig.engine, latencyMs);
       return result;
     } catch (err) {
-      recordEngineFailure(engineConfig.engine);
+      // 永久錯誤（401/403/402、credit balance too low、invalid api key 等）→
+      // 立即斷路 10 分鐘，不再讓 fallback 鏈每次都先撞到這個壞掉的引擎。
+      if (isPermanentLLMError(err)) {
+        recordEngineFailure(engineConfig.engine, {
+          permanent: true,
+          reason: err.reason,
+        });
+      } else {
+        recordEngineFailure(engineConfig.engine);
+      }
       throw err;
     }
   };
@@ -1388,6 +1502,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
       // ── 預設 sequential fallback ──
       let lastError: Error | null = null;
+      const permanentReasons: Array<{ engine: string; reason: string }> = [];
       for (let i = 0; i < engineConfigs.length; i++) {
         const cfg = engineConfigs[i];
         const isLast = i === engineConfigs.length - 1;
@@ -1395,12 +1510,31 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           return await callEngine(cfg, isLast);
         } catch (err) {
           lastError = err instanceof Error ? err : new Error(String(err));
+          if (isPermanentLLMError(err)) {
+            permanentReasons.push({ engine: cfg.name, reason: err.reason });
+          }
           if (!isLast) {
             console.warn(
               `[LLM] ⚠️ ${cfg.name} 失敗，嘗試備援引擎... 錯誤: ${lastError.message.slice(0, 200)}`
             );
           }
         }
+      }
+      // 多引擎全部因 permanent 錯誤失敗時，包成 aggregate 訊息，把運營者
+      // 直接指向「補額度 / 換金鑰」的修復路徑。單引擎強制路徑（沒有 fallback）
+      // 維持原始 LLMPermanentError 拋出，呼叫端可用 instanceof 判斷。
+      if (
+        engineConfigs.length > 1 &&
+        permanentReasons.length === engineConfigs.length &&
+        lastError
+      ) {
+        const summary = permanentReasons
+          .map(r => `${r.engine}（${r.reason}）`)
+          .join("、");
+        const aggregate = new Error(
+          `[LLM] 所有可用引擎皆因金鑰／額度問題失敗：${summary}。請檢查環境變數 OPENROUTER_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 是否仍有效，或前往對應供應商儀表板補額度。原始錯誤：${lastError.message.slice(0, 200)}`
+        );
+        throw aggregate;
       }
       throw lastError ?? new Error("[LLM] 所有引擎都失敗");
     });
@@ -1597,11 +1731,20 @@ async function invokeSingleEngine(
 
         if (!response.ok) {
           const errorText = await response.text();
-          const err = new Error(
-            `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-          );
-          // Retry on 5xx server errors or 429 rate limit
+          const classification = classifyLLMError(response.status, errorText);
+          const baseMessage = `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`;
+          const err = classification.permanent
+            ? new LLMPermanentError(
+                baseMessage,
+                classification.reason,
+                response.status
+              )
+            : new Error(baseMessage);
+          // Retry on 5xx server errors or 429 rate limit, but never on permanent
+          // auth/quota errors — those will keep failing until the operator fixes
+          // the API key or tops up credits, and each retry just wastes latency.
           if (
+            !classification.permanent &&
             (response.status >= 500 || response.status === 429) &&
             attempt < maxRetries
           ) {

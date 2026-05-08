@@ -84,6 +84,15 @@ interface CircuitBreakerEntry {
   avgLatencyMs: number;
   /** 累積成功次數，避免 EMA 在頭幾次成功時過度敏感 */
   samples: number;
+  /**
+   * 由永久錯誤（auth / quota / billing）強制設定的冷卻時間。
+   * 一般 transient 錯誤走 trips-based 指數退避；永久錯誤走這個獨立的長冷卻
+   * （預設 10 分鐘），避免短時間內反覆撞到金鑰失效或額度耗盡的引擎。
+   * 任何一次成功或非永久失敗都會清除此覆蓋值。
+   */
+  overrideCooldownMs?: number;
+  /** 最近一次失敗的分類（permanent_auth / permanent_quota / transient），供 health endpoint 顯示 */
+  lastFailureReason?: string;
 }
 
 /** 連續失敗幾次後斷路 */
@@ -91,6 +100,13 @@ const CIRCUIT_FAILURE_THRESHOLD = 3;
 /** 斷路後冷卻時間基準值（毫秒）。Adaptive cooldown：第一次 15s、第二次 30s、第三次起 60s */
 const CIRCUIT_COOLDOWN_BASE_MS = 15_000;
 const CIRCUIT_COOLDOWN_MAX_MS = 60_000;
+/**
+ * 永久錯誤（API 金鑰失效、額度耗盡、帳單問題）的長冷卻時間。
+ * 這類錯誤不是「重試就會恢復」的網路抖動 — 在運營者修復金鑰或補額前，
+ * 任何重試都會繼續燒錢、拖慢使用者體驗。10 分鐘讓系統把流量交給其他引擎，
+ * 同時保留一條重新試探的路徑（避免人工修好後還要重啟服務）。
+ */
+const PERMANENT_FAILURE_COOLDOWN_MS = 10 * 60_000;
 /** 成功一次後重置計數器 */
 const CIRCUIT_SUCCESS_RESET = true;
 /** EMA 平滑係數 — 越接近 1，越偏重最近的延遲；0.3 在抗抖動與感應變化之間取得平衡 */
@@ -121,13 +137,21 @@ function getCooldownMs(trips: number): number {
   return Math.min(CIRCUIT_COOLDOWN_BASE_MS * factor, CIRCUIT_COOLDOWN_MAX_MS);
 }
 
+/** 取得實際生效的冷卻毫秒數 — 永久錯誤覆蓋優先，否則走 trips-based 指數退避 */
+function effectiveCooldownMs(cb: CircuitBreakerEntry): number {
+  if (typeof cb.overrideCooldownMs === "number" && cb.overrideCooldownMs > 0) {
+    return cb.overrideCooldownMs;
+  }
+  return getCooldownMs(cb.trips);
+}
+
 /** 引擎是否可用（斷路器判斷） */
 export function isEngineAvailable(engine: LLMEngine): boolean {
   const cb = getCircuit(engine);
   if (cb.state === "CLOSED") return true;
   if (cb.state === "OPEN") {
     // 檢查冷卻期是否結束 — 採用 adaptive cooldown
-    const cooldown = getCooldownMs(cb.trips);
+    const cooldown = effectiveCooldownMs(cb);
     if (Date.now() - cb.openedAt >= cooldown) {
       cb.state = "HALF_OPEN";
       return true; // 允許一次試探
@@ -150,6 +174,9 @@ export function recordEngineSuccess(engine: LLMEngine, latencyMs?: number): void
   }
   cb.lastSuccessAt = Date.now();
   cb.state = "CLOSED";
+  // 一旦成功，清除永久錯誤覆蓋與失敗分類 — 之後若再失敗按 transient 規則重新評估。
+  cb.overrideCooldownMs = undefined;
+  cb.lastFailureReason = undefined;
 
   if (typeof latencyMs === "number" && latencyMs > 0 && Number.isFinite(latencyMs)) {
     if (cb.samples === 0) {
@@ -161,11 +188,40 @@ export function recordEngineSuccess(engine: LLMEngine, latencyMs?: number): void
   }
 }
 
-/** 記錄引擎失敗（累積失敗計數，達到閾值則斷路） */
-export function recordEngineFailure(engine: LLMEngine): void {
+/**
+ * 記錄引擎失敗。
+ *
+ * 一般 transient 錯誤（網路抖動、5xx、429）：累積失敗計數，達到 threshold 才斷路。
+ * 永久錯誤（permanent=true，例如 401/403/402、credit balance too low、invalid api key）：
+ *   立即斷路並設定 10 分鐘長冷卻 — 因為這類錯誤不會自然恢復，繼續重試只會
+ *   讓 fallback 鏈每次都先撞到壞掉的引擎再降級，浪費延遲與 token 預算。
+ */
+export function recordEngineFailure(
+  engine: LLMEngine,
+  options?: { permanent?: boolean; reason?: string }
+): void {
   const cb = getCircuit(engine);
   cb.failures++;
   cb.lastFailureAt = Date.now();
+  if (options?.reason) cb.lastFailureReason = options.reason;
+
+  if (options?.permanent) {
+    // 永久錯誤 — 立即斷路，使用長冷卻，不需要等 3 次累積。
+    cb.state = "OPEN";
+    cb.openedAt = Date.now();
+    cb.trips++;
+    cb.overrideCooldownMs = PERMANENT_FAILURE_COOLDOWN_MS;
+    const reason = options.reason ?? "permanent";
+    console.warn(
+      `[CircuitBreaker] 🔴 ${engine} 永久錯誤（${reason}），立即斷路（冷卻 ${Math.round(
+        PERMANENT_FAILURE_COOLDOWN_MS / 1000
+      )}s）— 跳過此引擎直到金鑰／額度修復`
+    );
+    return;
+  }
+
+  // Transient 錯誤路徑 — 一旦再次出現轉瞬即逝的失敗，我們不再相信舊的長冷卻。
+  cb.overrideCooldownMs = undefined;
 
   if (cb.state === "HALF_OPEN") {
     // 試探失敗 → 重新打開（trips 不變，本次仍算同一輪斷路）
@@ -192,11 +248,27 @@ export function getEngineAvgLatencyMs(engine: LLMEngine): number {
 /** 取得所有斷路器狀態（供 debug / health endpoint 使用） */
 export function getCircuitBreakerStatus(): Record<
   string,
-  { state: CircuitState; failures: number; available: boolean; avgLatencyMs: number; trips: number }
+  {
+    state: CircuitState;
+    failures: number;
+    available: boolean;
+    avgLatencyMs: number;
+    trips: number;
+    lastFailureReason?: string;
+    cooldownMs: number;
+  }
 > {
   const result: Record<
     string,
-    { state: CircuitState; failures: number; available: boolean; avgLatencyMs: number; trips: number }
+    {
+      state: CircuitState;
+      failures: number;
+      available: boolean;
+      avgLatencyMs: number;
+      trips: number;
+      lastFailureReason?: string;
+      cooldownMs: number;
+    }
   > = {};
   for (const [engine, cb] of Array.from(circuitBreakers.entries())) {
     result[engine] = {
@@ -205,6 +277,8 @@ export function getCircuitBreakerStatus(): Record<
       available: isEngineAvailable(engine),
       avgLatencyMs: Math.round(cb.avgLatencyMs),
       trips: cb.trips,
+      lastFailureReason: cb.lastFailureReason,
+      cooldownMs: effectiveCooldownMs(cb),
     };
   }
   return result;
@@ -224,6 +298,8 @@ export function __unsafeResetCircuitForTests(engine: LLMEngine): void {
     trips: 0,
     avgLatencyMs: 0,
     samples: 0,
+    overrideCooldownMs: undefined,
+    lastFailureReason: undefined,
   });
 }
 
