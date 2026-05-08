@@ -1843,6 +1843,42 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const clarificationRoundsRef = useRef(0);
   const MAX_CLARIFICATION_ROUNDS = 2;
 
+  // Monotonic id stamped on each sendMessage invocation. After every await
+  // we compare back to the ref — if the user cleared history or kicked off
+  // a newer turn while the LLM round-trip was in flight, we drop the late
+  // result instead of mutating now-stale state (which would otherwise
+  // resurrect a cleared history or overwrite a freshly-typed message).
+  const sendRequestIdRef = useRef(0);
+
+  // Both clarification branches (server-driven `needsClarification` and the
+  // client-side fallback `intentDetection`) end up doing the same thing
+  // when the round counter hits MAX_CLARIFICATION_ROUNDS: surface a
+  // best-guess reply, reset the counter, pin a fixed quick-reply set. This
+  // helper centralises that so the two branches can't drift in copy or
+  // suggestion order.
+  const applyClarificationCap = useCallback((bestGuessReply: string) => {
+    clarificationRoundsRef.current = 0;
+    const cappedReply = [
+      "🎯 我們繞了幾圈，我先用我目前理解的方向幫你跑：",
+      bestGuessReply,
+      "",
+      "要修改任何一項，直接告訴我（例如「改 30 秒」「改成手繪風」）；想全部重來輸入「重置對話」。",
+    ].join("\n");
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: cappedReply,
+      at: Date.now(),
+      pagePath: locationPath,
+      intent: "反問次數已滿，先以最佳猜測前進",
+    }]);
+    setSuggestions([
+      { text: "這樣開始" },
+      { text: "改長度" },
+      { text: "改風格" },
+      { text: "重置對話" },
+    ]);
+  }, [locationPath]);
+
   const sendMessage = useCallback(async (
     text: string,
     attachments: ChatAttachment[] = [],
@@ -1852,6 +1888,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     if ((!trimmed && attachments.length === 0) || isSending) return;
     const requestedMode = options.requestedMode;
 
+    // Stamp this turn so any awaited result that resolves after the user
+    // clears history (or kicks off a newer turn) can be detected and
+    // discarded before it mutates state.
+    const turnId = ++sendRequestIdRef.current;
+    const isStale = () => sendRequestIdRef.current !== turnId;
+
     const userMessage: ChatMessage = {
       role: "user",
       text: trimmed,
@@ -1860,11 +1902,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       attachments: attachments.length > 0 ? attachments : undefined,
     };
 
-    const nextHistory = [...messages, userMessage];
+    // Read history from the ref so this callback doesn't have to list
+    // `messages` as a dep (which would rebuild it — and every consumer that
+    // depends on the context value — on every committed message).
+    const nextHistory = [...messagesRef.current, userMessage];
     setMessages(nextHistory);
     setInput("");
     setSuggestions([]);
     setIsSending(true);
+
+    // Pre-parse long-form briefs once; reused for the LLM context hint and
+    // the multi-dim wizard's prefill below so we don't re-parse on the same
+    // turn.
+    const parsedScriptStructure =
+      trimmed.length >= SCRIPT_STRUCTURE_MIN_CHARS
+        ? extractScriptStructure(trimmed)
+        : null;
 
     // ─── Edge-case prompt scenarios ──────────────────────────────────────
     // Catches empty / noise / extremely-long input, frustration & cancel
@@ -1917,6 +1970,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             query: searchIntent.query,
             ...(searchIntent.types ? { types: searchIntent.types } : {}),
           });
+          if (isStale()) return;
           orbState.setState(
             result.items.length > 0 ? "success" : "idle",
             result.items.length > 0
@@ -2010,6 +2064,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         at: Date.now(),
         pagePath: locationPath,
       }]);
+      orbState.setState("idle");
       setIsSending(false);
       return;
     }
@@ -2046,24 +2101,24 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         : undefined;
       // When the user pasted a long brief, pre-parse it and stamp the
       // covered dimensions into `context` so the LLM doesn't re-ask
-      // (matches the 反問節制守則 in the system prompt).
-      const parsedStructureHint =
-        trimmed.length >= SCRIPT_STRUCTURE_MIN_CHARS
-          ? (() => {
-              const parsed = extractScriptStructure(trimmed);
-              const parts: string[] = [];
-              if (parsed.format) parts.push(`format=${parsed.format}`);
-              if (parsed.durationLabel) parts.push(`length=${parsed.durationLabel}`);
-              if (parsed.subject) parts.push(`subject=${parsed.subject}`);
-              if (parsed.styles.length) parts.push(`styles=${parsed.styles.slice(0, 3).join("/")}`);
-              if (parsed.platforms.length) parts.push(`platforms=${parsed.platforms.slice(0, 3).join("/")}`);
-              if (parsed.purpose) parts.push(`purpose=${parsed.purpose}`);
-              if (parsed.scenes > 0) parts.push(`scenes=${parsed.scenes}`);
-              return parts.length > 0
-                ? ` · parsedScriptStructure: ${parts.join(", ")}`
-                : "";
-            })()
+      // (matches the 反問節制守則 in the system prompt). Reuses the
+      // single parse from the top of sendMessage.
+      const parsedStructureHint = (() => {
+        const parsed = parsedScriptStructure;
+        if (!parsed) return "";
+        const parts: string[] = [];
+        if (parsed.format) parts.push(`format=${parsed.format}`);
+        if (parsed.durationLabel) parts.push(`length=${parsed.durationLabel}`);
+        if (parsed.subject) parts.push(`subject=${parsed.subject}`);
+        if (parsed.styles.length) parts.push(`styles=${parsed.styles.slice(0, 3).join("/")}`);
+        if (parsed.platforms.length) parts.push(`platforms=${parsed.platforms.slice(0, 3).join("/")}`);
+        if (parsed.purpose) parts.push(`purpose=${parsed.purpose}`);
+        if (parsed.scenes > 0) parts.push(`scenes=${parsed.scenes}`);
+        return parts.length > 0
+          ? ` · parsedScriptStructure: ${parts.join(", ")}`
           : "";
+      })();
+      orbState.setState("thinking", "光球思考中…");
       const data = await aiChat.mutateAsync({
         messages: compactHistoryForRequest(nextHistory)
           .map(m => ({
@@ -2077,6 +2132,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         preferences: preferencesForChat,
       });
 
+      // The user (or another effect) invalidated this turn while the LLM
+      // was thinking — drop the response instead of mutating stale state.
+      if (isStale()) return;
+
       // Server signalled it needs to ask the user before acting. Skip every
       // downstream action / workflow / executor branch and surface the
       // ClarificationPromptCard so the user can disambiguate before the orb
@@ -2086,26 +2145,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const needsClarification = (data as { needsClarification?: boolean }).needsClarification === true;
       if (needsClarification) {
         if (clarificationRoundsRef.current >= MAX_CLARIFICATION_ROUNDS) {
-          clarificationRoundsRef.current = 0;
-          const cappedReply = [
-            "🎯 我們繞了幾圈，我先用我目前理解的方向幫你跑：",
-            (data as { reply?: string }).reply ?? "依據前面對話我會挑最可能的選項組合執行。",
-            "",
-            "要修改任何一項，直接告訴我（例如「改 30 秒」「改成手繪風」）；想全部重來輸入「重置對話」。",
-          ].join("\n");
-          setMessages(prev => [...prev, {
-            role: "orb",
-            text: cappedReply,
-            at: Date.now(),
-            pagePath: locationPath,
-            intent: "反問次數已滿，先以最佳猜測前進",
-          }]);
-          setSuggestions([
-            { text: "這樣開始" },
-            { text: "改長度" },
-            { text: "改風格" },
-            { text: "重置對話" },
-          ]);
+          applyClarificationCap(
+            (data as { reply?: string }).reply ?? "依據前面對話我會挑最可能的選項組合執行。"
+          );
           return;
         }
         clarificationRoundsRef.current += 1;
@@ -2215,26 +2257,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         // reply instead — the user can still correct us, but we never trap
         // them in an open-ended form.
         if (clarificationRoundsRef.current >= MAX_CLARIFICATION_ROUNDS) {
-          clarificationRoundsRef.current = 0;
-          const fallbackMsg = [
-            "🎯 我們繞了幾圈，我先用我目前理解的方向幫你跑：",
-            dataReply ? dataReply : intentDetection.message,
-            "",
-            "要修改任何一項，直接告訴我（例如「改 30 秒」「改成手繪風」）；想全部重來輸入「重置對話」。",
-          ].join("\n");
-          setMessages(prev => [...prev, {
-            role: "orb",
-            text: fallbackMsg,
-            at: Date.now(),
-            pagePath: locationPath,
-            intent: "反問次數已滿，先以最佳猜測前進",
-          }]);
-          setSuggestions([
-            { text: "這樣開始" },
-            { text: "改長度" },
-            { text: "改風格" },
-            { text: "重置對話" },
-          ]);
+          applyClarificationCap(dataReply ? dataReply : intentDetection.message);
           return;
         }
         clarificationRoundsRef.current += 1;
@@ -2248,10 +2271,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         // do NOT get re-asked.
         const detectedModality = inferModalityFromText(trimmed);
         const rememberedCoverage = rememberedDimensionCoverage(rememberedPreferences);
-        const prefilledFromScript =
-          trimmed.length >= SCRIPT_STRUCTURE_MIN_CHARS
-            ? structureToDimensionSignals(extractScriptStructure(trimmed))
-            : undefined;
+        const prefilledFromScript = parsedScriptStructure
+          ? structureToDimensionSignals(parsedScriptStructure)
+          : undefined;
         const multi = buildMultiDimWizardClarification(
           trimmed,
           detectedModality,
@@ -2539,8 +2561,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (err) {
+      // If this turn was already invalidated by a newer send (or clear),
+      // swallow the failure quietly — surfacing an error toast for a
+      // request the user already abandoned would only confuse.
+      if (isStale()) return;
       const reason = err instanceof Error ? err.message : String(err);
       console.error("[GlobalOrbChat] Send error:", reason);
+      orbState.setState("error", `連線不穩：${reason.slice(0, 40)}`);
       setWorkflowExecution(prev => prev ? {
         ...prev,
         status: "failed",
@@ -2570,7 +2597,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSending(false);
     }
-  }, [messages, isSending, personality, pageAgent, locationPath, aiChat, providerPingQuery.data, executeActions]);
+  }, [
+    // `messages` intentionally omitted — we read via messagesRef.current so
+    // this callback (and every consumer of the context value) doesn't
+    // rebuild on every committed message.
+    isSending,
+    personality,
+    pageAgent,
+    locationPath,
+    aiChat,
+    trpcUtils,
+    providerPingQuery.data,
+    agentPreferencesQuery.data,
+    executeActions,
+    applyClarificationCap,
+    orbState,
+  ]);
 
   const approveExecutorTask = useCallback(async () => {
     if (!pendingExecutorTask || isSending) return;
@@ -2788,14 +2830,19 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen(prev => !prev), []);
   const clearHistory = useCallback(() => {
+    // Bumping the request id invalidates any in-flight LLM round-trip so
+    // its `if (isStale()) return;` check fires and the late response is
+    // discarded instead of repopulating the cleared history.
+    sendRequestIdRef.current += 1;
     setMessages([]);
     setSuggestions([]);
     setPendingWorkflow(null);
     setPendingClarification(null);
     clarificationRoundsRef.current = 0;
     clearMessagesFromStorage();
-  }, []);
+  }, [setPendingClarification]);
   const resetConversation = useCallback(() => {
+    sendRequestIdRef.current += 1;
     const welcome: ChatMessage = { role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath };
     setMessages([welcome]);
     setSuggestions([]);
@@ -2803,7 +2850,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setPendingClarification(null);
     clarificationRoundsRef.current = 0;
     saveMessagesToStorage([welcome]);
-  }, [welcomeMessage, locationPath]);
+  }, [welcomeMessage, locationPath, setPendingClarification]);
 
   const userOrbAgentOverride = (agentPreferencesQuery.data as { orbAgentEnabled?: boolean | null } | undefined)?.orbAgentEnabled ?? null;
   const orbAgentEnabledResolved = resolveOrbAgentEnabled(userOrbAgentOverride);
