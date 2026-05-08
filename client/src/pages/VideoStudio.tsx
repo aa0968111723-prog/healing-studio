@@ -156,6 +156,22 @@ function useVideoAgentBus() {
   return useContext(VideoAgentBusContext);
 }
 
+// ─── 上游可用性 context ─────────────────────────────────────────────────────
+// 從 trpc.videoStudio.modelAvailability 讀一次後共享給所有 ToolCard，避免每張
+// 卡都各自打一次 query。
+type ModelAvailabilityMap = Record<
+  string,
+  { disabled: boolean; reason?: string; label?: string }
+>;
+const ModelAvailabilityContext = createContext<ModelAvailabilityMap>({});
+function useModelAvailability(modelId?: string) {
+  const map = useContext(ModelAvailabilityContext);
+  if (!modelId) return null;
+  const entry = map[modelId];
+  if (!entry?.disabled) return null;
+  return entry.reason ?? "fal.ai 上游已停用";
+}
+
 // ─── 子元件：影片播放器 ──────────────────────────────────────────────────────
 
 function VideoPlayer({ url, label }: { url: string; label?: string }) {
@@ -434,6 +450,7 @@ function ToolCard({
   color = "blue",
   isNew,
   defaultOpen = false,
+  disabledReason,
   children,
 }: {
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
@@ -444,16 +461,28 @@ function ToolCard({
   color?: CardColor;
   isNew?: boolean;
   defaultOpen?: boolean;
+  /** 顯式覆寫；通常留空，由 modelId 自動從 ModelAvailabilityContext 查表。 */
+  disabledReason?: string | null;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const ctxReason = useModelAvailability(modelId);
+  const reason = disabledReason ?? ctxReason;
+  const [open, setOpen] = useState(defaultOpen && !reason);
   const c = CARD_COLORS[color];
+  const isDisabled = !!reason;
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`rounded-2xl bg-gradient-to-br ${c.bg} border backdrop-blur-sm transition-all duration-300 ${open ? "shadow-md ring-1 ring-primary/10" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+        className={`rounded-2xl bg-gradient-to-br ${c.bg} border backdrop-blur-sm transition-all duration-300 ${
+          isDisabled
+            ? "opacity-70 grayscale-[0.4]"
+            : open
+              ? "shadow-md ring-1 ring-primary/10"
+              : "shadow-sm hover:shadow-md hover:-translate-y-0.5"
+        }`}
+        aria-disabled={isDisabled}
       >
         <CollapsibleTrigger asChild>
           <button
@@ -472,9 +501,17 @@ function ToolCard({
                     {badge}
                   </Badge>
                 )}
-                {isNew && (
+                {isNew && !isDisabled && (
                   <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white motion-safe:animate-pulse">
                     NEW
+                  </Badge>
+                )}
+                {isDisabled && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 border-amber-300/60 text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-900/20"
+                  >
+                    上游暫停
                   </Badge>
                 )}
               </div>
@@ -491,8 +528,18 @@ function ToolCard({
         </CollapsibleTrigger>
         <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 overflow-hidden">
           <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
+            {isDisabled && (
+              <div className="mb-3 rounded-xl border border-amber-300/60 bg-amber-50/60 dark:bg-amber-900/20 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200 flex items-start gap-2 leading-relaxed">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  此模型目前在 fal.ai 上游不可用，按鈕會立即回報錯誤。原因：{reason}
+                </span>
+              </div>
+            )}
             {/* API 路徑已隱藏 — 技術細節對一般用戶無意義，減少視覺雜訊 */}
-            {children}
+            <div className={isDisabled ? "pointer-events-none opacity-60" : undefined}>
+              {children}
+            </div>
           </div>
         </CollapsibleContent>
       </motion.div>
@@ -503,16 +550,29 @@ function ToolCard({
 // ─── 子元件：API Key 提示橫條 ────────────────────────────────────────────────
 
 function ApiKeyBanner() {
-  // UI/UX 優化：後端配置警告不應暴露給一般用戶，僅在控制台輸出提示
-  const { data } = trpc.videoStudio.checkApiKey.useQuery(undefined, {
+  // 顯示明確的 actionable 警告：當 FAL_API_KEY 未設定，所有影片模型都會失敗，
+  // 之前隱藏這個訊息會讓使用者按下生成後等很久才看到不明錯誤。
+  const { data, isLoading } = trpc.videoStudio.checkApiKey.useQuery(undefined, {
     retry: false,
+    refetchOnWindowFocus: false,
   });
-  if (data?.configured) return null;
-  // 不再在 UI 中顯示技術性警告，避免困惑一般用戶
-  if (typeof window !== "undefined") {
-    console.warn("[VideoStudio] FAL_API_KEY not configured. Video generation may not work.");
-  }
-  return null;
+  if (isLoading || data?.configured) return null;
+  return (
+    <div
+      role="alert"
+      className="rounded-xl border border-amber-300/60 bg-amber-50/70 dark:bg-amber-900/20 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2 leading-relaxed"
+    >
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+      <div>
+        <p className="font-semibold">FAL_API_KEY 尚未設定</p>
+        <p className="mt-0.5">
+          影片創作室所有模型都仰賴 fal.ai。請在 Railway → Environment Variables
+          中新增 <code className="font-mono">FAL_API_KEY</code> 後重啟服務，否則
+          按下生成會立即失敗。
+        </p>
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3835,6 +3895,332 @@ function AdvancedControlTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ✨ SmartPromptDialog — 把 server/services/videoCompiler.ts 接到 UI
+// ═══════════════════════════════════════════════════════════════════════════════
+// 之前 videoCompiler 是個未接線的 1493 行模組（有測試、沒入口）。
+// 這裡讓使用者可以選情緒 + 鏡頭運動 → 後端編譯成完整提詞 → 一鍵套用到當前
+// 分頁的 prompt 欄位。
+
+const COMPILE_MOODS = [
+  { id: "serenity", label: "寧靜 · serenity" },
+  { id: "joy", label: "喜悅 · joy" },
+  { id: "wonder", label: "驚奇 · wonder" },
+  { id: "nostalgia", label: "懷舊 · nostalgia" },
+  { id: "melancholy", label: "感傷 · melancholy" },
+  { id: "hope", label: "希望 · hope" },
+  { id: "energy", label: "能量 · energy" },
+  { id: "intimacy", label: "親密 · intimacy" },
+  { id: "freedom", label: "自由 · freedom" },
+  { id: "loneliness", label: "孤獨 · loneliness" },
+  { id: "awe", label: "敬畏 · awe" },
+  { id: "tranquility", label: "禪意 · tranquility" },
+  { id: "mystery", label: "神秘 · mystery" },
+  { id: "sadness", label: "哀愁 · sadness" },
+] as const;
+
+function SmartPromptDialog({
+  open,
+  onClose,
+  onApply,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onApply: (prompt: string) => void;
+}) {
+  const [mood, setMood] = useState<string>("serenity");
+  const [subject, setSubject] = useState("");
+  const [environment, setEnvironment] = useState("");
+  const [cameraMode, setCameraMode] = useState<string>("");
+  const [duration, setDuration] = useState<number>(5);
+  const [slow, setSlow] = useState(false);
+  const [styleTag, setStyleTag] = useState<string>("");
+  const [aspect, setAspect] = useState<"16:9" | "9:16" | "1:1" | "4:3">("16:9");
+  const [result, setResult] = useState<string | null>(null);
+  const [stats, setStats] = useState<{
+    shotCount: number;
+    estimatedDurationSec: number;
+    cameraStabilityScore: number;
+    jumpBlockCount: number;
+  } | null>(null);
+
+  const camerasQuery = trpc.videoStudio.listCameraModes.useQuery(undefined, {
+    enabled: open,
+    staleTime: Infinity,
+  });
+  const compileMut = trpc.videoStudio.compilePrompt.useMutation({
+    onError: e => toast.error(e.message),
+  });
+
+  const run = useCallback(async () => {
+    const blocks: Array<{
+      id: string;
+      category: "subject" | "action" | "environment" | "camera" | "mood" | "style";
+      label: string;
+      prompt: string;
+    }> = [];
+    if (subject.trim()) {
+      blocks.push({
+        id: "user_subject",
+        category: "subject",
+        label: subject,
+        prompt: subject,
+      });
+    }
+    if (environment.trim()) {
+      blocks.push({
+        id: "user_env",
+        category: "environment",
+        label: environment,
+        prompt: environment,
+      });
+    }
+    blocks.push({
+      id: "user_mood",
+      category: "mood",
+      label: mood,
+      prompt: mood,
+    });
+    if (styleTag.trim()) {
+      blocks.push({
+        id: "user_style",
+        category: "style",
+        label: styleTag,
+        prompt: styleTag,
+      });
+    }
+    try {
+      const r = await compileMut.mutateAsync({
+        blocks,
+        moodKeywords: [mood],
+        targetDurationSec: duration,
+        forceCameraMode: (cameraMode || undefined) as
+          | undefined
+          | "static"
+          | "dolly_in"
+          | "dolly_out",
+        aspectRatio: aspect,
+        slowMotion: slow,
+        styleOverride: styleTag.trim() || undefined,
+      });
+      setResult(r.prompt);
+      setStats({
+        shotCount: r.shotCount,
+        estimatedDurationSec: r.estimatedDurationSec,
+        cameraStabilityScore: r.cameraStabilityScore,
+        jumpBlockCount: r.jumpBlockCount,
+      });
+    } catch {
+      // mutation onError 已經 toast
+    }
+  }, [
+    subject,
+    environment,
+    mood,
+    styleTag,
+    duration,
+    cameraMode,
+    aspect,
+    slow,
+    compileMut,
+  ]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="bg-background border border-border/50 rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-background/95 backdrop-blur border-b border-border/40 px-4 py-3 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-semibold flex-1">智慧編譯提詞</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            遵守「相機運動 + 主體 + 動作 + 環境光影」公式。輸入主體、環境，選情緒
+            與鏡頭，後端會把它組成符合 fal 影片模型的完整提詞。
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">主體（可空）</Label>
+              <Input
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                placeholder="例：a young woman walking in a forest"
+                className="mt-1 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">環境（可空）</Label>
+              <Input
+                value={environment}
+                onChange={e => setEnvironment(e.target.value)}
+                placeholder="例：morning mist, soft light"
+                className="mt-1 text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">情緒</Label>
+              <Select value={mood} onValueChange={setMood}>
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COMPILE_MOODS.map(m => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">運鏡</Label>
+              <Select
+                value={cameraMode || "_auto"}
+                onValueChange={v => setCameraMode(v === "_auto" ? "" : v)}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_auto">依情緒自動推薦</SelectItem>
+                  {(camerasQuery.data ?? []).map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.labelZh}（{c.label}）· 穩定 {c.stabilityScore}/5
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">畫面比例</Label>
+              <Select value={aspect} onValueChange={v => setAspect(v as typeof aspect)}>
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9</SelectItem>
+                  <SelectItem value="9:16">9:16</SelectItem>
+                  <SelectItem value="1:1">1:1</SelectItem>
+                  <SelectItem value="4:3">4:3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                時長：{duration}s
+              </Label>
+              <Slider
+                min={3}
+                max={20}
+                step={1}
+                value={[duration]}
+                onValueChange={([v]) => setDuration(v)}
+                className="mt-3"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">風格（選填）</Label>
+              <Input
+                value={styleTag}
+                onChange={e => setStyleTag(e.target.value)}
+                placeholder="cinematic / anime / documentary"
+                className="mt-1 text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-3 pb-1">
+              <Switch checked={slow} onCheckedChange={setSlow} id="compile-slow" />
+              <Label htmlFor="compile-slow" className="text-xs cursor-pointer">
+                慢動作
+              </Label>
+            </div>
+          </div>
+          <Button
+            onClick={run}
+            disabled={compileMut.isPending}
+            className="w-full"
+          >
+            {compileMut.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                編譯中...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                編譯提詞
+              </>
+            )}
+          </Button>
+          {result && (
+            <div className="rounded-xl border border-border/50 bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground">
+                <Badge variant="secondary" className="text-[10px]">
+                  鏡頭 {stats?.shotCount}
+                </Badge>
+                <Badge variant="secondary" className="text-[10px]">
+                  {stats?.estimatedDurationSec}s
+                </Badge>
+                <Badge variant="secondary" className="text-[10px]">
+                  穩定 {stats?.cameraStabilityScore}/5
+                </Badge>
+                {stats && stats.jumpBlockCount > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] border-amber-300/60 text-amber-700"
+                  >
+                    阻擋視角跳躍 {stats.jumpBlockCount} 次
+                  </Badge>
+                )}
+              </div>
+              <pre className="text-[11px] leading-relaxed whitespace-pre-wrap font-mono text-foreground/80 max-h-48 overflow-y-auto">
+                {result}
+              </pre>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    onApply(result);
+                    onClose();
+                    toast.success("已套用到當前分頁");
+                  }}
+                >
+                  套用到當前分頁
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(result);
+                    toast.success("已複製提詞");
+                  }}
+                >
+                  <Copy className="w-3 h-3 mr-1" /> 複製
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 🎬 主頁面元件
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -4451,8 +4837,37 @@ export default function VideoStudio() {
     );
   }, [currentTabModels, guideKeyword]);
 
+  // ── 全站模型可用性：所有 ToolCard 共用，自動把 fal 上游已停用的卡片打灰 ──
+  const availabilityQuery = trpc.videoStudio.modelAvailability.useQuery(
+    undefined,
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+      staleTime: 60_000,
+    }
+  );
+  const availabilityMap = availabilityQuery.data ?? {};
+
+  // ── 智慧編譯提詞 dialog ──
+  const [smartOpen, setSmartOpen] = useState(false);
+  const handleApplyCompiledPrompt = useCallback(
+    (prompt: string) => {
+      agentBus.dispatch({
+        type: "fillPrompt",
+        payload: { text: prompt },
+      });
+    },
+    [agentBus]
+  );
+
   return (
     <VideoAgentBusContext.Provider value={agentBus}>
+    <ModelAvailabilityContext.Provider value={availabilityMap}>
+    <SmartPromptDialog
+      open={smartOpen}
+      onClose={() => setSmartOpen(false)}
+      onApply={handleApplyCompiledPrompt}
+    />
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 頁面標題 */}
       <div className="flex items-start justify-between gap-3 sm:gap-4">
@@ -4498,6 +4913,14 @@ export default function VideoStudio() {
         </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-1">
+          <button
+            onClick={() => setSmartOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary text-xs font-medium transition-colors min-h-[36px]"
+            aria-label="智慧編譯提詞"
+            title="情緒 + 鏡頭 → 完整提詞，一鍵套用到當前分頁"
+          >
+            <Sparkles className="w-3.5 h-3.5" /> 智慧編譯提詞
+          </button>
           <button
             onClick={() => openAssetsDrawer()}
             className="hidden flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-border/40 hover:bg-accent text-muted-foreground text-xs font-medium transition-colors min-h-[36px]"
@@ -4697,6 +5120,7 @@ export default function VideoStudio() {
         </div>
       </div>
     </div>
+    </ModelAvailabilityContext.Provider>
     </VideoAgentBusContext.Provider>
   );
 }
