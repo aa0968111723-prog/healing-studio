@@ -376,60 +376,110 @@
        immersive off animates the dock back into resting state). */
     transition:
       transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-      opacity 0.3s var(--ease-healing-out);
+      opacity 0.3s var(--ease-healing-out),
+      box-shadow 0.6s var(--ease-healing-out);
     background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.96 0.05 320 / 0.45) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.94 0.06 230 / 0.32) 0%,
+        transparent 70%
+      ),
       linear-gradient(
         180deg,
-        oklch(0.995 0.005 75 / 0.78) 0%,
-        oklch(0.97 0.018 300 / 0.6) 45%,
-        oklch(0.985 0.012 30 / 0.66) 100%
+        oklch(0.995 0.005 75 / 0.82) 0%,
+        oklch(0.97 0.022 300 / 0.62) 45%,
+        oklch(0.985 0.014 30 / 0.7) 100%
       ),
       var(--sidebar);
-    background-size: 100% 220%;
-    border: 1px solid oklch(1 0 0 / 0.55);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    background-size:
+      100% 220%,
+      100% 220%,
+      100% 220%,
+      100% 100%;
+    border: 1px solid oklch(1 0 0 / 0.6);
+    backdrop-filter: blur(34px) saturate(190%);
+    -webkit-backdrop-filter: blur(34px) saturate(190%);
     box-shadow:
-      0 18px 48px -14px oklch(0.55 0.08 300 / 0.22),
-      0 6px 18px -6px oklch(0.2 0.01 280 / 0.14),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.62),
-      inset 0 -1px 0 0 oklch(0.9 0.03 280 / 0.14);
-    border-radius: 26px;
+      0 22px 60px -16px oklch(0.55 0.1 300 / 0.28),
+      0 8px 22px -6px oklch(0.2 0.01 280 / 0.16),
+      0 0 0 1px oklch(1 0 0 / 0.04),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.72),
+      inset 0 -1px 0 0 oklch(0.88 0.04 280 / 0.18);
+    border-radius: 28px;
     animation:
       apple-dock-pop var(--duration-gentle) var(--ease-healing-out),
-      apple-dock-aurora 16s ease-in-out 0.5s infinite;
+      apple-dock-aurora 18s ease-in-out 0.5s infinite,
+      apple-dock-float 7s ease-in-out 1s infinite;
   }
   /* Subtle inner top-light reflection for depth (Apple-style "glass") */
   .apple-dock-glass::before {
     content: "";
     position: absolute;
     inset: 1px 1px auto 1px;
-    height: 38%;
-    border-radius: 25px 25px 60% 60% / 25px 25px 24% 24%;
+    height: 42%;
+    border-radius: 27px 27px 60% 60% / 27px 27px 24% 24%;
     background: linear-gradient(
       180deg,
-      oklch(1 0 0 / 0.32) 0%,
-      oklch(1 0 0 / 0.06) 60%,
+      oklch(1 0 0 / 0.42) 0%,
+      oklch(1 0 0 / 0.08) 55%,
       transparent 100%
     );
     pointer-events: none;
   }
+  /* Subtle inner bottom-glow — adds depth like a glass orb */
+  .apple-dock-glass::after {
+    content: "";
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: -1px;
+    height: 30%;
+    border-radius: 50% 50% 27px 27px / 24% 24% 27px 27px;
+    background: radial-gradient(
+      ellipse at 50% 100%,
+      oklch(0.86 0.1 300 / 0.18) 0%,
+      transparent 70%
+    );
+    filter: blur(8px);
+    pointer-events: none;
+    z-index: -1;
+  }
   :is(.dark) .apple-dock-glass {
     background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.42 0.08 320 / 0.38) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.4 0.06 230 / 0.28) 0%,
+        transparent 70%
+      ),
       linear-gradient(
         180deg,
-        oklch(0.27 0.025 300 / 0.78) 0%,
-        oklch(0.22 0.02 280 / 0.62) 45%,
-        oklch(0.24 0.028 320 / 0.7) 100%
+        oklch(0.27 0.028 300 / 0.82) 0%,
+        oklch(0.22 0.022 280 / 0.66) 45%,
+        oklch(0.24 0.03 320 / 0.74) 100%
       ),
       var(--sidebar);
-    background-size: 100% 220%;
-    border-color: oklch(1 0 0 / 0.08);
+    background-size:
+      100% 220%,
+      100% 220%,
+      100% 220%,
+      100% 100%;
+    border-color: oklch(1 0 0 / 0.1);
     box-shadow:
-      0 18px 48px -14px oklch(0.55 0.08 300 / 0.45),
-      0 6px 18px -6px oklch(0 0 0 / 0.45),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.08),
-      inset 0 -1px 0 0 oklch(0 0 0 / 0.22);
+      0 22px 60px -16px oklch(0.55 0.1 300 / 0.5),
+      0 8px 22px -6px oklch(0 0 0 / 0.5),
+      0 0 0 1px oklch(1 0 0 / 0.04),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.1),
+      inset 0 -1px 0 0 oklch(0 0 0 / 0.24);
   }
   :is(.dark) .apple-dock-glass::before {
     background: linear-gradient(
@@ -441,28 +491,68 @@
   }
 
   .apple-dock-divider {
+    position: relative;
     height: 1px;
-    margin: 6px 8px;
+    margin: 8px 8px;
     background: linear-gradient(
       to right,
       transparent,
-      color-mix(in oklch, currentColor 22%, transparent),
+      color-mix(in oklch, oklch(0.7 0.08 300) 35%, transparent) 35%,
+      color-mix(in oklch, oklch(0.7 0.1 320) 45%, transparent) 50%,
+      color-mix(in oklch, oklch(0.7 0.08 300) 35%, transparent) 65%,
       transparent
     );
     border-radius: 9999px;
   }
+  .apple-dock-divider::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    transform: translate(-50%, -50%);
+    border-radius: 9999px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.86 0.1 300),
+      oklch(0.8 0.12 320)
+    );
+    box-shadow: 0 0 6px oklch(0.82 0.13 300 / 0.6);
+    opacity: 0.7;
+  }
   /* Horizontal-orientation flavor (used when dock sits on top/bottom) */
   .apple-dock-divider-vertical {
+    position: relative;
     width: 1px;
     height: 28px;
-    margin: 0 6px;
+    margin: 0 8px;
     background: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in oklch, currentColor 22%, transparent),
+      color-mix(in oklch, oklch(0.7 0.08 300) 35%, transparent) 35%,
+      color-mix(in oklch, oklch(0.7 0.1 320) 45%, transparent) 50%,
+      color-mix(in oklch, oklch(0.7 0.08 300) 35%, transparent) 65%,
       transparent
     );
     border-radius: 9999px;
+  }
+  .apple-dock-divider-vertical::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    transform: translate(-50%, -50%);
+    border-radius: 9999px;
+    background: linear-gradient(
+      135deg,
+      oklch(0.86 0.1 300),
+      oklch(0.8 0.12 320)
+    );
+    box-shadow: 0 0 6px oklch(0.82 0.13 300 / 0.6);
+    opacity: 0.7;
   }
 
   /* ─── Top / Bottom orientation: stagger items slide in from above/below ─── */
@@ -807,6 +897,7 @@
 
   /* ─── Item base ─── */
   .apple-dock-item {
+    isolation: isolate;
     color: oklch(0.34 0.012 60);
     transition:
       transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -833,20 +924,21 @@
     border-radius: 12px;
     background: radial-gradient(
       circle at 50% 50%,
-      oklch(0.86 0.07 300 / 0.45) 0%,
-      oklch(0.86 0.08 320 / 0.18) 55%,
+      oklch(0.88 0.09 300 / 0.55) 0%,
+      oklch(0.86 0.1 320 / 0.22) 55%,
       transparent 80%
     );
     opacity: 0;
-    transform: scale(0.8);
+    transform: scale(0.78);
+    filter: blur(0.5px);
     transition:
-      opacity 0.32s var(--ease-healing-out),
-      transform 0.32s var(--ease-healing-out);
+      opacity 0.34s var(--ease-healing-out),
+      transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
     pointer-events: none;
   }
   .apple-dock-item:hover .apple-dock-halo {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1.08);
   }
   .apple-dock-icon {
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -860,40 +952,64 @@
     background:
       radial-gradient(
         140% 100% at 30% 0%,
-        oklch(1 0 0 / 0.55) 0%,
+        oklch(1 0 0 / 0.6) 0%,
         oklch(1 0 0 / 0) 60%
       ),
       linear-gradient(
         135deg,
-        oklch(0.92 0.07 300) 0%,
-        oklch(0.86 0.1 320) 55%,
-        oklch(0.88 0.08 270) 100%
+        oklch(0.94 0.08 300) 0%,
+        oklch(0.86 0.12 320) 55%,
+        oklch(0.88 0.09 250) 100%
       );
-    color: oklch(0.32 0.06 300);
+    color: oklch(0.3 0.07 300);
     box-shadow:
-      0 6px 18px -4px oklch(0.74 0.12 300 / 0.45),
-      0 2px 8px -2px oklch(0.8 0.1 320 / 0.32),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.55),
-      inset 0 -1px 0 0 oklch(0.6 0.08 300 / 0.18);
+      0 8px 24px -6px oklch(0.74 0.14 300 / 0.55),
+      0 3px 10px -2px oklch(0.8 0.11 320 / 0.4),
+      0 0 24px -4px oklch(0.86 0.12 300 / 0.45),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.62),
+      inset 0 -1px 0 0 oklch(0.55 0.1 300 / 0.22);
+    animation: apple-dock-active-breathe 4.5s ease-in-out infinite;
+  }
+  .apple-dock-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 17px;
+    background: conic-gradient(
+      from 120deg,
+      oklch(0.9 0.1 300 / 0.35),
+      oklch(0.86 0.12 230 / 0.25),
+      oklch(0.88 0.1 350 / 0.3),
+      oklch(0.9 0.1 300 / 0.35)
+    );
+    opacity: 0.55;
+    filter: blur(8px);
+    z-index: -1;
+    pointer-events: none;
+    animation: apple-dock-bubble-spin 14s linear infinite;
   }
   :is(.dark) .apple-dock-item[data-active="true"] {
     background:
       radial-gradient(
         140% 100% at 30% 0%,
-        oklch(1 0 0 / 0.18) 0%,
+        oklch(1 0 0 / 0.22) 0%,
         oklch(1 0 0 / 0) 60%
       ),
       linear-gradient(
         135deg,
-        oklch(0.93 0.08 300) 0%,
-        oklch(0.86 0.11 320) 55%,
-        oklch(0.9 0.09 270) 100%
+        oklch(0.94 0.09 300) 0%,
+        oklch(0.86 0.12 320) 55%,
+        oklch(0.9 0.1 250) 100%
       );
-    color: oklch(0.32 0.06 290);
+    color: oklch(0.3 0.07 290);
     box-shadow:
-      0 6px 22px -4px oklch(0.82 0.14 300 / 0.55),
-      0 2px 8px -2px oklch(0.78 0.12 320 / 0.4),
-      inset 0 1px 0 0 oklch(1 0 0 / 0.45);
+      0 8px 28px -6px oklch(0.82 0.16 300 / 0.65),
+      0 3px 10px -2px oklch(0.78 0.13 320 / 0.45),
+      0 0 28px -4px oklch(0.86 0.14 300 / 0.55),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.5);
+  }
+  :is(.dark) .apple-dock-item[data-active="true"]::before {
+    opacity: 0.7;
   }
   /* Soft "soft" highlight (e.g. background-tasks active count) */
   .apple-dock-item[data-active="soft"] {
@@ -981,6 +1097,7 @@
 
   /* ─── Avatar trigger ─── */
   .apple-dock-avatar {
+    isolation: isolate;
     color: var(--text-on-glass-strong);
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
@@ -992,51 +1109,83 @@
   }
   .apple-dock-avatar-ring {
     position: absolute;
-    inset: -2px;
+    inset: -3px;
     border-radius: 9999px;
-    padding: 1.5px;
-    background: linear-gradient(
-      135deg,
-      oklch(0.86 0.09 300 / 0.85) 0%,
-      oklch(0.78 0.11 320 / 0.7) 50%,
-      oklch(0.84 0.08 230 / 0.65) 100%
+    padding: 2px;
+    background: conic-gradient(
+      from 0deg,
+      oklch(0.88 0.1 300 / 0.95),
+      oklch(0.82 0.13 350 / 0.85),
+      oklch(0.84 0.1 60 / 0.8),
+      oklch(0.86 0.11 230 / 0.85),
+      oklch(0.88 0.1 300 / 0.95)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    box-shadow: 0 4px 14px -4px oklch(0.55 0.1 300 / 0.45);
+    box-shadow:
+      0 6px 18px -4px oklch(0.55 0.12 300 / 0.5),
+      0 0 14px -2px oklch(0.82 0.13 320 / 0.45);
     pointer-events: none;
+    animation: apple-dock-bubble-spin 8s linear infinite;
+  }
+  .apple-dock-avatar::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 50% 50%,
+      oklch(0.88 0.1 300 / 0.28) 0%,
+      oklch(0.82 0.12 320 / 0.12) 45%,
+      transparent 70%
+    );
+    opacity: 0.6;
+    filter: blur(6px);
+    pointer-events: none;
+    z-index: -1;
+    animation: apple-dock-active-breathe 5s ease-in-out infinite;
   }
 
   /* ─── Credits badge under Zap icon ─── */
   .apple-dock-credit-badge {
     position: absolute;
-    bottom: -3px;
+    bottom: -4px;
     left: 50%;
     transform: translateX(-50%);
-    min-width: 22px;
-    padding: 0 5px;
-    height: 14px;
+    min-width: 24px;
+    padding: 0 6px;
+    height: 15px;
     border-radius: 9999px;
-    background: linear-gradient(
-      135deg,
-      oklch(0.88 0.08 300) 0%,
-      oklch(0.82 0.1 320) 100%
-    );
-    color: oklch(0.3 0.06 300);
+    background:
+      radial-gradient(
+        120% 100% at 50% 0%,
+        oklch(1 0 0 / 0.5) 0%,
+        transparent 60%
+      ),
+      linear-gradient(
+        135deg,
+        oklch(0.9 0.09 300) 0%,
+        oklch(0.82 0.12 320) 60%,
+        oklch(0.86 0.1 270) 100%
+      );
+    color: oklch(0.28 0.07 300);
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1;
+    letter-spacing: 0.02em;
     display: flex;
     align-items: center;
     justify-content: center;
     font-variant-numeric: tabular-nums;
     box-shadow:
-      0 2px 8px oklch(0.78 0.12 300 / 0.4),
-      inset 0 1px 0 oklch(1 0 0 / 0.4);
-    border: 1px solid oklch(1 0 0 / 0.3);
+      0 3px 10px oklch(0.78 0.13 300 / 0.5),
+      0 0 12px -2px oklch(0.84 0.12 320 / 0.5),
+      inset 0 1px 0 oklch(1 0 0 / 0.5),
+      inset 0 -1px 0 oklch(0.55 0.1 300 / 0.18);
+    border: 1px solid oklch(1 0 0 / 0.42);
   }
   :is(.dark) .apple-dock-credit-badge {
     background: linear-gradient(
@@ -1051,17 +1200,23 @@
   /* ─── Count badge for background tasks ─── */
   .apple-dock-count-badge {
     position: absolute;
-    top: -3px;
-    right: -3px;
+    top: -4px;
+    right: -4px;
     min-width: 18px;
     height: 18px;
     padding: 0 4px;
     border-radius: 9999px;
-    background: linear-gradient(
-      135deg,
-      oklch(0.92 0.12 40) 0%,
-      oklch(0.84 0.15 12) 100%
-    );
+    background:
+      radial-gradient(
+        120% 100% at 50% 0%,
+        oklch(1 0 0 / 0.55) 0%,
+        transparent 55%
+      ),
+      linear-gradient(
+        135deg,
+        oklch(0.94 0.13 40) 0%,
+        oklch(0.84 0.16 12) 100%
+      );
     color: oklch(0.32 0.08 20);
     font-size: 10px;
     font-weight: 700;
@@ -1071,10 +1226,13 @@
     justify-content: center;
     font-variant-numeric: tabular-nums;
     box-shadow:
-      0 2px 8px oklch(0.82 0.14 24 / 0.45),
-      inset 0 1px 0 oklch(1 0 0 / 0.4);
+      0 3px 10px oklch(0.82 0.14 24 / 0.5),
+      0 0 12px -2px oklch(0.84 0.15 24 / 0.5),
+      inset 0 1px 0 oklch(1 0 0 / 0.5);
     border: 1.5px solid oklch(0.99 0.005 75 / 0.95);
-    animation: apple-dock-badge-pop 0.4s var(--ease-healing-out) backwards;
+    animation:
+      apple-dock-badge-pop 0.4s var(--ease-healing-out) backwards,
+      apple-dock-active-breathe 3.6s ease-in-out 0.4s infinite;
   }
   :is(.dark) .apple-dock-count-badge {
     border-color: oklch(0.22 0.018 280 / 0.95);
@@ -1271,12 +1429,43 @@
     100% {
       background-position:
         0% 0%,
+        0% 100%,
+        0% 0%,
         0 0;
     }
     50% {
       background-position:
         0% 100%,
+        0% 0%,
+        0% 100%,
         0 0;
+    }
+  }
+
+  /* Gentle floating motion for the entire dock — Apple-like dreaminess */
+  @keyframes apple-dock-float {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -3px;
+    }
+  }
+  [data-orientation="horizontal"].apple-dock-glass {
+    animation:
+      apple-dock-pop var(--duration-gentle) var(--ease-healing-out),
+      apple-dock-aurora 18s ease-in-out 0.5s infinite;
+  }
+
+  /* Active item breathing — gently scales the glow / opacity */
+  @keyframes apple-dock-active-breathe {
+    0%,
+    100% {
+      filter: brightness(1) saturate(1);
+    }
+    50% {
+      filter: brightness(1.06) saturate(1.1);
     }
   }
 
@@ -1444,7 +1633,11 @@
     .apple-dock-count-badge,
     .apple-dock-peek-zone,
     .apple-dock-peek-pip,
-    .apple-dock-stagger {
+    .apple-dock-stagger,
+    .apple-dock-avatar-ring,
+    .apple-dock-avatar::after,
+    .apple-dock-item[data-active="true"],
+    .apple-dock-item[data-active="true"]::before {
       animation: none !important;
     }
     .apple-dock-item,
