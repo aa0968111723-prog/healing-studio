@@ -36,6 +36,8 @@ import {
   type OrbQuotaSnapshot,
 } from "./orbQuota";
 import { TEXT_TO_IMAGE_MODEL_REGISTRY } from "../../shared/textToImageModelRegistry";
+import { checkModalityCoherence } from "../../shared/orb-modality-coherence";
+import { moderateOrbContent } from "../../shared/orb-content-moderation";
 
 export type PlannerMultimodalKind = "image" | "audio" | "video" | "pdf" | "file";
 
@@ -393,7 +395,8 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     input.personality ? `Orb personality: ${input.personality}` : undefined,
     `Recent execution feedback:\n${feedbackSummary}`,
     `Recent task memory:\n${input.recentTaskMemorySummary ?? "No recent task memory."}`,
-    `Recent long-term memory:\n${input.recentOrbMemorySummary ?? "No long-term memory."}`,
+    `Recent long-term memory (含 failed_workflow / prompt_pattern / tool_feedback 教訓):\n${input.recentOrbMemorySummary ?? "No long-term memory."}`,
+    "若 memory 中存在 lessonHint 或 failed_workflow，請避免重現同樣的步驟組合與模型選擇；改採替代工具或拆解路徑，並在 reply 中向使用者說明繞道原因。",
     input.siteKnowledgeSummary ? `Site knowledge summary:\n${input.siteKnowledgeSummary}` : undefined,
     `Global capability registry summary:\n${capabilitySummary}`,
     `Global tool registry summary:\n${toolSummary}`,
@@ -540,6 +543,90 @@ function extractPlannerContent(result: InvokeResult): string {
   return extractMessageText(result.choices[0]?.message?.content);
 }
 
+function extractLatestUserTextFromMessages(messages: Message[]): string {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (!m || m.role !== "user") continue;
+    const content = m.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content
+        .filter((part): part is { type: "text"; text: string } => {
+          return Boolean(part) && (part as { type?: string }).type === "text";
+        })
+        .map(part => part.text)
+        .join("\n");
+    }
+    if (content && typeof content === "object" && (content as { type?: string }).type === "text") {
+      return (content as { text?: string }).text ?? "";
+    }
+  }
+  return "";
+}
+
+function plannerStepsForCoherence(
+  gated: GatedAgentPlanResult
+): Array<{ action?: { type?: string; modality?: string; path?: string }; pagePath?: string }> {
+  const plan = gated.plan;
+  if (!plan || !("steps" in plan) || !Array.isArray(plan.steps)) return [];
+  return (plan.steps as Array<unknown>).map(step => {
+    const s = step as { action?: { type?: string; modality?: string; path?: string }; pagePath?: string };
+    return { action: s.action, pagePath: s.pagePath };
+  });
+}
+
+/**
+ * Apply Phase 2 safety gates to a freshly gated planner result:
+ *   1. Modality coherence — if the user clearly asked for "video" but the
+ *      plan navigated to /image-studio, append a warning so the caller sees
+ *      the mismatch. Replanning happens in the wrapper below.
+ *   2. Content moderation — when the planner reply contains blocked
+ *      categories (violence/hate/explicit), force status="blocked" and
+ *      replace the reply text with a safe redirect.
+ */
+function applyModerationGate(gated: GatedAgentPlanResult): {
+  next: GatedAgentPlanResult;
+  blocked: boolean;
+  warned: boolean;
+} {
+  const moderation = moderateOrbContent(gated.reply ?? "");
+  if (moderation.action === "block") {
+    const categories = Array.from(
+      new Set(moderation.findings.map(f => f.category))
+    ).join(",");
+    return {
+      next: {
+        ...gated,
+        status: "blocked",
+        ok: false,
+        actions: [],
+        reply: moderation.text,
+        warnings: [
+          ...gated.warnings,
+          `Content moderation blocked reply (categories: ${categories})`,
+        ],
+      },
+      blocked: true,
+      warned: false,
+    };
+  }
+  if (moderation.action === "warn") {
+    return {
+      next: {
+        ...gated,
+        reply: moderation.text,
+        warnings: [
+          ...gated.warnings,
+          "Content moderation prepended a warning to reply",
+        ],
+      },
+      blocked: false,
+      warned: true,
+    };
+  }
+  return { next: gated, blocked: false, warned: false };
+}
+
 export async function runSchemaFirstAgentPlanner(
   input: AgentPlannerInput
 ): Promise<AgentPlannerResult> {
@@ -562,8 +649,78 @@ export async function runSchemaFirstAgentPlanner(
     },
   });
 
-  const rawContent = extractPlannerContent(result);
+  let rawContent = extractPlannerContent(result);
   let gated = parseAndGatePlan(rawContent);
+
+  // ─── Phase 2 modality coherence gate (single-pass replan) ────────────
+  // When the user clearly declared a modality (e.g. "做一支 30 秒影片") but
+  // the planner navigated to a different studio (image / audio / voice),
+  // re-invoke the planner ONCE with an explicit refine message naming the
+  // mismatch. Bounded to one extra LLM call so we never loop. If the gate
+  // already accepted a plan as `clarification` / `blocked` / `invalid` we
+  // skip — the user-facing ask itself stops the wrong-modality dispatch.
+  const userTextForGate = extractLatestUserTextFromMessages(input.messages);
+  if (
+    userTextForGate &&
+    (gated.status === "tasked" || gated.status === "converted")
+  ) {
+    const coherence = checkModalityCoherence({
+      userText: userTextForGate,
+      steps: plannerStepsForCoherence(gated),
+    });
+    if (coherence.mismatch) {
+      const refineMessages: Message[] = [
+        ...input.messages,
+        {
+          role: "user",
+          content:
+            `[Orb safety gate] 上一版計畫的模態與使用者意圖不符（declared=${coherence.declared}, selected=${coherence.selected}）。${coherence.message} ` +
+            `請改用「${coherence.declared}」對應的頁面、模型與步驟重產整份計畫，不要保留錯模態的步驟。`,
+        } as Message,
+      ];
+      const replan = await llm({
+        messages: buildAgentPlannerMessages({
+          ...input,
+          messages: refineMessages,
+        }),
+        runName: usedMultimodalPlanner
+          ? "orb-agent-gemini-multimodal-planner-modality-refine"
+          : "orb-agent-schema-first-planner-modality-refine",
+        maxTokens: input.maxTokens ?? 2_500,
+        preferEngine: usedMultimodalPlanner ? "gemini" : undefined,
+        response_format: {
+          type: "json_schema",
+          json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
+            name: string;
+            schema: Record<string, unknown>;
+            strict?: boolean;
+          },
+        },
+      });
+      const replanRaw = extractPlannerContent(replan);
+      const replanGated = parseAndGatePlan(replanRaw);
+      if (
+        replanGated.status === "tasked" ||
+        replanGated.status === "converted" ||
+        replanGated.status === "clarification"
+      ) {
+        rawContent = replanRaw;
+        gated = {
+          ...replanGated,
+          warnings: [
+            ...replanGated.warnings,
+            `Modality replan triggered: ${coherence.message}`,
+          ],
+        };
+      } else {
+        gated = {
+          ...gated,
+          warnings: [...gated.warnings, coherence.message],
+        };
+      }
+    }
+  }
+
   if (
     usedMultimodalPlanner &&
     gated.version === "agent-plan.v3" &&
@@ -592,6 +749,12 @@ export async function runSchemaFirstAgentPlanner(
       };
     }
   }
+
+  // ─── Phase 2 content moderation gate ─────────────────────────────────
+  // Block on violence / hate / explicit; warn (prepend) on self-harm.
+  const moderated = applyModerationGate(gated);
+  gated = moderated.next;
+
   // Multimodal-derived planner always prefers Gemini routing for the next
   // engine pick, regardless of what the model declared.
   const preferredEngine = usedMultimodalPlanner ? "gemini" : gated.preferredEngine;

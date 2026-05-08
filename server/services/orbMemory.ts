@@ -119,10 +119,16 @@ export function searchOrbMemories(args: {
   anonymousSessionId?: string;
   query: string;
   limit?: number;
+  types?: OrbMemoryType[];
 }): OrbMemory[] {
   const q = args.query.trim().toLowerCase();
   if (!q) return [];
-  return getRecentOrbMemories({ userId: args.userId, anonymousSessionId: args.anonymousSessionId, limit: args.limit ?? 50 })
+  return getRecentOrbMemories({
+    userId: args.userId,
+    anonymousSessionId: args.anonymousSessionId,
+    limit: args.limit ?? 50,
+    types: args.types,
+  })
     .filter(memory =>
       memory.summary.toLowerCase().includes(q) ||
       memory.tags.some(tag => tag.toLowerCase().includes(q)) ||
@@ -137,8 +143,10 @@ export async function searchOrbMemoriesWithRag(args: {
   query: string;
   limit?: number;
   degradeOnError?: boolean;
+  types?: OrbMemoryType[];
 }): Promise<OrbMemory[]> {
   const limit = args.limit ?? 10;
+  const typeSet = args.types && args.types.length > 0 ? new Set(args.types) : null;
   let ragResults: OrbMemory[] = [];
   try {
     ragResults = await retrieveFromRag({
@@ -149,6 +157,10 @@ export async function searchOrbMemoriesWithRag(args: {
   } catch (err) {
     if (args.degradeOnError === false) throw err;
     console.warn("[orbMemory] RAG fallback failed (degrading to keyword-only):", err);
+  }
+
+  if (typeSet) {
+    ragResults = ragResults.filter(m => typeSet.has(m.type));
   }
 
   const keywordResults = searchOrbMemories(args);
@@ -199,7 +211,10 @@ export async function buildOrbMemorySummaryForPlanner(args: {
   anonymousSessionId?: string;
   query: string;
   limit?: number;
+  types?: OrbMemoryType[];
 }): Promise<{ summary: string; memoryInjected: boolean }> {
+  const lessonTypes: OrbMemoryType[] =
+    args.types ?? ["failed_workflow", "prompt_pattern", "tool_feedback"];
   try {
     const memories = await searchOrbMemoriesWithRag({
       userId: args.userId,
@@ -207,13 +222,20 @@ export async function buildOrbMemorySummaryForPlanner(args: {
       query: args.query,
       limit: Math.min(args.limit ?? 10, 10),
       degradeOnError: false,
+      types: lessonTypes,
     });
     if (memories.length > 0) {
+      const failedCount = memories.filter(m => m.type === "failed_workflow").length;
+      const lessonHint =
+        failedCount >= 1
+          ? `⚠️ 過往同類請求曾失敗 ${failedCount} 次，請選擇替代模型 / 工具鏈，並向使用者說明繞道原因。`
+          : undefined;
       return {
         summary: JSON.stringify({
           memoryCount: memories.length,
           recent: JSON.parse(summarizeRecentMemoryForPlanner(memories)),
           source: "rag+keyword",
+          lessonHint,
         }),
         memoryInjected: true,
       };
