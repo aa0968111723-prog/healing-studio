@@ -53,7 +53,6 @@ import { parseOrbReply } from "./services/orbReplyParser";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { computeDashboardInsights } from "../shared/dashboard-insights";
 import { moderateOrbContent } from "../shared/orb-content-moderation";
-import { checkModalityCoherence } from "../shared/orb-modality-coherence";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
@@ -6004,32 +6003,30 @@ export const appRouter = router({
             }
 
             if (plannerResult && plannerResult.status === "converted") {
-              // Gap 36: validate planner-selected modality matches the user's
-              // declared modality before shipping the plan. On mismatch we add
-              // a warning + log telemetry so ops can see when the orb routes
-              // to the wrong studio.
-              const planLikeForModality =
-                plannerResult.plan && typeof plannerResult.plan === "object"
-                  ? (plannerResult.plan as { steps?: Array<{ action?: { type?: string; modality?: string; path?: string }; pagePath?: string }> })
-                  : null;
-              const coherence = checkModalityCoherence({
-                userText: latestTextContent,
-                steps: planLikeForModality?.steps ?? [],
-              });
-              if (coherence.mismatch) {
-                appendTelemetryEvent(telemetryEvents, "orb.modality.mismatch", {
-                  declared: coherence.declared ?? "",
-                  selected: coherence.selected ?? "",
-                });
+              // Phase 2: modality coherence + content moderation already
+              // ran inside `runSchemaFirstAgentPlanner`. The planner either
+              // triggered a single-pass replan (fixing the wrong studio
+              // routing) or recorded the residual mismatch in
+              // `plannerResult.warnings`. Mirror those warnings into
+              // telemetry here so the existing dashboards keep firing.
+              for (const warning of plannerResult.warnings) {
+                if (warning.startsWith("Modality replan triggered:")) {
+                  appendTelemetryEvent(telemetryEvents, "orb.modality.replan", {
+                    outcome: "converted",
+                  });
+                } else if (
+                  warning.includes("使用者似乎想做") &&
+                  warning.includes("但計畫卻選了")
+                ) {
+                  appendTelemetryEvent(telemetryEvents, "orb.modality.mismatch", {
+                    outcome: "converted",
+                  });
+                }
               }
               const warnings = globalWorkflowsEnabled
-                ? [
-                    ...plannerResult.warnings,
-                    ...(coherence.mismatch ? [coherence.message] : []),
-                  ]
+                ? plannerResult.warnings
                 : [
                     ...plannerResult.warnings,
-                    ...(coherence.mismatch ? [coherence.message] : []),
                     "Global Agent workflows 已關閉，僅提供文字回覆。",
                   ];
               const actions = globalWorkflowsEnabled ? plannerResult.actions : [];
@@ -6041,24 +6038,10 @@ export const appRouter = router({
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
                 memoryInjected: memoryContext.memoryInjected,
               });
-              // Gap 17: moderate the converted reply.
-              const convertedModeration = moderateOrbContent(plannerResult.reply ?? "");
-              const moderatedReply = convertedModeration.action !== "pass"
-                ? convertedModeration.text
-                : plannerResult.reply ?? "我已幫你整理好下一步。";
-              if (convertedModeration.action !== "pass") {
-                appendTelemetryEvent(telemetryEvents, "orb.moderation.flagged", {
-                  action: convertedModeration.action,
-                  categories: Array.from(
-                    new Set(convertedModeration.findings.map(f => f.category))
-                  ).join(","),
-                  outcome: "converted",
-                });
-              }
-              const moderatedActions = convertedModeration.action === "block" ? [] : actions;
+              const moderatedReply = plannerResult.reply ?? "我已幫你整理好下一步。";
               // Gap 9: drop actions blocked for the current page in user prefs.
               const perPageFiltered = applyDisabledActionsByPage(
-                moderatedActions,
+                actions,
                 input.pageSnapshot?.pageId,
                 input.preferences?.disabledActionsByPage
               );
@@ -6144,6 +6127,18 @@ export const appRouter = router({
             }
 
             if (plannerResult && plannerResult.status === "blocked") {
+              // Phase 2: surface in-planner moderation block as telemetry so
+              // ops dashboards keep firing even when the gate moves upstream.
+              for (const warning of plannerResult.warnings) {
+                if (warning.startsWith("Content moderation blocked reply")) {
+                  const categoriesMatch = warning.match(/categories:\s*([^)]+)/);
+                  appendTelemetryEvent(telemetryEvents, "orb.moderation.flagged", {
+                    action: "block",
+                    categories: categoriesMatch ? categoriesMatch[1].trim() : "",
+                    outcome: "blocked",
+                  });
+                }
+              }
               const meta = makePlannerMeta({
                 plannerStatus: plannerResult.status,
                 plan: plannerResult.plan,
