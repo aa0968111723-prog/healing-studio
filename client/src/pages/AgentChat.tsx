@@ -551,7 +551,11 @@ export default function AgentChat() {
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
   const [, setLocation] = useLocation();
-  const { openPanel: openOrbGuide, selectIntent: selectOrbIntent } = useOrbGuide();
+  const {
+    openPanel: openOrbGuide,
+    selectIntent: selectOrbIntent,
+    attachArrivalGuide,
+  } = useOrbGuide();
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -849,8 +853,17 @@ export default function AgentChat() {
     async (entry: StarterEntry) => {
       // 紀錄到「最近使用」，下次回訪可一鍵繼續
       pushRecent({ kind: "studio", id: entry.id, label: entry.label, path: entry.path });
-      // 1) 有 path -> 先導頁
+      // 1) 有 path -> 先導頁，並彈出「已自動完成 / 接下來請你做」引導卡，
+      //    讓使用者一到目的頁就知道光球幫他做了什麼、還可以選什麼。
       if (entry.path && entry.path !== "/agent") {
+        const followupActions: AgentAction[] = [];
+        if (entry.quickAction?.action) followupActions.push(entry.quickAction.action);
+        attachArrivalGuide({
+          targetPath: entry.path,
+          targetLabel: entry.label,
+          orbMessage: entry.quickAction?.description ?? entry.description,
+          actions: followupActions,
+        });
         setLocation(entry.path);
       }
       // 2) quickAction 有 action -> dispatch 第一個
@@ -868,12 +881,20 @@ export default function AgentChat() {
         await send(entry.starterText);
       }
     },
-    [pageAgent, pushRecent, send, setLocation]
+    [attachArrivalGuide, pageAgent, pushRecent, send, setLocation]
   );
   const handleStarterQuickAction = useCallback(
     async (entry: StarterEntry, action: StarterQuickAction) => {
       pushRecent({ kind: "studio", id: entry.id, label: entry.label, path: entry.path });
       if (action.path && action.path !== "/agent") {
+        const followupActions: AgentAction[] = [];
+        if (action.action) followupActions.push(action.action);
+        attachArrivalGuide({
+          targetPath: action.path,
+          targetLabel: `${entry.label} · ${action.label}`,
+          orbMessage: action.description,
+          actions: followupActions,
+        });
         setLocation(action.path);
       }
       if (action.action) {
@@ -885,7 +906,7 @@ export default function AgentChat() {
       }
       await send(`請帶我在「${entry.label}」處理「${action.label}」。`);
     },
-    [pageAgent, pushRecent, send, setLocation]
+    [attachArrivalGuide, pageAgent, pushRecent, send, setLocation]
   );
 
   // 任務範本：點下去 = 進入 multi-step 模式 + 跳到鏈頭工具，

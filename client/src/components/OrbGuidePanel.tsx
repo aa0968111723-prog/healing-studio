@@ -1213,9 +1213,17 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
     const isNavigating = step === "navigating";
     const autoLines = plan ? summarizeOrbGuideActions(plan.actions) : [];
     const manualSteps = plan?.manualSteps ?? [];
+    const arrivalChoices = plan?.arrivalChoices ?? [];
     const allManualDone =
       manualSteps.length > 0 &&
       manualSteps.every(s => completedManualStepIds.includes(s.id));
+
+    const handleArrivalChoice = async (choice: typeof arrivalChoices[number]) => {
+      // 光球替使用者按下這張卡的 actions — 全部走 PageAgent bus，所以
+      // 跨頁、queue 暫存、回報 feedback 都和原本的多步驟工作流共用一條路。
+      await pageAgent.dispatchMany(choice.actions, { source: "manual" });
+      if (choice.dismissOnSelect) dismissArrival();
+    };
 
     return (
       <motion.div
@@ -1290,6 +1298,44 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {arrivalChoices.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] uppercase tracking-wide text-white/40">
+                    要不要光球替你按
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {arrivalChoices.map(choice => (
+                      <motion.button
+                        key={choice.id}
+                        type="button"
+                        onClick={() => void handleArrivalChoice(choice)}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-left",
+                          "bg-white/8 hover:bg-white/14 border border-white/12 hover:border-white/25",
+                          "transition-colors"
+                        )}
+                      >
+                        {choice.emoji && (
+                          <span className="text-base leading-none">{choice.emoji}</span>
+                        )}
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[11px] font-medium text-white/90 leading-tight">
+                            {choice.label}
+                          </span>
+                          {choice.hint && (
+                            <span className="block text-[10px] text-white/50 leading-tight mt-0.5 truncate">
+                              {choice.hint}
+                            </span>
+                          )}
+                        </span>
+                      </motion.button>
+                    ))}
+                  </div>
                 </div>
               )}
 
