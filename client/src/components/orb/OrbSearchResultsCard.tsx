@@ -9,7 +9,7 @@
  * Used by ProactiveOrbWidget + AgentChat alongside the prose message body.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowDownAZ,
@@ -25,10 +25,20 @@ import {
   TrendingUp,
   Video,
 } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import type { ChatSearchResultItem } from "@/contexts/GlobalOrbChatContext";
 
 export type SearchKindFilter = "all" | ChatSearchResultItem["kind"];
 export type SearchSortMode = "relevance" | "recent";
+
+export const ORB_SEARCH_PAGE_SIZE = 6;
 
 interface Props {
   query?: string;
@@ -105,6 +115,7 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
   const [kindFilter, setKindFilter] = useState<SearchKindFilter>("all");
   const [thisWeekOnly, setThisWeekOnly] = useState(false);
   const [sort, setSort] = useState<SearchSortMode>("relevance");
+  const [page, setPage] = useState(1);
 
   // Group BEFORE filtering so chip counts always reflect the full result set
   // (otherwise clicking "素材" would zero out every other chip).
@@ -117,6 +128,24 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
   const refined = useMemo(
     () => applySearchRefinement(items, { kind: kindFilter, thisWeekOnly, sort }),
     [items, kindFilter, thisWeekOnly, sort]
+  );
+
+  // Refinement changes can shrink the result set out from under the current
+  // page (e.g. user paged to 2/2, then enabled "本週" leaving only 3 items).
+  // Reset to page 1 on any input or refinement change.
+  useEffect(() => {
+    setPage(1);
+  }, [items, kindFilter, thisWeekOnly, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(refined.length / ORB_SEARCH_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () =>
+      refined.slice(
+        (safePage - 1) * ORB_SEARCH_PAGE_SIZE,
+        safePage * ORB_SEARCH_PAGE_SIZE
+      ),
+    [refined, safePage]
   );
 
   if (!items || items.length === 0) return null;
@@ -264,15 +293,92 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
           ) : null}
         </div>
       ) : (
-        <ul className={`grid gap-1.5 ${compact ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
-          {refined.map(item => (
-            <li key={item.id}>
-              <SearchResultRow item={item} onOpen={() => navigate(item.path)} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className={`grid gap-1.5 ${compact ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+            {pageItems.map(item => (
+              <li key={item.id}>
+                <SearchResultRow item={item} onOpen={() => navigate(item.path)} />
+              </li>
+            ))}
+          </ul>
+          {totalPages > 1 ? (
+            <SearchResultsPagination
+              page={safePage}
+              totalPages={totalPages}
+              onChange={setPage}
+            />
+          ) : null}
+        </>
       )}
     </div>
+  );
+}
+
+function SearchResultsPagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (next: number) => void;
+}) {
+  const prevDisabled = page <= 1;
+  const nextDisabled = page >= totalPages;
+  const disabledClass = "pointer-events-none opacity-40";
+  return (
+    <Pagination
+      className="mt-2"
+      data-testid="orb-search-pagination"
+    >
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationPrevious
+            href="#"
+            aria-disabled={prevDisabled}
+            tabIndex={prevDisabled ? -1 : undefined}
+            className={prevDisabled ? disabledClass : undefined}
+            data-testid="orb-search-pagination-prev"
+            onClick={e => {
+              e.preventDefault();
+              if (!prevDisabled) onChange(page - 1);
+            }}
+          />
+        </PaginationItem>
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => {
+          const isActive = n === page;
+          return (
+            <PaginationItem key={n}>
+              <PaginationLink
+                href="#"
+                isActive={isActive}
+                data-testid="orb-search-pagination-page"
+                data-page-index={n}
+                onClick={e => {
+                  e.preventDefault();
+                  if (!isActive) onChange(n);
+                }}
+              >
+                {n}
+              </PaginationLink>
+            </PaginationItem>
+          );
+        })}
+        <PaginationItem>
+          <PaginationNext
+            href="#"
+            aria-disabled={nextDisabled}
+            tabIndex={nextDisabled ? -1 : undefined}
+            className={nextDisabled ? disabledClass : undefined}
+            data-testid="orb-search-pagination-next"
+            onClick={e => {
+              e.preventDefault();
+              if (!nextDisabled) onChange(page + 1);
+            }}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
   );
 }
 
