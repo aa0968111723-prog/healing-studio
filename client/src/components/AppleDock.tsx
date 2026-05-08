@@ -228,7 +228,7 @@ function AppleDock({
     <nav
       id="sidebar-nav"
       aria-label="主導覽"
-      className="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass"
+      className="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1.5 px-1.5 py-2 apple-dock-glass max-h-[calc(100svh-1.5rem)] overflow-y-auto no-scrollbar overscroll-contain"
     >
       {/* ── Top cluster: navigation entries ── */}
       <div className="flex flex-col items-center gap-1.5">
