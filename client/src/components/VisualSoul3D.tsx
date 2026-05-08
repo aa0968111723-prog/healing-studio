@@ -350,14 +350,16 @@ export default function VisualSoul3D({
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  const glowColor = (customColors?.colorPrimary ?? PERSONALITY_UNIFORMS[personality].colorPrimary)
-    .map(v => Math.round(v * 255))
-    .join(", ");
-
-  // 多層光暈強化亮色感
-  const accentColor = (customColors?.colorAccent ?? PERSONALITY_UNIFORMS[personality].colorAccent)
-    .map(v => Math.round(v * 255))
-    .join(", ");
+  // Single-layer drop-shadow: stacking 3 forces the GPU to re-sample the
+  // WebGL canvas's alpha three times per frame, which jitters the orb.
+  const filter = useMemo(() => {
+    const glowColor = (
+      customColors?.colorPrimary ?? PERSONALITY_UNIFORMS[personality].colorPrimary
+    )
+      .map(v => Math.round(v * 255))
+      .join(", ");
+    return `drop-shadow(0 0 ${px * 0.45}px rgba(${glowColor}, 0.75))`;
+  }, [customColors, personality, px]);
 
   return (
     <div
@@ -365,11 +367,8 @@ export default function VisualSoul3D({
       style={{
         width: px,
         height: px,
-        filter: [
-          `drop-shadow(0 0 ${px * 0.5}px rgba(${glowColor}, 0.9))`,
-          `drop-shadow(0 0 ${px * 0.8}px rgba(${glowColor}, 0.5))`,
-          `drop-shadow(0 0 ${px * 1.2}px rgba(${accentColor}, 0.3))`,
-        ].join(" "),
+        filter,
+        contain: "layout paint style",
       }}
     >
       <Canvas
