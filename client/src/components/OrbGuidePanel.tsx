@@ -35,6 +35,26 @@ import {
   IMAGE_STUDIO_POSE_PROFILE,
   IMAGE_STUDIO_SD_PROFILE,
   IMAGE_STUDIO_SD_CAPABILITY_LABELS,
+  VIDEO_STUDIO_T2V_PROFILE,
+  VIDEO_STUDIO_T2V_CAPABILITY_LABELS,
+  VIDEO_STUDIO_I2V_PROFILE,
+  VIDEO_STUDIO_I2V_CAPABILITY_LABELS,
+  VIDEO_STUDIO_V2V_PROFILE,
+  VIDEO_STUDIO_V2V_CAPABILITY_LABELS,
+  VIDEO_STUDIO_ENHANCE_PROFILE,
+  VIDEO_STUDIO_ENHANCE_CAPABILITY_LABELS,
+  VIDEO_STUDIO_CONTROL_PROFILE,
+  VIDEO_STUDIO_CONTROL_CAPABILITY_LABELS,
+  PRO_STUDIO_MUSIC_PROFILE,
+  PRO_STUDIO_SFX_PROFILE,
+  PRO_STUDIO_TTS_PROFILE,
+  PRO_STUDIO_CLONE_PROFILE,
+  PRO_STUDIO_PROCESS_PROFILE,
+  PRO_STUDIO_ASR_PROFILE,
+  PRO_STUDIO_AVATAR_PROFILE,
+  type ProStudioTab,
+  type ProStudioGenericModel,
+  type ProStudioPromptTemplate,
   buildImageStudioSetModelActions,
   buildImageStudioApplyVibeActions,
   buildImageStudioFillPromptActions,
@@ -53,6 +73,26 @@ import {
   buildImageStudioSDSetImageSizeActions,
   buildImageStudioSDSetGuidanceActions,
   buildImageStudioSDSetInferStepsActions,
+  buildVideoStudioT2VSetModelActions,
+  buildVideoStudioT2VApplyTemplateActions,
+  buildVideoStudioT2VSetParamActions,
+  buildVideoStudioI2VSetModelActions,
+  buildVideoStudioI2VApplyTemplateActions,
+  buildVideoStudioI2VSetParamActions,
+  buildVideoStudioV2VSetModelActions,
+  buildVideoStudioV2VApplyTemplateActions,
+  buildVideoStudioV2VSetParamActions,
+  buildVideoStudioEnhanceSetModelActions,
+  buildVideoStudioEnhanceSetParamActions,
+  buildVideoStudioControlSetModelActions,
+  buildVideoStudioControlApplyTemplateActions,
+  buildVideoStudioControlSetCameraMotionActions,
+  buildVideoStudioControlSetControlNetActions,
+  buildVideoStudioControlSetParamActions,
+  buildProStudioSetModelActions,
+  buildProStudioFillPromptActions,
+  buildProStudioSetParamActions,
+  buildProStudioApplyTemplateActions,
 } from "../../../shared/orb-studio-actions";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -96,6 +136,42 @@ function getImageStudioTab(
     tab === "upscale" ||
     tab === "pose" ||
     tab === "sd"
+    ? tab
+    : null;
+}
+
+/**
+ * 與 VideoStudio.tsx TabId 對齊；五個分頁全部接深度面板。
+ */
+type VideoStudioTab = "t2v" | "i2v" | "v2v" | "enhance" | "control";
+
+function getVideoStudioTab(
+  pageAgent: ReturnType<typeof usePageAgent>
+): VideoStudioTab | null {
+  if (pageAgent.snapshot?.pageId !== "video-studio") return null;
+  const tab = pageAgent.snapshot?.state?.activeTab;
+  return tab === "t2v" ||
+    tab === "i2v" ||
+    tab === "v2v" ||
+    tab === "enhance" ||
+    tab === "control"
+    ? tab
+    : null;
+}
+
+/** 與 ProStudio.tsx 7 個分頁對齊 */
+function getProStudioTab(
+  pageAgent: ReturnType<typeof usePageAgent>
+): ProStudioTab | null {
+  if (pageAgent.snapshot?.pageId !== "pro-studio") return null;
+  const tab = pageAgent.snapshot?.state?.activeTab;
+  return tab === "music" ||
+    tab === "sfx" ||
+    tab === "tts" ||
+    tab === "clone" ||
+    tab === "process" ||
+    tab === "asr" ||
+    tab === "avatar"
     ? tab
     : null;
 }
@@ -1778,10 +1854,574 @@ function ImageStudioSDDeepActions({
   );
 }
 
-// ─── Image Studio tab → component dispatcher ────────────────────────────
+// ─── Video Studio T2V Deep Actions (6 模型 + 模板 + 時長 / 比例 / 解析度) ────
+
+function VideoStudioT2VDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  pageAgent: ReturnType<typeof usePageAgent>;
+  onClose: () => void;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  const profile = VIDEO_STUDIO_T2V_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const currentDuration = snapshotState?.duration as string | undefined;
+  const currentAspect = snapshotState?.aspectRatio as string | undefined;
+  // VideoStudio 沒有把 selectedModelId 直接放進 snapshot（modelKey 由 child bus
+  // 各自管理），因此用「模型徽章 + 模板建議模型」的方式呈現，不顯示 active 標記。
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble
+        text="嘿 👋 你在影片專業工作室文生影。挑模型、套提示詞、設時長與比例，按一下就生。"
+      />
+
+      {/* 模型 + 能力徽章 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 文生影模型（6 種）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => (
+            <motion.button
+              key={m.id}
+              onClick={() =>
+                void runActions(
+                  `切到 ${m.label}`,
+                  buildVideoStudioT2VSetModelActions(m.id),
+                  false
+                )
+              }
+              className={cn(
+                "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                "transition-all px-3 py-2 text-left flex items-start gap-2",
+                "focus:outline-none focus:ring-1 focus:ring-white/30"
+              )}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                  {m.label}
+                  {m.fast && (
+                    <span className="text-[9px] uppercase tracking-wide text-amber-100/80 rounded-full bg-amber-300/20 px-1.5 py-0.5">
+                      快
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                  {m.description}
+                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {m.capabilities.map(cap => (
+                    <span
+                      key={cap}
+                      className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                    >
+                      {VIDEO_STUDIO_T2V_CAPABILITY_LABELS[cap]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 模板 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" /> 影片提示詞模板（含負向詞）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.templates.map((tpl, i) => (
+            <motion.button
+              key={tpl.id}
+              onClick={() =>
+                void runActions(
+                  `套用「${tpl.label}」模板`,
+                  buildVideoStudioT2VApplyTemplateActions(tpl)
+                )
+              }
+              className={cn(
+                "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                "transition-all px-3 py-2 text-left flex items-start gap-2"
+              )}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03 }}
+              whileTap={{ scale: 0.97 }}
+              title={tpl.prompt}
+            >
+              <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                  {tpl.prompt}
+                </p>
+                {tpl.suggestedModelId && (
+                  <p className="text-[9px] text-white/40 mt-1 truncate">
+                    建議搭配：{tpl.suggestedModelId}
+                  </p>
+                )}
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 時長 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          ⏱ 時長（duration，Kling / Sora 接受）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.durations.map(d => {
+            const isActive = currentDuration === d.value;
+            return (
+              <motion.button
+                key={d.id}
+                onClick={() =>
+                  void runActions(
+                    `時長設為 ${d.label}`,
+                    buildVideoStudioT2VSetParamActions("duration", d.value),
+                    false
+                  )
+                }
+                className={cn(
+                  "inline-flex items-center rounded-full transition-all min-w-[3rem] justify-center",
+                  fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                  isActive
+                    ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                    : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                )}
+                whileTap={{ scale: 0.95 }}
+              >
+                {d.label}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 比例 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          📐 畫面比例（aspectRatio，Kling / Veo3 / Sora 接受）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.aspects.map(a => {
+            const isActive = currentAspect === a.value;
+            return (
+              <motion.button
+                key={a.id}
+                onClick={() =>
+                  void runActions(
+                    `比例切到 ${a.label}`,
+                    buildVideoStudioT2VSetParamActions("aspectRatio", a.value),
+                    false
+                  )
+                }
+                className={cn(
+                  "inline-flex items-center rounded-full transition-all",
+                  fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                  isActive
+                    ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                    : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                )}
+                whileTap={{ scale: 0.95 }}
+              >
+                {a.label}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 解析度 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🖥 解析度（resolution，Wan / Sora 接受）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.resolutions.map(r => (
+            <motion.button
+              key={r.id}
+              onClick={() =>
+                void runActions(
+                  `解析度設為 ${r.label}`,
+                  buildVideoStudioT2VSetParamActions("resolution", r.value),
+                  false
+                )
+              }
+              className={cn(
+                "inline-flex items-center rounded-full transition-all",
+                fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+              )}
+              whileTap={{ scale: 0.95 }}
+            >
+              {r.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 模型專屬開關 */}
+      <div className="flex flex-wrap gap-1.5">
+        <motion.button
+          onClick={() =>
+            void runActions(
+              "開啟提詞優化（MiniMax）",
+              buildVideoStudioT2VSetParamActions("promptOptimizer", true),
+              false
+            )
+          }
+          className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/6 hover:bg-white/14 text-white/80 px-2.5 py-1 text-[11px] transition-all"
+          whileTap={{ scale: 0.95 }}
+        >
+          🪄 開提詞優化
+        </motion.button>
+        <motion.button
+          onClick={() =>
+            void runActions(
+              "開啟生成音訊（Veo3）",
+              buildVideoStudioT2VSetParamActions("generateAudio", true),
+              false
+            )
+          }
+          className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/6 hover:bg-white/14 text-white/80 px-2.5 py-1 text-[11px] transition-all"
+          whileTap={{ scale: 0.95 }}
+        >
+          🔊 開含音訊
+        </motion.button>
+      </div>
+
+      {/* 一鍵送出 + 重設 */}
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() => void runActions("送出文生影（API）", [{ type: "submit" }])}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出文生影
+        </motion.button>
+        <motion.button
+          onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="提示詞 / 模型推薦 / 改用 i2v / 導演 AI 拆鏡"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
+// ─── Video Studio I2V Deep Actions (5 模型 + 動作模板 + 時長 / 解析度) ──────
+
+function VideoStudioI2VDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: {
+  fullscreen: boolean;
+  pageAgent: ReturnType<typeof usePageAgent>;
+  onClose: () => void;
+  onSendChat: (prompt: string) => void | Promise<void>;
+}) {
+  const profile = VIDEO_STUDIO_I2V_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const hasImage = Boolean(snapshotState?.hasImage);
+  const currentDuration = snapshotState?.duration as string | undefined;
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble
+        text={
+          hasImage
+            ? "嘿 👋 你在圖生影。挑模型、套動作模板，按一下就動。"
+            : "嘿 👋 你在圖生影。先上傳一張錨點圖，我幫你選模型與動作。"
+        }
+      />
+
+      {/* 模型 + 能力徽章 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 圖生影模型（5 種）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => (
+            <motion.button
+              key={m.id}
+              onClick={() =>
+                void runActions(
+                  `切到 ${m.label}`,
+                  buildVideoStudioI2VSetModelActions(m.id),
+                  false
+                )
+              }
+              className={cn(
+                "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                "transition-all px-3 py-2 text-left flex items-start gap-2"
+              )}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                  {m.label}
+                  {m.fast && (
+                    <span className="text-[9px] uppercase tracking-wide text-amber-100/80 rounded-full bg-amber-300/20 px-1.5 py-0.5">
+                      快
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                  {m.description}
+                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {m.capabilities.map(cap => (
+                    <span
+                      key={cap}
+                      className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                    >
+                      {VIDEO_STUDIO_I2V_CAPABILITY_LABELS[cap]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 動作模板 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" /> 動作模板（fillPrompt + 建議模型）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.templates.map((tpl, i) => (
+            <motion.button
+              key={tpl.id}
+              onClick={() =>
+                void runActions(
+                  `套用「${tpl.label}」動作`,
+                  buildVideoStudioI2VApplyTemplateActions(tpl)
+                )
+              }
+              className={cn(
+                "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                "transition-all px-3 py-2 text-left flex items-start gap-2"
+              )}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03 }}
+              whileTap={{ scale: 0.97 }}
+              title={tpl.prompt}
+            >
+              <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                  {tpl.prompt}
+                </p>
+                {tpl.suggestedModelId && (
+                  <p className="text-[9px] text-white/40 mt-1 truncate">
+                    建議搭配：{tpl.suggestedModelId}
+                  </p>
+                )}
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 時長 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          ⏱ 時長（duration）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.durations.map(d => {
+            const isActive = currentDuration === d.value;
+            return (
+              <motion.button
+                key={d.id}
+                onClick={() =>
+                  void runActions(
+                    `時長設為 ${d.label}`,
+                    buildVideoStudioI2VSetParamActions("duration", d.value),
+                    false
+                  )
+                }
+                className={cn(
+                  "inline-flex items-center rounded-full transition-all min-w-[3rem] justify-center",
+                  fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                  isActive
+                    ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                    : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                )}
+                whileTap={{ scale: 0.95 }}
+              >
+                {d.label}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 解析度 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🖥 解析度（resolution，Wan / PixVerse 接受）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.resolutions.map(r => (
+            <motion.button
+              key={r.id}
+              onClick={() =>
+                void runActions(
+                  `解析度設為 ${r.label}`,
+                  buildVideoStudioI2VSetParamActions("resolution", r.value),
+                  false
+                )
+              }
+              className={cn(
+                "inline-flex items-center rounded-full transition-all",
+                fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+              )}
+              whileTap={{ scale: 0.95 }}
+            >
+              {r.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 比例（Runway 用） */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          📐 比例（aspectRatio，Runway 接受）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.aspects.map(a => (
+            <motion.button
+              key={a.id}
+              onClick={() =>
+                void runActions(
+                  `比例切到 ${a.label}`,
+                  buildVideoStudioI2VSetParamActions("aspectRatio", a.value),
+                  false
+                )
+              }
+              className={cn(
+                "inline-flex items-center rounded-full transition-all",
+                fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+              )}
+              whileTap={{ scale: 0.95 }}
+            >
+              {a.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* 一鍵送出 + 重設 */}
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() => void runActions("送出圖生影（API）", [{ type: "submit" }])}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+          disabled={!hasImage}
+          title={hasImage ? "送出圖生影" : "先上傳錨點圖"}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出圖生影
+        </motion.button>
+        <motion.button
+          onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="動作擴寫 / 模型推薦 / 從圖片創作室拿圖 / 導演 AI"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
+// ─── Image / Video Studio tab → component dispatcher ─────────────────────
 // 路由表化：新增分頁只要在這裡加一筆，不用改 Main Panel 的條件分支。
 
-interface ImageStudioDeepActionsCommonProps {
+interface StudioDeepActionsCommonProps {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
@@ -1790,7 +2430,7 @@ interface ImageStudioDeepActionsCommonProps {
 
 const IMAGE_STUDIO_PANELS: Record<
   ImageStudioTab,
-  ComponentType<ImageStudioDeepActionsCommonProps>
+  ComponentType<StudioDeepActionsCommonProps>
 > = {
   t2i: ImageStudioT2IDeepActions,
   edit: ImageStudioEditDeepActions,
@@ -1802,9 +2442,1153 @@ const IMAGE_STUDIO_PANELS: Record<
 function ImageStudioDeepActionsForTab({
   tab,
   ...common
-}: { tab: ImageStudioTab } & ImageStudioDeepActionsCommonProps) {
+}: { tab: ImageStudioTab } & StudioDeepActionsCommonProps) {
   const Panel = IMAGE_STUDIO_PANELS[tab];
   return <Panel {...common} />;
+}
+
+// ─── Video Studio V2V Deep Actions（3 模型 + 風格化模板 + strength / cfg）──
+
+function VideoStudioV2VDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: StudioDeepActionsCommonProps) {
+  const profile = VIDEO_STUDIO_V2V_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const hasVideo = Boolean(snapshotState?.hasVideo);
+  const currentStrength = snapshotState?.strength as number | undefined;
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble
+        text={
+          hasVideo
+            ? "嘿 👋 你在影生影。挑模型、套風格化模板，調 strength 或 CFG，按一下就重風格。"
+            : "嘿 👋 你在影生影。先上傳一段要重風格化的影片（或圖，給 LTX 用）。"
+        }
+      />
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 影生影模型（3 種）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => (
+            <motion.button
+              key={m.id}
+              onClick={() =>
+                void runActions(
+                  `切到 ${m.label}`,
+                  buildVideoStudioV2VSetModelActions(m.id),
+                  false
+                )
+              }
+              className={cn(
+                "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
+                "transition-all px-3 py-2 text-left flex items-start gap-2"
+              )}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                  {m.label}
+                  {m.fast && (
+                    <span className="text-[9px] uppercase tracking-wide text-amber-100/80 rounded-full bg-amber-300/20 px-1.5 py-0.5">
+                      快
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                  {m.description}
+                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {m.capabilities.map(cap => (
+                    <span
+                      key={cap}
+                      className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                    >
+                      {VIDEO_STUDIO_V2V_CAPABILITY_LABELS[cap]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" /> 風格化模板
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.templates.map((tpl, i) => (
+            <motion.button
+              key={tpl.id}
+              onClick={() =>
+                void runActions(
+                  `套用「${tpl.label}」風格`,
+                  buildVideoStudioV2VApplyTemplateActions(tpl)
+                )
+              }
+              className="rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25 transition-all px-3 py-2 text-left flex items-start gap-2"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03 }}
+              whileTap={{ scale: 0.97 }}
+              title={tpl.prompt}
+            >
+              <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">{tpl.prompt}</p>
+                {tpl.suggestedModelId && (
+                  <p className="text-[9px] text-white/40 mt-1 truncate">
+                    建議搭配：{tpl.suggestedModelId}
+                  </p>
+                )}
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🎚 改動強度（strength，Wan 用）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.strengthPresets.map(p => {
+            const isActive =
+              typeof currentStrength === "number" &&
+              Math.abs(currentStrength - p.value) < 0.05;
+            return (
+              <motion.button
+                key={p.id}
+                onClick={() =>
+                  void runActions(
+                    `強度設為 ${p.label}`,
+                    buildVideoStudioV2VSetParamActions("strength", p.value),
+                    false
+                  )
+                }
+                className={cn(
+                  "inline-flex items-center rounded-full transition-all",
+                  fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                  isActive
+                    ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                    : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                )}
+                whileTap={{ scale: 0.95 }}
+                title={p.description}
+              >
+                {p.label}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🎯 CFG（Kling 用，越高越貼合 prompt）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.cfgPresets.map(p => (
+            <motion.button
+              key={p.id}
+              onClick={() =>
+                void runActions(
+                  `CFG 設為 ${p.label}`,
+                  buildVideoStudioV2VSetParamActions("cfgScale", p.value),
+                  false
+                )
+              }
+              className={cn(
+                "inline-flex items-center rounded-full transition-all",
+                fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+              )}
+              whileTap={{ scale: 0.95 }}
+              title={p.description}
+            >
+              {p.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() => void runActions("送出影生影（API）", [{ type: "submit" }])}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出影生影
+        </motion.button>
+        <motion.button
+          onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="風格化指令 / 模型 / 從 i2v 接過來 / 導演 AI 批次"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
+// ─── Video Studio Enhance Deep Actions（3 工具 + 倍率 / fps / Topaz 模型）─
+
+function VideoStudioEnhanceDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: StudioDeepActionsCommonProps) {
+  const profile = VIDEO_STUDIO_ENHANCE_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const activeModel = snapshotState?.activeModel as string | undefined;
+  const hasVideo = Boolean(snapshotState?.hasVideo);
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  // VideoStudio 把 enhance 子模型 key 用 "upscale" / "rife" / "topaz"
+  // 揭示在 snapshot.activeModel；orb 模型 id 是 "video-upscale" / "frame-interp"
+  // / "topaz-enhance"，這裡做雙向對應給 active 標記用。
+  const ENHANCE_MODEL_KEY_TO_ID: Record<string, string> = {
+    upscale: "video-upscale",
+    rife: "frame-interp",
+    topaz: "topaz-enhance",
+  };
+  const activeOrbModelId = activeModel ? ENHANCE_MODEL_KEY_TO_ID[activeModel] : undefined;
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble
+        text={
+          hasVideo
+            ? "嘿 👋 你在畫質優化頁。挑工具、設倍率，按一下就提升畫質。"
+            : "嘿 👋 你在畫質優化頁。先上傳要優化的影片，我幫你選工具與倍率。"
+        }
+      />
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 畫質優化工具（3 種）
+        </p>
+        <div className="grid grid-cols-1 gap-1.5">
+          {profile.models.map((m, i) => {
+            const isActive = activeOrbModelId === m.id;
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() =>
+                  void runActions(
+                    `切到 ${m.label}`,
+                    buildVideoStudioEnhanceSetModelActions(m.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "rounded-xl border transition-all px-3 py-2 text-left flex items-start gap-2",
+                  isActive
+                    ? "border-cyan-300/40 bg-cyan-300/10"
+                    : "border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                    {m.label}
+                    {isActive && (
+                      <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                        目前
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {m.description}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {m.capabilities.map(cap => (
+                      <span
+                        key={cap}
+                        className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                      >
+                        {VIDEO_STUDIO_ENHANCE_CAPABILITY_LABELS[cap]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ByteDance 超解析倍率 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🔍 超解析倍率（ByteDance 用）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.upscaleFactors.map(f => (
+            <motion.button
+              key={f.id}
+              onClick={() =>
+                void runActions(
+                  `倍率 ${f.label}`,
+                  buildVideoStudioEnhanceSetParamActions("upscaleFactor", f.value),
+                  false
+                )
+              }
+              className={cn(
+                "inline-flex items-center rounded-full transition-all min-w-[3rem] justify-center",
+                fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+              )}
+              whileTap={{ scale: 0.95 }}
+            >
+              {f.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* RIFE 補幀倍率 + 目標 fps */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🌊 RIFE 補幀倍率
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.rifeMultipliers.map(m => (
+            <motion.button
+              key={m.id}
+              onClick={() =>
+                void runActions(
+                  m.label,
+                  buildVideoStudioEnhanceSetParamActions("multiplier", m.value),
+                  false
+                )
+              }
+              className="inline-flex items-center rounded-full transition-all border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 px-2.5 py-1 text-[11px]"
+              whileTap={{ scale: 0.95 }}
+            >
+              {m.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          ⏱ RIFE 目標幀率
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.rifeFps.map(f => (
+            <motion.button
+              key={f.id}
+              onClick={() =>
+                void runActions(
+                  f.label,
+                  buildVideoStudioEnhanceSetParamActions("outputFps", f.value),
+                  false
+                )
+              }
+              className="inline-flex items-center rounded-full transition-all border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 px-2.5 py-1 text-[11px]"
+              whileTap={{ scale: 0.95 }}
+            >
+              {f.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* Topaz 模型 + 輸出比例 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          💎 Topaz 模型（5 種）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.topazModels.map(m => (
+            <motion.button
+              key={m.id}
+              onClick={() =>
+                void runActions(
+                  `Topaz 模型：${m.label}`,
+                  buildVideoStudioEnhanceSetParamActions("topazModel", m.id),
+                  false
+                )
+              }
+              className="rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25 transition-all px-3 py-2 text-left"
+              whileTap={{ scale: 0.97 }}
+            >
+              <p className="text-xs font-medium text-white/90">{m.label}</p>
+              <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                {m.description}
+              </p>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          📈 Topaz 輸出比例
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.topazScales.map(s => (
+            <motion.button
+              key={s.id}
+              onClick={() =>
+                void runActions(
+                  `Topaz 比例 ${s.label}`,
+                  buildVideoStudioEnhanceSetParamActions("outputScale", s.value),
+                  false
+                )
+              }
+              className="inline-flex items-center rounded-full transition-all border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 px-2.5 py-1 text-[11px]"
+              whileTap={{ scale: 0.95 }}
+            >
+              {s.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() => void runActions("送出畫質優化（API）", [{ type: "submit" }])}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+          disabled={!hasVideo}
+          title={hasVideo ? "送出優化" : "先上傳要優化的影片"}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出優化
+        </motion.button>
+        <motion.button
+          onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="工具推薦 / 多工具流程 / 從歷史拉素材 / 導演 AI 批次"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
+// ─── Video Studio Control Deep Actions（4 工具 + 17 鏡頭 + ControlNet）────
+
+function VideoStudioControlDeepActions({
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: StudioDeepActionsCommonProps) {
+  const profile = VIDEO_STUDIO_CONTROL_PROFILE;
+  const snapshotState = pageAgent.snapshot?.state;
+  const activeModel = snapshotState?.activeModel as string | undefined;
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  const CONTROL_MODEL_KEY_TO_ID: Record<string, string> = {
+    cam: "cam-master",
+    ad: "animate-diff",
+    depth: "depth-crafter",
+    vidu: "vidu-ref",
+  };
+  const activeOrbModelId = activeModel ? CONTROL_MODEL_KEY_TO_ID[activeModel] : undefined;
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble text="嘿 👋 你在進階控制頁。挑工具、設鏡頭運動或 ControlNet，按一下就生。" />
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> 進階控制工具（4 種）
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => {
+            const isActive = activeOrbModelId === m.id;
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() =>
+                  void runActions(
+                    `切到 ${m.label}`,
+                    buildVideoStudioControlSetModelActions(m.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "rounded-xl border transition-all px-3 py-2 text-left flex items-start gap-2",
+                  isActive
+                    ? "border-cyan-300/40 bg-cyan-300/10"
+                    : "border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                    {m.label}
+                    {isActive && (
+                      <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                        目前
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {m.description}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {m.capabilities.map(cap => (
+                      <span
+                        key={cap}
+                        className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                      >
+                        {VIDEO_STUDIO_CONTROL_CAPABILITY_LABELS[cap]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" /> 控制模板
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.templates.map((tpl, i) => (
+            <motion.button
+              key={tpl.id}
+              onClick={() =>
+                void runActions(
+                  `套用「${tpl.label}」模板`,
+                  buildVideoStudioControlApplyTemplateActions(tpl)
+                )
+              }
+              className="rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25 transition-all px-3 py-2 text-left flex items-start gap-2"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03 }}
+              whileTap={{ scale: 0.97 }}
+              title={tpl.prompt}
+            >
+              <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">{tpl.prompt}</p>
+                {tpl.suggestedModelId && (
+                  <p className="text-[9px] text-white/40 mt-1 truncate">
+                    建議搭配：{tpl.suggestedModelId}
+                  </p>
+                )}
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* CamMaster 17 鏡頭運動 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🎥 鏡頭運動（CamMaster 用）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {/* 變數名故意避開 `motion` 以免遮蔽 framer-motion 的 motion namespace */}
+          {profile.cameraMotions.map(cam => (
+            <motion.button
+              key={cam.id}
+              onClick={() =>
+                void runActions(
+                  `運鏡：${cam.label}`,
+                  buildVideoStudioControlSetCameraMotionActions(cam.id),
+                  false
+                )
+              }
+              className="inline-flex items-center gap-1 rounded-full transition-all border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 px-2 py-0.5 text-[10px]"
+              whileTap={{ scale: 0.95 }}
+              title={cam.id}
+            >
+              <span>{cam.emoji}</span>
+              <span>{cam.label}</span>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* AnimateDiff ControlNet */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🦴 ControlNet 條件（AnimateDiff 用）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {profile.controlNets.map(cn_ => (
+            <motion.button
+              key={cn_.id}
+              onClick={() =>
+                void runActions(
+                  `ControlNet：${cn_.label}`,
+                  buildVideoStudioControlSetControlNetActions(cn_.id),
+                  false
+                )
+              }
+              className="inline-flex items-center gap-1 rounded-full transition-all border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 px-2.5 py-1 text-[11px]"
+              whileTap={{ scale: 0.95 }}
+              title={cn_.description}
+            >
+              {cn_.label}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* AnimateDiff 引導值預設 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+          🎯 引導值（AnimateDiff guidanceScale）
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {[3, 7.5, 12].map(g => (
+            <motion.button
+              key={g}
+              onClick={() =>
+                void runActions(
+                  `引導值 ${g}`,
+                  buildVideoStudioControlSetParamActions("guidanceScale", g),
+                  false
+                )
+              }
+              className="inline-flex items-center rounded-full transition-all border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80 px-2.5 py-1 text-[11px]"
+              whileTap={{ scale: 0.95 }}
+            >
+              {g}
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-1.5">
+        <motion.button
+          onClick={() => void runActions("送出進階控制（API）", [{ type: "submit" }])}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+            "text-emerald-50 transition-all",
+            fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <Sparkles className="w-3 h-3" /> 一鍵送出
+        </motion.button>
+        <motion.button
+          onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+          className={cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-xl",
+            "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+            fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+          )}
+          whileTap={{ scale: 0.97 }}
+        >
+          <RotateCcw className="w-3 h-3" /> 重設
+        </motion.button>
+      </div>
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="工具推薦 / 用骨骼當 ControlNet / 從圖片創作室拿圖 / 導演 AI 排運鏡"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
+}
+
+const VIDEO_STUDIO_PANELS: Record<
+  VideoStudioTab,
+  ComponentType<StudioDeepActionsCommonProps>
+> = {
+  t2v: VideoStudioT2VDeepActions,
+  i2v: VideoStudioI2VDeepActions,
+  v2v: VideoStudioV2VDeepActions,
+  enhance: VideoStudioEnhanceDeepActions,
+  control: VideoStudioControlDeepActions,
+};
+
+function VideoStudioDeepActionsForTab({
+  tab,
+  ...common
+}: { tab: VideoStudioTab } & StudioDeepActionsCommonProps) {
+  const Panel = VIDEO_STUDIO_PANELS[tab];
+  return <Panel {...common} />;
+}
+
+// ─── Pro Studio Deep Actions（7 分頁共用同一架構） ───────────────────────
+//
+// 七個分頁的結構高度一致：模型卡 + 模板（部分分頁無）+ 分頁專屬參數晶片 +
+// 一鍵送出 + 跨頁協作。所以走「設定驅動」的單一元件 + 一張查表，新增分頁
+// 只要動 PRO_STUDIO_TAB_CONFIGS 即可，不用新增元件。
+
+interface ProStudioTabConfig {
+  profile: {
+    pageId: "pro-studio";
+    pagePath: "/pro-studio";
+    activeTab: ProStudioTab;
+    models: ProStudioGenericModel[];
+    templates?: ProStudioPromptTemplate[];
+    collaborations: { id: string; label: string; emoji: string; description: string; chatPrompt: string }[];
+  };
+  /** 分頁標題上的提示文字 */
+  greeting: string;
+  /** 模型卡片區塊標題 */
+  modelsTitle: string;
+  /** 是否顯示「一鍵送出」（avatar / clone 等需要先上傳 → 由模型自身控制） */
+  showSubmit: boolean;
+  submitLabel?: string;
+  /**
+   * 分頁專屬參數區塊：每個物件包含 title 與 chips 陣列。chips 自帶 label
+   * + 點擊時要 dispatch 的動作。各分頁可以覆寫。
+   */
+  paramSections?: Array<{
+    title: string;
+    chips: Array<{ id: string; label: string; build: () => AgentAction[]; description?: string; activeWhen?: (state: Record<string, unknown> | undefined) => boolean }>;
+  }>;
+}
+
+const PRO_STUDIO_TAB_CONFIGS: Record<ProStudioTab, ProStudioTabConfig> = {
+  music: {
+    profile: PRO_STUDIO_MUSIC_PROFILE,
+    greeting: "嘿 👋 你在音樂生成。挑模型、套模板，按一下就開始作曲。",
+    modelsTitle: "音樂模型（4 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出作曲",
+    paramSections: [
+      {
+        title: "⏱ 時長（duration）",
+        chips: PRO_STUDIO_MUSIC_PROFILE.durations.map(d => ({
+          id: d.id,
+          label: d.label,
+          build: () => buildProStudioSetParamActions("music", "duration", d.value),
+          activeWhen: state => state?.duration === d.value,
+        })),
+      },
+      {
+        title: "🎤 純音樂 / 含人聲",
+        chips: [
+          {
+            id: "instrumental-on",
+            label: "純音樂",
+            build: () => buildProStudioSetParamActions("music", "instrumental", true),
+            activeWhen: state => state?.isInstrumental === true,
+          },
+          {
+            id: "instrumental-off",
+            label: "含人聲",
+            build: () => buildProStudioSetParamActions("music", "instrumental", false),
+            activeWhen: state => state?.isInstrumental === false,
+          },
+        ],
+      },
+    ],
+  },
+  sfx: {
+    profile: PRO_STUDIO_SFX_PROFILE,
+    greeting: "嘿 👋 你在音效生成。描述要包含材質 / 距離 / 空間感，會更像真實 Foley。",
+    modelsTitle: "音效模型",
+    showSubmit: true,
+    submitLabel: "一鍵送出音效",
+    paramSections: [
+      {
+        title: "⏱ 時長（duration_seconds）",
+        chips: PRO_STUDIO_SFX_PROFILE.durations.map(d => ({
+          id: d.id,
+          label: d.label,
+          build: () => buildProStudioSetParamActions("sfx", "duration_seconds", d.value),
+          activeWhen: state => state?.duration_seconds === d.value,
+        })),
+      },
+    ],
+  },
+  tts: {
+    profile: PRO_STUDIO_TTS_PROFILE,
+    greeting: "嘿 👋 你在語音合成。挑引擎、貼稿件、調語速與穩定度。",
+    modelsTitle: "TTS 引擎（2 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出語音",
+    paramSections: [
+      {
+        title: "🚀 語速（speed）",
+        chips: PRO_STUDIO_TTS_PROFILE.speedPresets.map(p => ({
+          id: p.id,
+          label: p.label,
+          description: p.description,
+          build: () => buildProStudioSetParamActions("tts", "speed", p.value),
+          activeWhen: state =>
+            typeof state?.speed === "number" && Math.abs((state.speed as number) - p.value) < 0.05,
+        })),
+      },
+      {
+        title: "🎚 穩定度（stability）",
+        chips: PRO_STUDIO_TTS_PROFILE.stabilityPresets.map(p => ({
+          id: p.id,
+          label: p.label,
+          description: p.description,
+          build: () => buildProStudioSetParamActions("tts", "stability", p.value),
+          activeWhen: state =>
+            typeof state?.stability === "number" && Math.abs((state.stability as number) - p.value) < 0.05,
+        })),
+      },
+    ],
+  },
+  clone: {
+    profile: PRO_STUDIO_CLONE_PROFILE,
+    greeting: "嘿 👋 你在聲音克隆。挑模式、上傳參考音，按一下就建立聲線。",
+    modelsTitle: "克隆模式（5 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出克隆",
+  },
+  process: {
+    profile: PRO_STUDIO_PROCESS_PROFILE,
+    greeting: "嘿 👋 你在音訊處理。挑工具，上傳音訊，按一下就修。",
+    modelsTitle: "處理工具（4 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出處理",
+    paramSections: [
+      {
+        title: "🧬 Demucs 模型",
+        chips: PRO_STUDIO_PROCESS_PROFILE.demucsModels.map(m => ({
+          id: m.id,
+          label: m.label,
+          build: () => buildProStudioSetParamActions("process", "demucsModel", m.id),
+        })),
+      },
+      {
+        title: "🎚 合併策略",
+        chips: PRO_STUDIO_PROCESS_PROFILE.mergeStrategies.map(s => ({
+          id: s.id,
+          label: s.label,
+          description: s.description,
+          build: () => buildProStudioSetParamActions("process", "mergeStrategy", s.id),
+        })),
+      },
+    ],
+  },
+  asr: {
+    profile: PRO_STUDIO_ASR_PROFILE,
+    greeting: "嘿 👋 你在語音識別。上傳音訊就能轉成逐字稿與字幕。",
+    modelsTitle: "ASR 工具",
+    showSubmit: true,
+    submitLabel: "一鍵送出辨識",
+    paramSections: [
+      {
+        title: "⚡ 加速等級（acceleration）",
+        chips: PRO_STUDIO_ASR_PROFILE.accelerations.map(a => ({
+          id: a.id,
+          label: a.label,
+          description: a.description,
+          build: () => buildProStudioSetParamActions("asr", "acceleration", a.id),
+        })),
+      },
+    ],
+  },
+  avatar: {
+    profile: PRO_STUDIO_AVATAR_PROFILE,
+    greeting: "嘿 👋 你在 AI 形像影片。挑工具、上傳人像 + 音訊，按一下就生影片。",
+    modelsTitle: "Avatar 工具（6 種）",
+    showSubmit: true,
+    submitLabel: "一鍵送出 Avatar",
+    paramSections: [
+      {
+        title: "🌐 Dubbing 目標語言（targetLang）",
+        chips: PRO_STUDIO_AVATAR_PROFILE.dubbingLangs.map(l => ({
+          id: l.id,
+          label: l.label,
+          build: () => buildProStudioSetParamActions("avatar", "targetLang", l.id),
+        })),
+      },
+    ],
+  },
+};
+
+function ProStudioDeepActions({
+  tab,
+  fullscreen,
+  pageAgent,
+  onClose,
+  onSendChat,
+}: { tab: ProStudioTab } & StudioDeepActionsCommonProps) {
+  const config = PRO_STUDIO_TAB_CONFIGS[tab];
+  const profile = config.profile;
+  const snapshotState = pageAgent.snapshot?.state;
+  // ProStudio 透過 child bridge 把 modelId 暴露在 snapshot.modelId / activeModel
+  const currentModelId =
+    (snapshotState?.modelId as string | undefined) ??
+    (snapshotState?.activeModel as string | undefined);
+  const runActions = useOrbActionRunner(pageAgent, onClose);
+
+  return (
+    <div className="space-y-3">
+      <OrbSpeechBubble text={config.greeting} />
+
+      {/* 模型卡 */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> {config.modelsTitle}
+        </p>
+        <div
+          className={cn(
+            "gap-1.5",
+            fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+          )}
+        >
+          {profile.models.map((m, i) => {
+            const isActive = currentModelId === m.id;
+            return (
+              <motion.button
+                key={m.id}
+                onClick={() =>
+                  void runActions(
+                    `切到 ${m.label}`,
+                    buildProStudioSetModelActions(tab, m.id),
+                    false
+                  )
+                }
+                className={cn(
+                  "rounded-xl border transition-all px-3 py-2 text-left flex items-start gap-2",
+                  isActive
+                    ? "border-cyan-300/40 bg-cyan-300/10"
+                    : "border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25"
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <span className="text-base leading-none mt-0.5">{m.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate flex items-center gap-1.5">
+                    {m.label}
+                    {m.fast && (
+                      <span className="text-[9px] uppercase tracking-wide text-amber-100/80 rounded-full bg-amber-300/20 px-1.5 py-0.5">
+                        快
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="text-[9px] uppercase tracking-wide text-cyan-100/80 rounded-full bg-cyan-300/20 px-1.5 py-0.5">
+                        目前
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">
+                    {m.description}
+                  </p>
+                  {m.tags && m.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.tags.map(t => (
+                        <span
+                          key={t}
+                          className="text-[9px] rounded-full bg-white/8 border border-white/12 text-white/70 px-1.5 py-0.5"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 模板 */}
+      {profile.templates && profile.templates.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wide text-white/40 px-1 flex items-center gap-1">
+            <Lightbulb className="w-3 h-3" /> 起手式模板
+          </p>
+          <div
+            className={cn(
+              "gap-1.5",
+              fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+            )}
+          >
+            {profile.templates.map((tpl, i) => (
+              <motion.button
+                key={tpl.id}
+                onClick={() =>
+                  void runActions(
+                    `套用「${tpl.label}」模板`,
+                    buildProStudioApplyTemplateActions(tab, tpl)
+                  )
+                }
+                className="rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25 transition-all px-3 py-2 text-left flex items-start gap-2"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                whileTap={{ scale: 0.97 }}
+                title={tpl.prompt}
+              >
+                <span className="text-base leading-none mt-0.5">{tpl.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white/90 truncate">{tpl.label}</p>
+                  <p className="text-[10px] text-white/50 mt-0.5 line-clamp-2">{tpl.prompt}</p>
+                  {tpl.suggestedModelId && (
+                    <p className="text-[9px] text-white/40 mt-1 truncate">
+                      建議搭配：{tpl.suggestedModelId}
+                    </p>
+                  )}
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 分頁專屬參數晶片 */}
+      {config.paramSections?.map(section => (
+        <div key={section.title} className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wide text-white/40 px-1">
+            {section.title}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {section.chips.map(chip => {
+              const isActive = chip.activeWhen?.(snapshotState);
+              return (
+                <motion.button
+                  key={chip.id}
+                  onClick={() => void runActions(chip.label, chip.build(), false)}
+                  className={cn(
+                    "inline-flex items-center rounded-full transition-all",
+                    fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-1 text-[10px]",
+                    isActive
+                      ? "border border-cyan-300/40 bg-cyan-300/15 text-cyan-50"
+                      : "border border-white/12 bg-white/6 hover:bg-white/14 hover:border-white/30 text-white/80"
+                  )}
+                  whileTap={{ scale: 0.95 }}
+                  title={chip.description}
+                >
+                  {chip.label}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* 一鍵送出 + 重設 */}
+      {config.showSubmit && (
+        <div className="flex gap-1.5">
+          <motion.button
+            onClick={() =>
+              void runActions(config.submitLabel ?? "送出生成", [{ type: "submit" }])
+            }
+            className={cn(
+              "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl",
+              "border border-emerald-300/40 bg-emerald-300/15 hover:bg-emerald-300/25",
+              "text-emerald-50 transition-all",
+              fullscreen ? "py-2 text-xs" : "py-1.5 text-[11px]"
+            )}
+            whileTap={{ scale: 0.97 }}
+          >
+            <Sparkles className="w-3 h-3" /> {config.submitLabel ?? "一鍵送出"}
+          </motion.button>
+          <motion.button
+            onClick={() => void runActions("重設此頁", [{ type: "reset" }], false)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-xl",
+              "border border-white/12 bg-white/6 hover:bg-white/14 text-white/75 transition-all",
+              fullscreen ? "px-3 py-2 text-xs" : "px-2.5 py-1.5 text-[11px]"
+            )}
+            whileTap={{ scale: 0.97 }}
+          >
+            <RotateCcw className="w-3 h-3" /> 重設
+          </motion.button>
+        </div>
+      )}
+
+      <StudioCollaborationLinkGrid
+        fullscreen={fullscreen}
+        title="提示詞 / 模型推薦 / 跨分頁串接 / 導演 AI"
+        links={profile.collaborations}
+        onSendChat={onSendChat}
+      />
+    </div>
+  );
 }
 
 // 通用：渲染一組 collaboration links（給 Studio 與 ImageStudio 共用）
@@ -1903,6 +3687,12 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   // 加新分頁時只要動 ImageStudioTab 與 IMAGE_STUDIO_PANELS 表，不會散落各處。
   const imageStudioTab = getImageStudioTab(pageAgent);
   const isImageStudioPage = imageStudioTab !== null;
+  // 影片專業工作室 5 個分頁（t2v / i2v / v2v / enhance / control）全部接深度面板
+  const videoStudioTab = getVideoStudioTab(pageAgent);
+  const isVideoStudioPage = videoStudioTab !== null;
+  // 音樂配音創作室 7 個分頁（music / sfx / tts / clone / process / asr / avatar）
+  const proStudioTab = getProStudioTab(pageAgent);
+  const isProStudioPage = proStudioTab !== null;
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -2469,7 +4259,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {!isImageStudioPage && (
+              {!isImageStudioPage && !isVideoStudioPage && !isProStudioPage && (
                 <OrbSpeechBubble
                   text={
                     isStudioPage
@@ -2482,6 +4272,22 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               {imageStudioTab ? (
                 <ImageStudioDeepActionsForTab
                   tab={imageStudioTab}
+                  fullscreen={fullscreen}
+                  pageAgent={pageAgent}
+                  onClose={onClose}
+                  onSendChat={handleStudioCollabChat}
+                />
+              ) : videoStudioTab ? (
+                <VideoStudioDeepActionsForTab
+                  tab={videoStudioTab}
+                  fullscreen={fullscreen}
+                  pageAgent={pageAgent}
+                  onClose={onClose}
+                  onSendChat={handleStudioCollabChat}
+                />
+              ) : proStudioTab ? (
+                <ProStudioDeepActions
+                  tab={proStudioTab}
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
