@@ -38,6 +38,7 @@ import { useAmbient } from "@/contexts/AmbientSoundContext";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { SCENE_PALETTES } from "@/components/LoginCosmicScene";
 import { useIsMobile } from "@/hooks/useMobile";
+import OrbErrorBoundary from "./OrbErrorBoundary";
 
 // Lazy-load the heavy WebGL orb so the rest of the overlay can paint immediately.
 const VisualSoul3D = lazy(() => import("./VisualSoul3D"));
@@ -2109,9 +2110,11 @@ function Hero3DOrb({
           willChange: "transform, opacity",
         }}
       >
-        <Suspense fallback={null}>
-          <VisualSoul3D personality={personality} state={orbState} size="xl" />
-        </Suspense>
+        <OrbErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <VisualSoul3D personality={personality} state={orbState} size="xl" />
+          </Suspense>
+        </OrbErrorBoundary>
       </div>
     </div>
   );
