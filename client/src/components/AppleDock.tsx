@@ -43,6 +43,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
+import { useIsMobile } from "@/hooks/useMobile";
 import { cn } from "@/lib/utils";
 import AppleDockItem from "./AppleDockItem";
 import AppleDockFlyout, { type FlyoutItem } from "./AppleDockFlyout";
@@ -342,17 +343,26 @@ function MinimizedBubble({
   user,
   displayInitial,
   onExpand,
+  mobileCorner = false,
 }: {
   position: DockPosition;
   user: AppleDockProps["user"];
   displayInitial: string;
   onExpand: () => void;
+  mobileCorner?: boolean;
 }) {
+  // On mobile, anchor the bubble in the top-left corner so it never lands in
+  // the middle of page content (the dock's normal mid-edge anchor overlaps
+  // chat bubbles, cards, etc. on narrow viewports).
+  const positionClass = mobileCorner
+    ? "left-3 top-[calc(env(safe-area-inset-top,0px)+0.75rem)]"
+    : bubblePositionClasses(position);
+  const tooltipSide = mobileCorner ? "right" : bubbleTooltipSide(position);
   return (
     <div
       className={cn(
         "block fixed z-30",
-        bubblePositionClasses(position)
+        positionClass
       )}
     >
       <Tooltip delayDuration={300}>
@@ -376,7 +386,7 @@ function MinimizedBubble({
           </button>
         </TooltipTrigger>
         <TooltipContent
-          side={bubbleTooltipSide(position)}
+          side={tooltipSide}
           sideOffset={12}
           className="apple-dock-tooltip"
         >
@@ -408,14 +418,38 @@ function AppleDock({
 }: AppleDockProps) {
   const [openGroup, setOpenGroup] = React.useState<string | null>(null);
   const [revealed, setRevealed] = React.useState(false);
+  const isMobile = useIsMobile();
+  // Mobile drawer state: on narrow viewports the dock collapses to a corner
+  // bubble until tapped, then opens as an overlay over the page (with a
+  // backdrop scrim). This avoids the always-visible vertical dock overlapping
+  // chat bubbles and other content on phones.
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const handleNavigate = React.useCallback(
     (path: string) => {
       onNavigate(path);
       setOpenGroup(null);
+      if (isMobile) setMobileOpen(false);
     },
-    [onNavigate]
+    [onNavigate, isMobile]
   );
+
+  // Close the mobile drawer when the viewport grows past the mobile breakpoint
+  // so we don't leave a stale scrim on rotate / window-resize.
+  React.useEffect(() => {
+    if (!isMobile && mobileOpen) setMobileOpen(false);
+  }, [isMobile, mobileOpen]);
+
+  // ESC closes the mobile drawer (in addition to the immersive-mode handler
+  // already wired up further down).
+  React.useEffect(() => {
+    if (!isMobile || !mobileOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isMobile, mobileOpen]);
 
   // ── While immersive AND revealed, watch the pointer globally so that the
   //    dock only auto-hides after the cursor has truly left both the nav and
@@ -496,7 +530,23 @@ function AppleDock({
     return () => window.removeEventListener("keydown", onKey);
   }, [immersive, revealed, onToggleImmersive]);
 
-  if (minimized) {
+  // On mobile, default to the bubble form (regardless of persisted minimized
+  // state) so the dock stays out of the chat/content area until the user
+  // explicitly opens it. Tapping the bubble flips local mobileOpen, which is
+  // separate from the persisted minimized preference.
+  if (isMobile && !mobileOpen) {
+    return (
+      <MinimizedBubble
+        position={position}
+        user={user}
+        displayInitial={displayInitial}
+        onExpand={() => setMobileOpen(true)}
+        mobileCorner
+      />
+    );
+  }
+
+  if (minimized && !isMobile) {
     return (
       <MinimizedBubble
         position={position}
@@ -542,6 +592,18 @@ function AppleDock({
 
   return (
     <>
+      {/* ── Mobile drawer backdrop: dim + tap-outside-to-close while the
+            mobile dock overlay is open. Sits below the dock (z-20 vs z-30)
+            so the dock itself remains tappable. Only rendered on mobile. ── */}
+      {isMobile && mobileOpen && (
+        <button
+          type="button"
+          aria-label="關閉導覽列"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-20 bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-150"
+        />
+      )}
+
       {/* ── Immersive-mode peek zone: an invisible hit strip + breathing pip
             on the viewport edge. Lives OUTSIDE the nav so it stays hoverable
             while the dock body is translated offscreen. Supports touch /

@@ -2024,6 +2024,14 @@ export default function AgentChat() {
         {/* 輸入列 — 第二輪以後才顯示在底部，第一輪改用上方 hero composer */}
         {!isFirstTurn && (
         <div className="sticky bottom-4 space-y-2.5">
+          {/* Soft fade above the sticky composer so scrolled messages don't
+              read as "overlapping" the input on small screens — the gradient
+              dissolves chat text into the page background instead of hard
+              clipping behind a translucent box. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-6 inset-x-0 h-6 bg-gradient-to-b from-transparent to-white/95 dark:to-slate-950/95"
+          />
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-1">
               {attachments.map(attachment => (

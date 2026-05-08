@@ -54,6 +54,7 @@ import {
   type AppPageRegistryItem,
 } from "@/config/appRegistry";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
+import { useIsMobile } from "@/hooks/useMobile";
 import AppleDock, {
   type DockEntry,
   type DockLeaf,
@@ -562,6 +563,7 @@ function DashboardLayoutContent({
   const { user, logout } = useAuth();
   const { settings } = usePersonalSettings();
   const [location, setLocation] = useLocation();
+  const isMobile = useIsMobile();
 
   const isAdmin = user?.role === "admin";
   const displayName = settings.displayName.trim() || user?.name || "使用者";
@@ -669,8 +671,11 @@ function DashboardLayoutContent({
   }, [startTour]);
 
   // ── Main-content padding mirrors the dock side and tightens when minimized.
-  //    In immersive mode we leave only a thin gutter for the edge peek handle. ──
+  //    In immersive mode we leave only a thin gutter for the edge peek handle.
+  //    On mobile the dock collapses to a corner bubble (handled inside
+  //    AppleDock), so the main content needs no extra dock-clearance padding. ──
   const dockPadClass = (() => {
+    if (isMobile) return "";
     if (dockImmersive) {
       switch (dockPosition) {
         case "left":
