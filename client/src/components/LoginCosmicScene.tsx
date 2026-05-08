@@ -176,20 +176,6 @@ const CONSTELLATION_ANCHORS: Anchor[] = [
   { x: 14, y: 92, size: 3.0, delay: 4.5 },
 ];
 
-const CONSTELLATION_LINES: Array<[number, number]> = [
-  // Upper chain
-  [0, 1],
-  [1, 2],
-  [2, 3],
-  [3, 4],
-  [4, 5],
-  [5, 6],
-  // Lower triangle
-  [7, 8],
-  [8, 9],
-  [7, 9],
-];
-
 // ─── Subcomponents ───────────────────────────────────────────────────────────
 
 /**
@@ -228,49 +214,12 @@ const MilkyWay = memo(function MilkyWay() {
 });
 
 /**
- * Constellation lines + brighter anchor stars. Uses an SVG with
- * preserveAspectRatio="none" so 0-100 viewBox coords map directly to
- * viewport %.
+ * Constellation anchors only (no connecting wireframe lines), so the
+ * background keeps depth while avoiding geometric frame overlays.
  */
 const Constellations = memo(function Constellations() {
   return (
     <>
-      <svg
-        className="absolute inset-0 pointer-events-none"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        width="100%"
-        height="100%"
-        style={{ opacity: 0.7, mixBlendMode: "screen" }}
-        aria-hidden
-      >
-        <defs>
-          <linearGradient id="lcs-line" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(180,160,240,0.0)" />
-            <stop offset="50%" stopColor="rgba(220,200,255,0.55)" />
-            <stop offset="100%" stopColor="rgba(180,160,240,0.0)" />
-          </linearGradient>
-        </defs>
-        {CONSTELLATION_LINES.map(([a, b], i) => {
-          const A = CONSTELLATION_ANCHORS[a];
-          const B = CONSTELLATION_ANCHORS[b];
-          return (
-            <line
-              key={i}
-              x1={A.x}
-              y1={A.y}
-              x2={B.x}
-              y2={B.y}
-              stroke="url(#lcs-line)"
-              strokeWidth={0.18}
-              vectorEffect="non-scaling-stroke"
-              style={{
-                animation: `lcs-constellation ${8 + (i % 4)}s ease-in-out ${i * 0.3}s infinite`,
-              }}
-            />
-          );
-        })}
-      </svg>
       {CONSTELLATION_ANCHORS.map((a, i) => (
         <div
           key={i}

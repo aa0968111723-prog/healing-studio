@@ -1477,9 +1477,8 @@
     }
   }
 
-  /* Rotating gradient border — uses mask-composite to cut a 1px ring out of
-   * a conic gradient so the card itself stays clean. Slow rotation (24s) so
-   * the border breathes without distracting. */
+  /* Static gradient border — keep the premium edge glow but remove rotating
+   * wireframe-like motion per latest visual direction. */
   .login-card::before {
     content: "";
     position: absolute;
@@ -1503,15 +1502,9 @@
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
     mask-composite: exclude;
-    animation: login-card-spin 24s linear infinite;
+    opacity: 0.9;
     pointer-events: none;
     z-index: 0;
-  }
-
-  @keyframes login-card-spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 
   /* Outer breathing glow — soft purple aura */
@@ -1522,11 +1515,11 @@
     border-radius: 2rem;
     background: radial-gradient(
       ellipse at 50% 50%,
-      rgba(160, 130, 230, 0.18) 0%,
-      rgba(120, 90, 200, 0.08) 40%,
+      rgba(160, 130, 230, 0.26) 0%,
+      rgba(120, 90, 200, 0.14) 40%,
       transparent 70%
     );
-    filter: blur(8px);
+    filter: blur(12px);
     pointer-events: none;
     z-index: -1;
     animation: login-card-aura 7s ease-in-out infinite;
@@ -1535,12 +1528,12 @@
   @keyframes login-card-aura {
     0%,
     100% {
-      opacity: 0.7;
+      opacity: 0.82;
       transform: scale(1);
     }
     50% {
       opacity: 1;
-      transform: scale(1.04);
+      transform: scale(1.06);
     }
   }
 
