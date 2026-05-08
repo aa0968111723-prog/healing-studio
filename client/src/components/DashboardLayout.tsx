@@ -3,6 +3,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import LocalAuthForm from "@/components/LocalAuthForm";
+import LoginCosmicScene from "@/components/LoginCosmicScene";
 import {
   Wand2,
   Clapperboard,
@@ -173,40 +174,74 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div
-        className="flex items-center justify-center min-h-screen healing-wash-bg"
-        style={{
-          background:
-            "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 25%, #D4C5E2 55%, #C4DFCF 80%, #C8D5E0 100%)",
-        }}
-      >
-        <div className="glass-card p-10 sm:p-12 max-w-md w-full mx-4 text-center">
+      <div className="login-cosmic relative flex items-center justify-center min-h-screen overflow-hidden">
+        <LoginCosmicScene />
+        <div
+          className="login-card relative z-10 p-10 sm:p-12 max-w-md w-full mx-4 text-center"
+          style={{
+            background:
+              "linear-gradient(160deg, rgba(28,22,52,0.62) 0%, rgba(18,12,38,0.72) 100%)",
+            backdropFilter: "blur(22px) saturate(160%)",
+            WebkitBackdropFilter: "blur(22px) saturate(160%)",
+            border: "1px solid rgba(180,160,240,0.22)",
+            borderRadius: "1.5rem",
+            boxShadow: [
+              "0 1px 0 rgba(255,255,255,0.08) inset",
+              "0 0 0 1px rgba(120,100,200,0.12) inset",
+              "0 24px 80px rgba(0,0,0,0.55)",
+              "0 0 60px rgba(120,90,200,0.18)",
+            ].join(","),
+          }}
+        >
+          {/* Corner star glyphs — twinkling crosses at the four corners */}
+          <span className="login-card-glyph tl" aria-hidden />
+          <span className="login-card-glyph tr" aria-hidden />
+          <span className="login-card-glyph bl" aria-hidden />
+          <span className="login-card-glyph br" aria-hidden />
+
           <div className="flex justify-center mb-6">
             <Suspense fallback={null}>
               <VisualSoul size="lg" personality="creative" state="idle" />
             </Suspense>
           </div>
-          <h1 className="hs-h1 !mb-0 text-foreground">AI Director 創作平台</h1>
-          <p className="text-sm text-muted-foreground mt-4 max-w-sm mx-auto body-healing leading-relaxed">
-            在這裡，讓 AI 陪伴你舒適地創作
+          <h1 className="hs-h1 !mb-0 login-title">AI Director 創作平台</h1>
+          <p
+            className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
+            style={{ color: "rgba(230,222,255,0.72)" }}
+          >
+            在星河之間，讓 AI 陪伴你舒適地創作
           </p>
           <Button
             onClick={() => {
               window.location.href = getLoginUrl();
             }}
             size="lg"
-            className="w-full mt-8 h-12 rounded-2xl shadow-md hover:shadow-lg hover:bg-primary/80 btn-healing"
+            className="w-full mt-8 h-12 rounded-2xl btn-healing"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(170,140,240,0.95) 0%, rgba(120,90,210,0.95) 100%)",
+              color: "#fff",
+              border: "1px solid rgba(220,200,255,0.32)",
+              boxShadow:
+                "0 8px 24px rgba(110,80,200,0.4), 0 0 0 1px rgba(255,255,255,0.06) inset",
+            }}
           >
             Google 登入
           </Button>
-          <LocalAuthForm className="mt-3 text-left" />
+          <LocalAuthForm className="mt-3 text-left login-auth-form" />
           <Button
             onClick={() => {
               window.location.href = getDemoLoginUrl();
             }}
             variant="outline"
             size="lg"
-            className="w-full mt-3 h-12 rounded-2xl border-dashed border-muted-foreground/30 hover:bg-muted/40 hover:shadow-md btn-healing"
+            className="w-full mt-3 h-12 rounded-2xl btn-healing"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              borderStyle: "dashed",
+              borderColor: "rgba(200,180,240,0.28)",
+              color: "rgba(230,222,255,0.85)",
+            }}
           >
             ✨ 訪客體驗（免登入）
           </Button>

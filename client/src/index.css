@@ -1451,4 +1451,253 @@
     background-size: 300% 300%;
     animation: healing-wash 30s cubic-bezier(0.37, 0, 0.63, 1) infinite;
   }
+
+  /* ─── Login cosmic scene — dark glass card overrides ─────────────────
+   * Scoped so the auth controls remain readable on the deep-space backdrop
+   * without affecting the rest of the app.
+   */
+  .login-cosmic {
+    color-scheme: dark;
+    background: #06041a;
+  }
+
+  .login-card {
+    /* Soft floating animation for cinematic feel */
+    animation: login-card-rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes login-card-rise {
+    0% {
+      opacity: 0;
+      transform: translateY(14px) scale(0.985);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Rotating gradient border — uses mask-composite to cut a 1px ring out of
+   * a conic gradient so the card itself stays clean. Slow rotation (24s) so
+   * the border breathes without distracting. */
+  .login-card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1.2px;
+    background: conic-gradient(
+      from 0deg,
+      rgba(180, 150, 255, 0) 0deg,
+      rgba(200, 170, 255, 0.65) 60deg,
+      rgba(120, 200, 255, 0.55) 130deg,
+      rgba(180, 150, 255, 0) 220deg,
+      rgba(255, 200, 230, 0.5) 290deg,
+      rgba(180, 150, 255, 0) 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: login-card-spin 24s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @keyframes login-card-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Outer breathing glow — soft purple aura */
+  .login-card::after {
+    content: "";
+    position: absolute;
+    inset: -24px;
+    border-radius: 2rem;
+    background: radial-gradient(
+      ellipse at 50% 50%,
+      rgba(160, 130, 230, 0.18) 0%,
+      rgba(120, 90, 200, 0.08) 40%,
+      transparent 70%
+    );
+    filter: blur(8px);
+    pointer-events: none;
+    z-index: -1;
+    animation: login-card-aura 7s ease-in-out infinite;
+  }
+
+  @keyframes login-card-aura {
+    0%,
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+  }
+
+  /* Corner star glyphs — four tiny twinkling crosses at card corners */
+  .login-card-glyph {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  .login-card-glyph::before,
+  .login-card-glyph::after {
+    content: "";
+    position: absolute;
+    background: radial-gradient(
+      circle,
+      rgba(255, 240, 255, 0.95) 0%,
+      rgba(220, 200, 255, 0.4) 50%,
+      transparent 100%
+    );
+    box-shadow: 0 0 8px rgba(220, 200, 255, 0.7);
+  }
+  .login-card-glyph::before {
+    left: 50%;
+    top: 0;
+    width: 1.2px;
+    height: 100%;
+    margin-left: -0.6px;
+    border-radius: 1px;
+  }
+  .login-card-glyph::after {
+    top: 50%;
+    left: 0;
+    height: 1.2px;
+    width: 100%;
+    margin-top: -0.6px;
+    border-radius: 1px;
+  }
+  .login-card-glyph.tl {
+    top: -16px;
+    left: -16px;
+    animation: login-glyph-twinkle 4.2s ease-in-out infinite;
+  }
+  .login-card-glyph.tr {
+    top: -16px;
+    right: -16px;
+    animation: login-glyph-twinkle 4.8s ease-in-out 0.8s infinite;
+  }
+  .login-card-glyph.bl {
+    bottom: -16px;
+    left: -16px;
+    animation: login-glyph-twinkle 5.4s ease-in-out 1.6s infinite;
+  }
+  .login-card-glyph.br {
+    bottom: -16px;
+    right: -16px;
+    animation: login-glyph-twinkle 4.6s ease-in-out 2.4s infinite;
+  }
+
+  @keyframes login-glyph-twinkle {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: scale(1) rotate(0deg);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.25) rotate(45deg);
+    }
+  }
+
+  /* Title shimmer — subtle horizontal sheen sweeping the gradient text */
+  .login-title {
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(232, 216, 255, 1) 22%,
+      rgba(255, 255, 255, 1) 38%,
+      rgba(200, 180, 255, 0.95) 60%,
+      rgba(255, 230, 250, 1) 78%,
+      rgba(232, 216, 255, 0.85) 100%
+    );
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 24px rgba(180, 150, 240, 0.25);
+    letter-spacing: 0.02em;
+    animation: login-title-shimmer 7s linear infinite;
+  }
+
+  @keyframes login-title-shimmer {
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 220% 50%;
+    }
+  }
+
+  .login-auth-form .text-muted-foreground,
+  .login-cosmic .text-muted-foreground {
+    color: rgba(220, 210, 250, 0.58) !important;
+  }
+
+  .login-auth-form input,
+  .login-auth-form [role="tab"],
+  .login-auth-form [role="tablist"] {
+    color: rgba(245, 240, 255, 0.95);
+  }
+
+  .login-auth-form input {
+    background: rgba(20, 14, 40, 0.55) !important;
+    border: 1px solid rgba(180, 160, 240, 0.22) !important;
+    color: rgba(245, 240, 255, 0.95) !important;
+  }
+  .login-auth-form input::placeholder {
+    color: rgba(220, 210, 250, 0.42) !important;
+  }
+  .login-auth-form input:focus-visible {
+    border-color: rgba(200, 170, 255, 0.55) !important;
+    box-shadow: 0 0 0 3px rgba(170, 130, 240, 0.22) !important;
+    outline: none;
+  }
+
+  .login-auth-form [role="tablist"] {
+    background: rgba(20, 14, 40, 0.5);
+    border: 1px solid rgba(180, 160, 240, 0.18);
+  }
+  .login-auth-form [role="tab"][data-state="active"] {
+    background: linear-gradient(
+      135deg,
+      rgba(170, 140, 240, 0.85),
+      rgba(120, 90, 210, 0.85)
+    );
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(110, 80, 200, 0.35);
+  }
+  .login-auth-form [role="tab"]:not([data-state="active"]) {
+    color: rgba(220, 210, 250, 0.7);
+  }
+
+  .login-auth-form a {
+    color: rgba(200, 170, 255, 0.9);
+  }
+  .login-auth-form a:hover {
+    color: rgba(220, 200, 255, 1);
+  }
+
+  /* Show/hide password icon button */
+  .login-auth-form button[aria-label="隱藏密碼"],
+  .login-auth-form button[aria-label="顯示密碼"] {
+    color: rgba(220, 210, 250, 0.6);
+  }
+  .login-auth-form button[aria-label="隱藏密碼"]:hover,
+  .login-auth-form button[aria-label="顯示密碼"]:hover {
+    color: rgba(245, 240, 255, 0.95);
+  }
 }
