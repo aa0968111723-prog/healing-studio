@@ -19,8 +19,15 @@ import {
   Loader2,
   Wand2,
   Eye,
+  Zap,
+  Target,
+  Palette,
+  CircleCheck,
+  Clock,
+  Layers,
+  Terminal,
+  CheckCircle2,
 } from "lucide-react";
-import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -38,7 +45,8 @@ interface Mode {
   glow: string;
   prompt: string;
   meta: string;
-  route: string;
+  /** Tool name shown in the agent's dispatch trace. */
+  tool: string;
   /** Whether this modality has live generation wired up on the homepage. */
   liveGenerate: boolean;
 }
@@ -52,7 +60,7 @@ const MODES: readonly Mode[] = [
     glow: "rgba(168,85,247,0.55)",
     prompt: "夕陽下的少女側臉，電影感、淺景深、35mm 底片質感",
     meta: "輸出 1 張 · 約 8 秒",
-    route: "/image-studio",
+    tool: "image_generator.nano_banana_2",
     liveGenerate: true,
   },
   {
@@ -63,7 +71,7 @@ const MODES: readonly Mode[] = [
     glow: "rgba(59,130,246,0.5)",
     prompt: "城市夜景慢速推軌，霓虹倒影、雨後濕地、9:16 直式",
     meta: "輸出 6 秒短片 · 約 30 秒",
-    route: "/video-studio",
+    tool: "video_generator.kling_v2",
     liveGenerate: false,
   },
   {
@@ -74,7 +82,7 @@ const MODES: readonly Mode[] = [
     glow: "rgba(236,72,153,0.55)",
     prompt: "冷冽雨夜，慢板鋼琴主旋律 + 弦樂氛圍墊底，BPM 72",
     meta: "輸出 30 秒原創曲 · 約 20 秒",
-    route: "/pro-studio",
+    tool: "music_generator.compose",
     liveGenerate: false,
   },
   {
@@ -85,7 +93,7 @@ const MODES: readonly Mode[] = [
     glow: "rgba(249,115,22,0.5)",
     prompt: "溫暖女聲旁白，語速中等、情緒平靜，繁體中文",
     meta: "輸出 1 段配音 · 約 12 秒",
-    route: "/pro-studio",
+    tool: "voice_synth.warm_female_zh",
     liveGenerate: false,
   },
   {
@@ -96,7 +104,7 @@ const MODES: readonly Mode[] = [
     glow: "rgba(34,197,94,0.5)",
     prompt: "30 秒品牌形象短片，分 5 鏡，溫暖治癒風格，含字幕",
     meta: "拆 5 鏡 + 配樂 + 字幕 · 約 90 秒",
-    route: "/director",
+    tool: "director_orchestrator.plan",
     liveGenerate: false,
   },
   {
@@ -107,9 +115,87 @@ const MODES: readonly Mode[] = [
     glow: "rgba(14,165,233,0.55)",
     prompt: "上傳 12 張參考圖，建立專屬角色模型，跨作品風格一致",
     meta: "訓練專屬模型 · 約 8 分鐘",
-    route: "/lora-trainer",
+    tool: "lora_trainer.create",
     liveGenerate: false,
   },
+] as const;
+
+// ─── Scenario presets — fold the former "你可以這樣用" use cases into the
+//    orb stage so the agent can dispatch them inline (no studio detour). ──
+
+interface Scenario {
+  id: string;
+  modeId: ModeId;
+  label: string;
+  eta: string;
+  summary: string;
+  prompt: string;
+}
+
+const SCENARIOS: readonly Scenario[] = [
+  {
+    id: "brand-short-film",
+    modeId: "director",
+    label: "品牌形象短片",
+    eta: "20-30 分鐘",
+    summary: "代理拆鏡 + 配樂 + 字幕一次到位",
+    prompt:
+      "幫我做一支 20 秒品牌形象短片，溫暖療癒、自動分鏡、配樂、繁中字幕。",
+  },
+  {
+    id: "product-key-visual",
+    modeId: "image",
+    label: "商品主視覺",
+    eta: "8-12 分鐘",
+    summary: "代理產出多版可比較設計稿",
+    prompt:
+      "極簡質感商品攝影，純色背景、柔光、淺景深、4K，產出 4 版差異稿。",
+  },
+  {
+    id: "social-short",
+    modeId: "video",
+    label: "社群短影音",
+    eta: "10-15 分鐘",
+    summary: "9:16 直式，自動節奏點與字幕",
+    prompt:
+      "15 秒 9:16 社群短影音，霓虹城市夜景慢推軌，自動節奏點切換、配字幕。",
+  },
+  {
+    id: "podcast-music",
+    modeId: "music",
+    label: "Podcast 配樂與旁白",
+    eta: "10-15 分鐘",
+    summary: "原創配樂 + 語音克隆旁白",
+    prompt:
+      "Podcast 開場 30 秒原創配樂，BPM 76、慢板鋼琴 + 弦樂氛圍，搭配溫暖女聲旁白。",
+  },
+  {
+    id: "character-series",
+    modeId: "lora",
+    label: "角色一致系列圖",
+    eta: "25-40 分鐘",
+    summary: "LoRA 鎖風格，跨作品一致",
+    prompt:
+      "上傳 12 張參考圖，訓練專屬角色 LoRA，後續以同一造型產出 6 張系列圖。",
+  },
+  {
+    id: "campaign-pack",
+    modeId: "director",
+    label: "完整行銷素材包",
+    eta: "30-45 分鐘",
+    summary: "主視覺 + 短片 + 配樂 + 旁白",
+    prompt:
+      "產出完整行銷素材包：主視覺、15 秒短片、30 秒配樂、繁中旁白，跨格式同步。",
+  },
+] as const;
+
+// ─── Inline value strip — folded in from the former site value highlights. ──
+
+const VALUE_HIGHLIGHTS = [
+  { id: "speed", icon: Zap, label: "一句話到成品" },
+  { id: "consistency", icon: Target, label: "風格一致" },
+  { id: "scene", icon: Palette, label: "場景四時段" },
+  { id: "iterate", icon: CircleCheck, label: "版本可重跑" },
 ] as const;
 
 // ─── Phase label (shared chrome) ────────────────────────────────────────────
@@ -489,6 +575,112 @@ function PlaceholderForMode({ mode }: { mode: Mode }) {
   }
 }
 
+// ─── Agent tool-dispatch trace ──────────────────────────────────────────────
+
+type DispatchStep = "parse" | "call" | "stream" | "done";
+
+interface DispatchState {
+  tool: string;
+  step: DispatchStep;
+  /** When true, this dispatch is a real backend call (image only). */
+  live: boolean;
+}
+
+const DISPATCH_STEP_ORDER: readonly DispatchStep[] = [
+  "parse",
+  "call",
+  "stream",
+  "done",
+];
+
+function ToolDispatchTrace({
+  state,
+  tint,
+  prompt,
+}: {
+  state: DispatchState;
+  tint: string;
+  prompt: string;
+}) {
+  const reduce = useReducedMotion();
+  const stepIndex = DISPATCH_STEP_ORDER.indexOf(state.step);
+  const promptPreview =
+    prompt.length > 48 ? `${prompt.slice(0, 46)}…` : prompt;
+
+  const lines: { key: DispatchStep; text: string }[] = [
+    { key: "parse", text: "光球代理 · 解析意圖與模態" },
+    {
+      key: "call",
+      text: `→ ${state.tool}({ prompt: "${promptPreview}" })`,
+    },
+    {
+      key: "stream",
+      text: state.live ? "← 串流真實 API 預覽…" : "← 串流模擬預覽（示範）…",
+    },
+    { key: "done", text: state.live ? "✓ 已完成" : "✓ 代理示範完成" },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.25 }}
+      className="absolute left-2 right-2 bottom-2 rounded-lg backdrop-blur-md px-2.5 py-1.5 font-mono text-[9.5px] sm:text-[10px] leading-relaxed pointer-events-none"
+      style={{
+        background: "rgba(0,0,0,0.45)",
+        border: `1px solid ${tint}`,
+        color: "rgba(255,255,255,0.92)",
+      }}
+    >
+      <div
+        className="flex items-center gap-1.5 mb-0.5"
+        style={{ color: tint }}
+      >
+        <Terminal className="w-2.5 h-2.5" />
+        <span className="tracking-[0.2em] uppercase text-[8.5px]">
+          agent.dispatch
+        </span>
+        {state.live && (
+          <span
+            className="ml-auto text-[8px] px-1 py-0.5 rounded"
+            style={{ background: tint, color: "#fff" }}
+          >
+            LIVE
+          </span>
+        )}
+      </div>
+      {lines.map((line, idx) => {
+        const reached = idx <= stepIndex;
+        const active = idx === stepIndex && state.step !== "done";
+        return (
+          <div
+            key={line.key}
+            className="flex items-start gap-1.5"
+            style={{ opacity: reached ? 1 : 0.35 }}
+          >
+            <span style={{ width: 8, color: tint }}>
+              {idx < stepIndex || state.step === "done" ? "✓" : active ? "›" : "·"}
+            </span>
+            <span className="flex-1 truncate">
+              {line.text}
+              {active && !reduce && (
+                <motion.span
+                  className="ml-0.5 inline-block"
+                  animate={{ opacity: [1, 0.2, 1] }}
+                  transition={{ duration: 0.9, repeat: Infinity }}
+                >
+                  ▌
+                </motion.span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </motion.div>
+  );
+}
+
 // ─── Component props ────────────────────────────────────────────────────────
 
 interface OrbCreationStageProps {
@@ -516,20 +708,20 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 // ─── Main component ────────────────────────────────────────────────────────
 
 /**
- * OrbCreationStage — merged PHASE 01 narrative + PHASE 02 interactive
- * generation panel.  Replaces the former OrbNarrativeBridge and
- * GenerativeShowcase as a single, hands-on, real-API powered showcase.
+ * OrbCreationStage — single unified visual experience for the homepage.
+ * Folds in the former "Site Value Highlights" + "Site Use Cases" sections
+ * so users can see the global orb agent dispatch every modality (image,
+ * video, music, voice, director, LoRA) in place — no studio detour.
  *
  * Real APIs wired:
  *   - `sense.inferIntent` (public) → "光球感應" the prompt as user types
  *   - `imageStudio.checkApiKey` (public) → reveal whether live generation works
  *   - `imageStudio.nanoBanana2` (auth) → real image generation when user is
- *     logged in and the image modality is selected.  Other modalities still
- *     route to their dedicated studios with the current prompt.
+ *     logged in and the image modality is selected.
  *
- * Interaction:
- *   - The orb tilts toward mouse / touch on its container (works on mobile).
- *   - The user can edit the prompt freely or pick a sample.
+ * For the other five modalities the agent dispatch is shown as a
+ * tool-call trace + animated preview, so users feel the orb agent calling
+ * those tools without leaving the homepage.
  */
 export default function OrbCreationStage({
   textPrimary,
@@ -541,7 +733,6 @@ export default function OrbCreationStage({
   btnPrimaryText,
   isDark,
 }: OrbCreationStageProps) {
-  const [, navigate] = useLocation();
   const isMobile = useIsMobile();
   const reduce = useReducedMotion();
   const { isAuthenticated } = useAuth();
@@ -554,6 +745,16 @@ export default function OrbCreationStage({
   const [prompt, setPrompt] = useState<string>(activeMode.prompt);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+  const [dispatch, setDispatch] = useState<DispatchState | null>(null);
+  const [simulating, setSimulating] = useState(false);
+  const dispatchTimers = useRef<number[]>([]);
+  useEffect(() => {
+    return () => {
+      dispatchTimers.current.forEach(id => window.clearTimeout(id));
+      dispatchTimers.current = [];
+    };
+  }, []);
 
   // When the user switches modality, swap the prompt to the suggestion
   // unless the user has typed something custom that doesn't match any sample.
@@ -653,28 +854,74 @@ export default function OrbCreationStage({
     return Math.min(0.4 + promptScore * 0.4 + senseScore * 0.4, 1.2);
   }, [prompt, senseInsight]);
 
+  const clearDispatchTimers = useCallback(() => {
+    dispatchTimers.current.forEach(id => window.clearTimeout(id));
+    dispatchTimers.current = [];
+  }, []);
+
   const handleSelectMode = (id: ModeId) => {
     setActiveId(id);
     userEditedRef.current = false;
     setResultUrl(null);
     setErrorMsg(null);
+    setDispatch(null);
+    setSimulating(false);
+    setActiveScenarioId(null);
+    clearDispatchTimers();
+  };
+
+  const handleSelectScenario = (s: Scenario) => {
+    setActiveScenarioId(s.id);
+    setActiveId(s.modeId);
+    userEditedRef.current = false;
+    setPrompt(s.prompt);
+    setResultUrl(null);
+    setErrorMsg(null);
+    setDispatch(null);
+    setSimulating(false);
+    clearDispatchTimers();
   };
 
   const handlePromptChange = (next: string) => {
     setPrompt(next);
     userEditedRef.current = true;
+    setActiveScenarioId(null);
   };
+
+  /** Drive the dispatch trace for non-live modalities so users see the
+   *  global orb agent calling the right tool inline. */
+  const runSimulatedDispatch = useCallback(
+    (mode: Mode) => {
+      clearDispatchTimers();
+      setSimulating(true);
+      setDispatch({ tool: mode.tool, step: "parse", live: false });
+      const queue = (delay: number, step: DispatchStep, done = false) => {
+        const id = window.setTimeout(() => {
+          setDispatch(d =>
+            d && d.tool === mode.tool ? { ...d, step } : d
+          );
+          if (done) setSimulating(false);
+        }, delay);
+        dispatchTimers.current.push(id);
+      };
+      queue(450, "call");
+      queue(1100, "stream");
+      queue(2100, "done", true);
+    },
+    [clearDispatchTimers]
+  );
 
   const handleGenerate = useCallback(() => {
     setErrorMsg(null);
     const trimmed = prompt.trim();
     if (!trimmed) {
-      setErrorMsg("先寫一句話，光球才能感應。");
+      setErrorMsg("先寫一句話，光球代理才能感應。");
       return;
     }
-    // Live generation only on the image modality on the homepage.
+    // Image modality has a real backend wired. All others are dispatched
+    // by the orb agent as a tool-call trace, in place.
     if (!activeMode.liveGenerate) {
-      navigate(`${activeMode.route}?prompt=${encodeURIComponent(trimmed)}`);
+      runSimulatedDispatch(activeMode);
       return;
     }
     if (!isAuthenticated) {
@@ -682,18 +929,43 @@ export default function OrbCreationStage({
       return;
     }
     if (apiKeyQuery.data && apiKeyQuery.data.configured === false) {
-      setErrorMsg("尚未設定 FAL_API_KEY，無法即時生成。請改至工作室或先設定金鑰。");
+      setErrorMsg("尚未設定 FAL_API_KEY，光球代理改用模擬流。可至設定接上真實金鑰。");
+      runSimulatedDispatch(activeMode);
       return;
     }
     setResultUrl(null);
+    setDispatch({ tool: activeMode.tool, step: "parse", live: true });
     imageGenMut.mutate({
       prompt: trimmed,
       aspect_ratio: "1:1",
       num_images: 1,
     });
-  }, [prompt, activeMode, isAuthenticated, apiKeyQuery.data, imageGenMut, navigate]);
+  }, [
+    prompt,
+    activeMode,
+    isAuthenticated,
+    apiKeyQuery.data,
+    imageGenMut,
+    runSimulatedDispatch,
+  ]);
 
-  const isBusy = imageGenMut.isPending;
+  // Drive the LIVE dispatch trace through its phases as the real mutation
+  // progresses, so the trace mirrors the actual API call rather than just
+  // appearing at completion.
+  useEffect(() => {
+    if (!dispatch?.live) return;
+    if (imageGenMut.isPending) {
+      setDispatch(d => (d ? { ...d, step: "call" } : d));
+      const id = window.setTimeout(() => {
+        setDispatch(d => (d && d.live ? { ...d, step: "stream" } : d));
+      }, 600);
+      dispatchTimers.current.push(id);
+    } else if (imageGenMut.isSuccess) {
+      setDispatch(d => (d ? { ...d, step: "done" } : d));
+    }
+  }, [dispatch?.live, imageGenMut.isPending, imageGenMut.isSuccess]);
+
+  const isBusy = imageGenMut.isPending || simulating;
   const apiKeyConfigured = apiKeyQuery.data?.configured ?? null;
 
   return (
@@ -728,9 +1000,77 @@ export default function OrbCreationStage({
           <p
             className={`mt-3 sm:mt-5 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${textMuted}`}
           >
-            寫下你想創作的畫面或情緒 — 光球會即時感應你的提示詞，
-            點下「點亮光球」就能看到真正的 AI 生成結果，不再只是動畫示範。
+            寫下你想創作的畫面或情緒 — 光球代理會即時感應、判斷模態，
+            並為你呼叫對應的生成工具：圖片、影片、音樂、配音、導演與角色 LoRA，全部在這個畫面完成。
           </p>
+        </motion.div>
+
+        {/* ── Scenario presets — fold the former "六種常見創作情境" inline so
+            the orb agent can dispatch each scenario right here ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.8, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-6 sm:mb-7"
+        >
+          <div className={`flex items-center justify-center gap-2 mb-3 text-[10px] sm:text-[11px] tracking-[0.2em] uppercase ${textMuted}`}>
+            <Layers className="w-3 h-3" style={{ color: activeMode.tint }} />
+            <span>常見情境 · 一鍵交給光球代理</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
+            {SCENARIOS.map(scenario => {
+              const mode = MODES.find(m => m.id === scenario.modeId)!;
+              const isActive = scenario.id === activeScenarioId;
+              const Icon = mode.icon;
+              return (
+                <motion.button
+                  key={scenario.id}
+                  type="button"
+                  onClick={() => handleSelectScenario(scenario)}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="group text-left rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 backdrop-blur-md transition-all duration-300"
+                  style={{
+                    background: isActive ? mode.tint : cardBg,
+                    border: `1px solid ${isActive ? mode.tint : cardBorder}`,
+                    boxShadow: isActive ? `0 8px 24px ${mode.glow}` : "none",
+                  }}
+                  aria-pressed={isActive}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Icon
+                      className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+                      style={{ color: isActive ? "#fff" : mode.tint }}
+                    />
+                    <span
+                      className={`text-[11px] sm:text-xs font-medium truncate ${
+                        isActive ? "text-white" : textPrimary
+                      }`}
+                    >
+                      {scenario.label}
+                    </span>
+                    <span
+                      className="ml-auto inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] shrink-0"
+                      style={{
+                        color: isActive ? "rgba(255,255,255,0.85)" : mode.tint,
+                      }}
+                    >
+                      <Clock className="w-2.5 h-2.5" />
+                      {scenario.eta}
+                    </span>
+                  </div>
+                  <p
+                    className={`text-[10px] sm:text-[11px] leading-snug line-clamp-1 ${
+                      isActive ? "text-white/85" : textMuted
+                    }`}
+                  >
+                    {scenario.summary}
+                  </p>
+                </motion.button>
+              );
+            })}
+          </div>
         </motion.div>
 
         {/* ── Interactive panel ── */}
@@ -840,12 +1180,12 @@ export default function OrbCreationStage({
               className="rounded-2xl relative overflow-hidden min-h-[160px] sm:min-h-[200px] lg:min-h-[240px]"
               style={{ background: featureBg, border: `1px solid ${cardBorder}` }}
             >
-              <div className="absolute top-2 left-3 z-10 flex items-center gap-2">
+              <div className="absolute top-2 left-3 right-3 z-10 flex items-center gap-2">
                 <span
                   className="text-[10px] tracking-[0.2em] uppercase font-medium"
                   style={{ color: activeMode.tint }}
                 >
-                  生成預覽
+                  代理生成預覽
                 </span>
                 <motion.span
                   className="w-1.5 h-1.5 rounded-full"
@@ -853,15 +1193,27 @@ export default function OrbCreationStage({
                   animate={reduce ? undefined : { scale: [1, 1.4, 1] }}
                   transition={{ duration: 1.0, repeat: Infinity }}
                 />
-                {resultUrl && (
+                {dispatch && (
                   <span
-                    className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full"
+                    className="ml-auto text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full inline-flex items-center gap-1"
                     style={{
-                      background: activeMode.glow,
-                      color: "#fff",
+                      background: dispatch.live
+                        ? activeMode.glow
+                        : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${activeMode.tint}`,
+                      color: dispatch.live
+                        ? "#fff"
+                        : isDark
+                          ? "rgba(255,255,255,0.85)"
+                          : "rgba(20,20,30,0.8)",
                     }}
                   >
-                    LIVE
+                    {dispatch.step === "done" ? (
+                      <CheckCircle2 className="w-2.5 h-2.5" />
+                    ) : (
+                      <Terminal className="w-2.5 h-2.5" />
+                    )}
+                    {dispatch.live ? "LIVE" : "AGENT"}
                   </span>
                 )}
               </div>
@@ -897,11 +1249,25 @@ export default function OrbCreationStage({
                   )}
                 </AnimatePresence>
               </div>
+              <AnimatePresence>
+                {dispatch && (
+                  <ToolDispatchTrace
+                    state={dispatch}
+                    tint={activeMode.tint}
+                    prompt={prompt}
+                  />
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
-          {/* ── Modality selector ── */}
-          <div className="relative mt-5 sm:mt-6 flex flex-wrap justify-center gap-2 sm:gap-2.5">
+          {/* ── Modality selector — the agent's tool palette ── */}
+          <div
+            className={`relative mt-5 sm:mt-6 text-center text-[10px] sm:text-[11px] tracking-[0.2em] uppercase mb-2 ${textMuted}`}
+          >
+            光球代理可呼叫的工具
+          </div>
+          <div className="relative flex flex-wrap justify-center gap-2 sm:gap-2.5">
             {MODES.map(mode => {
               const Icon = mode.icon;
               const isActive = mode.id === activeMode.id;
@@ -968,10 +1334,10 @@ export default function OrbCreationStage({
                   <Sparkles className="w-4 h-4" />
                 )}
                 {isBusy
-                  ? "光球聚能中…"
-                  : activeMode.liveGenerate
-                    ? "✨ 點亮光球，即時生成"
-                    : `進入「${activeMode.label}」工作室`}
+                  ? activeMode.liveGenerate && imageGenMut.isPending
+                    ? "光球代理串流中…"
+                    : "光球代理派工中…"
+                  : "✨ 讓光球代理生成"}
                 <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
               </motion.button>
               <button
@@ -981,7 +1347,7 @@ export default function OrbCreationStage({
                 }
                 className={`text-xs sm:text-sm underline-offset-4 hover:underline transition-colors duration-1000 ${textMuted}`}
               >
-                或讓光球幫你決定
+                或讓光球幫你決定模態
               </button>
             </div>
 
@@ -989,17 +1355,40 @@ export default function OrbCreationStage({
             <div className={`text-center text-[11px] sm:text-xs ${textMuted}`}>
               {errorMsg ? (
                 <span className="text-red-400">{errorMsg}</span>
-              ) : activeMode.liveGenerate && !isAuthenticated ? (
-                <span>登入後即可在首頁直接呼叫真實 AI 生成（其他模態會帶提示詞前往對應工作室）。</span>
-              ) : activeMode.liveGenerate && apiKeyConfigured === false ? (
-                <span>提示：尚未設定 FAL_API_KEY，僅可預覽動畫。</span>
-              ) : !activeMode.liveGenerate ? (
-                <span>此模態會帶著你的提示詞前往對應工作室開始創作。</span>
+              ) : isBusy && activeMode.liveGenerate && imageGenMut.isPending ? (
+                <span>光球代理正在呼叫 {activeMode.tool} 真實 API…</span>
               ) : isBusy ? (
-                <span>正在呼叫真實的 fal.ai nano-banana-2 模型…</span>
+                <span>光球代理示範呼叫 {activeMode.tool}（多模態流以 LIVE 串接後上線）。</span>
+              ) : activeMode.liveGenerate && !isAuthenticated ? (
+                <span>登入後光球代理即可呼叫真實 API；其他模態目前以代理示範呼叫展示。</span>
+              ) : activeMode.liveGenerate && apiKeyConfigured === false ? (
+                <span>提示：尚未設定 FAL_API_KEY，光球代理僅以示範流呼叫。</span>
               ) : (
-                <span>提示詞越具體、光球越能感應 — 點擊「點亮光球」呼叫真實 API。</span>
+                <span>提示詞越具體，光球代理越能精準呼叫對應模態工具。</span>
               )}
+            </div>
+
+            {/* ── Value highlights — folded in micro-strip ── */}
+            <div className="mt-3 sm:mt-4 flex flex-wrap justify-center gap-1.5 sm:gap-2">
+              {VALUE_HIGHLIGHTS.map(item => {
+                const Icon = item.icon;
+                return (
+                  <span
+                    key={item.id}
+                    className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] ${textMuted}`}
+                    style={{
+                      background: featureBg,
+                      border: `1px solid ${cardBorder}`,
+                    }}
+                  >
+                    <Icon
+                      className="w-2.5 h-2.5 sm:w-3 sm:h-3"
+                      style={{ color: activeMode.tint }}
+                    />
+                    {item.label}
+                  </span>
+                );
+              })}
             </div>
           </div>
         </motion.div>
