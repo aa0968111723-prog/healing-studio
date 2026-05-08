@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useMemo, useEffect } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -286,16 +286,51 @@ export default function AdminPage() {
     { retry: false }
   );
 
+  // SSE 即時刷新：把所有需要刷新的 query 收進 ref，避免 effect 在每次 render
+  // 都因 query object 身分變動而重連線（會造成連線風暴 + memory leak）。
+  const refetchRef = useRef({
+    genHistory: () => genHistoryQuery.refetch(),
+    jobs: () => jobsQuery.refetch(),
+    stats: () => statsQuery.refetch(),
+    activity: () => activityQuery.refetch(),
+    cost: () => costQuery.refetch(),
+    apiBreakdown: () => apiBreakdownQuery.refetch(),
+    trend: () => trendQuery.refetch(),
+    usageLogs: () => usageLogsQuery.refetch(),
+  });
+  refetchRef.current = {
+    genHistory: () => genHistoryQuery.refetch(),
+    jobs: () => jobsQuery.refetch(),
+    stats: () => statsQuery.refetch(),
+    activity: () => activityQuery.refetch(),
+    cost: () => costQuery.refetch(),
+    apiBreakdown: () => apiBreakdownQuery.refetch(),
+    trend: () => trendQuery.refetch(),
+    usageLogs: () => usageLogsQuery.refetch(),
+  };
+
   useEffect(() => {
     if (user?.role !== "admin") return;
     const evtSource = new EventSource("/api/admin/events/stream");
     evtSource.onmessage = e => {
       try {
         const event = JSON.parse(e.data) as { type?: string };
-        if (event?.type === "step_complete" || event?.type === "task_done" || event?.type === "task_failed") {
-          genHistoryQuery.refetch();
-          jobsQuery.refetch();
-          statsQuery.refetch();
+        if (
+          event?.type === "step_complete" ||
+          event?.type === "task_done" ||
+          event?.type === "task_failed"
+        ) {
+          // 連動刷新：生成 / 任務 / 系統統計 / 活動 / 成本 / API 拆分 / 趨勢 /
+          // 使用紀錄 — 全站 admin dashboard 在收到 SSE 事件後維持一致快照。
+          const r = refetchRef.current;
+          void r.genHistory();
+          void r.jobs();
+          void r.stats();
+          void r.activity();
+          void r.cost();
+          void r.apiBreakdown();
+          void r.trend();
+          void r.usageLogs();
         }
       } catch {
         // noop
@@ -305,7 +340,7 @@ export default function AdminPage() {
       evtSource.close();
     };
     return () => evtSource.close();
-  }, [user?.role, genHistoryQuery, jobsQuery, statsQuery]);
+  }, [user?.role]);
 
   // ── Mutations ──
   const updateQuota = trpc.admin.updateQuota.useMutation({
@@ -1028,6 +1063,112 @@ export default function AdminPage() {
                             </span>
                           </p>
                         </div>
+                      </div>
+                    </GlassCard>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Recent API Usage Logs（即時管線狀態 — 由 SSE 自動刷新） */}
+          <div>
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Activity className="w-4 h-4" /> 最近 API 呼叫紀錄
+              </h3>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-[10px] gap-1"
+                  onClick={() => usageLogsQuery.refetch()}
+                  disabled={usageLogsQuery.isFetching}
+                >
+                  {usageLogsQuery.isFetching ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
+                  刷新
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px] gap-1"
+                >
+                  <Link href="/admin/api-usage">
+                    深度成本分析 <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            {usageLogsQuery.isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => (
+                  <GlassCard key={i} hover={false}>
+                    <ZenSkeleton lines={1} />
+                  </GlassCard>
+                ))}
+              </div>
+            ) : !usageLogsQuery.data || usageLogsQuery.data.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6 text-sm">
+                沒有 API 呼叫紀錄
+              </p>
+            ) : (
+              <div className="space-y-1.5 max-h-[420px] overflow-y-auto">
+                {usageLogsQuery.data.map(log => {
+                  const u = usersQuery.data?.find(uu => uu.id === log.userId);
+                  const ok = log.responseStatus === "success";
+                  return (
+                    <GlassCard key={log.id} hover={false}>
+                      <div className="flex items-center gap-3">
+                        {ok ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">
+                              {log.apiProvider}
+                            </Badge>
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px]"
+                            >
+                              {log.requestType}
+                            </Badge>
+                            {log.model ? (
+                              <span className="hs-small !mb-0 text-muted-foreground font-mono truncate">
+                                {log.model}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="hs-small !mb-0 text-muted-foreground mt-0.5 truncate">
+                            {u?.name || u?.email || `使用者 #${log.userId}`}
+                            {" · "}
+                            {new Date(log.createdAt).toLocaleString("zh-TW")}
+                            {log.tokensUsed
+                              ? ` · ${log.tokensUsed} tokens`
+                              : ""}
+                            {log.durationMs != null
+                              ? ` · ${(log.durationMs / 1000).toFixed(1)}s`
+                              : ""}
+                          </p>
+                          {log.errorMessage && !ok ? (
+                            <p className="hs-small !mb-0 text-red-500 mt-0.5 truncate">
+                              {log.errorMessage}
+                            </p>
+                          ) : null}
+                        </div>
+                        <p className="text-xs font-medium tabular-nums shrink-0">
+                          $
+                          {parseFloat(
+                            String(log.estimatedCostUsd ?? 0)
+                          ).toFixed(4)}
+                        </p>
                       </div>
                     </GlassCard>
                   );
