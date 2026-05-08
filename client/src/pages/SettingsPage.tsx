@@ -48,6 +48,7 @@ import { useLocation } from "wouter";
 import {
   usePersonalSettings,
   type PersonalSettings,
+  type PersonalSettingsSyncStatus,
 } from "@/contexts/PersonalSettingsContext";
 import { useViewMode } from "@/hooks/useMobile";
 import { AvatarStudio } from "@/components/AvatarStudio";
@@ -55,6 +56,49 @@ import { AvatarStudio } from "@/components/AvatarStudio";
 const FeedbackPage = lazy(() => import("@/pages/FeedbackPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const LangSmithPage = lazy(() => import("@/pages/LangSmithPage"));
+
+// ─── Sync Status Badge ──────────────────────────────────────────────────────
+// Small inline indicator that surfaces whether the personal preferences are
+// actually persisted to the database vs. living only in localStorage. Without
+// it, users have no signal when the API is offline / they aren't logged in,
+// which is the failure mode this whole rewrite is trying to fix.
+
+function SyncStatusBadge({
+  status,
+  isServerSynced,
+  lastSyncedAt,
+}: {
+  status: PersonalSettingsSyncStatus;
+  isServerSynced: boolean;
+  lastSyncedAt: number | null;
+}) {
+  let label = "本機儲存";
+  let tone = "text-muted-foreground";
+  if (status === "loading") {
+    label = "載入伺服器設定…";
+  } else if (status === "saving") {
+    label = "同步中…";
+    tone = "text-amber-600";
+  } else if (status === "synced") {
+    label = lastSyncedAt
+      ? `已同步 · ${new Date(lastSyncedAt).toLocaleTimeString()}`
+      : "已同步至雲端";
+    tone = "text-emerald-600";
+  } else if (status === "offline") {
+    label = "雲端暫時無法同步";
+    tone = "text-amber-600";
+  } else if (status === "error") {
+    label = "同步失敗，已先存於本機";
+    tone = "text-red-600";
+  } else if (isServerSynced) {
+    label = "本機儲存（未登入）";
+  }
+  return (
+    <span className={`text-[11px] ${tone}`} role="status" aria-live="polite">
+      {label}
+    </span>
+  );
+}
 
 // ─── Appearance Mode Definitions ────────────────────────────────────────────
 
@@ -171,7 +215,14 @@ const WALLPAPER_RESOURCES = [
 export default function SettingsPage() {
   const { user } = useAuth();
   usePageTour("settings");
-  const { settings, updateSettings, isHydrated } = usePersonalSettings();
+  const {
+    settings,
+    updateSettings,
+    isHydrated,
+    syncStatus,
+    isServerSynced,
+    lastSyncedAt,
+  } = usePersonalSettings();
   const { viewMode, setViewMode } = useViewMode();
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
   const {
@@ -734,7 +785,7 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   size="sm"
                   className="rounded-lg"
@@ -754,6 +805,11 @@ export default function SettingsPage() {
                 <span className="text-[11px] text-muted-foreground">
                   {personalPrefsDirty ? "有未儲存變更" : "已同步最新儲存內容"}
                 </span>
+                <SyncStatusBadge
+                  status={syncStatus}
+                  isServerSynced={isServerSynced}
+                  lastSyncedAt={lastSyncedAt}
+                />
               </div>
               </div>
             </div>
