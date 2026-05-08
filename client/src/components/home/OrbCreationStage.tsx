@@ -405,7 +405,7 @@ function InteractiveOrb({ tint, glow, excitement, busy }: InteractiveOrbProps) {
   return (
     <div
       ref={wrapRef}
-      className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-44 lg:h-44 select-none"
+      className="relative w-32 h-32 sm:w-40 sm:h-40 lg:w-44 lg:h-44 select-none overflow-hidden rounded-full"
       style={{ perspective: 800, touchAction: "none" }}
       aria-hidden
     >
@@ -419,24 +419,24 @@ function InteractiveOrb({ tint, glow, excitement, busy }: InteractiveOrbProps) {
           reduce
             ? undefined
             : {
-                scale: [breathScale, breathScale * 1.18, breathScale],
-                opacity: [0.45, 0.7, 0.45],
+                scale: [breathScale, breathScale * 1.08, breathScale],
+                opacity: [0.4, 0.6, 0.4],
               }
         }
-        transition={{ duration: busy ? 1.6 : 3.2, repeat: Infinity, ease: "easeInOut" }}
+        transition={{ duration: busy ? 2.5 : 6, repeat: Infinity, ease: "easeInOut" }}
       />
-      {/* expanding rings */}
+      {/* expanding rings — clipped by overflow-hidden on parent */}
       {!reduce && (
         <>
-          {[0, 1, 2].map(i => (
+          {[0, 1].map(i => (
             <motion.span
               key={i}
               className="absolute inset-0 rounded-full pointer-events-none"
               style={{ border: `1px solid ${tint}` }}
-              animate={{ scale: [1, 1.7], opacity: [0.55, 0] }}
+              animate={{ scale: [1, 1.5], opacity: [0.4, 0] }}
               transition={{
-                duration: busy ? 1.4 : 2.6,
-                delay: i * 0.7,
+                duration: busy ? 2 : 5,
+                delay: i * 2.5,
                 repeat: Infinity,
                 ease: "easeOut",
               }}
@@ -464,11 +464,11 @@ function InteractiveOrb({ tint, glow, excitement, busy }: InteractiveOrbProps) {
           animate={
             reduce
               ? undefined
-              : { rotate: 360, scale: [1, 1.04, 1] }
+              : { rotate: 360, scale: [1, 1.025, 1] }
           }
           transition={{
-            rotate: { duration: busy ? 6 : 18, repeat: Infinity, ease: "linear" },
-            scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+            rotate: { duration: busy ? 10 : 28, repeat: Infinity, ease: "linear" },
+            scale: { duration: 5, repeat: Infinity, ease: "easeInOut" },
           }}
         />
         {busy && (
@@ -1599,7 +1599,7 @@ export default function OrbCreationStage({
                 : "0 1px 12px rgba(255,255,255,0.65)",
             }}
           >
-            從一個念頭開始 ·
+            從一個提示詞開始 ·
             <span
               className="bg-clip-text text-transparent bg-gradient-to-br ml-1 sm:ml-2"
               style={{
@@ -2099,39 +2099,6 @@ export default function OrbCreationStage({
           {/* ── Generate CTA ── */}
           <div className="relative mt-5 sm:mt-7 flex flex-col items-center gap-3">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
-              <motion.button
-                type="button"
-                onClick={handleGenerate}
-                disabled={isBusy}
-                whileHover={!isBusy ? { y: -2 } : undefined}
-                whileTap={!isBusy ? { scale: 0.97 } : undefined}
-                className={`group relative inline-flex items-center justify-center gap-2 rounded-2xl h-11 sm:h-12 px-6 sm:px-8 text-sm font-medium overflow-hidden btn-healing w-full sm:w-auto ${btnPrimary} ${btnPrimaryText} ${
-                  isBusy ? "opacity-80 cursor-not-allowed" : ""
-                }`}
-                style={{ boxShadow: `0 8px 28px ${activeMode.glow}` }}
-              >
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"
-                  style={{
-                    background:
-                      "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%)",
-                  }}
-                />
-                {isBusy ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                {isBusy
-                  ? activeMode.liveGenerate
-                    ? pendingVideo || pendingAudio
-                      ? "光球代理輪詢 fal queue…"
-                      : "光球代理串流中…"
-                    : "光球代理派工中…"
-                  : "✨ 讓光球代理生成"}
-                <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </motion.button>
               <button
                 type="button"
                 onClick={() =>

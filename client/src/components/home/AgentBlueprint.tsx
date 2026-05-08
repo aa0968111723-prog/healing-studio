@@ -29,7 +29,7 @@ import {
 type ModeId = "image" | "video" | "music" | "voice" | "director" | "lora";
 
 const PHASES = [
-  { key: "input", label: "念頭 prompt" },
+  { key: "input", label: "提示詞 prompt" },
   { key: "intent", label: "意圖感知" },
   { key: "context", label: "上下文檢索" },
   { key: "constraint", label: "約束組裝" },
@@ -637,7 +637,7 @@ function FlowchartPanel({
       <div className="flex flex-col gap-0">
         {/* Tier 0 — input */}
         <FlowNode
-          label="念頭 prompt"
+          label="提示詞 prompt"
           sub="user input"
           phase={0}
           activePhase={activePhase}
