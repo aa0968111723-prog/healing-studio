@@ -125,7 +125,7 @@ function BackgroundTasksDockButton({ side }: { side: "left" | "right" }) {
               {activeCount > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-br from-[oklch(0.6_0.18_30)] to-[oklch(0.55_0.16_350)] text-white text-[10px] font-bold flex items-center justify-center tabular-nums shadow-[0_2px_8px_oklch(0.55_0.16_30/0.5)]"
+                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-br from-[oklch(0.9_0.12_40)] to-[oklch(0.84_0.14_12)] text-[oklch(0.34_0.08_20)] text-[10px] font-bold flex items-center justify-center tabular-nums shadow-[0_2px_8px_oklch(0.82_0.14_24/0.35)]"
                 >
                   {activeCount > 9 ? "9+" : activeCount}
                 </span>
@@ -256,7 +256,7 @@ function MinimizedBubble({
             />
             <span
               aria-hidden="true"
-              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-gradient-to-br from-[oklch(0.55_0.1_300)] to-[oklch(0.5_0.1_320)] border-2 border-background shadow-[0_0_8px_oklch(0.55_0.12_300/0.6)]"
+              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-gradient-to-br from-[oklch(0.86_0.09_300)] to-[oklch(0.8_0.1_320)] border-2 border-background shadow-[0_0_10px_oklch(0.8_0.12_300/0.45)]"
             />
           </button>
         </TooltipTrigger>
@@ -471,7 +471,7 @@ function AppleDock({
                 <Zap className="h-[18px] w-[18px]" strokeWidth={1.85} />
                 <span
                   aria-hidden="true"
-                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 min-w-[22px] px-1 h-[14px] rounded-full bg-gradient-to-br from-[oklch(0.45_0.07_300)] to-[oklch(0.4_0.08_320)] text-white text-[9px] font-semibold flex items-center justify-center tabular-nums leading-none shadow-[0_2px_6px_oklch(0.45_0.08_300/0.45)]"
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 min-w-[22px] px-1 h-[14px] rounded-full bg-gradient-to-br from-[oklch(0.83_0.11_300)] to-[oklch(0.78_0.12_320)] text-[oklch(0.3_0.06_300)] text-[9px] font-semibold flex items-center justify-center tabular-nums leading-none shadow-[0_2px_8px_oklch(0.78_0.12_300/0.35)]"
                 >
                   {user?.remainingGenerations ?? 0}
                 </span>
