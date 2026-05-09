@@ -47,10 +47,18 @@ import {
 } from "lucide-react";
 import {
   DEFAULT_AGENT_PREFERENCES,
+  DEFAULT_PROACTIVE_TRIGGER_SETTINGS,
+  resolveProactiveTriggerSettings,
   type AgentConfirmationPolicy,
+  type ProactiveTriggerSettings,
+  type ProactiveTriggerSettingsMap,
 } from "@shared/agent-preferences";
+import {
+  SPIRIT_PROACTIVE_TRIGGERS,
+  type ProactiveTriggerEvent,
+} from "@shared/orb-agent-roles";
 import ToolQuickSelectChips from "@/components/ToolQuickSelectChips";
-import { SPIRITS } from "@/lib/spiritsVisual";
+import { SPIRITS, getSpiritVisual } from "@/lib/spiritsVisual";
 
 type BehaviorMode = "pure_chat" | "semi_auto" | "auto";
 
@@ -175,6 +183,10 @@ export default function AgentSettingsSheet({
   // mute = 路由跳過該精靈；favorite = 純 UI hint（deck 顯示星星 + 未來 ProactiveEventBus 優先通知）。
   const [mutedSpirits, setMutedSpirits] = useState<string[]>([]);
   const [favoriteSpirits, setFavoriteSpirits] = useState<string[]>([]);
+  // 主動精靈通知設定 — partial map（沒列的事件 fallback 到 DEFAULT_*）。
+  // UI 編輯時直接寫進這個 state，handleSave 整包送出。
+  const [proactiveTriggerSettings, setProactiveTriggerSettings] =
+    useState<ProactiveTriggerSettingsMap>({});
 
   useEffect(() => {
     if (!prefsQuery.data) return;
@@ -194,6 +206,13 @@ export default function AgentSettingsSheet({
     );
     setMutedSpirits(Array.isArray(initial.mutedSpirits) ? initial.mutedSpirits : []);
     setFavoriteSpirits(Array.isArray(initial.favoriteSpirits) ? initial.favoriteSpirits : []);
+    const rawTriggerSettings = (initial as { proactiveTriggerSettings?: unknown })
+      ?.proactiveTriggerSettings;
+    setProactiveTriggerSettings(
+      rawTriggerSettings && typeof rawTriggerSettings === "object" && !Array.isArray(rawTriggerSettings)
+        ? (rawTriggerSettings as ProactiveTriggerSettingsMap)
+        : {},
+    );
   }, [
     prefsQuery.data,
     initial.confirmationPolicy,
@@ -206,6 +225,7 @@ export default function AgentSettingsSheet({
     initial.workflowsEnabled,
     initial.mutedSpirits,
     initial.favoriteSpirits,
+    initial,
   ]);
 
   const handleSave = () => {
@@ -224,6 +244,36 @@ export default function AgentSettingsSheet({
       workflowsEnabled,
       mutedSpirits,
       favoriteSpirits,
+      proactiveTriggerSettings,
+    });
+  };
+
+  /**
+   * Update one trigger event 的設定 — partial overrides 與既有 entry 合併，
+   * 把全等於預設的 entry 直接刪掉維持 map 精簡（避免使用者改回預設後 row
+   * 還留著一堆無意義的 entries）。
+   */
+  const updateTriggerSetting = (
+    event: ProactiveTriggerEvent,
+    patch: Partial<ProactiveTriggerSettings>,
+  ) => {
+    setProactiveTriggerSettings(prev => {
+      const merged: ProactiveTriggerSettings = {
+        ...DEFAULT_PROACTIVE_TRIGGER_SETTINGS,
+        ...(prev[event] ?? {}),
+        ...patch,
+      };
+      const isAllDefault =
+        merged.enabled === DEFAULT_PROACTIVE_TRIGGER_SETTINGS.enabled &&
+        merged.minIntervalMs === DEFAULT_PROACTIVE_TRIGGER_SETTINGS.minIntervalMs &&
+        merged.requireAck === DEFAULT_PROACTIVE_TRIGGER_SETTINGS.requireAck;
+      const next = { ...prev };
+      if (isAllDefault) {
+        delete next[event];
+      } else {
+        next[event] = merged;
+      }
+      return next;
     });
   };
 
@@ -473,6 +523,124 @@ export default function AgentSettingsSheet({
                   </div>
                   <p className="text-[10px] text-muted-foreground leading-relaxed pt-1">
                     記得按下方的「儲存」才會送到後端 selectRoleForIntent。
+                  </p>
+                </section>
+
+                <section className="space-y-2 pt-2 border-t border-border/50">
+                  <header>
+                    <h3 className="text-sm font-medium">主動精靈通知（守守 / 巧巧 / 財財）</h3>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      決定他們什麼時候可以主動跳出來。關掉某事件 = 完全不通知；
+                      間隔 = 同事件兩次顯現的最短時間；打勾消失 = 通知卡片要使用者
+                      按「✓ 知道了」才會收掉（關掉就走 toast 自動消失）。
+                    </p>
+                  </header>
+                  <div className="space-y-1.5">
+                    {SPIRIT_PROACTIVE_TRIGGERS.map(trigger => {
+                      const spirit = getSpiritVisual(trigger.spirit);
+                      const eff = resolveProactiveTriggerSettings(
+                        trigger.event as ProactiveTriggerEvent,
+                        proactiveTriggerSettings,
+                      );
+                      const intervalMin = Math.max(
+                        1,
+                        Math.round(eff.minIntervalMs / 60_000),
+                      );
+                      return (
+                        <div
+                          key={`${trigger.spirit}_${trigger.event}`}
+                          className="rounded-lg border border-border/50 bg-card/30 px-3 py-2 space-y-2"
+                          data-testid={`proactive-trigger-row-${trigger.event}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span
+                              className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br ${spirit?.gradient ?? "from-slate-400 to-slate-500"} text-white text-sm shadow-sm`}
+                              aria-hidden
+                            >
+                              {spirit?.emoji ?? "✨"}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-medium">
+                                {spirit?.nickname ?? trigger.spirit}
+                                <span className="ml-1.5 text-[10px] text-muted-foreground font-mono">
+                                  {trigger.event}
+                                </span>
+                                <span
+                                  className={`ml-1.5 inline-block text-[9px] uppercase font-mono px-1 rounded ${
+                                    trigger.surface === "blocking"
+                                      ? "bg-rose-500/15 text-rose-600"
+                                      : trigger.surface === "inline"
+                                        ? "bg-amber-500/15 text-amber-700"
+                                        : "bg-slate-500/15 text-slate-600"
+                                  }`}
+                                >
+                                  {trigger.surface}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground leading-snug truncate">
+                                {trigger.defaultPrompt}
+                              </div>
+                            </div>
+                            <Switch
+                              checked={eff.enabled}
+                              onCheckedChange={v =>
+                                updateTriggerSetting(
+                                  trigger.event as ProactiveTriggerEvent,
+                                  { enabled: v },
+                                )
+                              }
+                              data-testid={`proactive-trigger-enabled-${trigger.event}`}
+                              aria-label={`${eff.enabled ? "關閉" : "啟用"}：${trigger.event}`}
+                            />
+                          </div>
+                          <div
+                            className={`flex items-center gap-3 text-[11px] ${
+                              eff.enabled ? "" : "opacity-40 pointer-events-none"
+                            }`}
+                          >
+                            <label className="flex items-center gap-1.5 flex-1">
+                              <span className="text-muted-foreground shrink-0">間隔</span>
+                              <input
+                                type="range"
+                                min={1}
+                                max={120}
+                                step={1}
+                                value={intervalMin}
+                                onChange={e =>
+                                  updateTriggerSetting(
+                                    trigger.event as ProactiveTriggerEvent,
+                                    { minIntervalMs: Number(e.target.value) * 60_000 },
+                                  )
+                                }
+                                className="flex-1 accent-emerald-500"
+                                data-testid={`proactive-trigger-interval-${trigger.event}`}
+                                aria-label="同事件最短間隔（分鐘）"
+                              />
+                              <span className="font-mono text-muted-foreground shrink-0 w-12 text-right">
+                                {intervalMin} 分
+                              </span>
+                            </label>
+                            <label className="flex items-center gap-1.5 shrink-0">
+                              <Switch
+                                checked={eff.requireAck}
+                                onCheckedChange={v =>
+                                  updateTriggerSetting(
+                                    trigger.event as ProactiveTriggerEvent,
+                                    { requireAck: v },
+                                  )
+                                }
+                                data-testid={`proactive-trigger-ack-${trigger.event}`}
+                              />
+                              <span className="text-muted-foreground">打勾才消失</span>
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed pt-1">
+                    blocking 等級的事件（例如即將跑高成本任務）一律強制要打勾，
+                    不論你這裡怎麼設。
                   </p>
                 </section>
               </TabsContent>

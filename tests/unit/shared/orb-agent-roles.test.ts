@@ -15,6 +15,9 @@ import {
   summarizeRoleChainForPrompt,
   SPIRIT_COLLAB_PROTOCOL,
   SPIRIT_PROACTIVE_TRIGGERS,
+  SPIRIT_FAMILY,
+  getFamilyForRole,
+  getRolesByFamily,
   type AgentRole,
 } from "../../../shared/orb-agent-roles";
 
@@ -399,6 +402,80 @@ describe("getPrimaryNicknameForRole", () => {
       expect(sel.role).toBe(role);
       expect(sel.confidence).toBeGreaterThan(0.9);
     }
+  });
+});
+
+describe("SPIRIT_FAMILY classification", () => {
+  it("covers every AgentRole exactly once", () => {
+    const allRoles: AgentRole[] = [
+      "director",
+      "composer",
+      "critic",
+      "researcher",
+      "navigator",
+      "companion",
+      "accountant",
+      "quality-coach",
+      "inspector",
+      "image-specialist",
+      "video-specialist",
+      "music-specialist",
+      "voice-specialist",
+      "training-specialist",
+      "learning-specialist",
+    ];
+    for (const r of allRoles) {
+      expect(SPIRIT_FAMILY[r]).toBeDefined();
+    }
+    // exactly 15 entries — no orphans, no duplicates
+    expect(Object.keys(SPIRIT_FAMILY)).toHaveLength(allRoles.length);
+  });
+
+  it("groups proactive trio under proactive family", () => {
+    expect(getFamilyForRole("accountant")).toBe("proactive");
+    expect(getFamilyForRole("quality-coach")).toBe("proactive");
+    expect(getFamilyForRole("inspector")).toBe("proactive");
+  });
+
+  it("groups specialist 6 under specialist family", () => {
+    const specialists = getRolesByFamily("specialist");
+    expect(specialists).toEqual(
+      expect.arrayContaining([
+        "image-specialist",
+        "video-specialist",
+        "music-specialist",
+        "voice-specialist",
+        "training-specialist",
+        "learning-specialist",
+      ]),
+    );
+    expect(specialists).toHaveLength(6);
+  });
+
+  it("groups generic workflow 6 under role family", () => {
+    const roles = getRolesByFamily("role");
+    expect(roles).toEqual(
+      expect.arrayContaining([
+        "director",
+        "composer",
+        "critic",
+        "researcher",
+        "navigator",
+        "companion",
+      ]),
+    );
+    expect(roles).toHaveLength(6);
+  });
+
+  it("getRolesByFamily families partition every spirit", () => {
+    const specialists = getRolesByFamily("specialist");
+    const roles = getRolesByFamily("role");
+    const proactive = getRolesByFamily("proactive");
+    const total = specialists.length + roles.length + proactive.length;
+    expect(total).toBe(15);
+    // no role appears in two families
+    const set = new Set([...specialists, ...roles, ...proactive]);
+    expect(set.size).toBe(15);
   });
 });
 

@@ -24,7 +24,10 @@ import {
   SPIRIT_COLLAB_PROTOCOL,
   getRoleSystemPromptSlice,
   getPrimaryNicknameForRole,
+  getFamilyForRole,
+  getRolesByFamily,
   type AgentRole,
+  type SpiritFamily,
 } from "../../shared/orb-agent-roles";
 import { createAgentMessage } from "../../shared/agent-communication-protocol";
 import { AgentCommunicationBus } from "./agentCommunicationBus";
@@ -43,6 +46,18 @@ interface RunAutoDiscussionInput {
   maxRounds?: number;
   /** 使用者靜音的精靈，遇到就跳過 */
   mutedRoles?: ReadonlyArray<AgentRole>;
+  /**
+   * 顯式白名單：只讓這幾位參與討論。空 / undefined = 不限制（沿用既有
+   * SPIRIT_COLLAB_PROTOCOL）。給了之後，pickNextAgent 會嚴格只在這個集合裡找；
+   * 第一棒若不在 allowed 裡，會自動換成 allowed 集合裡 protocol 上最先出現的。
+   */
+  allowedRoles?: ReadonlyArray<AgentRole>;
+  /**
+   * 「家族」白名單：只讓某些家族（specialist / role / proactive）參與。
+   * 與 allowedRoles 是 AND 關係（兩者都符合才算可用）；單獨給家族時等同於
+   * 把該家族下所有角色加進 allowedRoles。
+   */
+  allowedFamilies?: ReadonlyArray<SpiritFamily>;
   /**
    * 每位精靈 LLM 呼叫的硬上限（毫秒）。預留時間給多輪累積，
    * 整支 runner 大約 maxRounds * timeoutMs 是 worst case。
@@ -70,22 +85,78 @@ const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TURN_TIMEOUT_MS = 25_000;
 
 /**
- * 從 SPIRIT_COLLAB_PROTOCOL 挑下一位精靈：跳過已經講過的、跳過 muted 的，
- * 走第一個還可用的 handoff。回 null 代表沒人可以接、應該收尾。
+ * 把 allowedRoles + allowedFamilies 兩個範圍 hint 化簡成單一可用角色集合。
+ * 兩者皆為空 = 完全不限制（回傳 null，讓呼叫端走原本的 SPIRIT_COLLAB_PROTOCOL）。
+ * 兩者皆給：取交集；只給其一：以該項為準。
+ */
+function buildAllowedSet(
+  allowedRoles: ReadonlyArray<AgentRole> | undefined,
+  allowedFamilies: ReadonlyArray<SpiritFamily> | undefined,
+): Set<AgentRole> | null {
+  const hasRoles = !!(allowedRoles && allowedRoles.length > 0);
+  const hasFamilies = !!(allowedFamilies && allowedFamilies.length > 0);
+  if (!hasRoles && !hasFamilies) return null;
+
+  if (!hasRoles && hasFamilies) {
+    const out = new Set<AgentRole>();
+    for (const fam of allowedFamilies!) {
+      for (const r of getRolesByFamily(fam)) out.add(r);
+    }
+    return out;
+  }
+  if (hasRoles && !hasFamilies) {
+    return new Set<AgentRole>(allowedRoles);
+  }
+  // both — intersection
+  const familySet = new Set<AgentRole>();
+  for (const fam of allowedFamilies!) {
+    for (const r of getRolesByFamily(fam)) familySet.add(r);
+  }
+  const out = new Set<AgentRole>();
+  for (const r of allowedRoles!) {
+    if (familySet.has(r)) out.add(r);
+  }
+  return out;
+}
+
+/**
+ * 從 SPIRIT_COLLAB_PROTOCOL 挑下一位精靈：跳過已經講過的、跳過 muted 的、
+ * 不在 allowed 範圍裡的也跳過。走第一個還可用的 handoff；若 protocol 給的
+ * handoffs 全被擋掉，且呼叫端有 allowedSet，會「次選」allowedSet 裡還沒講過
+ * 的任一位，避免使用者明明指定了 5 位、卻只跑 1 棒就 no-handoff 收尾。
+ * 回 null 代表沒人可以接、應該收尾。
  */
 function pickNextAgent(
   current: AgentRole,
   alreadySpoken: ReadonlyArray<AgentRole>,
-  muted: ReadonlyArray<AgentRole>
+  muted: ReadonlyArray<AgentRole>,
+  allowedSet: Set<AgentRole> | null,
 ): AgentRole | null {
   const spec = SPIRIT_COLLAB_PROTOCOL[current];
-  if (!spec) return null;
   const mutedSet = new Set<AgentRole>(muted);
   const spokenSet = new Set<AgentRole>(alreadySpoken);
-  for (const handoff of spec.handoffs) {
-    if (mutedSet.has(handoff.to)) continue;
-    if (spokenSet.has(handoff.to)) continue;
-    return handoff.to;
+
+  const isOk = (role: AgentRole): boolean => {
+    if (mutedSet.has(role)) return false;
+    if (spokenSet.has(role)) return false;
+    if (allowedSet && !allowedSet.has(role)) return false;
+    return true;
+  };
+
+  if (spec) {
+    for (const handoff of spec.handoffs) {
+      if (isOk(handoff.to)) return handoff.to;
+    }
+  }
+
+  // Fallback：當 allowedSet 由使用者明示給定，但 protocol 把候選人全擋掉時，
+  // 退一步在 allowed 裡挑「還沒講過 + 沒被靜音 + 不是自己」的第一位繼續。
+  // 沒給 allowedSet 就維持嚴格走 protocol 的行為（回 null）。
+  if (allowedSet) {
+    for (const role of allowedSet) {
+      if (role === current) continue;
+      if (isOk(role)) return role;
+    }
   }
   return null;
 }
@@ -122,10 +193,15 @@ function buildMessagesForAgent(
  * 把單一精靈的回覆寫進 bus，UI 端輪詢 getCollaborationMessages 就會看到。
  * 用 broadcast 是因為 runner 沒有「下一棒已經 subscribe」的保證，broadcast
  * 永遠進 history 也永遠不會找不到收件人。
+ *
+ * 多帶 agentRole / family / roundIndex / roundsPlanned 進 payload，讓客戶端
+ * 把這條訊息 hydrate 成「有精靈頭像 + 家族色」的 spirit bubble，而不是純文字。
  */
 async function publishTurn(
   turn: DiscussionTurn,
-  collaborationId: string
+  collaborationId: string,
+  roundIndex: number,
+  roundsPlanned: number,
 ): Promise<void> {
   const message = createAgentMessage(
     turn.agent,
@@ -134,10 +210,14 @@ async function publishTurn(
     {
       action: "discussion_turn",
       data: {
+        agentRole: turn.agent,
+        family: getFamilyForRole(turn.agent),
         nickname: turn.nickname,
         text: turn.text,
         durationMs: turn.durationMs,
         startedAt: turn.startedAt,
+        roundIndex,
+        roundsPlanned,
       },
       reason: "auto-discussion turn",
     },
@@ -145,6 +225,38 @@ async function publishTurn(
       correlationId: collaborationId,
       priority: "normal",
     }
+  );
+  await AgentCommunicationBus.publish(message);
+}
+
+/**
+ * Publish 一筆「整個討論結束」的事件到 bus，讓 client 端能立刻停止輪詢
+ * 並根據 stoppedReason 決定要不要在最後補一條收尾 bubble。沒這條的話
+ * UI 只能等 90 秒兜底 timer，體感會延遲很多。
+ */
+async function publishComplete(
+  collaborationId: string,
+  stoppedReason: RunAutoDiscussionResult["stoppedReason"],
+  participants: ReadonlyArray<AgentRole>,
+  initialAgent: AgentRole,
+): Promise<void> {
+  const message = createAgentMessage(
+    initialAgent,
+    "broadcast",
+    "share_context",
+    {
+      action: "discussion_complete",
+      data: {
+        stoppedReason,
+        participants: [...participants],
+        completedAt: Date.now(),
+      },
+      reason: "auto-discussion complete",
+    },
+    {
+      correlationId: collaborationId,
+      priority: "normal",
+    },
   );
   await AgentCommunicationBus.publish(message);
 }
@@ -162,15 +274,37 @@ export async function runAutoDiscussion(
     Math.min(input.timeoutMsPerTurn ?? DEFAULT_TURN_TIMEOUT_MS, 60_000)
   );
   const muted = input.mutedRoles ?? [];
+  const allowedSet = buildAllowedSet(input.allowedRoles, input.allowedFamilies);
 
   const turns: DiscussionTurn[] = [];
   const spoken: AgentRole[] = [];
   let currentAgent: AgentRole = input.initialAgent ?? "director";
+
+  // 第一棒若被使用者的 allowed scope 排除（例如只勾「specialist 家族」但
+  // 預設 director 是 role 家族），改挑 allowed 集合裡 protocol 順序最前的
+  // 那位當開場，避免一進場就 no-handoff。
+  if (allowedSet && !allowedSet.has(currentAgent)) {
+    const fallbackInitial = (() => {
+      // 優先給 allowedSet 裡的 director / composer，這兩位最像「召集人」；
+      // 都沒有就拿集合 iteration 的第一位。
+      if (allowedSet.has("director")) return "director" as AgentRole;
+      if (allowedSet.has("composer")) return "composer" as AgentRole;
+      const first = allowedSet.values().next().value;
+      return (first ?? null) as AgentRole | null;
+    })();
+    if (fallbackInitial) {
+      currentAgent = fallbackInitial;
+    }
+  }
+
   let stoppedReason: RunAutoDiscussionResult["stoppedReason"] = "max-rounds";
 
   for (let round = 0; round < maxRounds; round += 1) {
-    if (muted.includes(currentAgent)) {
-      const next = pickNextAgent(currentAgent, spoken, muted);
+    const skipReason =
+      muted.includes(currentAgent) ||
+      (allowedSet && !allowedSet.has(currentAgent));
+    if (skipReason) {
+      const next = pickNextAgent(currentAgent, spoken, muted, allowedSet);
       if (!next) {
         stoppedReason = "no-handoff";
         break;
@@ -243,10 +377,10 @@ export async function runAutoDiscussion(
     };
     turns.push(turn);
     spoken.push(currentAgent);
-    await publishTurn(turn, input.collaborationId);
+    await publishTurn(turn, input.collaborationId, round, maxRounds);
 
     // 決定下一棒；沒人可接就收尾
-    const next = pickNextAgent(currentAgent, spoken, muted);
+    const next = pickNextAgent(currentAgent, spoken, muted, allowedSet);
     if (!next) {
       stoppedReason = "no-handoff";
       break;
@@ -256,6 +390,23 @@ export async function runAutoDiscussion(
 
   const completedAt = Date.now();
   const startedAt = turns[0]?.startedAt ?? completedAt;
+
+  // 廣播 discussion_complete，UI 端收到就立刻停止輪詢、不必等 90s 兜底。
+  // publish 失敗只記 log（讓 orchestrator 仍正常收尾、客戶端 fallback 到 timer）。
+  try {
+    await publishComplete(
+      input.collaborationId,
+      stoppedReason,
+      spoken,
+      input.initialAgent ?? "director",
+    );
+  } catch (err) {
+    logger.warn("auto_discussion_publish_complete_failed", {
+      collaborationId: input.collaborationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   await AgentCollaborationOrchestrator.completeCollaboration(input.collaborationId, {
     success: stoppedReason !== "llm-error",
     output: {

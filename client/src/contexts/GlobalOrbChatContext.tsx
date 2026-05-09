@@ -1681,6 +1681,36 @@ function CodeTaskCard({
   );
 }
 
+/**
+ * 多代理討論的範圍 / 限制設定。預設 = 不勾任何 family / role 即不限制，沿用
+ * SPIRIT_COLLAB_PROTOCOL 自然交棒；勾了哪個就只准那些精靈出席。
+ */
+export type CollaborativeDiscussionFamily = "specialist" | "role" | "proactive";
+
+export interface CollaborativeDiscussionOptions {
+  /** 強制指定第一棒；省略就用 selectRoleForIntent 自動挑（後端決定）。 */
+  initialAgent?: string;
+  /** 最多跑幾位精靈（每位算一棒）；clamp 1-5。預設 3。 */
+  maxRounds?: number;
+  /** 顯式只允許這幾位精靈參與；空陣列 / 不給 = 不限制。 */
+  allowedRoles?: string[];
+  /** 只允許某幾個家族的精靈出席；和 allowedRoles 是 AND 關係。 */
+  allowedFamilies?: CollaborativeDiscussionFamily[];
+  /** 「這次再加 mute」的精靈，疊加在使用者偏好之上。 */
+  extraMutedRoles?: string[];
+  /** 每位精靈 LLM 呼叫硬上限（毫秒），clamp 5_000–60_000。 */
+  timeoutMsPerTurn?: number;
+}
+
+export interface CollaborativeDiscussionMeta {
+  collaborationId: string;
+  initialAgent: string;
+  maxRounds: number;
+  allowedRoles: string[];
+  allowedFamilies: CollaborativeDiscussionFamily[];
+  startedAt: number;
+}
+
 interface GlobalOrbChatContextValue {
   messages: ChatMessage[];
   input: string;
@@ -1711,13 +1741,31 @@ interface GlobalOrbChatContextValue {
     options?: SendMessageOptions
   ) => Promise<void>;
   /**
-   * 多代理「自動討論」：丟一個 prompt，runner 在背景接力 2-4 位精靈各回一段，
+   * 多代理「自動討論」：丟一個 prompt，runner 在背景接力 2-5 位精靈各回一段，
    * 訊息會以 orb chat bubble 的形式逐步出現在現有 messages 串流。
    * 回傳 collaborationId 給 caller 追蹤；錯誤時 reject。
+   *
+   * `options` 控制本場討論的範圍 — 可指定參與的角色 / 家族、最多回合數、
+   * 第一棒、額外 mute、每回合超時。空 options 等於沿用過往行為（director
+   * 起頭、不限制家族、最多 3 回合）。
    */
-  startCollaborativeDiscussion: (prompt: string) => Promise<string>;
+  startCollaborativeDiscussion: (
+    prompt: string,
+    options?: CollaborativeDiscussionOptions,
+  ) => Promise<string>;
   /** 是否有自動討論正在進行（用來把 composer 與按鈕鎖住、避免重複觸發） */
   isCollaborativeDiscussionActive: boolean;
+  /**
+   * 取消正在進行的自動討論 — 立即把 client 端 polling 收掉，並通知 server
+   * 把 session 標記成 cancelled。已 publish 的精靈訊息留在對話裡。
+   * 沒有進行中的討論時是 no-op。
+   */
+  cancelCollaborativeDiscussion: () => Promise<void>;
+  /**
+   * 進行中討論的概要：第一棒、預計回合數、目前用的 scope。沒在跑時為 null。
+   * UI 用來顯示「精靈們正在討論… 第 2 / 3 棒」這種進度條。
+   */
+  collaborativeDiscussionMeta: CollaborativeDiscussionMeta | null;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -1808,6 +1856,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   sendMessage: async () => {},
   startCollaborativeDiscussion: async () => "",
   isCollaborativeDiscussionActive: false,
+  cancelCollaborativeDiscussion: async () => {},
+  collaborativeDiscussionMeta: null,
   open: () => {},
   close: () => {},
   toggle: () => {},
@@ -1889,6 +1939,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [activeDiscussionId, setActiveDiscussionId] = useState<string | null>(null);
   // 已塞進 chat 的 message id，避免輪詢重複 push 同一段。
   const seenDiscussionMessageIdsRef = useRef<Set<string>>(new Set());
+  // 進行中討論的概要（第一棒 / 預計回合 / scope）— UI 顯示「精靈們正在討論…
+  // (2/3)」用。null 代表沒在跑。在 startCollaborativeDiscussion 設、收到
+  // discussion_complete / cancel / 90s 兜底時清掉。
+  const [collaborativeDiscussionMeta, setCollaborativeDiscussionMeta] =
+    useState<CollaborativeDiscussionMeta | null>(null);
   const [pendingClarification, setPendingClarificationState] = useState<PendingClarificationPrompt | null>(
     () => loadClarificationFromStorage().prompt
   );
@@ -1993,8 +2048,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const trpcUtils = trpc.useUtils();
 
   // ─── 多代理討論：把 bus 拉回來的精靈訊息塞進 chat、處理收尾 ────────────
-  // 輪詢回的每筆 message 用 messageId 去重；只取 messageType === "share_context"
-  // 且 content.action === "discussion_turn"（runner publish 用的格式）。
+  // 輪詢回的每筆 message 用 messageId 去重；接受兩種 action:
+  //   • discussion_turn      → 一棒精靈說了一段，渲染成 spirit chat bubble
+  //   • discussion_complete  → 整輪討論收尾，立即停止輪詢、補一條收尾訊息
+  // 注意：content.data.agentRole 帶上去後，下游 ChatMessage.agentRole 會被
+  // ProactiveOrbWidget / OrbGuidePanel 的 spirit chip render 邏輯認走，自動
+  // 顯示精靈頭像 + 家族色，不必另開 message variant。
   useEffect(() => {
     if (!activeDiscussionId) return;
     const data = discussionMessagesQuery.data;
@@ -2004,23 +2063,81 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       m =>
         !seen.has(m.messageId) &&
         m.messageType === "share_context" &&
-        (m.content as { action?: string })?.action === "discussion_turn"
+        ((m.content as { action?: string })?.action === "discussion_turn" ||
+          (m.content as { action?: string })?.action === "discussion_complete"),
     );
     if (newOnes.length === 0) return;
     for (const m of newOnes) seen.add(m.messageId);
-    const additions: ChatMessage[] = newOnes.map(m => {
-      const data = (m.content as { data?: { nickname?: string; text?: string } })
-        .data;
-      const nickname = data?.nickname ?? String(m.fromAgent);
-      const text = data?.text ?? "";
-      return {
-        role: "orb" as const,
-        text: `**${nickname}**：${text}`,
-        at: m.timestamp,
-        pagePath: locationPath,
-      };
-    });
-    setMessages(prev => [...prev, ...additions]);
+
+    const additions: ChatMessage[] = [];
+    let completedReason: string | null = null;
+
+    for (const m of newOnes) {
+      const action = (m.content as { action?: string })?.action;
+      if (action === "discussion_turn") {
+        const td = (m.content as {
+          data?: {
+            agentRole?: string;
+            nickname?: string;
+            text?: string;
+            roundIndex?: number;
+            roundsPlanned?: number;
+          };
+        }).data;
+        const nickname = td?.nickname ?? String(m.fromAgent);
+        const text = td?.text ?? "";
+        const agentRole = td?.agentRole ?? String(m.fromAgent);
+        const roundLabel =
+          typeof td?.roundIndex === "number" && typeof td?.roundsPlanned === "number"
+            ? `（第 ${td.roundIndex + 1}/${td.roundsPlanned} 棒）`
+            : "";
+        additions.push({
+          role: "orb" as const,
+          // 仍把 nickname 寫進文字 head，給沒有 spirit chip 的舊 renderer 兼容；
+          // 有 chip 的 renderer 會優先用 agentRole 渲染頭像。
+          text: `**${nickname}** ${roundLabel}\n\n${text}`,
+          at: m.timestamp,
+          pagePath: locationPath,
+          agentRole,
+        });
+      } else if (action === "discussion_complete") {
+        const cd = (m.content as {
+          data?: { stoppedReason?: string; participants?: string[] };
+        }).data;
+        completedReason = cd?.stoppedReason ?? "max-rounds";
+        const reasonLabel = (() => {
+          switch (completedReason) {
+            case "max-rounds":
+              return "已跑滿預計輪數";
+            case "no-handoff":
+              return "沒有下一棒可接，自然收尾";
+            case "llm-error":
+              return "其中一棒回覆失敗，討論提前結束";
+            case "cancelled":
+              return "你取消了這場討論";
+            default:
+              return "討論結束";
+          }
+        })();
+        const count = cd?.participants?.length ?? 0;
+        additions.push({
+          role: "orb" as const,
+          text: `🌿 精靈們的討論結束（${reasonLabel}，共 ${count} 位參與）。需要我整理重點，還是要直接照某位的方向繼續？`,
+          at: m.timestamp,
+          pagePath: locationPath,
+        });
+      }
+    }
+
+    if (additions.length > 0) {
+      setMessages(prev => [...prev, ...additions]);
+    }
+
+    // 收到 discussion_complete 立即收掉 polling + meta，比 90s 兜底快很多。
+    if (completedReason !== null) {
+      setActiveDiscussionId(null);
+      setCollaborativeDiscussionMeta(null);
+    }
   }, [activeDiscussionId, discussionMessagesQuery.data, locationPath]);
 
   // 兜底：90 秒沒收完就自動清掉，避免 query 一直空轉。runner 預設 3 輪 *
@@ -3867,12 +3984,52 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen(prev => !prev), []);
 
+  const cancelCollaborationMutation =
+    trpc.agentCollaboration.cancelCollaboration.useMutation();
+
   const startCollaborativeDiscussion = useCallback(
-    async (prompt: string): Promise<string> => {
+    async (
+      prompt: string,
+      options?: CollaborativeDiscussionOptions,
+    ): Promise<string> => {
       const trimmed = prompt.trim();
       if (!trimmed) {
         throw new Error("empty prompt");
       }
+
+      // Normalize scope inputs once so the user-visible "召集" 開場訊息可以
+      // 顯示套用後的範圍，而不是 raw options。allowedRoles + allowedFamilies
+      // 都空 = 不限制，文案就走預設。
+      const maxRounds = Math.max(
+        1,
+        Math.min(options?.maxRounds ?? 3, 5),
+      );
+      const allowedRoles = (options?.allowedRoles ?? []).filter(Boolean);
+      const allowedFamilies = (options?.allowedFamilies ?? []) as CollaborativeDiscussionFamily[];
+      const extraMutedRoles = (options?.extraMutedRoles ?? []).filter(Boolean);
+
+      const scopeBits: string[] = [];
+      if (allowedFamilies.length > 0) {
+        const labels: Record<CollaborativeDiscussionFamily, string> = {
+          specialist: "專精精靈",
+          role: "通用同事",
+          proactive: "主動精靈",
+        };
+        scopeBits.push(`只在 ${allowedFamilies.map(f => labels[f]).join(" / ")} 之間`);
+      }
+      if (allowedRoles.length > 0) {
+        scopeBits.push(`指定 ${allowedRoles.length} 位精靈出席`);
+      }
+      if (extraMutedRoles.length > 0) {
+        scopeBits.push(`此次再 mute ${extraMutedRoles.length} 位`);
+      }
+      if (options?.initialAgent) {
+        scopeBits.push(`由 ${options.initialAgent} 開場`);
+      }
+      const scopeSuffix = scopeBits.length > 0
+        ? `（範圍：${scopeBits.join("，")}）`
+        : "";
+
       // 把使用者的需求先當成 user bubble 推進去，再標一條「光球召集精靈」訊息，
       // 接下來輪詢拉回的精靈訊息會逐條接在後面。讓使用者第一眼就看到「東西
       // 在跑」而不是按完按鈕沒反應。
@@ -3882,7 +4039,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         { role: "user", text: trimmed, at: now, pagePath: locationPath },
         {
           role: "orb",
-          text: "🌿 我請幾位同事一起來看你這個需求，他們會輪流給意見。每個人講完我接著貼出來。",
+          text: `🌿 我請最多 ${maxRounds} 位精靈一起來看你這個需求，他們會輪流給意見。${scopeSuffix}`,
           at: now + 1,
           pagePath: locationPath,
         },
@@ -3891,8 +4048,23 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       try {
         const result = await startAutoDiscussionMutation.mutateAsync({
           prompt: trimmed,
+          initialAgent: options?.initialAgent,
+          maxRounds,
+          allowedRoles: allowedRoles.length > 0 ? allowedRoles : undefined,
+          allowedFamilies: allowedFamilies.length > 0 ? allowedFamilies : undefined,
+          extraMutedRoles: extraMutedRoles.length > 0 ? extraMutedRoles : undefined,
+          timeoutMsPerTurn: options?.timeoutMsPerTurn,
         });
         setActiveDiscussionId(result.collaborationId);
+        setCollaborativeDiscussionMeta({
+          collaborationId: result.collaborationId,
+          initialAgent: result.initialAgent,
+          maxRounds: result.maxRounds,
+          allowedRoles: result.allowedRoles ?? [],
+          allowedFamilies:
+            (result.allowedFamilies ?? []) as CollaborativeDiscussionFamily[],
+          startedAt: now,
+        });
         return result.collaborationId;
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -3908,8 +4080,36 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [locationPath, startAutoDiscussionMutation]
+    [locationPath, startAutoDiscussionMutation],
   );
+
+  const cancelCollaborativeDiscussion = useCallback(async (): Promise<void> => {
+    const cid = activeDiscussionId;
+    if (!cid) return;
+    // 立刻收掉 client 端 polling + meta，使用者點下「停止」按鈕就有反應；
+    // server 端 cancelCollaboration 是 fire-and-forget，失敗只記訊息，但不
+    // 影響本地 UI（最壞情況：runner 在背景仍跑完，但已 publish 的訊息已被
+    // 我們的 effect 收掉，使用者看不到後續）。
+    setActiveDiscussionId(null);
+    setCollaborativeDiscussionMeta(null);
+    setMessages(prev => [
+      ...prev,
+      {
+        role: "orb",
+        text: "🛑 已通知精靈停止這場討論。",
+        at: Date.now(),
+        pagePath: locationPath,
+      },
+    ]);
+    try {
+      await cancelCollaborationMutation.mutateAsync({
+        collaborationId: cid,
+        reason: "user-cancelled-from-orb",
+      });
+    } catch {
+      // best-effort — UI 已經停了
+    }
+  }, [activeDiscussionId, cancelCollaborationMutation, locationPath]);
   const clearHistory = useCallback(() => {
     // Bumping the request id invalidates any in-flight LLM round-trip so
     // its `if (isStale()) return;` check fires and the late response is
@@ -4233,11 +4433,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     cancelClarification,
     startCollaborativeDiscussion,
     isCollaborativeDiscussionActive: Boolean(activeDiscussionId),
+    cancelCollaborativeDiscussion,
+    collaborativeDiscussionMeta,
     createConversation,
     switchConversation,
     renameConversation,
     deleteConversation,
-  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, startCollaborativeDiscussion, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
+  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, startCollaborativeDiscussion, cancelCollaborativeDiscussion, collaborativeDiscussionMeta, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>

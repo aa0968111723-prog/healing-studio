@@ -110,6 +110,16 @@ export async function loadAgentPreferencesForUser(
         typeof (row as { stayOnPageMode?: unknown }).stayOnPageMode === "boolean"
           ? Boolean((row as { stayOnPageMode?: boolean }).stayOnPageMode)
           : DEFAULT_AGENT_PREFERENCES.stayOnPageMode,
+      // 主動精靈通知設定 — JSON 欄位，預設空 map（每個事件 fallback 到
+      // DEFAULT_PROACTIVE_TRIGGER_SETTINGS）。沒欄位 / 解析失敗時也回 {}，
+      // 確保 selectRoleForIntent 等下游永遠拿得到型別正確的 map。
+      proactiveTriggerSettings: (() => {
+        const raw = (row as { proactiveTriggerSettings?: unknown }).proactiveTriggerSettings;
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          return raw as AgentPreferences["proactiveTriggerSettings"];
+        }
+        return DEFAULT_AGENT_PREFERENCES.proactiveTriggerSettings;
+      })(),
       createdAt: row.createdAt ?? undefined,
       updatedAt: row.updatedAt ?? undefined,
     };

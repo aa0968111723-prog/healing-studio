@@ -525,6 +525,50 @@ export function getPrimaryNicknameForRole(role: AgentRole): string {
   return entry?.nicknames[0] ?? "暖暖";
 }
 
+/**
+ * 「家族」分類 — 跟 client 端 spiritsVisual.SpiritFamily 對齊。放到 shared
+ * 是為了讓 server 在多代理討論時也能照家族過濾（例如「只讓 6 位專精精靈
+ * 互相討論」），不必把客戶端的視覺檔案抓進 server bundle。
+ *   - specialist：6 位專精同事（圖、影、音、聲、訓、學）
+ *   - role      ：6 位通用工作流夥伴（導、編、品、查、路、暖）
+ *   - proactive ：3 位主動出擊（財財 / 巧巧 / 守守）
+ */
+export type SpiritFamily = "specialist" | "role" | "proactive";
+
+export const SPIRIT_FAMILY: Record<AgentRole, SpiritFamily> = {
+  director: "role",
+  composer: "role",
+  critic: "role",
+  researcher: "role",
+  navigator: "role",
+  companion: "role",
+  accountant: "proactive",
+  "quality-coach": "proactive",
+  inspector: "proactive",
+  "image-specialist": "specialist",
+  "video-specialist": "specialist",
+  "music-specialist": "specialist",
+  "voice-specialist": "specialist",
+  "training-specialist": "specialist",
+  "learning-specialist": "specialist",
+};
+
+export function getFamilyForRole(role: AgentRole): SpiritFamily {
+  return SPIRIT_FAMILY[role] ?? "role";
+}
+
+/**
+ * Returns every AgentRole assigned to a given family. Server-side helpers
+ * in the discussion runner use this to expand a "family scope" pick into
+ * its concrete role allowlist without having to know the client visual
+ * config. Order matches SPIRIT_FAMILY declaration above (stable for tests).
+ */
+export function getRolesByFamily(family: SpiritFamily): AgentRole[] {
+  return (Object.entries(SPIRIT_FAMILY) as Array<[AgentRole, SpiritFamily]>)
+    .filter(([, f]) => f === family)
+    .map(([role]) => role);
+}
+
 export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
   const rawText = (input.text ?? "").trim();
   const text = lowerOnce(input.text);

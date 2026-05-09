@@ -151,6 +151,13 @@ export const agentPreferences = mysqlTable(
     // entirely server-side instead of navigating the user. Defaults to
     // false so existing rows keep the legacy navigate-and-fillPrompt UX.
     stayOnPageMode: boolean("stayOnPageMode").default(false).notNull(),
+    // 主動精靈通知設定 — 每個 ProactiveTriggerEvent 的 enable / interval /
+    // requireAck override；空 object 等於每個事件都套 DEFAULT_PROACTIVE_TRIGGER_SETTINGS
+    // （全開、5 分鐘間隔、需要打勾才消失）。新增 trigger event 不需 migrate。
+    proactiveTriggerSettings: json("proactiveTriggerSettings")
+      .$type<Record<string, { enabled?: boolean; minIntervalMs?: number; requireAck?: boolean }>>()
+      .default({})
+      .notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

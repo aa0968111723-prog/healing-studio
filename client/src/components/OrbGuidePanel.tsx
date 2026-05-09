@@ -3710,7 +3710,30 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   );
 
   // ── Panel mode: guided flow or free chat ──────────────────────────────────
-  const [panelMode, setPanelMode] = useState<"guide" | "chat">("guide");
+  // Default to "chat" if the orb is already thinking when the panel opens
+  // (typical orb-driven navigation flow: orb says "I'll take you there",
+  // navigation happens, panel opens — and the user should land directly on
+  // the chat view where the thinking indicator + streamed reply will show).
+  const [panelMode, setPanelMode] = useState<"guide" | "chat">(
+    globalChat.isSending ? "chat" : "guide"
+  );
+
+  // If the orb starts thinking while the panel is sitting in guide mode (e.g.
+  // the user opened it manually, then asked something), flip to chat so the
+  // 思考中… bubble actually surfaces. autoSwitchedRef gates the flip so we
+  // only do it once per open session — a user who deliberately clicks back to
+  // 引導 mode mid-thinking won't be yanked away again.
+  const autoSwitchedRef = useRef(false);
+  useEffect(() => {
+    if (
+      globalChat.isSending &&
+      panelMode === "guide" &&
+      !autoSwitchedRef.current
+    ) {
+      autoSwitchedRef.current = true;
+      setPanelMode("chat");
+    }
+  }, [globalChat.isSending, panelMode]);
   // Use global chat state for chat mode - keep full message objects for metadata
   const chatMessages = panelMode === "chat" ? globalChat.messages : [];
   const chatSuggestions = panelMode === "chat" ? globalChat.suggestions : [];
@@ -4008,7 +4031,11 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
         )}>
           {/* Chat messages */}
           <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/10">
-            {chatMessages.length === 0 && (
+            {/* Hide the static greeting while the orb is thinking on an
+                empty chat — otherwise the user sees both a fixed prompt and
+                the spinning 思考中… below it, which competes for attention
+                during the post-navigation arrival window. */}
+            {chatMessages.length === 0 && !isChatLoading && (
               <OrbSpeechBubble
                 text={
                   intent

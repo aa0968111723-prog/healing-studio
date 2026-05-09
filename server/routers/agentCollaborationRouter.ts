@@ -432,6 +432,26 @@ export const agentCollaborationRouter = router({
         initialAgent: z.string().optional(),
         /** 最多跑幾位精靈；預設 3，最大 5 */
         maxRounds: z.number().int().min(1).max(5).optional(),
+        /**
+         * 顯式白名單：只讓這幾位 AgentRole 出席。空 / 未給 = 不限制。
+         * 跟 `allowedFamilies` 是 AND 關係（兩邊都符合才會被考慮）。
+         */
+        allowedRoles: z.array(z.string().max(40)).max(15).optional(),
+        /**
+         * 家族白名單：只讓某些家族（specialist / role / proactive）出席。
+         * 與 `allowedRoles` 是 AND 關係（兩邊都符合才考慮）。
+         */
+        allowedFamilies: z
+          .array(z.enum(["specialist", "role", "proactive"]))
+          .max(3)
+          .optional(),
+        /**
+         * 額外要靜音的精靈（疊加在使用者偏好的 mutedSpirits 上）。給「這次」用，
+         * 不會寫回偏好；想永久 mute 還是要去 settings 改。
+         */
+        extraMutedRoles: z.array(z.string().max(40)).max(15).optional(),
+        /** 每位精靈 LLM 呼叫的硬上限（毫秒）。clamp 到 5_000–60_000。 */
+        timeoutMsPerTurn: z.number().int().min(5_000).max(60_000).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -453,12 +473,19 @@ export const agentCollaborationRouter = router({
             userId: ctx.user.id,
             mode: "auto-discussion",
             originalIntent: input.prompt,
+            allowedRoles: input.allowedRoles ?? [],
+            allowedFamilies: input.allowedFamilies ?? [],
           },
         });
 
-        // 讀使用者的 mutedSpirits — 被靜音的精靈在 runner 內就會被跳過
+        // 讀使用者的 mutedSpirits — 被靜音的精靈在 runner 內就會被跳過。
+        // extraMutedRoles 疊加在偏好上，只影響「這次」這場討論。
         const prefs = await loadAgentPreferencesForUser(ctx.user.id);
-        const mutedRoles = (prefs.mutedSpirits ?? []) as AgentRole[];
+        const prefMuted = (prefs.mutedSpirits ?? []) as AgentRole[];
+        const extraMuted = (input.extraMutedRoles ?? []) as AgentRole[];
+        const mutedRoles: AgentRole[] = Array.from(
+          new Set<AgentRole>([...prefMuted, ...extraMuted])
+        );
 
         // Fire-and-forget：背景跑 runner，本 mutation 立刻回傳 collaborationId。
         // 任何錯誤都記 log 不丟出來 — 失敗的 turn 已經寫進 bus、UI 端 polling 仍
@@ -469,6 +496,9 @@ export const agentCollaborationRouter = router({
           initialAgent,
           maxRounds: input.maxRounds,
           mutedRoles,
+          allowedRoles: (input.allowedRoles as AgentRole[] | undefined),
+          allowedFamilies: input.allowedFamilies,
+          timeoutMsPerTurn: input.timeoutMsPerTurn,
         }).catch(err => {
           logger.error("auto_discussion_runner_failed", {
             userId: ctx.user.id,
@@ -482,11 +512,16 @@ export const agentCollaborationRouter = router({
           collaborationId: session.collaborationId,
           initialAgent,
           maxRounds: input.maxRounds ?? 3,
+          allowedRoles: input.allowedRoles ?? [],
+          allowedFamilies: input.allowedFamilies ?? [],
         });
 
         return {
           collaborationId: session.collaborationId,
           initialAgent,
+          maxRounds: input.maxRounds ?? 3,
+          allowedRoles: input.allowedRoles ?? [],
+          allowedFamilies: input.allowedFamilies ?? [],
         };
       } catch (error) {
         logger.error("auto_discussion_start_failed", {

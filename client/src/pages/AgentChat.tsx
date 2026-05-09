@@ -74,6 +74,7 @@ import {
   WorkflowExecutionFloatingPanel,
 } from "@/contexts/GlobalOrbChatContext";
 import ConversationTabs from "@/components/orb/ConversationTabs";
+import { CollaborativeDiscussionLauncher } from "@/components/orb/CollaborativeDiscussionLauncher";
 import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
@@ -1361,31 +1362,14 @@ export default function AgentChat() {
                     <span className="text-sm font-medium">送出</span>
                   </Button>
                 </div>
-                {/* 讓多位精靈一起討論：把 input 直接餵進 startCollaborativeDiscussion，
-                    runner 會接力 2-4 位精靈各回一段、輪詢拉回來變成 chat bubble。
-                    刻意小而旁邊放，跟主送出區分開—這條路沒有 navigate，純討論。 */}
-                <div className="flex justify-end pt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const text = input.trim();
-                      if (!text) return;
-                      setInput("");
-                      void globalChat.startCollaborativeDiscussion(text);
-                    }}
-                    disabled={
-                      !input.trim() ||
-                      isSending ||
-                      globalChat.isCollaborativeDiscussionActive
-                    }
-                    className="text-[11px] px-2.5 py-1 rounded-full border border-emerald-200/70 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-300 dark:hover:bg-emerald-900/20 disabled:opacity-40 transition-colors"
-                    data-testid="orb-collab-discuss-btn"
-                  >
-                    {globalChat.isCollaborativeDiscussionActive
-                      ? "🌿 精靈們正在討論…"
-                      : "🌿 讓 2-4 位精靈一起討論這個"}
-                  </button>
-                </div>
+                {/* 多代理「自動討論」面板：摺疊 / 展開 + 範圍 (家族 / 個別精靈 /
+                    回合數 / 起跑那位) + 啟動鈕 + 進行中時的進度 + 停止鈕。
+                    取代原本只能跑預設場的單一按鈕，讓使用者可以細控誰會出席。 */}
+                <CollaborativeDiscussionLauncher
+                  getPromptText={() => input}
+                  onAfterLaunch={() => setInput("")}
+                  parentBusy={isSending}
+                />
               </div>
 
               {/* 已點亮模式：視覺化流程預覽卡 ─────────────────────────
