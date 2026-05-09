@@ -1139,6 +1139,12 @@ export default memo(function ProactiveOrbWidget({
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [dropFlash, setDropFlash] = useState<string | null>(null);
 
+  // wouter location — declared up-front because pageDefaultSpirit (below)
+  // and several handlers further down both read it. Splitting the hook into
+  // two later calls produced a TDZ ReferenceError that surfaced as a React
+  // #300 ("Element type is invalid") full-page crash on every load.
+  const [locationPath, setLocation] = useLocation();
+
   // Interaction panel state
   const [showPanel, setShowPanel] = useState(false);
   const [panelView, setPanelView] = useState<
@@ -1425,7 +1431,6 @@ export default memo(function ProactiveOrbWidget({
 
   // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
   const pageAgent = usePageAgent();
-  const [locationPath] = useLocation();
   const currentRegistryPage = useMemo(
     () => getPageByPath(locationPath),
     [locationPath]
@@ -1728,7 +1733,6 @@ export default memo(function ProactiveOrbWidget({
 
   // Auth hook for capability "試用" navigation
   const { isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
 
   // Handler invoked from OrbCapabilitiesView "進入" buttons.
   const handleTryCapability = useCallback(
