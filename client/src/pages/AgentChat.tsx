@@ -78,6 +78,7 @@ import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import {
+  hasSpiritMention,
   selectRoleForIntent,
   type AgentRole,
 } from "../../../shared/orb-agent-roles";
@@ -869,7 +870,21 @@ export default function AgentChat() {
       // 使用者打什麼，聊天紀錄就顯示什麼。模式以 requestedMode 結構化欄位
       // 傳遞，由 GlobalOrbChatContext 內的 hard-coded 邏輯接手 — 不再注入
       // 一段中文 instruction 蓋掉使用者原文。
-      const promptToSend = text || activeModeOption?.defaultPrompt || "";
+      let promptToSend = text || activeModeOption?.defaultPrompt || "";
+      // 鎖定的精靈：使用者把 @暱稱 編掉時，預設行為會掉回關鍵字路由，
+      // 等同「鎖定」變成 UI 假象。這裡在送出前確認文字裡仍有任一精靈
+      // 的 @-mention；沒有的話自動把鎖定者的暱稱補在最前面，server 端
+      // 的 detectSpiritMention 就能維持高信心交給他接手。
+      if (
+        pinnedSpirit &&
+        promptToSend &&
+        !hasSpiritMention(promptToSend)
+      ) {
+        const pinned = SPIRITS_BY_ID[pinnedSpirit];
+        if (pinned) {
+          promptToSend = `@${pinned.nickname} ${promptToSend}`;
+        }
+      }
       await globalChat.sendMessage(promptToSend, attachments, {
         requestedMode: activeModeOption?.id,
       });
@@ -877,7 +892,7 @@ export default function AgentChat() {
       // 送出後自動關閉模式，避免下一句又意外帶到模式上下文。
       if (activeModeOption) setActiveMode(null);
     },
-    [isSending, globalChat, attachments, clearAttachments, activeModeOption]
+    [isSending, globalChat, attachments, clearAttachments, activeModeOption, pinnedSpirit]
   );
 
   // Keep sendRef in sync with the latest `send` callback
@@ -931,11 +946,24 @@ export default function AgentChat() {
     }
     return out;
   }, [messageSpirits]);
-  /** 點擊精靈卡片：鎖定 + 預填「@暱稱 」+ 進場招呼 toast。 */
+  /** 點擊精靈卡片：鎖定 + 預填「@暱稱 」+ 進場招呼 toast。
+   *  若使用者已經打到一半，保留原文只在前面補 @暱稱，不要把人家輸入清掉。 */
   const handleCallSpirit = useCallback(
     (spirit: SpiritVisual) => {
       setPinnedSpirit(spirit.id);
-      const prefill = `${spirit.prompt} `;
+      const current = input.trim();
+      let prefill: string;
+      if (!current) {
+        // 空輸入：用範例句帶出該精靈的常見開場
+        prefill = `${spirit.prompt} `;
+      } else if (hasSpiritMention(current)) {
+        // 已經點名其他精靈：把舊的 @ 換掉，剩下的文字保留
+        const stripped = current.replace(/^@\S+\s*/, "");
+        prefill = `@${spirit.nickname} ${stripped}`.trim() + " ";
+      } else {
+        // 已經打到一半但沒 @：在最前面補上暱稱，原文照舊
+        prefill = `@${spirit.nickname} ${current} `;
+      }
       setInput(prefill);
       // 第一輪：聚焦 hero composer；第二輪：底部 sticky composer 自己會聚焦。
       if (isFirstTurn) heroInputRef.current?.focus();
@@ -945,7 +973,7 @@ export default function AgentChat() {
         duration: 4000,
       });
     },
-    [setInput, isFirstTurn]
+    [setInput, isFirstTurn, input]
   );
   /** 解除鎖定。會把預填的「@暱稱 」也擦掉。 */
   const handleUnpinSpirit = useCallback(() => {
@@ -1584,10 +1612,12 @@ export default function AgentChat() {
             </motion.section>
           )}
 
-          {/* ── 12 位代理精靈名片簿（首屏預設摺起，點開可一鍵叫某位來） ──
+          {/* ── 15 位代理精靈名片簿（首屏預設摺起，點開可一鍵叫某位來） ──
               每張卡是一位「同事」：暱稱、一句自介、進場招呼。點下去
               不會立刻送出，只是把 @暱稱 預填進輸入列並鎖定他來接下一輪。
-              使用者打字時還是能直接寫想做的事，鎖定的同事會接手回覆。 */}
+              使用者打字時還是能直接寫想做的事，鎖定的同事會接手回覆。
+              鎖定後若使用者把 @暱稱 編掉，send() 會自動補回，避免「鎖定」
+              變成 UI 假象。 */}
           {isFirstTurn && (
             <motion.section
               key="spirits-deck"
@@ -1605,7 +1635,7 @@ export default function AgentChat() {
                   >
                     <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                       <Users className="w-3.5 h-3.5 text-pink-500" />
-                      認識 12 位代理精靈 — 像同事一樣，叫一聲就到
+                      認識 {SPIRITS.length} 位代理精靈 — 像同事一樣，叫一聲就到
                       {pinnedSpirit && SPIRITS_BY_ID[pinnedSpirit] && (
                         <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-200 text-[10px] font-medium">
                           <span>{SPIRITS_BY_ID[pinnedSpirit].emoji}</span>
