@@ -184,6 +184,10 @@ import {
   storeResult,
 } from "./services/orbIdempotency";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
+import {
+  countPdfAttachments,
+  extractPdfAttachmentsToText,
+} from "./services/orbAttachmentExtraction";
 import { runOrbWebResearch } from "./services/orbWebResearch";
 import {
   doPostGenComplete,
@@ -5787,7 +5791,7 @@ export const appRouter = router({
               triggers: sanitizationResult.triggers.join(","),
             });
           }
-          const plannerMessages = sanitizationResult.messages;
+          let plannerMessages = sanitizationResult.messages;
           const latestUserText = [...input.messages]
             .reverse()
             .find(m => m.role === "user");
@@ -5956,7 +5960,7 @@ export const appRouter = router({
             }
           }
 
-          const routeIntent: ProviderRouteIntent = attachmentGuard.kinds.includes("pdf")
+          let routeIntent: ProviderRouteIntent = attachmentGuard.kinds.includes("pdf")
             ? "planner_pdf"
             : attachmentGuard.kinds.length > 0
             ? "planner_multimodal"
@@ -5967,11 +5971,39 @@ export const appRouter = router({
             ? getPreferredProviderForRole(spiritSelection.role)
             : undefined;
           if (providerRouterEnabled) {
-            const selection = selectProvider({
+            let selection = selectProvider({
               intent: routeIntent,
               riskLevel: "low",
               preferredProviderId: spiritPreferredProvider,
             });
+            // Server-side fallback: when no multimodal provider is healthy
+            // (typically GEMINI_API_KEY missing) but the user only attached
+            // PDF(s), extract the text ourselves so a plain text-only LLM
+            // (default_llm) can still answer about the script. This is the
+            // difference between "all features work" and "please paste it".
+            if (
+              !selection.provider &&
+              routeIntent === "planner_pdf" &&
+              countPdfAttachments(plannerMessages as Message[]) > 0
+            ) {
+              const extraction = await extractPdfAttachmentsToText(
+                plannerMessages as Message[]
+              );
+              appendTelemetryEvent(telemetryEvents, "pdf_attachment.server_extracted", {
+                extractedCount: extraction.extractedCount,
+                failedCount: extraction.failedCount,
+                hasUnextractableBinary: extraction.hasUnextractableBinary,
+              });
+              if (extraction.extractedCount > 0 && !extraction.hasUnextractableBinary) {
+                plannerMessages = extraction.messages as unknown as typeof plannerMessages;
+                routeIntent = "planner_text";
+                selection = selectProvider({
+                  intent: routeIntent,
+                  riskLevel: "low",
+                  preferredProviderId: spiritPreferredProvider,
+                });
+              }
+            }
             if (!selection.provider) {
               appendTelemetryEvent(telemetryEvents, "provider.unavailable", {
                 routeIntent,
