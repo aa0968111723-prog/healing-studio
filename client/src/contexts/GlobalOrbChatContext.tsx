@@ -62,6 +62,7 @@ import {
   type OrbChatAttachment,
   type OrbChatAttachmentMimeType,
 } from "../../../shared/orb-chat-multimodal";
+import type { OrbReasoningChain } from "../../../shared/orb-reasoning";
 import {
   buildProcessUrl,
   workflowActionToProcessSpec,
@@ -82,6 +83,10 @@ import {
 import { rememberedDimensionCoverage } from "../../../shared/orb-clarification-memory";
 import { useOrbState } from "./OrbStateContext";
 import { useOrbGuide } from "./OrbGuideContext";
+import {
+  pickArrivalSpiritForPath,
+  buildArrivalFollowUpText,
+} from "../../../shared/orb-agent-roles";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
 // the initial chat context payload. The bullet-list fallback inside the same
@@ -201,6 +206,13 @@ export interface ChatMessage {
   agentRole?: string;
   /** 0-1 confidence the server had when picking the spirit. */
   agentRoleConfidence?: number;
+  /**
+   * 思考步驟面板資料：planner artefacts（intent / steps / warnings / summary）
+   * 加上 tRPC 進度 ring buffer 經 buildOrbReasoningChain 合成的單一物件。
+   * 為什麼存在 message 上：使用者捲回去看舊回覆時，按下「💭 思考步驟」
+   * 仍能展開那一輪當時的思路，不必再呼叫一次 LLM。
+   */
+  reasoningChain?: OrbReasoningChain;
 }
 
 export interface ChatSuggestion {
@@ -500,6 +512,66 @@ function inferClarificationIntentCards(question: string, userText: string, dimen
     dimension,
   });
   return optionPack.options;
+}
+
+/**
+ * Pull the reasoning-chain payload off an `ai.chat` response. The shape
+ * is server-authoritative (see `shared/orb-reasoning.ts`) so we just
+ * tolerate-and-narrow rather than re-validating field by field. Returns
+ * `undefined` when the field is missing so callers can spread-conditionally
+ * without painting empty-state UI on legacy responses.
+ */
+function extractReasoningChain(data: unknown): OrbReasoningChain | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const candidate = (data as { reasoningChain?: unknown }).reasoningChain;
+  if (!candidate || typeof candidate !== "object") return undefined;
+  const c = candidate as {
+    sections?: unknown;
+    actions?: unknown;
+    modelLabel?: unknown;
+    durationMs?: unknown;
+    plannerStatus?: unknown;
+  };
+  const sections = Array.isArray(c.sections)
+    ? (c.sections as Array<{ title?: unknown; body?: unknown }>)
+        .filter(s => typeof s?.title === "string" && typeof s?.body === "string")
+        .map(s => ({ title: s.title as string, body: s.body as string }))
+    : [];
+  const actions = Array.isArray(c.actions)
+    ? (c.actions as Array<{
+        stage?: unknown;
+        label?: unknown;
+        at?: unknown;
+        detail?: unknown;
+      }>)
+        .filter(
+          a =>
+            typeof a?.stage === "string" &&
+            typeof a?.label === "string" &&
+            typeof a?.at === "number"
+        )
+        .map(a => ({
+          stage: a.stage as OrbReasoningChain["actions"][number]["stage"],
+          label: a.label as string,
+          at: a.at as number,
+          detail:
+            a.detail && typeof a.detail === "object"
+              ? (a.detail as Record<string, unknown>)
+              : undefined,
+        }))
+    : [];
+  if (sections.length === 0 && actions.length === 0) return undefined;
+  return {
+    sections,
+    actions,
+    modelLabel: typeof c.modelLabel === "string" ? c.modelLabel : undefined,
+    durationMs:
+      typeof c.durationMs === "number" && c.durationMs >= 0
+        ? c.durationMs
+        : undefined,
+    plannerStatus:
+      typeof c.plannerStatus === "string" ? c.plannerStatus : undefined,
+  };
 }
 
 function summarizeProviderPing(pingData: unknown): string {
@@ -2668,8 +2740,40 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               orbMessage: condensedIntent
                 ? `剛剛的指令：${condensedIntent}`
                 : undefined,
+              // 聊天驅動的跳頁：要求 panel 落在「自由聊天」視圖。沒有這個
+              // hint 的話 panel 會預設停在引導模式（靜態按鈕），使用者就會
+              // 看到「跳了頁但沒對話框延續」— 這是這次回報的核心 bug。
+              preferredPanelMode: "chat",
             });
             setLocation(path);
+
+            // 「自動續話」：跳頁後由目的地頁的精靈用第一人稱接手，補一條 chat
+            // 訊息延續對話。這條訊息掛上 agentRole，下游的 spirit chip 會自
+            // 動把頭像 + 家族色渲染上去，讓使用者看到「換誰在線了」。
+            //
+            // 1200ms 延遲是讓使用者能先看到光球前一棒的回覆訊息，再看到「換
+            // 人接手」的續話 — 太快兩條訊息會擠在一起像同一個人講；太慢使
+            // 用者會以為對話卡住。
+            const arrivalSpirit = pickArrivalSpiritForPath(path);
+            if (arrivalSpirit) {
+              const followUpText = buildArrivalFollowUpText(
+                arrivalSpirit,
+                trimmedIntent || options.intent,
+              );
+              setTimeout(() => {
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    role: "orb",
+                    text: followUpText,
+                    at: Date.now(),
+                    pagePath: path,
+                    agentRole: arrivalSpirit,
+                    intent: "arrival-follow-up",
+                  },
+                ]);
+              }, 1200);
+            }
           }
         },
         dispatch: pageAgent.dispatch,
@@ -3516,6 +3620,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         .slice(0, 6)
         .map(s => ({ title: s.title, url: s.url, source: s.source }));
 
+      const reasoningChain = extractReasoningChain(data);
+
       const renderReply = safeAssistant.fallback && safeAssistant.traceId
         ? `${replyText}
 
@@ -3530,6 +3636,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
         actions: actionsToExecute,
         ...(webSources.length > 0 ? { webSources } : {}),
+        ...(reasoningChain ? { reasoningChain } : {}),
         ...spiritFields,
       }]);
 

@@ -48,6 +48,7 @@ import {
   Compass,
   MessageCircle,
   Play,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -93,6 +94,7 @@ import AgentSettingsSheet from "@/components/AgentSettingsSheet";
 import ChatMessageText from "@/components/ChatMessageText";
 import type { IntentOption } from "@/lib/intentOptions";
 import OrbSearchResultsCard from "@/components/orb/OrbSearchResultsCard";
+import OrbThinkingStepsPanel from "@/components/orb/OrbThinkingStepsPanel";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -710,6 +712,11 @@ export default function AgentChat() {
   /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
   const [pinnedSpirit, setPinnedSpirit] = useState<AgentRole | null>(null);
   const [recent, setRecent] = useState<RecentEntry[]>(() => readRecent());
+  // 思考步驟面板：開啟時記住目前要顯示哪一條訊息的 reasoningChain。
+  // 用 message.at 當索引值，因為它是訊息列表內的穩定 unique key。
+  const [thinkingPanelMessageAt, setThinkingPanelMessageAt] = useState<
+    number | null
+  >(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -2321,6 +2328,21 @@ export default function AgentChat() {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
+                    {msg.role === "orb" &&
+                    msg.reasoningChain &&
+                    (msg.reasoningChain.sections.length > 0 ||
+                      msg.reasoningChain.actions.length > 0) ? (
+                      <button
+                        type="button"
+                        onClick={() => setThinkingPanelMessageAt(msg.at)}
+                        className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 text-[10px] font-medium transition-colors"
+                        data-testid={`message-thinking-steps-${msg.at}`}
+                        title="查看光球的思考步驟與行動軌跡"
+                      >
+                        <Brain className="w-3 h-3" aria-hidden />
+                        思考步驟
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </motion.div>
@@ -2641,6 +2663,18 @@ export default function AgentChat() {
       </div>
 
       <AgentSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <OrbThinkingStepsPanel
+        open={thinkingPanelMessageAt !== null}
+        onOpenChange={open => {
+          if (!open) setThinkingPanelMessageAt(null);
+        }}
+        chain={
+          thinkingPanelMessageAt === null
+            ? undefined
+            : messages.find(m => m.at === thinkingPanelMessageAt)?.reasoningChain
+        }
+        messageAt={thinkingPanelMessageAt ?? undefined}
+      />
     </div>
   );
 }

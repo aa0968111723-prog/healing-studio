@@ -3679,6 +3679,8 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
     completedManualStepIds,
     toggleManualStepDone,
     dismissArrival,
+    preferredPanelMode,
+    clearPreferredPanelMode,
   } = useOrbGuide();
   const { aiState } = useAIState();
   const { personality } = usePersonality();
@@ -3710,30 +3712,44 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   );
 
   // ── Panel mode: guided flow or free chat ──────────────────────────────────
-  // Default to "chat" if the orb is already thinking when the panel opens
-  // (typical orb-driven navigation flow: orb says "I'll take you there",
-  // navigation happens, panel opens — and the user should land directly on
-  // the chat view where the thinking indicator + streamed reply will show).
+  // 三層判斷（由強到弱）：
+  //   1. preferredPanelMode（context 帶上來）— 聊天驅動的跳頁明確要求 "chat"，
+  //      必須優先採用，避免使用者剛剛還在打字、跳完頁卻被丟去看靜態引導卡。
+  //   2. globalChat.isSending — 光球正在想，落在 chat 才看得到思考中泡泡。
+  //   3. fallback "guide" — 純被動開啟（hover 浮球、starter 卡片）走引導。
   const [panelMode, setPanelMode] = useState<"guide" | "chat">(
-    globalChat.isSending ? "chat" : "guide"
+    preferredPanelMode ?? (globalChat.isSending ? "chat" : "guide")
   );
 
-  // If the orb starts thinking while the panel is sitting in guide mode (e.g.
-  // the user opened it manually, then asked something), flip to chat so the
-  // 思考中… bubble actually surfaces. autoSwitchedRef gates the flip so we
-  // only do it once per open session — a user who deliberately clicks back to
-  // 引導 mode mid-thinking won't be yanked away again.
+  // preferredPanelMode 是「跨 mount 也要生效」的 hint：聊天驅動的跳頁可能
+  // 在 panel 還沒掛載前就 setIsPanelOpen(true)，等 panel mount 完才看到偏
+  // 好。autoSwitchedRef 同時負責：
+  //   • isSending 觸發的自動切換（原本行為）
+  //   • preferredPanelMode === "chat" 觸發的自動切換（新行為）
+  // 兩種 trigger 共用同一支 ref，避免被切兩次。一旦 ref 被吃掉就清掉
+  // preferredPanelMode，下一輪不影響。
   const autoSwitchedRef = useRef(false);
   useEffect(() => {
+    if (autoSwitchedRef.current) return;
+    if (preferredPanelMode === "chat" && panelMode !== "chat") {
+      autoSwitchedRef.current = true;
+      setPanelMode("chat");
+      clearPreferredPanelMode();
+      return;
+    }
     if (
       globalChat.isSending &&
-      panelMode === "guide" &&
-      !autoSwitchedRef.current
+      panelMode === "guide"
     ) {
       autoSwitchedRef.current = true;
       setPanelMode("chat");
     }
-  }, [globalChat.isSending, panelMode]);
+  }, [
+    globalChat.isSending,
+    panelMode,
+    preferredPanelMode,
+    clearPreferredPanelMode,
+  ]);
   // Use global chat state for chat mode - keep full message objects for metadata
   const chatMessages = panelMode === "chat" ? globalChat.messages : [];
   const chatSuggestions = panelMode === "chat" ? globalChat.suggestions : [];

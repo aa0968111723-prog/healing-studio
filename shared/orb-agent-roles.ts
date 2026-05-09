@@ -1123,6 +1123,93 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
   }
 }
 
+// ─── 路徑 → 該頁主責精靈 ─────────────────────────────────────────────
+// 跨頁跳轉的 follow-up 文案要由「目的地頁面當家的精靈」說話 — 這份地圖
+// 把 path prefix 對到對應的 AgentRole，避免每個 caller 自己 if/else 判斷。
+// 順序很重要：較長的前綴排前面（/agent vs /agent/notes 之類），第一個命中
+// 即返回。沒命中就返回 null，讓 caller 走預設的 companion / navigator。
+const PATH_SPIRIT_MAP: ReadonlyArray<{
+  prefix: string;
+  role: AgentRole;
+}> = [
+  { prefix: "/image-studio", role: "image-specialist" },
+  { prefix: "/video-studio", role: "video-specialist" },
+  { prefix: "/pro-studio", role: "music-specialist" },
+  { prefix: "/director", role: "director" },
+  { prefix: "/models", role: "training-specialist" },
+  { prefix: "/learn", role: "learning-specialist" },
+  { prefix: "/tutorial-overview", role: "learning-specialist" },
+  { prefix: "/dashboard", role: "accountant" },
+  { prefix: "/credits", role: "accountant" },
+  { prefix: "/notes", role: "researcher" },
+  { prefix: "/assets", role: "researcher" },
+];
+
+/**
+ * 給定目標路徑，回傳該頁面當家的精靈角色。沒有匹配時回 null —
+ * caller 通常會 fallback 到 companion / navigator 的口吻。
+ */
+export function pickArrivalSpiritForPath(path: string): AgentRole | null {
+  if (!path) return null;
+  for (const entry of PATH_SPIRIT_MAP) {
+    if (path === entry.prefix || path.startsWith(`${entry.prefix}/`)) {
+      return entry.role;
+    }
+  }
+  return null;
+}
+
+/**
+ * 跨頁跳轉後的「自動續話」文案 — 由目的地頁的精靈用第一人稱接手，避免使用者
+ * 看到光球說「我帶你過去了」之後一片靜默。intent 是使用者剛剛輸入的需求摘要
+ * （從 navigate 動作的 intentSummary 帶入），讓銜接話語有上下文。
+ *
+ * 設計原則：
+ *   1. 第一句明確由「<暱稱> 接手」破題 — 等於告訴使用者「換人說話了」
+ *   2. 第二句是該精靈專業領域的 1-2 個具體下一步問題 — 避免空洞的「你想做什麼？」
+ *   3. 全段控制在 80 字內 — 太長會讓使用者覺得沒有真的在「接手」
+ */
+export function buildArrivalFollowUpText(
+  role: AgentRole,
+  intentSummary?: string | null,
+): string {
+  const intentTail = intentSummary && intentSummary.trim().length > 0
+    ? `（剛剛聽你說：${intentSummary.slice(0, 40)}）`
+    : "";
+  switch (role) {
+    case "image-specialist":
+      return `圖圖接手 🎨 我們到圖片創作室了～${intentTail}你想要寫實風、夢幻插畫、還是療癒水彩？或者直接給我一句話描述畫面，我幫你套提示詞。`;
+    case "video-specialist":
+      return `影影接手 🎬 影片組到了～${intentTail}先告訴我兩件事：要幾秒？直式（IG/抖音）還橫式（YouTube）？我馬上幫你挑模型。`;
+    case "music-specialist":
+      return `音音接手 🎵 音樂室到了～${intentTail}你想要什麼情緒（療癒？輕快？緊張？）大概多長？我先給你 1-2 個風格方向。`;
+    case "voice-specialist":
+      return `聲聲接手 🎙️ 配音間到了～${intentTail}語言、男聲女聲、語氣（溫暖／冷靜／快節奏）告訴我，30 秒內就能聽到 demo。`;
+    case "training-specialist":
+      return `練練接手 🧪 訓練室到了～${intentTail}你想訓角色、風格、還是影片 LoRA？把參考素材丟上來，我先估時間。`;
+    case "learning-specialist":
+      return `學學接手 📚 ${intentTail}從哪裡開始？你之前用過類似工具嗎？我可以從基礎或進階起，挑一句最想搞懂的問我。`;
+    case "director":
+      return `導導接手 🎯 ${intentTail}先說最終想交付什麼（一支影片？一張海報？一首 30 秒 BGM？），我幫你拆成跨頁工作流。`;
+    case "accountant":
+      return `財財接手 💰 ${intentTail}本月的點數狀況我先幫你抓出來——想看「整月用掉多少」、「下一筆會花多少」、還是「有沒有省的招」？`;
+    case "researcher":
+      return `查查接手 🧭 ${intentTail}你想找什麼？站內素材、模型比較、還是教學筆記？告訴我關鍵字，我幫你列差別 + 推薦。`;
+    case "navigator":
+      return `路路接手 🧳 我們到了～${intentTail}下一步是要動手做、看範例、還是先逛逛功能？`;
+    case "companion":
+      return `暖暖在這 🌿 ${intentTail}慢慢說就好。想做東西、想先逛逛、還是只是來透氣？哪一個都可以。`;
+    case "composer":
+      return `編編接手 ✍️ ${intentTail}你已經在工作室了，告訴我要填什麼、要選哪個模型，我直接幫你按下去。`;
+    case "critic":
+      return `品品接手 🔎 ${intentTail}把作品或計畫貼過來，我給你 2 個亮點 + 最多 3 個改了會更好的點。`;
+    case "quality-coach":
+      return `巧巧接手 ✨ ${intentTail}把你的 prompt 或結果丟過來，我給可以直接複製貼上的改寫範例。`;
+    case "inspector":
+      return `守守接手 🛡️ ${intentTail}哪裡卡住？我幫你看是真的壞掉、體驗瑕疵、還是有更順的繞法。`;
+  }
+}
+
 /** Render a role chain into a 1-2 sentence preview for the orb's reply. */
 export function summarizeRoleChainForPrompt(chain: AgentRole[]): string {
   if (chain.length === 0) return "";

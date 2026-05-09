@@ -142,6 +142,10 @@ import {
 import { extractJsonObjectFromText } from "../shared/agent-plan-adapter";
 import { OrbChatRouterMessageSchema } from "../shared/orb-chat-multimodal";
 import {
+  buildOrbReasoningChain,
+  type OrbReasoningChain,
+} from "../shared/orb-reasoning";
+import {
   estimatePoints,
   getModelPricing,
   checkModelAvailability,
@@ -5314,6 +5318,7 @@ export const appRouter = router({
         const idempKey =
           (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) ??
           input.requestId;
+        const chatStartedAt = Date.now();
         if (idempKey) {
           const status = checkAndLock(idempKey);
           if (status === "duplicate") {
@@ -5398,6 +5403,18 @@ export const appRouter = router({
               r.agentRoleConfidence = spiritSelection.confidence;
               r.agentRoleRationale = spiritSelection.rationale;
             }
+            // 思考步驟：把 planner artefacts + 進度 ring buffer 合成「思考步驟」面板需要的結構，
+            // 讓客戶端 OrbThinkingStepsPanel 不必再去 reverse-engineer 回應的 shape。
+            // 任何 return 路徑（converted / clarification / fallback-llm / fallback-error）
+            // 只要還沒手動塞 reasoningChain，這裡都會自動補上。
+            if (r.reasoningChain === undefined) {
+              const reasoningPayload = buildOrbReasoningChainFromResult(
+                r,
+                idempKey,
+                chatStartedAt
+              );
+              if (reasoningPayload) r.reasoningChain = reasoningPayload;
+            }
             enriched = r;
           }
           if (idempKey) {
@@ -5408,6 +5425,76 @@ export const appRouter = router({
             emitOrbChatProgress(idempKey, "finalizing", "整理回應…");
           }
           return enriched;
+        };
+
+        /**
+         * Walks a chat-handler result object and pulls out the
+         * planner-y bits (intent, plan steps, warnings, summaryForUser, …)
+         * we need to feed `buildOrbReasoningChain`. Tolerates every shape
+         * the various return paths emit — converted, clarification,
+         * fallback-llm, fallback-error.
+         */
+        const buildOrbReasoningChainFromResult = (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          r: any,
+          requestId: string | undefined,
+          startedAt: number
+        ): OrbReasoningChain | null => {
+          const planRecord =
+            r?.plan && typeof r.plan === "object"
+              ? (r.plan as Record<string, unknown>)
+              : r?.plannerOutput && typeof r.plannerOutput === "object"
+                ? (r.plannerOutput as Record<string, unknown>)
+                : null;
+          const intent =
+            typeof r?.intent === "string"
+              ? r.intent
+              : typeof planRecord?.intent === "string"
+                ? (planRecord.intent as string)
+                : null;
+          const summaryForUser =
+            typeof planRecord?.summaryForUser === "string"
+              ? (planRecord.summaryForUser as string)
+              : typeof r?.reply === "string"
+                ? r.reply
+                : null;
+          const rawSteps = Array.isArray(planRecord?.steps)
+            ? (planRecord!.steps as Array<Record<string, unknown>>)
+            : [];
+          const steps = rawSteps
+            .map(s => ({
+              label: typeof s?.label === "string" ? (s.label as string) : "",
+              rationale:
+                typeof s?.rationale === "string" ? (s.rationale as string) : null,
+            }))
+            .filter(s => s.label.trim().length > 0);
+          const warnings = Array.isArray(r?.warnings)
+            ? (r.warnings as unknown[]).filter(
+                (w): w is string => typeof w === "string" && w.trim().length > 0
+              )
+            : Array.isArray(planRecord?.warnings)
+              ? (planRecord.warnings as unknown[]).filter(
+                  (w): w is string => typeof w === "string" && w.trim().length > 0
+                )
+              : [];
+          const events = requestId ? readOrbChatProgress(requestId, 0) : [];
+          const preferredEngine =
+            typeof r?.preferredEngine === "string"
+              ? (r.preferredEngine as string)
+              : typeof r?.telemetry?.preferredEngine === "string"
+                ? (r.telemetry.preferredEngine as string)
+                : null;
+          const modelLabel = preferredEngine
+            ? `引擎：${preferredEngine}`
+            : undefined;
+          return buildOrbReasoningChain({
+            plan: { intent, summaryForUser, steps, warnings, reply: r?.reply },
+            events,
+            modelLabel,
+            durationMs: Date.now() - startedAt,
+            plannerStatus:
+              typeof r?.plannerStatus === "string" ? r.plannerStatus : null,
+          });
         };
 
         const makePlannerMeta = (params: {
@@ -6393,7 +6480,7 @@ export const appRouter = router({
                   `已依使用者頁面權限略過：${perPageFiltered.dropped.join(", ")}`
                 );
               }
-              return {
+              return finalizeIdempotentResponse({
                 reply: moderatedReply,
                 actions: perPageFiltered.actions,
                 intent: plannerResult.intent ?? null,
@@ -6404,6 +6491,7 @@ export const appRouter = router({
                 suggestions: [],
                 toolCalls: [],
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                plan: plannerResult.plan,
                 telemetry: {
                   traceId: meta.traceId,
                   planId: meta.planId,
@@ -6419,7 +6507,7 @@ export const appRouter = router({
                 },
                 ...meta,
                 taskDraft: null,
-              };
+              });
             }
 
             if (plannerResult && plannerResult.status === "clarification") {
@@ -6434,7 +6522,7 @@ export const appRouter = router({
               const clarificationQuestion =
                 plannerResult.clarificationQuestion ??
                 (typeof plannerResult.reply === "string" ? plannerResult.reply : undefined);
-              return {
+              return finalizeIdempotentResponse({
                 reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
                 actions: [],
                 intent: plannerResult.intent ?? null,
@@ -6447,6 +6535,7 @@ export const appRouter = router({
                 clarificationQuestion,
                 clarificationOptions: plannerResult.clarificationOptions,
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                plan: plannerResult.plan,
                 telemetry: {
                   traceId: meta.traceId,
                   planId: meta.planId,
@@ -6462,7 +6551,7 @@ export const appRouter = router({
                 },
                 ...meta,
                 taskDraft: null,
-              };
+              });
             }
 
             if (plannerResult && plannerResult.status === "blocked") {
@@ -6486,7 +6575,7 @@ export const appRouter = router({
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
                 memoryInjected: memoryContext.memoryInjected,
               });
-              return {
+              return finalizeIdempotentResponse({
                 reply:
                   plannerResult.reply ??
                   "我已建立計畫，但因安全檢查暫停執行，請先確認需求後再繼續。",
@@ -6496,6 +6585,7 @@ export const appRouter = router({
                 suggestions: [],
                 toolCalls: [],
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                plan: plannerResult.plan,
                 telemetry: {
                   traceId: meta.traceId,
                   planId: meta.planId,
@@ -6511,7 +6601,7 @@ export const appRouter = router({
                 },
                 ...meta,
                 taskDraft: null,
-              };
+              });
             }
 
             if (plannerResult && plannerResult.status === "tasked") {
@@ -6958,7 +7048,7 @@ export const appRouter = router({
             warnings: [errorMsg.slice(0, 240)],
             usedMultimodalPlanner: false,
           });
-          return {
+          return finalizeIdempotentResponse({
             reply: fallbackReply,
             actions: [],
             intent: null,
@@ -6981,7 +7071,7 @@ export const appRouter = router({
             },
             ...meta,
             taskDraft: null,
-          };
+          });
         } finally {
           // F1 fix: any return path (early-exit guards, planner-throw catch,
           // agent_disabled, provider_unavailable, …) that did not call

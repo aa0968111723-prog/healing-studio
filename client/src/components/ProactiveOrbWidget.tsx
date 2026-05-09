@@ -56,6 +56,7 @@ import {
   BarChart3,
   Coins,
   Settings,
+  Brain,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
@@ -96,6 +97,7 @@ import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
 import OrbActionFlow from "./orb/OrbActionFlow";
 import { OrbThinkingTimeline } from "./orb/OrbThinkingTimeline";
 import { OrbVoiceButton } from "./orb/OrbVoiceButton";
+import OrbThinkingStepsPanel from "./orb/OrbThinkingStepsPanel";
 import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -1178,6 +1180,10 @@ export default memo(function ProactiveOrbWidget({
   const showPageDefaultHint = pageDefaultSpirit && chatMessages.length <= 1;
   const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
+  // 思考步驟面板：使用者按下訊息上的 🧠 chip 時記錄目標訊息的 timestamp。
+  const [thinkingPanelMessageAt, setThinkingPanelMessageAt] = useState<
+    number | null
+  >(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
@@ -2952,6 +2958,23 @@ export default memo(function ProactiveOrbWidget({
                                   }`}>
                                     <span>{getPageEmoji(msg.pagePath)}</span>
                                     <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                                    {msg.role === "orb" &&
+                                    msg.reasoningChain &&
+                                    (msg.reasoningChain.sections.length > 0 ||
+                                      msg.reasoningChain.actions.length > 0) ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setThinkingPanelMessageAt(msg.at)
+                                        }
+                                        className="ml-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[9px] font-medium"
+                                        data-testid={`widget-message-thinking-${msg.at}`}
+                                        title="查看光球思考步驟"
+                                      >
+                                        <Brain className="w-2.5 h-2.5" aria-hidden />
+                                        思考
+                                      </button>
+                                    ) : null}
                                   </div>
                                 )}
                               </div>
@@ -4037,6 +4060,19 @@ export default memo(function ProactiveOrbWidget({
           </AnimatePresence>
         </motion.div>
       </motion.div>
+      <OrbThinkingStepsPanel
+        open={thinkingPanelMessageAt !== null}
+        onOpenChange={open => {
+          if (!open) setThinkingPanelMessageAt(null);
+        }}
+        chain={
+          thinkingPanelMessageAt === null
+            ? undefined
+            : chatMessages.find(m => m.at === thinkingPanelMessageAt)
+                ?.reasoningChain
+        }
+        messageAt={thinkingPanelMessageAt ?? undefined}
+      />
     </div>
   );
 });
