@@ -1985,6 +1985,7 @@ function SDPanel({
   controlnetScale,
   setControlnetScale,
   modelId,
+  setPrompt,
 }: {
   imageSize: string;
   setImageSize: (v: string) => void;
@@ -2007,8 +2008,52 @@ function SDPanel({
   controlnetScale: number;
   setControlnetScale: (v: number) => void;
   modelId: string;
+  setPrompt: React.Dispatch<React.SetStateAction<string>>;
 }) {
   const [showAdv, setShowAdv] = useState(false);
+  const [, navigateLora] = useLocation();
+  const trainedLorasQuery = trpc.loraTrainer.trainingHistory.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const trainedLoras = useMemo(() => {
+    const list = trainedLorasQuery.data ?? [];
+    return list.filter(
+      m =>
+        m.status === "ready" &&
+        typeof m.trainedLoraUrl === "string" &&
+        m.trainedLoraUrl.length > 0 &&
+        // 圖片型 LoRA 才適合注入到 SD 流程
+        ["image_subject", "style_lora", "scene_lora", "portrait_lora"].includes(
+          m.modelType
+        )
+    );
+  }, [trainedLorasQuery.data]);
+  const matchedTrained = useMemo(
+    () => trainedLoras.find(m => m.trainedLoraUrl === loraPath) ?? null,
+    [trainedLoras, loraPath]
+  );
+
+  const handleApplyTrainedLora = useCallback(
+    (modelKey: string) => {
+      if (modelKey === "__manual__") {
+        setLoraPath("");
+        return;
+      }
+      const picked = trainedLoras.find(m => String(m.id) === modelKey);
+      if (!picked || !picked.trainedLoraUrl) return;
+      setLoraPath(picked.trainedLoraUrl);
+      const trigger = picked.triggerWord?.trim();
+      if (trigger) {
+        setPrompt(prev =>
+          prev.includes(trigger) ? prev : prev ? `${trigger}, ${prev}` : trigger
+        );
+      }
+      toast.success(
+        `已套用「${picked.name}」LoRA${trigger ? `，觸發詞「${trigger}」已加入提示詞` : ""}`
+      );
+    },
+    [trainedLoras, setLoraPath, setPrompt]
+  );
 
   return (
     <div className="space-y-3">
@@ -2100,15 +2145,59 @@ function SDPanel({
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                  LoRA 路徑（HuggingFace）
-                </Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs text-muted-foreground">
+                    LoRA 路徑（HuggingFace 或訓練輸出 URL）
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => navigateLora("/lora-trainer")}
+                    className="text-[10px] text-cyan-600 hover:text-cyan-700 hover:underline"
+                  >
+                    去訓練模型 →
+                  </button>
+                </div>
+                <Select
+                  value={matchedTrained ? String(matchedTrained.id) : "__manual__"}
+                  onValueChange={handleApplyTrainedLora}
+                >
+                  <SelectTrigger className="text-xs h-8 mb-1.5">
+                    <SelectValue
+                      placeholder={
+                        trainedLorasQuery.isLoading
+                          ? "載入訓練模型中..."
+                          : trainedLoras.length === 0
+                            ? "尚無訓練完成的模型 — 改填 HuggingFace 路徑"
+                            : "從我訓練的模型選擇"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__manual__">
+                      手動輸入 HuggingFace 路徑
+                    </SelectItem>
+                    {trainedLoras.map(m => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.name}
+                        {m.triggerWord ? `（${m.triggerWord}）` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   value={loraPath}
                   onChange={e => setLoraPath(e.target.value)}
-                  placeholder="例：nerijs/pixel-art-xl"
+                  placeholder="例：nerijs/pixel-art-xl 或選擇上方訓練模型"
                   className="text-xs mb-1.5"
                 />
+                {matchedTrained && (
+                  <p className="text-[10px] text-cyan-700 mb-1.5">
+                    已連結訓練模型「{matchedTrained.name}」
+                    {matchedTrained.triggerWord
+                      ? `・觸發詞：${matchedTrained.triggerWord}`
+                      : ""}
+                  </p>
+                )}
                 {loraPath && (
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">
@@ -4717,6 +4806,7 @@ export default function ImageStudio() {
                   controlnetScale={controlnetScale}
                   setControlnetScale={setControlnetScale}
                   modelId={selectedModelId}
+                  setPrompt={setPrompt}
                 />
               </div>
               <div className="rounded-2xl border border-border/30 p-3 bg-background/60">
