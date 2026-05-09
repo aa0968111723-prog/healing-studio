@@ -180,10 +180,20 @@ import {
   checkAndLock,
   findDuplicateTask,
   getResult,
+  releaseRequestLock,
   rememberTaskKey,
   storeResult,
 } from "./services/orbIdempotency";
+import {
+  clearOrbChatProgress,
+  emitOrbChatProgress,
+  readOrbChatProgress,
+} from "./services/orbChatProgress";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
+import {
+  countPdfAttachments,
+  extractPdfAttachmentsToText,
+} from "./services/orbAttachmentExtraction";
 import { runOrbWebResearch } from "./services/orbWebResearch";
 import {
   doPostGenComplete,
@@ -5365,6 +5375,10 @@ export const appRouter = router({
           }
           if (idempKey) {
             storeResult(idempKey, enriched);
+            idempotencyFinalized = true;
+            // Final progress beacon so the client's polling loop sees a
+            // terminal event before clearOrbChatProgress wipes the bucket.
+            emitOrbChatProgress(idempKey, "finalizing", "整理回應…");
           }
           return enriched;
         };
@@ -5772,7 +5786,20 @@ export const appRouter = router({
         // 做首選與降級，不再把路由鎖死在 Gemini。
         let enginePreference: "auto" = "auto";
 
+        // F1 fix: track whether finalizeIdempotentResponse ever ran so the
+        // outer finally can release the in-progress lock for early-return
+        // paths (attachment too large, quota limited, provider unavailable,
+        // agent disabled, etc.). Without this release, a retry with the
+        // same x-request-id was stuck on "in-progress" for 60 s.
+        let idempotencyFinalized = false;
+
+        // Phase-1 multi-step thinking UX: emit milestones to a per-request
+        // ring buffer so the client can poll `ai.chatProgress` and render
+        // an inline timeline during the otherwise-opaque planning window.
+        emitOrbChatProgress(idempKey, "received", "收到請求");
+
         try {
+          emitOrbChatProgress(idempKey, "sanitizing", "檢查訊息中…");
           // Prompt-injection defence: strip well-known role-impersonation /
           // jailbreak phrases from user content before the planner sees it.
           // Triggers are surfaced via telemetry so abuse can be flagged.
@@ -5787,7 +5814,7 @@ export const appRouter = router({
               triggers: sanitizationResult.triggers.join(","),
             });
           }
-          const plannerMessages = sanitizationResult.messages;
+          let plannerMessages = sanitizationResult.messages;
           const latestUserText = [...input.messages]
             .reverse()
             .find(m => m.role === "user");
@@ -5837,6 +5864,7 @@ export const appRouter = router({
             rememberTaskKey(idempotencyKey, { taskId: undefined });
           }
 
+          emitOrbChatProgress(idempKey, "guarding_attachments", "檢查附件中…");
           const attachmentGuard = validateAttachmentGuards(plannerMessages as Message[]);
           if (!attachmentGuard.ok) {
             appendTelemetryEvent(telemetryEvents, "attachment.too_large", {
@@ -5956,9 +5984,16 @@ export const appRouter = router({
             }
           }
 
-          const routeIntent: ProviderRouteIntent = attachmentGuard.kinds.includes("pdf")
+          // PDF wins (needs supportsPdf), then any image/audio/video forces
+          // multimodal. Text-kind attachments (legacy docx file_url replayed
+          // from history) don't need a multimodal model — they route through
+          // the regular text planner because their bytes can be inlined.
+          const hasBinaryKind = attachmentGuard.kinds.some(
+            kind => kind === "image" || kind === "audio" || kind === "video"
+          );
+          let routeIntent: ProviderRouteIntent = attachmentGuard.kinds.includes("pdf")
             ? "planner_pdf"
-            : attachmentGuard.kinds.length > 0
+            : hasBinaryKind
             ? "planner_multimodal"
             : "planner_text";
           // 15 精靈 (6 通用 + 6 專精 + 3 主動)：spiritSelection 已在 handler 頂部算好（finalize 也會用），
@@ -5967,11 +6002,64 @@ export const appRouter = router({
             ? getPreferredProviderForRole(spiritSelection.role)
             : undefined;
           if (providerRouterEnabled) {
-            const selection = selectProvider({
+            emitOrbChatProgress(idempKey, "selecting_provider", "選擇模型中…", {
+              routeIntent,
+              spirit: spiritSelection?.role,
+            });
+            let selection = selectProvider({
               intent: routeIntent,
               riskLevel: "low",
               preferredProviderId: spiritPreferredProvider,
             });
+            // Server-side fallback: when no multimodal provider is healthy
+            // (typically GEMINI_API_KEY missing) but the user only attached
+            // PDF(s), extract the text ourselves so a plain text-only LLM
+            // (default_llm) can still answer about the script. This is the
+            // difference between "all features work" and "please paste it".
+            if (
+              !selection.provider &&
+              routeIntent === "planner_pdf" &&
+              countPdfAttachments(plannerMessages as Message[]) > 0
+            ) {
+              emitOrbChatProgress(idempKey, "extracting_pdf", "讀取 PDF 內文中…");
+              const extraction = await extractPdfAttachmentsToText(
+                plannerMessages as Message[]
+              );
+              appendTelemetryEvent(telemetryEvents, "pdf_attachment.server_extracted", {
+                extractedCount: extraction.extractedCount,
+                failedCount: extraction.failedCount,
+                hasUnextractableBinary: extraction.hasUnextractableBinary,
+              });
+              if (extraction.injectionTriggers.length > 0) {
+                appendTelemetryEvent(
+                  telemetryEvents,
+                  "pdf_attachment.injection_redacted",
+                  { triggers: extraction.injectionTriggers.join(",") }
+                );
+              }
+              // Surface partial failures as a separate warning event so
+              // ops dashboards can alert on a sustained `failed_count`
+              // climb (e.g. unpdf regression, scanned-PDF spike).
+              if (extraction.failedCount > 0) {
+                appendTelemetryEvent(
+                  telemetryEvents,
+                  "pdf_attachment.extract_failed",
+                  {
+                    failedCount: extraction.failedCount,
+                    extractedCount: extraction.extractedCount,
+                  }
+                );
+              }
+              if (extraction.extractedCount > 0 && !extraction.hasUnextractableBinary) {
+                plannerMessages = extraction.messages as unknown as typeof plannerMessages;
+                routeIntent = "planner_text";
+                selection = selectProvider({
+                  intent: routeIntent,
+                  riskLevel: "low",
+                  preferredProviderId: spiritPreferredProvider,
+                });
+              }
+            }
             if (!selection.provider) {
               appendTelemetryEvent(telemetryEvents, "provider.unavailable", {
                 routeIntent,
@@ -6098,6 +6186,9 @@ export const appRouter = router({
           let plannerInvalidWarnings: string[] = [];
 
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
+            emitOrbChatProgress(idempKey, "planning", "規劃步驟中…", {
+              spirit: spiritSelection?.role,
+            });
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {
               const plannerContextWithResearch = [
@@ -6428,6 +6519,11 @@ export const appRouter = router({
               let stateMachineTask = null;
               let codeTask: unknown = null;
               let codeTaskPrompt: string | null = null;
+              if (taskDraft) {
+                emitOrbChatProgress(idempKey, "materializing_task", "整理任務步驟…", {
+                  steps: taskDraft.steps.length,
+                });
+              }
               if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
                 stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, ctx.user.id);
               }
@@ -6797,6 +6893,9 @@ export const appRouter = router({
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
+          emitOrbChatProgress(idempKey, "error", "發生錯誤…", {
+            reason: errorMsg.slice(0, 240),
+          });
           // Classify the failure so the user gets an actionable healing-tone
           // message instead of the generic "去設定頁檢查 API 設定" line.
           // The previous classifier only matched TRPCError SERVICE_UNAVAILABLE,
@@ -6834,7 +6933,46 @@ export const appRouter = router({
             ...meta,
             taskDraft: null,
           };
+        } finally {
+          // F1 fix: any return path (early-exit guards, planner-throw catch,
+          // agent_disabled, provider_unavailable, …) that did not call
+          // `finalizeIdempotentResponse` left the in-progress lock alive
+          // for 60 s. Drop it here so the user's retry runs normally.
+          if (idempKey && !idempotencyFinalized) {
+            releaseRequestLock(idempKey);
+          }
+          // Drop the progress bucket. The client should already have
+          // pulled the terminal event by the time the chat mutation
+          // resolves; a small delay is acceptable since the bucket also
+          // self-expires via TTL.
+          if (idempKey) {
+            // Small grace period: clear after 2 s so a client that polled
+            // right before resolution still sees the final event.
+            setTimeout(() => clearOrbChatProgress(idempKey), 2_000).unref();
+          }
         }
+      }),
+
+    /**
+     * Poll progress milestones emitted by an in-flight `ai.chat` request.
+     * Pass the same `requestId` you sent on the chat mutation. The client
+     * uses this to render the inline thinking timeline so the otherwise-
+     * opaque planning window (≤ 20 s) is legible to the user.
+     */
+    chatProgress: protectedProcedure
+      .input(
+        z.object({
+          requestId: z.string().min(1).max(128),
+          sinceSeq: z.number().int().nonnegative().optional(),
+        })
+      )
+      .query(({ input }) => {
+        const events = readOrbChatProgress(input.requestId, input.sinceSeq ?? 0);
+        return {
+          events,
+          // The client uses this to advance its cursor without scanning.
+          lastSeq: events.length > 0 ? events[events.length - 1].seq : input.sinceSeq ?? 0,
+        };
       }),
 
     executeTools: brainProcedure

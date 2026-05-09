@@ -99,7 +99,12 @@ export function getProviderCatalog(): ProviderConfig[] {
       retryBudget: 1,
       estimatedCostTier: "low",
       requiredEnvKeys: [],
-      fallbackProviderIds: ["gemini", "minimax"],
+      // R2 fix: route AWAY from the primary, not back into it. The
+      // ai.chat catch-handler explicitly picks `default_llm` after a
+      // Gemini error, so the recovery chain must not re-suggest Gemini
+      // first. Health filtering already drops it, but the documented
+      // direction was misleading and could mask a real outage.
+      fallbackProviderIds: ["minimax"],
     },
     {
       id: "claudeCode",
@@ -260,7 +265,12 @@ function desiredProviderIds(input: ProviderRouteInput): string[] {
 function providerSupportsIntent(provider: ProviderConfig, intent: ProviderRouteIntent): boolean {
   switch (intent) {
     case "planner_multimodal":
-      return provider.supportsMultimodal || provider.kind === "llm";
+      // Must be a real multimodal-capable provider — `kind === "llm"` is NOT
+      // enough. The previous escape hatch let `default_llm` (which has
+      // supportsMultimodal=false and supportsImage/Audio/Video=false) win
+      // selection when Gemini was unhealthy, then receive image_url /
+      // file_url parts it can't decode.
+      return provider.supportsMultimodal;
     case "planner_pdf":
       return provider.supportsPdf || provider.supportsMultimodal;
     case "generate_image":

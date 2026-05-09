@@ -5,7 +5,7 @@ export interface AttachmentGuardResult {
   reason?: "too_large" | "unsupported";
   message?: string;
   totalBytes: number;
-  kinds: Array<"image" | "audio" | "video" | "pdf" | "unknown">;
+  kinds: Array<"image" | "audio" | "video" | "pdf" | "text" | "unknown">;
 }
 
 const LIMITS = {
@@ -13,16 +13,42 @@ const LIMITS = {
   audio: 20 * 1024 * 1024,
   video: 40 * 1024 * 1024,
   pdf: 12 * 1024 * 1024,
+  // Text-like documents (txt/md/docx) are usually inlined client-side, but
+  // they may still arrive as file_url through replayed history; keep the
+  // cap aligned with the rough docx upper bound.
+  text: 12 * 1024 * 1024,
 };
 
 const FRIENDLY = "這個檔案太大，我目前無法直接處理。請壓縮後再上傳，或先轉成較短的 MP3 / MP4 / PDF 摘要。";
 
-function inferKind(mime?: string): "image" | "audio" | "video" | "pdf" | "unknown" {
-  const lower = String(mime ?? "").toLowerCase();
+const PDF_MIME_EQUIVALENTS = new Set([
+  "application/pdf",
+  "application/x-pdf",
+  "application/acrobat",
+  "applications/vnd.pdf",
+]);
+
+const TEXT_MIME_EQUIVALENTS = new Set([
+  "text/plain",
+  "text/markdown",
+  "text/x-markdown",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+function inferKind(
+  mime?: string
+): "image" | "audio" | "video" | "pdf" | "text" | "unknown" {
+  const lower = String(mime ?? "").trim().toLowerCase();
+  if (!lower) return "unknown";
   if (lower.startsWith("image/")) return "image";
   if (lower.startsWith("audio/")) return "audio";
   if (lower.startsWith("video/")) return "video";
-  if (lower.includes("pdf")) return "pdf";
+  // Use explicit MIME equality rather than `.includes("pdf")` so a
+  // hypothetical `text/pdf-injection-attack` can't sneak through; also
+  // covers vendor variants like `application/x-pdf`.
+  if (PDF_MIME_EQUIVALENTS.has(lower)) return "pdf";
+  if (TEXT_MIME_EQUIVALENTS.has(lower)) return "text";
   return "unknown";
 }
 

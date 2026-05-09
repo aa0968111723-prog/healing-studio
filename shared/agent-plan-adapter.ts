@@ -430,6 +430,59 @@ export function adaptAgentPlanV3ToActions(plan: AgentPlanV3): AgentAction[] {
   return workflow ? [workflow] : [];
 }
 
+/**
+ * Phrases the planner is explicitly told (in `agentPlanner.ts`) NOT to
+ * leave inside fillPrompt text or toolArgs.prompt — but the system prompt
+ * is just a soft constraint and slow models occasionally return them
+ * anyway. Rejecting here forces the planner into clarification mode so
+ * the user isn't dumped onto a studio page with `你的主題` in the input.
+ */
+const PLACEHOLDER_PROMPT_MARKERS: readonly string[] = [
+  "[使用者澄清]",
+  "[使用者澄清/",
+  "你的主題",
+  "<待填入>",
+  "<待填寫>",
+  "<TBD>",
+  "TBD",
+  "<TODO>",
+  "<placeholder>",
+  "{{prompt}}",
+  "{prompt}",
+];
+
+function stringContainsPlaceholder(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  for (const marker of PLACEHOLDER_PROMPT_MARKERS) {
+    if (trimmed.includes(marker)) return true;
+  }
+  return false;
+}
+
+function valueContainsPlaceholder(value: unknown): boolean {
+  if (typeof value === "string") return stringContainsPlaceholder(value);
+  if (Array.isArray(value)) return value.some(valueContainsPlaceholder);
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).some(valueContainsPlaceholder);
+  }
+  return false;
+}
+
+function findPlanPlaceholderIssue(plan: AgentPlanV3): string | null {
+  for (const step of plan.steps ?? []) {
+    const action = step.action;
+    if (action?.type === "fillPrompt" && stringContainsPlaceholder(action.text)) {
+      return `Step ${step.id ?? "?"}: fillPrompt text still contains a placeholder marker — re-plan with a concrete prompt.`;
+    }
+    if (step.toolArgs && valueContainsPlaceholder(step.toolArgs)) {
+      return `Step ${step.id ?? "?"}: toolArgs still contains a placeholder marker — re-plan with concrete arguments.`;
+    }
+  }
+  return null;
+}
+
 function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
   const conditionValidationError = validateStepConditions(plan);
   if (conditionValidationError) {
@@ -494,6 +547,41 @@ function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
       decisionMode: "blocked",
       reason: evaluation.reasons.join(" / "),
     };
+  }
+
+  // Reject plans whose fillPrompt / toolArgs still carry a placeholder
+  // string — the user would otherwise land on the studio page with
+  // `你的主題` literally in the prompt textarea. Force clarification so
+  // the planner gets one more shot to ask for the concrete subject.
+  // Applied to both tasked and direct plans (direct plans hit the
+  // same fillPrompt slot via `adaptAgentPlanV3ToActions`).
+  if (
+    evaluation.decisionMode === "tasked" ||
+    evaluation.decisionMode === "direct"
+  ) {
+    const placeholderIssue = findPlanPlaceholderIssue(plan);
+    if (placeholderIssue) {
+      const askBack =
+        plan.clarificationQuestion ??
+        "請告訴我這次想做的具體主題（例如「秋日森林」、「夜晚海邊」），我才能直接幫你產出。";
+      return {
+        status: "clarification",
+        ok: true,
+        version: "agent-plan.v3",
+        plan,
+        actions: [],
+        askBeforeAct: false,
+        reply: askBack,
+        intent: plan.intent,
+        warnings: [...warnings, "placeholder-in-prompt"],
+        blockers: evaluation.blockers,
+        riskEvaluation: evaluation,
+        preferredEngine: evaluation.preferredEngine,
+        decisionMode: "clarification",
+        reason: placeholderIssue,
+        clarificationQuestion: askBack,
+      };
+    }
   }
 
   if (evaluation.decisionMode === "tasked") {
