@@ -72,6 +72,7 @@ import {
   ClarificationPromptCard,
   WorkflowConfirmationCard,
   WorkflowExecutionFloatingPanel,
+  NavigateConfirmCard,
 } from "@/contexts/GlobalOrbChatContext";
 import ConversationTabs from "@/components/orb/ConversationTabs";
 import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
@@ -2140,7 +2141,8 @@ export default function AgentChat() {
             floating 版本，避免雙重顯示。 */}
         {(globalChat.pendingClarification ||
           globalChat.pendingWorkflow ||
-          globalChat.workflowExecution) && (
+          globalChat.workflowExecution ||
+          globalChat.pendingNavigation) && (
           <motion.section
             key="inline-pending-cards"
             initial={{ opacity: 0, y: 8 }}
@@ -2152,14 +2154,24 @@ export default function AgentChat() {
             <div className="flex items-center gap-1.5 px-1">
               <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
               <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                {globalChat.pendingClarification
-                  ? "光球正在問你"
-                  : globalChat.pendingWorkflow
-                    ? "光球擬好計畫，等你確認"
-                    : "光球正在執行中"}
+                {globalChat.pendingNavigation
+                  ? "光球準備帶你跳頁，等你確認"
+                  : globalChat.pendingClarification
+                    ? "光球正在問你"
+                    : globalChat.pendingWorkflow
+                      ? "光球擬好計畫，等你確認"
+                      : "光球正在執行中"}
               </p>
             </div>
             <div className="flex flex-col gap-2 items-stretch">
+              {globalChat.pendingNavigation && (
+                <NavigateConfirmCard
+                  pendingNavigation={globalChat.pendingNavigation}
+                  isBusy={globalChat.isSending}
+                  onConfirm={globalChat.confirmPendingNavigation}
+                  onCancel={globalChat.cancelPendingNavigation}
+                />
+              )}
               {globalChat.pendingClarification && (
                 <ClarificationPromptCard
                   prompt={globalChat.pendingClarification}

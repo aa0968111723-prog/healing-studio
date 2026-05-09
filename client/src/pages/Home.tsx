@@ -19,7 +19,12 @@ import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 const OnboardingFlow = lazy(() => import("@/components/OnboardingFlow"));
+const ProactiveOrbWidget = lazy(
+  () => import("@/components/ProactiveOrbWidget")
+);
 import { useSiteOnboarding } from "@/contexts/SiteOnboardingContext";
+import { useOrbGuide } from "@/contexts/OrbGuideContext";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import {
   motion,
   AnimatePresence,
@@ -665,6 +670,8 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const { personality } = useAIState();
   const [, navigate] = useLocation();
+  const { openPanel: openOrbPanel } = useOrbGuide();
+  const globalChat = useGlobalOrbChat();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const {
     activeSurface: onboardingSurface,
@@ -860,13 +867,22 @@ export default function Home() {
     (completedMissions.length / HOME_ONBOARDING_MISSIONS.length) * 100
   );
 
-  const copyOrbPrompt = useCallback(async (prompt: string) => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-    } catch {
-      // ignore clipboard permission errors
-    }
-  }, []);
+  // 就地喚醒全站光球：開啟引導面板，必要時把 kickoff prompt 填入聊天框，
+  // 讓使用者不需要先跳到 /agent 才能開始與光球對話。
+  const launchOrbHere = useCallback(
+    (prompt?: string, demoFallback = false) => {
+      if (!isAuthenticated) {
+        window.location.href = demoFallback ? getDemoLoginUrl() : getLoginUrl();
+        return;
+      }
+      openOrbPanel();
+      if (prompt) {
+        globalChat.setInput(prompt);
+        globalChat.open();
+      }
+    },
+    [isAuthenticated, openOrbPanel, globalChat]
+  );
 
   const completeOrbLesson = useCallback((lessonId: string) => {
     setCompletedOrbLessons(prev => {
@@ -882,71 +898,46 @@ export default function Home() {
   );
 
   const startOrbGuidedOnboarding = useCallback(() => {
-    const kickoffPrompt =
-      "我是新手，請你從全站導覽開始，先帶我到最適合的創作工作室完成第一版。";
-    void copyOrbPrompt(kickoffPrompt);
-    if (!isAuthenticated) {
-      window.location.href = getDemoLoginUrl();
-      return;
-    }
-    navigate("/agent?mode=onboarding&entry=home");
-  }, [copyOrbPrompt, isAuthenticated, navigate]);
+    launchOrbHere(
+      "我是新手，請你從全站導覽開始，先帶我到最適合的創作工作室完成第一版。",
+      true
+    );
+  }, [launchOrbHere]);
 
   const startOrbBootcamp = useCallback(
-    (prompt: string, tutorial: string) => {
-      void copyOrbPrompt(prompt);
-      if (!isAuthenticated) {
-        window.location.href = getDemoLoginUrl();
-        return;
-      }
-      navigate(`/agent?tutorial=${tutorial}&entry=home`);
+    (prompt: string, _tutorial: string) => {
+      launchOrbHere(prompt, true);
     },
-    [copyOrbPrompt, isAuthenticated, navigate]
+    [launchOrbHere]
   );
 
   const startImageStudioTutorial = useCallback(() => {
-    const imageTutorialPrompt =
-      "請啟動圖片創作室教學：先幫我定用途與尺寸，再生成第一版 prompt，最後帶我到 image-studio 出 4 張可比較版本。";
-    void copyOrbPrompt(imageTutorialPrompt);
-    if (!isAuthenticated) {
-      window.location.href = getDemoLoginUrl();
-      return;
-    }
-    navigate("/agent?tutorial=image-studio&entry=home");
-  }, [copyOrbPrompt, isAuthenticated, navigate]);
+    launchOrbHere(
+      "請啟動圖片創作室教學：先幫我定用途與尺寸，再生成第一版 prompt，最後帶我到 image-studio 出 4 張可比較版本。",
+      true
+    );
+  }, [launchOrbHere]);
 
   const startVideoStudioTutorial = useCallback(() => {
-    const videoTutorialPrompt =
-      "請啟動影片工作室教學：先幫我定義影片目標與時長，再產生分鏡與 prompt，最後帶我到 video-studio 產出第一版。";
-    void copyOrbPrompt(videoTutorialPrompt);
-    if (!isAuthenticated) {
-      window.location.href = getDemoLoginUrl();
-      return;
-    }
-    navigate("/agent?tutorial=video-studio&entry=home");
-  }, [copyOrbPrompt, isAuthenticated, navigate]);
+    launchOrbHere(
+      "請啟動影片工作室教學：先幫我定義影片目標與時長，再產生分鏡與 prompt，最後帶我到 video-studio 產出第一版。",
+      true
+    );
+  }, [launchOrbHere]);
 
   const startMusicVoiceStudioTutorial = useCallback(() => {
-    const audioTutorialPrompt =
-      "請啟動音樂配音工作室教學：先定義用途與情緒，再生成音樂與配音指令，最後帶我到對應工作室產出第一版。";
-    void copyOrbPrompt(audioTutorialPrompt);
-    if (!isAuthenticated) {
-      window.location.href = getDemoLoginUrl();
-      return;
-    }
-    navigate("/agent?tutorial=music-voice-studio&entry=home");
-  }, [copyOrbPrompt, isAuthenticated, navigate]);
+    launchOrbHere(
+      "請啟動音樂配音工作室教學：先定義用途與情緒，再生成音樂與配音指令，最後帶我到對應工作室產出第一版。",
+      true
+    );
+  }, [launchOrbHere]);
 
   const startDirectorAITutorial = useCallback(() => {
-    const directorTutorialPrompt =
-      "請啟動導演 AI 教學：先定義成品目標，再把需求拆成圖影音任務，最後帶我到 director 執行第一版流程。";
-    void copyOrbPrompt(directorTutorialPrompt);
-    if (!isAuthenticated) {
-      window.location.href = getDemoLoginUrl();
-      return;
-    }
-    navigate("/agent?tutorial=director-ai&entry=home");
-  }, [copyOrbPrompt, isAuthenticated, navigate]);
+    launchOrbHere(
+      "請啟動導演 AI 教學：先定義成品目標，再把需求拆成圖影音任務，最後帶我到 director 執行第一版流程。",
+      true
+    );
+  }, [launchOrbHere]);
 
   const startGlobalSubpageTutorial = useCallback(
     (tutorialId: string, path: string, prompt: string) => {
@@ -959,23 +950,9 @@ export default function Home() {
 3) 給我「本頁第一步操作」與「完成判準」。
 4) 完成後再給我「下一站建議」與為什麼。
 ${profileSnippet}`;
-      void copyOrbPrompt(deepDivePrompt);
-      if (!isAuthenticated) {
-        window.location.href = getDemoLoginUrl();
-        return;
-      }
-      navigate(
-        `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&scope=all-pages&interactive=1&depth=station&entry=home`
-      );
+      launchOrbHere(deepDivePrompt, true);
     },
-    [
-      copyOrbPrompt,
-      isAuthenticated,
-      navigate,
-      teachingGoal,
-      teachingPace,
-      teachingLevel,
-    ]
+    [launchOrbHere, teachingGoal, teachingPace, teachingLevel]
   );
 
   const startInteractiveOrbStep = useCallback(
@@ -1000,30 +977,13 @@ ${profileSnippet}`;
         customPrompt ??
         `請啟動「${sectionLabel}」互動式導覽的這一步：${stepTitle}。${stepDescription}。請先問我 1-2 個必要問題，再帶我完成這一步，最後告訴我下一步。`;
       const profileSnippet = `教學設定：目標=${teachingGoal}，節奏=${teachingPace}，程度=${teachingLevel}。`;
-      void copyOrbPrompt(`${stepPrompt}\n${profileSnippet}`);
-      if (!isAuthenticated) {
-        window.location.href = getDemoLoginUrl();
-        return;
-      }
-      const params = new URLSearchParams({
-        tutorial: tutorialId,
-        step: stepId,
-        interactive: "1",
-        entry: "home",
-      });
-      if (targetPath) {
-        params.set("target", targetPath);
-      }
-      navigate(`/agent?${params.toString()}`);
+      const targetHint = targetPath ? `\n預定操作頁面：${targetPath}` : "";
+      launchOrbHere(
+        `${stepPrompt}\n${profileSnippet}${targetHint}\n（教學步驟 id=${stepId}, tutorial=${tutorialId}）`,
+        true
+      );
     },
-    [
-      copyOrbPrompt,
-      isAuthenticated,
-      navigate,
-      teachingGoal,
-      teachingPace,
-      teachingLevel,
-    ]
+    [launchOrbHere, teachingGoal, teachingPace, teachingLevel]
   );
 
   // ─── PageAgent 註冊（Phase 4b：首頁接入光球） ────────────────────────────
@@ -1102,11 +1062,11 @@ ${profileSnippet}`;
         <OnboardingFlow
           onComplete={() => {
             setShowOnboarding(false);
-            navigate("/agent");
+            launchOrbHere();
           }}
           onSkip={() => {
             setShowOnboarding(false);
-            navigate("/agent");
+            launchOrbHere();
           }}
         />
       </Suspense>
@@ -1194,7 +1154,7 @@ ${profileSnippet}`;
             </div>
             {isAuthenticated ? (
               <Button
-                onClick={() => navigate("/agent")}
+                onClick={() => launchOrbHere()}
                 className={`rounded-2xl gap-1.5 text-sm h-10 px-4 sm:px-6 btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 <span className="hidden sm:inline">開始創作</span>
@@ -1339,7 +1299,7 @@ ${profileSnippet}`;
               <MagneticTilt strength={10}>
                 <Button
                   size="lg"
-                  onClick={() => navigate("/agent")}
+                  onClick={() => launchOrbHere()}
                   className={`group relative overflow-hidden rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   style={{
                     boxShadow: `0 8px 32px ${s.glowColor}, 0 0 0 1px rgba(255,255,255,0.06) inset`,
@@ -1698,7 +1658,7 @@ ${profileSnippet}`;
                       {isAuthenticated ? (
                         <Button
                           size="lg"
-                          onClick={() => navigate("/agent")}
+                          onClick={() => launchOrbHere()}
                           className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                         >
                           開始創作
@@ -1741,6 +1701,15 @@ ${profileSnippet}`;
         intentResult={intentResult}
         isInferring={isIntentInferring}
       />
+
+      {/* ── 全站浮球：Home 沒有 DashboardLayout，這裡自己掛一顆，
+              讓 launchOrbHere() 觸發後 OrbGuidePanel 能就地浮出，
+              不必再先 navigate("/agent")。 ── */}
+      {isAuthenticated && (
+        <Suspense fallback={null}>
+          <ProactiveOrbWidget onNavigate={path => navigate(path)} />
+        </Suspense>
+      )}
 
       {/* ── Footer — healing minimal ── */}
       <footer className="py-10 sm:py-12 lg:py-14 px-4 sm:px-6 transition-colors duration-1000 relative z-10 mt-auto">

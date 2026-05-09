@@ -19,7 +19,6 @@ import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import { agentCollaborationSessions } from "../../drizzle/schema";
-import type { AgentRole } from "../../shared/orb-agent-roles";
 
 export const agentCollaborationRouter = router({
   /**

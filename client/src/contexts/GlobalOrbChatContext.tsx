@@ -99,6 +99,10 @@ import {
 import type { RunWorkflowAction } from "../../../shared/agent-actions";
 import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
 
+import {
+  getPageLabelByPath,
+} from "@/lib/orbChatHelpers";
+
 export {
   getPageLabelByPath,
   formatRelativeTime,
@@ -279,6 +283,17 @@ export interface PendingCodeTaskPreview {
   prUrl?: string;
   branchName?: string;
   testStatusSummary?: string;
+}
+
+// 光球準備跳頁前先給使用者看的「等一下要去哪、會做什麼」確認卡。
+// 不再讓 LLM 一返回 navigate action 就直接 setLocation；改成先把 path
+// 與待派的 actions 抓進 pending state，跳頁交給使用者按「前往」才發生。
+export interface PendingNavigation {
+  navigationId: string;
+  path: string;
+  pathLabel: string | null;
+  intent: string | null;
+  actions: AgentAction[];
 }
 
 // Legacy keys (single-session) — kept for the one-shot migration that lifts
@@ -1288,6 +1303,119 @@ export function WorkflowConfirmationCard({
 }
 
 /**
+ * NavigateConfirmCard — 光球準備跳頁前先給使用者看的確認卡。
+ * 顯示「等一下要去 X，會做這些事」+ ✓ 動作清單，按「前往」才實際 setLocation；
+ * 按「先不要」就停在當前頁、丟掉這趟跳頁的後續 actions。
+ *
+ * 取代過去 LLM 一回 navigate 就直接 teleport 的行為，避免使用者看到頁面突然
+ * 換掉、不知道光球做了什麼。
+ */
+function navigateConfirmActionLabel(action: AgentAction): string | null {
+  switch (action.type) {
+    case "navigate":
+      return null; // 已經在 header 講了「前往 X」，不重覆
+    case "setModel":
+      return `選模型：${action.modelId}`;
+    case "setTab":
+      return `切分頁：${action.tabId}`;
+    case "setMode":
+      return `切模式：${action.modeId}`;
+    case "setModality":
+      return `切類型：${action.modality}`;
+    case "fillPrompt":
+      return "填入提示詞";
+    case "setParam":
+      return `設參數：${action.key}`;
+    case "applyPreset":
+      return `套用：${action.presetId}`;
+    case "focusElement":
+      return `看這裡：${action.elementId}`;
+    case "submit":
+      return "送出生成";
+    case "runWorkflow":
+      return `跑流程：${action.name}`;
+    default:
+      return action.type;
+  }
+}
+
+export function NavigateConfirmCard({
+  pendingNavigation,
+  isBusy,
+  onConfirm,
+  onCancel,
+}: {
+  pendingNavigation: PendingNavigation | null;
+  isBusy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!pendingNavigation) return null;
+  const targetLabel =
+    pendingNavigation.pathLabel ?? pendingNavigation.path;
+  const stepLabels = pendingNavigation.actions
+    .map(navigateConfirmActionLabel)
+    .filter((label): label is string => Boolean(label));
+  const previewSteps = stepLabels.slice(0, 6);
+  const remaining = Math.max(stepLabels.length - previewSteps.length, 0);
+
+  return (
+    <div
+      className="pointer-events-auto w-full md:w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-emerald-200/25 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+      data-testid="orb-navigate-confirm-card"
+    >
+      <div className="text-xs uppercase tracking-[0.2em] text-emerald-200/70">
+        準備帶你去
+      </div>
+      <div className="mt-1 text-base font-semibold">{targetLabel}</div>
+      {pendingNavigation.intent && (
+        <div className="mt-2 text-sm leading-6 text-white/70">
+          {pendingNavigation.intent}
+        </div>
+      )}
+
+      {previewSteps.length > 0 && (
+        <div className="mt-3 rounded-2xl bg-white/8 p-3">
+          <div className="text-xs text-white/50">到了之後我會幫你做</div>
+          <div className="mt-2 space-y-1.5">
+            {previewSteps.map((label, idx) => (
+              <div key={`${pendingNavigation.navigationId}-${idx}`} className="flex items-start gap-2 text-xs">
+                <span className="text-emerald-300/80">✓</span>
+                <span className="text-white/85 leading-relaxed">{label}</span>
+              </div>
+            ))}
+            {remaining > 0 && (
+              <div className="text-[11px] text-white/45">還有 {remaining} 步…</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isBusy}
+          className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/75 hover:bg-white/15 disabled:opacity-50"
+          data-testid="orb-navigate-confirm-cancel"
+        >
+          先不要
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isBusy}
+          className="rounded-2xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-200 disabled:opacity-50"
+          data-testid="orb-navigate-confirm-go"
+        >
+          前往
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 顯示「step 內部現在在做什麼 + 已花了多少秒」。獨立成 component 是因為
  * elapsed timer 需要一秒 tick 一次，把 setInterval 隔離在這裡才不會強制
  * 整個 Floating Panel 每秒重新 render。
@@ -1665,6 +1793,11 @@ interface GlobalOrbChatContextValue {
   pendingWorkflow: PendingWorkflowPlan | null;
   /** Open clarification prompt waiting for the user to disambiguate intent. */
   pendingClarification: PendingClarificationPrompt | null;
+  /**
+   * 光球準備跳頁、等使用者按「前往」才執行。null 代表目前沒有等候中的跳頁。
+   * 只要 LLM 回傳含 navigate 的 actions，就會先寫進來，setLocation 不會自動觸發。
+   */
+  pendingNavigation: PendingNavigation | null;
   /** When false, the orb delivers text replies only — no actions, no workflows. */
   orbAgentEnabled: boolean;
   /** Multi-session: list of the user's conversation tabs, newest first. */
@@ -1688,6 +1821,10 @@ interface GlobalOrbChatContextValue {
   cancelPendingWorkflow: () => void;
   /** Submit the user's answer to the active clarification prompt. */
   answerClarification: (answer: string) => Promise<void>;
+  /** 使用者按下「前往」：放行 setLocation，光球繼續跑後續 actions。 */
+  confirmPendingNavigation: () => void;
+  /** 使用者按下「先不要」：取消跳頁，光球停在當前頁，丟棄相關 actions。 */
+  cancelPendingNavigation: () => void;
   /**
    * Submit batched answers to the active multi-dimension clarification card.
    * `extraNote` is appended as an `open` clarification when non-empty.
@@ -1759,6 +1896,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   workflowExecution: null,
   pendingWorkflow: null,
   pendingClarification: null,
+  pendingNavigation: null,
   orbAgentEnabled: ORB_AGENT_ENV_ENABLED,
   conversations: [],
   activeConversationId: "",
@@ -1776,6 +1914,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   answerClarification: async () => {},
   answerMultiClarification: async () => {},
   cancelClarification: () => {},
+  confirmPendingNavigation: () => {},
+  cancelPendingNavigation: () => {},
   createConversation: async () => "",
   switchConversation: async () => {},
   renameConversation: async () => {},
@@ -1829,6 +1969,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // continuations.
   const [latestServerTaskId, setLatestServerTaskId] = useState<string | null>(null);
   const [pendingCodeTask, setPendingCodeTask] = useState<PendingCodeTaskPreview | null>(null);
+  // 等使用者按「前往 / 先不要」的跳頁。resolverRef 拿著正在 await 的 promise
+  // 解，按「前往」resolve("confirm")，按「先不要」resolve("cancel")，
+  // navigate callback 收到後再決定要不要實際 setLocation。
+  const [pendingNavigation, setPendingNavigation] =
+    useState<PendingNavigation | null>(null);
+  const pendingNavigationResolverRef = useRef<
+    ((decision: "confirm" | "cancel") => void) | null
+  >(null);
   const [pendingClarification, setPendingClarificationState] = useState<PendingClarificationPrompt | null>(
     () => loadClarificationFromStorage().prompt
   );
@@ -2295,6 +2443,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               trimmedIntent.length > 60
                 ? `${trimmedIntent.slice(0, 58)}…`
                 : trimmedIntent;
+            // 不再讓光球自動跳頁。先把要去哪、會做什麼擺進 pendingNavigation
+            // 卡，等使用者按「前往」才 setLocation；按「先不要」就放棄這趟跳頁
+            // 與後續 actions（直接 throw 中斷 orchestrator chain）。
+            const decision = await new Promise<"confirm" | "cancel">(resolve => {
+              pendingNavigationResolverRef.current = resolve;
+              setPendingNavigation({
+                navigationId: `nav_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                path,
+                pathLabel: getPageLabelByPath(path),
+                intent: condensedIntent || (options.intent?.trim() ?? null),
+                actions: orchestratorActions,
+              });
+            });
+            if (decision === "cancel") {
+              throw new Error("user_cancelled_navigation");
+            }
             attachArrivalGuide({
               targetPath: path,
               actions: orchestratorActions,
@@ -2401,6 +2565,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
+      // 使用者按「先不要」取消跳頁，cancelPendingNavigation 已經寫了一句友善
+      // orb 回覆，這裡就不要再丟錯誤泡泡，也別把 workflow 標 failed。
+      if (reason === "user_cancelled_navigation") {
+        setWorkflowExecution(null);
+        orbState.setState("idle", "已取消跳頁");
+        return;
+      }
       console.error("[GlobalOrbChat] Action execution error:", reason);
       setWorkflowExecution(prev =>
         prev ? failWorkflowAtCurrentStep(prev, reason, Date.now()) : prev
@@ -3419,6 +3590,32 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     }]);
   }, [locationPath]);
 
+  const confirmPendingNavigation = useCallback(() => {
+    const resolver = pendingNavigationResolverRef.current;
+    pendingNavigationResolverRef.current = null;
+    setPendingNavigation(null);
+    resolver?.("confirm");
+  }, []);
+
+  const cancelPendingNavigation = useCallback(() => {
+    const resolver = pendingNavigationResolverRef.current;
+    pendingNavigationResolverRef.current = null;
+    const cancelled = pendingNavigation;
+    setPendingNavigation(null);
+    resolver?.("cancel");
+    if (cancelled) {
+      const dest = cancelled.pathLabel
+        ? `「${cancelled.pathLabel}」`
+        : cancelled.path;
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: `好，先不跳到 ${dest}。我就在這頁等你下一個指令 🌿`,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+    }
+  }, [locationPath, pendingNavigation]);
+
   const answerClarification = useCallback(async (answer: string) => {
     const trimmed = answer.trim();
     if (!trimmed) return;
@@ -3785,6 +3982,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     workflowExecution,
     pendingWorkflow,
     pendingClarification,
+    pendingNavigation,
     orbAgentEnabled: orbAgentEnabledResolved,
     conversations,
     activeConversationId,
@@ -3802,11 +4000,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     answerClarification,
     answerMultiClarification,
     cancelClarification,
+    confirmPendingNavigation,
+    cancelPendingNavigation,
     createConversation,
     switchConversation,
     renameConversation,
     deleteConversation,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, createConversation, switchConversation, renameConversation, deleteConversation]);
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, pendingNavigation, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, confirmPendingNavigation, cancelPendingNavigation, createConversation, switchConversation, renameConversation, deleteConversation]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
@@ -3844,6 +4044,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         const floatingClarification = onAgentPage ? null : pendingClarification;
         const floatingWorkflow = onAgentPage ? null : pendingWorkflow;
         const floatingExecution = onAgentPage ? null : (pendingWorkflow ? null : workflowExecution);
+        const floatingNavigation = onAgentPage ? null : pendingNavigation;
         return isMobile ? (
         <div
           data-testid="orb-card-stack-mobile"
@@ -3853,6 +4054,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             maxHeight: "calc(100vh - 6.5rem - env(safe-area-inset-bottom, 0px))",
           }}
         >
+          <NavigateConfirmCard
+            pendingNavigation={floatingNavigation}
+            isBusy={isSending}
+            onConfirm={confirmPendingNavigation}
+            onCancel={cancelPendingNavigation}
+          />
           <ClarificationPromptCard
             prompt={floatingClarification}
             isBusy={isSending}
@@ -3903,6 +4110,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             data-testid="orb-card-stack-right"
             className="fixed bottom-24 right-5 z-[88] flex flex-col-reverse items-end gap-3 max-h-[calc(100vh-7rem)] overflow-y-auto pointer-events-none"
           >
+            <NavigateConfirmCard
+              pendingNavigation={floatingNavigation}
+              isBusy={isSending}
+              onConfirm={confirmPendingNavigation}
+              onCancel={cancelPendingNavigation}
+            />
             <ClarificationPromptCard
               prompt={floatingClarification}
               isBusy={isSending}
