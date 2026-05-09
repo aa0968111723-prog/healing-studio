@@ -163,6 +163,10 @@ import { getDb, getSiteWideModelUsageSnapshot } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
 import {
+  selectRoleForIntent,
+  getPreferredProviderForRole,
+} from "../shared/orb-agent-roles";
+import {
   getProviderHealth,
   markProviderFailure,
   markProviderRecovered,
@@ -5863,10 +5867,35 @@ export const appRouter = router({
             : attachmentGuard.kinds.length > 0
             ? "planner_multimodal"
             : "planner_text";
+          // 12 精靈：依使用者最近一句話推誰要接手，再用該精靈偏好的 LLM
+          // 來跑 planner。Provider 不可用時 selectProvider 自己會走 fallback chain。
+          const lastUserMsgForRoute = [...input.messages]
+            .reverse()
+            .find(message => message.role === "user");
+          const lastUserTextForRoute =
+            typeof lastUserMsgForRoute?.content === "string"
+              ? lastUserMsgForRoute.content
+              : Array.isArray(lastUserMsgForRoute?.content)
+                ? lastUserMsgForRoute.content
+                    .filter((part: { type: string }) => part.type === "text")
+                    .map((part: { text?: string }) => part.text ?? "")
+                    .join("\n")
+                : "";
+          const spiritRoleForRoute = lastUserTextForRoute
+            ? selectRoleForIntent({
+                text: lastUserTextForRoute,
+                snapshot: input.pageSnapshot ?? null,
+                turnCount: input.messages.length,
+              }).role
+            : null;
+          const spiritPreferredProvider = spiritRoleForRoute
+            ? getPreferredProviderForRole(spiritRoleForRoute)
+            : undefined;
           if (providerRouterEnabled) {
             const selection = selectProvider({
               intent: routeIntent,
               riskLevel: "low",
+              preferredProviderId: spiritPreferredProvider,
             });
             if (!selection.provider) {
               appendTelemetryEvent(telemetryEvents, "provider.unavailable", {
