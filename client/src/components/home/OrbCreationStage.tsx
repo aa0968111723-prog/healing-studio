@@ -787,35 +787,57 @@ function InteractiveOrb({ tint, glow, excitement, busy }: InteractiveOrbProps) {
 
 function PlaceholderImage({ tint }: { tint: string }) {
   // Each card represents a different cinematographic interpretation that the
-  // agent would dispatch in parallel — shot type, lens, palette, subject pos.
+  // agent would dispatch in parallel — shot type, lens, palette, subject pos,
+  // composition guides, light direction, and a scan-line "render" pass so it
+  // reads as an actual generated image instead of a blurred silhouette.
   const variants = [
     {
       shot: "CU",
       lens: "85mm f/1.4",
+      iso: "ISO 200",
       mood: "戲劇",
-      subject: { x: 32, y: 48 },
+      subject: { x: 36, y: 50 },
+      faceScale: 1.0,
+      horizon: 0.62,
+      sun: { x: 78, y: 28, intensity: 0.9 },
       palette: ["#1f1535", "#7e3ad6", "#fde7c1"],
+      seed: "8a3f12",
     },
     {
       shot: "MS",
       lens: "50mm f/1.8",
+      iso: "ISO 400",
       mood: "情緒",
-      subject: { x: 65, y: 58 },
+      subject: { x: 62, y: 60 },
+      faceScale: 0.7,
+      horizon: 0.55,
+      sun: { x: 22, y: 24, intensity: 0.8 },
       palette: ["#231a3a", "#a85cd8", "#fdb1a7"],
+      seed: "4c2d91",
     },
     {
       shot: "WS",
       lens: "35mm f/2.0",
+      iso: "ISO 800",
       mood: "氛圍",
-      subject: { x: 50, y: 70 },
+      subject: { x: 50, y: 72 },
+      faceScale: 0.45,
+      horizon: 0.48,
+      sun: { x: 50, y: 18, intensity: 0.7 },
       palette: ["#3a2255", "#c478e8", "#fdf0d7"],
+      seed: "f7e205",
     },
     {
       shot: "OTS",
       lens: "24mm f/2.8",
+      iso: "ISO 320",
       mood: "敘事",
-      subject: { x: 38, y: 60 },
+      subject: { x: 38, y: 64 },
+      faceScale: 0.85,
+      horizon: 0.58,
+      sun: { x: 82, y: 30, intensity: 0.85 },
       palette: ["#101a3a", "#5a8de8", "#cfe1ff"],
+      seed: "12bd47",
     },
   ] as const;
 
@@ -826,39 +848,163 @@ function PlaceholderImage({ tint }: { tint: string }) {
           key={i}
           className="rounded-lg relative overflow-hidden"
           style={{
-            background: `linear-gradient(135deg, ${v.palette[0]} 0%, ${v.palette[1]} 60%, ${v.palette[2]} 100%)`,
+            background: `linear-gradient(180deg, ${v.palette[0]} 0%, ${v.palette[1]} ${Math.round(v.horizon * 100)}%, ${v.palette[2]} 100%)`,
             border: `1px solid ${tint}`,
           }}
           initial={{ opacity: 0, scale: 0.9, filter: "blur(8px)" }}
           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
           transition={{ delay: 0.15 + i * 0.12, duration: 0.5 }}
         >
+          {/* SVG scene — sky / sun / ground / silhouette so the card reads as
+              an actual photo composition, not a blurred ellipse. */}
+          <svg
+            viewBox="0 0 100 100"
+            className="absolute inset-0 w-full h-full"
+            preserveAspectRatio="none"
+            aria-hidden
+          >
+            <defs>
+              <radialGradient id={`sun-${i}`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(255,245,220,1)" />
+                <stop offset="40%" stopColor={`rgba(255,220,170,${v.sun.intensity * 0.65})`} />
+                <stop offset="100%" stopColor="rgba(255,220,170,0)" />
+              </radialGradient>
+              <linearGradient id={`ground-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={`${v.palette[2]}`} stopOpacity="0.55" />
+                <stop offset="100%" stopColor={`${v.palette[0]}`} stopOpacity="0.35" />
+              </linearGradient>
+              <linearGradient id={`subjBody-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(40,28,55,0.85)" />
+                <stop offset="100%" stopColor="rgba(20,15,30,0.95)" />
+              </linearGradient>
+            </defs>
+
+            {/* Horizon glow band — bridge between sky & ground */}
+            <rect
+              x="0"
+              y={v.horizon * 100 - 6}
+              width="100"
+              height="12"
+              fill={v.palette[2]}
+              opacity="0.18"
+            />
+
+            {/* Sun / light source */}
+            <circle
+              cx={v.sun.x}
+              cy={v.sun.y}
+              r="9"
+              fill={`url(#sun-${i})`}
+            />
+            <circle
+              cx={v.sun.x}
+              cy={v.sun.y}
+              r="2.8"
+              fill="rgba(255,250,235,0.95)"
+            />
+
+            {/* Ground / foreground */}
+            <rect
+              x="0"
+              y={v.horizon * 100}
+              width="100"
+              height={100 - v.horizon * 100}
+              fill={`url(#ground-${i})`}
+            />
+
+            {/* Subject silhouette — head + shoulders + body, scaled by shot.
+                For wide shots, smaller; for close-ups, larger and higher. */}
+            {(() => {
+              const cx = v.subject.x;
+              const cy = v.subject.y;
+              const s = v.faceScale;
+              const headR = 5 * s;
+              const headCy = cy - 7 * s;
+              const shoulderTop = cy - 1 * s;
+              const shoulderHalf = 7 * s;
+              const bodyBottom = Math.min(99, cy + 22 * s);
+              return (
+                <>
+                  {/* body / shoulders */}
+                  <path
+                    d={`M ${cx - shoulderHalf} ${shoulderTop}
+                        Q ${cx - shoulderHalf * 1.1} ${shoulderTop + 4 * s} ${cx - shoulderHalf * 1.3} ${bodyBottom}
+                        L ${cx + shoulderHalf * 1.3} ${bodyBottom}
+                        Q ${cx + shoulderHalf * 1.1} ${shoulderTop + 4 * s} ${cx + shoulderHalf} ${shoulderTop}
+                        Q ${cx} ${shoulderTop - 2 * s} ${cx - shoulderHalf} ${shoulderTop} Z`}
+                    fill={`url(#subjBody-${i})`}
+                  />
+                  {/* hair back */}
+                  <path
+                    d={`M ${cx - headR * 1.1} ${headCy + headR * 0.4}
+                        Q ${cx - headR * 1.3} ${headCy - headR * 0.8} ${cx} ${headCy - headR * 1.1}
+                        Q ${cx + headR * 1.3} ${headCy - headR * 0.8} ${cx + headR * 1.1} ${headCy + headR * 0.4} Z`}
+                    fill="rgba(30,20,40,0.95)"
+                  />
+                  {/* head */}
+                  <ellipse
+                    cx={cx}
+                    cy={headCy}
+                    rx={headR}
+                    ry={headR * 1.15}
+                    fill="rgba(245,220,195,0.92)"
+                    stroke="rgba(60,40,30,0.35)"
+                    strokeWidth="0.3"
+                  />
+                  {/* rim light from sun direction */}
+                  <ellipse
+                    cx={cx + (v.sun.x > 50 ? headR * 0.5 : -headR * 0.5)}
+                    cy={headCy - headR * 0.3}
+                    rx={headR * 0.4}
+                    ry={headR * 0.7}
+                    fill={`rgba(255,235,200,${v.sun.intensity * 0.5})`}
+                  />
+                </>
+              );
+            })()}
+          </svg>
+
           {/* Rule-of-thirds composition guide */}
           <div
-            className="absolute inset-0 pointer-events-none opacity-30"
+            className="absolute inset-0 pointer-events-none opacity-25"
             style={{
               backgroundImage:
-                "linear-gradient(to right, transparent 32.66%, rgba(255,255,255,0.5) 32.66%, rgba(255,255,255,0.5) 33.33%, transparent 33.33%, transparent 66%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 66.66%, transparent 66.66%), linear-gradient(to bottom, transparent 32.66%, rgba(255,255,255,0.5) 32.66%, rgba(255,255,255,0.5) 33.33%, transparent 33.33%, transparent 66%, rgba(255,255,255,0.5) 66%, rgba(255,255,255,0.5) 66.66%, transparent 66.66%)",
+                "linear-gradient(to right, transparent calc(33.33% - 0.5px), rgba(255,255,255,0.6) calc(33.33% - 0.5px), rgba(255,255,255,0.6) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), rgba(255,255,255,0.6) calc(66.66% - 0.5px), rgba(255,255,255,0.6) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)), linear-gradient(to bottom, transparent calc(33.33% - 0.5px), rgba(255,255,255,0.6) calc(33.33% - 0.5px), rgba(255,255,255,0.6) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), rgba(255,255,255,0.6) calc(66.66% - 0.5px), rgba(255,255,255,0.6) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px))",
             }}
           />
-          {/* Subject silhouette — positioned per rule-of-thirds intersection */}
+
+          {/* Subject focus crosshair — pin to the head of the silhouette so
+              users see where the agent locked focus. Subject anchor is at the
+              torso (subject.y) so the head sits ~7%·faceScale above it. */}
           <div
-            className="absolute rounded-full pointer-events-none"
+            className="absolute pointer-events-none"
             style={{
               left: `${v.subject.x}%`,
-              top: `${v.subject.y}%`,
-              width: "32%",
-              height: "38%",
-              background: `radial-gradient(circle, rgba(255,255,255,0.9) 0%, ${v.palette[2]}88 55%, transparent 100%)`,
+              top: `${Math.max(8, v.subject.y - 7 * v.faceScale)}%`,
+              width: 14,
+              height: 14,
               transform: "translate(-50%, -50%)",
-              filter: "blur(3px)",
             }}
-          />
+          >
+            <div
+              className="absolute inset-0 rounded-sm"
+              style={{ border: `1px solid ${tint}`, opacity: 0.85 }}
+            />
+            <div
+              className="absolute left-1/2 top-0 bottom-0 w-px"
+              style={{ background: tint, opacity: 0.7 }}
+            />
+            <div
+              className="absolute top-1/2 left-0 right-0 h-px"
+              style={{ background: tint, opacity: 0.7 }}
+            />
+          </div>
+
           {/* Shot label */}
           <div
             className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-semibold tracking-wider"
             style={{
-              background: "rgba(0,0,0,0.65)",
+              background: "rgba(0,0,0,0.7)",
               color: "#fff",
               border: `1px solid ${tint}`,
               backdropFilter: "blur(4px)",
@@ -866,19 +1012,32 @@ function PlaceholderImage({ tint }: { tint: string }) {
           >
             {v.shot}
           </div>
-          {/* Variant badge */}
-          <div
-            className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8px] font-semibold"
-            style={{ background: tint, color: "#fff" }}
-          >
-            V{i + 1}
+          {/* Variant + seed badge */}
+          <div className="absolute top-1 right-1 flex items-center gap-1">
+            <span
+              className="px-1 py-[1px] rounded text-[7px] font-mono"
+              style={{
+                background: "rgba(0,0,0,0.6)",
+                color: "rgba(255,255,255,0.95)",
+                border: `1px solid ${tint}`,
+              }}
+            >
+              #{v.seed}
+            </span>
+            <span
+              className="px-1.5 py-0.5 rounded-full text-[8px] font-semibold"
+              style={{ background: tint, color: "#fff" }}
+            >
+              V{i + 1}
+            </span>
           </div>
-          {/* Bottom info: lens, mood, palette dots */}
+
+          {/* Bottom EXIF strip: lens, ISO, mood, palette histogram */}
           <div className="absolute left-1 right-1 bottom-1 flex items-center gap-1 text-[7.5px]">
             <span
               className="px-1 py-0.5 rounded font-mono"
               style={{
-                background: "rgba(0,0,0,0.6)",
+                background: "rgba(0,0,0,0.65)",
                 color: "rgba(255,255,255,0.95)",
                 border: `1px solid ${tint}`,
                 backdropFilter: "blur(4px)",
@@ -887,9 +1046,20 @@ function PlaceholderImage({ tint }: { tint: string }) {
               {v.lens}
             </span>
             <span
+              className="px-1 py-0.5 rounded font-mono hidden sm:inline"
+              style={{
+                background: "rgba(0,0,0,0.65)",
+                color: "rgba(255,255,255,0.95)",
+                border: `1px solid ${tint}`,
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              {v.iso}
+            </span>
+            <span
               className="px-1 py-0.5 rounded"
               style={{
-                background: "rgba(0,0,0,0.6)",
+                background: "rgba(0,0,0,0.65)",
                 color: "rgba(255,255,255,0.95)",
                 border: `1px solid ${tint}`,
                 backdropFilter: "blur(4px)",
@@ -897,29 +1067,56 @@ function PlaceholderImage({ tint }: { tint: string }) {
             >
               {v.mood}
             </span>
-            <span className="ml-auto flex items-center gap-0.5">
-              {v.palette.map((c, j) => (
+            <span className="ml-auto flex items-end gap-px h-3">
+              {/* Tiny color histogram derived from palette */}
+              {[
+                { c: v.palette[0], h: 60 },
+                { c: v.palette[0], h: 80 },
+                { c: v.palette[1], h: 100 },
+                { c: v.palette[1], h: 70 },
+                { c: v.palette[2], h: 50 },
+                { c: v.palette[2], h: 35 },
+              ].map((b, j) => (
                 <span
                   key={j}
-                  className="w-1.5 h-1.5 rounded-full"
+                  className="w-[3px] rounded-t-sm"
                   style={{
-                    background: c,
-                    boxShadow: "0 0 0 1px rgba(255,255,255,0.5)",
+                    background: b.c,
+                    height: `${b.h}%`,
+                    boxShadow: "0 0 0 0.5px rgba(255,255,255,0.45)",
                   }}
                 />
               ))}
             </span>
           </div>
-          {/* Shimmer */}
+
+          {/* Active "rendering" scan line — staggered per card so the four
+              previews look like they're being painted by the agent. */}
+          <motion.div
+            className="absolute inset-x-0 h-[2px] pointer-events-none"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${tint}, transparent)`,
+              boxShadow: `0 0 8px ${tint}`,
+            }}
+            animate={{ top: ["-2px", "100%"] }}
+            transition={{
+              duration: 2.6,
+              delay: 0.3 + i * 0.4,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          />
+
+          {/* Soft shimmer for "wet paint" gloss */}
           <motion.div
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%)",
+                "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)",
             }}
             animate={{ x: ["-100%", "100%"] }}
             transition={{
-              duration: 2.4,
+              duration: 2.8,
               delay: 0.4 + i * 0.2,
               repeat: Infinity,
               ease: "easeInOut",
