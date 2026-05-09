@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Cloud, RefreshCw, Home, ShieldCheck } from "lucide-react";
-import { Component, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { Link } from "wouter";
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
 }
 
 const RELOAD_FLAG_KEY = "hs-chunk-reload-attempt";
@@ -40,11 +41,11 @@ function isChunkLoadError(error: Error | null): boolean {
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, componentStack: null };
   }
 
   private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -101,9 +102,14 @@ class ErrorBoundary extends Component<Props, State> {
     }
   }
 
-  componentDidCatch(error: Error) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.props.onError?.(error);
-    console.error("[ErrorBoundary]", error);
+    console.error("[ErrorBoundary]", error, errorInfo);
+
+    // componentStack lists every React component on the path to the throw —
+    // critical for diagnosing minified prod errors (#185, #300, etc) where
+    // error.message alone gives no clue which component is at fault.
+    this.setState({ componentStack: errorInfo.componentStack ?? null });
 
     // Stale chunk → force-reload once to pull a fresh index.html. The session
     // flag prevents a reload loop if the failure is genuinely persistent.
@@ -122,7 +128,7 @@ class ErrorBoundary extends Component<Props, State> {
       window.location.reload();
       return;
     }
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, componentStack: null });
   };
 
   render() {
@@ -224,8 +230,13 @@ class ErrorBoundary extends Component<Props, State> {
               <summary className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground/80 transition-colors">
                 技術細節（供進階使用者參考）
               </summary>
-              <pre className="mt-2 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground/70 whitespace-pre-wrap overflow-auto max-h-32">
-                {this.state.error.message}
+              <pre className="mt-2 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground/70 whitespace-pre-wrap overflow-auto max-h-64">
+                {this.state.error.name && this.state.error.name !== "Error"
+                  ? `${this.state.error.name}: ${this.state.error.message}`
+                  : this.state.error.message}
+                {this.state.componentStack
+                  ? `\n\nComponent stack:${this.state.componentStack}`
+                  : ""}
               </pre>
             </details>
           )}
