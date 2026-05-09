@@ -139,6 +139,13 @@ export const agentPreferences = mysqlTable(
     specialistProactiveMode: boolean("specialistProactiveMode").default(true).notNull(),
     specialistLearningEnabled: boolean("specialistLearningEnabled").default(true).notNull(),
     disabledSpecialistAgents: json("disabledSpecialistAgents").$type<string[]>().default([]).notNull(),
+    // ── 15 精靈關係偏好 ───────────────────────────────────────────────
+    // Spirits the user has muted (skipped during selectRoleForIntent
+    // routing) and the ones they've starred. Both are AgentRole id arrays
+    // (e.g. ["accountant", "inspector"]). Empty defaults — feature is
+    // additive, existing rows keep working without migration backfill.
+    mutedSpirits: json("mutedSpirits").$type<string[]>().default([]).notNull(),
+    favoriteSpirits: json("favoriteSpirits").$type<string[]>().default([]).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

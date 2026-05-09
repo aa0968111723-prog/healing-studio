@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { trpc } from "@/lib/trpc";
+import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
@@ -2279,6 +2280,25 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     if ((!trimmed && attachments.length === 0) || isSending) return;
     const requestedMode = options.requestedMode;
 
+    // 15 精靈 / 巧巧 (quality-coach)：使用者送出的 prompt 過短且沒 @ 點名，
+    // 巧巧主動跳出來建議補幾個維度。dedupe by hash 避免每打 1 字觸發一次。
+    // 條件刻意保守 — 只在「真的太短」(<8 char) 且「無附件、無 @-mention」時觸發。
+    if (
+      trimmed.length > 0 &&
+      trimmed.length < 8 &&
+      attachments.length === 0 &&
+      !/^@/.test(trimmed)
+    ) {
+      ProactiveEventBus.publish(
+        "prompt_too_short",
+        {
+          prompt: trimmed,
+          suggestedAddition: "場景、風格、用途其中一個",
+        },
+        { dedupeKey: trimmed.slice(0, 4), dedupeMs: 60_000 }
+      );
+    }
+
     // Stamp this turn so any awaited result that resolves after the user
     // clears history (or kicks off a newer turn) can be detected and
     // discarded before it mutates state.
@@ -2488,6 +2508,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             disabledActionsByPage:
               (prefRow as { disabledActionsByPage?: Record<string, string[]> })
                 .disabledActionsByPage,
+            // 15 精靈：mutedSpirits 進去後，server 的 selectRoleForIntent 會
+            // 跳過這些角色的 KEYWORD_RULE。favoriteSpirits 不影響路由（純 UI hint）
+            // 但仍順手帶過去 — 未來 ProactiveEventBus 用得到。
+            mutedSpirits:
+              (prefRow as { mutedSpirits?: string[] }).mutedSpirits,
+            favoriteSpirits:
+              (prefRow as { favoriteSpirits?: string[] }).favoriteSpirits,
           }
         : undefined;
       // When the user pasted a long brief, pre-parse it and stamp the
@@ -2983,6 +3010,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const reason = err instanceof Error ? err.message : String(err);
       console.error("[GlobalOrbChat] Send error:", reason);
       orbState.setState("error", `連線不穩：${reason.slice(0, 40)}`);
+
+      // 15 精靈 / 守守 (inspector)：聊天 mutation 失敗 = 站上有東西爆掉。
+      // 守守主動跳出來給「現在你可以這樣繞過」的訊息，不只是冷冰冰的錯誤。
+      // dedupeKey 用 reason 前 16 字 — 同樣錯誤 30s 內只通知一次。
+      ProactiveEventBus.publish(
+        "site_error_detected",
+        {
+          endpoint: "ai.chat",
+          errorCode: err instanceof Error && "data" in err
+            ? String((err as { data?: { code?: unknown } }).data?.code ?? "unknown")
+            : "unknown",
+          workaround: "稍等 10 秒後再送一次，或重新整理頁面",
+        },
+        { dedupeKey: reason.slice(0, 16) }
+      );
       setWorkflowExecution(prev => prev ? {
         ...prev,
         status: "failed",
