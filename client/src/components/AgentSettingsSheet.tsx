@@ -50,6 +50,7 @@ import {
   type AgentConfirmationPolicy,
 } from "@shared/agent-preferences";
 import ToolQuickSelectChips from "@/components/ToolQuickSelectChips";
+import { SPIRITS } from "@/lib/spiritsVisual";
 
 type BehaviorMode = "pure_chat" | "semi_auto" | "auto";
 
@@ -170,6 +171,10 @@ export default function AgentSettingsSheet({
   const [blockedCsv, setBlockedCsv] = useState("");
   const [orbAgentEnabled, setOrbAgentEnabled] = useState<boolean | null>(null);
   const [workflowsEnabled, setWorkflowsEnabled] = useState<boolean | null>(null);
+  // 15 精靈：靜音 / 最愛清單。儲存型態 = AgentRole id 字串陣列。
+  // mute = 路由跳過該精靈；favorite = 純 UI hint（deck 顯示星星 + 未來 ProactiveEventBus 優先通知）。
+  const [mutedSpirits, setMutedSpirits] = useState<string[]>([]);
+  const [favoriteSpirits, setFavoriteSpirits] = useState<string[]>([]);
 
   useEffect(() => {
     if (!prefsQuery.data) return;
@@ -187,6 +192,8 @@ export default function AgentSettingsSheet({
     setWorkflowsEnabled(
       typeof initial.workflowsEnabled === "boolean" ? initial.workflowsEnabled : null
     );
+    setMutedSpirits(Array.isArray(initial.mutedSpirits) ? initial.mutedSpirits : []);
+    setFavoriteSpirits(Array.isArray(initial.favoriteSpirits) ? initial.favoriteSpirits : []);
   }, [
     prefsQuery.data,
     initial.confirmationPolicy,
@@ -197,6 +204,8 @@ export default function AgentSettingsSheet({
     initial.blockedTools,
     initial.orbAgentEnabled,
     initial.workflowsEnabled,
+    initial.mutedSpirits,
+    initial.favoriteSpirits,
   ]);
 
   const handleSave = () => {
@@ -213,7 +222,19 @@ export default function AgentSettingsSheet({
       blockedTools: csvToArray(blockedCsv),
       orbAgentEnabled,
       workflowsEnabled,
+      mutedSpirits,
+      favoriteSpirits,
     });
+  };
+
+  // 15 精靈：toggle helper — 加入 / 移除某 id。state 仍 string[]，
+  // 但 SPIRITS 的 id 都是 AgentRole 列表中的有效值，不會多寫進無關字串。
+  const toggleInList = (
+    list: string[],
+    setList: (next: string[]) => void,
+    id: string,
+  ) => {
+    setList(list.includes(id) ? list.filter(x => x !== id) : [...list, id]);
   };
 
   return (
@@ -241,6 +262,9 @@ export default function AgentSettingsSheet({
                 </TabsTrigger>
                 <TabsTrigger value="tools" className="text-xs">
                   工具許可
+                </TabsTrigger>
+                <TabsTrigger value="spirits" className="text-xs">
+                  15 精靈
                 </TabsTrigger>
                 <TabsTrigger value="global" className="text-xs">
                   全站開關
@@ -375,6 +399,84 @@ export default function AgentSettingsSheet({
               </TabsContent>
 
               {/* ── 全站開關 ──────────────────────────────────────── */}
+              {/* ── 15 精靈關係 ────────────────────────────────────── */}
+              <TabsContent value="spirits" className="space-y-3 pt-4">
+                <section className="space-y-2">
+                  <header>
+                    <h3 className="text-sm font-medium">15 精靈關係偏好</h3>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      靜音 = 路由不再交給這位（你 @點名 仍然會接）。最愛 = 視覺加星標，未來主動精靈通知會優先這幾位。
+                    </p>
+                  </header>
+                  <div className="space-y-1.5">
+                    {SPIRITS.map(spirit => {
+                      const isMuted = mutedSpirits.includes(spirit.id);
+                      const isFavorite = favoriteSpirits.includes(spirit.id);
+                      return (
+                        <div
+                          key={spirit.id}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-card/30 px-3 py-2"
+                          data-testid={`spirit-pref-row-${spirit.id}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span
+                              className={`inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br ${spirit.gradient} text-white text-sm shadow-sm shrink-0`}
+                              aria-hidden
+                            >
+                              {spirit.emoji}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium truncate">
+                                {spirit.nickname}
+                                <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">
+                                  {spirit.label}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {spirit.vibe}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => toggleInList(favoriteSpirits, setFavoriteSpirits, spirit.id)}
+                              data-testid={`spirit-pref-favorite-${spirit.id}`}
+                              aria-pressed={isFavorite}
+                              aria-label={`${isFavorite ? "取消" : "加入"}最愛：${spirit.nickname}`}
+                              className={`text-base leading-none transition-transform hover:scale-110 ${
+                                isFavorite ? "opacity-100" : "opacity-30"
+                              }`}
+                              title={isFavorite ? "已加入最愛 — 點一下取消" : "加入最愛"}
+                            >
+                              ⭐
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleInList(mutedSpirits, setMutedSpirits, spirit.id)}
+                              data-testid={`spirit-pref-mute-${spirit.id}`}
+                              aria-pressed={isMuted}
+                              aria-label={`${isMuted ? "取消靜音" : "靜音"}：${spirit.nickname}`}
+                              className={`text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${
+                                isMuted
+                                  ? "bg-rose-500/15 text-rose-600 dark:text-rose-300"
+                                  : "bg-muted/40 text-muted-foreground hover:bg-muted"
+                              }`}
+                              title={isMuted ? "已靜音 — 點一下解除" : "靜音這位精靈（@點名仍會接）"}
+                            >
+                              {isMuted ? "已靜音" : "靜音"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed pt-1">
+                    記得按下方的「儲存」才會送到後端 selectRoleForIntent。
+                  </p>
+                </section>
+              </TabsContent>
+
               <TabsContent value="global" className="space-y-3 pt-4">
                 <TriStateSection
                   title="代理人總開關"

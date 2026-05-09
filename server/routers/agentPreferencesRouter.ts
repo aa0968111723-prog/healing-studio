@@ -64,6 +64,10 @@ const UpdateSchema = z.object({
   onboardingCompletedAt: z
     .union([z.date(), z.string().datetime(), z.null()])
     .optional(),
+  // 15 精靈關係偏好 — 兩個都是 AgentRole id 陣列。空陣列 = 沒人靜音 / 沒人加最愛。
+  // 上限 15（總共也只有 15 位）— 防止使用者塞無關 id 進來把資料庫 bloat 起來。
+  mutedSpirits: z.array(z.string().max(40)).max(15).optional(),
+  favoriteSpirits: z.array(z.string().max(40)).max(15).optional(),
 });
 
 async function ensurePreferences(userId: number) {
@@ -102,11 +106,25 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
     await addColumnIfMissing("specialistProactiveMode", "specialistProactiveMode boolean NOT NULL DEFAULT true");
     await addColumnIfMissing("specialistLearningEnabled", "specialistLearningEnabled boolean NOT NULL DEFAULT true");
     await addColumnIfMissing("disabledSpecialistAgents", "disabledSpecialistAgents json NOT NULL");
+    // 15 精靈關係偏好欄位（mute / favorite）— 比 disabledSpecialistAgents 後加。
+    // 預設 NULL，下面 UPDATE 把 NULL 補成空陣列，避免 ORM 拿到 null 拋型別錯誤。
+    await addColumnIfMissing("mutedSpirits", "mutedSpirits json NULL");
+    await addColumnIfMissing("favoriteSpirits", "favoriteSpirits json NULL");
 
     await db.execute(sql`
       UPDATE agent_preferences
       SET disabledSpecialistAgents = JSON_ARRAY()
       WHERE disabledSpecialistAgents IS NULL
+    `);
+    await db.execute(sql`
+      UPDATE agent_preferences
+      SET mutedSpirits = JSON_ARRAY()
+      WHERE mutedSpirits IS NULL
+    `);
+    await db.execute(sql`
+      UPDATE agent_preferences
+      SET favoriteSpirits = JSON_ARRAY()
+      WHERE favoriteSpirits IS NULL
     `);
   })().catch(err => {
     ensureSchemaOnce = null;

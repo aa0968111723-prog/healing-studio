@@ -44,6 +44,9 @@ import {
 } from "@/contexts/SiteOnboardingContext";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { useProactiveSpiritEvents } from "@/lib/proactiveSpiritEvents";
+import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
@@ -548,6 +551,46 @@ function DashboardLayoutContent({
   const { settings } = usePersonalSettings();
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
+
+  // 15 精靈：訂閱 ProactiveEventBus，依使用者 mutedSpirits 跳過被靜音的精靈。
+  // 拉到 layout 這層，整個應用任何地方 publish 都會被 toast 接到。
+  const proactivePrefsQuery = trpc.agentPreferences.getPreferences.useQuery(undefined, {
+    enabled: Boolean(user),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const mutedSpiritsForBus = useMemo(() => {
+    const raw = (proactivePrefsQuery.data as { mutedSpirits?: string[] } | undefined)?.mutedSpirits;
+    return Array.isArray(raw) ? raw : [];
+  }, [proactivePrefsQuery.data]);
+  useProactiveSpiritEvents(mutedSpiritsForBus);
+
+  // 15 精靈 / 財財 (accountant)：點數餘額 query。掉到門檻以下時 publish
+  // monthly_spend_threshold，讓 toast 出現「本月剩 N 點」提示。
+  // 沒有 monthlyAllowance 資料 — 用「remaining 低於 100」當粗略門檻。
+  // 實際金流接上之後，這段直接換成 % 計算就行。
+  const balanceQuery = trpc.credits.myBalance.useQuery(undefined, {
+    enabled: Boolean(user),
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60_000,
+  });
+  useEffect(() => {
+    const remaining = balanceQuery.data?.remaining;
+    if (typeof remaining !== "number") return;
+    const LOW_THRESHOLD = 100;
+    if (remaining > LOW_THRESHOLD) return;
+    // dedupeKey 用 user.id + bucket — 同一使用者同一天最多通知一次。
+    const day = Math.floor(Date.now() / 86_400_000);
+    ProactiveEventBus.publish(
+      "monthly_spend_threshold",
+      {
+        usedPct: 90,
+        remainingCredits: remaining,
+        topModel: "(待接入)",
+      },
+      { dedupeKey: `low-balance-${user?.id ?? "anon"}-${day}`, dedupeMs: 86_400_000 }
+    );
+  }, [balanceQuery.data?.remaining, user?.id]);
 
   const isAdmin = user?.role === "admin";
   const displayName = settings.displayName.trim() || user?.name || "使用者";

@@ -94,6 +94,14 @@ export async function loadAgentPreferencesForUser(
       pacingOverride:
         row.pacingOverride ?? DEFAULT_AGENT_PREFERENCES.pacingOverride,
       onboardingCompletedAt: row.onboardingCompletedAt ?? null,
+      // 15 精靈關係偏好。同樣 array-guard，沒欄位 / null 時 fall 到空陣列，
+      // selectRoleForIntent 收到 [] 等於不靜音任何人，行為跟舊版一致。
+      mutedSpirits: Array.isArray((row as { mutedSpirits?: unknown }).mutedSpirits)
+        ? ((row as { mutedSpirits?: string[] }).mutedSpirits ?? [])
+        : [],
+      favoriteSpirits: Array.isArray((row as { favoriteSpirits?: unknown }).favoriteSpirits)
+        ? ((row as { favoriteSpirits?: string[] }).favoriteSpirits ?? [])
+        : [],
       createdAt: row.createdAt ?? undefined,
       updatedAt: row.updatedAt ?? undefined,
     };

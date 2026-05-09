@@ -5,8 +5,10 @@
  * Manages agent handoffs, shared context, and multi-agent workflows.
  */
 
-import type {
-  AgentRole
+import {
+  SPIRIT_COLLAB_PROTOCOL,
+  type AgentRole,
+  type SpiritHandoff,
 } from "../../shared/orb-agent-roles";
 import type {
   AgentMessage,
@@ -313,6 +315,86 @@ class AgentCollaborationOrchestratorClass {
     candidates.sort((a, b) => b.score - a.score);
 
     return candidates.length > 0 ? candidates[0].agent : null;
+  }
+
+  /**
+   * 15 精靈：依 SPIRIT_COLLAB_PROTOCOL 查 fromAgent 的下一棒建議。
+   * 純 read-only — 給 UI 「他做完會交給誰」chip / chain runner 預設順序用。
+   * 可選 mutedRoles，篩掉使用者靜音的精靈。
+   */
+  getProtocolHandoffsFor(
+    fromAgent: AgentRole,
+    options?: { mutedRoles?: ReadonlyArray<AgentRole> }
+  ): SpiritHandoff[] {
+    const spec = SPIRIT_COLLAB_PROTOCOL[fromAgent];
+    if (!spec) return [];
+    const muted = new Set<AgentRole>(options?.mutedRoles ?? []);
+    return spec.handoffs.filter(h => !muted.has(h.to));
+  }
+
+  /**
+   * 15 精靈：直接依 SPIRIT_COLLAB_PROTOCOL 把當前 session 交棒給下一位。
+   * 使用情境：UI 顯示「他做完會交給編編 — 確定？」按下後 client 呼叫這裡，
+   * orchestrator 真的把 session.currentAgent 切過去並寫進 handoffs DB。
+   *
+   * 匹配策略（簡單但夠用）：
+   *   1. 若有 whenHint，先嘗試 substring match SpiritHandoff.when
+   *   2. 找不到 → 回傳 handoffs[0]（protocol 裡列在最前面的就是預設）
+   *   3. 整條 handoffs 都被 mute 過濾掉 → 回 null（呼叫端決定 fallback）
+   */
+  async executeProtocolHandoff(args: {
+    collaborationId: string;
+    fromAgent: AgentRole;
+    whenHint?: string;
+    mutedRoles?: ReadonlyArray<AgentRole>;
+    extraContext?: Record<string, unknown>;
+  }): Promise<{ executed: boolean; handoff: SpiritHandoff | null; toAgent: AgentRole | null }> {
+    const candidates = this.getProtocolHandoffsFor(args.fromAgent, {
+      mutedRoles: args.mutedRoles,
+    });
+    if (candidates.length === 0) {
+      logger.debug("protocol_handoff_no_candidates", {
+        fromAgent: args.fromAgent,
+        muted: args.mutedRoles ?? [],
+      });
+      return { executed: false, handoff: null, toAgent: null };
+    }
+
+    const picked: SpiritHandoff = (() => {
+      if (args.whenHint) {
+        const hint = args.whenHint.toLowerCase();
+        const matched = candidates.find(h => h.when.toLowerCase().includes(hint));
+        if (matched) return matched;
+      }
+      return candidates[0];
+    })();
+
+    const session = this.activeSessions.get(args.collaborationId)
+      ?? Array.from(this.activeSessions.values()).find(
+        s => s.collaborationId === args.collaborationId
+      );
+    if (!session) {
+      logger.warn("protocol_handoff_no_session", { collaborationId: args.collaborationId });
+      return { executed: false, handoff: picked, toAgent: picked.to };
+    }
+
+    // 構造 AgentHandoff 並交給既有的 executeHandoff — 它會處理 DB 寫入、
+    // bus publish、session.currentAgent 切換。我們不重複實作那段邏輯。
+    // SpiritHandoff.when 透過 nextAction 帶下去（語意夠近 — 「他應該做什麼」），
+    // executeHandoff 會把整個 context 寫進 contextTransferred JSON 欄位。
+    const mergedContext = {
+      ...session.sharedContext,
+      ...(args.extraContext ?? {}),
+    };
+    const handoff: AgentHandoff = {
+      fromAgent: args.fromAgent,
+      toAgent: picked.to,
+      reason: picked.reason,
+      context: mergedContext,
+      nextAction: picked.when,
+    };
+    await this.executeHandoff(handoff);
+    return { executed: true, handoff: picked, toAgent: picked.to };
   }
 
   /**
