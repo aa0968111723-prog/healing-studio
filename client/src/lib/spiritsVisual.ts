@@ -233,3 +233,18 @@ export function getSpiritVisual(role: string | undefined | null): SpiritVisual |
   if (!role) return null;
   return (SPIRITS_BY_ID as Record<string, SpiritVisual>)[role] ?? null;
 }
+
+/** UI 標籤 — 多代理討論面板用，依 family 分區顯示。 */
+export const SPIRIT_FAMILY_LABEL: Record<SpiritFamily, string> = {
+  specialist: "專精精靈（圖 / 影 / 音 / 聲 / 訓 / 學）",
+  role: "通用同事（導 / 編 / 品 / 查 / 路 / 暖）",
+  proactive: "主動精靈（財 / 巧 / 守）",
+};
+
+/** 列出某個 family 下所有 spirit 視覺資料，供討論面板顯示成可勾選清單。 */
+export function getSpiritsByFamily(family: SpiritFamily): SpiritVisual[] {
+  return SPIRITS.filter(s => s.family === family);
+}
+
+/** 順序固定的 family 列表，做 UI grouping iteration 用。 */
+export const SPIRIT_FAMILIES: SpiritFamily[] = ["role", "specialist", "proactive"];
