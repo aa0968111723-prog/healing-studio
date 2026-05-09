@@ -68,6 +68,7 @@ import { useLocation } from "wouter";
 import { getPageByPath } from "@/config/appRegistry";
 import { useIsMobile } from "@/hooks/useMobile";
 import { cn } from "@/lib/utils";
+import { getSpiritVisual } from "@/lib/spiritsVisual";
 import {
   useGlobalOrbChat,
   type ChatAttachment,
@@ -2807,9 +2808,27 @@ export default memo(function ProactiveOrbWidget({
                         className="flex flex-col"
                       >
                         <div className="px-5 py-2 max-h-[60vh] overflow-y-auto space-y-2.5">
-                          {chatMessages.map((msg, i) => (
+                          {chatMessages.map((msg, i) => {
+                            // 15 精靈：server 在 ai.chat 回應上掛了 agentRole，hydrate
+                            // 過後 ChatMessage.agentRole 也存在 metadata 裡。沒有就不顯示，
+                            // 不在這裡 fallback 推論 — 推論交給 AgentChat 頁，widget 維持
+                            // 「server 說誰回的，就顯示誰」。
+                            const spirit = msg.role === "orb"
+                              ? getSpiritVisual((msg as { agentRole?: string }).agentRole)
+                              : null;
+                            return (
                             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                               <div className="flex flex-col gap-0.5 max-w-[85%]">
+                                {spirit && (
+                                  <span
+                                    className={`self-start mb-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r ${spirit.gradient} text-white text-[10px] font-medium shadow-sm`}
+                                    data-testid={`widget-message-spirit-${spirit.id}`}
+                                    title={spirit.vibe}
+                                  >
+                                    <span aria-hidden>{spirit.emoji}</span>
+                                    <span>{spirit.nickname}</span>
+                                  </span>
+                                )}
                                 <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${
                                   msg.role === "user"
                                     ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
@@ -2890,7 +2909,8 @@ export default memo(function ProactiveOrbWidget({
                                 )}
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                           {isChatLoading && (
                             <div className="flex justify-start">
                               <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
@@ -3339,12 +3359,27 @@ export default memo(function ProactiveOrbWidget({
                   >
                     {/* Chat Messages */}
                     <div className="px-4 py-2 max-h-56 overflow-y-auto space-y-2.5">
-                      {chatMessages.map((msg, i) => (
+                      {chatMessages.map((msg, i) => {
+                        // 15 精靈：迷你版聊天列也顯示「誰回的」chip。同上 — server 沒給就不顯示。
+                        const spirit = msg.role === "orb"
+                          ? getSpiritVisual((msg as { agentRole?: string }).agentRole)
+                          : null;
+                        return (
                         <div
                           key={i}
                           className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                         >
                           <div className="flex flex-col gap-0.5 max-w-[85%]">
+                            {spirit && (
+                              <span
+                                className={`self-start mb-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r ${spirit.gradient} text-white text-[9px] font-medium shadow-sm`}
+                                data-testid={`widget-mini-message-spirit-${spirit.id}`}
+                                title={spirit.vibe}
+                              >
+                                <span aria-hidden>{spirit.emoji}</span>
+                                <span>{spirit.nickname}</span>
+                              </span>
+                            )}
                             <div
                               className={`px-3.5 py-2.5 text-xs leading-relaxed ${
                                 msg.role === "user"
@@ -3428,7 +3463,8 @@ export default memo(function ProactiveOrbWidget({
                             )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                       {/* Typing indicator */}
                       {isChatLoading && (
                         <div className="flex justify-start">
