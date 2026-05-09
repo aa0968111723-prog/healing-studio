@@ -42,6 +42,7 @@ import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
+import { agentModelPicksRouter } from "./routers/agentModelPicksRouter";
 import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { orbProxyRouter } from "./routers/orbProxyRouter";
 import { orbConversationsRouter } from "./routers/orbConversationsRouter";
@@ -1008,6 +1009,7 @@ export const appRouter = router({
   apiUsage: apiUsageRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
+  agentModelPicks: agentModelPicksRouter,
   orbCapabilities: orbCapabilitiesRouter,
   orbProxy: orbProxyRouter,
   orbConversations: orbConversationsRouter,

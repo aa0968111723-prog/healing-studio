@@ -87,6 +87,15 @@ import {
   readAndClearDirectorHandoff,
   type DirectorHandoffPayload,
 } from "@/lib/director-handoff";
+import {
+  parseIntentSegments,
+  type IntentOption,
+} from "@/lib/intentOptions";
+import IntentCardOptions from "@/components/IntentCardOptions";
+import {
+  dispatchToStudio,
+  studioRouteLabel,
+} from "@/lib/send-to-studio";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1288,6 +1297,12 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     }
   }, [modelsQuery.data, modelOptions, brainDefaults]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Best-effort recorder — fires when the user dispatches a task to a studio
+  // so the (modality, modelId) pick lands in the shared `agent_model_picks`
+  // table. The orb's preference distiller reads from the same table, so a
+  // pick made here is exactly what the global agent learns from.
+  const recordPick = trpc.agentModelPicks.recordPick.useMutation();
+
   const handleGenerate = useCallback(
     (task: GenerationTask) => {
       if (!task.prompt.trim()) {
@@ -1300,16 +1315,22 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
         return;
       }
 
-      // Send to studio with the specific model override
-      sessionStorage.setItem(
-        "sendToStudio",
-        JSON.stringify({
+      // Persist the pick first (fire-and-forget) — must NOT await: the
+      // network round-trip would visibly delay the navigation.
+      recordPick.mutate({
+        modality: task.modality,
+        modelId,
+        source: "director_ai",
+        context: { sceneHeading: segment.storyboard.sceneHeading },
+      });
+
+      const route = dispatchToStudio({
+        payload: {
           prompt: task.prompt,
           generationType: task.modality,
           overrideEngine: modelId,
           source: "director_ai",
           sceneName: segment.storyboard.sceneHeading,
-          // Include context metadata for studio
           musicStyle: task.modality === "audio" ? task.prompt : undefined,
           audioScript: task.modality === "voice" ? task.prompt : undefined,
           segmentContext: {
@@ -1317,22 +1338,14 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
             mood: segment.storyboard.mood,
             duration: segment.storyboard.duration,
           },
-        })
-      );
-      const targetPath =
-        task.modality === "image"
-          ? "/image-studio"
-          : task.modality === "video"
-            ? "/video-studio"
-            : task.modality === "audio" || task.modality === "voice"
-              ? "/pro-studio"
-            : "/studio";
-      navigate(targetPath);
+        },
+        navigate,
+      });
       toast.success(
-        `已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`
+        `已發送「${task.labelZh}」到${studioRouteLabel(route)}（${modelId}）`
       );
     },
-    [selectedModels, segment, navigate]
+    [selectedModels, segment, navigate, recordPick]
   );
 
   const handleGenerateAll = useCallback(() => {
@@ -1351,9 +1364,29 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       audioScript: t.modality === "voice" ? t.prompt : undefined,
     }));
 
-    sessionStorage.setItem(
-      "sendToStudio",
-      JSON.stringify({
+    // Record one pick per (modality, modelId) the user assigned in this
+    // batch. De-duplicated so a 4-image batch doesn't quadruple the weight
+    // of one model in the preference distiller.
+    const seen = new Set<string>();
+    for (const t of activeTasks) {
+      const modelId = selectedModels[t.modality];
+      if (!modelId) continue;
+      const key = `${t.modality}|${modelId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      recordPick.mutate({
+        modality: t.modality,
+        modelId,
+        source: "director_ai",
+        context: {
+          sceneHeading: segment.storyboard.sceneHeading,
+          batchSize: activeTasks.length,
+        },
+      });
+    }
+
+    dispatchToStudio({
+      payload: {
         prompt: activeTasks[0].prompt,
         generationType: activeTasks[0].modality,
         overrideEngine: selectedModels[activeTasks[0].modality],
@@ -1367,24 +1400,11 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           mood: segment.storyboard.mood,
           duration: segment.storyboard.duration,
         },
-      })
-    );
-    const onlyImage = activeTasks.every(t => t.modality === "image");
-    const onlyVideo = activeTasks.every(t => t.modality === "video");
-    const onlyAudioFamily = activeTasks.every(
-      t => t.modality === "audio" || t.modality === "voice"
-    );
-    navigate(
-      onlyImage
-        ? "/image-studio"
-        : onlyVideo
-          ? "/video-studio"
-          : onlyAudioFamily
-            ? "/pro-studio"
-            : "/studio"
-    );
+      },
+      navigate,
+    });
     toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
-  }, [tasks, selectedModels, segment, navigate]);
+  }, [tasks, selectedModels, segment, navigate, recordPick]);
 
   const enabledCount = tasks.filter(t => t.enabled && t.prompt.trim()).length;
 
@@ -2056,6 +2076,27 @@ const ExportPanel = memo(function ExportPanel({
 
 // ─── Proactive Question Bubble (memoized) ──────────────────────────────────
 
+// Convert the structured `intentCard.options[]` (plain strings) into the
+// same `IntentOption` shape the orb's chat intent cards use, so we can hand
+// both code paths to the SAME `IntentCardOptions` renderer below. This is
+// what makes the director's reflection bubble feel identical to the global
+// orb's quick-pick cards — they both arrive as keyed options ("A", "B"…).
+function structuredOptionsToIntent(options: string[]): IntentOption[] {
+  return options
+    .filter(opt => typeof opt === "string" && opt.trim())
+    .slice(0, 12)
+    .map((opt, idx) => {
+      const key =
+        idx < 26 ? String.fromCharCode(65 + idx) : String(idx + 1);
+      const title = opt.trim();
+      return {
+        key,
+        title,
+        pickText: title, // Director picks just inject the option as-is.
+      };
+    });
+}
+
 const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
   question,
   intentCard,
@@ -2075,6 +2116,46 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
 }) {
   const config =
     PERSONALITIES.find(p => p.id === personality) ?? PERSONALITIES[1];
+
+  // Parse the freeform `question` text for orb-style **選項 X：…** blocks so
+  // any reflection question that already follows the global agent's
+  // intent-card convention renders as clickable cards (same as /agent chat).
+  const inlineSegments = useMemo(
+    () => parseIntentSegments(question),
+    [question]
+  );
+  const inlineCardOptions = useMemo(() => {
+    const out: IntentOption[] = [];
+    for (const seg of inlineSegments) {
+      if (seg.kind === "options") out.push(...seg.options);
+    }
+    return out;
+  }, [inlineSegments]);
+  const plainQuestionText = useMemo(() => {
+    if (inlineCardOptions.length === 0) return question;
+    return inlineSegments
+      .filter(s => s.kind === "text")
+      .map(s => (s as { kind: "text"; value: string }).value)
+      .join("")
+      .trim();
+  }, [inlineSegments, inlineCardOptions, question]);
+
+  const structuredCardOptions = useMemo(
+    () =>
+      intentCard?.options?.length
+        ? structuredOptionsToIntent(intentCard.options)
+        : [],
+    [intentCard]
+  );
+
+  // Merge inline-text cards + structured-field cards. Inline ones come first
+  // because they're authored by the model directly in the question; the
+  // structured array is the planning router's fallback when the model didn't
+  // emit `**選項…**` blocks.
+  const allOptions = useMemo(() => {
+    if (inlineCardOptions.length > 0) return inlineCardOptions;
+    return structuredCardOptions;
+  }, [inlineCardOptions, structuredCardOptions]);
 
   return (
     <motion.div
@@ -2103,36 +2184,39 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
           </span>
           {intentCard?.intent ? (
             <div className="mt-1 rounded-md border border-current/15 bg-white/60 p-2">
-              <p className="text-[11px] font-medium">意圖：{intentCard.intent}</p>
+              <p className="text-[11px] font-medium">
+                意圖：{intentCard.intent}
+              </p>
               <p className="text-[10px] text-foreground/70 mt-0.5">
                 為何先問：{intentCard.whyAsk}
               </p>
-              {intentCard.options?.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {intentCard.options.map(opt => (
-                    <button
-                      key={opt}
-                      onClick={() => onUse(opt)}
-                      className="text-[10px] px-1.5 py-0.5 rounded border border-current/20 hover:bg-white/70"
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           ) : null}
-          <p className="hs-small !mb-0 text-foreground/80 mt-1">{question}</p>
-          <button
-            onClick={() => onUse(question)}
-            className={cn(
-              "mt-2 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
-              "hover:bg-white/60 border-current/20",
-              config.textColor
-            )}
-          >
-            用這個問題繼續對話 →
-          </button>
+          {plainQuestionText && (
+            <p className="hs-small !mb-0 text-foreground/80 mt-1">
+              {plainQuestionText}
+            </p>
+          )}
+          {allOptions.length > 0 ? (
+            <div className="mt-2">
+              <IntentCardOptions
+                options={allOptions}
+                onSelect={opt => onUse(opt.pickText)}
+                compact
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => onUse(question)}
+              className={cn(
+                "mt-2 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
+                "hover:bg-white/60 border-current/20",
+                config.textColor
+              )}
+            >
+              用這個問題繼續對話 →
+            </button>
+          )}
         </div>
         <button
           onClick={onDismiss}
@@ -3129,9 +3213,12 @@ export default function DirectorAI() {
 
   const handleSendToStudio = useCallback(
     (script: CoStarScript) => {
-      sessionStorage.setItem(
-        "sendToStudio",
-        JSON.stringify({
+      // No model selection at this surface (ScriptCard "發送到工作室"
+      // button) — defer to whatever the destination studio's
+      // usePreferredStudioModel hook decides on landing. Routing still
+      // resolves to image-studio because the lead modality is image.
+      dispatchToStudio({
+        payload: {
           prompt: script.visualPrompt,
           generationType: "image",
           source: "director_ai",
@@ -3151,9 +3238,9 @@ export default function DirectorAI() {
               prompt: script.musicVibe || script.result || script.situation,
             },
           ],
-        })
-      );
-      navigate("/image-studio");
+        },
+        navigate,
+      });
       toast.success("腳本已發送到工作室");
     },
     [navigate]

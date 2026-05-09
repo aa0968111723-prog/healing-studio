@@ -281,6 +281,7 @@ describe("brainPipeline graph builder", () => {
       "sense", // 感測訊號，獨立子系統
       "orbCapabilities", // 純 capability registry 查詢，不觸發 AI
       "orbConversations", // 對話分頁 CRUD，純資料持久化，不觸發 AI
+      "agentModelPicks", // 共用模型選擇紀錄表（director + 光球共寫），純資料持久化，不觸發 AI
     ]);
 
     const inGraph = new Set(
