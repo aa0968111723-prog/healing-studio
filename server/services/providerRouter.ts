@@ -99,7 +99,12 @@ export function getProviderCatalog(): ProviderConfig[] {
       retryBudget: 1,
       estimatedCostTier: "low",
       requiredEnvKeys: [],
-      fallbackProviderIds: ["gemini", "minimax"],
+      // R2 fix: route AWAY from the primary, not back into it. The
+      // ai.chat catch-handler explicitly picks `default_llm` after a
+      // Gemini error, so the recovery chain must not re-suggest Gemini
+      // first. Health filtering already drops it, but the documented
+      // direction was misleading and could mask a real outage.
+      fallbackProviderIds: ["minimax"],
     },
     {
       id: "claudeCode",

@@ -281,6 +281,68 @@ describe("orbAttachmentExtraction", () => {
       expect(result.injectionTriggers).toContain("jailbreak-phrase");
     });
 
+    it("fetches multiple PDFs in parallel — total wall time bounded by the slowest, not the sum", async () => {
+      // Three PDFs, each "extracts" after 50 ms. Sequential code would take
+      // ≥ 150 ms; parallel finishes around 50-80 ms. Test allows generous
+      // headroom but still catches an O(n) regression to sequential.
+      mockedExtract.mockImplementation(async () => {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        return { text: "scene", pageCount: 1, truncated: false };
+      });
+
+      const messages: Message[] = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "file_url",
+              file_url: { url: "https://cdn.test/a.pdf", mime_type: "application/pdf" },
+            },
+            {
+              type: "file_url",
+              file_url: { url: "https://cdn.test/b.pdf", mime_type: "application/pdf" },
+            },
+            {
+              type: "file_url",
+              file_url: { url: "https://cdn.test/c.pdf", mime_type: "application/pdf" },
+            },
+          ],
+        },
+      ];
+
+      const start = Date.now();
+      const result = await extractPdfAttachmentsToText(messages);
+      const elapsed = Date.now() - start;
+
+      expect(result.extractedCount).toBe(3);
+      // Sequential: ~150ms. Parallel: ~50ms. Threshold leaves room for
+      // CI jitter but is well below the sequential floor.
+      expect(elapsed).toBeLessThan(120);
+    });
+
+    it("dedupes identical PDF URLs so the extractor is called once per URL", async () => {
+      mockedExtract.mockResolvedValue({
+        text: "scene",
+        pageCount: 1,
+        truncated: false,
+      });
+
+      const url = "https://cdn.test/same.pdf";
+      const messages: Message[] = [
+        {
+          role: "user",
+          content: [
+            { type: "file_url", file_url: { url, mime_type: "application/pdf" } },
+            { type: "file_url", file_url: { url, mime_type: "application/pdf" } },
+          ],
+        },
+      ];
+
+      await extractPdfAttachmentsToText(messages);
+      // Both file_url parts share the same URL — only one fetch should fire.
+      expect(mockedExtract).toHaveBeenCalledTimes(1);
+    });
+
     it("does not flag injection triggers for benign PDF content", async () => {
       mockedExtract.mockResolvedValueOnce({
         text: "場景一：清晨森林\n旁白：呼吸，慢慢來。",

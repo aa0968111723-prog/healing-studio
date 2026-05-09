@@ -15,6 +15,7 @@
  *     `assertSafeUrl` blocks loopback / private / link-local hosts (AWS IMDS,
  *     LAN ranges, ::1) before we ever call `fetch`.
  */
+import { isIPv4 } from "node:net";
 import { logger } from "../_core/logger";
 
 export interface PdfTextExtractionResult {
@@ -64,6 +65,37 @@ function stripIpv6Brackets(host: string): string {
   return host;
 }
 
+/**
+ * Decode an IPv4-mapped IPv6 address (RFC 4291 §2.5.5.2) to its embedded
+ * IPv4 form. Node's URL parser silently rewrites `[::ffff:10.0.0.5]` into
+ * the compressed `[::ffff:a00:5]` form, which doesn't match either the
+ * IPv4 private-range regexes or the IPv6 link-local prefixes — meaning a
+ * crafted `https://[::ffff:10.0.0.5]/x` would otherwise slip past
+ * `assertSafeUrl` straight into the LAN.
+ *
+ * Returns the dotted-quad IPv4 if the host is `::ffff:` mapped, otherwise null.
+ */
+function ipv4MappedIpv6ToIpv4(host: string): string | null {
+  // Normalise full-form `0:0:0:0:0:ffff:a:b` → `::ffff:a:b`
+  const normalised = host.replace(/^0(?::0){0,4}:ffff:/i, "::ffff:");
+  const match = normalised.match(/^::ffff:([0-9a-f.:]+)$/i);
+  if (!match) return null;
+  const tail = match[1];
+  if (isIPv4(tail)) return tail;
+  // Hex pair form: `::ffff:a00:5` → `10.0.0.5`
+  const hexMatch = tail.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (!hexMatch) return null;
+  const high = parseInt(hexMatch[1], 16);
+  const low = parseInt(hexMatch[2], 16);
+  if (Number.isNaN(high) || Number.isNaN(low)) return null;
+  const a = (high >> 8) & 0xff;
+  const b = high & 0xff;
+  const c = (low >> 8) & 0xff;
+  const d = low & 0xff;
+  const decoded = `${a}.${b}.${c}.${d}`;
+  return isIPv4(decoded) ? decoded : null;
+}
+
 export class UnsafePdfUrlError extends Error {
   constructor(reason: string) {
     super(`unsafe pdf url: ${reason}`);
@@ -98,10 +130,16 @@ export function assertSafeUrl(rawUrl: string, allowInsecureHosts: boolean): URL 
   if (host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) {
     throw new UnsafePdfUrlError(`blocked ipv6 range ${host}`);
   }
+  // If the URL host is an IPv4-mapped IPv6 address, decode it back to the
+  // embedded IPv4 and re-apply the private-range checks. Without this,
+  // `https://[::ffff:10.0.0.5]/x` would slip through (Node rewrites it to
+  // `::ffff:a00:5`, which doesn't match any IPv4 regex below).
+  const mappedIpv4 = ipv4MappedIpv6ToIpv4(host);
+  const checkHost = mappedIpv4 ?? host;
   for (const pattern of PRIVATE_IPV4_PATTERNS) {
-    if (pattern.test(host)) {
-      if (allowInsecureHosts && host.startsWith("127.")) continue;
-      throw new UnsafePdfUrlError(`blocked private ipv4 ${host}`);
+    if (pattern.test(checkHost)) {
+      if (allowInsecureHosts && checkHost.startsWith("127.")) continue;
+      throw new UnsafePdfUrlError(`blocked private ipv4 ${checkHost}`);
     }
   }
   return parsed;

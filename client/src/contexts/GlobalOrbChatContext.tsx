@@ -2058,13 +2058,26 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const lastPersistedAtRef = useRef<Map<string, number>>(
     new Map(Object.entries(loadPersistWatermarkFromStorage()))
   );
+  // F4 fix: while a previous `appendMessagesServer.mutate` is still flying
+  // the watermark hasn't been updated yet, so a fresh `setMessages` (e.g.
+  // a streaming assistant token, a meta-action result) would re-fire this
+  // effect with the same `fresh` slice and POST the in-flight messages
+  // again, causing duplicate rows in `orb_messages`. We track which `at`
+  // timestamps are pending and exclude them from the next batch.
+  const pendingAtsRef = useRef<Map<string, Set<number>>>(new Map());
   useEffect(() => {
     if (!isAuthenticated || !activeConversationId || messages.length === 0)
       return;
     const lastAt = lastPersistedAtRef.current.get(activeConversationId) ?? 0;
-    const fresh = messages.filter(m => m.at > lastAt);
+    const inFlight = pendingAtsRef.current.get(activeConversationId);
+    const fresh = messages.filter(m => {
+      if (m.at <= lastAt) return false;
+      if (inFlight && inFlight.has(m.at)) return false;
+      return true;
+    });
     if (fresh.length === 0) return;
-    const payload = fresh.slice(-20).map(m => ({
+    const batch = fresh.slice(-20);
+    const payload = batch.map(m => ({
       role: m.role,
       text: m.text,
       at: m.at,
@@ -2082,16 +2095,35 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           : {}),
       },
     }));
+    let pendingForConv = pendingAtsRef.current.get(activeConversationId);
+    if (!pendingForConv) {
+      pendingForConv = new Set<number>();
+      pendingAtsRef.current.set(activeConversationId, pendingForConv);
+    }
+    for (const m of batch) pendingForConv.add(m.at);
+    const releasePending = () => {
+      const set = pendingAtsRef.current.get(activeConversationId);
+      if (!set) return;
+      for (const m of batch) set.delete(m.at);
+      if (set.size === 0) pendingAtsRef.current.delete(activeConversationId);
+    };
     appendMessagesServer.mutate(
       { conversationId: activeConversationId, messages: payload },
       {
         onSuccess: () => {
-          const newest = fresh[fresh.length - 1].at;
-          lastPersistedAtRef.current.set(activeConversationId, newest);
-          savePersistWatermarkToStorage(lastPersistedAtRef.current);
+          const newest = batch[batch.length - 1].at;
+          const current = lastPersistedAtRef.current.get(activeConversationId) ?? 0;
+          // Watermark advances monotonically — concurrent batches that
+          // finish out of order must not regress it.
+          if (newest > current) {
+            lastPersistedAtRef.current.set(activeConversationId, newest);
+            savePersistWatermarkToStorage(lastPersistedAtRef.current);
+          }
+          releasePending();
         },
         onError: () => {
           // Stay quiet — local copy is fine, retry on next message
+          releasePending();
         },
       }
     );

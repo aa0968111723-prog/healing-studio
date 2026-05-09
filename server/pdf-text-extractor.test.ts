@@ -207,6 +207,25 @@ describe("assertSafeUrl (SSRF guard)", () => {
     expect(() => assertSafeUrl("not a url", true)).toThrow(UnsafePdfUrlError);
     expect(() => assertSafeUrl("", true)).toThrow(UnsafePdfUrlError);
   });
+
+  it("rejects IPv4-mapped IPv6 addresses (::ffff:X.Y.Z.W) that resolve to private IPv4", () => {
+    // Node rewrites `[::ffff:10.0.0.5]` to `[::ffff:a00:5]`, which doesn't
+    // match the dotted-quad IPv4 regexes — without explicit decoding the
+    // crafted URL slips straight to a LAN IP. This is the SSRF bypass
+    // discovered while deep-auditing the PR.
+    expect(() =>
+      assertSafeUrl("https://[::ffff:10.0.0.5]/admin", false)
+    ).toThrow(UnsafePdfUrlError);
+    expect(() =>
+      assertSafeUrl("https://[::ffff:127.0.0.1]/redis", false)
+    ).toThrow(UnsafePdfUrlError);
+    expect(() =>
+      assertSafeUrl("https://[::ffff:169.254.169.254]/imds", false)
+    ).toThrow(UnsafePdfUrlError);
+    expect(() =>
+      assertSafeUrl("https://[0:0:0:0:0:ffff:a00:5]/lan", false)
+    ).toThrow(UnsafePdfUrlError);
+  });
 });
 
 describe("extractPdfTextFromUrl SSRF behaviour", () => {

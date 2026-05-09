@@ -108,9 +108,42 @@ export async function extractPdfAttachmentsToText(
   messages: Message[],
   options: PdfTextExtractionOptions = {}
 ): Promise<OrbAttachmentExtractionResult> {
+  // First pass: discover every unique PDF URL so we can fetch them all in
+  // parallel. Sequential `await` per PDF was a real perf bug — three
+  // attachments × 12 s timeout each = 36 s worst-case blocking, which
+  // exceeded the outer route handler budget.
+  const pdfUrls = new Set<string>();
+  let hasUnextractableBinary = false;
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (isFileUrlPart(part) && isPdfPart(part)) {
+        pdfUrls.add(part.file_url.url);
+      } else if (isUnextractableBinaryPart(part)) {
+        hasUnextractableBinary = true;
+      }
+    }
+  }
+
+  const extractionsByUrl = new Map<
+    string,
+    Awaited<ReturnType<typeof extractPdfTextFromUrl>>
+  >();
+  await Promise.all(
+    Array.from(pdfUrls).map(async url => {
+      const result = await extractPdfTextFromUrl(url, options).catch(err => {
+        logger.warn("orbAttachmentExtraction.unexpected_error", {
+          url,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      });
+      extractionsByUrl.set(url, result);
+    })
+  );
+
   let extractedCount = 0;
   let failedCount = 0;
-  let hasUnextractableBinary = false;
   const allInjectionTriggers = new Set<string>();
 
   const rewritten: Message[] = [];
@@ -127,13 +160,7 @@ export async function extractPdfAttachmentsToText(
       if (isFileUrlPart(rawPart) && isPdfPart(rawPart)) {
         const url = rawPart.file_url.url;
         const name = fileNameFromUrl(url);
-        const result = await extractPdfTextFromUrl(url, options).catch(err => {
-          logger.warn("orbAttachmentExtraction.unexpected_error", {
-            url,
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return null;
-        });
+        const result = extractionsByUrl.get(url) ?? null;
         if (result) {
           extractedCount += 1;
           const cleaned = sanitizeExtractedBody(result.text);
@@ -152,9 +179,6 @@ export async function extractPdfAttachmentsToText(
         continue;
       }
 
-      if (isUnextractableBinaryPart(rawPart)) {
-        hasUnextractableBinary = true;
-      }
       nextParts.push(rawPart as MessageContent);
     }
 
