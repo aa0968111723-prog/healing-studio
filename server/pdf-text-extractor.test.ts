@@ -73,4 +73,54 @@ describe("extractPdfTextFromUrl", () => {
     const result = await extractPdfTextFromUrl("https://cdn.test/bogus.pdf");
     expect(result).toBeNull();
   });
+
+  it("extracts real text from a minimal valid PDF (end-to-end parse contract)", async () => {
+    // Hand-built single-page PDF with two text lines so we don't depend on a
+    // committed binary fixture. If `unpdf` ever stops producing usable text
+    // for plain Type1 / Helvetica content, this test breaks loudly instead
+    // of silently regressing the user-facing fallback.
+    const objects = [
+      "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n",
+      "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n",
+      "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n",
+      "4 0 obj << /Length 80 >> stream\n" +
+        "BT /F1 18 Tf 72 720 Td (Hello, healing studio!) Tj 0 -24 Td (Scene one: forest dawn.) Tj ET\n" +
+        "endstream endobj\n",
+      "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n",
+    ];
+    const header = "%PDF-1.4\n";
+    const offsets: number[] = [];
+    let acc = header;
+    for (const obj of objects) {
+      offsets.push(acc.length);
+      acc += obj;
+    }
+    const xrefStart = acc.length;
+    let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f\n`;
+    for (const offset of offsets) {
+      xref += String(offset).padStart(10, "0") + " 00000 n\n";
+    }
+    const trailer = `trailer << /Size ${
+      objects.length + 1
+    } /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+    const pdfBytes = new TextEncoder().encode(acc + xref + trailer);
+
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeResponse(
+          pdfBytes.buffer.slice(
+            pdfBytes.byteOffset,
+            pdfBytes.byteOffset + pdfBytes.byteLength
+          )
+        )
+      ) as typeof fetch;
+
+    const result = await extractPdfTextFromUrl("https://cdn.test/sample.pdf");
+    expect(result).not.toBeNull();
+    expect(result?.pageCount).toBe(1);
+    expect(result?.truncated).toBe(false);
+    expect(result?.text).toContain("Hello, healing studio!");
+    expect(result?.text).toContain("Scene one: forest dawn.");
+  });
 });
