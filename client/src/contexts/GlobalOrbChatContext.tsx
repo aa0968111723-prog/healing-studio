@@ -38,6 +38,8 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
+import { evaluateStepOutcome } from "../../../shared/orb-perception-loop";
+import type { PageAgentSnapshot } from "../../../shared/agent-actions";
 import { globalAgentRegistry } from "../../../shared/global-agent-registry";
 import {
   buildFeatureSummaryReply,
@@ -1863,6 +1865,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [activeProgressRequestId, setActiveProgressRequestId] = useState<string | null>(null);
   const [progressEvents, setProgressEvents] = useState<OrbChatProgressEvent[]>([]);
   const lastProgressSeqRef = useRef(0);
+  // Perception loop: rolling "before" snapshot. Filled with the page
+  // state we observed at the start of the workflow; each step's
+  // observeAfterStep updates it to the post-step snapshot so the next
+  // step compares against the most recent observation.
+  const perceptionSnapshotRef = useRef<PageAgentSnapshot | null>(null);
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
@@ -2419,6 +2426,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     intent?: string;
     requireConfirmation?: boolean;
   } = {}) => {
+    // Perception loop preferences. Defaults match
+    // DEFAULT_AGENT_PREFERENCES (perceptionEnabled=true, "balanced")
+    // so existing users get the behaviour the audit comments promised.
+    const perceptionEnabled =
+      (agentPreferencesQuery.data as { perceptionEnabled?: boolean } | undefined)
+        ?.perceptionEnabled !== false;
+    const perceptionStrictnessRaw = (agentPreferencesQuery.data as
+      | { perceptionStrictness?: string }
+      | undefined)?.perceptionStrictness;
+    const perceptionStrictness: "lenient" | "balanced" | "strict" =
+      perceptionStrictnessRaw === "lenient" || perceptionStrictnessRaw === "strict"
+        ? perceptionStrictnessRaw
+        : "balanced";
+    // Seed the rolling "before" snapshot with the current page state so
+    // the first step's verdict has something to diff against.
+    perceptionSnapshotRef.current = pageAgent.snapshot ?? null;
     // ─── Client-only meta actions ────────────────────────────────────────
     // exportChatPdf / shareViaLink never reach the orchestrator — they run
     // entirely in the browser and produce a system reply directly. We pull
@@ -2551,6 +2574,54 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             prev ? setWorkflowStepPhase(prev, event) : prev
           );
         },
+        // Perception loop wiring — when the user has perceptionEnabled
+        // turned on, we capture a snapshot before each step (rolling
+        // ref below), call evaluateStepOutcome on the (action, before,
+        // after, result) tuple, and forward the recommendation. The
+        // strictness setting tunes how aggressively a "no-effect"
+        // verdict escalates: lenient never retries, balanced uses the
+        // verdict as-is, strict promotes "retry" to "replan" so the
+        // planner gets called.
+        observeAfterStep: perceptionEnabled
+          ? async ({ step, result }) => {
+              try {
+                const before = perceptionSnapshotRef.current;
+                const after = pageAgent.snapshot ?? null;
+                // Workflow steps carry the action as `actionType + payload`,
+                // not as a tagged AgentAction union. Synthesise the minimal
+                // shape evaluateStepOutcome needs — it only switches on
+                // `.type`. The cast is acceptable here because the
+                // perception loop never mutates the action.
+                const syntheticAction = {
+                  type: step.actionType,
+                  ...(step.path ? { path: step.path } : {}),
+                } as unknown as AgentAction;
+                const verdict = evaluateStepOutcome({
+                  action: syntheticAction,
+                  before,
+                  after,
+                  dispatchResult: result,
+                });
+                perceptionSnapshotRef.current = after;
+                let recommendation = verdict.recommendation;
+                if (perceptionStrictness === "lenient" && recommendation === "retry") {
+                  recommendation = "proceed";
+                } else if (
+                  perceptionStrictness === "strict" &&
+                  recommendation === "retry"
+                ) {
+                  recommendation = "replan";
+                }
+                return { recommendation, reason: verdict.reason };
+              } catch (err) {
+                console.warn(
+                  "[GlobalOrbChat] perception observeAfterStep failed:",
+                  err instanceof Error ? err.message : String(err),
+                );
+                return { recommendation: "proceed" };
+              }
+            }
+          : undefined,
       });
 
       const failed = results.find(result => !result.ok);

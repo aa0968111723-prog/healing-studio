@@ -95,6 +95,7 @@ import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
 import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
 import OrbActionFlow from "./orb/OrbActionFlow";
 import { OrbThinkingTimeline } from "./orb/OrbThinkingTimeline";
+import { OrbVoiceButton } from "./orb/OrbVoiceButton";
 import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -1110,6 +1111,15 @@ export default memo(function ProactiveOrbWidget({
   const orbWidgetCorner =
     (agentPrefsQuery.data as { orbWidgetCorner?: string } | undefined)?.orbWidgetCorner ??
     "bottom-right";
+  // Voice button gates — only render the mic when the user has opted
+  // into voice; only auto-fire startVoice() when they've also asked
+  // for auto-activate. Both default to false (matches
+  // DEFAULT_AGENT_PREFERENCES) so a fresh user doesn't get an
+  // unexpected WebSocket connection on every page load.
+  const voiceEnabled =
+    (agentPrefsQuery.data as { voiceEnabled?: boolean } | undefined)?.voiceEnabled === true;
+  const voiceAutoActivate =
+    (agentPrefsQuery.data as { voiceAutoActivate?: boolean } | undefined)?.voiceAutoActivate === true;
 
   // Drag position state
   const [position, setPosition] = useState<{ x: number; y: number }>(
@@ -3008,6 +3018,10 @@ export default memo(function ProactiveOrbWidget({
                                 <Paperclip className="w-4 h-4 text-gray-500" />
                               )}
                             </button>
+                            <OrbVoiceButton
+                              enabled={voiceEnabled}
+                              autoActivate={voiceAutoActivate}
+                            />
                             <input
                               type="text"
                               value={chatInput}
@@ -3579,6 +3593,10 @@ export default memo(function ProactiveOrbWidget({
                             <Paperclip className="w-3.5 h-3.5 text-gray-500" />
                           )}
                         </button>
+                        <OrbVoiceButton
+                          enabled={voiceEnabled}
+                          autoActivate={voiceAutoActivate}
+                        />
                         <input
                           type="text"
                           value={chatInput}
