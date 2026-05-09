@@ -442,6 +442,7 @@ export const imageStudioRouter = router({
         aspect_ratio: z.string().optional().default("1:1"),
         negative_prompt: z.string().optional(),
         num_images: z.number().min(1).max(4).optional().default(1),
+        seed: z.number().int().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -452,6 +453,7 @@ export const imageStudioRouter = router({
           aspect_ratio: normalizeAspectRatio(input.aspect_ratio ?? "1:1", SEEDREAM_V4_RATIOS),
           negative_prompt: mergeNegativePrompt(input.negative_prompt),
           num_images: input.num_images,
+          ...(input.seed !== undefined && { seed: input.seed }),
         },
         120
       )) as any;
