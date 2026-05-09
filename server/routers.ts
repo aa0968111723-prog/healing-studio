@@ -5302,7 +5302,7 @@ export const appRouter = router({
             ) {
               r.webSources = webResearchSources;
             }
-            // 12+3 精靈：每條回覆掛上接手精靈，讓所有 UI surface 一致顯示。
+            // 15 精靈 (6 通用 + 6 專精 + 3 主動)：每條回覆掛上接手精靈，讓所有 UI surface 一致顯示。
             if (spiritSelection && r.agentRole === undefined) {
               r.agentRole = spiritSelection.role;
               r.agentRoleConfidence = spiritSelection.confidence;
@@ -5908,7 +5908,7 @@ export const appRouter = router({
             : attachmentGuard.kinds.length > 0
             ? "planner_multimodal"
             : "planner_text";
-          // 12+3 精靈：spiritSelection 已在 handler 頂部算好（finalize 也會用），
+          // 15 精靈 (6 通用 + 6 專精 + 3 主動)：spiritSelection 已在 handler 頂部算好（finalize 也會用），
           // 這裡只把它對應的 preferredProvider 餵給 selectProvider。
           const spiritPreferredProvider = spiritSelection
             ? getPreferredProviderForRole(spiritSelection.role)

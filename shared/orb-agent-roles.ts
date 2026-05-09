@@ -439,6 +439,28 @@ const LEARNING_OVERRIDE_HINTS: readonly string[] = [
   "getting started",
 ];
 
+// 品質抱怨意圖必須優先於 domain — 「畫面糊，怎麼改 prompt 比較好」是
+// 「對結果不滿意」而不是「想做新一張圖」。沒有這層 override，
+// image-specialist 的 「畫」 就會 substring-match 到 「畫面」 而搶走
+// quality-coach 該接的回合。只列強訊號詞避免誤判 「我畫不好」 這種
+// 想學圖法的用戶（那是 learning）。
+const QUALITY_OVERRIDE_HINTS: readonly string[] = [
+  "畫面糊",
+  "畫面模糊",
+  "細節差",
+  "細節糊",
+  "看起來怪",
+  "看起來奇怪",
+  "這張不行",
+  "這張糊",
+  "品質不好",
+  "品質差",
+  "品質很差",
+  "blurry",
+  "low quality",
+  "looks weird",
+];
+
 /**
  * Friendly nicknames that map to a specific AgentRole. Lets users address
  * a specific 「精靈」 directly with `@阿圖 ...` / `@老導 ...` syntax;
@@ -448,9 +470,10 @@ const LEARNING_OVERRIDE_HINTS: readonly string[] = [
  * The `@` prefix is preferred but optional — bare nicknames at the start
  * of an utterance also match, since users mid-conversation often drop the @.
  */
-// 13 位精靈的暱稱清單。用「疊字 + emoji 風」的可愛正面名字；前一輪
-// 用過的偏老或偏嚴肅的名字（老導 / 嚴選 / 研哥 / 學長…）已全部換成
-// 疊字。`nicknames` 第一個是首選暱稱，剩下是別名 / 舊名以維持向後相容。
+// 15 位精靈的暱稱清單（6 通用 + 6 專精 + 3 主動）。用「疊字 + emoji 風」
+// 的可愛正面名字；前一輪用過的偏老或偏嚴肅的名字（老導 / 嚴選 /
+// 研哥 / 學長…）已全部換成疊字。`nicknames` 第一個是首選暱稱
+// (getPrimaryNicknameForRole 會回這個)，剩下是別名 / 舊名以維持向後相容。
 const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly string[] }> = [
   { role: "image-specialist",    nicknames: ["圖圖", "阿圖", "圖像精靈"] },
   { role: "video-specialist",    nicknames: ["影影", "阿影", "小影", "影像精靈"] },
@@ -469,8 +492,14 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
   { role: "inspector",           nicknames: ["守守", "糾察隊", "巡邏員"] },
 ];
 
-function detectSpiritMention(text: string): AgentRole | null {
-  // Lower-case match isn't useful for CJK names, so we search the raw text.
+/**
+ * Scan text for an explicit spirit address — `@暱稱 …` anywhere, or a
+ * bare nickname at the start. Lower-case match isn't useful for CJK names,
+ * so we search the raw text. Exported so client-side composers can decide
+ * whether to auto-prepend a pinned spirit's @ tag (i.e. "is the user already
+ * addressing a spirit?"); when null is returned, no spirit was named.
+ */
+export function detectSpiritMention(text: string): AgentRole | null {
   for (const entry of SPIRIT_NICKNAMES) {
     for (const name of entry.nicknames) {
       if (text.includes(`@${name}`) || text.startsWith(name)) {
@@ -479,6 +508,21 @@ function detectSpiritMention(text: string): AgentRole | null {
     }
   }
   return null;
+}
+
+/** Convenience: true iff the text already addresses any known spirit. */
+export function hasSpiritMention(text: string): boolean {
+  return detectSpiritMention(text) !== null;
+}
+
+/**
+ * Primary nickname (the first entry in SPIRIT_NICKNAMES) for a role — used
+ * by client composers that want to auto-prepend `@nickname ` when a pinned
+ * spirit is active. Falls back to "暖暖" if an unknown role is passed in.
+ */
+export function getPrimaryNicknameForRole(role: AgentRole): string {
+  const entry = SPIRIT_NICKNAMES.find(e => e.role === role);
+  return entry?.nicknames[0] ?? "暖暖";
 }
 
 export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
@@ -527,6 +571,17 @@ export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
     };
   }
 
+  // Override 2：強品質抱怨訊號優先。「畫面糊」「品質很差」「looks weird」
+  // 都是對既有結果不滿意，應該交給巧巧 (quality-coach) 給改寫建議；
+  // 沒這個 guard 會被 image-specialist 的單字「畫」substring 搶走。
+  if (!isDirectorIntent && !isMuted("quality-coach") && matchesAny(text, QUALITY_OVERRIDE_HINTS)) {
+    return {
+      role: "quality-coach",
+      confidence: 0.85,
+      rationale: "user complained about output quality (QUALITY_OVERRIDE_HINTS)",
+    };
+  }
+
   for (const rule of KEYWORD_RULES) {
     if (isMuted(rule.role)) continue;
     if (matchesAny(text, rule.keywords)) {
@@ -568,7 +623,7 @@ export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
  * narrows behaviour for THIS turn.
  */
 export function getRoleSystemPromptSlice(role: AgentRole): string {
-  // 共用語氣：全部 12 位精靈以「同事 / 好朋友」的口吻說話 — 不是僵硬的
+  // 共用語氣：全部 15 位精靈以「同事 / 好朋友」的口吻說話 — 不是僵硬的
   // AI agent。第一人稱會用暱稱自稱（阿圖、老導…），結尾會自然地問下一步，
   // 而不是條列一堆 spec。每段刻意短，把空間留給實質回答。
   switch (role) {

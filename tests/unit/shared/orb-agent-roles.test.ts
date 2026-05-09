@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 import type { PageAgentSnapshot } from "../../../shared/agent-actions";
 import {
   composeRoleChain,
+  detectSpiritMention,
+  getPrimaryNicknameForRole,
   getRoleSystemPromptSlice,
+  hasSpiritMention,
   selectRoleForIntent,
   summarizeRoleChainForPrompt,
   SPIRIT_COLLAB_PROTOCOL,
@@ -232,6 +235,73 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
     for (const t of SPIRIT_PROACTIVE_TRIGGERS) {
       expect(proactiveSet.has(t.spirit)).toBe(true);
       expect(t.defaultPrompt.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("detectSpiritMention / hasSpiritMention", () => {
+  it("detects @-mentions inside text", () => {
+    expect(detectSpiritMention("@圖圖 幫我做一張海報")).toBe("image-specialist");
+    expect(detectSpiritMention("好的，@導導 你看怎樣")).toBe("director");
+    expect(hasSpiritMention("@巧巧 看一下")).toBe(true);
+  });
+
+  it("detects bare nickname at start", () => {
+    expect(detectSpiritMention("圖圖 幫我畫")).toBe("image-specialist");
+    expect(hasSpiritMention("守守 巡一下")).toBe(true);
+  });
+
+  it("returns null for text without any spirit mention", () => {
+    expect(detectSpiritMention("幫我做一張海報")).toBeNull();
+    expect(hasSpiritMention("我想做點東西")).toBe(false);
+    expect(hasSpiritMention("")).toBe(false);
+  });
+
+  it("does not match nickname appearing mid-sentence (only @ or start)", () => {
+    // 一般句子裡偶然提到「圖圖」不應誤判為 @-mention
+    expect(detectSpiritMention("我和朋友圖圖一起去")).toBeNull();
+  });
+});
+
+describe("getPrimaryNicknameForRole", () => {
+  it("returns the first nickname for each known role", () => {
+    expect(getPrimaryNicknameForRole("image-specialist")).toBe("圖圖");
+    expect(getPrimaryNicknameForRole("director")).toBe("導導");
+    expect(getPrimaryNicknameForRole("accountant")).toBe("財財");
+    expect(getPrimaryNicknameForRole("quality-coach")).toBe("巧巧");
+    expect(getPrimaryNicknameForRole("inspector")).toBe("守守");
+  });
+
+  it("falls back to 暖暖 for an unknown role string", () => {
+    // typed as AgentRole but at runtime we want graceful fallback
+    expect(getPrimaryNicknameForRole("nonsense" as AgentRole)).toBe("暖暖");
+  });
+
+  it("primary nicknames round-trip through selectRoleForIntent", () => {
+    // 鎖定 (pinning) 流程靠這個：UI 把 @<primary> 補在最前面，server 端
+    // detectSpiritMention 必須認得回來，否則「鎖定」就是假象。
+    const allRoles: AgentRole[] = [
+      "director",
+      "composer",
+      "critic",
+      "researcher",
+      "navigator",
+      "companion",
+      "accountant",
+      "quality-coach",
+      "inspector",
+      "image-specialist",
+      "video-specialist",
+      "music-specialist",
+      "voice-specialist",
+      "training-specialist",
+      "learning-specialist",
+    ];
+    for (const role of allRoles) {
+      const nick = getPrimaryNicknameForRole(role);
+      const sel = selectRoleForIntent({ text: `@${nick} 幫我看一下` });
+      expect(sel.role).toBe(role);
+      expect(sel.confidence).toBeGreaterThan(0.9);
     }
   });
 });
