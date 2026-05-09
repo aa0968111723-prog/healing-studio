@@ -118,6 +118,14 @@ export default function AgentPreferencesPage() {
   // ── Per-page × per-action allowlist (Gap 9) ──
   const [disabledActionsByPage, setDisabledActionsByPage] = useState<Record<string, string[]>>({});
 
+  // ── Phase 3: stay-on-page execution mode ─────────────────────────
+  // When on, the orb auto-approves tasked plans and runs them server-side
+  // through orbTask.approve + the background driver, so the user keeps
+  // their current page and sees step events in the chat instead.
+  const [stayOnPageMode, setStayOnPageMode] = useState<boolean>(
+    DEFAULT_AGENT_PREFERENCES.stayOnPageMode
+  );
+
   // ── Assistant UI ──
   const [orbAgentEnabled, setOrbAgentEnabled] = useState<boolean | null>(null);
   const [workflowsEnabled, setWorkflowsEnabled] = useState<boolean | null>(null);
@@ -168,6 +176,11 @@ export default function AgentPreferencesPage() {
     setOrbWelcomeMessage(initial.orbWelcomeMessage ?? "");
     setOrbShortcutEnabled(initial.orbShortcutEnabled ?? true);
     setOrbProactiveSuggestions(initial.orbProactiveSuggestions ?? true);
+    setStayOnPageMode(
+      typeof (initial as { stayOnPageMode?: boolean }).stayOnPageMode === "boolean"
+        ? Boolean((initial as { stayOnPageMode?: boolean }).stayOnPageMode)
+        : DEFAULT_AGENT_PREFERENCES.stayOnPageMode
+    );
     // Phase D state hydration. costBudget is the only field that's a
     // structured null vs object so the toggle controls visibility of
     // the inputs below.
@@ -302,6 +315,8 @@ export default function AgentPreferencesPage() {
       criticRefineBelow,
       roleAutoSwitch,
       pacingOverride,
+      // ── Phase 3: stay-on-page execution mode ─────────────────────
+      stayOnPageMode,
     });
   };
 
@@ -438,6 +453,28 @@ export default function AgentPreferencesPage() {
                 }
               />
             </label>
+          </section>
+
+          {/* Phase 3: stay-on-page execution mode */}
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-semibold">不跳頁、原地執行</h2>
+                <p className="text-xs text-muted-foreground">
+                  打開時，光球會把生成任務（圖片 / 影片 / 配音 / 配樂）直接交給後端跑，
+                  不再把你帶到 ImageStudio / VideoStudio 等工作室頁面。每一步進度會直接出現在這個對話裡。
+                  破壞性動作（送出、發布、覆寫）仍會跳出確認卡，不會偷偷執行。
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  關閉時維持原本行為：光球會先把你帶到對應的工作室頁面，把提示詞填好讓你檢視後手動送出。
+                </p>
+              </div>
+              <Switch
+                checked={stayOnPageMode}
+                onCheckedChange={setStayOnPageMode}
+                data-testid="switch-stay-on-page-mode"
+              />
+            </div>
           </section>
         </TabsContent>
 

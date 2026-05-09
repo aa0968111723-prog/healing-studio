@@ -2046,6 +2046,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
+    // Phase 3: stay-on-page mode auto-approves the orb task instead of
+    // surfacing the WorkflowConfirmationCard / handing off to a studio
+    // page. The task then drives itself in the background server-side
+    // and step events surface via the existing orbTask.events poll.
+    const orbTaskApprove = trpc.ai.orbTask.approve.useMutation();
 
     // Only ping providers when authenticated to avoid 401 modals for guests.
     const meQuery = trpc.auth.me.useQuery(undefined, {
@@ -2897,6 +2902,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               (prefRow as { mutedSpirits?: string[] }).mutedSpirits,
             favoriteSpirits:
               (prefRow as { favoriteSpirits?: string[] }).favoriteSpirits,
+            // Phase 3: stay-on-page mode. Forwarded so the server knows
+            // not to bake "我帶你過去" into the planner reply when the
+            // user has opted into hands-off in-place execution.
+            stayOnPageMode:
+              (prefRow as { stayOnPageMode?: boolean }).stayOnPageMode ?? false,
           }
         : undefined;
       // When the user pasted a long brief, pre-parse it and stamp the
@@ -3324,6 +3334,60 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
       if (executorTask) {
         const pages = Array.from(new Set(executorTask.steps.map(step => step.pagePath).filter((v): v is string => Boolean(v))));
+        // Phase 3 stay-on-page: auto-approve the task and let the background
+        // driver run it server-side. We still respect the per-step
+        // requiresApproval flag on high-risk submit / publish steps —
+        // those surface as their own gates inside the executor's polling
+        // loop, so the user never silently authors anything destructive.
+        const stayOnPage =
+          (preferencesForChat as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode === true;
+        const allowedRiskLevels = new Set(
+          (preferencesForChat as { allowedRiskLevels?: string[] } | undefined)?.allowedRiskLevels ?? ["low", "medium"]
+        );
+        const everyStepRiskAllowed = executorTask.steps.every(step => {
+          const reqApproval = step.requiresApproval === true;
+          const stepRisk = String((step as { riskLevel?: string }).riskLevel ?? executorTask.riskLevel ?? "medium").toLowerCase();
+          // High-risk OR explicitly approval-gated steps still need the
+          // confirmation card; we never auto-approve those silently.
+          if (reqApproval) return false;
+          return allowedRiskLevels.has(stepRisk);
+        });
+        const taskIdLooksReal =
+          typeof executorTask.taskId === "string" &&
+          !executorTask.taskId.startsWith("draft_");
+        if (stayOnPage && everyStepRiskAllowed && taskIdLooksReal) {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: "orb",
+              text: `🚀 已啟動：「${executorTask.summaryForUser}」。我會在背景接力跑完，過程進度直接顯示在這裡，你不用換頁。`,
+              at: Date.now(),
+              pagePath: locationPath,
+              intent: executorTask.summaryForUser,
+              ...spiritFields,
+            },
+          ]);
+          // Fire-and-forget approval. The existing useGlobalOrbExecutor
+          // poll picks up step.* events and surfaces them through
+          // OrbTaskObservationStrip; we don't need to await here.
+          void orbTaskApprove
+            .mutateAsync({ taskId: executorTask.taskId })
+            .catch(err => {
+              console.warn(
+                "[GlobalOrbChat] stayOnPageMode auto-approve failed:",
+                err instanceof Error ? err.message : String(err),
+              );
+              // Fall back to the manual confirmation card so the user
+              // can still kick the task off explicitly.
+              setPendingExecutorTask({
+                task: executorTask,
+                requiresHumanReason:
+                  "光球試著直接執行但被擋下來了，你可以手動確認。",
+                affectedPages: pages,
+              });
+            });
+          return;
+        }
         setPendingExecutorTask({
           task: executorTask,
           requiresHumanReason: (data as { reply?: string; warnings?: string[] }).reply,

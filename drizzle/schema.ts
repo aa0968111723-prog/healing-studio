@@ -146,6 +146,11 @@ export const agentPreferences = mysqlTable(
     // additive, existing rows keep working without migration backfill.
     mutedSpirits: json("mutedSpirits").$type<string[]>().default([]).notNull(),
     favoriteSpirits: json("favoriteSpirits").$type<string[]>().default([]).notNull(),
+    // ── Phase 3: stay-on-page execution mode ─────────────────────────
+    // When true the orb auto-approves tasked plans and drives them
+    // entirely server-side instead of navigating the user. Defaults to
+    // false so existing rows keep the legacy navigate-and-fillPrompt UX.
+    stayOnPageMode: boolean("stayOnPageMode").default(false).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

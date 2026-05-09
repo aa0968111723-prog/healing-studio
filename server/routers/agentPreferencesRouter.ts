@@ -68,6 +68,8 @@ const UpdateSchema = z.object({
   // 上限 15（總共也只有 15 位）— 防止使用者塞無關 id 進來把資料庫 bloat 起來。
   mutedSpirits: z.array(z.string().max(40)).max(15).optional(),
   favoriteSpirits: z.array(z.string().max(40)).max(15).optional(),
+  // Phase 3: stay-on-page execution mode (auto-approve + server-side run).
+  stayOnPageMode: z.boolean().optional(),
 });
 
 async function ensurePreferences(userId: number) {
@@ -110,6 +112,13 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
     // 預設 NULL，下面 UPDATE 把 NULL 補成空陣列，避免 ORM 拿到 null 拋型別錯誤。
     await addColumnIfMissing("mutedSpirits", "mutedSpirits json NULL");
     await addColumnIfMissing("favoriteSpirits", "favoriteSpirits json NULL");
+    // Phase 3: stay-on-page execution mode (auto-approve tasks + run them
+    // server-side instead of routing the user away). Defaults false so
+    // existing rows keep the legacy navigate-and-fillPrompt UX.
+    await addColumnIfMissing(
+      "stayOnPageMode",
+      "stayOnPageMode boolean NOT NULL DEFAULT false"
+    );
 
     await db.execute(sql`
       UPDATE agent_preferences

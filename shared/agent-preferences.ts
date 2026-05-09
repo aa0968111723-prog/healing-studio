@@ -132,6 +132,22 @@ export interface AgentPreferences {
    */
   favoriteSpirits: string[];
 
+  // ── Phase 3: stay-on-page execution mode ──────────────────────────────
+  /**
+   * When true, the orb runs media generation tasks entirely server-side
+   * (via `orbTask.approve` + the background driver) instead of routing
+   * the user to the matching studio page. The chat surfaces step progress
+   * through the existing `orbTask.events` stream so the user can see
+   * what's happening without leaving the current page.
+   *
+   * Defaults to false to preserve the legacy navigate-and-fillPrompt UX.
+   * When true the client also auto-approves tasked plans whose every step
+   * is in `autoApproveTools` or has riskLevel ≤ allowedRiskLevels — high-
+   * risk submit / publish steps still surface a confirmation card so we
+   * never silently push something destructive.
+   */
+  stayOnPageMode: boolean;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -169,4 +185,5 @@ export const DEFAULT_AGENT_PREFERENCES: Omit<AgentPreferences, "userId"> = {
   onboardingCompletedAt: null,
   mutedSpirits: [],
   favoriteSpirits: [],
+  stayOnPageMode: false,
 };

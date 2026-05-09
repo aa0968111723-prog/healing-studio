@@ -5284,6 +5284,11 @@ export const appRouter = router({
               // selectRoleForIntent 會跳過這些角色的關鍵字規則。
               mutedSpirits: z.array(z.string().max(40)).max(15).optional(),
               favoriteSpirits: z.array(z.string().max(40)).max(15).optional(),
+              // Phase 3: stay-on-page execution mode. When true the client
+              // auto-approves tasked plans whose risk fits the user's
+              // allowedRiskLevels and lets `orbTask.approve` drive the
+              // generation server-side; the user keeps their current page.
+              stayOnPageMode: z.boolean().optional(),
             })
             .optional(),
           /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
@@ -5638,6 +5643,9 @@ export const appRouter = router({
           getSpecialistMemoryHints(ctx.user.id),
         ]);
 
+        const stayOnPageModeFromInput = Boolean(
+          (input.preferences as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode
+        );
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
@@ -5645,6 +5653,7 @@ export const appRouter = router({
             pageSnapshot: input.pageSnapshot,
             recentFeedback: mergedFeedback,
             alwaysConfirm: input.alwaysConfirm,
+            stayOnPageMode: stayOnPageModeFromInput,
             assetLibrary: assetLibrarySummary,
             apiTools: registeredTools.map(tool => ({
               name: tool.name,
