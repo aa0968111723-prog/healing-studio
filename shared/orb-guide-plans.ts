@@ -277,9 +277,27 @@ export function buildOrbGuideManualSteps(
   return steps;
 }
 
-/** 給 UI 顯示用的繁中摘要，逐行一條 action */
-export function summarizeOrbGuideActions(actions: AgentAction[]): string[] {
+/** 給 UI 顯示用的繁中摘要，逐行一條 action。
+ *
+ * options.skipNavigateToPath：抵達後 arrival 卡上，「前往 /director」這條對
+ *   使用者來說是噪音（header 已經寫了「已帶你到 導演 AI」）；傳入目標路徑
+ *   就會把這條過濾掉，不顯示。
+ * options.pageLabelByPath：navigate 動作預設只能印路徑（shared 不能 import
+ *   appRegistry），呼叫端可丟一個 path → label 的解析器進來，把
+ *   「前往「/director」」改成「前往「導演 AI」」這種使用者讀得懂的字。
+ * options.skipDuplicateNavigates：同一條 path 被連續導兩次（例如 chat 和
+ *   workflow 都帶了一個 navigate），只顯示第一條。
+ */
+export function summarizeOrbGuideActions(
+  actions: AgentAction[],
+  options: {
+    skipNavigateToPath?: string;
+    pageLabelByPath?: (path: string) => string | undefined;
+    skipDuplicateNavigates?: boolean;
+  } = {}
+): string[] {
   const lines: string[] = [];
+  const seenNavigates = new Set<string>();
   for (const action of actions) {
     switch (action.type) {
       case "setTab":
@@ -304,9 +322,18 @@ export function summarizeOrbGuideActions(actions: AgentAction[]): string[] {
       case "setParam":
         lines.push(`設定 ${action.key} = ${JSON.stringify(action.value)}`);
         break;
-      case "navigate":
-        lines.push(`前往「${action.path}」`);
+      case "navigate": {
+        if (options.skipNavigateToPath && action.path === options.skipNavigateToPath) {
+          break;
+        }
+        if (options.skipDuplicateNavigates) {
+          if (seenNavigates.has(action.path)) break;
+          seenNavigates.add(action.path);
+        }
+        const label = options.pageLabelByPath?.(action.path);
+        lines.push(`前往「${label ?? action.path}」`);
         break;
+      }
       case "search":
         lines.push(`搜尋「${action.query}」`);
         break;

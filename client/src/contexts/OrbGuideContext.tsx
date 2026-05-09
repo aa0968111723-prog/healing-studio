@@ -509,7 +509,162 @@ function buildDefaultArrivalChoices(targetPath: string): OrbArrivalChoice[] {
     ];
   }
 
+  // 導演 AI — applyPreset / setTab 都不會打擾使用者目前的對話內容，安全可選。
+  // 注意 fillPrompt 在 /director 是「直接送出」，這裡刻意不放進來，避免使用者
+  // 還沒準備好就被自動送出問題。
+  if (pathOnly === "/director") {
+    return [
+      {
+        id: "director-script-tab",
+        label: "切到劇本分析",
+        emoji: "🎬",
+        hint: "匯入劇本後分段",
+        actions: [{ type: "setTab", tabId: "script" }],
+      },
+      {
+        id: "director-personality-creative",
+        label: "換成創意導演",
+        emoji: "🔥",
+        hint: "更天馬行空",
+        actions: [{ type: "applyPreset", presetId: "personality:creative" }],
+      },
+      {
+        id: "director-personality-calm",
+        label: "換成冷靜導演",
+        emoji: "🌿",
+        hint: "穩、療癒風",
+        actions: [{ type: "applyPreset", presetId: "personality:calm" }],
+      },
+      {
+        id: "director-format-costar",
+        label: "切到 Co-STAR 格式",
+        emoji: "🧩",
+        hint: "結構化回應",
+        actions: [{ type: "applyPreset", presetId: "format:co-star" }],
+      },
+    ];
+  }
+
+  // 創意工作室 — 跨模態快速切換，避免使用者在 /studio 「看著空畫面」不知怎麼動手。
+  if (pathOnly === "/studio") {
+    return [
+      {
+        id: "studio-image",
+        label: "我要做圖",
+        emoji: "🖼",
+        actions: [{ type: "setModality", modality: "image" }],
+      },
+      {
+        id: "studio-video",
+        label: "我要做影片",
+        emoji: "🎬",
+        actions: [{ type: "setModality", modality: "video" }],
+      },
+      {
+        id: "studio-music",
+        label: "我要做音樂",
+        emoji: "🎵",
+        actions: [{ type: "setModality", modality: "audio" }],
+      },
+      {
+        id: "studio-voice",
+        label: "我要做配音",
+        emoji: "🎤",
+        actions: [{ type: "setModality", modality: "voice" }],
+      },
+    ];
+  }
+
+  // /agent — 全站光球聊天頁。使用者落地後最常見的下一步就是「再轉去某個工作室」，
+  // 但這頁沒有 setTab 的概念，所以快速卡都用 navigate（dismissOnSelect）。
+  if (pathOnly === "/agent") {
+    return [
+      {
+        id: "agent-to-director",
+        label: "去找導演 AI",
+        emoji: "🎬",
+        hint: "規劃完整腳本",
+        actions: [{ type: "navigate", path: "/director" }],
+        dismissOnSelect: true,
+      },
+      {
+        id: "agent-to-studio",
+        label: "去創意工作室",
+        emoji: "🎨",
+        hint: "圖 / 影 / 音 / 聲",
+        actions: [{ type: "navigate", path: "/studio" }],
+        dismissOnSelect: true,
+      },
+      {
+        id: "agent-to-prompts",
+        label: "翻提示詞庫",
+        emoji: "📚",
+        actions: [{ type: "navigate", path: "/assets?section=prompts" }],
+        dismissOnSelect: true,
+      },
+    ];
+  }
+
   return [];
+}
+
+/**
+ * 給「不是走完整意圖問答、但仍然發生跳頁」的入口（chat / starter / 全站光球）一個
+ * 預設的手動步驟清單。沒覆蓋到的目標頁就回空陣列，arrival 卡會自動省略
+ * 「接下來請你做」這個區塊（不再是空白卡片只剩「我自己來」按鈕）。
+ *
+ * 設計原則：和 buildOrbGuideManualSteps 一樣，只列「程式無法替使用者做」的事
+ * （上傳檔案、按生成、把點子打進輸入框）。fillPrompt / setTab 由
+ * orchestrator 自動執行，不要重覆。
+ */
+function buildDefaultManualSteps(targetPath: string): OrbGuideManualStep[] {
+  const [pathOnly] = targetPath.split("?");
+
+  switch (pathOnly) {
+    case "/director":
+      return [
+        {
+          id: "director-send",
+          label: "把你的詳細想法送出，導演 AI 會幫你拆腳本",
+          hint: "可以丟一段大綱、一個情緒，或一張參考圖連結",
+        },
+      ];
+    case "/image-studio":
+    case "/video-studio":
+      return [
+        {
+          id: "review-prompt",
+          label: "看一下幫你準備的提示詞，想換味道就直接改",
+        },
+        { id: "click-generate", label: "按下「生成」，等成品出來" },
+      ];
+    case "/pro-studio":
+      return [
+        {
+          id: "enter-text-or-style",
+          label: "選好分頁後，把文字 / 風格參數補齊",
+        },
+        { id: "click-generate", label: "按下「生成」" },
+      ];
+    case "/lora-trainer":
+      return [
+        {
+          id: "upload-images",
+          label: "上傳訓練用的圖片（建議 10 張以上）",
+        },
+        { id: "name-model", label: "幫這份模型取個名字" },
+        { id: "start-training", label: "按下「開始訓練」" },
+      ];
+    case "/studio":
+      return [
+        {
+          id: "pick-modality",
+          label: "從上方選一個模態（圖 / 影 / 音 / 聲），畫面會跟著切",
+        },
+      ];
+    default:
+      return [];
+  }
 }
 
 function resolveIntentTarget(cfg: IntentConfig): {
@@ -772,7 +927,13 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       const orbMessage =
         input.orbMessage ?? `已帶你到「${label}」，下面有我幫你做好的事。`;
       const actions = input.actions ?? [];
-      const manualSteps = input.manualSteps ?? [];
+      // Chat-driven 抵達卡如果沒帶 manualSteps，給一份依目標頁推導的預設清單，
+      // 不然使用者會看到「已自動完成」之後就空白，只剩「我自己來，先收掉」按鈕，
+      // 完全不知道下一步該按什麼。
+      const manualSteps =
+        input.manualSteps && input.manualSteps.length > 0
+          ? input.manualSteps
+          : buildDefaultManualSteps(input.targetPath);
       const arrivalChoices = input.arrivalChoices ?? buildDefaultArrivalChoices(input.targetPath);
 
       // 合成一份不走 intent 問答的 plan：targetLabel/actions 會餵給

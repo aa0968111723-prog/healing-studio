@@ -223,4 +223,81 @@ describe("OrbGuideContext.attachArrivalGuide", () => {
       { id: "step-2", label: "按生成" },
     ]);
   });
+
+  it("populates default arrival choices for /director (setTab + applyPreset only — no auto-fillPrompt)", () => {
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({ targetPath: "/director" });
+    });
+
+    const choices = result.current.plan?.arrivalChoices ?? [];
+    expect(choices.length).toBeGreaterThanOrEqual(3);
+    // Director's fillPrompt is "send immediately" — including it in arrival
+    // choices would post the user's text without consent. Only safe actions
+    // (setTab / applyPreset) should appear.
+    expect(
+      choices.every(c => c.actions.every(a => a.type === "setTab" || a.type === "applyPreset"))
+    ).toBe(true);
+  });
+
+  it("populates default arrival choices for /studio with setModality actions", () => {
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({ targetPath: "/studio" });
+    });
+
+    const choices = result.current.plan?.arrivalChoices ?? [];
+    expect(choices.length).toBeGreaterThanOrEqual(4);
+    expect(choices.every(c => c.actions[0].type === "setModality")).toBe(true);
+  });
+
+  it("populates default arrival choices for /agent with navigate actions that dismiss on click", () => {
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({ targetPath: "/agent" });
+    });
+
+    const choices = result.current.plan?.arrivalChoices ?? [];
+    expect(choices.length).toBeGreaterThanOrEqual(3);
+    expect(choices.every(c => c.actions[0].type === "navigate")).toBe(true);
+    // Each navigate-style choice must dismiss on click — leaving the old card
+    // hovering on the new page would conflict with that page's own arrival.
+    expect(choices.every(c => c.dismissOnSelect === true)).toBe(true);
+  });
+
+  it("falls back to default manualSteps for /director when caller provides none", () => {
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({ targetPath: "/director" });
+    });
+
+    const steps = result.current.plan?.manualSteps ?? [];
+    expect(steps.length).toBeGreaterThanOrEqual(1);
+    expect(steps[0]?.id).toBe("director-send");
+  });
+
+  it("falls back to default manualSteps for /image-studio (review prompt + click generate)", () => {
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({ targetPath: "/image-studio" });
+    });
+
+    const steps = result.current.plan?.manualSteps ?? [];
+    expect(steps.map(s => s.id)).toEqual(["review-prompt", "click-generate"]);
+  });
+
+  it("returns empty manualSteps for paths without a default mapping", () => {
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({ targetPath: "/notes" });
+    });
+
+    expect(result.current.plan?.manualSteps).toEqual([]);
+  });
 });
