@@ -3947,7 +3947,8 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
           <VisualSoul
             state={step === "confirming" ? "acting" : step === "ask_detail" ? "thinking" : panelMode === "chat" && isChatLoading ? "thinking" : "idle"}
             personality={personality}
-            size={fullscreen ? "md" : "sm"}
+            size="md"
+            className={fullscreen ? undefined : "!w-7 !h-7"}
           />
           <span className={cn(
             "font-medium text-white/60 tracking-wide",
@@ -4671,7 +4672,8 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
             <VisualSoul
               state={isNavigating ? "thinking" : "acting"}
               personality={personality}
-              size="sm"
+              size="md"
+              className="!w-7 !h-7"
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white/90 truncate">

@@ -954,7 +954,7 @@ export default function ModelsPage() {
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <VisualSoul size="sm" personality={personality} />
+                <VisualSoul size="md" className="!w-7 !h-7" personality={personality} />
                 角色鍛造精靈
               </DialogTitle>
             </DialogHeader>

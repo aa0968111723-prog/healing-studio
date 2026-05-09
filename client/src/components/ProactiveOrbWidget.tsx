@@ -2652,7 +2652,7 @@ export default memo(function ProactiveOrbWidget({
                       <VisualSoul
                         state={aiState}
                         personality={personality}
-                        size="sm"
+                        size="md"
                         className="!w-7 !h-7"
                         cuteMode={orbCuteMode}
                       />
@@ -3192,7 +3192,7 @@ export default memo(function ProactiveOrbWidget({
                     <VisualSoul
                       state={aiState}
                       personality={personality}
-                      size="sm"
+                      size="md"
                       className="!w-6 !h-6"
                       cuteMode={orbCuteMode}
                     />
