@@ -45,8 +45,8 @@ import {
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useProactiveSpiritEvents } from "@/lib/proactiveSpiritEvents";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
+import { ProactiveNotificationCenter } from "@/lib/ProactiveNotificationCenter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
@@ -563,7 +563,16 @@ function DashboardLayoutContent({
     const raw = (proactivePrefsQuery.data as { mutedSpirits?: string[] } | undefined)?.mutedSpirits;
     return Array.isArray(raw) ? raw : [];
   }, [proactivePrefsQuery.data]);
-  useProactiveSpiritEvents(mutedSpiritsForBus);
+  // proactiveTriggerSettings 走 partial map — 沒設過的事件 fallback 到
+  // DEFAULT_PROACTIVE_TRIGGER_SETTINGS（全開、5 分鐘間隔、需打勾）。
+  const triggerSettingsForBus = useMemo(() => {
+    const raw = (proactivePrefsQuery.data as { proactiveTriggerSettings?: unknown } | undefined)
+      ?.proactiveTriggerSettings;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      return raw as Record<string, { enabled?: boolean; minIntervalMs?: number; requireAck?: boolean }>;
+    }
+    return {};
+  }, [proactivePrefsQuery.data]);
 
   // 15 精靈 / 財財 (accountant)：點數餘額 query。掉到門檻以下時 publish
   // monthly_spend_threshold，讓 toast 出現「本月剩 N 點」提示。
@@ -741,6 +750,12 @@ function DashboardLayoutContent({
 
   return (
     <>
+      {/* 主動精靈通知中心 — 取代舊的 toast 直發。卡片必須打勾才會消失，
+          per-event 開關 + 間隔走 agent_preferences.proactiveTriggerSettings。 */}
+      <ProactiveNotificationCenter
+        mutedSpirits={mutedSpiritsForBus}
+        triggerSettings={triggerSettingsForBus}
+      />
       {/* ── Apple-style floating dock (all viewports) ── */}
       <AppleDock
         entries={sidebarStructure}

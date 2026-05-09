@@ -68,6 +68,22 @@ const UpdateSchema = z.object({
   // 上限 15（總共也只有 15 位）— 防止使用者塞無關 id 進來把資料庫 bloat 起來。
   mutedSpirits: z.array(z.string().max(40)).max(15).optional(),
   favoriteSpirits: z.array(z.string().max(40)).max(15).optional(),
+
+  // 主動精靈通知設定 — 每個 ProactiveTriggerEvent 一筆 entry。少寫的 event
+  // 自動套 DEFAULT_PROACTIVE_TRIGGER_SETTINGS（全開、5 分鐘、需打勾）。
+  // 上限 32 個 key 防止使用者塞奇怪 event 把 row 撐爆；單筆 minIntervalMs
+  // 5 秒至 24 小時。
+  proactiveTriggerSettings: z
+    .record(
+      z.string().max(64),
+      z.object({
+        enabled: z.boolean().optional(),
+        minIntervalMs: z.number().int().min(5_000).max(86_400_000).optional(),
+        requireAck: z.boolean().optional(),
+      }),
+    )
+    .refine(map => Object.keys(map).length <= 32, "too many entries")
+    .optional(),
 });
 
 async function ensurePreferences(userId: number) {
@@ -110,6 +126,8 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
     // 預設 NULL，下面 UPDATE 把 NULL 補成空陣列，避免 ORM 拿到 null 拋型別錯誤。
     await addColumnIfMissing("mutedSpirits", "mutedSpirits json NULL");
     await addColumnIfMissing("favoriteSpirits", "favoriteSpirits json NULL");
+    // 主動精靈通知偏好（per-event enable / interval / requireAck），同樣 NULL→{}。
+    await addColumnIfMissing("proactiveTriggerSettings", "proactiveTriggerSettings json NULL");
 
     await db.execute(sql`
       UPDATE agent_preferences
@@ -125,6 +143,11 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
       UPDATE agent_preferences
       SET favoriteSpirits = JSON_ARRAY()
       WHERE favoriteSpirits IS NULL
+    `);
+    await db.execute(sql`
+      UPDATE agent_preferences
+      SET proactiveTriggerSettings = JSON_OBJECT()
+      WHERE proactiveTriggerSettings IS NULL
     `);
   })().catch(err => {
     ensureSchemaOnce = null;
