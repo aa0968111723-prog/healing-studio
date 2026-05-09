@@ -7,7 +7,11 @@
  * fallback never crashes the request when given a hostile PDF.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { extractPdfTextFromUrl } from "./services/pdfTextExtractor";
+import {
+  assertSafeUrl,
+  extractPdfTextFromUrl,
+  UnsafePdfUrlError,
+} from "./services/pdfTextExtractor";
 
 const realFetch = globalThis.fetch;
 
@@ -122,5 +126,121 @@ describe("extractPdfTextFromUrl", () => {
     expect(result?.truncated).toBe(false);
     expect(result?.text).toContain("Hello, healing studio!");
     expect(result?.text).toContain("Scene one: forest dawn.");
+  });
+});
+
+describe("assertSafeUrl (SSRF guard)", () => {
+  it("rejects AWS IMDS / link-local addresses regardless of insecure-host flag", () => {
+    expect(() =>
+      assertSafeUrl("http://169.254.169.254/latest/meta-data/", true)
+    ).toThrow(UnsafePdfUrlError);
+    expect(() =>
+      assertSafeUrl("https://169.254.169.254/latest/meta-data/", false)
+    ).toThrow(UnsafePdfUrlError);
+  });
+
+  it("rejects private IPv4 ranges (10/8, 172.16/12, 192.168/16) in production mode", () => {
+    expect(() => assertSafeUrl("https://10.0.0.5/internal", false)).toThrow(
+      UnsafePdfUrlError
+    );
+    expect(() => assertSafeUrl("https://172.16.5.5/internal", false)).toThrow(
+      UnsafePdfUrlError
+    );
+    expect(() => assertSafeUrl("https://192.168.1.1/internal", false)).toThrow(
+      UnsafePdfUrlError
+    );
+  });
+
+  it("rejects IPv6 loopback and link-local hosts", () => {
+    expect(() => assertSafeUrl("http://[::1]/admin", true)).toThrow(
+      UnsafePdfUrlError
+    );
+    expect(() => assertSafeUrl("https://[fe80::1]/internal", false)).toThrow(
+      UnsafePdfUrlError
+    );
+    expect(() => assertSafeUrl("https://[fc00::1]/internal", false)).toThrow(
+      UnsafePdfUrlError
+    );
+  });
+
+  it("rejects hostnames pointing at internal metadata services", () => {
+    expect(() =>
+      assertSafeUrl("http://metadata.google.internal/foo", true)
+    ).toThrow(UnsafePdfUrlError);
+  });
+
+  it("rejects non-http(s) protocols", () => {
+    expect(() => assertSafeUrl("file:///etc/passwd", true)).toThrow(
+      UnsafePdfUrlError
+    );
+    expect(() => assertSafeUrl("ftp://example.com/foo.pdf", true)).toThrow(
+      UnsafePdfUrlError
+    );
+  });
+
+  it("rejects http:// in production mode", () => {
+    expect(() =>
+      assertSafeUrl("http://cdn.example.com/foo.pdf", false)
+    ).toThrow(UnsafePdfUrlError);
+  });
+
+  it("allows public https URLs in production mode", () => {
+    expect(() =>
+      assertSafeUrl(
+        "https://my-bucket.s3.amazonaws.com/uploads/42/script.pdf?X-Amz-Signature=abc",
+        false
+      )
+    ).not.toThrow();
+    expect(() =>
+      assertSafeUrl("https://pub-xyz.r2.dev/uploads/42/script.pdf", false)
+    ).not.toThrow();
+  });
+
+  it("allows 127.0.0.1 only when insecure hosts are permitted (dev / tests)", () => {
+    expect(() => assertSafeUrl("http://127.0.0.1:8080/x.pdf", true)).not.toThrow();
+    expect(() => assertSafeUrl("http://127.0.0.1:8080/x.pdf", false)).toThrow(
+      UnsafePdfUrlError
+    );
+  });
+
+  it("rejects malformed URLs", () => {
+    expect(() => assertSafeUrl("not a url", true)).toThrow(UnsafePdfUrlError);
+    expect(() => assertSafeUrl("", true)).toThrow(UnsafePdfUrlError);
+  });
+});
+
+describe("extractPdfTextFromUrl SSRF behaviour", () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    fetchSpy = vi.fn().mockResolvedValue(makeResponse(new ArrayBuffer(0)));
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("never calls fetch when the URL points at an internal IP (production mode)", async () => {
+    const result = await extractPdfTextFromUrl(
+      "https://169.254.169.254/latest/meta-data/iam/",
+      { allowInsecureHosts: false }
+    );
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("never calls fetch when the URL points at a private LAN IP (production mode)", async () => {
+    const result = await extractPdfTextFromUrl("https://10.0.0.5/foo.pdf", {
+      allowInsecureHosts: false,
+    });
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("never calls fetch when the URL uses a non-http(s) protocol", async () => {
+    const result = await extractPdfTextFromUrl("file:///etc/passwd", {
+      allowInsecureHosts: false,
+    });
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

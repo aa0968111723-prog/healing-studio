@@ -11,6 +11,9 @@
  *     bindings — safe in Railway / Vercel containers.
  *   - We cap fetch size, request timeout, and inlined char budget so a
  *     200-page PDF never blows the LLM token budget.
+ *   - Server-side fetching of a user-supplied URL is an SSRF surface, so
+ *     `assertSafeUrl` blocks loopback / private / link-local hosts (AWS IMDS,
+ *     LAN ranges, ::1) before we ever call `fetch`.
  */
 import { logger } from "../_core/logger";
 
@@ -27,17 +30,92 @@ export interface PdfTextExtractionOptions {
   maxChars?: number;
   /** Fetch + parse timeout in milliseconds. */
   timeoutMs?: number;
+  /**
+   * Allow http:// and loopback hosts. Defaults to true outside production so
+   * unit tests with `127.0.0.1` and dev S3-compatible local stacks still
+   * work; production callers should keep this false.
+   */
+  allowInsecureHosts?: boolean;
 }
 
 const DEFAULT_MAX_BYTES = 12 * 1024 * 1024;
 const DEFAULT_MAX_CHARS = 30_000;
 const DEFAULT_TIMEOUT_MS = 12_000;
 
-async function downloadPdf(url: string, opts: Required<PdfTextExtractionOptions>): Promise<Uint8Array> {
+const PRIVATE_IPV4_PATTERNS: RegExp[] = [
+  /^10\./,
+  /^127\./,
+  /^169\.254\./, // link-local + AWS IMDS
+  /^192\.168\./,
+  /^172\.(1[6-9]|2\d|3[0-1])\./,
+  /^0\./,
+];
+
+const BLOCKED_IPV6_HOSTS = new Set(["::1", "::", "0:0:0:0:0:0:0:1", "0:0:0:0:0:0:0:0"]);
+
+/** Loopback hostnames — allowed in dev (so 127.0.0.1 / localhost test stacks work). */
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "ip6-localhost", "ip6-loopback"]);
+
+/** Cloud metadata hostnames — always blocked, even in dev. */
+const METADATA_HOSTNAMES = new Set(["metadata.google.internal", "metadata"]);
+
+function stripIpv6Brackets(host: string): string {
+  if (host.startsWith("[") && host.endsWith("]")) return host.slice(1, -1);
+  return host;
+}
+
+export class UnsafePdfUrlError extends Error {
+  constructor(reason: string) {
+    super(`unsafe pdf url: ${reason}`);
+    this.name = "UnsafePdfUrlError";
+  }
+}
+
+export function assertSafeUrl(rawUrl: string, allowInsecureHosts: boolean): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new UnsafePdfUrlError("invalid url");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new UnsafePdfUrlError(`blocked protocol ${parsed.protocol}`);
+  }
+  if (parsed.protocol === "http:" && !allowInsecureHosts) {
+    throw new UnsafePdfUrlError("plain http blocked outside dev");
+  }
+  const host = stripIpv6Brackets(parsed.hostname).toLowerCase();
+  if (!host) throw new UnsafePdfUrlError("missing host");
+  if (METADATA_HOSTNAMES.has(host)) {
+    throw new UnsafePdfUrlError(`blocked metadata hostname ${host}`);
+  }
+  if (LOOPBACK_HOSTNAMES.has(host) && !allowInsecureHosts) {
+    throw new UnsafePdfUrlError(`blocked loopback hostname ${host}`);
+  }
+  if (BLOCKED_IPV6_HOSTS.has(host)) {
+    throw new UnsafePdfUrlError(`blocked ipv6 host ${host}`);
+  }
+  if (host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) {
+    throw new UnsafePdfUrlError(`blocked ipv6 range ${host}`);
+  }
+  for (const pattern of PRIVATE_IPV4_PATTERNS) {
+    if (pattern.test(host)) {
+      if (allowInsecureHosts && host.startsWith("127.")) continue;
+      throw new UnsafePdfUrlError(`blocked private ipv4 ${host}`);
+    }
+  }
+  return parsed;
+}
+
+async function downloadPdf(
+  url: string,
+  opts: Required<PdfTextExtractionOptions>
+): Promise<Uint8Array> {
+  assertSafeUrl(url, opts.allowInsecureHosts);
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), opts.timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, redirect: "error" });
     if (!response.ok) {
       throw new Error(`PDF fetch failed: HTTP ${response.status}`);
     }
@@ -76,6 +154,8 @@ export async function extractPdfTextFromUrl(
     maxBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
     maxChars: options.maxChars ?? DEFAULT_MAX_CHARS,
     timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    allowInsecureHosts:
+      options.allowInsecureHosts ?? process.env.NODE_ENV !== "production",
   };
 
   let bytes: Uint8Array;
