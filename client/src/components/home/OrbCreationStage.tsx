@@ -127,6 +127,50 @@ const MODES: readonly Mode[] = [
 // ─── Scenario presets — fold the former "你可以這樣用" use cases into the
 //    orb stage so the agent can dispatch them inline (no studio detour). ──
 
+/** The 15 in-house spirits — nicknames mirror shared/orb-agent-roles.ts so
+ *  the homepage demo addresses the same routed roles the chat router uses. */
+type SpiritNickname =
+  | "圖圖"
+  | "影影"
+  | "音音"
+  | "聲聲"
+  | "練練"
+  | "學學"
+  | "導導"
+  | "編編"
+  | "品品"
+  | "查查"
+  | "路路"
+  | "暖暖"
+  | "財財"
+  | "巧巧"
+  | "守守";
+
+interface SpiritMeta {
+  name: SpiritNickname;
+  /** One-line role brief shown in the collaboration chip. */
+  role: string;
+  tint: string;
+}
+
+const SPIRITS: Readonly<Record<SpiritNickname, SpiritMeta>> = {
+  圖圖:   { name: "圖圖", role: "圖像精靈 · 主視覺",       tint: "rgba(168,85,247,0.85)" },
+  影影:   { name: "影影", role: "影像精靈 · 分鏡與運鏡",   tint: "rgba(59,130,246,0.85)" },
+  音音:   { name: "音音", role: "音樂精靈 · 配樂情緒",     tint: "rgba(236,72,153,0.85)" },
+  聲聲:   { name: "聲聲", role: "語音精靈 · 旁白配音",     tint: "rgba(249,115,22,0.85)" },
+  練練:   { name: "練練", role: "訓練精靈 · LoRA 訓練",    tint: "rgba(14,165,233,0.85)" },
+  學學:   { name: "學學", role: "學習精靈 · 教學引導",     tint: "rgba(20,184,166,0.85)" },
+  導導:   { name: "導導", role: "導演精靈 · 拆鏡編排",     tint: "rgba(34,197,94,0.85)" },
+  編編:   { name: "編編", role: "編排精靈 · 跨素材組裝",   tint: "rgba(139,92,246,0.85)" },
+  品品:   { name: "品品", role: "評審精靈 · 候選評分",     tint: "rgba(217,70,239,0.85)" },
+  查查:   { name: "查查", role: "研究精靈 · 風格調研",     tint: "rgba(99,102,241,0.85)" },
+  路路:   { name: "路路", role: "領航精靈 · 跨平台路由",   tint: "rgba(6,182,212,0.85)" },
+  暖暖:   { name: "暖暖", role: "陪伴精靈 · 情緒承接",     tint: "rgba(244,114,182,0.85)" },
+  財財:   { name: "財財", role: "精算精靈 · 預算守門",     tint: "rgba(234,179,8,0.85)" },
+  巧巧:   { name: "巧巧", role: "提示詞教練 · 詞彙打磨",   tint: "rgba(132,204,22,0.85)" },
+  守守:   { name: "守守", role: "糾察精靈 · 一致性巡檢",   tint: "rgba(244,63,94,0.85)" },
+} as const;
+
 interface Scenario {
   id: string;
   modeId: ModeId;
@@ -135,6 +179,10 @@ interface Scenario {
   eta: string;
   summary: string;
   prompt: string;
+  /** Spirit cast — first entry is the lead, rest are collaborators in order. */
+  spirits: SpiritNickname[];
+  /** Per-handoff one-liner: what the spirit does and to whom they pass. */
+  handoffs: { from: SpiritNickname; do: string; next?: SpiritNickname }[];
   runbook: {
     perceive: string;
     plan: string;
@@ -144,31 +192,22 @@ interface Scenario {
 }
 
 const SCENARIOS: readonly Scenario[] = [
-  {
-    id: "brand-short-film",
-    modeId: "director",
-    demoForm: "multimodal",
-    label: "品牌形象短片",
-    eta: "20-30 分鐘",
-    summary: "代理拆鏡 + 配樂 + 字幕一次到位",
-    prompt:
-      "幫我做一支 20 秒品牌形象短片，溫暖療癒、自動分鏡、配樂、繁中字幕。",
-    runbook: {
-      perceive: "辨識品牌調性、受眾與投放平台，先判斷是導演多模態流程。",
-      plan: "拆成分鏡、主視覺、配樂、字幕四段任務，依相依順序排程。",
-      tools: "先呼叫導演規劃，再串圖片/影片/音樂/配音工具並追蹤 queue。",
-      output: "回傳可重跑版本、素材清單、每段耗時與下一步微調建議。",
-    },
-  },
+  // ── quick (4) ───────────────────────────────────────────────────────────
   {
     id: "product-key-visual",
     modeId: "image",
     demoForm: "quick",
     label: "商品主視覺",
     eta: "8-12 分鐘",
-    summary: "代理產出多版可比較設計稿",
+    summary: "圖圖 × 巧巧 × 品品 產出多版可比較稿",
     prompt:
       "極簡質感商品攝影，純色背景、柔光、淺景深、4K，產出 4 版差異稿。",
+    spirits: ["圖圖", "巧巧", "品品"],
+    handoffs: [
+      { from: "巧巧", do: "把『質感、純色、4K』翻成可重複出圖的提示詞模板", next: "圖圖" },
+      { from: "圖圖", do: "並行 4 種光線/構圖差異稿，保留 seed", next: "品品" },
+      { from: "品品", do: "對 4 張打分並排出推薦首選 + 下一輪微調建議" },
+    ],
     runbook: {
       perceive: "解析產品類型與風格關鍵詞，判定以圖片模式為主。",
       plan: "建立 4 組風格差異（構圖、光線、鏡頭語言）快速並行。",
@@ -182,9 +221,15 @@ const SCENARIOS: readonly Scenario[] = [
     demoForm: "quick",
     label: "社群短影音",
     eta: "10-15 分鐘",
-    summary: "9:16 直式，自動節奏點與字幕",
+    summary: "影影 × 音音 × 聲聲 9:16 一刀剪",
     prompt:
       "15 秒 9:16 社群短影音，霓虹城市夜景慢推軌，自動節奏點切換、配字幕。",
+    spirits: ["影影", "音音", "聲聲"],
+    handoffs: [
+      { from: "影影", do: "拆 4 個 3.75 秒節奏點，慢推軌 + 霓虹色票", next: "音音" },
+      { from: "音音", do: "對齊節奏點生成 BPM 80 配樂", next: "聲聲" },
+      { from: "聲聲", do: "上字幕 + 收音標記，輸出可直接發佈版本" },
+    ],
     runbook: {
       perceive: "判斷社群平台與直式比例，映射到短影音模板。",
       plan: "先做節奏與分鏡，再進入單支 15 秒影片生成與字幕對齊。",
@@ -193,14 +238,89 @@ const SCENARIOS: readonly Scenario[] = [
     },
   },
   {
+    id: "campaign-poster",
+    modeId: "image",
+    demoForm: "quick",
+    label: "活動主視覺海報",
+    eta: "6-10 分鐘",
+    summary: "圖圖 × 編編 × 巧巧 一句話海報稿",
+    prompt:
+      "週末快閃市集活動主視覺，溫暖手繪感、暖橘 + 米白配色，A2 直式、預留標題與資訊區。",
+    spirits: ["巧巧", "圖圖", "編編"],
+    handoffs: [
+      { from: "巧巧", do: "把活動關鍵詞延伸成 3 組情緒提示詞", next: "圖圖" },
+      { from: "圖圖", do: "依 3 組提示詞並行出圖、保留版位留白", next: "編編" },
+      { from: "編編", do: "套上標題格線 + 資訊區，輸出可印刷版" },
+    ],
+    runbook: {
+      perceive: "辨識是行銷主視覺需求，鎖定海報直式比例。",
+      plan: "先建立提示詞、出圖、再做版型套用。",
+      tools: "image_generator → composer.layout，皆保留 seed 可重跑。",
+      output: "輸出 3 版海報稿與排版來源檔。",
+    },
+  },
+  {
+    id: "ad-copy-thumb",
+    modeId: "image",
+    demoForm: "quick",
+    label: "廣告文案縮圖",
+    eta: "5-8 分鐘",
+    summary: "查查 × 圖圖 × 守守 投放素材組",
+    prompt:
+      "Meta 廣告 1:1 縮圖三版：強反差、人臉特寫、產品近拍，符合品牌色票 #FFB454。",
+    spirits: ["查查", "圖圖", "守守"],
+    handoffs: [
+      { from: "查查", do: "比對近 7 天表現好的廣告構圖樣式", next: "圖圖" },
+      { from: "圖圖", do: "依 3 種構圖各出 1 張、固定品牌色票", next: "守守" },
+      { from: "守守", do: "檢查是否壓 logo 安全區、有無禁用字眼" },
+    ],
+    runbook: {
+      perceive: "識別投放平台規範與 1:1 尺寸要求。",
+      plan: "先抓參考、再出圖、最後巡檢。",
+      tools: "research_web → image_generator → policy_check。",
+      output: "3 張可直接送審的縮圖 + 違規檢核報告。",
+    },
+  },
+  // ── multimodal (4) ──────────────────────────────────────────────────────
+  {
+    id: "brand-short-film",
+    modeId: "director",
+    demoForm: "multimodal",
+    label: "品牌形象短片",
+    eta: "20-30 分鐘",
+    summary: "導導 × 圖圖 × 影影 × 音音 × 聲聲 全鏈路",
+    prompt:
+      "幫我做一支 20 秒品牌形象短片，溫暖療癒、自動分鏡、配樂、繁中字幕。",
+    spirits: ["導導", "圖圖", "影影", "音音", "聲聲"],
+    handoffs: [
+      { from: "導導", do: "拆 5 鏡 + 主題曲線、定義每鏡時長", next: "圖圖" },
+      { from: "圖圖", do: "出每鏡 key-frame 主視覺鎖風格", next: "影影" },
+      { from: "影影", do: "依 key-frame 生成 5 段運鏡、串接", next: "音音" },
+      { from: "音音", do: "依分鏡情緒生成 20 秒原創配樂", next: "聲聲" },
+      { from: "聲聲", do: "上繁中字幕 + 收尾標語旁白" },
+    ],
+    runbook: {
+      perceive: "辨識品牌調性、受眾與投放平台，先判斷是導演多模態流程。",
+      plan: "拆成分鏡、主視覺、配樂、字幕四段任務，依相依順序排程。",
+      tools: "先呼叫導演規劃，再串圖片/影片/音樂/配音工具並追蹤 queue。",
+      output: "回傳可重跑版本、素材清單、每段耗時與下一步微調建議。",
+    },
+  },
+  {
     id: "podcast-music",
     modeId: "music",
     demoForm: "multimodal",
     label: "Podcast 配樂與旁白",
     eta: "10-15 分鐘",
-    summary: "原創配樂 + 語音克隆旁白",
+    summary: "音音 × 聲聲 × 編編 開場包",
     prompt:
       "Podcast 開場 30 秒原創配樂，BPM 76、慢板鋼琴 + 弦樂氛圍，搭配溫暖女聲旁白。",
+    spirits: ["音音", "聲聲", "編編"],
+    handoffs: [
+      { from: "音音", do: "生成 30 秒情緒曲線、保留鋼琴主旋律分軌", next: "聲聲" },
+      { from: "聲聲", do: "依 BPM 76 對齊旁白語速與停頓", next: "編編" },
+      { from: "編編", do: "做音量平衡與分軌輸出，附 cue sheet" },
+    ],
     runbook: {
       perceive: "辨識音樂 + 配音雙模態，先做風格一致性約束。",
       plan: "先生成配樂情緒曲線，再套旁白語速與停頓。",
@@ -209,14 +329,160 @@ const SCENARIOS: readonly Scenario[] = [
     },
   },
   {
+    id: "tutorial-video-series",
+    modeId: "director",
+    demoForm: "multimodal",
+    label: "教學影片系列",
+    eta: "25-35 分鐘",
+    summary: "學學 × 影影 × 聲聲 × 巧巧 教程包",
+    prompt:
+      "做一個 3 集教學影片系列，每集 60 秒，講解 AI 創作流程，溫和清晰女聲、配字幕。",
+    spirits: ["學學", "巧巧", "影影", "聲聲"],
+    handoffs: [
+      { from: "學學", do: "拆 3 集學習目標 + 每集核心概念", next: "巧巧" },
+      { from: "巧巧", do: "把學習目標翻成具體分鏡提示詞", next: "影影" },
+      { from: "影影", do: "出 3 集分鏡與動畫示意", next: "聲聲" },
+      { from: "聲聲", do: "錄旁白 + 上字幕，輸出三集教學包" },
+    ],
+    runbook: {
+      perceive: "識別是教學內容，需以教育節奏與記憶點優先。",
+      plan: "先學習目標、再分鏡、再旁白、最後字幕。",
+      tools: "learn.outline → image/video → tts → caption。",
+      output: "3 集教學影片 + 教學筆記 + 互動測驗草稿。",
+    },
+  },
+  {
+    id: "soul-companion-audio",
+    modeId: "voice",
+    demoForm: "multimodal",
+    label: "情緒陪伴語音",
+    eta: "8-12 分鐘",
+    summary: "暖暖 × 聲聲 × 音音 安撫包",
+    prompt:
+      "5 分鐘睡前安撫語音，舒緩女聲、雨聲背景、間隔 8 秒呼吸引導，繁中。",
+    spirits: ["暖暖", "聲聲", "音音"],
+    handoffs: [
+      { from: "暖暖", do: "依使用者狀態擬安撫文案 + 呼吸節奏", next: "聲聲" },
+      { from: "聲聲", do: "用舒緩女聲配音、留呼吸引導空檔", next: "音音" },
+      { from: "音音", do: "鋪雨聲與低頻氛圍墊，輸出 mp3 + lrc" },
+    ],
+    runbook: {
+      perceive: "辨識情緒陪伴語境，優先採用緩慢節奏與留白。",
+      plan: "先文案、再配音、再氛圍墊。",
+      tools: "companion.script → tts → ambient_music。",
+      output: "5 分鐘安撫音檔 + 文字稿 + 呼吸標記。",
+    },
+  },
+  // ── multi-step (4) ──────────────────────────────────────────────────────
+  {
+    id: "campaign-pack",
+    modeId: "director",
+    demoForm: "multi-step",
+    label: "完整行銷素材包",
+    eta: "30-45 分鐘",
+    summary: "導導 × 編編 × 財財 × 守守 全套交付",
+    prompt:
+      "產出完整行銷素材包：主視覺、15 秒短片、30 秒配樂、繁中旁白，跨格式同步。",
+    spirits: ["導導", "編編", "圖圖", "影影", "音音", "聲聲", "財財", "守守"],
+    handoffs: [
+      { from: "財財", do: "估算總成本與時程上限、設定預算守門", next: "導導" },
+      { from: "導導", do: "建立 DAG：主視覺 → 短片 → 配樂 → 旁白", next: "編編" },
+      { from: "編編", do: "依序派工 4 模態並追蹤 queue", next: "守守" },
+      { from: "守守", do: "跨素材一致性巡檢、產出交付清單" },
+    ],
+    runbook: {
+      perceive: "判斷是跨工具多步驟專案，需先建立里程碑與依賴。",
+      plan: "先主視覺、再短片、再配樂與旁白，最後做跨素材一致性檢查。",
+      tools: "混合呼叫導演、圖片、影片、音樂與配音工具並集中追蹤狀態。",
+      output: "回傳完整素材包、交付清單、風險與重跑入口。",
+    },
+  },
+  {
+    id: "multi-platform-resize",
+    modeId: "director",
+    demoForm: "multi-step",
+    label: "多平台素材轉換",
+    eta: "12-20 分鐘",
+    summary: "路路 × 影影 × 圖圖 × 守守 一鍵跨平台",
+    prompt:
+      "把這支 16:9 短片同步生 9:16、1:1、4:5 三個版本，自動處理裁切與字幕。",
+    spirits: ["路路", "影影", "圖圖", "守守"],
+    handoffs: [
+      { from: "路路", do: "比對 IG / TikTok / FB 規範與安全區", next: "影影" },
+      { from: "影影", do: "對 3 種比例重新運鏡 / 自動 reframe", next: "圖圖" },
+      { from: "圖圖", do: "依比例重做封面縮圖", next: "守守" },
+      { from: "守守", do: "檢查字幕未被裁切、logo 在安全區內" },
+    ],
+    runbook: {
+      perceive: "識別跨平台投放需求與比例規範。",
+      plan: "建立平台 → 比例 → 裁切策略矩陣。",
+      tools: "platform.policy → video.reframe → image.thumbnail。",
+      output: "3 比例版本 + 封面 + 平台合規報告。",
+    },
+  },
+  {
+    id: "social-serial-story",
+    modeId: "director",
+    demoForm: "multi-step",
+    label: "社群連載故事",
+    eta: "20-30 分鐘",
+    summary: "導導 × 圖圖 × 聲聲 × 暖暖 7 集連載",
+    prompt:
+      "做一個 7 集社群連載故事，每集 1 張圖 + 30 秒語音，主角一致、情緒漸進。",
+    spirits: ["導導", "暖暖", "圖圖", "聲聲"],
+    handoffs: [
+      { from: "導導", do: "拆 7 集情節大綱與情緒曲線", next: "暖暖" },
+      { from: "暖暖", do: "為每集寫第一人稱旁白稿", next: "圖圖" },
+      { from: "圖圖", do: "鎖角色一致 + 7 集主視覺", next: "聲聲" },
+      { from: "聲聲", do: "錄 7 段旁白、輸出可排程發文素材" },
+    ],
+    runbook: {
+      perceive: "識別連載敘事需求，鎖角色一致與情緒節奏。",
+      plan: "先大綱、再文案、再視覺、最後配音。",
+      tools: "director.plan → companion.script → image.lora → tts。",
+      output: "7 集圖文 + 配音 + 發文時間建議。",
+    },
+  },
+  {
+    id: "seasonal-campaign",
+    modeId: "director",
+    demoForm: "multi-step",
+    label: "季節活動企劃",
+    eta: "25-40 分鐘",
+    summary: "查查 × 編編 × 財財 × 路路 從調研到投放",
+    prompt:
+      "做一個母親節活動的視覺企劃：調研競品 → 主視覺三版 → 投放素材 → 預算配置。",
+    spirits: ["查查", "編編", "財財", "路路", "圖圖"],
+    handoffs: [
+      { from: "查查", do: "蒐集近 3 年母親節主視覺趨勢與競品", next: "編編" },
+      { from: "編編", do: "綜合趨勢設定 3 個方向與品牌差異化", next: "圖圖" },
+      { from: "圖圖", do: "出 3 版主視覺 + 投放素材", next: "財財" },
+      { from: "財財", do: "依平台 CPM 估算最佳預算配置", next: "路路" },
+      { from: "路路", do: "排出 IG / FB / LINE 上架時程" },
+    ],
+    runbook: {
+      perceive: "識別是季節節點企劃，需先做趨勢調研。",
+      plan: "調研 → 創意 → 出圖 → 預算 → 排程。",
+      tools: "research.web → composer.brief → image → finance.calc → schedule。",
+      output: "完整企劃簡報 + 視覺包 + 投放排程。",
+    },
+  },
+  // ── style (3) ───────────────────────────────────────────────────────────
+  {
     id: "character-series",
     modeId: "lora",
     demoForm: "style",
     label: "角色一致系列圖",
     eta: "25-40 分鐘",
-    summary: "LoRA 鎖風格，跨作品一致",
+    summary: "練練 × 圖圖 × 守守 跨作品鎖造型",
     prompt:
       "上傳 12 張參考圖，訓練專屬角色 LoRA，後續以同一造型產出 6 張系列圖。",
+    spirits: ["練練", "圖圖", "守守"],
+    handoffs: [
+      { from: "練練", do: "驗收 12 張參考圖、訓練專屬 LoRA", next: "圖圖" },
+      { from: "圖圖", do: "套上 LoRA 跨景產出 6 張系列圖", next: "守守" },
+      { from: "守守", do: "比對臉部 / 服裝 / 光線一致性，標出走鐘格" },
+    ],
     runbook: {
       perceive: "檢查參考圖品質與角色一致性，評估可訓練性。",
       plan: "先訓練 LoRA，再建立系列圖任務與風格約束。",
@@ -225,19 +491,48 @@ const SCENARIOS: readonly Scenario[] = [
     },
   },
   {
-    id: "campaign-pack",
-    modeId: "director",
-    demoForm: "multi-step",
-    label: "完整行銷素材包",
-    eta: "30-45 分鐘",
-    summary: "主視覺 + 短片 + 配樂 + 旁白",
+    id: "lora-train-deep",
+    modeId: "lora",
+    demoForm: "style",
+    label: "角色 LoRA 進階訓練",
+    eta: "40-60 分鐘",
+    summary: "練練 × 學學 × 守守 × 財財 把控訓練品質",
     prompt:
-      "產出完整行銷素材包：主視覺、15 秒短片、30 秒配樂、繁中旁白，跨格式同步。",
+      "把這位虛擬主持人的形象訓練成可商用 LoRA，要求穩定 5 種光線與 3 種服裝。",
+    spirits: ["練練", "學學", "守守", "財財"],
+    handoffs: [
+      { from: "財財", do: "估算 8 分鐘 vs 25 分鐘訓練之成本差", next: "學學" },
+      { from: "學學", do: "建議 rank / steps / 觸發詞最佳實踐", next: "練練" },
+      { from: "練練", do: "依配方訓練、自動取樣驗證收斂", next: "守守" },
+      { from: "守守", do: "跨光線 / 服裝測試，輸出一致性分數" },
+    ],
     runbook: {
-      perceive: "判斷是跨工具多步驟專案，需先建立里程碑與依賴。",
-      plan: "先主視覺、再短片、再配樂與旁白，最後做跨素材一致性檢查。",
-      tools: "混合呼叫導演、圖片、影片、音樂與配音工具並集中追蹤狀態。",
-      output: "回傳完整素材包、交付清單、風險與重跑入口。",
+      perceive: "識別是商用 LoRA 訓練，要求高一致性與可重現。",
+      plan: "預算 → 配方 → 訓練 → 跨景驗證。",
+      tools: "finance.calc → learn.advise → lora.train → consistency.check。",
+      output: "LoRA 權重 + 觸發詞表 + 一致性報告。",
+    },
+  },
+  {
+    id: "season-style-mood",
+    modeId: "image",
+    demoForm: "style",
+    label: "跨季節主視覺",
+    eta: "15-25 分鐘",
+    summary: "編編 × 圖圖 × 巧巧 一套四季",
+    prompt:
+      "為咖啡品牌做四季主視覺，同一構圖、不同季節色票與光線，跨季風格一致。",
+    spirits: ["編編", "圖圖", "巧巧"],
+    handoffs: [
+      { from: "編編", do: "鎖定共用構圖與品牌符號", next: "巧巧" },
+      { from: "巧巧", do: "為春夏秋冬寫 4 組差異提示詞", next: "圖圖" },
+      { from: "圖圖", do: "並行出 4 季主視覺、保留 seed 可重跑" },
+    ],
+    runbook: {
+      perceive: "識別是系列風格需求，需鎖共用元素。",
+      plan: "先框架、再差異提示詞、最後並行出圖。",
+      tools: "composer.frame → prompt.craft → image.batch。",
+      output: "四季主視覺 + 共用構圖手冊。",
     },
   },
 ] as const;
@@ -738,119 +1033,372 @@ function PlaceholderVideo({ tint }: { tint: string }) {
 }
 
 function PlaceholderMusic({ tint }: { tint: string }) {
-  const bars = Array.from({ length: 24 }, (_, i) => i);
+  // DAW-style preview: BPM + Key + Genre header, four-track waveform (drums/
+  // bass/pad/lead), timeline cursor — reads as an actual produced piece
+  // rather than 24 abstract bars.
+  const tracks = [
+    { name: "DRUM", color: "rgba(236,72,153,0.85)", pattern: [3, 1, 3, 2, 3, 1, 3, 2, 3, 1, 3, 2, 3, 1, 3, 2] },
+    { name: "BASS", color: "rgba(168,85,247,0.85)", pattern: [2, 0, 0, 1, 2, 0, 1, 0, 2, 0, 0, 1, 2, 0, 1, 0] },
+    { name: " PAD", color: "rgba(99,102,241,0.85)", pattern: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3] },
+    { name: "LEAD", color: "rgba(244,114,182,0.85)", pattern: [0, 0, 1, 2, 3, 2, 1, 0, 0, 1, 2, 3, 2, 1, 0, 0] },
+  ] as const;
   return (
-    <div className="flex items-end justify-center gap-1 w-full h-full px-3 py-2">
-      {bars.map(i => (
-        <motion.span
-          key={i}
-          className="rounded-full"
+    <div className="flex flex-col w-full h-full px-2 py-1.5 gap-1">
+      {/* Header strip — BPM / KEY / GENRE */}
+      <div className="flex items-center justify-between text-[8.5px] font-mono">
+        <div className="flex gap-1">
+          <span
+            className="px-1.5 py-[1px] rounded font-semibold"
+            style={{ background: tint, color: "#fff" }}
+          >
+            BPM 76
+          </span>
+          <span
+            className="px-1.5 py-[1px] rounded"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            KEY · A♭m
+          </span>
+          <span
+            className="px-1.5 py-[1px] rounded hidden sm:inline"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            cinematic
+          </span>
+        </div>
+        <span style={{ color: tint }}>00:00 / 00:30</span>
+      </div>
+
+      {/* Four-track waveform stack */}
+      <div className="flex-1 min-h-0 flex flex-col gap-[3px] relative">
+        {tracks.map((t, ti) => (
+          <div
+            key={t.name}
+            className="flex items-center gap-1.5 flex-1 min-h-0"
+          >
+            <span
+              className="text-[7.5px] font-mono shrink-0 font-semibold"
+              style={{ color: t.color, width: 26 }}
+            >
+              {t.name}
+            </span>
+            <div
+              className="flex-1 h-full flex items-center gap-[1.5px] rounded overflow-hidden px-1"
+              style={{
+                background: "rgba(0,0,0,0.18)",
+                border: `1px solid ${t.color}`,
+              }}
+            >
+              {t.pattern.map((p, i) => (
+                <motion.span
+                  key={i}
+                  className="flex-1 rounded-full"
+                  style={{
+                    background: t.color,
+                    boxShadow: `0 0 4px ${t.color}`,
+                    minWidth: 2,
+                  }}
+                  animate={{
+                    height: [
+                      `${20 + p * 18}%`,
+                      `${35 + p * 16}%`,
+                      `${20 + p * 18}%`,
+                    ],
+                  }}
+                  transition={{
+                    duration: 1.4 + (i % 3) * 0.12,
+                    delay: ti * 0.08 + i * 0.04,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Playhead cursor sweeping across all tracks */}
+        <motion.div
+          className="absolute inset-y-0 w-[2px] pointer-events-none"
           style={{
-            width: 4,
-            background: tint,
-            boxShadow: `0 0 8px ${tint}`,
+            background: `linear-gradient(180deg, ${tint}, rgba(255,255,255,0.85))`,
+            boxShadow: `0 0 10px ${tint}`,
+            left: "32px",
           }}
-          animate={{
-            height: [
-              `${15 + ((i * 13) % 60)}%`,
-              `${30 + ((i * 7) % 50)}%`,
-              `${15 + ((i * 13) % 60)}%`,
-            ],
-          }}
-          transition={{
-            duration: 1.2 + (i % 4) * 0.15,
-            delay: (i % 6) * 0.08,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
+          animate={{ left: ["32px", "calc(100% - 4px)"] }}
+          transition={{ duration: 4.0, repeat: Infinity, ease: "linear" }}
         />
-      ))}
+      </div>
+
+      {/* Bottom: timeline ticks */}
+      <div className="flex items-center gap-[3px] text-[7px] font-mono opacity-70">
+        {[0, 4, 8, 12, 16, 20, 24, 28].map((s) => (
+          <span
+            key={s}
+            className="flex-1 text-center"
+            style={{ color: tint }}
+          >
+            {String(s).padStart(2, "0")}s
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function PlaceholderVoice({ tint }: { tint: string }) {
+  // Voice preview: voice profile + waveform amplitude bars (40 samples) +
+  // rolling caption preview + LR meters — looks like a real configured TTS
+  // call rather than a single sine wave.
+  const samples = Array.from({ length: 40 }, (_, i) => i);
+  // Realistic-looking amplitude envelope: silence → ramp → speech → trail
+  const envelope = (i: number) => {
+    if (i < 3 || i > 36) return 0.1;
+    if (i < 7) return 0.25 + (i - 3) * 0.08;
+    if (i > 32) return 0.55 - (i - 32) * 0.1;
+    // pseudo-random speech amplitude derived from position
+    const base = 0.45 + Math.sin(i * 0.7) * 0.18 + Math.cos(i * 1.3) * 0.12;
+    const noise = ((i * 17) % 23) / 60;
+    return Math.max(0.18, Math.min(0.95, base + noise));
+  };
   return (
-    <div className="flex items-center justify-center w-full h-full px-3">
-      <svg viewBox="0 0 200 60" className="w-full h-full" preserveAspectRatio="none">
-        <motion.path
-          d="M 0 30 Q 20 10 40 30 T 80 30 T 120 30 T 160 30 T 200 30"
-          fill="none"
-          stroke={tint}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          animate={{
-            d: [
-              "M 0 30 Q 20 10 40 30 T 80 30 T 120 30 T 160 30 T 200 30",
-              "M 0 30 Q 20 50 40 30 T 80 30 T 120 30 T 160 30 T 200 30",
-              "M 0 30 Q 20 18 40 30 T 80 30 T 120 30 T 160 30 T 200 30",
-            ],
-          }}
-          transition={{ duration: 2.0, repeat: Infinity, ease: "easeInOut" }}
-          style={{ filter: `drop-shadow(0 0 4px ${tint})` }}
+    <div className="flex flex-col w-full h-full px-2 py-1.5 gap-1.5">
+      {/* Header: voice profile + language tag */}
+      <div className="flex items-center justify-between text-[8.5px] font-mono">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded"
+            style={{ background: tint, color: "#fff" }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-white"
+              style={{ boxShadow: "0 0 4px #fff" }}
+            />
+            qwen-tts · 溫暖女聲
+          </span>
+          <span
+            className="px-1.5 py-[1px] rounded hidden sm:inline"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            zh-TW
+          </span>
+        </div>
+        <span style={{ color: tint }}>0:14 / 0:18</span>
+      </div>
+
+      {/* Waveform — symmetric amplitude bars centered on midline */}
+      <div
+        className="flex-1 min-h-0 relative rounded-md overflow-hidden flex items-center"
+        style={{
+          background: "rgba(0,0,0,0.22)",
+          border: `1px solid ${tint}`,
+        }}
+      >
+        <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-center gap-[2px] px-1.5">
+          {samples.map((i) => {
+            const amp = envelope(i);
+            return (
+              <motion.span
+                key={i}
+                className="flex-1 rounded-full"
+                style={{
+                  background: tint,
+                  boxShadow: `0 0 4px ${tint}`,
+                  minWidth: 1.5,
+                }}
+                animate={{
+                  height: [
+                    `${amp * 60}%`,
+                    `${amp * 100}%`,
+                    `${amp * 60}%`,
+                  ],
+                }}
+                transition={{
+                  duration: 0.9 + (i % 3) * 0.15,
+                  delay: i * 0.025,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Centerline */}
+        <div
+          className="absolute inset-x-0 top-1/2 h-px pointer-events-none"
+          style={{ background: "rgba(255,255,255,0.18)" }}
         />
-      </svg>
+
+        {/* Sweeping playhead */}
+        <motion.div
+          className="absolute inset-y-0 w-[2px] pointer-events-none"
+          style={{
+            background: `linear-gradient(180deg, transparent, ${tint}, transparent)`,
+            boxShadow: `0 0 10px ${tint}`,
+          }}
+          animate={{ left: ["0%", "100%"] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
+        />
+      </div>
+
+      {/* Rolling caption preview */}
+      <div
+        className="rounded px-1.5 py-1 text-[10px] sm:text-[11px] leading-tight relative overflow-hidden"
+        style={{
+          background: "rgba(0,0,0,0.5)",
+          border: `1px solid ${tint}`,
+          color: "#fff",
+        }}
+      >
+        <motion.span
+          className="block whitespace-nowrap font-mono"
+          animate={{ x: ["8%", "-92%"] }}
+          transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+          style={{ display: "inline-block" }}
+        >
+          『 在每一次的呼吸之間，世界都重新誕生一次 』
+          <span className="opacity-60 ml-3">— 自動上字幕 · WPM 145 · pause 0.4s ·</span>
+        </motion.span>
+      </div>
+
+      {/* LR meter row */}
+      <div className="flex items-center gap-1.5 text-[7.5px] font-mono">
+        {(["L", "R"] as const).map((ch, ci) => (
+          <div key={ch} className="flex items-center gap-1 flex-1">
+            <span style={{ color: tint }}>{ch}</span>
+            <div
+              className="flex-1 h-1 rounded-full overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.12)" }}
+            >
+              <motion.div
+                className="h-full rounded-full"
+                style={{
+                  background: `linear-gradient(90deg, ${tint}, #fff)`,
+                }}
+                animate={{ width: ci === 0 ? ["35%", "75%", "55%"] : ["55%", "70%", "40%"] }}
+                transition={{
+                  duration: 1.6 + ci * 0.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function PlaceholderDirector({ tint }: { tint: string }) {
-  // 5 scenes + 1 deliverables panel — each card declares its scene type so
-  // viewers can read the director's plan at a glance.
+  // Storyboard with directional flow: 5 scenes + final delivery card.
+  // Cards animate in sequence to show the director's scheduling pass; a
+  // sweeping highlight ring marks "currently rendering" so viewers see this
+  // is a live plan, not 6 static boxes.
   const scenes = [
-    { tag: "S1", role: "開場", detail: "品牌主題", dur: "4s" },
-    { tag: "S2", role: "鋪陳", detail: "情緒鋪墊", dur: "6s" },
-    { tag: "S3", role: "高潮", detail: "產品特寫", dur: "5s" },
-    { tag: "S4", role: "轉折", detail: "使用情境", dur: "5s" },
-    { tag: "S5", role: "收束", detail: "標語+LOGO", dur: "4s" },
-    { tag: "✓", role: "成品包", detail: "影 + 樂 + 字", dur: "24s" },
+    { tag: "S1", role: "開場", detail: "品牌主題", dur: "4s", color: "rgba(168,85,247,0.85)" },
+    { tag: "S2", role: "鋪陳", detail: "情緒鋪墊", dur: "6s", color: "rgba(99,102,241,0.85)" },
+    { tag: "S3", role: "高潮", detail: "產品特寫", dur: "5s", color: "rgba(34,197,94,0.85)" },
+    { tag: "S4", role: "轉折", detail: "使用情境", dur: "5s", color: "rgba(59,130,246,0.85)" },
+    { tag: "S5", role: "收束", detail: "標語+LOGO", dur: "4s", color: "rgba(244,114,182,0.85)" },
+    { tag: "✓",  role: "成品包", detail: "影+樂+字", dur: "24s", color: "rgba(234,179,8,0.85)" },
   ] as const;
   return (
-    <div className="grid grid-cols-3 gap-1.5 w-full h-full p-2">
-      {scenes.map((s, i) => (
-        <motion.div
-          key={i}
-          className="rounded-md relative overflow-hidden p-1.5 flex flex-col"
-          style={{
-            background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.06))`,
-            border: `1px solid ${tint}`,
-          }}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: i * 0.08, duration: 0.4 }}
+    <div className="flex flex-col w-full h-full p-2 gap-1">
+      {/* Header: timeline summary */}
+      <div className="flex items-center justify-between text-[8.5px] font-mono">
+        <span
+          className="px-1.5 py-[1px] rounded font-semibold"
+          style={{ background: tint, color: "#fff" }}
         >
-          <div className="flex items-center justify-between mb-0.5">
-            <span
-              className="text-[8px] font-mono font-semibold px-1 py-[1px] rounded"
-              style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          STORYBOARD · 6 nodes
+        </span>
+        <span style={{ color: tint }}>total 24s · 5 cuts + 1 delivery</span>
+      </div>
+
+      {/* Scene grid — 3 cols, with arrow connectors between same-row cards
+          and downward arrow at row breaks. */}
+      <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 flex-1 min-h-0 relative">
+        {scenes.map((s, i) => {
+          const inFirstRow = i < 3;
+          const isLastInRow = (i + 1) % 3 === 0;
+          const isLast = i === scenes.length - 1;
+          return (
+            <motion.div
+              key={i}
+              className="rounded-md relative overflow-hidden p-1.5 flex flex-col"
+              style={{
+                background: `linear-gradient(135deg, ${s.color}, rgba(255,255,255,0.06))`,
+                border: `1px solid ${s.color}`,
+              }}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.4 }}
             >
-              {s.tag}
-            </span>
-            <span
-              className="text-[8px] font-mono px-1 py-[1px] rounded-full"
-              style={{ background: tint, color: "#fff" }}
-            >
-              {s.dur}
-            </span>
-          </div>
-          <span className="text-[10px] font-semibold leading-tight text-white">
-            {s.role}
-          </span>
-          <span className="text-[8.5px] font-mono mt-0.5 leading-tight text-white/85">
-            {s.detail}
-          </span>
-          {/* Arrow connector to next scene (skip last) */}
-          {i < scenes.length - 1 && (i + 1) % 3 !== 0 && (
-            <span
-              className="absolute right-[-7px] top-1/2 -translate-y-1/2 text-[10px]"
-              style={{ color: tint }}
-              aria-hidden="true"
-            >
-              ›
-            </span>
-          )}
-        </motion.div>
-      ))}
+              <div className="flex items-center justify-between mb-0.5">
+                <span
+                  className="text-[8px] font-mono font-semibold px-1 py-[1px] rounded"
+                  style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+                >
+                  {s.tag}
+                </span>
+                <span
+                  className="text-[8px] font-mono px-1 py-[1px] rounded-full"
+                  style={{ background: s.color, color: "#fff" }}
+                >
+                  {s.dur}
+                </span>
+              </div>
+              <span className="text-[10px] font-semibold leading-tight text-white">
+                {s.role}
+              </span>
+              <span className="text-[8.5px] font-mono mt-0.5 leading-tight text-white/90 truncate">
+                {s.detail}
+              </span>
+
+              {/* Highlight ring sweeps from card 0 → 5 to indicate the
+                  director's current rendering target. */}
+              <motion.span
+                className="absolute inset-0 rounded-md pointer-events-none"
+                style={{ border: `2px solid ${tint}`, boxShadow: `0 0 12px ${tint}` }}
+                animate={{ opacity: [0, 1, 0] }}
+                transition={{
+                  duration: 0.8,
+                  delay: i * 0.5,
+                  repeat: Infinity,
+                  repeatDelay: scenes.length * 0.5 - 0.8,
+                }}
+              />
+
+              {/* Right-arrow to next card in same row */}
+              {!isLastInRow && !isLast && (
+                <motion.span
+                  className="absolute -right-[9px] top-1/2 -translate-y-1/2 text-[12px] z-10"
+                  style={{ color: tint, textShadow: `0 0 6px ${tint}` }}
+                  animate={{ x: [0, 2, 0] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  aria-hidden="true"
+                >
+                  ›
+                </motion.span>
+              )}
+              {/* Down-arrow at row break (S3 → S4) */}
+              {isLastInRow && !isLast && inFirstRow && (
+                <motion.span
+                  className="absolute -bottom-[7px] right-2 text-[10px] z-10"
+                  style={{ color: tint, textShadow: `0 0 6px ${tint}` }}
+                  animate={{ y: [0, 2, 0] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  aria-hidden="true"
+                >
+                  ⌄
+                </motion.span>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -858,17 +1406,44 @@ function PlaceholderDirector({ tint }: { tint: string }) {
 function PlaceholderLora({ tint }: { tint: string }) {
   // Each card represents an angle of the same character — together they show
   // cross-shot consistency, which is the entire point of LoRA training.
+  // SVG figure (head + hair + shoulders) reads as an actual character mock
+  // rather than a blurred ellipse. Layout uses flexbox so the figure, name
+  // strip and consistency bar never overlap on small heights.
   const looks = [
-    { name: "正面", angle: "front · 0°", consistency: 96 },
-    { name: "3/4", angle: "3-quarter · 30°", consistency: 94 },
-    { name: "側臉", angle: "profile · 90°", consistency: 92 },
+    {
+      name: "正面",
+      angle: "front · 0°",
+      consistency: 96,
+      hairPath: "M 50 22 C 28 22 18 38 18 56 L 22 56 C 22 38 32 30 50 30 C 68 30 78 38 78 56 L 82 56 C 82 38 72 22 50 22 Z",
+      facePos: { cx: 50, cy: 50 },
+      eyes: [{ x: 42, y: 50 }, { x: 58, y: 50 }] as const,
+      shoulderPath: "M 12 92 C 22 76 36 70 50 70 C 64 70 78 76 88 92 L 88 100 L 12 100 Z",
+    },
+    {
+      name: "3/4",
+      angle: "3-quarter · 30°",
+      consistency: 94,
+      hairPath: "M 46 22 C 26 24 18 40 18 58 L 22 58 C 22 40 30 32 46 30 C 64 30 74 40 76 58 L 80 56 C 80 38 68 22 46 22 Z",
+      facePos: { cx: 52, cy: 50 },
+      eyes: [{ x: 46, y: 50 }, { x: 60, y: 50 }] as const,
+      shoulderPath: "M 14 92 C 26 76 40 70 54 70 C 68 70 80 78 88 92 L 88 100 L 14 100 Z",
+    },
+    {
+      name: "側臉",
+      angle: "profile · 90°",
+      consistency: 92,
+      hairPath: "M 38 22 C 22 24 14 40 14 58 L 18 58 C 18 40 24 32 40 30 C 56 30 64 40 66 58 L 70 56 C 70 38 58 22 38 22 Z",
+      facePos: { cx: 56, cy: 50 },
+      eyes: [{ x: 64, y: 50 }] as const,
+      shoulderPath: "M 12 92 C 24 76 36 70 50 70 C 64 70 76 78 84 92 L 84 100 L 12 100 Z",
+    },
   ] as const;
   return (
-    <div className="flex items-center justify-center gap-2 w-full h-full px-2">
+    <div className="flex items-stretch justify-center gap-2 w-full h-full px-2 py-1">
       {looks.map((l, i) => (
         <motion.div
           key={i}
-          className="flex-1 max-w-[34%] rounded-xl relative overflow-hidden p-1.5"
+          className="flex-1 min-w-0 rounded-xl relative overflow-hidden flex flex-col"
           style={{
             background: `linear-gradient(160deg, #082c3d 0%, ${tint} 70%, rgba(255,255,255,0.12))`,
             border: `1px solid ${tint}`,
@@ -880,21 +1455,11 @@ function PlaceholderLora({ tint }: { tint: string }) {
             y: { duration: 2.4, delay: i * 0.3, repeat: Infinity, ease: "easeInOut" },
           }}
         >
-          {/* face / hair silhouette */}
-          <div
-            className="absolute left-1/2 top-[28%] -translate-x-1/2 rounded-full"
-            style={{
-              width: "55%",
-              aspectRatio: "1 / 1.2",
-              background: `radial-gradient(ellipse at 50% 30%, rgba(255,235,210,0.95), rgba(120,80,60,0.6) 60%, transparent 90%)`,
-              filter: "blur(2px)",
-            }}
-          />
-          {/* name + angle */}
-          <div className="absolute left-1 right-1 top-1 flex items-center justify-between">
+          {/* name + version strip — pinned to top */}
+          <div className="relative z-10 flex items-center justify-between px-1.5 pt-1.5 pb-0.5">
             <span
               className="text-[8.5px] font-semibold px-1 py-[1px] rounded"
-              style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+              style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
             >
               {l.name}
             </span>
@@ -905,11 +1470,87 @@ function PlaceholderLora({ tint }: { tint: string }) {
               v{i + 1}
             </span>
           </div>
-          {/* consistency bar */}
-          <div className="absolute left-1 right-1 bottom-1.5">
+
+          {/* Character figure — flex-1 so it fills available height without
+              being cropped by the labels above or the consistency bar below. */}
+          <div className="relative flex-1 min-h-0 flex items-end justify-center px-1">
+            <svg
+              viewBox="0 0 100 100"
+              className="w-full h-full"
+              preserveAspectRatio="xMidYMax meet"
+            >
+              <defs>
+                <radialGradient id={`face-${i}`} cx="50%" cy="40%" r="55%">
+                  <stop offset="0%" stopColor="rgba(255,235,210,0.98)" />
+                  <stop offset="55%" stopColor="rgba(220,180,150,0.85)" />
+                  <stop offset="100%" stopColor="rgba(120,80,60,0.55)" />
+                </radialGradient>
+                <linearGradient id={`hair-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="rgba(40,28,55,0.95)" />
+                  <stop offset="100%" stopColor="rgba(80,55,90,0.85)" />
+                </linearGradient>
+                <linearGradient id={`shoulder-${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={tint} />
+                  <stop offset="100%" stopColor="rgba(255,255,255,0.18)" />
+                </linearGradient>
+              </defs>
+              {/* shoulders / collar */}
+              <path d={l.shoulderPath} fill={`url(#shoulder-${i})`} opacity="0.92" />
+              {/* face */}
+              <ellipse
+                cx={l.facePos.cx}
+                cy={l.facePos.cy}
+                rx="18"
+                ry="22"
+                fill={`url(#face-${i})`}
+                stroke="rgba(80,50,40,0.4)"
+                strokeWidth="0.5"
+              />
+              {/* hair on top */}
+              <path d={l.hairPath} fill={`url(#hair-${i})`} />
+              {/* eyes — small dots, positioned per angle */}
+              {l.eyes.map((eye, j) => (
+                <circle
+                  key={j}
+                  cx={eye.x}
+                  cy={eye.y}
+                  r="1.2"
+                  fill="rgba(40,28,55,0.95)"
+                />
+              ))}
+              {/* mouth */}
+              <path
+                d={`M ${l.facePos.cx - 3} ${l.facePos.cy + 8} Q ${l.facePos.cx} ${l.facePos.cy + 10} ${l.facePos.cx + 3} ${l.facePos.cy + 8}`}
+                stroke="rgba(150,80,80,0.7)"
+                strokeWidth="0.8"
+                fill="none"
+                strokeLinecap="round"
+              />
+            </svg>
+            {/* subtle scan-line shimmer to feel "AI-generated" */}
+            <motion.div
+              className="absolute inset-x-0 h-[2px] pointer-events-none"
+              style={{
+                background: `linear-gradient(90deg, transparent, ${tint}, transparent)`,
+                boxShadow: `0 0 8px ${tint}`,
+              }}
+              animate={{ top: ["10%", "90%", "10%"] }}
+              transition={{
+                duration: 3.2,
+                delay: i * 0.4,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          </div>
+
+          {/* consistency bar — pinned to bottom */}
+          <div className="relative z-10 px-1.5 pb-1.5">
             <div className="flex justify-between text-[7.5px] font-mono mb-0.5 text-white/95">
-              <span>{l.angle}</span>
-              <span style={{ color: tint }}>{l.consistency}%</span>
+              <span className="truncate">{l.angle}</span>
+              <span style={{ color: "#fff", fontWeight: 600 }}>
+                {l.consistency}%
+              </span>
             </div>
             <div
               className="h-1 rounded-full overflow-hidden"
@@ -918,7 +1559,7 @@ function PlaceholderLora({ tint }: { tint: string }) {
               <motion.div
                 className="h-full rounded-full"
                 style={{
-                  background: `linear-gradient(90deg, ${tint}, rgba(255,255,255,0.85))`,
+                  background: `linear-gradient(90deg, ${tint}, rgba(255,255,255,0.95))`,
                 }}
                 animate={{ width: [`${l.consistency - 10}%`, `${l.consistency}%`] }}
                 transition={{
@@ -1792,12 +2433,56 @@ export default function OrbCreationStage({
                     </span>
                   </div>
                   <p
-                    className={`text-[10px] sm:text-[11px] leading-snug line-clamp-1 ${
+                    className={`text-[10px] sm:text-[11px] leading-snug line-clamp-1 mb-1 ${
                       isActive ? "text-white/85" : textMuted
                     }`}
                   >
                     {scenario.summary}
                   </p>
+                  {/* Spirit cast preview — overlapping color dots so users
+                      see who collaborates before clicking. */}
+                  <div className="flex items-center gap-1">
+                    <div className="flex -space-x-1">
+                      {scenario.spirits.slice(0, 5).map((nick, idx) => {
+                        const meta = SPIRITS[nick];
+                        return (
+                          <span
+                            key={nick}
+                            title={`${nick} · ${meta.role}`}
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[7.5px] sm:text-[8px] font-semibold"
+                            style={{
+                              background: meta.tint,
+                              color: "#fff",
+                              boxShadow: `0 0 0 1.5px ${
+                                isActive ? "#fff" : isDark ? "rgba(20,20,30,0.8)" : "rgba(255,255,255,0.9)"
+                              }`,
+                              zIndex: scenario.spirits.length - idx,
+                            }}
+                          >
+                            {nick[0]}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {scenario.spirits.length > 5 && (
+                      <span
+                        className="text-[8.5px] sm:text-[9px] font-medium"
+                        style={{
+                          color: isActive ? "rgba(255,255,255,0.85)" : mode.tint,
+                        }}
+                      >
+                        +{scenario.spirits.length - 5}
+                      </span>
+                    )}
+                    <span
+                      className="ml-auto text-[8.5px] sm:text-[9px] font-mono"
+                      style={{
+                        color: isActive ? "rgba(255,255,255,0.7)" : isDark ? "rgba(255,255,255,0.5)" : "rgba(20,20,30,0.55)",
+                      }}
+                    >
+                      {scenario.spirits.length} 精靈
+                    </span>
+                  </div>
                 </motion.button>
               );
             })}
@@ -1807,9 +2492,129 @@ export default function OrbCreationStage({
               className="mt-3 rounded-xl p-3 sm:p-3.5"
               style={{ background: featureBg, border: `1px solid ${cardBorder}` }}
             >
-              <p className={`text-[11px] sm:text-xs font-medium mb-2 ${textPrimary}`}>
-                代理運行細節（{activeScenario.label}）
-              </p>
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <p className={`text-[11px] sm:text-xs font-medium ${textPrimary}`}>
+                  代理運行細節（{activeScenario.label}）
+                </p>
+                <span
+                  className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{
+                    background: activeMode.tint,
+                    color: "#fff",
+                    boxShadow: `0 0 10px ${activeMode.glow}`,
+                  }}
+                >
+                  {activeScenario.spirits.length} 位精靈協作
+                </span>
+              </div>
+
+              {/* Spirit cast — chips show who's collaborating */}
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {activeScenario.spirits.map((nick, idx) => {
+                  const meta = SPIRITS[nick];
+                  return (
+                    <span
+                      key={nick}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px]"
+                      style={{
+                        background: idx === 0
+                          ? meta.tint
+                          : isDark
+                            ? "rgba(255,255,255,0.06)"
+                            : "rgba(255,255,255,0.6)",
+                        color: idx === 0
+                          ? "#fff"
+                          : isDark
+                            ? "rgba(255,255,255,0.85)"
+                            : "rgba(20,20,30,0.8)",
+                        border: `1px solid ${meta.tint}`,
+                      }}
+                      title={meta.role}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{
+                          background: idx === 0 ? "#fff" : meta.tint,
+                          boxShadow: `0 0 6px ${meta.tint}`,
+                        }}
+                      />
+                      {nick}
+                      <span
+                        className="opacity-70 hidden sm:inline"
+                        style={{ fontSize: "0.85em" }}
+                      >
+                        · {meta.role.split(" · ")[1] ?? meta.role}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Handoff chain — who hands what to whom. A vertical
+                  connector line ties the numbered circles together so the
+                  flow reads as a real pipeline. */}
+              <ol className="relative space-y-1 mb-2.5 pl-1">
+                {/* Connector spine */}
+                {activeScenario.handoffs.length > 1 && (
+                  <span
+                    aria-hidden
+                    className="absolute left-[15px] top-3 bottom-3 w-px"
+                    style={{
+                      background: `linear-gradient(180deg, ${activeMode.tint}, transparent)`,
+                      opacity: 0.45,
+                    }}
+                  />
+                )}
+                {activeScenario.handoffs.map((step, i) => {
+                  const meta = SPIRITS[step.from];
+                  const nextMeta = step.next ? SPIRITS[step.next] : null;
+                  return (
+                    <li
+                      key={i}
+                      className="relative flex items-start gap-2 rounded-lg px-2 py-1.5 text-[10.5px] sm:text-[11.5px]"
+                      style={{
+                        background: isDark
+                          ? "rgba(255,255,255,0.04)"
+                          : "rgba(255,255,255,0.55)",
+                        border: `1px solid ${cardBorder}`,
+                      }}
+                    >
+                      <span
+                        className="relative z-10 shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold mt-[1px]"
+                        style={{
+                          background: meta.tint,
+                          color: "#fff",
+                          boxShadow: `0 0 8px ${meta.tint}`,
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span
+                          className="font-semibold"
+                          style={{ color: meta.tint }}
+                        >
+                          {step.from}
+                        </span>
+                        <span className={`mx-1 ${textMuted}`}>›</span>
+                        <span className={textPrimary}>{step.do}</span>
+                        {nextMeta && (
+                          <>
+                            <span className={`mx-1 ${textMuted}`}>，交棒給</span>
+                            <span
+                              className="font-semibold"
+                              style={{ color: nextMeta.tint }}
+                            >
+                              {step.next}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+
               <ol className={`list-decimal pl-4 space-y-1 text-[11px] sm:text-xs ${textMuted}`}>
                 <li><span className={textPrimary}>感知：</span>{activeScenario.runbook.perceive}</li>
                 <li><span className={textPrimary}>規劃：</span>{activeScenario.runbook.plan}</li>
@@ -1924,7 +2729,7 @@ export default function OrbCreationStage({
 
             {/* Output preview */}
             <div
-              className="rounded-2xl relative overflow-hidden min-h-[160px] sm:min-h-[200px] lg:min-h-[240px]"
+              className="rounded-2xl relative overflow-hidden min-h-[210px] sm:min-h-[240px] lg:min-h-[280px]"
               style={{ background: featureBg, border: `1px solid ${cardBorder}` }}
             >
               <div className="absolute top-2 left-3 right-3 z-10 flex items-center gap-2">
