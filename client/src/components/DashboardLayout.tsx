@@ -42,7 +42,7 @@ import {
   useSiteOnboarding,
   type PageId,
 } from "@/contexts/SiteOnboardingContext";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
@@ -208,10 +208,13 @@ const LOGIN_THEMES: Record<SceneId, LoginSceneTheme> = {
       "linear-gradient(160deg, rgba(28,22,52,0.62) 0%, rgba(18,12,38,0.72) 100%)",
     cardBorder: "1px solid rgba(180,160,240,0.22)",
     cardShadow: [
-      "0 1px 0 rgba(255,255,255,0.08) inset",
-      "0 0 0 1px rgba(120,100,200,0.12) inset",
-      "0 24px 80px rgba(0,0,0,0.55)",
-      "0 0 60px rgba(120,90,200,0.18)",
+      "0 1px 0 rgba(255,255,255,0.10) inset",
+      "0 -1px 0 rgba(0,0,0,0.22) inset",
+      "0 0 0 1px rgba(120,100,200,0.14) inset",
+      "0 4px 12px rgba(0,0,0,0.28)",
+      "0 18px 44px rgba(0,0,0,0.45)",
+      "0 36px 100px rgba(0,0,0,0.6)",
+      "0 0 70px rgba(120,90,200,0.22)",
     ].join(","),
     subtitleText: "在星河之間，讓 AI 陪伴你舒適地創作",
     subtitleColor: "rgba(230,222,255,0.78)",
@@ -231,10 +234,13 @@ const LOGIN_THEMES: Record<SceneId, LoginSceneTheme> = {
       "linear-gradient(160deg, rgba(82,42,68,0.55) 0%, rgba(48,24,46,0.7) 100%)",
     cardBorder: "1px solid rgba(255,210,170,0.30)",
     cardShadow: [
-      "0 1px 0 rgba(255,225,200,0.14) inset",
-      "0 0 0 1px rgba(255,180,140,0.16) inset",
-      "0 24px 80px rgba(60,18,30,0.5)",
-      "0 0 60px rgba(255,170,130,0.22)",
+      "0 1px 0 rgba(255,225,200,0.18) inset",
+      "0 -1px 0 rgba(40,12,18,0.26) inset",
+      "0 0 0 1px rgba(255,180,140,0.18) inset",
+      "0 4px 12px rgba(60,18,30,0.30)",
+      "0 18px 44px rgba(60,18,30,0.42)",
+      "0 36px 100px rgba(40,10,18,0.55)",
+      "0 0 70px rgba(255,170,130,0.26)",
     ].join(","),
     subtitleText: "在晨光之間，讓 AI 陪伴你舒適地創作",
     subtitleColor: "rgba(255,235,215,0.85)",
@@ -254,10 +260,13 @@ const LOGIN_THEMES: Record<SceneId, LoginSceneTheme> = {
       "linear-gradient(160deg, rgba(46,28,18,0.62) 0%, rgba(30,18,12,0.74) 100%)",
     cardBorder: "1px solid rgba(255,200,140,0.26)",
     cardShadow: [
-      "0 1px 0 rgba(255,220,180,0.12) inset",
-      "0 0 0 1px rgba(220,150,90,0.18) inset",
-      "0 24px 80px rgba(20,10,4,0.55)",
-      "0 0 60px rgba(220,150,90,0.22)",
+      "0 1px 0 rgba(255,220,180,0.16) inset",
+      "0 -1px 0 rgba(0,0,0,0.30) inset",
+      "0 0 0 1px rgba(220,150,90,0.20) inset",
+      "0 4px 12px rgba(20,10,4,0.32)",
+      "0 18px 44px rgba(20,10,4,0.46)",
+      "0 36px 100px rgba(10,4,0,0.6)",
+      "0 0 70px rgba(220,150,90,0.26)",
     ].join(","),
     subtitleText: "在咖啡香之間，讓 AI 陪伴你舒適地創作",
     subtitleColor: "rgba(255,225,190,0.82)",
@@ -277,10 +286,13 @@ const LOGIN_THEMES: Record<SceneId, LoginSceneTheme> = {
       "linear-gradient(160deg, rgba(12,38,58,0.62) 0%, rgba(8,22,38,0.78) 100%)",
     cardBorder: "1px solid rgba(120,200,230,0.28)",
     cardShadow: [
-      "0 1px 0 rgba(180,230,255,0.10) inset",
-      "0 0 0 1px rgba(60,160,210,0.16) inset",
-      "0 24px 80px rgba(0,4,12,0.6)",
-      "0 0 60px rgba(60,160,210,0.22)",
+      "0 1px 0 rgba(180,230,255,0.14) inset",
+      "0 -1px 0 rgba(0,0,0,0.32) inset",
+      "0 0 0 1px rgba(60,160,210,0.18) inset",
+      "0 4px 12px rgba(0,4,12,0.34)",
+      "0 18px 44px rgba(0,4,12,0.5)",
+      "0 36px 100px rgba(0,2,8,0.65)",
+      "0 0 70px rgba(60,160,210,0.26)",
     ].join(","),
     subtitleText: "在深海之間，讓 AI 陪伴你舒適地創作",
     subtitleColor: "rgba(210,235,250,0.82)",
@@ -325,43 +337,6 @@ function LoginScreen() {
       ambient.unlock,
     ]
   );
-
-  // Pointer-driven 3D card tilt — subtle parallax that responds to the
-  // visitor's mouse, giving a tactile "physical glass" feel.
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [tilt, setTilt] = useState<{ rx: number; ry: number; sx: number; sy: number }>(
-    { rx: 0, ry: 0, sx: 50, sy: 50 }
-  );
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (reduced) return;
-      const el = cardRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const px = (e.clientX - rect.left) / rect.width;
-      const py = (e.clientY - rect.top) / rect.height;
-      // Tilt range ~±5deg — gentle, never disorienting
-      const rx = (0.5 - py) * 6;
-      const ry = (px - 0.5) * 8;
-      setTilt({ rx, ry, sx: px * 100, sy: py * 100 });
-    },
-    [reduced]
-  );
-
-  const handlePointerLeave = useCallback(() => {
-    setTilt({ rx: 0, ry: 0, sx: 50, sy: 50 });
-  }, []);
 
   // CSS custom properties must live on a COMMON ANCESTOR of both the scene
   // background and the auth card (the card reads them via `var(--login-frame-
@@ -442,9 +417,6 @@ function LoginScreen() {
       </div>
 
       <div
-        ref={cardRef}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
         className="login-card relative z-10 p-10 sm:p-12 max-w-md w-full mx-4 text-center"
         style={{
           background: theme.cardBg,
@@ -453,20 +425,18 @@ function LoginScreen() {
           border: theme.cardBorder,
           borderRadius: "1.5rem",
           boxShadow: theme.cardShadow,
-          transform: `perspective(1100px) rotateX(${tilt.rx.toFixed(2)}deg) rotateY(${tilt.ry.toFixed(2)}deg)`,
-          transformStyle: "preserve-3d",
-          transition: "transform 320ms cubic-bezier(0.22,1,0.36,1)",
         }}
       >
-        {/* Specular highlight that follows the pointer (glass sheen) */}
+        {/* Top-edge specular sheen — static "glass reflection" that simulates
+         *  light catching the upper rim. No pointer tracking (mobile-safe). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[1.5rem]"
+          className="pointer-events-none absolute left-0 right-0 top-0 rounded-t-[1.5rem]"
           style={{
-            background: `radial-gradient(circle at ${tilt.sx}% ${tilt.sy}%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 28%, transparent 55%)`,
+            height: "44%",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 38%, transparent 100%)",
             mixBlendMode: "screen",
-            opacity: reduced ? 0 : 1,
-            transition: "opacity 200ms",
           }}
         />
 
@@ -476,20 +446,18 @@ function LoginScreen() {
         <span className="login-card-glyph bl" aria-hidden />
         <span className="login-card-glyph br" aria-hidden />
 
-        <div className="relative flex justify-center mb-6" style={{ transform: "translateZ(28px)" }}>
+        <div className="login-card-stagger relative flex justify-center mb-6" data-stagger="1">
           <Suspense fallback={null}>
             <VisualSoul size="lg" personality="creative" state="idle" />
           </Suspense>
         </div>
-        <h1
-          className="hs-h1 !mb-0 login-title"
-          style={{ transform: "translateZ(20px)" }}
-        >
+        <h1 className="login-card-stagger hs-h1 !mb-0 login-title" data-stagger="2">
           AI Director 創作平台
         </h1>
         <p
-          className="text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
-          style={{ color: theme.subtitleColor, transform: "translateZ(14px)" }}
+          className="login-card-stagger text-sm mt-4 max-w-sm mx-auto body-healing leading-relaxed"
+          data-stagger="3"
+          style={{ color: theme.subtitleColor }}
         >
           {theme.subtitleText}
         </p>
@@ -498,25 +466,41 @@ function LoginScreen() {
             window.location.href = getLoginUrl();
           }}
           size="lg"
-          className="w-full mt-8 h-12 rounded-2xl btn-healing"
+          className="login-card-stagger w-full mt-8 h-12 rounded-2xl btn-healing"
+          data-stagger="4"
           style={{
             background: theme.primaryBg,
             color: "#fff",
             border: theme.primaryBorder,
             boxShadow: theme.primaryShadow,
-            transform: "translateZ(10px)",
           }}
         >
           Google 登入
         </Button>
-        <LocalAuthForm className="mt-3 text-left login-auth-form" />
+
+        {/* Visual divider — separates OAuth from email login so the form feels
+         *  like a clear "alternative" path rather than a continuation. */}
+        <div
+          className="login-card-stagger login-divider mt-5 flex items-center gap-3 text-[11px] tracking-[0.2em]"
+          data-stagger="5"
+          aria-hidden
+        >
+          <span className="login-divider-rule" />
+          <span className="login-divider-text">或使用 EMAIL</span>
+          <span className="login-divider-rule" />
+        </div>
+
+        <div className="login-card-stagger" data-stagger="6">
+          <LocalAuthForm className="mt-3 text-left login-auth-form" />
+        </div>
         <Button
           onClick={() => {
             window.location.href = getDemoLoginUrl();
           }}
           variant="outline"
           size="lg"
-          className="w-full mt-3 h-12 rounded-2xl btn-healing"
+          className="login-card-stagger w-full mt-3 h-12 rounded-2xl btn-healing"
+          data-stagger="7"
           style={{
             background: theme.demoBg,
             borderStyle: "dashed",

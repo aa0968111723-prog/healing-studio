@@ -137,7 +137,7 @@ export const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
       "radial-gradient(ellipse at 50% 88%, rgba(180,90,160,0.14) 0%, transparent 55%)",
     ],
     vignette:
-      "radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(2,1,8,0.55) 100%)",
+      "radial-gradient(ellipse at 50% 50%, transparent 22%, rgba(2,1,8,0.40) 60%, rgba(0,0,4,0.78) 100%)",
     starTints: [
       o => `rgba(220,232,255,${o.toFixed(2)})`,
       o => `rgba(255,248,235,${o.toFixed(2)})`,
@@ -158,7 +158,7 @@ export const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
       "radial-gradient(ellipse at 50% 100%, rgba(255,180,120,0.32) 0%, transparent 58%)",
     ],
     vignette:
-      "radial-gradient(ellipse at 50% 60%, transparent 32%, rgba(60,20,40,0.42) 100%)",
+      "radial-gradient(ellipse at 50% 58%, transparent 24%, rgba(60,20,40,0.32) 60%, rgba(36,12,28,0.62) 100%)",
     starTints: [
       o => `rgba(255,235,210,${o.toFixed(2)})`,
       o => `rgba(255,220,180,${o.toFixed(2)})`,
@@ -180,7 +180,7 @@ export const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
       "radial-gradient(ellipse at 50% 92%, rgba(180,100,60,0.18) 0%, transparent 58%)",
     ],
     vignette:
-      "radial-gradient(ellipse at 50% 50%, transparent 32%, rgba(12,6,4,0.62) 100%)",
+      "radial-gradient(ellipse at 50% 50%, transparent 22%, rgba(12,6,4,0.46) 60%, rgba(6,2,0,0.82) 100%)",
     starTints: [
       o => `rgba(255,225,180,${o.toFixed(2)})`,
       o => `rgba(255,210,150,${o.toFixed(2)})`,
@@ -201,7 +201,7 @@ export const SCENE_PALETTES: Record<SceneId, ScenePalette> = {
       "radial-gradient(ellipse at 50% 100%, rgba(20,60,100,0.32) 0%, transparent 55%)",
     ],
     vignette:
-      "radial-gradient(ellipse at 50% 50%, transparent 28%, rgba(2,6,14,0.62) 100%)",
+      "radial-gradient(ellipse at 50% 50%, transparent 20%, rgba(2,6,14,0.46) 60%, rgba(0,2,8,0.84) 100%)",
     starTints: [
       o => `rgba(180,230,255,${o.toFixed(2)})`,
       o => `rgba(140,210,240,${o.toFixed(2)})`,

@@ -2508,6 +2508,64 @@
     }
   }
 
+  /* Staggered entry for card children — orb, title, subtitle, primary CTA,
+   * divider, email form, demo button. Each item slides up + fades in after
+   * the card itself has settled (~0.5s into the card-rise). Pure opacity +
+   * translateY (no perspective / preserve-3d) to stay safe on Android GPUs. */
+  .login-card-stagger {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: login-card-stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .login-card-stagger[data-stagger="1"] { animation-delay: 0.45s; }
+  .login-card-stagger[data-stagger="2"] { animation-delay: 0.55s; }
+  .login-card-stagger[data-stagger="3"] { animation-delay: 0.65s; }
+  .login-card-stagger[data-stagger="4"] { animation-delay: 0.78s; }
+  .login-card-stagger[data-stagger="5"] { animation-delay: 0.90s; }
+  .login-card-stagger[data-stagger="6"] { animation-delay: 1.00s; }
+  .login-card-stagger[data-stagger="7"] { animation-delay: 1.12s; }
+
+  @keyframes login-card-stagger-rise {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Honour reduced-motion: skip the slide, just appear. */
+  @media (prefers-reduced-motion: reduce) {
+    .login-card-stagger {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Divider between OAuth and email form — soft hairline + small caps label.
+   * Picks up the scene's frame hue so it feels visually integrated. */
+  .login-divider {
+    color: rgba(232, 224, 255, 0.55);
+    font-weight: 600;
+  }
+  .login-divider-rule {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--login-frame-hue-b, rgba(180, 160, 240, 0.32)) 50%,
+      transparent 100%
+    );
+  }
+  .login-divider-text {
+    white-space: nowrap;
+    color: rgba(232, 224, 255, 0.62);
+  }
+
   /* Static gradient border — uses mask-composite to cut a 1px ring out of
    * a conic gradient so the card itself stays clean. Per latest visual
    * direction the ring no longer rotates; instead the hue gently breathes
