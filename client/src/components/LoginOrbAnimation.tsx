@@ -28,9 +28,9 @@ import {
   useMemo,
   useRef,
   memo,
-  lazy,
   Suspense,
 } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
