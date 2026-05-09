@@ -17,7 +17,7 @@
  * Mount 一次在 DashboardLayout 即可；元件本身既訂閱 bus 也渲染卡片。
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -88,9 +88,34 @@ export function ProactiveNotificationCenter({
   // 非 ref，使被 ack 後若使用者開短 interval，重新發新一筆能立即比對最新值。
   const [lastSurfaceAt, setLastSurfaceAt] = useState<Record<string, number>>({});
 
+  // F2 fix: throttle gate compares against MAX(last-surfaced, last-dismissed).
+  // Without tracking dismissals separately, a user who acks a card and gets
+  // hit by the same event 3 seconds later would see a fresh card — bypassing
+  // the per-event minIntervalMs they configured.
+  const dismissedAtRef = useRef<Record<string, number>>({});
+
   const dismiss = useCallback((id: string) => {
-    setQueue(prev => prev.filter(n => n.id !== id));
+    setQueue(prev => {
+      const target = prev.find(n => n.id === id);
+      if (target) {
+        dismissedAtRef.current[target.event] = Date.now();
+      }
+      return prev.filter(n => n.id !== id);
+    });
   }, []);
+
+  // F1 fix: when the global kill-switch flips off → on, the throttle window
+  // should reset. Without this, a user who disables suggestions for 10 min
+  // then re-enables them would see throttle history from 10 min ago and the
+  // event might fire instantly on re-enable. Same teardown clears the
+  // pending queue so a stale card doesn't outlive the disable period.
+  useEffect(() => {
+    if (!globallyEnabled) {
+      setLastSurfaceAt({});
+      dismissedAtRef.current = {};
+      setQueue([]);
+    }
+  }, [globallyEnabled]);
 
   useEffect(() => {
     // 0) Global kill-switch (orbProactiveSuggestions=false) — 不訂閱任何事件。
@@ -115,10 +140,15 @@ export function ProactiveNotificationCenter({
           );
           if (!settings.enabled) return;
 
-          // 3) Per-event interval throttle (overrides bus 預設的 30s)
+          // 3) Per-event interval throttle (overrides bus 預設的 30s).
+          //    Compare against the LATER of last-surfaced and last-dismissed
+          //    so a user who dismissed a card 3s ago doesn't get the same
+          //    event re-shown until minIntervalMs has elapsed since dismiss.
           const now = Date.now();
-          const last = lastSurfaceAt[trigger.event] ?? 0;
-          if (now - last < settings.minIntervalMs) return;
+          const lastSurface = lastSurfaceAt[trigger.event] ?? 0;
+          const lastDismiss = dismissedAtRef.current[trigger.event] ?? 0;
+          const lastTouch = Math.max(lastSurface, lastDismiss);
+          if (now - lastTouch < settings.minIntervalMs) return;
 
           const message = fillTemplate(
             trigger.defaultPrompt,

@@ -245,17 +245,27 @@ export function resolveProactiveTriggerSettings(
   event: ProactiveTriggerEvent,
   map: ProactiveTriggerSettingsMap | null | undefined,
 ): Required<ProactiveTriggerSettings> {
-  const override = map?.[event];
-  if (!override) return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  // Type guard: a malformed DB row could store this column as a string,
+  // an array, or a deeply-cached value of the wrong shape. Without this
+  // guard `map?.[event]` would access `undefined` on a string, silently
+  // erasing every per-event override the user set.
+  if (!map || typeof map !== "object" || Array.isArray(map)) {
+    return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  }
+  const override = (map as Record<string, unknown>)[event];
+  if (!override || typeof override !== "object" || Array.isArray(override)) {
+    return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  }
+  const overrideObj = override as Partial<ProactiveTriggerSettings>;
   return {
-    enabled: typeof override.enabled === "boolean"
-      ? override.enabled
+    enabled: typeof overrideObj.enabled === "boolean"
+      ? overrideObj.enabled
       : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.enabled,
-    minIntervalMs: typeof override.minIntervalMs === "number" && override.minIntervalMs > 0
-      ? Math.min(Math.max(override.minIntervalMs, 5_000), 86_400_000)
+    minIntervalMs: typeof overrideObj.minIntervalMs === "number" && overrideObj.minIntervalMs > 0
+      ? Math.min(Math.max(overrideObj.minIntervalMs, 5_000), 86_400_000)
       : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.minIntervalMs,
-    requireAck: typeof override.requireAck === "boolean"
-      ? override.requireAck
+    requireAck: typeof overrideObj.requireAck === "boolean"
+      ? overrideObj.requireAck
       : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.requireAck,
   };
 }

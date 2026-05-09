@@ -116,7 +116,20 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
       `)) as unknown as Array<{ existsFlag: number }>;
       const existsFlag = Number(existsRows[0]?.existsFlag ?? 0);
       if (existsFlag === 1) return;
-      await db.execute(sql.raw(`ALTER TABLE agent_preferences ADD COLUMN ${definitionSql}`));
+      try {
+        await db.execute(sql.raw(`ALTER TABLE agent_preferences ADD COLUMN ${definitionSql}`));
+      } catch (err) {
+        // TOCTOU race: between the SELECT above and this ALTER, another
+        // process can have added the column. MySQL surfaces that as
+        // ER_DUP_FIELDNAME (1060). Treat it as success — the column
+        // exists, which is what we wanted. Any other failure rethrows
+        // so the outer `.catch` can null `ensureSchemaOnce` and let a
+        // retry pick up.
+        const code = (err as { code?: string } | null)?.code ?? "";
+        const errno = Number((err as { errno?: number } | null)?.errno ?? 0);
+        if (code === "ER_DUP_FIELDNAME" || errno === 1060) return;
+        throw err;
+      }
     };
 
     await addColumnIfMissing("preferredSpecialistAgent", "preferredSpecialistAgent varchar(64) NULL");

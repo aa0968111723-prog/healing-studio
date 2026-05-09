@@ -38,7 +38,14 @@ export function OrbVoiceButton({ enabled = true, autoActivate = false }: OrbVoic
         err instanceof Error ? err.message : String(err),
       );
     }
-  }, [enabled, autoActivate, voice]);
+    // `voice` is intentionally omitted — useOrbVoice returns a fresh
+    // object every render, so including it would re-fire startVoice() on
+    // every parent re-render the moment a sibling state changes (e.g.
+    // pageAgent.snapshot). The autoStartedRef guard above is sufficient
+    // for "fire once per mount"; on unmount/remount the ref resets and
+    // we get a fresh auto-activate, which is what the user asked for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, autoActivate]);
 
   if (!enabled) return null;
 
