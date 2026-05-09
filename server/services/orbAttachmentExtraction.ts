@@ -92,7 +92,11 @@ function buildInlinedPdfText(name: string, body: string, truncated: boolean): st
 }
 
 function buildExtractionFailureNote(name: string): string {
-  return `📎 附件「${name}」：我這邊無法擷取 PDF 內文，可能是掃描檔或加密檔。建議直接把腳本內容貼到對話裡，我就能繼續協助。`;
+  // Phrased as an instruction to the LLM so partial-failure runs (where
+  // some PDFs succeed and one fails) don't silently produce a confident
+  // answer that ignores the unreadable file. The reply must explicitly
+  // mention which attachment was unreadable.
+  return `📎 附件「${name}」：系統無法擷取 PDF 內文（可能是掃描檔或加密檔）。請在回覆開頭明確告訴使用者「附件「${name}」目前讀不到」，並建議他直接把該腳本內容貼到對話裡。`;
 }
 
 /**

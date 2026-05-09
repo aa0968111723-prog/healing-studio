@@ -5960,9 +5960,16 @@ export const appRouter = router({
             }
           }
 
+          // PDF wins (needs supportsPdf), then any image/audio/video forces
+          // multimodal. Text-kind attachments (legacy docx file_url replayed
+          // from history) don't need a multimodal model — they route through
+          // the regular text planner because their bytes can be inlined.
+          const hasBinaryKind = attachmentGuard.kinds.some(
+            kind => kind === "image" || kind === "audio" || kind === "video"
+          );
           let routeIntent: ProviderRouteIntent = attachmentGuard.kinds.includes("pdf")
             ? "planner_pdf"
-            : attachmentGuard.kinds.length > 0
+            : hasBinaryKind
             ? "planner_multimodal"
             : "planner_text";
           // 15 精靈 (6 通用 + 6 專精 + 3 主動)：spiritSelection 已在 handler 頂部算好（finalize 也會用），
@@ -5999,6 +6006,19 @@ export const appRouter = router({
                   telemetryEvents,
                   "pdf_attachment.injection_redacted",
                   { triggers: extraction.injectionTriggers.join(",") }
+                );
+              }
+              // Surface partial failures as a separate warning event so
+              // ops dashboards can alert on a sustained `failed_count`
+              // climb (e.g. unpdf regression, scanned-PDF spike).
+              if (extraction.failedCount > 0) {
+                appendTelemetryEvent(
+                  telemetryEvents,
+                  "pdf_attachment.extract_failed",
+                  {
+                    failedCount: extraction.failedCount,
+                    extractedCount: extraction.extractedCount,
+                  }
                 );
               }
               if (extraction.extractedCount > 0 && !extraction.hasUnextractableBinary) {

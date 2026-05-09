@@ -48,11 +48,14 @@ async function extractDocxText(file: File): Promise<string> {
 
   // Convert paragraph + line break tags into newlines so list items and
   // multi-line scripts retain readable structure, then drop every other tag.
+  // The self-closing form `<w:p w14:paraId="..."/>` is what Word emits for
+  // empty paragraphs (very common as scene separators); the previous
+  // `<w:p\/>` literal missed those entirely and silently merged scenes.
   const withBreaks = xml
-    .replace(/<w:p[\s>][^>]*>/g, "\n")
-    .replace(/<w:p\/>/g, "\n")
-    .replace(/<w:br\s*\/?>/g, "\n")
-    .replace(/<w:tab\s*\/?>/g, "\t");
+    .replace(/<w:p\b[^>]*\/>/g, "\n")
+    .replace(/<w:p\b[^>]*>/g, "\n")
+    .replace(/<w:br\b[^>]*\/?>/g, "\n")
+    .replace(/<w:tab\b[^>]*\/?>/g, "\t");
   const stripped = withBreaks.replace(/<[^>]+>/g, "");
 
   // Decode the small set of XML entities Word emits.

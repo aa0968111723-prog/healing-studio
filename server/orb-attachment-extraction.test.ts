@@ -162,7 +162,11 @@ describe("orbAttachmentExtraction", () => {
       const parts = result.messages[0].content as Array<{ type: string; text?: string }>;
       expect(parts).toHaveLength(1);
       expect(parts[0].type).toBe("text");
+      // The failure note must instruct the LLM to surface the unreadable
+      // attachment to the user — silent partial answers (F6) caused real
+      // user confusion when one PDF worked and another didn't.
       expect(parts[0].text).toContain("無法擷取 PDF 內文");
+      expect(parts[0].text).toMatch(/請在回覆開頭|目前讀不到/);
     });
 
     it("flags unextractable binary attachments (image / audio / video) so caller skips fallback", async () => {

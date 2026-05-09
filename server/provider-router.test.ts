@@ -47,11 +47,17 @@ describe("provider router", () => {
     expect(selection.plannerStatus).toBe("provider_unavailable");
   });
 
-  it("provider timeout falls back safely", () => {
+  it("multimodal intent surfaces provider_unavailable when Gemini fails — never silently downgrades to a text-only LLM (F2 regression guard)", () => {
+    // The previous behaviour let `default_llm` win this race because
+    // `providerSupportsIntent("planner_multimodal")` had a `|| kind === "llm"`
+    // escape hatch. That meant a user uploading a PNG with Gemini down would
+    // get their image_url part shipped to a text-only model, which silently
+    // garbled the response. The route handler must now see a null provider
+    // and trigger the dedicated multimodal-offline reply instead.
     markProviderFailure("gemini", new Error("timeout while calling gemini"));
     const selection = selectProvider({ intent: "planner_multimodal" });
-    expect(selection.provider?.id).toBe("default_llm");
-    expect(selection.reason).toContain("fallback");
+    expect(selection.provider).toBeNull();
+    expect(selection.plannerStatus).toBe("provider_unavailable");
   });
 
   it("provider disabled not selected", () => {
@@ -60,10 +66,19 @@ describe("provider router", () => {
     expect(selection.provider?.id).toBe("codex");
   });
 
-  it("fallback provider selected when primary degraded", () => {
+  it("planner_text falls back to default_llm when Gemini degraded (text path keeps working)", () => {
     setProviderHealth("gemini", "degraded", "timeout");
-    const selection = selectProvider({ intent: "planner_multimodal" });
+    const selection = selectProvider({ intent: "planner_text", riskLevel: "high" });
     expect(selection.provider?.id).toBe("default_llm");
+  });
+
+  it("multimodal route refuses default_llm even when explicitly preferred (it cannot decode binary parts)", () => {
+    setProviderHealth("gemini", "degraded", "timeout");
+    const selection = selectProvider({
+      intent: "planner_multimodal",
+      preferredProviderId: "default_llm",
+    });
+    expect(selection.provider).toBeNull();
   });
 
   it("text-only low-risk uses default provider", () => {
