@@ -60,6 +60,7 @@ import {
   type OrbChatAttachment,
   type OrbChatAttachmentMimeType,
 } from "../../../shared/orb-chat-multimodal";
+import type { OrbReasoningChain } from "../../../shared/orb-reasoning";
 import {
   buildProcessUrl,
   workflowActionToProcessSpec,
@@ -203,6 +204,13 @@ export interface ChatMessage {
   agentRole?: string;
   /** 0-1 confidence the server had when picking the spirit. */
   agentRoleConfidence?: number;
+  /**
+   * 思考步驟面板資料：planner artefacts（intent / steps / warnings / summary）
+   * 加上 tRPC 進度 ring buffer 經 buildOrbReasoningChain 合成的單一物件。
+   * 為什麼存在 message 上：使用者捲回去看舊回覆時，按下「💭 思考步驟」
+   * 仍能展開那一輪當時的思路，不必再呼叫一次 LLM。
+   */
+  reasoningChain?: OrbReasoningChain;
 }
 
 export interface ChatSuggestion {
@@ -502,6 +510,66 @@ function inferClarificationIntentCards(question: string, userText: string, dimen
     dimension,
   });
   return optionPack.options;
+}
+
+/**
+ * Pull the reasoning-chain payload off an `ai.chat` response. The shape
+ * is server-authoritative (see `shared/orb-reasoning.ts`) so we just
+ * tolerate-and-narrow rather than re-validating field by field. Returns
+ * `undefined` when the field is missing so callers can spread-conditionally
+ * without painting empty-state UI on legacy responses.
+ */
+function extractReasoningChain(data: unknown): OrbReasoningChain | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const candidate = (data as { reasoningChain?: unknown }).reasoningChain;
+  if (!candidate || typeof candidate !== "object") return undefined;
+  const c = candidate as {
+    sections?: unknown;
+    actions?: unknown;
+    modelLabel?: unknown;
+    durationMs?: unknown;
+    plannerStatus?: unknown;
+  };
+  const sections = Array.isArray(c.sections)
+    ? (c.sections as Array<{ title?: unknown; body?: unknown }>)
+        .filter(s => typeof s?.title === "string" && typeof s?.body === "string")
+        .map(s => ({ title: s.title as string, body: s.body as string }))
+    : [];
+  const actions = Array.isArray(c.actions)
+    ? (c.actions as Array<{
+        stage?: unknown;
+        label?: unknown;
+        at?: unknown;
+        detail?: unknown;
+      }>)
+        .filter(
+          a =>
+            typeof a?.stage === "string" &&
+            typeof a?.label === "string" &&
+            typeof a?.at === "number"
+        )
+        .map(a => ({
+          stage: a.stage as OrbReasoningChain["actions"][number]["stage"],
+          label: a.label as string,
+          at: a.at as number,
+          detail:
+            a.detail && typeof a.detail === "object"
+              ? (a.detail as Record<string, unknown>)
+              : undefined,
+        }))
+    : [];
+  if (sections.length === 0 && actions.length === 0) return undefined;
+  return {
+    sections,
+    actions,
+    modelLabel: typeof c.modelLabel === "string" ? c.modelLabel : undefined,
+    durationMs:
+      typeof c.durationMs === "number" && c.durationMs >= 0
+        ? c.durationMs
+        : undefined,
+    plannerStatus:
+      typeof c.plannerStatus === "string" ? c.plannerStatus : undefined,
+  };
 }
 
 function summarizeProviderPing(pingData: unknown): string {
@@ -3387,6 +3455,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         .slice(0, 6)
         .map(s => ({ title: s.title, url: s.url, source: s.source }));
 
+      const reasoningChain = extractReasoningChain(data);
+
       const renderReply = safeAssistant.fallback && safeAssistant.traceId
         ? `${replyText}
 
@@ -3401,6 +3471,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
         actions: actionsToExecute,
         ...(webSources.length > 0 ? { webSources } : {}),
+        ...(reasoningChain ? { reasoningChain } : {}),
         ...spiritFields,
       }]);
 
