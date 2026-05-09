@@ -1033,119 +1033,372 @@ function PlaceholderVideo({ tint }: { tint: string }) {
 }
 
 function PlaceholderMusic({ tint }: { tint: string }) {
-  const bars = Array.from({ length: 24 }, (_, i) => i);
+  // DAW-style preview: BPM + Key + Genre header, four-track waveform (drums/
+  // bass/pad/lead), timeline cursor — reads as an actual produced piece
+  // rather than 24 abstract bars.
+  const tracks = [
+    { name: "DRUM", color: "rgba(236,72,153,0.85)", pattern: [3, 1, 3, 2, 3, 1, 3, 2, 3, 1, 3, 2, 3, 1, 3, 2] },
+    { name: "BASS", color: "rgba(168,85,247,0.85)", pattern: [2, 0, 0, 1, 2, 0, 1, 0, 2, 0, 0, 1, 2, 0, 1, 0] },
+    { name: " PAD", color: "rgba(99,102,241,0.85)", pattern: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3] },
+    { name: "LEAD", color: "rgba(244,114,182,0.85)", pattern: [0, 0, 1, 2, 3, 2, 1, 0, 0, 1, 2, 3, 2, 1, 0, 0] },
+  ] as const;
   return (
-    <div className="flex items-end justify-center gap-1 w-full h-full px-3 py-2">
-      {bars.map(i => (
-        <motion.span
-          key={i}
-          className="rounded-full"
+    <div className="flex flex-col w-full h-full px-2 py-1.5 gap-1">
+      {/* Header strip — BPM / KEY / GENRE */}
+      <div className="flex items-center justify-between text-[8.5px] font-mono">
+        <div className="flex gap-1">
+          <span
+            className="px-1.5 py-[1px] rounded font-semibold"
+            style={{ background: tint, color: "#fff" }}
+          >
+            BPM 76
+          </span>
+          <span
+            className="px-1.5 py-[1px] rounded"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            KEY · A♭m
+          </span>
+          <span
+            className="px-1.5 py-[1px] rounded hidden sm:inline"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            cinematic
+          </span>
+        </div>
+        <span style={{ color: tint }}>00:00 / 00:30</span>
+      </div>
+
+      {/* Four-track waveform stack */}
+      <div className="flex-1 min-h-0 flex flex-col gap-[3px] relative">
+        {tracks.map((t, ti) => (
+          <div
+            key={t.name}
+            className="flex items-center gap-1.5 flex-1 min-h-0"
+          >
+            <span
+              className="text-[7.5px] font-mono shrink-0 font-semibold"
+              style={{ color: t.color, width: 26 }}
+            >
+              {t.name}
+            </span>
+            <div
+              className="flex-1 h-full flex items-center gap-[1.5px] rounded overflow-hidden px-1"
+              style={{
+                background: "rgba(0,0,0,0.18)",
+                border: `1px solid ${t.color}`,
+              }}
+            >
+              {t.pattern.map((p, i) => (
+                <motion.span
+                  key={i}
+                  className="flex-1 rounded-full"
+                  style={{
+                    background: t.color,
+                    boxShadow: `0 0 4px ${t.color}`,
+                    minWidth: 2,
+                  }}
+                  animate={{
+                    height: [
+                      `${20 + p * 18}%`,
+                      `${35 + p * 16}%`,
+                      `${20 + p * 18}%`,
+                    ],
+                  }}
+                  transition={{
+                    duration: 1.4 + (i % 3) * 0.12,
+                    delay: ti * 0.08 + i * 0.04,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Playhead cursor sweeping across all tracks */}
+        <motion.div
+          className="absolute inset-y-0 w-[2px] pointer-events-none"
           style={{
-            width: 4,
-            background: tint,
-            boxShadow: `0 0 8px ${tint}`,
+            background: `linear-gradient(180deg, ${tint}, rgba(255,255,255,0.85))`,
+            boxShadow: `0 0 10px ${tint}`,
+            left: "32px",
           }}
-          animate={{
-            height: [
-              `${15 + ((i * 13) % 60)}%`,
-              `${30 + ((i * 7) % 50)}%`,
-              `${15 + ((i * 13) % 60)}%`,
-            ],
-          }}
-          transition={{
-            duration: 1.2 + (i % 4) * 0.15,
-            delay: (i % 6) * 0.08,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
+          animate={{ left: ["32px", "calc(100% - 4px)"] }}
+          transition={{ duration: 4.0, repeat: Infinity, ease: "linear" }}
         />
-      ))}
+      </div>
+
+      {/* Bottom: timeline ticks */}
+      <div className="flex items-center gap-[3px] text-[7px] font-mono opacity-70">
+        {[0, 4, 8, 12, 16, 20, 24, 28].map((s) => (
+          <span
+            key={s}
+            className="flex-1 text-center"
+            style={{ color: tint }}
+          >
+            {String(s).padStart(2, "0")}s
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function PlaceholderVoice({ tint }: { tint: string }) {
+  // Voice preview: voice profile + waveform amplitude bars (40 samples) +
+  // rolling caption preview + LR meters — looks like a real configured TTS
+  // call rather than a single sine wave.
+  const samples = Array.from({ length: 40 }, (_, i) => i);
+  // Realistic-looking amplitude envelope: silence → ramp → speech → trail
+  const envelope = (i: number) => {
+    if (i < 3 || i > 36) return 0.1;
+    if (i < 7) return 0.25 + (i - 3) * 0.08;
+    if (i > 32) return 0.55 - (i - 32) * 0.1;
+    // pseudo-random speech amplitude derived from position
+    const base = 0.45 + Math.sin(i * 0.7) * 0.18 + Math.cos(i * 1.3) * 0.12;
+    const noise = ((i * 17) % 23) / 60;
+    return Math.max(0.18, Math.min(0.95, base + noise));
+  };
   return (
-    <div className="flex items-center justify-center w-full h-full px-3">
-      <svg viewBox="0 0 200 60" className="w-full h-full" preserveAspectRatio="none">
-        <motion.path
-          d="M 0 30 Q 20 10 40 30 T 80 30 T 120 30 T 160 30 T 200 30"
-          fill="none"
-          stroke={tint}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          animate={{
-            d: [
-              "M 0 30 Q 20 10 40 30 T 80 30 T 120 30 T 160 30 T 200 30",
-              "M 0 30 Q 20 50 40 30 T 80 30 T 120 30 T 160 30 T 200 30",
-              "M 0 30 Q 20 18 40 30 T 80 30 T 120 30 T 160 30 T 200 30",
-            ],
-          }}
-          transition={{ duration: 2.0, repeat: Infinity, ease: "easeInOut" }}
-          style={{ filter: `drop-shadow(0 0 4px ${tint})` }}
+    <div className="flex flex-col w-full h-full px-2 py-1.5 gap-1.5">
+      {/* Header: voice profile + language tag */}
+      <div className="flex items-center justify-between text-[8.5px] font-mono">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded"
+            style={{ background: tint, color: "#fff" }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-white"
+              style={{ boxShadow: "0 0 4px #fff" }}
+            />
+            qwen-tts · 溫暖女聲
+          </span>
+          <span
+            className="px-1.5 py-[1px] rounded hidden sm:inline"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            zh-TW
+          </span>
+        </div>
+        <span style={{ color: tint }}>0:14 / 0:18</span>
+      </div>
+
+      {/* Waveform — symmetric amplitude bars centered on midline */}
+      <div
+        className="flex-1 min-h-0 relative rounded-md overflow-hidden flex items-center"
+        style={{
+          background: "rgba(0,0,0,0.22)",
+          border: `1px solid ${tint}`,
+        }}
+      >
+        <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-center gap-[2px] px-1.5">
+          {samples.map((i) => {
+            const amp = envelope(i);
+            return (
+              <motion.span
+                key={i}
+                className="flex-1 rounded-full"
+                style={{
+                  background: tint,
+                  boxShadow: `0 0 4px ${tint}`,
+                  minWidth: 1.5,
+                }}
+                animate={{
+                  height: [
+                    `${amp * 60}%`,
+                    `${amp * 100}%`,
+                    `${amp * 60}%`,
+                  ],
+                }}
+                transition={{
+                  duration: 0.9 + (i % 3) * 0.15,
+                  delay: i * 0.025,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Centerline */}
+        <div
+          className="absolute inset-x-0 top-1/2 h-px pointer-events-none"
+          style={{ background: "rgba(255,255,255,0.18)" }}
         />
-      </svg>
+
+        {/* Sweeping playhead */}
+        <motion.div
+          className="absolute inset-y-0 w-[2px] pointer-events-none"
+          style={{
+            background: `linear-gradient(180deg, transparent, ${tint}, transparent)`,
+            boxShadow: `0 0 10px ${tint}`,
+          }}
+          animate={{ left: ["0%", "100%"] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
+        />
+      </div>
+
+      {/* Rolling caption preview */}
+      <div
+        className="rounded px-1.5 py-1 text-[10px] sm:text-[11px] leading-tight relative overflow-hidden"
+        style={{
+          background: "rgba(0,0,0,0.5)",
+          border: `1px solid ${tint}`,
+          color: "#fff",
+        }}
+      >
+        <motion.span
+          className="block whitespace-nowrap font-mono"
+          animate={{ x: ["8%", "-92%"] }}
+          transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+          style={{ display: "inline-block" }}
+        >
+          『 在每一次的呼吸之間，世界都重新誕生一次 』
+          <span className="opacity-60 ml-3">— 自動上字幕 · WPM 145 · pause 0.4s ·</span>
+        </motion.span>
+      </div>
+
+      {/* LR meter row */}
+      <div className="flex items-center gap-1.5 text-[7.5px] font-mono">
+        {(["L", "R"] as const).map((ch, ci) => (
+          <div key={ch} className="flex items-center gap-1 flex-1">
+            <span style={{ color: tint }}>{ch}</span>
+            <div
+              className="flex-1 h-1 rounded-full overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.12)" }}
+            >
+              <motion.div
+                className="h-full rounded-full"
+                style={{
+                  background: `linear-gradient(90deg, ${tint}, #fff)`,
+                }}
+                animate={{ width: ci === 0 ? ["35%", "75%", "55%"] : ["55%", "70%", "40%"] }}
+                transition={{
+                  duration: 1.6 + ci * 0.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function PlaceholderDirector({ tint }: { tint: string }) {
-  // 5 scenes + 1 deliverables panel — each card declares its scene type so
-  // viewers can read the director's plan at a glance.
+  // Storyboard with directional flow: 5 scenes + final delivery card.
+  // Cards animate in sequence to show the director's scheduling pass; a
+  // sweeping highlight ring marks "currently rendering" so viewers see this
+  // is a live plan, not 6 static boxes.
   const scenes = [
-    { tag: "S1", role: "開場", detail: "品牌主題", dur: "4s" },
-    { tag: "S2", role: "鋪陳", detail: "情緒鋪墊", dur: "6s" },
-    { tag: "S3", role: "高潮", detail: "產品特寫", dur: "5s" },
-    { tag: "S4", role: "轉折", detail: "使用情境", dur: "5s" },
-    { tag: "S5", role: "收束", detail: "標語+LOGO", dur: "4s" },
-    { tag: "✓", role: "成品包", detail: "影 + 樂 + 字", dur: "24s" },
+    { tag: "S1", role: "開場", detail: "品牌主題", dur: "4s", color: "rgba(168,85,247,0.85)" },
+    { tag: "S2", role: "鋪陳", detail: "情緒鋪墊", dur: "6s", color: "rgba(99,102,241,0.85)" },
+    { tag: "S3", role: "高潮", detail: "產品特寫", dur: "5s", color: "rgba(34,197,94,0.85)" },
+    { tag: "S4", role: "轉折", detail: "使用情境", dur: "5s", color: "rgba(59,130,246,0.85)" },
+    { tag: "S5", role: "收束", detail: "標語+LOGO", dur: "4s", color: "rgba(244,114,182,0.85)" },
+    { tag: "✓",  role: "成品包", detail: "影+樂+字", dur: "24s", color: "rgba(234,179,8,0.85)" },
   ] as const;
   return (
-    <div className="grid grid-cols-3 gap-1.5 w-full h-full p-2">
-      {scenes.map((s, i) => (
-        <motion.div
-          key={i}
-          className="rounded-md relative overflow-hidden p-1.5 flex flex-col"
-          style={{
-            background: `linear-gradient(135deg, ${tint}, rgba(255,255,255,0.06))`,
-            border: `1px solid ${tint}`,
-          }}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: i * 0.08, duration: 0.4 }}
+    <div className="flex flex-col w-full h-full p-2 gap-1">
+      {/* Header: timeline summary */}
+      <div className="flex items-center justify-between text-[8.5px] font-mono">
+        <span
+          className="px-1.5 py-[1px] rounded font-semibold"
+          style={{ background: tint, color: "#fff" }}
         >
-          <div className="flex items-center justify-between mb-0.5">
-            <span
-              className="text-[8px] font-mono font-semibold px-1 py-[1px] rounded"
-              style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          STORYBOARD · 6 nodes
+        </span>
+        <span style={{ color: tint }}>total 24s · 5 cuts + 1 delivery</span>
+      </div>
+
+      {/* Scene grid — 3 cols, with arrow connectors between same-row cards
+          and downward arrow at row breaks. */}
+      <div className="grid grid-cols-3 gap-x-2 gap-y-1.5 flex-1 min-h-0 relative">
+        {scenes.map((s, i) => {
+          const inFirstRow = i < 3;
+          const isLastInRow = (i + 1) % 3 === 0;
+          const isLast = i === scenes.length - 1;
+          return (
+            <motion.div
+              key={i}
+              className="rounded-md relative overflow-hidden p-1.5 flex flex-col"
+              style={{
+                background: `linear-gradient(135deg, ${s.color}, rgba(255,255,255,0.06))`,
+                border: `1px solid ${s.color}`,
+              }}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.4 }}
             >
-              {s.tag}
-            </span>
-            <span
-              className="text-[8px] font-mono px-1 py-[1px] rounded-full"
-              style={{ background: tint, color: "#fff" }}
-            >
-              {s.dur}
-            </span>
-          </div>
-          <span className="text-[10px] font-semibold leading-tight text-white">
-            {s.role}
-          </span>
-          <span className="text-[8.5px] font-mono mt-0.5 leading-tight text-white/85">
-            {s.detail}
-          </span>
-          {/* Arrow connector to next scene (skip last) */}
-          {i < scenes.length - 1 && (i + 1) % 3 !== 0 && (
-            <span
-              className="absolute right-[-7px] top-1/2 -translate-y-1/2 text-[10px]"
-              style={{ color: tint }}
-              aria-hidden="true"
-            >
-              ›
-            </span>
-          )}
-        </motion.div>
-      ))}
+              <div className="flex items-center justify-between mb-0.5">
+                <span
+                  className="text-[8px] font-mono font-semibold px-1 py-[1px] rounded"
+                  style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+                >
+                  {s.tag}
+                </span>
+                <span
+                  className="text-[8px] font-mono px-1 py-[1px] rounded-full"
+                  style={{ background: s.color, color: "#fff" }}
+                >
+                  {s.dur}
+                </span>
+              </div>
+              <span className="text-[10px] font-semibold leading-tight text-white">
+                {s.role}
+              </span>
+              <span className="text-[8.5px] font-mono mt-0.5 leading-tight text-white/90 truncate">
+                {s.detail}
+              </span>
+
+              {/* Highlight ring sweeps from card 0 → 5 to indicate the
+                  director's current rendering target. */}
+              <motion.span
+                className="absolute inset-0 rounded-md pointer-events-none"
+                style={{ border: `2px solid ${tint}`, boxShadow: `0 0 12px ${tint}` }}
+                animate={{ opacity: [0, 1, 0] }}
+                transition={{
+                  duration: 0.8,
+                  delay: i * 0.5,
+                  repeat: Infinity,
+                  repeatDelay: scenes.length * 0.5 - 0.8,
+                }}
+              />
+
+              {/* Right-arrow to next card in same row */}
+              {!isLastInRow && !isLast && (
+                <motion.span
+                  className="absolute -right-[9px] top-1/2 -translate-y-1/2 text-[12px] z-10"
+                  style={{ color: tint, textShadow: `0 0 6px ${tint}` }}
+                  animate={{ x: [0, 2, 0] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  aria-hidden="true"
+                >
+                  ›
+                </motion.span>
+              )}
+              {/* Down-arrow at row break (S3 → S4) */}
+              {isLastInRow && !isLast && inFirstRow && (
+                <motion.span
+                  className="absolute -bottom-[7px] right-2 text-[10px] z-10"
+                  style={{ color: tint, textShadow: `0 0 6px ${tint}` }}
+                  animate={{ y: [0, 2, 0] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  aria-hidden="true"
+                >
+                  ⌄
+                </motion.span>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2180,12 +2433,56 @@ export default function OrbCreationStage({
                     </span>
                   </div>
                   <p
-                    className={`text-[10px] sm:text-[11px] leading-snug line-clamp-1 ${
+                    className={`text-[10px] sm:text-[11px] leading-snug line-clamp-1 mb-1 ${
                       isActive ? "text-white/85" : textMuted
                     }`}
                   >
                     {scenario.summary}
                   </p>
+                  {/* Spirit cast preview — overlapping color dots so users
+                      see who collaborates before clicking. */}
+                  <div className="flex items-center gap-1">
+                    <div className="flex -space-x-1">
+                      {scenario.spirits.slice(0, 5).map((nick, idx) => {
+                        const meta = SPIRITS[nick];
+                        return (
+                          <span
+                            key={nick}
+                            title={`${nick} · ${meta.role}`}
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[7.5px] sm:text-[8px] font-semibold"
+                            style={{
+                              background: meta.tint,
+                              color: "#fff",
+                              boxShadow: `0 0 0 1.5px ${
+                                isActive ? "#fff" : isDark ? "rgba(20,20,30,0.8)" : "rgba(255,255,255,0.9)"
+                              }`,
+                              zIndex: scenario.spirits.length - idx,
+                            }}
+                          >
+                            {nick[0]}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {scenario.spirits.length > 5 && (
+                      <span
+                        className="text-[8.5px] sm:text-[9px] font-medium"
+                        style={{
+                          color: isActive ? "rgba(255,255,255,0.85)" : mode.tint,
+                        }}
+                      >
+                        +{scenario.spirits.length - 5}
+                      </span>
+                    )}
+                    <span
+                      className="ml-auto text-[8.5px] sm:text-[9px] font-mono"
+                      style={{
+                        color: isActive ? "rgba(255,255,255,0.7)" : isDark ? "rgba(255,255,255,0.5)" : "rgba(20,20,30,0.55)",
+                      }}
+                    >
+                      {scenario.spirits.length} 精靈
+                    </span>
+                  </div>
                 </motion.button>
               );
             })}
@@ -2253,15 +2550,28 @@ export default function OrbCreationStage({
                 })}
               </div>
 
-              {/* Handoff chain — who hands what to whom */}
-              <ol className="space-y-1 mb-2.5">
+              {/* Handoff chain — who hands what to whom. A vertical
+                  connector line ties the numbered circles together so the
+                  flow reads as a real pipeline. */}
+              <ol className="relative space-y-1 mb-2.5 pl-1">
+                {/* Connector spine */}
+                {activeScenario.handoffs.length > 1 && (
+                  <span
+                    aria-hidden
+                    className="absolute left-[15px] top-3 bottom-3 w-px"
+                    style={{
+                      background: `linear-gradient(180deg, ${activeMode.tint}, transparent)`,
+                      opacity: 0.45,
+                    }}
+                  />
+                )}
                 {activeScenario.handoffs.map((step, i) => {
                   const meta = SPIRITS[step.from];
                   const nextMeta = step.next ? SPIRITS[step.next] : null;
                   return (
                     <li
                       key={i}
-                      className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-[10.5px] sm:text-[11.5px]"
+                      className="relative flex items-start gap-2 rounded-lg px-2 py-1.5 text-[10.5px] sm:text-[11.5px]"
                       style={{
                         background: isDark
                           ? "rgba(255,255,255,0.04)"
@@ -2270,19 +2580,23 @@ export default function OrbCreationStage({
                       }}
                     >
                       <span
-                        className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold mt-[1px]"
-                        style={{ background: meta.tint, color: "#fff" }}
+                        className="relative z-10 shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold mt-[1px]"
+                        style={{
+                          background: meta.tint,
+                          color: "#fff",
+                          boxShadow: `0 0 8px ${meta.tint}`,
+                        }}
                       >
                         {i + 1}
                       </span>
                       <div className="flex-1 min-w-0">
                         <span
-                          className={`font-semibold ${textPrimary}`}
+                          className="font-semibold"
                           style={{ color: meta.tint }}
                         >
                           {step.from}
                         </span>
-                        <span className={`mx-1 ${textMuted}`}>→</span>
+                        <span className={`mx-1 ${textMuted}`}>›</span>
                         <span className={textPrimary}>{step.do}</span>
                         {nextMeta && (
                           <>
