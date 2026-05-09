@@ -19,10 +19,17 @@
  */
 
 const ROLE_MARKER_PATTERNS = [
-  /<\|?(?:system|assistant|user|tool|function)\|?>/gi,
+  // Open + close angle markers: covers `<|system|>`, `<system>`, `</system>`,
+  // and the closing-tag variant `<|/system|>` that earlier regexes missed.
+  // The slash is allowed before AND after the pipe to catch every legal
+  // closing-tag arrangement attackers can paste.
+  /<\|?\/?(?:system|assistant|user|tool|function)\/?\|?\/?>/gi,
   /\[(?:system|assistant|user|tool|function)\]:?/gi,
   /^\s*(?:system|assistant|tool|function)\s*[:>]/gim,
-  /<\/?(?:s|im_start|im_end|inst|sep)\s*\/?>/gi,
+  // OpenAI ChatML role markers — the official spec uses `<|im_start|>system`
+  // / `<|im_end|>`, plus older `<|begin_of_text|>` and `<s>` from Llama.
+  /<\|?\/?(?:im_start|im_end|begin_of_text|end_of_text|inst|sep|s)\|?\s*\/?>/gi,
+  /<\|?im_start\|?>\s*(?:system|assistant|user|tool|function)/gi,
 ];
 
 /**
@@ -32,17 +39,22 @@ const ROLE_MARKER_PATTERNS = [
  * just won't act on them.
  */
 const JAILBREAK_PATTERNS = [
-  /ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions/gi,
-  /forget\s+(?:all\s+)?(?:previous|prior|earlier)\s+instructions/gi,
-  /disregard\s+(?:all\s+)?(?:previous|prior|above)/gi,
-  /override\s+(?:the\s+)?(?:system\s+)?(?:prompt|instructions)/gi,
-  /you\s+are\s+now\s+(?:in\s+)?(?:dan|developer|jailbreak|admin|root)\s+mode/gi,
-  /act\s+as\s+(?:a\s+)?(?:dan|developer mode|jailbreak|root|admin)\b/gi,
-  /pretend\s+(?:you\s+are|to\s+be)\s+(?:a\s+)?(?:different|another)\s+(?:ai|assistant)/gi,
-  /from\s+now\s+on\s+(?:you|always)\s+(?:must|will|should)\s+(?:ignore|bypass|skip)/gi,
-  /忽略(?:之前|以上|上面)?(?:的)?(?:所有)?(?:指示|命令|指令|規則|限制)/g,
-  /無視(?:之前|以上)?(?:的)?(?:系統)?(?:提示|指令|規則)/g,
-  /你?(?:現在|從現在開始)?(?:是|扮演|當)?(?:dan|越獄|破解|管理員|root)模式/gi,
+  // Word boundary `\b` + `[\s-]+` lets hyphenated bypasses
+  // ("ignore-all-previous-instructions") match too.
+  /\bignore[\s-]+(?:all[\s-]+)?(?:previous|prior|above|earlier)[\s-]+(?:instructions?|prompts?|rules?)/gi,
+  /\bforget[\s-]+(?:all[\s-]+)?(?:previous|prior|earlier|above|everything)[\s-]+(?:instructions?|prompts?|context|that|above)/gi,
+  /\bforget\s+everything\s+(?:above|before|i\s+(?:said|told))/gi,
+  /\bdisregard\s+(?:all\s+|the\s+|any\s+)?(?:previous|prior|above|earlier|system)\s*(?:prompts?|instructions?|rules?|messages?)?/gi,
+  /\boverride\s+(?:the\s+)?(?:system\s+)?(?:prompt|instructions)/gi,
+  /\byou\s+are\s+now\s+(?:in\s+)?(?:dan|developer|jailbreak|admin|root)\s*mode/gi,
+  /\bact\s+as\s+(?:a\s+)?(?:dan|developer mode|jailbreak|root|admin)\b/gi,
+  /\bpretend\s+(?:you\s+are|to\s+be)\s+(?:a\s+)?(?:different|another)\s+(?:ai|assistant)/gi,
+  /\bfrom\s+now\s+on[\s,]*(?:you|always)?\s*(?:must|will|should|always)?\s*(?:ignore|bypass|skip)/gi,
+  // Chinese: covers 忽略 / 無視 alone + 跟著「以上」「前面」「規則」等
+  /忽略(?:[之前以上面前後所有的]+|系統|系统)/g,
+  /無視(?:[之前以上面所有的]+|系統|系统)/g,
+  /無[視视][之前以上面所有的]+(?:指示|命令|指令|規則|规则|提示|限制)?/g,
+  /(?:你|您)?(?:現在|从现在|從現在)?(?:开始|開始)?(?:是|扮演|當|当)\s*(?:dan|越獄|破解|管理員|管理员|root)\s*模式/gi,
 ];
 
 const REDACTION_MARKER = "[REDACTED:INJECTION]";
@@ -56,6 +68,23 @@ export interface PromptDefenseResult {
 }
 
 /**
+ * Strip zero-width and bidirectional control characters that attackers use
+ * to splice invisible breaks inside otherwise-blocked phrases — e.g.
+ * "i​gnore previous instructions" (U+200B between i and g) passes the
+ * `ignore` regex if we don't drop them first. We deliberately do NOT
+ * apply NFKC normalisation here: it converts full-width Chinese colons
+ * (`：` U+FF1A) and other legitimate CJK punctuation to ASCII variants,
+ * which corrupts the user's actual content.
+ */
+function normaliseInjectionInput(raw: string): string {
+  // ZWSP (U+200B), ZWNJ (U+200C), ZWJ (U+200D), BOM (U+FEFF), and the bidi
+  // controls U+202A-202E / U+2066-2069 that copy-paste attacks abuse.
+  return raw
+    .replace(/[​-‍﻿]/g, "")
+    .replace(/[‪-‮⁦-⁩]/g, "");
+}
+
+/**
  * Sanitize a single user-provided string. Returns the cleaned text along with
  * a list of trigger names so the caller can log / surface telemetry.
  */
@@ -65,7 +94,11 @@ export function sanitizeOrbUserText(input: string): PromptDefenseResult {
   }
 
   const triggers = new Set<string>();
-  let working = input;
+  // Strip invisible characters FIRST so zero-width / bidi-control bypasses
+  // can't slip past the literal patterns below. The trigger is only fired
+  // when stripping actually changed something — benign text passes silent.
+  let working = normaliseInjectionInput(input);
+  if (working !== input) triggers.add("invisible-chars");
 
   for (const pattern of ROLE_MARKER_PATTERNS) {
     if (pattern.test(working)) {
