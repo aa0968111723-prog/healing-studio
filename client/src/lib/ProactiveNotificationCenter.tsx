@@ -43,6 +43,16 @@ interface QueuedNotification {
   surface: "toast" | "inline" | "blocking";
   requireAck: boolean;
   createdAt: number;
+  /**
+   * Optional CTA button rendered next to the ack button. Used by events
+   * that imply an action the user might want to take inline (e.g.
+   * `context_near_full` → 「開新對話」). Pressing the action also
+   * acknowledges the card.
+   */
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ProactiveNotificationCenterProps {
@@ -62,6 +72,18 @@ interface ProactiveNotificationCenterProps {
    * 確保使用者有時間反應。Muted spirits 仍直接跳過。
    */
   favoriteSpirits?: string[];
+  /**
+   * Optional per-event CTA buttons. Keyed by ProactiveTriggerEvent id.
+   * When the event surfaces a card, the card gets an extra button next
+   * to the ack one with `label`; clicking calls `onClick(payload)` and
+   * dismisses the card. Used for `context_near_full` → "開新對話" today.
+   */
+  eventActions?: Partial<
+    Record<
+      ProactiveTriggerEvent,
+      { label: string; onClick: (payload: unknown) => void }
+    >
+  >;
 }
 
 /**
@@ -79,6 +101,7 @@ export function ProactiveNotificationCenter({
   triggerSettings,
   globallyEnabled = true,
   favoriteSpirits = [],
+  eventActions,
 }: ProactiveNotificationCenterProps) {
   const [queue, setQueue] = useState<QueuedNotification[]>([]);
   const mutedSet = useMemo(() => new Set(mutedSpirits), [mutedSpirits]);
@@ -170,6 +193,16 @@ export function ProactiveNotificationCenter({
           }
 
           const id = `${trigger.event}_${now}_${Math.random().toString(36).slice(2, 6)}`;
+          // Bind the per-event CTA at queue-time. We snapshot the payload
+          // so a stale event later in the queue still hits with the
+          // values it was emitted with (not the most recent emission).
+          const actionSpec = eventActions?.[trigger.event as ProactiveTriggerEvent];
+          const cardAction = actionSpec
+            ? {
+                label: actionSpec.label,
+                onClick: () => actionSpec.onClick(payload),
+              }
+            : undefined;
           setQueue(prev => {
             // 同一事件已在佇列中就不疊一張新的，避免 spam（使用者改設 interval=5s
             // 但事件源連發 5 次的場景）。
@@ -187,6 +220,7 @@ export function ProactiveNotificationCenter({
                 surface: trigger.surface,
                 requireAck,
                 createdAt: now,
+                ...(cardAction ? { action: cardAction } : {}),
               },
             ];
           });
@@ -283,6 +317,19 @@ function ProactiveCard({ notification, onAck, onClose }: ProactiveCardProps) {
         </div>
       </div>
       <div className="mt-2 flex items-center justify-end gap-2">
+        {notification.action && (
+          <button
+            type="button"
+            onClick={() => {
+              notification.action?.onClick();
+              onAck();
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold bg-sky-500 hover:bg-sky-600 text-white"
+            data-testid={`proactive-card-action-${notification.event}`}
+          >
+            {notification.action.label}
+          </button>
+        )}
         <button
           type="button"
           onClick={onAck}

@@ -2249,6 +2249,42 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       saveMessagesToStorage(activeConversationId, messages);
   }, [messages, activeConversationId]);
 
+  // ─── Context-window fullness watchdog (15 精靈 / 暖暖) ──────────────────
+  // The chat handler trims history to MAX_CHAT_REQUEST_MESSAGES /
+  // MAX_CHAT_REQUEST_CHARS before sending. Once the conversation
+  // approaches that cap, older turns get silently dropped — the user
+  // notices "the orb forgot what we said earlier" without realising why.
+  // This watchdog publishes `context_near_full` at 80% and lets the
+  // notification center surface 暖暖's "要不要開新對話？" card.
+  // dedupeKey is per-conversation so jumping to a fresh tab doesn't
+  // inherit the parent tab's nag.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const usedChars = messages.reduce((acc, m) => acc + (m.text?.length ?? 0), 0);
+    const messageCount = messages.length;
+    const charsPct = (usedChars / MAX_CHAT_REQUEST_CHARS) * 100;
+    const countPct = (messageCount / MAX_CHAT_REQUEST_MESSAGES) * 100;
+    const usedPct = Math.round(Math.max(charsPct, countPct));
+    if (usedPct < 80) return;
+    const conversationTitle =
+      conversations.find(c => c.conversationId === activeConversationId)?.title ?? "目前對話";
+    ProactiveEventBus.publish(
+      "context_near_full",
+      {
+        usedPct,
+        messageCount,
+        usedChars,
+        capChars: MAX_CHAT_REQUEST_CHARS,
+        conversationTitle,
+      },
+      // Per-conversation dedupe so a new tab doesn't inherit the nag.
+      // 30 min interval — once the user dismisses we don't re-poke
+      // until they've added enough turns to cross 80% again from a
+      // fresh baseline (or half an hour passes).
+      { dedupeKey: `context_near_full:${activeConversationId}`, dedupeMs: 30 * 60_000 }
+    );
+  }, [messages, activeConversationId, conversations]);
+
   // ─── Persist conversation list + active id whenever they change ────────
   useEffect(() => {
     saveConversationListToStorage(conversations);

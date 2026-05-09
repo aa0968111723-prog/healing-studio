@@ -136,6 +136,29 @@ describe("ProactiveNotificationCenter — post-merge integration", () => {
     unmount();
   });
 
+  it("context_near_full surfaces an inline ack card with no sonner toast (companion is not favourited)", () => {
+    // companion owns context_near_full at surface=inline. inline events
+    // always queue an ack card and skip the sonner branch, even without
+    // favouriting. This locks the new feature's UI path.
+    const { unmount } = renderCenter({ globallyEnabled: true });
+    act(() => {
+      ProactiveEventBus.publish(
+        "context_near_full",
+        {
+          usedPct: 84,
+          messageCount: 16,
+          usedChars: 9_500,
+          capChars: 12_000,
+          conversationTitle: "今天的對話",
+        },
+        { dedupeKey: "ctx-1" },
+      );
+    });
+    // No sonner toast — went straight to the queue.
+    expect(TOAST_CALLS.length).toBe(0);
+    unmount();
+  });
+
   it("kill-switch flip OFF → ON re-allows events without inheriting old throttle", async () => {
     // Render with globallyEnabled=true and fire the first event to seed
     // the lastSurfaceAt throttle window.

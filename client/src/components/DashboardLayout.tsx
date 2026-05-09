@@ -47,6 +47,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { ProactiveNotificationCenter } from "@/lib/ProactiveNotificationCenter";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
@@ -587,6 +588,23 @@ function DashboardLayoutContent({
     return Array.isArray(raw) ? raw : [];
   }, [proactivePrefsQuery.data]);
 
+  // Per-event CTAs surfaced on the proactive notification card. Today
+  // we only need one: `context_near_full` → 「開新對話」which calls the
+  // global chat's createConversation. The card will dismiss itself
+  // after the click, so the user goes straight to the fresh tab.
+  const orbChat = useGlobalOrbChat();
+  const eventActions = useMemo(
+    () => ({
+      context_near_full: {
+        label: "開新對話",
+        onClick: () => {
+          void orbChat.createConversation();
+        },
+      },
+    }),
+    [orbChat],
+  );
+
   // 15 精靈 / 財財 (accountant)：點數餘額 query。掉到門檻以下時 publish
   // monthly_spend_threshold，讓 toast 出現「本月剩 N 點」提示。
   // 沒有 monthlyAllowance 資料 — 用「remaining 低於 100」當粗略門檻。
@@ -772,6 +790,7 @@ function DashboardLayoutContent({
         triggerSettings={triggerSettingsForBus}
         globallyEnabled={proactiveGloballyEnabled}
         favoriteSpirits={favoriteSpiritsForBus}
+        eventActions={eventActions}
       />
       {/* ── Apple-style floating dock (all viewports) ── */}
       <AppleDock
