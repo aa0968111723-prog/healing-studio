@@ -1117,12 +1117,19 @@ export default function AgentChat() {
 
   const isFirstTurn = messages.length <= 1;
 
-  // ─── 12 精靈：每則回覆掛上接手的精靈，狀態條看「現在誰在線」 ────────────
-  // 用同一支 selectRoleForIntent 推回，client / server 推論結果一致；
-  // 之後 ai.chat 回傳真實 agentRole 時，這支只是 fallback。
+  // ─── 15 精靈：每則回覆掛上接手的精靈，狀態條看「現在誰在線」 ────────────
+  // 後端 ai.chat 現在會直接回傳 agentRole（存在訊息物件 + 對話歷史 metadata）。
+  // 有 server 答案就直接用；沒有的話 (legacy 訊息 / gate 早退) 才退回
+  // selectRoleForIntent 客戶端推論。
   const messageSpirits = useMemo<(SpiritVisual | null)[]>(() => {
     const path = typeof window !== "undefined" ? window.location.pathname : "/agent";
-    return messages.map((_, i) => inferRespondingSpirit(messages, i, path));
+    return messages.map((m, i) => {
+      const serverRole = (m as { agentRole?: string }).agentRole;
+      if (serverRole && (SPIRITS_BY_ID as Record<string, SpiritVisual>)[serverRole]) {
+        return (SPIRITS_BY_ID as Record<string, SpiritVisual>)[serverRole];
+      }
+      return inferRespondingSpirit(messages, i, path);
+    });
   }, [messages]);
   /** 最近 3 則回覆的精靈，去重 — 給「現在誰在線」狀態條使用。 */
   const onlineSpirits = useMemo<SpiritVisual[]>(() => {

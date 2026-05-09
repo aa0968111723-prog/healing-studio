@@ -159,6 +159,15 @@ export interface ChatMessage {
   searchResults?: ChatSearchResultItem[];
   /** Search query the results were drawn from (used for header + analytics). */
   searchQuery?: string;
+  /**
+   * Which of the 15 spirits handled this turn (server-authoritative answer
+   * from `selectRoleForIntent`). Stored as the AgentRole id (e.g.
+   * "image-specialist" / "accountant"). `undefined` for legacy / pre-spirits
+   * messages — UI falls back to client-side inference in that case.
+   */
+  agentRole?: string;
+  /** 0-1 confidence the server had when picking the spirit. */
+  agentRoleConfidence?: number;
 }
 
 export interface ChatSuggestion {
@@ -1823,6 +1832,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         ...(m.attachments ? { attachments: m.attachments } : {}),
         ...(m.actions ? { actions: m.actions } : {}),
         ...(m.webSources ? { webSources: m.webSources } : {}),
+        // 15 精靈：把接手的精靈 id 一起存進 metadata，未來重新打開對話、
+        // 全站 widget 列表都能直接讀出當輪是誰回答。沒值就不寫，保持兼容。
+        ...(m.agentRole ? { agentRole: m.agentRole } : {}),
+        ...(typeof m.agentRoleConfidence === "number"
+          ? { agentRoleConfidence: m.agentRoleConfidence }
+          : {}),
       },
     }));
     appendMessagesServer.mutate(
@@ -2512,6 +2527,26 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       // was thinking — drop the response instead of mutating stale state.
       if (isStale()) return;
 
+      // 15 精靈：把後端決定的接手精靈拉出來，後面所有 setMessages 都會掛上。
+      // 沒有時 (舊 server / gate 早退) 客戶端 chip 仍可用 selectRoleForIntent
+      // 推回，所以這裡只是「server-authoritative when available」。
+      const serverAgentRole =
+        typeof (data as { agentRole?: string }).agentRole === "string"
+          ? (data as { agentRole: string }).agentRole
+          : undefined;
+      const serverAgentRoleConfidence =
+        typeof (data as { agentRoleConfidence?: number }).agentRoleConfidence === "number"
+          ? (data as { agentRoleConfidence: number }).agentRoleConfidence
+          : undefined;
+      const spiritFields = serverAgentRole
+        ? {
+            agentRole: serverAgentRole,
+            ...(typeof serverAgentRoleConfidence === "number"
+              ? { agentRoleConfidence: serverAgentRoleConfidence }
+              : {}),
+          }
+        : {};
+
       // Server signalled it needs to ask the user before acting. Skip every
       // downstream action / workflow / executor branch and surface the
       // ClarificationPromptCard so the user can disambiguate before the orb
@@ -2546,6 +2581,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           text: clarificationQuestion,
           at: Date.now(),
           pagePath: locationPath,
+          ...spiritFields,
         }]);
         setPendingClarification({
           id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -2667,6 +2703,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             text: replyForUser,
             at: Date.now(),
             pagePath: locationPath,
+            ...spiritFields,
           }]);
           setPendingClarification({
             id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -2682,6 +2719,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             text: replyForUser,
             at: Date.now(),
             pagePath: locationPath,
+            ...spiritFields,
           }]);
           setPendingClarification({
             id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -2790,6 +2828,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
         actions: actionsToExecute,
         ...(webSources.length > 0 ? { webSources } : {}),
+        ...spiritFields,
       }]);
 
       const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
