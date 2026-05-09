@@ -563,7 +563,21 @@ function DashboardLayoutContent({
     const raw = (proactivePrefsQuery.data as { mutedSpirits?: string[] } | undefined)?.mutedSpirits;
     return Array.isArray(raw) ? raw : [];
   }, [proactivePrefsQuery.data]);
-  useProactiveSpiritEvents(mutedSpiritsForBus);
+  // Honour orbProactiveSuggestions=false (kill-switch for ALL toasts) and
+  // favoriteSpirits (promote starred spirits' events to persistent toasts
+  // so the user has time to react). Both used to be saved-but-ignored.
+  const proactiveEnabled = useMemo(() => {
+    const raw = (proactivePrefsQuery.data as { orbProactiveSuggestions?: boolean } | undefined)?.orbProactiveSuggestions;
+    return raw !== false;
+  }, [proactivePrefsQuery.data]);
+  const favoriteSpiritsForBus = useMemo(() => {
+    const raw = (proactivePrefsQuery.data as { favoriteSpirits?: string[] } | undefined)?.favoriteSpirits;
+    return Array.isArray(raw) ? raw : [];
+  }, [proactivePrefsQuery.data]);
+  useProactiveSpiritEvents(mutedSpiritsForBus, {
+    enabled: proactiveEnabled,
+    favoriteSpirits: favoriteSpiritsForBus,
+  });
 
   // 15 精靈 / 財財 (accountant)：點數餘額 query。掉到門檻以下時 publish
   // monthly_spend_threshold，讓 toast 出現「本月剩 N 點」提示。

@@ -38,16 +38,32 @@ function fillTemplate(template: string, payload: Record<string, unknown>): strin
  * 觸發時把對應精靈的訊息顯示為 toast / inline / blocking dialog。
  *
  * @param mutedSpirits 使用者偏好中的靜音精靈 id 列表 — 該位精靈的事件會直接跳過。
+ * @param options
+ *   - `enabled` (default true): when false, skip ALL subscriptions so the
+ *     user gets zero proactive toasts. Honours the
+ *     `orbProactiveSuggestions=false` preference end-to-end.
+ *   - `favoriteSpirits`: spirits the user has starred. Their events are
+ *     promoted from auto-dismiss `toast` to persistent `inline` so the
+ *     user has time to respond — matches the AgentSettingsSheet copy
+ *     that promised "ProactiveEventBus 優先通知".
  */
-export function useProactiveSpiritEvents(mutedSpirits: string[] = []): void {
+export function useProactiveSpiritEvents(
+  mutedSpirits: string[] = [],
+  options: { enabled?: boolean; favoriteSpirits?: string[] } = {}
+): void {
+  const enabled = options.enabled !== false;
+  const favoriteSpirits = options.favoriteSpirits ?? [];
   useEffect(() => {
+    if (!enabled) return;
     const mutedSet = new Set(mutedSpirits);
+    const favoriteSet = new Set(favoriteSpirits);
     const unsubscribers: Array<() => void> = [];
 
     for (const trigger of SPIRIT_PROACTIVE_TRIGGERS) {
       if (mutedSet.has(trigger.spirit)) continue;
       const spirit = getSpiritVisual(trigger.spirit);
       if (!spirit) continue;
+      const isFavorite = favoriteSet.has(trigger.spirit);
 
       const unsub = ProactiveEventBus.subscribe(
         trigger.event as ProactiveTriggerEvent,
@@ -62,14 +78,17 @@ export function useProactiveSpiritEvents(mutedSpirits: string[] = []): void {
           const headline = `${spirit.emoji} ${spirit.nickname}`;
 
           // surface 對 toast lib 的對映：
-          //   toast    → 一般 toast（auto-dismiss）
+          //   toast    → 一般 toast（auto-dismiss）— favorites 升級到 inline
           //   inline   → 持久 toast（只能手動關），讓使用者有時間反應
           //   blocking → 持久 toast + 額外用 console.warn 標 critical（短期作法；
           //              下一輪會換成 AlertDialog 真正擋住操作）
           if (trigger.surface === "blocking") {
             console.warn("[proactive_blocking]", trigger.event, payload);
             toast.warning(headline, { description: message, duration: Infinity });
-          } else if (trigger.surface === "inline") {
+          } else if (trigger.surface === "inline" || isFavorite) {
+            // Favourite spirits: keep their notifications on screen until
+            // explicitly dismissed even if the trigger spec only asked
+            // for a fleeting toast.
             toast(headline, { description: message, duration: Infinity });
           } else {
             toast(headline, { description: message, duration: 8_000 });
@@ -82,7 +101,10 @@ export function useProactiveSpiritEvents(mutedSpirits: string[] = []): void {
     return () => {
       for (const u of unsubscribers) u();
     };
-  }, [mutedSpirits.join("|")]); // 只在靜音清單變動時重訂閱
+    // Re-subscribe when the muted / favourite sets change. We stringify
+    // the arrays so a fresh array literal with the same contents doesn't
+    // cause a churn loop.
+  }, [enabled, mutedSpirits.join("|"), favoriteSpirits.join("|")]);
 }
 
 // Re-export for convenience — 想直接 publish 的呼叫端只 import 這一個檔案就夠。

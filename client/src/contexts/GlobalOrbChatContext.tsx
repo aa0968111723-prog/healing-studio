@@ -2583,10 +2583,35 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           actionType: failedActionType ?? "runWorkflow",
           note: failedReason,
         });
+        // notifyOnError mirror — surface a system toast for the
+        // partial-failure path the same way the catch branch does.
+        const notifyOnStepFail =
+          (agentPreferencesQuery.data as { notifyOnError?: boolean } | undefined)
+            ?.notifyOnError !== false;
+        if (notifyOnStepFail) {
+          toast.error("光球執行流程中斷", {
+            description: failure.summary.slice(0, 200),
+            duration: 12_000,
+          });
+        }
       } else if (nextWorkflowExecution) {
         const now = Date.now();
         setWorkflowExecution(prev => (prev ? completeWorkflow(prev, now) : prev));
         orbState.setState("success", `${nextWorkflowExecution.name} 完成`);
+        // Wire notifyOnCompletion so the user gets a system toast even
+        // when the orb panel is closed. Defaults to true (matches
+        // DEFAULT_AGENT_PREFERENCES); only suppressed when explicitly
+        // false. Safe-guard: fire only when there's a real workflow with
+        // multiple steps — single-step "complete" events would spam.
+        const notifyComplete =
+          (agentPreferencesQuery.data as { notifyOnCompletion?: boolean } | undefined)
+            ?.notifyOnCompletion !== false;
+        if (notifyComplete && nextWorkflowExecution.total > 1) {
+          toast.success(`✅ ${nextWorkflowExecution.name} 完成`, {
+            description: `已完成 ${nextWorkflowExecution.total} 步`,
+            duration: 6_000,
+          });
+        }
       } else {
         orbState.setState("success", "完成");
       }
@@ -2603,8 +2628,20 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         at: Date.now(),
         pagePath: locationPath,
       }]);
+      // Wire notifyOnError. Defaults to true; surfaces a persistent toast
+      // (no duration limit) so the user can read the failure even after
+      // navigating away.
+      const notifyError =
+        (agentPreferencesQuery.data as { notifyOnError?: boolean } | undefined)
+          ?.notifyOnError !== false;
+      if (notifyError) {
+        toast.error("光球執行流程失敗", {
+          description: reason.slice(0, 200),
+          duration: 12_000,
+        });
+      }
     }
-  }, [pageAgent, locationPath, setLocation, orbState, attachArrivalGuide]);
+  }, [pageAgent, locationPath, setLocation, orbState, attachArrivalGuide, agentPreferencesQuery.data]);
 
   // Forward declaration for the auto-execute branch inside `sendMessage`.
   // The actual `startPendingWorkflow` callback is defined further down (it
