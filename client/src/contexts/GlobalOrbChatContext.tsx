@@ -149,6 +149,30 @@ export interface ChatSearchResultItem {
   modality?: "image" | "video" | "audio" | "voice" | "script" | "zip_bundle";
 }
 
+/**
+ * Mirror of the server-side `OrbChatProgressEvent` (see
+ * `server/services/orbChatProgress.ts`). Inlined here to keep the
+ * client bundle independent of server code paths.
+ */
+export interface OrbChatProgressEvent {
+  seq: number;
+  at: number;
+  stage:
+    | "received"
+    | "sanitizing"
+    | "guarding_attachments"
+    | "extracting_pdf"
+    | "selecting_provider"
+    | "researching_web"
+    | "planning"
+    | "calling_specialist"
+    | "materializing_task"
+    | "finalizing"
+    | "error";
+  label: string;
+  detail?: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   role: ChatRole;
   text: string;
@@ -1659,6 +1683,13 @@ interface GlobalOrbChatContextValue {
   messages: ChatMessage[];
   input: string;
   isSending: boolean;
+  /**
+   * Progress milestones emitted by the in-flight chat request (sanitizing
+   * → planning → calling specialist → finalizing). Empty between requests.
+   * Consumers render this as the orb's "thinking timeline" so the user
+   * can see what's happening during the otherwise-opaque planning window.
+   */
+  progressEvents: OrbChatProgressEvent[];
   suggestions: ChatSuggestion[];
   isOpen: boolean;
   workflowExecution: WorkflowExecutionState | null;
@@ -1762,6 +1793,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   messages: [],
   input: "",
   isSending: false,
+  progressEvents: [],
   suggestions: [],
   isOpen: false,
   workflowExecution: null,
@@ -1825,6 +1857,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   );
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  // Phase-1 multi-step thinking UX: while a chat request is in flight, the
+  // orb polls `ai.chatProgress` keyed by this id and surfaces the milestone
+  // events as an inline timeline. `null` outside of an in-flight request.
+  const [activeProgressRequestId, setActiveProgressRequestId] = useState<string | null>(null);
+  const [progressEvents, setProgressEvents] = useState<OrbChatProgressEvent[]>([]);
+  const lastProgressSeqRef = useRef(0);
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
@@ -1886,6 +1924,47 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   }, [messages]);
 
   const aiChat = trpc.ai.chat.useMutation();
+
+  // ─── Phase-1 multi-step thinking: poll progress milestones ─────────────
+  // While `activeProgressRequestId` is set we poll `ai.chatProgress` every
+  // 400 ms. The server tracks per-request milestones in an in-memory ring
+  // buffer keyed by the same id; the client appends each new event to the
+  // visible timeline so the user sees the orb actually working through
+  // sanitization → planning → specialist call rather than 20 s of silence.
+  const chatProgressQuery = trpc.ai.chatProgress.useQuery(
+    { requestId: activeProgressRequestId ?? "", sinceSeq: lastProgressSeqRef.current },
+    {
+      enabled: Boolean(activeProgressRequestId),
+      refetchInterval: activeProgressRequestId ? 400 : false,
+      refetchIntervalInBackground: false,
+      retry: 1,
+      // Keep the result while transitioning between request ids so the
+      // final timeline doesn't flash blank before the new one starts.
+      staleTime: 0,
+    }
+  );
+
+  useEffect(() => {
+    const data = chatProgressQuery.data;
+    if (!data || data.events.length === 0) return;
+    setProgressEvents(prev => {
+      const seen = new Set(prev.map(p => p.seq));
+      const additions = data.events.filter(e => !seen.has(e.seq));
+      if (additions.length === 0) return prev;
+      return [...prev, ...additions];
+    });
+    if (typeof data.lastSeq === "number" && data.lastSeq > lastProgressSeqRef.current) {
+      lastProgressSeqRef.current = data.lastSeq;
+    }
+  }, [chatProgressQuery.data]);
+
+  // Reset the timeline + cursor whenever a new request begins / ends.
+  useEffect(() => {
+    if (!activeProgressRequestId) return;
+    lastProgressSeqRef.current = 0;
+    setProgressEvents([]);
+  }, [activeProgressRequestId]);
+
   const startAutoDiscussionMutation =
     trpc.agentCollaboration.startAutoDiscussion.useMutation();
 
@@ -2840,6 +2919,16 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           : "";
       })();
       orbState.setState("thinking", "光球思考中…");
+      // Per-request id powers the inline thinking-timeline polling. The
+      // chat handler keys progress milestones by this id; the client polls
+      // `ai.chatProgress` until the mutation resolves. We clear the active
+      // id in the surrounding sendMessage `finally` so every error path
+      // (clarification cap, planner throw, network drop) drops the poll.
+      const progressRequestId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `orb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      setActiveProgressRequestId(progressRequestId);
       const data = await aiChat.mutateAsync({
         messages: compactHistoryForRequest(nextHistory)
           .map(m => ({
@@ -2851,6 +2940,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pageSnapshot: pageAgent.snapshot ?? undefined,
         recentFeedback: pageAgent.recentFeedback,
         preferences: preferencesForChat,
+        requestId: progressRequestId,
       });
 
       // The user (or another effect) invalidated this turn while the LLM
@@ -3356,6 +3446,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }]);
     } finally {
       setIsSending(false);
+      // Drop the progress-timeline poll guard regardless of which exit
+      // path fired. Without this the client keeps polling even after the
+      // mutation has resolved or thrown.
+      setActiveProgressRequestId(null);
     }
   }, [
     // `messages` intentionally omitted — we read via messagesRef.current so
@@ -3931,6 +4025,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     messages,
     input,
     isSending,
+    progressEvents,
     suggestions,
     isOpen,
     workflowExecution,
@@ -3959,7 +4054,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     switchConversation,
     renameConversation,
     deleteConversation,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, startCollaborativeDiscussion, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
+  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, startCollaborativeDiscussion, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>

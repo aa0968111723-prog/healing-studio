@@ -94,6 +94,7 @@ import OrbCapabilitiesView from "./orb/OrbCapabilitiesView";
 import OrbSearchResultsCard from "./orb/OrbSearchResultsCard";
 import OrbMemoryDashboard from "./orb/OrbMemoryDashboard";
 import OrbActionFlow from "./orb/OrbActionFlow";
+import { OrbThinkingTimeline } from "./orb/OrbThinkingTimeline";
 import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -2948,15 +2949,10 @@ export default memo(function ProactiveOrbWidget({
                             );
                           })}
                           {isChatLoading && (
-                            <div className="flex justify-start">
-                              <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
-                                <div className="flex items-center gap-1">
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0 }} />
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0.2 }} />
-                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={reduceMotion ? { opacity: 1 } : { opacity: [0.3, 1, 0.3] }} transition={reduceMotion ? { duration: 0.2 } : { duration: 1.2, repeat: Infinity, delay: 0.4 }} />
-                                </div>
-                              </div>
-                            </div>
+                            <OrbThinkingTimeline
+                              events={globalChat.progressEvents}
+                              reduceMotion={reduceMotion}
+                            />
                           )}
                           <div ref={chatEndRef} />
                         </div>
@@ -3521,41 +3517,12 @@ export default memo(function ProactiveOrbWidget({
                         </div>
                         );
                       })}
-                      {/* Typing indicator */}
+                      {/* Multi-step thinking timeline (replaces typing dots) */}
                       {isChatLoading && (
-                        <div className="flex justify-start">
-                          <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
-                            <div className="flex items-center gap-1">
-                              <motion.div
-                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{
-                                  duration: 1.2,
-                                  repeat: Infinity,
-                                  delay: 0,
-                                }}
-                              />
-                              <motion.div
-                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{
-                                  duration: 1.2,
-                                  repeat: Infinity,
-                                  delay: 0.2,
-                                }}
-                              />
-                              <motion.div
-                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{
-                                  duration: 1.2,
-                                  repeat: Infinity,
-                                  delay: 0.4,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
+                        <OrbThinkingTimeline
+                          events={globalChat.progressEvents}
+                          reduceMotion={reduceMotion}
+                        />
                       )}
                       <div ref={chatEndRef} />
                     </div>

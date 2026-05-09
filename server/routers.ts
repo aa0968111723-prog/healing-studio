@@ -184,6 +184,11 @@ import {
   rememberTaskKey,
   storeResult,
 } from "./services/orbIdempotency";
+import {
+  clearOrbChatProgress,
+  emitOrbChatProgress,
+  readOrbChatProgress,
+} from "./services/orbChatProgress";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
 import {
   countPdfAttachments,
@@ -5371,6 +5376,9 @@ export const appRouter = router({
           if (idempKey) {
             storeResult(idempKey, enriched);
             idempotencyFinalized = true;
+            // Final progress beacon so the client's polling loop sees a
+            // terminal event before clearOrbChatProgress wipes the bucket.
+            emitOrbChatProgress(idempKey, "finalizing", "整理回應…");
           }
           return enriched;
         };
@@ -5785,7 +5793,13 @@ export const appRouter = router({
         // same x-request-id was stuck on "in-progress" for 60 s.
         let idempotencyFinalized = false;
 
+        // Phase-1 multi-step thinking UX: emit milestones to a per-request
+        // ring buffer so the client can poll `ai.chatProgress` and render
+        // an inline timeline during the otherwise-opaque planning window.
+        emitOrbChatProgress(idempKey, "received", "收到請求");
+
         try {
+          emitOrbChatProgress(idempKey, "sanitizing", "檢查訊息中…");
           // Prompt-injection defence: strip well-known role-impersonation /
           // jailbreak phrases from user content before the planner sees it.
           // Triggers are surfaced via telemetry so abuse can be flagged.
@@ -5850,6 +5864,7 @@ export const appRouter = router({
             rememberTaskKey(idempotencyKey, { taskId: undefined });
           }
 
+          emitOrbChatProgress(idempKey, "guarding_attachments", "檢查附件中…");
           const attachmentGuard = validateAttachmentGuards(plannerMessages as Message[]);
           if (!attachmentGuard.ok) {
             appendTelemetryEvent(telemetryEvents, "attachment.too_large", {
@@ -5987,6 +6002,10 @@ export const appRouter = router({
             ? getPreferredProviderForRole(spiritSelection.role)
             : undefined;
           if (providerRouterEnabled) {
+            emitOrbChatProgress(idempKey, "selecting_provider", "選擇模型中…", {
+              routeIntent,
+              spirit: spiritSelection?.role,
+            });
             let selection = selectProvider({
               intent: routeIntent,
               riskLevel: "low",
@@ -6002,6 +6021,7 @@ export const appRouter = router({
               routeIntent === "planner_pdf" &&
               countPdfAttachments(plannerMessages as Message[]) > 0
             ) {
+              emitOrbChatProgress(idempKey, "extracting_pdf", "讀取 PDF 內文中…");
               const extraction = await extractPdfAttachmentsToText(
                 plannerMessages as Message[]
               );
@@ -6166,6 +6186,9 @@ export const appRouter = router({
           let plannerInvalidWarnings: string[] = [];
 
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
+            emitOrbChatProgress(idempKey, "planning", "規劃步驟中…", {
+              spirit: spiritSelection?.role,
+            });
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {
               const plannerContextWithResearch = [
@@ -6496,6 +6519,11 @@ export const appRouter = router({
               let stateMachineTask = null;
               let codeTask: unknown = null;
               let codeTaskPrompt: string | null = null;
+              if (taskDraft) {
+                emitOrbChatProgress(idempKey, "materializing_task", "整理任務步驟…", {
+                  steps: taskDraft.steps.length,
+                });
+              }
               if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
                 stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, ctx.user.id);
               }
@@ -6865,6 +6893,9 @@ export const appRouter = router({
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
+          emitOrbChatProgress(idempKey, "error", "發生錯誤…", {
+            reason: errorMsg.slice(0, 240),
+          });
           // Classify the failure so the user gets an actionable healing-tone
           // message instead of the generic "去設定頁檢查 API 設定" line.
           // The previous classifier only matched TRPCError SERVICE_UNAVAILABLE,
@@ -6910,7 +6941,38 @@ export const appRouter = router({
           if (idempKey && !idempotencyFinalized) {
             releaseRequestLock(idempKey);
           }
+          // Drop the progress bucket. The client should already have
+          // pulled the terminal event by the time the chat mutation
+          // resolves; a small delay is acceptable since the bucket also
+          // self-expires via TTL.
+          if (idempKey) {
+            // Small grace period: clear after 2 s so a client that polled
+            // right before resolution still sees the final event.
+            setTimeout(() => clearOrbChatProgress(idempKey), 2_000).unref();
+          }
         }
+      }),
+
+    /**
+     * Poll progress milestones emitted by an in-flight `ai.chat` request.
+     * Pass the same `requestId` you sent on the chat mutation. The client
+     * uses this to render the inline thinking timeline so the otherwise-
+     * opaque planning window (≤ 20 s) is legible to the user.
+     */
+    chatProgress: protectedProcedure
+      .input(
+        z.object({
+          requestId: z.string().min(1).max(128),
+          sinceSeq: z.number().int().nonnegative().optional(),
+        })
+      )
+      .query(({ input }) => {
+        const events = readOrbChatProgress(input.requestId, input.sinceSeq ?? 0);
+        return {
+          events,
+          // The client uses this to advance its cursor without scanning.
+          lastSeq: events.length > 0 ? events[events.length - 1].seq : input.sinceSeq ?? 0,
+        };
       }),
 
     executeTools: brainProcedure
