@@ -69,6 +69,8 @@ import {
   Rocket,
   Search,
   Package,
+  Dices,
+  RotateCcw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -428,6 +430,17 @@ const MODELS: ModelInfo[] = [
     outputType: "3d",
   },
 ];
+
+// 模型是否支援固定種子碼（讓相同提示詞 + 相同種子 = 相同結果）
+// 注意：Nano Banana / Imagen 4 / Grok / GPT-Image 等 API 不暴露 seed，填了也會被忽略
+const MODELS_WITH_SEED = new Set<string>([
+  "seedreamV4",
+  "seedreamV45Edit",
+  "seedreamV5LiteEdit",
+  "fluxKontext",
+  "flux2ProEdit",
+  "seedVRUpscale",
+]);
 
 const IMAGE_STUDIO_QUICK_GUIDE = [
   {
@@ -1827,6 +1840,94 @@ function RefImageInput({
 
 // ─── Special Panels per Tab ───────────────────────────────────────────────────
 
+function SeedInput({
+  value,
+  onChange,
+  supported,
+  lastSeed,
+  size = "default",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  supported: boolean;
+  lastSeed?: string;
+  size?: "default" | "compact";
+}) {
+  const compact = size === "compact";
+  const showReuse = !!lastSeed && lastSeed !== value;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <Label
+          className={`${compact ? "text-[10px]" : "text-xs"} text-muted-foreground`}
+        >
+          種子碼（Seed）
+        </Label>
+        {!supported && (
+          <span className="text-[9px] text-amber-600/80">
+            此模型不支援，填了也會忽略
+          </span>
+        )}
+      </div>
+      <div className="flex gap-1.5">
+        <Input
+          value={value}
+          onChange={e => {
+            const v = e.target.value;
+            // 只允許整數（含負號），其他字元自動移除
+            if (v === "" || /^-?\d*$/.test(v)) onChange(v);
+          }}
+          placeholder="留空隨機生成"
+          inputMode="numeric"
+          disabled={!supported}
+          className={`${compact ? "text-xs h-8" : "text-sm"} flex-1`}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            // JS 整數安全範圍，FAL 多數模型接受到 2^32-1
+            const next = Math.floor(Math.random() * 2_147_483_647);
+            onChange(String(next));
+          }}
+          disabled={!supported}
+          title="隨機產生一組種子碼"
+          className={`px-2 rounded-md border border-border/50 bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${compact ? "h-8" : "h-9"}`}
+        >
+          <Dices className="w-3.5 h-3.5" />
+        </button>
+        {showReuse && (
+          <button
+            type="button"
+            onClick={() => onChange(lastSeed!)}
+            disabled={!supported}
+            title={`沿用上次：${lastSeed}`}
+            className={`px-2 rounded-md border border-border/50 bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${compact ? "h-8" : "h-9"}`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            title="清空（恢復隨機）"
+            className={`px-2 rounded-md border border-border/50 bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors ${compact ? "h-8" : "h-9"}`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      <p
+        className={`${compact ? "text-[9px]" : "text-[10px]"} text-muted-foreground/70 mt-1`}
+      >
+        {supported
+          ? "固定這個數字，搭配相同提示詞可重現一樣的結果"
+          : "此模型每次都會隨機生成（API 不支援固定種子碼）"}
+      </p>
+    </div>
+  );
+}
+
 function UpscalePanel({
   imageUrl,
   setImageUrl,
@@ -1836,6 +1937,9 @@ function UpscalePanel({
   setUpscaleFactor,
   targetRes,
   setTargetRes,
+  seed,
+  setSeed,
+  lastSeed,
 }: {
   imageUrl: string;
   setImageUrl: (v: string) => void;
@@ -1845,6 +1949,9 @@ function UpscalePanel({
   setUpscaleFactor: (v: number) => void;
   targetRes: string;
   setTargetRes: (v: string) => void;
+  seed: string;
+  setSeed: (v: string) => void;
+  lastSeed?: string;
 }) {
   return (
     <div className="space-y-4">
@@ -1907,6 +2014,13 @@ function UpscalePanel({
           </div>
         </div>
       )}
+      <SeedInput
+        value={seed}
+        onChange={setSeed}
+        supported
+        lastSeed={lastSeed}
+        size="compact"
+      />
     </div>
   );
 }
@@ -1974,6 +2088,7 @@ function SDPanel({
   setInferSteps,
   seed,
   setSeed,
+  lastSeed,
   loraPath,
   setLoraPath,
   loraScale,
@@ -1997,6 +2112,7 @@ function SDPanel({
   setInferSteps: (v: number) => void;
   seed: string;
   setSeed: (v: string) => void;
+  lastSeed?: string;
   loraPath: string;
   setLoraPath: (v: string) => void;
   loraScale: number;
@@ -2133,17 +2249,13 @@ function SDPanel({
                   step={1}
                 />
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                  種子碼（Seed）
-                </Label>
-                <Input
-                  value={seed}
-                  onChange={e => setSeed(e.target.value)}
-                  placeholder="留空隨機"
-                  className="text-sm"
-                />
-              </div>
+              <SeedInput
+                value={seed}
+                onChange={setSeed}
+                supported
+                lastSeed={lastSeed}
+                size="compact"
+              />
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label className="text-xs text-muted-foreground">
@@ -3206,7 +3318,11 @@ export default function ImageStudio() {
       .join(", ");
     const fullPrompt =
       prompt && vibeKw ? `${prompt}, ${vibeKw}` : prompt || vibeKw;
-    const seedNum = seed ? parseInt(seed) : undefined;
+    const parsedSeed = seed.trim() ? parseInt(seed.trim(), 10) : NaN;
+    const seedNum = Number.isFinite(parsedSeed) ? parsedSeed : undefined;
+    if (seed.trim() && seedNum === undefined) {
+      toast.error("種子碼必須是整數，已忽略");
+    }
     const extraValid = extraRefUrls.filter(u => u.trim());
 
     try {
@@ -3242,6 +3358,7 @@ export default function ImageStudio() {
           aspect_ratio: aspectRatio as any,
           num_images: numImages,
           ...(negPrompt && { negative_prompt: negPrompt }),
+          ...(seedNum !== undefined && { seed: seedNum }),
         };
         if (!fullPrompt) {
           toast.error("請輸入提示詞");
@@ -3296,13 +3413,23 @@ export default function ImageStudio() {
           toast.error("請輸入提示詞和參考圖片");
           return;
         }
-        input = { prompt: fullPrompt, image_url: refImageUrl, strength };
+        input = {
+          prompt: fullPrompt,
+          image_url: refImageUrl,
+          strength,
+          ...(seedNum !== undefined && { seed: seedNum }),
+        };
       } else if (model.id === "seedreamV5LiteEdit") {
         if (!fullPrompt || !refImageUrl) {
           toast.error("請輸入提示詞和參考圖片");
           return;
         }
-        input = { prompt: fullPrompt, image_url: refImageUrl, strength };
+        input = {
+          prompt: fullPrompt,
+          image_url: refImageUrl,
+          strength,
+          ...(seedNum !== undefined && { seed: seedNum }),
+        };
       } else if (model.id === "grokEdit") {
         if (!fullPrompt || !refImageUrl) {
           toast.error("請輸入提示詞和參考圖片");
@@ -3355,6 +3482,7 @@ export default function ImageStudio() {
           upscale_mode: upscaleMode,
           upscale_factor: upscaleFactor,
           target_resolution: targetRes as any,
+          ...(seedNum !== undefined && { seed: seedNum }),
         };
       }
       // ── Pose ──
@@ -3553,10 +3681,19 @@ export default function ImageStudio() {
       setResultImages(internalImgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
       reportSuccess();
+      const returnedSeed =
+        result?.seed ??
+        result?.raw?.seed ??
+        result?.raw?.data?.seed ??
+        null;
+      const effectiveSeed =
+        returnedSeed != null
+          ? String(returnedSeed)
+          : seed.trim() || undefined;
       setLastGenMeta({
         modelName: model.name,
         duration: Math.round((Date.now() - genStartRef.current) / 1000),
-        seed: seed || undefined,
+        seed: effectiveSeed,
       });
 
       addToHistory({
@@ -3571,7 +3708,7 @@ export default function ImageStudio() {
           guidance,
           inferSteps,
           numImages,
-          seed,
+          seed: effectiveSeed,
           refImageUrl,
         },
       });
@@ -4551,20 +4688,12 @@ export default function ImageStudio() {
                       className="overflow-hidden"
                     >
                       <div className="space-y-3 pt-1">
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1 block">
-                            種子碼（Seed）
-                          </Label>
-                          <Input
-                            value={seed}
-                            onChange={e => setSeed(e.target.value)}
-                            placeholder="留空隨機生成"
-                            className="text-sm"
-                          />
-                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">
-                            固定這個數字，每次都會生成一樣的結果
-                          </p>
-                        </div>
+                        <SeedInput
+                          value={seed}
+                          onChange={setSeed}
+                          supported={MODELS_WITH_SEED.has(model.id)}
+                          lastSeed={lastGenMeta?.seed}
+                        />
                         {model.supportsMultiRef && (
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1 block">
@@ -4729,17 +4858,12 @@ export default function ImageStudio() {
                     </div>
                   </>
                 )}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">
-                    種子碼（Seed）
-                  </Label>
-                  <Input
-                    value={seed}
-                    onChange={e => setSeed(e.target.value)}
-                    placeholder="留空隨機"
-                    className="text-sm"
-                  />
-                </div>
+                <SeedInput
+                  value={seed}
+                  onChange={setSeed}
+                  supported={MODELS_WITH_SEED.has(model.id)}
+                  lastSeed={lastGenMeta?.seed}
+                />
               </div>
             </>
           )}
@@ -4756,6 +4880,9 @@ export default function ImageStudio() {
                 setUpscaleFactor={setUpscaleFactor}
                 targetRes={targetRes}
                 setTargetRes={setTargetRes}
+                seed={seed}
+                setSeed={setSeed}
+                lastSeed={lastGenMeta?.seed}
               />
             </div>
           )}
@@ -4795,6 +4922,7 @@ export default function ImageStudio() {
                   setInferSteps={setSdInferSteps}
                   seed={sdSeed}
                   setSeed={setSdSeed}
+                  lastSeed={lastGenMeta?.seed}
                   loraPath={loraPath}
                   setLoraPath={setLoraPath}
                   loraScale={loraScale}
