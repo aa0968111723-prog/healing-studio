@@ -180,6 +180,7 @@ import {
   checkAndLock,
   findDuplicateTask,
   getResult,
+  releaseRequestLock,
   rememberTaskKey,
   storeResult,
 } from "./services/orbIdempotency";
@@ -5369,6 +5370,7 @@ export const appRouter = router({
           }
           if (idempKey) {
             storeResult(idempKey, enriched);
+            idempotencyFinalized = true;
           }
           return enriched;
         };
@@ -5775,6 +5777,13 @@ export const appRouter = router({
         // 代理主流程預設走 auto：讓 llmRouter 以 OpenRouter / Perplexity 可用性
         // 做首選與降級，不再把路由鎖死在 Gemini。
         let enginePreference: "auto" = "auto";
+
+        // F1 fix: track whether finalizeIdempotentResponse ever ran so the
+        // outer finally can release the in-progress lock for early-return
+        // paths (attachment too large, quota limited, provider unavailable,
+        // agent disabled, etc.). Without this release, a retry with the
+        // same x-request-id was stuck on "in-progress" for 60 s.
+        let idempotencyFinalized = false;
 
         try {
           // Prompt-injection defence: strip well-known role-impersonation /
@@ -6893,6 +6902,14 @@ export const appRouter = router({
             ...meta,
             taskDraft: null,
           };
+        } finally {
+          // F1 fix: any return path (early-exit guards, planner-throw catch,
+          // agent_disabled, provider_unavailable, …) that did not call
+          // `finalizeIdempotentResponse` left the in-progress lock alive
+          // for 60 s. Drop it here so the user's retry runs normally.
+          if (idempKey && !idempotencyFinalized) {
+            releaseRequestLock(idempKey);
+          }
         }
       }),
 

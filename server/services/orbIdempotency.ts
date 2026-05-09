@@ -75,6 +75,21 @@ export function storeResult(requestId: string, result: unknown): void {
 }
 
 /**
+ * Drops the in-progress lock so a follow-up request with the same id can
+ * run normally. Used by the orb chat handler's `finally` block when an
+ * early-return path (attachment too large, quota limited, provider
+ * unavailable, etc.) skipped `storeResult`. Without this release, retries
+ * with the same `x-request-id` would get stuck on `{status: "in-progress"}`
+ * for the full 60 s TTL even though no real work is happening server-side.
+ */
+export function releaseRequestLock(requestId: string): void {
+  const existing = requestIdStore.get(requestId);
+  if (existing && existing.status === "in-progress") {
+    requestIdStore.delete(requestId);
+  }
+}
+
+/**
  * Returns a cached result for a completed requestId, if present.
  */
 export function getResult(requestId: string): unknown | undefined {
