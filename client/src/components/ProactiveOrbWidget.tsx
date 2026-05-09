@@ -64,6 +64,7 @@ import { useOrbGuide, type GuideIntent } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
 import { usePageAgent } from "@/contexts/PageAgentContext";
 import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
+import { findSkillForPage } from "../../../shared/agent-skills";
 import { useLocation } from "wouter";
 import { getPageByPath } from "@/config/appRegistry";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -1149,6 +1150,15 @@ export default memo(function ProactiveOrbWidget({
   const chatMessages = globalChat.messages; // Keep full message objects for metadata
   const isChatLoading = globalChat.isSending;
   const chatSuggestions = globalChat.suggestions.map(s => s.text);
+
+  // 15 精靈：依當前頁面找出「常駐」精靈（例如 /image-studio → 圖圖）。
+  // 純視覺提示，不影響路由 — 後端的 selectRoleForIntent 仍照使用者的話分派。
+  // 只有在還沒開始實質對話時 (chatMessages.length <= 1) 才顯示，避免和 chip 撞色。
+  const pageDefaultSpirit = useMemo(() => {
+    const skill = findSkillForPage(locationPath);
+    return skill ? getSpiritVisual(skill.id) : null;
+  }, [locationPath]);
+  const showPageDefaultHint = pageDefaultSpirit && chatMessages.length <= 1;
   const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -2808,6 +2818,28 @@ export default memo(function ProactiveOrbWidget({
                         className="flex flex-col"
                       >
                         <div className="px-5 py-2 max-h-[60vh] overflow-y-auto space-y-2.5">
+                          {showPageDefaultHint && pageDefaultSpirit && (
+                            <div
+                              className="flex justify-start"
+                              data-testid={`widget-page-default-hint-${pageDefaultSpirit.id}`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // 點 chip = 預填 @暱稱 進輸入欄，不直接送出。讓使用者
+                                  // 仍有最後一道閘 — 純粹是「快速喚他」的捷徑。
+                                  if (!chatInput.trim()) {
+                                    setChatInput(`${pageDefaultSpirit.prompt} `);
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r ${pageDefaultSpirit.gradient} text-white text-[11px] font-medium shadow-sm hover:scale-[1.02] transition-transform`}
+                                title={`${pageDefaultSpirit.vibe} — 點一下預填 ${pageDefaultSpirit.prompt}`}
+                              >
+                                <span aria-hidden>{pageDefaultSpirit.emoji}</span>
+                                <span>{pageDefaultSpirit.nickname} 是這頁的常駐</span>
+                              </button>
+                            </div>
+                          )}
                           {chatMessages.map((msg, i) => {
                             // 15 精靈：server 在 ai.chat 回應上掛了 agentRole，hydrate
                             // 過後 ChatMessage.agentRole 也存在 metadata 裡。沒有就不顯示，
@@ -3359,6 +3391,26 @@ export default memo(function ProactiveOrbWidget({
                   >
                     {/* Chat Messages */}
                     <div className="px-4 py-2 max-h-56 overflow-y-auto space-y-2.5">
+                      {showPageDefaultHint && pageDefaultSpirit && (
+                        <div
+                          className="flex justify-start"
+                          data-testid={`widget-mini-page-default-hint-${pageDefaultSpirit.id}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!chatInput.trim()) {
+                                setChatInput(`${pageDefaultSpirit.prompt} `);
+                              }
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gradient-to-r ${pageDefaultSpirit.gradient} text-white text-[10px] font-medium shadow-sm`}
+                            title={pageDefaultSpirit.vibe}
+                          >
+                            <span aria-hidden>{pageDefaultSpirit.emoji}</span>
+                            <span>{pageDefaultSpirit.nickname} 在這頁</span>
+                          </button>
+                        </div>
+                      )}
                       {chatMessages.map((msg, i) => {
                         // 15 精靈：迷你版聊天列也顯示「誰回的」chip。同上 — server 沒給就不顯示。
                         const spirit = msg.role === "orb"
