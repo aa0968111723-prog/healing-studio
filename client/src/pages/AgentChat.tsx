@@ -1173,7 +1173,7 @@ export default function AgentChat() {
               className="w-full flex items-center gap-2 px-1 pr-16 sm:pr-20"
             >
               <div className="shrink-0">
-                <VisualSoul size="sm" personality={personality} />
+                <VisualSoul size="md" className="!w-7 !h-7" personality={personality} />
               </div>
               <div className="min-w-0 text-left flex-1">
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
