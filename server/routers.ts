@@ -61,7 +61,11 @@ import { orbTaskRepository } from "./repositories/orbTaskRepository";
 import { executeCurrentStepTools, runOrbTaskToCompletion } from "./services/orbTaskOrchestrator";
 import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
-import { runSchemaFirstAgentPlanner, type AgentPlannerInput } from "./services/agentPlanner";
+import {
+  runSchemaFirstAgentPlanner,
+  runSchemaFirstAgentPlannerWithCritique,
+  type AgentPlannerInput,
+} from "./services/agentPlanner";
 import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
 import { runOrbTaskWithOptionalMultiAgent, isMultiAgentRoutingEnabled } from "./services/multiAgentIntegration";
 import { getOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
@@ -5289,6 +5293,16 @@ export const appRouter = router({
               // allowedRiskLevels and lets `orbTask.approve` drive the
               // generation server-side; the user keeps their current page.
               stayOnPageMode: z.boolean().optional(),
+              // Phase D wiring — the agent-preferences page has had these
+              // toggles for a while but nothing read them. Threading them
+              // through here lets `runSchemaFirstAgentPlannerWithCritique`
+              // actually fire when the user opts in.
+              criticEnabled: z.boolean().optional(),
+              criticRefineBelow: z.number().int().min(0).max(100).optional(),
+              // Phase D — when false the chat router skips
+              // selectRoleForIntent + skill-block injection. Defaults to
+              // true matching DEFAULT_AGENT_PREFERENCES.
+              roleAutoSwitch: z.boolean().optional(),
             })
             .optional(),
           /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
@@ -5332,14 +5346,22 @@ export const appRouter = router({
         const mutedSpiritsForSelection = (
           (input.preferences as { mutedSpirits?: string[] } | undefined)?.mutedSpirits ?? []
         ).filter((s): s is string => typeof s === "string") as readonly AgentRole[];
-        const spiritSelection = lastUserTextForSpirit
-          ? selectRoleForIntent({
-              text: lastUserTextForSpirit,
-              snapshot: input.pageSnapshot ?? null,
-              turnCount: input.messages.length,
-              mutedRoles: mutedSpiritsForSelection,
-            })
-          : null;
+        // `roleAutoSwitch=false` lets a user lock the orb to its default
+        // companion persona — useful for users who find the spirit chip
+        // hopping around distracting. Defaults to true (matches
+        // DEFAULT_AGENT_PREFERENCES) so no behaviour change for users who
+        // have not visited the settings page.
+        const roleAutoSwitchEnabled =
+          (input.preferences as { roleAutoSwitch?: boolean } | undefined)?.roleAutoSwitch !== false;
+        const spiritSelection =
+          roleAutoSwitchEnabled && lastUserTextForSpirit
+            ? selectRoleForIntent({
+                text: lastUserTextForSpirit,
+                snapshot: input.pageSnapshot ?? null,
+                turnCount: input.messages.length,
+                mutedRoles: mutedSpiritsForSelection,
+              })
+            : null;
 
         const finalizeIdempotentResponse = <T extends object | null | undefined>(result: T): T => {
           // Inject identity / preference profile for the client. We do it here so
@@ -6207,8 +6229,26 @@ export const appRouter = router({
               ]
                 .filter((s): s is string => Boolean(s && s.trim()))
                 .join("\n\n");
+              // Honour the user's saved `criticEnabled` / `criticRefineBelow`
+              // preferences. When critic is enabled, we switch to the
+              // critique-aware planner — it runs the regular planner first,
+              // scores the draft, and (when score < refineBelow OR there are
+              // hard blockers) issues a single refine pass before returning.
+              // Defaults preserved when prefs are absent: critic OFF, refine
+              // threshold 75 — same numbers as `DEFAULT_AGENT_PREFERENCES`.
+              const criticEnabledFromPrefs = Boolean(
+                (input.preferences as { criticEnabled?: boolean } | undefined)?.criticEnabled
+              );
+              const criticRefineBelowFromPrefs =
+                (input.preferences as { criticRefineBelow?: number } | undefined)?.criticRefineBelow;
+              const plannerEntry = criticEnabledFromPrefs
+                ? runSchemaFirstAgentPlannerWithCritique
+                : runSchemaFirstAgentPlanner;
               plannerResult = await withTimeout(
-              runSchemaFirstAgentPlanner({
+              plannerEntry({
+                enableCritique: criticEnabledFromPrefs,
+                critiqueRefineBelow:
+                  typeof criticRefineBelowFromPrefs === "number" ? criticRefineBelowFromPrefs : undefined,
                 messages: plannerMessages,
                 context: plannerContextWithResearch || undefined,
                 personality: input.personality,

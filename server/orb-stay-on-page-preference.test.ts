@@ -20,12 +20,17 @@ const StayOnPageFieldsSchema = z.object({
 });
 
 // Mirror the chat router's preferences sub-schema so we exercise the
-// shape the planner actually sees.
+// shape the planner actually sees. Includes the Phase-D wiring fields
+// that used to be saved but never read at runtime — the chat router
+// now threads them through too.
 const ChatRouterPreferencesSchema = z.object({
   confirmationPolicy: z
     .enum(["always_approve", "confirm_high_risk", "confirm_all", "manual"])
     .optional(),
   stayOnPageMode: z.boolean().optional(),
+  criticEnabled: z.boolean().optional(),
+  criticRefineBelow: z.number().int().min(0).max(100).optional(),
+  roleAutoSwitch: z.boolean().optional(),
 });
 
 describe("AgentPreferences.stayOnPageMode (Phase 3)", () => {
@@ -64,5 +69,28 @@ describe("AgentPreferences.stayOnPageMode (Phase 3)", () => {
       stayOnPageMode: true,
     });
     expect(parsed.success).toBe(true);
+  });
+
+  it("chat router preferences accept the Phase-D wiring fields (critic + roleAutoSwitch)", () => {
+    // Until this commit these fields lived in the database but the chat
+    // router silently ignored them. Locking the schema here so a future
+    // refactor that drops the fields fails loudly instead of regressing
+    // the actual runtime behaviour.
+    const parsed = ChatRouterPreferencesSchema.safeParse({
+      criticEnabled: true,
+      criticRefineBelow: 80,
+      roleAutoSwitch: false,
+      stayOnPageMode: true,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("chat router preferences reject out-of-range criticRefineBelow", () => {
+    expect(
+      ChatRouterPreferencesSchema.safeParse({ criticRefineBelow: -1 }).success
+    ).toBe(false);
+    expect(
+      ChatRouterPreferencesSchema.safeParse({ criticRefineBelow: 101 }).success
+    ).toBe(false);
   });
 });

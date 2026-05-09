@@ -125,6 +125,13 @@ export default function AgentPreferencesPage() {
   const [stayOnPageMode, setStayOnPageMode] = useState<boolean>(
     DEFAULT_AGENT_PREFERENCES.stayOnPageMode
   );
+  // ── Allowed risk tiers (was unsurfaced — now editable). The chat
+  //    handler + auto-approve path filter actions whose risk level
+  //    isn't in this set. Always include "low" in the default to avoid
+  //    locking out trivial fillPrompt operations.
+  const [allowedRiskLevels, setAllowedRiskLevels] = useState<string[]>(
+    DEFAULT_AGENT_PREFERENCES.allowedRiskLevels
+  );
 
   // ── Assistant UI ──
   const [orbAgentEnabled, setOrbAgentEnabled] = useState<boolean | null>(null);
@@ -180,6 +187,11 @@ export default function AgentPreferencesPage() {
       typeof (initial as { stayOnPageMode?: boolean }).stayOnPageMode === "boolean"
         ? Boolean((initial as { stayOnPageMode?: boolean }).stayOnPageMode)
         : DEFAULT_AGENT_PREFERENCES.stayOnPageMode
+    );
+    setAllowedRiskLevels(
+      Array.isArray((initial as { allowedRiskLevels?: string[] }).allowedRiskLevels)
+        ? ((initial as { allowedRiskLevels?: string[] }).allowedRiskLevels ?? DEFAULT_AGENT_PREFERENCES.allowedRiskLevels)
+        : DEFAULT_AGENT_PREFERENCES.allowedRiskLevels
     );
     // Phase D state hydration. costBudget is the only field that's a
     // structured null vs object so the toggle controls visibility of
@@ -317,6 +329,7 @@ export default function AgentPreferencesPage() {
       pacingOverride,
       // ── Phase 3: stay-on-page execution mode ─────────────────────
       stayOnPageMode,
+      allowedRiskLevels,
     });
   };
 
@@ -453,6 +466,58 @@ export default function AgentPreferencesPage() {
                 }
               />
             </label>
+          </section>
+
+          {/* Allowed risk tiers — feeds the gate that decides which
+               steps can auto-approve under stay-on-page mode + the
+               planner's risk filter. */}
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold">允許自動執行的風險等級</h2>
+              <p className="text-xs text-muted-foreground">
+                光球只會自動執行落在你勾選的風險等級內的步驟。高風險（送出、發布、覆寫帳戶資料）建議保留為要確認，避免不可逆的動作偷跑。
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 text-sm">
+              {(["low", "medium", "high"] as const).map(tier => {
+                const checked = allowedRiskLevels.includes(tier);
+                const label =
+                  tier === "low"
+                    ? "低（填提示詞、選分頁等無破壞性動作）"
+                    : tier === "medium"
+                      ? "中（生成圖片 / 影片 / 配音的非破壞性步驟）"
+                      : "高（送出、發布、覆寫，預設仍跳出確認卡）";
+                return (
+                  <label
+                    key={tier}
+                    className={`flex items-start gap-2 rounded-xl border p-3 cursor-pointer transition ${
+                      checked
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      data-testid={`risk-tier-${tier}`}
+                      onChange={event => {
+                        setAllowedRiskLevels(prev => {
+                          const set = new Set(prev);
+                          if (event.target.checked) set.add(tier);
+                          else set.delete(tier);
+                          // Always keep at least "low" so the orb can
+                          // still fillPrompt — completely empty would
+                          // freeze every action including helpful UI.
+                          if (set.size === 0) set.add("low");
+                          return Array.from(set);
+                        });
+                      }}
+                    />
+                    <span className="leading-snug">{label}</span>
+                  </label>
+                );
+              })}
+            </div>
           </section>
 
           {/* Phase 3: stay-on-page execution mode */}

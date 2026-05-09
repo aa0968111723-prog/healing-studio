@@ -2907,6 +2907,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             // user has opted into hands-off in-place execution.
             stayOnPageMode:
               (prefRow as { stayOnPageMode?: boolean }).stayOnPageMode ?? false,
+            // Phase D wiring follow-up: these used to be saved but never
+            // read at runtime. Forwarding them so `criticEnabled` actually
+            // flips the chat handler over to the critique-aware planner,
+            // and `roleAutoSwitch=false` actually locks the orb to its
+            // default companion persona.
+            criticEnabled:
+              (prefRow as { criticEnabled?: boolean }).criticEnabled ?? undefined,
+            criticRefineBelow:
+              (prefRow as { criticRefineBelow?: number }).criticRefineBelow ?? undefined,
+            roleAutoSwitch:
+              (prefRow as { roleAutoSwitch?: boolean }).roleAutoSwitch ?? undefined,
           }
         : undefined;
       // When the user pasted a long brief, pre-parse it and stamp the
