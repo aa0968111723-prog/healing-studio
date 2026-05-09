@@ -47,6 +47,31 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    // Dynamic import() failures from preload tags or fetch() in non-React
+    // contexts surface here, not as componentDidCatch. Without this, a stale
+    // chunk preload would silently 404 and the next route navigation would
+    // fail with no recovery path.
+    const reason = event.reason;
+    if (reason instanceof Error && isChunkLoadError(reason)) {
+      this.tryReloadOnce();
+    }
+  };
+
+  private tryReloadOnce() {
+    if (typeof window === "undefined") return;
+    try {
+      const lastReloadAt = Number(sessionStorage.getItem(RELOAD_FLAG_KEY) ?? "0");
+      const now = Date.now();
+      if (!Number.isFinite(lastReloadAt) || now - lastReloadAt > RELOAD_COOLDOWN_MS) {
+        sessionStorage.setItem(RELOAD_FLAG_KEY, String(now));
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
+  }
+
   componentDidMount() {
     // 若頁面已正常掛載，代表至少當前路由可用，清掉舊的 chunk reload 標記
     // 避免使用者先前遇到一次錯誤後，後續長時間被同一個 session 狀態影響。
@@ -56,6 +81,12 @@ class ErrorBoundary extends Component<Props, State> {
     } catch {
       /* ignore */
     }
+    window.addEventListener("unhandledrejection", this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    if (typeof window === "undefined") return;
+    window.removeEventListener("unhandledrejection", this.handleUnhandledRejection);
   }
 
   componentDidUpdate(_prevProps: Props, prevState: State) {
@@ -76,19 +107,8 @@ class ErrorBoundary extends Component<Props, State> {
 
     // Stale chunk → force-reload once to pull a fresh index.html. The session
     // flag prevents a reload loop if the failure is genuinely persistent.
-    if (isChunkLoadError(error) && typeof window !== "undefined") {
-      try {
-        const lastReloadAt = Number(sessionStorage.getItem(RELOAD_FLAG_KEY) ?? "0");
-        const now = Date.now();
-
-        if (!Number.isFinite(lastReloadAt) || now - lastReloadAt > RELOAD_COOLDOWN_MS) {
-          sessionStorage.setItem(RELOAD_FLAG_KEY, String(now));
-          window.location.reload();
-        }
-      } catch {
-        // sessionStorage unavailable — try a single reload anyway
-        window.location.reload();
-      }
+    if (isChunkLoadError(error)) {
+      this.tryReloadOnce();
     }
   }
 

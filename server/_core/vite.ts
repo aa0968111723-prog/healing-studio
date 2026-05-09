@@ -72,8 +72,31 @@ export function serveStatic(app: Express) {
     })
   );
 
-  // fall through to index.html if the file doesn't exist (SPA catch-all)
-  app.use("*", (_req, res) => {
+  // SPA catch-all — only serve index.html for navigation requests.
+  //
+  // Bug previously fixed here: the old implementation served index.html for
+  // EVERY missing path. After a redeploy, a user holding a stale index.html
+  // references chunks like /assets/js/index-OLDHASH.js. Those hashes no
+  // longer exist, so the static handler fell through, the catch-all replied
+  // with index.html (Content-Type: text/html), and the browser tried to
+  // parse HTML as JavaScript — surfacing as the full-screen "頁面暫時載入失敗"
+  // ChunkLoadError. By 404-ing missing assets, the browser triggers a real
+  // chunk load error which the client-side ErrorBoundary auto-recovers from
+  // by reloading the page once and pulling a fresh index.html.
+  app.use("*", (req, res) => {
+    // Inside an `app.use("*")` mount Express collapses req.path to "/" — use
+    // originalUrl to inspect the actual requested path.
+    const requestedPath = (req.originalUrl || req.url || "/").split("?")[0];
+    const accept = req.headers.accept ?? "";
+    const looksLikeAsset = /\.[a-z0-9]+$/i.test(requestedPath);
+    const wantsHtml = accept.includes("text/html");
+
+    if (looksLikeAsset && !wantsHtml) {
+      res.setHeader("Cache-Control", "no-cache");
+      res.status(404).type("text/plain").send("Not Found");
+      return;
+    }
+
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.resolve(distPath, "index.html"));
   });

@@ -4,9 +4,9 @@ import {
   useMemo,
   useRef,
   useCallback,
-  lazy,
   Suspense,
 } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {

@@ -10,7 +10,8 @@
  *   <VisualSoul personality="creative" state="generating" size="lg" />
  */
 
-import { useMemo, useEffect, useState, lazy, Suspense, memo } from "react";
+import { useMemo, useEffect, useState, Suspense, memo } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { OrbCustomColors } from "./VisualSoul3D";
 import OrbErrorBoundary from "./OrbErrorBoundary";

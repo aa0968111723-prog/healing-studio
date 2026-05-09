@@ -9,7 +9,6 @@
 
 import {
   createContext,
-  lazy,
   Suspense,
   useCallback,
   useContext,
@@ -19,6 +18,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { toast } from "sonner";
