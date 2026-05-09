@@ -80,6 +80,10 @@ import {
 import { rememberedDimensionCoverage } from "../../../shared/orb-clarification-memory";
 import { useOrbState } from "./OrbStateContext";
 import { useOrbGuide } from "./OrbGuideContext";
+import {
+  pickArrivalSpiritForPath,
+  buildArrivalFollowUpText,
+} from "../../../shared/orb-agent-roles";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
 // the initial chat context payload. The bullet-list fallback inside the same
@@ -2604,8 +2608,40 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               orbMessage: condensedIntent
                 ? `剛剛的指令：${condensedIntent}`
                 : undefined,
+              // 聊天驅動的跳頁：要求 panel 落在「自由聊天」視圖。沒有這個
+              // hint 的話 panel 會預設停在引導模式（靜態按鈕），使用者就會
+              // 看到「跳了頁但沒對話框延續」— 這是這次回報的核心 bug。
+              preferredPanelMode: "chat",
             });
             setLocation(path);
+
+            // 「自動續話」：跳頁後由目的地頁的精靈用第一人稱接手，補一條 chat
+            // 訊息延續對話。這條訊息掛上 agentRole，下游的 spirit chip 會自
+            // 動把頭像 + 家族色渲染上去，讓使用者看到「換誰在線了」。
+            //
+            // 1200ms 延遲是讓使用者能先看到光球前一棒的回覆訊息，再看到「換
+            // 人接手」的續話 — 太快兩條訊息會擠在一起像同一個人講；太慢使
+            // 用者會以為對話卡住。
+            const arrivalSpirit = pickArrivalSpiritForPath(path);
+            if (arrivalSpirit) {
+              const followUpText = buildArrivalFollowUpText(
+                arrivalSpirit,
+                trimmedIntent || options.intent,
+              );
+              setTimeout(() => {
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    role: "orb",
+                    text: followUpText,
+                    at: Date.now(),
+                    pagePath: path,
+                    agentRole: arrivalSpirit,
+                    intent: "arrival-follow-up",
+                  },
+                ]);
+              }, 1200);
+            }
           }
         },
         dispatch: pageAgent.dispatch,
