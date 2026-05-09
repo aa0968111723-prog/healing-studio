@@ -14,12 +14,15 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { AgentCollaborationOrchestrator } from "../services/agentCollaborationOrchestrator";
 import { AgentCommunicationBus } from "../services/agentCommunicationBus";
 import { loadAgentPreferencesForUser } from "../services/agentPreferenceService";
-import type { AgentRole } from "../../shared/orb-agent-roles";
+import { runAutoDiscussion } from "../services/agentDiscussionRunner";
+import {
+  selectRoleForIntent,
+  type AgentRole,
+} from "../../shared/orb-agent-roles";
 import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import { agentCollaborationSessions } from "../../drizzle/schema";
-import type { AgentRole } from "../../shared/orb-agent-roles";
 
 export const agentCollaborationRouter = router({
   /**
@@ -404,6 +407,95 @@ export const agentCollaborationRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "查詢協作訊息失敗",
+          cause: error,
+        });
+      }
+    }),
+
+  /**
+   * 15 精靈「自動討論」：丟一個 prompt 進去，runner 會建立一個 collaboration
+   * session、依 SPIRIT_COLLAB_PROTOCOL 連續派 N 棒精靈各自回一段，每段都 publish
+   * 到 AgentCommunicationBus（correlationId = collaborationId），客戶端用既有的
+   * `getCollaborationMessages` 輪詢就能看到一輪一輪冒出來的討論。
+   *
+   * 跟 startCollaboration 的差別：startCollaboration 只建好 session 等 caller 自己
+   * 推進；這支會幫你把第一棒精靈挑好（用 selectRoleForIntent）、然後把整輪 LLM
+   * 呼叫跑完。runner 在背景跑、本 mutation 立刻回傳 collaborationId 給 client 開
+   * 始輪詢，避免 30s 級別的 round-trip。
+   */
+  startAutoDiscussion: protectedProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1, "需求不能為空").max(2000),
+        sessionId: z.string().optional(),
+        /** 強制指定第一棒；省略就用 selectRoleForIntent 自動挑 */
+        initialAgent: z.string().optional(),
+        /** 最多跑幾位精靈；預設 3，最大 5 */
+        maxRounds: z.number().int().min(1).max(5).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const initialAgent: AgentRole = (() => {
+          if (input.initialAgent) return input.initialAgent as AgentRole;
+          const selection = selectRoleForIntent({ text: input.prompt });
+          return selection.role;
+        })();
+
+        const session = await AgentCollaborationOrchestrator.startCollaboration({
+          userId: ctx.user.id,
+          sessionId:
+            input.sessionId || `auto_discussion_${Date.now()}_${ctx.user.id}`,
+          taskDescription: input.prompt,
+          initiatingAgent: initialAgent,
+          requiredCapabilities: [],
+          sharedContext: {
+            userId: ctx.user.id,
+            mode: "auto-discussion",
+            originalIntent: input.prompt,
+          },
+        });
+
+        // 讀使用者的 mutedSpirits — 被靜音的精靈在 runner 內就會被跳過
+        const prefs = await loadAgentPreferencesForUser(ctx.user.id);
+        const mutedRoles = (prefs.mutedSpirits ?? []) as AgentRole[];
+
+        // Fire-and-forget：背景跑 runner，本 mutation 立刻回傳 collaborationId。
+        // 任何錯誤都記 log 不丟出來 — 失敗的 turn 已經寫進 bus、UI 端 polling 仍
+        // 然能看到既有訊息與最後狀態。
+        void runAutoDiscussion({
+          collaborationId: session.collaborationId,
+          userPrompt: input.prompt,
+          initialAgent,
+          maxRounds: input.maxRounds,
+          mutedRoles,
+        }).catch(err => {
+          logger.error("auto_discussion_runner_failed", {
+            userId: ctx.user.id,
+            collaborationId: session.collaborationId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+
+        logger.info("auto_discussion_kicked_off", {
+          userId: ctx.user.id,
+          collaborationId: session.collaborationId,
+          initialAgent,
+          maxRounds: input.maxRounds ?? 3,
+        });
+
+        return {
+          collaborationId: session.collaborationId,
+          initialAgent,
+        };
+      } catch (error) {
+        logger.error("auto_discussion_start_failed", {
+          userId: ctx.user.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "啟動多代理討論失敗",
           cause: error,
         });
       }

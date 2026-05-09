@@ -1677,6 +1677,14 @@ interface GlobalOrbChatContextValue {
     attachments?: ChatAttachment[],
     options?: SendMessageOptions
   ) => Promise<void>;
+  /**
+   * 多代理「自動討論」：丟一個 prompt，runner 在背景接力 2-4 位精靈各回一段，
+   * 訊息會以 orb chat bubble 的形式逐步出現在現有 messages 串流。
+   * 回傳 collaborationId 給 caller 追蹤；錯誤時 reject。
+   */
+  startCollaborativeDiscussion: (prompt: string) => Promise<string>;
+  /** 是否有自動討論正在進行（用來把 composer 與按鈕鎖住、避免重複觸發） */
+  isCollaborativeDiscussionActive: boolean;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -1764,6 +1772,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   activeConversationId: "",
   setInput: () => {},
   sendMessage: async () => {},
+  startCollaborativeDiscussion: async () => "",
+  isCollaborativeDiscussionActive: false,
   open: () => {},
   close: () => {},
   toggle: () => {},
@@ -1829,6 +1839,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // continuations.
   const [latestServerTaskId, setLatestServerTaskId] = useState<string | null>(null);
   const [pendingCodeTask, setPendingCodeTask] = useState<PendingCodeTaskPreview | null>(null);
+  // 多代理「自動討論」目前進行中的 collaboration id。null 代表沒在跑；非 null 時
+  // 下方 useEffect 會啟動 1.5s 輪詢，把 bus 上新冒出來的精靈訊息塞進 chat。
+  const [activeDiscussionId, setActiveDiscussionId] = useState<string | null>(null);
+  // 已塞進 chat 的 message id，避免輪詢重複 push 同一段。
+  const seenDiscussionMessageIdsRef = useRef<Set<string>>(new Set());
   const [pendingClarification, setPendingClarificationState] = useState<PendingClarificationPrompt | null>(
     () => loadClarificationFromStorage().prompt
   );
@@ -1871,7 +1886,67 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   }, [messages]);
 
   const aiChat = trpc.ai.chat.useMutation();
+  const startAutoDiscussionMutation =
+    trpc.agentCollaboration.startAutoDiscussion.useMutation();
+
+  // ─── 多代理討論：輪詢 + 訊息注入 ─────────────────────────────────────
+  // 1.5s 一次的輪詢，把 bus 上的新精靈訊息塞成 chat bubble。stop 條件：
+  //   • activeDiscussionId 為 null（沒在跑 / 已收掉）
+  //   • 整支 query 失敗超過 retry 上限（trpc 預設）
+  //   • 90 秒兜底 timer 強制清掉 activeDiscussionId
+  const discussionMessagesQuery =
+    trpc.agentCollaboration.getCollaborationMessages.useQuery(
+      { collaborationId: activeDiscussionId ?? "", limit: 20 },
+      {
+        enabled: Boolean(activeDiscussionId),
+        refetchInterval: activeDiscussionId ? 1500 : false,
+        refetchIntervalInBackground: false,
+        retry: 1,
+      }
+    );
   const trpcUtils = trpc.useUtils();
+
+  // ─── 多代理討論：把 bus 拉回來的精靈訊息塞進 chat、處理收尾 ────────────
+  // 輪詢回的每筆 message 用 messageId 去重；只取 messageType === "share_context"
+  // 且 content.action === "discussion_turn"（runner publish 用的格式）。
+  useEffect(() => {
+    if (!activeDiscussionId) return;
+    const data = discussionMessagesQuery.data;
+    if (!data) return;
+    const seen = seenDiscussionMessageIdsRef.current;
+    const newOnes = data.messages.filter(
+      m =>
+        !seen.has(m.messageId) &&
+        m.messageType === "share_context" &&
+        (m.content as { action?: string })?.action === "discussion_turn"
+    );
+    if (newOnes.length === 0) return;
+    for (const m of newOnes) seen.add(m.messageId);
+    const additions: ChatMessage[] = newOnes.map(m => {
+      const data = (m.content as { data?: { nickname?: string; text?: string } })
+        .data;
+      const nickname = data?.nickname ?? String(m.fromAgent);
+      const text = data?.text ?? "";
+      return {
+        role: "orb" as const,
+        text: `**${nickname}**：${text}`,
+        at: m.timestamp,
+        pagePath: locationPath,
+      };
+    });
+    setMessages(prev => [...prev, ...additions]);
+  }, [activeDiscussionId, discussionMessagesQuery.data, locationPath]);
+
+  // 兜底：90 秒沒收完就自動清掉，避免 query 一直空轉。runner 預設 3 輪 *
+  // 25s/turn ≈ 75s，留 15s buffer 應該夠。
+  useEffect(() => {
+    if (!activeDiscussionId) return;
+    const handle = setTimeout(() => {
+      setActiveDiscussionId(null);
+    }, 90_000);
+    return () => clearTimeout(handle);
+  }, [activeDiscussionId]);
+
   const persistClarificationPicks =
     trpc.orbProxy.persistClarificationPicks.useMutation();
   // Multi-session backend wiring. All four are fire-and-forget — failure
@@ -3482,6 +3557,50 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen(prev => !prev), []);
+
+  const startCollaborativeDiscussion = useCallback(
+    async (prompt: string): Promise<string> => {
+      const trimmed = prompt.trim();
+      if (!trimmed) {
+        throw new Error("empty prompt");
+      }
+      // 把使用者的需求先當成 user bubble 推進去，再標一條「光球召集精靈」訊息，
+      // 接下來輪詢拉回的精靈訊息會逐條接在後面。讓使用者第一眼就看到「東西
+      // 在跑」而不是按完按鈕沒反應。
+      const now = Date.now();
+      setMessages(prev => [
+        ...prev,
+        { role: "user", text: trimmed, at: now, pagePath: locationPath },
+        {
+          role: "orb",
+          text: "🌿 我請幾位同事一起來看你這個需求，他們會輪流給意見。每個人講完我接著貼出來。",
+          at: now + 1,
+          pagePath: locationPath,
+        },
+      ]);
+      seenDiscussionMessageIdsRef.current = new Set();
+      try {
+        const result = await startAutoDiscussionMutation.mutateAsync({
+          prompt: trimmed,
+        });
+        setActiveDiscussionId(result.collaborationId);
+        return result.collaborationId;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        setMessages(prev => [
+          ...prev,
+          {
+            role: "orb",
+            text: `⚠️ 召集精靈時遇到問題：${reason}`,
+            at: Date.now(),
+            pagePath: locationPath,
+          },
+        ]);
+        throw err;
+      }
+    },
+    [locationPath, startAutoDiscussionMutation]
+  );
   const clearHistory = useCallback(() => {
     // Bumping the request id invalidates any in-flight LLM round-trip so
     // its `if (isStale()) return;` check fires and the late response is
@@ -3802,11 +3921,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     answerClarification,
     answerMultiClarification,
     cancelClarification,
+    startCollaborativeDiscussion,
+    isCollaborativeDiscussionActive: Boolean(activeDiscussionId),
     createConversation,
     switchConversation,
     renameConversation,
     deleteConversation,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, createConversation, switchConversation, renameConversation, deleteConversation]);
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, startCollaborativeDiscussion, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
