@@ -28,6 +28,12 @@ import OrbFeatureSpotlight from "@/components/orb/OrbFeatureSpotlight";
 import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeRenderAssistantMessage } from "@/lib/assistantMessageSafety";
+import {
+  formatWorkflowActionTypeLabel,
+  formatWorkflowFailure,
+  formatWorkflowPhaseLabel,
+  formatWorkflowTargetLabel,
+} from "@/lib/workflowFailureMessages";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
@@ -193,6 +199,19 @@ export interface WorkflowExecutionStepState {
   completedAt?: number;
 }
 
+/**
+ * Sub-status「step 內部正在做什麼」— 由 orchestrator 的 onStepProgress
+ * 事件驅動。和 step.status（pending / running / completed / failed）正交：
+ * 這是 running 中的細粒度。null = 沒收到 phase 事件 / 不在 running。
+ */
+export type WorkflowStepPhase =
+  | "navigating"
+  | "settling"
+  | "awaiting_handler"
+  | "dispatching"
+  | "observing"
+  | "retrying";
+
 export interface WorkflowExecutionState {
   id: string;
   name: string;
@@ -203,6 +222,12 @@ export interface WorkflowExecutionState {
   completedAt?: number;
   error?: string;
   steps: WorkflowExecutionStepState[];
+  /** Sub-phase 目前所在 — 由 onStepProgress 寫入；null 表示沒接到事件。 */
+  currentPhase?: WorkflowStepPhase | null;
+  /** Sub-phase 的脈絡（例如 navigate 的 path、retry 的「第 N 次嘗試」） */
+  currentPhaseDetail?: string | null;
+  /** Sub-phase 開始時間 — 給 UI 做「已 3.2s」的 elapsed 顯示。 */
+  currentPhaseStartedAt?: number | null;
 }
 
 export interface PendingWorkflowPlan {
@@ -723,6 +748,11 @@ export function advanceWorkflowStep(
     ...prev,
     status: "running",
     currentIndex: step.index,
+    // 切到新步驟，舊 phase 標籤直接清掉 — 不然「正在跳到 X」會 bleed 到
+    // 下一步看起來還在做上一步的事。phase 由 onStepProgress 重新填。
+    currentPhase: null,
+    currentPhaseDetail: null,
+    currentPhaseStartedAt: null,
     steps: prev.steps.map(existing => {
       if (existing.index < step.index) {
         return {
@@ -747,6 +777,34 @@ export function advanceWorkflowStep(
 }
 
 /**
+ * Stamp the sub-phase the orchestrator is in (navigating / settling /
+ * awaiting_handler / dispatching / observing / retrying). Pure reducer so the
+ * vitest run can assert the cross-step transitions without React.
+ *
+ * 規則：
+ *   - 只有當事件 index 等於 prev.currentIndex 時才寫進 state；老 step 的
+ *     殘餘事件（例如 settle wait 完才到的 dispatching）不會污染下一步。
+ *   - 同一個 phase 重複觸發只更新 detail，不重置 startedAt — 對 UI 來說
+ *     「已 X 秒」應該從 phase 第一次進入算起，不是每個 dispatch tick 重來。
+ */
+export function setWorkflowStepPhase(
+  prev: WorkflowExecutionState,
+  event: { index: number; phase: WorkflowStepPhase; detail?: string },
+  now: number = Date.now()
+): WorkflowExecutionState {
+  if (event.index !== prev.currentIndex) return prev;
+  const samePhase = prev.currentPhase === event.phase;
+  return {
+    ...prev,
+    currentPhase: event.phase,
+    currentPhaseDetail: event.detail ?? null,
+    currentPhaseStartedAt: samePhase
+      ? prev.currentPhaseStartedAt ?? now
+      : now,
+  };
+}
+
+/**
  * Mark the current step as failed and freeze the workflow. Used both by the
  * orchestrator failure handler and the catch-block error path.
  */
@@ -760,6 +818,10 @@ export function failWorkflowAtCurrentStep(
     status: "failed",
     error: reason,
     completedAt: now,
+    // 終態 phase 都清掉，UI 不會再顯示「正在跳頁…」spinner。
+    currentPhase: null,
+    currentPhaseDetail: null,
+    currentPhaseStartedAt: null,
     steps: prev.steps.map(step =>
       step.index === prev.currentIndex
         ? { ...step, status: "failed" as const, reason, completedAt: now }
@@ -778,6 +840,9 @@ export function completeWorkflow(
     status: "completed",
     currentIndex: Math.max(prev.total - 1, 0),
     completedAt: now,
+    currentPhase: null,
+    currentPhaseDetail: null,
+    currentPhaseStartedAt: null,
     steps: prev.steps.map(step => ({
       ...step,
       status: "completed" as const,
@@ -1222,6 +1287,49 @@ export function WorkflowConfirmationCard({
   );
 }
 
+/**
+ * 顯示「step 內部現在在做什麼 + 已花了多少秒」。獨立成 component 是因為
+ * elapsed timer 需要一秒 tick 一次，把 setInterval 隔離在這裡才不會強制
+ * 整個 Floating Panel 每秒重新 render。
+ */
+function WorkflowPhaseLine({
+  phase,
+  detail,
+  actionType,
+  path,
+  startedAt,
+}: {
+  phase: WorkflowStepPhase;
+  detail: string | null;
+  actionType?: string;
+  path?: string;
+  startedAt: number | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return;
+    // 1 秒 tick 一次就夠 — 「已 X.X 秒」級別的精度，setInterval(1000)
+    // 對 React 重新 render 的成本可以忽略；改成 250ms 反而會閃。
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [startedAt, phase]);
+  const label = formatWorkflowPhaseLabel(phase, { detail, actionType, path });
+  if (!label) return null;
+  const elapsedSec = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
+  return (
+    <div
+      className="mt-2 flex items-center gap-1.5 text-[11px] text-cyan-100/85"
+      data-testid="orb-workflow-phase-line"
+    >
+      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+      <span>{label}</span>
+      {startedAt && elapsedSec >= 1 && (
+        <span className="text-cyan-100/45">（已 {elapsedSec} 秒）</span>
+      )}
+    </div>
+  );
+}
+
 export function WorkflowExecutionFloatingPanel({
   workflowExecution,
   onDismiss,
@@ -1314,16 +1422,73 @@ export function WorkflowExecutionFloatingPanel({
         <span>{completedCount}/{workflowExecution.total}</span>
       </div>
 
+      {/*
+        Failed-step context — pulled out so 列表 / 流程圖 兩個檢視都共用一份。
+        formatWorkflowFailure 把 orchestrator 丟回的英文 reason（最常見的就是
+        「unsupported action」）翻成「卡在這一步 / 這頁不支援這個動作 / …」
+        + 一句話建議；目標頁從 /director 換成「導演 AI（/director）」雙層；
+        動作類別變成 chip。沒有 error 就回 null，呼叫端直接 ?: 即可。
+      */}
+      {(() => {
+        if (!workflowExecution.error) return null;
+        const failed =
+          workflowExecution.steps.find(step => step.status === "failed") ?? current;
+        const failure = formatWorkflowFailure(workflowExecution.error, {
+          actionType: failed?.actionType,
+          path: failed?.path,
+          label: failed && formatWorkflowTargetLabel(failed.path).hasLabel
+            ? formatWorkflowTargetLabel(failed.path).display
+            : undefined,
+        });
+        return (
+          <div
+            className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100"
+            data-testid="orb-workflow-failure-banner"
+          >
+            <div className="font-medium">{failure.headline}</div>
+            <div className="mt-1 leading-relaxed">{failure.summary}</div>
+            {failure.hint && (
+              <div className="mt-1 text-rose-50/80">{failure.hint}</div>
+            )}
+          </div>
+        );
+      })()}
+
       {current && viewMode === "list" && (
         <div className="mt-3 rounded-2xl bg-white/10 p-3">
-          <div className="text-xs text-white/50">目前步驟</div>
+          <div className="flex items-center gap-1.5 text-xs text-white/50">
+            <span>目前步驟</span>
+            {current.actionType && (
+              <span className="rounded-full bg-cyan-300/15 px-1.5 py-0.5 text-[10px] text-cyan-100/90">
+                {formatWorkflowActionTypeLabel(current.actionType)}
+              </span>
+            )}
+          </div>
           <div className="mt-1 text-sm">{current.label}</div>
-          {current.path && <div className="mt-1 text-xs text-cyan-100/60">目標頁：{current.path}</div>}
-          {workflowExecution.error && (
-            <div className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
-              <div className="font-medium">需要補充的欄位</div>
-              <div className="mt-1">{workflowExecution.error}</div>
-            </div>
+          {current.path && (() => {
+            const target = formatWorkflowTargetLabel(current.path);
+            return (
+              <div className="mt-1 text-xs text-cyan-100/60">
+                目標頁：{target.display}
+                {target.hasLabel && target.rawPath && (
+                  <span className="ml-1 text-cyan-100/40 font-mono">
+                    （{target.rawPath}）
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+          {/* Sub-phase chip — 只在 workflow 還在 running 時顯示，避免完成後
+              留下「正在跳到 X」這種過時的狀態。phase null（沒收到事件）也
+              不渲染整塊，免得空白行佔版面。 */}
+          {workflowExecution.status === "running" && workflowExecution.currentPhase && (
+            <WorkflowPhaseLine
+              phase={workflowExecution.currentPhase}
+              detail={workflowExecution.currentPhaseDetail ?? null}
+              actionType={current.actionType}
+              path={current.path}
+              startedAt={workflowExecution.currentPhaseStartedAt ?? null}
+            />
           )}
         </div>
       )}
@@ -1339,19 +1504,20 @@ export function WorkflowExecutionFloatingPanel({
           >
             <LazyWorkflowDAG workflowExecution={workflowExecution} compact />
           </Suspense>
-          {workflowExecution.error && (
-            <div className="mt-2 rounded-lg border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
-              <div className="font-medium">需要補充的欄位</div>
-              <div className="mt-1">{workflowExecution.error}</div>
-            </div>
-          )}
         </div>
       ) : (
         <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
           {workflowExecution.steps.map(step => (
             <div key={`${step.index}-${step.label}`} className="flex gap-2 text-xs">
               <span className={statusDotClass(step.status)}>{statusDot(step.status)}</span>
-              <span className="text-white/70">{step.index + 1}. {step.label}</span>
+              <span className="flex-1 min-w-0 text-white/70">
+                <span>{step.index + 1}. {step.label}</span>
+                {step.actionType && (
+                  <span className="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-white/55">
+                    {formatWorkflowActionTypeLabel(step.actionType)}
+                  </span>
+                )}
+              </span>
             </div>
           ))}
         </div>
@@ -2185,6 +2351,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             note: `workflow-step:${step.index + 1}/${step.total}:${step.label}`,
           });
         },
+        // Sub-phase 事件 — 每一步內部的 navigate / settle / awaiting_handler /
+        // dispatching / observing / retrying 都會 surface 到 panel 的「目前
+        // 子狀態」chip 和 elapsed timer。reducer 會自動 dedupe 同 phase 的
+        // 重複事件，所以這裡可以放心 fire 多次。
+        onStepProgress: event => {
+          setWorkflowExecution(prev =>
+            prev ? setWorkflowStepPhase(prev, event) : prev
+          );
+        },
       });
 
       const failed = results.find(result => !result.ok);
@@ -2195,12 +2370,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           prev ? failWorkflowAtCurrentStep(prev, failedReason, now) : prev
         );
         orbState.setState("error", `執行失敗：${failedReason.slice(0, 40)}`);
-        const friendlyText =
-          failedReason === "workflow disabled"
-            ? "⚠️ 目前跨頁工作流程功能暫時關閉。我可以先提供手動步驟指引，或改成單一步驟幫你執行。"
-            : failedReason === "no route found"
-              ? "⚠️ 我找到要做的事，但暫時找不到能執行這個動作的頁面。再多告訴我一句你想去哪一個工作室（圖片／影片／音樂／導演 AI），我就能直接帶你過去並接手操作。"
-              : `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`;
+        // 同一份 mapping 走 panel 和 chat bubble 兩條路 — 不然使用者會看到
+        // 浮動卡片寫「這頁不支援這個動作」、聊天列卻寫「執行時遇到問題：
+        // unsupported action」對不上，會以為是兩個錯。
+        const failedActionType =
+          orchestratorActions[results.indexOf(failed)]?.type;
+        const failure = formatWorkflowFailure(failedReason, {
+          actionType: failedActionType,
+        });
+        const friendlyText = failure.hint
+          ? `⚠️ ${failure.summary}\n${failure.hint}`
+          : `⚠️ ${failure.summary}`;
         setMessages(prev => [...prev, {
           role: "orb",
           text: friendlyText,
@@ -2209,7 +2389,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         }]);
         pageAgent.reportFeedback({
           status: "failed",
-          actionType: orchestratorActions[results.indexOf(failed)]?.type ?? "runWorkflow",
+          actionType: failedActionType ?? "runWorkflow",
           note: failedReason,
         });
       } else if (nextWorkflowExecution) {

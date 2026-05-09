@@ -42,6 +42,7 @@ import {
   completeWorkflow,
   failWorkflowAtCurrentStep,
   findWorkflowAction,
+  setWorkflowStepPhase,
   workflowStepsToState,
   type WorkflowExecutionState,
 } from "../client/src/contexts/GlobalOrbChatContext";
@@ -324,6 +325,111 @@ describe("failWorkflowAtCurrentStep (red banner)", () => {
     expect(failed.steps[0].reason).toBe("auth required");
     expect(failed.steps[1].status).toBe("pending");
     expect(failed.steps[2].status).toBe("pending");
+  });
+});
+
+describe("setWorkflowStepPhase (sub-phase chip + elapsed timer)", () => {
+  function startingState(): WorkflowExecutionState {
+    return buildWorkflowExecutionState([makeWorkflow()], FIXED_NOW)!;
+  }
+
+  it("stamps phase + detail on the current step and records phase startedAt", () => {
+    const next = setWorkflowStepPhase(
+      startingState(),
+      { index: 0, phase: "navigating", detail: "/director" },
+      FIXED_NOW + 100
+    );
+    expect(next.currentPhase).toBe("navigating");
+    expect(next.currentPhaseDetail).toBe("/director");
+    expect(next.currentPhaseStartedAt).toBe(FIXED_NOW + 100);
+  });
+
+  it("does NOT update startedAt when the same phase fires again — elapsed timer must keep counting", () => {
+    const t0 = setWorkflowStepPhase(
+      startingState(),
+      { index: 0, phase: "dispatching", detail: "fillPrompt" },
+      FIXED_NOW + 100
+    );
+    const t1 = setWorkflowStepPhase(
+      t0,
+      { index: 0, phase: "dispatching", detail: "fillPrompt" },
+      FIXED_NOW + 5_000
+    );
+    expect(t1.currentPhaseStartedAt).toBe(FIXED_NOW + 100);
+  });
+
+  it("DOES reset startedAt when the phase changes within the same step", () => {
+    const t0 = setWorkflowStepPhase(
+      startingState(),
+      { index: 0, phase: "navigating" },
+      FIXED_NOW + 100
+    );
+    const t1 = setWorkflowStepPhase(
+      t0,
+      { index: 0, phase: "dispatching" },
+      FIXED_NOW + 5_000
+    );
+    expect(t1.currentPhaseStartedAt).toBe(FIXED_NOW + 5_000);
+    expect(t1.currentPhase).toBe("dispatching");
+  });
+
+  it("ignores phase events whose index doesn't match currentIndex (stale event from old step)", () => {
+    const at1 = advanceWorkflowStep(
+      startingState(),
+      { index: 1, label: "切換為影片模式", actionType: "setMode" },
+      FIXED_NOW + 1_000
+    );
+    // A late-arriving "settling" event from step 0 must NOT poison step 1's
+    // chip — otherwise the panel can show "等頁面切換完成…" even after the
+    // workflow has already moved on. advanceWorkflowStep cleared the phase
+    // to null when transitioning, and the stale event must leave it null.
+    const stale = setWorkflowStepPhase(
+      at1,
+      { index: 0, phase: "settling" },
+      FIXED_NOW + 1_500
+    );
+    expect(stale.currentPhase ?? null).toBeNull();
+  });
+
+  it("advanceWorkflowStep clears phase from the previous step", () => {
+    const t0 = setWorkflowStepPhase(
+      startingState(),
+      { index: 0, phase: "dispatching" },
+      FIXED_NOW + 100
+    );
+    expect(t0.currentPhase).toBe("dispatching");
+    const advanced = advanceWorkflowStep(
+      t0,
+      { index: 1, label: "下一步", actionType: "setMode" },
+      FIXED_NOW + 200
+    );
+    expect(advanced.currentPhase).toBeNull();
+    expect(advanced.currentPhaseDetail).toBeNull();
+    expect(advanced.currentPhaseStartedAt).toBeNull();
+  });
+
+  it("failWorkflowAtCurrentStep clears phase — the panel must stop showing 'navigating…' after a failure", () => {
+    const withPhase = setWorkflowStepPhase(
+      startingState(),
+      { index: 0, phase: "dispatching" },
+      FIXED_NOW + 100
+    );
+    const failed = failWorkflowAtCurrentStep(
+      withPhase,
+      "boom",
+      FIXED_NOW + 200
+    );
+    expect(failed.currentPhase).toBeNull();
+  });
+
+  it("completeWorkflow clears phase", () => {
+    const withPhase = setWorkflowStepPhase(
+      startingState(),
+      { index: 0, phase: "observing" },
+      FIXED_NOW + 100
+    );
+    const done = completeWorkflow(withPhase, FIXED_NOW + 200);
+    expect(done.currentPhase).toBeNull();
   });
 });
 
