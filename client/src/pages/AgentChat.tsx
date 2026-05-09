@@ -424,19 +424,25 @@ type SpiritVisual = {
   prompt: string;
   gradient: string;
   ring: string;
-  family: "specialist" | "role";
+  /**
+   * 「家族」決定卡片在 deck 裡分到哪一組：
+   *   - specialist：6 位專精同事（圖、影、音、聲、訓、學）
+   *   - role：6 位通用工作流夥伴（導、編、品、查、路、暖）
+   *   - proactive：3 位主動出擊型（財財 / 巧巧 / 守守）— 不叫他們也會自己跳出來
+   */
+  family: "specialist" | "role" | "proactive";
 };
 
 const SPIRITS: SpiritVisual[] = [
-  // 6 專精 — 像工作室裡各自有專長的同事
+  // 6 專精 — 像工作室裡各自有專長的同事，名字統一改成可愛疊字
   {
     id: "image-specialist",
     emoji: "🎨",
     label: "圖像精靈",
-    nickname: "阿圖",
+    nickname: "圖圖",
     vibe: "圖的事交給我，從靈感到出圖一條龍",
-    greeting: "嗨～我是阿圖 🎨 圖的事情我最熟，先說你想要的氛圍就行～",
-    prompt: "@阿圖 我想做一張",
+    greeting: "嗨～我是圖圖 🎨 圖的事情我最熟，先說你想要的氛圍就行～",
+    prompt: "@圖圖 我想做一張",
     gradient: "from-rose-400 to-pink-500",
     ring: "ring-rose-300/60",
     family: "specialist",
@@ -445,10 +451,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "video-specialist",
     emoji: "🎬",
     label: "影像精靈",
-    nickname: "阿影",
+    nickname: "影影",
     vibe: "讓你的圖會動：圖轉影、生影片、配對嘴",
-    greeting: "嗨我阿影 🎬 你想做幾秒的？直式還橫式？",
-    prompt: "@阿影 幫我做一支",
+    greeting: "嗨我影影 🎬 你想做幾秒的？直式還橫式？",
+    prompt: "@影影 幫我做一支",
     gradient: "from-orange-400 to-amber-500",
     ring: "ring-orange-300/60",
     family: "specialist",
@@ -457,10 +463,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "music-specialist",
     emoji: "🎵",
     label: "音樂精靈",
-    nickname: "小音",
+    nickname: "音音",
     vibe: "幫你譜底配 BGM、做音效、混音",
-    greeting: "嗨～小音來啦 🎵 想要什麼情緒？節奏快還是慢？",
-    prompt: "@小音 幫我配一段",
+    greeting: "嗨～音音來啦 🎵 想要什麼情緒？節奏快還是慢？",
+    prompt: "@音音 幫我配一段",
     gradient: "from-violet-400 to-indigo-500",
     ring: "ring-violet-300/60",
     family: "specialist",
@@ -469,10 +475,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "voice-specialist",
     emoji: "🎙️",
     label: "語音精靈",
-    nickname: "小聲",
+    nickname: "聲聲",
     vibe: "配音 / 聲音克隆 / 變聲 / 聽寫，聲音的事問我",
-    greeting: "嗨我小聲 🎙️ 男聲女聲、語氣、語速都可以調，想試哪種？",
-    prompt: "@小聲 我想配一段",
+    greeting: "嗨我聲聲 🎙️ 男聲女聲、語氣、語速都可以調，想試哪種？",
+    prompt: "@聲聲 我想配一段",
     gradient: "from-cyan-400 to-teal-500",
     ring: "ring-cyan-300/60",
     family: "specialist",
@@ -481,10 +487,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "training-specialist",
     emoji: "🧪",
     label: "訓練精靈",
-    nickname: "阿訓",
+    nickname: "練練",
     vibe: "幫你訓自己的角色 / 風格 / 影片 LoRA",
-    greeting: "嗨我阿訓 🧪 給我幾張參考圖，我幫你練成可重用的模型～",
-    prompt: "@阿訓 我想訓練",
+    greeting: "嗨我練練 🧪 給我幾張參考圖，我幫你練成可重用的模型～",
+    prompt: "@練練 我想訓練",
     gradient: "from-fuchsia-400 to-purple-500",
     ring: "ring-fuchsia-300/60",
     family: "specialist",
@@ -493,23 +499,23 @@ const SPIRITS: SpiritVisual[] = [
     id: "learning-specialist",
     emoji: "📚",
     label: "學習精靈",
-    nickname: "學長",
+    nickname: "學學",
     vibe: "新手導引、教程、踩坑筆記都跟你講",
-    greeting: "嗨～學長在 📚 不會的地方一句一句問就好，慢慢來不急。",
-    prompt: "@學長 教我",
+    greeting: "嗨～學學在 📚 不會的地方一句一句問就好，慢慢來不急。",
+    prompt: "@學學 教我",
     gradient: "from-emerald-400 to-green-500",
     ring: "ring-emerald-300/60",
     family: "specialist",
   },
-  // 6 通用 — 像工作流程裡不同角色的夥伴
+  // 6 通用 — 像工作流程裡不同角色的夥伴，全改疊字版
   {
     id: "director",
     emoji: "🎯",
     label: "導演",
-    nickname: "老導",
+    nickname: "導導",
     vibe: "把你的想法拆成一條完整的工作流，一步步走完",
-    greeting: "好～老導來規劃 🎯 先講最終想交付的東西，我幫你拆步驟。",
-    prompt: "@老導 幫我規劃",
+    greeting: "好～導導來規劃 🎯 先講最終想交付的東西，我幫你拆步驟。",
+    prompt: "@導導 幫我規劃",
     gradient: "from-amber-400 to-orange-500",
     ring: "ring-amber-300/60",
     family: "role",
@@ -530,10 +536,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "critic",
     emoji: "🔎",
     label: "評審",
-    nickname: "嚴選",
+    nickname: "品品",
     vibe: "幫你看作品 / 計畫，溫和地點出 1-3 個可以更好的地方",
-    greeting: "嗨～嚴選來了 🔎 把作品丟過來，我挑三個最有效的點給你。",
-    prompt: "@嚴選 幫我看一下",
+    greeting: "嗨～品品來了 🔎 把作品丟過來，我挑三個最有效的點給你。",
+    prompt: "@品品 幫我看一下",
     gradient: "from-yellow-400 to-amber-500",
     ring: "ring-yellow-300/60",
     family: "role",
@@ -542,10 +548,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "researcher",
     emoji: "🧭",
     label: "研究員",
-    nickname: "研哥",
+    nickname: "查查",
     vibe: "幫你比模型 / 查資料 / 推薦選項，再讓你自己選",
-    greeting: "嗨～研哥在 🧭 你想比什麼？我把差別、價位、適用場景列給你。",
-    prompt: "@研哥 幫我比較",
+    greeting: "嗨～查查在 🧭 你想比什麼？我把差別、價位、適用場景列給你。",
+    prompt: "@查查 幫我比較",
     gradient: "from-teal-400 to-emerald-500",
     ring: "ring-teal-300/60",
     family: "role",
@@ -554,10 +560,10 @@ const SPIRITS: SpiritVisual[] = [
     id: "navigator",
     emoji: "🧳",
     label: "導航員",
-    nickname: "領航",
+    nickname: "路路",
     vibe: "只把你帶到對的頁面，到了再交給適合的同事",
-    greeting: "OK 領航帶你過去 🧳 到了那邊再看下一步要做什麼～",
-    prompt: "@領航 帶我去",
+    greeting: "OK 路路帶你過去 🧳 到了那邊再看下一步要做什麼～",
+    prompt: "@路路 帶我去",
     gradient: "from-slate-400 to-slate-500",
     ring: "ring-slate-300/60",
     family: "role",
@@ -573,6 +579,43 @@ const SPIRITS: SpiritVisual[] = [
     gradient: "from-pink-300 to-rose-400",
     ring: "ring-pink-300/60",
     family: "role",
+  },
+  // 3 主動出擊型 — 沒叫他們也會自己跳出來關心你
+  {
+    id: "accountant",
+    emoji: "💰",
+    label: "全站精算師",
+    nickname: "財財",
+    vibe: "主動算帳：這次花多少 / 本月用到哪 / 哪招更省",
+    greeting: "嗨我財財 💰 這次要花的點數我幫你先算過了～要先看 detail 嗎？",
+    prompt: "@財財 幫我看本月花費",
+    gradient: "from-yellow-400 to-amber-500",
+    ring: "ring-amber-300/60",
+    family: "proactive",
+  },
+  {
+    id: "quality-coach",
+    emoji: "✨",
+    label: "提示詞 + 品質教練",
+    nickname: "巧巧",
+    vibe: "主動教 prompt：給可以直接複製貼上的改寫範例",
+    greeting: "嗨我巧巧 ✨ 你給我看 prompt 或結果，我提兩個改一下會更穩的點～",
+    prompt: "@巧巧 幫我看這段提示詞",
+    gradient: "from-violet-400 to-fuchsia-500",
+    ring: "ring-violet-300/60",
+    family: "proactive",
+  },
+  {
+    id: "inspector",
+    emoji: "🛡️",
+    label: "全站糾察隊",
+    nickname: "守守",
+    vibe: "主動巡：404 / 卡住 / 難用 / 無障礙都會回報並給繞過法",
+    greeting: "嗨我守守 🛡️ 我巡完了，有幾個小狀況跟你講一下，順便給繞過法。",
+    prompt: "@守守 幫我看哪裡怪怪的",
+    gradient: "from-emerald-400 to-teal-500",
+    ring: "ring-emerald-300/60",
+    family: "proactive",
   },
 ];
 
@@ -1782,20 +1825,48 @@ export default function AgentChat() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2 space-y-3">
-                  {(["specialist", "role"] as const).map(family => {
+                  {(["proactive", "specialist", "role"] as const).map(family => {
                     const groupTitle =
-                      family === "specialist" ? "🛠 6 位專精同事" : "🤝 6 位通用夥伴";
+                      family === "proactive"
+                        ? "🚨 3 位主動出擊"
+                        : family === "specialist"
+                          ? "🛠 6 位專精同事"
+                          : "🤝 6 位通用夥伴";
                     const groupHint =
-                      family === "specialist"
-                        ? "圖、影、音、聲、訓、學 — 各有領域的精靈"
-                        : "規劃、執行、評審、研究、導航、陪伴 — 工作流程裡的角色";
+                      family === "proactive"
+                        ? "財財 / 巧巧 / 守守 — 沒叫他們也會主動關心你"
+                        : family === "specialist"
+                          ? "圖、影、音、聲、訓、學 — 各有領域的精靈"
+                          : "規劃、執行、評審、研究、導航、陪伴 — 工作流程裡的角色";
                     return (
-                      <div key={family} className="space-y-1.5">
+                      <div
+                        key={family}
+                        className={`space-y-1.5 ${
+                          family === "proactive"
+                            ? "rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10 p-2"
+                            : ""
+                        }`}
+                      >
                         <div className="flex items-center justify-between gap-2 px-1">
-                          <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                          <p
+                            className={`text-[11px] font-medium ${
+                              family === "proactive"
+                                ? "text-amber-700 dark:text-amber-300"
+                                : "text-slate-600 dark:text-slate-300"
+                            }`}
+                          >
                             {groupTitle}
+                            {family === "proactive" && (
+                              <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse align-middle" />
+                            )}
                           </p>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                          <span
+                            className={`text-[10px] ${
+                              family === "proactive"
+                                ? "text-amber-600/80 dark:text-amber-400/80"
+                                : "text-slate-400 dark:text-slate-500"
+                            }`}
+                          >
                             {groupHint}
                           </span>
                         </div>
