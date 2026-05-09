@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatWorkflowActionTypeLabel,
   formatWorkflowFailure,
+  formatWorkflowPhaseLabel,
   formatWorkflowTargetLabel,
 } from "../../../client/src/lib/workflowFailureMessages";
 
@@ -188,5 +189,64 @@ describe("formatWorkflowFailure", () => {
     });
     expect(f.summary).toContain("「我自己手動命的名」");
     expect(f.summary).not.toContain("導演 AI");
+  });
+});
+
+describe("formatWorkflowPhaseLabel", () => {
+  it("navigating → 「正在跳到…」並用 detail / path 解析頁面 label", () => {
+    expect(
+      formatWorkflowPhaseLabel("navigating", { detail: "/director" })
+    ).toBe("正在跳到「導演 AI」…");
+    expect(
+      formatWorkflowPhaseLabel("navigating", { path: "/studio" })
+    ).toBe("正在跳到「創作工作室」…");
+  });
+
+  it("settling → 「等頁面切換完成…」", () => {
+    expect(formatWorkflowPhaseLabel("settling")).toBe("等頁面切換完成…");
+  });
+
+  it("awaiting_handler → 「等「<page>」載入中…」", () => {
+    expect(
+      formatWorkflowPhaseLabel("awaiting_handler", { detail: "/director" })
+    ).toBe("等「導演 AI」載入中…");
+  });
+
+  it("dispatching → 用 detail / actionType 翻成『正在執行：填入提示詞…』", () => {
+    expect(
+      formatWorkflowPhaseLabel("dispatching", { detail: "fillPrompt" })
+    ).toBe("正在執行：填入提示詞…");
+    expect(
+      formatWorkflowPhaseLabel("dispatching", { actionType: "setTab" })
+    ).toBe("正在執行：切換分頁…");
+  });
+
+  it("dispatching detail='tool:<name>' → 「呼叫工具「<name>」…」", () => {
+    expect(
+      formatWorkflowPhaseLabel("dispatching", { detail: "tool:studio.generateImage" })
+    ).toBe("呼叫工具「studio.generateImage」…");
+  });
+
+  it("observing → 「光球在檢查結果…」", () => {
+    expect(formatWorkflowPhaseLabel("observing")).toBe("光球在檢查結果…");
+  });
+
+  it("retrying → 直接用 detail（已是「第 N 次嘗試」），沒給就 fallback", () => {
+    expect(
+      formatWorkflowPhaseLabel("retrying", { detail: "第 3 次嘗試" })
+    ).toBe("第 3 次嘗試");
+    expect(formatWorkflowPhaseLabel("retrying")).toBe("重新嘗試這一步…");
+  });
+
+  it("null / undefined / 空字串 phase → 回 null（UI 整塊不渲染）", () => {
+    expect(formatWorkflowPhaseLabel(null)).toBeNull();
+    expect(formatWorkflowPhaseLabel(undefined)).toBeNull();
+    expect(formatWorkflowPhaseLabel("")).toBeNull();
+  });
+
+  it("沒對到的 phase 名稱直接回原字串，不會回 null（forward-compat）", () => {
+    expect(formatWorkflowPhaseLabel("future-phase-xyz")).toBe(
+      "future-phase-xyz"
+    );
   });
 });

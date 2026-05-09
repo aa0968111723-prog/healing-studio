@@ -31,6 +31,7 @@ import { safeRenderAssistantMessage } from "@/lib/assistantMessageSafety";
 import {
   formatWorkflowActionTypeLabel,
   formatWorkflowFailure,
+  formatWorkflowPhaseLabel,
   formatWorkflowTargetLabel,
 } from "@/lib/workflowFailureMessages";
 import { usePersonality } from "./PersonalityContext";
@@ -198,6 +199,19 @@ export interface WorkflowExecutionStepState {
   completedAt?: number;
 }
 
+/**
+ * Sub-status「step 內部正在做什麼」— 由 orchestrator 的 onStepProgress
+ * 事件驅動。和 step.status（pending / running / completed / failed）正交：
+ * 這是 running 中的細粒度。null = 沒收到 phase 事件 / 不在 running。
+ */
+export type WorkflowStepPhase =
+  | "navigating"
+  | "settling"
+  | "awaiting_handler"
+  | "dispatching"
+  | "observing"
+  | "retrying";
+
 export interface WorkflowExecutionState {
   id: string;
   name: string;
@@ -208,6 +222,12 @@ export interface WorkflowExecutionState {
   completedAt?: number;
   error?: string;
   steps: WorkflowExecutionStepState[];
+  /** Sub-phase 目前所在 — 由 onStepProgress 寫入；null 表示沒接到事件。 */
+  currentPhase?: WorkflowStepPhase | null;
+  /** Sub-phase 的脈絡（例如 navigate 的 path、retry 的「第 N 次嘗試」） */
+  currentPhaseDetail?: string | null;
+  /** Sub-phase 開始時間 — 給 UI 做「已 3.2s」的 elapsed 顯示。 */
+  currentPhaseStartedAt?: number | null;
 }
 
 export interface PendingWorkflowPlan {
@@ -728,6 +748,11 @@ export function advanceWorkflowStep(
     ...prev,
     status: "running",
     currentIndex: step.index,
+    // 切到新步驟，舊 phase 標籤直接清掉 — 不然「正在跳到 X」會 bleed 到
+    // 下一步看起來還在做上一步的事。phase 由 onStepProgress 重新填。
+    currentPhase: null,
+    currentPhaseDetail: null,
+    currentPhaseStartedAt: null,
     steps: prev.steps.map(existing => {
       if (existing.index < step.index) {
         return {
@@ -752,6 +777,34 @@ export function advanceWorkflowStep(
 }
 
 /**
+ * Stamp the sub-phase the orchestrator is in (navigating / settling /
+ * awaiting_handler / dispatching / observing / retrying). Pure reducer so the
+ * vitest run can assert the cross-step transitions without React.
+ *
+ * 規則：
+ *   - 只有當事件 index 等於 prev.currentIndex 時才寫進 state；老 step 的
+ *     殘餘事件（例如 settle wait 完才到的 dispatching）不會污染下一步。
+ *   - 同一個 phase 重複觸發只更新 detail，不重置 startedAt — 對 UI 來說
+ *     「已 X 秒」應該從 phase 第一次進入算起，不是每個 dispatch tick 重來。
+ */
+export function setWorkflowStepPhase(
+  prev: WorkflowExecutionState,
+  event: { index: number; phase: WorkflowStepPhase; detail?: string },
+  now: number = Date.now()
+): WorkflowExecutionState {
+  if (event.index !== prev.currentIndex) return prev;
+  const samePhase = prev.currentPhase === event.phase;
+  return {
+    ...prev,
+    currentPhase: event.phase,
+    currentPhaseDetail: event.detail ?? null,
+    currentPhaseStartedAt: samePhase
+      ? prev.currentPhaseStartedAt ?? now
+      : now,
+  };
+}
+
+/**
  * Mark the current step as failed and freeze the workflow. Used both by the
  * orchestrator failure handler and the catch-block error path.
  */
@@ -765,6 +818,10 @@ export function failWorkflowAtCurrentStep(
     status: "failed",
     error: reason,
     completedAt: now,
+    // 終態 phase 都清掉，UI 不會再顯示「正在跳頁…」spinner。
+    currentPhase: null,
+    currentPhaseDetail: null,
+    currentPhaseStartedAt: null,
     steps: prev.steps.map(step =>
       step.index === prev.currentIndex
         ? { ...step, status: "failed" as const, reason, completedAt: now }
@@ -783,6 +840,9 @@ export function completeWorkflow(
     status: "completed",
     currentIndex: Math.max(prev.total - 1, 0),
     completedAt: now,
+    currentPhase: null,
+    currentPhaseDetail: null,
+    currentPhaseStartedAt: null,
     steps: prev.steps.map(step => ({
       ...step,
       status: "completed" as const,
@@ -1227,6 +1287,49 @@ export function WorkflowConfirmationCard({
   );
 }
 
+/**
+ * 顯示「step 內部現在在做什麼 + 已花了多少秒」。獨立成 component 是因為
+ * elapsed timer 需要一秒 tick 一次，把 setInterval 隔離在這裡才不會強制
+ * 整個 Floating Panel 每秒重新 render。
+ */
+function WorkflowPhaseLine({
+  phase,
+  detail,
+  actionType,
+  path,
+  startedAt,
+}: {
+  phase: WorkflowStepPhase;
+  detail: string | null;
+  actionType?: string;
+  path?: string;
+  startedAt: number | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return;
+    // 1 秒 tick 一次就夠 — 「已 X.X 秒」級別的精度，setInterval(1000)
+    // 對 React 重新 render 的成本可以忽略；改成 250ms 反而會閃。
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [startedAt, phase]);
+  const label = formatWorkflowPhaseLabel(phase, { detail, actionType, path });
+  if (!label) return null;
+  const elapsedSec = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
+  return (
+    <div
+      className="mt-2 flex items-center gap-1.5 text-[11px] text-cyan-100/85"
+      data-testid="orb-workflow-phase-line"
+    >
+      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+      <span>{label}</span>
+      {startedAt && elapsedSec >= 1 && (
+        <span className="text-cyan-100/45">（已 {elapsedSec} 秒）</span>
+      )}
+    </div>
+  );
+}
+
 export function WorkflowExecutionFloatingPanel({
   workflowExecution,
   onDismiss,
@@ -1375,6 +1478,18 @@ export function WorkflowExecutionFloatingPanel({
               </div>
             );
           })()}
+          {/* Sub-phase chip — 只在 workflow 還在 running 時顯示，避免完成後
+              留下「正在跳到 X」這種過時的狀態。phase null（沒收到事件）也
+              不渲染整塊，免得空白行佔版面。 */}
+          {workflowExecution.status === "running" && workflowExecution.currentPhase && (
+            <WorkflowPhaseLine
+              phase={workflowExecution.currentPhase}
+              detail={workflowExecution.currentPhaseDetail ?? null}
+              actionType={current.actionType}
+              path={current.path}
+              startedAt={workflowExecution.currentPhaseStartedAt ?? null}
+            />
+          )}
         </div>
       )}
 
@@ -2235,6 +2350,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             actionType: step.action.type,
             note: `workflow-step:${step.index + 1}/${step.total}:${step.label}`,
           });
+        },
+        // Sub-phase 事件 — 每一步內部的 navigate / settle / awaiting_handler /
+        // dispatching / observing / retrying 都會 surface 到 panel 的「目前
+        // 子狀態」chip 和 elapsed timer。reducer 會自動 dedupe 同 phase 的
+        // 重複事件，所以這裡可以放心 fire 多次。
+        onStepProgress: event => {
+          setWorkflowExecution(prev =>
+            prev ? setWorkflowStepPhase(prev, event) : prev
+          );
         },
       });
 

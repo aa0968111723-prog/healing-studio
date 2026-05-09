@@ -555,6 +555,121 @@ describe("global-agent-orchestrator", () => {
     ]);
   });
 
+  it("onStepProgress fires sub-phase events (navigating → settling → awaiting_handler → dispatching) so the panel can show what each step is doing internally", async () => {
+    globalAgentRegistry.register(
+      makePage("director", "/director", "導演 AI", ["fillPrompt"])
+    );
+    const events: string[] = [];
+
+    await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "phase-event-trace",
+        steps: [
+          { path: "/director", actionType: "fillPrompt", payload: "企劃", label: "填企劃" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => undefined,
+        dispatch: async () => ({ ok: true }),
+        // Force every settle / await branch on so we cover the full phase
+        // surface area in one run.
+        waitAfterNavigateMs: 1,
+        awaitPageReady: async () => true,
+        pageReadyTimeoutMs: 50,
+        onStepProgress: event =>
+          events.push(`${event.index}:${event.phase}:${event.detail ?? ""}`),
+      }
+    );
+
+    // Order matters: nav → settle → await → dispatch.  A regression that fires
+    // dispatch before navigate would show up here as a swap.
+    expect(events).toEqual([
+      "0:navigating:/director",
+      "0:settling:/director",
+      "0:awaiting_handler:/director",
+      "0:dispatching:fillPrompt",
+    ]);
+  });
+
+  it("onStepProgress emits 'retrying' on attempt > 1 — the backoff wait is otherwise a silent gap", async () => {
+    globalAgentRegistry.register(
+      makePage("director", "/director", "導演 AI", ["fillPrompt"])
+    );
+    let dispatchCount = 0;
+    const events: string[] = [];
+
+    await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "phase-retry-trace",
+        steps: [
+          {
+            path: "/director",
+            actionType: "fillPrompt",
+            payload: "企劃",
+            label: "填企劃",
+            retryPolicy: { maxAttempts: 3, backoffMs: 0 },
+          },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => undefined,
+        dispatch: async () => {
+          dispatchCount++;
+          // First two attempts fail, third succeeds — exercises the retry loop.
+          return dispatchCount < 3
+            ? { ok: false, reason: "transient" }
+            : { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+        onStepProgress: event => {
+          if (event.phase === "retrying") {
+            events.push(`retry:${event.detail ?? ""}`);
+          }
+        },
+      }
+    );
+
+    expect(events).toEqual(["retry:第 2 次嘗試", "retry:第 3 次嘗試"]);
+  });
+
+  it("onStepProgress emits 'settling' when the previous step mutated same-page state (setTab → fillPrompt sequence)", async () => {
+    globalAgentRegistry.register(
+      makePage("pro", "/pro-studio", "專業創作室", ["setTab", "fillPrompt"])
+    );
+    const settles: number[] = [];
+
+    await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "phase-settle-trace",
+        steps: [
+          { path: "/pro-studio", actionType: "setTab", payload: "music", label: "切音樂" },
+          { path: "/pro-studio", actionType: "fillPrompt", payload: "BGM", label: "填 BGM" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => undefined,
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+        // Force the same-page settle path on (default would otherwise be 80ms).
+        samePageStateMutationSettleMs: 1,
+        onStepProgress: event => {
+          if (event.phase === "settling") settles.push(event.index);
+        },
+      }
+    );
+
+    // The post-setTab settle wait must surface for step index 1 — without it,
+    // users see the panel freeze for ~80ms with no hint that React is waiting
+    // for the tab swap to commit.
+    expect(settles).toEqual([1]);
+  });
+
   it("stops workflow execution on first failed step", async () => {
     globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt", "submit"]));
     const result = await executeGlobalWorkflow({

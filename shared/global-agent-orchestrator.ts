@@ -56,6 +56,13 @@ export interface GlobalAgentExecutionContext {
   intentSummary?: string;
   requireConfirmationForWorkflowSteps?: boolean;
   onWorkflowStep?: (step: GlobalWorkflowStepProgress) => void;
+  /**
+   * Sub-step phase events（navigate / settle / awaiting_handler / dispatching /
+   * observing / retrying）。和 onWorkflowStep 互補：onWorkflowStep 標出
+   * 「現在跑到第幾步」，onStepProgress 標出「這一步當下卡在內部哪一個小階段」。
+   * 全部選用，沒接也不影響行為。
+   */
+  onStepProgress?: (event: WorkflowStepPhaseEvent) => void;
 
   // ── Task 1: tool-call execution ────────────────────────────────────────
   /**
@@ -193,6 +200,34 @@ export interface GlobalWorkflowStepProgress {
   label: string;
   path?: string;
   action: AgentAction;
+}
+
+/**
+ * 細粒度的「執行中」階段。onWorkflowStep 只會在每一步開頭觸發一次，
+ * 但每一步內部其實會跑：navigate → settle → 等 handler 註冊 → dispatch →
+ * （可能）perception 觀察 → （可能）retry。沒有這些 sub-phase 事件時，
+ * UI 看到的就只是一顆「執行中」spinner，使用者不知道到底卡在跳頁、卡在
+ * 等頁面，還是 dispatch 真的在跑。把每個內部階段轉成事件丟給 UI，
+ * Floating Panel 才能顯示「正在跳到 導演 AI…」「光球觀察結果中…」
+ * 「第 2 次重試…」這種讓人安心的當下狀態。
+ *
+ * 完成 / 失敗的終態仍由 onWorkflowStep + 各 reducer 負責，這個事件只
+ * 補足「running 中的子狀態」這段空白。
+ */
+export type WorkflowStepPhase =
+  | "navigating"
+  | "settling"
+  | "awaiting_handler"
+  | "dispatching"
+  | "observing"
+  | "retrying";
+
+export interface WorkflowStepPhaseEvent {
+  index: number;
+  total: number;
+  phase: WorkflowStepPhase;
+  /** 給 UI 顯示用的脈絡：navigate 的目標路徑、retry 第幾次、action.type … */
+  detail?: string;
 }
 
 export interface GlobalAgentExecutionResult {
@@ -459,13 +494,42 @@ function shouldRequestStepConfirm(
  */
 async function navigateAndSettle(
   path: string,
-  ctx: GlobalAgentExecutionContext
+  ctx: GlobalAgentExecutionContext,
+  /** 給 onStepProgress 用的 step index / total — 沒傳就不發事件，讓非
+   * workflow 的 caller（單步 dispatch）保持原行為。 */
+  progressMeta?: { index: number; total: number }
 ): Promise<{ ready: boolean }> {
+  if (progressMeta) {
+    ctx.onStepProgress?.({
+      index: progressMeta.index,
+      total: progressMeta.total,
+      phase: "navigating",
+      detail: path,
+    });
+  }
   await ctx.navigate(path);
   const settle = ctx.waitAfterNavigateMs ?? 450;
-  if (settle > 0) await wait(settle);
+  if (settle > 0) {
+    if (progressMeta) {
+      ctx.onStepProgress?.({
+        index: progressMeta.index,
+        total: progressMeta.total,
+        phase: "settling",
+        detail: path,
+      });
+    }
+    await wait(settle);
+  }
   if (!ctx.awaitPageReady) return { ready: true };
   const timeoutMs = ctx.pageReadyTimeoutMs ?? 4000;
+  if (progressMeta) {
+    ctx.onStepProgress?.({
+      index: progressMeta.index,
+      total: progressMeta.total,
+      phase: "awaiting_handler",
+      detail: path,
+    });
+  }
   try {
     const ready = await ctx.awaitPageReady(path, { timeoutMs });
     log("navigate.ready", { path, ready, timeoutMs });
@@ -749,6 +813,12 @@ async function executeWorkflowSequential(
     // child's bridge and the prompt input ends up empty.
     const settleMs = ctx.samePageStateMutationSettleMs ?? SAME_PAGE_STATE_MUTATION_SETTLE_MS;
     if (settleMs > 0 && i > 0 && shouldAwaitSamePageStateMutation(steps[i - 1], s)) {
+      ctx.onStepProgress?.({
+        index: i,
+        total: steps.length,
+        phase: "settling",
+        detail: "same-page",
+      });
       await wait(settleMs);
     }
 
@@ -810,6 +880,11 @@ async function executeWorkflowSequential(
       // into the orchestrator's existing primitives (retry / replan / abort)
       // so the perception layer doesn't need its own control flow.
       if (ctx.observeAfterStep) {
+        ctx.onStepProgress?.({
+          index: i,
+          total: steps.length,
+          phase: "observing",
+        });
         const observation = await ctx.observeAfterStep({
           step: reconstructAgentWorkflowStep(s, i),
           index: i,
@@ -1026,6 +1101,16 @@ async function runStepWithRetry(
   let lastResult: AgentActionResult = { ok: false, reason: "no attempt made" };
   let pathAfter = rsCtx.currentPath;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) {
+      // Surface「第 N 次重試」for the panel — backoff wait is otherwise
+      // a silent gap that looks like the workflow froze.
+      rsCtx.ctx.onStepProgress?.({
+        index,
+        total: rsCtx.total,
+        phase: "retrying",
+        detail: `第 ${attempt} 次嘗試`,
+      });
+    }
     const attemptOutcome = await executeStepOnce(step, index, {
       ...rsCtx,
       currentPath: pathAfter,
@@ -1065,7 +1150,7 @@ async function executeStepOnce(
       };
     }
     if (step.path && step.path !== currentPath) {
-      await navigateAndSettle(step.path, ctx);
+      await navigateAndSettle(step.path, ctx, { index, total: rsCtx.total });
       currentPath = step.path;
     }
     if (rsCtx.isFirstAttempt) {
@@ -1079,6 +1164,12 @@ async function executeStepOnce(
         action: { type: "search", query: step.toolName },
       });
     }
+    ctx.onStepProgress?.({
+      index,
+      total: rsCtx.total,
+      phase: "dispatching",
+      detail: `tool:${step.toolName}`,
+    });
     const resolvedArgs = resolveStepRefsInArgs({
       args: step.toolArgs ?? {},
       perStepToolResults,
@@ -1123,7 +1214,7 @@ async function executeStepOnce(
     : globalAgentRegistry.planWithFallback(step.action, rsCtx.currentPageContext)?.steps[0] ?? null;
   const effectivePath = step.path ?? fallbackForStep?.path;
   if (effectivePath && effectivePath !== currentPath) {
-    await navigateAndSettle(effectivePath, ctx);
+    await navigateAndSettle(effectivePath, ctx, { index, total: rsCtx.total });
     currentPath = effectivePath;
   }
   if (rsCtx.isFirstAttempt) {
@@ -1144,6 +1235,12 @@ async function executeStepOnce(
   const targetPageId = effectivePath
     ? globalAgentRegistry.findByPath(effectivePath)?.pageId ?? fallbackForStep?.targetPageId
     : globalAgentRegistry.planWithFallback(step.action, rsCtx.currentPageContext)?.steps[0]?.targetPageId;
+  ctx.onStepProgress?.({
+    index,
+    total: rsCtx.total,
+    phase: "dispatching",
+    detail: step.action.type,
+  });
   const res = normalizeResult(
     await ctx.dispatch(step.action, {
       targetPageId,

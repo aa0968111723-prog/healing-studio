@@ -13,6 +13,62 @@
  */
 import { getPageByPath } from "@/config/appRegistry";
 
+/**
+ * 把 orchestrator 的 sub-phase 翻成「使用者讀得懂」的當下狀態。
+ *
+ * Phase 對照：
+ *   - navigating       → 正在跳到「{detail or label}」…
+ *   - settling         → 等頁面切換完成…
+ *   - awaiting_handler → 等「{label}」載入中…
+ *   - dispatching      → 正在執行：{actionLabel}
+ *   - observing        → 光球在檢查結果…
+ *   - retrying         → 第 N 次嘗試…
+ *
+ * 沒對到的 phase 就回原 phase 字串，避免 UI 出現空字串。
+ */
+export function formatWorkflowPhaseLabel(
+  phase: string | undefined | null,
+  context: {
+    /** orchestrator 帶過來的 detail（path / actionType / 第 N 次嘗試）*/
+    detail?: string | null;
+    /** Step.actionType — dispatching phase 用來組「正在執行：填入提示詞」 */
+    actionType?: string;
+    /** Step.path — navigating phase 沒帶 detail 時的 fallback */
+    path?: string;
+  } = {}
+): string | null {
+  if (!phase) return null;
+  const detail = context.detail?.trim() ?? "";
+  switch (phase) {
+    case "navigating": {
+      const target = formatWorkflowTargetLabel(detail || context.path);
+      return `正在跳到「${target.display}」…`;
+    }
+    case "settling":
+      return "等頁面切換完成…";
+    case "awaiting_handler": {
+      const target = formatWorkflowTargetLabel(detail || context.path);
+      return `等「${target.display}」載入中…`;
+    }
+    case "dispatching": {
+      // detail 對 tool 來說會是 "tool:<toolName>"，UI 顯示原樣比較好定位。
+      if (detail.startsWith("tool:")) {
+        return `呼叫工具「${detail.slice(5) || "（未命名）"}」…`;
+      }
+      const actionLabel = formatWorkflowActionTypeLabel(
+        detail || context.actionType
+      );
+      return `正在執行：${actionLabel}…`;
+    }
+    case "observing":
+      return "光球在檢查結果…";
+    case "retrying":
+      return detail || "重新嘗試這一步…";
+    default:
+      return phase;
+  }
+}
+
 /** 把 actionType 翻成使用者看得懂的「動作類別」標籤 */
 const ACTION_TYPE_LABELS: Record<string, string> = {
   fillPrompt: "填入提示詞",
