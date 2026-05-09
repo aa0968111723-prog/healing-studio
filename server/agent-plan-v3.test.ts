@@ -663,6 +663,78 @@ describe("parseAndGatePlan — gating across versions", () => {
   });
 });
 
+describe("parseAndGatePlan — placeholder prompt rejection (Phase-2 auto-fill)", () => {
+  // The planner is told via system prompt not to leave `[使用者澄清]` /
+  // `你的主題` / `<待填入>` etc. inside fillPrompt or toolArgs, but the
+  // soft constraint slips occasionally. Without enforcement the user
+  // lands on the studio page with placeholder text in the input box.
+  it("forces clarification when fillPrompt text still carries [使用者澄清]", () => {
+    const plan = buildV3Plan({
+      steps: [
+        {
+          id: "fill",
+          label: "填入提示詞",
+          pagePath: "/studio",
+          riskLevel: "low",
+          requiresApproval: false,
+          undoable: true,
+          action: { type: "fillPrompt", text: "[使用者澄清] 的森林海報" },
+        },
+      ],
+    });
+    const result = parseAndGatePlan(plan);
+    expect(result.status).toBe("clarification");
+    expect(result.warnings).toContain("placeholder-in-prompt");
+    expect(result.actions).toEqual([]);
+    expect(result.clarificationQuestion).toMatch(/具體主題|秋日森林/);
+  });
+
+  it("forces clarification when toolArgs.prompt still carries 你的主題", () => {
+    const plan = buildV3Plan({
+      decision: { mode: "tasked" },
+      safety: { riskLevel: "medium", requiresHuman: false, reasons: [] },
+      steps: [
+        {
+          id: "gen",
+          label: "產生影片",
+          pagePath: "/video-studio",
+          riskLevel: "medium",
+          requiresApproval: false,
+          undoable: false,
+          action: { type: "submit" },
+          toolName: "studio.generateVideo",
+          toolArgs: {
+            prompt: "你的主題 in the rain",
+            duration: 30,
+          },
+        },
+      ],
+    });
+    const result = parseAndGatePlan(plan);
+    expect(result.status).toBe("clarification");
+    expect(result.warnings).toContain("placeholder-in-prompt");
+  });
+
+  it("lets concrete prompts through normally", () => {
+    const plan = buildV3Plan({
+      steps: [
+        {
+          id: "fill",
+          label: "填入提示詞",
+          pagePath: "/studio",
+          riskLevel: "low",
+          requiresApproval: false,
+          undoable: true,
+          action: { type: "fillPrompt", text: "秋日森林小徑，晨光斜灑" },
+        },
+      ],
+    });
+    const result = parseAndGatePlan(plan);
+    expect(result.status).toBe("converted");
+    expect(result.warnings).not.toContain("placeholder-in-prompt");
+  });
+});
+
 describe("AgentPlanSchema (v1) is preserved unchanged", () => {
   it("rejects v3 schemaVersion", () => {
     const result = AgentPlanSchema.safeParse({
