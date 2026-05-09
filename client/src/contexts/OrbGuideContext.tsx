@@ -732,7 +732,23 @@ interface OrbGuideContextType {
     actions?: AgentAction[];
     manualSteps?: OrbGuideManualStep[];
     arrivalChoices?: OrbArrivalChoice[];
+    /**
+     * 來自聊天驅動的跳頁要求面板「直接停在自由聊天視圖」(preferredPanelMode = "chat")，
+     * 因為使用者已經在跟光球對話、不該被切到引導卡靜態按鈕。OrbGuidePanel 讀
+     * 這個值決定首次掛載時 panelMode 的預設；null/undefined 維持原本「依
+     * isSending 推測」的行為。
+     */
+    preferredPanelMode?: "guide" | "chat" | null;
   }) => void;
+  /**
+   * 上一次 attachArrivalGuide 給定的偏好面板模式。OrbGuidePanel 用這個
+   * 決定「使用者剛從聊天跳頁過來，要直接落在聊天視圖」還是「使用者點了
+   * starter 卡片過來，要落在引導視圖」。null 表示沒指定，由 panel 自己
+   * 依 isSending 推測。
+   */
+  preferredPanelMode: "guide" | "chat" | null;
+  /** 切走或關閉後由 OrbGuidePanel 呼叫來重置偏好，避免影響下一輪。 */
+  clearPreferredPanelMode: () => void;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -756,6 +772,8 @@ const OrbGuideContext = createContext<OrbGuideContextType>({
   clearArrivedMessage: () => {},
   patchPlan: () => {},
   attachArrivalGuide: () => {},
+  preferredPanelMode: null,
+  clearPreferredPanelMode: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -768,8 +786,15 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [arrivedMessage, setArrivedMessage] = useState<string | null>(null);
   const [completedManualStepIds, setCompletedManualStepIds] = useState<string[]>([]);
+  const [preferredPanelMode, setPreferredPanelMode] = useState<
+    "guide" | "chat" | null
+  >(null);
   // track answered question index
   const questionIndexRef = useRef(0);
+
+  const clearPreferredPanelMode = useCallback(() => {
+    setPreferredPanelMode(null);
+  }, []);
 
   const openPanel = useCallback(() => {
     setIsPanelOpen(true);
@@ -793,6 +818,8 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     cancelArrivalTimer();
     setIsPanelOpen(false);
     setStep("idle");
+    // 關掉面板就把偏好清掉 — 下一輪可能不是聊天驅動，避免錯帶到下一次。
+    setPreferredPanelMode(null);
   }, [cancelArrivalTimer]);
 
   const selectIntent = useCallback((chosen: GuideIntent) => {
@@ -883,6 +910,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setPlan(null);
     setIsPanelOpen(false);
     setCompletedManualStepIds([]);
+    setPreferredPanelMode(null);
     questionIndexRef.current = 0;
   }, [cancelArrivalTimer]);
 
@@ -909,6 +937,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setPlan(null);
     setCompletedManualStepIds([]);
     setArrivedMessage(null);
+    setPreferredPanelMode(null);
     questionIndexRef.current = 0;
   }, [cancelArrivalTimer]);
 
@@ -920,6 +949,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       actions?: AgentAction[];
       manualSteps?: OrbGuideManualStep[];
       arrivalChoices?: OrbArrivalChoice[];
+      preferredPanelMode?: "guide" | "chat" | null;
     }) => {
       const registryPage = resolveRegistryPage(input.targetPath);
       const label =
@@ -957,6 +987,10 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       setCompletedManualStepIds([]);
       setPlan(synthesized);
       setStep("navigating");
+      // 聊天驅動的跳頁帶 preferredPanelMode = "chat" → 在 setIsPanelOpen 之前
+      // 先寫進 state，避免 OrbGuidePanel 第一次掛載時讀到 null 又落回引導模式。
+      // 沒指定時用 null，讓 panel 維持「依 isSending 推測」的舊行為。
+      setPreferredPanelMode(input.preferredPanelMode ?? null);
       setIsPanelOpen(true);
       // 不設 arrivedMessage — ProactiveOrbWidget 會把它當 feedback 泡泡
       // 顯示在光球旁邊，但 arrival 卡本身已經把訊息寫在 header 了，重複
@@ -1019,6 +1053,8 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       clearArrivedMessage,
       patchPlan,
       attachArrivalGuide,
+      preferredPanelMode,
+      clearPreferredPanelMode,
     }),
     [
       step,
@@ -1039,6 +1075,8 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       clearArrivedMessage,
       patchPlan,
       attachArrivalGuide,
+      preferredPanelMode,
+      clearPreferredPanelMode,
     ]
   );
 
