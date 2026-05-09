@@ -1271,6 +1271,14 @@ export interface OrbPromptExtras {
     pageId?: string;
   }>;
   alwaysConfirm?: boolean;
+  /**
+   * Phase 3: when true, the user has opted into stay-on-page execution —
+   * the orb runs media generation tasks server-side and surfaces step
+   * progress in chat instead of routing to the matching studio page.
+   * Feeds a hint into the system prompt so the planner doesn't open
+   * its reply with "我帶你過去" / "我先把你帶到 ImageStudio".
+   */
+  stayOnPageMode?: boolean;
   apiTools?: Array<{
     name: string;
     description: string;
@@ -1637,6 +1645,9 @@ export function buildOrbSystemPrompt(
   const assetLibraryBlock = serializeAssetLibraryBlock(extras?.assetLibrary);
   const confirmNote = extras?.alwaysConfirm
     ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
+    : "";
+  const stayOnPageNote = extras?.stayOnPageMode
+    ? "\n【使用者偏好】使用者已啟用「不跳頁、原地執行」模式：請不要在回覆裡寫「我帶你過去 / 我帶你到 ImageStudio」之類的導航語。改用「我這邊直接幫你跑這個任務」「進度會顯示在這裡」的措辭。所有生成步驟仍然要照常產出 toolName + toolArgs（後端會直接執行），但對應的 navigate / fillPrompt UI 步驟可以省略。"
     : "";
   const identityBlock = serializeIdentityBlock(extras?.userIdentity, extras?.rememberedPreferences);
   // Distilled aggregate over feedback + memories. Embedded after the
@@ -2007,7 +2018,7 @@ ${MODEL_RECOMMENDATION_KNOWLEDGE}
 ${WORKFLOW_KNOWLEDGE}
 
 ${buildLearnHubIndexKnowledge()}
-${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${distilledPreferenceBlock ? "\n\n" + distilledPreferenceBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${assetLibraryBlock ? "\n\n" + assetLibraryBlock : ""}${confirmNote}
+${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${distilledPreferenceBlock ? "\n\n" + distilledPreferenceBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${assetLibraryBlock ? "\n\n" + assetLibraryBlock : ""}${confirmNote}${stayOnPageNote}
 ${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 ${isImageStudioPage ? "\n" + IMAGE_STUDIO_CREATIVE_GUIDANCE : ""}
 ${isVideoStudioPage ? "\n" + VIDEO_STUDIO_CREATIVE_GUIDANCE : ""}

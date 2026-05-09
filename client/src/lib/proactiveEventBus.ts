@@ -32,6 +32,19 @@ export interface ProactiveEventPayloads {
   site_error_detected: { endpoint: string; errorCode: string | number; workaround: string };
   page_perf_bad: { tti: number; alternativePage?: string };
   feature_not_used: { featureName: string; lastSeenAt?: number };
+  /**
+   * 對話歷史接近 client-side compaction 上限。`usedPct` 是
+   * MAX(usedChars/MAX_CHAT_REQUEST_CHARS, messageCount/MAX_CHAT_REQUEST_MESSAGES)
+   * × 100，到 80 以上才該觸發。`conversationTitle` 是當前對話的標題，
+   * 卡片用來提示使用者舊話題會留在哪一頁。
+   */
+  context_near_full: {
+    usedPct: number;
+    messageCount: number;
+    usedChars: number;
+    capChars: number;
+    conversationTitle: string;
+  };
 }
 
 type Listener<E extends ProactiveTriggerEvent> = (payload: ProactiveEventPayloads[E]) => void;

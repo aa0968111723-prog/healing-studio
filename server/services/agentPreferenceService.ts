@@ -102,6 +102,14 @@ export async function loadAgentPreferencesForUser(
       favoriteSpirits: Array.isArray((row as { favoriteSpirits?: unknown }).favoriteSpirits)
         ? ((row as { favoriteSpirits?: string[] }).favoriteSpirits ?? [])
         : [],
+      // Phase 3: stay-on-page execution mode. Not all DB rows have this
+      // column yet (the runtime migration in agentPreferencesRouter
+      // adds it on first request); coerce missing / null to the
+      // default so existing rows behave identically to today.
+      stayOnPageMode:
+        typeof (row as { stayOnPageMode?: unknown }).stayOnPageMode === "boolean"
+          ? Boolean((row as { stayOnPageMode?: boolean }).stayOnPageMode)
+          : DEFAULT_AGENT_PREFERENCES.stayOnPageMode,
       // 主動精靈通知設定 — JSON 欄位，預設空 map（每個事件 fallback 到
       // DEFAULT_PROACTIVE_TRIGGER_SETTINGS）。沒欄位 / 解析失敗時也回 {}，
       // 確保 selectRoleForIntent 等下游永遠拿得到型別正確的 map。

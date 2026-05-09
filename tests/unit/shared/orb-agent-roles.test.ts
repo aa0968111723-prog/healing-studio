@@ -329,12 +329,33 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
     }
   });
 
-  it("proactive triggers all reference one of the 3 proactive spirits", () => {
-    const proactiveSet = new Set<AgentRole>(["accountant", "quality-coach", "inspector"]);
+  it("proactive triggers reference one of the proactive spirits OR companion (chat-state events)", () => {
+    // The original 3 proactive spirits handle cost / quality / site-error.
+    // `companion` (暖暖) was added later as the owner of conversation-state
+    // proactive events like `context_near_full`, since open-conversation
+    // upkeep is their natural beat. Lock the union here so adding new
+    // owners requires an explicit decision.
+    const allowed = new Set<AgentRole>([
+      "accountant",
+      "quality-coach",
+      "inspector",
+      "companion",
+    ]);
     for (const t of SPIRIT_PROACTIVE_TRIGGERS) {
-      expect(proactiveSet.has(t.spirit)).toBe(true);
+      expect(allowed.has(t.spirit)).toBe(true);
       expect(t.defaultPrompt.length).toBeGreaterThan(0);
     }
+  });
+
+  it("context_near_full is owned by the companion spirit + uses inline surface (don't auto-dismiss)", () => {
+    const ctx = SPIRIT_PROACTIVE_TRIGGERS.find(t => t.event === "context_near_full");
+    expect(ctx).toBeDefined();
+    expect(ctx?.spirit).toBe("companion");
+    expect(ctx?.surface).toBe("inline");
+    // Template tokens the publisher must supply.
+    expect(ctx?.defaultPrompt).toContain("{messageCount}");
+    expect(ctx?.defaultPrompt).toContain("{usedPct}");
+    expect(ctx?.defaultPrompt).toContain("{conversationTitle}");
   });
 });
 

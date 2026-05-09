@@ -47,6 +47,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { ProactiveNotificationCenter } from "@/lib/ProactiveNotificationCenter";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
@@ -573,6 +574,36 @@ function DashboardLayoutContent({
     }
     return {};
   }, [proactivePrefsQuery.data]);
+  // Global kill-switch + favourite-promotion. orbProactiveSuggestions=false
+  // silences EVERY proactive event (per-event triggerSettings can also turn
+  // individual ones off). favoriteSpirits promote a transient `surface:
+  // "toast"` event to a persistent ack-required notification card so the
+  // user has time to read it.
+  const proactiveGloballyEnabled = useMemo(() => {
+    const raw = (proactivePrefsQuery.data as { orbProactiveSuggestions?: boolean } | undefined)?.orbProactiveSuggestions;
+    return raw !== false;
+  }, [proactivePrefsQuery.data]);
+  const favoriteSpiritsForBus = useMemo(() => {
+    const raw = (proactivePrefsQuery.data as { favoriteSpirits?: string[] } | undefined)?.favoriteSpirits;
+    return Array.isArray(raw) ? raw : [];
+  }, [proactivePrefsQuery.data]);
+
+  // Per-event CTAs surfaced on the proactive notification card. Today
+  // we only need one: `context_near_full` → 「開新對話」which calls the
+  // global chat's createConversation. The card will dismiss itself
+  // after the click, so the user goes straight to the fresh tab.
+  const orbChat = useGlobalOrbChat();
+  const eventActions = useMemo(
+    () => ({
+      context_near_full: {
+        label: "開新對話",
+        onClick: () => {
+          void orbChat.createConversation();
+        },
+      },
+    }),
+    [orbChat],
+  );
 
   // 15 精靈 / 財財 (accountant)：點數餘額 query。掉到門檻以下時 publish
   // monthly_spend_threshold，讓 toast 出現「本月剩 N 點」提示。
@@ -751,10 +782,15 @@ function DashboardLayoutContent({
   return (
     <>
       {/* 主動精靈通知中心 — 取代舊的 toast 直發。卡片必須打勾才會消失，
-          per-event 開關 + 間隔走 agent_preferences.proactiveTriggerSettings。 */}
+          per-event 開關 + 間隔走 agent_preferences.proactiveTriggerSettings。
+          orbProactiveSuggestions=false 是全域 kill-switch，favoriteSpirits 把
+          被收藏的精靈事件升級成 ack 卡片。 */}
       <ProactiveNotificationCenter
         mutedSpirits={mutedSpiritsForBus}
         triggerSettings={triggerSettingsForBus}
+        globallyEnabled={proactiveGloballyEnabled}
+        favoriteSpirits={favoriteSpiritsForBus}
+        eventActions={eventActions}
       />
       {/* ── Apple-style floating dock (all viewports) ── */}
       <AppleDock

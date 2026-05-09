@@ -1002,7 +1002,8 @@ export type ProactiveTriggerEvent =
   | "prompt_too_short"          // 偵測到使用者 prompt 過於模糊
   | "site_error_detected"       // 全站出現 4xx / 5xx / 工具掛掉
   | "page_perf_bad"             // 某頁載入過慢 / TTI 超標
-  | "feature_not_used";         // 使用者長期沒用到某功能（升級時機）
+  | "feature_not_used"          // 使用者長期沒用到某功能（升級時機）
+  | "context_near_full";        // 對話歷史接近壓縮上限，建議開新對話
 
 export interface ProactiveTriggerSpec {
   /** 哪位精靈該被叫醒 */
@@ -1057,6 +1058,15 @@ export const SPIRIT_PROACTIVE_TRIGGERS: ReadonlyArray<ProactiveTriggerSpec> = [
     event: "feature_not_used",
     defaultPrompt: "你的方案有 {featureName} 沒用到，幫你看一下要怎麼接上去？",
     surface: "toast",
+  },
+  {
+    // 暖暖 (companion) 是對話陪伴角色，最適合提示「我們聊很久了，要不要換個房間？」
+    // surface=inline 確保留在畫面上直到使用者明確處理（按掉 OR 點開新對話）；
+    // 否則對話越打越長，舊輪次被默默 compact 掉，使用者沒有意識到。
+    spirit: "companion",
+    event: "context_near_full",
+    defaultPrompt: "我們已經聊了 {messageCount} 輪（約用掉 {usedPct}% 上下文）。再繼續下去舊內容會被自動省略，要不要開個新對話讓我們從頭來？舊話題我會留在「{conversationTitle}」分頁裡方便你回顧。",
+    surface: "inline",
   },
 ];
 

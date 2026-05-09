@@ -68,6 +68,8 @@ const UpdateSchema = z.object({
   // 上限 15（總共也只有 15 位）— 防止使用者塞無關 id 進來把資料庫 bloat 起來。
   mutedSpirits: z.array(z.string().max(40)).max(15).optional(),
   favoriteSpirits: z.array(z.string().max(40)).max(15).optional(),
+  // Phase 3: stay-on-page execution mode (auto-approve + server-side run).
+  stayOnPageMode: z.boolean().optional(),
 
   // 主動精靈通知設定 — 每個 ProactiveTriggerEvent 一筆 entry。少寫的 event
   // 自動套 DEFAULT_PROACTIVE_TRIGGER_SETTINGS（全開、5 分鐘、需打勾）。
@@ -114,7 +116,20 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
       `)) as unknown as Array<{ existsFlag: number }>;
       const existsFlag = Number(existsRows[0]?.existsFlag ?? 0);
       if (existsFlag === 1) return;
-      await db.execute(sql.raw(`ALTER TABLE agent_preferences ADD COLUMN ${definitionSql}`));
+      try {
+        await db.execute(sql.raw(`ALTER TABLE agent_preferences ADD COLUMN ${definitionSql}`));
+      } catch (err) {
+        // TOCTOU race: between the SELECT above and this ALTER, another
+        // process can have added the column. MySQL surfaces that as
+        // ER_DUP_FIELDNAME (1060). Treat it as success — the column
+        // exists, which is what we wanted. Any other failure rethrows
+        // so the outer `.catch` can null `ensureSchemaOnce` and let a
+        // retry pick up.
+        const code = (err as { code?: string } | null)?.code ?? "";
+        const errno = Number((err as { errno?: number } | null)?.errno ?? 0);
+        if (code === "ER_DUP_FIELDNAME" || errno === 1060) return;
+        throw err;
+      }
     };
 
     await addColumnIfMissing("preferredSpecialistAgent", "preferredSpecialistAgent varchar(64) NULL");
@@ -126,6 +141,13 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
     // 預設 NULL，下面 UPDATE 把 NULL 補成空陣列，避免 ORM 拿到 null 拋型別錯誤。
     await addColumnIfMissing("mutedSpirits", "mutedSpirits json NULL");
     await addColumnIfMissing("favoriteSpirits", "favoriteSpirits json NULL");
+    // Phase 3: stay-on-page execution mode (auto-approve tasks + run them
+    // server-side instead of routing the user away). Defaults false so
+    // existing rows keep the legacy navigate-and-fillPrompt UX.
+    await addColumnIfMissing(
+      "stayOnPageMode",
+      "stayOnPageMode boolean NOT NULL DEFAULT false"
+    );
     // 主動精靈通知偏好（per-event enable / interval / requireAck），同樣 NULL→{}。
     await addColumnIfMissing("proactiveTriggerSettings", "proactiveTriggerSettings json NULL");
 

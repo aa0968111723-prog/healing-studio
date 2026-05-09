@@ -165,6 +165,22 @@ export interface AgentPreferences {
    */
   favoriteSpirits: string[];
 
+  // ── Phase 3: stay-on-page execution mode ──────────────────────────────
+  /**
+   * When true, the orb runs media generation tasks entirely server-side
+   * (via `orbTask.approve` + the background driver) instead of routing
+   * the user to the matching studio page. The chat surfaces step progress
+   * through the existing `orbTask.events` stream so the user can see
+   * what's happening without leaving the current page.
+   *
+   * Defaults to false to preserve the legacy navigate-and-fillPrompt UX.
+   * When true the client also auto-approves tasked plans whose every step
+   * is in `autoApproveTools` or has riskLevel ≤ allowedRiskLevels — high-
+   * risk submit / publish steps still surface a confirmation card so we
+   * never silently push something destructive.
+   */
+  stayOnPageMode: boolean;
+
   /**
    * Per-event 設定：每個 ProactiveTriggerEvent 都可以單獨關閉，或設定最短
    * 出現間隔（同事件 N 毫秒內只會冒一次）。沒列在這 map 裡的事件 → 套
@@ -215,6 +231,7 @@ export const DEFAULT_AGENT_PREFERENCES: Omit<AgentPreferences, "userId"> = {
   onboardingCompletedAt: null,
   mutedSpirits: [],
   favoriteSpirits: [],
+  stayOnPageMode: false,
   // 預設空 map → 所有事件套 DEFAULT_PROACTIVE_TRIGGER_SETTINGS（全開、5 分鐘
   // 間隔、需要打勾才消失）。使用者調整後才會有 entry 被寫進來。
   proactiveTriggerSettings: {},
@@ -228,17 +245,27 @@ export function resolveProactiveTriggerSettings(
   event: ProactiveTriggerEvent,
   map: ProactiveTriggerSettingsMap | null | undefined,
 ): Required<ProactiveTriggerSettings> {
-  const override = map?.[event];
-  if (!override) return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  // Type guard: a malformed DB row could store this column as a string,
+  // an array, or a deeply-cached value of the wrong shape. Without this
+  // guard `map?.[event]` would access `undefined` on a string, silently
+  // erasing every per-event override the user set.
+  if (!map || typeof map !== "object" || Array.isArray(map)) {
+    return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  }
+  const override = (map as Record<string, unknown>)[event];
+  if (!override || typeof override !== "object" || Array.isArray(override)) {
+    return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  }
+  const overrideObj = override as Partial<ProactiveTriggerSettings>;
   return {
-    enabled: typeof override.enabled === "boolean"
-      ? override.enabled
+    enabled: typeof overrideObj.enabled === "boolean"
+      ? overrideObj.enabled
       : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.enabled,
-    minIntervalMs: typeof override.minIntervalMs === "number" && override.minIntervalMs > 0
-      ? Math.min(Math.max(override.minIntervalMs, 5_000), 86_400_000)
+    minIntervalMs: typeof overrideObj.minIntervalMs === "number" && overrideObj.minIntervalMs > 0
+      ? Math.min(Math.max(overrideObj.minIntervalMs, 5_000), 86_400_000)
       : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.minIntervalMs,
-    requireAck: typeof override.requireAck === "boolean"
-      ? override.requireAck
+    requireAck: typeof overrideObj.requireAck === "boolean"
+      ? overrideObj.requireAck
       : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.requireAck,
   };
 }

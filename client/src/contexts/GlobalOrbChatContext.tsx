@@ -38,6 +38,8 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
+import { evaluateStepOutcome } from "../../../shared/orb-perception-loop";
+import type { PageAgentSnapshot } from "../../../shared/agent-actions";
 import { globalAgentRegistry } from "../../../shared/global-agent-registry";
 import {
   buildFeatureSummaryReply,
@@ -1985,6 +1987,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [activeProgressRequestId, setActiveProgressRequestId] = useState<string | null>(null);
   const [progressEvents, setProgressEvents] = useState<OrbChatProgressEvent[]>([]);
   const lastProgressSeqRef = useRef(0);
+  // Perception loop: rolling "before" snapshot. Filled with the page
+  // state we observed at the start of the workflow; each step's
+  // observeAfterStep updates it to the post-step snapshot so the next
+  // step compares against the most recent observation.
+  const perceptionSnapshotRef = useRef<PageAgentSnapshot | null>(null);
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
@@ -2235,6 +2242,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
     const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
     const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
+    // Phase 3: stay-on-page mode auto-approves the orb task instead of
+    // surfacing the WorkflowConfirmationCard / handing off to a studio
+    // page. The task then drives itself in the background server-side
+    // and step events surface via the existing orbTask.events poll.
+    const orbTaskApprove = trpc.ai.orbTask.approve.useMutation();
 
     // Only ping providers when authenticated to avoid 401 modals for guests.
     const meQuery = trpc.auth.me.useQuery(undefined, {
@@ -2308,6 +2320,42 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     if (messages.length > 0)
       saveMessagesToStorage(activeConversationId, messages);
   }, [messages, activeConversationId]);
+
+  // ─── Context-window fullness watchdog (15 精靈 / 暖暖) ──────────────────
+  // The chat handler trims history to MAX_CHAT_REQUEST_MESSAGES /
+  // MAX_CHAT_REQUEST_CHARS before sending. Once the conversation
+  // approaches that cap, older turns get silently dropped — the user
+  // notices "the orb forgot what we said earlier" without realising why.
+  // This watchdog publishes `context_near_full` at 80% and lets the
+  // notification center surface 暖暖's "要不要開新對話？" card.
+  // dedupeKey is per-conversation so jumping to a fresh tab doesn't
+  // inherit the parent tab's nag.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const usedChars = messages.reduce((acc, m) => acc + (m.text?.length ?? 0), 0);
+    const messageCount = messages.length;
+    const charsPct = (usedChars / MAX_CHAT_REQUEST_CHARS) * 100;
+    const countPct = (messageCount / MAX_CHAT_REQUEST_MESSAGES) * 100;
+    const usedPct = Math.round(Math.max(charsPct, countPct));
+    if (usedPct < 80) return;
+    const conversationTitle =
+      conversations.find(c => c.conversationId === activeConversationId)?.title ?? "目前對話";
+    ProactiveEventBus.publish(
+      "context_near_full",
+      {
+        usedPct,
+        messageCount,
+        usedChars,
+        capChars: MAX_CHAT_REQUEST_CHARS,
+        conversationTitle,
+      },
+      // Per-conversation dedupe so a new tab doesn't inherit the nag.
+      // 30 min interval — once the user dismisses we don't re-poke
+      // until they've added enough turns to cross 80% again from a
+      // fresh baseline (or half an hour passes).
+      { dedupeKey: `context_near_full:${activeConversationId}`, dedupeMs: 30 * 60_000 }
+    );
+  }, [messages, activeConversationId, conversations]);
 
   // ─── Persist conversation list + active id whenever they change ────────
   useEffect(() => {
@@ -2603,6 +2651,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     intent?: string;
     requireConfirmation?: boolean;
   } = {}) => {
+    // Perception loop preferences. Defaults match
+    // DEFAULT_AGENT_PREFERENCES (perceptionEnabled=true, "balanced")
+    // so existing users get the behaviour the audit comments promised.
+    const perceptionEnabled =
+      (agentPreferencesQuery.data as { perceptionEnabled?: boolean } | undefined)
+        ?.perceptionEnabled !== false;
+    const perceptionStrictnessRaw = (agentPreferencesQuery.data as
+      | { perceptionStrictness?: string }
+      | undefined)?.perceptionStrictness;
+    const perceptionStrictness: "lenient" | "balanced" | "strict" =
+      perceptionStrictnessRaw === "lenient" || perceptionStrictnessRaw === "strict"
+        ? perceptionStrictnessRaw
+        : "balanced";
+    // Seed the rolling "before" snapshot with the current page state so
+    // the first step's verdict has something to diff against.
+    perceptionSnapshotRef.current = pageAgent.snapshot ?? null;
     // ─── Client-only meta actions ────────────────────────────────────────
     // exportChatPdf / shareViaLink never reach the orchestrator — they run
     // entirely in the browser and produce a system reply directly. We pull
@@ -2767,6 +2831,54 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             prev ? setWorkflowStepPhase(prev, event) : prev
           );
         },
+        // Perception loop wiring — when the user has perceptionEnabled
+        // turned on, we capture a snapshot before each step (rolling
+        // ref below), call evaluateStepOutcome on the (action, before,
+        // after, result) tuple, and forward the recommendation. The
+        // strictness setting tunes how aggressively a "no-effect"
+        // verdict escalates: lenient never retries, balanced uses the
+        // verdict as-is, strict promotes "retry" to "replan" so the
+        // planner gets called.
+        observeAfterStep: perceptionEnabled
+          ? async ({ step, result }) => {
+              try {
+                const before = perceptionSnapshotRef.current;
+                const after = pageAgent.snapshot ?? null;
+                // Workflow steps carry the action as `actionType + payload`,
+                // not as a tagged AgentAction union. Synthesise the minimal
+                // shape evaluateStepOutcome needs — it only switches on
+                // `.type`. The cast is acceptable here because the
+                // perception loop never mutates the action.
+                const syntheticAction = {
+                  type: step.actionType,
+                  ...(step.path ? { path: step.path } : {}),
+                } as unknown as AgentAction;
+                const verdict = evaluateStepOutcome({
+                  action: syntheticAction,
+                  before,
+                  after,
+                  dispatchResult: result,
+                });
+                perceptionSnapshotRef.current = after;
+                let recommendation = verdict.recommendation;
+                if (perceptionStrictness === "lenient" && recommendation === "retry") {
+                  recommendation = "proceed";
+                } else if (
+                  perceptionStrictness === "strict" &&
+                  recommendation === "retry"
+                ) {
+                  recommendation = "replan";
+                }
+                return { recommendation, reason: verdict.reason };
+              } catch (err) {
+                console.warn(
+                  "[GlobalOrbChat] perception observeAfterStep failed:",
+                  err instanceof Error ? err.message : String(err),
+                );
+                return { recommendation: "proceed" };
+              }
+            }
+          : undefined,
       });
 
       const failed = results.find(result => !result.ok);
@@ -2799,10 +2911,35 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           actionType: failedActionType ?? "runWorkflow",
           note: failedReason,
         });
+        // notifyOnError mirror — surface a system toast for the
+        // partial-failure path the same way the catch branch does.
+        const notifyOnStepFail =
+          (agentPreferencesQuery.data as { notifyOnError?: boolean } | undefined)
+            ?.notifyOnError !== false;
+        if (notifyOnStepFail) {
+          toast.error("光球執行流程中斷", {
+            description: failure.summary.slice(0, 200),
+            duration: 12_000,
+          });
+        }
       } else if (nextWorkflowExecution) {
         const now = Date.now();
         setWorkflowExecution(prev => (prev ? completeWorkflow(prev, now) : prev));
         orbState.setState("success", `${nextWorkflowExecution.name} 完成`);
+        // Wire notifyOnCompletion so the user gets a system toast even
+        // when the orb panel is closed. Defaults to true (matches
+        // DEFAULT_AGENT_PREFERENCES); only suppressed when explicitly
+        // false. Safe-guard: fire only when there's a real workflow with
+        // multiple steps — single-step "complete" events would spam.
+        const notifyComplete =
+          (agentPreferencesQuery.data as { notifyOnCompletion?: boolean } | undefined)
+            ?.notifyOnCompletion !== false;
+        if (notifyComplete && nextWorkflowExecution.total > 1) {
+          toast.success(`✅ ${nextWorkflowExecution.name} 完成`, {
+            description: `已完成 ${nextWorkflowExecution.total} 步`,
+            duration: 6_000,
+          });
+        }
       } else {
         orbState.setState("success", "完成");
       }
@@ -2819,8 +2956,20 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         at: Date.now(),
         pagePath: locationPath,
       }]);
+      // Wire notifyOnError. Defaults to true; surfaces a persistent toast
+      // (no duration limit) so the user can read the failure even after
+      // navigating away.
+      const notifyError =
+        (agentPreferencesQuery.data as { notifyOnError?: boolean } | undefined)
+          ?.notifyOnError !== false;
+      if (notifyError) {
+        toast.error("光球執行流程失敗", {
+          description: reason.slice(0, 200),
+          duration: 12_000,
+        });
+      }
     }
-  }, [pageAgent, locationPath, setLocation, orbState, attachArrivalGuide]);
+  }, [pageAgent, locationPath, setLocation, orbState, attachArrivalGuide, agentPreferencesQuery.data]);
 
   // Forward declaration for the auto-execute branch inside `sendMessage`.
   // The actual `startPendingWorkflow` callback is defined further down (it
@@ -3118,6 +3267,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               (prefRow as { mutedSpirits?: string[] }).mutedSpirits,
             favoriteSpirits:
               (prefRow as { favoriteSpirits?: string[] }).favoriteSpirits,
+            // Phase 3: stay-on-page mode. Forwarded so the server knows
+            // not to bake "我帶你過去" into the planner reply when the
+            // user has opted into hands-off in-place execution.
+            stayOnPageMode:
+              (prefRow as { stayOnPageMode?: boolean }).stayOnPageMode ?? false,
+            // Phase D wiring follow-up: these used to be saved but never
+            // read at runtime. Forwarding them so `criticEnabled` actually
+            // flips the chat handler over to the critique-aware planner,
+            // and `roleAutoSwitch=false` actually locks the orb to its
+            // default companion persona.
+            criticEnabled:
+              (prefRow as { criticEnabled?: boolean }).criticEnabled ?? undefined,
+            criticRefineBelow:
+              (prefRow as { criticRefineBelow?: number }).criticRefineBelow ?? undefined,
+            roleAutoSwitch:
+              (prefRow as { roleAutoSwitch?: boolean }).roleAutoSwitch ?? undefined,
           }
         : undefined;
       // When the user pasted a long brief, pre-parse it and stamp the
@@ -3548,6 +3713,60 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
       if (executorTask) {
         const pages = Array.from(new Set(executorTask.steps.map(step => step.pagePath).filter((v): v is string => Boolean(v))));
+        // Phase 3 stay-on-page: auto-approve the task and let the background
+        // driver run it server-side. We still respect the per-step
+        // requiresApproval flag on high-risk submit / publish steps —
+        // those surface as their own gates inside the executor's polling
+        // loop, so the user never silently authors anything destructive.
+        const stayOnPage =
+          (preferencesForChat as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode === true;
+        const allowedRiskLevels = new Set(
+          (preferencesForChat as { allowedRiskLevels?: string[] } | undefined)?.allowedRiskLevels ?? ["low", "medium"]
+        );
+        const everyStepRiskAllowed = executorTask.steps.every(step => {
+          const reqApproval = step.requiresApproval === true;
+          const stepRisk = String((step as { riskLevel?: string }).riskLevel ?? executorTask.riskLevel ?? "medium").toLowerCase();
+          // High-risk OR explicitly approval-gated steps still need the
+          // confirmation card; we never auto-approve those silently.
+          if (reqApproval) return false;
+          return allowedRiskLevels.has(stepRisk);
+        });
+        const taskIdLooksReal =
+          typeof executorTask.taskId === "string" &&
+          !executorTask.taskId.startsWith("draft_");
+        if (stayOnPage && everyStepRiskAllowed && taskIdLooksReal) {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: "orb",
+              text: `🚀 已啟動：「${executorTask.summaryForUser}」。我會在背景接力跑完，過程進度直接顯示在這裡，你不用換頁。`,
+              at: Date.now(),
+              pagePath: locationPath,
+              intent: executorTask.summaryForUser,
+              ...spiritFields,
+            },
+          ]);
+          // Fire-and-forget approval. The existing useGlobalOrbExecutor
+          // poll picks up step.* events and surfaces them through
+          // OrbTaskObservationStrip; we don't need to await here.
+          void orbTaskApprove
+            .mutateAsync({ taskId: executorTask.taskId })
+            .catch(err => {
+              console.warn(
+                "[GlobalOrbChat] stayOnPageMode auto-approve failed:",
+                err instanceof Error ? err.message : String(err),
+              );
+              // Fall back to the manual confirmation card so the user
+              // can still kick the task off explicitly.
+              setPendingExecutorTask({
+                task: executorTask,
+                requiresHumanReason:
+                  "光球試著直接執行但被擋下來了，你可以手動確認。",
+                affectedPages: pages,
+              });
+            });
+          return;
+        }
         setPendingExecutorTask({
           task: executorTask,
           requiresHumanReason: (data as { reply?: string; warnings?: string[] }).reply,

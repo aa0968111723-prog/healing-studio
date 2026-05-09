@@ -17,7 +17,7 @@
  * Mount 一次在 DashboardLayout 即可；元件本身既訂閱 bus 也渲染卡片。
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +43,16 @@ interface QueuedNotification {
   surface: "toast" | "inline" | "blocking";
   requireAck: boolean;
   createdAt: number;
+  /**
+   * Optional CTA button rendered next to the ack button. Used by events
+   * that imply an action the user might want to take inline (e.g.
+   * `context_near_full` → 「開新對話」). Pressing the action also
+   * acknowledges the card.
+   */
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ProactiveNotificationCenterProps {
@@ -50,6 +60,30 @@ interface ProactiveNotificationCenterProps {
   mutedSpirits: string[];
   /** 使用者偏好中的 per-event 設定。 */
   triggerSettings: ProactiveTriggerSettingsMap;
+  /**
+   * 全域 kill-switch — 對應 `agentPreferences.orbProactiveSuggestions`。false
+   * 時整個中心不訂閱任何事件，不論 per-event setting 如何。Defaults to true
+   * so callers that don't yet pass the prop keep the legacy behaviour.
+   */
+  globallyEnabled?: boolean;
+  /**
+   * 使用者收藏的精靈 id（`agentPreferences.favoriteSpirits`）。被收藏的精靈
+   * 觸發事件時，原本 `surface: "toast"` 的 8s 自動消失會升級為 ack 卡片，
+   * 確保使用者有時間反應。Muted spirits 仍直接跳過。
+   */
+  favoriteSpirits?: string[];
+  /**
+   * Optional per-event CTA buttons. Keyed by ProactiveTriggerEvent id.
+   * When the event surfaces a card, the card gets an extra button next
+   * to the ack one with `label`; clicking calls `onClick(payload)` and
+   * dismisses the card. Used for `context_near_full` → "開新對話" today.
+   */
+  eventActions?: Partial<
+    Record<
+      ProactiveTriggerEvent,
+      { label: string; onClick: (payload: unknown) => void }
+    >
+  >;
 }
 
 /**
@@ -65,19 +99,50 @@ function fillTemplate(template: string, payload: Record<string, unknown>): strin
 export function ProactiveNotificationCenter({
   mutedSpirits,
   triggerSettings,
+  globallyEnabled = true,
+  favoriteSpirits = [],
+  eventActions,
 }: ProactiveNotificationCenterProps) {
   const [queue, setQueue] = useState<QueuedNotification[]>([]);
   const mutedSet = useMemo(() => new Set(mutedSpirits), [mutedSpirits]);
+  const favoriteSet = useMemo(() => new Set(favoriteSpirits), [favoriteSpirits]);
 
   // Track per-event 上次顯示時間 — 配合 user-set minIntervalMs 做節流。state 而
   // 非 ref，使被 ack 後若使用者開短 interval，重新發新一筆能立即比對最新值。
   const [lastSurfaceAt, setLastSurfaceAt] = useState<Record<string, number>>({});
 
+  // F2 fix: throttle gate compares against MAX(last-surfaced, last-dismissed).
+  // Without tracking dismissals separately, a user who acks a card and gets
+  // hit by the same event 3 seconds later would see a fresh card — bypassing
+  // the per-event minIntervalMs they configured.
+  const dismissedAtRef = useRef<Record<string, number>>({});
+
   const dismiss = useCallback((id: string) => {
-    setQueue(prev => prev.filter(n => n.id !== id));
+    setQueue(prev => {
+      const target = prev.find(n => n.id === id);
+      if (target) {
+        dismissedAtRef.current[target.event] = Date.now();
+      }
+      return prev.filter(n => n.id !== id);
+    });
   }, []);
 
+  // F1 fix: when the global kill-switch flips off → on, the throttle window
+  // should reset. Without this, a user who disables suggestions for 10 min
+  // then re-enables them would see throttle history from 10 min ago and the
+  // event might fire instantly on re-enable. Same teardown clears the
+  // pending queue so a stale card doesn't outlive the disable period.
   useEffect(() => {
+    if (!globallyEnabled) {
+      setLastSurfaceAt({});
+      dismissedAtRef.current = {};
+      setQueue([]);
+    }
+  }, [globallyEnabled]);
+
+  useEffect(() => {
+    // 0) Global kill-switch (orbProactiveSuggestions=false) — 不訂閱任何事件。
+    if (!globallyEnabled) return;
     const unsubscribers: Array<() => void> = [];
 
     for (const trigger of SPIRIT_PROACTIVE_TRIGGERS) {
@@ -86,6 +151,7 @@ export function ProactiveNotificationCenter({
 
       const spirit = getSpiritVisual(trigger.spirit);
       if (!spirit) continue;
+      const isFavorite = favoriteSet.has(trigger.spirit);
 
       const unsub = ProactiveEventBus.subscribe(
         trigger.event as ProactiveTriggerEvent,
@@ -97,10 +163,15 @@ export function ProactiveNotificationCenter({
           );
           if (!settings.enabled) return;
 
-          // 3) Per-event interval throttle (overrides bus 預設的 30s)
+          // 3) Per-event interval throttle (overrides bus 預設的 30s).
+          //    Compare against the LATER of last-surfaced and last-dismissed
+          //    so a user who dismissed a card 3s ago doesn't get the same
+          //    event re-shown until minIntervalMs has elapsed since dismiss.
           const now = Date.now();
-          const last = lastSurfaceAt[trigger.event] ?? 0;
-          if (now - last < settings.minIntervalMs) return;
+          const lastSurface = lastSurfaceAt[trigger.event] ?? 0;
+          const lastDismiss = dismissedAtRef.current[trigger.event] ?? 0;
+          const lastTouch = Math.max(lastSurface, lastDismiss);
+          if (now - lastTouch < settings.minIntervalMs) return;
 
           const message = fillTemplate(
             trigger.defaultPrompt,
@@ -108,7 +179,10 @@ export function ProactiveNotificationCenter({
           );
 
           // blocking 永遠進中心並強制 ack；其他 surface 看 requireAck。
-          const requireAck = trigger.surface === "blocking" || settings.requireAck;
+          // 收藏的精靈（favoriteSpirits）強制升級到 ack 卡片，避免 8s toast
+          // 沖過去使用者沒看到。
+          const requireAck =
+            trigger.surface === "blocking" || settings.requireAck || isFavorite;
 
           // toast surface + 不要 ack：保留原本 sonner 短期行為，不進中心。
           if (trigger.surface === "toast" && !requireAck) {
@@ -119,6 +193,16 @@ export function ProactiveNotificationCenter({
           }
 
           const id = `${trigger.event}_${now}_${Math.random().toString(36).slice(2, 6)}`;
+          // Bind the per-event CTA at queue-time. We snapshot the payload
+          // so a stale event later in the queue still hits with the
+          // values it was emitted with (not the most recent emission).
+          const actionSpec = eventActions?.[trigger.event as ProactiveTriggerEvent];
+          const cardAction = actionSpec
+            ? {
+                label: actionSpec.label,
+                onClick: () => actionSpec.onClick(payload),
+              }
+            : undefined;
           setQueue(prev => {
             // 同一事件已在佇列中就不疊一張新的，避免 spam（使用者改設 interval=5s
             // 但事件源連發 5 次的場景）。
@@ -136,6 +220,7 @@ export function ProactiveNotificationCenter({
                 surface: trigger.surface,
                 requireAck,
                 createdAt: now,
+                ...(cardAction ? { action: cardAction } : {}),
               },
             ];
           });
@@ -148,10 +233,15 @@ export function ProactiveNotificationCenter({
     return () => {
       for (const u of unsubscribers) u();
     };
-    // 把 mutedSet 與 triggerSettings 換成穩定 hash 才不會每次 prefs 物件 re-create
-    // 都重訂閱 — listener 內每次拉最新值即可，不必重綁。
+    // 把 mutedSet / favouriteSet / triggerSettings 換成穩定 hash 才不會每次
+    // prefs 物件 re-create 都重訂閱 — listener 內每次拉最新值即可。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mutedSpirits.join("|"), JSON.stringify(triggerSettings)]);
+  }, [
+    globallyEnabled,
+    mutedSpirits.join("|"),
+    favoriteSpirits.join("|"),
+    JSON.stringify(triggerSettings),
+  ]);
 
   if (queue.length === 0) return null;
 
@@ -227,6 +317,19 @@ function ProactiveCard({ notification, onAck, onClose }: ProactiveCardProps) {
         </div>
       </div>
       <div className="mt-2 flex items-center justify-end gap-2">
+        {notification.action && (
+          <button
+            type="button"
+            onClick={() => {
+              notification.action?.onClick();
+              onAck();
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold bg-sky-500 hover:bg-sky-600 text-white"
+            data-testid={`proactive-card-action-${notification.event}`}
+          >
+            {notification.action.label}
+          </button>
+        )}
         <button
           type="button"
           onClick={onAck}
