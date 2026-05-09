@@ -5994,6 +5994,13 @@ export const appRouter = router({
                 failedCount: extraction.failedCount,
                 hasUnextractableBinary: extraction.hasUnextractableBinary,
               });
+              if (extraction.injectionTriggers.length > 0) {
+                appendTelemetryEvent(
+                  telemetryEvents,
+                  "pdf_attachment.injection_redacted",
+                  { triggers: extraction.injectionTriggers.join(",") }
+                );
+              }
               if (extraction.extractedCount > 0 && !extraction.hasUnextractableBinary) {
                 plannerMessages = extraction.messages as unknown as typeof plannerMessages;
                 routeIntent = "planner_text";

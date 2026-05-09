@@ -17,6 +17,7 @@
  */
 import type { Message, MessageContent, FileContent } from "../_core/llm";
 import { logger } from "../_core/logger";
+import { sanitizeOrbUserText } from "../../shared/orb-prompt-defense";
 import { extractPdfTextFromUrl, type PdfTextExtractionOptions } from "./pdfTextExtractor";
 
 export interface OrbAttachmentExtractionResult {
@@ -28,6 +29,8 @@ export interface OrbAttachmentExtractionResult {
   failedCount: number;
   /** True when at least one binary attachment is still present (image/audio/video). */
   hasUnextractableBinary: boolean;
+  /** Prompt-defense triggers fired while sanitizing extracted PDF bodies. */
+  injectionTriggers: string[];
 }
 
 function isFileUrlPart(part: unknown): part is FileContent {
@@ -66,6 +69,23 @@ function fileNameFromUrl(url: string): string {
   }
 }
 
+interface SanitizedBody {
+  text: string;
+  triggers: string[];
+}
+
+/**
+ * Run extracted PDF text through the same prompt-injection sanitizer the
+ * user's typed message goes through. Without this, a malicious PDF could
+ * embed "ignore previous instructions" / fake `<|system|>` role markers
+ * and the text-only LLM would see them unfiltered when the multimodal
+ * fallback inlines the body.
+ */
+function sanitizeExtractedBody(raw: string): SanitizedBody {
+  const result = sanitizeOrbUserText(raw);
+  return { text: result.sanitized, triggers: result.triggers };
+}
+
 function buildInlinedPdfText(name: string, body: string, truncated: boolean): string {
   const suffix = truncated ? "（內容較長，已自動截斷）" : "";
   return `📎 附件「${name}」內容${suffix}：\n${body.trim()}`;
@@ -87,6 +107,7 @@ export async function extractPdfAttachmentsToText(
   let extractedCount = 0;
   let failedCount = 0;
   let hasUnextractableBinary = false;
+  const allInjectionTriggers = new Set<string>();
 
   const rewritten: Message[] = [];
 
@@ -111,9 +132,11 @@ export async function extractPdfAttachmentsToText(
         });
         if (result) {
           extractedCount += 1;
+          const cleaned = sanitizeExtractedBody(result.text);
+          cleaned.triggers.forEach(trigger => allInjectionTriggers.add(trigger));
           nextParts.push({
             type: "text",
-            text: buildInlinedPdfText(name, result.text, result.truncated),
+            text: buildInlinedPdfText(name, cleaned.text, result.truncated),
           });
         } else {
           failedCount += 1;
@@ -134,7 +157,13 @@ export async function extractPdfAttachmentsToText(
     rewritten.push({ ...message, content: nextParts });
   }
 
-  return { messages: rewritten, extractedCount, failedCount, hasUnextractableBinary };
+  return {
+    messages: rewritten,
+    extractedCount,
+    failedCount,
+    hasUnextractableBinary,
+    injectionTriggers: Array.from(allInjectionTriggers),
+  };
 }
 
 export function countPdfAttachments(messages: Message[]): number {
