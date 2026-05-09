@@ -15,6 +15,7 @@ import {
   invokeLLM,
   extractMessageText,
   extractMessageJson,
+  LLMPermanentError,
   type Message,
 } from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
@@ -721,6 +722,58 @@ function appendTelemetryEvent(
       Object.entries(payload).map(([k, v]) => [k, sanitizeTelemetryValue(v)])
     ),
   });
+}
+
+/**
+ * Map an orb-chat exception to a healing-tone reply that actually tells the
+ * operator what to fix. Covers the four real-world API-outage shapes:
+ *   - LLMPermanentError(auth)   → 金鑰無效 / 401 / 403
+ *   - LLMPermanentError(quota)  → 額度耗盡 / 402 / credit balance
+ *   - "沒有可用的 LLM 引擎"      → 完全沒設過任何金鑰
+ *   - aggregate "金鑰／額度問題" → 整條降級鏈都壞了
+ * Anything else falls back to the generic transient line so we don't leak
+ * stack traces, but the previous catch silently treated the first three as
+ * transient too, which is why the user only ever saw 「去設定頁檢查 API 設定」.
+ */
+function classifyOrbChatErrorReply(err: unknown, errorMsg: string): string {
+  const lower = errorMsg.toLowerCase();
+  const settingsHint = "可以到 /admin/api-usage 檢查 providerReadiness。";
+
+  if (err instanceof LLMPermanentError) {
+    if (err.reason === "permanent_auth") {
+      return `🌿 抱歉，我連不上 AI 大腦 — 看起來 API 金鑰失效或被拒絕（${err.status}）。請更新 OPENROUTER_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 後重啟服務。${settingsHint}`;
+    }
+    if (err.reason === "permanent_quota") {
+      return `🌿 抱歉，AI 服務商回報額度／餘額不足（${err.status}）。請到對應供應商儀表板補額度，或先切換到還有額度的引擎。${settingsHint}`;
+    }
+  }
+
+  if (err instanceof TRPCError && err.code === "SERVICE_UNAVAILABLE") {
+    return `🌿 ${errorMsg}`;
+  }
+
+  // Aggregate from invokeLLM when every engine in the chain hit a permanent error.
+  if (errorMsg.includes("所有可用引擎皆因金鑰") || errorMsg.includes("金鑰／額度問題失敗")) {
+    return `🌿 抱歉，所有 AI 引擎暫時都連不上（金鑰或額度問題）。請檢查 OPENROUTER_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 是否仍有效。${settingsHint}`;
+  }
+
+  // Thrown from resolveEngineConfig when no provider env var is set at all.
+  if (errorMsg.includes("沒有可用的 LLM 引擎") || /no .*llm engine/i.test(errorMsg)) {
+    return `🌿 後端尚未設定任何 AI 引擎金鑰。請至少設定 OPENROUTER_API_KEY 或 ANTHROPIC_API_KEY 後重啟服務。${settingsHint}`;
+  }
+
+  // Other config-style errors that bubbled up as plain text.
+  if (/api[_-]?key|未設定|providerReadiness/i.test(errorMsg)) {
+    return `🌿 ${errorMsg}`;
+  }
+
+  // Timeout from withTimeout("全站光球代理") — surface a retry hint, not the
+  // generic "check settings" line, since this is usually a transient slowdown.
+  if (lower.includes("timed out") || errorMsg.includes("全站光球代理")) {
+    return "🌿 AI 大腦這次回應有點慢（已超時）。稍等一下再試一次，通常就會恢復。";
+  }
+
+  return "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。";
 }
 
 function getBrainSelectedEngine(
@@ -6744,13 +6797,12 @@ export const appRouter = router({
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
-          const isConfigError =
-            err instanceof TRPCError &&
-            err.code === "SERVICE_UNAVAILABLE" &&
-            /API_KEY|未設定|providerReadiness/i.test(errorMsg);
-          const fallbackReply = isConfigError
-            ? `🌿 ${errorMsg}`
-            : "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。";
+          // Classify the failure so the user gets an actionable healing-tone
+          // message instead of the generic "去設定頁檢查 API 設定" line.
+          // The previous classifier only matched TRPCError SERVICE_UNAVAILABLE,
+          // but invokeLLM throws plain Error / LLMPermanentError, so every API
+          // outage was masked behind the same vague reply.
+          const fallbackReply = classifyOrbChatErrorReply(err, errorMsg);
           // Return healing-style fallback rather than crashing
           const meta = makePlannerMeta({
             plannerStatus: "fallback-error",

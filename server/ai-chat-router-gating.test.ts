@@ -28,6 +28,7 @@ vi.mock("./_core/llm", async importOriginal => {
 });
 
 import { appRouter } from "./routers";
+import { invokeLLM, LLMPermanentError } from "./_core/llm";
 import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
 
@@ -386,5 +387,102 @@ describe("ai.chat planner gating handling", () => {
     expect(result.task?.taskId).toBeTruthy();
     expect(result.taskDraft?.taskId).toBe("draft_002");
     spy.mockRestore();
+  });
+
+  // Regression: production user saw the generic 「設定頁檢查 API 設定」 line
+  // even when the underlying failure was a real permanent auth/quota error.
+  // The catch handler now classifies LLMPermanentError and aggregate
+  // 「金鑰／額度」 strings so the reply tells the operator what to fix.
+  describe("api-connection error classification", () => {
+    const mockedInvokeLLM = vi.mocked(invokeLLM);
+
+    it("LLMPermanentError(auth) surfaces a 金鑰失效 hint, not the generic line", async () => {
+      mockedPlanner.mockRejectedValueOnce(new Error("planner skipped"));
+      mockedInvokeLLM.mockRejectedValueOnce(
+        new LLMPermanentError(
+          "[OpenRouter] 401 invalid api key",
+          "permanent_auth",
+          401
+        )
+      );
+
+      const caller = appRouter.createCaller(createMockContext());
+      const result = await caller.ai.chat({
+        messages: [{ role: "user", content: "幫我錄一集 podcast" }],
+        personality: "creative",
+      });
+
+      expect(result.plannerStatus).toBe("fallback-error");
+      expect(result.reply).toMatch(/金鑰失效|金鑰.*被拒絕/);
+      expect(result.reply).toContain("OPENROUTER_API_KEY");
+      expect(result.reply).not.toContain("我剛才遇到了一點小狀況");
+    });
+
+    it("LLMPermanentError(quota) surfaces an 額度 hint", async () => {
+      mockedPlanner.mockRejectedValueOnce(new Error("planner skipped"));
+      mockedInvokeLLM.mockRejectedValueOnce(
+        new LLMPermanentError(
+          "[Anthropic] credit balance is too low",
+          "permanent_quota",
+          402
+        )
+      );
+
+      const caller = appRouter.createCaller(createMockContext());
+      const result = await caller.ai.chat({
+        messages: [{ role: "user", content: "幫我錄一集 podcast" }],
+        personality: "creative",
+      });
+
+      expect(result.plannerStatus).toBe("fallback-error");
+      expect(result.reply).toMatch(/額度|餘額/);
+      expect(result.reply).not.toContain("我剛才遇到了一點小狀況");
+    });
+
+    it("aggregate '金鑰／額度問題失敗' from invokeLLM is surfaced as the chain-failure hint", async () => {
+      mockedPlanner.mockRejectedValueOnce(new Error("planner skipped"));
+      mockedInvokeLLM.mockRejectedValueOnce(
+        new Error(
+          "[LLM] 所有可用引擎皆因金鑰／額度問題失敗：openrouter（permanent_auth）、anthropic（permanent_quota）"
+        )
+      );
+
+      const caller = appRouter.createCaller(createMockContext());
+      const result = await caller.ai.chat({
+        messages: [{ role: "user", content: "幫我錄一集 podcast" }],
+        personality: "creative",
+      });
+
+      expect(result.reply).toContain("所有 AI 引擎暫時都連不上");
+      expect(result.reply).toContain("OPENROUTER_API_KEY");
+    });
+
+    it("'沒有可用的 LLM 引擎' surfaces the no-key-set hint", async () => {
+      mockedPlanner.mockRejectedValueOnce(new Error("planner skipped"));
+      mockedInvokeLLM.mockRejectedValueOnce(
+        new Error("沒有可用的 LLM 引擎！請在 .env 中設定 OPENROUTER_API_KEY")
+      );
+
+      const caller = appRouter.createCaller(createMockContext());
+      const result = await caller.ai.chat({
+        messages: [{ role: "user", content: "幫我錄一集 podcast" }],
+        personality: "creative",
+      });
+
+      expect(result.reply).toContain("尚未設定任何 AI 引擎金鑰");
+    });
+
+    it("plain transient error still uses the generic healing fallback", async () => {
+      mockedPlanner.mockRejectedValueOnce(new Error("planner skipped"));
+      mockedInvokeLLM.mockRejectedValueOnce(new Error("ECONNRESET upstream"));
+
+      const caller = appRouter.createCaller(createMockContext());
+      const result = await caller.ai.chat({
+        messages: [{ role: "user", content: "幫我錄一集 podcast" }],
+        personality: "creative",
+      });
+
+      expect(result.reply).toContain("我剛才遇到了一點小狀況");
+    });
   });
 });
