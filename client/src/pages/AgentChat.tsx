@@ -1361,6 +1361,31 @@ export default function AgentChat() {
                     <span className="text-sm font-medium">送出</span>
                   </Button>
                 </div>
+                {/* 讓多位精靈一起討論：把 input 直接餵進 startCollaborativeDiscussion，
+                    runner 會接力 2-4 位精靈各回一段、輪詢拉回來變成 chat bubble。
+                    刻意小而旁邊放，跟主送出區分開—這條路沒有 navigate，純討論。 */}
+                <div className="flex justify-end pt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = input.trim();
+                      if (!text) return;
+                      setInput("");
+                      void globalChat.startCollaborativeDiscussion(text);
+                    }}
+                    disabled={
+                      !input.trim() ||
+                      isSending ||
+                      globalChat.isCollaborativeDiscussionActive
+                    }
+                    className="text-[11px] px-2.5 py-1 rounded-full border border-emerald-200/70 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-300 dark:hover:bg-emerald-900/20 disabled:opacity-40 transition-colors"
+                    data-testid="orb-collab-discuss-btn"
+                  >
+                    {globalChat.isCollaborativeDiscussionActive
+                      ? "🌿 精靈們正在討論…"
+                      : "🌿 讓 2-4 位精靈一起討論這個"}
+                  </button>
+                </div>
               </div>
 
               {/* 已點亮模式：視覺化流程預覽卡 ─────────────────────────
