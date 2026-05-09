@@ -163,6 +163,11 @@ import { getDb, getSiteWideModelUsageSnapshot } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
 import {
+  selectRoleForIntent,
+  getPreferredProviderForRole,
+  type AgentRole,
+} from "../shared/orb-agent-roles";
+import {
   getProviderHealth,
   markProviderFailure,
   markProviderRecovered,
@@ -5212,6 +5217,10 @@ export const appRouter = router({
               disabledActionsByPage: z
                 .record(z.string().max(64), z.array(z.string().max(40)).max(20))
                 .optional(),
+              // 15 精靈：使用者靜音的精靈 id 清單（最多 15 位）。傳入後
+              // selectRoleForIntent 會跳過這些角色的關鍵字規則。
+              mutedSpirits: z.array(z.string().max(40)).max(15).optional(),
+              favoriteSpirits: z.array(z.string().max(40)).max(15).optional(),
             })
             .optional(),
           /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
@@ -5233,6 +5242,36 @@ export const appRouter = router({
             return { status: "in-progress", message: "Request is already being processed" };
           }
         }
+
+        // 15 精靈：先把這一輪該由誰接手算出來。這個值有兩個下游：
+        //   1) selectProvider() 用 preferredProviderId 切到對應 LLM
+        //   2) finalizeIdempotentResponse 把 agentRole 塞進每一條回覆，
+        //      讓客戶端 chip / 全站 widget / 對話歷史 metadata 都對得上。
+        // 計算放在 handler 早期，就算下游 gate 早退也帶得回去。
+        const lastUserMsgForSpirit = [...input.messages]
+          .reverse()
+          .find(message => message.role === "user");
+        const lastUserTextForSpirit =
+          typeof lastUserMsgForSpirit?.content === "string"
+            ? lastUserMsgForSpirit.content
+            : Array.isArray(lastUserMsgForSpirit?.content)
+              ? lastUserMsgForSpirit.content
+                  .filter((part: { type: string }) => part.type === "text")
+                  .map((part: { text?: string }) => part.text ?? "")
+                  .join("\n")
+              : "";
+        // 使用者靜音的精靈 — 從 preferences 拿，selectRoleForIntent 會跳過。
+        const mutedSpiritsForSelection = (
+          (input.preferences as { mutedSpirits?: string[] } | undefined)?.mutedSpirits ?? []
+        ).filter((s): s is string => typeof s === "string") as readonly AgentRole[];
+        const spiritSelection = lastUserTextForSpirit
+          ? selectRoleForIntent({
+              text: lastUserTextForSpirit,
+              snapshot: input.pageSnapshot ?? null,
+              turnCount: input.messages.length,
+              mutedRoles: mutedSpiritsForSelection,
+            })
+          : null;
 
         const finalizeIdempotentResponse = <T extends object | null | undefined>(result: T): T => {
           // Inject identity / preference profile for the client. We do it here so
@@ -5262,6 +5301,12 @@ export const appRouter = router({
               r.webSources === undefined
             ) {
               r.webSources = webResearchSources;
+            }
+            // 12+3 精靈：每條回覆掛上接手精靈，讓所有 UI surface 一致顯示。
+            if (spiritSelection && r.agentRole === undefined) {
+              r.agentRole = spiritSelection.role;
+              r.agentRoleConfidence = spiritSelection.confidence;
+              r.agentRoleRationale = spiritSelection.rationale;
             }
             enriched = r;
           }
@@ -5863,10 +5908,16 @@ export const appRouter = router({
             : attachmentGuard.kinds.length > 0
             ? "planner_multimodal"
             : "planner_text";
+          // 12+3 精靈：spiritSelection 已在 handler 頂部算好（finalize 也會用），
+          // 這裡只把它對應的 preferredProvider 餵給 selectProvider。
+          const spiritPreferredProvider = spiritSelection
+            ? getPreferredProviderForRole(spiritSelection.role)
+            : undefined;
           if (providerRouterEnabled) {
             const selection = selectProvider({
               intent: routeIntent,
               riskLevel: "low",
+              preferredProviderId: spiritPreferredProvider,
             });
             if (!selection.provider) {
               appendTelemetryEvent(telemetryEvents, "provider.unavailable", {

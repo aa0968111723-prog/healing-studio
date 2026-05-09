@@ -77,6 +77,15 @@ import ConversationTabs from "@/components/orb/ConversationTabs";
 import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
+import {
+  selectRoleForIntent,
+  type AgentRole,
+} from "../../../shared/orb-agent-roles";
+import {
+  SPIRITS,
+  SPIRITS_BY_ID,
+  type SpiritVisual,
+} from "@/lib/spiritsVisual";
 import { toast } from "sonner";
 import AgentSettingsSheet from "@/components/AgentSettingsSheet";
 import ChatMessageText from "@/components/ChatMessageText";
@@ -399,6 +408,36 @@ type TaskTemplate = {
   prompt: string;       // 送給光球的 multi-step prompt
 };
 
+// ─── 15 位代理精靈：6 專精 + 6 通用 + 3 主動 ───────────────────────────
+// 視覺資料 (SPIRITS / SpiritVisual / SPIRITS_BY_ID) 集中在 lib/spiritsVisual.ts，
+// 讓 ProactiveOrbWidget 也能讀同一份來顯示精靈 chip。
+// 後端用 selectRoleForIntent 自動分派；前端把每位「具體化」成同事 / 朋友：
+// 每位有暱稱、一句自我介紹、進場招呼，名片可一鍵呼叫，輸入列上方有「現在誰在線」。
+
+/**
+ * Look up which spirit handled a given orb message by re-running the same
+ * router the server uses on the most recent user message. Pure / shared,
+ * so we get the same answer the backend would have picked.
+ */
+function inferRespondingSpirit(
+  messages: { role: string; text: string; at: number }[],
+  index: number,
+  pagePath: string,
+): SpiritVisual | null {
+  if (messages[index]?.role !== "orb") return null;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    if (messages[i].role === "user") {
+      const sel = selectRoleForIntent({
+        text: messages[i].text,
+        snapshot: { pageId: pagePath, pageLabel: pagePath, pagePath, capabilities: [] },
+        turnCount: i,
+      });
+      return SPIRITS_BY_ID[sel.role] ?? null;
+    }
+  }
+  return null;
+}
+
 const TASK_TEMPLATES: TaskTemplate[] = [
   {
     id: "ig-reels",
@@ -664,6 +703,10 @@ export default function AgentChat() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeMode, setActiveMode] = useState<string | null>(null);
   const [modeBarOpen, setModeBarOpen] = useState(false);
+  const [modeCatalogOpen, setModeCatalogOpen] = useState(false);
+  const [spiritDeckOpen, setSpiritDeckOpen] = useState(false);
+  /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
+  const [pinnedSpirit, setPinnedSpirit] = useState<AgentRole | null>(null);
   const [recent, setRecent] = useState<RecentEntry[]>(() => readRecent());
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroInputRef = useRef<HTMLInputElement | null>(null);
@@ -860,6 +903,58 @@ export default function AgentChat() {
   );
 
   const isFirstTurn = messages.length <= 1;
+
+  // ─── 15 精靈：每則回覆掛上接手的精靈，狀態條看「現在誰在線」 ────────────
+  // 後端 ai.chat 現在會直接回傳 agentRole（存在訊息物件 + 對話歷史 metadata）。
+  // 有 server 答案就直接用；沒有的話 (legacy 訊息 / gate 早退) 才退回
+  // selectRoleForIntent 客戶端推論。
+  const messageSpirits = useMemo<(SpiritVisual | null)[]>(() => {
+    const path = typeof window !== "undefined" ? window.location.pathname : "/agent";
+    return messages.map((m, i) => {
+      const serverRole = (m as { agentRole?: string }).agentRole;
+      if (serverRole && (SPIRITS_BY_ID as Record<string, SpiritVisual>)[serverRole]) {
+        return (SPIRITS_BY_ID as Record<string, SpiritVisual>)[serverRole];
+      }
+      return inferRespondingSpirit(messages, i, path);
+    });
+  }, [messages]);
+  /** 最近 3 則回覆的精靈，去重 — 給「現在誰在線」狀態條使用。 */
+  const onlineSpirits = useMemo<SpiritVisual[]>(() => {
+    const seen = new Set<AgentRole>();
+    const out: SpiritVisual[] = [];
+    for (let i = messageSpirits.length - 1; i >= 0 && out.length < 3; i -= 1) {
+      const s = messageSpirits[i];
+      if (s && !seen.has(s.id)) {
+        seen.add(s.id);
+        out.push(s);
+      }
+    }
+    return out;
+  }, [messageSpirits]);
+  /** 點擊精靈卡片：鎖定 + 預填「@暱稱 」+ 進場招呼 toast。 */
+  const handleCallSpirit = useCallback(
+    (spirit: SpiritVisual) => {
+      setPinnedSpirit(spirit.id);
+      const prefill = `${spirit.prompt} `;
+      setInput(prefill);
+      // 第一輪：聚焦 hero composer；第二輪：底部 sticky composer 自己會聚焦。
+      if (isFirstTurn) heroInputRef.current?.focus();
+      // 用 toast 帶出進場招呼 — 同事感的小招呼，不污染對話歷史。
+      toast.success(spirit.greeting, {
+        icon: spirit.emoji,
+        duration: 4000,
+      });
+    },
+    [setInput, isFirstTurn]
+  );
+  /** 解除鎖定。會把預填的「@暱稱 」也擦掉。 */
+  const handleUnpinSpirit = useCallback(() => {
+    setPinnedSpirit(null);
+    const pinned = pinnedSpirit ? SPIRITS_BY_ID[pinnedSpirit] : null;
+    if (pinned && input.trim() === pinned.prompt.trim()) {
+      setInput("");
+    }
+  }, [pinnedSpirit, input, setInput]);
   const handleStarterEntryClick = useCallback(
     async (entry: StarterEntry) => {
       // 紀錄到「最近使用」，下次回訪可一鍵繼續
@@ -969,7 +1064,7 @@ export default function AgentChat() {
         }}
       />
 
-      <div className="w-full max-w-3xl flex-1 flex flex-col px-4 sm:px-6 py-6 sm:py-8 gap-5 relative">
+      <div className="w-full max-w-3xl flex-1 flex flex-col pl-12 pr-4 sm:px-6 py-4 sm:py-8 gap-4 sm:gap-5 relative">
         {/* 右上角：低頻工具（清除對話 / 代理設定）做成圖示，不搶版面 */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 z-10">
           <button
@@ -1009,46 +1104,73 @@ export default function AgentChat() {
           </button>
         </div>
 
-        {/* 開場區塊 */}
+        {/* 開場區塊 — isFirstTurn 顯示完整 hero；對話開始後壓成一條
+            極簡 bar，把垂直空間還給聊天本身。 */}
         <div className="flex flex-col items-center text-center gap-2.5">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-          >
-            <VisualSoul size="lg" personality={personality} />
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.1 }}
-            className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100"
-          >
-            先聊聊看就好 🌿
-          </motion.h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-            我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
-          </p>
+          {isFirstTurn ? (
+            <>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              >
+                <VisualSoul size="lg" personality={personality} />
+              </motion.div>
+              <motion.h1
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.1 }}
+                className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100"
+              >
+                先聊聊看就好 🌿
+              </motion.h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
+                我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
+              </p>
+            </>
+          ) : (
+            <motion.div
+              key="compact-hero"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className="w-full flex items-center gap-2 px-1 pr-16 sm:pr-20"
+            >
+              <div className="shrink-0">
+                <VisualSoul size="sm" personality={personality} />
+              </div>
+              <div className="min-w-0 text-left flex-1">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                  繼續和光球聊 🌿
+                </p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                  輸入想做的事，我會幫你串好流程
+                </p>
+              </div>
+            </motion.div>
+          )}
 
-          {/* 主要輔助按鈕：如何使用光球（單一） */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setHowToOpen(prev => !prev)}
-            className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-            aria-expanded={howToOpen}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-            如何使用光球
-            <ChevronDown
-              className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
-            />
-          </Button>
+          {/* 主要輔助按鈕：如何使用光球（單一）— 只在初始狀態顯示 */}
+          {isFirstTurn && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHowToOpen(prev => !prev)}
+              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+              aria-expanded={howToOpen}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              如何使用光球
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          )}
 
           {/* 如何使用 — 分步說明 */}
           <AnimatePresence initial={false}>
-            {howToOpen && (
+            {isFirstTurn && howToOpen && (
               <motion.div
                 key="how-to"
                 initial={{ opacity: 0, height: 0 }}
@@ -1100,7 +1222,8 @@ export default function AgentChat() {
             )}
           </AnimatePresence>
 
-          {/* 需求釐清提示 */}
+          {/* 需求釐清提示 — 只在初始狀態顯示，避免在對話進行時擠壓聊天區 */}
+          {isFirstTurn && (
           <div className="w-full mt-2 sm:mt-3">
             <Collapsible
               open={needGuideOpen}
@@ -1147,6 +1270,7 @@ export default function AgentChat() {
               </CollapsibleContent>
             </Collapsible>
           </div>
+          )}
           {/* ── 第一輪：Hero composer + Recent + Task templates ────────────
               真實使用者帶著任務來，光球真正強項是把多個工具串成 workflow。
               這個區塊用「先說目標 → 套任務範本 → 光球幫你串好」的順序，
@@ -1326,10 +1450,9 @@ export default function AgentChat() {
           )}
 
           {/* ── 代理風格：4 個視覺化模式卡 ───────────────────────────
-              4 個模式（多步驟 / 計畫 / 跳頁 / 功能詢問）從藏在折疊條
-              後的小 pill 升級為 hero 視覺卡：每張卡顯示模式漸層、
-              三段 flow pictogram、範例 prompt。讓使用者一眼能看懂
-              四種代理風格各會做什麼，再決定按哪個。 */}
+              4 個模式（多步驟 / 計畫 / 跳頁 / 功能詢問）。手機首屏密度
+              太高，所以預設摺起：使用者大多帶著任務來，先看到 hero
+              composer + 任務範本就夠；想細調代理風格再展開。 */}
           {isFirstTurn && (
             <motion.section
               key="mode-catalog"
@@ -1338,18 +1461,33 @@ export default function AgentChat() {
               transition={{ duration: 0.35, delay: 0.18 }}
               className="w-full mt-1 space-y-2 text-left"
             >
-              <header className="flex items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-violet-500" />
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    切換代理風格（光球做事的方式）
-                  </p>
-                </div>
-                <span className="text-[10px] text-slate-400">
-                  {activeModeOption ? "點同一個取消" : "可選一個"}
-                </span>
-              </header>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <Collapsible open={modeCatalogOpen} onOpenChange={setModeCatalogOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                      <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                      切換代理風格（光球做事的方式）
+                      {activeModeOption && (
+                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200 text-[10px] font-medium">
+                          {activeModeOption.label}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-400 transition-transform ${modeCatalogOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2 space-y-2">
+                  <div className="flex items-center justify-end px-1">
+                    <span className="text-[10px] text-slate-400">
+                      {activeModeOption ? "點同一個取消" : "可選一個"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {modeOptions.map((mode, i) => {
                   const Icon = mode.icon;
                   const isActive = activeMode === mode.id;
@@ -1440,7 +1578,182 @@ export default function AgentChat() {
                     </motion.button>
                   );
                 })}
-              </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </motion.section>
+          )}
+
+          {/* ── 12 位代理精靈名片簿（首屏預設摺起，點開可一鍵叫某位來） ──
+              每張卡是一位「同事」：暱稱、一句自介、進場招呼。點下去
+              不會立刻送出，只是把 @暱稱 預填進輸入列並鎖定他來接下一輪。
+              使用者打字時還是能直接寫想做的事，鎖定的同事會接手回覆。 */}
+          {isFirstTurn && (
+            <motion.section
+              key="spirits-deck"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.21 }}
+              className="w-full mt-1 space-y-2 text-left"
+              data-testid="spirits-deck"
+            >
+              <Collapsible open={spiritDeckOpen} onOpenChange={setSpiritDeckOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                      <Users className="w-3.5 h-3.5 text-pink-500" />
+                      認識 12 位代理精靈 — 像同事一樣，叫一聲就到
+                      {pinnedSpirit && SPIRITS_BY_ID[pinnedSpirit] && (
+                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-200 text-[10px] font-medium">
+                          <span>{SPIRITS_BY_ID[pinnedSpirit].emoji}</span>
+                          {SPIRITS_BY_ID[pinnedSpirit].nickname} 在線
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-400 transition-transform ${spiritDeckOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2 space-y-3">
+                  {(["proactive", "specialist", "role"] as const).map(family => {
+                    const groupTitle =
+                      family === "proactive"
+                        ? "🚨 3 位主動出擊"
+                        : family === "specialist"
+                          ? "🛠 6 位專精同事"
+                          : "🤝 6 位通用夥伴";
+                    const groupHint =
+                      family === "proactive"
+                        ? "財財 / 巧巧 / 守守 — 沒叫他們也會主動關心你"
+                        : family === "specialist"
+                          ? "圖、影、音、聲、訓、學 — 各有領域的精靈"
+                          : "規劃、執行、評審、研究、導航、陪伴 — 工作流程裡的角色";
+                    return (
+                      <div
+                        key={family}
+                        className={`space-y-1.5 ${
+                          family === "proactive"
+                            ? "rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10 p-2"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 px-1">
+                          <p
+                            className={`text-[11px] font-medium ${
+                              family === "proactive"
+                                ? "text-amber-700 dark:text-amber-300"
+                                : "text-slate-600 dark:text-slate-300"
+                            }`}
+                          >
+                            {groupTitle}
+                            {family === "proactive" && (
+                              <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse align-middle" />
+                            )}
+                          </p>
+                          <span
+                            className={`text-[10px] ${
+                              family === "proactive"
+                                ? "text-amber-600/80 dark:text-amber-400/80"
+                                : "text-slate-400 dark:text-slate-500"
+                            }`}
+                          >
+                            {groupHint}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {SPIRITS.filter(s => s.family === family).map((spirit, i) => {
+                            const isPinned = pinnedSpirit === spirit.id;
+                            return (
+                              <motion.button
+                                key={spirit.id}
+                                type="button"
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.05 * i }}
+                                whileHover={{ y: -2, scale: 1.01 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => handleCallSpirit(spirit)}
+                                disabled={isSending}
+                                aria-pressed={isPinned}
+                                title={spirit.vibe}
+                                data-testid={`spirit-card-${spirit.id}`}
+                                className={`group relative overflow-hidden rounded-2xl text-left p-2.5 transition-all disabled:opacity-40 ${
+                                  isPinned
+                                    ? `ring-2 ${spirit.ring} bg-gradient-to-br ${spirit.gradient} text-white shadow-lg`
+                                    : `border border-slate-200/70 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/40 hover:shadow-md hover:border-transparent`
+                                }`}
+                              >
+                                <div className="relative flex items-start gap-2">
+                                  <div
+                                    className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-sm ${
+                                      isPinned
+                                        ? "bg-white/25"
+                                        : `bg-gradient-to-br ${spirit.gradient} text-white`
+                                    }`}
+                                  >
+                                    <span aria-hidden>{spirit.emoji}</span>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1">
+                                      <p
+                                        className={`text-xs font-semibold truncate ${
+                                          isPinned ? "text-white" : "text-slate-800 dark:text-slate-100"
+                                        }`}
+                                      >
+                                        {spirit.nickname}
+                                      </p>
+                                      <span
+                                        className={`text-[9px] truncate ${
+                                          isPinned
+                                            ? "text-white/75"
+                                            : "text-slate-400 dark:text-slate-500"
+                                        }`}
+                                      >
+                                        · {spirit.label}
+                                      </span>
+                                    </div>
+                                    <p
+                                      className={`text-[10px] leading-snug line-clamp-2 mt-0.5 ${
+                                        isPinned
+                                          ? "text-white/90"
+                                          : "text-slate-500 dark:text-slate-400"
+                                      }`}
+                                    >
+                                      {spirit.vibe}
+                                    </p>
+                                    <p
+                                      className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${
+                                        isPinned
+                                          ? "text-white"
+                                          : "text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400"
+                                      }`}
+                                    >
+                                      {isPinned ? "已在線 ✓" : "叫他來 →"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {pinnedSpirit && (
+                    <button
+                      type="button"
+                      onClick={handleUnpinSpirit}
+                      className="text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline underline-offset-2"
+                    >
+                      解除鎖定，回到自動分派
+                    </button>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             </motion.section>
           )}
 
@@ -1862,10 +2175,16 @@ export default function AgentChat() {
           aria-live="polite"
           aria-relevant="additions"
           aria-label="光球對話"
-          className="flex-1 min-h-[22rem] max-h-[55vh] overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth"
+          className={`overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth ${
+            isFirstTurn
+              ? "min-h-[14rem] max-h-[40vh]"
+              : "flex-1 min-h-[16rem]"
+          }`}
         >
           <AnimatePresence initial={false}>
-            {messages.map((msg, i) => (
+            {messages.map((msg, i) => {
+              const spirit = msg.role === "orb" ? messageSpirits[i] : null;
+              return (
               <motion.div
                 key={`${msg.at}-${i}`}
                 initial={{ opacity: 0, y: 8 }}
@@ -1882,6 +2201,19 @@ export default function AgentChat() {
                       : "bg-white/80 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 rounded-2xl rounded-bl-md border border-slate-200/60 dark:border-slate-700/60 backdrop-blur"
                   }`}
                 >
+                  {/* 精靈 chip — 讓使用者感覺是某位「同事」接手回覆，不是匿名 AI */}
+                  {spirit && (
+                    <button
+                      type="button"
+                      onClick={() => handleCallSpirit(spirit)}
+                      className={`mb-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r ${spirit.gradient} text-white text-[10px] font-medium shadow-sm hover:scale-105 transition-transform`}
+                      data-testid={`message-spirit-${spirit.id}`}
+                      title={`${spirit.vibe} — 點選再叫他來`}
+                    >
+                      <span aria-hidden>{spirit.emoji}</span>
+                      <span>{spirit.nickname} 接手</span>
+                    </button>
+                  )}
                   {msg.intent && msg.role === "orb" && (
                     <div className="mb-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
                       💭 {msg.intent}
@@ -1953,21 +2285,56 @@ export default function AgentChat() {
                   </div>
                 </div>
               </motion.div>
-            ))}
-            {isSending && (
-              <motion.div
-                key="typing"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex justify-start"
-              >
-                <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  讓我想想…
-                </div>
-              </motion.div>
-            )}
+              );
+            })}
+            {isSending && (() => {
+              // 「同事正在打字」感：如果對方是某位精靈（從輸入推回），就用她的口氣與顏色。
+              const lastUser = [...messages].reverse().find(m => m.role === "user");
+              const sel = lastUser
+                ? selectRoleForIntent({
+                    text: lastUser.text,
+                    snapshot: {
+                      pageId: "/agent",
+                      pageLabel: "/agent",
+                      pagePath: "/agent",
+                      capabilities: [],
+                    },
+                    turnCount: messages.length,
+                  })
+                : null;
+              const spirit = sel ? SPIRITS_BY_ID[sel.role] : null;
+              return (
+                <motion.div
+                  key="typing"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2">
+                    {spirit ? (
+                      <>
+                        <span className="text-base leading-none animate-pulse" aria-hidden>
+                          {spirit.emoji}
+                        </span>
+                        <span>
+                          <span className="font-medium text-slate-600 dark:text-slate-300">
+                            {spirit.nickname}
+                          </span>{" "}
+                          正在想…
+                        </span>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        讓我想想…
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })()}
           </AnimatePresence>
         </div>
 
@@ -2028,9 +2395,14 @@ export default function AgentChat() {
           }}
         />
 
-        {/* 輸入列 — 第二輪以後才顯示在底部，第一輪改用上方 hero composer */}
+        {/* 輸入列 — 第二輪以後才顯示在底部，第一輪改用上方 hero composer
+            負向 margin + safe-area padding 讓輸入列真的貼齊視窗底部，
+            手機橫式 home indicator 也不會擋到送出鍵。 */}
         {!isFirstTurn && (
-        <div className="sticky bottom-4 space-y-2.5">
+        <div
+          className="sticky bottom-0 -ml-12 -mr-4 sm:-mx-6 -mb-4 sm:-mb-8 pl-12 pr-4 sm:px-6 pt-3 space-y-2 bg-gradient-to-b from-white/0 via-white/85 to-white dark:via-slate-950/85 dark:to-slate-950 backdrop-blur-sm"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 0.75rem)" }}
+        >
           {/* Soft fade above the sticky composer so scrolled messages don't
               read as "overlapping" the input on small screens — the gradient
               dissolves chat text into the page background instead of hard
@@ -2039,6 +2411,61 @@ export default function AgentChat() {
             aria-hidden="true"
             className="pointer-events-none absolute -top-6 inset-x-0 h-6 bg-gradient-to-b from-transparent to-white/95 dark:to-slate-950/95"
           />
+          {/* 「現在誰在線」狀態條 — 把最近接過手的同事顯示出來，鎖定中的會優先 */}
+          {(pinnedSpirit || onlineSpirits.length > 0) && (
+            <div
+              className="flex items-center gap-1.5 flex-wrap px-1 -mt-0.5"
+              data-testid="spirits-online-bar"
+            >
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
+                {pinnedSpirit ? "目前鎖定：" : "現在線上："}
+              </span>
+              {(() => {
+                const ordered: SpiritVisual[] = [];
+                if (pinnedSpirit && SPIRITS_BY_ID[pinnedSpirit]) {
+                  ordered.push(SPIRITS_BY_ID[pinnedSpirit]);
+                }
+                for (const s of onlineSpirits) {
+                  if (!ordered.find(o => o.id === s.id)) ordered.push(s);
+                }
+                return ordered.slice(0, 3).map(s => {
+                  const isPinned = s.id === pinnedSpirit;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() =>
+                        isPinned ? handleUnpinSpirit() : handleCallSpirit(s)
+                      }
+                      title={
+                        isPinned ? `${s.nickname} 已鎖定，點一下解除` : `叫 ${s.nickname} 來接手`
+                      }
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-all ${
+                        isPinned
+                          ? `bg-gradient-to-r ${s.gradient} text-white shadow-sm ring-1 ${s.ring}`
+                          : "bg-white/85 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:border-pink-300 hover:text-pink-700 dark:hover:text-pink-300"
+                      }`}
+                    >
+                      <span aria-hidden className={isPinned ? "animate-pulse" : ""}>
+                        {s.emoji}
+                      </span>
+                      <span className="font-medium">{s.nickname}</span>
+                      {isPinned && <span className="opacity-80">·已鎖定</span>}
+                    </button>
+                  );
+                });
+              })()}
+              {!pinnedSpirit && (
+                <button
+                  type="button"
+                  onClick={() => setSpiritDeckOpen(true)}
+                  className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 underline underline-offset-2"
+                >
+                  叫別人來
+                </button>
+              )}
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-1">
               {attachments.map(attachment => (

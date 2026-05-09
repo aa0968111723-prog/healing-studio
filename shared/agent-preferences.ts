@@ -117,6 +117,21 @@ export interface AgentPreferences {
    */
   onboardingCompletedAt: Date | null;
 
+  // ── 15 精靈關係偏好 ───────────────────────────────────────────
+  /**
+   * Spirits the user has muted. selectRoleForIntent skips KEYWORD_RULES that
+   * point at these and falls back to the next-best match (or companion if
+   * none). UI hides the chip on muted spirits' replies. Stored as AgentRole
+   * id strings (e.g. "accountant", "inspector"). Empty = nobody muted.
+   */
+  mutedSpirits: string[];
+  /**
+   * The user's "favourite" spirits — used purely as a UI hint (deck shows
+   * them with a star, the proactive event bus prioritises notifications
+   * from these). Does NOT force routing; routing stays intent-driven.
+   */
+  favoriteSpirits: string[];
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -152,4 +167,6 @@ export const DEFAULT_AGENT_PREFERENCES: Omit<AgentPreferences, "userId"> = {
   roleAutoSwitch: true,
   pacingOverride: "auto",
   onboardingCompletedAt: null,
+  mutedSpirits: [],
+  favoriteSpirits: [],
 };
