@@ -29,8 +29,8 @@ const studioSnap = (path = "/image-studio"): PageAgentSnapshot => ({
 });
 
 describe("AGENT_SKILL_REGISTRY", () => {
-  it("contains all 12 known skills (6 generic + 6 specialists)", () => {
-    expect(AGENT_SKILL_REGISTRY.length).toBe(12);
+  it("contains all 15 known skills (6 generic + 6 specialists + 3 proactive)", () => {
+    expect(AGENT_SKILL_REGISTRY.length).toBe(15);
     const ids = new Set(AGENT_SKILL_REGISTRY.map(s => s.id));
     for (const id of [
       "director",
@@ -39,6 +39,9 @@ describe("AGENT_SKILL_REGISTRY", () => {
       "researcher",
       "navigator",
       "companion",
+      "accountant",
+      "quality-coach",
+      "inspector",
       "image-specialist",
       "video-specialist",
       "music-specialist",

@@ -96,6 +96,102 @@ describe("getRoleSystemPromptSlice", () => {
   it("director prompt mentions runWorkflow and cross-page planning", () => {
     expect(getRoleSystemPromptSlice("director")).toMatch(/runWorkflow/);
   });
+
+  // ── Operational briefs: each spirit's slice now ships real model IDs,
+  // handoff payload schema, and known failure-mode workarounds. These
+  // assertions catch silent regressions where someone shortens the
+  // prompt back into a vibe sketch and loses the actionable content.
+  it("image specialist references real text-to-image model IDs", () => {
+    const slice = getRoleSystemPromptSlice("image-specialist");
+    expect(slice).toMatch(/fal-ai\/flux-pro\/v1\.1/);
+    expect(slice).toMatch(/fal-ai\/flux\/schnell/);
+    expect(slice).toMatch(/seedream/);
+    expect(slice).toMatch(/imagen4/);
+  });
+
+  it("video specialist references real image-to-video model IDs", () => {
+    const slice = getRoleSystemPromptSlice("video-specialist");
+    expect(slice).toMatch(/fal-ai\/kling-video/);
+    expect(slice).toMatch(/runway-gen4-turbo/);
+    expect(slice).toMatch(/pixverse/);
+    expect(slice).toMatch(/wan-i2v/);
+  });
+
+  it("music specialist references real audio model IDs and Suno/ElevenLabs split", () => {
+    const slice = getRoleSystemPromptSlice("music-specialist");
+    expect(slice).toMatch(/suno-v4/);
+    expect(slice).toMatch(/elevenlabs\/music/);
+    expect(slice).toMatch(/stable-audio/);
+  });
+
+  it("voice specialist references real TTS / clone model IDs", () => {
+    const slice = getRoleSystemPromptSlice("voice-specialist");
+    expect(slice).toMatch(/elevenlabs\/eleven-v3/);
+    expect(slice).toMatch(/multilingual/);
+    expect(slice).toMatch(/cloneVoice/);
+  });
+
+  it("training specialist gives concrete LoRA dataset + parameter defaults", () => {
+    const slice = getRoleSystemPromptSlice("training-specialist");
+    // Concrete numbers users can act on, not vague "prepare data"
+    expect(slice).toMatch(/15-20|15\s*-\s*20/);
+    expect(slice).toMatch(/rank/);
+    expect(slice).toMatch(/trainLora/);
+  });
+
+  it("learning specialist names concrete entry-point pages per modality", () => {
+    const slice = getRoleSystemPromptSlice("learning-specialist");
+    expect(slice).toMatch(/\/image-studio/);
+    expect(slice).toMatch(/\/video-studio/);
+    expect(slice).toMatch(/\/pro-studio/);
+  });
+
+  it("accountant gives concrete credit-cost ranges so estimates aren't hallucinated", () => {
+    const slice = getRoleSystemPromptSlice("accountant");
+    expect(slice).toMatch(/FLUX/);
+    expect(slice).toMatch(/Kling/);
+    // Caveat is critical so users don't treat the estimate as billing truth
+    expect(slice).toMatch(/實際以扣款為準|modelPricing/);
+  });
+
+  it("quality coach ships before/after rewrite examples, not just guidance", () => {
+    const slice = getRoleSystemPromptSlice("quality-coach");
+    expect(slice).toMatch(/橘貓|teaser|9:16/);
+    expect(slice).toMatch(/改寫公式|主體|構圖/);
+  });
+
+  it("inspector ships concrete workarounds for common failure modes", () => {
+    const slice = getRoleSystemPromptSlice("inspector");
+    expect(slice).toMatch(/incognito|schnell|wan-i2v|繞過/);
+  });
+
+  it("composer slice instructs concrete dispatch sequence + confirmation", () => {
+    const slice = getRoleSystemPromptSlice("composer");
+    expect(slice).toMatch(/fillPrompt|setModel|setParam|submit/);
+  });
+
+  it("critic slice covers all four modality framings (image/video/audio/text)", () => {
+    const slice = getRoleSystemPromptSlice("critic");
+    expect(slice).toMatch(/構圖/);
+    expect(slice).toMatch(/節奏/);
+    expect(slice).toMatch(/情緒/);
+    expect(slice).toMatch(/CTA|鉤子|開場/);
+  });
+
+  it("researcher slice references the actual cross-modality model registry", () => {
+    const slice = getRoleSystemPromptSlice("researcher");
+    expect(slice).toMatch(/FLUX Pro/);
+    expect(slice).toMatch(/Kling/);
+    expect(slice).toMatch(/Suno/);
+    expect(slice).toMatch(/ElevenLabs/);
+  });
+
+  it("navigator slice ships a concrete page → spirit handoff map", () => {
+    const slice = getRoleSystemPromptSlice("navigator");
+    expect(slice).toMatch(/\/image-studio/);
+    expect(slice).toMatch(/\/video-studio/);
+    expect(slice).toMatch(/\/pro-studio/);
+  });
 });
 
 describe("selectRoleForIntent — proactive spirits", () => {
