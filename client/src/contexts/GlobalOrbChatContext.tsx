@@ -2113,11 +2113,27 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             // 即使 setLocation 後 page 還沒 hydrate，arrival 緊湊卡也已經告訴
             // 使用者「光球幫你做了什麼、接下來可以選什麼」，不會只剩底下那顆
             // 「完成」泡泡。
+            //
+            // orbMessage 是卡片 header 底下那行小字。header 已經寫了
+            // 「已帶你到 ___」，所以這裡不要再用「已帶你來處理：…」這種重覆
+            // 動詞當開頭；把 intent 當成「你剛剛是想做什麼」的脈絡呈現，
+            // 並只保留前 60 字（Tailwind 的 truncate 會把過長的部份吃掉，
+            // 但提早截字可以讓「…」落在語意完整的位置）。
+            // LLM 經常生出「帶你去 / 帶你來 / 我幫你 / 我來 / 為你」這種主詞
+            // 動詞，跟 header「已帶你到 ___」連在一起念就是「已帶你到 X，
+            // 帶你去 X 規劃…」很怪。把這些開頭片語咬掉，只留下意圖本身。
+            const trimmedIntent = (options.intent?.trim() ?? "")
+              .replace(/^(已?帶你(到|去|來)|我來|我幫你|為你|幫你)[「『]?[^「『]{0,12}[」』]?[\s,，。:：、—-]*/, "")
+              .trim();
+            const condensedIntent =
+              trimmedIntent.length > 60
+                ? `${trimmedIntent.slice(0, 58)}…`
+                : trimmedIntent;
             attachArrivalGuide({
               targetPath: path,
               actions: orchestratorActions,
-              orbMessage: options.intent
-                ? `已帶你來處理：${options.intent}`
+              orbMessage: condensedIntent
+                ? `剛剛的指令：${condensedIntent}`
                 : undefined,
             });
             setLocation(path);

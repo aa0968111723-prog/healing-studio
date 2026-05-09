@@ -22,6 +22,7 @@ import { usePageAgent, type AgentAction } from "@/contexts/PageAgentContext";
 import { trpc } from "@/lib/trpc";
 import type { OrbGuideStepRewrite, AgentModality } from "../../../shared/agent-actions";
 import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
+import { getPageByPath } from "@/config/appRegistry";
 import {
   STUDIO_MODALITY_PROFILES,
   STUDIO_TOOLBOX_ENTRIES,
@@ -4573,7 +4574,17 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   // 與接下來要使用者親自做的事，方便手動部分的引導完成。
   if (step === "navigating" || step === "arrived") {
     const isNavigating = step === "navigating";
-    const autoLines = plan ? summarizeOrbGuideActions(plan.actions) : [];
+    // Arrival 卡 header 已經寫了「已帶你到 ___」，所以 autoLines 裡的
+    // navigate-to-target 是噪音；同 path 也只顯示一次，避免「前往 X、前往 X」
+    // 連續兩條。其他頁的 navigate 改用 registry label，讓使用者看到「前往
+    // 「導演 AI」」而不是「前往「/director」」。
+    const autoLines = plan
+      ? summarizeOrbGuideActions(plan.actions, {
+          skipNavigateToPath: plan.targetPath,
+          skipDuplicateNavigates: true,
+          pageLabelByPath: path => getPageByPath(path)?.label,
+        })
+      : [];
     const manualSteps = plan?.manualSteps ?? [];
     const arrivalChoices = plan?.arrivalChoices ?? [];
     const allManualDone =
@@ -4626,7 +4637,10 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   : `已帶你到 ${plan?.targetLabel ?? ""}`}
               </p>
               {!isNavigating && plan?.orbMessage && (
-                <p className="text-[11px] text-white/50 truncate">
+                // truncate 只會單行截字，使用者看到「30 秒 IG Reel…」這種
+                // 半截脈絡反而疑惑。改成 2 行 line-clamp，既保留 header 緊湊
+                // 又不會把意圖砍到讀不懂。
+                <p className="text-[11px] text-white/55 leading-snug line-clamp-2">
                   {plan.orbMessage}
                 </p>
               )}

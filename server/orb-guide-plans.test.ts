@@ -175,4 +175,56 @@ describe("summarizeOrbGuideActions", () => {
   it("空陣列 → 空陣列", () => {
     expect(summarizeOrbGuideActions([])).toEqual([]);
   });
+
+  it("skipNavigateToPath 會把抵達目標頁的 navigate 過濾掉", () => {
+    const lines = summarizeOrbGuideActions(
+      [
+        { type: "navigate", path: "/director" },
+        { type: "setTab", tabId: "script" },
+      ],
+      { skipNavigateToPath: "/director" }
+    );
+    expect(lines).toEqual(["切到「script」分頁"]);
+  });
+
+  it("skipNavigateToPath 不會誤殺其他 path 的 navigate", () => {
+    const lines = summarizeOrbGuideActions(
+      [
+        { type: "navigate", path: "/director" },
+        { type: "navigate", path: "/assets" },
+      ],
+      { skipNavigateToPath: "/director" }
+    );
+    expect(lines).toEqual(["前往「/assets」"]);
+  });
+
+  it("pageLabelByPath 把 navigate 的 path 替換成人話 label", () => {
+    const lines = summarizeOrbGuideActions(
+      [{ type: "navigate", path: "/director" }],
+      {
+        pageLabelByPath: path => (path === "/director" ? "導演 AI" : undefined),
+      }
+    );
+    expect(lines).toEqual(["前往「導演 AI」"]);
+  });
+
+  it("pageLabelByPath 沒解析到就退回原 path，不會吐 undefined", () => {
+    const lines = summarizeOrbGuideActions(
+      [{ type: "navigate", path: "/unknown" }],
+      { pageLabelByPath: () => undefined }
+    );
+    expect(lines).toEqual(["前往「/unknown」"]);
+  });
+
+  it("skipDuplicateNavigates 把相同 path 的多次 navigate 摺成一條", () => {
+    const lines = summarizeOrbGuideActions(
+      [
+        { type: "navigate", path: "/director" },
+        { type: "setTab", tabId: "script" },
+        { type: "navigate", path: "/director" },
+      ],
+      { skipDuplicateNavigates: true }
+    );
+    expect(lines).toEqual(["前往「/director」", "切到「script」分頁"]);
+  });
 });
