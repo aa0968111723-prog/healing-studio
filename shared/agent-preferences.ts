@@ -1,8 +1,41 @@
+import type { ProactiveTriggerEvent } from "./orb-agent-roles";
+
 export type AgentConfirmationPolicy =
   | "always_approve"
   | "confirm_high_risk"
   | "confirm_all"
   | "manual";
+
+/**
+ * 主動精靈通知（財財 / 巧巧 / 守守）每位事件的單獨設定。
+ *
+ * - `enabled`：總開關。false 時 ProactiveNotificationCenter 直接吞掉這個事件，
+ *   既有 toast 也不會跳出來。
+ * - `minIntervalMs`：同事件兩次顯現的最短間隔。把預設的 30 秒拉長給愛清靜
+ *   的使用者用；單位 ms，clamp 5_000 – 86_400_000（5 秒至 24 小時）。
+ * - `requireAck`：是否要使用者打勾才會消失。true = 卡片留在畫面直到使用者
+ *   按「✓ 知道了」；false = 走預設 surface 行為（toast 8 秒 / inline 持久但
+ *   可任意關掉）。
+ */
+export interface ProactiveTriggerSettings {
+  enabled: boolean;
+  minIntervalMs: number;
+  requireAck: boolean;
+}
+
+export type ProactiveTriggerSettingsMap = Partial<
+  Record<ProactiveTriggerEvent, ProactiveTriggerSettings>
+>;
+
+/**
+ * 預設 — 全部開啟、5 分鐘間隔、需要打勾才消失。新增事件時也會走這份預設，
+ * 因此 SPIRIT_PROACTIVE_TRIGGERS 加 entry 不需要動 migration。
+ */
+export const DEFAULT_PROACTIVE_TRIGGER_SETTINGS: Required<ProactiveTriggerSettings> = {
+  enabled: true,
+  minIntervalMs: 5 * 60_000,
+  requireAck: true,
+};
 
 export type AgentVoiceName = "Puck" | "Charon" | "Kore" | "Fenrir" | "Aoede";
 
@@ -132,6 +165,19 @@ export interface AgentPreferences {
    */
   favoriteSpirits: string[];
 
+  /**
+   * Per-event 設定：每個 ProactiveTriggerEvent 都可以單獨關閉，或設定最短
+   * 出現間隔（同事件 N 毫秒內只會冒一次）。沒列在這 map 裡的事件 → 套
+   * `DEFAULT_PROACTIVE_TRIGGER_SETTINGS` 的預設值。儲存型態為 `Record<event, …>`
+   * 的部分映射，方便未來新增事件時不必 migrate 既有 row。
+   *
+   * 客戶端 ProactiveNotificationCenter 會：
+   *   1. 收到 bus.publish 後先查這個 map → enabled = false 直接丟掉
+   *   2. enabled = true → 取 minIntervalMs，比上次 surface 時間長才放行
+   *   3. 套用到「使用者打勾才消失」的 ack 卡片
+   */
+  proactiveTriggerSettings: ProactiveTriggerSettingsMap;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -169,4 +215,30 @@ export const DEFAULT_AGENT_PREFERENCES: Omit<AgentPreferences, "userId"> = {
   onboardingCompletedAt: null,
   mutedSpirits: [],
   favoriteSpirits: [],
+  // 預設空 map → 所有事件套 DEFAULT_PROACTIVE_TRIGGER_SETTINGS（全開、5 分鐘
+  // 間隔、需要打勾才消失）。使用者調整後才會有 entry 被寫進來。
+  proactiveTriggerSettings: {},
 };
+
+/**
+ * Resolve 出單一 event 的有效設定 — 若 user override 缺欄位，補上預設。
+ * 客戶端 + server 都用這支以免兩邊邏輯漂移。
+ */
+export function resolveProactiveTriggerSettings(
+  event: ProactiveTriggerEvent,
+  map: ProactiveTriggerSettingsMap | null | undefined,
+): Required<ProactiveTriggerSettings> {
+  const override = map?.[event];
+  if (!override) return DEFAULT_PROACTIVE_TRIGGER_SETTINGS;
+  return {
+    enabled: typeof override.enabled === "boolean"
+      ? override.enabled
+      : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.enabled,
+    minIntervalMs: typeof override.minIntervalMs === "number" && override.minIntervalMs > 0
+      ? Math.min(Math.max(override.minIntervalMs, 5_000), 86_400_000)
+      : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.minIntervalMs,
+    requireAck: typeof override.requireAck === "boolean"
+      ? override.requireAck
+      : DEFAULT_PROACTIVE_TRIGGER_SETTINGS.requireAck,
+  };
+}
