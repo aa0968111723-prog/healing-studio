@@ -3319,6 +3319,56 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             }]);
             // 工具完成 → 列下一棒精靈（最多 3 個）
             setSuggestions(buildHandoffChips(mentioned));
+
+            // ── 真實協作：自動把生成結果交給接手精靈做一輪討論 ──
+            // 取 SPIRIT_COLLAB_PROTOCOL 第一棒（最多 2 位）作為 allowedRoles，
+            // 啟動 startAutoDiscussion；既有的 1.5s polling 會把每位精靈的回應
+            // 逐條塞進 chat。先補一條「🤝 {nicks} 接手討論中」當佔位，使用者
+            // 立刻看到「協作真的在跑」而不是按完按鈕沒反應。
+            //
+            // 條件刻意保守：只在 assetUrl 真的拿到時觸發；沒生成成功就只列
+            // 建議 chip 不主動把 LLM 又燒一輪。
+            if (assetUrl) {
+              const handoffsForCollab = (
+                SPIRIT_COLLAB_PROTOCOL[mentioned]?.handoffs ?? []
+              ).slice(0, 2);
+              const handoffTargets = handoffsForCollab.map(h => h.to);
+              if (handoffTargets.length > 0) {
+                const nextNicknames = handoffTargets
+                  .map(getPrimaryNicknameForRole)
+                  .join(" + ");
+                setMessages(prev => [...prev, {
+                  role: "orb",
+                  text: `🤝 ${nextNicknames} 接手看一下這個結果，邊想邊給建議…`,
+                  at: Date.now(),
+                  pagePath: locationPath,
+                  intent: "auto-handoff-discussion",
+                }]);
+                try {
+                  const discussionResult =
+                    await startAutoDiscussionMutation.mutateAsync({
+                      prompt: `剛才 ${nickname} 用 ${result.modelLabel || result.modelId} 完成了「${cleanPrompt}」。資產 URL：${assetUrl}。請接手的精靈各給一句具體建議或下一步。`,
+                      initialAgent: handoffTargets[0],
+                      maxRounds: handoffTargets.length,
+                      allowedRoles: handoffTargets,
+                      timeoutMsPerTurn: 20_000,
+                    });
+                  if (!isStale()) {
+                    setActiveDiscussionId(discussionResult.collaborationId);
+                  }
+                } catch (err) {
+                  // 協作觸發失敗只記在 chat，不擋住主流程 — 主結果已經給了
+                  if (isStale()) return;
+                  const reason = err instanceof Error ? err.message : String(err);
+                  setMessages(prev => [...prev, {
+                    role: "orb",
+                    text: `（接手討論沒跑起來：${reason}）`,
+                    at: Date.now(),
+                    pagePath: locationPath,
+                  }]);
+                }
+              }
+            }
           } catch (err) {
             if (isStale()) return;
             const reason = err instanceof Error ? err.message : String(err);
