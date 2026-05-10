@@ -18,13 +18,16 @@ type LocalAuthUserRow = RowDataPacket & LocalAuthUser;
 
 export class UserAuthRepository extends BaseRepository {
   async findByEmail(email: string): Promise<LocalAuthUser | null> {
+    // Use a direct equality comparison on the pre-normalised (lowercase) email
+    // so MySQL can use the users_email_idx index instead of performing a full
+    // table scan with LOWER() applied to every row.
     const rows = await this.db.query<LocalAuthUserRow[]>(
       `SELECT id, openId, name, email, role, loginMethod, passwordHash, remainingGenerations,
               twoFactorSecret, twoFactorEnabled
        FROM users
-       WHERE LOWER(email) = LOWER(?)
+       WHERE email = ?
        LIMIT 1`,
-      [email]
+      [email.toLowerCase()]
     );
     return rows[0] ?? null;
   }

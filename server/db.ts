@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
 import path from "path";
+import { cache } from "./_core/cache";
 import {
   InsertUser,
   users,
@@ -200,9 +201,9 @@ export async function getDb() {
         connection: {
           uri: databaseUrl,
           waitForConnections: true,
-          connectionLimit: 10,
-          maxIdle: 5,
-          idleTimeout: 60_000, // Close idle connections after 60s
+          connectionLimit: 30,
+          maxIdle: 10,
+          idleTimeout: 120_000, // Close idle connections after 120s
           enableKeepAlive: true,
           keepAliveInitialDelay: 30_000,
         },
@@ -311,6 +312,27 @@ export async function getUserByOpenId(openId: string) {
     .where(eq(users.openId, openId))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+/** TTL for cached user profile lookups (seconds) */
+const USER_CACHE_TTL_SECONDS = 300; // 5 minutes
+
+/**
+ * Cached variant of getUserByOpenId.
+ * Returns the user from the in-process LRU cache when available, falling back
+ * to a database query on a miss. The cache entry is invalidated automatically
+ * after USER_CACHE_TTL_SECONDS (5 min) so stale data never persists long.
+ */
+export async function getCachedUserByOpenId(openId: string) {
+  const cacheKey = `db:user:${openId}`;
+  const cached = await cache.get<Awaited<ReturnType<typeof getUserByOpenId>>>(cacheKey);
+  if (cached !== null) return cached;
+
+  const user = await getUserByOpenId(openId);
+  if (user) {
+    await cache.set(cacheKey, user, { ttl: USER_CACHE_TTL_SECONDS });
+  }
+  return user;
 }
 
 export async function getAllUsers() {
