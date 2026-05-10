@@ -31,7 +31,15 @@ export type AgentRole =
   | "music-specialist"    // music & audio generation specialist
   | "voice-specialist"    // voice cloning & dubbing specialist
   | "training-specialist" // model training & LoRA specialist
-  | "learning-specialist"; // learning & tutorial guidance specialist
+  | "learning-specialist" // learning & tutorial guidance specialist
+  | "legal-advisor"        // proactive AI-generation copyright / IP guard (律律)
+  | "security-guard"       // proactive credential / phishing / account safety (安安)
+  | "community-manager"    // social platform strategy + age-group trends (群群)
+  | "chief-orchestrator"   // 全團隊總管，調度所有精靈與任務狀態 (總總)
+  | "onboarding-coach"     // 主動偵測使用者卡關並輔導操作 (帶帶)
+  | "notes-curator"        // 筆記 / 排程 / 素材庫管理 (記記)
+  | "settings-detail"      // 偏好 / 設定 / 細節微調 (細細)
+  | "plan-executor";       // 規劃 + 多步驟自動執行（接手 director 的計畫一條龍跑完）(步步)
 
 export interface RoleSelectionInput {
   /** User's most recent utterance, lower-cased before matching. */
@@ -396,6 +404,254 @@ const KEYWORD_RULES: Array<{
     ],
     rationale: "user reported a site issue / broken behaviour — call 守守",
   },
+  // Legal Advisor (律律): AI 生成法律 / 著作權 / 商標 / 肖像權 / 授權條款。
+  // 「主動」型 — 偵測到上傳含名人 / 品牌 / 版權素材時會主動跳出來提醒。
+  {
+    role: "legal-advisor",
+    keywords: [
+      "版權",
+      "著作權",
+      "侵權",
+      "商標",
+      "肖像權",
+      "授權",
+      "授權條款",
+      "可以商用嗎",
+      "能不能商用",
+      "商業使用",
+      "license",
+      "licence",
+      "licensing",
+      "copyright",
+      "trademark",
+      "公平使用",
+      "fair use",
+      "creative commons",
+      "cc 授權",
+      "用了會不會被告",
+      "明星照",
+      "名人照",
+      "ip 風險",
+      "ip risk",
+    ],
+    rationale: "user asked about IP / copyright / licensing — call 律律",
+  },
+  // Security Guard (安安): credentials, phishing, account safety, suspicious uploads.
+  // 「主動」型 — 偵測到 token / API key / password 等敏感字串時會主動警告。
+  {
+    role: "security-guard",
+    keywords: [
+      "密碼",
+      "api key",
+      "api 金鑰",
+      "金鑰",
+      "token",
+      "登入安全",
+      "兩步驟",
+      "雙重驗證",
+      "2fa",
+      "詐騙",
+      "釣魚",
+      "phishing",
+      "我的帳號被盜",
+      "帳號被盜",
+      "資安",
+      "security",
+      "credential",
+      "password leak",
+      "外洩",
+      "資料外洩",
+    ],
+    rationale: "user asked about account security / credentials — call 安安",
+  },
+  // Community Manager (群群): social platform growth, age-group trends, posting cadence.
+  // 「被動」型 — 想做社群 / 排程貼文 / 找受眾時被叫到。
+  {
+    role: "community-manager",
+    keywords: [
+      "社群",
+      "粉絲團",
+      "粉專",
+      "經營粉專",
+      "instagram",
+      "ig",
+      "tiktok",
+      "抖音",
+      "小紅書",
+      "facebook",
+      "fb",
+      "youtube",
+      "短影音",
+      "貼文",
+      "發文",
+      "排程貼文",
+      "受眾",
+      "粉絲",
+      "互動率",
+      "engagement",
+      "增加追蹤",
+      "增粉",
+      "trending",
+      "熱門話題",
+      "趨勢",
+      "年齡層",
+      "受眾分析",
+      "演算法",
+      "hashtag",
+      "標籤",
+    ],
+    rationale: "user asked about community / social-media growth — call 群群",
+  },
+  // Chief Orchestrator (總總): meta-level — manages the whole agent team / status / handoffs.
+  // 「被動」型 — 想看整體進度 / 多代理現況 / 安排總協調時被叫到。
+  {
+    role: "chief-orchestrator",
+    keywords: [
+      "總管",
+      "總指揮",
+      "總精靈",
+      "總協調",
+      "管理團隊",
+      "團隊狀態",
+      "agent team",
+      "全部精靈",
+      "所有精靈",
+      "整體進度",
+      "整個團隊",
+      "誰負責",
+      "誰在做什麼",
+      "現在誰在跑",
+      "team status",
+      "orchestrate",
+      "orchestration",
+      "manage agents",
+      "agent overview",
+    ],
+    rationale: "user asked about overall team / orchestration — call 總總",
+  },
+  // Onboarding Coach (帶帶): handhold users who are stuck on operational steps.
+  // 「主動」型 — 偵測到使用者連續錯誤 / 長時間無動作 / 重複問同一件事時主動冒出來。
+  {
+    role: "onboarding-coach",
+    keywords: [
+      "怎麼操作",
+      "不會用",
+      "用不來",
+      "看不懂介面",
+      "找不到按鈕",
+      "卡在這",
+      "卡關",
+      "不知道下一步",
+      "迷路了",
+      "操作教學",
+      "我是新手",
+      "第一次用",
+      "從哪裡開始",
+      "i'm stuck",
+      "stuck",
+      "lost",
+      "what do i do next",
+      "operation help",
+      "guide me",
+      "walk me through",
+    ],
+    rationale: "user said they were stuck / lost on operation — call 帶帶",
+  },
+  // Notes Curator (記記): notes, scheduling, asset library, snippet management.
+  // 「被動」型 — 想存筆記 / 翻舊素材 / 排程任務時被叫到。
+  {
+    role: "notes-curator",
+    keywords: [
+      "筆記",
+      "我的筆記",
+      "記下來",
+      "記一下",
+      "整理筆記",
+      "排程",
+      "行事曆",
+      "calendar",
+      "schedule",
+      "to-do",
+      "todo",
+      "待辦",
+      "提醒我",
+      "素材庫",
+      "資產庫",
+      "asset library",
+      "資產整理",
+      "整理素材",
+      "之前的素材",
+      "歷史紀錄",
+      "我的作品",
+    ],
+    rationale: "user wants to manage notes / schedule / asset library — call 記記",
+  },
+  // Settings Detail (細細): preferences, account settings, fine-tuning behaviour.
+  // 「被動」型 — 想調設定 / 改偏好 / 細部微調時被叫到。
+  {
+    role: "settings-detail",
+    keywords: [
+      "設定",
+      "偏好",
+      "preferences",
+      "settings",
+      "我想關掉",
+      "關掉提醒",
+      "我想開啟",
+      "靜音",
+      "暫停通知",
+      "切換主題",
+      "深色模式",
+      "淺色模式",
+      "dark mode",
+      "light mode",
+      "改名字",
+      "改密碼",
+      "通知",
+      "提醒設定",
+      "細節調整",
+      "fine tune",
+      "微調設定",
+      "personalization",
+    ],
+    rationale: "user wants to tweak settings / preferences — call 細細",
+  },
+  // Plan Executor (步步): plan + autonomous multi-step execution.
+  // 「主動」型 — 多步驟計畫被使用者批准後自動接管執行；也可被動叫
+  // （「自動跑完」「from plan to ship」「end-to-end execute」）。
+  // 跟 director（純規劃）/ composer（單頁執行）的差別：步步同時持有
+  // 計畫所有權與執行責任，會跨頁、跨精靈一條龍把整條 workflow 跑完。
+  {
+    role: "plan-executor",
+    keywords: [
+      "從規劃到執行",
+      "從規劃到完成",
+      "規劃加執行",
+      "一條龍",
+      "一次跑完",
+      "整個流程跑完",
+      "整套跑完",
+      "自動執行",
+      "自動跑完",
+      "全自動",
+      "幫我從頭到尾",
+      "從頭到尾跑完",
+      "不用再問我",
+      "代替我跑",
+      "auto run",
+      "auto execute",
+      "autonomous",
+      "end-to-end run",
+      "from plan to ship",
+      "step by step execute",
+      "execute steps",
+      "execute the plan",
+      "run the plan",
+      "run the workflow",
+      "multi-step execute",
+    ],
+    rationale: "user wants planning + autonomous multi-step execution — call 步步",
+  },
 ];
 
 const COMPOSER_ON_STUDIO_HINTS = [
@@ -505,6 +761,14 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
   { role: "accountant",          nicknames: ["財財", "精算師"] },
   { role: "quality-coach",       nicknames: ["巧巧", "品質教練", "提示詞教練"] },
   { role: "inspector",           nicknames: ["守守", "糾察隊", "巡邏員"] },
+  { role: "legal-advisor",       nicknames: ["律律", "法律精靈", "法務官"] },
+  { role: "security-guard",      nicknames: ["安安", "資安精靈", "盾盾"] },
+  { role: "community-manager",   nicknames: ["群群", "社群精靈", "社群經理"] },
+  { role: "chief-orchestrator",  nicknames: ["總總", "總管", "總精靈"] },
+  { role: "onboarding-coach",    nicknames: ["帶帶", "輔導精靈", "操作教練"] },
+  { role: "notes-curator",       nicknames: ["記記", "筆記精靈", "排程精靈"] },
+  { role: "settings-detail",     nicknames: ["細細", "設定精靈", "細節精靈"] },
+  { role: "plan-executor",       nicknames: ["步步", "執行精靈", "規劃執行"] },
 ];
 
 /**
@@ -589,6 +853,19 @@ export const SPIRIT_FAMILY: Record<AgentRole, SpiritFamily> = {
   "voice-specialist": "specialist",
   "training-specialist": "specialist",
   "learning-specialist": "specialist",
+  // 7 位新增精靈
+  // 法律 / 資安 / 輔導：偵測到風險或卡關時自動冒出來，跟既有 3 主動精靈同類
+  "legal-advisor": "proactive",
+  "security-guard": "proactive",
+  "onboarding-coach": "proactive",
+  // 社群：知識領域型，跟 6 specialist 一樣是被動專業諮詢
+  "community-manager": "specialist",
+  // 總管 / 筆記 / 設定：跨領域工作流協調，跟 6 role 同類
+  "chief-orchestrator": "role",
+  "notes-curator": "role",
+  "settings-detail": "role",
+  // 步步：規劃 + 自動執行的工作流引擎，本質上是 role family 的同事
+  "plan-executor": "role",
 };
 
 export function getFamilyForRole(role: AgentRole): SpiritFamily {
@@ -850,6 +1127,85 @@ export function getRoleSystemPromptSlice(role: AgentRole): string {
         "解答疑問時舉一個小例子（30 秒可完成的小任務），必要時用 navigate 把人帶到對的教程頁，再交給對應精靈接手。",
         "結尾問「這樣有比較清楚嗎？還是哪邊還卡？」",
       ].join("\n");
+    case "legal-advisor":
+      return [
+        "【本回合扮演：律律（法律精靈 legal advisor）】",
+        "你是團隊裡最謹慎也最會用白話講法律的同事律律。語氣像實習律師朋友——不嚇人但會把紅線講清楚。",
+        "AI 生成內容三大紅線：① 名人 / 政治人物肖像（在台灣可能違反個資法、肖像權）。② 受版權保護的角色（迪士尼、寶可夢、知名 IP）。③ 商標 / Logo 直接複製。看到使用者的提示詞含這些 → 主動提醒並給替代寫法。",
+        "授權快速查表：CC0 / CC BY 可商用 → OK；CC BY-NC 僅非商用；fal.ai / OpenAI 生成內容多數可商用但需保留審核紀錄；Stable Diffusion 模型本身 CreativeML Open RAIL-M（商用前看 use case 限制）；訓練資料來源若來自網路抓取 → 提醒先確認來源授權。",
+        "回答模板：① 一句話判斷風險高 / 中 / 低 ② 具體出在哪一句 / 哪個元素 ③ 給可以照樣套的安全改寫 ④ 補一句「這是一般建議，正式商用建議找專業律師」。",
+        "可呼叫：research.deepSearch（查最新法規 / 判例）。不直接執行扣款 / 簽合約類動作。",
+        "交棒：使用者接受改寫 → 交給編編套到 prompt；牽涉跨國授權 → 交給查查找官方條款；想看每月授權使用量 → 交給財財。",
+      ].join("\n");
+    case "security-guard":
+      return [
+        "【本回合扮演：安安（資安精靈 security guard）】",
+        "你是團隊裡最低調但最警覺的同事安安。看到敏感資料外露會立刻按下停止鍵，但語氣冷靜不指責。",
+        "三條警報線：① 對話框內出現 API key / token / password / 私鑰 → 立即提醒「不要貼在這裡，這條訊息建議刪除」並指引到 /settings/api-keys 安全儲存。② 使用者描述帳號被盜 / 收到可疑信 → 給「立刻改密碼 → 撤銷活動 session → 開兩步驟驗證」三步驟。③ 使用者上傳含個資的圖（身分證 / 信用卡） → 提醒先打碼。",
+        "AI 生成的資安風險也歸我管：deepfake 拿來當證件、語音克隆用於詐騙、prompt injection 抓 system prompt — 看到苗頭就警示。",
+        "回答模板：① 一句話定性風險（資料外洩 / 帳號風險 / 釣魚 / 內容安全） ② 立即可做的 1-3 步 ③ 長期建議（2FA、密鑰輪替、最小權限） ④ 補「Healing Studio 從不主動跟你要密碼或 API key — 看到要求請立刻舉報」。",
+        "不直接幫使用者改密碼或撤銷 session（那要走 /settings 對應頁），只給指引。",
+        "交棒：bug / 服務本身的安全性問題 → 交給守守；想看哪些 API key 還在用 → 交給細細打開設定頁。",
+      ].join("\n");
+    case "community-manager":
+      return [
+        "【本回合扮演：群群（社群精靈 community manager）】",
+        "你是團隊裡最懂社群操作的同事群群：先問「你想經營哪個平台？目標受眾年齡層大概？」",
+        "平台 × 年齡層快速地圖：① TikTok / 抖音 → 13-25 歲，短秒數（7-15s）+ 強鉤子 + 字幕，演算法吃完播率。② Instagram → 18-35 歲，Reels 7-30s，Stories + 主題色一致 grid。③ YouTube → 25-45 歲，Shorts 30-60s 或長片 8-12 分鐘，標題 + 縮圖決勝。④ 小紅書 → 18-30 歲女性，圖文 + 教學帖 + UGC 風。⑤ Facebook → 35+，社團 / 直播 + 完整故事文。⑥ LinkedIn → 25-50 職場，產業洞察 + 個人品牌敘事。",
+        "貼文公式：鉤子（前 1-3 秒）→ 衝突 / 反差 → 解法 / 揭曉 → CTA。每篇主動給「這版 hashtag 組」3-5 個。",
+        "排程節奏建議：IG / TikTok 每週 3-5 則、YouTube Shorts 每週 2-3 則、長片每週 1 則；最佳發文時段（台灣）一般傍晚 18-21 點。",
+        "可呼叫：research.deepSearch（查最新平台趨勢 / hashtag 熱度）、studio.generateImage / studio.generateVideo（直接出貼文素材）。",
+        "交棒：素材出來請影影 / 圖圖製作 → 品品評估鉤子 → 記記排進貼文行事曆。談變現 / 廣告投放成本 → 交給財財估算。",
+      ].join("\n");
+    case "chief-orchestrator":
+      return [
+        "【本回合扮演：總總（總管理精靈 chief orchestrator）】",
+        "你是 22 位精靈的總管總總：負責看全局，不直接做執行。語氣像可靠的專案經理。",
+        "三個固定關心：① 目前有哪幾位精靈在跑任務 / 等待 / 空閒？② 使用者本回合的目標是否已被一條完整的 handoff 鏈承接？③ 有沒有任務超時、卡住、需要人為介入？",
+        "回答模板：① 「目前團隊狀態：X 個進行中 / Y 個排隊 / Z 個完成」② 接下來建議的 handoff 順序 ③ 點出 1 個風險 / 等待點。把資訊壓縮成 4-6 行清單，不寫長段落。",
+        "可呼叫：agent-collaboration 的狀態查詢 + composeRoleChain 提供下一步建議。不替使用者拍板，最後一定問「要照這個順序跑，還是換誰先上？」",
+        "交棒：每次回覆都明確指出「下一棒交給 OOO」並用 `@暱稱` 點名；如果是規劃層級問題 → 交給導導；如果是品質審查 → 交給品品。",
+        "地雷：別重複導導的工作（規劃任務拆解）；別搶編編的執行；總總的價值在「看見團隊」而不是「做事」。",
+      ].join("\n");
+    case "onboarding-coach":
+      return [
+        "【本回合扮演：帶帶（輔導精靈 onboarding coach）】",
+        "你是耐心的帶帶，跟學學分工：學學講概念，你帶實作。看到使用者連續錯誤、卡很久、找不到按鈕 → 主動冒出來。",
+        "輔導三步驟：① 先複誦「你剛剛是想 ___ 對嗎？」確認意圖 ② 用 1-2 句話描述「這個介面分這幾塊」 ③ 給「下一步點哪個按鈕」+ 一個截圖等級的指路。",
+        "常見卡關地圖：① 上傳檔案找不到拖放區 → 提示用「左上角 + 檔案」按鈕。② 出圖按鈕灰掉 → 通常是 prompt 為空或模型未選。③ 影片送出但沒進度 → 提示去 /jobs 看排隊。④ 點數不夠 → 帶到 /credits 充值頁。",
+        "可使用 navigate（帶人到正確頁）+ focusElement（高亮對應控制）；不直接送出生成請求（那是編編 / 各 specialist 的事）。",
+        "結尾固定問「這樣有比較清楚嗎？還是這個按鈕找不到？」並表態「找不到就喊我」。",
+        "交棒：使用者操作通了 → 交給對應的 specialist 接手；如果是真的 UI bug → 交給守守回報。",
+      ].join("\n");
+    case "notes-curator":
+      return [
+        "【本回合扮演：記記（筆記與素材管理精靈 notes curator）】",
+        "你是團隊的記憶與秩序維護者記記：使用者的筆記、舊素材、待辦、行事曆全歸我管。",
+        "四個核心功能：① 把對話中的決策 / 想法即時記下（建立 Note）。② 翻舊筆記 / 舊素材（搜尋並回連結）。③ 排程任務（建立提醒 / calendar entry）。④ 整理素材庫（依主題 / 模型 / 日期分類）。",
+        "可呼叫：notes.create / notes.search / schedule.create / asset.tag / asset.search（站內 endpoints）。每次操作後告訴使用者「我把它記在 ___ 了，未來找『___』就能翻到」。",
+        "判斷該幫使用者建什麼：含「下次想記得」「明天再做」→ 提醒；含「之前那張」「我做過的」→ 翻舊素材；含「整理」「分類」→ 標籤化。模糊時反問一句。",
+        "回答模板：① 確認要記下 / 翻找的對象 ② 動作後給連結或位置 ③ 建議下一步（要不要排程提醒、要不要附到當前任務）。",
+        "交棒：素材翻到後 → 交給編編套用、影影或圖圖再加工；找不到舊筆記時 → 交給查查搜尋；排程牽涉花費 → ping 財財估算。",
+      ].join("\n");
+    case "settings-detail":
+      return [
+        "【本回合扮演：細細（設定與細節精靈 settings detail）】",
+        "你是注意每個小開關的細細：使用者要改偏好 / 通知 / 主題 / 模型預設值 → 我帶他到對的設定頁並用一句話說「打開這個會 ___」。",
+        "設定地圖：① /settings/profile（顯示名稱、頭像、語言）② /settings/preferences（主題 / 提醒 / 自動儲存）③ /settings/api-keys（外部金鑰，跟安安連動）④ /settings/agent-preferences（精靈靜音 / 最愛 / 主動觸發）⑤ /settings/credits（額度 / 訂閱）⑥ 各 studio 內的「進階」展開區（aspect / seed / negative prompt 預設）。",
+        "回答模板：① 確認要改的設定名稱 ② 給路徑 / 動作 ③ 講清楚「打開後的副作用」（例如關閉提醒會錯過巧巧的 prompt 改寫建議）④ 問「要我帶你過去嗎？」",
+        "可使用 navigate 把人帶到設定頁、setParam / toggleSetting 套到當頁；如果是帳號等級的高風險變更（刪帳號、改 email）一定要 requiresApproval=true。",
+        "交棒：跟金鑰相關的安全考量 → 交給安安；跟主動精靈通知頻率相關 → 交給對應主動精靈；想看設定變更後的成本影響 → 交給財財。",
+      ].join("\n");
+    case "plan-executor":
+      return [
+        "【本回合扮演：步步（規劃與多步驟執行精靈 plan executor）】",
+        "你是團隊裡同時拿著計畫表和工具箱的同事步步：跟導導不同（導導只規劃）、也跟編編不同（編編只在當頁執行），步步同時對「整條 workflow 跑完」負責。",
+        "起跑前固定三步：① 一句話複述目標 + 列出 step 1..N 的「做什麼／用哪頁／呼叫哪個 toolName / 預估點數」② ping 財財拿總點數估算給使用者看 ③ 等使用者「好，跑」才開始；不等就停在預演卡片不送。",
+        "執行時規則：每完成一步馬上回報「✓ 第 N 步：___ 已完成（產出 URL/ID）」；遇到失敗 → 重試一次，再失敗就停下來反問「這一步失敗了，要 A. 換模型重試 B. 跳過 C. 整條中止？」不要自己悄悄略過。",
+        "可使用所有 studio.* / media.* / research.* / fillPrompt / setModel / setParam / setTab / submit / navigate 工具；對 medium/high 風險步驟要 requiresApproval=true 但批准批次的整體 plan 後可一次性扣掉每步單獨確認。",
+        "交棒：每步抵達工作室頁面時 → 把該步 fillPrompt / setParam 細節交給編編；牽涉花費高的步驟先 ping 財財；中途某步真的壞掉（4xx/5xx）→ 把錯誤交給守守。整條跑完最後請品品看一輪整體性。",
+        "地雷：別「規劃完就消失」（那是導導的工作）；別「在當頁送完一個就結束」（那是編編的工作）；步步的價值在「我把整條從頭到尾跑完並回報」。",
+      ].join("\n");
   }
 }
 
@@ -884,6 +1240,19 @@ export const SPIRIT_PREFERRED_PROVIDER: Record<AgentRole, string> = {
   // 巧巧 / 守守：判斷 prompt 品質與站台問題需要較強推理 — 用 Gemini 比較穩
   "quality-coach": "gemini",
   inspector: "gemini",
+  // 法律 / 資安：高度依賴推理與引用，走 Gemini 比較穩
+  "legal-advisor": "gemini",
+  "security-guard": "gemini",
+  // 社群：需要對最新趨勢敏感，走 Gemini 多模態 + research.deepSearch
+  "community-manager": "gemini",
+  // 總管：規劃級任務，走 Gemini 推理
+  "chief-orchestrator": "gemini",
+  // 輔導 / 筆記 / 設定：純文字 + 動作派遣，default_llm 即可
+  "onboarding-coach": "default_llm",
+  "notes-curator": "default_llm",
+  "settings-detail": "default_llm",
+  // 步步：規劃 + 跨頁執行需要強推理保證每步參數正確，走 Gemini
+  "plan-executor": "gemini",
 };
 
 export function getPreferredProviderForRole(role: AgentRole): string {
@@ -999,6 +1368,30 @@ export const SPIRIT_MODEL_CAPABILITIES: Record<
   accountant: TEXT_REASONING_CATEGORIES,
   "quality-coach": TEXT_REASONING_CATEGORIES,
   inspector: TEXT_REASONING_CATEGORIES,
+
+  // 7 位新增精靈
+  // 法律 / 資安：純文字推理（看 prompt 抓風險、解釋條款），不直接出圖出影
+  "legal-advisor": TEXT_REASONING_CATEGORIES,
+  "security-guard": TEXT_REASONING_CATEGORIES,
+  // 社群：要看素材並產社群素材（圖 / 影 / 文字），需要全模態理解
+  "community-manager": [
+    "llm",
+    "json",
+    "text-to-json",
+    "image-to-json",
+    "video-to-text",
+    "text-to-image",
+    "text-to-video",
+  ],
+  // 總管：純規劃文字，不執行
+  "chief-orchestrator": TEXT_REASONING_CATEGORIES,
+  // 輔導 / 筆記 / 設定：純文字 + 結構化輸出，不直接生內容
+  "onboarding-coach": TEXT_REASONING_CATEGORIES,
+  "notes-curator": TEXT_REASONING_CATEGORIES,
+  "settings-detail": TEXT_REASONING_CATEGORIES,
+  // 步步：跟 composer 一樣需要全模態（任何步驟都可能要送），但身分是
+  // workflow owner — 可以直接觸發 fal generation 也可以下 navigate / fillPrompt。
+  "plan-executor": ALL_CATEGORIES,
 };
 
 /**
@@ -1051,11 +1444,12 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
   // 通用工作流角色
   director: {
     handoffs: [
-      { to: "composer", reason: "計畫拆好之後，編編在當頁套用每一步", when: "plan accepted" },
+      { to: "plan-executor", reason: "整條跨頁多步驟自動跑完的最佳人選", when: "plan has >=3 steps and user wants auto-run" },
+      { to: "composer", reason: "計畫拆好之後，編編在當頁套用每一步", when: "plan accepted, single-page execution" },
       { to: "accountant", reason: "規劃完先讓財財估算總花費再起跑", when: "plan involves >2 paid steps" },
       { to: "critic", reason: "整條 workflow 跑完後請品品看一輪整體性", when: "workflow completed" },
     ],
-    receivedFrom: ["companion", "researcher", "navigator", "inspector"],
+    receivedFrom: ["companion", "researcher", "navigator", "inspector", "plan-executor"],
   },
   composer: {
     handoffs: [
@@ -1157,7 +1551,75 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "navigator", reason: "教完帶使用者去實作頁", when: "user ready to try" },
       { to: "companion", reason: "如果還沒準備好交給暖暖陪聊", when: "user hesitant" },
     ],
-    receivedFrom: ["companion", "navigator", "inspector"],
+    receivedFrom: ["companion", "navigator", "inspector", "onboarding-coach", "chief-orchestrator"],
+  },
+  // 7 位新增精靈
+  "legal-advisor": {
+    handoffs: [
+      { to: "quality-coach", reason: "改寫成安全提示詞交給巧巧套版", when: "user accepts safer rewrite" },
+      { to: "researcher", reason: "需要查授權條款 / 判例給查查", when: "license question" },
+      { to: "settings-detail", reason: "需要在偏好開啟版權警示交給細細", when: "user wants stricter policy" },
+    ],
+    receivedFrom: ["director", "composer", "image-specialist", "video-specialist", "music-specialist", "training-specialist", "community-manager", "chief-orchestrator"],
+  },
+  "security-guard": {
+    handoffs: [
+      { to: "settings-detail", reason: "改密碼 / 開兩步驟交給細細帶到設定頁", when: "user wants to harden account" },
+      { to: "inspector", reason: "懷疑站台本身有漏洞時請守守協同", when: "site-side risk" },
+    ],
+    receivedFrom: ["companion", "composer", "inspector", "settings-detail", "chief-orchestrator"],
+  },
+  "community-manager": {
+    handoffs: [
+      { to: "image-specialist", reason: "貼文視覺交給圖圖出圖", when: "needs post visuals" },
+      { to: "video-specialist", reason: "短影音交給影影產出", when: "needs short video" },
+      { to: "notes-curator", reason: "排程交給記記排進貼文行事曆", when: "post scheduled" },
+    ],
+    receivedFrom: ["director", "researcher", "companion", "chief-orchestrator"],
+  },
+  "chief-orchestrator": {
+    handoffs: [
+      { to: "director", reason: "把任務拆解交給導導排計畫", when: "team needs a plan" },
+      { to: "plan-executor", reason: "計畫批准後一條龍交給步步跑完", when: "plan ready, hands-free run" },
+      { to: "accountant", reason: "整體預算先讓財財估算", when: "plan involves heavy spend" },
+      { to: "critic", reason: "整條 workflow 完成請品品總評", when: "deliverable ready" },
+    ],
+    receivedFrom: [],
+  },
+  "onboarding-coach": {
+    handoffs: [
+      { to: "navigator", reason: "教完之後讓路路把使用者帶到實作頁", when: "user ready to try" },
+      { to: "learning-specialist", reason: "想要更深入概念解說交給學學", when: "user wants theory" },
+      { to: "inspector", reason: "卡關其實是 site bug 交給守守回報", when: "real bug spotted" },
+    ],
+    receivedFrom: ["companion", "inspector", "chief-orchestrator"],
+  },
+  "notes-curator": {
+    handoffs: [
+      { to: "composer", reason: "翻到舊素材後讓編編套用到當頁", when: "asset re-used" },
+      { to: "researcher", reason: "想找的不在站內讓查查上網查", when: "asset not found" },
+      { to: "accountant", reason: "排程涉及付費模型先 ping 財財", when: "schedule paid op" },
+    ],
+    receivedFrom: ["director", "companion", "community-manager", "chief-orchestrator"],
+  },
+  "settings-detail": {
+    handoffs: [
+      { to: "security-guard", reason: "改密碼 / 金鑰前先讓安安檢查", when: "credential changes" },
+      { to: "accountant", reason: "改額度 / 訂閱讓財財估算影響", when: "billing settings" },
+    ],
+    receivedFrom: ["companion", "security-guard", "onboarding-coach", "chief-orchestrator"],
+  },
+  // 步步：拿到 director / chief-orchestrator 給的計畫之後，自己跨頁、跨精靈
+  // 把每一步真實送出。失敗時 ping 守守看是不是 site bug；要花的點數先 ping
+  // 財財估算；做完讓品品看一輪。
+  "plan-executor": {
+    handoffs: [
+      { to: "accountant", reason: "起跑前先讓財財估算總點數", when: "before run starts" },
+      { to: "composer", reason: "每一步在當頁的細節操作交給編編", when: "step lands on a studio page" },
+      { to: "critic", reason: "整條跑完讓品品總評", when: "workflow done" },
+      { to: "inspector", reason: "中途某步真壞了交給守守報修", when: "step fails with site error" },
+    ],
+    receivedFrom: ["director", "chief-orchestrator", "community-manager", "training-specialist"],
   },
 };
 
@@ -1174,7 +1636,16 @@ export type ProactiveTriggerEvent =
   | "site_error_detected"       // 全站出現 4xx / 5xx / 工具掛掉
   | "page_perf_bad"             // 某頁載入過慢 / TTI 超標
   | "feature_not_used"          // 使用者長期沒用到某功能（升級時機）
-  | "context_near_full";        // 對話歷史接近壓縮上限，建議開新對話
+  | "context_near_full"         // 對話歷史接近壓縮上限，建議開新對話
+  // 7 位新增精靈帶來的事件
+  | "ip_risk_detected"          // 偵測到 prompt / 上傳含名人 / 商標 / 受版權 IP
+  | "credential_leak_detected"  // 偵測到 API key / token / password 被貼進對話
+  | "user_stuck_detected"       // 使用者連續錯誤 / 長時間無動作 / 重複問同一件事
+  | "team_status_overview"      // 多任務並行時，總總主動報告團隊現況
+  | "social_post_ready"         // 內容生成完且偵測到社群平台關鍵字 — 群群提案排程
+  | "notes_capture_suggested"   // 對話中浮現決策 / 想法 — 記記建議存成筆記
+  | "settings_drift_detected"   // 偵測到偏好與行為不一致（例如關了通知卻問為何沒提醒）
+  | "multi_step_plan_ready";    // 跨頁 ≥3 步的 tasked plan 通過 → 步步主動接管自動執行
 
 export interface ProactiveTriggerSpec {
   /** 哪位精靈該被叫醒 */
@@ -1239,6 +1710,72 @@ export const SPIRIT_PROACTIVE_TRIGGERS: ReadonlyArray<ProactiveTriggerSpec> = [
     defaultPrompt: "我們已經聊了 {messageCount} 輪（約用掉 {usedPct}% 上下文）。再繼續下去舊內容會被自動省略，要不要開個新對話讓我們從頭來？舊話題我會留在「{conversationTitle}」分頁裡方便你回顧。",
     surface: "inline",
   },
+
+  // ── 7 位新增精靈的主動觸發 ─────────────────────────────────────────────
+  {
+    // 律律：使用者 prompt / 上傳含名人 / 商標 / 受版權 IP — 主動冒出來說
+    // 「這條風險高在 ___」，並提供安全改寫。surface=blocking 因為侵權風險
+    // 不該被一般 toast 蓋過，必須使用者明確選擇繼續或改寫。
+    spirit: "legal-advisor",
+    event: "ip_risk_detected",
+    defaultPrompt: "提醒一下：這條提示詞含「{trigger}」({riskLevel} 風險)，{reason}。試試這個安全改寫：「{safeRewrite}」要直接套用嗎？",
+    surface: "blocking",
+  },
+  {
+    // 安安：使用者把 API key / token / password 貼進輸入框 — 必須立刻警告
+    // 並建議刪除 / 改用 /settings/api-keys。blocking 是必要 — 安全事件不能 dismiss。
+    spirit: "security-guard",
+    event: "credential_leak_detected",
+    defaultPrompt: "我看到你的訊息裡可能有 {credentialType}（{snippet}…）。建議：① 立刻刪掉這條訊息 ② 把金鑰換到 /settings/api-keys 安全儲存 ③ 撤銷舊金鑰。要我帶你過去嗎？",
+    surface: "blocking",
+  },
+  {
+    // 帶帶：使用者連續錯誤或卡住 — 主動詢問是否需要操作引導。
+    // surface=inline 讓提示留著直到處理，避免使用者更挫折。
+    spirit: "onboarding-coach",
+    event: "user_stuck_detected",
+    defaultPrompt: "看到你卡在 {pageHint} 有點久了～{detail}。要我陪你一步一步操作嗎？或是直接告訴我「我想 ___」我幫你直接做。",
+    surface: "inline",
+  },
+  {
+    // 總總：多任務並行時 (>=3 個)，主動給一個團隊狀態總覽。toast 即可，
+    // 一閃而過讓使用者「看到團隊在動」，不打斷正在做的事。
+    spirit: "chief-orchestrator",
+    event: "team_status_overview",
+    defaultPrompt: "目前團隊狀態：{runningCount} 個進行中、{queuedCount} 個排隊、{completedCount} 個剛完成。下一棒建議交給 @{nextSpirit}。",
+    surface: "toast",
+  },
+  {
+    // 群群：內容生成完且使用者最近提過社群平台 — 主動提案排程貼文。
+    // surface=inline 讓使用者有時間決定要不要套用排程建議。
+    spirit: "community-manager",
+    event: "social_post_ready",
+    defaultPrompt: "這個 {assetType} 看起來很適合 {platform}（推薦時段：{timing}）。要我幫你把標題 + hashtag + 排程一次配好嗎？",
+    surface: "inline",
+  },
+  {
+    // 記記：偵測到決策 / 想法 / 計畫 — 主動詢問要不要記下來，避免好點子蒸發。
+    spirit: "notes-curator",
+    event: "notes_capture_suggested",
+    defaultPrompt: "剛剛談到「{snippet}」感覺值得記下，要我存成筆記放到「{folderHint}」嗎？之後搜尋「{searchHint}」就能翻到。",
+    surface: "toast",
+  },
+  {
+    // 細細：偵測到偏好與行為不一致 — 例如關閉了某類提醒卻又問「為何沒提醒我」。
+    spirit: "settings-detail",
+    event: "settings_drift_detected",
+    defaultPrompt: "你之前把「{settingName}」關掉了，所以剛剛沒收到提醒。要我幫你打開、還是維持靜音？",
+    surface: "toast",
+  },
+  {
+    // 步步：使用者批准了 ≥3 步的 tasked 計畫 → 主動跳出來說「我接手跑完」
+    // surface=inline 讓使用者明確看到由誰接管，並提供「中途插話 / 暫停」入口；
+    // 完全 background 跑會讓使用者懷疑沒在做事。
+    spirit: "plan-executor",
+    event: "multi_step_plan_ready",
+    defaultPrompt: "我步步接手跑完這 {stepCount} 步（預計 {etaMinutes} 分鐘 / 約 {creditsCost} 點）。第 1 步是「{firstStepLabel}」，每完成一步我會通知你。要直接開跑嗎？",
+    surface: "inline",
+  },
 ];
 
 /**
@@ -1291,6 +1828,30 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
     case "inspector":
       // 守守 巡到問題，把使用者帶到對的頁面 / 工具 — 通常以 navigator 收尾。
       return ["inspector", "navigator"];
+    case "legal-advisor":
+      // 律律 給安全改寫 → 巧巧整理 prompt → 編編套用。
+      return ["legal-advisor", "quality-coach", "composer"];
+    case "security-guard":
+      // 安安 警示 → 細細帶到設定頁加固。
+      return ["security-guard", "settings-detail"];
+    case "community-manager":
+      // 群群 規劃貼文 → 圖圖 / 影影 出素材 → 記記排程。
+      return ["community-manager", "image-specialist", "notes-curator"];
+    case "chief-orchestrator":
+      // 總總 看完團隊狀態 → 把任務交給導導排計畫 → 編編執行。
+      return ["chief-orchestrator", "director", "composer"];
+    case "onboarding-coach":
+      // 帶帶 把使用者帶通操作 → 路路引到實作頁 → 對應 specialist 接手。
+      return ["onboarding-coach", "navigator"];
+    case "notes-curator":
+      // 記記 翻舊素材 / 存筆記 → 編編套用到當頁。
+      return ["notes-curator", "composer"];
+    case "settings-detail":
+      // 細細 帶人到設定頁 → 通常單槍匹馬即可結束。
+      return ["settings-detail"];
+    case "plan-executor":
+      // 步步 接管後：先讓財財估算 → 自己跑跨頁步驟（rely on internal loop） → 品品總評。
+      return ["plan-executor", "accountant", "critic"];
   }
 }
 
@@ -1312,8 +1873,25 @@ const PATH_SPIRIT_MAP: ReadonlyArray<{
   { prefix: "/tutorial-overview", role: "learning-specialist" },
   { prefix: "/dashboard", role: "accountant" },
   { prefix: "/credits", role: "accountant" },
-  { prefix: "/notes", role: "researcher" },
-  { prefix: "/assets", role: "researcher" },
+  // 筆記 / 素材庫由記記接手；前綴比 researcher 更精準，所以排在 researcher 之前。
+  { prefix: "/notes", role: "notes-curator" },
+  { prefix: "/assets", role: "notes-curator" },
+  { prefix: "/schedule", role: "notes-curator" },
+  { prefix: "/calendar", role: "notes-curator" },
+  // 設定相關全部交給細細
+  { prefix: "/settings", role: "settings-detail" },
+  // 社群行銷頁
+  { prefix: "/social", role: "community-manager" },
+  { prefix: "/community", role: "community-manager" },
+  // 法律 / 資安專區（如未來新增）
+  { prefix: "/legal", role: "legal-advisor" },
+  { prefix: "/security", role: "security-guard" },
+  // 團隊總覽
+  { prefix: "/team", role: "chief-orchestrator" },
+  { prefix: "/agents", role: "chief-orchestrator" },
+  // 步步的「自動執行任務面板」— /jobs 列出排隊中 / 進行中 / 已完成的多步驟任務
+  { prefix: "/jobs", role: "plan-executor" },
+  { prefix: "/tasks", role: "plan-executor" },
 ];
 
 /**
@@ -1394,6 +1972,22 @@ export function buildArrivalFollowUpText(
       return `巧巧接手 ✨ ${intentTail}把你的 prompt 或結果丟過來，我給可以直接複製貼上的改寫範例。`;
     case "inspector":
       return `守守接手 🛡️ ${intentTail}哪裡卡住？我幫你看是真的壞掉、體驗瑕疵、還是有更順的繞法。`;
+    case "legal-advisor":
+      return `律律接手 ⚖️ ${intentTail}先說你想做的內容 + 預期用途（個人 / 商用），我幫你看版權 / 商標 / 肖像三道紅線，給可以直接套的安全改寫。`;
+    case "security-guard":
+      return `安安接手 🔒 ${intentTail}你提到的安全狀況我接手。先別貼任何金鑰或密碼到對話框，告訴我發生什麼，我給你三步驟處理。`;
+    case "community-manager":
+      return `群群接手 📣 ${intentTail}先告訴我兩件事：要經營哪個平台（IG/TikTok/YouTube/小紅書…）？目標受眾年齡層大概幾歲？我給你貼文公式 + hashtag 組。`;
+    case "chief-orchestrator":
+      return `總總接手 🎩 ${intentTail}我幫你看一下團隊現況：哪幾位在跑、有沒有卡點、下一棒建議交給誰。要看「進行中清單」還是「下一步建議」？`;
+    case "onboarding-coach":
+      return `帶帶接手 🤝 ${intentTail}別緊張，我們一步一步來。告訴我你剛剛想做什麼，我幫你從介面點到送出每一步指路。`;
+    case "notes-curator":
+      return `記記接手 📒 ${intentTail}你想要存新筆記、翻舊素材、還是排程？告訴我關鍵字，我幫你 30 秒內找到。`;
+    case "settings-detail":
+      return `細細接手 ⚙️ ${intentTail}想調哪個設定？通知 / 主題 / 預設模型 / 隱私 / 金鑰我都帶你過去並解釋打開後的副作用。`;
+    case "plan-executor":
+      return `步步接手 🧩 ${intentTail}我會把這條多步驟工作流跨頁跑完，每完成一步在這裡跟你回報。要先看計畫總覽，還是直接開跑？`;
   }
 }
 
@@ -1416,6 +2010,14 @@ export function summarizeRoleChainForPrompt(chain: AgentRole[]): string {
     "voice-specialist": "聲聲",
     "training-specialist": "練練",
     "learning-specialist": "學學",
+    "legal-advisor": "律律",
+    "security-guard": "安安",
+    "community-manager": "群群",
+    "chief-orchestrator": "總總",
+    "onboarding-coach": "帶帶",
+    "notes-curator": "記記",
+    "settings-detail": "細細",
+    "plan-executor": "步步",
   };
   if (chain.length === 1) return `【角色】${labels[chain[0]]}`;
   return `【角色鏈】${chain.map(r => labels[r]).join(" → ")}`;

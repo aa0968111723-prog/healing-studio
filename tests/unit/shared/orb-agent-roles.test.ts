@@ -105,16 +105,28 @@ describe("pickDefaultPathForRole", () => {
     expect(pickDefaultPathForRole("training-specialist")).toBe("/models");
     expect(pickDefaultPathForRole("learning-specialist")).toBe("/learn");
     expect(pickDefaultPathForRole("accountant")).toBe("/dashboard");
-    expect(pickDefaultPathForRole("researcher")).toBe("/notes");
+    // 7 位新增精靈：notes-curator / settings-detail / community-manager / chief-orchestrator
+    // 各自接手了筆記 / 設定 / 社群 / 團隊頁面；researcher 改回沒有專屬頁面（workflow 角色）。
+    expect(pickDefaultPathForRole("notes-curator")).toBe("/notes");
+    expect(pickDefaultPathForRole("settings-detail")).toBe("/settings");
+    expect(pickDefaultPathForRole("community-manager")).toBe("/social");
+    expect(pickDefaultPathForRole("chief-orchestrator")).toBe("/team");
+    expect(pickDefaultPathForRole("legal-advisor")).toBe("/legal");
+    expect(pickDefaultPathForRole("security-guard")).toBe("/security");
+    expect(pickDefaultPathForRole("plan-executor")).toBe("/jobs");
   });
 
   it("returns null for non-page workflow roles", () => {
-    // composer / critic / companion / navigator 沒有專屬頁面，server 不該補
-    // 強制跳頁 — 否則會把純對話打斷。
+    // composer / critic / companion / navigator / researcher / 帶帶 沒有專屬頁面，
+    // server 不該補強制跳頁 — 否則會把純對話打斷。
     expect(pickDefaultPathForRole("composer")).toBeNull();
     expect(pickDefaultPathForRole("critic")).toBeNull();
     expect(pickDefaultPathForRole("companion")).toBeNull();
     expect(pickDefaultPathForRole("navigator")).toBeNull();
+    // researcher 從原本的 /notes 移交給 notes-curator；自己回歸無頁面的 workflow 角色。
+    expect(pickDefaultPathForRole("researcher")).toBeNull();
+    // 帶帶 (onboarding-coach) 是「跟著使用者目前所在頁」的 coach，沒有專屬頁面。
+    expect(pickDefaultPathForRole("onboarding-coach")).toBeNull();
   });
 
   it("is the inverse of pickArrivalSpiritForPath for canonical paths", () => {
@@ -339,7 +351,7 @@ describe("@nickname mention routing", () => {
 });
 
 describe("SPIRIT_COLLAB_PROTOCOL", () => {
-  // 全 15 個成員都要列出來 — handoffs[] 也只能指向已知角色。
+  // 全 23 個成員都要列出來 — handoffs[] 也只能指向已知角色。
   const ALL_ROLES: AgentRole[] = [
     "director",
     "composer",
@@ -356,9 +368,19 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
     "voice-specialist",
     "training-specialist",
     "learning-specialist",
+    // 7 位新增精靈
+    "legal-advisor",
+    "security-guard",
+    "community-manager",
+    "chief-orchestrator",
+    "onboarding-coach",
+    "notes-curator",
+    "settings-detail",
+    // 第 8 位新增：規劃 + 多步驟執行
+    "plan-executor",
   ];
 
-  it("covers all 15 spirits", () => {
+  it("covers all 23 spirits", () => {
     for (const role of ALL_ROLES) {
       expect(SPIRIT_COLLAB_PROTOCOL[role]).toBeDefined();
     }
@@ -389,16 +411,24 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
   });
 
   it("proactive triggers reference one of the proactive spirits OR companion (chat-state events)", () => {
-    // The original 3 proactive spirits handle cost / quality / site-error.
-    // `companion` (暖暖) was added later as the owner of conversation-state
-    // proactive events like `context_near_full`, since open-conversation
-    // upkeep is their natural beat. Lock the union here so adding new
-    // owners requires an explicit decision.
+    // 6 個 proactive 精靈：原本的 3 位（財財 / 巧巧 / 守守）+ 新增 3 位
+    // （律律 / 安安 / 帶帶）。`companion` (暖暖) 是 chat-state 事件的擁有者，
+    // 像 `context_near_full` 這類「我們聊太久了」的提示由暖暖出面最自然。
+    // 另外社群 / 筆記 / 設定 / 總管也有自己的軟提示事件，於是這份 allowed 把
+    // 所有「會主動出聲」的精靈納入；以後新增 trigger 必須選一位明確的擁有者。
     const allowed = new Set<AgentRole>([
       "accountant",
       "quality-coach",
       "inspector",
       "companion",
+      "legal-advisor",
+      "security-guard",
+      "onboarding-coach",
+      "chief-orchestrator",
+      "community-manager",
+      "notes-curator",
+      "settings-detail",
+      "plan-executor",
     ]);
     for (const t of SPIRIT_PROACTIVE_TRIGGERS) {
       expect(allowed.has(t.spirit)).toBe(true);
@@ -503,11 +533,21 @@ describe("SPIRIT_FAMILY classification", () => {
       "voice-specialist",
       "training-specialist",
       "learning-specialist",
+      // 7 位新增精靈
+      "legal-advisor",
+      "security-guard",
+      "community-manager",
+      "chief-orchestrator",
+      "onboarding-coach",
+      "notes-curator",
+      "settings-detail",
+      // 第 8 位新增：規劃 + 多步驟執行
+      "plan-executor",
     ];
     for (const r of allRoles) {
       expect(SPIRIT_FAMILY[r]).toBeDefined();
     }
-    // exactly 15 entries — no orphans, no duplicates
+    // exactly 23 entries — no orphans, no duplicates
     expect(Object.keys(SPIRIT_FAMILY)).toHaveLength(allRoles.length);
   });
 
@@ -517,7 +557,7 @@ describe("SPIRIT_FAMILY classification", () => {
     expect(getFamilyForRole("inspector")).toBe("proactive");
   });
 
-  it("groups specialist 6 under specialist family", () => {
+  it("groups specialist family — 6 original + 群群", () => {
     const specialists = getRolesByFamily("specialist");
     expect(specialists).toEqual(
       expect.arrayContaining([
@@ -527,12 +567,13 @@ describe("SPIRIT_FAMILY classification", () => {
         "voice-specialist",
         "training-specialist",
         "learning-specialist",
+        "community-manager",
       ]),
     );
-    expect(specialists).toHaveLength(6);
+    expect(specialists).toHaveLength(7);
   });
 
-  it("groups generic workflow 6 under role family", () => {
+  it("groups role family — 6 original + 總總 / 記記 / 細細 / 步步", () => {
     const roles = getRolesByFamily("role");
     expect(roles).toEqual(
       expect.arrayContaining([
@@ -542,9 +583,28 @@ describe("SPIRIT_FAMILY classification", () => {
         "researcher",
         "navigator",
         "companion",
+        "chief-orchestrator",
+        "notes-curator",
+        "settings-detail",
+        "plan-executor",
       ]),
     );
-    expect(roles).toHaveLength(6);
+    expect(roles).toHaveLength(10);
+  });
+
+  it("groups proactive family — 3 original + 律律 / 安安 / 帶帶", () => {
+    const proactive = getRolesByFamily("proactive");
+    expect(proactive).toEqual(
+      expect.arrayContaining([
+        "accountant",
+        "quality-coach",
+        "inspector",
+        "legal-advisor",
+        "security-guard",
+        "onboarding-coach",
+      ]),
+    );
+    expect(proactive).toHaveLength(6);
   });
 
   it("getRolesByFamily families partition every spirit", () => {
@@ -552,17 +612,17 @@ describe("SPIRIT_FAMILY classification", () => {
     const roles = getRolesByFamily("role");
     const proactive = getRolesByFamily("proactive");
     const total = specialists.length + roles.length + proactive.length;
-    expect(total).toBe(15);
+    expect(total).toBe(23);
     // no role appears in two families
     const set = new Set([...specialists, ...roles, ...proactive]);
-    expect(set.size).toBe(15);
+    expect(set.size).toBe(23);
   });
 });
 
 describe("SPIRIT_MODEL_CAPABILITIES", () => {
-  it("covers every one of the 15 spirits", () => {
+  it("covers every one of the 23 spirits", () => {
     const roles = Object.keys(SPIRIT_MODEL_CAPABILITIES) as AgentRole[];
-    expect(roles).toHaveLength(15);
+    expect(roles).toHaveLength(23);
   });
 
   it("圖圖 (image-specialist) can call image generation, editing, and 3D categories", () => {
@@ -606,14 +666,18 @@ describe("SPIRIT_MODEL_CAPABILITIES", () => {
     expect(canSpiritCallCategory("voice-specialist", "text-to-audio")).toBe(false);
   });
 
-  it("練練 (training-specialist) is the only spirit that may call training", () => {
+  it("練練 (training-specialist) plus composer + 步步 are the only spirits authorised to call training", () => {
     const allowed = (Object.entries(SPIRIT_MODEL_CAPABILITIES) as Array<
       [AgentRole, ReadonlyArray<string>]
     >)
       .filter(([, cats]) => cats.includes("training"))
       .map(([role]) => role);
-    // composer fans out to every category, so it also has training; the rest must not
-    expect(allowed.sort()).toEqual(["composer", "training-specialist"].sort());
+    // composer fans out to every category, plan-executor inherits ALL_CATEGORIES
+    // because it owns multi-step workflow execution that may include LoRA training;
+    // every other spirit must NOT have direct training authority.
+    expect(allowed.sort()).toEqual(
+      ["composer", "plan-executor", "training-specialist"].sort()
+    );
   });
 
   it("編編 (composer) can dispatch every category (executes whatever the page needs)", () => {

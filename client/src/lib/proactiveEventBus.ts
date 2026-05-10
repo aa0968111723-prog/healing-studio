@@ -45,6 +45,62 @@ export interface ProactiveEventPayloads {
     capChars: number;
     conversationTitle: string;
   };
+  // 7 位新增精靈帶來的事件
+  ip_risk_detected: {
+    /** 觸發詞（例如「迪士尼角色」「特定政治人物姓名」） */
+    trigger: string;
+    /** 風險等級：高 / 中 / 低 */
+    riskLevel: "高" | "中" | "低" | string;
+    /** 為何有風險，一句話 */
+    reason: string;
+    /** 建議的安全改寫，使用者可一鍵套用 */
+    safeRewrite: string;
+  };
+  credential_leak_detected: {
+    /** 偵測到的類型：API key / token / password / private key */
+    credentialType: string;
+    /** 截掉敏感字串只保留 prefix（顯示用） */
+    snippet: string;
+  };
+  user_stuck_detected: {
+    /** 在哪個頁面 / 哪個區塊 */
+    pageHint: string;
+    /** 觀察到的狀況描述 */
+    detail: string;
+  };
+  team_status_overview: {
+    runningCount: number;
+    queuedCount: number;
+    completedCount: number;
+    /** 建議的下一棒精靈暱稱 */
+    nextSpirit: string;
+  };
+  social_post_ready: {
+    /** 圖 / 影 / 文章 */
+    assetType: string;
+    /** IG / TikTok / YouTube / 小紅書 */
+    platform: string;
+    /** 推薦發文時段（例如「週四 19:00」） */
+    timing: string;
+  };
+  notes_capture_suggested: {
+    snippet: string;
+    folderHint: string;
+    searchHint: string;
+  };
+  settings_drift_detected: {
+    settingName: string;
+  };
+  multi_step_plan_ready: {
+    /** 計畫總步數（>=3 才會觸發） */
+    stepCount: number;
+    /** 預估耗時（分鐘） */
+    etaMinutes: number;
+    /** 預估點數（依各步驟模型加總） */
+    creditsCost: number;
+    /** 第 1 步的 label，方便使用者快速判斷是否符合預期 */
+    firstStepLabel: string;
+  };
 }
 
 type Listener<E extends ProactiveTriggerEvent> = (payload: ProactiveEventPayloads[E]) => void;
