@@ -21,6 +21,12 @@
  */
 
 import { createFalClient } from "@fal-ai/client";
+import {
+  canSpiritCallCategory,
+  getCategoriesForSpirit,
+  type AgentRole,
+  type SpiritModelCategory,
+} from "../../shared/orb-agent-roles";
 
 // ─── 模型類別定義 ─────────────────────────────────────────────────────────
 
@@ -2222,6 +2228,50 @@ export function assertNoDuplicateModelIds(): void {
 
 // 模組載入時自動檢查（開發/測試環境會拋錯）
 assertNoDuplicateModelIds();
+
+// ─── 精靈 → 模型授權 (sprite → fal model authorisation) ────────────────────
+//
+// 把 shared/orb-agent-roles.ts 裡的「精靈可用類別」對應到實際 fal 模型清單。
+// 設計上 SpiritModelCategory 是 FalCategory 的子集（純字串聯集），所以
+// `cat as FalCategory` 在編譯期由下面的 satisfies 守衛確保安全。
+const _categoryCompatGuard: ReadonlyArray<FalCategory> =
+  [] as ReadonlyArray<SpiritModelCategory>;
+void _categoryCompatGuard;
+
+/**
+ * 取得某位精靈在語意上可呼叫的 fal 模型清單（已過濾 disabled）。
+ * 例：
+ *   - getFalModelsForSpirit("image-specialist") → 圖圖能用的所有 t2i / i2i / i23d / t23d / i2json 模型
+ *   - getFalModelsForSpirit("video-specialist") → 影影能用的所有 t2v / i2v / v2v / v2t / v2a 模型
+ *
+ * 用途：UI 端依精靈呈現「可用模型」清單；server dispatch 前的授權檢查；
+ * 統計各精靈管轄的模型數量。
+ */
+export function getFalModelsForSpirit(role: AgentRole): FalModelConfig[] {
+  const categories = getCategoriesForSpirit(role);
+  const out: FalModelConfig[] = [];
+  for (const category of categories) {
+    const models = FAL_MODEL_CATALOG[category as FalCategory] ?? [];
+    for (const m of models) {
+      if (!m.disabled) out.push(m);
+    }
+  }
+  return out;
+}
+
+/**
+ * 檢查某位精靈是否可呼叫某個 fal 模型。
+ * 路由 / dispatcher 在實際送 API 前可呼叫此函式做授權檢查 — 例：
+ *   if (!canSpiritCallFalModel(activeSprite, modelId)) throw new Error("此精靈無此模型權限");
+ */
+export function canSpiritCallFalModel(
+  role: AgentRole,
+  modelId: string,
+): boolean {
+  const model = getFalModelById(modelId);
+  if (!model) return false;
+  return canSpiritCallCategory(role, model.category as SpiritModelCategory);
+}
 
 /** 取得所有類別標籤（繁中） */
 export const FAL_CATEGORY_LABELS: Record<FalCategory, string> = {
