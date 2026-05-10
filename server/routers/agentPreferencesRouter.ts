@@ -3,7 +3,11 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { agentPreferences } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb, getRecentOrbFeedback } from "../db";
+import {
+  getDb,
+  getRecentOrbFeedback,
+  invalidateAgentPreferencesCache,
+} from "../db";
 import { DEFAULT_AGENT_PREFERENCES } from "../../shared/agent-preferences";
 import { distillPreferenceProfile } from "../../shared/orb-preference-distiller";
 import { getRecentOrbMemories } from "../services/orbMemory";
@@ -220,6 +224,8 @@ export const agentPreferencesRouter = router({
       patch.onboardingCompletedAt = new Date(patch.onboardingCompletedAt);
     }
     await db.update(agentPreferences).set(patch).where(and(eq(agentPreferences.userId, ctx.user.id)));
+    // Invalidate cached preferences so the next read reflects the update
+    await invalidateAgentPreferencesCache(ctx.user.id);
     const rows = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, ctx.user.id)).limit(1);
     return rows[0];
   }),

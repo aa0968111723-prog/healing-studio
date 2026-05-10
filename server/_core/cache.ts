@@ -218,6 +218,7 @@ class CacheService {
     llm: 600,      // 10 minutes — LLM responses are expensive
     search: 300,   // 5 minutes  — search results change frequently
     prefs: 1_800,  // 30 minutes — user preferences are stable
+    db: 300,       // 5 minutes  — database query results (user profiles)
     generic: 300,  // 5 minutes  — default
   };
 
