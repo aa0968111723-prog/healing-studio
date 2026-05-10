@@ -198,6 +198,43 @@ export default function NotesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  // ── Perplexity research dialog state ──
+  const [showResearch, setShowResearch] = useState(false);
+  const [researchQuery, setResearchQuery] = useState("");
+  const [researchEngine, setResearchEngine] = useState<
+    "perplexity" | "google" | "google-scholar"
+  >("perplexity");
+
+  const openResearchDialog = useCallback(
+    (seed?: string) => {
+      setResearchQuery((seed ?? search ?? "").trim());
+      setResearchEngine("perplexity");
+      setShowResearch(true);
+    },
+    [search]
+  );
+
+  const submitResearch = useCallback(() => {
+    const q = researchQuery.trim();
+    if (!q) {
+      toast.error("請輸入研究主題");
+      return;
+    }
+    const ok = launchResearch(q, researchEngine);
+    if (!ok) {
+      toast.error("瀏覽器擋下新分頁，請允許彈出視窗");
+      return;
+    }
+    setShowResearch(false);
+    toast.success(`已在新分頁開啟${
+      researchEngine === "perplexity"
+        ? " Perplexity"
+        : researchEngine === "google-scholar"
+          ? " Google Scholar"
+          : " Google"
+    }`);
+  }, [researchQuery, researchEngine]);
+
   // ── Edit state ──
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -962,16 +999,7 @@ export default function NotesPage() {
             size="sm"
             variant="outline"
             className="h-7 text-xs gap-1.5"
-            onClick={() => {
-              const seed = search.trim();
-              const q = window.prompt(
-                "要在 Perplexity 深度研究什麼主題？",
-                seed
-              );
-              if (!q?.trim()) return;
-              const ok = launchResearch(q, "perplexity");
-              if (!ok) toast.error("瀏覽器擋下新分頁，請允許彈出視窗");
-            }}
+            onClick={() => openResearchDialog()}
             title="開啟 Perplexity AI 搜尋（會在新分頁打開）"
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -1497,14 +1525,9 @@ export default function NotesPage() {
                                     className="h-7 text-xs gap-1 rounded-lg"
                                     onClick={e => {
                                       e.stopPropagation();
-                                      const ok = launchResearch(
-                                        note.title,
-                                        "perplexity"
-                                      );
-                                      if (!ok)
-                                        toast.error("瀏覽器擋下新分頁，請允許彈出視窗");
+                                      openResearchDialog(note.title);
                                     }}
-                                    title="把這篇筆記的標題丟到 Perplexity 深掘"
+                                    title="把這篇筆記丟到 Perplexity 深掘（可在跳出視窗微調主題）"
                                   >
                                     <Sparkles className="w-3 h-3" /> Perplexity
                                   </Button>
@@ -1536,6 +1559,119 @@ export default function NotesPage() {
       )}
         </>
       )}
+
+      {/* ── Perplexity / 深度研究 Dialog ── */}
+      <Dialog open={showResearch} onOpenChange={setShowResearch}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              深度研究
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground font-medium">
+                研究主題
+              </span>
+              <Textarea
+                placeholder="例如：2026 年內容創作者最常用的影片剪輯流程"
+                value={researchQuery}
+                onChange={e => setResearchQuery(e.target.value)}
+                rows={3}
+                className="rounded-xl text-sm"
+                onKeyDown={e => {
+                  if (
+                    e.key === "Enter" &&
+                    (e.metaKey || e.ctrlKey) &&
+                    researchQuery.trim()
+                  ) {
+                    submitResearch();
+                  }
+                }}
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground">
+                ⌘/Ctrl + Enter 直接送出
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground font-medium">
+                搜尋引擎
+              </span>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: "perplexity", label: "Perplexity", hint: "AI 深度研究" },
+                    { id: "google-scholar", label: "Scholar", hint: "學術論文" },
+                    { id: "google", label: "Google", hint: "一般網頁" },
+                  ] as const
+                ).map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setResearchEngine(opt.id)}
+                    className={`flex-1 flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                      researchEngine === opt.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border/30 bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    <span className="text-[9px] opacity-60">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => {
+                  if (!researchQuery.trim()) {
+                    toast.error("請先輸入主題");
+                    return;
+                  }
+                  // Save the topic as a research note for later capture
+                  createNote.mutate({
+                    title: `深度研究 - ${researchQuery.trim().slice(0, 60)}`,
+                    content: [
+                      `## 研究主題`,
+                      researchQuery.trim(),
+                      "",
+                      "## 來源",
+                      "1. ",
+                      "",
+                      "## 重點筆記",
+                      "- ",
+                      "",
+                      "## 結論",
+                      "- ",
+                    ].join("\n"),
+                    noteType: "note",
+                    tags: ["深度研究", researchEngine],
+                  });
+                  setShowResearch(false);
+                }}
+                disabled={!researchQuery.trim() || createNote.isPending}
+              >
+                <BookOpen className="w-3.5 h-3.5 mr-1" />
+                先存成筆記
+              </Button>
+              <Button
+                className="flex-1 rounded-xl"
+                onClick={submitResearch}
+                disabled={!researchQuery.trim()}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1" />
+                開始研究
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

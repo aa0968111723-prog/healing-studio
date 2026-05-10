@@ -434,6 +434,11 @@ export default function CalendarPage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const dragCounterRef = useRef<Map<string, number>>(new Map());
 
+  // ── Tap-to-schedule（手機備援，HTML5 拖拉在觸控裝置失效）──
+  // 行為：點待排程列表中的筆記 → 進入 "armed" 狀態 → 點日曆上的日期 →
+  // 立刻把該筆記排到那一天的 09:00。再點一次同一筆筆記則取消選取。
+  const [armedNoteId, setArmedNoteId] = useState<number | null>(null);
+
   const notesQuery = trpc.notes.list.useQuery();
   const trpcUtils = trpc.useUtils();
   const deleteNote = trpc.notes.delete.useMutation({
@@ -998,7 +1003,18 @@ export default function CalendarPage() {
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={d => {
+                setSelectedDate(d);
+                if (d && armedNoteId != null) {
+                  const target = new Date(d);
+                  target.setHours(9, 0, 0, 0);
+                  updateNote.mutate({
+                    id: armedNoteId,
+                    scheduledDate: target.getTime(),
+                  });
+                  setArmedNoteId(null);
+                }
+              }}
               month={month}
               onMonthChange={setMonth}
               modifiers={{ hasEvent: eventDates }}
@@ -1057,6 +1073,38 @@ export default function CalendarPage() {
                     day: "numeric",
                   })}
                 </strong>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Tap-to-schedule hint banner（手機備援）*/}
+          <AnimatePresence>
+            {armedNoteId != null && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-400 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    已選取「
+                    <strong>
+                      {(notesQuery.data || []).find(
+                        n => n.id === armedNoteId
+                      )?.title ?? "未命名"}
+                    </strong>
+                    」，點日曆上的日期排程
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setArmedNoteId(null)}
+                  className="shrink-0 text-[11px] underline hover:text-amber-300"
+                >
+                  取消
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -1186,7 +1234,7 @@ export default function CalendarPage() {
               待排程筆記
             </h3>
             <p className="hs-small !mb-0 text-muted-foreground/50 mb-3">
-              拖曳以下筆記到日曆上的日期
+              拖曳到日期，或在手機上「先點筆記、再點日期」
             </p>
 
             {notesQuery.isLoading ? (
@@ -1208,15 +1256,34 @@ export default function CalendarPage() {
             ) : (
               <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
                 <AnimatePresence mode="popLayout">
-                  {unscheduledNotes.map((note: CalendarNote) => (
-                    <EventCard
-                      key={note.id}
-                      note={note}
-                      onDelete={id => deleteNote.mutate({ id })}
-                      onCycleStatus={cycleStatus}
-                      compact
-                    />
-                  ))}
+                  {unscheduledNotes.map((note: CalendarNote) => {
+                    const armed = armedNoteId === note.id;
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() =>
+                          setArmedNoteId(armed ? null : note.id)
+                        }
+                        className={cn(
+                          "rounded-lg transition-all",
+                          armed &&
+                            "ring-2 ring-amber-400 shadow-lg shadow-amber-400/20"
+                        )}
+                        title={
+                          armed
+                            ? "已選取，點日曆上的日期即可排程"
+                            : "點一下選取，再點日期即可排程（手機備援）"
+                        }
+                      >
+                        <EventCard
+                          note={note}
+                          onDelete={id => deleteNote.mutate({ id })}
+                          onCycleStatus={cycleStatus}
+                          compact
+                        />
+                      </div>
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             )}
