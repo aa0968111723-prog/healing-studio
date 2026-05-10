@@ -153,12 +153,11 @@ openssl rand -base64 32
 | 設定的名稱（也接受） | 內部實際名稱             | 用途                            |
 | -------------------- | ------------------------ | ------------------------------- |
 | `AUTH_SECRET`        | `JWT_SECRET`             | JWT 簽名（任設一個即可）         |
-| `ENABLE_ADVANCED_SEARCH` | `FEATURE_ADVANCED_SEARCH` | featureFlags：多 provider 搜尋 |
-| `ENABLE_RAG_MEMORY`  | `FEATURE_RAG_MEMORY`     | featureFlags：Pinecone 向量記憶 |
-| `ENABLE_RESEARCH_MODE` | `FEATURE_RESEARCH_MODE` | featureFlags：深度研究流程       |
 | `NTHROPIC_API_KEY` / `ANTROPIC_API_KEY` | `ANTHROPIC_API_KEY` | typo 修補         |
 | `NVIDA_API`          | `NVIDIA_API`             | typo 修補                       |
 | `FAL_KEY`            | `FAL_API_KEY`            | typo 修補                       |
+
+> 功能旗標請直接使用 `FEATURE_ADVANCED_SEARCH`、`FEATURE_RAG_MEMORY`、`FEATURE_RESEARCH_MODE`（`ENABLE_*` 別名已移除）。
 
 ---
 

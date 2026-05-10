@@ -94,11 +94,6 @@ function selfRepairEnv(): void {
     FAL_KEY: "FAL_API_KEY",                  // 別名
     // ── 認證密鑰別名：AUTH_SECRET 為使用者習慣命名，內部統一用 JWT_SECRET ──
     AUTH_SECRET: "JWT_SECRET",
-    // ── 功能旗標別名：使用者層用 ENABLE_*；內部 featureFlags.ts 讀 FEATURE_* ──
-    // featureFlags.ts:180-184 會讀 process.env[`FEATURE_${name}`]，rename 後即可生效
-    ENABLE_ADVANCED_SEARCH: "FEATURE_ADVANCED_SEARCH",
-    ENABLE_RAG_MEMORY: "FEATURE_RAG_MEMORY",
-    ENABLE_RESEARCH_MODE: "FEATURE_RESEARCH_MODE",
   };
   for (const [alias, canonical] of Object.entries(ALIASES)) {
     const aliasVal = env[alias];
