@@ -3753,6 +3753,8 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   // Use global chat state for chat mode - keep full message objects for metadata
   const chatMessages = panelMode === "chat" ? globalChat.messages : [];
   const chatSuggestions = panelMode === "chat" ? globalChat.suggestions : [];
+  const pendingClarification = panelMode === "chat" ? globalChat.pendingClarification : null;
+  const clarificationQuickOptions = pendingClarification?.options?.filter((o): o is string => typeof o === "string" && o.trim().length > 0).slice(0, 4) ?? [];
   const chatInput = panelMode === "chat" ? globalChat.input : "";
   const setChatInput = panelMode === "chat" ? globalChat.setInput : () => {};
   const isChatLoading = panelMode === "chat" ? globalChat.isSending : false;
@@ -4175,8 +4177,21 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
             )}
             <div ref={chatEndRef} />
           </div>
-          {chatSuggestions.length > 0 && (
+          {(clarificationQuickOptions.length > 0 || chatSuggestions.length > 0) && (
             <div className="flex flex-wrap gap-1.5 shrink-0">
+              {clarificationQuickOptions.map((option, idx) => (
+                <button
+                  key={`clarify-${option}-${idx}`}
+                  onClick={() => void globalChat.answerClarification(option)}
+                  className={cn(
+                    "rounded-full border border-violet-300/30 bg-violet-400/10 hover:bg-violet-400/20",
+                    "text-violet-100 hover:text-white px-3 py-1.5 transition-all",
+                    fullscreen ? "text-xs" : "text-[11px]"
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
               {chatSuggestions.map((suggestion, idx) => (
                 <button
                   key={`${suggestion.text}-${idx}`}
