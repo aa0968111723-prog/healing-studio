@@ -14,19 +14,15 @@
 
 import { Router, type Request, type Response } from "express";
 import * as db from "../db";
+import {
+  escapeIcsText,
+  foldIcsLine,
+  isAllDaySchedule,
+} from "../services/icsExport";
 
 export const icsFeedRouter = Router();
 
 const PROD_ID = "-//Healing Studio//Schedule//ZH-TW";
-
-function escapeIcsText(input: string): string {
-  return input
-    .replace(/\\/g, "\\\\")
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "")
-    .replace(/,/g, "\\,")
-    .replace(/;/g, "\\;");
-}
 
 function formatUtc(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -36,16 +32,9 @@ function formatUtc(date: Date): string {
   );
 }
 
-// ICS lines must not exceed 75 octets; split with CRLF + space continuation.
-function foldLine(line: string): string {
-  if (line.length <= 75) return line;
-  const chunks: string[] = [];
-  let i = 0;
-  while (i < line.length) {
-    chunks.push((i === 0 ? "" : " ") + line.slice(i, i + 73));
-    i += 73;
-  }
-  return chunks.join("\r\n");
+function formatLocalDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
 }
 
 function buildIcs(
@@ -66,9 +55,7 @@ function buildIcs(
   for (const ev of events) {
     if (!ev.scheduledDate) continue;
     const start = new Date(ev.scheduledDate);
-    const end = ev.endDate
-      ? new Date(ev.endDate)
-      : new Date(start.getTime() + 60 * 60 * 1000); // default 1h
+    if (Number.isNaN(start.getTime())) continue;
 
     const loc = ev.location as
       | { name?: string; address?: string; lat?: number; lng?: number }
@@ -82,22 +69,38 @@ function buildIcs(
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:hs-note-${ev.id}-u${userId}@healing-studio`);
     lines.push(`DTSTAMP:${formatUtc(now)}`);
-    lines.push(`DTSTART:${formatUtc(start)}`);
-    lines.push(`DTEND:${formatUtc(end)}`);
-    lines.push(`SUMMARY:${escapeIcsText(ev.title)}`);
-    if (descriptionParts.length > 0) {
-      lines.push(`DESCRIPTION:${escapeIcsText(descriptionParts.join(""))}`);
+
+    // Treat midnight-with-no-endDate as an all-day event so phone calendars
+    // render a banner instead of a 1h block at 00:00.
+    if (isAllDaySchedule(start) && !ev.endDate) {
+      const endDate = new Date(start);
+      endDate.setDate(endDate.getDate() + 1);
+      lines.push(`DTSTART;VALUE=DATE:${formatLocalDate(start)}`);
+      lines.push(`DTEND;VALUE=DATE:${formatLocalDate(endDate)}`);
+    } else {
+      const end = ev.endDate
+        ? new Date(ev.endDate)
+        : new Date(start.getTime() + 60 * 60 * 1000);
+      lines.push(`DTSTART:${formatUtc(start)}`);
+      lines.push(`DTEND:${formatUtc(end)}`);
     }
-    if (locText) lines.push(`LOCATION:${escapeIcsText(locText)}`);
+
+    lines.push(foldIcsLine(`SUMMARY:${escapeIcsText(ev.title)}`));
+    if (descriptionParts.length > 0) {
+      lines.push(
+        foldIcsLine(`DESCRIPTION:${escapeIcsText(descriptionParts.join(""))}`)
+      );
+    }
+    if (locText) lines.push(foldIcsLine(`LOCATION:${escapeIcsText(locText)}`));
     if (loc?.lat != null && loc?.lng != null) {
       lines.push(`GEO:${loc.lat};${loc.lng}`);
     }
-    if (ev.meetingUrl) lines.push(`URL:${escapeIcsText(ev.meetingUrl)}`);
+    if (ev.meetingUrl) lines.push(foldIcsLine(`URL:${escapeIcsText(ev.meetingUrl)}`));
 
     if (typeof ev.reminderMinutes === "number" && ev.reminderMinutes > 0) {
       lines.push("BEGIN:VALARM");
       lines.push("ACTION:DISPLAY");
-      lines.push(`DESCRIPTION:${escapeIcsText(ev.title)}`);
+      lines.push(foldIcsLine(`DESCRIPTION:${escapeIcsText(ev.title)}`));
       lines.push(`TRIGGER:-PT${ev.reminderMinutes}M`);
       lines.push("END:VALARM");
     }
@@ -106,7 +109,7 @@ function buildIcs(
   }
 
   lines.push("END:VCALENDAR");
-  return lines.map(foldLine).join("\r\n") + "\r\n";
+  return lines.join("\r\n") + "\r\n";
 }
 
 icsFeedRouter.get("/api/ics/:token.ics", async (req: Request, res: Response) => {
