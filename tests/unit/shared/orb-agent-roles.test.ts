@@ -72,6 +72,22 @@ describe("selectRoleForIntent", () => {
     const r = selectRoleForIntent({ text: "嗨，今天天氣不錯" });
     expect(r.role).toBe("companion");
   });
+
+  // 「做腳本」「寫劇本」「故事大綱」「分鏡」是站內導演 AI 的固定產出，
+  // 必須路由到 director — 不然會 fallback 成 companion，跳頁不會發生，
+  // 對話框也接不上。這條是回報「直接跳頁沒對話框」的源頭。
+  it("routes 做腳本 / 寫腳本 / 影片腳本 to director", () => {
+    expect(selectRoleForIntent({ text: "做腳本" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "我想寫腳本" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "我要寫一支影片腳本" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "幫我做支廣告腳本" }).role).toBe("director");
+  });
+
+  it("routes 劇本 / 故事大綱 / 分鏡 to director", () => {
+    expect(selectRoleForIntent({ text: "我有一個劇本想改" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "幫我寫一份故事大綱" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "需要分鏡" }).role).toBe("director");
+  });
 });
 
 describe("composeRoleChain", () => {

@@ -63,6 +63,9 @@ const KEYWORD_RULES: Array<{
   rationale: string;
 }> = [
   // Director: explicit multi-step / cross-page workflow asks.
+  // 「腳本 / 劇本 / 故事大綱 / 分鏡」這類產出在站內由導演 AI（/director）擁有，
+  // 落在這條規則才會把使用者帶過去；沒有的話「做腳本」會被 fallback 成 companion
+  // 然後留在 /agent 一片靜默，這是先前回報「跳頁沒對話框」的源頭之一。
   {
     role: "director",
     keywords: [
@@ -77,10 +80,22 @@ const KEYWORD_RULES: Array<{
       "幫我做一首",
       "幫我做一張",
       "拆成步驟",
+      "腳本",
+      "劇本",
+      "做腳本",
+      "寫腳本",
+      "故事大綱",
+      "分鏡",
+      "影片腳本",
+      "短片腳本",
+      "廣告腳本",
       "plan",
       "workflow",
       "pipeline",
       "story arc",
+      "storyboard",
+      "screenplay",
+      "script",
       "end-to-end",
     ],
     rationale: "user asked for multi-step / cross-page planning",

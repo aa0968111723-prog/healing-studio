@@ -177,6 +177,8 @@ import { selectProvider, type ProviderRouteIntent } from "./services/providerRou
 import {
   selectRoleForIntent,
   getPreferredProviderForRole,
+  composeRoleChain,
+  getPrimaryNicknameForRole,
   type AgentRole,
 } from "../shared/orb-agent-roles";
 import {
@@ -5639,6 +5641,25 @@ export const appRouter = router({
                 mutedRoles: mutedSpiritsForSelection,
               })
             : null;
+        // 「協作團隊」：除了當回合領頭精靈以外，後續會接手的角色（例：
+        // 導導 → 編編 → 品品）。前端 OrbThinkingStepsPanel 把這份名單渲染成
+        // 多顆 chip，讓使用者看到 15 精靈不是一個人在思考，是團隊在排隊接手。
+        // 沒選到精靈時就空陣列，panel 自動省略。
+        const spiritTeam: AgentRole[] =
+          roleAutoSwitchEnabled && lastUserTextForSpirit
+            ? composeRoleChain({
+                text: lastUserTextForSpirit,
+                // 與上方 selectRoleForIntent 同步使用同一份 snapshot；型別在這層
+                // 寬鬆，TS 無感報 mismatch（同 5637 的 pre-existing 警告），
+                // 因為共享層宣告比 trpc input 嚴格。執行時兩邊一致。
+                snapshot: (input.pageSnapshot ?? null) as PageAgentSnapshot | null,
+                turnCount: input.messages.length,
+                mutedRoles: mutedSpiritsForSelection,
+              })
+            : [];
+        const spiritTeamNicknames = spiritTeam
+          .map(role => getPrimaryNicknameForRole(role))
+          .join(" → ");
 
         const finalizeIdempotentResponse = <T extends object | null | undefined>(result: T): T => {
           // Inject identity / preference profile for the client. We do it here so
@@ -5674,6 +5695,12 @@ export const appRouter = router({
               r.agentRole = spiritSelection.role;
               r.agentRoleConfidence = spiritSelection.confidence;
               r.agentRoleRationale = spiritSelection.rationale;
+            }
+            // 「協作團隊」一併掛上：思考步驟面板在 sections 增加一條
+            // 「召喚協作精靈」section 用這個欄位，多精靈協作不再只是文件描述。
+            if (spiritTeam.length > 0 && r.spiritTeam === undefined) {
+              r.spiritTeam = spiritTeam;
+              r.spiritTeamLabel = spiritTeamNicknames;
             }
             // 思考步驟：把 planner artefacts + 進度 ring buffer 合成「思考步驟」面板需要的結構，
             // 讓客戶端 OrbThinkingStepsPanel 不必再去 reverse-engineer 回應的 shape。
@@ -5759,8 +5786,29 @@ export const appRouter = router({
           const modelLabel = preferredEngine
             ? `引擎：${preferredEngine}`
             : undefined;
+          // 「召喚協作精靈」— 把 composeRoleChain 算出來的接手團隊（暱稱串）
+          // 當成一條 warning 餵進 sections。warning 的標題本來叫「釐清限制」，
+          // 對應出來後 panel 上會看到一條「導導 → 編編 → 品品」的清楚名單，
+          // 解掉「15 精靈感覺沒在思考與協作」的回報。
+          const teamLabel =
+            typeof r?.spiritTeamLabel === "string" && r.spiritTeamLabel.trim()
+              ? r.spiritTeamLabel.trim()
+              : null;
+          const teamMemberCount = Array.isArray(r?.spiritTeam)
+            ? r.spiritTeam.length
+            : 0;
+          const enrichedWarnings =
+            teamLabel && teamMemberCount > 1
+              ? [`接手團隊：${teamLabel}（共 ${teamMemberCount} 位精靈接力）`, ...warnings]
+              : warnings;
           return buildOrbReasoningChain({
-            plan: { intent, summaryForUser, steps, warnings, reply: r?.reply },
+            plan: {
+              intent,
+              summaryForUser,
+              steps,
+              warnings: enrichedWarnings,
+              reply: r?.reply,
+            },
             events,
             modelLabel,
             durationMs: Date.now() - startedAt,
@@ -6399,6 +6447,10 @@ export const appRouter = router({
             emitOrbChatProgress(idempKey, "selecting_provider", "選擇模型中…", {
               routeIntent,
               spirit: spiritSelection?.role,
+              // 團隊接手順序（暱稱串）— 沒選到精靈時就省略，避免空 chip。
+              ...(spiritTeam.length > 0
+                ? { 接手團隊: spiritTeamNicknames }
+                : {}),
             });
             let selection = selectProvider({
               intent: routeIntent,
@@ -6583,6 +6635,11 @@ export const appRouter = router({
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
             emitOrbChatProgress(idempKey, "planning", "規劃步驟中…", {
               spirit: spiritSelection?.role,
+              // 同 selecting_provider — 把整條接手鏈帶過來，panel 上就能看到
+              // 「導導 → 編編 → 品品」這種多精靈協作時序。
+              ...(spiritTeam.length > 0
+                ? { 接手團隊: spiritTeamNicknames }
+                : {}),
             });
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {

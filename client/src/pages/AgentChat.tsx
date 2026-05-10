@@ -1005,6 +1005,10 @@ export default function AgentChat() {
           targetLabel: entry.label,
           orbMessage: entry.quickAction?.description ?? entry.description,
           actions: followupActions,
+          // Starter 入口跟 GlobalOrbChatContext.navigate 一樣是「聊天驅動的跨頁」：
+          // 使用者本來就在 /agent 跟光球聊，按下 starter 後該繼續看到對話框，
+          // 不該掉回引導模式只剩靜態按鈕（這是回報「跳頁沒對話框」的主要路徑）。
+          preferredPanelMode: "chat",
         });
         setLocation(entry.path);
       }
@@ -1036,6 +1040,8 @@ export default function AgentChat() {
           targetLabel: `${entry.label} · ${action.label}`,
           orbMessage: action.description,
           actions: followupActions,
+          // 同 handleStarter：sub-action 也是聊天驅動，必須讓 panel 落在 chat 視圖。
+          preferredPanelMode: "chat",
         });
         setLocation(action.path);
       }
@@ -1056,11 +1062,23 @@ export default function AgentChat() {
   const handleTaskTemplate = useCallback(
     async (tpl: TaskTemplate) => {
       pushRecent({ kind: "task", id: tpl.id, label: tpl.title, path: tpl.firstPath });
+      // 先掛 arrival guide，再導頁。沒有這條 panel 在目的地會以 guide 模式
+      // 重新打開一張靜態卡片，使用者打字的對話框反而被收掉 —
+      // 這就是「直接跳頁沒對話框」的另一個入口。
+      if (tpl.firstPath && tpl.firstPath !== "/agent") {
+        attachArrivalGuide({
+          targetPath: tpl.firstPath,
+          targetLabel: tpl.title,
+          orbMessage: tpl.prompt.slice(0, 120),
+          // multi-step 範本是「打字＋跳頁」一氣呵成的流程，落點必須是 chat 視圖。
+          preferredPanelMode: "chat",
+        });
+      }
       // 先導頁，光球進到目標頁後接到 multi-step prompt
       setLocation(tpl.firstPath);
       await globalChat.sendMessage(tpl.prompt, [], { requestedMode: "multi-step" });
     },
-    [globalChat, pushRecent, setLocation]
+    [attachArrivalGuide, globalChat, pushRecent, setLocation]
   );
 
   // 由 ID 找回最近項目對應的入口（task 或 studio）
