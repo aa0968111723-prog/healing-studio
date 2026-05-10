@@ -41,6 +41,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  dispatchToStudio,
+  studioRouteLabel,
+} from "@/lib/send-to-studio";
 
 // ─── Error Boundary ────────────────────────────────────────────────────────
 
@@ -191,9 +195,12 @@ export default function SharedSpace() {
     );
   }, [sharedModelsQuery.data, searchQuery]);
 
+  const sharedSpaceUtils = trpc.useUtils();
+  const recordModelPick = trpc.agentModelPicks.recordPick.useMutation();
+
   // ── One-Click Use: Send asset to Studio ──
   const handleUseAsset = useCallback(
-    (asset: {
+    async (asset: {
       title: string;
       assetType: string;
       fileUrl?: string | null;
@@ -205,41 +212,60 @@ export default function SharedSpace() {
         ? asset.assetType
         : "image";
 
-      const studioData: Record<string, unknown> = {
+      // Pull the user's preferred model for this modality from the shared
+      // table so the destination studio opens with their habit, not a
+      // hardcoded default. Same React Query cache that
+      // `usePreferredStudioModel` uses, so it's typically a cache hit.
+      let overrideEngine: string | undefined;
+      try {
+        const data =
+          await sharedSpaceUtils.agentModelPicks.getPreferredForModality.fetch({
+            modality: generationType,
+            topK: 1,
+          });
+        overrideEngine = data.entries[0]?.modelId;
+      } catch {
+        overrideEngine = undefined;
+      }
+      if (overrideEngine) {
+        recordModelPick.mutate({
+          modality: generationType,
+          modelId: overrideEngine,
+          source: "shared_space",
+          context: { assetType: asset.assetType },
+        });
+      }
+
+      const payload: Record<string, unknown> = {
         prompt: asset.promptUsed || `以「${asset.title}」為靈感`,
         generationType,
+        overrideEngine,
         source: "shared_space",
       };
-
-      // For image assets, also set as style reference
       if (asset.assetType === "image" && asset.fileUrl) {
-        studioData.referenceImageUrl = asset.fileUrl;
-        studioData.parameterSnapshot = {
-          styleReferenceUrl: asset.fileUrl,
-        };
+        payload.referenceImageUrl = asset.fileUrl;
+        payload.parameterSnapshot = { styleReferenceUrl: asset.fileUrl };
       }
-
-      // For video assets, set as first frame reference
       if (asset.assetType === "video" && asset.fileUrl) {
-        studioData.referenceImageUrl = asset.fileUrl;
-        studioData.parameterSnapshot = {
-          firstFrameUrl: asset.fileUrl,
-        };
+        payload.referenceImageUrl = asset.fileUrl;
+        payload.parameterSnapshot = { firstFrameUrl: asset.fileUrl };
       }
 
-      sessionStorage.setItem("sendToStudio", JSON.stringify(studioData));
+      const route = dispatchToStudio({
+        payload: payload as Parameters<typeof dispatchToStudio>[0]["payload"],
+        navigate,
+      });
       toast.success(
         <div className="flex items-center gap-2">
           <Wand2 className="w-4 h-4 text-primary shrink-0" />
           <span>
-            已載入「<strong>{asset.title}</strong>」到工作室
+            已載入「<strong>{asset.title}</strong>」到{studioRouteLabel(route)}
           </span>
         </div>,
         { duration: 3000 }
       );
-      navigate("/studio");
     },
-    [navigate]
+    [navigate, recordModelPick, sharedSpaceUtils]
   );
 
   // ── PageAgent：光球可代操分頁、搜尋、類型篩選 ───────────────────
@@ -393,27 +419,39 @@ export default function SharedSpace() {
         return;
       }
 
-      const studioData: Record<string, unknown> = {
-        prompt: `使用「${model.name}」風格`,
-        generationType: "image",
+      // Recording happens server-side keyed by `name` because the LoRA's
+      // numeric id isn't a usable engine identifier — the studio looks up
+      // the LoRA by name when applying it. The pick is logged so the
+      // shared table can show "you've reused this LoRA N times".
+      recordModelPick.mutate({
+        modality: "image",
+        modelId: `lora:${model.name}`,
         source: "shared_space",
-        fineTunedModelId: model.id,
-        fineTunedModelName: model.name,
-      };
+        context: { fineTunedModelId: model.id, kind: "lora" },
+      });
 
-      sessionStorage.setItem("sendToStudio", JSON.stringify(studioData));
+      const route = dispatchToStudio({
+        payload: {
+          prompt: `使用「${model.name}」風格`,
+          generationType: "image",
+          source: "shared_space",
+          fineTunedModelId: model.id,
+          fineTunedModelName: model.name,
+        },
+        navigate,
+      });
       toast.success(
         <div className="flex items-center gap-2">
           <Cpu className="w-4 h-4 text-primary shrink-0" />
           <span>
-            已載入模型「<strong>{model.name}</strong>」到工作室
+            已載入模型「<strong>{model.name}</strong>」到
+            {studioRouteLabel(route)}
           </span>
         </div>,
         { duration: 3000 }
       );
-      navigate("/studio");
     },
-    [navigate]
+    [navigate, recordModelPick]
   );
 
   return (

@@ -38,6 +38,10 @@ import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import {
+  dispatchToStudio,
+  studioRouteLabel,
+} from "@/lib/send-to-studio";
 import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
@@ -195,6 +199,46 @@ export default function HistoryPage() {
       toast.success("已刪除");
     },
   });
+
+  // Record (modality, modelId) into the shared agent_model_picks table
+  // every time the user re-runs or cross-routes a history item — so the
+  // global orb's preference distiller learns from history-driven picks too.
+  const recordModelPick = trpc.agentModelPicks.recordPick.useMutation();
+
+  /**
+   * Resolve the best `overrideEngine` for a (modality, parameterSnapshot)
+   * pair without blocking navigation:
+   *   1. If the snapshot already carries a modelId, use it (replicate the
+   *      original generation).
+   *   2. Otherwise consult the shared picks table for the user's
+   *      modality-preferred model (cached query).
+   *   3. Fall back to undefined — the studio applies its own default.
+   *
+   * Imperative `utils.…fetch` is used so a single click resolves quickly
+   * without spawning a hook for every history row.
+   */
+  const resolveOverrideEngine = async (
+    modality: string,
+    parameterSnapshot: Record<string, unknown> | null | undefined
+  ): Promise<string | undefined> => {
+    const snapshot = parameterSnapshot ?? {};
+    const fromSnapshot =
+      typeof snapshot["modelId"] === "string"
+        ? (snapshot["modelId"] as string)
+        : typeof snapshot["model"] === "string"
+          ? (snapshot["model"] as string)
+          : undefined;
+    if (fromSnapshot) return fromSnapshot;
+    try {
+      const data = await utils.agentModelPicks.getPreferredForModality.fetch({
+        modality,
+        topK: 1,
+      });
+      return data.entries[0]?.modelId;
+    } catch {
+      return undefined;
+    }
+  };
 
   // ── Promote to Showcase ──
   const [promoteDialogId, setPromoteDialogId] = useState<number | null>(null);
@@ -1043,12 +1087,26 @@ export default function HistoryPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-xs gap-1 rounded-lg"
-                                  onClick={e => {
+                                  onClick={async e => {
                                     e.stopPropagation();
-                                    // 完整傳遞：prompt + compiledPrompt + parameterSnapshot（含 seed/ratio/model 等）
-                                    sessionStorage.setItem(
-                                      "sendToStudio",
-                                      JSON.stringify({
+                                    const overrideEngine =
+                                      await resolveOverrideEngine(
+                                        item.modality,
+                                        item.parameterSnapshot as
+                                          | Record<string, unknown>
+                                          | null
+                                          | undefined
+                                      );
+                                    if (overrideEngine) {
+                                      recordModelPick.mutate({
+                                        modality: item.modality,
+                                        modelId: overrideEngine,
+                                        source: "history",
+                                        context: { historyId: item.id },
+                                      });
+                                    }
+                                    const route = dispatchToStudio({
+                                      payload: {
                                         prompt:
                                           item.prompt ||
                                           item.compiledPrompt ||
@@ -1056,16 +1114,19 @@ export default function HistoryPage() {
                                         compiledPrompt:
                                           item.compiledPrompt || "",
                                         generationType: item.modality,
+                                        overrideEngine,
                                         source: "history",
                                         historyId: item.id,
                                         resultUrl: item.resultUrl,
                                         parameterSnapshot:
-                                          item.parameterSnapshot || {},
-                                      })
-                                    );
-                                    navigate("/studio");
+                                          (item.parameterSnapshot as
+                                            | Record<string, unknown>
+                                            | undefined) || {},
+                                      },
+                                      navigate,
+                                    });
                                     toast.success(
-                                      "已完整還原生成配置，前往工作室重現",
+                                      `已還原生成配置，前往${studioRouteLabel(route)}重現`,
                                       { duration: 4000 }
                                     );
                                   }}
@@ -1079,25 +1140,47 @@ export default function HistoryPage() {
                                       variant="outline"
                                       size="sm"
                                       className="h-7 text-xs gap-1 rounded-lg"
-                                      onClick={e => {
+                                      onClick={async e => {
                                         e.stopPropagation();
-                                        sessionStorage.setItem(
-                                          "sendToStudio",
-                                          JSON.stringify({
+                                        // Cross-modal: ignore the source's
+                                        // image model — pull the user's
+                                        // preferred VIDEO model from shared
+                                        // picks instead.
+                                        const overrideEngine =
+                                          await resolveOverrideEngine(
+                                            "video",
+                                            null
+                                          );
+                                        if (overrideEngine) {
+                                          recordModelPick.mutate({
+                                            modality: "video",
+                                            modelId: overrideEngine,
+                                            source: "history",
+                                            context: {
+                                              historyId: item.id,
+                                              crossModal: "image_to_video",
+                                            },
+                                          });
+                                        }
+                                        dispatchToStudio({
+                                          payload: {
                                             prompt: item.prompt || "",
                                             compiledPrompt:
                                               item.compiledPrompt || "",
                                             generationType: "video",
+                                            overrideEngine,
                                             source: "history_cross",
                                             historyId: item.id,
                                             referenceImageUrl: item.resultUrl,
                                             parameterSnapshot: {
-                                              ...(item.parameterSnapshot || {}),
+                                              ...((item.parameterSnapshot as
+                                                | Record<string, unknown>
+                                                | undefined) || {}),
                                               firstFrameUrl: item.resultUrl,
                                             },
-                                          })
-                                        );
-                                        navigate("/studio");
+                                          },
+                                          navigate,
+                                        });
                                         toast.success(
                                           "已發送到影片工作區（以圖片為首幀）"
                                         );
@@ -1113,24 +1196,42 @@ export default function HistoryPage() {
                                     variant="outline"
                                     size="sm"
                                     className="h-7 text-xs gap-1 rounded-lg"
-                                    onClick={e => {
+                                    onClick={async e => {
                                       e.stopPropagation();
-                                      sessionStorage.setItem(
-                                        "sendToStudio",
-                                        JSON.stringify({
+                                      const overrideEngine =
+                                        await resolveOverrideEngine(
+                                          "audio",
+                                          null
+                                        );
+                                      if (overrideEngine) {
+                                        recordModelPick.mutate({
+                                          modality: "audio",
+                                          modelId: overrideEngine,
+                                          source: "history",
+                                          context: {
+                                            historyId: item.id,
+                                            crossModal: `${item.modality}_to_audio`,
+                                          },
+                                        });
+                                      }
+                                      dispatchToStudio({
+                                        payload: {
                                           prompt: `為這個${item.modality === "image" ? "圖片" : "影片"}創作配樂：${item.prompt || ""}`,
                                           generationType: "audio",
+                                          overrideEngine,
                                           source: "history_cross",
                                           historyId: item.id,
                                           parameterSnapshot: {
                                             musicStyle:
-                                              (item.parameterSnapshot as any)
-                                                ?.musicStyle || "ambient",
+                                              (item.parameterSnapshot as Record<
+                                                string,
+                                                unknown
+                                              >)?.musicStyle || "ambient",
                                             audioDuration: 30,
                                           },
-                                        })
-                                      );
-                                      navigate("/studio");
+                                        },
+                                        navigate,
+                                      });
                                       toast.success("已發送到音樂工作區");
                                     }}
                                   >
