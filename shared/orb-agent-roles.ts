@@ -852,6 +852,139 @@ export function getPreferredProviderForRole(role: AgentRole): string {
   return SPIRIT_PREFERRED_PROVIDER[role] ?? "default_llm";
 }
 
+// ─── 15 精靈可呼叫的模型類別 (sprite → fal model categories) ─────────────
+//
+// 每位精靈在自己的專業範圍內，可以呼叫 fal.ai 模型目錄中對應類別的所有
+// 模型（依 server/services/falModels.ts 的 `FalCategory`）。例如：
+//   - 圖圖（image-specialist）   → 所有圖像生成 / 編輯 / 3D / 圖像分析模型
+//   - 影影（video-specialist）   → 所有影片生成 / 影片轉換模型
+//   - 音音（music-specialist）   → 所有音樂 / 音效生成模型
+//   - 聲聲（voice-specialist）   → 所有語音合成 / 語音辨識模型
+//   - 練練（training-specialist）→ 訓練類（LoRA finetune）
+//   - 編編（composer）           → 全部（執行當頁任何 dispatch，需要全模態）
+//   - 其他文字 / 規劃 / 主動角色 → 純 LLM 與結構化輸出（JSON / text-to-json）
+//
+// 這是「該精靈在語意上應該被允許呼叫」的清單，dispatcher / router 在送出
+// API 請求前可用 `canSpiritCallCategory` / `canSpiritCallFalModel` 做授權檢查。
+// 字串值與 server `FalCategory` 對齊；如果該邊新增類別，記得同步這份表。
+
+export type SpiritModelCategory =
+  | "audio-to-text"
+  | "image-to-3d"
+  | "image-to-image"
+  | "image-to-json"
+  | "image-to-video"
+  | "json"
+  | "llm"
+  | "text-to-3d"
+  | "text-to-audio"
+  | "text-to-image"
+  | "text-to-json"
+  | "text-to-speech"
+  | "text-to-video"
+  | "training"
+  | "video-to-audio"
+  | "video-to-text"
+  | "video-to-video";
+
+const ALL_CATEGORIES: ReadonlyArray<SpiritModelCategory> = [
+  "audio-to-text",
+  "image-to-3d",
+  "image-to-image",
+  "image-to-json",
+  "image-to-video",
+  "json",
+  "llm",
+  "text-to-3d",
+  "text-to-audio",
+  "text-to-image",
+  "text-to-json",
+  "text-to-speech",
+  "text-to-video",
+  "training",
+  "video-to-audio",
+  "video-to-text",
+  "video-to-video",
+];
+
+const TEXT_REASONING_CATEGORIES: ReadonlyArray<SpiritModelCategory> = [
+  "llm",
+  "json",
+  "text-to-json",
+];
+
+export const SPIRIT_MODEL_CAPABILITIES: Record<
+  AgentRole,
+  ReadonlyArray<SpiritModelCategory>
+> = {
+  // 6 位專精精靈 — 各自負責一條模態的所有模型
+  "image-specialist": [
+    "text-to-image",
+    "image-to-image",
+    "image-to-3d",
+    "text-to-3d",
+    "image-to-json",
+  ],
+  "video-specialist": [
+    "text-to-video",
+    "image-to-video",
+    "video-to-video",
+    "video-to-text",
+    "video-to-audio",
+  ],
+  "music-specialist": ["text-to-audio"],
+  "voice-specialist": ["text-to-speech", "audio-to-text"],
+  "training-specialist": ["training"],
+  // 學學：教學 / 解說，用 LLM 與 JSON 輸出講解，不直接出圖出影
+  "learning-specialist": TEXT_REASONING_CATEGORIES,
+
+  // 6 位通用工作流角色
+  // 導導：跨頁規劃，靠 LLM + 結構化輸出產生計畫，不直接生內容
+  director: TEXT_REASONING_CATEGORIES,
+  // 編編：在當頁實際執行 dispatch — 任何模態都可能被呼叫
+  composer: ALL_CATEGORIES,
+  // 品品：評審需要看圖 / 看影片內容，多帶分析類型
+  critic: [
+    "llm",
+    "json",
+    "text-to-json",
+    "image-to-json",
+    "video-to-text",
+    "audio-to-text",
+  ],
+  researcher: TEXT_REASONING_CATEGORIES,
+  // 路路：純導航，至少需要 LLM 回應自然語言
+  navigator: ["llm"],
+  companion: ["llm"],
+
+  // 3 位主動精靈 — 都是分析型 / 提示型
+  accountant: TEXT_REASONING_CATEGORIES,
+  "quality-coach": TEXT_REASONING_CATEGORIES,
+  inspector: TEXT_REASONING_CATEGORIES,
+};
+
+/**
+ * Returns the list of fal model categories a given spirit is authorised to
+ * dispatch. Order is stable (declaration order in SPIRIT_MODEL_CAPABILITIES).
+ */
+export function getCategoriesForSpirit(
+  role: AgentRole,
+): ReadonlyArray<SpiritModelCategory> {
+  return SPIRIT_MODEL_CAPABILITIES[role] ?? [];
+}
+
+/**
+ * True iff the given spirit may call fal models in the given category.
+ * Used by server dispatchers / routers to enforce per-sprite authorisation
+ * before submitting a job.
+ */
+export function canSpiritCallCategory(
+  role: AgentRole,
+  category: SpiritModelCategory,
+): boolean {
+  return getCategoriesForSpirit(role).includes(category);
+}
+
 // ─── 15 精靈協作協定 (collab protocol) ──────────────────────────────────
 // 這是「同事之間誰交棒給誰」的明文規則。三種來源會讀它：
 //   1. AgentChat.tsx 顯示「他做完會交給誰」的 hint chip
