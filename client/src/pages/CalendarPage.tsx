@@ -31,6 +31,11 @@ import {
   X,
   CheckCircle2,
   ExternalLink,
+  Circle,
+  CircleDot,
+  CircleCheck,
+  AlertTriangle,
+  Download,
 } from "lucide-react";
 import { openGoogleCalendar } from "@/lib/googleCalendar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,15 +45,65 @@ import VisualSoul from "@/components/VisualSoul";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
+type NoteStatus = "todo" | "in_progress" | "done";
+
 type CalendarNote = {
   id: number;
   title: string;
   content?: string | null;
   noteType: string;
+  status?: NoteStatus | null;
   scheduledDate?: Date | string | null;
   createdAt: Date | string;
   tags?: string[] | null;
 };
+
+const statusInfo: Record<
+  NoteStatus,
+  { label: string; icon: React.ReactNode; pill: string }
+> = {
+  todo: {
+    label: "待辦",
+    icon: <Circle className="w-3 h-3" />,
+    pill: "bg-zen-sky/15 text-zen-sky border-zen-sky/30",
+  },
+  in_progress: {
+    label: "進行中",
+    icon: <CircleDot className="w-3 h-3" />,
+    pill: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+  },
+  done: {
+    label: "已完成",
+    icon: <CircleCheck className="w-3 h-3" />,
+    pill: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
+  },
+};
+
+function nextStatus(s: NoteStatus): NoteStatus {
+  if (s === "todo") return "in_progress";
+  if (s === "in_progress") return "done";
+  return "todo";
+}
+
+function isOverdueNote(n: CalendarNote): boolean {
+  if (!n.scheduledDate) return false;
+  if ((n.status ?? "todo") === "done") return false;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return new Date(n.scheduledDate).getTime() < d.getTime();
+}
+
+function downloadIcsFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ─── Modality Icons ────────────────────────────────────────────────────────
 
@@ -64,18 +119,36 @@ const MODALITY_ICONS: Record<string, React.ReactNode> = {
 function EventCard({
   note,
   onDelete,
+  onCycleStatus,
   compact = false,
 }: {
   note: CalendarNote;
   onDelete: (id: number) => void;
+  onCycleStatus?: (note: CalendarNote) => void;
   compact?: boolean;
 }) {
+  const status = (note.status ?? "todo") as NoteStatus;
+  const sInfo = statusInfo[status];
+  const overdue = isOverdueNote(note);
   const typeColor =
     note.noteType === "calendar_event"
       ? "border-amber-500/30 bg-amber-500/10"
       : note.noteType === "script"
         ? "border-purple-500/30 bg-purple-500/10"
         : "border-cyan-500/30 bg-cyan-500/10";
+
+  const time =
+    note.scheduledDate &&
+    new Date(note.scheduledDate).toLocaleTimeString("zh-TW", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  const hasTimeOfDay =
+    !!note.scheduledDate &&
+    (() => {
+      const d = new Date(note.scheduledDate!);
+      return d.getHours() !== 0 || d.getMinutes() !== 0;
+    })();
 
   const handleAddToGoogleCalendar = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -86,7 +159,8 @@ function EventCard({
       title: note.title,
       description: note.content ?? undefined,
       date: eventDate,
-      allDay: true,
+      allDay: !hasTimeOfDay,
+      durationMinutes: 60,
     });
     toast.success("已開啟 Google 日曆");
   };
@@ -100,6 +174,8 @@ function EventCard({
       className={cn(
         "group rounded-lg border p-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md",
         typeColor,
+        overdue && "ring-1 ring-red-500/40",
+        status === "done" && "opacity-60",
         compact ? "text-[10px]" : "text-xs"
       )}
       draggable
@@ -113,12 +189,53 @@ function EventCard({
     >
       <div className="flex items-start justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <GripVertical className="w-3 h-3 text-muted-foreground/30 shrink-0" />
-          <span className="truncate font-medium text-foreground/80">
+          {onCycleStatus ? (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                onCycleStatus(note);
+              }}
+              title={`狀態：${sInfo.label}（點擊推進）`}
+              className={cn(
+                "shrink-0 rounded-full p-0.5 border hover:scale-110 transition-transform",
+                sInfo.pill
+              )}
+            >
+              {sInfo.icon}
+            </button>
+          ) : (
+            <GripVertical className="w-3 h-3 text-muted-foreground/30 shrink-0" />
+          )}
+          <span
+            className={cn(
+              "truncate font-medium",
+              status === "done"
+                ? "line-through text-muted-foreground/60"
+                : "text-foreground/80"
+            )}
+          >
             {note.title}
           </span>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
+          {hasTimeOfDay && (
+            <span
+              className={cn(
+                "tabular-nums px-1 rounded text-[10px] font-medium",
+                overdue
+                  ? "bg-red-500/15 text-red-500"
+                  : "bg-foreground/10 text-foreground/70"
+              )}
+            >
+              {time}
+            </span>
+          )}
+          {overdue && (
+            <span title="逾期" className="text-red-500">
+              <AlertTriangle className="w-2.5 h-2.5" />
+            </span>
+          )}
           {note.scheduledDate && (
             <button
               onClick={handleAddToGoogleCalendar}
@@ -162,15 +279,33 @@ function NewEventForm({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [addToGoogle, setAddToGoogle] = useState(false);
+  // Default to 09:00 — most users plan a "morning slot" for creative work.
+  const [timeStr, setTimeStr] = useState("09:00");
+  const [allDay, setAllDay] = useState(false);
+
+  const buildScheduledDate = useCallback((): Date => {
+    const d = new Date(date);
+    if (allDay) {
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const [hStr, mStr] = timeStr.split(":");
+    const h = Math.max(0, Math.min(23, parseInt(hStr, 10) || 0));
+    const m = Math.max(0, Math.min(59, parseInt(mStr, 10) || 0));
+    d.setHours(h, m, 0, 0);
+    return d;
+  }, [date, allDay, timeStr]);
 
   const createNote = trpc.notes.create.useMutation({
     onSuccess: () => {
+      const scheduled = buildScheduledDate();
       if (addToGoogle && title.trim()) {
         openGoogleCalendar({
           title: title.trim(),
           description: content.trim() || undefined,
-          date,
-          allDay: true,
+          date: scheduled,
+          allDay,
+          durationMinutes: 60,
         });
       }
       onCreated();
@@ -214,6 +349,28 @@ function NewEventForm({
         className="bg-white/5 border-white/10 text-xs resize-none"
       />
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={allDay}
+            onChange={e => setAllDay(e.target.checked)}
+            className="rounded border-white/20 bg-white/5 h-3.5 w-3.5 accent-amber-500"
+          />
+          全天
+        </label>
+        <div className="flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            type="time"
+            value={timeStr}
+            onChange={e => setTimeStr(e.target.value)}
+            disabled={allDay}
+            className="bg-white/5 border-white/10 text-xs h-8 w-28 disabled:opacity-40"
+          />
+        </div>
+      </div>
+
       <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
         <input
           type="checkbox"
@@ -245,7 +402,7 @@ function NewEventForm({
               title: title.trim(),
               content: content.trim() || undefined,
               noteType: "calendar_event",
-              scheduledDate: date.getTime(),
+              scheduledDate: buildScheduledDate().getTime(),
             });
           }}
           disabled={createNote.isPending}
@@ -277,10 +434,17 @@ export default function CalendarPage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const dragCounterRef = useRef<Map<string, number>>(new Map());
 
+  // ── Tap-to-schedule（手機備援，HTML5 拖拉在觸控裝置失效）──
+  // 行為：點待排程列表中的筆記 → 進入 "armed" 狀態 → 點日曆上的日期 →
+  // 立刻把該筆記排到那一天的 09:00。再點一次同一筆筆記則取消選取。
+  const [armedNoteId, setArmedNoteId] = useState<number | null>(null);
+
   const notesQuery = trpc.notes.list.useQuery();
+  const trpcUtils = trpc.useUtils();
   const deleteNote = trpc.notes.delete.useMutation({
     onSuccess: () => {
       notesQuery.refetch();
+      trpcUtils.notes.summary.invalidate();
       toast.success("已刪除");
     },
   });
@@ -288,7 +452,12 @@ export default function CalendarPage() {
   const updateNote = trpc.notes.update.useMutation({
     onSuccess: (_data, variables) => {
       notesQuery.refetch();
-      // Show a rich toast with the scheduled date
+      trpcUtils.notes.summary.invalidate();
+      if (variables?.status) {
+        if (variables.status === "done") toast.success("已標記完成 ✓");
+        else toast.success("狀態已更新");
+        return;
+      }
       if (variables.scheduledDate) {
         const dateObj = new Date(variables.scheduledDate);
         const dateStr = dateObj.toLocaleDateString("zh-TW", {
@@ -311,6 +480,14 @@ export default function CalendarPage() {
     },
   });
 
+  const cycleStatus = useCallback(
+    (note: CalendarNote) => {
+      const current = (note.status ?? "todo") as NoteStatus;
+      updateNote.mutate({ id: note.id, status: nextStatus(current) });
+    },
+    [updateNote]
+  );
+
   // Group notes by date
   const notesByDate = useMemo(() => {
     const map = new Map<string, CalendarNote[]>();
@@ -331,10 +508,12 @@ export default function CalendarPage() {
     return notesByDate.get(selectedDate.toDateString()) || [];
   }, [selectedDate, notesByDate]);
 
-  // Unscheduled notes (available for drag)
+  // Unscheduled notes available for drag — hide done items so the sidebar
+  // shows only what still needs a slot on the calendar.
   const unscheduledNotes = useMemo(() => {
     return (notesQuery.data || []).filter(
-      (n: CalendarNote) => !n.scheduledDate
+      (n: CalendarNote) =>
+        !n.scheduledDate && (n.status ?? "todo") !== "done"
     );
   }, [notesQuery.data]);
 
@@ -342,6 +521,73 @@ export default function CalendarPage() {
   const eventDates = useMemo(() => {
     return Array.from(notesByDate.keys()).map(d => new Date(d));
   }, [notesByDate]);
+
+  // ── Week / today summary ──────────────────────────────────────────────────
+  const weekSummary = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setDate(endOfToday.getDate() + 1);
+    const endOfWeek = new Date(startOfToday);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    const all = (notesQuery.data || []) as CalendarNote[];
+    const todayList: CalendarNote[] = [];
+    const upcomingList: CalendarNote[] = [];
+    const overdueList: CalendarNote[] = [];
+    let doneCount = 0;
+    for (const n of all) {
+      if ((n.status ?? "todo") === "done") {
+        doneCount += 1;
+        continue;
+      }
+      if (!n.scheduledDate) continue;
+      const ts = new Date(n.scheduledDate).getTime();
+      if (ts < startOfToday.getTime()) overdueList.push(n);
+      else if (ts < endOfToday.getTime()) todayList.push(n);
+      else if (ts < endOfWeek.getTime()) upcomingList.push(n);
+    }
+    todayList.sort(
+      (a, b) =>
+        new Date(a.scheduledDate!).getTime() -
+        new Date(b.scheduledDate!).getTime()
+    );
+    upcomingList.sort(
+      (a, b) =>
+        new Date(a.scheduledDate!).getTime() -
+        new Date(b.scheduledDate!).getTime()
+    );
+    overdueList.sort(
+      (a, b) =>
+        new Date(a.scheduledDate!).getTime() -
+        new Date(b.scheduledDate!).getTime()
+    );
+    return { today: todayList, upcoming: upcomingList, overdue: overdueList, doneCount };
+  }, [notesQuery.data]);
+
+  const exportIcsQuery = trpc.notes.exportIcs.useQuery(
+    { includeDone: false },
+    { enabled: false }
+  );
+  const handleExportIcs = useCallback(async () => {
+    try {
+      const result = await exportIcsQuery.refetch();
+      const data = result.data;
+      if (!data) {
+        toast.error("無法產生行事曆檔");
+        return;
+      }
+      if (data.eventCount === 0) {
+        toast.info("目前沒有未完成的排程可匯出");
+        return;
+      }
+      downloadIcsFile(data.filename, data.content);
+      toast.success(`已匯出 ${data.eventCount} 個排程到 ${data.filename}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "匯出失敗");
+    }
+  }, [exportIcsQuery]);
 
   // ─── PageAgent 註冊（Phase 4b：行事曆接入光球） ──────────────────────────
   // 光球可：回到今天、前進 / 後退一個月、跳到筆記頁建立內容。
@@ -569,6 +815,17 @@ export default function CalendarPage() {
           </Button>
           <Button
             size="sm"
+            variant="outline"
+            onClick={handleExportIcs}
+            disabled={exportIcsQuery.isFetching}
+            className="gap-1.5 text-xs"
+            title="匯出 .ics 行事曆檔，可在 Apple Calendar / Outlook / Notion Calendar 開啟"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {exportIcsQuery.isFetching ? "產生中..." : "匯出 .ics"}
+          </Button>
+          <Button
+            size="sm"
             onClick={() => setShowNewEvent(true)}
             className="gap-1.5"
             disabled={!selectedDate}
@@ -578,6 +835,129 @@ export default function CalendarPage() {
           </Button>
         </div>
       </div>
+
+      {/* ── Weekly focus panel ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div
+          className={`rounded-xl border p-3 ${
+            weekSummary.overdue.length > 0
+              ? "border-red-500/40 bg-red-500/10 text-red-500"
+              : "border-border/50 bg-muted/20 text-muted-foreground"
+          }`}
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-medium opacity-90">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            逾期
+          </div>
+          <div className="text-2xl font-semibold tabular-nums leading-tight mt-1">
+            {weekSummary.overdue.length}
+          </div>
+        </div>
+        <div
+          className={`rounded-xl border p-3 ${
+            weekSummary.today.length > 0
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+              : "border-border/50 bg-muted/20 text-muted-foreground"
+          }`}
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-medium opacity-90">
+            <Clock className="w-3.5 h-3.5" />
+            今天
+          </div>
+          <div className="text-2xl font-semibold tabular-nums leading-tight mt-1">
+            {weekSummary.today.length}
+          </div>
+        </div>
+        <div
+          className={`rounded-xl border p-3 ${
+            weekSummary.upcoming.length > 0
+              ? "border-zen-sky/40 bg-zen-sky/10 text-zen-sky"
+              : "border-border/50 bg-muted/20 text-muted-foreground"
+          }`}
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-medium opacity-90">
+            <CalendarDays className="w-3.5 h-3.5" />
+            未來 7 天
+          </div>
+          <div className="text-2xl font-semibold tabular-nums leading-tight mt-1">
+            {weekSummary.upcoming.length}
+          </div>
+        </div>
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 p-3">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium opacity-90">
+            <CircleCheck className="w-3.5 h-3.5" />
+            已完成
+          </div>
+          <div className="text-2xl font-semibold tabular-nums leading-tight mt-1">
+            {weekSummary.doneCount}
+          </div>
+        </div>
+      </div>
+
+      {(weekSummary.overdue.length > 0 || weekSummary.today.length > 0) && (
+        <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-zen-sky/5 p-3 space-y-2">
+          <p className="text-xs font-medium text-foreground/80">今日聚焦</p>
+          <div className="space-y-1.5">
+            {[
+              ...weekSummary.overdue.map(n => ({ note: n, kind: "overdue" as const })),
+              ...weekSummary.today.map(n => ({ note: n, kind: "today" as const })),
+            ]
+              .slice(0, 6)
+              .map(({ note, kind }) => {
+                const dt = note.scheduledDate
+                  ? new Date(note.scheduledDate)
+                  : null;
+                const status = (note.status ?? "todo") as NoteStatus;
+                const sInfo = statusInfo[status];
+                return (
+                  <div
+                    key={note.id}
+                    className={`flex items-center gap-2 rounded-lg border bg-background/40 px-2.5 py-1.5 text-xs ${
+                      kind === "overdue"
+                        ? "border-red-500/30"
+                        : "border-amber-500/20"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => cycleStatus(note)}
+                      className={`shrink-0 rounded-full p-0.5 border hover:scale-110 transition-transform ${sInfo.pill}`}
+                      title={`狀態：${sInfo.label}（點擊推進）`}
+                    >
+                      {sInfo.icon}
+                    </button>
+                    <span
+                      className={`flex-1 truncate ${
+                        status === "done"
+                          ? "line-through text-muted-foreground"
+                          : ""
+                      }`}
+                    >
+                      {note.title}
+                    </span>
+                    {dt && (
+                      <span
+                        className={`text-[10px] tabular-nums ${
+                          kind === "overdue" ? "text-red-500" : "text-amber-500"
+                        }`}
+                      >
+                        {kind === "overdue"
+                          ? dt.toLocaleDateString("zh-TW", {
+                              month: "numeric",
+                              day: "numeric",
+                            })
+                          : dt.toLocaleTimeString("zh-TW", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       <PlanningSubpageGuide page="calendar" />
       <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -623,7 +1003,18 @@ export default function CalendarPage() {
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={d => {
+                setSelectedDate(d);
+                if (d && armedNoteId != null) {
+                  const target = new Date(d);
+                  target.setHours(9, 0, 0, 0);
+                  updateNote.mutate({
+                    id: armedNoteId,
+                    scheduledDate: target.getTime(),
+                  });
+                  setArmedNoteId(null);
+                }
+              }}
               month={month}
               onMonthChange={setMonth}
               modifiers={{ hasEvent: eventDates }}
@@ -682,6 +1073,38 @@ export default function CalendarPage() {
                     day: "numeric",
                   })}
                 </strong>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Tap-to-schedule hint banner（手機備援）*/}
+          <AnimatePresence>
+            {armedNoteId != null && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-400 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    已選取「
+                    <strong>
+                      {(notesQuery.data || []).find(
+                        n => n.id === armedNoteId
+                      )?.title ?? "未命名"}
+                    </strong>
+                    」，點日曆上的日期排程
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setArmedNoteId(null)}
+                  className="shrink-0 text-[11px] underline hover:text-amber-300"
+                >
+                  取消
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -793,6 +1216,7 @@ export default function CalendarPage() {
                         key={note.id}
                         note={note}
                         onDelete={id => deleteNote.mutate({ id })}
+                        onCycleStatus={cycleStatus}
                       />
                     ))}
                   </AnimatePresence>
@@ -810,7 +1234,7 @@ export default function CalendarPage() {
               待排程筆記
             </h3>
             <p className="hs-small !mb-0 text-muted-foreground/50 mb-3">
-              拖曳以下筆記到日曆上的日期
+              拖曳到日期，或在手機上「先點筆記、再點日期」
             </p>
 
             {notesQuery.isLoading ? (
@@ -832,14 +1256,34 @@ export default function CalendarPage() {
             ) : (
               <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
                 <AnimatePresence mode="popLayout">
-                  {unscheduledNotes.map((note: CalendarNote) => (
-                    <EventCard
-                      key={note.id}
-                      note={note}
-                      onDelete={id => deleteNote.mutate({ id })}
-                      compact
-                    />
-                  ))}
+                  {unscheduledNotes.map((note: CalendarNote) => {
+                    const armed = armedNoteId === note.id;
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() =>
+                          setArmedNoteId(armed ? null : note.id)
+                        }
+                        className={cn(
+                          "rounded-lg transition-all",
+                          armed &&
+                            "ring-2 ring-amber-400 shadow-lg shadow-amber-400/20"
+                        )}
+                        title={
+                          armed
+                            ? "已選取，點日曆上的日期即可排程"
+                            : "點一下選取，再點日期即可排程（手機備援）"
+                        }
+                      >
+                        <EventCard
+                          note={note}
+                          onDelete={id => deleteNote.mutate({ id })}
+                          onCycleStatus={cycleStatus}
+                          compact
+                        />
+                      </div>
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             )}

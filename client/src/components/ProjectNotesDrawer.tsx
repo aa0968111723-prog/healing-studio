@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 
 function NoteCard({
   note,
+  onToggleStatus,
   onDelete,
 }: {
   note: {
@@ -43,10 +44,15 @@ function NoteCard({
     title: string;
     content?: string | null;
     noteType: string;
+    status?: "todo" | "in_progress" | "done" | null;
     tags?: string[] | null;
     scheduledDate?: Date | string | null;
     createdAt: Date | string;
   };
+  onToggleStatus: (
+    id: number,
+    next: "todo" | "in_progress" | "done"
+  ) => void;
   onDelete: (id: number) => void;
 }) {
   const isMobile = useIsMobile();
@@ -56,6 +62,17 @@ function NoteCard({
       : note.noteType === "calendar_event"
         ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
         : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
+  const status = (note.status ?? "todo") as "todo" | "in_progress" | "done";
+  const isDone = status === "done";
+  const cycleStatus = () => {
+    const next =
+      status === "todo"
+        ? ("in_progress" as const)
+        : status === "in_progress"
+          ? ("done" as const)
+          : ("todo" as const);
+    onToggleStatus(note.id, next);
+  };
 
   return (
     <motion.div
@@ -63,11 +80,29 @@ function NoteCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 50 }}
-      className="group relative rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 hover:bg-white/8 transition-all"
+      className={cn(
+        "group relative rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 hover:bg-white/8 transition-all",
+        isDone && "opacity-60"
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
+            <button
+              type="button"
+              onClick={cycleStatus}
+              title={`狀態：${status === "todo" ? "待辦" : status === "in_progress" ? "進行中" : "已完成"}（點擊推進）`}
+              className={cn(
+                "shrink-0 w-5 h-5 rounded-full border flex items-center justify-center hover:scale-110 transition-transform",
+                status === "done"
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
+                  : status === "in_progress"
+                    ? "border-amber-500/50 bg-amber-500/15 text-amber-400"
+                    : "border-white/30 text-white/60"
+              )}
+            >
+              {status === "done" ? "✓" : status === "in_progress" ? "·" : ""}
+            </button>
             <Badge
               variant="outline"
               className={cn("text-[10px] px-1.5 py-0", typeColor)}
@@ -78,7 +113,12 @@ function NoteCard({
                   ? "排程"
                   : "筆記"}
             </Badge>
-            <h4 className="text-sm font-medium text-foreground/90 truncate">
+            <h4
+              className={cn(
+                "text-sm font-medium text-foreground/90 truncate",
+                isDone && "line-through text-muted-foreground"
+              )}
+            >
               {note.title}
             </h4>
           </div>
@@ -268,6 +308,9 @@ export default function ProjectNotesDrawer() {
   const deleteNote = trpc.notes.delete.useMutation({
     onSuccess: () => notesQuery.refetch(),
   });
+  const updateNote = trpc.notes.update.useMutation({
+    onSuccess: () => notesQuery.refetch(),
+  });
 
   useEffect(() => {
     if (pendingPayload) setShowForm(true);
@@ -357,6 +400,9 @@ export default function ProjectNotesDrawer() {
                   <NoteCard
                     key={note.id}
                     note={note}
+                    onToggleStatus={(id, status) =>
+                      updateNote.mutate({ id, status })
+                    }
                     onDelete={id => deleteNote.mutate({ id })}
                   />
                 ))}
