@@ -1771,7 +1771,7 @@ export type CollaborativeDiscussionFamily = "specialist" | "role" | "proactive";
 export interface CollaborativeDiscussionOptions {
   /** 強制指定第一棒；省略就用 selectRoleForIntent 自動挑（後端決定）。 */
   initialAgent?: string;
-  /** 最多跑幾位精靈（每位算一棒）；clamp 1-5。預設 3。 */
+  /** 最多跑幾位精靈（每位算一棒）；clamp 1-24。預設 3。 */
   maxRounds?: number;
   /** 顯式只允許這幾位精靈參與；空陣列 / 不給 = 不限制。 */
   allowedRoles?: string[];
@@ -3482,7 +3482,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         // 例外：@導導 — 使用者明確找導演規劃多步驟工作流。直接觸發
         // startAutoDiscussion 走「多精靈鏈」執行，由導導先排計畫、編編 /
         // 圖圖 / 影影 / 聲聲 / 音音 / 品品 依 SPIRIT_COLLAB_PROTOCOL 接手，
-        // 而不是只回一段 LLM 純文字。`maxRounds=5` 是 router 上限，足夠跑
+        // 而不是只回一段 LLM 純文字。`maxRounds=24` 是 router 上限，可覆蓋 24 位精靈協作；一般場景跑
         // 完一條完整的計畫（plan → execute → review）。
         if (
           tool.kind === "llm-persona"
@@ -3502,7 +3502,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             const discussion = await startAutoDiscussionMutation.mutateAsync({
               prompt: cleanPrompt,
               initialAgent: "director",
-              maxRounds: 5,
+              maxRounds: 24,
               timeoutMsPerTurn: 25_000,
             });
             if (!isStale()) {
@@ -4517,7 +4517,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       // 都空 = 不限制，文案就走預設。
       const maxRounds = Math.max(
         1,
-        Math.min(options?.maxRounds ?? 3, 5),
+        Math.min(options?.maxRounds ?? 3, 24),
       );
       const allowedRoles = (options?.allowedRoles ?? []).filter(Boolean);
       const allowedFamilies = (options?.allowedFamilies ?? []) as CollaborativeDiscussionFamily[];

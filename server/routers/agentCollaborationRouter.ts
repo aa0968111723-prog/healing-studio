@@ -430,8 +430,8 @@ export const agentCollaborationRouter = router({
         sessionId: z.string().optional(),
         /** 強制指定第一棒；省略就用 selectRoleForIntent 自動挑 */
         initialAgent: z.string().optional(),
-        /** 最多跑幾位精靈；預設 3，最大 5 */
-        maxRounds: z.number().int().min(1).max(5).optional(),
+        /** 最多跑幾位精靈；預設 3，最大 24 */
+        maxRounds: z.number().int().min(1).max(24).optional(),
         /**
          * 顯式白名單：只讓這幾位 AgentRole 出席。空 / 未給 = 不限制。
          * 跟 `allowedFamilies` 是 AND 關係（兩邊都符合才會被考慮）。
