@@ -211,6 +211,7 @@ import {
   emitOrbChatProgress,
   readOrbChatProgress,
 } from "./services/orbChatProgress";
+import { loadOrbMemory, saveOrbMemory } from "./services/orbUserMemory";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
 import {
   countPdfAttachments,
@@ -5920,6 +5921,19 @@ export const appRouter = router({
               r.spiritTeam = spiritTeam;
               r.spiritTeamLabel = spiritTeamNicknames;
             }
+            if (typeof r.reply === "string" && r.reply.trim()) {
+              const compactMessages = [
+                ...input.messages.map(message => ({
+                  role: message.role,
+                  content:
+                    typeof message.content === "string"
+                      ? message.content
+                      : JSON.stringify(message.content),
+                })),
+                { role: "assistant", content: r.reply },
+              ];
+              void saveOrbMemory(ctx.user.id, compactMessages).catch(() => undefined);
+            }
             // 思考步驟：把 planner artefacts + 進度 ring buffer 合成「思考步驟」面板需要的結構，
             // 讓客戶端 OrbThinkingStepsPanel 不必再去 reverse-engineer 回應的 shape。
             // 任何 return 路徑（converted / clarification / fallback-llm / fallback-error）
@@ -6318,7 +6332,8 @@ export const appRouter = router({
         const stayOnPageModeFromInput = Boolean(
           (input.preferences as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode
         );
-        const systemPrompt = buildOrbSystemPrompt(
+        const orbMemorySummary = await loadOrbMemory(ctx.user.id);
+        let systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
           {
@@ -6346,6 +6361,9 @@ export const appRouter = router({
             agentModelPicks,
           }
         );
+        if (orbMemorySummary) {
+          systemPrompt = `${systemPrompt}\n\n【使用者記憶摘要】\n${orbMemorySummary}`;
+        }
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
           currentPageSummary: input.pageSnapshot
             ? JSON.stringify({
