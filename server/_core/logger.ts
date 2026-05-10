@@ -114,6 +114,7 @@ export function requestTraceMiddleware(
   const incomingOrbTraceId = req.header("x-orb-trace-id") || req.header("x-trace-id");
   const traceId = incomingTraceId || randomUUID();
   const orbTraceId = incomingOrbTraceId || `orb_${randomUUID()}`;
+  const startedAt = Date.now();
 
   runWithTraceContext(traceId, orbTraceId, () => {
     res.setHeader("x-trace-id", traceId);
@@ -126,11 +127,29 @@ export function requestTraceMiddleware(
     });
 
     res.on("finish", () => {
-      logger.info("HTTP request completed", {
+      const durationMs = Date.now() - startedAt;
+      const statusCode = res.statusCode;
+
+      // Emit response-time header so clients and proxies can observe latency
+      res.setHeader("X-Response-Time", `${durationMs}ms`);
+
+      const logMeta = {
         method: req.method,
         path: req.originalUrl,
-        statusCode: res.statusCode,
-      });
+        statusCode,
+        durationMs,
+        cacheStatus: res.getHeader("X-Cache") ?? "BYPASS",
+      };
+
+      if (statusCode >= 500) {
+        // 5xx — log at error so it surfaces in error-rate dashboards
+        logger.error("HTTP request failed", logMeta);
+      } else if (durationMs > 3_000) {
+        // Slow request threshold — warn so p99 outliers are visible in logs
+        logger.warn("HTTP slow request", { ...logMeta, slowThresholdMs: 3_000 });
+      } else {
+        logger.info("HTTP request completed", logMeta);
+      }
     });
 
     next();

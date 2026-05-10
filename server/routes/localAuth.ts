@@ -8,6 +8,7 @@ import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
 import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
+import { httpCache, HTTP_CACHE_TTL } from "../_core/cache";
 
 // ── Auth-specific rate limiters ────────────────────────────────────────────
 // Stricter than the global /api/ limiter (300/15min). Built per-router so that
@@ -331,19 +332,27 @@ export function createLocalAuthRouter(
     }
   });
 
-  router.get("/api/auth/me", verifyToken, async (req: Request, res: Response) => {
-    const authReq = req as Request & {
-      auth?: { sub: string; name: string; email?: string };
-      user?: {
-        id: number;
-        openId: string;
-        role: "user" | "admin";
-        email: string | null;
-        name: string | null;
+  // Cache per-user profile responses for 15s to absorb rapid polling from the
+  // login UI and React Query refetch-on-focus. The userScoped key ensures each
+  // user gets their own cache slot; private Cache-Control prevents CDN caching.
+  router.get(
+    "/api/auth/me",
+    verifyToken,
+    httpCache({ ttl: HTTP_CACHE_TTL.authMe, userScoped: true, private: true }),
+    async (req: Request, res: Response) => {
+      const authReq = req as Request & {
+        auth?: { sub: string; name: string; email?: string };
+        user?: {
+          id: number;
+          openId: string;
+          role: "user" | "admin";
+          email: string | null;
+          name: string | null;
+        };
       };
-    };
-    res.json({ user: authReq.user ?? authReq.auth ?? null });
-  });
+      res.json({ user: authReq.user ?? authReq.auth ?? null });
+    }
+  );
 
   // ── 2FA management (all require an authenticated session) ───────────────────
   type AuthedReq = Request & {
