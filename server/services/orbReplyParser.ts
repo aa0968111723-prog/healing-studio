@@ -81,6 +81,7 @@ export const ORB_ALLOWED_ACTIONS = new Set([
   "search",
   "toggleSetting",
   "runWorkflow",
+  "execute_generate_image",
 ]);
 
 /**
@@ -95,6 +96,7 @@ export const ORB_DESTRUCTIVE_ACTIONS = new Set([
   "generate",
   "fillPrompt",
   "runWorkflow",
+  "execute_generate_image",
 ]);
 
 export const ORB_ALLOWED_TOOL_NAME = /^[a-z][a-z0-9_.-]{1,63}$/i;

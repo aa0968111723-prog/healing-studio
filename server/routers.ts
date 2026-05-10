@@ -61,6 +61,7 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { executeGenerateImage } from "./services/orbTaskExecutor";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { computeDashboardInsights } from "../shared/dashboard-insights";
 import { moderateOrbContent } from "../shared/orb-content-moderation";
@@ -7109,9 +7110,38 @@ export const appRouter = router({
                   `已依使用者頁面權限略過：${perPageFiltered.dropped.join(", ")}`
                 );
               }
+              let convertedReply = moderatedReply;
+              let convertedActions = perPageFiltered.actions;
+              const generateAction = convertedActions.find(
+                action => action.type === "execute_generate_image"
+              ) as { type: string; payload?: string; prompt?: string; model?: string } | undefined;
+              if (generateAction) {
+                try {
+                  const imagePrompt =
+                    (typeof generateAction.prompt === "string" && generateAction.prompt.trim()) ||
+                    (typeof generateAction.payload === "string" && generateAction.payload.trim()) ||
+                    latestUserTextForRouting;
+                  const imageUrl = await executeGenerateImage(
+                    String(userId),
+                    imagePrompt,
+                    typeof generateAction.model === "string" ? generateAction.model : undefined
+                  );
+                  convertedReply = `${convertedReply}
+
+🖼️ 已幫你生成圖片：${imageUrl}`.trim();
+                } catch (error) {
+                  const msg = error instanceof Error ? error.message : String(error);
+                  convertedReply = `${convertedReply}
+
+⚠️ 生成圖片失敗：${msg}`.trim();
+                }
+                convertedActions = convertedActions.filter(
+                  action => action.type !== "execute_generate_image"
+                );
+              }
               return finalizeIdempotentResponse({
-                reply: moderatedReply,
-                actions: perPageFiltered.actions,
+                reply: convertedReply,
+                actions: convertedActions,
                 intent: plannerResult.intent ?? null,
                 askBeforeAct:
                   perPageFiltered.actions.length > 0 &&
@@ -7600,6 +7630,33 @@ export const appRouter = router({
             });
           }
           let legacyActions = legacyPerPage.actions as typeof legacy.actions;
+          const legacyGenerateAction = legacyActions.find(
+            action => action.type === "execute_generate_image"
+          ) as { type: string; payload?: string; prompt?: string; model?: string } | undefined;
+          if (legacyGenerateAction) {
+            try {
+              const imagePrompt =
+                (typeof legacyGenerateAction.prompt === "string" && legacyGenerateAction.prompt.trim()) ||
+                (typeof legacyGenerateAction.payload === "string" && legacyGenerateAction.payload.trim()) ||
+                latestUserTextForRouting;
+              const imageUrl = await executeGenerateImage(
+                String(userId),
+                imagePrompt,
+                typeof legacyGenerateAction.model === "string" ? legacyGenerateAction.model : undefined
+              );
+              legacy.reply = `${legacy.reply ?? ""}
+
+🖼️ 已幫你生成圖片：${imageUrl}`.trim();
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : String(error);
+              legacy.reply = `${legacy.reply ?? ""}
+
+⚠️ 生成圖片失敗：${msg}`.trim();
+            }
+            legacyActions = legacyActions.filter(
+              action => action.type !== "execute_generate_image"
+            ) as typeof legacy.actions;
+          }
           // ── Fallback navigate synthesis ─────────────────────────────────
           // Schema-first planner 失敗 + LLM 用文字承諾「我帶你過去 X」但忘了
           // emit `[ACTION:navigate:...]` marker = 使用者看到光球說「帶你去」
