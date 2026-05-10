@@ -552,9 +552,8 @@ export default function LocalAuthForm({
           loading ||
           isLockedOut ||
           (mode === "login" &&
-            (!loginEmail ||
-              !loginPassword ||
-              (twoFactorRequired && totpToken.length !== 6))) ||
+            twoFactorRequired &&
+            totpToken.length !== 6) ||
           (mode === "register" &&
             (!registerEmail ||
               !registerPassword ||
