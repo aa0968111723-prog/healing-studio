@@ -15,6 +15,14 @@ import {
 } from "../../shared/orb-clarification-options";
 
 export type OrbRawAction = { type: string; payload: string };
+export type OrbExecuteTaskAction = {
+  type: "execute_task";
+  task: {
+    type: "generate_image" | "generate_music" | "generate_video";
+    prompt: string;
+    model?: string;
+  };
+};
 export type OrbRawToolCall = {
   name: string;
   args: Record<string, unknown>;
@@ -24,7 +32,7 @@ export interface OrbParsedReply {
   /** LLM 去除所有 marker 後的純文字回覆 */
   reply: string;
   /** 白名單過濾後的動作清單，順序同 LLM 原文 */
-  actions: Array<OrbRawAction | Record<string, unknown>>;
+  actions: Array<OrbRawAction | OrbExecuteTaskAction | Record<string, unknown>>;
   /** LLM 自述的意圖摘要（若無則為 null） */
   intent: string | null;
   /** 是否要求使用者在執行前先確認（破壞性動作與 alwaysConfirm 會強制 true） */
@@ -81,6 +89,7 @@ export const ORB_ALLOWED_ACTIONS = new Set([
   "search",
   "toggleSetting",
   "runWorkflow",
+  "execute_task",
 ]);
 
 /**

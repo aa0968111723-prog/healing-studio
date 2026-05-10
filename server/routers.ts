@@ -217,6 +217,7 @@ import {
   extractPdfAttachmentsToText,
 } from "./services/orbAttachmentExtraction";
 import { runOrbWebResearch } from "./services/orbWebResearch";
+import { executeOrbTask } from "./services/orbTaskExecutor";
 import {
   doPostGenComplete,
   runPostGenForJob,
@@ -7513,6 +7514,38 @@ export const appRouter = router({
             alwaysConfirm: input.alwaysConfirm,
             userText: latestUserTextForRouting,
           });
+          const executeTaskActions = legacy.actions.filter(
+            (action): action is {
+              type: "execute_task";
+              task: {
+                type: "generate_image" | "generate_music" | "generate_video";
+                prompt: string;
+                model?: string;
+              };
+            } =>
+              typeof action === "object" &&
+              action !== null &&
+              (action as { type?: unknown }).type === "execute_task" &&
+              typeof (action as { task?: unknown }).task === "object" &&
+              (action as { task?: Record<string, unknown> }).task !== null
+          );
+          if (executeTaskActions.length > 0) {
+            const taskResults: string[] = [];
+            for (const action of executeTaskActions) {
+              try {
+                const result = await executeOrbTask(ctx.user.id, action.task);
+                taskResults.push(result.url);
+              } catch (taskError) {
+                console.warn(
+                  "[Orb] execute_task failed:",
+                  taskError instanceof Error ? taskError.message : String(taskError)
+                );
+              }
+            }
+            if (taskResults.length > 0) {
+              legacy.reply = `${legacy.reply}\n\n${taskResults.join("\n")}`.trim();
+            }
+          }
           // Gap 17: moderate the LLM reply text before it reaches the user.
           const legacyModeration = moderateOrbContent(legacy.reply ?? "");
           if (legacyModeration.action !== "pass") {
