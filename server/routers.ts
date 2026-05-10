@@ -60,6 +60,7 @@ import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
+import { buildOrbUserMemoryPromptBlock, loadOrbUserMemorySummary, summarizeAndPersistOrbUserMemory } from "./services/orbUserMemory";
 import { parseOrbReply } from "./services/orbReplyParser";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { computeDashboardInsights } from "../shared/dashboard-insights";
@@ -5924,6 +5925,14 @@ export const appRouter = router({
             // 讓客戶端 OrbThinkingStepsPanel 不必再去 reverse-engineer 回應的 shape。
             // 任何 return 路徑（converted / clarification / fallback-llm / fallback-error）
             // 只要還沒手動塞 reasoningChain，這裡都會自動補上。
+            if (typeof r.reply === "string" && r.reply.trim()) {
+              void summarizeAndPersistOrbUserMemory({
+                userId: ctx.user.id,
+                priorSummary: persistedUserMemorySummary,
+                userText: latestUserTextForRouting || "",
+                assistantText: r.reply,
+              });
+            }
             if (r.reasoningChain === undefined) {
               const reasoningPayload = buildOrbReasoningChainFromResult(
                 r,
@@ -6318,6 +6327,8 @@ export const appRouter = router({
         const stayOnPageModeFromInput = Boolean(
           (input.preferences as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode
         );
+        const persistedUserMemorySummary = await loadOrbUserMemorySummary(ctx.user.id);
+        const memoryPromptBlock = buildOrbUserMemoryPromptBlock(persistedUserMemorySummary);
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
@@ -6821,7 +6832,7 @@ export const appRouter = router({
                 messages: [
                   {
                     role: "system",
-                    content: augmentSystemPromptWithResearch(chatOnlySystemPrompt),
+                    content: augmentSystemPromptWithResearch(`${chatOnlySystemPrompt}${memoryPromptBlock ? `\n\n${memoryPromptBlock}` : ""}`),
                   },
                   ...plannerMessages,
                 ],
@@ -7463,7 +7474,7 @@ export const appRouter = router({
               topP: director.topP,
               systemPrompt: director.systemPrompt,
               messages: [
-                { role: "system", content: augmentSystemPromptWithResearch(systemPrompt) },
+                { role: "system", content: augmentSystemPromptWithResearch(`${systemPrompt}${memoryPromptBlock ? `\n\n${memoryPromptBlock}` : ""}`) },
                 ...plannerMessages,
               ],
               preferEngine: enginePreference,

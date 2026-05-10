@@ -489,3 +489,38 @@ function extractClarificationFromJson(
 
   return { needsClarification: false };
 }
+
+export async function executeActionWithAutoRetry<T>(input: {
+  action: OrbRawAction | Record<string, unknown>;
+  execute: (args: { action: OrbRawAction | Record<string, unknown>; model: string; attempt: number }) => Promise<T>;
+  primaryModel: string;
+  fallbackModels?: string[];
+  maxRetries?: number;
+  isRetryableError?: (error: unknown) => boolean;
+  onAttempt?: (evt: { attempt: number; model: string; error?: string }) => void;
+}): Promise<{ ok: true; value: T; attempts: number; modelUsed: string } | { ok: false; error: string; attempts: number; triedModels: string[] }> {
+  const retries = Math.max(0, Math.min(3, input.maxRetries ?? 3));
+  const models = [input.primaryModel, ...(input.fallbackModels ?? [])].filter(Boolean);
+  const triedModels: string[] = [];
+  const retryable = input.isRetryableError ?? (() => true);
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const model = models[Math.min(attempt, models.length - 1)] ?? input.primaryModel;
+    triedModels.push(model);
+    try {
+      const value = await input.execute({ action: input.action, model, attempt: attempt + 1 });
+      input.onAttempt?.({ attempt: attempt + 1, model });
+      return { ok: true, value, attempts: attempt + 1, modelUsed: model };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      input.onAttempt?.({ attempt: attempt + 1, model, error: message });
+      if (!retryable(error)) {
+        return { ok: false, error: message, attempts: attempt + 1, triedModels };
+      }
+      if (attempt === retries) {
+        return { ok: false, error: message, attempts: attempt + 1, triedModels };
+      }
+    }
+  }
+  return { ok: false, error: "retry-exhausted", attempts: retries + 1, triedModels };
+}

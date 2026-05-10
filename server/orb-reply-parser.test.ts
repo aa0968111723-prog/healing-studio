@@ -243,3 +243,41 @@ describe("parseOrbReply", () => {
     ]);
   });
 });
+
+describe("executeActionWithAutoRetry", () => {
+  it("retries up to 3 and switches fallback models", async () => {
+    const { executeActionWithAutoRetry } = await import("./services/orbReplyParser");
+    const calls: string[] = [];
+    const result = await executeActionWithAutoRetry({
+      action: { type: "submit", payload: "" },
+      primaryModel: "model-a",
+      fallbackModels: ["model-b", "model-c"],
+      maxRetries: 3,
+      execute: async ({ model }) => {
+        calls.push(model);
+        if (calls.length < 3) throw new Error("temporary");
+        return { ok: true };
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual(["model-a", "model-b", "model-c"]);
+  });
+
+  it("stops immediately on non-retryable errors", async () => {
+    const { executeActionWithAutoRetry } = await import("./services/orbReplyParser");
+    const result = await executeActionWithAutoRetry({
+      action: { type: "submit", payload: "" },
+      primaryModel: "model-a",
+      fallbackModels: ["model-b"],
+      execute: async () => {
+        throw new Error("bad_request");
+      },
+      isRetryableError: (err) => !String((err as Error).message).includes("bad_request"),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.attempts).toBe(1);
+      expect(result.triedModels).toEqual(["model-a"]);
+    }
+  });
+});
