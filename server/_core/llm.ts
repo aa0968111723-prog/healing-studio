@@ -1005,6 +1005,43 @@ function adaptResponseFormatForGemini(
   return format;
 }
 
+/**
+ * OpenRouter 的 structured output 會拒絕部分 JSON Schema 關鍵字（尤其是 `const`），
+ * 在 schema-first planner 的 discriminated union 場景會直接 400。
+ *
+ * 這裡將 `const` 安全降級成單值 `enum`，並遞迴處理巢狀 schema，
+ * 以維持約束語意，同時提高 OpenRouter 相容性。
+ */
+function adaptResponseFormatForOpenRouter(
+  format: ResponseFormat
+): ResponseFormat {
+  if (format.type !== "json_schema") return format;
+
+  const rewriteConst = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(rewriteConst);
+    if (!value || typeof value !== "object") return value;
+    const record = value as Record<string, unknown>;
+    const next: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(record)) {
+      if (key === "const") {
+        // OpenRouter JSON schema validator may reject `const`.
+        next.enum = [child];
+        continue;
+      }
+      next[key] = rewriteConst(child);
+    }
+    return next;
+  };
+
+  return {
+    ...format,
+    json_schema: {
+      ...format.json_schema,
+      schema: rewriteConst(format.json_schema.schema) as JsonSchema["schema"],
+    },
+  };
+}
+
 // ─── Anthropic native API adapter ──────────────────────────────────────────
 //
 // Anthropic /v1/messages 使用與 OpenAI chat completions 不同的格式：
@@ -1834,8 +1871,11 @@ async function invokeSingleEngine(
     // Gemini/Vertex 引擎：簡化 schema 以避免 400 "too many states" 錯誤
     const isGeminiEngine =
       engineConfig.engine === "gemini" || engineConfig.engine === "vertex";
+    const isOpenRouterEngine = engineConfig.engine === "openrouter";
     payload.response_format = isGeminiEngine
       ? adaptResponseFormatForGemini(normalizedResponseFormat)
+      : isOpenRouterEngine
+      ? adaptResponseFormatForOpenRouter(normalizedResponseFormat)
       : normalizedResponseFormat;
   }
   // Anthropic doesn't accept response_format. For json_object/json_schema callers,
