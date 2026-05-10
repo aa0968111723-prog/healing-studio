@@ -63,6 +63,9 @@ const KEYWORD_RULES: Array<{
   rationale: string;
 }> = [
   // Director: explicit multi-step / cross-page workflow asks.
+  // 「腳本 / 劇本 / 故事大綱 / 分鏡」這類產出在站內由導演 AI（/director）擁有，
+  // 落在這條規則才會把使用者帶過去；沒有的話「做腳本」會被 fallback 成 companion
+  // 然後留在 /agent 一片靜默，這是先前回報「跳頁沒對話框」的源頭之一。
   {
     role: "director",
     keywords: [
@@ -77,10 +80,22 @@ const KEYWORD_RULES: Array<{
       "幫我做一首",
       "幫我做一張",
       "拆成步驟",
+      "腳本",
+      "劇本",
+      "做腳本",
+      "寫腳本",
+      "故事大綱",
+      "分鏡",
+      "影片腳本",
+      "短片腳本",
+      "廣告腳本",
       "plan",
       "workflow",
       "pipeline",
       "story arc",
+      "storyboard",
+      "screenplay",
+      "script",
       "end-to-end",
     ],
     rationale: "user asked for multi-step / cross-page planning",
@@ -1288,6 +1303,22 @@ export function pickArrivalSpiritForPath(path: string): AgentRole | null {
     if (path === entry.prefix || path.startsWith(`${entry.prefix}/`)) {
       return entry.role;
     }
+  }
+  return null;
+}
+
+/**
+ * 反向查詢：給定精靈角色，回傳「該位精靈當家的頁面 path」。沒有對應頁面
+ * （例如 composer / critic / companion 這類沒有專屬頁面的工作流角色）回 null。
+ *
+ * 使用情境：legacy fallback 路徑下 LLM 沒乖乖 emit `[ACTION:navigate:...]`
+ * 標記，但 spirit 已被路由器判成 director/specialist 之類有實體頁面的角色 —
+ * 這時 server 可以「補打」一條 navigate action 給前端，讓使用者真的被帶到
+ * 目的頁，而不是看到光球說「我帶你過去」卻一直賴在 /agent。
+ */
+export function pickDefaultPathForRole(role: AgentRole): string | null {
+  for (const entry of PATH_SPIRIT_MAP) {
+    if (entry.role === role) return entry.prefix;
   }
   return null;
 }

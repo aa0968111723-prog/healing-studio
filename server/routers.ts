@@ -184,6 +184,9 @@ import { selectProvider, type ProviderRouteIntent } from "./services/providerRou
 import {
   selectRoleForIntent,
   getPreferredProviderForRole,
+  composeRoleChain,
+  getPrimaryNicknameForRole,
+  pickDefaultPathForRole,
   type AgentRole,
 } from "../shared/orb-agent-roles";
 import {
@@ -5824,6 +5827,25 @@ export const appRouter = router({
                 mutedRoles: mutedSpiritsForSelection,
               })
             : null;
+        // 「協作團隊」：除了當回合領頭精靈以外，後續會接手的角色（例：
+        // 導導 → 編編 → 品品）。前端 OrbThinkingStepsPanel 把這份名單渲染成
+        // 多顆 chip，讓使用者看到 15 精靈不是一個人在思考，是團隊在排隊接手。
+        // 沒選到精靈時就空陣列，panel 自動省略。
+        const spiritTeam: AgentRole[] =
+          roleAutoSwitchEnabled && lastUserTextForSpirit
+            ? composeRoleChain({
+                text: lastUserTextForSpirit,
+                // 與上方 selectRoleForIntent 同步使用同一份 snapshot；型別在這層
+                // 寬鬆，TS 無感報 mismatch（同 5637 的 pre-existing 警告），
+                // 因為共享層宣告比 trpc input 嚴格。執行時兩邊一致。
+                snapshot: (input.pageSnapshot ?? null) as PageAgentSnapshot | null,
+                turnCount: input.messages.length,
+                mutedRoles: mutedSpiritsForSelection,
+              })
+            : [];
+        const spiritTeamNicknames = spiritTeam
+          .map(role => getPrimaryNicknameForRole(role))
+          .join(" → ");
 
         const finalizeIdempotentResponse = <T extends object | null | undefined>(result: T): T => {
           // Inject identity / preference profile for the client. We do it here so
@@ -5859,6 +5881,12 @@ export const appRouter = router({
               r.agentRole = spiritSelection.role;
               r.agentRoleConfidence = spiritSelection.confidence;
               r.agentRoleRationale = spiritSelection.rationale;
+            }
+            // 「協作團隊」一併掛上：思考步驟面板在 sections 增加一條
+            // 「召喚協作精靈」section 用這個欄位，多精靈協作不再只是文件描述。
+            if (spiritTeam.length > 0 && r.spiritTeam === undefined) {
+              r.spiritTeam = spiritTeam;
+              r.spiritTeamLabel = spiritTeamNicknames;
             }
             // 思考步驟：把 planner artefacts + 進度 ring buffer 合成「思考步驟」面板需要的結構，
             // 讓客戶端 OrbThinkingStepsPanel 不必再去 reverse-engineer 回應的 shape。
@@ -5944,8 +5972,29 @@ export const appRouter = router({
           const modelLabel = preferredEngine
             ? `引擎：${preferredEngine}`
             : undefined;
+          // 「召喚協作精靈」— 把 composeRoleChain 算出來的接手團隊（暱稱串）
+          // 當成一條 warning 餵進 sections。warning 的標題本來叫「釐清限制」，
+          // 對應出來後 panel 上會看到一條「導導 → 編編 → 品品」的清楚名單，
+          // 解掉「15 精靈感覺沒在思考與協作」的回報。
+          const teamLabel =
+            typeof r?.spiritTeamLabel === "string" && r.spiritTeamLabel.trim()
+              ? r.spiritTeamLabel.trim()
+              : null;
+          const teamMemberCount = Array.isArray(r?.spiritTeam)
+            ? r.spiritTeam.length
+            : 0;
+          const enrichedWarnings =
+            teamLabel && teamMemberCount > 1
+              ? [`接手團隊：${teamLabel}（共 ${teamMemberCount} 位精靈接力）`, ...warnings]
+              : warnings;
           return buildOrbReasoningChain({
-            plan: { intent, summaryForUser, steps, warnings, reply: r?.reply },
+            plan: {
+              intent,
+              summaryForUser,
+              steps,
+              warnings: enrichedWarnings,
+              reply: r?.reply,
+            },
             events,
             modelLabel,
             durationMs: Date.now() - startedAt,
@@ -6584,6 +6633,10 @@ export const appRouter = router({
             emitOrbChatProgress(idempKey, "selecting_provider", "選擇模型中…", {
               routeIntent,
               spirit: spiritSelection?.role,
+              // 團隊接手順序（暱稱串）— 沒選到精靈時就省略，避免空 chip。
+              ...(spiritTeam.length > 0
+                ? { 接手團隊: spiritTeamNicknames }
+                : {}),
             });
             let selection = selectProvider({
               intent: routeIntent,
@@ -6768,6 +6821,11 @@ export const appRouter = router({
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
             emitOrbChatProgress(idempKey, "planning", "規劃步驟中…", {
               spirit: spiritSelection?.role,
+              // 同 selecting_provider — 把整條接手鏈帶過來，panel 上就能看到
+              // 「導導 → 編編 → 品品」這種多精靈協作時序。
+              ...(spiritTeam.length > 0
+                ? { 接手團隊: spiritTeamNicknames }
+                : {}),
             });
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {
@@ -7432,7 +7490,50 @@ export const appRouter = router({
               outcome: "fallback",
             });
           }
-          const legacyActions = legacyPerPage.actions as typeof legacy.actions;
+          let legacyActions = legacyPerPage.actions as typeof legacy.actions;
+          // ── Fallback navigate synthesis ─────────────────────────────────
+          // Schema-first planner 失敗 + LLM 用文字承諾「我帶你過去 X」但忘了
+          // emit `[ACTION:navigate:...]` marker = 使用者看到光球說「帶你去」
+          // 卻沒真的跳頁，這是「直接跳頁沒對話框」回報的最後一里。
+          //
+          // 補強條件（每一條都要成立才補打 navigate，避免誤跳）：
+          //   1. 沒有任何 actions（所以不是 LLM 自己想停在當頁）
+          //   2. spiritSelection 落在「有專屬頁面」的角色（director / 各 specialist /
+          //      accountant / researcher 等；composer/critic/companion 沒對應頁面）
+          //   3. 該頁面跟使用者目前所在頁不同（避免原地跳）
+          //   4. LLM reply 真的有「帶你過去 / 帶你到 / 帶過去 / 跳到」這類動詞
+          //      （只要 reply 帶了承諾，就符合使用者的期待）
+          if (
+            legacyActions.length === 0 &&
+            spiritSelection &&
+            legacy.needsClarification !== true
+          ) {
+            const targetPath = pickDefaultPathForRole(spiritSelection.role);
+            const currentPath = input.pageSnapshot?.pagePath ?? "";
+            const replyText = legacy.reply ?? "";
+            const hasNavPromise =
+              /帶你(過|去|到)|帶過去|跳到|帶到|前往|為你打開|去到/.test(replyText);
+            if (
+              targetPath &&
+              targetPath !== currentPath &&
+              hasNavPromise
+            ) {
+              const synthesizedNavigate = {
+                type: "navigate" as const,
+                path: targetPath,
+                payload: targetPath,
+              };
+              legacyActions = [
+                synthesizedNavigate,
+                ...legacyActions,
+              ] as typeof legacy.actions;
+              appendTelemetryEvent(telemetryEvents, "orb.fallback.synthesized_navigate", {
+                role: spiritSelection.role,
+                targetPath,
+                currentPath,
+              });
+            }
+          }
           // Decide a more precise plannerStatus so ops can tell the four
           // fallback reasons apart in telemetry dashboards:
           //   - fallback-schema-disabled: env flag explicitly off

@@ -11,6 +11,8 @@ import {
   getPrimaryNicknameForRole,
   getRoleSystemPromptSlice,
   hasSpiritMention,
+  pickArrivalSpiritForPath,
+  pickDefaultPathForRole,
   selectRoleForIntent,
   summarizeRoleChainForPrompt,
   SPIRIT_COLLAB_PROTOCOL,
@@ -71,6 +73,59 @@ describe("selectRoleForIntent", () => {
   it("routes ambiguous off-studio text to companion", () => {
     const r = selectRoleForIntent({ text: "嗨，今天天氣不錯" });
     expect(r.role).toBe("companion");
+  });
+
+  // 「做腳本」「寫劇本」「故事大綱」「分鏡」是站內導演 AI 的固定產出，
+  // 必須路由到 director — 不然會 fallback 成 companion，跳頁不會發生，
+  // 對話框也接不上。這條是回報「直接跳頁沒對話框」的源頭。
+  it("routes 做腳本 / 寫腳本 / 影片腳本 to director", () => {
+    expect(selectRoleForIntent({ text: "做腳本" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "我想寫腳本" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "我要寫一支影片腳本" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "幫我做支廣告腳本" }).role).toBe("director");
+  });
+
+  it("routes 劇本 / 故事大綱 / 分鏡 to director", () => {
+    expect(selectRoleForIntent({ text: "我有一個劇本想改" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "幫我寫一份故事大綱" }).role).toBe("director");
+    expect(selectRoleForIntent({ text: "需要分鏡" }).role).toBe("director");
+  });
+});
+
+describe("pickDefaultPathForRole", () => {
+  // 反向查表是 server-side legacy fallback 補打 navigate action 的依據；
+  // 漏一個 mapping 就代表那位精靈的「跳頁沒對話框」沒救回來，所以這層
+  // 必須有測試保護。
+  it("maps each on-page spirit role back to its home path", () => {
+    expect(pickDefaultPathForRole("image-specialist")).toBe("/image-studio");
+    expect(pickDefaultPathForRole("video-specialist")).toBe("/video-studio");
+    expect(pickDefaultPathForRole("music-specialist")).toBe("/pro-studio");
+    expect(pickDefaultPathForRole("director")).toBe("/director");
+    expect(pickDefaultPathForRole("training-specialist")).toBe("/models");
+    expect(pickDefaultPathForRole("learning-specialist")).toBe("/learn");
+    expect(pickDefaultPathForRole("accountant")).toBe("/dashboard");
+    expect(pickDefaultPathForRole("researcher")).toBe("/notes");
+  });
+
+  it("returns null for non-page workflow roles", () => {
+    // composer / critic / companion / navigator 沒有專屬頁面，server 不該補
+    // 強制跳頁 — 否則會把純對話打斷。
+    expect(pickDefaultPathForRole("composer")).toBeNull();
+    expect(pickDefaultPathForRole("critic")).toBeNull();
+    expect(pickDefaultPathForRole("companion")).toBeNull();
+    expect(pickDefaultPathForRole("navigator")).toBeNull();
+  });
+
+  it("is the inverse of pickArrivalSpiritForPath for canonical paths", () => {
+    const pairs: Array<[string, AgentRole]> = [
+      ["/image-studio", "image-specialist"],
+      ["/video-studio", "video-specialist"],
+      ["/director", "director"],
+    ];
+    for (const [path, role] of pairs) {
+      expect(pickArrivalSpiritForPath(path)).toBe(role);
+      expect(pickDefaultPathForRole(role)).toBe(path);
+    }
   });
 });
 
