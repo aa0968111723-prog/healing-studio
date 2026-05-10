@@ -14,7 +14,7 @@
  * ChatMessage, so opening / closing is free; we don't re-call the LLM.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Sparkles, Clock, AlertTriangle } from "lucide-react";
 import {
   Sheet,
@@ -67,6 +67,12 @@ export interface OrbThinkingStepsPanelProps {
 
 type Tab = "thinking" | "actions";
 
+function formatElapsedMs(dt: number): string {
+  if (!Number.isFinite(dt) || dt <= 0) return "+0.0s";
+  if (dt < 1000) return `+${Math.round(dt)}ms`;
+  return `+${(dt / 1000).toFixed(1)}s`;
+}
+
 export default function OrbThinkingStepsPanel({
   open,
   onOpenChange,
@@ -79,6 +85,10 @@ export default function OrbThinkingStepsPanel({
     return "thinking";
   }, [chain]);
   const [tab, setTab] = useState<Tab>(initialTab);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   const sections = chain?.sections ?? [];
   const actions = chain?.actions ?? [];
@@ -278,7 +288,7 @@ function ActionsTimeline({
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Clock className="w-3 h-3" aria-hidden />
-                  +{(dt / 1000).toFixed(1)}s
+                  {formatElapsedMs(dt)}
                 </span>
               </div>
               <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug truncate">
