@@ -204,6 +204,104 @@ const GENERIC_SKILLS: Array<Pick<
     chain: ["inspector", "navigator"],
     requiresPage: false,
   },
+  // ── 8 位新增精靈：去掉 community-manager（已在 SPECIALIZED_AGENT_CAPABILITIES）── //
+  {
+    id: "legal-advisor",
+    displayName: "律律",
+    description: "AI 生成法律 / 著作權 / 商標 / 肖像權 / 授權條款專家",
+    modality: "general",
+    // /legal 專屬頁未實作，先以 /agent 對話入口為主；PATH_SPIRIT_MAP 仍預留
+    // /legal 路徑等待頁面實裝時自動接上。
+    recommendedPages: ["/agent"],
+    tools: ["research.deepSearch"],
+    knowledgeDomains: ["copyright", "trademark", "fair use", "creative commons", "AI generation policy"],
+    useCases: ["這個能不能商用", "用了會不會侵權", "授權條款查證", "AI 生成法律紅線"],
+    chain: ["legal-advisor", "quality-coach", "composer"],
+    requiresPage: false,
+  },
+  {
+    id: "security-guard",
+    displayName: "安安",
+    description: "資安顧問：金鑰 / 密碼 / 帳號被盜 / deepfake 風險警示與處置",
+    modality: "general",
+    // /security 與 /settings/api-keys 子頁仍未在 APP_PAGE_REGISTRY 註冊；
+    // 安安以 /settings 設定中心 + /agent 對話入口為主。
+    recommendedPages: ["/settings", "/agent"],
+    tools: [],
+    knowledgeDomains: ["account security", "API key management", "2FA", "phishing", "deepfake risk"],
+    useCases: ["帳號被盜處理", "API key 外洩", "deepfake / 詐騙警示", "兩步驟驗證設定"],
+    chain: ["security-guard", "settings-detail"],
+    requiresPage: false,
+  },
+  {
+    id: "chief-orchestrator",
+    displayName: "總總",
+    description: "全團隊總管：看 23 位精靈現況，給下一棒建議與整體進度",
+    modality: "general",
+    // /team /agents 專屬團隊面板未實裝，總總以 /agent 對話 + /dashboard 為起點。
+    recommendedPages: ["/agent", "/dashboard"],
+    tools: [],
+    knowledgeDomains: ["agent orchestration", "task queue", "team workload"],
+    useCases: ["團隊狀態總覽", "誰負責什麼", "下一棒交給誰"],
+    chain: ["chief-orchestrator", "director", "composer"],
+    requiresPage: false,
+  },
+  {
+    id: "onboarding-coach",
+    displayName: "帶帶",
+    description: "操作教練：偵測卡關，一步一步陪你走介面",
+    modality: "general",
+    recommendedPages: ["/agent"],
+    tools: [],
+    knowledgeDomains: ["site UI", "onboarding flows", "common stuck points"],
+    useCases: ["我卡住了", "找不到按鈕", "操作上的困難", "新手指引"],
+    chain: ["onboarding-coach", "navigator"],
+    requiresPage: false,
+  },
+  {
+    id: "notes-curator",
+    displayName: "記記",
+    description: "筆記、素材庫、排程的管理員：存、找、排一次完成",
+    modality: "general",
+    // /schedule /calendar 專屬頁尚未實裝，先以 /notes / /assets 為主，PATH_SPIRIT_MAP
+    // 仍預留所有路徑等待頁面實作時自動接上。
+    recommendedPages: ["/notes", "/assets", "/agent"],
+    tools: [],
+    knowledgeDomains: ["notes", "calendar", "asset library", "tagging", "scheduling"],
+    useCases: ["記下重點", "翻舊素材", "排程貼文", "整理待辦"],
+    chain: ["notes-curator", "composer"],
+    requiresPage: false,
+  },
+  {
+    id: "settings-detail",
+    displayName: "細細",
+    description: "設定 / 偏好 / 細節微調的引路人，並解釋打開後的副作用",
+    modality: "general",
+    recommendedPages: ["/settings", "/agent"],
+    tools: [],
+    knowledgeDomains: ["settings surface", "preferences", "feature flags"],
+    useCases: ["改通知偏好", "切換主題", "改密碼 / 金鑰前置", "微調預設模型"],
+    chain: ["settings-detail"],
+    requiresPage: false,
+  },
+  {
+    id: "plan-executor",
+    displayName: "步步",
+    description: "規劃 + 多步驟自動執行：跨頁、跨精靈一條龍跑完並回報每一步",
+    modality: "general",
+    // /jobs /tasks 專屬狀態面板尚未實裝，步步先以 /agent 對話 + /dashboard 為主。
+    recommendedPages: ["/agent", "/dashboard"],
+    // 故意留空 — 步步 *可以* 派遣所有 studio.* / research.* 工具，但
+    // findSkillForTool 是「誰擁有這個工具」反向查詢；image / video /
+    // music / voice / training / research 的 ownership 已經屬於對應
+    // specialist，步步若聲稱也擁有會造成 substring 命中錯亂。步步透過
+    // SPIRIT_MODEL_CAPABILITIES (ALL_CATEGORIES) 真實派遣權能仍然完整。
+    tools: [],
+    knowledgeDomains: ["multi-step orchestration", "tool dispatch", "step retries", "failure recovery"],
+    useCases: ["從規劃到執行一條龍", "自動跑完整套 workflow", "跨頁多步驟任務"],
+    chain: ["plan-executor", "accountant", "critic"],
+    requiresPage: false,
+  },
 ];
 
 const SPECIALIST_PAGE_MAP: Record<string, { pages: string[]; modality: SkillModality }> = {
@@ -231,6 +329,12 @@ const SPECIALIST_PAGE_MAP: Record<string, { pages: string[]; modality: SkillModa
   },
   "learning-specialist": {
     pages: ["/learn", "/tutorial-overview", "/agent"],
+    modality: "text",
+  },
+  "community-manager": {
+    // /social / /community 專屬社群經營頁尚未實裝，群群以 image / video studio
+    // 為主（被 call 來幫忙產貼文素材），加 /agent 對話入口。
+    pages: ["/image-studio", "/video-studio", "/agent"],
     modality: "text",
   },
 };

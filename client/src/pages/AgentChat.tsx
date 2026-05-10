@@ -927,7 +927,7 @@ export default function AgentChat() {
 
   const isFirstTurn = messages.length <= 1;
 
-  // ─── 15 精靈：每則回覆掛上接手的精靈，狀態條看「現在誰在線」 ────────────
+  // ─── 23 精靈：每則回覆掛上接手的精靈，狀態條看「現在誰在線」 ────────────
   // 後端 ai.chat 現在會直接回傳 agentRole（存在訊息物件 + 對話歷史 metadata）。
   // 有 server 答案就直接用；沒有的話 (legacy 訊息 / gate 早退) 才退回
   // selectRoleForIntent 客戶端推論。

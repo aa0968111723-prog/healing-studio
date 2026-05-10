@@ -9,6 +9,14 @@
  * - Voice Specialist: voice cloning & dubbing
  * - Training Specialist: model training & LoRA
  * - Learning Specialist: tutorials & guidance
+ * - Community Manager: social platform strategy
+ *
+ * 注意：這份 registry 之外另有 8 位精靈（律律 / 安安 / 群群 / 總總 / 帶帶 /
+ * 記記 / 細細 / 步步）— 多數沒有自己的 fal 工具或 specialised modality，
+ * 只有「社群精靈」(community-manager) 屬於 specialist family（會出貼文素材
+ * 並使用 research.deepSearch / studio.* 工具），故僅它被加入這份 registry。
+ * 其餘新精靈走 generic skill / proactive trigger 路徑（agent-skills.ts +
+ * agentCollaborationOrchestrator.ts）。
  */
 
 export interface SpecializedAgentCapability {
@@ -200,6 +208,36 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
       "進階技巧學習",
     ],
   },
+  {
+    agentId: "community-manager",
+    displayName: "社群精靈",
+    description: "專精於社群平台經營，懂 IG / TikTok / YouTube / 小紅書各年齡層風格、貼文公式、發文節奏",
+    primaryTools: [
+      "research.deepSearch",
+      "studio.generateImage",
+      "studio.generateVideo",
+    ],
+    knowledgeDomains: [
+      "Instagram Reels",
+      "TikTok algorithm",
+      "YouTube Shorts",
+      "小紅書 grid 風格",
+      "Facebook 社團",
+      "LinkedIn 個人品牌",
+      "hashtag strategy",
+      "audience age targeting",
+      "post timing",
+      "engagement metrics",
+    ],
+    useCases: [
+      "規劃社群貼文公式",
+      "找出當前各平台趨勢",
+      "依年齡層優化內容",
+      "建議最佳發文時段",
+      "產出貼文素材（圖 / 短影音）",
+      "排程貼文行事曆",
+    ],
+  },
 ];
 
 /**
@@ -256,7 +294,7 @@ export function serializeSpecializedAgents(): string {
 
   return [
     "【專精AI助手系統】",
-    "光球系統內建 6 種專精助手，各自擁有特定領域的深度知識：",
+    `光球系統內建 ${SPECIALIZED_AGENT_CAPABILITIES.length} 種專精助手，各自擁有特定領域的深度知識：`,
     "",
     ...sections,
   ].join("\n\n");
@@ -283,11 +321,34 @@ export function recommendAgent(context: {
     if (context.currentPage.includes("video-studio")) return "video-specialist";
     if (context.currentPage.includes("models")) return "training-specialist";
     if (context.currentPage.includes("learn")) return "learning-specialist";
+    // 8 位新增精靈的頁面
+    if (context.currentPage.includes("/legal")) return "legal-advisor";
+    if (context.currentPage.includes("/security")) return "security-guard";
+    if (context.currentPage.includes("/social") || context.currentPage.includes("/community"))
+      return "community-manager";
+    if (context.currentPage.includes("/team") || context.currentPage.includes("/agents"))
+      return "chief-orchestrator";
+    if (context.currentPage.includes("/notes") || context.currentPage.includes("/assets") ||
+        context.currentPage.includes("/schedule") || context.currentPage.includes("/calendar"))
+      return "notes-curator";
+    if (context.currentPage.includes("/settings")) return "settings-detail";
+    if (context.currentPage.includes("/jobs") || context.currentPage.includes("/tasks"))
+      return "plan-executor";
   }
 
   // Priority 3: User intent keywords (if provided)
   if (context.userIntent) {
     const intent = context.userIntent.toLowerCase();
+    // 8 位新增精靈的高訊號意圖優先（避免被通用模態 keyword 搶走）
+    if (/版權|侵權|商標|肖像|授權|copyright|trademark|license/.test(intent)) return "legal-advisor";
+    if (/帳號被盜|api key|金鑰|password|資安|釣魚|phishing|credential/.test(intent)) return "security-guard";
+    if (/社群|粉專|ig|tiktok|抖音|小紅書|hashtag|演算法/.test(intent)) return "community-manager";
+    if (/總管|團隊狀態|誰在做|orchestrate|agent overview/.test(intent)) return "chief-orchestrator";
+    if (/卡住|不會用|找不到按鈕|i'm stuck|stuck|guide me/.test(intent)) return "onboarding-coach";
+    if (/筆記|排程|行事曆|素材庫|asset library|todo|待辦/.test(intent)) return "notes-curator";
+    if (/設定|偏好|preferences|settings|靜音|主題|dark mode/.test(intent)) return "settings-detail";
+    if (/從規劃到執行|一條龍|自動執行|end-to-end|auto execute/.test(intent)) return "plan-executor";
+    // 既有 6 種模態
     if (/圖片|圖像|照片|image|picture/.test(intent)) return "image-specialist";
     if (/影片|視頻|video/.test(intent)) return "video-specialist";
     if (/音樂|音訊|audio|music/.test(intent)) return "music-specialist";

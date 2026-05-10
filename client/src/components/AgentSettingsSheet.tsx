@@ -179,7 +179,7 @@ export default function AgentSettingsSheet({
   const [blockedCsv, setBlockedCsv] = useState("");
   const [orbAgentEnabled, setOrbAgentEnabled] = useState<boolean | null>(null);
   const [workflowsEnabled, setWorkflowsEnabled] = useState<boolean | null>(null);
-  // 15 精靈：靜音 / 最愛清單。儲存型態 = AgentRole id 字串陣列。
+  // 23 精靈：靜音 / 最愛清單。儲存型態 = AgentRole id 字串陣列。
   // mute = 路由跳過該精靈；favorite = 純 UI hint（deck 顯示星星 + 未來 ProactiveEventBus 優先通知）。
   const [mutedSpirits, setMutedSpirits] = useState<string[]>([]);
   const [favoriteSpirits, setFavoriteSpirits] = useState<string[]>([]);

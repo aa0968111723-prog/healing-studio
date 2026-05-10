@@ -47,6 +47,59 @@ export function detectMultiAgentNeed(
 ): MultiAgentDetectionResult {
   const msg = input.userMessage.toLowerCase();
 
+  // ─── Heuristic 0: Explicit「規劃 + 執行 一條龍」(plan-executor 接管) ──
+  // 命中強訊號詞時直接推 plan-executor 為主角，並把可能的 specialist
+  // 一起列入。這條比訓練更高優先 — 因為使用者明確說了「自動跑」就是要
+  // 23 位精靈裡的步步出場，不是 director 規劃完就停。
+  const planExecutorHints = [
+    "從規劃到執行",
+    "從規劃到完成",
+    "一條龍",
+    "整套跑完",
+    "整個流程跑完",
+    "自動執行",
+    "自動跑完",
+    "全自動",
+    "從頭到尾跑完",
+    "auto execute",
+    "auto run",
+    "end-to-end run",
+    "from plan to ship",
+    "execute the plan",
+    "run the plan",
+    "run the workflow",
+  ];
+  if (planExecutorHints.some(kw => msg.includes(kw))) {
+    const downstream = detectModalitiesFromText(msg);
+    const agents: AgentRole[] = ["director", "plan-executor"];
+    for (const m of downstream) {
+      agents.push(modalityToSpecialistAgentId(m) as AgentRole);
+    }
+    return {
+      shouldCollaborate: true,
+      confidence: 0.9,
+      reason: "使用者明確要求規劃 + 多步驟自動執行 — 步步接管",
+      suggestedAgents: Array.from(new Set(agents)),
+    };
+  }
+
+  // ─── Heuristic 0b: 團隊總覽 / orchestration 訊號 → 總總出場 ─────
+  if (
+    msg.includes("總管") ||
+    msg.includes("整體進度") ||
+    msg.includes("誰在做什麼") ||
+    msg.includes("agent overview") ||
+    msg.includes("orchestrate") ||
+    msg.includes("team status")
+  ) {
+    return {
+      shouldCollaborate: true,
+      confidence: 0.7,
+      reason: "使用者要看團隊整體狀態 — 總總接手協調",
+      suggestedAgents: ["chief-orchestrator", "director"],
+    };
+  }
+
   // ─── Heuristic 1: Training + generation workflow ───────────────────
   // Check this FIRST because it's highly specific
   if (msg.includes("訓練") || msg.includes("training")) {

@@ -29,25 +29,37 @@ const studioSnap = (path = "/image-studio"): PageAgentSnapshot => ({
 });
 
 describe("AGENT_SKILL_REGISTRY", () => {
-  it("contains all 15 known skills (6 generic + 6 specialists + 3 proactive)", () => {
-    expect(AGENT_SKILL_REGISTRY.length).toBe(15);
+  it("contains all 23 known skills (6 generic + 7 specialists + 3 proactive + 7 new)", () => {
+    expect(AGENT_SKILL_REGISTRY.length).toBe(23);
     const ids = new Set(AGENT_SKILL_REGISTRY.map(s => s.id));
     for (const id of [
+      // 6 generic workflow
       "director",
       "composer",
       "critic",
       "researcher",
       "navigator",
       "companion",
+      // 3 proactive
       "accountant",
       "quality-coach",
       "inspector",
+      // 7 specialists（含新增的 community-manager）
       "image-specialist",
       "video-specialist",
       "music-specialist",
       "voice-specialist",
       "training-specialist",
       "learning-specialist",
+      "community-manager",
+      // 7 new spirits（規劃 / 執行 / 法律 / 資安 / 總管 / 輔導 / 筆記 / 設定）
+      "legal-advisor",
+      "security-guard",
+      "chief-orchestrator",
+      "onboarding-coach",
+      "notes-curator",
+      "settings-detail",
+      "plan-executor",
     ] as const) {
       expect(ids.has(id)).toBe(true);
     }
