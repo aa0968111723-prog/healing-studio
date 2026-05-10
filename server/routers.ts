@@ -179,6 +179,7 @@ import {
   getPreferredProviderForRole,
   composeRoleChain,
   getPrimaryNicknameForRole,
+  pickDefaultPathForRole,
   type AgentRole,
 } from "../shared/orb-agent-roles";
 import {
@@ -7304,7 +7305,50 @@ export const appRouter = router({
               outcome: "fallback",
             });
           }
-          const legacyActions = legacyPerPage.actions as typeof legacy.actions;
+          let legacyActions = legacyPerPage.actions as typeof legacy.actions;
+          // ── Fallback navigate synthesis ─────────────────────────────────
+          // Schema-first planner 失敗 + LLM 用文字承諾「我帶你過去 X」但忘了
+          // emit `[ACTION:navigate:...]` marker = 使用者看到光球說「帶你去」
+          // 卻沒真的跳頁，這是「直接跳頁沒對話框」回報的最後一里。
+          //
+          // 補強條件（每一條都要成立才補打 navigate，避免誤跳）：
+          //   1. 沒有任何 actions（所以不是 LLM 自己想停在當頁）
+          //   2. spiritSelection 落在「有專屬頁面」的角色（director / 各 specialist /
+          //      accountant / researcher 等；composer/critic/companion 沒對應頁面）
+          //   3. 該頁面跟使用者目前所在頁不同（避免原地跳）
+          //   4. LLM reply 真的有「帶你過去 / 帶你到 / 帶過去 / 跳到」這類動詞
+          //      （只要 reply 帶了承諾，就符合使用者的期待）
+          if (
+            legacyActions.length === 0 &&
+            spiritSelection &&
+            legacy.needsClarification !== true
+          ) {
+            const targetPath = pickDefaultPathForRole(spiritSelection.role);
+            const currentPath = input.pageSnapshot?.pagePath ?? "";
+            const replyText = legacy.reply ?? "";
+            const hasNavPromise =
+              /帶你(過|去|到)|帶過去|跳到|帶到|前往|為你打開|去到/.test(replyText);
+            if (
+              targetPath &&
+              targetPath !== currentPath &&
+              hasNavPromise
+            ) {
+              const synthesizedNavigate = {
+                type: "navigate" as const,
+                path: targetPath,
+                payload: targetPath,
+              };
+              legacyActions = [
+                synthesizedNavigate,
+                ...legacyActions,
+              ] as typeof legacy.actions;
+              appendTelemetryEvent(telemetryEvents, "orb.fallback.synthesized_navigate", {
+                role: spiritSelection.role,
+                targetPath,
+                currentPath,
+              });
+            }
+          }
           // Decide a more precise plannerStatus so ops can tell the four
           // fallback reasons apart in telemetry dashboards:
           //   - fallback-schema-disabled: env flag explicitly off

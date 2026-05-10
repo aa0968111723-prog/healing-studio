@@ -1308,6 +1308,22 @@ export function pickArrivalSpiritForPath(path: string): AgentRole | null {
 }
 
 /**
+ * 反向查詢：給定精靈角色，回傳「該位精靈當家的頁面 path」。沒有對應頁面
+ * （例如 composer / critic / companion 這類沒有專屬頁面的工作流角色）回 null。
+ *
+ * 使用情境：legacy fallback 路徑下 LLM 沒乖乖 emit `[ACTION:navigate:...]`
+ * 標記，但 spirit 已被路由器判成 director/specialist 之類有實體頁面的角色 —
+ * 這時 server 可以「補打」一條 navigate action 給前端，讓使用者真的被帶到
+ * 目的頁，而不是看到光球說「我帶你過去」卻一直賴在 /agent。
+ */
+export function pickDefaultPathForRole(role: AgentRole): string | null {
+  for (const entry of PATH_SPIRIT_MAP) {
+    if (entry.role === role) return entry.prefix;
+  }
+  return null;
+}
+
+/**
  * 跨頁跳轉後的「自動續話」文案 — 由目的地頁的精靈用第一人稱接手，避免使用者
  * 看到光球說「我帶你過去了」之後一片靜默。intent 是使用者剛剛輸入的需求摘要
  * （從 navigate 動作的 intentSummary 帶入），讓銜接話語有上下文。
