@@ -61,6 +61,7 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { executeOrbTask } from "./services/orbTaskExecutor";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { computeDashboardInsights } from "../shared/dashboard-insights";
 import { moderateOrbContent } from "../shared/orb-content-moderation";
@@ -7045,6 +7046,33 @@ export const appRouter = router({
                 input.pageSnapshot?.pageId,
                 input.preferences?.disabledActionsByPage
               );
+              for (const action of perPageFiltered.actions as unknown as Array<Record<string, unknown>>) {
+                if (String(action.type ?? "") !== "execute_task") continue;
+                try {
+                  const payload =
+                    action && typeof action === "object" && action !== null
+                      ? (action as Record<string, unknown>)
+                      : {};
+                  const task = payload.task;
+                  if (
+                    task &&
+                    typeof task === "object" &&
+                    (task as Record<string, unknown>).type &&
+                    (task as Record<string, unknown>).params
+                  ) {
+                    const url = await executeOrbTask(ctx.user.id, {
+                      type: (task as Record<string, unknown>).type as
+                        | "generate_image"
+                        | "generate_music"
+                        | "generate_video",
+                      params: (task as Record<string, unknown>).params as Record<string, unknown>,
+                    });
+                    payload.resultUrl = url;
+                  }
+                } catch (err) {
+                  console.warn("[Orb] execute_task failed:", err);
+                }
+              }
               if (perPageFiltered.dropped.length > 0) {
                 appendTelemetryEvent(telemetryEvents, "orb.per_page_action.blocked", {
                   pageId: input.pageSnapshot?.pageId ?? "",
@@ -7545,6 +7573,30 @@ export const appRouter = router({
             });
           }
           let legacyActions = legacyPerPage.actions as typeof legacy.actions;
+          for (const action of legacyActions) {
+            if (!action || typeof action !== "object" || action.type !== "execute_task") continue;
+            try {
+              const payload = action as Record<string, unknown>;
+              const task = payload.task;
+              if (
+                task &&
+                typeof task === "object" &&
+                (task as Record<string, unknown>).type &&
+                (task as Record<string, unknown>).params
+              ) {
+                const url = await executeOrbTask(ctx.user.id, {
+                  type: (task as Record<string, unknown>).type as
+                    | "generate_image"
+                    | "generate_music"
+                    | "generate_video",
+                  params: (task as Record<string, unknown>).params as Record<string, unknown>,
+                });
+                payload.resultUrl = url;
+              }
+            } catch (err) {
+              console.warn("[Orb] execute_task failed:", err);
+            }
+          }
           // ── Fallback navigate synthesis ─────────────────────────────────
           // Schema-first planner 失敗 + LLM 用文字承諾「我帶你過去 X」但忘了
           // emit `[ACTION:navigate:...]` marker = 使用者看到光球說「帶你去」

@@ -81,6 +81,7 @@ export const ORB_ALLOWED_ACTIONS = new Set([
   "search",
   "toggleSetting",
   "runWorkflow",
+  "execute_task",
 ]);
 
 /**
