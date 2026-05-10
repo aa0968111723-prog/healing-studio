@@ -60,6 +60,7 @@ import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
+import { loadOrbMemory, saveOrbMemory } from "./services/orbUserMemory";
 import { parseOrbReply } from "./services/orbReplyParser";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { computeDashboardInsights } from "../shared/dashboard-insights";
@@ -6158,6 +6159,7 @@ export const appRouter = router({
           false
         );
         const telemetryEvents: Array<Record<string, unknown>> = [];
+        const memory = await loadOrbMemory(ctx.user.id);
         const recentTaskMemorySummary = orbTaskMemoryEnabled
           ? summarizeRecentOrbTaskMemoryForPlanner(10)
           : "Task memory disabled.";
@@ -6460,7 +6462,7 @@ export const appRouter = router({
           source: r.source,
         }));
         const augmentSystemPromptWithResearch = (base: string) =>
-          webResearchPromptBlock ? `${base}\n\n${webResearchPromptBlock}` : base;
+          `${webResearchPromptBlock ? `${base}\n\n${webResearchPromptBlock}` : base}\n\n【用戶記憶】${memory}`;
 
         // 預設依大腦選定的 model 推斷引擎偏好；多模態與 Provider Router
         // 會在後續再做動態決策。Brain 設定改 model 後，光球就會跟著切換引擎。
@@ -7690,6 +7692,15 @@ export const appRouter = router({
             taskDraft: null,
           });
         } finally {
+          await saveOrbMemory(
+            ctx.user.id,
+            input.messages
+              .map(m => ({
+                role: m.role,
+                content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+              }))
+              .slice(-6)
+          );
           // F1 fix: any return path (early-exit guards, planner-throw catch,
           // agent_disabled, provider_unavailable, …) that did not call
           // `finalizeIdempotentResponse` left the in-progress lock alive

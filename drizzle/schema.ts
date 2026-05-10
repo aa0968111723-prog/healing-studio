@@ -52,6 +52,7 @@ export const users = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+    orbMemorySummary: text("orb_memory_summary"),
   },
   table => ({
     // Email lookup index — used by local auth login and admin queries
