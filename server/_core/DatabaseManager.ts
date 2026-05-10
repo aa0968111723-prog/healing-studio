@@ -12,7 +12,7 @@ type TransactionExecutor<T> = (connection: PoolConnection) => Promise<T>;
 export class DatabaseManager {
   private readonly pool: Pool;
 
-  constructor(databaseUrl: string, connectionLimit: number = 10) {
+  constructor(databaseUrl: string, connectionLimit: number = 20) {
     this.pool = mysql.createPool({
       uri: databaseUrl,
       waitForConnections: true,
