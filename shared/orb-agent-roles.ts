@@ -531,6 +531,29 @@ export function hasSpiritMention(text: string): boolean {
 }
 
 /**
+ * Remove the leading / inline `@nickname` (or bare leading nickname) from a
+ * user message so the remainder can be fed straight into a model as a clean
+ * prompt — e.g. `@圖圖 一隻橘貓` → `一隻橘貓`. If the text contains no
+ * mention, it's returned unchanged. Only the first match is stripped; if the
+ * user @s the same spirit twice in one message, later occurrences stay so the
+ * resulting prompt reads naturally.
+ */
+export function stripSpiritMention(text: string): string {
+  for (const entry of SPIRIT_NICKNAMES) {
+    for (const name of entry.nicknames) {
+      const atForm = `@${name}`;
+      if (text.includes(atForm)) {
+        return text.replace(atForm, "").replace(/\s+/g, " ").trim();
+      }
+      if (text.startsWith(name)) {
+        return text.slice(name.length).trim();
+      }
+    }
+  }
+  return text.trim();
+}
+
+/**
  * Primary nickname (the first entry in SPIRIT_NICKNAMES) for a role — used
  * by client composers that want to auto-prepend `@nickname ` when a pinned
  * spirit is active. Falls back to "暖暖" if an unknown role is passed in.

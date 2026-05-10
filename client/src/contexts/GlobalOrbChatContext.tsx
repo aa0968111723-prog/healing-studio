@@ -86,7 +86,16 @@ import { useOrbGuide } from "./OrbGuideContext";
 import {
   pickArrivalSpiritForPath,
   buildArrivalFollowUpText,
+  detectSpiritMention,
+  stripSpiritMention,
+  getPrimaryNicknameForRole,
+  SPIRIT_COLLAB_PROTOCOL,
+  type AgentRole,
 } from "../../../shared/orb-agent-roles";
+import {
+  SPIRIT_CHAT_TOOLS,
+  type SpiritChatTool,
+} from "../../../shared/spirit-chat-tools";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
 // the initial chat context payload. The bullet-list fallback inside the same
@@ -2237,6 +2246,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     trpc.orbConversations.clearMessages.useMutation();
   const appendMessagesServer =
     trpc.orbConversations.appendMessages.useMutation();
+  // 直接讓精靈打 fal.ai：使用者 @圖圖/影影/音音/聲聲 + 一句話描述時，
+  // sendMessage 會走 spiritInvokeMut.mutateAsync 而不是 LLM 對話。
+  const spiritInvokeMut = trpc.spirit.invoke.useMutation();
   const orbState = useOrbState();
   const { attachArrivalGuide } = useOrbGuide();
   const isMobile = useIsMobile();
@@ -3170,6 +3182,290 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           setIsSending(false);
         }
         return;
+      }
+    }
+
+    // ─── Spirit dispatch shortcut (15-spirit chat tools + collab handoff) ─
+    // 使用者 @ 任何精靈時，依 SPIRIT_CHAT_TOOLS 決定要走哪條路：
+    //   - fal-generation:   走 trpc.spirit.invoke 真實打 fal.ai 出圖 / 影 / 音 / 聲 / 訓練
+    //   - navigate:         直接 setLocation 跳頁（路路 / 學學）
+    //   - search:           走 trpc.orbProxy.unifiedSearch 站內找（查查）
+    //   - llm-persona:      fall through 到既有 LLM 流程，由 selectRoleForIntent
+    //                       套上該精靈的人格切片（暖暖 / 導導 / 品品 / 編編 /
+    //                       巧巧 / 財財 / 守守 6 位）
+    //
+    // 工具完成後依 SPIRIT_COLLAB_PROTOCOL[mentioned].handoffs 把「下一棒精靈」
+    // 列為建議按鈕 — 形成 15 位協作鏈。按按鈕會把 `@nextSpirit ...` 灌進
+    // 下一輪輸入，使用者一鍵交棒。
+    //
+    // 只在 default mode 攔截，避免 hijack 「跳頁 / 計畫 / 代理」這幾個明示模式。
+    if (!requestedMode) {
+      const mentioned = detectSpiritMention(trimmed);
+      const cleanPrompt = stripSpiritMention(trimmed);
+      const tool: SpiritChatTool | null = mentioned
+        ? SPIRIT_CHAT_TOOLS[mentioned]
+        : null;
+
+      // 把 SPIRIT_COLLAB_PROTOCOL 的下一棒換成可點的 chip — 點了就會把
+      // `@下一棒精靈 ` 灌進 input。沒掛 action 是因為使用者通常還想接著
+      // 補一句話描述（例如「@影影 做成 5 秒動畫」），自動觸發反而失控。
+      const buildHandoffChips = (from: AgentRole): ChatSuggestion[] => {
+        const handoffs = SPIRIT_COLLAB_PROTOCOL[from]?.handoffs ?? [];
+        return handoffs.slice(0, 3).map(h => {
+          const targetNickname = getPrimaryNicknameForRole(h.to);
+          return { text: `@${targetNickname} ${h.reason}` };
+        });
+      };
+
+      if (mentioned && tool) {
+        const nickname = getPrimaryNicknameForRole(mentioned);
+
+        // ── A) fal-generation: 真實打 fal.ai 出資產 ──
+        if (
+          tool.kind === "fal-generation" &&
+          cleanPrompt.length >= tool.minPromptChars
+        ) {
+          const stateLabel: Partial<Record<AgentRole, string>> = {
+            "image-specialist": "圖圖正在畫…",
+            "video-specialist": "影影正在拍…",
+            "music-specialist": "音音正在配樂…",
+            "voice-specialist": "聲聲正在配音…",
+            "training-specialist": "練練正在訓練…",
+          };
+          orbState.setState(
+            "thinking",
+            stateLabel[mentioned] ?? `${nickname} 正在處理…`,
+          );
+          try {
+            const result = await spiritInvokeMut.mutateAsync({
+              spirit: mentioned,
+              prompt: cleanPrompt,
+            });
+            if (isStale()) return;
+
+            if (!result.success) {
+              orbState.setState("error", `${nickname} 失敗`);
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: `${nickname} 沒辦法完成這次生成：${result.error ?? "未知錯誤"}`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: mentioned,
+              }]);
+              return;
+            }
+
+            // 從 fal.ai 回傳的不同 shape 中取出第一個資產 URL。各模型 schema 略
+            // 有差異（images[0].url / image.url / video.url / audio.url / 純 url），
+            // 統一退回到 first-non-null。
+            const data = result.data as Record<string, unknown>;
+            const pickUrl = (): string | null => {
+              const direct = (data?.url ?? (data as { output?: string })?.output) as
+                | string
+                | undefined;
+              if (typeof direct === "string" && direct) return direct;
+              const images = (data?.images as Array<{ url?: string }> | undefined)
+                ?? (data as { image?: { url?: string } | string }).image;
+              if (Array.isArray(images) && images[0]?.url) return images[0].url;
+              if (typeof images === "string") return images;
+              const video = data?.video as { url?: string } | undefined;
+              if (video?.url) return video.url;
+              const audio = data?.audio as { url?: string } | undefined;
+              if (audio?.url) return audio.url;
+              return null;
+            };
+            const assetUrl = pickUrl();
+
+            // 依精靈決定附件類型；training-specialist 走 image preview（LoRA 預覽圖）
+            const KIND_BY_SPIRIT: Partial<Record<AgentRole, ChatAttachmentKind>> = {
+              "image-specialist": "image",
+              "video-specialist": "video",
+              "music-specialist": "audio",
+              "voice-specialist": "audio",
+              "training-specialist": "image",
+            };
+            const MIME_BY_KIND: Record<ChatAttachmentKind, ChatAttachmentMimeType> = {
+              image: "image/png",
+              video: "video/mp4",
+              audio: "audio/mpeg",
+              pdf: "application/pdf",
+              text: "text/plain",
+            };
+            const kind = KIND_BY_SPIRIT[mentioned] ?? "image";
+
+            const attachment: ChatAttachment | null = assetUrl
+              ? {
+                  id: `spirit-${Date.now()}`,
+                  name: `${nickname}-${result.modelLabel || result.modelId}`,
+                  url: assetUrl,
+                  mimeType: MIME_BY_KIND[kind],
+                  kind,
+                }
+              : null;
+
+            orbState.setState(
+              assetUrl ? "success" : "idle",
+              assetUrl ? `${nickname} 出爐` : `${nickname} 完成（無附件）`,
+            );
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: assetUrl
+                ? `🎨 ${nickname} 用 ${result.modelLabel || result.modelId} 完成了。`
+                : `${nickname} 完成了，但沒有取到輸出 URL。`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: mentioned,
+              attachments: attachment ? [attachment] : undefined,
+            }]);
+            // 工具完成 → 列下一棒精靈（最多 3 個）
+            setSuggestions(buildHandoffChips(mentioned));
+
+            // ── 真實協作：自動把生成結果交給接手精靈做一輪討論 ──
+            // 取 SPIRIT_COLLAB_PROTOCOL 第一棒（最多 2 位）作為 allowedRoles，
+            // 啟動 startAutoDiscussion；既有的 1.5s polling 會把每位精靈的回應
+            // 逐條塞進 chat。先補一條「🤝 {nicks} 接手討論中」當佔位，使用者
+            // 立刻看到「協作真的在跑」而不是按完按鈕沒反應。
+            //
+            // 條件刻意保守：只在 assetUrl 真的拿到時觸發；沒生成成功就只列
+            // 建議 chip 不主動把 LLM 又燒一輪。
+            if (assetUrl) {
+              const handoffsForCollab = (
+                SPIRIT_COLLAB_PROTOCOL[mentioned]?.handoffs ?? []
+              ).slice(0, 2);
+              const handoffTargets = handoffsForCollab.map(h => h.to);
+              if (handoffTargets.length > 0) {
+                const nextNicknames = handoffTargets
+                  .map(getPrimaryNicknameForRole)
+                  .join(" + ");
+                setMessages(prev => [...prev, {
+                  role: "orb",
+                  text: `🤝 ${nextNicknames} 接手看一下這個結果，邊想邊給建議…`,
+                  at: Date.now(),
+                  pagePath: locationPath,
+                  intent: "auto-handoff-discussion",
+                }]);
+                try {
+                  const discussionResult =
+                    await startAutoDiscussionMutation.mutateAsync({
+                      prompt: `剛才 ${nickname} 用 ${result.modelLabel || result.modelId} 完成了「${cleanPrompt}」。資產 URL：${assetUrl}。請接手的精靈各給一句具體建議或下一步。`,
+                      initialAgent: handoffTargets[0],
+                      maxRounds: handoffTargets.length,
+                      allowedRoles: handoffTargets,
+                      timeoutMsPerTurn: 20_000,
+                    });
+                  if (!isStale()) {
+                    setActiveDiscussionId(discussionResult.collaborationId);
+                  }
+                } catch (err) {
+                  // 協作觸發失敗只記在 chat，不擋住主流程 — 主結果已經給了
+                  if (isStale()) return;
+                  const reason = err instanceof Error ? err.message : String(err);
+                  setMessages(prev => [...prev, {
+                    role: "orb",
+                    text: `（接手討論沒跑起來：${reason}）`,
+                    at: Date.now(),
+                    pagePath: locationPath,
+                  }]);
+                }
+              }
+            }
+          } catch (err) {
+            if (isStale()) return;
+            const reason = err instanceof Error ? err.message : String(err);
+            orbState.setState("error", `${nickname} 失敗`);
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: `${nickname} 在呼叫模型時遇到錯誤：${reason}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: mentioned,
+            }]);
+          } finally {
+            setIsSending(false);
+          }
+          return;
+        }
+
+        // ── B) navigate: 路路（intent-based）/ 學學（固定到 /learn-hub）──
+        if (tool.kind === "navigate") {
+          const targetPath =
+            tool.toPath
+            ?? (tool.intentBased ? detectNavIntent(cleanPrompt)?.path : undefined);
+          const targetLabel =
+            tool.intentBased ? detectNavIntent(cleanPrompt)?.label : undefined;
+          if (targetPath) {
+            orbState.setState("success", `${nickname} 帶你跳頁`);
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: `🧭 ${tool.arrivalHint}（${targetPath}）${
+                targetLabel ? ` ── ${targetLabel}` : ""
+              }`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: mentioned,
+            }]);
+            setLocation(targetPath);
+            setSuggestions(buildHandoffChips(mentioned));
+            setIsSending(false);
+            return;
+          }
+          // intent-based 但沒推出來目的地 → fall through 給 LLM
+        }
+
+        // ── C) search: 查查走 unifiedSearch ──
+        if (tool.kind === "search" && cleanPrompt.length >= tool.minPromptChars) {
+          orbState.setState("searching", `${nickname} 找「${cleanPrompt}」`);
+          try {
+            const result = await trpcUtils.orbProxy.unifiedSearch.fetch({
+              query: cleanPrompt,
+            });
+            if (isStale()) return;
+            const headerText =
+              result.items.length === 0
+                ? `🔍 ${nickname} 翻找「${cleanPrompt}」沒有命中——可以再給多一點關鍵字。`
+                : `🔍 ${nickname} 為「${cleanPrompt}」找到 ${result.items.length} 筆結果：`;
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text:
+                result.items.length > 0
+                  ? `${headerText}\n\n${formatUnifiedSearchReply(cleanPrompt, result.items)}`
+                  : headerText,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: mentioned,
+              searchResults: result.items.length > 0 ? result.items : undefined,
+              searchQuery: cleanPrompt,
+            }]);
+            orbState.setState(
+              result.items.length > 0 ? "success" : "idle",
+              result.items.length > 0
+                ? `${nickname} 找到 ${result.items.length} 筆`
+                : `${nickname} 沒命中`,
+            );
+            setSuggestions(buildHandoffChips(mentioned));
+          } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err);
+            orbState.setState("error", `${nickname} 搜尋失敗`);
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: `${nickname} 搜尋時遇到問題：${reason}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: mentioned,
+            }]);
+          } finally {
+            setIsSending(false);
+          }
+          return;
+        }
+
+        // ── D) llm-persona: 不在這裡攔，讓既有 LLM 流程接手（selectRoleForIntent
+        //     會套上該精靈的人格切片）。但仍把 collab 下一棒列為建議，方便使用者
+        //     看到 LLM 回覆後可以一鍵交棒給下一位精靈。
+        if (tool.kind === "llm-persona") {
+          // 只設 suggestions hint，不 return — 讓下方 LLM 流程繼續跑
+          // （suggestions 在 LLM 回完後會被覆蓋成 LLM 的，這只是預設值）
+        }
       }
     }
 

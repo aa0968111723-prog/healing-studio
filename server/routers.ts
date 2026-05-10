@@ -43,6 +43,7 @@ import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
+import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
 import { externalServicesRouter } from "./routers/externalServices";
@@ -3670,6 +3671,11 @@ export const appRouter = router({
 
   director: directorRouter,
 
+  // ─── Spirit invocation ───────────────────────────────────────────────────
+  // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …
+  // 入口在 server/services/spiritDispatcher.ts。
+  spirit: spiritRouter,
+
   // ─── Assets ──────────────────────────────────────────────────────────────
 
   assets: router({
@@ -5803,8 +5809,11 @@ export const appRouter = router({
             ? lastUserMsgForSpirit.content
             : Array.isArray(lastUserMsgForSpirit?.content)
               ? lastUserMsgForSpirit.content
-                  .filter((part: { type: string }) => part.type === "text")
-                  .map((part: { text?: string }) => part.text ?? "")
+                  .filter(
+                    (part): part is { type: "text"; text: string } =>
+                      part.type === "text"
+                  )
+                  .map(part => part.text)
                   .join("\n")
               : "";
         // 使用者靜音的精靈 — 從 preferences 拿，selectRoleForIntent 會跳過。
@@ -5822,7 +5831,12 @@ export const appRouter = router({
           roleAutoSwitchEnabled && lastUserTextForSpirit
             ? selectRoleForIntent({
                 text: lastUserTextForSpirit,
-                snapshot: input.pageSnapshot ?? null,
+                // zod 推出的 capability.action 是 string，PageAgentSnapshot
+                // 期望 AgentActionType union — 與既有 6509 / 6873 等呼叫處
+                // 相同處理，cast 一次即可。
+                snapshot: (input.pageSnapshot ?? null) as
+                  | PageAgentSnapshot
+                  | null,
                 turnCount: input.messages.length,
                 mutedRoles: mutedSpiritsForSelection,
               })
