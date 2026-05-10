@@ -135,7 +135,7 @@ describe("Brain Context Middleware", () => {
       // Reasoning Pro（取其原生 web grounding）。
       expect(brain.getBrain("director").model).toBe("anthropic/claude-opus-4.7");
       expect(brain.getBrain("analyst").model).toBe(
-        "perplexity/sonar-reasoning-pro"
+        "perplexity/sonar-pro"
       );
       expect(brain.getEngine("imageEngine").engine).toBe("fal-ai/flux-pro/v1.1");
 

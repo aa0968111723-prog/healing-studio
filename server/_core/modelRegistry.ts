@@ -108,7 +108,7 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── Perplexity Sonar（原生 API，內建 web grounding） ──
       {
-        value: "perplexity/sonar-reasoning-pro",
+        value: "perplexity/sonar-pro",
         label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
         tier: "ultra",
       },
@@ -153,7 +153,7 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── Perplexity Sonar（原生 API，內建 web grounding） ──
       {
-        value: "perplexity/sonar-reasoning-pro",
+        value: "perplexity/sonar-pro",
         label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
         tier: "ultra",
       },
@@ -203,7 +203,7 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── Perplexity Sonar（原生 API，內建 web grounding） ──
       {
-        value: "perplexity/sonar-reasoning-pro",
+        value: "perplexity/sonar-pro",
         label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
         tier: "ultra",
       },
@@ -243,7 +243,7 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── Perplexity Sonar（原生 API，內建 web grounding） ──
       {
-        value: "perplexity/sonar-reasoning-pro",
+        value: "perplexity/sonar-pro",
         label: "Perplexity Sonar Reasoning Pro 🔍 ✦ AI 代理專用",
         tier: "ultra",
       },
@@ -759,12 +759,12 @@ const LEGACY_LLM_ALIASES = new Set([
   "perplexity/sonar",
   "perplexity/sonar-pro",
   "perplexity/sonar-reasoning",
-  "perplexity/sonar-reasoning-pro",
+  "perplexity/sonar-pro",
   "perplexity/sonar-deep-research",
   "sonar",
   "sonar-pro",
   "sonar-reasoning",
-  "sonar-reasoning-pro",
+  "sonar-pro",
   "sonar-deep-research",
   // OpenAI via OpenRouter
   "openai/gpt-4o",

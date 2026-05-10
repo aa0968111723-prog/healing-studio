@@ -116,7 +116,7 @@ export interface DegradationEvent {
 //       乾淨無雜訊
 //
 //   analyst
-//     → perplexity/sonar-reasoning-pro (ultra)
+//     → perplexity/sonar-pro (ultra)
 //     - 原生 web grounding：數據查詢、統計比較、新聞摘要等本來就需要
 //       即時資訊的場景，由 Sonar 直接帶入引用來源
 //     - 缺 function calling，但 analyst slot 多為回答型（不太呼叫工具），
@@ -142,7 +142,7 @@ export const DEFAULT_REASONING_BRAINS: Record<
 > = {
   director: { model: "anthropic/claude-opus-4.7", temperature: 0.4, topP: 0.9 },
   analyst: {
-    model: "perplexity/sonar-reasoning-pro",
+    model: "perplexity/sonar-pro",
     temperature: 0.3,
     topP: 0.8,
   },

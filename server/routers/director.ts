@@ -1396,7 +1396,7 @@ async function runDirectorAI(
     : { allowed: false as const };
   const sonarAvailable = apiKeyAvailable && throttleCheck.allowed;
   const researchModel = sonarAvailable
-    ? "perplexity/sonar-reasoning-pro"
+    ? "perplexity/sonar-pro"
     : brainConfig?.model;
   const researchResult = await withTimeout(
     invokeLLM({
