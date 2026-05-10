@@ -45,6 +45,7 @@ import {
   buildFeatureSummaryReply,
   buildNavigateWorkflow,
   detectChatIntent,
+  detectFeatureInquiry,
   detectNavIntent,
   summarizeVideoSlots,
 } from "../../../shared/global-agent-workflows";
@@ -2020,6 +2021,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [activeDiscussionId, setActiveDiscussionId] = useState<string | null>(null);
   // 已塞進 chat 的 message id，避免輪詢重複 push 同一段。
   const seenDiscussionMessageIdsRef = useRef<Set<string>>(new Set());
+  // 追蹤目前討論最初的 user prompt — 等 discussion_complete 收到時，可以
+  // 拿這個 prompt 真的去打第一位生成型精靈，把「規劃」變「執行」。
+  const lastDiscussionUserPromptRef = useRef<string | null>(null);
   // 進行中討論的概要（第一棒 / 預計回合 / scope）— UI 顯示「精靈們正在討論…
   // (2/3)」用。null 代表沒在跑。在 startCollaborativeDiscussion 設、收到
   // discussion_complete / cancel / 90s 兜底時清掉。
@@ -2110,6 +2114,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
   const startAutoDiscussionMutation =
     trpc.agentCollaboration.startAutoDiscussion.useMutation();
+  // 直接讓精靈打 fal.ai：使用者 @圖圖/影影/音音/聲聲 + 一句話描述時，
+  // sendMessage 會走 spiritInvokeMut.mutateAsync 而不是 LLM 對話。
+  // 也用在 discussion_complete 後的「真實執行」自動補一輪生成。
+  const spiritInvokeMut = trpc.spirit.invoke.useMutation();
 
   // ─── 多代理討論：輪詢 + 訊息注入 ─────────────────────────────────────
   // 1.5s 一次的輪詢，把 bus 上的新精靈訊息塞成 chat bubble。stop 條件：
@@ -2203,10 +2211,144 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         const count = cd?.participants?.length ?? 0;
         additions.push({
           role: "orb" as const,
-          text: `🌿 精靈們的討論結束（${reasonLabel}，共 ${count} 位參與）。需要我整理重點，還是要直接照某位的方向繼續？`,
+          text: `🌿 精靈們的討論結束（${reasonLabel}，共 ${count} 位參與）。我接下來幫你「真的執行」第一位生成型精靈的部分。`,
           at: m.timestamp,
           pagePath: locationPath,
         });
+
+        // ── 真實執行：把 LLM 規劃變成真的會跑的工具呼叫 ──
+        // 從 participants 找：
+        //   - 第一位生成型精靈 → 直接 fal-invoke 真的出資產
+        //   - 路路 → 用原始 prompt 推目的地，真的 setLocation
+        //   - 學學 → 真的跳到 /learn-hub
+        // 整體保證「規劃」不會只停在文字，直接接真實執行。
+        const userPrompt = lastDiscussionUserPromptRef.current ?? "";
+        const participants = (cd?.participants ?? []) as AgentRole[];
+        const generativeOrder: AgentRole[] = [
+          "image-specialist",
+          "video-specialist",
+          "music-specialist",
+          "voice-specialist",
+          "training-specialist",
+        ];
+        const firstGen = generativeOrder.find(r => participants.includes(r));
+        if (firstGen && userPrompt.length >= 6) {
+          const genNickname = getPrimaryNicknameForRole(firstGen);
+          additions.push({
+            role: "orb" as const,
+            text: `🎬 ${genNickname} 真的開始做了…`,
+            at: m.timestamp + 1,
+            pagePath: locationPath,
+            agentRole: firstGen,
+            intent: "auto-post-discussion-execute",
+          });
+          // fire-and-forget — 結果回來後在另一個 setMessages 接起
+          void (async () => {
+            try {
+              const result = await spiritInvokeMut.mutateAsync({
+                spirit: firstGen,
+                prompt: userPrompt,
+              });
+              if (!result.success) {
+                setMessages(prev => [...prev, {
+                  role: "orb",
+                  text: `${genNickname} 嘗試執行時失敗：${result.error ?? "未知錯誤"}`,
+                  at: Date.now(),
+                  pagePath: locationPath,
+                  agentRole: firstGen,
+                }]);
+                return;
+              }
+              const data = result.data as Record<string, unknown>;
+              const pickUrl = (): string | null => {
+                const direct = (data?.url ?? (data as { output?: string })?.output) as
+                  | string
+                  | undefined;
+                if (typeof direct === "string" && direct) return direct;
+                const images = (data?.images as Array<{ url?: string }> | undefined)
+                  ?? (data as { image?: { url?: string } | string }).image;
+                if (Array.isArray(images) && images[0]?.url) return images[0].url;
+                if (typeof images === "string") return images;
+                const video = data?.video as { url?: string } | undefined;
+                if (video?.url) return video.url;
+                const audio = data?.audio as { url?: string } | undefined;
+                if (audio?.url) return audio.url;
+                return null;
+              };
+              const assetUrl = pickUrl();
+              const KIND_BY_SPIRIT: Partial<Record<AgentRole, ChatAttachmentKind>> = {
+                "image-specialist": "image",
+                "video-specialist": "video",
+                "music-specialist": "audio",
+                "voice-specialist": "audio",
+                "training-specialist": "image",
+              };
+              const MIME_BY_KIND: Record<ChatAttachmentKind, ChatAttachmentMimeType> = {
+                image: "image/png",
+                video: "video/mp4",
+                audio: "audio/mpeg",
+                pdf: "application/pdf",
+                text: "text/plain",
+              };
+              const kind = KIND_BY_SPIRIT[firstGen] ?? "image";
+              const attachment: ChatAttachment | null = assetUrl
+                ? {
+                    id: `spirit-post-${Date.now()}`,
+                    name: `${genNickname}-${result.modelLabel || result.modelId}`,
+                    url: assetUrl,
+                    mimeType: MIME_BY_KIND[kind],
+                    kind,
+                  }
+                : null;
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: assetUrl
+                  ? `🎨 ${genNickname} 用 ${result.modelLabel || result.modelId} 完成執行了。`
+                  : `${genNickname} 跑完了但沒拿到輸出 URL。`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: firstGen,
+                attachments: attachment ? [attachment] : undefined,
+              }]);
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : String(err);
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: `${genNickname} 執行時發生錯誤：${reason}`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: firstGen,
+              }]);
+            }
+          })();
+        }
+
+        // 學學 / 路路 也被討論到 → 真的跳頁
+        if (participants.includes("learning-specialist")) {
+          additions.push({
+            role: "orb" as const,
+            text: `🧭 學學 帶你到教學中心 (/learn-hub)。`,
+            at: m.timestamp + 2,
+            pagePath: locationPath,
+            agentRole: "learning-specialist",
+          });
+          // 立刻跳；polling effect 結束後 setMessages 已 commit
+          setTimeout(() => setLocation("/learn-hub"), 200);
+        } else if (participants.includes("navigator")) {
+          const nav = detectNavIntent(userPrompt);
+          if (nav?.path) {
+            additions.push({
+              role: "orb" as const,
+              text: `🧭 路路 帶你到「${nav.label}」(${nav.path})。`,
+              at: m.timestamp + 2,
+              pagePath: locationPath,
+              agentRole: "navigator",
+            });
+            setTimeout(() => setLocation(nav.path), 200);
+          }
+        }
+        // 用完清掉，下一輪討論不要踩到舊 prompt
+        lastDiscussionUserPromptRef.current = null;
       }
     }
 
@@ -2219,7 +2361,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       setActiveDiscussionId(null);
       setCollaborativeDiscussionMeta(null);
     }
-  }, [activeDiscussionId, discussionMessagesQuery.data, locationPath]);
+  }, [activeDiscussionId, discussionMessagesQuery.data, locationPath, spiritInvokeMut, setLocation]);
 
   // 兜底：90 秒沒收完就自動清掉，避免 query 一直空轉。runner 預設 3 輪 *
   // 25s/turn ≈ 75s，留 15s buffer 應該夠。
@@ -2246,9 +2388,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     trpc.orbConversations.clearMessages.useMutation();
   const appendMessagesServer =
     trpc.orbConversations.appendMessages.useMutation();
-  // 直接讓精靈打 fal.ai：使用者 @圖圖/影影/音音/聲聲 + 一句話描述時，
-  // sendMessage 會走 spiritInvokeMut.mutateAsync 而不是 LLM 對話。
-  const spiritInvokeMut = trpc.spirit.invoke.useMutation();
   const orbState = useOrbState();
   const { attachArrivalGuide } = useOrbGuide();
   const isMobile = useIsMobile();
@@ -3201,6 +3340,24 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // ─── Feature-inquiry shortcut ────────────────────────────────────────
+    // 「你能做什麼？」「有哪些功能？」這類 NL 詢問直接餵 buildFeatureSummaryReply
+    // 結果（取自 APP_PAGE_REGISTRY），保證使用者看到的功能清單就是站上實際
+    // 註冊的，不會被 LLM 幻想出不存在的 feature。
+    if (!requestedMode && detectFeatureInquiry(trimmed)) {
+      const featureSummary = buildFeatureSummaryReply();
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: featureSummary,
+        at: Date.now(),
+        pagePath: locationPath,
+        intent: "feature-inquiry",
+      }]);
+      orbState.setState("idle", "列了站上的功能");
+      setIsSending(false);
+      return;
+    }
+
     // ─── Spirit dispatch shortcut (15-spirit chat tools + collab handoff) ─
     // 使用者 @ 任何精靈時，依 SPIRIT_CHAT_TOOLS 決定要走哪條路：
     //   - fal-generation:   走 trpc.spirit.invoke 真實打 fal.ai 出圖 / 影 / 音 / 聲 / 訓練
@@ -3492,7 +3649,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           orbState.setState("thinking", "導導 開始排計畫…");
           setMessages(prev => [...prev, {
             role: "orb",
-            text: `🗺️ 導導 排好計畫後，會把每一步交給對的精靈接手 — 你會看到他們一棒一棒接著做。`,
+            text: `🗺️ 導導 排好計畫後，會把每一步交給對的精靈接手 — 你會看到他們一棒一棒接著做，最後第一位生成型精靈我會真的幫你做出來。`,
             at: Date.now(),
             pagePath: locationPath,
             agentRole: "director",
@@ -3506,6 +3663,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               timeoutMsPerTurn: 25_000,
             });
             if (!isStale()) {
+              // 留住原始 prompt — discussion_complete 後 polling effect 會
+              // 用它真的去打第一位生成型精靈的 fal.ai。
+              lastDiscussionUserPromptRef.current = cleanPrompt;
               setActiveDiscussionId(discussion.collaborationId);
               setSuggestions(buildHandoffChips("director"));
             }
