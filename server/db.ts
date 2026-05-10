@@ -12,6 +12,11 @@ import {
   InsertDigitalAsset,
   projectNotesCalendar,
   InsertProjectNote,
+  userGoogleOauthTokens,
+  type UserGoogleOauthToken,
+  driveAssetLibraries,
+  type DriveAssetLibrary,
+  type InsertDriveAssetLibrary,
   userFeedbackReports,
   InsertUserFeedback,
   apiUsageLogs,
@@ -946,6 +951,155 @@ export async function deleteProjectNote(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(projectNotesCalendar).where(eq(projectNotesCalendar.id, id));
+}
+
+export async function getCalendarEventsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(projectNotesCalendar)
+    .where(
+      and(
+        eq(projectNotesCalendar.userId, userId),
+        eq(projectNotesCalendar.noteType, "calendar_event")
+      )
+    )
+    .orderBy(projectNotesCalendar.scheduledDate);
+}
+
+export async function getUserIcsFeedToken(userId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ token: users.icsFeedToken })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0]?.token ?? null;
+}
+
+export async function setUserIcsFeedToken(userId: number, token: string | null) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ icsFeedToken: token }).where(eq(users.id, userId));
+}
+
+export async function getUserByIcsFeedToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.icsFeedToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// ─── Google OAuth Tokens (incremental scopes) ──────────────────────────────
+
+export async function getGoogleOauthToken(
+  userId: number,
+  purpose: string
+): Promise<UserGoogleOauthToken | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(userGoogleOauthTokens)
+    .where(
+      and(
+        eq(userGoogleOauthTokens.userId, userId),
+        eq(userGoogleOauthTokens.purpose, purpose)
+      )
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertGoogleOauthToken(token: {
+  userId: number;
+  purpose: string;
+  accessToken: string;
+  refreshToken?: string | null;
+  scope: string;
+  tokenType?: string;
+  expiresAt?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await getGoogleOauthToken(token.userId, token.purpose);
+  if (existing) {
+    await db
+      .update(userGoogleOauthTokens)
+      .set({
+        accessToken: token.accessToken,
+        // Only overwrite refreshToken when Google actually issued a new one;
+        // re-auth without `prompt=consent` typically omits it.
+        ...(token.refreshToken
+          ? { refreshToken: token.refreshToken }
+          : {}),
+        scope: token.scope,
+        tokenType: token.tokenType ?? "Bearer",
+        expiresAt: token.expiresAt ?? null,
+      })
+      .where(eq(userGoogleOauthTokens.id, existing.id));
+    return existing.id;
+  }
+  const result = await db.insert(userGoogleOauthTokens).values({
+    userId: token.userId,
+    purpose: token.purpose,
+    accessToken: token.accessToken,
+    refreshToken: token.refreshToken ?? null,
+    scope: token.scope,
+    tokenType: token.tokenType ?? "Bearer",
+    expiresAt: token.expiresAt ?? null,
+  });
+  return result[0].insertId;
+}
+
+export async function deleteGoogleOauthToken(userId: number, purpose: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(userGoogleOauthTokens)
+    .where(
+      and(
+        eq(userGoogleOauthTokens.userId, userId),
+        eq(userGoogleOauthTokens.purpose, purpose)
+      )
+    );
+}
+
+// ─── Drive Asset Libraries ─────────────────────────────────────────────────
+
+export async function getDriveLibrariesByUser(
+  userId: number
+): Promise<DriveAssetLibrary[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(driveAssetLibraries)
+    .where(eq(driveAssetLibraries.userId, userId))
+    .orderBy(desc(driveAssetLibraries.createdAt));
+}
+
+export async function createDriveLibrary(data: InsertDriveAssetLibrary) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(driveAssetLibraries).values(data);
+  return result[0].insertId;
+}
+
+export async function deleteDriveLibrary(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(driveAssetLibraries)
+    .where(
+      and(eq(driveAssetLibraries.id, id), eq(driveAssetLibraries.userId, userId))
+    );
 }
 
 // ─── User Feedback Reports ───────────────────────────────────────────────────

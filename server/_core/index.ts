@@ -38,6 +38,7 @@ import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
 import { mediaDownloadRouter } from "../routes/download";
+import { icsFeedRouter } from "../routes/icsFeed";
 import {
   initR2SnapshotCron,
   stopR2SnapshotCron,
@@ -328,6 +329,7 @@ async function startServer() {
   app.use(replicateWebhookRouter);
   app.use(stripeWebhookRouter);
   app.use(mediaDownloadRouter);
+  app.use(icsFeedRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
   app.use(localAuthRouter);

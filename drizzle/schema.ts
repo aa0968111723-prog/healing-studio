@@ -46,6 +46,8 @@ export const users = mysqlTable(
     onboardingDone: boolean("onboardingDone").default(false).notNull(),
     /** User-controlled avatar (preset id, AI-generated URL, or data URL ≤ 64 KB). Null = use initials. */
     avatarUrl: text("avatarUrl"),
+    /** Opaque token for the public ICS feed at /api/ics/<token>.ics. Rotating revokes existing subscriptions. */
+    icsFeedToken: varchar("icsFeedToken", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -57,6 +59,7 @@ export const users = mysqlTable(
     roleIdx: index("users_role_idx").on(table.role),
     // Auto-credit scheduling index — used by the auto-credit cron job
     autoCreditNextAtIdx: index("users_autoCreditNextAt_idx").on(table.autoCreditNextAt),
+    icsFeedTokenIdx: index("users_icsFeedToken_idx").on(table.icsFeedToken),
   })
 );
 
@@ -445,6 +448,16 @@ export const projectNotesCalendar = mysqlTable(
       .default("todo")
       .notNull(),
     scheduledDate: timestamp("scheduledDate"),
+    endDate: timestamp("endDate"),
+    reminderMinutes: int("reminderMinutes"),
+    location: json("location").$type<{
+      name: string;
+      address?: string;
+      lat?: number;
+      lng?: number;
+      placeId?: string;
+    }>(),
+    meetingUrl: varchar("meetingUrl", { length: 512 }),
     tags: json("tags").$type<string[]>(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -468,6 +481,61 @@ export const projectNotesCalendar = mysqlTable(
 
 export type ProjectNote = typeof projectNotesCalendar.$inferSelect;
 export type InsertProjectNote = typeof projectNotesCalendar.$inferInsert;
+
+// ─── Google OAuth Tokens (per scope/purpose) ────────────────────────────
+// Login uses openid/email/profile only. Optional scopes (Drive, Calendar
+// API) are obtained via incremental OAuth and stored here keyed by
+// `(userId, purpose)`. The Drive client refreshes `accessToken` against
+// `refreshToken` when `expiresAt` passes.
+export const userGoogleOauthTokens = mysqlTable(
+  "user_google_oauth_tokens",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    purpose: varchar("purpose", { length: 32 }).default("drive").notNull(),
+    accessToken: text("accessToken").notNull(),
+    refreshToken: text("refreshToken"),
+    scope: text("scope").notNull(),
+    tokenType: varchar("tokenType", { length: 32 }).default("Bearer").notNull(),
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdx: index("user_google_oauth_tokens_user_idx").on(table.userId),
+  })
+);
+
+export type UserGoogleOauthToken = typeof userGoogleOauthTokens.$inferSelect;
+export type InsertUserGoogleOauthToken = typeof userGoogleOauthTokens.$inferInsert;
+
+// ─── Drive Asset Libraries ──────────────────────────────────────────────
+// Pinned Google Drive folders that the user wants treated as a "shoot"
+// or "personal" asset library. We only store metadata; the actual files
+// are fetched live from Drive via the user's stored OAuth token.
+export const driveAssetLibraries = mysqlTable(
+  "drive_asset_libraries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    label: varchar("label", { length: 128 }).notNull(),
+    kind: mysqlEnum("kind", ["shoot", "personal", "other"]).default("shoot").notNull(),
+    driveFolderId: varchar("driveFolderId", { length: 128 }).notNull(),
+    driveFolderName: varchar("driveFolderName", { length: 255 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdx: index("drive_asset_libraries_user_idx").on(table.userId),
+    userKindIdx: index("drive_asset_libraries_user_kind_idx").on(
+      table.userId,
+      table.kind
+    ),
+  })
+);
+
+export type DriveAssetLibrary = typeof driveAssetLibraries.$inferSelect;
+export type InsertDriveAssetLibrary = typeof driveAssetLibraries.$inferInsert;
 
 // ─── User Feedback Reports ───────────────────────────────────────────────
 export const userFeedbackReports = mysqlTable(

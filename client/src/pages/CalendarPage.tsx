@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ZenCoPilot";
+import { LocationPicker, type ScheduleLocation } from "@/components/LocationPicker";
 import { toast } from "sonner";
 import {
   CalendarDays,
@@ -31,6 +32,11 @@ import {
   X,
   CheckCircle2,
   ExternalLink,
+  MapPin,
+  Bell,
+  Smartphone,
+  Copy,
+  RefreshCw,
   Circle,
   CircleDot,
   CircleCheck,
@@ -54,9 +60,21 @@ type CalendarNote = {
   noteType: string;
   status?: NoteStatus | null;
   scheduledDate?: Date | string | null;
+  endDate?: Date | string | null;
+  reminderMinutes?: number | null;
+  location?: ScheduleLocation | null;
+  meetingUrl?: string | null;
   createdAt: Date | string;
   tags?: string[] | null;
 };
+
+const REMINDER_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "不提醒" },
+  { value: 15, label: "提前 15 分鐘" },
+  { value: 30, label: "提前 30 分鐘" },
+  { value: 60, label: "提前 1 小時" },
+  { value: 60 * 24, label: "提前 1 天" },
+];
 
 const statusInfo: Record<
   NoteStatus,
@@ -261,6 +279,33 @@ function EventCard({
           {note.content}
         </p>
       )}
+      {!compact && (note.location || note.reminderMinutes || note.scheduledDate) && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5 ml-4.5 text-[10px] text-muted-foreground/70">
+          {note.scheduledDate && (
+            <span className="inline-flex items-center gap-0.5">
+              <Clock className="w-2.5 h-2.5" />
+              {new Date(note.scheduledDate).toLocaleTimeString("zh-TW", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
+          {note.location?.name && (
+            <span className="inline-flex items-center gap-0.5 max-w-[140px] truncate">
+              <MapPin className="w-2.5 h-2.5 text-amber-400" />
+              {note.location.name}
+            </span>
+          )}
+          {typeof note.reminderMinutes === "number" && note.reminderMinutes > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-cyan-400/80">
+              <Bell className="w-2.5 h-2.5" />
+              {note.reminderMinutes >= 60
+                ? `${Math.round(note.reminderMinutes / 60)}h`
+                : `${note.reminderMinutes}m`}
+            </span>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -278,34 +323,41 @@ function NewEventForm({
 }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [addToGoogle, setAddToGoogle] = useState(false);
   // Default to 09:00 — most users plan a "morning slot" for creative work.
   const [timeStr, setTimeStr] = useState("09:00");
   const [allDay, setAllDay] = useState(false);
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [reminderMinutes, setReminderMinutes] = useState(30);
+  const [location, setLocation] = useState<ScheduleLocation | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [addToGoogle, setAddToGoogle] = useState(false);
 
-  const buildScheduledDate = useCallback((): Date => {
-    const d = new Date(date);
+  // Returns the chosen start (midnight if allDay) plus an `end` only when
+  // not allDay so callers can persist it as the event's end timestamp.
+  const buildSchedule = useCallback((): { start: Date; end: Date | null } => {
+    const start = new Date(date);
     if (allDay) {
-      d.setHours(0, 0, 0, 0);
-      return d;
+      start.setHours(0, 0, 0, 0);
+      return { start, end: null };
     }
     const [hStr, mStr] = timeStr.split(":");
     const h = Math.max(0, Math.min(23, parseInt(hStr, 10) || 0));
     const m = Math.max(0, Math.min(59, parseInt(mStr, 10) || 0));
-    d.setHours(h, m, 0, 0);
-    return d;
-  }, [date, allDay, timeStr]);
+    start.setHours(h, m, 0, 0);
+    const end = new Date(start.getTime() + durationMinutes * 60_000);
+    return { start, end };
+  }, [date, allDay, timeStr, durationMinutes]);
 
   const createNote = trpc.notes.create.useMutation({
     onSuccess: () => {
-      const scheduled = buildScheduledDate();
       if (addToGoogle && title.trim()) {
+        const { start } = buildSchedule();
         openGoogleCalendar({
           title: title.trim(),
           description: content.trim() || undefined,
-          date: scheduled,
+          date: start,
           allDay,
-          durationMinutes: 60,
+          durationMinutes: allDay ? undefined : durationMinutes,
         });
       }
       onCreated();
@@ -337,7 +389,7 @@ function NewEventForm({
       <Input
         value={title}
         onChange={e => setTitle(e.target.value)}
-        placeholder="排程標題"
+        placeholder="排程標題（例如：陽明山外拍）"
         className="bg-white/5 border-white/10 text-sm"
       />
 
@@ -349,7 +401,7 @@ function NewEventForm({
         className="bg-white/5 border-white/10 text-xs resize-none"
       />
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="space-y-2">
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
           <input
             type="checkbox"
@@ -357,17 +409,82 @@ function NewEventForm({
             onChange={e => setAllDay(e.target.checked)}
             className="rounded border-white/20 bg-white/5 h-3.5 w-3.5 accent-amber-500"
           />
-          全天
+          全天事件
         </label>
-        <div className="flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-          <Input
-            type="time"
-            value={timeStr}
-            onChange={e => setTimeStr(e.target.value)}
-            disabled={allDay}
-            className="bg-white/5 border-white/10 text-xs h-8 w-28 disabled:opacity-40"
-          />
+
+        <div className="grid grid-cols-3 gap-2">
+          <label className="space-y-1">
+            <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5" /> 開始時間
+            </span>
+            <Input
+              type="time"
+              value={timeStr}
+              onChange={e => setTimeStr(e.target.value)}
+              disabled={allDay}
+              className="bg-white/5 border-white/10 text-xs h-8 disabled:opacity-40"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] text-muted-foreground/70">時長</span>
+            <select
+              value={durationMinutes}
+              onChange={e => setDurationMinutes(Number(e.target.value))}
+              disabled={allDay}
+              className="w-full bg-white/5 border border-white/10 rounded-md text-xs h-8 px-2 disabled:opacity-40"
+            >
+              <option value={30}>30 分鐘</option>
+              <option value={60}>1 小時</option>
+              <option value={90}>1.5 小時</option>
+              <option value={120}>2 小時</option>
+              <option value={180}>3 小時</option>
+              <option value={240}>4 小時</option>
+              <option value={480}>整天</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+              <Bell className="w-2.5 h-2.5" /> 提醒
+            </span>
+            <select
+              value={reminderMinutes}
+              onChange={e => setReminderMinutes(Number(e.target.value))}
+              className="w-full bg-white/5 border border-white/10 rounded-md text-xs h-8 px-2"
+            >
+              {REMINDER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => setShowLocationPicker(v => !v)}
+            className="w-full flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs hover:border-amber-500/30"
+          >
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <MapPin className="w-3 h-3 text-amber-400" />
+              {location ? location.name : "外拍地點（選填）"}
+            </span>
+            <span className="text-[10px] text-muted-foreground/50">
+              {showLocationPicker ? "收合" : "展開地圖"}
+            </span>
+          </button>
+          <AnimatePresence>
+            {showLocationPicker && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <LocationPicker value={location} onChange={setLocation} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -398,11 +515,15 @@ function NewEventForm({
               toast.error("請輸入標題");
               return;
             }
+            const { start, end } = buildSchedule();
             createNote.mutate({
               title: title.trim(),
               content: content.trim() || undefined,
               noteType: "calendar_event",
-              scheduledDate: buildScheduledDate().getTime(),
+              scheduledDate: start.getTime(),
+              endDate: end ? end.getTime() : undefined,
+              reminderMinutes: reminderMinutes > 0 ? reminderMinutes : undefined,
+              location: location ?? undefined,
             });
           }}
           disabled={createNote.isPending}
@@ -1314,8 +1435,113 @@ export default function CalendarPage() {
               </div>
             </div>
           </GlassCard>
+
+          <PhoneSubscribePanel />
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Phone Subscribe Panel ─────────────────────────────────────────────────
+// Shows the user's ICS feed URL so phones (Apple Calendar, Google Calendar,
+// Outlook) can subscribe — the feed includes VALARM blocks so phone alarms
+// fire automatically.
+
+function PhoneSubscribePanel() {
+  const utils = trpc.useUtils();
+  const feedQuery = trpc.schedule.icsFeed.useQuery();
+  const rotate = trpc.schedule.rotateIcsFeed.useMutation({
+    onSuccess: () => {
+      utils.schedule.icsFeed.invalidate();
+      toast.success("已重設訂閱連結，舊連結將失效");
+    },
+  });
+
+  const url = feedQuery.data?.url;
+  const fullUrl = useMemo(() => {
+    if (!url) return "";
+    if (typeof window === "undefined") return url;
+    return new URL(url, window.location.origin).toString();
+  }, [url]);
+
+  // Most phone calendars accept the `webcal://` scheme to add a subscription
+  // straight from a tap; fall back to https for desktop users.
+  const webcalUrl = useMemo(() => {
+    if (!fullUrl) return "";
+    return fullUrl.replace(/^https?:\/\//, "webcal://");
+  }, [fullUrl]);
+
+  return (
+    <GlassCard>
+      <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2 mb-1">
+        <Smartphone className="w-4 h-4 text-emerald-400" />
+        手機日曆 / 鬧鐘訂閱
+      </h3>
+      <p className="hs-small !mb-3 text-muted-foreground/60">
+        把這條連結加進 Apple Calendar、Google Calendar 或 Outlook，所有排程會自動同步並依「提醒時間」響鬧鐘。
+      </p>
+
+      {feedQuery.isLoading ? (
+        <div className="h-9 rounded-md bg-white/5 animate-pulse" />
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1">
+            <Input
+              readOnly
+              value={fullUrl}
+              className="bg-white/5 border-white/10 text-[11px] font-mono"
+              onFocus={e => e.currentTarget.select()}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 px-2 shrink-0"
+              onClick={() => {
+                navigator.clipboard.writeText(fullUrl);
+                toast.success("已複製訂閱連結");
+              }}
+              title="複製連結"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1 h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={() => {
+                if (webcalUrl) window.location.href = webcalUrl;
+              }}
+            >
+              <Smartphone className="w-3 h-3" />
+              一鍵加入手機日曆
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs gap-1.5 text-muted-foreground"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "重設後，舊的手機訂閱連結會失效，需要重新加入。確定？"
+                  )
+                ) {
+                  rotate.mutate();
+                }
+              }}
+              disabled={rotate.isPending}
+              title="重設訂閱連結"
+            >
+              <RefreshCw className="w-3 h-3" />
+              重設
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground/40">
+            iPhone：點上方按鈕 → 同意「訂閱行事曆」。Android：複製連結 → Google 行事曆 → 從網址新增。
+          </p>
+        </div>
+      )}
+    </GlassCard>
   );
 }

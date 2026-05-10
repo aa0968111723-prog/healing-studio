@@ -775,6 +775,16 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     downstream: ["ext:forge-maps"],
   },
   {
+    id: "api:ics-feed",
+    label: "GET /api/ics/:token.ics",
+    description:
+      "公開 ICS 訂閱端點；手機原生日曆 / 鬧鐘以 webcal:// 訂閱使用者排程，含 VALARM 自動響鈴",
+    method: "GET",
+    path: "/api/ics/:token.ics",
+    files: ["server/routes/icsFeed.ts"],
+    downstream: ["db:main"],
+  },
+  {
     id: "api:proxy-download",
     label: "GET /api/proxy-download",
     description:
@@ -803,6 +813,16 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     files: ["server/_core/oauth.ts"],
     downstream: ["db:main", "auth:google-oauth"],
     upstream: ["auth:google-oauth"],
+  },
+  {
+    id: "api:oauth-drive-start",
+    label: "GET /api/oauth/google/drive/start",
+    description:
+      "增量授權：要求 Drive readonly scope，piggy-back 在通用 oauth callback；用 state.purpose 區分回流",
+    method: "GET",
+    path: "/api/oauth/google/drive/start",
+    files: ["server/_core/oauth.ts", "server/services/googleDrive.ts"],
+    downstream: ["auth:google-oauth"],
   },
   {
     id: "api:uploads-static",
