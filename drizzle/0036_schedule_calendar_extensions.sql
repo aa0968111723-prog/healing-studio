@@ -12,8 +12,10 @@ ALTER TABLE `project_notes_calendar`
   ADD COLUMN `endDate` TIMESTAMP NULL,
   ADD COLUMN `reminderMinutes` INT NULL,
   ADD COLUMN `meetingUrl` VARCHAR(512) NULL;
+--> statement-breakpoint
 
 ALTER TABLE `users`
   ADD COLUMN `icsFeedToken` VARCHAR(64) NULL;
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX `users_icsFeedToken_idx` ON `users` (`icsFeedToken`);
