@@ -10,6 +10,8 @@ import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM, extractMessageJson } from "../_core/llm";
 import { extractJsonObjectFromText } from "../../shared/agent-plan-adapter";
 import { serverEnv } from "../_core/env.validated";
+import { logExternalApiError } from "../_core/logger";
+import { metrics } from "../_core/metrics";
 
 // Sense intent 推論逾時 — 讀 SENSE_INTENT_TIMEOUT_SECONDS，預設 45s
 const SENSE_INTENT_TIMEOUT_MS = (() => {
@@ -378,7 +380,11 @@ export const senseRouter = router({
         const result = await inferUserIntent(input.events, input.summary);
         return result;
       } catch (err) {
-        console.error("[Sense] Intent inference failed:", err);
+        logExternalApiError("gemini:sense-intent-inference", err, {
+          endpoint: "sense.inferIntent",
+          eventCount: input.events.length,
+        });
+        metrics.recordError("sense.inferIntent", 500, "LLM_INFERENCE_FAILED");
         // Graceful fallback — never block the user experience
         return {
           intentType: "exploration_mode" as IntentType,

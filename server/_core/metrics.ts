@@ -69,6 +69,19 @@ export interface TokenUsage {
   callCount: number;
 }
 
+export interface ErrorMetrics {
+  /** Total errors recorded, keyed by "endpoint:statusCode" */
+  byEndpoint: Record<string, number>;
+  /** Total errors recorded, keyed by HTTP status class ("4xx" | "5xx") */
+  byStatusClass: { "4xx": number; "5xx": number };
+  /** Total errors recorded, keyed by application error code */
+  byErrorCode: Record<string, number>;
+  /** Average recovery time in ms per endpoint (only populated after recovery events) */
+  recoveryTimeMs: Record<string, number>;
+  /** Current circuit breaker states, keyed by service name */
+  circuitBreakerStates: Record<string, "closed" | "open" | "half-open">;
+}
+
 export interface MetricsSnapshot {
   timestamp: string;
   uptime: number;
@@ -90,6 +103,7 @@ export interface MetricsSnapshot {
     savedCalls: number;
     inFlightCount: number;
   };
+  errors: ErrorMetrics;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -170,6 +184,18 @@ class MetricsService {
   private cacheMisses = 0;
   private dedupSavedCalls = 0;
   private dedupInFlight = 0;
+
+  // ── Error tracking ────────────────────────────────────────────────────────
+  private readonly errorsByEndpoint = new Map<string, number>();
+  private readonly errorsByStatusClass = { "4xx": 0, "5xx": 0 };
+  private readonly errorsByCode = new Map<string, number>();
+  /** Accumulated recovery time samples per endpoint for averaging */
+  private readonly recoveryTimeSamples = new Map<string, number[]>();
+  /** Current circuit breaker states reported by CircuitBreaker instances */
+  private readonly circuitBreakerStates = new Map<
+    string,
+    "closed" | "open" | "half-open"
+  >();
 
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -274,6 +300,111 @@ class MetricsService {
   recordDedupSaved(): void { this.dedupSavedCalls++; }
   setDedupInFlight(count: number): void { this.dedupInFlight = count; }
 
+  // ── Error Metrics ─────────────────────────────────────────────────────────
+
+  /**
+   * Record an error occurrence for a given endpoint and HTTP status code.
+   * Also accepts an optional application-level error code for finer grouping.
+   *
+   * @param endpoint   e.g. "news.list" or "POST /api/proxy-download"
+   * @param statusCode HTTP status code (4xx / 5xx)
+   * @param errorCode  Optional application error code, e.g. "DB_UNAVAILABLE"
+   */
+  recordError(
+    endpoint: string,
+    statusCode: number,
+    errorCode?: string
+  ): void {
+    const key = `${endpoint}:${statusCode}`;
+    this.errorsByEndpoint.set(key, (this.errorsByEndpoint.get(key) ?? 0) + 1);
+
+    if (statusCode >= 400 && statusCode < 500) {
+      this.errorsByStatusClass["4xx"]++;
+    } else if (statusCode >= 500) {
+      this.errorsByStatusClass["5xx"]++;
+    }
+
+    if (errorCode) {
+      this.errorsByCode.set(
+        errorCode,
+        (this.errorsByCode.get(errorCode) ?? 0) + 1
+      );
+    }
+  }
+
+  /**
+   * Record how long it took to recover from an error on a given endpoint.
+   * Used to compute mean-time-to-recovery (MTTR) per endpoint.
+   *
+   * @param endpoint       e.g. "news.list"
+   * @param recoveryTimeMs Wall-clock ms from first failure to successful retry
+   */
+  recordErrorRecovery(endpoint: string, recoveryTimeMs: number): void {
+    const samples = this.recoveryTimeSamples.get(endpoint) ?? [];
+    samples.push(recoveryTimeMs);
+    // Cap at 100 samples per endpoint to bound memory usage
+    if (samples.length > 100) samples.shift();
+    this.recoveryTimeSamples.set(endpoint, samples);
+  }
+
+  /**
+   * Update the current state of a circuit breaker for a named service.
+   * Called by CircuitBreaker instances on every state transition.
+   *
+   * @param service External service name, e.g. "fal.ai" or "elevenlabs"
+   * @param state   Current circuit breaker state
+   */
+  recordCircuitBreakerState(
+    service: string,
+    state: "closed" | "open" | "half-open"
+  ): void {
+    this.circuitBreakerStates.set(service, state);
+  }
+
+  /**
+   * Return a snapshot of all error-specific metrics.
+   */
+  getErrorMetrics(): ErrorMetrics {
+    const recoveryTimeMs: Record<string, number> = {};
+    for (const [endpoint, samples] of Array.from(
+      this.recoveryTimeSamples.entries()
+    )) {
+      if (samples.length === 0) continue;
+      recoveryTimeMs[endpoint] =
+        Math.round(
+          samples.reduce((sum, v) => sum + v, 0) / samples.length
+        );
+    }
+
+    const circuitBreakerStatesObj: Record<
+      string,
+      "closed" | "open" | "half-open"
+    > = {};
+    for (const [service, state] of Array.from(
+      this.circuitBreakerStates.entries()
+    )) {
+      circuitBreakerStatesObj[service] = state;
+    }
+
+    const byEndpointObj: Record<string, number> = {};
+    for (const [key, count] of Array.from(this.errorsByEndpoint.entries())) {
+      byEndpointObj[key] = count;
+    }
+
+    const byErrorCodeObj: Record<string, number> = {};
+    for (const [code, count] of Array.from(this.errorsByCode.entries())) {
+      byErrorCodeObj[code] = count;
+    }
+
+    return {
+      byEndpoint: byEndpointObj,
+      byStatusClass: { ...this.errorsByStatusClass },
+      byErrorCode: byErrorCodeObj,
+      recoveryTimeMs,
+      circuitBreakerStates: circuitBreakerStatesObj,
+    };
+  }
+
   // ── Snapshot ─────────────────────────────────────────────────────────────
 
   /**
@@ -334,6 +465,7 @@ class MetricsService {
         savedCalls: this.dedupSavedCalls,
         inFlightCount: this.dedupInFlight,
       },
+      errors: this.getErrorMetrics(),
     };
   }
 

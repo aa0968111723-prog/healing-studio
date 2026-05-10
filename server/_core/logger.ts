@@ -89,6 +89,107 @@ export const logger = {
     write("error", message, metadata),
 };
 
+// ─── Structured Error Logging Helpers ─────────────────────────────────────
+
+export interface ErrorLogContext {
+  /** tRPC procedure or Express route label, e.g. "news.list" */
+  endpoint?: string;
+  /** Unique request trace ID (auto-injected from AsyncLocalStorage when omitted) */
+  traceId?: string | null;
+  /** Any additional key/value pairs to attach to the log entry */
+  [key: string]: unknown;
+}
+
+/**
+ * Log a structured application error with full context.
+ * Automatically attaches the current traceId from AsyncLocalStorage.
+ */
+export function logError(
+  message: string,
+  err: unknown,
+  context: ErrorLogContext = {}
+): void {
+  write("error", message, {
+    traceId: context.traceId ?? getTraceId(),
+    ...context,
+    err,
+  });
+}
+
+/**
+ * Log a structured warning with context.
+ */
+export function logWarning(
+  message: string,
+  context: ErrorLogContext = {}
+): void {
+  write("warn", message, {
+    traceId: context.traceId ?? getTraceId(),
+    ...context,
+  });
+}
+
+/**
+ * Log a structured informational event with context.
+ */
+export function logInfo(
+  message: string,
+  context: ErrorLogContext = {}
+): void {
+  write("info", message, {
+    traceId: context.traceId ?? getTraceId(),
+    ...context,
+  });
+}
+
+/**
+ * Log a Zod / input validation failure with the offending field and message.
+ */
+export function logValidationError(
+  field: string,
+  err: unknown,
+  context: ErrorLogContext = {}
+): void {
+  write("warn", "[Validation] Input validation failed", {
+    traceId: context.traceId ?? getTraceId(),
+    field,
+    ...context,
+    err,
+  });
+}
+
+/**
+ * Log an external API / third-party service failure with the service name.
+ */
+export function logExternalApiError(
+  service: string,
+  err: unknown,
+  context: ErrorLogContext = {}
+): void {
+  write("error", `[ExternalAPI] ${service} request failed`, {
+    traceId: context.traceId ?? getTraceId(),
+    service,
+    ...context,
+    err,
+  });
+}
+
+/**
+ * Log a database query failure with the query label (never the raw SQL).
+ */
+export function logDatabaseError(
+  query: string,
+  err: unknown,
+  context: ErrorLogContext = {}
+): void {
+  write("error", `[Database] Query failed: ${query}`, {
+    traceId: context.traceId ?? getTraceId(),
+    query,
+    ...context,
+    err,
+  });
+}
+
 export function getTraceId(): string | null {
   return contextStorage.getStore()?.traceId ?? null;
 }
