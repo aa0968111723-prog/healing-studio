@@ -12,7 +12,7 @@ type TransactionExecutor<T> = (connection: PoolConnection) => Promise<T>;
 export class DatabaseManager {
   private readonly pool: Pool;
 
-  constructor(databaseUrl: string, connectionLimit: number = 10) {
+  constructor(databaseUrl: string, connectionLimit: number = 30) {
     this.pool = mysql.createPool({
       uri: databaseUrl,
       waitForConnections: true,
@@ -20,6 +20,7 @@ export class DatabaseManager {
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 30_000,
+      idleTimeout: 120_000,
     });
   }
 
@@ -76,6 +77,37 @@ export class DatabaseManager {
     } finally {
       connection.release();
     }
+  }
+
+  /**
+   * Return a snapshot of the current connection pool state.
+   * Uses the underlying mysql2 pool internals (available on Pool instances).
+   */
+  getPoolStats(): { total: number; active: number; idle: number; queued: number } {
+    const p = this.pool as Pool & {
+      pool?: {
+        _allConnections?: unknown[];
+        _acquiringConnections?: unknown[];
+        _freeConnections?: unknown[];
+        _connectionQueue?: unknown[];
+      };
+    };
+    const inner = p.pool;
+    const total = inner?._allConnections?.length ?? 0;
+    const acquiring = inner?._acquiringConnections?.length ?? 0;
+    const idle = inner?._freeConnections?.length ?? 0;
+    const queued = inner?._connectionQueue?.length ?? 0;
+    const active = total - idle - acquiring;
+    return { total, active, idle, queued };
+  }
+
+  /**
+   * Return pool utilisation as a value between 0 and 1.
+   * Computed as active connections / total connections.
+   */
+  getPoolUtilization(): number {
+    const stats = this.getPoolStats();
+    return stats.total > 0 ? stats.active / stats.total : 0;
   }
 
   async close(): Promise<void> {

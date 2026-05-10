@@ -90,6 +90,10 @@ export interface MetricsSnapshot {
     savedCalls: number;
     inFlightCount: number;
   };
+  db: {
+    poolUtilization: number;
+    poolStats: { total: number; active: number; idle: number; queued: number };
+  };
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -170,6 +174,12 @@ class MetricsService {
   private cacheMisses = 0;
   private dedupSavedCalls = 0;
   private dedupInFlight = 0;
+
+  // DB connection pool stats (updated externally via recordPoolUtilization)
+  private dbPoolUtilization = 0;
+  private dbPoolStats: { total: number; active: number; idle: number; queued: number } = {
+    total: 0, active: 0, idle: 0, queued: 0,
+  };
 
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -274,6 +284,30 @@ class MetricsService {
   recordDedupSaved(): void { this.dedupSavedCalls++; }
   setDedupInFlight(count: number): void { this.dedupInFlight = count; }
 
+  // ── DB Pool Monitoring ───────────────────────────────────────────────────
+
+  /**
+   * Update the tracked connection pool utilisation.
+   * Call this periodically (e.g. from a health-check interval) with the
+   * values returned by DatabaseManager.getPoolStats() / getPoolUtilization().
+   * Logs a warning when utilisation exceeds 80 % so operators are alerted
+   * before the pool is fully exhausted.
+   */
+  recordPoolUtilization(
+    utilization: number,
+    stats: { total: number; active: number; idle: number; queued: number }
+  ): void {
+    this.dbPoolUtilization = utilization;
+    this.dbPoolStats = stats;
+
+    if (utilization > 0.8) {
+      logger.warn("[Metrics] High database connection pool utilization", {
+        utilizationPct: `${(utilization * 100).toFixed(1)}%`,
+        ...stats,
+      });
+    }
+  }
+
   // ── Snapshot ─────────────────────────────────────────────────────────────
 
   /**
@@ -334,6 +368,10 @@ class MetricsService {
         savedCalls: this.dedupSavedCalls,
         inFlightCount: this.dedupInFlight,
       },
+      db: {
+        poolUtilization: this.dbPoolUtilization,
+        poolStats: { ...this.dbPoolStats },
+      },
     };
   }
 
@@ -354,6 +392,8 @@ class MetricsService {
       })),
       cacheHitRate: snap.cache.hitRate,
       dedupSaved: snap.dedup.savedCalls,
+      dbPoolUtilizationPct: `${(snap.db.poolUtilization * 100).toFixed(1)}%`,
+      dbPoolStats: snap.db.poolStats,
     });
   }
 
