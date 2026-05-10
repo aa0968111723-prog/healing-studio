@@ -16,6 +16,7 @@
 
 import {
   callFalModel,
+  canSpiritCallFalModel,
   getFalModelById,
   getFalModelsByCategory,
   type FalCallInput,
@@ -23,6 +24,7 @@ import {
 import { calculateActualCost, estimatePoints, getModelPricing } from "./modelPricing";
 import { deductCredits, reconcileCredits } from "./orbCostGuard";
 import { serverEnv } from "../_core/env.validated";
+import type { AgentRole } from "../../shared/orb-agent-roles";
 
 // ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
 
@@ -179,6 +181,13 @@ export interface FalDispatchInput {
   userId?: number;
   estimatedCredits?: number;
   modelParams?: Record<string, unknown>;
+  /**
+   * 發起呼叫的精靈（15 位精靈之一）。若有給值，dispatcher 會在送出 fal.ai
+   * API 前檢查 `canSpiritCallFalModel(spirit, modelId)`；不允許則直接以
+   * FORBIDDEN 失敗回傳，不真的打 API。沒給代表「不做精靈授權檢查」，
+   * 維持舊有 routers 的相容行為。
+   */
+  spirit?: AgentRole;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -262,7 +271,7 @@ export { FALLBACK_CHAINS };
 export async function dispatchFalTask(
   input: FalDispatchInput
 ): Promise<FalDispatchResult> {
-  const { modelId, category, durationSec, charCount } = input;
+  const { modelId, category, durationSec, charCount, spirit } = input;
   if (!modelId.startsWith("fal-ai/")) {
     throw new Error(
       `Invalid Fal model ID: "${modelId}". Must start with "fal-ai/"`
@@ -270,6 +279,24 @@ export async function dispatchFalTask(
   }
   // 每次呼叫產生唯一的追蹤 ID
   const runId = `fal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // ── Step 0: 精靈授權（spirit 有給才檢查）──
+  // 圖圖只能呼叫圖類模型、影影只能呼叫影類模型；不在白名單就直接拒絕，
+  // 不打 fal API，也不扣點。spirit 沒給代表呼叫端尚未升級（舊 router），
+  // 維持原行為以避免回歸。
+  if (spirit && !canSpiritCallFalModel(spirit, modelId)) {
+    return {
+      success: false,
+      modelId,
+      modelLabel: modelId,
+      category,
+      data: {},
+      durationMs: 0,
+      pointsDeducted: 0,
+      pointsBreakdown: "0 (未呼叫：精靈無此模型權限)",
+      error: `精靈 "${spirit}" 沒有呼叫模型 "${modelId}" 的權限（不在該精靈的允許類別內）`,
+    };
+  }
 
   // ── Step 1: 驗證模型存在 ──
   let targetModelId = modelId;

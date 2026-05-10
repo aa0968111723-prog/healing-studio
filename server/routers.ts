@@ -36,6 +36,7 @@ import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
+import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
 import { externalServicesRouter } from "./routers/externalServices";
@@ -3650,6 +3651,11 @@ export const appRouter = router({
   // ─── Director AI ─────────────────────────────────────────────────────────
 
   director: directorRouter,
+
+  // ─── Spirit invocation ───────────────────────────────────────────────────
+  // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …
+  // 入口在 server/services/spiritDispatcher.ts。
+  spirit: spiritRouter,
 
   // ─── Assets ──────────────────────────────────────────────────────────────
 
