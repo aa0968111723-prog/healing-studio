@@ -4519,6 +4519,9 @@ export const appRouter = router({
             noteType: z
               .enum(["note", "script", "calendar_event", "all"])
               .default("all"),
+            status: z
+              .enum(["todo", "in_progress", "done", "all", "open"])
+              .default("all"),
             search: z.string().optional(),
             tags: z.array(z.string()).optional(),
           })
@@ -4529,6 +4532,13 @@ export const appRouter = router({
         let result = all;
         if (input?.noteType && input.noteType !== "all") {
           result = result.filter(n => n.noteType === input.noteType);
+        }
+        if (input?.status && input.status !== "all") {
+          if (input.status === "open") {
+            result = result.filter(n => (n.status ?? "todo") !== "done");
+          } else {
+            result = result.filter(n => (n.status ?? "todo") === input.status);
+          }
         }
         if (input?.search) {
           const q = input.search.toLowerCase();
@@ -4547,6 +4557,153 @@ export const appRouter = router({
         return result;
       }),
 
+    // Aggregated planning view: overdue / today / upcoming / unscheduled
+    // buckets so the user lands on the page and immediately sees what to do.
+    summary: protectedProcedure
+      .input(
+        z
+          .object({
+            // Client passes the start-of-day epoch in its own timezone so the
+            // server doesn't have to guess the user's locale.
+            todayStart: z.number().optional(),
+            upcomingDays: z.number().int().min(1).max(60).default(7),
+          })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const all = await db.getProjectNotesByUser(ctx.user.id);
+        const now = Date.now();
+        const todayStart =
+          input?.todayStart ??
+          (() => {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d.getTime();
+          })();
+        const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+        const upcomingEnd =
+          todayStart + (input?.upcomingDays ?? 7) * 24 * 60 * 60 * 1000;
+
+        const open = all.filter(n => (n.status ?? "todo") !== "done");
+        const overdue: typeof all = [];
+        const today: typeof all = [];
+        const upcoming: typeof all = [];
+        const unscheduled: typeof all = [];
+        for (const n of open) {
+          if (!n.scheduledDate) {
+            unscheduled.push(n);
+            continue;
+          }
+          const ts = new Date(n.scheduledDate).getTime();
+          if (ts < todayStart) overdue.push(n);
+          else if (ts < todayEnd) today.push(n);
+          else if (ts < upcomingEnd) upcoming.push(n);
+        }
+
+        const counts = {
+          total: all.length,
+          todo: all.filter(n => (n.status ?? "todo") === "todo").length,
+          inProgress: all.filter(n => n.status === "in_progress").length,
+          done: all.filter(n => n.status === "done").length,
+          overdue: overdue.length,
+          today: today.length,
+          upcoming: upcoming.length,
+          unscheduled: unscheduled.length,
+        };
+
+        return {
+          generatedAt: now,
+          counts,
+          overdue,
+          today,
+          upcoming,
+          unscheduled,
+        };
+      }),
+
+    // Build an iCalendar (.ics) feed of the user's scheduled notes so they
+    // can subscribe in any calendar app (Apple Calendar, Outlook, Notion
+    // Calendar, etc.) — works fully offline and round-trips to other tools.
+    exportIcs: protectedProcedure
+      .input(
+        z
+          .object({
+            includeDone: z.boolean().default(false),
+          })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const all = await db.getProjectNotesByUser(ctx.user.id);
+        const includeDone = input?.includeDone ?? false;
+        const events = all.filter(n => {
+          if (!n.scheduledDate) return false;
+          if (!includeDone && (n.status ?? "todo") === "done") return false;
+          return true;
+        });
+
+        const fmt = (d: Date) =>
+          d
+            .toISOString()
+            .replace(/[-:]/g, "")
+            .replace(/\.\d{3}/, "");
+        const escape = (s: string) =>
+          s
+            .replace(/\\/g, "\\\\")
+            .replace(/\n/g, "\\n")
+            .replace(/,/g, "\\,")
+            .replace(/;/g, "\\;");
+        const fold = (line: string) =>
+          line.length <= 75 ? line : line.match(/.{1,75}/g)!.join("\r\n ");
+
+        const dtStamp = fmt(new Date());
+        const lines: string[] = [
+          "BEGIN:VCALENDAR",
+          "VERSION:2.0",
+          "PRODID:-//HealingStudio//Notes//EN",
+          "CALSCALE:GREGORIAN",
+          "METHOD:PUBLISH",
+          "X-WR-CALNAME:Healing Studio 創作排程",
+        ];
+        for (const n of events) {
+          const start = new Date(n.scheduledDate!);
+          const startStr = fmt(start);
+          const end = new Date(start.getTime() + 60 * 60 * 1000);
+          const endStr = fmt(end);
+          const xStatus =
+            (n.status ?? "todo") === "done"
+              ? "COMPLETED"
+              : n.status === "in_progress"
+                ? "IN-PROCESS"
+                : "NEEDS-ACTION";
+          const desc =
+            (n.content ?? "") +
+            (n.tags && (n.tags as string[]).length
+              ? `\n\n#${(n.tags as string[]).join(" #")}`
+              : "");
+          lines.push(
+            "BEGIN:VEVENT",
+            `UID:healing-studio-note-${n.id}@healing-studio`,
+            `DTSTAMP:${dtStamp}`,
+            `DTSTART:${startStr}`,
+            `DTEND:${endStr}`,
+            fold(`SUMMARY:${escape(n.title)}`)
+          );
+          if (desc.trim()) lines.push(fold(`DESCRIPTION:${escape(desc)}`));
+          lines.push(
+            `STATUS:${(n.status ?? "todo") === "done" ? "CONFIRMED" : "TENTATIVE"}`,
+            `X-HEALING-STUDIO-STATUS:${xStatus}`,
+            "END:VEVENT"
+          );
+        }
+        lines.push("END:VCALENDAR");
+        return {
+          filename: `healing-studio-schedule-${new Date().toISOString().slice(0, 10)}.ics`,
+          mime: "text/calendar",
+          content: lines.join("\r\n") + "\r\n",
+          eventCount: events.length,
+        };
+      }),
+
     create: protectedProcedure
       .input(
         z.object({
@@ -4556,6 +4713,7 @@ export const appRouter = router({
           noteType: z
             .enum(["note", "script", "calendar_event"])
             .default("note"),
+          status: z.enum(["todo", "in_progress", "done"]).default("todo"),
           scheduledDate: z.number().optional(),
           tags: z.array(z.string().max(32)).max(10).optional(),
         })
@@ -4567,6 +4725,7 @@ export const appRouter = router({
           content: input.content,
           scriptJson: input.scriptJson,
           noteType: input.noteType,
+          status: input.status,
           scheduledDate: input.scheduledDate
             ? new Date(input.scheduledDate)
             : undefined,
@@ -4585,6 +4744,7 @@ export const appRouter = router({
           scheduledDate: z.number().nullable().optional(),
           tags: z.array(z.string().max(32)).max(10).optional(),
           noteType: z.enum(["note", "script", "calendar_event"]).optional(),
+          status: z.enum(["todo", "in_progress", "done"]).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -4597,6 +4757,7 @@ export const appRouter = router({
           content: input.content,
           scriptJson: input.scriptJson,
           noteType: input.noteType,
+          status: input.status,
           tags: input.tags,
           ...(input.scheduledDate !== undefined
             ? {

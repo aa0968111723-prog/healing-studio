@@ -232,6 +232,13 @@
       "when": 1779050000001,
       "tag": "0032_agent_preferences_specialist_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1779050000002,
+      "tag": "0033_project_notes_status",
+      "breakpoints": true
     }
   ]
 }
