@@ -7113,7 +7113,7 @@ export const appRouter = router({
               let convertedReply = moderatedReply;
               let convertedActions = perPageFiltered.actions;
               const generateAction = convertedActions.find(
-                action => action.type === "execute_generate_image"
+                action => (action as { type?: string }).type === "execute_generate_image"
               ) as { type: string; payload?: string; prompt?: string; model?: string } | undefined;
               if (generateAction) {
                 try {
@@ -7122,7 +7122,7 @@ export const appRouter = router({
                     (typeof generateAction.payload === "string" && generateAction.payload.trim()) ||
                     latestUserTextForRouting;
                   const imageUrl = await executeGenerateImage(
-                    String(userId),
+                    String(ctx.user.id),
                     imagePrompt,
                     typeof generateAction.model === "string" ? generateAction.model : undefined
                   );
@@ -7136,7 +7136,7 @@ export const appRouter = router({
 ⚠️ 生成圖片失敗：${msg}`.trim();
                 }
                 convertedActions = convertedActions.filter(
-                  action => action.type !== "execute_generate_image"
+                  action => (action as { type?: string }).type !== "execute_generate_image"
                 );
               }
               return finalizeIdempotentResponse({
@@ -7631,7 +7631,7 @@ export const appRouter = router({
           }
           let legacyActions = legacyPerPage.actions as typeof legacy.actions;
           const legacyGenerateAction = legacyActions.find(
-            action => action.type === "execute_generate_image"
+            action => (action as { type?: string }).type === "execute_generate_image"
           ) as { type: string; payload?: string; prompt?: string; model?: string } | undefined;
           if (legacyGenerateAction) {
             try {
@@ -7640,7 +7640,7 @@ export const appRouter = router({
                 (typeof legacyGenerateAction.payload === "string" && legacyGenerateAction.payload.trim()) ||
                 latestUserTextForRouting;
               const imageUrl = await executeGenerateImage(
-                String(userId),
+                String(ctx.user.id),
                 imagePrompt,
                 typeof legacyGenerateAction.model === "string" ? legacyGenerateAction.model : undefined
               );
@@ -7654,7 +7654,7 @@ export const appRouter = router({
 ⚠️ 生成圖片失敗：${msg}`.trim();
             }
             legacyActions = legacyActions.filter(
-              action => action.type !== "execute_generate_image"
+              action => (action as { type?: string }).type !== "execute_generate_image"
             ) as typeof legacy.actions;
           }
           // ── Fallback navigate synthesis ─────────────────────────────────
