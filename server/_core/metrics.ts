@@ -69,6 +69,35 @@ export interface TokenUsage {
   callCount: number;
 }
 
+export interface DatabaseConnectionStats {
+  active: number;
+  idle: number;
+  queued: number;
+  total: number;
+}
+
+export interface DatabaseHealthStats {
+  healthy: boolean;
+  lastCheck: string | null;
+  failureCount: number;
+  circuitOpen: boolean;
+  lastError: string | null;
+}
+
+export interface DatabasePerformanceStats {
+  avgQueryTimeMs: number;
+  slowQueries: number;
+  timeouts: number;
+  errors: number;
+  totalQueries: number;
+}
+
+export interface DatabaseMetrics {
+  connections: DatabaseConnectionStats;
+  health: DatabaseHealthStats;
+  performance: DatabasePerformanceStats;
+}
+
 export interface MetricsSnapshot {
   timestamp: string;
   uptime: number;
@@ -90,6 +119,7 @@ export interface MetricsSnapshot {
     savedCalls: number;
     inFlightCount: number;
   };
+  database: DatabaseMetrics | null;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -170,6 +200,9 @@ class MetricsService {
   private cacheMisses = 0;
   private dedupSavedCalls = 0;
   private dedupInFlight = 0;
+
+  // Database metrics — populated by setDatabaseMetrics()
+  private databaseMetrics: DatabaseMetrics | null = null;
 
   private flushTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -274,6 +307,17 @@ class MetricsService {
   recordDedupSaved(): void { this.dedupSavedCalls++; }
   setDedupInFlight(count: number): void { this.dedupInFlight = count; }
 
+  // ── Database Metrics ──────────────────────────────────────────────────────
+
+  /**
+   * Push a fresh database metrics snapshot into the collector.
+   * Called periodically by the server startup code (or on each /api/metrics
+   * request) so the snapshot always reflects the current pool state.
+   */
+  setDatabaseMetrics(db: DatabaseMetrics): void {
+    this.databaseMetrics = db;
+  }
+
   // ── Snapshot ─────────────────────────────────────────────────────────────
 
   /**
@@ -334,6 +378,7 @@ class MetricsService {
         savedCalls: this.dedupSavedCalls,
         inFlightCount: this.dedupInFlight,
       },
+      database: this.databaseMetrics,
     };
   }
 
