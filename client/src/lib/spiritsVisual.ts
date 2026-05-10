@@ -1,4 +1,4 @@
-// 15 精靈的視覺配置 — 提供給任何需要顯示精靈名稱 / chip / deck 的元件用。
+// 22 精靈的視覺配置 — 提供給任何需要顯示精靈名稱 / chip / deck 的元件用。
 // 之前直接寫在 AgentChat.tsx 裡，但 ProactiveOrbWidget 也要顯示「這條是誰回的」
 // chip，把同一份資料同時讓 page 與 widget 共用，避免重複維護兩份。
 //
@@ -218,6 +218,94 @@ export const SPIRITS: SpiritVisual[] = [
     ring: "ring-emerald-300/60",
     family: "proactive",
   },
+  // ─── 7 位新增精靈 ─────────────────────────────────────────────
+  // 法律 / 資安 / 輔導：偵測到風險或卡關時自動冒出來，編入 proactive
+  {
+    id: "legal-advisor",
+    emoji: "⚖️",
+    label: "法律精靈",
+    nickname: "律律",
+    vibe: "主動把 AI 生成的版權 / 商標 / 肖像紅線講清楚，給安全改寫",
+    greeting: "嗨我律律 ⚖️ 你想做的內容我先幫你看三道紅線：版權、商標、肖像。",
+    prompt: "@律律 這個能不能商用",
+    gradient: "from-stone-400 to-amber-600",
+    ring: "ring-amber-300/60",
+    family: "proactive",
+  },
+  {
+    id: "security-guard",
+    emoji: "🔒",
+    label: "資安精靈",
+    nickname: "安安",
+    vibe: "守住帳號 / 金鑰 / 隱私：看到敏感字串會立刻按下停止鍵",
+    greeting: "嗨我安安 🔒 別把密碼或金鑰貼進來，我帶你到 /settings 安全儲存。",
+    prompt: "@安安 我帳號好像被盜",
+    gradient: "from-slate-500 to-zinc-700",
+    ring: "ring-slate-300/60",
+    family: "proactive",
+  },
+  {
+    id: "onboarding-coach",
+    emoji: "🤝",
+    label: "輔導精靈",
+    nickname: "帶帶",
+    vibe: "卡關時主動陪你一步一步操作，找不到按鈕就喊我",
+    greeting: "嗨我帶帶 🤝 別急，跟我講你剛剛想做什麼，我陪你一步一步走。",
+    prompt: "@帶帶 我卡住了",
+    gradient: "from-lime-400 to-emerald-500",
+    ring: "ring-lime-300/60",
+    family: "proactive",
+  },
+  // 社群：知識領域型，跟 6 specialist 同類
+  {
+    id: "community-manager",
+    emoji: "📣",
+    label: "社群精靈",
+    nickname: "群群",
+    vibe: "懂 IG / TikTok / 小紅書 / YouTube 各年齡層風格與發文公式",
+    greeting: "嗨我群群 📣 想經營哪個平台？目標受眾年齡層大概？我給你貼文公式 + hashtag。",
+    prompt: "@群群 教我經營",
+    gradient: "from-pink-500 to-rose-600",
+    ring: "ring-pink-300/60",
+    family: "specialist",
+  },
+  // 總管 / 筆記 / 設定：跨領域協調，跟 6 role 同類
+  {
+    id: "chief-orchestrator",
+    emoji: "🎩",
+    label: "總管理精靈",
+    nickname: "總總",
+    vibe: "管整個 22 位精靈團隊：誰在跑、誰排隊、誰該交棒給誰",
+    greeting: "嗨我總總 🎩 幫你看一下團隊狀態，看是要先看進行中、還是下一棒建議？",
+    prompt: "@總總 看一下團隊狀態",
+    gradient: "from-indigo-500 to-violet-600",
+    ring: "ring-indigo-300/60",
+    family: "role",
+  },
+  {
+    id: "notes-curator",
+    emoji: "📒",
+    label: "筆記與排程精靈",
+    nickname: "記記",
+    vibe: "存筆記、翻舊素材、排程貼文 / 待辦，幫你把資訊整齊分類",
+    greeting: "嗨我記記 📒 你想存什麼、找什麼、排幾點？關鍵字告訴我，30 秒內找到。",
+    prompt: "@記記 幫我記下",
+    gradient: "from-amber-300 to-yellow-500",
+    ring: "ring-amber-300/60",
+    family: "role",
+  },
+  {
+    id: "settings-detail",
+    emoji: "⚙️",
+    label: "設定與細節精靈",
+    nickname: "細細",
+    vibe: "帶你到對的設定頁，並用一句話講清楚「打開這個會 ___」",
+    greeting: "嗨我細細 ⚙️ 想調哪個？通知 / 主題 / 預設模型 / 金鑰，我帶你過去。",
+    prompt: "@細細 幫我調設定",
+    gradient: "from-cyan-500 to-blue-600",
+    ring: "ring-cyan-300/60",
+    family: "role",
+  },
 ];
 
 export const SPIRITS_BY_ID: Record<AgentRole, SpiritVisual> = SPIRITS.reduce(
@@ -236,9 +324,9 @@ export function getSpiritVisual(role: string | undefined | null): SpiritVisual |
 
 /** UI 標籤 — 多代理討論面板用，依 family 分區顯示。 */
 export const SPIRIT_FAMILY_LABEL: Record<SpiritFamily, string> = {
-  specialist: "專精精靈（圖 / 影 / 音 / 聲 / 訓 / 學）",
-  role: "通用同事（導 / 編 / 品 / 查 / 路 / 暖）",
-  proactive: "主動精靈（財 / 巧 / 守）",
+  specialist: "專精精靈（圖 / 影 / 音 / 聲 / 訓 / 學 / 群）",
+  role: "通用同事（導 / 編 / 品 / 查 / 路 / 暖 / 總 / 記 / 細）",
+  proactive: "主動精靈（財 / 巧 / 守 / 律 / 安 / 帶）",
 };
 
 /** 列出某個 family 下所有 spirit 視覺資料，供討論面板顯示成可勾選清單。 */

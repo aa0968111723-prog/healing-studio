@@ -74,6 +74,28 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
   accountant:      { kind: "llm-persona" },
   "quality-coach": { kind: "llm-persona" },
   inspector:       { kind: "llm-persona" },
+
+  // ─── 7 位新增精靈 ───────────────────────────────────────────
+  // 法律 / 資安 / 輔導：被 @ 時走 LLM 人格給建議；主動觸發另有 event bus
+  "legal-advisor":      { kind: "llm-persona" },
+  "security-guard":     { kind: "llm-persona" },
+  "onboarding-coach":   { kind: "llm-persona" },
+  // 社群經理：知識諮詢型，走 LLM 人格（產素材時會交棒給 specialist）
+  "community-manager":  { kind: "llm-persona" },
+  // 總管：純文字討論團隊狀態
+  "chief-orchestrator": { kind: "llm-persona" },
+  // 記記：跳到 /notes 中心翻舊素材 / 建立筆記
+  "notes-curator": {
+    kind: "navigate",
+    toPath: "/notes",
+    arrivalHint: "記記帶你到筆記中心，搜尋或建立都可以。",
+  },
+  // 細細：跳到 /settings
+  "settings-detail": {
+    kind: "navigate",
+    toPath: "/settings",
+    arrivalHint: "細細帶你到設定頁，告訴我要調哪個我直接帶你切過去。",
+  },
 };
 
 export function getChatToolForSpirit(role: AgentRole): SpiritChatTool {
