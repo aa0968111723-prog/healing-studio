@@ -7,6 +7,7 @@ import { getDb, getRecentOrbFeedback } from "../db";
 import { DEFAULT_AGENT_PREFERENCES } from "../../shared/agent-preferences";
 import { distillPreferenceProfile } from "../../shared/orb-preference-distiller";
 import { getRecentOrbMemories } from "../services/orbMemory";
+import { getAggregatedPicksForPrompt } from "../services/agentModelPicks";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
 
 const CostBudgetSchema = z
@@ -214,7 +215,15 @@ export const agentPreferencesRouter = router({
     } catch {
       memories = [];
     }
-    const profile = distillPreferenceProfile({ feedbackEvents, memories });
+    // Fold the shared agent_model_picks aggregate into the same distiller
+    // call the chat router uses — so the settings inspector sees director
+    // picks the same way the planner prompt does.
+    const agentModelPicks = await getAggregatedPicksForPrompt(ctx.user.id);
+    const profile = distillPreferenceProfile({
+      feedbackEvents,
+      memories,
+      agentModelPicks,
+    });
     // Return a leaner shape — the inspector only needs the headline
     // numbers, not the entire breakdown structure.
     return {

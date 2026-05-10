@@ -75,6 +75,7 @@ import {
   getSpecialistMemoryHints,
   recordToolAuditAsSpecialistInteraction,
 } from "./services/specializedAgentMemoryStore";
+import { getAggregatedPicksForPrompt } from "./services/agentModelPicks";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -5634,11 +5635,14 @@ export const appRouter = router({
             : undefined;
 
         // 從 specialized_agent_interactions 拉最近的 tool 名與專精助手習慣。
-        // 兩者並行，回傳空陣列 / 空字串都是合法（DB 不可用時不阻塞 chat）。
-        const [recentSpecialistTools, specialistHints] = await Promise.all([
-          getRecentSpecialistTools(ctx.user.id, 5),
-          getSpecialistMemoryHints(ctx.user.id),
-        ]);
+        // 同時拉 agent_model_picks 的聚合（讓導演 / 工作室寫過的 modelId
+        // 出現在 planner 的偏好模型區塊）。三者並行，每一支回傳空值都合法。
+        const [recentSpecialistTools, specialistHints, agentModelPicks] =
+          await Promise.all([
+            getRecentSpecialistTools(ctx.user.id, 5),
+            getSpecialistMemoryHints(ctx.user.id),
+            getAggregatedPicksForPrompt(ctx.user.id),
+          ]);
 
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
@@ -5664,6 +5668,7 @@ export const appRouter = router({
             userMessage: latestUserMessageText,
             recentTools: recentSpecialistTools,
             specialistHints,
+            agentModelPicks,
           }
         );
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
@@ -6130,6 +6135,7 @@ export const appRouter = router({
               userMessage: latestUserMessageText,
               recentTools: recentSpecialistTools,
               specialistHints,
+              agentModelPicks,
             });
             const chatOnlyResult = await withTimeout(
               invokeLLM({

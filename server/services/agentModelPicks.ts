@@ -203,6 +203,67 @@ export async function getTopPreferredModel(
 }
 
 /**
+ * Aggregate the user's picks ACROSS modalities so the orb planner prompt
+ * can fold them into `preferredModels` without first knowing which
+ * modality the next turn will hit. Used by the chat router (one call per
+ * turn) and by `agentPreferencesRouter.getDistilledProfile` (the settings
+ * inspector). Caps at `topK` rows so the prompt budget stays small.
+ *
+ * Returns an empty array on DB failure.
+ */
+export async function getAggregatedPicksForPrompt(
+  userId: number,
+  topK = 8,
+  windowDays = 60
+): Promise<
+  Array<{ modelId: string; pickCount: number; acceptedCount: number }>
+> {
+  if (!userId || userId <= 0) return [];
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    const cutoff = new Date(
+      Date.now() - Math.max(1, Math.min(windowDays, 365)) * 24 * 60 * 60 * 1000
+    );
+
+    const rows = (await db
+      .select({
+        modelId: agentModelPicks.modelId,
+        pickCount: sql<number>`count(*)`.as("pickCount"),
+        acceptedCount: sql<number>`sum(case when ${agentModelPicks.accepted} = true then 1 else 0 end)`.as(
+          "acceptedCount"
+        ),
+      })
+      .from(agentModelPicks)
+      .where(
+        and(
+          eq(agentModelPicks.userId, userId),
+          sql`${agentModelPicks.createdAt} >= ${cutoff}`
+        )
+      )
+      .groupBy(agentModelPicks.modelId)
+      .orderBy(desc(sql`pickCount`))
+      .limit(Math.max(1, Math.min(topK, 50)))) as Array<{
+      modelId: string;
+      pickCount: number | string;
+      acceptedCount: number | string | null;
+    }>;
+
+    return rows.map(r => ({
+      modelId: r.modelId,
+      pickCount: Number(r.pickCount) || 0,
+      acceptedCount: Number(r.acceptedCount ?? 0) || 0,
+    }));
+  } catch (err) {
+    logger.warn("agent_model_pick_aggregate_failed", {
+      err: err instanceof Error ? err.message : String(err),
+      userId,
+    });
+    return [];
+  }
+}
+
+/**
  * Recent raw picks across modalities — used by the orb's preference distiller
  * so the global agent's recommendations include director-driven picks too.
  */

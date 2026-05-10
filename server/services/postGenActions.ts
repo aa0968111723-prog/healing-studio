@@ -22,6 +22,7 @@ import * as db from "../db";
 import { getDb } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { addGenerationLog } from "./brainAutoRepair";
+import { updateLatestPickAcceptance } from "./agentModelPicks";
 
 export const MIN_PROMPT_LENGTH_FOR_LIBRARY = 4;
 export const MAX_PROMPT_TITLE_LENGTH = 80;
@@ -128,6 +129,26 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
     });
   } catch {
     // 靜默忽略
+  }
+
+  // 1-5. agent_model_picks 接受度回填
+  // 一個生成有 resultUrl 視為被工作室採用 → mark the user's most recent
+  // pick of (modality, modelId) as accepted=true. The orb's preference
+  // distiller weights `acceptedCount * 2` over `pickCount`, so this is
+  // what makes a model the user actually keeps using rise to the top of
+  // recommendations vs. one they picked once and abandoned.
+  if (resultUrl && modelId) {
+    try {
+      await updateLatestPickAcceptance({
+        userId,
+        modality,
+        modelId,
+        accepted: true,
+      });
+    } catch {
+      // updateLatestPickAcceptance is itself best-effort, but be doubly
+      // defensive so a slow / failed write never breaks the success path.
+    }
   }
 }
 

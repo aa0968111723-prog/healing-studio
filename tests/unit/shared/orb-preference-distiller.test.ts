@@ -197,3 +197,81 @@ describe("suggestAutoApproveActions", () => {
     expect(auto).not.toContain("submit");
   });
 });
+
+// ─── agent_model_picks integration ──────────────────────────────────────
+//
+// These pin the bridge that lets 導演 AI 與 全站光球 share a single model
+// preference signal: picks the user makes anywhere on the site land in
+// `agent_model_picks`, the chat router aggregates them once per turn, and
+// the distiller folds them into the same `preferredModels` list it
+// already builds from OrbMemory.
+
+describe("distillPreferenceProfile — agent_model_picks merge", () => {
+  it("includes a high-pickCount modelId in preferredModels even with no memory rows", () => {
+    const profile = distillPreferenceProfile({
+      agentModelPicks: [
+        { modelId: "fal-ai/flux/schnell", pickCount: 6, acceptedCount: 4 },
+        { modelId: "fal-ai/sdxl", pickCount: 2, acceptedCount: 1 },
+      ],
+    });
+    expect(profile.preferredModels[0]).toBe("fal-ai/flux/schnell");
+    expect(profile.preferredModels).toContain("fal-ai/sdxl");
+  });
+
+  it("weights acceptedCount more heavily than raw pickCount", () => {
+    // Model A: high pickCount, zero acceptance → still a "tried, rejected"
+    //   fallback, not the leader.
+    // Model B: half the picks but every one accepted → should win.
+    const profile = distillPreferenceProfile({
+      agentModelPicks: [
+        { modelId: "model-a", pickCount: 4, acceptedCount: 0 },
+        { modelId: "model-b", pickCount: 3, acceptedCount: 3 },
+      ],
+    });
+    // Score: A = 0*2 + (4-0)*1 = 4 ; B = 3*2 + 0 = 6 → B wins.
+    expect(profile.preferredModels[0]).toBe("model-b");
+    // Model A picked >=2 times but never accepted → drops into avoided list.
+    expect(profile.avoidedModels).toContain("model-a");
+  });
+
+  it("keeps memories' model signals AND picks in the same ranked list", () => {
+    const memories: OrbMemory[] = [
+      memory({
+        type: "model_preference",
+        tags: ["fal-ai/legacy-model"],
+      }),
+    ];
+    const profile = distillPreferenceProfile({
+      memories,
+      agentModelPicks: [
+        { modelId: "fal-ai/flux/schnell", pickCount: 5, acceptedCount: 3 },
+      ],
+    });
+    expect(profile.preferredModels).toContain("fal-ai/flux/schnell");
+    expect(profile.preferredModels).toContain("fal-ai/legacy-model");
+    expect(profile.preferredModels[0]).toBe("fal-ai/flux/schnell");
+  });
+
+  it("treats picks as evidence for confidence (no longer a cold start)", () => {
+    const cold = distillPreferenceProfile({});
+    expect(cold.confidence).toBe(0);
+    const withPicks = distillPreferenceProfile({
+      agentModelPicks: [
+        { modelId: "x", pickCount: 8, acceptedCount: 5 },
+      ],
+    });
+    expect(withPicks.confidence).toBeGreaterThan(0);
+    expect(withPicks.totalMemoriesConsidered).toBe(8);
+  });
+
+  it("ignores empty modelId / zero pickCount entries", () => {
+    const profile = distillPreferenceProfile({
+      agentModelPicks: [
+        { modelId: "", pickCount: 99, acceptedCount: 99 },
+        { modelId: "junk", pickCount: 0, acceptedCount: 0 },
+        { modelId: "fal-ai/flux/schnell", pickCount: 3, acceptedCount: 2 },
+      ],
+    });
+    expect(profile.preferredModels).toEqual(["fal-ai/flux/schnell"]);
+  });
+});

@@ -1274,13 +1274,36 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     return total;
   }, [tasks, selectedModels, modelOptions]);
 
+  // Pre-fetch the user's shared picks (one round-trip across all four
+  // modalities) so the defaults loader can prefer "what this user
+  // actually picked elsewhere" over brain defaults. The query is cached
+  // for 60s and falls back to {} on logged-out / DB-down.
+  const sharedPicksQuery = trpc.agentModelPicks.getPreferredByModalities.useQuery(
+    { modalities: ["image", "video", "audio", "voice"] },
+    { staleTime: 60_000, refetchOnWindowFocus: false }
+  );
+
   // Set default model selections when models load.
-  // 優先順序：(1) 大腦組態偏好引擎且仍可用 → (2) 第一個可用 → (3) 第一個。
+  // 優先順序：(1) 跨站共用 picks（director / 光球 / studios 都寫進來）→
+  // (2) 大腦組態偏好引擎 → (3) 第一個可用 → (4) 第一個。
+  // Shared picks 排在 brainDefaults 前面，因為使用者的歷史選擇是強過站台
+  // 預設的訊號 — 整合的目的就是讓導演 AI 先看「這個人實際選過什麼」。
   useEffect(() => {
     if (!modelsQuery.data) return;
     const defaults: Record<string, string> = {};
+    const sharedByModality = sharedPicksQuery.data?.byModality ?? {};
     for (const [modality, models] of Object.entries(modelOptions)) {
       if (selectedModels[modality] || models.length === 0) continue;
+
+      const sharedPref = sharedByModality[modality];
+      const sharedMatch = sharedPref
+        ? models.find(m => m.modelId === sharedPref && m.available)
+        : null;
+      if (sharedMatch) {
+        defaults[modality] = sharedMatch.modelId;
+        continue;
+      }
+
       const brainPref = brainDefaults[modality];
       const brainMatch = brainPref
         ? models.find(m => m.modelId === brainPref && m.available)
@@ -1295,7 +1318,12 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     if (Object.keys(defaults).length > 0) {
       setSelectedModels(prev => ({ ...prev, ...defaults }));
     }
-  }, [modelsQuery.data, modelOptions, brainDefaults]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    modelsQuery.data,
+    modelOptions,
+    brainDefaults,
+    sharedPicksQuery.data,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Best-effort recorder — fires when the user dispatches a task to a studio
   // so the (modality, modelId) pick lands in the shared `agent_model_picks`

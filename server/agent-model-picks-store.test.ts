@@ -54,6 +54,7 @@ vi.mock("./db", () => ({
 }));
 
 import {
+  getAggregatedPicksForPrompt,
   getPreferredModelsForModality,
   getRecentPicks,
   getTopPreferredModel,
@@ -257,5 +258,34 @@ describe("getRecentPicks", () => {
     const rows = await getRecentPicks(0, 5);
     expect(rows).toEqual([]);
     expect(selectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAggregatedPicksForPrompt", () => {
+  it("returns aggregate rows with numeric counts ready for the distiller", async () => {
+    selectMock.mockResolvedValueOnce([
+      { modelId: "fal-flux-schnell", pickCount: 5, acceptedCount: 3 },
+      { modelId: "fal-sdxl", pickCount: "2", acceptedCount: null },
+    ]);
+    const rows = await getAggregatedPicksForPrompt(7);
+    expect(rows).toEqual([
+      { modelId: "fal-flux-schnell", pickCount: 5, acceptedCount: 3 },
+      // Drizzle drivers may surface counts as strings; the aggregator must
+      // coerce to numbers so the distiller's arithmetic doesn't end up
+      // concatenating strings.
+      { modelId: "fal-sdxl", pickCount: 2, acceptedCount: 0 },
+    ]);
+  });
+
+  it("returns empty array for anonymous users without hitting DB", async () => {
+    const rows = await getAggregatedPicksForPrompt(0);
+    expect(rows).toEqual([]);
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it("returns empty array on DB failure (degrades gracefully)", async () => {
+    selectMock.mockRejectedValueOnce(new Error("db gone"));
+    const rows = await getAggregatedPicksForPrompt(7);
+    expect(rows).toEqual([]);
   });
 });

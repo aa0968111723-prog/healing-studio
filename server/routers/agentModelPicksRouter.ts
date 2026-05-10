@@ -100,6 +100,40 @@ export const agentModelPicksRouter = router({
     }),
 
   /**
+   * Batch lookup: top model id per modality, in one round-trip. Used by
+   * Director AI's defaults loader so all four modalities (image / video /
+   * audio / voice) get pre-filled from shared picks without spawning four
+   * parallel `getPreferredForModality` queries.
+   *
+   * Returns a `Record<modality, modelId>` — modalities with no picks are
+   * omitted (the caller should fall back to brain defaults / first
+   * available).
+   */
+  getPreferredByModalities: protectedProcedure
+    .input(
+      z.object({
+        modalities: z.array(ModalityInput).min(1).max(8),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const entries = await Promise.all(
+        input.modalities.map(async modality => {
+          const list = await getPreferredModelsForModality({
+            userId: ctx.user.id,
+            modality,
+            topK: 1,
+          });
+          return [modality, list[0]?.modelId ?? null] as const;
+        })
+      );
+      const result: Record<string, string> = {};
+      for (const [modality, modelId] of entries) {
+        if (modelId) result[modality] = modelId;
+      }
+      return { byModality: result };
+    }),
+
+  /**
    * Recent raw picks — exposed so the settings page's "光球已經記得" inspector
    * can show a unified pick history across director + orb.
    */
