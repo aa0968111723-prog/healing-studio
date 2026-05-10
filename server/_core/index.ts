@@ -63,7 +63,7 @@ import { orbTasksRouter } from "../routes/orbTasks";
 import { adminEventsRouter } from "../routes/adminEvents";
 import { toolsModelsRouter } from "../routes/toolsModels";
 import { installFetchGuard } from "./fetchGuard";
-import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
+import { globalErrorHandler, registerFatalErrorHandlers, errorRateTracker } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
 import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
@@ -76,7 +76,7 @@ import {
 } from "../services/providerHealth";
 import { WebSocketServer } from "ws";
 import { handleOrbVoiceConnection } from "../ws/orbVoiceGateway";
-import { cache } from "./cache";
+import { cache, httpCache, HTTP_CACHE_TTL } from "./cache";
 import { metrics } from "./metrics";
 import { featureFlags } from "./featureFlags";
 import { rateLimiters, rateLimitContextMiddleware } from "./rateLimiter";
@@ -485,8 +485,10 @@ async function startServer() {
   });
 
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
-  // Must respond within the healthcheck window (typically 5m on Railway)
-  app.get("/api/health", (_req, res) => {
+  // Must respond within the healthcheck window (typically 5m on Railway).
+  // Cached for 10s (HTTP_CACHE_TTL.health) — liveness probes fire frequently
+  // and the storage backend detection is cheap but not free.
+  app.get("/api/health", httpCache({ ttl: HTTP_CACHE_TTL.health }), (_req, res) => {
     const storageBackend = detectStorageBackend();
     res.json({ ok: true, ts: Date.now(), storage: storageBackend });
   });
@@ -494,15 +496,19 @@ async function startServer() {
   // ── Performance metrics endpoint ─────────────────────────────────────────
   // Returns in-process latency, error rates, cache stats, and feature flags.
   // Restricted to internal/admin use — not rate-limited by the API limiter.
-  app.get("/api/metrics", (_req, res) => {
+  // Cached for 30s (HTTP_CACHE_TTL.metrics) — snapshot is cheap but callers
+  // may poll aggressively; 30s staleness is acceptable for observability data.
+  app.get("/api/metrics", httpCache({ ttl: HTTP_CACHE_TTL.metrics }), (_req, res) => {
     const snap = metrics.getSnapshot();
     const cacheStats = cache.getStats();
     const flags = featureFlags.getAllStatuses();
+    const errorRates = errorRateTracker.getSnapshot();
     res.json({
       ok: true,
       metrics: snap,
       cache: cacheStats,
       featureFlags: flags,
+      errorRates,
     });
   });
   app.use("/api/webhooks", webhooksRouter);

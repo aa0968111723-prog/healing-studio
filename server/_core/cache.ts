@@ -11,12 +11,24 @@
  *   - Namespace-prefixed keys to avoid collisions between cache domains
  *   - Zero external dependencies — pure Node.js
  *
+ * HTTP Response Caching:
+ *   - httpCache() middleware factory for Express routes
+ *   - ETag generation for conditional GET support (304 Not Modified)
+ *   - Per-endpoint TTL configuration
+ *   - Cache-Control header management
+ *   - User-scoped cache keys for authenticated endpoints
+ *
  * Usage:
  *   import { cache } from "./_core/cache";
  *   await cache.set("llm:response:abc123", result, { ttl: 300 });
  *   const hit = await cache.get<InvokeResult>("llm:response:abc123");
+ *
+ *   // HTTP response caching:
+ *   import { httpCache } from "./_core/cache";
+ *   app.get("/api/health", httpCache({ ttl: 10 }), handler);
  */
 
+import type { Request, Response, NextFunction } from "express";
 import { logger } from "./logger";
 import { serverEnv } from "./env.validated";
 
@@ -237,6 +249,22 @@ class CacheService {
     this.lru.set(key, value, ttl);
   }
 
+  /**
+   * Low-level synchronous get — bypasses the async wrapper and namespace TTL
+   * lookup. Used internally by httpCache middleware for zero-overhead reads.
+   */
+  getRaw<T>(key: string): T | null {
+    return this.lru.get<T>(key);
+  }
+
+  /**
+   * Low-level synchronous set with an explicit TTL in seconds.
+   * Used internally by httpCache middleware to store HTTP responses.
+   */
+  setRaw<T>(key: string, value: T, ttlSeconds: number): void {
+    this.lru.set(key, value, ttlSeconds);
+  }
+
   async delete(key: string): Promise<boolean> {
     return this.lru.delete(key);
   }
@@ -350,3 +378,178 @@ class CacheService {
 export const cache = new CacheService();
 
 export { CacheService };
+
+// ─── HTTP Response Cache Middleware ───────────────────────────────────────
+
+/**
+ * TTL presets (seconds) for well-known endpoints.
+ * These are the source-of-truth values — import and reference them when
+ * registering httpCache() middleware so TTLs stay in sync with comments.
+ */
+export const HTTP_CACHE_TTL = {
+  /** /api/health — lightweight liveness probe, safe to cache briefly */
+  health: 10,
+  /** /api/metrics — in-process snapshot, 30s staleness is acceptable */
+  metrics: 30,
+  /** /api/auth/me — user profile, per-user scoped, short TTL */
+  authMe: 15,
+  /** Static asset metadata — changes rarely */
+  staticMeta: 3_600,
+} as const;
+
+export interface HttpCacheOptions {
+  /**
+   * Cache TTL in seconds.
+   * The same value is used for both the in-process store and the
+   * Cache-Control max-age directive sent to the client.
+   */
+  ttl: number;
+  /**
+   * When true, the cache key is scoped to the authenticated user ID
+   * (extracted from req.user?.id or the Authorization header).
+   * Use for endpoints that return user-specific data (e.g. /api/auth/me).
+   * Defaults to false (shared cache key based on path + query string).
+   */
+  userScoped?: boolean;
+  /**
+   * When true, Cache-Control is set to "private" instead of "public".
+   * Automatically forced to true when userScoped is true.
+   * Defaults to false.
+   */
+  private?: boolean;
+}
+
+interface CachedHttpResponse {
+  body: unknown;
+  etag: string;
+  cachedAt: number;
+}
+
+/** djb2 hash — same algorithm used by buildLlmKey, no crypto overhead */
+function djb2(input: string): string {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash) ^ input.charCodeAt(i);
+    hash = hash >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * Generate a weak ETag from a JSON-serialisable response body.
+ * Format: W/"<8-char-hex>"
+ */
+function generateETag(body: unknown): string {
+  const serialized = JSON.stringify(body) ?? "";
+  return `W/"${djb2(serialized)}"`;
+}
+
+/**
+ * Build the in-process cache key for an HTTP response.
+ *
+ * Key format:
+ *   Shared  : "http:<path>:<queryHash>"
+ *   User    : "http:<path>:<queryHash>:u<userId>"
+ */
+function buildHttpCacheKey(req: Request, userScoped: boolean): string {
+  const path = req.path;
+  const queryHash = djb2(JSON.stringify(req.query));
+  const base = `http:${path}:${queryHash}`;
+  if (!userScoped) return base;
+
+  // Support both tRPC context (req.user) and raw JWT middleware (req.auth)
+  const authedReq = req as Request & {
+    user?: { id?: number };
+    auth?: { sub?: string };
+  };
+  const userId =
+    authedReq.user?.id?.toString() ??
+    authedReq.auth?.sub ??
+    // Fall back to Authorization header fingerprint so unauthenticated
+    // requests don't accidentally share a cache slot with authenticated ones.
+    djb2(req.headers.authorization ?? "anon");
+
+  return `${base}:u${userId}`;
+}
+
+/**
+ * Express middleware factory that caches GET responses in the in-process LRU
+ * store and sets appropriate HTTP cache headers.
+ *
+ * Features:
+ *   - Serves cached responses without hitting downstream handlers
+ *   - Generates and validates ETags for conditional GET (304 Not Modified)
+ *   - Sets Cache-Control headers matching the configured TTL
+ *   - Intercepts res.json() to capture and store the response body
+ *   - Skips caching for non-GET requests and error responses (status >= 400)
+ *   - User-scoped keys prevent cross-user cache pollution
+ *
+ * @example
+ *   // Public endpoint — shared cache, 10s TTL
+ *   app.get("/api/health", httpCache({ ttl: HTTP_CACHE_TTL.health }), handler);
+ *
+ *   // User-specific endpoint — per-user cache, 15s TTL
+ *   app.get("/api/auth/me", httpCache({ ttl: HTTP_CACHE_TTL.authMe, userScoped: true, private: true }), handler);
+ */
+export function httpCache(opts: HttpCacheOptions) {
+  const { ttl, userScoped = false } = opts;
+  const isPrivate = opts.private === true || userScoped;
+  const cacheControlValue = isPrivate
+    ? `private, max-age=${ttl}`
+    : `public, max-age=${ttl}`;
+
+  return function httpCacheMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): void {
+    // Only cache GET requests
+    if (req.method !== "GET") {
+      next();
+      return;
+    }
+
+    const cacheKey = buildHttpCacheKey(req, userScoped);
+
+    // ── Cache read ──────────────────────────────────────────────────────
+    const cached = cache.getRaw<CachedHttpResponse>(cacheKey);
+    if (cached) {
+      // Validate ETag for conditional GET
+      const ifNoneMatch = req.headers["if-none-match"];
+      if (ifNoneMatch && ifNoneMatch === cached.etag) {
+        res.setHeader("ETag", cached.etag);
+        res.setHeader("Cache-Control", cacheControlValue);
+        res.setHeader("X-Cache", "HIT");
+        res.status(304).end();
+        logger.debug("[HttpCache] 304 Not Modified", { cacheKey, etag: cached.etag });
+        return;
+      }
+
+      res.setHeader("ETag", cached.etag);
+      res.setHeader("Cache-Control", cacheControlValue);
+      res.setHeader("X-Cache", "HIT");
+      res.json(cached.body);
+      logger.debug("[HttpCache] Cache hit", { cacheKey, ttl });
+      return;
+    }
+
+    // ── Cache miss — intercept res.json() to capture the response ──────
+    res.setHeader("X-Cache", "MISS");
+
+    const originalJson = res.json.bind(res);
+    res.json = function cachedJson(body: unknown): Response {
+      // Only cache successful responses
+      if (res.statusCode >= 200 && res.statusCode < 400) {
+        const etag = generateETag(body);
+        const entry: CachedHttpResponse = { body, etag, cachedAt: Date.now() };
+        cache.setRaw(cacheKey, entry, ttl);
+        res.setHeader("ETag", etag);
+        res.setHeader("Cache-Control", cacheControlValue);
+        logger.debug("[HttpCache] Response cached", { cacheKey, ttl, etag });
+      }
+      return originalJson(body);
+    };
+
+    next();
+  };
+}
