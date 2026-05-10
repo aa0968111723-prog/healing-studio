@@ -89,6 +89,7 @@ import {
   recordToolAuditAsSpecialistInteraction,
 } from "./services/specializedAgentMemoryStore";
 import { getAggregatedPicksForPrompt } from "./services/agentModelPicks";
+import { getOrbMemorySummary, upsertOrbMemory } from "./services/orbUserMemory";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -5941,6 +5942,51 @@ export const appRouter = router({
             // terminal event before clearOrbChatProgress wipes the bucket.
             emitOrbChatProgress(idempKey, "finalizing", "整理回應…");
           }
+          void (async () => {
+            try {
+              // 每次 ai.chat 回覆後，把最近 5 條訊息 + 本次回覆濃縮成短摘要，存入 users.orbMemorySummary。
+              // 這份摘要會在下一次請求時注入 buildOrbSystemPrompt 的 context。
+              const replyText =
+                result &&
+                typeof result === "object" &&
+                "reply" in result &&
+                typeof (result as { reply?: unknown }).reply === "string"
+                  ? ((result as { reply: string }).reply ?? "").trim()
+                  : "";
+              if (!replyText) return;
+              const recentMessages = input.messages.slice(-5).map(message => {
+                const text =
+                  typeof message.content === "string"
+                    ? message.content
+                    : Array.isArray(message.content)
+                      ? message.content
+                          .filter(part => part.type === "text")
+                          .map(part => part.text)
+                          .join("\n")
+                      : "";
+                return `${message.role}: ${text}`;
+              });
+              recentMessages.push(`orb: ${replyText}`);
+              const summaryResult = await invokeLLM({
+                model: "gpt-4o-mini",
+                temperature: 0.2,
+                preferEngine: "auto",
+                messages: [
+                  {
+                    role: "system",
+                    content: "請將對話濃縮成繁體中文 50 字內摘要，只輸出摘要文字。",
+                  },
+                  { role: "user", content: recentMessages.join("\n") },
+                ],
+                runName: "orb-user-memory-summary",
+                timeoutMs: 6_000,
+              });
+              const summary = extractMessageText(summaryResult.choices[0]?.message?.content).trim();
+              if (summary) await upsertOrbMemory(ctx.user.id, summary);
+            } catch (error) {
+              console.warn("[Orb] failed to update user memory summary:", error);
+            }
+          })();
           return enriched;
         };
 
@@ -6315,12 +6361,21 @@ export const appRouter = router({
             getAggregatedPicksForPrompt(ctx.user.id),
           ]);
 
+        const persistedOrbMemorySummary = await getOrbMemorySummary(ctx.user.id);
+        const mergedPromptContext = [
+          input.context,
+          persistedOrbMemorySummary
+            ? `【使用者短期記憶摘要】\n${persistedOrbMemorySummary}`
+            : undefined,
+        ]
+          .filter((s): s is string => Boolean(s && s.trim()))
+          .join("\n\n");
         const stayOnPageModeFromInput = Boolean(
           (input.preferences as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode
         );
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
-          input.context ?? undefined,
+          mergedPromptContext || undefined,
           {
             pageSnapshot: input.pageSnapshot,
             recentFeedback: mergedFeedback,

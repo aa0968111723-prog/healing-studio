@@ -49,6 +49,8 @@ export const users = mysqlTable(
     avatarUrl: text("avatarUrl"),
     /** Opaque token for the public ICS feed at /api/ics/<token>.ics. Rotating revokes existing subscriptions. */
     icsFeedToken: varchar("icsFeedToken", { length: 64 }),
+    /** Global orb condensed conversation memory (latest summary). */
+    orbMemorySummary: text("orbMemorySummary"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
