@@ -179,7 +179,7 @@ import {
 } from "./services/internalMedia";
 import { eq } from "drizzle-orm";
 import { userAiBrain, promptLibrary } from "../drizzle/schema";
-import { getDb, getSiteWideModelUsageSnapshot } from "./db";
+import { getDb, getSiteWideModelUsageSnapshot, getUserTopModelRecent } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
 import {
@@ -1161,10 +1161,19 @@ export const appRouter = router({
       return result;
     }),
 
-    /** 取得使用者目前積分餘額（需登入） */
+    /** 取得使用者目前積分餘額（需登入）+ 近 30 天花最多的模型，給「財財」精靈
+     *  的低餘額提醒文案使用，避免顯示 (待接入) 占位字串。 */
     myBalance: protectedProcedure.query(async ({ ctx }) => {
+      let topModel: string | null = null;
+      try {
+        const top = await getUserTopModelRecent(ctx.user.id, { days: 30 });
+        if (top?.model) topModel = top.model;
+      } catch {
+        // DB 不可用或表為空 — 落在 null，前端會給「最近的高耗模型」備援文案。
+      }
       return {
         remaining: ctx.user.remainingGenerations ?? 0,
+        topModel,
       };
     }),
   }),
@@ -5896,6 +5905,15 @@ export const appRouter = router({
               r.agentRoleConfidence = spiritSelection.confidence;
               r.agentRoleRationale = spiritSelection.rationale;
             }
+            // 思考步驟 fallback intent 用：當 schema-first planner 失敗時，
+            // 從這條使用者訊息合成「使用者訊息：…」一行，避免「辨識脈絡」整段空白。
+            if (
+              typeof latestUserTextForRouting === "string" &&
+              latestUserTextForRouting.trim() &&
+              r.userMessage === undefined
+            ) {
+              r.userMessage = latestUserTextForRouting;
+            }
             // 「協作團隊」一併掛上：思考步驟面板在 sections 增加一條
             // 「召喚協作精靈」section 用這個欄位，多精靈協作不再只是文件描述。
             if (spiritTeam.length > 0 && r.spiritTeam === undefined) {
@@ -5945,12 +5963,34 @@ export const appRouter = router({
               : r?.plannerOutput && typeof r.plannerOutput === "object"
                 ? (r.plannerOutput as Record<string, unknown>)
                 : null;
+          // Schema-first 計畫成功 → 直接拿 plan.intent；fallback 路徑 LLM
+          // 沒帶 [INTENT:...] 時 intent 會是 null，這時 panel 的「辨識脈絡」
+          // 整段就會被 buildReasoningSectionsFromPlan 跳過，使用者看不到任何
+          // 真實思考線索。退而求其次，從 spiritSelection rationale + 最近的
+          // user prompt 合成一條，至少讓「為什麼挑這位精靈接手」可見。
+          const rationaleStr =
+            typeof r?.agentRoleRationale === "string" && r.agentRoleRationale.trim()
+              ? r.agentRoleRationale.trim()
+              : null;
+          const userMessageStr =
+            typeof r?.userMessage === "string" && r.userMessage.trim()
+              ? r.userMessage.trim()
+              : null;
+          const synthesizedIntent =
+            rationaleStr || userMessageStr
+              ? [
+                  userMessageStr ? `使用者訊息：「${userMessageStr.slice(0, 120)}${userMessageStr.length > 120 ? "…" : ""}」` : null,
+                  rationaleStr ? `判定原因：${rationaleStr}` : null,
+                ]
+                  .filter(Boolean)
+                  .join("\n")
+              : null;
           const intent =
-            typeof r?.intent === "string"
+            typeof r?.intent === "string" && r.intent.trim()
               ? r.intent
-              : typeof planRecord?.intent === "string"
+              : typeof planRecord?.intent === "string" && (planRecord.intent as string).trim()
                 ? (planRecord.intent as string)
-                : null;
+                : synthesizedIntent;
           const summaryForUser =
             typeof planRecord?.summaryForUser === "string"
               ? (planRecord.summaryForUser as string)

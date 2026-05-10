@@ -346,6 +346,156 @@ const normalizeMessage = (message: Message) => {
 };
 
 
+/**
+ * Perplexity Sonar's chat-completions endpoint enforces stricter rules
+ * than the OpenAI spec it advertises:
+ *
+ *   1. After the (optional) system messages, user/tool messages MUST
+ *      alternate with assistant messages (no `user → user` runs).
+ *   2. `tool` and `function` roles are not accepted at all.
+ *   3. Multiple system messages are tolerated only when they appear
+ *      contiguously at the very top.
+ *
+ * The schema-first planner generates a long system prompt + the original
+ * conversation, and the legacy fallback prepends ANOTHER system message.
+ * When the user just sent a follow-up turn, the resulting payload often
+ * looks like `[system, user, user, …]`, which Sonar rejects with
+ * `400 invalid_message`. The orb then has to fall back to the
+ * legacy parser, and the user sees `fallback-planner-error` instead of
+ * a real plan + reasoning chain.
+ *
+ * We coalesce here so the planner's actual reasoning makes it through:
+ *   - Merge contiguous system messages into one (joined with blank lines).
+ *   - Convert tool/function turns into user turns prefixed with the tool
+ *     name (Sonar still grounds against the text content).
+ *   - Collapse consecutive same-role user/assistant runs by joining their
+ *     text contents with a blank line. Image/file parts are preserved on
+ *     the kept side so Sonar still sees the attachment.
+ *   - Ensure the first non-system message is a user message (if it's an
+ *     assistant message, drop it — Sonar otherwise 400s).
+ */
+export const adaptMessagesForPerplexity = (messages: ReturnType<typeof normalizeMessage>[]) => {
+  const flattenText = (content: unknown): string => {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content
+      .map(part => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object" && (part as { type?: string }).type === "text") {
+          return (part as { text?: string }).text ?? "";
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  };
+
+  // 1) Coerce tool/function → user; drop empty assistant placeholders.
+  const coerced = messages
+    .map(msg => {
+      const role = (msg as { role?: string }).role;
+      if (role === "tool" || role === "function") {
+        const text = flattenText((msg as { content?: unknown }).content);
+        const name = (msg as { name?: string }).name;
+        return {
+          role: "user" as const,
+          content: name ? `[tool:${name}] ${text}` : text,
+        };
+      }
+      return msg as { role: "system" | "user" | "assistant"; content: unknown };
+    })
+    .filter(m => {
+      // Drop fully empty messages so they don't break the alternation count.
+      const text = flattenText((m as { content?: unknown }).content);
+      const c = (m as { content?: unknown }).content;
+      const hasMedia =
+        Array.isArray(c) &&
+        c.some(
+          p =>
+            p &&
+            typeof p === "object" &&
+            ((p as { type?: string }).type === "image_url" ||
+              (p as { type?: string }).type === "file_url")
+        );
+      return text.trim().length > 0 || hasMedia;
+    });
+
+  // 2) Pull contiguous system messages off the front, merging their text.
+  const systemBlocks: string[] = [];
+  let i = 0;
+  while (i < coerced.length && (coerced[i] as { role?: string }).role === "system") {
+    systemBlocks.push(flattenText((coerced[i] as { content?: unknown }).content));
+    i += 1;
+  }
+  const rest = coerced.slice(i).filter(m => (m as { role?: string }).role !== "system");
+
+  // 3) Drop a leading assistant turn — Sonar requires the first non-system
+  //    message to be user/tool.
+  while (rest.length > 0 && (rest[0] as { role?: string }).role === "assistant") {
+    rest.shift();
+  }
+
+  // 4) Collapse consecutive same-role runs by joining their text content.
+  //    For non-text parts (images, files), we keep them on the LAST message
+  //    in the run so Sonar still sees the most recent attachment context.
+  const collapsed: typeof coerced = [];
+  for (const msg of rest) {
+    const last = collapsed[collapsed.length - 1];
+    if (last && (last as { role?: string }).role === (msg as { role?: string }).role) {
+      const lastText = flattenText((last as { content?: unknown }).content);
+      const curText = flattenText((msg as { content?: unknown }).content);
+      const merged = [lastText, curText].filter(Boolean).join("\n\n");
+      // Prefer the current message's array content (likely has fresher media),
+      // falling back to plain text when both sides were strings.
+      const curContent = (msg as { content?: unknown }).content;
+      if (Array.isArray(curContent)) {
+        const replaced = curContent.map(part => {
+          if (
+            part &&
+            typeof part === "object" &&
+            (part as { type?: string }).type === "text"
+          ) {
+            return { ...(part as Record<string, unknown>), text: merged };
+          }
+          return part;
+        });
+        // If there was no text part on the current, prepend one.
+        const hasText = replaced.some(
+          p =>
+            p &&
+            typeof p === "object" &&
+            (p as { type?: string }).type === "text"
+        );
+        const finalContent = hasText
+          ? replaced
+          : [{ type: "text", text: merged }, ...replaced];
+        collapsed[collapsed.length - 1] = {
+          ...(last as Record<string, unknown>),
+          content: finalContent,
+        } as (typeof collapsed)[number];
+      } else {
+        collapsed[collapsed.length - 1] = {
+          ...(last as Record<string, unknown>),
+          content: merged,
+        } as (typeof collapsed)[number];
+      }
+    } else {
+      collapsed.push(msg);
+    }
+  }
+
+  // 5) Reattach the (single) merged system message.
+  const out: typeof coerced = [];
+  if (systemBlocks.length > 0) {
+    const merged = systemBlocks.filter(Boolean).join("\n\n");
+    if (merged.trim().length > 0) {
+      out.push({ role: "system", content: merged } as (typeof coerced)[number]);
+    }
+  }
+  out.push(...collapsed);
+  return out;
+};
+
 const adaptMessagesForGeminiCompat = (messages: ReturnType<typeof normalizeMessage>[]) => {
   return messages.map(msg => {
     const c = (msg as { content?: unknown }).content;
@@ -1630,9 +1780,13 @@ async function invokeSingleEngine(
         model: resolvedModel,
         messages: (() => {
           const normalized = messages.map(normalizeMessage);
-          return engineConfig.engine === "gemini" || engineConfig.engine === "vertex"
-            ? adaptMessagesForGeminiCompat(normalized)
-            : normalized;
+          if (engineConfig.engine === "gemini" || engineConfig.engine === "vertex") {
+            return adaptMessagesForGeminiCompat(normalized);
+          }
+          if (engineConfig.engine === "perplexity") {
+            return adaptMessagesForPerplexity(normalized);
+          }
+          return normalized;
         })(),
         max_tokens: maxTokens ?? max_tokens ?? 8192,
       };
