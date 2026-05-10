@@ -928,6 +928,32 @@ export function buildFeatureSummaryReply(): string {
   ].join("\n");
 }
 
+/**
+ * 偵測「功能詢問」意圖 — 使用者用自然語言問「你能做什麼 / 做得到 X 嗎 /
+ * 有什麼功能 / 能不能 …」這類問題時，sendMessage 直接餵 buildFeatureSummaryReply
+ * 而不必走 LLM。這樣使用者得到的清單一定來自 APP_PAGE_REGISTRY（不會幻想），
+ * 也不會花到一輪對話額度。
+ *
+ * 設計刻意保守：必須是「整句問功能」才命中，避免誤吃「我能不能換個方向」、
+ * 「你做的不錯」這類同字面但不同意圖的訊息。
+ */
+const FEATURE_INQUIRY_PATTERNS: ReadonlyArray<RegExp> = [
+  /^你(能|可以|會).*(做|提供|幫).*?(什麼|哪些|啥)/,
+  /^這(個站|個服務|裡)(能|可以|有).*(做|提供|幫).*?(什麼|哪些|啥)/,
+  /^(有|提供)(哪些|什麼)(功能|工具|服務|能力)/,
+  /^(怎麼用|如何用|怎麼開始)/,
+  /^(做|生|出)得到\s*[\S]{1,12}\s*嗎/,
+  /^能不能.{1,12}(?:[?？]|$)/,
+  /^(你|這站|平台)(到底|目前|現在)?(能|會|可以)(做|處理)/,
+  /^給我(看|列|一份)?(?:全部|所有)?(功能|工具|服務)(列表|清單)?/,
+];
+
+export function detectFeatureInquiry(text: string): boolean {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed || trimmed.length > 80) return false;
+  return FEATURE_INQUIRY_PATTERNS.some(re => re.test(trimmed));
+}
+
 function styleHint(prefs: RememberedCreationPreferences | undefined): string {
   if (!prefs?.styles?.length) return "";
   return `（風格傾向：${prefs.styles.slice(0, 2).join("、")}）`;
