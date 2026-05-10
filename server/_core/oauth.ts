@@ -80,6 +80,41 @@ function isSafeRedirectPath(path: string): boolean {
   return true;
 }
 
+function isTransientDbError(error: unknown): boolean {
+  const maybeCode =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    maybeCode === "ER_LOCK_WAIT_TIMEOUT" ||
+    maybeCode === "ER_LOCK_DEADLOCK" ||
+    maybeCode === "PROTOCOL_CONNECTION_LOST" ||
+    maybeCode === "ECONNRESET" ||
+    maybeCode === "ETIMEDOUT" ||
+    message.includes("deadlock") ||
+    message.includes("lock wait timeout") ||
+    message.includes("connection lost")
+  );
+}
+
+async function upsertUserWithOneRetry(input: Parameters<typeof db.upsertUser>[0]): Promise<void> {
+  try {
+    await db.upsertUser(input);
+  } catch (error) {
+    if (!isTransientDbError(error)) throw error;
+    console.warn("[OAuth] Transient DB error during upsert; retrying once...", {
+      code: typeof error === "object" && error !== null && "code" in error
+        ? (error as { code?: unknown }).code
+        : undefined,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await db.upsertUser(input);
+  }
+}
+
 export function registerOAuthRoutes(app: Express) {
   // ── 1. 啟動 Google 登入流程 ───────────────────────────────
   app.get("/api/oauth/google/start", (req: Request, res: Response) => {
@@ -194,7 +229,7 @@ export function registerOAuthRoutes(app: Express) {
         openId: userInfo.sub,
         email: userInfo.email,
       });
-      await db.upsertUser({
+      await upsertUserWithOneRetry({
         openId: userInfo.sub,
         name: userInfo.name || null,
         email: userInfo.email ?? null,
