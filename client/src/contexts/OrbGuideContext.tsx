@@ -802,11 +802,13 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const arrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigationRunIdRef = useRef(0);
   const cancelArrivalTimer = useCallback(() => {
     if (arrivalTimerRef.current) {
       clearTimeout(arrivalTimerRef.current);
       arrivalTimerRef.current = null;
     }
+    navigationRunIdRef.current += 1;
   }, []);
 
   // 防止 provider unmount（例如 SPA 在嚴格模式下二次掛載）後計時器
@@ -826,6 +828,8 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setIntent(chosen);
     setAnswers({});
     questionIndexRef.current = 0;
+    // 強制打開面板，避免聊天模式殘留造成意圖卡/問題卡偶發不顯示。
+    setIsPanelOpen(true);
     setStep("ask_detail");
   }, []);
 
@@ -865,12 +869,39 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
           manualSteps,
         };
         setPlan(newPlan);
+        // 保底再次打開：某些跨頁/聊天驅動回切時，panel 可能剛被關閉。
+        setIsPanelOpen(true);
         setStep("confirming");
       }
       // 否則繼續下一個問題（step 保持 ask_detail，由 Panel 靠 questionIndex 決定顯示哪題）
     },
     [intent, answers]
   );
+
+  const normalizePath = useCallback((path: string) => {
+    try {
+      const u = new URL(path, window.location.origin);
+      return `${u.pathname}${u.search}`;
+    } catch {
+      return path;
+    }
+  }, []);
+
+  const waitForTargetPath = useCallback((targetPath: string, timeoutMs = 4500) => {
+    const target = normalizePath(targetPath);
+    const startedAt = Date.now();
+    return new Promise<void>(resolve => {
+      const tick = () => {
+        const current = `${window.location.pathname}${window.location.search}`;
+        if (current === target || Date.now() - startedAt >= timeoutMs) {
+          resolve();
+          return;
+        }
+        window.setTimeout(tick, 120);
+      };
+      tick();
+    });
+  }, [normalizePath]);
 
   const confirmAndNavigate = useCallback(() => {
     if (!plan) return;
@@ -896,11 +927,14 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       })
     );
 
-    // 短暫延遲後切到「到站」步驟，讓動畫完成
-    setTimeout(() => {
+    // 等到路由真的到 targetPath（或 timeout）再切 arrived，避免還在舊頁就顯示到站。
+    const runId = ++navigationRunIdRef.current;
+    void waitForTargetPath(plan.targetPath).then(() => {
+      if (navigationRunIdRef.current !== runId) return;
+      setIsPanelOpen(true);
       setStep("arrived");
-    }, 800);
-  }, [plan]);
+    });
+  }, [plan, waitForTargetPath]);
 
   const reset = useCallback(() => {
     cancelArrivalTimer();
@@ -996,12 +1030,14 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       // 顯示在光球旁邊，但 arrival 卡本身已經把訊息寫在 header 了，重複
       // 只會吵到使用者。
 
-      arrivalTimerRef.current = setTimeout(() => {
-        arrivalTimerRef.current = null;
+      const runId = ++navigationRunIdRef.current;
+      void waitForTargetPath(input.targetPath, 5000).then(() => {
+        if (navigationRunIdRef.current !== runId) return;
+        setIsPanelOpen(true);
         setStep("arrived");
-      }, 600);
+      });
     },
-    [cancelArrivalTimer]
+    [cancelArrivalTimer, waitForTargetPath]
   );
 
   const patchPlan = useCallback(

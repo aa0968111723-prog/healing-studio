@@ -1430,9 +1430,21 @@ export default memo(function ProactiveOrbWidget({
 
   // ─── Feedback helper ─────────────────────────────────────────────────
 
+  const seenFeedbackMessagesRef = useRef<Set<string>>(new Set());
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const showFeedback = useCallback((msg: string) => {
+    const normalized = msg.trim();
+    // 同一訊息顯示過就不再重複彈出，避免主動精靈「洗版」。
+    if (!normalized || seenFeedbackMessagesRef.current.has(normalized)) return;
+    seenFeedbackMessagesRef.current.add(normalized);
+
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     setFeedbackMessage(msg);
-    setTimeout(() => setFeedbackMessage(null), 2500);
+    feedbackTimerRef.current = setTimeout(() => {
+      setFeedbackMessage(null);
+      feedbackTimerRef.current = null;
+    }, 2500);
   }, []);
 
   // ─── OrbGuide integration ─────────────────────────────────────────────
