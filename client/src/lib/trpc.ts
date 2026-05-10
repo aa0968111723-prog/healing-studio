@@ -20,7 +20,9 @@ export const NON_BATCHED_PROCEDURE_PREFIXES = [
   "director.",
   "evaluate.",
   "models.",
+  "ai.orbTask.",
   "orbTask.",
+  "ai.codeTask.",
   "codeTask.",
 ] as const;
 
