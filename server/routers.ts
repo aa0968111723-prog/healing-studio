@@ -69,6 +69,7 @@ import {
 } from "./services/agentPlanner";
 import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
 import { runOrbTaskWithOptionalMultiAgent, isMultiAgentRoutingEnabled } from "./services/multiAgentIntegration";
+import { buildIcsFeed } from "./services/icsExport";
 import { getOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
@@ -4791,71 +4792,25 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const all = await db.getProjectNotesByUser(ctx.user.id);
         const includeDone = input?.includeDone ?? false;
-        const events = all.filter(n => {
-          if (!n.scheduledDate) return false;
-          if (!includeDone && (n.status ?? "todo") === "done") return false;
-          return true;
-        });
-
-        const fmt = (d: Date) =>
-          d
-            .toISOString()
-            .replace(/[-:]/g, "")
-            .replace(/\.\d{3}/, "");
-        const escape = (s: string) =>
-          s
-            .replace(/\\/g, "\\\\")
-            .replace(/\n/g, "\\n")
-            .replace(/,/g, "\\,")
-            .replace(/;/g, "\\;");
-        const fold = (line: string) =>
-          line.length <= 75 ? line : line.match(/.{1,75}/g)!.join("\r\n ");
-
-        const dtStamp = fmt(new Date());
-        const lines: string[] = [
-          "BEGIN:VCALENDAR",
-          "VERSION:2.0",
-          "PRODID:-//HealingStudio//Notes//EN",
-          "CALSCALE:GREGORIAN",
-          "METHOD:PUBLISH",
-          "X-WR-CALNAME:Healing Studio 創作排程",
-        ];
-        for (const n of events) {
-          const start = new Date(n.scheduledDate!);
-          const startStr = fmt(start);
-          const end = new Date(start.getTime() + 60 * 60 * 1000);
-          const endStr = fmt(end);
-          const xStatus =
-            (n.status ?? "todo") === "done"
-              ? "COMPLETED"
-              : n.status === "in_progress"
-                ? "IN-PROCESS"
-                : "NEEDS-ACTION";
-          const desc =
-            (n.content ?? "") +
-            (n.tags && (n.tags as string[]).length
-              ? `\n\n#${(n.tags as string[]).join(" #")}`
-              : "");
-          lines.push(
-            "BEGIN:VEVENT",
-            `UID:healing-studio-note-${n.id}@healing-studio`,
-            `DTSTAMP:${dtStamp}`,
-            `DTSTART:${startStr}`,
-            `DTEND:${endStr}`,
-            fold(`SUMMARY:${escape(n.title)}`)
-          );
-          if (desc.trim()) lines.push(fold(`DESCRIPTION:${escape(desc)}`));
-          lines.push(
-            `STATUS:${(n.status ?? "todo") === "done" ? "CONFIRMED" : "TENTATIVE"}`,
-            `X-HEALING-STUDIO-STATUS:${xStatus}`,
-            "END:VEVENT"
-          );
-        }
-        lines.push("END:VCALENDAR");
+        const events = all
+          .filter(n => {
+            if (!n.scheduledDate) return false;
+            if (!includeDone && (n.status ?? "todo") === "done") return false;
+            return true;
+          })
+          .map(n => ({
+            id: n.id,
+            title: n.title,
+            content: n.content,
+            scheduledDate: n.scheduledDate as Date,
+            status: n.status,
+            tags: n.tags as string[] | null,
+          }));
+        const content = buildIcsFeed(events);
         return {
           filename: `healing-studio-schedule-${new Date().toISOString().slice(0, 10)}.ics`,
           mime: "text/calendar",
-          content: lines.join("\r\n") + "\r\n",
+          content,
           eventCount: events.length,
         };
       }),
