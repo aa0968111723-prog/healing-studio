@@ -6,6 +6,7 @@ import { db } from "../db";
 const MAX_MEMORY_CHARS = 2000;
 
 export async function loadOrbUserMemorySummary(userId: number): Promise<string | null> {
+  if (!(db as { select?: unknown } | undefined)?.select) return null;
   const row = await db
     .select({ summary: users.orbMemorySummary })
     .from(users)
@@ -43,6 +44,7 @@ export async function summarizeAndPersistOrbUserMemory(input: {
     const result = await invokeLLM({ messages, model: "gpt-4o-mini", temperature: 0, maxTokens: 220 });
     const next = (result.text ?? "").trim().slice(0, MAX_MEMORY_CHARS);
     if (!next) return null;
+    if (!(db as { update?: unknown } | undefined)?.update) return next;
     await db
       .update(users)
       .set({ orbMemorySummary: next })
