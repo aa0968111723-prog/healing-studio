@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS `user_google_oauth_tokens` (
   UNIQUE KEY `user_google_oauth_tokens_user_purpose_uk` (`userId`, `purpose`),
   KEY `user_google_oauth_tokens_user_idx` (`userId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `drive_asset_libraries` (
   `id` int NOT NULL AUTO_INCREMENT,

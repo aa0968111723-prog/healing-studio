@@ -11,6 +11,7 @@ import {
   bigint,
   date,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ─────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ export const users = mysqlTable(
     roleIdx: index("users_role_idx").on(table.role),
     // Auto-credit scheduling index — used by the auto-credit cron job
     autoCreditNextAtIdx: index("users_autoCreditNextAt_idx").on(table.autoCreditNextAt),
-    icsFeedTokenIdx: index("users_icsFeedToken_idx").on(table.icsFeedToken),
+    icsFeedTokenIdx: uniqueIndex("users_icsFeedToken_idx").on(table.icsFeedToken),
   })
 );
 
@@ -503,6 +504,10 @@ export const userGoogleOauthTokens = mysqlTable(
   },
   table => ({
     userIdx: index("user_google_oauth_tokens_user_idx").on(table.userId),
+    userPurposeUk: uniqueIndex("user_google_oauth_tokens_user_purpose_uk").on(
+      table.userId,
+      table.purpose
+    ),
   })
 );
 
