@@ -11,6 +11,7 @@
 
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
+import { parse as parseCookie } from "cookie";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import {
@@ -18,10 +19,17 @@ import {
   exchangeCodeForTokens,
   getGoogleUserInfo,
   createSessionToken,
+  verifySessionToken,
   isDemoMode,
   DEMO_USER,
   GoogleTokenExchangeError,
 } from "./googleAuth";
+import {
+  buildDriveAuthUrl,
+  exchangeDriveCode,
+  saveDriveTokens,
+} from "../services/googleDrive";
+import { decodeOAuthState, encodeOAuthState } from "./oauthState";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -29,13 +37,18 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 function getRedirectFromState(state?: string): string {
-  if (!state) return "/";
-  try {
-    const decoded = Buffer.from(state, "base64").toString("utf-8") || "/";
-    return isSafeRedirectPath(decoded) ? decoded : "/";
-  } catch {
-    return "/";
-  }
+  const parsed = decodeOAuthState(state);
+  return isSafeRedirectPath(parsed.redirect) ? parsed.redirect : "/";
+}
+
+async function getCurrentUserOpenIdFromCookie(
+  req: Request
+): Promise<string | null> {
+  const cookies = parseCookie(req.headers.cookie || "");
+  const sessionToken = cookies[COOKIE_NAME];
+  if (!sessionToken) return null;
+  const payload = await verifySessionToken(sessionToken);
+  return payload?.sub ?? null;
 }
 
 function appendErrorParam(path: string, reason: string): string {
@@ -89,6 +102,35 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
+  // ── 1b. 啟動 Google Drive 增量授權 ─────────────────────────
+  // 必須已登入；piggy-back 在 /api/oauth/callback URI 上，靠 state 內的
+  // purpose 區分回來時要走 login 還是 drive 分支。
+  app.get(
+    "/api/oauth/google/drive/start",
+    async (req: Request, res: Response) => {
+      const openId = await getCurrentUserOpenIdFromCookie(req);
+      if (!openId) {
+        res.redirect(302, "/login?redirect=/assets");
+        return;
+      }
+      let redirectAfter = getQueryParam(req, "redirect") || "/assets";
+      if (!isSafeRedirectPath(redirectAfter)) redirectAfter = "/assets";
+
+      try {
+        const state = encodeOAuthState({
+          redirect: redirectAfter,
+          purpose: "drive",
+          userOpenId: openId,
+        });
+        const authUrl = buildDriveAuthUrl(state, req);
+        res.redirect(302, authUrl);
+      } catch (error) {
+        console.error("[OAuth] Failed to build Drive auth URL", error);
+        redirectWithAuthError(res, "drive_oauth_config_error");
+      }
+    }
+  );
+
   // ── 2. Google 回呼處理 ────────────────────────────────────
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -114,6 +156,12 @@ export function registerOAuthRoutes(app: Express) {
     if (!code) {
       console.error("[OAuth] Missing authorization code");
       redirectWithAuthError(res, "missing_code", state);
+      return;
+    }
+
+    const decodedState = decodeOAuthState(state);
+    if (decodedState.purpose === "drive") {
+      await handleDriveCallback(req, res, code, decodedState.redirect, decodedState.userOpenId);
       return;
     }
 
@@ -210,6 +258,52 @@ export function registerOAuthRoutes(app: Express) {
       redirectWithAuthError(res, reason, state);
     }
   });
+
+  // ── 2b. Drive 授權 callback handler ───────────────────────
+  // 拆成獨立函式而不是 inline 在大 callback 裡，是因為 Drive 流程要
+  // 「綁定到目前已登入的使用者」，跟 login 流程的 upsertUser 完全是兩條路。
+  async function handleDriveCallback(
+    req: Request,
+    res: Response,
+    code: string,
+    redirectAfter: string,
+    expectedOpenId: string | undefined
+  ) {
+    try {
+      const sessionOpenId = await getCurrentUserOpenIdFromCookie(req);
+      if (!sessionOpenId) {
+        redirectWithAuthError(res, "drive_session_required");
+        return;
+      }
+      // Defence-in-depth: state must match the cookie's user. Stops a
+      // logged-in attacker tricking another user into linking their Drive.
+      if (expectedOpenId && expectedOpenId !== sessionOpenId) {
+        redirectWithAuthError(res, "drive_session_mismatch");
+        return;
+      }
+      const user = await db.getUserByOpenId(sessionOpenId);
+      if (!user) {
+        redirectWithAuthError(res, "drive_user_not_found");
+        return;
+      }
+
+      const tokens = await exchangeDriveCode(code, req);
+      // Google sometimes silently scopes-down — verify the user actually
+      // approved Drive scope before saving.
+      if (!tokens.scope.includes("drive")) {
+        redirectWithAuthError(res, "drive_scope_missing");
+        return;
+      }
+      await saveDriveTokens(user.id, tokens);
+
+      const target = isSafeRedirectPath(redirectAfter) ? redirectAfter : "/assets";
+      const separator = target.includes("?") ? "&" : "?";
+      res.redirect(302, `${target}${separator}drive_connected=1`);
+    } catch (error) {
+      console.error("[OAuth] Drive callback failed", error);
+      redirectWithAuthError(res, "drive_oauth_failed");
+    }
+  }
 
   // ── 3. 登出 ───────────────────────────────────────────────
   app.post("/api/oauth/logout", (req: Request, res: Response) => {

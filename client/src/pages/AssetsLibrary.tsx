@@ -59,8 +59,10 @@ import {
   Users,
   ListChecks,
   Clock,
+  Cloud,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import { DriveLibrarySection } from "@/components/DriveLibrarySection";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
 import { shortErrorMsg } from "@/lib/upload";
@@ -136,10 +138,18 @@ const ASSET_TYPES = [
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 
 // ─── Section Tabs (合併後的大分頁) ───────────────────────────────────────────
-type SectionId = "assets" | "prompts" | "vault" | "shared" | "tasks" | "history";
+type SectionId =
+  | "assets"
+  | "prompts"
+  | "vault"
+  | "shared"
+  | "tasks"
+  | "history"
+  | "drive";
 
 const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
+  { id: "drive", label: "Drive 素材庫", icon: <Cloud className="w-3.5 h-3.5" /> },
   { id: "history", label: "生成歷史", icon: <Clock className="w-3.5 h-3.5" /> },
   { id: "prompts", label: "提示詞庫", icon: <BookMarked className="w-3.5 h-3.5" /> },
   { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
@@ -1059,6 +1069,9 @@ export default function AssetsLibrary() {
           <BackgroundTasksPage />
         </Suspense>
       )}
+
+      {/* ─── Google Drive 素材庫 ───────────────────────────────────────────── */}
+      {section === "drive" && <DriveLibrarySection />}
     </div>
   );
 }
