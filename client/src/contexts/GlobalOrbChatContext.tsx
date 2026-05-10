@@ -3046,21 +3046,37 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
     // 15 精靈 / 巧巧 (quality-coach)：使用者送出的 prompt 過短且沒 @ 點名，
     // 巧巧主動跳出來建議補幾個維度。dedupe by hash 避免每打 1 字觸發一次。
-    // 條件刻意保守 — 只在「真的太短」(<8 char) 且「無附件、無 @-mention」時觸發。
+    // 條件刻意保守 — 只在「真的太短」(<8 char) 且「無附件、無 @-mention」
+    // 時觸發。
+    //
+    // 重要：巧巧必須讀對話上下文才能判斷該不該跳出來。如果上一條 user 訊息
+    // 是長 prompt（≥ 16 字），現在這條短句多半是「好繼續」「ok 繼續做」這
+    // 類延續對話，不是新的需求 — 此時不該再叫巧巧勸使用者補維度，否則就
+    // 像截圖那樣對「好繼續把腳本做好」回應「prompt 有點短」，明顯沒讀對話。
     if (
       trimmed.length > 0 &&
       trimmed.length < 8 &&
       attachments.length === 0 &&
       !/^@/.test(trimmed)
     ) {
-      ProactiveEventBus.publish(
-        "prompt_too_short",
-        {
-          prompt: trimmed,
-          suggestedAddition: "場景、風格、用途其中一個",
-        },
-        { dedupeKey: trimmed.slice(0, 4), dedupeMs: 60_000 }
+      const recentUserHistory = messagesRef.current
+        .filter(m => m.role === "user")
+        .slice(-3); // 看最近 3 條 user 訊息決定是否為延續對話
+      const hasRecentLongPrompt = recentUserHistory.some(
+        m => (m.text ?? "").trim().length >= 16,
       );
+      // 也跳過明顯是「同意 / 延續」短語：好、好的、繼續、ok、yes、go…
+      const isContinuationCue = /^(好|好的|好喔|好啊|繼續|繼續做|ok|okay|yes|對|是的|可以|嗯|go|next|讚)$|(請|麻煩).{0,3}繼續/i.test(trimmed);
+      if (!hasRecentLongPrompt && !isContinuationCue) {
+        ProactiveEventBus.publish(
+          "prompt_too_short",
+          {
+            prompt: trimmed,
+            suggestedAddition: "場景、風格、用途其中一個",
+          },
+          { dedupeKey: trimmed.slice(0, 4), dedupeMs: 60_000 }
+        );
+      }
     }
 
     // Stamp this turn so any awaited result that resolves after the user
@@ -3462,9 +3478,58 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         // ── D) llm-persona: 不在這裡攔，讓既有 LLM 流程接手（selectRoleForIntent
         //     會套上該精靈的人格切片）。但仍把 collab 下一棒列為建議，方便使用者
         //     看到 LLM 回覆後可以一鍵交棒給下一位精靈。
+        //
+        // 例外：@導導 — 使用者明確找導演規劃多步驟工作流。直接觸發
+        // startAutoDiscussion 走「多精靈鏈」執行，由導導先排計畫、編編 /
+        // 圖圖 / 影影 / 聲聲 / 音音 / 品品 依 SPIRIT_COLLAB_PROTOCOL 接手，
+        // 而不是只回一段 LLM 純文字。`maxRounds=5` 是 router 上限，足夠跑
+        // 完一條完整的計畫（plan → execute → review）。
+        if (
+          tool.kind === "llm-persona"
+          && mentioned === "director"
+          && cleanPrompt.length >= 6
+        ) {
+          orbState.setState("thinking", "導導 開始排計畫…");
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: `🗺️ 導導 排好計畫後，會把每一步交給對的精靈接手 — 你會看到他們一棒一棒接著做。`,
+            at: Date.now(),
+            pagePath: locationPath,
+            agentRole: "director",
+            intent: "auto-multi-step-discussion",
+          }]);
+          try {
+            const discussion = await startAutoDiscussionMutation.mutateAsync({
+              prompt: cleanPrompt,
+              initialAgent: "director",
+              maxRounds: 5,
+              timeoutMsPerTurn: 25_000,
+            });
+            if (!isStale()) {
+              setActiveDiscussionId(discussion.collaborationId);
+              setSuggestions(buildHandoffChips("director"));
+            }
+          } catch (err) {
+            if (isStale()) return;
+            const reason = err instanceof Error ? err.message : String(err);
+            orbState.setState("error", "導導 啟動失敗");
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: `導導 啟動多步討論時遇到問題：${reason}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: "director",
+            }]);
+          } finally {
+            setIsSending(false);
+          }
+          return;
+        }
+
         if (tool.kind === "llm-persona") {
-          // 只設 suggestions hint，不 return — 讓下方 LLM 流程繼續跑
-          // （suggestions 在 LLM 回完後會被覆蓋成 LLM 的，這只是預設值）
+          // 其他 llm-persona 精靈：只設 suggestions hint，不 return — 讓下方
+          // LLM 流程繼續跑（suggestions 在 LLM 回完後會被覆蓋成 LLM 的，這
+          // 只是預設值）
         }
       }
     }
