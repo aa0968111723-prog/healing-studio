@@ -126,8 +126,8 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
           SELECT 1
           FROM information_schema.columns
           WHERE table_schema = DATABASE()
-            AND table_name = 'agent_preferences'
-            AND column_name = ${columnName}
+            AND LOWER(table_name) = LOWER('agent_preferences')
+            AND LOWER(column_name) = LOWER(${columnName})
         ) AS existsFlag
       `)) as unknown as Array<{ existsFlag: number }>;
       const existsFlag = Number(existsRows[0]?.existsFlag ?? 0);
