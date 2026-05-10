@@ -41,7 +41,33 @@ import {
   Wand2,
   History,
   Loader2,
+  Circle,
+  CircleDot,
+  CircleCheck,
+  AlertTriangle,
+  Flame,
+  CalendarClock,
+  Sparkles,
+  BookOpen,
+  Package,
+  FileJson,
+  FileDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  exportMarkdownBundle,
+  exportSingleMarkdown,
+  exportNotesJson,
+  type ExportableNote,
+} from "@/lib/noteExports";
+import { launchResearch } from "@/lib/researchLaunch";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,6 +110,54 @@ const noteTypeInfo: Record<
 const NOTE_TYPES = ["all", "note", "script", "calendar_event"] as const;
 type NoteTypeFilter = (typeof NOTE_TYPES)[number];
 
+type NoteStatus = "todo" | "in_progress" | "done";
+const STATUS_FILTERS = ["open", "todo", "in_progress", "done", "all"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+const statusInfo: Record<
+  NoteStatus,
+  { label: string; icon: React.ReactNode; pill: string; ring: string }
+> = {
+  todo: {
+    label: "待辦",
+    icon: <Circle className="w-3.5 h-3.5" />,
+    pill: "bg-zen-sky/15 text-zen-sky border-zen-sky/30",
+    ring: "ring-zen-sky/30",
+  },
+  in_progress: {
+    label: "進行中",
+    icon: <CircleDot className="w-3.5 h-3.5" />,
+    pill: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+    ring: "ring-amber-500/30",
+  },
+  done: {
+    label: "已完成",
+    icon: <CircleCheck className="w-3.5 h-3.5" />,
+    pill: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
+    ring: "ring-emerald-500/30",
+  },
+};
+
+const statusFilterLabel: Record<StatusFilter, string> = {
+  open: "未完成",
+  todo: "待辦",
+  in_progress: "進行中",
+  done: "已完成",
+  all: "全部狀態",
+};
+
+function nextStatus(s: NoteStatus): NoteStatus {
+  if (s === "todo") return "in_progress";
+  if (s === "in_progress") return "done";
+  return "todo";
+}
+
+function startOfTodayMs(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function downloadTextFile(content: string, filename: string) {
@@ -121,7 +195,45 @@ export default function NotesPage() {
   // ── View state ──
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<NoteTypeFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // ── Perplexity research dialog state ──
+  const [showResearch, setShowResearch] = useState(false);
+  const [researchQuery, setResearchQuery] = useState("");
+  const [researchEngine, setResearchEngine] = useState<
+    "perplexity" | "google" | "google-scholar"
+  >("perplexity");
+
+  const openResearchDialog = useCallback(
+    (seed?: string) => {
+      setResearchQuery((seed ?? search ?? "").trim());
+      setResearchEngine("perplexity");
+      setShowResearch(true);
+    },
+    [search]
+  );
+
+  const submitResearch = useCallback(() => {
+    const q = researchQuery.trim();
+    if (!q) {
+      toast.error("請輸入研究主題");
+      return;
+    }
+    const ok = launchResearch(q, researchEngine);
+    if (!ok) {
+      toast.error("瀏覽器擋下新分頁，請允許彈出視窗");
+      return;
+    }
+    setShowResearch(false);
+    toast.success(`已在新分頁開啟${
+      researchEngine === "perplexity"
+        ? " Perplexity"
+        : researchEngine === "google-scholar"
+          ? " Google Scholar"
+          : " Google"
+    }`);
+  }, [researchQuery, researchEngine]);
 
   // ── Edit state ──
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -131,10 +243,19 @@ export default function NotesPage() {
 
   // ── Data ──
   const notesQuery = trpc.notes.list.useQuery(undefined, { retry: false });
+  const summaryQuery = trpc.notes.summary.useQuery(
+    { todayStart: startOfTodayMs(), upcomingDays: 7 },
+    { retry: false }
+  );
+
+  const refetchAll = useCallback(() => {
+    notesQuery.refetch();
+    summaryQuery.refetch();
+  }, [notesQuery, summaryQuery]);
 
   const createNote = trpc.notes.create.useMutation({
     onSuccess: () => {
-      notesQuery.refetch();
+      refetchAll();
       setShowCreate(false);
       setNewTitle("");
       setNewContent("");
@@ -147,23 +268,79 @@ export default function NotesPage() {
 
   const deleteNote = trpc.notes.delete.useMutation({
     onSuccess: () => {
-      notesQuery.refetch();
+      refetchAll();
       toast.success("已刪除");
     },
   });
 
   const updateNote = trpc.notes.update.useMutation({
-    onSuccess: () => {
-      notesQuery.refetch();
+    onSuccess: (_data, variables) => {
+      refetchAll();
       setEditingId(null);
-      toast.success("筆記已更新");
+      if (variables?.status === "done") toast.success("已標記完成 ✓");
+      else if (variables?.status) toast.success("狀態已更新");
+      else toast.success("筆記已更新");
     },
     onError: e => toast.error(e.message),
   });
 
+  const cycleStatus = useCallback(
+    (note: { id: number; status?: NoteStatus | null }) => {
+      const current = (note.status ?? "todo") as NoteStatus;
+      updateNote.mutate({ id: note.id, status: nextStatus(current) });
+    },
+    [updateNote]
+  );
+
+  const setStatus = useCallback(
+    (id: number, status: NoteStatus) => {
+      updateNote.mutate({ id, status });
+    },
+    [updateNote]
+  );
+
   const createGenerationPlanningNote = useCallback(
-    (phase: "pre" | "post") => {
+    (phase: "pre" | "post" | "research") => {
       const today = new Date().toLocaleDateString("zh-TW");
+      if (phase === "research") {
+        createNote.mutate({
+          title: `深度研究 - ${today}`,
+          content: [
+            "## 研究主題",
+            "- 一句話描述：",
+            "- 為什麼現在要研究：",
+            "- 期望產出（文章 / 影片 / 簡報 / 課程）：",
+            "",
+            "## 在 AI 搜尋引擎深掘",
+            "- [Perplexity 深度研究](https://www.perplexity.ai/search?q=)（複製主題貼上即可）",
+            "- [Google Scholar 找學術來源](https://scholar.google.com/)",
+            "- 提示：先用「主題 + site:edu OR site:org」過濾雜訊",
+            "",
+            "## 關鍵問題（先寫問題、再蒐答案）",
+            "- [ ] Q1：",
+            "- [ ] Q2：",
+            "- [ ] Q3：",
+            "",
+            "## 來源（每筆都標 URL / 作者 / 日期）",
+            "1. ",
+            "2. ",
+            "3. ",
+            "",
+            "## 重點筆記（用自己的話覆述）",
+            "- ",
+            "",
+            "## 反證 / 不同觀點",
+            "- ",
+            "",
+            "## 結論與下一步",
+            "- 我同意 / 不同意 / 不確定的部分：",
+            "- 下一步行動（排程到行事曆）：",
+          ].join("\n"),
+          noteType: "note",
+          tags: ["深度研究", "research", "知識"],
+        });
+        return;
+      }
       if (phase === "pre") {
         createNote.mutate({
           title: `生成前規劃 - ${today}`,
@@ -217,6 +394,13 @@ export default function NotesPage() {
     if (typeFilter !== "all") {
       result = result.filter(n => n.noteType === typeFilter);
     }
+    if (statusFilter !== "all") {
+      result = result.filter(n => {
+        const s = (n.status ?? "todo") as NoteStatus;
+        if (statusFilter === "open") return s !== "done";
+        return s === statusFilter;
+      });
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -229,7 +413,7 @@ export default function NotesPage() {
       );
     }
     return result;
-  }, [allNotes, typeFilter, search]);
+  }, [allNotes, typeFilter, statusFilter, search]);
 
   const countByType = useMemo(() => {
     const counts: Record<string, number> = { all: allNotes.length };
@@ -250,6 +434,16 @@ export default function NotesPage() {
     ],
     []
   );
+  const STATUS_FILTER_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "open", label: "未完成", meta: { bestFor: "聚焦待辦", tip: "預設視圖：藏起已完成" } },
+      { id: "todo", label: "待辦" },
+      { id: "in_progress", label: "進行中" },
+      { id: "done", label: "已完成" },
+      { id: "all", label: "全部" },
+    ],
+    []
+  );
   const agentCapabilities: AgentCapability[] = useMemo(
     () => [
       {
@@ -260,6 +454,13 @@ export default function NotesPage() {
         hint: "切換只顯示某個 noteType（note/script/calendar_event）或全部",
       },
       {
+        action: "setParam",
+        label: "狀態篩選",
+        currentId: statusFilter,
+        options: STATUS_FILTER_OPTIONS,
+        hint: "setParam key='status' value='open'|'todo'|'in_progress'|'done'|'all'",
+      },
+      {
         action: "search",
         label: "搜尋筆記",
         hint: "搜尋筆記標題、內容或標籤；建議格式：主題 + 任務狀態 + 角色/場景",
@@ -267,10 +468,10 @@ export default function NotesPage() {
       {
         action: "reset",
         label: "清空條件",
-        hint: "typeFilter 還原成 all、清掉搜尋字串",
+        hint: "typeFilter 還原成 all、status 還原成 open、清掉搜尋字串",
       },
     ],
-    [typeFilter, NOTE_TYPE_OPTIONS]
+    [typeFilter, statusFilter, NOTE_TYPE_OPTIONS, STATUS_FILTER_OPTIONS]
   );
 
   useRegisterPageAgent({
@@ -280,9 +481,11 @@ export default function NotesPage() {
     capabilities: agentCapabilities,
     state: {
       typeFilter,
+      statusFilter,
       search,
       visibleCount: filtered.length,
       totalCount: allNotes.length,
+      counts: summaryQuery.data?.counts ?? null,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
@@ -294,12 +497,25 @@ export default function NotesPage() {
           setTypeFilter(action.tabId as NoteTypeFilter);
           return { ok: true, message: `切到「${action.tabId}」` };
         }
+        case "setParam": {
+          if (action.key !== "status") {
+            return { ok: false, reason: `unknown param key: ${action.key}` };
+          }
+          const allowed = STATUS_FILTERS as readonly string[];
+          const value = String(action.value);
+          if (!allowed.includes(value)) {
+            return { ok: false, reason: `unknown status: ${value}` };
+          }
+          setStatusFilter(value as StatusFilter);
+          return { ok: true, message: `狀態切到「${value}」` };
+        }
         case "search": {
           setSearch(action.query);
           return { ok: true, message: "已套用搜尋" };
         }
         case "reset": {
           setTypeFilter("all");
+          setStatusFilter("open");
           setSearch("");
           return { ok: true, message: "已清空條件" };
         }
@@ -402,7 +618,7 @@ export default function NotesPage() {
       ) : (
         <>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <StickyNote className="w-5 h-5 text-muted-foreground" />
           <h1 className="hs-h2 !mb-0">專案筆記</h1>
@@ -410,12 +626,92 @@ export default function NotesPage() {
             {allNotes.length} 篇
           </Badge>
         </div>
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogTrigger asChild>
-            <Button className="rounded-xl gap-1.5 text-sm">
-              <Plus className="w-4 h-4" /> 新增筆記
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 text-xs"
+                disabled={allNotes.length === 0}
+                title="匯出到主流筆記 app"
+              >
+                <Download className="w-3.5 h-3.5" />
+                匯出
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-[11px] text-muted-foreground">
+                匯出 {allNotes.length} 則筆記
+                {filtered.length !== allNotes.length &&
+                  ` · 套用篩選 ${filtered.length} 則`}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  exportMarkdownBundle(
+                    (filtered.length ? filtered : allNotes) as ExportableNote[]
+                  )
+                    .then(({ filename }) =>
+                      toast.success(`已匯出 ${filename}（可解壓縮直接放入 Obsidian / Logseq）`)
+                    )
+                    .catch(e => toast.error(e?.message ?? "匯出失敗"));
+                }}
+              >
+                <Package className="w-4 h-4 mr-2" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium">Markdown 套件 (.zip)</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Obsidian / Logseq / Bear / Joplin / Notion
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const fn = exportSingleMarkdown(
+                    (filtered.length ? filtered : allNotes) as ExportableNote[]
+                  );
+                  toast.success(`已匯出 ${fn}`);
+                }}
+              >
+                <FileDown className="w-4 h-4 mr-2" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium">單一 Markdown (.md)</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    所有筆記合併成一份檔案
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const fn = exportNotesJson(allNotes as ExportableNote[]);
+                  toast.success(`已匯出 ${fn}（完整備份）`);
+                }}
+              >
+                <FileJson className="w-4 h-4 mr-2" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium">JSON 完整備份</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    無損結構，可程式化匯入回 Healing Studio
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setPageTab("calendar")}
+                className="text-xs"
+              >
+                <CalendarDays className="w-4 h-4 mr-2" />
+                行事曆 .ics 在「創作排程」分頁
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Dialog open={showCreate} onOpenChange={setShowCreate}>
+            <DialogTrigger asChild>
+              <Button className="rounded-xl gap-1.5 text-sm">
+                <Plus className="w-4 h-4" /> 新增筆記
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -485,13 +781,187 @@ export default function NotesPage() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <p className="hs-small !mb-0 text-muted-foreground">
-        記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。
+        記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤、狀態追蹤與全文搜尋。
       </p>
       <PlanningSubpageGuide page="notes" />
+
+      {/* ── Planning pulse（今日 / 即將 / 逾期） ── */}
+      {summaryQuery.data && summaryQuery.data.counts.total > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {(() => {
+            const c = summaryQuery.data!.counts;
+            const cards: Array<{
+              key: string;
+              label: string;
+              count: number;
+              icon: React.ReactNode;
+              tone: string;
+              onClick: () => void;
+              hint: string;
+            }> = [
+              {
+                key: "overdue",
+                label: "逾期",
+                count: c.overdue,
+                icon: <AlertTriangle className="w-3.5 h-3.5" />,
+                tone:
+                  c.overdue > 0
+                    ? "border-red-500/40 bg-red-500/10 text-red-500"
+                    : "border-border/50 bg-muted/20 text-muted-foreground",
+                hint: "點擊聚焦未完成清單",
+                onClick: () => {
+                  setStatusFilter("open");
+                  setTypeFilter("all");
+                  setSearch("");
+                },
+              },
+              {
+                key: "today",
+                label: "今日待辦",
+                count: c.today,
+                icon: <Flame className="w-3.5 h-3.5" />,
+                tone:
+                  c.today > 0
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+                    : "border-border/50 bg-muted/20 text-muted-foreground",
+                hint: "今天排程的任務",
+                onClick: () => setPageTab("calendar"),
+              },
+              {
+                key: "upcoming",
+                label: "未來 7 天",
+                count: c.upcoming,
+                icon: <CalendarClock className="w-3.5 h-3.5" />,
+                tone:
+                  c.upcoming > 0
+                    ? "border-zen-sky/40 bg-zen-sky/10 text-zen-sky"
+                    : "border-border/50 bg-muted/20 text-muted-foreground",
+                hint: "切換到創作排程檢視",
+                onClick: () => setPageTab("calendar"),
+              },
+              {
+                key: "done",
+                label: "已完成",
+                count: c.done,
+                icon: <CircleCheck className="w-3.5 h-3.5" />,
+                tone:
+                  c.done > 0
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+                    : "border-border/50 bg-muted/20 text-muted-foreground",
+                hint: "查看已完成清單",
+                onClick: () => {
+                  setStatusFilter("done");
+                  setTypeFilter("all");
+                },
+              },
+            ];
+            return cards.map(card => (
+              <button
+                key={card.key}
+                type="button"
+                onClick={card.onClick}
+                title={card.hint}
+                className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${card.tone}`}
+              >
+                <div className="flex items-center gap-1.5 text-[11px] font-medium opacity-90">
+                  {card.icon}
+                  {card.label}
+                </div>
+                <div className="text-2xl font-semibold tabular-nums leading-tight mt-1">
+                  {card.count}
+                </div>
+              </button>
+            ));
+          })()}
+        </div>
+      )}
+
+      {/* ── Today / Upcoming list（短卡，可直接更新狀態） ── */}
+      {summaryQuery.data &&
+        (summaryQuery.data.overdue.length > 0 ||
+          summaryQuery.data.today.length > 0) && (
+          <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-zen-sky/5 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                今日聚焦
+              </p>
+              <span className="text-[10px] text-muted-foreground">
+                點擊小圓圈即可標記完成
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {[
+                ...summaryQuery.data.overdue.map(n => ({ note: n, kind: "overdue" as const })),
+                ...summaryQuery.data.today.map(n => ({ note: n, kind: "today" as const })),
+              ]
+                .slice(0, 6)
+                .map(({ note, kind }) => {
+                  const s = (note.status ?? "todo") as NoteStatus;
+                  const sInfo = statusInfo[s];
+                  const dt = note.scheduledDate
+                    ? new Date(note.scheduledDate)
+                    : null;
+                  return (
+                    <div
+                      key={note.id}
+                      className={`flex items-center gap-2 rounded-lg border bg-background/40 px-2.5 py-1.5 text-xs ${
+                        kind === "overdue"
+                          ? "border-red-500/30"
+                          : "border-amber-500/20"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => cycleStatus(note)}
+                        className={`shrink-0 rounded-full p-0.5 hover:scale-110 transition-transform ${sInfo.pill}`}
+                        title={`狀態：${sInfo.label}（點擊推進）`}
+                      >
+                        {sInfo.icon}
+                      </button>
+                      <span
+                        className="flex-1 truncate cursor-pointer hover:text-foreground"
+                        onClick={() => {
+                          setExpandedId(note.id);
+                          setStatusFilter("all");
+                          setTypeFilter("all");
+                        }}
+                      >
+                        {note.title}
+                      </span>
+                      {dt && (
+                        <span
+                          className={`text-[10px] tabular-nums ${
+                            kind === "overdue"
+                              ? "text-red-500"
+                              : "text-amber-500"
+                          }`}
+                        >
+                          {kind === "overdue"
+                            ? `逾期 ${Math.max(
+                                1,
+                                Math.floor(
+                                  (startOfTodayMs() - dt.getTime()) /
+                                    (24 * 60 * 60 * 1000)
+                                )
+                              )} 天`
+                            : dt.toLocaleTimeString("zh-TW", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
       <div className="rounded-xl border border-border/50 bg-muted/20 p-3 space-y-2">
         <p className="text-xs font-medium text-foreground/80">
           生成式 AI 前後規劃
@@ -517,6 +987,26 @@ export default function NotesPage() {
           </Button>
           <Button
             size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => createGenerationPlanningNote("research")}
+            title="建立深度研究筆記，附問題、來源、反證、結論等欄位"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            建立深度研究筆記
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => openResearchDialog()}
+            title="開啟 Perplexity AI 搜尋（會在新分頁打開）"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            在 Perplexity 研究
+          </Button>
+          <Button
+            size="sm"
             className="h-7 text-xs"
             onClick={() => navigate("/studio")}
           >
@@ -531,6 +1021,34 @@ export default function NotesPage() {
             查看歷史
           </Button>
         </div>
+      </div>
+
+      {/* ── Status filter pills ── */}
+      <div className="flex gap-1 flex-wrap">
+        {STATUS_FILTERS.map(s => {
+          const isActive = statusFilter === s;
+          const count =
+            s === "all"
+              ? allNotes.length
+              : s === "open"
+                ? allNotes.filter(n => (n.status ?? "todo") !== "done").length
+                : allNotes.filter(n => (n.status ?? "todo") === s).length;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                isActive
+                  ? "bg-foreground/10 text-foreground border border-foreground/20"
+                  : "bg-muted/30 text-muted-foreground hover:bg-muted/50 border border-transparent"
+              }`}
+            >
+              {s !== "all" && s !== "open" && statusInfo[s as NoteStatus].icon}
+              {statusFilterLabel[s]} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Search + Type Filter ── */}
@@ -598,6 +1116,12 @@ export default function NotesPage() {
               const isExpanded = expandedId === note.id;
               const isEditing = editingId === note.id;
               const tags = (note.tags as string[] | null) || [];
+              const status = (note.status ?? "todo") as NoteStatus;
+              const sInfo = statusInfo[status];
+              const isOverdue =
+                !!note.scheduledDate &&
+                status !== "done" &&
+                new Date(note.scheduledDate).getTime() < startOfTodayMs();
 
               return (
                 <motion.div
@@ -608,7 +1132,11 @@ export default function NotesPage() {
                   exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ delay: idx * 0.03 }}
                 >
-                  <GlassCard className="overflow-hidden">
+                  <GlassCard
+                    className={`overflow-hidden transition-opacity ${
+                      status === "done" ? "opacity-60" : ""
+                    } ${isOverdue ? "ring-1 ring-red-500/30" : ""}`}
+                  >
                     {/* ── Row header ── */}
                     <div
                       className="flex items-center gap-3 cursor-pointer"
@@ -616,11 +1144,17 @@ export default function NotesPage() {
                         !isEditing && setExpandedId(isExpanded ? null : note.id)
                       }
                     >
-                      <div
-                        className={`w-9 h-9 rounded-lg ${info.color} flex items-center justify-center shrink-0`}
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          cycleStatus(note);
+                        }}
+                        title={`狀態：${sInfo.label}（點擊：todo → 進行中 → 已完成 → todo）`}
+                        className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 hover:scale-105 transition-transform ${sInfo.pill}`}
                       >
-                        {info.icon}
-                      </div>
+                        {sInfo.icon}
+                      </button>
                       <div className="flex-1 min-w-0">
                         {isEditing ? (
                           <Input
@@ -636,9 +1170,20 @@ export default function NotesPage() {
                           />
                         ) : (
                           <>
-                            <p className="hs-h3 !mb-0 truncate">{note.title}</p>
+                            <p
+                              className={`hs-h3 !mb-0 truncate ${
+                                status === "done"
+                                  ? "line-through text-muted-foreground"
+                                  : ""
+                              }`}
+                            >
+                              {note.title}
+                            </p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/30 font-medium">
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-md flex items-center gap-1 ${info.color}`}
+                              >
+                                {info.icon}
                                 {info.label}
                               </span>
                               <span className="text-[11px] text-muted-foreground">
@@ -646,6 +1191,28 @@ export default function NotesPage() {
                                   "zh-TW"
                                 )}
                               </span>
+                              {note.scheduledDate && (
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex items-center gap-1 ${
+                                    isOverdue
+                                      ? "bg-red-500/15 text-red-500"
+                                      : "bg-amber-500/15 text-amber-500"
+                                  }`}
+                                  title="排程日期"
+                                >
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  {new Date(note.scheduledDate).toLocaleString(
+                                    "zh-TW",
+                                    {
+                                      month: "numeric",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    }
+                                  )}
+                                  {isOverdue ? "（逾期）" : ""}
+                                </span>
+                              )}
                               {tags.slice(0, 3).map(tag => (
                                 <span
                                   key={tag}
@@ -865,8 +1432,39 @@ export default function NotesPage() {
                                   )}
                                 </div>
 
+                                {/* Status quick row */}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mr-1">
+                                    狀態
+                                  </span>
+                                  {(["todo", "in_progress", "done"] as const).map(
+                                    s => {
+                                      const sInfoX = statusInfo[s];
+                                      const active = status === s;
+                                      return (
+                                        <button
+                                          key={s}
+                                          type="button"
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            setStatus(note.id, s);
+                                          }}
+                                          className={`text-[10px] px-2 py-0.5 rounded-md border font-medium flex items-center gap-1 transition-all ${
+                                            active
+                                              ? sInfoX.pill
+                                              : "border-border/30 text-muted-foreground hover:bg-muted/30"
+                                          }`}
+                                        >
+                                          {sInfoX.icon}
+                                          {sInfoX.label}
+                                        </button>
+                                      );
+                                    }
+                                  )}
+                                </div>
+
                                 {/* Action row */}
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -878,6 +1476,24 @@ export default function NotesPage() {
                                   >
                                     <Pencil className="w-3 h-3" /> 編輯
                                   </Button>
+                                  {!note.scheduledDate && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs gap-1 rounded-lg"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        const today = new Date();
+                                        today.setHours(9, 0, 0, 0);
+                                        updateNote.mutate({
+                                          id: note.id,
+                                          scheduledDate: today.getTime(),
+                                        });
+                                      }}
+                                    >
+                                      <CalendarClock className="w-3 h-3" /> 排到今天
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -886,6 +1502,7 @@ export default function NotesPage() {
                                       e.stopPropagation();
                                       let content = `# ${note.title}\n\n`;
                                       content += `類型：${info.label}\n`;
+                                      content += `狀態：${sInfo.label}\n`;
                                       content += `建立時間：${new Date(note.createdAt).toLocaleString("zh-TW")}\n`;
                                       if (note.scheduledDate)
                                         content += `排程日期：${new Date(note.scheduledDate).toLocaleString("zh-TW")}\n`;
@@ -901,6 +1518,18 @@ export default function NotesPage() {
                                     }}
                                   >
                                     <Download className="w-3 h-3" /> 下載
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1 rounded-lg"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      openResearchDialog(note.title);
+                                    }}
+                                    title="把這篇筆記丟到 Perplexity 深掘（可在跳出視窗微調主題）"
+                                  >
+                                    <Sparkles className="w-3 h-3" /> Perplexity
                                   </Button>
                                 </div>
                               </>
@@ -930,6 +1559,119 @@ export default function NotesPage() {
       )}
         </>
       )}
+
+      {/* ── Perplexity / 深度研究 Dialog ── */}
+      <Dialog open={showResearch} onOpenChange={setShowResearch}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              深度研究
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground font-medium">
+                研究主題
+              </span>
+              <Textarea
+                placeholder="例如：2026 年內容創作者最常用的影片剪輯流程"
+                value={researchQuery}
+                onChange={e => setResearchQuery(e.target.value)}
+                rows={3}
+                className="rounded-xl text-sm"
+                onKeyDown={e => {
+                  if (
+                    e.key === "Enter" &&
+                    (e.metaKey || e.ctrlKey) &&
+                    researchQuery.trim()
+                  ) {
+                    submitResearch();
+                  }
+                }}
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground">
+                ⌘/Ctrl + Enter 直接送出
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground font-medium">
+                搜尋引擎
+              </span>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: "perplexity", label: "Perplexity", hint: "AI 深度研究" },
+                    { id: "google-scholar", label: "Scholar", hint: "學術論文" },
+                    { id: "google", label: "Google", hint: "一般網頁" },
+                  ] as const
+                ).map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setResearchEngine(opt.id)}
+                    className={`flex-1 flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                      researchEngine === opt.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border/30 bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    <span className="text-[9px] opacity-60">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => {
+                  if (!researchQuery.trim()) {
+                    toast.error("請先輸入主題");
+                    return;
+                  }
+                  // Save the topic as a research note for later capture
+                  createNote.mutate({
+                    title: `深度研究 - ${researchQuery.trim().slice(0, 60)}`,
+                    content: [
+                      `## 研究主題`,
+                      researchQuery.trim(),
+                      "",
+                      "## 來源",
+                      "1. ",
+                      "",
+                      "## 重點筆記",
+                      "- ",
+                      "",
+                      "## 結論",
+                      "- ",
+                    ].join("\n"),
+                    noteType: "note",
+                    tags: ["深度研究", researchEngine],
+                  });
+                  setShowResearch(false);
+                }}
+                disabled={!researchQuery.trim() || createNote.isPending}
+              >
+                <BookOpen className="w-3.5 h-3.5 mr-1" />
+                先存成筆記
+              </Button>
+              <Button
+                className="flex-1 rounded-xl"
+                onClick={submitResearch}
+                disabled={!researchQuery.trim()}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1" />
+                開始研究
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

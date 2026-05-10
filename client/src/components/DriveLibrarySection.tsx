@@ -7,8 +7,12 @@
  * `webViewLink`. Phase 2 may add inline preview / linking to schedule.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { inferRouterOutputs } from "@trpc/server";
 import { trpc } from "@/lib/trpc";
+import type { AppRouter } from "../../../server/routers";
+
+type DriveFile = inferRouterOutputs<AppRouter>["drive"]["listFolder"]["files"][number];
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -362,14 +366,44 @@ function DriveFolderBrowser({
   folderId: string;
   onEnterFolder: (f: { id: string; name: string }) => void;
 }) {
+  // Drive page tokens are folder-scoped, so when the user opens a different
+  // folder we MUST drop both the token and any accumulated pages — otherwise
+  // we'd send a stale token (often returning invalid-page-token errors) and
+  // visibly mix files from two different folders.
   const [pageToken, setPageToken] = useState<string | undefined>();
+  const [accumulated, setAccumulated] = useState<DriveFile[]>([]);
+  const [seenIds] = useState(() => new Set<string>());
+
+  useEffect(() => {
+    setPageToken(undefined);
+    setAccumulated([]);
+    seenIds.clear();
+  }, [folderId, seenIds]);
+
   const folder = trpc.drive.listFolder.useQuery({ folderId, pageToken });
 
-  const files = folder.data?.files ?? [];
-  const folders = useMemo(() => files.filter(f => f.isFolder), [files]);
-  const others = useMemo(() => files.filter(f => !f.isFolder), [files]);
+  // Append each fetched page so "載入更多" extends the grid instead of
+  // replacing it. Dedupe defensively in case a page boundary repeats an id.
+  useEffect(() => {
+    if (!folder.data?.files) return;
+    const fresh: DriveFile[] = [];
+    for (const f of folder.data.files) {
+      if (!seenIds.has(f.id)) {
+        seenIds.add(f.id);
+        fresh.push(f);
+      }
+    }
+    if (fresh.length > 0) {
+      setAccumulated(prev => [...prev, ...fresh]);
+    }
+  }, [folder.data, seenIds]);
 
-  if (folder.isLoading) {
+  const folders = useMemo(() => accumulated.filter(f => f.isFolder), [accumulated]);
+  const others = useMemo(() => accumulated.filter(f => !f.isFolder), [accumulated]);
+
+  // First-page loading state only — subsequent paginations show a spinner
+  // on the "載入更多" button itself.
+  if (folder.isLoading && accumulated.length === 0) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {[1, 2, 3, 4, 5, 6].map(i => (
@@ -395,7 +429,7 @@ function DriveFolderBrowser({
     );
   }
 
-  if (files.length === 0) {
+  if (accumulated.length === 0) {
     return (
       <p className="text-sm text-muted-foreground/60 py-4 text-center">
         這個資料夾是空的。
@@ -468,9 +502,10 @@ function DriveFolderBrowser({
           size="sm"
           variant="outline"
           className="w-full h-8 text-xs"
+          disabled={folder.isFetching}
           onClick={() => setPageToken(folder.data!.nextPageToken)}
         >
-          載入更多
+          {folder.isFetching ? "載入中…" : "載入更多"}
         </Button>
       )}
     </div>

@@ -16,6 +16,9 @@ import {
   SPIRIT_COLLAB_PROTOCOL,
   SPIRIT_PROACTIVE_TRIGGERS,
   SPIRIT_FAMILY,
+  SPIRIT_MODEL_CAPABILITIES,
+  canSpiritCallCategory,
+  getCategoriesForSpirit,
   getFamilyForRole,
   getRolesByFamily,
   type AgentRole,
@@ -497,6 +500,107 @@ describe("SPIRIT_FAMILY classification", () => {
     // no role appears in two families
     const set = new Set([...specialists, ...roles, ...proactive]);
     expect(set.size).toBe(15);
+  });
+});
+
+describe("SPIRIT_MODEL_CAPABILITIES", () => {
+  it("covers every one of the 15 spirits", () => {
+    const roles = Object.keys(SPIRIT_MODEL_CAPABILITIES) as AgentRole[];
+    expect(roles).toHaveLength(15);
+  });
+
+  it("圖圖 (image-specialist) can call image generation, editing, and 3D categories", () => {
+    const cats = getCategoriesForSpirit("image-specialist");
+    expect(cats).toEqual(
+      expect.arrayContaining([
+        "text-to-image",
+        "image-to-image",
+        "image-to-3d",
+        "text-to-3d",
+        "image-to-json",
+      ]),
+    );
+    expect(canSpiritCallCategory("image-specialist", "text-to-image")).toBe(true);
+    expect(canSpiritCallCategory("image-specialist", "text-to-video")).toBe(false);
+  });
+
+  it("影影 (video-specialist) can call all video generation / conversion categories", () => {
+    const cats = getCategoriesForSpirit("video-specialist");
+    expect(cats).toEqual(
+      expect.arrayContaining([
+        "text-to-video",
+        "image-to-video",
+        "video-to-video",
+        "video-to-text",
+        "video-to-audio",
+      ]),
+    );
+    expect(canSpiritCallCategory("video-specialist", "image-to-video")).toBe(true);
+    expect(canSpiritCallCategory("video-specialist", "text-to-image")).toBe(false);
+  });
+
+  it("音音 (music-specialist) is scoped to text-to-audio", () => {
+    expect(canSpiritCallCategory("music-specialist", "text-to-audio")).toBe(true);
+    expect(canSpiritCallCategory("music-specialist", "text-to-speech")).toBe(false);
+  });
+
+  it("聲聲 (voice-specialist) covers tts and stt", () => {
+    expect(canSpiritCallCategory("voice-specialist", "text-to-speech")).toBe(true);
+    expect(canSpiritCallCategory("voice-specialist", "audio-to-text")).toBe(true);
+    expect(canSpiritCallCategory("voice-specialist", "text-to-audio")).toBe(false);
+  });
+
+  it("練練 (training-specialist) is the only spirit that may call training", () => {
+    const allowed = (Object.entries(SPIRIT_MODEL_CAPABILITIES) as Array<
+      [AgentRole, ReadonlyArray<string>]
+    >)
+      .filter(([, cats]) => cats.includes("training"))
+      .map(([role]) => role);
+    // composer fans out to every category, so it also has training; the rest must not
+    expect(allowed.sort()).toEqual(["composer", "training-specialist"].sort());
+  });
+
+  it("編編 (composer) can dispatch every category (executes whatever the page needs)", () => {
+    const cats = getCategoriesForSpirit("composer");
+    // composer should be the broadest — at least covers all four generation modalities
+    expect(cats).toEqual(
+      expect.arrayContaining([
+        "text-to-image",
+        "text-to-video",
+        "text-to-audio",
+        "text-to-speech",
+        "training",
+      ]),
+    );
+  });
+
+  it("陪聊 / 導航 / 主動精靈 limit themselves to LLM-style reasoning categories", () => {
+    for (const role of ["companion", "navigator"] as const) {
+      const cats = getCategoriesForSpirit(role);
+      expect(cats).toEqual(expect.arrayContaining(["llm"]));
+      expect(canSpiritCallCategory(role, "text-to-image")).toBe(false);
+      expect(canSpiritCallCategory(role, "text-to-video")).toBe(false);
+    }
+    for (const role of [
+      "director",
+      "researcher",
+      "accountant",
+      "quality-coach",
+      "inspector",
+      "learning-specialist",
+    ] as const) {
+      expect(canSpiritCallCategory(role, "llm")).toBe(true);
+      expect(canSpiritCallCategory(role, "text-to-image")).toBe(false);
+      expect(canSpiritCallCategory(role, "training")).toBe(false);
+    }
+  });
+
+  it("品品 (critic) can read multimodal content via *-to-json and *-to-text but cannot generate it", () => {
+    expect(canSpiritCallCategory("critic", "image-to-json")).toBe(true);
+    expect(canSpiritCallCategory("critic", "video-to-text")).toBe(true);
+    expect(canSpiritCallCategory("critic", "audio-to-text")).toBe(true);
+    expect(canSpiritCallCategory("critic", "text-to-image")).toBe(false);
+    expect(canSpiritCallCategory("critic", "text-to-video")).toBe(false);
   });
 });
 

@@ -275,9 +275,16 @@ export function registerOAuthRoutes(app: Express) {
         redirectWithAuthError(res, "drive_session_required");
         return;
       }
-      // Defence-in-depth: state must match the cookie's user. Stops a
-      // logged-in attacker tricking another user into linking their Drive.
-      if (expectedOpenId && expectedOpenId !== sessionOpenId) {
+      // Defence-in-depth: state MUST carry the user it was issued for, and
+      // it MUST match the cookie's user. Refusing missing `expectedOpenId`
+      // closes the gap where a forged state with `purpose:"drive"` but no
+      // user id would otherwise let an attacker bind tokens minted for
+      // their own Google account to whichever victim cookie is active.
+      if (!expectedOpenId) {
+        redirectWithAuthError(res, "drive_state_unbound");
+        return;
+      }
+      if (expectedOpenId !== sessionOpenId) {
         redirectWithAuthError(res, "drive_session_mismatch");
         return;
       }

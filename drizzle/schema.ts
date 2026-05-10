@@ -444,6 +444,9 @@ export const projectNotesCalendar = mysqlTable(
     noteType: mysqlEnum("noteType", ["note", "script", "calendar_event"])
       .default("note")
       .notNull(),
+    status: mysqlEnum("status", ["todo", "in_progress", "done"])
+      .default("todo")
+      .notNull(),
     scheduledDate: timestamp("scheduledDate"),
     endDate: timestamp("endDate"),
     reminderMinutes: int("reminderMinutes"),
@@ -468,6 +471,10 @@ export const projectNotesCalendar = mysqlTable(
     userIdScheduledDateIdx: index("pnc_userId_scheduledDate_idx").on(
       table.userId,
       table.scheduledDate
+    ),
+    userIdStatusIdx: index("pnc_userId_status_idx").on(
+      table.userId,
+      table.status
     ),
   })
 );
