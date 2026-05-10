@@ -775,6 +775,16 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     downstream: ["ext:forge-maps"],
   },
   {
+    id: "api:ics-feed",
+    label: "GET /api/ics/:token.ics",
+    description:
+      "公開 ICS 訂閱端點；手機原生日曆 / 鬧鐘以 webcal:// 訂閱使用者排程，含 VALARM 自動響鈴",
+    method: "GET",
+    path: "/api/ics/:token.ics",
+    files: ["server/routes/icsFeed.ts"],
+    downstream: ["db:main"],
+  },
+  {
     id: "api:proxy-download",
     label: "GET /api/proxy-download",
     description:

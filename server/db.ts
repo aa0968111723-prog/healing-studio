@@ -948,6 +948,49 @@ export async function deleteProjectNote(id: number) {
   await db.delete(projectNotesCalendar).where(eq(projectNotesCalendar.id, id));
 }
 
+export async function getCalendarEventsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(projectNotesCalendar)
+    .where(
+      and(
+        eq(projectNotesCalendar.userId, userId),
+        eq(projectNotesCalendar.noteType, "calendar_event")
+      )
+    )
+    .orderBy(projectNotesCalendar.scheduledDate);
+}
+
+export async function getUserIcsFeedToken(userId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ token: users.icsFeedToken })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0]?.token ?? null;
+}
+
+export async function setUserIcsFeedToken(userId: number, token: string | null) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ icsFeedToken: token }).where(eq(users.id, userId));
+}
+
+export async function getUserByIcsFeedToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.icsFeedToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 // ─── User Feedback Reports ───────────────────────────────────────────────────
 
 export async function createFeedbackReport(data: InsertUserFeedback) {

@@ -23,6 +23,7 @@ import { featureFlags } from "./_core/featureFlags";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
+import { nanoid } from "nanoid";
 import { generationBus } from "./generationEvents";
 import { newsRouter } from "./routers/news";
 import { showcaseRouter } from "./routers/showcase";
@@ -213,6 +214,14 @@ import {
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
 const debug = isDev ? console.log : () => {}; // eslint-disable-line no-console
+
+const scheduleLocationSchema = z.object({
+  name: z.string().min(1).max(255),
+  address: z.string().max(512).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  placeId: z.string().max(255).optional(),
+});
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -4713,6 +4722,10 @@ export const appRouter = router({
             .enum(["note", "script", "calendar_event"])
             .default("note"),
           scheduledDate: z.number().optional(),
+          endDate: z.number().optional(),
+          reminderMinutes: z.number().int().min(0).max(60 * 24 * 7).optional(),
+          location: scheduleLocationSchema.optional(),
+          meetingUrl: z.string().url().max(512).optional(),
           tags: z.array(z.string().max(32)).max(10).optional(),
         })
       )
@@ -4726,6 +4739,10 @@ export const appRouter = router({
           scheduledDate: input.scheduledDate
             ? new Date(input.scheduledDate)
             : undefined,
+          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          reminderMinutes: input.reminderMinutes,
+          location: input.location,
+          meetingUrl: input.meetingUrl,
           tags: input.tags,
         });
         return { id };
@@ -4739,6 +4756,16 @@ export const appRouter = router({
           content: z.string().optional(),
           scriptJson: z.any().optional(),
           scheduledDate: z.number().nullable().optional(),
+          endDate: z.number().nullable().optional(),
+          reminderMinutes: z
+            .number()
+            .int()
+            .min(0)
+            .max(60 * 24 * 7)
+            .nullable()
+            .optional(),
+          location: scheduleLocationSchema.nullable().optional(),
+          meetingUrl: z.string().url().max(512).nullable().optional(),
           tags: z.array(z.string().max(32)).max(10).optional(),
           noteType: z.enum(["note", "script", "calendar_event"]).optional(),
         })
@@ -4761,6 +4788,16 @@ export const appRouter = router({
                   : null,
               }
             : {}),
+          ...(input.endDate !== undefined
+            ? { endDate: input.endDate ? new Date(input.endDate) : null }
+            : {}),
+          ...(input.reminderMinutes !== undefined
+            ? { reminderMinutes: input.reminderMinutes }
+            : {}),
+          ...(input.location !== undefined ? { location: input.location } : {}),
+          ...(input.meetingUrl !== undefined
+            ? { meetingUrl: input.meetingUrl }
+            : {}),
         });
         return { success: true };
       }),
@@ -4775,6 +4812,33 @@ export const appRouter = router({
         await db.deleteProjectNote(input.id);
         return { success: true };
       }),
+  }),
+
+  // ─── Schedule (ICS feed) ──────────────────────────────────────────────────
+  // The actual `.ics` payload is served by an Express route at
+  // /api/ics/<token>.ics — phone calendars (Apple Calendar, Google Calendar,
+  // Outlook) subscribe to that URL. tRPC just manages the token.
+
+  schedule: router({
+    icsFeed: protectedProcedure.query(async ({ ctx }) => {
+      let token = await db.getUserIcsFeedToken(ctx.user.id);
+      if (!token) {
+        token = nanoid(32);
+        await db.setUserIcsFeedToken(ctx.user.id, token);
+      }
+      return { token, url: `/api/ics/${token}.ics` };
+    }),
+
+    rotateIcsFeed: protectedProcedure.mutation(async ({ ctx }) => {
+      const token = nanoid(32);
+      await db.setUserIcsFeedToken(ctx.user.id, token);
+      return { token, url: `/api/ics/${token}.ics` };
+    }),
+
+    revokeIcsFeed: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.setUserIcsFeedToken(ctx.user.id, null);
+      return { success: true };
+    }),
   }),
 
   // ─── Feedback ─────────────────────────────────────────────────────────────

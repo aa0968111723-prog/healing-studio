@@ -46,6 +46,8 @@ export const users = mysqlTable(
     onboardingDone: boolean("onboardingDone").default(false).notNull(),
     /** User-controlled avatar (preset id, AI-generated URL, or data URL ≤ 64 KB). Null = use initials. */
     avatarUrl: text("avatarUrl"),
+    /** Opaque token for the public ICS feed at /api/ics/<token>.ics. Rotating revokes existing subscriptions. */
+    icsFeedToken: varchar("icsFeedToken", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -57,6 +59,7 @@ export const users = mysqlTable(
     roleIdx: index("users_role_idx").on(table.role),
     // Auto-credit scheduling index — used by the auto-credit cron job
     autoCreditNextAtIdx: index("users_autoCreditNextAt_idx").on(table.autoCreditNextAt),
+    icsFeedTokenIdx: index("users_icsFeedToken_idx").on(table.icsFeedToken),
   })
 );
 
@@ -442,6 +445,16 @@ export const projectNotesCalendar = mysqlTable(
       .default("note")
       .notNull(),
     scheduledDate: timestamp("scheduledDate"),
+    endDate: timestamp("endDate"),
+    reminderMinutes: int("reminderMinutes"),
+    location: json("location").$type<{
+      name: string;
+      address?: string;
+      lat?: number;
+      lng?: number;
+      placeId?: string;
+    }>(),
+    meetingUrl: varchar("meetingUrl", { length: 512 }),
     tags: json("tags").$type<string[]>(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
