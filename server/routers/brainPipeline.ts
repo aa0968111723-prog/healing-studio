@@ -425,6 +425,13 @@ const ROUTER_TO_PROVIDERS: Array<{
     files: ["server/routers/director.ts"],
   },
   {
+    id: "router:spirit",
+    label: "spirit（靈感對話）",
+    description: "輕量靈感聊天與對話輔助",
+    providers: ["gemini", "vertex", "openrouter", "anthropic"],
+    files: ["server/routers/spiritRouter.ts"],
+  },
+  {
     id: "router:imageStudio",
     label: "imageStudio（圖像工作室）",
     description: "靜態圖像生成 dispatch",
