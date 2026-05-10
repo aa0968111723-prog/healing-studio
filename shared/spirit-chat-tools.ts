@@ -96,6 +96,8 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
     toPath: "/settings",
     arrivalHint: "細細帶你到設定頁，告訴我要調哪個我直接帶你切過去。",
   },
+  // 步步：被 @ 時走 LLM 人格做計畫預演（之後接管真實執行另由 orchestrator 觸發）
+  "plan-executor": { kind: "llm-persona" },
 };
 
 export function getChatToolForSpirit(role: AgentRole): SpiritChatTool {

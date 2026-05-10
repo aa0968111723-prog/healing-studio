@@ -1,12 +1,12 @@
 /**
- * Unit tests for SPIRIT_CHAT_TOOLS — the 22-spirit chat-tool registry.
+ * Unit tests for SPIRIT_CHAT_TOOLS — the 23-spirit chat-tool registry.
  *
  * Guards:
- *   - 全 22 位都被覆蓋（type-level + runtime size）
+ *   - 全 23 位都被覆蓋（type-level + runtime size）
  *   - 5 位生成型走 fal-generation；最少字數一致
  *   - 路路 intentBased / 學學 toPath 對應正確
- *   - 查查 走 search；其餘 14 位走 llm-persona / navigate
- *   - SPIRIT_COLLAB_PROTOCOL 對 22 位都有條目（協作機制覆蓋一致）
+ *   - 查查 走 search；其餘 15 位走 llm-persona / navigate
+ *   - SPIRIT_COLLAB_PROTOCOL 對 23 位都有條目（協作機制覆蓋一致）
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -20,11 +20,11 @@ import {
 } from "../../../shared/orb-agent-roles";
 
 describe("SPIRIT_CHAT_TOOLS", () => {
-  it("covers every one of the 22 spirits exactly once", () => {
+  it("covers every one of the 23 spirits exactly once", () => {
     const toolKeys = Object.keys(SPIRIT_CHAT_TOOLS).sort();
     const spiritKeys = Object.keys(SPIRIT_FAMILY).sort();
     expect(toolKeys).toEqual(spiritKeys);
-    expect(toolKeys).toHaveLength(22);
+    expect(toolKeys).toHaveLength(23);
   });
 
   it("classifies the 5 generators as fal-generation with consistent minimum length", () => {
@@ -67,7 +67,7 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     expect(tool.kind).toBe("search");
   });
 
-  it("reasoning + companion + proactive spirits are llm-persona (12 of the 22)", () => {
+  it("reasoning + companion + proactive spirits are llm-persona (13 of the 23)", () => {
     const llmRoles: AgentRole[] = [
       "director",
       "composer",
@@ -82,6 +82,8 @@ describe("SPIRIT_CHAT_TOOLS", () => {
       "onboarding-coach",
       "community-manager",
       "chief-orchestrator",
+      // 第 8 位新增：步步 走 llm-persona 做計畫預演
+      "plan-executor",
     ];
     for (const role of llmRoles) {
       expect(getChatToolForSpirit(role).kind).toBe("llm-persona");
@@ -99,12 +101,12 @@ describe("SPIRIT_CHAT_TOOLS", () => {
   });
 });
 
-describe("SPIRIT_COLLAB_PROTOCOL coverage (22-spirit collab mechanism)", () => {
-  it("has a collab spec for every one of the 22 spirits", () => {
+describe("SPIRIT_COLLAB_PROTOCOL coverage (23-spirit collab mechanism)", () => {
+  it("has a collab spec for every one of the 23 spirits", () => {
     const collabKeys = Object.keys(SPIRIT_COLLAB_PROTOCOL).sort();
     const spiritKeys = Object.keys(SPIRIT_FAMILY).sort();
     expect(collabKeys).toEqual(spiritKeys);
-    expect(collabKeys).toHaveLength(22);
+    expect(collabKeys).toHaveLength(23);
   });
 
   it("every spirit hands off to at least one other spirit (no dead-ends)", () => {

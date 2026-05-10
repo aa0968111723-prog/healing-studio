@@ -13,8 +13,11 @@ describe("AgentCollaborationOrchestrator.getProtocolHandoffsFor", () => {
   it("returns handoffs for director (planning role)", () => {
     const handoffs = AgentCollaborationOrchestrator.getProtocolHandoffsFor("director");
     expect(handoffs.length).toBeGreaterThan(0);
-    // director 第一棒應該交給 composer (在當頁套用每一步)
-    expect(handoffs[0].to).toBe("composer");
+    // director 第一棒交給 plan-executor (多步驟自動執行) — 大多數 director 計畫
+    // 都是跨頁多步驟，新團隊裡步步是預設執行人；單頁簡單的場景才會交給 composer。
+    expect(handoffs[0].to).toBe("plan-executor");
+    // composer 仍應在 handoff 清單裡，當作單頁執行 fallback
+    expect(handoffs.map(h => h.to)).toContain("composer");
     // 全部目標都不該是 director 自己
     for (const h of handoffs) {
       expect(h.to).not.toBe("director");

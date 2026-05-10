@@ -1,4 +1,4 @@
-// 22 精靈的視覺配置 — 提供給任何需要顯示精靈名稱 / chip / deck 的元件用。
+// 23 精靈的視覺配置 — 提供給任何需要顯示精靈名稱 / chip / deck 的元件用。
 // 之前直接寫在 AgentChat.tsx 裡，但 ProactiveOrbWidget 也要顯示「這條是誰回的」
 // chip，把同一份資料同時讓 page 與 widget 共用，避免重複維護兩份。
 //
@@ -306,6 +306,19 @@ export const SPIRITS: SpiritVisual[] = [
     ring: "ring-cyan-300/60",
     family: "role",
   },
+  // 步步：規劃 + 多步驟自動執行
+  {
+    id: "plan-executor",
+    emoji: "🧩",
+    label: "規劃與執行精靈",
+    nickname: "步步",
+    vibe: "從規劃到收尾一條龍跑完：跨頁、跨精靈、每步回報",
+    greeting: "嗨我步步 🧩 整條跨頁 workflow 我幫你跑完，每完成一步即時回報。",
+    prompt: "@步步 幫我從頭到尾跑完",
+    gradient: "from-purple-500 to-fuchsia-600",
+    ring: "ring-purple-300/60",
+    family: "role",
+  },
 ];
 
 export const SPIRITS_BY_ID: Record<AgentRole, SpiritVisual> = SPIRITS.reduce(
@@ -325,7 +338,7 @@ export function getSpiritVisual(role: string | undefined | null): SpiritVisual |
 /** UI 標籤 — 多代理討論面板用，依 family 分區顯示。 */
 export const SPIRIT_FAMILY_LABEL: Record<SpiritFamily, string> = {
   specialist: "專精精靈（圖 / 影 / 音 / 聲 / 訓 / 學 / 群）",
-  role: "通用同事（導 / 編 / 品 / 查 / 路 / 暖 / 總 / 記 / 細）",
+  role: "通用同事（導 / 編 / 品 / 查 / 路 / 暖 / 總 / 記 / 細 / 步）",
   proactive: "主動精靈（財 / 巧 / 守 / 律 / 安 / 帶）",
 };
 

@@ -91,6 +91,16 @@ export interface ProactiveEventPayloads {
   settings_drift_detected: {
     settingName: string;
   };
+  multi_step_plan_ready: {
+    /** 計畫總步數（>=3 才會觸發） */
+    stepCount: number;
+    /** 預估耗時（分鐘） */
+    etaMinutes: number;
+    /** 預估點數（依各步驟模型加總） */
+    creditsCost: number;
+    /** 第 1 步的 label，方便使用者快速判斷是否符合預期 */
+    firstStepLabel: string;
+  };
 }
 
 type Listener<E extends ProactiveTriggerEvent> = (payload: ProactiveEventPayloads[E]) => void;

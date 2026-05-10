@@ -38,7 +38,8 @@ export type AgentRole =
   | "chief-orchestrator"   // 全團隊總管，調度所有精靈與任務狀態 (總總)
   | "onboarding-coach"     // 主動偵測使用者卡關並輔導操作 (帶帶)
   | "notes-curator"        // 筆記 / 排程 / 素材庫管理 (記記)
-  | "settings-detail";     // 偏好 / 設定 / 細節微調 (細細)
+  | "settings-detail"      // 偏好 / 設定 / 細節微調 (細細)
+  | "plan-executor";       // 規劃 + 多步驟自動執行（接手 director 的計畫一條龍跑完）(步步)
 
 export interface RoleSelectionInput {
   /** User's most recent utterance, lower-cased before matching. */
@@ -615,6 +616,42 @@ const KEYWORD_RULES: Array<{
     ],
     rationale: "user wants to tweak settings / preferences — call 細細",
   },
+  // Plan Executor (步步): plan + autonomous multi-step execution.
+  // 「主動」型 — 多步驟計畫被使用者批准後自動接管執行；也可被動叫
+  // （「自動跑完」「from plan to ship」「end-to-end execute」）。
+  // 跟 director（純規劃）/ composer（單頁執行）的差別：步步同時持有
+  // 計畫所有權與執行責任，會跨頁、跨精靈一條龍把整條 workflow 跑完。
+  {
+    role: "plan-executor",
+    keywords: [
+      "從規劃到執行",
+      "從規劃到完成",
+      "規劃加執行",
+      "一條龍",
+      "一次跑完",
+      "整個流程跑完",
+      "整套跑完",
+      "自動執行",
+      "自動跑完",
+      "全自動",
+      "幫我從頭到尾",
+      "從頭到尾跑完",
+      "不用再問我",
+      "代替我跑",
+      "auto run",
+      "auto execute",
+      "autonomous",
+      "end-to-end run",
+      "from plan to ship",
+      "step by step execute",
+      "execute steps",
+      "execute the plan",
+      "run the plan",
+      "run the workflow",
+      "multi-step execute",
+    ],
+    rationale: "user wants planning + autonomous multi-step execution — call 步步",
+  },
 ];
 
 const COMPOSER_ON_STUDIO_HINTS = [
@@ -731,6 +768,7 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
   { role: "onboarding-coach",    nicknames: ["帶帶", "輔導精靈", "操作教練"] },
   { role: "notes-curator",       nicknames: ["記記", "筆記精靈", "排程精靈"] },
   { role: "settings-detail",     nicknames: ["細細", "設定精靈", "細節精靈"] },
+  { role: "plan-executor",       nicknames: ["步步", "執行精靈", "規劃執行"] },
 ];
 
 /**
@@ -826,6 +864,8 @@ export const SPIRIT_FAMILY: Record<AgentRole, SpiritFamily> = {
   "chief-orchestrator": "role",
   "notes-curator": "role",
   "settings-detail": "role",
+  // 步步：規劃 + 自動執行的工作流引擎，本質上是 role family 的同事
+  "plan-executor": "role",
 };
 
 export function getFamilyForRole(role: AgentRole): SpiritFamily {
@@ -1156,6 +1196,16 @@ export function getRoleSystemPromptSlice(role: AgentRole): string {
         "可使用 navigate 把人帶到設定頁、setParam / toggleSetting 套到當頁；如果是帳號等級的高風險變更（刪帳號、改 email）一定要 requiresApproval=true。",
         "交棒：跟金鑰相關的安全考量 → 交給安安；跟主動精靈通知頻率相關 → 交給對應主動精靈；想看設定變更後的成本影響 → 交給財財。",
       ].join("\n");
+    case "plan-executor":
+      return [
+        "【本回合扮演：步步（規劃與多步驟執行精靈 plan executor）】",
+        "你是團隊裡同時拿著計畫表和工具箱的同事步步：跟導導不同（導導只規劃）、也跟編編不同（編編只在當頁執行），步步同時對「整條 workflow 跑完」負責。",
+        "起跑前固定三步：① 一句話複述目標 + 列出 step 1..N 的「做什麼／用哪頁／呼叫哪個 toolName / 預估點數」② ping 財財拿總點數估算給使用者看 ③ 等使用者「好，跑」才開始；不等就停在預演卡片不送。",
+        "執行時規則：每完成一步馬上回報「✓ 第 N 步：___ 已完成（產出 URL/ID）」；遇到失敗 → 重試一次，再失敗就停下來反問「這一步失敗了，要 A. 換模型重試 B. 跳過 C. 整條中止？」不要自己悄悄略過。",
+        "可使用所有 studio.* / media.* / research.* / fillPrompt / setModel / setParam / setTab / submit / navigate 工具；對 medium/high 風險步驟要 requiresApproval=true 但批准批次的整體 plan 後可一次性扣掉每步單獨確認。",
+        "交棒：每步抵達工作室頁面時 → 把該步 fillPrompt / setParam 細節交給編編；牽涉花費高的步驟先 ping 財財；中途某步真的壞掉（4xx/5xx）→ 把錯誤交給守守。整條跑完最後請品品看一輪整體性。",
+        "地雷：別「規劃完就消失」（那是導導的工作）；別「在當頁送完一個就結束」（那是編編的工作）；步步的價值在「我把整條從頭到尾跑完並回報」。",
+      ].join("\n");
   }
 }
 
@@ -1201,6 +1251,8 @@ export const SPIRIT_PREFERRED_PROVIDER: Record<AgentRole, string> = {
   "onboarding-coach": "default_llm",
   "notes-curator": "default_llm",
   "settings-detail": "default_llm",
+  // 步步：規劃 + 跨頁執行需要強推理保證每步參數正確，走 Gemini
+  "plan-executor": "gemini",
 };
 
 export function getPreferredProviderForRole(role: AgentRole): string {
@@ -1337,6 +1389,9 @@ export const SPIRIT_MODEL_CAPABILITIES: Record<
   "onboarding-coach": TEXT_REASONING_CATEGORIES,
   "notes-curator": TEXT_REASONING_CATEGORIES,
   "settings-detail": TEXT_REASONING_CATEGORIES,
+  // 步步：跟 composer 一樣需要全模態（任何步驟都可能要送），但身分是
+  // workflow owner — 可以直接觸發 fal generation 也可以下 navigate / fillPrompt。
+  "plan-executor": ALL_CATEGORIES,
 };
 
 /**
@@ -1389,11 +1444,12 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
   // 通用工作流角色
   director: {
     handoffs: [
-      { to: "composer", reason: "計畫拆好之後，編編在當頁套用每一步", when: "plan accepted" },
+      { to: "plan-executor", reason: "整條跨頁多步驟自動跑完的最佳人選", when: "plan has >=3 steps and user wants auto-run" },
+      { to: "composer", reason: "計畫拆好之後，編編在當頁套用每一步", when: "plan accepted, single-page execution" },
       { to: "accountant", reason: "規劃完先讓財財估算總花費再起跑", when: "plan involves >2 paid steps" },
       { to: "critic", reason: "整條 workflow 跑完後請品品看一輪整體性", when: "workflow completed" },
     ],
-    receivedFrom: ["companion", "researcher", "navigator", "inspector"],
+    receivedFrom: ["companion", "researcher", "navigator", "inspector", "plan-executor"],
   },
   composer: {
     handoffs: [
@@ -1524,6 +1580,7 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
   "chief-orchestrator": {
     handoffs: [
       { to: "director", reason: "把任務拆解交給導導排計畫", when: "team needs a plan" },
+      { to: "plan-executor", reason: "計畫批准後一條龍交給步步跑完", when: "plan ready, hands-free run" },
       { to: "accountant", reason: "整體預算先讓財財估算", when: "plan involves heavy spend" },
       { to: "critic", reason: "整條 workflow 完成請品品總評", when: "deliverable ready" },
     ],
@@ -1552,6 +1609,18 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
     ],
     receivedFrom: ["companion", "security-guard", "onboarding-coach", "chief-orchestrator"],
   },
+  // 步步：拿到 director / chief-orchestrator 給的計畫之後，自己跨頁、跨精靈
+  // 把每一步真實送出。失敗時 ping 守守看是不是 site bug；要花的點數先 ping
+  // 財財估算；做完讓品品看一輪。
+  "plan-executor": {
+    handoffs: [
+      { to: "accountant", reason: "起跑前先讓財財估算總點數", when: "before run starts" },
+      { to: "composer", reason: "每一步在當頁的細節操作交給編編", when: "step lands on a studio page" },
+      { to: "critic", reason: "整條跑完讓品品總評", when: "workflow done" },
+      { to: "inspector", reason: "中途某步真壞了交給守守報修", when: "step fails with site error" },
+    ],
+    receivedFrom: ["director", "chief-orchestrator", "community-manager", "training-specialist"],
+  },
 };
 
 // ─── 主動觸發條件 (proactive triggers) ──────────────────────────────────
@@ -1575,7 +1644,8 @@ export type ProactiveTriggerEvent =
   | "team_status_overview"      // 多任務並行時，總總主動報告團隊現況
   | "social_post_ready"         // 內容生成完且偵測到社群平台關鍵字 — 群群提案排程
   | "notes_capture_suggested"   // 對話中浮現決策 / 想法 — 記記建議存成筆記
-  | "settings_drift_detected";  // 偵測到偏好與行為不一致（例如關了通知卻問為何沒提醒）
+  | "settings_drift_detected"   // 偵測到偏好與行為不一致（例如關了通知卻問為何沒提醒）
+  | "multi_step_plan_ready";    // 跨頁 ≥3 步的 tasked plan 通過 → 步步主動接管自動執行
 
 export interface ProactiveTriggerSpec {
   /** 哪位精靈該被叫醒 */
@@ -1697,6 +1767,15 @@ export const SPIRIT_PROACTIVE_TRIGGERS: ReadonlyArray<ProactiveTriggerSpec> = [
     defaultPrompt: "你之前把「{settingName}」關掉了，所以剛剛沒收到提醒。要我幫你打開、還是維持靜音？",
     surface: "toast",
   },
+  {
+    // 步步：使用者批准了 ≥3 步的 tasked 計畫 → 主動跳出來說「我接手跑完」
+    // surface=inline 讓使用者明確看到由誰接管，並提供「中途插話 / 暫停」入口；
+    // 完全 background 跑會讓使用者懷疑沒在做事。
+    spirit: "plan-executor",
+    event: "multi_step_plan_ready",
+    defaultPrompt: "我步步接手跑完這 {stepCount} 步（預計 {etaMinutes} 分鐘 / 約 {creditsCost} 點）。第 1 步是「{firstStepLabel}」，每完成一步我會通知你。要直接開跑嗎？",
+    surface: "inline",
+  },
 ];
 
 /**
@@ -1770,6 +1849,9 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
     case "settings-detail":
       // 細細 帶人到設定頁 → 通常單槍匹馬即可結束。
       return ["settings-detail"];
+    case "plan-executor":
+      // 步步 接管後：先讓財財估算 → 自己跑跨頁步驟（rely on internal loop） → 品品總評。
+      return ["plan-executor", "accountant", "critic"];
   }
 }
 
@@ -1807,6 +1889,9 @@ const PATH_SPIRIT_MAP: ReadonlyArray<{
   // 團隊總覽
   { prefix: "/team", role: "chief-orchestrator" },
   { prefix: "/agents", role: "chief-orchestrator" },
+  // 步步的「自動執行任務面板」— /jobs 列出排隊中 / 進行中 / 已完成的多步驟任務
+  { prefix: "/jobs", role: "plan-executor" },
+  { prefix: "/tasks", role: "plan-executor" },
 ];
 
 /**
@@ -1901,6 +1986,8 @@ export function buildArrivalFollowUpText(
       return `記記接手 📒 ${intentTail}你想要存新筆記、翻舊素材、還是排程？告訴我關鍵字，我幫你 30 秒內找到。`;
     case "settings-detail":
       return `細細接手 ⚙️ ${intentTail}想調哪個設定？通知 / 主題 / 預設模型 / 隱私 / 金鑰我都帶你過去並解釋打開後的副作用。`;
+    case "plan-executor":
+      return `步步接手 🧩 ${intentTail}我會把這條多步驟工作流跨頁跑完，每完成一步在這裡跟你回報。要先看計畫總覽，還是直接開跑？`;
   }
 }
 
@@ -1930,6 +2017,7 @@ export function summarizeRoleChainForPrompt(chain: AgentRole[]): string {
     "onboarding-coach": "帶帶",
     "notes-curator": "記記",
     "settings-detail": "細細",
+    "plan-executor": "步步",
   };
   if (chain.length === 1) return `【角色】${labels[chain[0]]}`;
   return `【角色鏈】${chain.map(r => labels[r]).join(" → ")}`;
