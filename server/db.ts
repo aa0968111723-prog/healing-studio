@@ -200,8 +200,8 @@ export async function getDb() {
         connection: {
           uri: databaseUrl,
           waitForConnections: true,
-          connectionLimit: 10,
-          maxIdle: 5,
+          connectionLimit: 20,
+          maxIdle: 10,
           idleTimeout: 60_000, // Close idle connections after 60s
           enableKeepAlive: true,
           keepAliveInitialDelay: 30_000,
