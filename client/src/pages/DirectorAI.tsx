@@ -3879,6 +3879,29 @@ export default function DirectorAI() {
     });
   }, [importedSegments, personality, overviewMut]);
 
+  const handleSaveScriptAnalysis = useCallback(() => {
+    if (importedSegments.length === 0) {
+      toast.error("尚未匯入腳本分鏡");
+      return;
+    }
+    const defaultTitle = importedTitle?.trim()
+      ? `${importedTitle}（腳本分析）`
+      : `腳本分析 ${new Date().toLocaleDateString("zh-TW")}`;
+    const title = window.prompt("為這份腳本分析命名", defaultTitle);
+    if (!title?.trim()) return;
+
+    const sessionData = JSON.stringify({
+      personality,
+      mode: "script-analysis",
+      importedTitle,
+      importedSegments,
+      scriptOverview,
+      savedAt: new Date().toISOString(),
+    });
+
+    saveSessionMut.mutate({ title, sessionData, personality });
+  }, [importedSegments, importedTitle, personality, scriptOverview, saveSessionMut]);
+
   const handleMoveSegment = useCallback(
     (fromIdx: number, direction: "up" | "down") => {
       const toIdx = direction === "up" ? fromIdx - 1 : fromIdx + 1;
@@ -4775,6 +4798,16 @@ export default function DirectorAI() {
                   >
                     <Zap className="w-3.5 h-3.5 text-purple-600" />
                     批次生成
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1"
+                    onClick={handleSaveScriptAnalysis}
+                    disabled={saveSessionMut.isPending}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    存檔
                   </Button>
                   <Button
                     variant="outline"
