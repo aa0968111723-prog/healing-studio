@@ -328,7 +328,7 @@ export function inferEngineFromModelId(
   // Perplexity：原生 API 直連（PERPLEXITY_API_KEY），perplexity/sonar* 系列
   // 也可走 OpenRouter（呼叫端 fallback 由 inferEngineFromModelIdSafe 決定）。
   if (id.startsWith("perplexity/")) return "perplexity";
-  // 裸 sonar-* 模型 ID（sonar、sonar-pro、sonar-reasoning、sonar-reasoning-pro
+  // 裸 sonar-* 模型 ID（sonar、sonar-pro、sonar-reasoning、sonar-pro
   // 等）→ 直連 Perplexity API。
   if (/^sonar(-|$)/.test(id)) return "perplexity";
 
@@ -625,10 +625,10 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         // grounding（不需要 tool 即可搜尋），所以 supportsGrounding=true。
         url: "https://api.perplexity.ai/chat/completions",
         apiKey: ENV.perplexityApiKey,
-        // 預設 sonar-reasoning-pro：Perplexity 旗艦推理模型，內建 web search，
+        // 預設 sonar-pro：Perplexity 旗艦推理模型，內建 web search，
         // 最適合需要規劃 + 即時資訊查詢的全站光球代理。可在每次呼叫覆寫
         // model（例如改用 sonar-pro / sonar / sonar-deep-research）。
-        model: "sonar-reasoning-pro",
+        model: "sonar-pro",
         supportsThinking: true,
         supportsGrounding: true,
         supportsLongContext: true,

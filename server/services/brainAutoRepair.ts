@@ -485,7 +485,7 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
     "google/gemini-2.5-pro",
   ],
   // Perplexity Sonar：PERPLEXITY_API_KEY 不可用時降級到 Claude / Gemini。
-  "perplexity/sonar-reasoning-pro": [
+  "perplexity/sonar-pro": [
     "anthropic/claude-opus-4.7",
     "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
@@ -2173,7 +2173,7 @@ export async function webSearch(
           },
           body: JSON.stringify({
             // sonar-pro：成本最低的 web-grounded 變體；search_results 與
-            // sonar-reasoning-pro 同等品質，無需額外推理 token。
+            // sonar-pro 同等品質，無需額外推理 token。
             model: "sonar-pro",
             messages: [
               {
