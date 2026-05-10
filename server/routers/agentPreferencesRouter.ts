@@ -92,7 +92,22 @@ const UpdateSchema = z.object({
 async function ensurePreferences(userId: number) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-  await ensureAgentPreferencesSchema(db);
+  // Schema migration is best-effort — any column we add at runtime is also
+  // declared in drizzle/schema.ts and covered by a checked-in .sql migration.
+  // If the runtime ALTER fails for any reason (driver wraps the duplicate-
+  // column error, ALTER privilege missing, transient connection issue), we
+  // log and continue: the user's UPDATE will either succeed (column already
+  // there from migrations) or fail with a clear error pointing at the real
+  // missing column. Refusing to save the entire row because of a single
+  // best-effort ALTER is worse than letting the actual UPDATE try.
+  try {
+    await ensureAgentPreferencesSchema(db);
+  } catch (err) {
+    console.warn(
+      "[agentPreferencesRouter] best-effort schema check failed; continuing:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
   const existing = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
   if (existing[0]) return existing[0];
 
@@ -122,13 +137,25 @@ async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<t
       } catch (err) {
         // TOCTOU race: between the SELECT above and this ALTER, another
         // process can have added the column. MySQL surfaces that as
-        // ER_DUP_FIELDNAME (1060). Treat it as success — the column
-        // exists, which is what we wanted. Any other failure rethrows
-        // so the outer `.catch` can null `ensureSchemaOnce` and let a
-        // retry pick up.
+        // ER_DUP_FIELDNAME (1060). Some drivers / pools wrap the error
+        // and lose the code/errno fields, so we also match on the
+        // canonical "Duplicate column name" message (any case) and on
+        // the bare SQLSTATE 42S21 used by some forks (TiDB, MariaDB).
+        // Treat any of these as success — column exists, which is what
+        // we wanted. Other failures rethrow so the outer .catch nulls
+        // ensureSchemaOnce and a retry can pick up.
         const code = (err as { code?: string } | null)?.code ?? "";
         const errno = Number((err as { errno?: number } | null)?.errno ?? 0);
-        if (code === "ER_DUP_FIELDNAME" || errno === 1060) return;
+        const sqlState = (err as { sqlState?: string } | null)?.sqlState ?? "";
+        const message = err instanceof Error ? err.message : String(err);
+        if (
+          code === "ER_DUP_FIELDNAME"
+          || errno === 1060
+          || sqlState === "42S21"
+          || /duplicate column/i.test(message)
+        ) {
+          return;
+        }
         throw err;
       }
     };
