@@ -298,12 +298,12 @@
   /* Dark-mode glass surfaces — deep night tone with same blur/blur-saturate */
   :is(.dark) .glass-card,
   :is(.dark) .glass-card-static {
-    background: rgba(20, 25, 40, 0.55);
-    border-color: rgba(180, 170, 220, 0.18);
+    background: rgba(18, 22, 38, 0.75);
+    border-color: rgba(180, 170, 220, 0.22);
     box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.2),
-      0 4px 16px rgba(0, 0, 0, 0.25),
-      0 8px 32px rgba(120, 100, 180, 0.08);
+      0 1px 2px rgba(0, 0, 0, 0.28),
+      0 4px 16px rgba(0, 0, 0, 0.34),
+      0 8px 32px rgba(120, 100, 180, 0.12);
   }
   :is(.dark) .glass-card:hover {
     border-color: rgba(212, 197, 226, 0.32);
@@ -311,6 +311,128 @@
       0 2px 4px rgba(0, 0, 0, 0.25),
       0 8px 24px rgba(0, 0, 0, 0.3),
       0 16px 48px rgba(160, 140, 220, 0.18);
+  }
+
+  /* ─── ZenCoPilot glass primitives — light + dark variants ─── */
+  .zen-glass-card {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow:
+      0 4px 24px rgba(108, 108, 108, 0.08),
+      0 1px 4px rgba(108, 108, 108, 0.04);
+  }
+  :is(.dark) .zen-glass-card {
+    /* Stronger opacity (0.6 → 0.78) so cards read as dark instead of looking
+       washed-out grey when stacked over the workspace ambient layer. */
+    background: rgba(18, 22, 38, 0.78);
+    border-color: rgba(180, 170, 220, 0.22);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.45),
+      0 1px 4px rgba(0, 0, 0, 0.32);
+  }
+  .zen-glass-card-hover:hover {
+    box-shadow:
+      0 8px 32px rgba(108, 108, 108, 0.12),
+      0 2px 8px rgba(108, 108, 108, 0.06);
+  }
+  :is(.dark) .zen-glass-card-hover:hover {
+    border-color: rgba(212, 197, 226, 0.32);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 2px 8px rgba(0, 0, 0, 0.28),
+      0 16px 48px rgba(160, 140, 220, 0.18);
+  }
+
+  .zen-tooltip-glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow:
+      0 8px 32px rgba(108, 108, 108, 0.12),
+      0 2px 8px rgba(108, 108, 108, 0.06);
+  }
+  :is(.dark) .zen-tooltip-glass {
+    background: rgba(22, 26, 42, 0.85);
+    border-color: rgba(180, 170, 220, 0.22);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .zen-progress-overlay-bg {
+    background: rgba(245, 243, 240, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  :is(.dark) .zen-progress-overlay-bg {
+    background: rgba(14, 16, 28, 0.82);
+  }
+
+  .zen-bottom-sheet {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 -8px 32px rgba(108, 108, 108, 0.12);
+  }
+  :is(.dark) .zen-bottom-sheet {
+    background: rgba(18, 22, 36, 0.94);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ─── Proactive Orb panels (mobile sheet + desktop popover) ─── */
+  .orb-mobile-sheet {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 -8px 40px rgba(0, 0, 0, 0.12),
+      0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+  :is(.dark) .orb-mobile-sheet {
+    background: rgba(18, 22, 36, 0.94);
+    border-color: rgba(180, 170, 220, 0.18);
+    box-shadow:
+      0 -8px 40px rgba(0, 0, 0, 0.55),
+      0 -2px 12px rgba(0, 0, 0, 0.35);
+  }
+  .orb-desktop-popover {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.08),
+      0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+  :is(.dark) .orb-desktop-popover {
+    background: rgba(20, 24, 40, 0.92);
+    border-color: rgba(180, 170, 220, 0.2);
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.55),
+      0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  /* ─── Inspiration preset tiles ─── */
+  .inspiration-preset-tile {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+  }
+  .inspiration-preset-tile[data-state="active"] {
+    background: rgba(212, 197, 226, 0.3);
+  }
+  :is(.dark) .inspiration-preset-tile {
+    background: rgba(28, 32, 50, 0.5);
+    border-color: rgba(180, 170, 220, 0.2);
+  }
+  :is(.dark) .inspiration-preset-tile[data-state="active"] {
+    background: rgba(120, 100, 180, 0.3);
+    border-color: rgba(180, 170, 220, 0.4);
   }
 
   /* ─── Semantic Surface Tiers — replace ad-hoc bg-background/60 ────── */
@@ -1769,6 +1891,34 @@
       infinite;
   }
 
+  /* Dark-mode ambient: cool indigo / amethyst glow on the deep-night base */
+  :is(.dark) .workspace-ambient-bg {
+    background:
+      radial-gradient(
+        ellipse 65% 55% at 12% 18%,
+        rgba(120, 100, 180, 0.16) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 55% 65% at 88% 82%,
+        rgba(80, 110, 160, 0.14) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 45% 45% at 50% 50%,
+        rgba(160, 140, 220, 0.08) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 30% 30% at 75% 25%,
+        rgba(90, 130, 170, 0.07) 0%,
+        transparent 50%
+      );
+    background-size: 200% 200%;
+    animation: workspace-gradient-shift 24s cubic-bezier(0.37, 0, 0.63, 1)
+      infinite;
+  }
+
   /* Floating decorative orb (pure CSS) — softer, slower */
   @keyframes workspace-orb-float {
     0%,
@@ -2793,4 +2943,285 @@
   .login-auth-form button[aria-label="顯示密碼"]:hover {
     color: rgba(245, 240, 255, 0.95);
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DARK-MODE DEEP COVERAGE — site-wide safety net
+   ────────────────────────────────────────────────────────────────────────
+   Many components were authored before a strict dark theme and use
+   hardcoded light Tailwind utilities (bg-white/X, bg-gray-50, text-stone-X,
+   border-gray-200, …) without paired `dark:` variants. The rules below
+   remap those classes to dark-aware tokens whenever `.dark` is present on
+   <html>, so every page reads correctly in 深色模式 without touching every
+   component.
+
+   Rules live OUTSIDE @layer so they win over Tailwind utilities by cascade
+   order. Components that already declare `dark:bg-…` overrides keep their
+   intent — those compile to the same `.dark .…` selector with later source
+   order and so still win.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Pure white surfaces → deep night glass ─────────────────────────── */
+.dark .bg-white {
+  background-color: rgba(22, 26, 42, 0.92);
+}
+.dark .bg-white\/95 {
+  background-color: rgba(22, 26, 42, 0.92);
+}
+.dark .bg-white\/90 {
+  background-color: rgba(22, 26, 42, 0.85);
+}
+.dark .bg-white\/85,
+.dark .bg-white\/80 {
+  background-color: rgba(22, 26, 42, 0.78);
+}
+.dark .bg-white\/75,
+.dark .bg-white\/70 {
+  background-color: rgba(22, 26, 42, 0.7);
+}
+.dark .bg-white\/65,
+.dark .bg-white\/60 {
+  background-color: rgba(22, 26, 42, 0.6);
+}
+.dark .bg-white\/50,
+.dark .bg-white\/45,
+.dark .bg-white\/40 {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.dark .bg-white\/30,
+.dark .bg-white\/25,
+.dark .bg-white\/20 {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.dark .bg-white\/15,
+.dark .bg-white\/10,
+.dark .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.dark .hover\:bg-white:hover {
+  background-color: rgba(22, 26, 42, 0.92);
+}
+.dark .hover\:bg-white\/30:hover,
+.dark .hover\:bg-white\/40:hover,
+.dark .hover\:bg-white\/50:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.dark .hover\:bg-white\/10:hover,
+.dark .hover\:bg-white\/15:hover,
+.dark .hover\:bg-white\/18:hover,
+.dark .hover\:bg-white\/20:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.dark .hover\:bg-white\/8:hover,
+.dark .hover\:bg-white\/5:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Pale neutral surfaces (gray/stone/slate/zinc/neutral 50–200) ────── */
+.dark .bg-gray-50,
+.dark .bg-stone-50,
+.dark .bg-slate-50,
+.dark .bg-zinc-50,
+.dark .bg-neutral-50 {
+  background-color: rgba(28, 32, 48, 0.85);
+}
+.dark .bg-gray-50\/60,
+.dark .bg-gray-50\/50,
+.dark .bg-stone-50\/60 {
+  background-color: rgba(28, 32, 48, 0.55);
+}
+.dark .bg-gray-100,
+.dark .bg-stone-100,
+.dark .bg-slate-100,
+.dark .bg-zinc-100,
+.dark .bg-neutral-100 {
+  background-color: rgba(36, 40, 58, 0.85);
+}
+.dark .bg-gray-200,
+.dark .bg-stone-200,
+.dark .bg-slate-200,
+.dark .bg-zinc-200,
+.dark .bg-neutral-200 {
+  background-color: rgba(48, 54, 78, 0.85);
+}
+.dark .bg-gray-300,
+.dark .bg-stone-300,
+.dark .bg-slate-300 {
+  background-color: rgba(60, 66, 92, 0.85);
+}
+
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-stone-50:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-neutral-50:hover {
+  background-color: rgba(40, 46, 66, 0.65);
+}
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-stone-100:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: rgba(50, 56, 78, 0.7);
+}
+.dark .hover\:bg-gray-200\/60:hover,
+.dark .hover\:bg-gray-200:hover {
+  background-color: rgba(60, 66, 92, 0.6);
+}
+
+/* ── Light tinted accents that read as pastel washes on dark ────────── */
+.dark .bg-amber-50 {
+  background-color: rgba(160, 110, 40, 0.18);
+}
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/70,
+.dark .hover\:bg-emerald-50\/70:hover {
+  background-color: rgba(40, 110, 80, 0.18);
+}
+.dark .bg-rose-50,
+.dark .bg-pink-50 {
+  background-color: rgba(150, 60, 90, 0.16);
+}
+.dark .bg-sky-50,
+.dark .bg-blue-50 {
+  background-color: rgba(40, 80, 140, 0.18);
+}
+.dark .bg-violet-50,
+.dark .bg-purple-50 {
+  background-color: rgba(110, 80, 160, 0.18);
+}
+
+/* ── Dark text colors that vanish on dark background ────────────────── */
+.dark .text-gray-900,
+.dark .text-stone-900,
+.dark .text-slate-900,
+.dark .text-zinc-900,
+.dark .text-neutral-900,
+.dark .text-black {
+  color: oklch(0.95 0.008 75);
+}
+.dark .text-gray-800,
+.dark .text-stone-800,
+.dark .text-slate-800,
+.dark .text-zinc-800,
+.dark .text-neutral-800 {
+  color: oklch(0.92 0.008 75);
+}
+.dark .text-gray-700,
+.dark .text-stone-700,
+.dark .text-slate-700,
+.dark .text-zinc-700,
+.dark .text-neutral-700 {
+  color: oklch(0.86 0.01 75);
+}
+.dark .text-gray-600,
+.dark .text-stone-600,
+.dark .text-slate-600,
+.dark .text-zinc-600,
+.dark .text-neutral-600 {
+  color: oklch(0.78 0.012 75);
+}
+.dark .text-gray-500,
+.dark .text-stone-500,
+.dark .text-slate-500,
+.dark .text-zinc-500,
+.dark .text-neutral-500 {
+  color: oklch(0.7 0.014 75);
+}
+.dark .text-gray-400,
+.dark .text-stone-400,
+.dark .text-slate-400 {
+  color: oklch(0.62 0.014 75);
+}
+.dark .text-gray-300,
+.dark .text-stone-300 {
+  color: oklch(0.55 0.014 75);
+}
+.dark .hover\:text-gray-800:hover,
+.dark .hover\:text-stone-800:hover,
+.dark .hover\:text-gray-600:hover,
+.dark .hover\:text-stone-600:hover {
+  color: oklch(0.93 0.01 75);
+}
+
+/* Placeholder text ----------------------------------------------------- */
+.dark .placeholder\:text-gray-300::placeholder,
+.dark .placeholder\:text-stone-300::placeholder,
+.dark .placeholder\:text-gray-400::placeholder,
+.dark .placeholder\:text-stone-400::placeholder {
+  color: oklch(0.55 0.014 75);
+}
+
+/* ── Light borders ──────────────────────────────────────────────────── */
+.dark .border-gray-100,
+.dark .border-stone-100,
+.dark .border-slate-100,
+.dark .border-zinc-100,
+.dark .border-neutral-100 {
+  border-color: rgba(180, 170, 220, 0.12);
+}
+.dark .border-gray-200,
+.dark .border-stone-200,
+.dark .border-slate-200,
+.dark .border-zinc-200,
+.dark .border-neutral-200,
+.dark .border-gray-200\/60,
+.dark .border-gray-200\/70,
+.dark .border-stone-200\/60 {
+  border-color: rgba(180, 170, 220, 0.18);
+}
+.dark .border-gray-300,
+.dark .border-stone-300,
+.dark .border-slate-300 {
+  border-color: rgba(180, 170, 220, 0.24);
+}
+.dark .border-white\/60,
+.dark .border-white\/50,
+.dark .border-white\/45,
+.dark .border-white\/40 {
+  border-color: rgba(180, 170, 220, 0.22);
+}
+.dark .border-white\/30,
+.dark .border-white\/20,
+.dark .border-white\/15,
+.dark .border-white\/10 {
+  border-color: rgba(180, 170, 220, 0.14);
+}
+.dark .focus\:border-gray-300:focus,
+.dark .focus-within\:border-gray-300:focus-within {
+  border-color: rgba(180, 170, 220, 0.32);
+}
+
+/* ── Prose (markdown) styles in dark mode ──────────────────────────── */
+.dark .prose-stone,
+.dark .prose {
+  --tw-prose-body: oklch(0.86 0.01 75);
+  --tw-prose-headings: oklch(0.95 0.008 75);
+  --tw-prose-lead: oklch(0.82 0.012 75);
+  --tw-prose-links: oklch(0.85 0.04 300);
+  --tw-prose-bold: oklch(0.95 0.008 75);
+  --tw-prose-counters: oklch(0.7 0.014 75);
+  --tw-prose-bullets: oklch(0.6 0.014 75);
+  --tw-prose-hr: rgba(180, 170, 220, 0.18);
+  --tw-prose-quotes: oklch(0.86 0.012 75);
+  --tw-prose-quote-borders: rgba(180, 170, 220, 0.28);
+  --tw-prose-captions: oklch(0.7 0.014 75);
+  --tw-prose-code: oklch(0.92 0.01 75);
+  --tw-prose-pre-code: oklch(0.92 0.01 75);
+  --tw-prose-pre-bg: rgba(20, 24, 38, 0.7);
+  --tw-prose-th-borders: rgba(180, 170, 220, 0.22);
+  --tw-prose-td-borders: rgba(180, 170, 220, 0.14);
+}
+
+/* ── Color-scheme hint so native form controls (scrollbar, date picker,
+       checkbox, autofill highlight) follow the dark theme ─────────── */
+html.dark {
+  color-scheme: dark;
+}
+
+/* ── Native input autofill no longer paints solid yellow/white in dark */
+.dark input:-webkit-autofill,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-text-fill-color: oklch(0.93 0.008 75);
+  -webkit-box-shadow: 0 0 0 1000px rgba(28, 32, 48, 0.95) inset;
+  caret-color: oklch(0.93 0.008 75);
 }

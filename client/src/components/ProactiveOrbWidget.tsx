@@ -2638,14 +2638,9 @@ export default memo(function ProactiveOrbWidget({
                     ? { duration: 0.18 }
                     : { type: "spring", stiffness: 300, damping: 30 }
                 }
-                className="fixed inset-x-0 bottom-0 z-[56] pointer-events-auto rounded-t-3xl overflow-hidden"
+                className="orb-mobile-sheet fixed inset-x-0 bottom-0 z-[56] pointer-events-auto rounded-t-3xl overflow-hidden"
                 style={{
                   maxHeight: "85vh",
-                  background: "rgba(255, 255, 255, 0.96)",
-                  backdropFilter: "blur(24px) saturate(180%)",
-                  WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                  border: "1px solid rgba(255, 255, 255, 0.5)",
-                  boxShadow: "0 -8px 40px rgba(0, 0, 0, 0.12), 0 -2px 12px rgba(0, 0, 0, 0.06)",
                   paddingBottom: "env(safe-area-inset-bottom, 0px)",
                 }}
                 onClick={e => e.stopPropagation()}
@@ -3188,15 +3183,7 @@ export default memo(function ProactiveOrbWidget({
                   ? { duration: 0.18 }
                   : { type: "spring", stiffness: 300, damping: 25 }
               }
-              className="w-72 sm:w-80 rounded-2xl overflow-hidden"
-              style={{
-                background: "rgba(255, 255, 255, 0.92)",
-                backdropFilter: "blur(24px) saturate(180%)",
-                WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                border: "1px solid rgba(255, 255, 255, 0.5)",
-                boxShadow:
-                  "0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04)",
-              }}
+              className="orb-desktop-popover w-72 sm:w-80 rounded-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               {/* Panel Header */}
