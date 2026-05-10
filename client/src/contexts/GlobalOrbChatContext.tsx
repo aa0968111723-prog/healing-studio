@@ -3665,6 +3665,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           ? ` · parsedScriptStructure: ${parts.join(", ")}`
           : "";
       })();
+      // 全站代理對話會把目前使用者選取的文字帶進 context，
+      // 讓「請幫我改這段／翻成…」之類請求可直接對準選取內容回覆。
+      const selectedTextHint = (() => {
+        if (typeof window === "undefined" || typeof window.getSelection !== "function") {
+          return "";
+        }
+        const selected = window.getSelection()?.toString().replace(/\s+/g, " ").trim() ?? "";
+        if (!selected) return "";
+        const clipped = selected.length > 500 ? `${selected.slice(0, 500)}…` : selected;
+        return ` · 使用者目前選取文字: ${clipped}`;
+      })();
       orbState.setState("thinking", "光球思考中…");
       // Per-request id powers the inline thinking-timeline polling. The
       // chat handler keys progress milestones by this id; the client polls
@@ -3683,7 +3694,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             content: toLLMMessageContent(m),
           })),
         personality,
-        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}${parsedStructureHint}`,
+        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}${parsedStructureHint}${selectedTextHint}`,
         pageSnapshot: pageAgent.snapshot ?? undefined,
         recentFeedback: pageAgent.recentFeedback,
         preferences: preferencesForChat,
