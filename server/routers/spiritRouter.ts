@@ -27,7 +27,11 @@ const agentRoleSchema = z.enum(ALL_AGENT_ROLES);
 
 const invokeInputSchema = z.object({
   spirit: agentRoleSchema,
-  modelId: z.string().min(1, "modelId 不能為空"),
+  /**
+   * 省略時 server 會用 pickDefaultModelForSpirit 為該精靈挑一個 —— 給 orb
+   * chat 這種使用者只 @ 精靈但沒選模型的路徑用。
+   */
+  modelId: z.string().min(1).optional(),
   prompt: z.string().optional(),
   imageUrl: z.string().url().optional(),
   videoUrl: z.string().url().optional(),

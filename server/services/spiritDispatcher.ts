@@ -21,20 +21,50 @@ import {
   type FalDispatchInput,
   type FalDispatchResult,
 } from "./falDispatcher";
-import { canSpiritCallFalModel, getFalModelById } from "./falModels";
+import {
+  canSpiritCallFalModel,
+  getFalModelById,
+  getFalModelsForSpirit,
+} from "./falModels";
 import {
   getCategoriesForSpirit,
   type AgentRole,
 } from "../../shared/orb-agent-roles";
 
 /**
+ * 為精靈挑一個預設可用模型 — 用於使用者只給「@圖圖 一隻貓」沒指定 modelId
+ * 的場景。規則：
+ *   - 有 imageUrl → 偏好 image-to-* 類別
+ *   - 否則 → 偏好 text-to-* 類別
+ * 若兩種偏好都沒命中，退而求其次取該精靈第一個未 disable 的模型。
+ * 找不到任何模型回 null（呼叫端會回 success:false）。
+ */
+export function pickDefaultModelForSpirit(
+  role: AgentRole,
+  options: { hasImageInput?: boolean } = {},
+): string | null {
+  const models = getFalModelsForSpirit(role);
+  if (models.length === 0) return null;
+  const preferImage = options.hasImageInput;
+  const preferred = preferImage
+    ? models.find(m => m.category.startsWith("image-"))
+    : models.find(m => m.category.startsWith("text-"));
+  return (preferred ?? models[0]).modelId;
+}
+
+/**
  * 呼叫端傳入：哪位精靈要打哪個 fal 模型 + 任務輸入。
  * 不需要呼叫端帶 `category`，spiritDispatcher 會從 fal 目錄查表。
  */
 export interface InvokeSpiritModelInput
-  extends Omit<FalDispatchInput, "category" | "spirit"> {
+  extends Omit<FalDispatchInput, "category" | "spirit" | "modelId"> {
   /** 哪位精靈要呼叫（圖圖 / 影影 / 音音 / 聲聲 / 練練 / 編編 …） */
   spirit: AgentRole;
+  /**
+   * 指定模型 ID。省略時會走 `pickDefaultModelForSpirit` 自動選一個 —
+   * 用於 orb chat「@圖圖 畫一隻貓」這種使用者沒挑模型的場景。
+   */
+  modelId?: string;
 }
 
 /**
@@ -50,7 +80,28 @@ export interface InvokeSpiritModelInput
 export async function invokeSpiritModel(
   input: InvokeSpiritModelInput,
 ): Promise<FalDispatchResult> {
-  const { spirit, modelId, ...rest } = input;
+  const { spirit, modelId: providedModelId, ...rest } = input;
+
+  // 沒指定模型 → 為該精靈挑一個預設可用模型。挑不到（例如暖暖 / 路路
+  // 這種沒有 fal 模型的精靈）就 fail-fast。
+  const modelId =
+    providedModelId ??
+    pickDefaultModelForSpirit(spirit, {
+      hasImageInput: !!rest.imageUrl,
+    });
+  if (!modelId) {
+    return {
+      success: false,
+      modelId: providedModelId ?? "(unspecified)",
+      modelLabel: providedModelId ?? "(unspecified)",
+      category: "unknown",
+      data: {},
+      durationMs: 0,
+      pointsDeducted: 0,
+      pointsBreakdown: "0 (未呼叫：精靈無可用模型)",
+      error: `精靈 "${spirit}" 沒有可呼叫的 fal 模型；請改用其他精靈或指定 modelId`,
+    };
+  }
 
   // Step 1: 查表取得 category。不在目錄裡就直接拒絕 —— 沒有 category 就無法
   // 走 dispatchFalTask 的降級鏈與計費邏輯，硬打也只是浪費點數。

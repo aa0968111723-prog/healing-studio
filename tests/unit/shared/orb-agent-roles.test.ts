@@ -12,6 +12,7 @@ import {
   getRoleSystemPromptSlice,
   hasSpiritMention,
   selectRoleForIntent,
+  stripSpiritMention,
   summarizeRoleChainForPrompt,
   SPIRIT_COLLAB_PROTOCOL,
   SPIRIT_PROACTIVE_TRIGGERS,
@@ -601,6 +602,24 @@ describe("SPIRIT_MODEL_CAPABILITIES", () => {
     expect(canSpiritCallCategory("critic", "audio-to-text")).toBe(true);
     expect(canSpiritCallCategory("critic", "text-to-image")).toBe(false);
     expect(canSpiritCallCategory("critic", "text-to-video")).toBe(false);
+  });
+});
+
+describe("stripSpiritMention", () => {
+  it("removes leading bare nickname", () => {
+    expect(stripSpiritMention("圖圖 一隻橘貓")).toBe("一隻橘貓");
+  });
+
+  it("removes inline @nickname", () => {
+    expect(stripSpiritMention("我想要 @圖圖 畫一隻貓")).toBe("我想要 畫一隻貓");
+  });
+
+  it("returns original when no spirit is mentioned", () => {
+    expect(stripSpiritMention("一隻橘貓側臥窗台")).toBe("一隻橘貓側臥窗台");
+  });
+
+  it("collapses extra whitespace from inline removal", () => {
+    expect(stripSpiritMention("@影影  一支 5 秒影片")).toBe("一支 5 秒影片");
   });
 });
 

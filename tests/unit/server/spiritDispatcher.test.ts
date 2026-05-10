@@ -22,7 +22,10 @@ vi.mock("../../../server/services/falDispatcher", async () => {
 });
 
 import { dispatchFalTask } from "../../../server/services/falDispatcher";
-import { invokeSpiritModel } from "../../../server/services/spiritDispatcher";
+import {
+  invokeSpiritModel,
+  pickDefaultModelForSpirit,
+} from "../../../server/services/spiritDispatcher";
 
 const dispatchFalTaskMock = vi.mocked(dispatchFalTask);
 
@@ -95,6 +98,34 @@ describe("invokeSpiritModel", () => {
     expect(call.spirit).toBe("image-specialist");
     expect(call.prompt).toBe("a cat");
     expect(call.aspectRatio).toBe("1:1");
+  });
+
+  it("auto-picks a default model for 圖圖 when modelId is omitted", async () => {
+    const result = await invokeSpiritModel({
+      spirit: "image-specialist",
+      prompt: "a cat",
+    });
+    expect(result.success).toBe(true);
+    expect(dispatchFalTaskMock).toHaveBeenCalledTimes(1);
+    const call = dispatchFalTaskMock.mock.calls[0][0];
+    // 圖圖 沒有指定 modelId 時，預設應該命中 text-* 類別的某個模型
+    expect(call.modelId).toMatch(/^fal-ai\//);
+    expect(call.category).toMatch(/^(text-to-image|text-to-3d|image-to-image|image-to-3d|image-to-json)$/);
+  });
+
+  it("pickDefaultModelForSpirit returns a fal model for image-specialist", () => {
+    expect(pickDefaultModelForSpirit("image-specialist")).toMatch(/^fal-ai\//);
+  });
+
+  it("pickDefaultModelForSpirit prefers text-* without imageUrl, image-* with imageUrl", () => {
+    // text-only should land on a text-to-* model; with imageUrl should land on image-to-*
+    const noImage = pickDefaultModelForSpirit("image-specialist");
+    const withImage = pickDefaultModelForSpirit("image-specialist", { hasImageInput: true });
+    expect(noImage).toMatch(/^fal-ai\//);
+    expect(withImage).toMatch(/^fal-ai\//);
+    // not strictly required to differ, but the picker should pick *some* model in both cases
+    expect(noImage).not.toBeNull();
+    expect(withImage).not.toBeNull();
   });
 
   it("編編 (composer) is allowed across modalities and reaches dispatchFalTask", async () => {

@@ -86,6 +86,10 @@ import { useOrbGuide } from "./OrbGuideContext";
 import {
   pickArrivalSpiritForPath,
   buildArrivalFollowUpText,
+  detectSpiritMention,
+  stripSpiritMention,
+  getPrimaryNicknameForRole,
+  type AgentRole,
 } from "../../../shared/orb-agent-roles";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
@@ -2237,6 +2241,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     trpc.orbConversations.clearMessages.useMutation();
   const appendMessagesServer =
     trpc.orbConversations.appendMessages.useMutation();
+  // 直接讓精靈打 fal.ai：使用者 @圖圖/影影/音音/聲聲 + 一句話描述時，
+  // sendMessage 會走 spiritInvokeMut.mutateAsync 而不是 LLM 對話。
+  const spiritInvokeMut = trpc.spirit.invoke.useMutation();
   const orbState = useOrbState();
   const { attachArrivalGuide } = useOrbGuide();
   const isMobile = useIsMobile();
@@ -3165,6 +3172,138 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             text: `🔍 搜尋時遇到問題：${reason}`,
             at: Date.now(),
             pagePath: locationPath,
+          }]);
+        } finally {
+          setIsSending(false);
+        }
+        return;
+      }
+    }
+
+    // ─── Spirit direct invoke shortcut ──────────────────────────────────
+    // 「@圖圖 一隻橘貓側臥窗台」這類請求：使用者已經 @ 了某個生成型精靈，
+    // 而且 prompt 不是空的 / 太短，就直接打 trpc.spirit.invoke 走真實 fal.ai
+    // 出圖出影音，不再走 LLM 對話。把生成的資產用 ChatAttachment 掛上 orb
+    // 訊息，讓既有的 chat renderer 直接秀圖 / 播影片 / 播音檔。
+    //
+    // 條件刻意保守：
+    //   - 只在 default mode（沒有 requestedMode）攔截
+    //   - 只認 4 位純生成精靈（圖圖 / 影影 / 音音 / 聲聲）；練練要 imageUrl，
+    //     編編 / 學學 / 暖暖 等不是「直接生成」的角色不適合自動走這條
+    //   - 去掉 @nickname 後的 prompt 至少要 6 字，太短可能只是打招呼 / 想聊天
+    if (!requestedMode) {
+      const mentioned = detectSpiritMention(trimmed);
+      const GENERATIVE_SPIRITS: ReadonlyArray<AgentRole> = [
+        "image-specialist",
+        "video-specialist",
+        "music-specialist",
+        "voice-specialist",
+      ];
+      const cleanPrompt = stripSpiritMention(trimmed);
+      if (
+        mentioned &&
+        GENERATIVE_SPIRITS.includes(mentioned) &&
+        cleanPrompt.length >= 6
+      ) {
+        const nickname = getPrimaryNicknameForRole(mentioned);
+        const stateLabel: Record<AgentRole, string> = {
+          "image-specialist": "圖圖正在畫…",
+          "video-specialist": "影影正在拍…",
+          "music-specialist": "音音正在配樂…",
+          "voice-specialist": "聲聲正在配音…",
+        } as Record<AgentRole, string>;
+        orbState.setState("thinking", stateLabel[mentioned] ?? `${nickname} 正在處理…`);
+        try {
+          const result = await spiritInvokeMut.mutateAsync({
+            spirit: mentioned,
+            prompt: cleanPrompt,
+          });
+          if (isStale()) return;
+
+          if (!result.success) {
+            orbState.setState("error", `${nickname} 失敗`);
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: `${nickname} 沒辦法完成這次生成：${result.error ?? "未知錯誤"}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: mentioned,
+            }]);
+            return;
+          }
+
+          // 從 fal.ai 回傳的不同 shape 中取出第一個資產 URL。各模型 schema 略
+          // 有差異（images[0].url / image.url / video.url / audio.url / 純 url），
+          // 統一退回到 first-non-null。
+          const data = result.data as Record<string, unknown>;
+          const pickUrl = (): string | null => {
+            const direct = (data?.url ?? (data as { output?: string })?.output) as
+              | string
+              | undefined;
+            if (typeof direct === "string" && direct) return direct;
+            const images = (data?.images as Array<{ url?: string }> | undefined)
+              ?? (data as { image?: { url?: string } | string }).image;
+            if (Array.isArray(images) && images[0]?.url) return images[0].url;
+            if (typeof images === "string") return images;
+            const video = data?.video as { url?: string } | undefined;
+            if (video?.url) return video.url;
+            const audio = data?.audio as { url?: string } | undefined;
+            if (audio?.url) return audio.url;
+            return null;
+          };
+          const assetUrl = pickUrl();
+
+          // 依精靈決定附件類型，配合 chat renderer 內建的 image / video / audio
+          // 顯示路徑。training-specialist 不在此分支；其他四位對應模態固定。
+          const KIND_BY_SPIRIT: Record<AgentRole, ChatAttachmentKind> = {
+            "image-specialist": "image",
+            "video-specialist": "video",
+            "music-specialist": "audio",
+            "voice-specialist": "audio",
+          } as Record<AgentRole, ChatAttachmentKind>;
+          const MIME_BY_KIND: Record<ChatAttachmentKind, ChatAttachmentMimeType> = {
+            image: "image/png",
+            video: "video/mp4",
+            audio: "audio/mpeg",
+            pdf: "application/pdf",
+            text: "text/plain",
+          };
+          const kind = KIND_BY_SPIRIT[mentioned] ?? "image";
+
+          const attachment: ChatAttachment | null = assetUrl
+            ? {
+                id: `spirit-${Date.now()}`,
+                name: `${nickname}-${result.modelLabel || result.modelId}`,
+                url: assetUrl,
+                mimeType: MIME_BY_KIND[kind],
+                kind,
+              }
+            : null;
+
+          orbState.setState(
+            assetUrl ? "success" : "idle",
+            assetUrl ? `${nickname} 出爐` : `${nickname} 完成（無附件）`,
+          );
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: assetUrl
+              ? `🎨 ${nickname} 用 ${result.modelLabel || result.modelId} 完成了。`
+              : `${nickname} 完成了，但沒有取到輸出 URL。`,
+            at: Date.now(),
+            pagePath: locationPath,
+            agentRole: mentioned,
+            attachments: attachment ? [attachment] : undefined,
+          }]);
+        } catch (err) {
+          if (isStale()) return;
+          const reason = err instanceof Error ? err.message : String(err);
+          orbState.setState("error", `${nickname} 失敗`);
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: `${nickname} 在呼叫模型時遇到錯誤：${reason}`,
+            at: Date.now(),
+            pagePath: locationPath,
+            agentRole: mentioned,
           }]);
         } finally {
           setIsSending(false);
