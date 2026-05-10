@@ -48,7 +48,26 @@ import {
   Flame,
   CalendarClock,
   Sparkles,
+  BookOpen,
+  Package,
+  FileJson,
+  FileDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  exportMarkdownBundle,
+  exportSingleMarkdown,
+  exportNotesJson,
+  type ExportableNote,
+} from "@/lib/noteExports";
+import { launchResearch } from "@/lib/researchLaunch";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
@@ -244,8 +263,47 @@ export default function NotesPage() {
   );
 
   const createGenerationPlanningNote = useCallback(
-    (phase: "pre" | "post") => {
+    (phase: "pre" | "post" | "research") => {
       const today = new Date().toLocaleDateString("zh-TW");
+      if (phase === "research") {
+        createNote.mutate({
+          title: `深度研究 - ${today}`,
+          content: [
+            "## 研究主題",
+            "- 一句話描述：",
+            "- 為什麼現在要研究：",
+            "- 期望產出（文章 / 影片 / 簡報 / 課程）：",
+            "",
+            "## 在 AI 搜尋引擎深掘",
+            "- [Perplexity 深度研究](https://www.perplexity.ai/search?q=)（複製主題貼上即可）",
+            "- [Google Scholar 找學術來源](https://scholar.google.com/)",
+            "- 提示：先用「主題 + site:edu OR site:org」過濾雜訊",
+            "",
+            "## 關鍵問題（先寫問題、再蒐答案）",
+            "- [ ] Q1：",
+            "- [ ] Q2：",
+            "- [ ] Q3：",
+            "",
+            "## 來源（每筆都標 URL / 作者 / 日期）",
+            "1. ",
+            "2. ",
+            "3. ",
+            "",
+            "## 重點筆記（用自己的話覆述）",
+            "- ",
+            "",
+            "## 反證 / 不同觀點",
+            "- ",
+            "",
+            "## 結論與下一步",
+            "- 我同意 / 不同意 / 不確定的部分：",
+            "- 下一步行動（排程到行事曆）：",
+          ].join("\n"),
+          noteType: "note",
+          tags: ["深度研究", "research", "知識"],
+        });
+        return;
+      }
       if (phase === "pre") {
         createNote.mutate({
           title: `生成前規劃 - ${today}`,
@@ -523,7 +581,7 @@ export default function NotesPage() {
       ) : (
         <>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <StickyNote className="w-5 h-5 text-muted-foreground" />
           <h1 className="hs-h2 !mb-0">專案筆記</h1>
@@ -531,12 +589,92 @@ export default function NotesPage() {
             {allNotes.length} 篇
           </Badge>
         </div>
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
-          <DialogTrigger asChild>
-            <Button className="rounded-xl gap-1.5 text-sm">
-              <Plus className="w-4 h-4" /> 新增筆記
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 text-xs"
+                disabled={allNotes.length === 0}
+                title="匯出到主流筆記 app"
+              >
+                <Download className="w-3.5 h-3.5" />
+                匯出
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-[11px] text-muted-foreground">
+                匯出 {allNotes.length} 則筆記
+                {filtered.length !== allNotes.length &&
+                  ` · 套用篩選 ${filtered.length} 則`}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  exportMarkdownBundle(
+                    (filtered.length ? filtered : allNotes) as ExportableNote[]
+                  )
+                    .then(({ filename }) =>
+                      toast.success(`已匯出 ${filename}（可解壓縮直接放入 Obsidian / Logseq）`)
+                    )
+                    .catch(e => toast.error(e?.message ?? "匯出失敗"));
+                }}
+              >
+                <Package className="w-4 h-4 mr-2" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium">Markdown 套件 (.zip)</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Obsidian / Logseq / Bear / Joplin / Notion
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const fn = exportSingleMarkdown(
+                    (filtered.length ? filtered : allNotes) as ExportableNote[]
+                  );
+                  toast.success(`已匯出 ${fn}`);
+                }}
+              >
+                <FileDown className="w-4 h-4 mr-2" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium">單一 Markdown (.md)</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    所有筆記合併成一份檔案
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const fn = exportNotesJson(allNotes as ExportableNote[]);
+                  toast.success(`已匯出 ${fn}（完整備份）`);
+                }}
+              >
+                <FileJson className="w-4 h-4 mr-2" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium">JSON 完整備份</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    無損結構，可程式化匯入回 Healing Studio
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setPageTab("calendar")}
+                className="text-xs"
+              >
+                <CalendarDays className="w-4 h-4 mr-2" />
+                行事曆 .ics 在「創作排程」分頁
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Dialog open={showCreate} onOpenChange={setShowCreate}>
+            <DialogTrigger asChild>
+              <Button className="rounded-xl gap-1.5 text-sm">
+                <Plus className="w-4 h-4" /> 新增筆記
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -606,7 +744,8 @@ export default function NotesPage() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <p className="hs-small !mb-0 text-muted-foreground">
@@ -808,6 +947,35 @@ export default function NotesPage() {
           >
             <History className="w-3.5 h-3.5" />
             建立生成後復盤
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => createGenerationPlanningNote("research")}
+            title="建立深度研究筆記，附問題、來源、反證、結論等欄位"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            建立深度研究筆記
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => {
+              const seed = search.trim();
+              const q = window.prompt(
+                "要在 Perplexity 深度研究什麼主題？",
+                seed
+              );
+              if (!q?.trim()) return;
+              const ok = launchResearch(q, "perplexity");
+              if (!ok) toast.error("瀏覽器擋下新分頁，請允許彈出視窗");
+            }}
+            title="開啟 Perplexity AI 搜尋（會在新分頁打開）"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            在 Perplexity 研究
           </Button>
           <Button
             size="sm"
@@ -1322,6 +1490,23 @@ export default function NotesPage() {
                                     }}
                                   >
                                     <Download className="w-3 h-3" /> 下載
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1 rounded-lg"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      const ok = launchResearch(
+                                        note.title,
+                                        "perplexity"
+                                      );
+                                      if (!ok)
+                                        toast.error("瀏覽器擋下新分頁，請允許彈出視窗");
+                                    }}
+                                    title="把這篇筆記的標題丟到 Perplexity 深掘"
+                                  >
+                                    <Sparkles className="w-3 h-3" /> Perplexity
                                   </Button>
                                 </div>
                               </>
