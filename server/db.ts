@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, lt } from "drizzle-orm";
+import { eq, desc, and, sql, lt, gt, asc, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
@@ -47,8 +47,14 @@ import {
   InsertModelTrainingConsent,
   fineTunedModelConsents,
   InsertFineTunedModelConsent,
+  agentPreferences,
+  orbConversations,
+  orbConversationMessages,
+  type OrbConversation,
+  type OrbConversationMessage,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { cache } from "./_core/cache";
 
 /**
  * 檢查 email 是否在管理員信箱清單中（ADMIN_EMAILS 環境變數，逗號分隔）
@@ -2087,4 +2093,412 @@ export async function clearOrbFeedbackEvents(
   if (filters?.beforeAt) conditions.push(lt(orbFeedbackEvents.createdAt, filters.beforeAt));
   const result = await db.delete(orbFeedbackEvents).where(and(...conditions));
   return Number(result[0].affectedRows ?? 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Batch Operations
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Batch upsert users — single round-trip for bulk OAuth sync or admin imports.
+ * Uses INSERT … ON DUPLICATE KEY UPDATE so existing rows are updated in-place.
+ */
+export async function batchUpsertUsers(usersToUpsert: InsertUser[]): Promise<void> {
+  if (usersToUpsert.length === 0) return;
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot batch upsert users: database not available");
+    return;
+  }
+  // Process in chunks of 100 to avoid oversized packets
+  const CHUNK = 100;
+  for (let i = 0; i < usersToUpsert.length; i += CHUNK) {
+    const chunk = usersToUpsert.slice(i, i + CHUNK);
+    await db
+      .insert(users)
+      .values(chunk)
+      .onDuplicateKeyUpdate({
+        set: {
+          name: sql`VALUES(name)`,
+          email: sql`VALUES(email)`,
+          loginMethod: sql`VALUES(loginMethod)`,
+          lastSignedIn: sql`VALUES(lastSignedIn)`,
+        },
+      });
+  }
+}
+
+/**
+ * Batch create agent preferences for multiple users in a single INSERT.
+ * Skips rows that already exist (INSERT IGNORE semantics via onDuplicateKeyUpdate
+ * with a no-op set so existing preferences are never overwritten).
+ */
+export async function batchCreateAgentPreferences(
+  prefs: Array<{ userId: number } & Partial<typeof agentPreferences.$inferInsert>>
+): Promise<void> {
+  if (prefs.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  const CHUNK = 100;
+  for (let i = 0; i < prefs.length; i += CHUNK) {
+    const chunk = prefs.slice(i, i + CHUNK);
+    await db
+      .insert(agentPreferences)
+      .values(chunk as any)
+      .onDuplicateKeyUpdate({ set: { userId: sql`VALUES(userId)` } });
+  }
+}
+
+/**
+ * Batch update remaining-generation quotas for multiple users.
+ * Executes one UPDATE per user inside a single transaction to avoid N round-trips.
+ */
+export async function batchUpdateUserQuotas(
+  updates: Array<{ userId: number; amount: number }>
+): Promise<void> {
+  if (updates.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  await db.transaction(async tx => {
+    for (const { userId, amount } of updates) {
+      await tx
+        .update(users)
+        .set({ remainingGenerations: amount })
+        .where(eq(users.id, userId));
+    }
+  });
+}
+
+/**
+ * Batch insert API usage logs — single INSERT for multiple log rows produced
+ * in one request cycle (e.g. multi-step agent runs).
+ */
+export async function batchInsertApiLogs(logs: InsertApiUsageLog[]): Promise<void> {
+  if (logs.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const CHUNK = 200;
+  for (let i = 0; i < logs.length; i += CHUNK) {
+    await db.insert(apiUsageLogs).values(logs.slice(i, i + CHUNK));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Optimized JOIN Queries
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Cache TTLs (seconds)
+const TTL_USER_PROFILE = 300;    // 5 min
+const TTL_AGENT_PREFS  = 600;    // 10 min
+const TTL_USER_SETTINGS = 900;   // 15 min
+
+export type UserWithPreferences = {
+  user: typeof users.$inferSelect;
+  preferences: typeof agentPreferences.$inferSelect | null;
+};
+
+/**
+ * Fetch a user row and their agent preferences in a single JOIN query.
+ * Result is cached for TTL_USER_PROFILE seconds; invalidated by
+ * `invalidateUserProfileCache`.
+ */
+export async function getUserWithPreferences(
+  userId: number
+): Promise<UserWithPreferences | null> {
+  const cacheKey = `db:user_with_prefs:${userId}`;
+  const cached = await cache.get<UserWithPreferences>(cacheKey);
+  if (cached !== null) return cached;
+
+  const db = await getDb();
+  if (!db) return null;
+
+  const rows = await db
+    .select({
+      user: users,
+      preferences: agentPreferences,
+    })
+    .from(users)
+    .leftJoin(agentPreferences, eq(agentPreferences.userId, users.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (rows.length === 0) return null;
+  const result: UserWithPreferences = {
+    user: rows[0].user,
+    preferences: rows[0].preferences ?? null,
+  };
+  await cache.set(cacheKey, result, { ttl: TTL_USER_PROFILE });
+  return result;
+}
+
+export type UserWithConversations = {
+  user: typeof users.$inferSelect;
+  conversations: OrbConversation[];
+};
+
+/**
+ * Fetch a user row together with their most recent conversations.
+ * Avoids the two-query pattern (getUser + listConversations) used in several
+ * routers by joining both tables in one round-trip.
+ */
+export async function getUserWithConversations(
+  userId: number,
+  limit = 30
+): Promise<UserWithConversations | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [userRow, convRows] = await Promise.all([
+    db.select().from(users).where(eq(users.id, userId)).limit(1),
+    db
+      .select()
+      .from(orbConversations)
+      .where(eq(orbConversations.userId, userId))
+      .orderBy(desc(orbConversations.updatedAt))
+      .limit(limit),
+  ]);
+
+  if (userRow.length === 0) return null;
+  return { user: userRow[0], conversations: convRows };
+}
+
+export type ConversationWithMessages = {
+  conversation: OrbConversation;
+  messages: OrbConversationMessage[];
+};
+
+/**
+ * Fetch a conversation row and its messages in a single batched query.
+ * Replaces the two-query ownership-check + message-fetch pattern in
+ * `orbConversationsRouter.getMessages`.
+ */
+export async function getConversationWithMessages(
+  conversationId: string,
+  userId: number,
+  limit = 200
+): Promise<ConversationWithMessages | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [convRows, msgRows] = await Promise.all([
+    db
+      .select()
+      .from(orbConversations)
+      .where(
+        and(
+          eq(orbConversations.conversationId, conversationId),
+          eq(orbConversations.userId, userId)
+        )
+      )
+      .limit(1),
+    db
+      .select({
+        messageId: orbConversationMessages.messageId,
+        role: orbConversationMessages.role,
+        text: orbConversationMessages.text,
+        at: orbConversationMessages.at,
+        metadata: orbConversationMessages.metadata,
+      })
+      .from(orbConversationMessages)
+      .where(
+        and(
+          eq(orbConversationMessages.conversationId, conversationId),
+          eq(orbConversationMessages.userId, userId)
+        )
+      )
+      .orderBy(asc(orbConversationMessages.at))
+      .limit(limit),
+  ]);
+
+  if (convRows.length === 0) return null;
+  return { conversation: convRows[0], messages: msgRows as OrbConversationMessage[] };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cursor-Based Pagination
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface PaginatedResult<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+/**
+ * List conversations for a user with cursor-based pagination.
+ * `cursor` is an ISO timestamp string (updatedAt of the last seen row).
+ * More efficient than OFFSET for large datasets — avoids full table scans.
+ */
+export async function listConversationsCursor(
+  userId: number,
+  opts?: { cursor?: string; limit?: number; includeArchived?: boolean }
+): Promise<PaginatedResult<OrbConversation>> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const limit = Math.min(opts?.limit ?? 30, 100);
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(orbConversations.userId, userId) as any,
+  ];
+  if (!opts?.includeArchived) {
+    conditions.push(sql`${orbConversations.archivedAt} IS NULL` as any);
+  }
+  if (opts?.cursor) {
+    conditions.push(lt(orbConversations.updatedAt, new Date(opts.cursor)) as any);
+  }
+
+  const rows = await db
+    .select()
+    .from(orbConversations)
+    .where(and(...conditions))
+    .orderBy(desc(orbConversations.pinned), desc(orbConversations.updatedAt))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore
+    ? items[items.length - 1].updatedAt.toISOString()
+    : null;
+
+  return { items, nextCursor };
+}
+
+/**
+ * List API usage logs for a user with cursor-based pagination.
+ * `cursor` is an ISO timestamp string (createdAt of the last seen row).
+ */
+export async function listApiUsageCursor(
+  userId: number,
+  opts?: { cursor?: string; limit?: number }
+): Promise<PaginatedResult<typeof apiUsageLogs.$inferSelect>> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const limit = Math.min(opts?.limit ?? 50, 200);
+  const conditions: any[] = [eq(apiUsageLogs.userId, userId)];
+  if (opts?.cursor) {
+    conditions.push(lt(apiUsageLogs.createdAt, new Date(opts.cursor)));
+  }
+
+  const rows = await db
+    .select()
+    .from(apiUsageLogs)
+    .where(and(...conditions))
+    .orderBy(desc(apiUsageLogs.createdAt))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore
+    ? items[items.length - 1].createdAt.toISOString()
+    : null;
+
+  return { items, nextCursor };
+}
+
+/**
+ * List generation history for a user with cursor-based pagination.
+ * `cursor` is an ISO timestamp string (createdAt of the last seen row).
+ */
+export async function listGenerationHistoryCursor(
+  userId: number,
+  opts?: { cursor?: string; limit?: number }
+): Promise<PaginatedResult<typeof generationHistory.$inferSelect>> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const limit = Math.min(opts?.limit ?? 50, 200);
+  const conditions: any[] = [eq(generationHistory.userId, userId)];
+  if (opts?.cursor) {
+    conditions.push(lt(generationHistory.createdAt, new Date(opts.cursor)));
+  }
+
+  const rows = await db
+    .select()
+    .from(generationHistory)
+    .where(and(...conditions))
+    .orderBy(desc(generationHistory.createdAt))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore
+    ? items[items.length - 1].createdAt.toISOString()
+    : null;
+
+  return { items, nextCursor };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cache Invalidation Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Invalidate all cached data for a user (profile, preferences, settings).
+ * Call after any write that modifies user-level data.
+ */
+export async function invalidateUserCache(userId: number): Promise<void> {
+  await Promise.all([
+    cache.delete(`db:user_with_prefs:${userId}`),
+    cache.invalidateUserPrefs(userId),
+    cache.deleteByPrefix(`db:settings:${userId}`),
+  ]);
+}
+
+/**
+ * Invalidate only the user+preferences JOIN cache entry.
+ * Call after agent preference writes.
+ */
+export async function invalidateUserProfileCache(userId: number): Promise<void> {
+  await cache.delete(`db:user_with_prefs:${userId}`);
+  await cache.invalidateUserPrefs(userId);
+}
+
+/**
+ * Get or set cached system settings for a user.
+ * Wraps `getSystemSettings` with a 15-minute cache layer.
+ */
+export async function getCachedSystemSettings(userId: number) {
+  const cacheKey = `db:settings:${userId}`;
+  const cached = await cache.get<typeof systemSettings.$inferSelect>(cacheKey);
+  if (cached !== null) return cached;
+
+  const result = await getSystemSettings(userId);
+  if (result) {
+    await cache.set(cacheKey, result, { ttl: TTL_USER_SETTINGS });
+  }
+  return result;
+}
+
+/**
+ * Get or set cached agent preferences for a user.
+ * Wraps a direct DB select with a 10-minute cache layer.
+ */
+export async function getCachedAgentPreferences(userId: number) {
+  const cacheKey = `db:agent_prefs:${userId}`;
+  const cached = await cache.get<typeof agentPreferences.$inferSelect>(cacheKey);
+  if (cached !== null) return cached;
+
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(agentPreferences)
+    .where(eq(agentPreferences.userId, userId))
+    .limit(1);
+  const result = rows[0] ?? null;
+  if (result) {
+    await cache.set(cacheKey, result, { ttl: TTL_AGENT_PREFS });
+  }
+  return result;
+}
+
+/**
+ * Invalidate the agent preferences cache entry for a user.
+ * Call after any write to agent_preferences.
+ */
+export async function invalidateAgentPreferencesCache(userId: number): Promise<void> {
+  await Promise.all([
+    cache.delete(`db:agent_prefs:${userId}`),
+    cache.delete(`db:user_with_prefs:${userId}`),
+  ]);
 }

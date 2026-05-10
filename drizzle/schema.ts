@@ -2274,6 +2274,11 @@ export const orbConversations = mysqlTable(
       table.userId,
       table.archivedAt
     ),
+    // Composite index for cursor-based pagination ordered by createdAt
+    userCreatedAtIdx: index("orbc_user_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
   })
 );
 

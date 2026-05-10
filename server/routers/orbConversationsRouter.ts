@@ -2,7 +2,11 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb } from "../db";
+import {
+  getDb,
+  getConversationWithMessages,
+  listConversationsCursor,
+} from "../db";
 import {
   orbConversations,
   orbConversationMessages,
@@ -59,6 +63,10 @@ export const orbConversationsRouter = router({
    * List the user's conversations, newest-updated first. Archived rows are
    * excluded by default; pinned ones float to the top regardless of update
    * time.
+   *
+   * Supports cursor-based pagination via `cursor` (ISO timestamp of the last
+   * seen row's `updatedAt`). When `cursor` is provided the response also
+   * includes `nextCursor` for the following page.
    */
   list: protectedProcedure
     .input(
@@ -66,35 +74,17 @@ export const orbConversationsRouter = router({
         .object({
           limit: z.number().int().min(1).max(100).optional(),
           includeArchived: z.boolean().optional(),
+          cursor: z.string().optional(),
         })
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDbOrThrow();
-      const limit = input?.limit ?? DEFAULT_LIST_LIMIT;
-      const rows = await db
-        .select({
-          conversationId: orbConversations.conversationId,
-          title: orbConversations.title,
-          pinned: orbConversations.pinned,
-          archivedAt: orbConversations.archivedAt,
-          lastMessageAt: orbConversations.lastMessageAt,
-          messageCount: orbConversations.messageCount,
-          createdAt: orbConversations.createdAt,
-          updatedAt: orbConversations.updatedAt,
-        })
-        .from(orbConversations)
-        .where(eq(orbConversations.userId, ctx.user.id))
-        .orderBy(
-          desc(orbConversations.pinned),
-          desc(orbConversations.updatedAt)
-        )
-        .limit(limit);
-
-      const filtered = input?.includeArchived
-        ? rows
-        : rows.filter(r => !r.archivedAt);
-      return { conversations: filtered };
+      const { items, nextCursor } = await listConversationsCursor(ctx.user.id, {
+        limit: input?.limit ?? DEFAULT_LIST_LIMIT,
+        includeArchived: input?.includeArchived,
+        cursor: input?.cursor,
+      });
+      return { conversations: items, nextCursor };
     }),
 
   /** Create a new (empty) conversation and return its summary row. */
@@ -243,8 +233,28 @@ export const orbConversationsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const limit = input.limit ?? 200;
+
+      // Fast path: when no beforeAt cursor is provided, use the optimised
+      // batched query that fetches ownership + messages in parallel.
+      if (typeof input.beforeAt !== "number") {
+        const result = await getConversationWithMessages(
+          input.conversationId,
+          ctx.user.id,
+          limit
+        );
+        if (!result) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Conversation not found",
+          });
+        }
+        return { messages: result.messages };
+      }
+
+      // Slow path: beforeAt cursor requires an extra filter — fall back to
+      // the two-query pattern so the ownership check is still enforced.
       const db = await getDbOrThrow();
-      // Authorization gate — cheap query that verifies ownership
       const [owned] = await db
         .select({ id: orbConversations.conversationId })
         .from(orbConversations)
@@ -262,14 +272,6 @@ export const orbConversationsRouter = router({
         });
       }
 
-      const limit = input.limit ?? 200;
-      const conditions = [
-        eq(orbConversationMessages.conversationId, input.conversationId),
-        eq(orbConversationMessages.userId, ctx.user.id),
-      ];
-      if (typeof input.beforeAt === "number") {
-        conditions.push(lt(orbConversationMessages.at, input.beforeAt));
-      }
       const rows = await db
         .select({
           messageId: orbConversationMessages.messageId,
@@ -279,7 +281,13 @@ export const orbConversationsRouter = router({
           metadata: orbConversationMessages.metadata,
         })
         .from(orbConversationMessages)
-        .where(and(...conditions))
+        .where(
+          and(
+            eq(orbConversationMessages.conversationId, input.conversationId),
+            eq(orbConversationMessages.userId, ctx.user.id),
+            lt(orbConversationMessages.at, input.beforeAt)
+          )
+        )
         .orderBy(asc(orbConversationMessages.at))
         .limit(limit);
       return { messages: rows };

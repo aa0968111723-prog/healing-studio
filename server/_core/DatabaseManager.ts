@@ -6,6 +6,7 @@ import mysql, {
 } from "mysql2/promise";
 import { AppError } from "./error_handler";
 import { logger } from "./logger";
+import { dedup } from "./deduplication";
 
 type TransactionExecutor<T> = (connection: PoolConnection) => Promise<T>;
 
@@ -27,17 +28,22 @@ export class DatabaseManager {
     sql: string,
     params: readonly unknown[] = []
   ): Promise<T> {
-    const startedAt = Date.now();
+    // Build a deterministic fingerprint for this read query so concurrent
+    // identical requests share a single in-flight execution rather than
+    // hammering the DB with duplicate round-trips.
+    const dedupKey = `dbm:${sql}:${JSON.stringify(params)}`;
 
-    try {
-      const [rows] = await this.pool.query<T>(sql, params as any[]);
-      const elapsedMs = Date.now() - startedAt;
-
-      this.logSqlTelemetry(sql, params, elapsedMs);
-      return rows;
-    } catch (error) {
-      this.handleSqlError(error, sql, params);
-    }
+    return dedup.deduplicate(dedupKey, async () => {
+      const startedAt = Date.now();
+      try {
+        const [rows] = await this.pool.query<T>(sql, params as any[]);
+        const elapsedMs = Date.now() - startedAt;
+        this.logSqlTelemetry(sql, params, elapsedMs);
+        return rows;
+      } catch (error) {
+        this.handleSqlError(error, sql, params);
+      }
+    });
   }
 
   async execute(
