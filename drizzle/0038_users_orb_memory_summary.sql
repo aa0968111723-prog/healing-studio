@@ -1,5 +1,6 @@
 -- 0038: Add orbMemorySummary column to users for Orb global condensed memory.
--- MySQL does not support ADD COLUMN IF NOT EXISTS in older versions, so gate with information_schema.
+-- Each statement is separated by a breakpoint so Drizzle's mysql2 migrator
+-- sends them individually (the connection pool does not enable multipleStatements).
 SET @stmt := IF(
   EXISTS(
     SELECT 1
@@ -11,6 +12,9 @@ SET @stmt := IF(
   'SELECT 1',
   'ALTER TABLE `users` ADD COLUMN `orbMemorySummary` text'
 );
-PREPARE s FROM @stmt;
-EXECUTE s;
-DEALLOCATE PREPARE s;
+--> statement-breakpoint
+PREPARE add_orb_memory_col FROM @stmt;
+--> statement-breakpoint
+EXECUTE add_orb_memory_col;
+--> statement-breakpoint
+DEALLOCATE PREPARE add_orb_memory_col;
