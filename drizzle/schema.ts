@@ -726,6 +726,65 @@ export type SpecializedAgentInteraction = typeof specializedAgentInteractions.$i
 export type InsertSpecializedAgentInteraction = typeof specializedAgentInteractions.$inferInsert;
 
 
+// ─── Agent Model Picks (shared between Director AI + Global Orb Agent) ──
+// Single source of truth for "the user picked model X for modality Y from
+// surface Z". Both 導演 AI 規劃 + 發送工作室 and the global orb's
+// recommendation pipeline read/write this table so picks made anywhere on
+// the site contribute to the same preference signal — answering the
+// product brief: 「跟全站光球代理共用資料庫，一起持續學習如何選模型」.
+export const agentModelPicks = mysqlTable(
+  "agent_model_picks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    // image / video / audio / voice / sfx / text — kept loose because the
+    // studio surfaces add new modalities (e.g. "music") faster than schema
+    // migrations can ship. Read-side defensively normalizes.
+    modality: varchar("modality", { length: 32 }).notNull(),
+    modelId: varchar("modelId", { length: 128 }).notNull(),
+    // Where the pick happened so the distiller can weight by surface
+    // (director picks usually carry more intent than a one-click history
+    // re-run).
+    source: mysqlEnum("source", [
+      "director_ai",
+      "global_orb",
+      "image_studio",
+      "video_studio",
+      "pro_studio",
+      "studio",
+      "history",
+      "shared_space",
+      "other",
+    ])
+      .default("other")
+      .notNull(),
+    // Tracks whether the pick led to an accepted generation. Updated
+    // post-hoc when the studio records success/failure so we can
+    // demote models with high reject ratios.
+    accepted: boolean("accepted"),
+    // Optional context — prompt fingerprint, page id, batch size — kept
+    // small so the table doesn't grow into a generation log.
+    context: json("context").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // Primary read pattern: "what's the user's preferred model for image?"
+    userModalityIdx: index("amp_user_modality_idx").on(
+      table.userId,
+      table.modality
+    ),
+    // Secondary: aggregate by (userId, modelId) to compute pick counts.
+    userModelIdx: index("amp_user_model_idx").on(table.userId, table.modelId),
+    // Recency sort.
+    createdAtIdx: index("amp_created_at_idx").on(table.createdAt),
+  })
+);
+
+export type AgentModelPick = typeof agentModelPicks.$inferSelect;
+export type InsertAgentModelPick = typeof agentModelPicks.$inferInsert;
+
+
 // ─── Generation History ──────────────────────────────────────────────────
 export const generationHistory = mysqlTable(
   "generation_history",

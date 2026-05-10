@@ -1331,6 +1331,18 @@ export interface OrbPromptExtras {
    */
   recentMemories?: OrbMemory[];
   /**
+   * Aggregated rows from the shared `agent_model_picks` table — what 導演
+   * AI 發送工作室 + history / shared-space dispatches have written. The
+   * orb's planner prompt folds these into `preferredModels` so the global
+   * agent's recommendations stay in sync with what the user actually
+   * picked elsewhere.
+   */
+  agentModelPicks?: Array<{
+    modelId: string;
+    pickCount: number;
+    acceptedCount: number;
+  }>;
+  /**
    * Latest user utterance — used by `serializeSkillBlock` to pick the
    * orb's role for this turn (director / composer / specialist / ...).
    * When omitted the skill block is skipped entirely so behaviour stays
@@ -1420,12 +1432,18 @@ function serializeDistilledPreferenceBlock(
   if (!extras) return { block: "", profile: null };
   const feedbackEvents = extras.recentFeedback ?? [];
   const memories = extras.recentMemories ?? [];
-  if (feedbackEvents.length === 0 && memories.length === 0) {
+  const agentModelPicks = extras.agentModelPicks ?? [];
+  if (
+    feedbackEvents.length === 0 &&
+    memories.length === 0 &&
+    agentModelPicks.length === 0
+  ) {
     return { block: "", profile: null };
   }
   const profile = distillPreferenceProfile({
     feedbackEvents,
     memories,
+    agentModelPicks,
     extracted: extras.rememberedPreferences
       ? {
           styles: extras.rememberedPreferences.styles ?? [],

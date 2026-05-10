@@ -78,6 +78,8 @@ type DatasetImageWithUpload = DatasetImage & {
   uploading?: boolean;
   uploaded?: boolean;
   captionGenerated?: boolean;
+  /** AI 自動補齊產生的圖片，UI 上會打標籤、可被使用者替換 */
+  aiGenerated?: boolean;
 };
 
 // ── Video upload entry ──────────────────────────────────────────────────────
@@ -364,6 +366,87 @@ export default function LoraTrainer() {
     },
     onSettled: () => setAIState("idle"),
   });
+
+  // ── AI 自動補齊：使用者只上傳一張圖，AI 補齊其他角度 ────────────────────
+  const [autofillingAngles, setAutofillingAngles] = useState<Set<string>>(
+    new Set()
+  );
+  const autofillMutation = trpc.models.autofillAngles.useMutation();
+
+  const runAutofill = useCallback(
+    async (angles: ("front" | "side" | "back" | "expression" | "other")[]) => {
+      const reference = datasetImages.find(
+        img => img.uploaded && img.uploadedUrl && !img.aiGenerated
+      );
+      if (!reference?.uploadedUrl) {
+        toast.error("請先上傳至少一張參考圖（任一角度即可）");
+        return;
+      }
+      if (angles.length === 0) {
+        toast.info("已沒有需要補齊的角度");
+        return;
+      }
+      setAutofillingAngles(prev => {
+        const next = new Set(prev);
+        angles.forEach(a => next.add(a));
+        return next;
+      });
+      setAIState("generating");
+      try {
+        const result = await autofillMutation.mutateAsync({
+          referenceImageUrl: reference.uploadedUrl,
+          targets: angles.map(angle => ({ angle })),
+          subjectHint: description || modelName || undefined,
+        });
+        if (result.generated.length > 0) {
+          setDatasetImages(prev => [
+            ...prev,
+            ...result.generated.map(g => ({
+              url: g.url,
+              uploadedUrl: g.url,
+              uploadedKey: g.fileKey,
+              angle: g.angle,
+              uploaded: true,
+              uploading: false,
+              aiGenerated: true,
+              caption: g.prompt,
+            })),
+          ]);
+          toast.success(
+            `AI 已補齊 ${result.generated.length} 張圖${
+              result.failures.length
+                ? `（${result.failures.length} 張生成失敗）`
+                : ""
+            }`
+          );
+          reportSuccess();
+        } else {
+          toast.error("AI 補齊失敗，請稍後再試或改用手動上傳");
+          reportFailure();
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`AI 補齊失敗：${msg}`);
+        reportFailure();
+      } finally {
+        setAutofillingAngles(prev => {
+          const next = new Set(prev);
+          angles.forEach(a => next.delete(a));
+          return next;
+        });
+        setAIState("idle");
+      }
+    },
+    [
+      datasetImages,
+      description,
+      modelName,
+      autofillMutation,
+      setAIState,
+      reportSuccess,
+      reportFailure,
+    ]
+  );
 
   const syncStatusMutation = trpc.models.syncReplicateStatus.useMutation({
     onSuccess: data => {
@@ -1199,6 +1282,71 @@ export default function LoraTrainer() {
                                 張圖片，圖片會自動上傳至雲端儲存
                               </p>
 
+                              {/* ── AI 自動補齊（只針對角色 / 人像）── */}
+                              {(selectedTrainingType === "image_subject" ||
+                                selectedTrainingType === "portrait_lora") &&
+                                (() => {
+                                  const hasReference = datasetImages.some(
+                                    img =>
+                                      img.uploaded &&
+                                      img.uploadedUrl &&
+                                      !img.aiGenerated
+                                  );
+                                  const missingAngles = ANGLES.filter(
+                                    a =>
+                                      !datasetImages.some(
+                                        img => img.angle === a.value
+                                      )
+                                  );
+                                  const isAutofilling =
+                                    autofillingAngles.size > 0;
+                                  return (
+                                    <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium flex items-center gap-1.5">
+                                          <Wand2 className="w-3.5 h-3.5 text-primary" />
+                                          AI 自動補齊
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                                          {hasReference
+                                            ? missingAngles.length > 0
+                                              ? `已偵測到 ${missingAngles.length} 個缺少的角度，AI 會以你上傳的參考圖補齊（可隨時替換）`
+                                              : "所有角度都已有圖片，可手動刪除後重新生成"
+                                            : "請先上傳一張任意角度的參考圖，AI 會幫你補齊其餘角度"}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="default"
+                                        disabled={
+                                          !hasReference ||
+                                          missingAngles.length === 0 ||
+                                          isAutofilling
+                                        }
+                                        onClick={() =>
+                                          runAutofill(
+                                            missingAngles.map(a => a.value)
+                                          )
+                                        }
+                                        className="rounded-lg shrink-0"
+                                      >
+                                        {isAutofilling ? (
+                                          <>
+                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                            生成中...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                                            一鍵補齊（{missingAngles.length}）
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  );
+                                })()}
+
                               {/* Angle-based upload for character/portrait */}
                               {selectedTrainingType === "image_subject" ||
                               selectedTrainingType === "portrait_lora" ? (
@@ -1210,6 +1358,21 @@ export default function LoraTrainer() {
                                     const hasUploading = images.some(
                                       img => img.uploading
                                     );
+                                    const latest =
+                                      images.length > 0
+                                        ? images[images.length - 1]
+                                        : null;
+                                    const isAiSlot = latest?.aiGenerated;
+                                    const isAutofillingSlot =
+                                      autofillingAngles.has(angle.value);
+                                    const referenceCount = datasetImages.filter(
+                                      img =>
+                                        img.uploaded &&
+                                        img.uploadedUrl &&
+                                        !img.aiGenerated
+                                    ).length;
+                                    const canAiGenerate =
+                                      referenceCount > 0 && !isAutofillingSlot;
                                     return (
                                       <div
                                         key={angle.value}
@@ -1218,19 +1381,22 @@ export default function LoraTrainer() {
                                         <span className="text-[11px] font-medium text-muted-foreground text-center block">
                                           {angle.label}
                                         </span>
-                                        <button
-                                          onClick={() =>
-                                            handleFileUpload(angle.value)
-                                          }
+                                        <div
                                           className="w-full aspect-square rounded-xl border-2 border-dashed border-border/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-1 bg-muted/20 relative overflow-hidden"
                                         >
-                                          {images.length > 0 ? (
-                                            <div className="relative w-full h-full">
+                                          {isAutofillingSlot ? (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-primary/10">
+                                              <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                                              <span className="text-[10px] text-primary">
+                                                AI 生成中
+                                              </span>
+                                            </div>
+                                          ) : latest ? (
+                                            <div className="relative w-full h-full group">
                                               <img
                                                 src={
-                                                  images[images.length - 1]
-                                                    .uploadedUrl ||
-                                                  images[images.length - 1].url
+                                                  latest.uploadedUrl ||
+                                                  latest.url
                                                 }
                                                 alt={angle.label}
                                                 className="w-full h-full object-cover rounded-xl"
@@ -1247,21 +1413,74 @@ export default function LoraTrainer() {
                                               {!hasUploading &&
                                                 images.every(
                                                   i => i.uploaded
-                                                ) && (
+                                                ) &&
+                                                !isAiSlot && (
                                                   <div className="absolute top-1 left-1">
                                                     <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
                                                   </div>
                                                 )}
+                                              {isAiSlot && (
+                                                <span className="absolute top-1 left-1 text-[9px] font-semibold bg-primary/90 text-primary-foreground px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                                  <Wand2 className="w-2.5 h-2.5" />
+                                                  AI
+                                                </span>
+                                              )}
+                                              {/* hover 替換 / 重新生成 */}
+                                              <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-xl">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleFileUpload(
+                                                      angle.value
+                                                    )
+                                                  }
+                                                  className="text-[10px] text-white px-2 py-1 rounded-md bg-white/10 hover:bg-white/20"
+                                                >
+                                                  上傳替換
+                                                </button>
+                                                {isAiSlot && canAiGenerate && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      runAutofill([angle.value])
+                                                    }
+                                                    className="text-[10px] text-white px-2 py-1 rounded-md bg-primary/70 hover:bg-primary flex items-center gap-1"
+                                                  >
+                                                    <Wand2 className="w-2.5 h-2.5" />
+                                                    重新生成
+                                                  </button>
+                                                )}
+                                              </div>
                                             </div>
                                           ) : (
-                                            <>
-                                              <Upload className="w-4 h-4 text-muted-foreground" />
-                                              <span className="text-[10px] text-muted-foreground">
-                                                上傳
-                                              </span>
-                                            </>
+                                            <div className="flex flex-col items-center justify-center gap-1.5 w-full h-full">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleFileUpload(angle.value)
+                                                }
+                                                className="flex flex-col items-center gap-0.5 hover:opacity-70 transition-opacity"
+                                              >
+                                                <Upload className="w-4 h-4 text-muted-foreground" />
+                                                <span className="text-[10px] text-muted-foreground">
+                                                  上傳
+                                                </span>
+                                              </button>
+                                              {canAiGenerate && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    runAutofill([angle.value])
+                                                  }
+                                                  className="flex items-center gap-0.5 text-[10px] text-primary hover:underline"
+                                                >
+                                                  <Wand2 className="w-2.5 h-2.5" />
+                                                  AI 生成
+                                                </button>
+                                              )}
+                                            </div>
                                           )}
-                                        </button>
+                                        </div>
                                       </div>
                                     );
                                   })}
@@ -1322,6 +1541,11 @@ export default function LoraTrainer() {
                                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                             <Loader2 className="w-3 h-3 text-white animate-spin" />
                                           </div>
+                                        )}
+                                        {img.aiGenerated && (
+                                          <span className="absolute top-0.5 left-0.5 text-[8px] font-semibold bg-primary/90 text-primary-foreground px-1 rounded">
+                                            AI
+                                          </span>
                                         )}
                                         <button
                                           onClick={() => removeImage(idx)}

@@ -55,10 +55,36 @@ export interface DistilledOrbPreferenceProfile {
   distilledAt: number;
 }
 
+/**
+ * Aggregated row from the shared `agent_model_picks` table — see
+ * server/services/agentModelPicks.ts. Both 導演 AI 發送工作室 and the
+ * orb's recommendation pipeline write into the same table, so feeding
+ * these counts into the distiller is what closes the「跟全站光球代理一起
+ * 學習選模型」loop: a model picked 5 times in director shows up in the
+ * orb's planner prompt as a preferred model, no extra wiring needed.
+ *
+ * `pickCount` is the raw select count, `acceptedCount` is the subset that
+ * the destination studio later marked accepted=true. The merge step
+ * weights acceptance more heavily so a high-pick / high-reject model
+ * doesn't keep dominating recommendations.
+ */
+export interface AgentModelPickSummary {
+  modelId: string;
+  pickCount: number;
+  acceptedCount: number;
+}
+
 export interface DistillPreferenceInput {
   feedbackEvents?: FeedbackEventLike[];
   memories?: OrbMemory[];
   extracted?: ExtractedOrbPreferences;
+  /**
+   * Aggregated picks from the shared `agent_model_picks` table — folded
+   * into `preferredModels` / `avoidedModels` alongside the OrbMemory
+   * signals. Pass an empty array (or omit) when the table is empty / a
+   * cold-start user.
+   */
+  agentModelPicks?: AgentModelPickSummary[];
   /** ms-since-epoch override for deterministic tests. */
   now?: number;
 }
@@ -137,7 +163,10 @@ const NEGATIVE_MEMORY_TYPES = new Set(["failed_workflow"]);
  * include a fal-ai/* style identifier. Limited to the top 5 by frequency
  * to keep the prompt budget tight.
  */
-function extractModelSignals(memories: OrbMemory[]): {
+function extractModelSignals(
+  memories: OrbMemory[],
+  picks: AgentModelPickSummary[] = []
+): {
   preferred: string[];
   avoided: string[];
 } {
@@ -168,6 +197,32 @@ function extractModelSignals(memories: OrbMemory[]): {
     const metaModelId = (memory.metadata as Record<string, unknown> | undefined)?.modelId;
     if (typeof metaModelId === "string" && metaModelId.includes("/")) {
       target.set(metaModelId, (target.get(metaModelId) ?? 0) + 1);
+    }
+  }
+
+  // Fold in agent_model_picks. Weighting:
+  //   positiveScore = acceptedCount * 2 + (pickCount - acceptedCount) * 1
+  //   negativeScore = (pickCount - acceptedCount - markedRejected) * 0
+  // Picks are added to the SAME counts map as memory signals, so the
+  // distiller's downstream "top-5" sort merges them naturally.
+  //
+  // A pick is treated as "negative" only when the user explicitly logged
+  // accepted=false on every recorded pick of that model AND the sample
+  // size is meaningful (>=2). Otherwise it's a positive signal.
+  for (const pick of picks) {
+    const id = pick.modelId.trim();
+    if (!id) continue;
+    const accepted = Math.max(0, pick.acceptedCount);
+    const total = Math.max(0, pick.pickCount);
+    if (total === 0) continue;
+    const positiveScore = accepted * 2 + (total - accepted);
+    if (positiveScore > 0) {
+      positiveCounts.set(id, (positiveCounts.get(id) ?? 0) + positiveScore);
+    }
+    // Demote models the user picked >=2 times AND never accepted: that's a
+    // strong signal the destination studio rejected the result repeatedly.
+    if (total >= 2 && accepted === 0) {
+      negativeCounts.set(id, (negativeCounts.get(id) ?? 0) + total);
     }
   }
 
@@ -219,9 +274,16 @@ export function distillPreferenceProfile(
     }
   }
 
-  const { preferred, avoided } = extractModelSignals(memories);
+  const picks = input.agentModelPicks ?? [];
+  const { preferred, avoided } = extractModelSignals(memories, picks);
   const pacingTier = inferPacingTier(events);
-  const confidence = computeConfidence(events.length, memories.length);
+  // Picks count toward confidence too — a user with 0 events / 0 memories
+  // but 5 director picks is no longer a "cold start" for model selection.
+  const pickEvidence = picks.reduce((sum, p) => sum + Math.max(0, p.pickCount), 0);
+  const confidence = computeConfidence(
+    events.length,
+    memories.length + pickEvidence
+  );
 
   return {
     actionAcceptance,
@@ -231,7 +293,7 @@ export function distillPreferenceProfile(
     pacingTier,
     confidence,
     totalEvents: events.length,
-    totalMemoriesConsidered: memories.length,
+    totalMemoriesConsidered: memories.length + pickEvidence,
     extracted: input.extracted,
     distilledAt: input.now ?? Date.now(),
   };

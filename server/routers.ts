@@ -42,6 +42,7 @@ import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
+import { agentModelPicksRouter } from "./routers/agentModelPicksRouter";
 import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { orbProxyRouter } from "./routers/orbProxyRouter";
 import { orbConversationsRouter } from "./routers/orbConversationsRouter";
@@ -78,6 +79,7 @@ import {
   getSpecialistMemoryHints,
   recordToolAuditAsSpecialistInteraction,
 } from "./services/specializedAgentMemoryStore";
+import { getAggregatedPicksForPrompt } from "./services/agentModelPicks";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -1016,6 +1018,7 @@ export const appRouter = router({
   apiUsage: apiUsageRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
+  agentModelPicks: agentModelPicksRouter,
   orbCapabilities: orbCapabilitiesRouter,
   orbProxy: orbProxyRouter,
   orbConversations: orbConversationsRouter,
@@ -4387,6 +4390,159 @@ export const appRouter = router({
         return { captions };
       }),
 
+    /**
+     * autofillAngles — 以一張參考圖為基底，由 AI 補齊缺少的多角度資料集圖片
+     *
+     * 用途：降低 LoRA 訓練的入門門檻。使用者只要上傳一張角色照，AI 會自動
+     * 生成「正面 / 側面 / 背面 / 表情 / 其他」缺少的角度，使用者可隨時替換
+     * 或刪除任何一張 AI 生成的圖。
+     *
+     * 引擎：fal-ai/nano-banana/edit（Gemini 2.0 Flash 圖片語意編輯，主體保留佳）
+     */
+    autofillAngles: protectedProcedure
+      .input(
+        z.object({
+          referenceImageUrl: z.string().url(),
+          targets: z
+            .array(
+              z.object({
+                angle: z.enum([
+                  "front",
+                  "side",
+                  "back",
+                  "expression",
+                  "other",
+                ]),
+                hint: z.string().max(200).optional(),
+              })
+            )
+            .min(1)
+            .max(5),
+          subjectHint: z.string().max(200).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        ensureFalApiKeyConfigured();
+
+        const ANGLE_PROMPTS: Record<
+          "front" | "side" | "back" | "expression" | "other",
+          string
+        > = {
+          front:
+            "Front view portrait, subject facing camera directly, full visible, neutral pose. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+          side: "Side profile view at 90 degrees, subject facing left. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+          back: "Back view, subject facing away from camera. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+          expression:
+            "Close-up portrait with a different facial expression (a warm smile or surprised look). Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+          other:
+            "Three-quarter view at 45 degrees. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+        };
+
+        const subjectSuffix = input.subjectHint
+          ? ` Subject context: ${input.subjectHint}.`
+          : "";
+
+        const generated: Array<{
+          angle: "front" | "side" | "back" | "expression" | "other";
+          url: string;
+          fileKey: string;
+          prompt: string;
+        }> = [];
+        const failures: Array<{ angle: string; error: string }> = [];
+
+        for (const target of input.targets) {
+          const basePrompt = ANGLE_PROMPTS[target.angle];
+          const prompt =
+            (target.hint ? `${target.hint}. ` : "") +
+            basePrompt +
+            subjectSuffix;
+
+          try {
+            const dispatch = await withTimeout(
+              dispatchImageGeneration({
+                modelId: "fal-ai/nano-banana/edit",
+                prompt,
+                imageUrl: input.referenceImageUrl,
+                aspectRatio: "1:1",
+              }),
+              120_000,
+              `AI 補齊（${target.angle}）`
+            );
+
+            if (!dispatch.success) {
+              failures.push({
+                angle: target.angle,
+                error: dispatch.error || "未知錯誤",
+              });
+              continue;
+            }
+
+            const data = dispatch.data as Record<string, unknown>;
+            const remoteUrl =
+              ((data.images as Array<{ url?: string }> | undefined)?.[0]
+                ?.url as string | undefined) ??
+              ((data.image as { url?: string } | undefined)?.url as
+                | string
+                | undefined) ??
+              (data.url as string | undefined);
+
+            if (!remoteUrl) {
+              failures.push({
+                angle: target.angle,
+                error: "AI 未回傳圖片 URL",
+              });
+              continue;
+            }
+
+            // 持久化到本站儲存（fal CDN 連結有時效性，訓練時可能失效）
+            const resp = await fetch(remoteUrl, {
+              signal: AbortSignal.timeout(60_000),
+            });
+            if (!resp.ok) {
+              failures.push({
+                angle: target.angle,
+                error: `下載 AI 圖片失敗（${resp.status}）`,
+              });
+              continue;
+            }
+            const buffer = Buffer.from(await resp.arrayBuffer());
+            const contentType =
+              resp.headers.get("content-type") || "image/png";
+            const ext =
+              contentType.includes("jpeg") || contentType.includes("jpg")
+                ? "jpg"
+                : contentType.includes("webp")
+                  ? "webp"
+                  : "png";
+            const key = `lora-dataset/${ctx.user.id}/autofill/${target.angle}-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2, 10)}.${ext}`;
+            const stored = await storagePut(key, buffer, contentType);
+
+            generated.push({
+              angle: target.angle,
+              url: stored.url,
+              fileKey: stored.key,
+              prompt,
+            });
+          } catch (err: unknown) {
+            failures.push({
+              angle: target.angle,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        if (generated.length === 0) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `AI 補齊失敗：${failures.map(f => `${f.angle} (${f.error})`).join("；")}`,
+          });
+        }
+
+        return { generated, failures };
+      }),
+
     toggleVisibility: protectedProcedure
       .input(
         z.object({
@@ -5907,11 +6063,14 @@ export const appRouter = router({
             : undefined;
 
         // 從 specialized_agent_interactions 拉最近的 tool 名與專精助手習慣。
-        // 兩者並行，回傳空陣列 / 空字串都是合法（DB 不可用時不阻塞 chat）。
-        const [recentSpecialistTools, specialistHints] = await Promise.all([
-          getRecentSpecialistTools(ctx.user.id, 5),
-          getSpecialistMemoryHints(ctx.user.id),
-        ]);
+        // 同時拉 agent_model_picks 的聚合（讓導演 / 工作室寫過的 modelId
+        // 出現在 planner 的偏好模型區塊）。三者並行，每一支回傳空值都合法。
+        const [recentSpecialistTools, specialistHints, agentModelPicks] =
+          await Promise.all([
+            getRecentSpecialistTools(ctx.user.id, 5),
+            getSpecialistMemoryHints(ctx.user.id),
+            getAggregatedPicksForPrompt(ctx.user.id),
+          ]);
 
         const stayOnPageModeFromInput = Boolean(
           (input.preferences as { stayOnPageMode?: boolean } | undefined)?.stayOnPageMode
@@ -5941,6 +6100,7 @@ export const appRouter = router({
             userMessage: latestUserMessageText,
             recentTools: recentSpecialistTools,
             specialistHints,
+            agentModelPicks,
           }
         );
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
@@ -6407,6 +6567,7 @@ export const appRouter = router({
               userMessage: latestUserMessageText,
               recentTools: recentSpecialistTools,
               specialistHints,
+              agentModelPicks,
             });
             const chatOnlyResult = await withTimeout(
               invokeLLM({
