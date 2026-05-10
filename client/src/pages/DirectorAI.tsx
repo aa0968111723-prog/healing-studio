@@ -1682,6 +1682,8 @@ type DirectorGenTaskRow = {
   jobId?: number;
   requestId?: string;
   status: "pending" | "processing" | "completed" | "failed";
+  progress?: number;
+  progressMessage?: string | null;
   resultUrl?: string | null;
   errorMessage?: string | null;
 };
@@ -1732,25 +1734,41 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
     if (data.status === "COMPLETED") {
       onUpdate(task.segmentId, task.modality, {
         status: "completed",
+        progress: 100,
+        progressMessage: null,
         resultUrl: data.resultUrl ?? null,
       });
     } else if (data.status === "FAILED") {
       onUpdate(task.segmentId, task.modality, {
         status: "failed",
+        progress: typeof data.progress === "number" ? data.progress : task.progress,
+        progressMessage: data.errorMessage ?? null,
         errorMessage: data.errorMessage ?? "fal.ai 回報任務失敗",
       });
+    } else if (data.status === "IN_PROGRESS") {
+      onUpdate(task.segmentId, task.modality, {
+        status: "processing",
+        progress: typeof data.progress === "number" ? data.progress : task.progress,
+        progressMessage: data.errorMessage ?? null,
+      });
     }
-  }, [pollQuery.data, task.segmentId, task.modality, onUpdate]);
+  }, [pollQuery.data, task.segmentId, task.modality, task.progress, onUpdate]);
 
   const badge = MODALITY_BADGES[task.modality];
   const Icon = badge.icon;
+  const progressPct =
+    typeof task.progress === "number" && Number.isFinite(task.progress)
+      ? Math.max(0, Math.min(100, Math.round(task.progress)))
+      : null;
   const statusLabel =
     task.status === "pending"
       ? task.dependsOn
         ? "等待上游"
         : "排隊中"
       : task.status === "processing"
-        ? "生成中..."
+        ? progressPct !== null
+          ? `生成中 ${progressPct}%`
+          : "生成中..."
         : task.status === "completed"
           ? "已完成"
           : "失敗";
@@ -2727,6 +2745,40 @@ export default function DirectorAI() {
   const [generationTasks, setGenerationTasks] = useState<DirectorGenTaskRow[]>(
     []
   );
+  const persistedBatchResultsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const completedWithUrl = generationTasks.filter(
+      t => t.status === "completed" && typeof t.resultUrl === "string" && t.resultUrl.length > 0
+    );
+    if (completedWithUrl.length === 0 || importedSegments.length === 0) return;
+
+    const newlyCompleted = completedWithUrl.filter(t => {
+      const key = `${t.segmentId}:${t.modality}`;
+      if (persistedBatchResultsRef.current.has(key)) return false;
+      persistedBatchResultsRef.current.add(key);
+      return true;
+    });
+    if (newlyCompleted.length === 0) return;
+
+    setImportedSegments(prev =>
+      prev.map(seg => {
+        const matches = newlyCompleted.filter(t => t.segmentId === seg.id);
+        if (matches.length === 0) return seg;
+        const lines = matches.map(t =>
+          [
+            `⚡ 批次生成成品`,
+            `modality: ${t.modality}`,
+            `model: ${t.modelId}`,
+            `url: ${t.resultUrl as string}`,
+          ].join(" | ")
+        );
+        const appendText = lines.join("\n");
+        const notes = seg.notes ? `${seg.notes}\n${appendText}` : appendText;
+        return { ...seg, notes };
+      })
+    );
+  }, [generationTasks, importedSegments.length]);
 
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
@@ -2982,6 +3034,8 @@ export default function DirectorAI() {
                 jobId: data.jobId,
                 requestId: data.requestId,
                 status: "processing" as const,
+                progress: 10,
+                progressMessage: null,
               }
             : t
         )
