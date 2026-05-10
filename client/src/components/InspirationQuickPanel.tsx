@@ -182,19 +182,13 @@ export function InspirationQuickPanel({
               whileTap={{ scale: 0.95 }}
               onClick={() => handleApply(preset)}
               className={cn(
-                "relative flex-shrink-0 snap-start flex flex-col items-center gap-1.5 w-20 p-3 rounded-2xl transition-all",
+                "inspiration-preset-tile relative flex-shrink-0 snap-start flex flex-col items-center gap-1.5 w-20 p-3 rounded-2xl transition-all",
                 "hover:shadow-md active:scale-95",
                 isActive
                   ? "ring-2 ring-primary/40 shadow-md"
                   : "hover:ring-1 hover:ring-border/40"
               )}
-              style={{
-                background: isActive
-                  ? "rgba(212, 197, 226, 0.3)"
-                  : "rgba(255, 255, 255, 0.4)",
-                backdropFilter: "blur(8px)",
-                border: "1px solid rgba(255, 255, 255, 0.35)",
-              }}
+              data-state={isActive ? "active" : "idle"}
             >
               {/* Breathing pulse for active */}
               <AnimatePresence>

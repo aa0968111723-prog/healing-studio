@@ -230,7 +230,7 @@ function ActionableChip({
             className={cn(
               "shrink-0 h-7 text-[10px] gap-1 rounded-lg font-semibold",
               config.color,
-              "hover:bg-white/30"
+              "hover:bg-white/30 dark:hover:bg-white/5"
             )}
             onClick={() => {
               onApply({
