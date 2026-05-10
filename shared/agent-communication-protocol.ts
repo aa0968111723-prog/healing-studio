@@ -133,7 +133,24 @@ export interface AgentCapabilityDeclaration {
   /** Current load (0-100) */
   load?: number;
   /** Specialized for specific modalities */
-  specializations?: Array<"image" | "video" | "audio" | "voice" | "3d" | "training" | "learning">;
+  specializations?: Array<
+    | "image"
+    | "video"
+    | "audio"
+    | "voice"
+    | "3d"
+    | "training"
+    | "learning"
+    // 8 位新增精靈專屬 specialization
+    | "legal"
+    | "security"
+    | "community"
+    | "orchestration"
+    | "onboarding"
+    | "notes"
+    | "settings"
+    | "execution"
+  >;
 }
 
 /** Agent collaboration request.

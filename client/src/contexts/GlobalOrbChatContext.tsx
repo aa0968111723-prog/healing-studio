@@ -207,7 +207,7 @@ export interface ChatMessage {
   /** Search query the results were drawn from (used for header + analytics). */
   searchQuery?: string;
   /**
-   * Which of the 15 spirits handled this turn (server-authoritative answer
+   * Which of the 23 spirits handled this turn (server-authoritative answer
    * from `selectRoleForIntent`). Stored as the AgentRole id (e.g.
    * "image-specialist" / "accountant"). `undefined` for legacy / pre-spirits
    * messages — UI falls back to client-side inference in that case.

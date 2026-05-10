@@ -131,6 +131,137 @@ class AgentCollaborationOrchestratorClass {
         });
       }
     });
+
+    // ── Proactive trio (財財 / 巧巧 / 守守) ─────────────────────────────
+    // 之前只在 metadata 裡躺著，沒進 capability 註冊表 → 別的 agent 用
+    // findBestAgentForTask 找不到他們，造成「被動的事永遠交給導導 / 編編」。
+    this.registerAgentCapability({
+      agentId: "accountant",
+      capabilities: ["cost estimation", "budget tracking", "model price comparison", "spend forecasting"],
+      availableTools: [],
+      knowledgeDomains: ["model pricing", "quota", "subscription tiers"],
+      available: true,
+    });
+    this.registerAgentCapability({
+      agentId: "quality-coach",
+      capabilities: ["prompt rewriting", "output quality review", "iteration coaching"],
+      availableTools: [],
+      knowledgeDomains: ["prompt engineering", "image / video quality heuristics"],
+      available: true,
+    });
+    this.registerAgentCapability({
+      agentId: "inspector",
+      capabilities: ["site health patrol", "broken link detection", "accessibility check", "performance triage"],
+      availableTools: [],
+      knowledgeDomains: ["broken links", "accessibility", "performance", "bug triage"],
+      available: true,
+    });
+
+    // ── 8 位新增精靈：律律 / 安安 / 群群 / 總總 / 帶帶 / 記記 / 細細 / 步步 ──
+    this.registerAgentCapability({
+      agentId: "legal-advisor",
+      capabilities: [
+        "AI generation copyright check",
+        "trademark / portrait risk detection",
+        "license interpretation",
+        "safe rewrite suggestion",
+      ],
+      availableTools: ["research.deepSearch"],
+      knowledgeDomains: ["copyright law", "trademark", "fair use", "creative commons", "AI generation policy"],
+      available: true,
+      specializations: ["legal"],
+    });
+    this.registerAgentCapability({
+      agentId: "security-guard",
+      capabilities: [
+        "credential leak detection",
+        "phishing recognition",
+        "account hardening guidance",
+        "deepfake / voice-clone risk warning",
+      ],
+      availableTools: [],
+      knowledgeDomains: ["account security", "API key management", "2FA", "phishing defence"],
+      available: true,
+      specializations: ["security"],
+    });
+    this.registerAgentCapability({
+      agentId: "community-manager",
+      capabilities: [
+        "social platform strategy",
+        "age-group audience analysis",
+        "post copy + hashtag suggestion",
+        "publishing cadence planning",
+      ],
+      availableTools: ["research.deepSearch", "studio.generateImage", "studio.generateVideo"],
+      knowledgeDomains: ["IG", "TikTok", "YouTube", "小紅書", "Facebook", "social trends"],
+      available: true,
+      specializations: ["community"],
+    });
+    this.registerAgentCapability({
+      agentId: "chief-orchestrator",
+      capabilities: [
+        "team status overview",
+        "handoff routing",
+        "multi-agent orchestration",
+        "deadline + bottleneck surfacing",
+      ],
+      availableTools: [],
+      knowledgeDomains: ["agent orchestration", "task queue", "team workload"],
+      available: true,
+      specializations: ["orchestration"],
+    });
+    this.registerAgentCapability({
+      agentId: "onboarding-coach",
+      capabilities: [
+        "stuck-user detection",
+        "step-by-step UI guidance",
+        "pageElement focus assistance",
+        "common pitfalls workaround",
+      ],
+      availableTools: [],
+      knowledgeDomains: ["site UI", "onboarding flows", "common stuck points"],
+      available: true,
+      specializations: ["onboarding"],
+    });
+    this.registerAgentCapability({
+      agentId: "notes-curator",
+      capabilities: [
+        "note creation + retrieval",
+        "asset library curation",
+        "schedule + todo",
+        "tag / search organisation",
+      ],
+      availableTools: [],
+      knowledgeDomains: ["notes", "calendar", "asset library"],
+      available: true,
+      specializations: ["notes"],
+    });
+    this.registerAgentCapability({
+      agentId: "settings-detail",
+      capabilities: [
+        "preference adjustment",
+        "settings page navigation",
+        "side-effect explanation",
+        "approval-required flagging on high-risk changes",
+      ],
+      availableTools: [],
+      knowledgeDomains: ["settings surface", "preferences", "high-risk account changes"],
+      available: true,
+      specializations: ["settings"],
+    });
+    this.registerAgentCapability({
+      agentId: "plan-executor",
+      capabilities: [
+        "multi-step workflow execution",
+        "cross-page tool dispatch",
+        "per-step status reporting",
+        "failure recovery (retry / replan / abort)",
+      ],
+      availableTools: ["studio.*", "media.*", "research.deepSearch"],
+      knowledgeDomains: ["multi-step orchestration", "tool dispatch", "step retries"],
+      available: true,
+      specializations: ["execution"],
+    });
   }
 
   /**
@@ -148,6 +279,15 @@ class AgentCollaborationOrchestratorClass {
       "voice-specialist": "voice",
       "training-specialist": "training",
       "learning-specialist": "learning",
+      // 8 位新增精靈
+      "legal-advisor": "legal",
+      "security-guard": "security",
+      "community-manager": "community",
+      "chief-orchestrator": "orchestration",
+      "onboarding-coach": "onboarding",
+      "notes-curator": "notes",
+      "settings-detail": "settings",
+      "plan-executor": "execution",
     };
     const spec = mapping[agentId];
     return spec ? [spec] : undefined;
