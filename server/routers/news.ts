@@ -18,6 +18,8 @@ import { newsArticles } from "../../drizzle/schema";
 import { eq, desc, and, lt, sql, like } from "drizzle-orm";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
+import { logDatabaseError, logValidationError } from "../_core/logger";
+import { metrics } from "../_core/metrics";
 
 // ─── Shared Constants ─────────────────────────────────────────────────────────
 
@@ -77,7 +79,11 @@ export const newsRouter = router({
     .query(async ({ input }) => {
       const db = await tryDb();
       // DB 不可用時，優雅降級為空結果（首頁仍可顯示，但無新聞資料）
-      if (!db) return { items: [], nextCursor: undefined };
+      if (!db) {
+        logDatabaseError("news.list — DB unavailable", null, { endpoint: "news.list" });
+        metrics.recordError("news.list", 503, "DB_UNAVAILABLE");
+        return { items: [], nextCursor: undefined };
+      }
 
       const { limit, cursor, category } = input;
 
@@ -92,39 +98,48 @@ export const newsRouter = router({
         conditions.push(eq(newsArticles.category, category));
       }
 
-      // Query: published articles, ordered by pinned first then newest
-      const articles = await db
-        .select({
-          id: newsArticles.id,
-          title: newsArticles.title,
-          oarsSummary: newsArticles.oarsSummary,
-          sourceName: newsArticles.sourceName,
-          sourceUrl: newsArticles.sourceUrl,
-          coverImageUrl: newsArticles.coverImageUrl,
-          category: newsArticles.category,
-          tags: newsArticles.tags,
-          isPinned: newsArticles.isPinned,
-          publishedAt: newsArticles.publishedAt,
-          viewCount: newsArticles.viewCount,
-          createdAt: newsArticles.createdAt,
-          // LOD: bodyMarkdown 不在列表中回傳
-        })
-        .from(newsArticles)
-        .where(and(...conditions))
-        .orderBy(desc(newsArticles.isPinned), desc(newsArticles.id))
-        .limit(limit + 1); // +1 to detect if there are more
+      try {
+        // Query: published articles, ordered by pinned first then newest
+        const articles = await db
+          .select({
+            id: newsArticles.id,
+            title: newsArticles.title,
+            oarsSummary: newsArticles.oarsSummary,
+            sourceName: newsArticles.sourceName,
+            sourceUrl: newsArticles.sourceUrl,
+            coverImageUrl: newsArticles.coverImageUrl,
+            category: newsArticles.category,
+            tags: newsArticles.tags,
+            isPinned: newsArticles.isPinned,
+            publishedAt: newsArticles.publishedAt,
+            viewCount: newsArticles.viewCount,
+            createdAt: newsArticles.createdAt,
+            // LOD: bodyMarkdown 不在列表中回傳
+          })
+          .from(newsArticles)
+          .where(and(...conditions))
+          .orderBy(desc(newsArticles.isPinned), desc(newsArticles.id))
+          .limit(limit + 1); // +1 to detect if there are more
 
-      // Determine nextCursor
-      let nextCursor: number | undefined;
-      if (articles.length > limit) {
-        const nextItem = articles.pop()!;
-        nextCursor = nextItem.id;
+        // Determine nextCursor
+        let nextCursor: number | undefined;
+        if (articles.length > limit) {
+          const nextItem = articles.pop()!;
+          nextCursor = nextItem.id;
+        }
+
+        return { items: articles, nextCursor };
+      } catch (err) {
+        logDatabaseError("news.list — select failed", err, {
+          endpoint: "news.list",
+          limit,
+          cursor,
+          category,
+        });
+        metrics.recordError("news.list", 500, "DB_QUERY_FAILED");
+        // Graceful degradation — return empty list rather than 500
+        return { items: [], nextCursor: undefined };
       }
-
-      return {
-        items: articles,
-        nextCursor,
-      };
     }),
 
   /**
@@ -134,19 +149,33 @@ export const newsRouter = router({
    * LOD 完整層級：包含所有欄位。
    */
   getById: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await requireDb();
 
-      const results = await db
-        .select()
-        .from(newsArticles)
-        .where(
-          and(eq(newsArticles.id, input.id), eq(newsArticles.isPublished, true))
-        )
-        .limit(1);
+      let results;
+      try {
+        results = await db
+          .select()
+          .from(newsArticles)
+          .where(
+            and(eq(newsArticles.id, input.id), eq(newsArticles.isPublished, true))
+          )
+          .limit(1);
+      } catch (err) {
+        logDatabaseError("news.getById — select failed", err, {
+          endpoint: "news.getById",
+          articleId: input.id,
+        });
+        metrics.recordError("news.getById", 500, "DB_QUERY_FAILED");
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "資料庫查詢失敗，請稍後再試。",
+        });
+      }
 
       if (results.length === 0) {
+        metrics.recordError("news.getById", 404, "NOT_FOUND");
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "找不到這篇文章，可能已被移除或尚未發布。",
@@ -157,8 +186,11 @@ export const newsRouter = router({
       db.update(newsArticles)
         .set({ viewCount: sql`${newsArticles.viewCount} + 1` })
         .where(eq(newsArticles.id, input.id))
-        .catch(() => {
-          /* silently ignore view count update failures */
+        .catch(err => {
+          logDatabaseError("news.getById — viewCount update failed", err, {
+            endpoint: "news.getById",
+            articleId: input.id,
+          });
         });
 
       return results[0];
@@ -173,25 +205,31 @@ export const newsRouter = router({
   pinned: publicProcedure.query(async () => {
     const db = await requireDb();
 
-    return db
-      .select({
-        id: newsArticles.id,
-        title: newsArticles.title,
-        oarsSummary: newsArticles.oarsSummary,
-        sourceName: newsArticles.sourceName,
-        sourceUrl: newsArticles.sourceUrl,
-        coverImageUrl: newsArticles.coverImageUrl,
-        category: newsArticles.category,
-        tags: newsArticles.tags,
-        publishedAt: newsArticles.publishedAt,
-        viewCount: newsArticles.viewCount,
-      })
-      .from(newsArticles)
-      .where(
-        and(eq(newsArticles.isPinned, true), eq(newsArticles.isPublished, true))
-      )
-      .orderBy(desc(newsArticles.publishedAt))
-      .limit(PINNED_LIMIT);
+    try {
+      return await db
+        .select({
+          id: newsArticles.id,
+          title: newsArticles.title,
+          oarsSummary: newsArticles.oarsSummary,
+          sourceName: newsArticles.sourceName,
+          sourceUrl: newsArticles.sourceUrl,
+          coverImageUrl: newsArticles.coverImageUrl,
+          category: newsArticles.category,
+          tags: newsArticles.tags,
+          publishedAt: newsArticles.publishedAt,
+          viewCount: newsArticles.viewCount,
+        })
+        .from(newsArticles)
+        .where(
+          and(eq(newsArticles.isPinned, true), eq(newsArticles.isPublished, true))
+        )
+        .orderBy(desc(newsArticles.publishedAt))
+        .limit(PINNED_LIMIT);
+    } catch (err) {
+      logDatabaseError("news.pinned — select failed", err, { endpoint: "news.pinned" });
+      metrics.recordError("news.pinned", 500, "DB_QUERY_FAILED");
+      return [];
+    }
   }),
 
   /**
@@ -202,15 +240,6 @@ export const newsRouter = router({
   categories: publicProcedure.query(async () => {
     const db = await requireDb();
 
-    const counts = await db
-      .select({
-        category: newsArticles.category,
-        count: sql<number>`COUNT(*)`.as("count"),
-      })
-      .from(newsArticles)
-      .where(eq(newsArticles.isPublished, true))
-      .groupBy(newsArticles.category);
-
     // Map to a structured response with labels
     const categoryLabels: Record<string, string> = {
       product_update: "產品更新",
@@ -220,11 +249,28 @@ export const newsRouter = router({
       tips_and_tricks: "技巧心法",
     };
 
-    return counts.map(c => ({
-      key: c.category,
-      label: categoryLabels[c.category] || c.category,
-      count: Number(c.count),
-    }));
+    try {
+      const counts = await db
+        .select({
+          category: newsArticles.category,
+          count: sql<number>`COUNT(*)`.as("count"),
+        })
+        .from(newsArticles)
+        .where(eq(newsArticles.isPublished, true))
+        .groupBy(newsArticles.category);
+
+      return counts.map(c => ({
+        key: c.category,
+        label: categoryLabels[c.category] || c.category,
+        count: Number(c.count),
+      }));
+    } catch (err) {
+      logDatabaseError("news.categories — select failed", err, {
+        endpoint: "news.categories",
+      });
+      metrics.recordError("news.categories", 500, "DB_QUERY_FAILED");
+      return [];
+    }
   }),
 
   /**
@@ -255,35 +301,43 @@ export const newsRouter = router({
         conditions.push(lt(newsArticles.id, cursor));
       }
 
-      const articles = await db
-        .select({
-          id: newsArticles.id,
-          title: newsArticles.title,
-          oarsSummary: newsArticles.oarsSummary,
-          sourceName: newsArticles.sourceName,
-          sourceUrl: newsArticles.sourceUrl,
-          coverImageUrl: newsArticles.coverImageUrl,
-          category: newsArticles.category,
-          tags: newsArticles.tags,
-          isPinned: newsArticles.isPinned,
-          publishedAt: newsArticles.publishedAt,
-          viewCount: newsArticles.viewCount,
-          createdAt: newsArticles.createdAt,
-        })
-        .from(newsArticles)
-        .where(and(...conditions))
-        .orderBy(desc(newsArticles.id))
-        .limit(limit + 1);
+      try {
+        const articles = await db
+          .select({
+            id: newsArticles.id,
+            title: newsArticles.title,
+            oarsSummary: newsArticles.oarsSummary,
+            sourceName: newsArticles.sourceName,
+            sourceUrl: newsArticles.sourceUrl,
+            coverImageUrl: newsArticles.coverImageUrl,
+            category: newsArticles.category,
+            tags: newsArticles.tags,
+            isPinned: newsArticles.isPinned,
+            publishedAt: newsArticles.publishedAt,
+            viewCount: newsArticles.viewCount,
+            createdAt: newsArticles.createdAt,
+          })
+          .from(newsArticles)
+          .where(and(...conditions))
+          .orderBy(desc(newsArticles.id))
+          .limit(limit + 1);
 
-      let nextCursor: number | undefined;
-      if (articles.length > limit) {
-        const nextItem = articles.pop()!;
-        nextCursor = nextItem.id;
+        let nextCursor: number | undefined;
+        if (articles.length > limit) {
+          const nextItem = articles.pop()!;
+          nextCursor = nextItem.id;
+        }
+
+        return { items: articles, nextCursor };
+      } catch (err) {
+        logDatabaseError("news.byTag — select failed", err, {
+          endpoint: "news.byTag",
+          tag,
+          limit,
+          cursor,
+        });
+        metrics.recordError("news.byTag", 500, "DB_QUERY_FAILED");
+        return { items: [], nextCursor: undefined };
       }
-
-      return {
-        items: articles,
-        nextCursor,
-      };
     }),
 });

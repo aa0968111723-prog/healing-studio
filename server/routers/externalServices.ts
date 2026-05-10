@@ -18,6 +18,8 @@ import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { externalServiceSubscriptions } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
+import { logDatabaseError, logValidationError } from "../_core/logger";
+import { metrics } from "../_core/metrics";
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
@@ -47,12 +49,26 @@ export const externalServicesRouter = router({
   // ── 列出所有服務（admin）──────────────────────────────────────────────────
   list: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
+    if (!db) {
+      logDatabaseError("externalServices.list — DB unavailable", null, {
+        endpoint: "externalServices.list",
+      });
+      metrics.recordError("externalServices.list", 503, "DB_UNAVAILABLE");
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
+    }
 
-    return db
-      .select()
-      .from(externalServiceSubscriptions)
-      .orderBy(desc(externalServiceSubscriptions.updatedAt));
+    try {
+      return await db
+        .select()
+        .from(externalServiceSubscriptions)
+        .orderBy(desc(externalServiceSubscriptions.updatedAt));
+    } catch (err) {
+      logDatabaseError("externalServices.list — select failed", err, {
+        endpoint: "externalServices.list",
+      });
+      metrics.recordError("externalServices.list", 500, "DB_QUERY_FAILED");
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "查詢失敗，請稍後再試。" });
+    }
   }),
 
   // ── 摘要（admin）─────────────────────────────────────────────────────────
@@ -116,7 +132,13 @@ export const externalServicesRouter = router({
     .input(ServiceUpsertInput)
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
+      if (!db) {
+        logDatabaseError("externalServices.upsert — DB unavailable", null, {
+          endpoint: "externalServices.upsert",
+        });
+        metrics.recordError("externalServices.upsert", 503, "DB_UNAVAILABLE");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
+      }
 
       // Drizzle date() 欄位需要 Date 物件，將 YYYY-MM-DD string 轉換
       const renewalDate = input.nextRenewalDate ? new Date(input.nextRenewalDate) : undefined;
@@ -135,19 +157,32 @@ export const externalServicesRouter = router({
         notes: input.notes,
       };
 
-      if (input.id) {
-        // 更新
-        await db
-          .update(externalServiceSubscriptions)
-          .set(values)
-          .where(eq(externalServiceSubscriptions.id, input.id));
-        return { id: input.id, action: "updated" as const };
-      } else {
-        // 新增
-        const result = await db
-          .insert(externalServiceSubscriptions)
-          .values(values);
-        return { id: Number(result[0].insertId), action: "created" as const };
+      try {
+        if (input.id) {
+          // 更新
+          await db
+            .update(externalServiceSubscriptions)
+            .set(values)
+            .where(eq(externalServiceSubscriptions.id, input.id));
+          return { id: input.id, action: "updated" as const };
+        } else {
+          // 新增
+          const result = await db
+            .insert(externalServiceSubscriptions)
+            .values(values);
+          return { id: Number(result[0].insertId), action: "created" as const };
+        }
+      } catch (err) {
+        logDatabaseError("externalServices.upsert — write failed", err, {
+          endpoint: "externalServices.upsert",
+          serviceName: input.serviceName,
+          action: input.id ? "update" : "insert",
+        });
+        metrics.recordError("externalServices.upsert", 500, "DB_WRITE_FAILED");
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "儲存失敗，請稍後再試。",
+        });
       }
     }),
 
