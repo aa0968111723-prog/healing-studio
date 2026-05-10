@@ -619,6 +619,15 @@ function DashboardLayoutContent({
     if (typeof remaining !== "number") return;
     const LOW_THRESHOLD = 100;
     if (remaining > LOW_THRESHOLD) return;
+    // 真正花最多的模型（近 30 天）— 後端從 api_usage_logs 取，
+    // 如果是新使用者沒任何 log，給「最近的高耗模型」這個備援文案，
+    // 避免精靈嘴裡冒出 (待接入) 這種開發者佔位字串。
+    const recentTopModel =
+      (balanceQuery.data as { topModel?: string | null } | undefined)?.topModel;
+    const topModel =
+      typeof recentTopModel === "string" && recentTopModel.trim()
+        ? recentTopModel
+        : "最近的高耗模型";
     // dedupeKey 用 user.id + bucket — 同一使用者同一天最多通知一次。
     const day = Math.floor(Date.now() / 86_400_000);
     ProactiveEventBus.publish(
@@ -626,11 +635,11 @@ function DashboardLayoutContent({
       {
         usedPct: 90,
         remainingCredits: remaining,
-        topModel: "(待接入)",
+        topModel,
       },
       { dedupeKey: `low-balance-${user?.id ?? "anon"}-${day}`, dedupeMs: 86_400_000 }
     );
-  }, [balanceQuery.data?.remaining, user?.id]);
+  }, [balanceQuery.data?.remaining, balanceQuery.data, user?.id]);
 
   const isAdmin = user?.role === "admin";
   const displayName = settings.displayName.trim() || user?.name || "使用者";

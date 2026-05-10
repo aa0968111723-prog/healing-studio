@@ -1931,6 +1931,54 @@ export interface SiteModelUsageRow {
   totalCostUsd: number;
 }
 
+/**
+ * Per-user top model by recent spend / call count. Used by the proactive
+ * accountant trigger so the "本月已用 X%，剩 Y 點，最近花最多的是 Z" toast
+ * actually names the user's heaviest model instead of the "(待接入)"
+ * placeholder.
+ *
+ * Returns null when the DB isn't available or the user has no usage.
+ * Ranks by `estimated_cost_usd` first (so a single expensive video weighs
+ * more than a thousand cheap chat turns), falling back to call count when
+ * cost is missing.
+ */
+export async function getUserTopModelRecent(
+  userId: number,
+  args?: { days?: number }
+): Promise<{ model: string; totalCalls: number; totalCostUsd: number } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const days = Math.max(1, Math.min(90, Math.trunc(args?.days ?? 30)));
+  const rows = await db
+    .select({
+      model: apiUsageLogs.model,
+      totalCalls: sql<number>`COUNT(*)`,
+      totalCostUsd: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+    })
+    .from(apiUsageLogs)
+    .where(
+      and(
+        eq(apiUsageLogs.userId, userId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`,
+        sql`${apiUsageLogs.model} IS NOT NULL`,
+        sql`TRIM(${apiUsageLogs.model}) <> ''`
+      )
+    )
+    .groupBy(apiUsageLogs.model)
+    .orderBy(
+      sql`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0) DESC`,
+      sql`COUNT(*) DESC`
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row || !row.model) return null;
+  return {
+    model: String(row.model),
+    totalCalls: Number(row.totalCalls ?? 0),
+    totalCostUsd: parseFloat(String(row.totalCostUsd ?? "0")),
+  };
+}
+
 /** Admin/Agent: site-wide model usage snapshot from api_usage_logs. */
 export async function getSiteWideModelUsageSnapshot(args?: {
   days?: number;
