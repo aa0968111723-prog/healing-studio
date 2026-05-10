@@ -7722,7 +7722,19 @@ export const appRouter = router({
               ...(toolRegistryEnabled ? [] : ["Tool registry 已關閉，使用 legacy fallback。"]),
               ...(globalWorkflowsEnabled ? [] : ["Global Agent workflows 已關閉，僅保留聊天回覆。"]),
               ...(plannerExceptionReason
-                ? [`Schema-first planner 失敗，已改用 legacy fallback：${plannerExceptionReason}`]
+                ? [
+                    (() => {
+                      const rawReason = String(plannerExceptionReason).trim();
+                      const compactReason = rawReason.replace(/\s+/g, " ");
+                      const isNvidiaForbidden =
+                        /NVIDIA NIM/i.test(compactReason) &&
+                        /403\s*Forbidden/i.test(compactReason);
+                      const safeReason = isNvidiaForbidden
+                        ? "[NVIDIA NIM (MiniMax M2.7)] 403 Forbidden（Authorization failed）"
+                        : compactReason;
+                      return `Schema-first planner 失敗，已改用 legacy fallback：${safeReason}`;
+                    })(),
+                  ]
                 : []),
               ...plannerInvalidWarnings.map(w => `Planner invalid：${w}`),
             ],
