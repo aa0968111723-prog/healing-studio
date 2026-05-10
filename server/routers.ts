@@ -7046,29 +7046,11 @@ export const appRouter = router({
                 input.pageSnapshot?.pageId,
                 input.preferences?.disabledActionsByPage
               );
-              for (const action of perPageFiltered.actions as unknown as Array<Record<string, unknown>>) {
-                if (String(action.type ?? "") !== "execute_task") continue;
+              for (const action of perPageFiltered.actions) {
+                if (action.type !== "execute_task") continue;
                 try {
-                  const payload =
-                    action && typeof action === "object" && action !== null
-                      ? (action as Record<string, unknown>)
-                      : {};
-                  const task = payload.task;
-                  if (
-                    task &&
-                    typeof task === "object" &&
-                    (task as Record<string, unknown>).type &&
-                    (task as Record<string, unknown>).params
-                  ) {
-                    const url = await executeOrbTask(ctx.user.id, {
-                      type: (task as Record<string, unknown>).type as
-                        | "generate_image"
-                        | "generate_music"
-                        | "generate_video",
-                      params: (task as Record<string, unknown>).params as Record<string, unknown>,
-                    });
-                    payload.resultUrl = url;
-                  }
+                  const url = await executeOrbTask(ctx.user.id, action.task);
+                  action.resultUrl = url;
                 } catch (err) {
                   console.warn("[Orb] execute_task failed:", err);
                 }
@@ -7576,23 +7558,13 @@ export const appRouter = router({
           for (const action of legacyActions) {
             if (!action || typeof action !== "object" || action.type !== "execute_task") continue;
             try {
-              const payload = action as Record<string, unknown>;
-              const task = payload.task;
-              if (
-                task &&
-                typeof task === "object" &&
-                (task as Record<string, unknown>).type &&
-                (task as Record<string, unknown>).params
-              ) {
-                const url = await executeOrbTask(ctx.user.id, {
-                  type: (task as Record<string, unknown>).type as
-                    | "generate_image"
-                    | "generate_music"
-                    | "generate_video",
-                  params: (task as Record<string, unknown>).params as Record<string, unknown>,
-                });
-                payload.resultUrl = url;
-              }
+              const typed = action as {
+                type: "execute_task";
+                task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> };
+                resultUrl?: string;
+              };
+              const url = await executeOrbTask(ctx.user.id, typed.task);
+              typed.resultUrl = url;
             } catch (err) {
               console.warn("[Orb] execute_task failed:", err);
             }

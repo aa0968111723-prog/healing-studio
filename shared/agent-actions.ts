@@ -160,6 +160,17 @@ export interface RunWorkflowAction {
   confirmationMode?: "all-at-once" | "step-by-step" | "high-risk-only";
 }
 
+/** 交由後端直接執行的創作任務（不經前端 page agent dispatch） */
+export interface ExecuteTaskAction {
+  type: "execute_task";
+  task: {
+    type: "generate_image" | "generate_music" | "generate_video";
+    params: Record<string, unknown>;
+  };
+  /** 後端執行完成後補回 URL */
+  resultUrl?: string;
+}
+
 export interface WorkflowRequiredInput {
   key: string;
   label: string;
@@ -231,6 +242,7 @@ export type AgentAction =
   | OpenDialogAction
   | SearchAction
   | ToggleSettingAction
+  | ExecuteTaskAction
   | RunWorkflowAction
   | ExportChatPdfAction
   | ShareViaLinkAction;
@@ -647,6 +659,7 @@ export function isDestructiveAction(action: AgentAction): boolean {
     case "reset":
     case "applyPreset":
     case "setModality":
+    case "execute_task":
     case "runWorkflow":
       return true;
     default:
@@ -702,6 +715,8 @@ export function summarizeAction(action: AgentAction): string {
       return action.value !== undefined
         ? `想把「${action.key}」${action.value ? "開啟" : "關閉"}`
         : `想幫你切換「${action.key}」設定`;
+    case "execute_task":
+      return `想直接幫你執行「${action.task.type}」`;
     case "runWorkflow": {
       const stepCount = action.steps.length;
       return `想幫你執行「${action.name}」計畫（共 ${stepCount} 步）`;

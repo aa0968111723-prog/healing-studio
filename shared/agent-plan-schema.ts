@@ -19,6 +19,7 @@ export const AgentActionTypeSchema = z.enum([
   "openDialog",
   "search",
   "toggleSetting",
+  "execute_task",
   "runWorkflow",
 ]);
 
@@ -93,6 +94,14 @@ export const AgentExecutableActionSchema = z.discriminatedUnion("type", [
     type: z.literal("toggleSetting"),
     key: z.string().trim().min(1).max(160),
     value: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("execute_task"),
+    task: z.object({
+      type: z.enum(["generate_image", "generate_music", "generate_video"]),
+      params: paramsRecord.default({}),
+    }),
+    resultUrl: z.string().trim().url().optional(),
   }),
 ]);
 
@@ -263,6 +272,13 @@ export function actionToWorkflowStep(
         label,
         actionType: "toggleSetting",
         payload: action.value === undefined ? action.key : `${action.key}:${action.value}`,
+      };
+    case "execute_task":
+      return {
+        path,
+        label,
+        actionType: "execute_task",
+        payload: JSON.stringify({ task: action.task }),
       };
     default: {
       const _exhaustive: never = action;
