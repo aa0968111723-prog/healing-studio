@@ -184,7 +184,8 @@ export function createGlobalOrbExecutor(deps: GlobalOrbExecutorDeps) {
 
   const needsExplicitApproval = (step: GlobalOrbExecutorStep): boolean => {
     if (step.requiresApproval) return true;
-    if (step.uiActions.some(action => HIGH_RISK_ACTIONS.has(action.type))) return true;
+    // Cross-page move can feel abrupt; pause and ask before we auto-jump.
+    if (step.pagePath && step.pagePath !== deps.getCurrentPagePath()) return true;
     if (step.uiActions.some(action => HIGH_RISK_ACTIONS.has(action.type) || action.type === "submit")) return true;
     if ((step.toolCalls ?? []).some(tool => tool.requiresApproval || EXTERNAL_TOOL_PREFIX.some(prefix => tool.name.startsWith(prefix)))) {
       return true;
