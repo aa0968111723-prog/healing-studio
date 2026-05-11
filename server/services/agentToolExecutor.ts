@@ -2144,6 +2144,40 @@ async function dispatchStudioTool(
         return voiceResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // learningSpecialist.* tools for learning-specialist (學學)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "learningSpecialist.getTutorial":
+      case "learningSpecialist.listTutorials":
+      case "learningSpecialist.getQuickTips": {
+        const learningResult = await dispatchLearningSpecialistTool(call, opts);
+        return learningResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // musicSpecialist.* tools for music-specialist (音音)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "musicSpecialist.generate":
+      case "musicSpecialist.generateSoundEffect":
+      case "musicSpecialist.getOptions":
+      case "musicSpecialist.getTips": {
+        const musicResult = await dispatchMusicSpecialistTool(call, opts);
+        return musicResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // trainingSpecialist.* tools for training-specialist (練練)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "trainingSpecialist.train":
+      case "trainingSpecialist.getStatus":
+      case "trainingSpecialist.getTips": {
+        const trainingResult = await dispatchTrainingSpecialistTool(call, opts);
+        return trainingResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -3110,6 +3144,196 @@ async function dispatchVoiceSpecialistTool(
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// learningSpecialist.* 工具橋接：學學（learning-specialist）的學習與教學工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchLearningSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { getTutorial, listTutorials, getQuickTips } = await import("./spiritTools/learningSpecialistTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "learningSpecialist.getTutorial": {
+        const featureName = args.featureName as string;
+        if (!featureName) {
+          return { name: call.name, ok: false, error: "featureName is required" };
+        }
+        const result = getTutorial(featureName);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "learningSpecialist.listTutorials": {
+        const result = listTutorials();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "learningSpecialist.getQuickTips": {
+        const result = getQuickTips();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown learningSpecialist tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// musicSpecialist.* 工具橋接：音音（music-specialist）的音樂生成工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchMusicSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { generateMusic, generateSoundEffect, getMusicOptions, getMusicGenerationTips } = await import("./spiritTools/musicSpecialistTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "musicSpecialist.generate": {
+        const prompt = args.prompt as string;
+        if (!prompt) {
+          return { name: call.name, ok: false, error: "prompt is required" };
+        }
+        const result = await generateMusic({
+          userId: opts.userId,
+          prompt,
+          duration: args.duration as number | undefined,
+          genre: args.genre as string | undefined,
+          mood: args.mood as string | undefined,
+          tempo: args.tempo as string | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "musicSpecialist.generateSoundEffect": {
+        const description = args.description as string;
+        if (!description) {
+          return { name: call.name, ok: false, error: "description is required" };
+        }
+        const result = await generateSoundEffect({
+          userId: opts.userId,
+          description,
+          duration: args.duration as number | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "musicSpecialist.getOptions": {
+        const result = getMusicOptions();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.getTips": {
+        const result = getMusicGenerationTips();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown musicSpecialist tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// trainingSpecialist.* 工具橋接：練練（training-specialist）的模型訓練工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchTrainingSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { trainModel, getTrainingStatus, getTrainingTips } = await import("./spiritTools/trainingSpecialistTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "trainingSpecialist.train": {
+        const modelType = args.modelType as string;
+        const datasetUrl = args.datasetUrl as string;
+
+        if (!modelType || !datasetUrl) {
+          return { name: call.name, ok: false, error: "modelType and datasetUrl are required" };
+        }
+
+        const result = await trainModel({
+          userId: opts.userId,
+          modelType,
+          datasetUrl,
+          modelName: args.modelName as string | undefined,
+          epochs: args.epochs as number | undefined,
+          batchSize: args.batchSize as number | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "trainingSpecialist.getStatus": {
+        const jobId = args.jobId as string;
+        if (!jobId) {
+          return { name: call.name, ok: false, error: "jobId is required" };
+        }
+
+        const result = await getTrainingStatus({
+          userId: opts.userId,
+          jobId,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "trainingSpecialist.getTips": {
+        const result = getTrainingTips();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown trainingSpecialist tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
