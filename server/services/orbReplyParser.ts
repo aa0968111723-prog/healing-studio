@@ -82,6 +82,7 @@ export const ORB_ALLOWED_ACTIONS = new Set([
   "toggleSetting",
   "runWorkflow",
   "execute_generate_image",
+  "execute_task",
 ]);
 
 /**

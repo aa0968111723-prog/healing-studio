@@ -298,6 +298,8 @@ function v3StepToUiAction(step: AgentPlanV3Step): { type: string; payload?: unkn
       return { type: "search", payload: action.query };
     case "toggleSetting":
       return { type: "toggleSetting", payload: { key: action.key, value: action.value } };
+    case "execute_task":
+      return { type: "execute_task", payload: { task: action.task, resultUrl: action.resultUrl } };
     default: {
       const _exhaustive: never = action;
       return { type: (_exhaustive as { type: string }).type ?? "unknown" };

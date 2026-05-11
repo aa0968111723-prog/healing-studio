@@ -61,7 +61,7 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
-import { executeGenerateImage } from "./services/orbTaskExecutor";
+import { executeGenerateImage, executeOrbTask } from "./services/orbTaskExecutor";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { computeDashboardInsights } from "../shared/dashboard-insights";
 import { moderateOrbContent } from "../shared/orb-content-moderation";
@@ -7139,6 +7139,15 @@ export const appRouter = router({
                   action => (action as { type?: string }).type !== "execute_generate_image"
                 );
               }
+              for (const action of convertedActions) {
+                if ((action as { type?: string }).type !== "execute_task") continue;
+                try {
+                  const taskAction = action as { type: string; task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> }; resultUrl?: string };
+                  taskAction.resultUrl = await executeOrbTask(ctx.user.id, taskAction.task);
+                } catch (err) {
+                  console.warn("[Orb] execute_task failed:", err);
+                }
+              }
               return finalizeIdempotentResponse({
                 reply: convertedReply,
                 actions: convertedActions,
@@ -7656,6 +7665,19 @@ export const appRouter = router({
             legacyActions = legacyActions.filter(
               action => (action as { type?: string }).type !== "execute_generate_image"
             ) as typeof legacy.actions;
+          }
+          for (const action of legacyActions) {
+            if (!action || typeof action !== "object" || (action as { type?: string }).type !== "execute_task") continue;
+            try {
+              const typed = action as {
+                type: "execute_task";
+                task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> };
+                resultUrl?: string;
+              };
+              typed.resultUrl = await executeOrbTask(ctx.user.id, typed.task);
+            } catch (err) {
+              console.warn("[Orb] execute_task failed:", err);
+            }
           }
           // ── Fallback navigate synthesis ─────────────────────────────────
           // Schema-first planner 失敗 + LLM 用文字承諾「我帶你過去 X」但忘了

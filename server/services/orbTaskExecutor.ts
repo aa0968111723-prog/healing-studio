@@ -47,3 +47,86 @@ export async function executeGenerateImage(
   if (!imageUrl) throw new Error("FAL response missing image url");
   return imageUrl;
 }
+
+// ── Unified multi-modal task executor ────────────────────────────────────────
+
+import {
+  DEFAULT_FAL_ENGINES,
+  dispatchAudioGeneration,
+  dispatchImageGeneration,
+  dispatchVideoGeneration,
+} from "./falDispatcher";
+import { generationBus } from "../generationEvents";
+
+export type OrbExecutableTask = {
+  type: "generate_image" | "generate_music" | "generate_video";
+  params: Record<string, unknown>;
+};
+
+function pickResultUrl(data: Record<string, unknown>): string | null {
+  const directKeys = ["url", "imageUrl", "videoUrl", "audioUrl", "output_url"];
+  for (const key of directKeys) {
+    const v = data[key];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  const nestedArrays = ["images", "videos", "audios"];
+  for (const key of nestedArrays) {
+    const arr = data[key];
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const first = arr[0];
+    if (typeof first === "string" && first.trim()) return first;
+    if (first && typeof first === "object") {
+      const c = (first as Record<string, unknown>).url;
+      if (typeof c === "string" && c.trim()) return c;
+    }
+  }
+  return null;
+}
+
+export async function executeOrbTask(userId: number, task: OrbExecutableTask): Promise<string> {
+  const prompt = String(task.params.prompt ?? "").trim();
+  if (!prompt) throw new Error("execute_task 缺少 prompt");
+
+  let resultData: Record<string, unknown>;
+  if (task.type === "generate_image") {
+    const result = await dispatchImageGeneration({
+      modelId: String(task.params.modelId ?? DEFAULT_FAL_ENGINES.textToImage),
+      prompt,
+      negativePrompt: typeof task.params.negativePrompt === "string" ? task.params.negativePrompt : undefined,
+      imageUrl: typeof task.params.imageUrl === "string" ? task.params.imageUrl : undefined,
+    });
+    if (!result.success) throw new Error(result.error || "圖片生成失敗");
+    resultData = result.data;
+  } else if (task.type === "generate_video") {
+    const result = await dispatchVideoGeneration({
+      modelId: String(task.params.modelId ?? DEFAULT_FAL_ENGINES.textToVideo),
+      prompt,
+      imageUrl: typeof task.params.imageUrl === "string" ? task.params.imageUrl : undefined,
+      negativePrompt: typeof task.params.negativePrompt === "string" ? task.params.negativePrompt : undefined,
+    });
+    if (!result.success) throw new Error(result.error || "影片生成失敗");
+    resultData = result.data;
+  } else {
+    const result = await dispatchAudioGeneration({
+      modelId: String(task.params.modelId ?? DEFAULT_FAL_ENGINES.textToAudio),
+      prompt,
+    });
+    if (!result.success) throw new Error(result.error || "音樂生成失敗");
+    resultData = result.data;
+  }
+
+  const url = pickResultUrl(resultData);
+  if (!url) throw new Error("生成完成但找不到結果 URL");
+
+  generationBus.emit(userId, {
+    type: "progress",
+    progress: 100,
+    message: `orb_task_complete:${task.type}`,
+  });
+  generationBus.emit(userId, {
+    type: "complete",
+    thoughtChain: [],
+  });
+
+  return url;
+}

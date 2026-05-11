@@ -31,6 +31,7 @@ async function sendDiscordAlert(message: string): Promise<void> {
     await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(8_000),
       body: JSON.stringify({
         username: "Healing Studio 健康巡檢",
         content: message,

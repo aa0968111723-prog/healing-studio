@@ -436,6 +436,7 @@ async function startServer() {
     try {
       const upstream = await fetch(targetUrl, {
         headers: { "User-Agent": "HealingStudio/1.0 AssetProxy" },
+        signal: AbortSignal.timeout(30_000),
       });
       if (!upstream.ok) {
         res
