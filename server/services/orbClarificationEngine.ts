@@ -6,6 +6,19 @@
  */
 
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
+import {
+  orbIntentLogs,
+  orbClarificationHistory,
+  orbUserAnswerPatterns,
+  type OrbIntentLog,
+  type InsertOrbIntentLog,
+  type OrbClarificationHistory as DbClarificationHistory,
+  type InsertOrbClarificationHistory,
+  type OrbUserAnswerPattern,
+  type InsertOrbUserAnswerPattern,
+} from "../../drizzle/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export type QuestionType =
   | "choice"
@@ -101,6 +114,8 @@ export class OrbClarificationEngine {
    */
   async identifyIntent(input: IdentifyIntentInput): Promise<IntentLog> {
     try {
+      const db = await getDb();
+
       // TODO: Implement actual intent classification
       // Could use: keyword matching, LLM-based classification, learned patterns
 
@@ -125,21 +140,46 @@ export class OrbClarificationEngine {
         needsClarification = intentConfidence < 0.7;
       }
 
-      const intentLog: IntentLog = {
-        id: `intent_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      // Insert into database
+      const insertData: InsertOrbIntentLog = {
         userId: input.userId,
         conversationId: input.conversationId,
         userInput: input.userInput,
-        detectedIntents,
+        detectedIntents: JSON.stringify(detectedIntents) as any,
         primaryIntent,
-        intentConfidence,
-        ambiguityScore,
+        intentConfidence: intentConfidence ? String(intentConfidence) : undefined,
+        ambiguityScore: String(ambiguityScore),
         needsClarification,
-        context: input.context,
-        createdAt: new Date(),
+        context: input.context ? (JSON.stringify(input.context) as any) : undefined,
       };
 
-      // TODO: Insert into database
+      const [inserted] = await db.insert(orbIntentLogs).values(insertData);
+      const intentLogId = inserted.insertId;
+
+      // Fetch the created log
+      const [dbLog] = await db
+        .select()
+        .from(orbIntentLogs)
+        .where(eq(orbIntentLogs.id, intentLogId));
+
+      const intentLog: IntentLog = {
+        id: String(dbLog.id),
+        userId: dbLog.userId,
+        conversationId: dbLog.conversationId,
+        userInput: dbLog.userInput,
+        detectedIntents: JSON.parse(dbLog.detectedIntents as any),
+        primaryIntent: dbLog.primaryIntent ?? undefined,
+        intentConfidence: dbLog.intentConfidence
+          ? parseFloat(dbLog.intentConfidence)
+          : undefined,
+        ambiguityScore: dbLog.ambiguityScore
+          ? parseFloat(dbLog.ambiguityScore)
+          : undefined,
+        needsClarification: dbLog.needsClarification,
+        context: dbLog.context ? JSON.parse(dbLog.context as any) : undefined,
+        spiritAssigned: dbLog.spiritAssigned ?? undefined,
+        createdAt: dbLog.createdAt,
+      };
 
       logger.info("orb_intent_identified", {
         intentLogId: intentLog.id,
@@ -274,9 +314,36 @@ export class OrbClarificationEngine {
     questionType: string
   ): Promise<AnswerPattern | null> {
     try {
-      // TODO: Query database for patterns
+      const db = await getDb();
 
-      return null;
+      const [pattern] = await db
+        .select()
+        .from(orbUserAnswerPatterns)
+        .where(
+          and(
+            eq(orbUserAnswerPatterns.userId, userId),
+            eq(orbUserAnswerPatterns.questionType, questionType)
+          )
+        )
+        .orderBy(desc(orbUserAnswerPatterns.confidenceScore))
+        .limit(1);
+
+      if (!pattern) {
+        return null;
+      }
+
+      return {
+        id: String(pattern.id),
+        userId: pattern.userId,
+        questionType: pattern.questionType,
+        contextPattern: pattern.contextPattern ?? undefined,
+        commonAnswers: JSON.parse(pattern.commonAnswers as any),
+        defaultPreference: pattern.defaultPreference ?? undefined,
+        confidenceScore: parseFloat(pattern.confidenceScore),
+        sampleCount: pattern.sampleCount,
+        lastUpdatedAt: pattern.lastUpdatedAt,
+        createdAt: pattern.createdAt,
+      };
     } catch (error) {
       logger.error("orb_get_answer_pattern_failed", {
         userId,
@@ -284,6 +351,68 @@ export class OrbClarificationEngine {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
+    }
+  }
+
+  /**
+   * Record user's answer to clarification question
+   */
+  async recordAnswer(
+    clarificationId: string,
+    userAnswer: string
+  ): Promise<ClarificationQuestion> {
+    try {
+      const db = await getDb();
+      const clarId = Number(clarificationId);
+
+      // Update the clarification record
+      await db
+        .update(orbClarificationHistory)
+        .set({
+          userAnswer,
+          answeredAt: new Date(),
+        })
+        .where(eq(orbClarificationHistory.id, clarId));
+
+      // Fetch the updated record
+      const [updated] = await db
+        .select()
+        .from(orbClarificationHistory)
+        .where(eq(orbClarificationHistory.id, clarId));
+
+      const clarification: ClarificationQuestion = {
+        id: String(updated.id),
+        intentLogId: String(updated.intentLogId),
+        userId: updated.userId,
+        conversationId: updated.conversationId,
+        clarificationQuestion: updated.clarificationQuestion,
+        questionType: updated.questionType,
+        options: updated.options ? JSON.parse(updated.options as any) : undefined,
+        userAnswer: updated.userAnswer ?? undefined,
+        answeredAt: updated.answeredAt ?? undefined,
+        resolvedIntent: updated.resolvedIntent ?? undefined,
+        resolutionConfidence: updated.resolutionConfidence
+          ? parseFloat(updated.resolutionConfidence)
+          : undefined,
+        spiritAsked: updated.spiritAsked ?? undefined,
+        createdAt: updated.createdAt,
+      };
+
+      // Update answer patterns for learning
+      await this.updateAnswerPattern(clarification);
+
+      logger.info("orb_clarification_answered", {
+        clarificationId,
+        questionType: clarification.questionType,
+      });
+
+      return clarification;
+    } catch (error) {
+      logger.error("orb_clarification_record_answer_failed", {
+        clarificationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
   }
 
