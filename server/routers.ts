@@ -7569,10 +7569,12 @@ export const appRouter = router({
               preferEngine: enginePreference,
               runName: "orb-agent-chat",
               // Per-engine cap so the inner fallback chain (incl. OpenRouter)
-              // gets attempted before the outer 20s wrapper times out.
-              timeoutMs: 8_000,
+              // gets attempted before the outer wrapper times out. 8s was too
+              // aggressive in production and frequently tripped global chat
+              // timeouts during transient provider latency spikes.
+              timeoutMs: 12_000,
             }),
-            20_000,
+            35_000,
             "全站光球代理"
           );
           const rawReply = extractMessageText(
