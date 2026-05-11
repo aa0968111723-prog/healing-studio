@@ -465,7 +465,7 @@ How to produce a real executable tasked plan:
     • toolArgs: { ...the actual prompt/modelId/duration/aspect_ratio/etc derived from the wizard answers }
   The orchestrator will dispatch the tool to fal.ai / Suno / ElevenLabs server-side and stream the request_id back — that's the real generation, not a UI hint.
 - For LoRA / 風格 / 角色 / 場景 / 影片 LoRA / 肖像 / 配音 clone training, emit a 'studio.trainLora' step with toolArgs:
-    { modelType: 'image_subject'|'portrait_lora'|'style_lora'|'scene_lora'|'video_lora'|'voice_clone',
+    { modelType: 'image_subject'|'portrait_lora'|'style_lora'|'scene_lora'|'video_lora'|'voice_clone'|'concept_lora'|'product_lora'|'fashion_lora'|'pose_lora',
       name: '<user-friendly model name>',
       triggerWord: '<short token to invoke this LoRA in future prompts>',
       trainingEngine: 'fal' (default) | 'replicate',

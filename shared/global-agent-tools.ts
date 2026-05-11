@@ -464,7 +464,8 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     requiresHuman: true,
     allowedArgsSchema: {
       // 訓練類別：image_subject / portrait_lora / style_lora / scene_lora /
-      // video_lora / voice_clone（依 shared/types TrainingModelType）。
+      // video_lora / voice_clone / concept_lora / product_lora / fashion_lora /
+      // pose_lora（依 shared/types TrainingModelType）。
       modelType: "string",
       // 模型名稱（出現在儀表板與生成下拉選單）。
       name: "string",

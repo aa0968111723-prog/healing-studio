@@ -366,7 +366,11 @@ export type TrainingModelType =
   | "style_lora"
   | "scene_lora"
   | "video_lora"
-  | "portrait_lora";
+  | "portrait_lora"
+  | "concept_lora"
+  | "product_lora"
+  | "fashion_lora"
+  | "pose_lora";
 
 export type TrainingEngine = "replicate" | "fal";
 
@@ -456,6 +460,54 @@ export const TRAINING_CATEGORIES: TrainingCategory[] = [
     acceptsVideos: false,
     minDatasetSize: 1,
     maxDatasetSize: 10,
+  },
+  {
+    type: "concept_lora",
+    label: "Concept / Idea",
+    labelZh: "概念訓練",
+    description: "訓練抽象概念或視覺創意（如特殊光影、情境氛圍）",
+    icon: "lightbulb",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 5,
+    maxDatasetSize: 40,
+  },
+  {
+    type: "product_lora",
+    label: "Product / Object",
+    labelZh: "商品 / 物件",
+    description: "訓練特定商品或物件的外觀，適用於產品視覺化與電商",
+    icon: "package",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 4,
+    maxDatasetSize: 30,
+  },
+  {
+    type: "fashion_lora",
+    label: "Fashion / Clothing",
+    labelZh: "時尚 / 服飾",
+    description: "訓練特定服裝風格、配飾或時尚元素",
+    icon: "shirt",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 5,
+    maxDatasetSize: 40,
+  },
+  {
+    type: "pose_lora",
+    label: "Pose / Action",
+    labelZh: "姿態 / 動作",
+    description: "訓練特定姿態、動作或身體語言（如舞蹈動作、運動姿勢）",
+    icon: "activity",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: true,
+    minDatasetSize: 5,
+    maxDatasetSize: 50,
   },
 ];
 
