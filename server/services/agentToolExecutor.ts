@@ -2178,6 +2178,88 @@ async function dispatchStudioTool(
         return trainingResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // legalAdvisor.* tools for legal-advisor (法法)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "legalAdvisor.checkCompliance":
+      case "legalAdvisor.checkLicense":
+      case "legalAdvisor.getGuidelines": {
+        const legalResult = await dispatchLegalAdvisorTool(call, opts);
+        return legalResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // securityGuard.* tools for security-guard (守守)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "securityGuard.checkHealth":
+      case "securityGuard.scanSecurity":
+      case "securityGuard.getRecommendations":
+      case "securityGuard.reportIssue": {
+        const securityResult = await dispatchSecurityGuardTool(call, opts);
+        return securityResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // communityManager.* tools for community-manager (社社)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "communityManager.submitFeedback":
+      case "communityManager.getUserFeedback":
+      case "communityManager.getAnnouncements":
+      case "communityManager.getEngagementTips": {
+        const communityResult = await dispatchCommunityManagerTool(call, opts);
+        return communityResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // onboardingCoach.* tools for onboarding-coach (引引)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "onboardingCoach.startOnboarding":
+      case "onboardingCoach.trackProgress":
+      case "onboardingCoach.getQuickStart": {
+        const onboardingResult = await dispatchOnboardingCoachTool(call, opts);
+        return onboardingResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // planExecutor.* tools for plan-executor (執執)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "planExecutor.createPlan":
+      case "planExecutor.executeStep":
+      case "planExecutor.getStatus":
+      case "planExecutor.getTemplates": {
+        const planResult = await dispatchPlanExecutorTool(call, opts);
+        return planResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // inspirationSpecialist.* tools for inspiration-specialist (靈靈)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "inspirationSpecialist.searchTrends":
+      case "inspirationSpecialist.getSuggestions":
+      case "inspirationSpecialist.analyzeReference":
+      case "inspirationSpecialist.getStyleMixing": {
+        const inspirationSpecResult = await dispatchInspirationSpecialistTool(call, opts);
+        return inspirationSpecResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // anatomySpecialist.* tools for anatomy-specialist (解解)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "anatomySpecialist.analyzeParameters":
+      case "anatomySpecialist.debugFailure":
+      case "anatomySpecialist.compareModels":
+      case "anatomySpecialist.getTechnicalDocs": {
+        const anatomyResult = await dispatchAnatomySpecialistTool(call, opts);
+        return anatomyResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -3331,6 +3413,506 @@ async function dispatchTrainingSpecialistTool(
 
       default:
         return { name: call.name, ok: false, error: `unknown trainingSpecialist tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// legalAdvisor.* 工具橋接：法法（legal-advisor）的法律合規工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchLegalAdvisorTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { checkCompliance, checkLicense, getLegalGuidelines } = await import("./spiritTools/legalAdvisorTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "legalAdvisor.checkCompliance": {
+        const contentType = args.contentType as "image" | "video" | "audio" | "text";
+        const description = args.description as string;
+
+        if (!contentType || !description) {
+          return { name: call.name, ok: false, error: "contentType and description are required" };
+        }
+
+        const result = checkCompliance({ contentType, description });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: "Compliance check failed" }),
+        };
+      }
+
+      case "legalAdvisor.checkLicense": {
+        const assetType = args.assetType as string;
+        const useCase = args.useCase as "personal" | "commercial" | "redistribution";
+
+        if (!assetType || !useCase) {
+          return { name: call.name, ok: false, error: "assetType and useCase are required" };
+        }
+
+        const result = checkLicense({
+          assetType,
+          modelName: args.modelName as string | undefined,
+          useCase,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "legalAdvisor.getGuidelines": {
+        const result = getLegalGuidelines();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown legalAdvisor tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// securityGuard.* 工具橋接：守守（security-guard）的安全監控工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchSecurityGuardTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { checkSystemHealth, scanForSecurityIssues, getSecurityRecommendations, reportSecurityIssue } = await import("./spiritTools/securityGuardTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "securityGuard.checkHealth": {
+        const result = await checkSystemHealth();
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "securityGuard.scanSecurity": {
+        const scope = args.scope as "user" | "system" | "content";
+        if (!scope) {
+          return { name: call.name, ok: false, error: "scope is required" };
+        }
+
+        const result = scanForSecurityIssues({
+          userId: opts.userId,
+          scope,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "securityGuard.getRecommendations": {
+        const result = getSecurityRecommendations();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "securityGuard.reportIssue": {
+        const issueType = args.issueType as "bug" | "vulnerability" | "suspicious_activity" | "other";
+        const description = args.description as string;
+        const severity = args.severity as "low" | "medium" | "high" | "critical";
+
+        if (!issueType || !description || !severity) {
+          return { name: call.name, ok: false, error: "issueType, description, and severity are required" };
+        }
+
+        const result = await reportSecurityIssue({
+          userId: opts.userId,
+          issueType,
+          description,
+          severity,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown securityGuard tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// communityManager.* 工具橋接：社社（community-manager）的社群互動工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchCommunityManagerTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { submitFeedback, getUserFeedback, getAnnouncements, getEngagementTips } = await import("./spiritTools/communityManagerTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "communityManager.submitFeedback": {
+        const type = args.type as "bug" | "feature" | "improvement" | "praise" | "other";
+        const title = args.title as string;
+        const description = args.description as string;
+
+        if (!type || !title || !description) {
+          return { name: call.name, ok: false, error: "type, title, and description are required" };
+        }
+
+        const result = await submitFeedback({
+          userId: opts.userId,
+          type,
+          title,
+          description,
+          rating: args.rating as number | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "communityManager.getUserFeedback": {
+        const result = await getUserFeedback({
+          userId: opts.userId,
+          limit: args.limit as number | undefined,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "communityManager.getAnnouncements": {
+        const result = getAnnouncements();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "communityManager.getEngagementTips": {
+        const result = getEngagementTips();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown communityManager tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// onboardingCoach.* 工具橋接：引引（onboarding-coach）的新手引導工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchOnboardingCoachTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { startOnboarding, trackOnboardingProgress, getQuickStartGuide } = await import("./spiritTools/onboardingCoachTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "onboardingCoach.startOnboarding": {
+        const userType = args.userType as "beginner" | "intermediate" | "advanced";
+        if (!userType) {
+          return { name: call.name, ok: false, error: "userType is required" };
+        }
+
+        const result = startOnboarding({
+          userId: opts.userId,
+          userType,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "onboardingCoach.trackProgress": {
+        const stepId = args.stepId as string;
+        const completed = args.completed as boolean;
+
+        if (!stepId || typeof completed !== "boolean") {
+          return { name: call.name, ok: false, error: "stepId and completed are required" };
+        }
+
+        const result = await trackOnboardingProgress({
+          userId: opts.userId,
+          stepId,
+          completed,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "onboardingCoach.getQuickStart": {
+        const result = getQuickStartGuide();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown onboardingCoach tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// planExecutor.* 工具橋接：執執（plan-executor）的工作流程執行工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchPlanExecutorTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { createWorkflowPlan, executeWorkflowStep, getWorkflowStatus, getWorkflowTemplates } = await import("./spiritTools/planExecutorTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "planExecutor.createPlan": {
+        const goal = args.goal as string;
+        const steps = args.steps as Array<{ action: string; parameters?: Record<string, unknown> }>;
+
+        if (!goal || !steps || !Array.isArray(steps)) {
+          return { name: call.name, ok: false, error: "goal and steps are required" };
+        }
+
+        const result = await createWorkflowPlan({
+          userId: opts.userId,
+          goal,
+          steps,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "planExecutor.executeStep": {
+        const planId = args.planId as string;
+        const stepIndex = args.stepIndex as number;
+
+        if (!planId || typeof stepIndex !== "number") {
+          return { name: call.name, ok: false, error: "planId and stepIndex are required" };
+        }
+
+        const result = await executeWorkflowStep({
+          userId: opts.userId,
+          planId,
+          stepIndex,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "planExecutor.getStatus": {
+        const planId = args.planId as string;
+        if (!planId) {
+          return { name: call.name, ok: false, error: "planId is required" };
+        }
+
+        const result = await getWorkflowStatus({
+          userId: opts.userId,
+          planId,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "planExecutor.getTemplates": {
+        const result = getWorkflowTemplates();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown planExecutor tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// inspirationSpecialist.* 工具橋接：靈靈（inspiration-specialist）的靈感收集工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchInspirationSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { searchTrends, getCreativeSuggestions, analyzeReference, getStyleMixingSuggestions } = await import("./spiritTools/inspirationSpecialistTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "inspirationSpecialist.searchTrends": {
+        const category = args.category as "image" | "video" | "music" | "general";
+        if (!category) {
+          return { name: call.name, ok: false, error: "category is required" };
+        }
+
+        const result = await searchTrends({
+          category,
+          region: args.region as string | undefined,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "inspirationSpecialist.getSuggestions": {
+        const intent = args.intent as string;
+        if (!intent) {
+          return { name: call.name, ok: false, error: "intent is required" };
+        }
+
+        const result = getCreativeSuggestions({
+          intent,
+          style: args.style as string | undefined,
+          modality: args.modality as "image" | "video" | "audio" | undefined,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "inspirationSpecialist.analyzeReference": {
+        const imageUrl = args.imageUrl as string;
+        if (!imageUrl) {
+          return { name: call.name, ok: false, error: "imageUrl is required" };
+        }
+
+        const result = await analyzeReference({ imageUrl });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "inspirationSpecialist.getStyleMixing": {
+        const result = getStyleMixingSuggestions();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown inspirationSpecialist tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// anatomySpecialist.* 工具橋接：解解（anatomy-specialist）的技術分析工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchAnatomySpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { analyzeParameters, debugFailure, compareModels, getTechnicalDocs } = await import("./spiritTools/anatomySpecialistTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "anatomySpecialist.analyzeParameters": {
+        const modality = args.modality as "image" | "video" | "audio" | "voice";
+        const parameters = args.parameters as Record<string, unknown>;
+
+        if (!modality || !parameters) {
+          return { name: call.name, ok: false, error: "modality and parameters are required" };
+        }
+
+        const result = analyzeParameters({ modality, parameters });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.debugFailure": {
+        const jobId = args.jobId as string;
+        if (!jobId) {
+          return { name: call.name, ok: false, error: "jobId is required" };
+        }
+
+        const result = await debugFailure({
+          userId: opts.userId,
+          jobId,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "anatomySpecialist.compareModels": {
+        const models = args.models as string[];
+        const criteria = args.criteria as "speed" | "quality" | "cost" | "versatility";
+
+        if (!models || !Array.isArray(models) || !criteria) {
+          return { name: call.name, ok: false, error: "models and criteria are required" };
+        }
+
+        const result = compareModels({ models, criteria });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.getTechnicalDocs": {
+        const topic = args.topic as string;
+        if (!topic) {
+          return { name: call.name, ok: false, error: "topic is required" };
+        }
+
+        const result = getTechnicalDocs(topic);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown anatomySpecialist tool: ${call.name}` };
     }
   } catch (err) {
     return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
