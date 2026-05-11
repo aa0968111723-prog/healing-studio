@@ -299,10 +299,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    // Explicitly exclude id from values — it's auto-increment and must never appear in INSERT
+    // Explicitly exclude id from values — it's auto-increment and must never appear in INSERT.
+    // openId has already been validated to be non-empty above, so the cast is safe.
     const { id: _id, ...userWithoutId } = user as InsertUser & { id?: number };
     const values: Omit<InsertUser, "id"> & { openId: string } = {
-      openId: userWithoutId.openId!,
+      openId: user.openId as string,
     };
     const updateSet: Record<string, unknown> = {};
 
