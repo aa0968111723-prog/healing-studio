@@ -242,6 +242,7 @@ export default function LoraTrainer() {
   const [trainingSteps, setTrainingSteps] = useState(1000);
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
+  const [autofillStrength, setAutofillStrength] = useState(0.45); // AI 補齊強度：0.2-0.8
 
   // ── 同意書（肖像權 / 照片使用）──
   const [subjectType, setSubjectType] = useState<
@@ -397,6 +398,7 @@ export default function LoraTrainer() {
           referenceImageUrl: reference.uploadedUrl,
           targets: angles.map(angle => ({ angle })),
           subjectHint: description || modelName || undefined,
+          strength: autofillStrength,
         });
         if (result.generated.length > 0) {
           setDatasetImages(prev => [
@@ -1301,48 +1303,73 @@ export default function LoraTrainer() {
                                   const isAutofilling =
                                     autofillingAngles.size > 0;
                                   return (
-                                    <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-medium flex items-center gap-1.5">
-                                          <Wand2 className="w-3.5 h-3.5 text-primary" />
-                                          AI 自動補齊
+                                    <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 flex flex-col gap-3">
+                                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-xs font-medium flex items-center gap-1.5">
+                                            <Wand2 className="w-3.5 h-3.5 text-primary" />
+                                            AI 自動補齊
+                                          </div>
+                                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                                            {hasReference
+                                              ? missingAngles.length > 0
+                                                ? `已偵測到 ${missingAngles.length} 個缺少的角度，AI 會以你上傳的參考圖補齊（可隨時替換）`
+                                                : "所有角度都已有圖片，可手動刪除後重新生成"
+                                              : "請先上傳一張任意角度的參考圖，AI 會幫你補齊其餘角度"}
+                                          </div>
                                         </div>
-                                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                                          {hasReference
-                                            ? missingAngles.length > 0
-                                              ? `已偵測到 ${missingAngles.length} 個缺少的角度，AI 會以你上傳的參考圖補齊（可隨時替換）`
-                                              : "所有角度都已有圖片，可手動刪除後重新生成"
-                                            : "請先上傳一張任意角度的參考圖，AI 會幫你補齊其餘角度"}
-                                        </div>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="default"
+                                          disabled={
+                                            !hasReference ||
+                                            missingAngles.length === 0 ||
+                                            isAutofilling
+                                          }
+                                          onClick={() =>
+                                            runAutofill(
+                                              missingAngles.map(a => a.value)
+                                            )
+                                          }
+                                          className="rounded-lg shrink-0"
+                                        >
+                                          {isAutofilling ? (
+                                            <>
+                                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                              生成中...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                                              一鍵補齊（{missingAngles.length}）
+                                            </>
+                                          )}
+                                        </Button>
                                       </div>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="default"
-                                        disabled={
-                                          !hasReference ||
-                                          missingAngles.length === 0 ||
-                                          isAutofilling
-                                        }
-                                        onClick={() =>
-                                          runAutofill(
-                                            missingAngles.map(a => a.value)
-                                          )
-                                        }
-                                        className="rounded-lg shrink-0"
-                                      >
-                                        {isAutofilling ? (
-                                          <>
-                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                            生成中...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Wand2 className="w-3.5 h-3.5 mr-1.5" />
-                                            一鍵補齊（{missingAngles.length}）
-                                          </>
-                                        )}
-                                      </Button>
+
+                                      {/* AI 補齊強度控制 */}
+                                      <div className="space-y-1.5 pt-1 border-t border-primary/20">
+                                        <div className="flex items-center justify-between">
+                                          <Label className="text-[11px] text-muted-foreground">
+                                            相似度控制
+                                          </Label>
+                                          <span className="text-[10px] text-muted-foreground">
+                                            {autofillStrength < 0.35 ? "保守（更相似）" : autofillStrength > 0.55 ? "創意（較大變化）" : "平衡"}
+                                          </span>
+                                        </div>
+                                        <Slider
+                                          value={[autofillStrength]}
+                                          onValueChange={v => setAutofillStrength(v[0])}
+                                          min={0.2}
+                                          max={0.8}
+                                          step={0.05}
+                                          className="w-full"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground/80">
+                                          數值越低，AI 生成的圖片越接近參考圖；越高則允許更多創意變化
+                                        </p>
+                                      </div>
                                     </div>
                                   );
                                 })()}
