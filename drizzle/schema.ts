@@ -2077,6 +2077,9 @@ export const agentCollaborationSessions = mysqlTable(
     requiredCapabilities: json("required_capabilities").$type<string[]>(),
     sharedContext: json("shared_context").$type<Record<string, unknown>>(),
     result: json("result").$type<Record<string, unknown>>(),
+    planStatus: mysqlEnum("planStatus", ["no_plan", "planning", "plan_approved", "executing", "completed"])
+      .default("no_plan"),
+    planData: json("planData").$type<Record<string, unknown>>(),
     startedAt: bigint("started_at", { mode: "number" }).notNull(),
     completedAt: bigint("completed_at", { mode: "number" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2087,6 +2090,7 @@ export const agentCollaborationSessions = mysqlTable(
     sessionIdx: index("acs_session_idx").on(table.sessionId),
     startedAtIdx: index("acs_started_at_idx").on(table.startedAt),
     statusIdx: index("acs_status_idx").on(table.status),
+    planStatusIdx: index("plan_status_idx").on(table.planStatus),
   })
 );
 
