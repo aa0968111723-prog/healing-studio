@@ -5,6 +5,18 @@
  */
 
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
+import {
+  orbWorkflowTemplates,
+  orbWorkflowExecutions,
+  orbWorkflowStepExecutions,
+  type OrbWorkflowTemplate,
+  type InsertOrbWorkflowTemplate,
+  type OrbWorkflowExecution,
+  type InsertOrbWorkflowExecution,
+  type InsertOrbWorkflowStepExecution,
+} from "../../drizzle/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export type WorkflowStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
 export type StepStatus = "pending" | "running" | "completed" | "failed" | "skipped";

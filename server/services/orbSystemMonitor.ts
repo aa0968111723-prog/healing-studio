@@ -6,6 +6,16 @@
  */
 
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
+import {
+  orbSpiritCollaborationMetrics,
+  orbSystemHealthMetrics,
+  orbCostAttribution,
+  type InsertOrbSpiritCollaborationMetric,
+  type InsertOrbSystemHealthMetric,
+  type InsertOrbCostAttribution,
+} from "../../drizzle/schema";
+import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 
 export type MetricType =
   | "response_time"
