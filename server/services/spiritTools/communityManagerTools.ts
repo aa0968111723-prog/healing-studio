@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { userFeedback } from "../../../drizzle/schema";
+import { userFeedbackReportsReports } from "../../../drizzle/schema";
 import { desc, eq } from "drizzle-orm";
 
 /**
@@ -27,7 +27,7 @@ export async function submitFeedback(input: {
   try {
     const db = getDb();
 
-    const [result] = await db.insert(userFeedback).values({
+    const [result] = await db.insert(userFeedbackReports).values({
       userId: input.userId,
       type: input.type,
       title: input.title,
@@ -82,9 +82,9 @@ export async function getUserFeedback(input: {
 
     const feedback = await db
       .select()
-      .from(userFeedback)
-      .where(eq(userFeedback.userId, input.userId))
-      .orderBy(desc(userFeedback.createdAt))
+      .from(userFeedbackReports)
+      .where(eq(userFeedbackReports.userId, input.userId))
+      .orderBy(desc(userFeedbackReports.createdAt))
       .limit(input.limit || 10);
 
     return {

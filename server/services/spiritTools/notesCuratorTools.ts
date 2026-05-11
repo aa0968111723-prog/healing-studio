@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { projectNotes, digitalAssets, scheduledJobs } from "../../../drizzle/schema";
+import { projectNotesCalendarCalendar, digitalAssetLibrary, orbScheduledJobs } from "../../../drizzle/schema";
 import { and, eq, like, or, desc, sql } from "drizzle-orm";
 
 /**
@@ -27,7 +27,7 @@ export async function createNote(input: {
   try {
     const db = getDb();
 
-    const [result] = await db.insert(projectNotes).values({
+    const [result] = await db.insert(projectNotesCalendar).values({
       userId: input.userId,
       title: input.title,
       content: input.content,
@@ -87,18 +87,18 @@ export async function searchNotes(input: {
 
     const results = await db
       .select()
-      .from(projectNotes)
+      .from(projectNotesCalendar)
       .where(
         and(
-          eq(projectNotes.userId, input.userId),
+          eq(projectNotesCalendar.userId, input.userId),
           or(
-            like(projectNotes.title, `%${input.query}%`),
-            like(projectNotes.content, `%${input.query}%`),
-            like(projectNotes.tags, `%${input.query}%`)
+            like(projectNotesCalendar.title, `%${input.query}%`),
+            like(projectNotesCalendar.content, `%${input.query}%`),
+            like(projectNotesCalendar.tags, `%${input.query}%`)
           )
         )
       )
-      .orderBy(desc(projectNotes.updatedAt))
+      .orderBy(desc(projectNotesCalendar.updatedAt))
       .limit(limit);
 
     const notes = results.map(note => ({
@@ -161,7 +161,7 @@ export async function scheduleTask(input: {
       };
     }
 
-    const [result] = await db.insert(scheduledJobs).values({
+    const [result] = await db.insert(orbScheduledJobs).values({
       userId: input.userId,
       jobName: input.taskName,
       scheduledFor: scheduledDate,
@@ -216,11 +216,11 @@ export async function tagAssets(input: {
     for (const assetId of input.assetIds) {
       const [asset] = await db
         .select()
-        .from(digitalAssets)
+        .from(digitalAssetLibrary)
         .where(
           and(
-            eq(digitalAssets.id, assetId),
-            eq(digitalAssets.userId, input.userId)
+            eq(digitalAssetLibrary.id, assetId),
+            eq(digitalAssetLibrary.userId, input.userId)
           )
         )
         .limit(1);
@@ -245,12 +245,12 @@ export async function tagAssets(input: {
       }
 
       await db
-        .update(digitalAssets)
+        .update(digitalAssetLibrary)
         .set({
           tags: JSON.stringify(newTags),
           updatedAt: new Date(),
         })
-        .where(eq(digitalAssets.id, assetId));
+        .where(eq(digitalAssetLibrary.id, assetId));
 
       updated++;
     }
@@ -299,22 +299,22 @@ export async function getAssetStatistics(userId: number): Promise<{
     // Get total assets
     const [totalResult] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(digitalAssets)
-      .where(eq(digitalAssets.userId, userId));
+      .from(digitalAssetLibrary)
+      .where(eq(digitalAssetLibrary.userId, userId));
 
     const totalAssets = totalResult?.count || 0;
 
     // Get untagged assets
     const [untaggedResult] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(digitalAssets)
+      .from(digitalAssetLibrary)
       .where(
         and(
-          eq(digitalAssets.userId, userId),
+          eq(digitalAssetLibrary.userId, userId),
           or(
-            eq(digitalAssets.tags, "null"),
-            eq(digitalAssets.tags, "[]"),
-            sql`${digitalAssets.tags} IS NULL`
+            eq(digitalAssetLibrary.tags, "null"),
+            eq(digitalAssetLibrary.tags, "[]"),
+            sql`${digitalAssetLibrary.tags} IS NULL`
           )
         )
       );
