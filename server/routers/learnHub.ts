@@ -1376,7 +1376,7 @@ Healing Studio 使用 **tRPC v10** 作為 API 層，前後端共享型別，無�
 | userId | int | 用戶 ID |
 | name | varchar(255) | 模型名稱 |
 | description | text | 說明 |
-| modelType | enum | image_subject/voice_clone/style_lora |
+| modelType | enum | image_subject/portrait_lora/style_lora/scene_lora/video_lora/voice_clone/concept_lora/product_lora/fashion_lora/pose_lora |
 | status | enum | queued/training/ready/failed |
 | triggerWord | varchar | LoRA 觸發詞 |
 | loraUrl | text | 訓練完成的 LoRA 模型 URL |
@@ -1995,7 +1995,7 @@ REPLICATE_API_TOKEN=r8_your_token_here
 2. 點擊「新增模型」
 3. 填入：
    - 模型名稱（如：「小明角色」）
-   - 模型類型：\`image_subject\`（人物/物件）/ \`style_lora\`（風格）/ \`voice_clone\`
+   - 模型類型：\`image_subject\`（角色/主體）/ \`portrait_lora\`（人像）/ \`style_lora\`（風格）/ \`scene_lora\`（場景）/ \`video_lora\`（影片）/ \`voice_clone\`（語音）/ \`concept_lora\`（概念）/ \`product_lora\`（商品）/ \`fashion_lora\`（服飾）/ \`pose_lora\`（姿態）
    - **觸發詞**（Trigger Word）：如 \`xiaoMing_char\`（用於生成時激活）
 
 ### 步驟二：上傳訓練圖
