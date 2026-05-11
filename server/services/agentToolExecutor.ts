@@ -2106,6 +2106,44 @@ async function dispatchStudioTool(
         return settingsDetailResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // imageSpecialist.* tools for image-specialist (圖圖)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "imageSpecialist.generate":
+      case "imageSpecialist.edit":
+      case "imageSpecialist.upscale":
+      case "imageSpecialist.getModels":
+      case "imageSpecialist.getTips": {
+        const imageResult = await dispatchImageSpecialistTool(call, opts);
+        return imageResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // videoSpecialist.* tools for video-specialist (影影)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "videoSpecialist.generate":
+      case "videoSpecialist.imageToVideo":
+      case "videoSpecialist.lipSync":
+      case "videoSpecialist.getModels":
+      case "videoSpecialist.getTips": {
+        const videoResult = await dispatchVideoSpecialistTool(call, opts);
+        return videoResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // voiceSpecialist.* tools for voice-specialist (聲聲)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "voiceSpecialist.generateSpeech":
+      case "voiceSpecialist.transcribe":
+      case "voiceSpecialist.getVoices":
+      case "voiceSpecialist.getTips": {
+        const voiceResult = await dispatchVoiceSpecialistTool(call, opts);
+        return voiceResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -2667,6 +2705,403 @@ async function dispatchSettingsDetailTool(
           name: call.name,
           ok: false,
           error: `unknown settingsDetail tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// imageSpecialist.* 工具橋接：圖圖（image-specialist）的圖片生成工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 imageSpecialist.* 工具呼叫橋接到 imageSpecialistTools 服務。
+ */
+async function dispatchImageSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    generateImage,
+    editImage,
+    upscaleImage,
+    getImageModels,
+    getImageGenerationTips,
+  } = await import("./spiritTools/imageSpecialistTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "imageSpecialist.generate": {
+        const prompt = args.prompt as string;
+        if (!prompt) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "prompt is required",
+          };
+        }
+
+        const result = await generateImage({
+          userId: opts.userId,
+          prompt,
+          modelId: args.modelId as string | undefined,
+          aspectRatio: args.aspectRatio as string | undefined,
+          numImages: args.numImages as number | undefined,
+          negativePrompt: args.negativePrompt as string | undefined,
+          seed: args.seed as number | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "imageSpecialist.edit": {
+        const imageUrl = args.imageUrl as string;
+        const prompt = args.prompt as string;
+
+        if (!imageUrl || !prompt) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "imageUrl and prompt are required",
+          };
+        }
+
+        const result = await editImage({
+          userId: opts.userId,
+          imageUrl,
+          prompt,
+          strength: args.strength as number | undefined,
+          maskUrl: args.maskUrl as string | undefined,
+          modelId: args.modelId as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "imageSpecialist.upscale": {
+        const imageUrl = args.imageUrl as string;
+
+        if (!imageUrl) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "imageUrl is required",
+          };
+        }
+
+        const result = await upscaleImage({
+          userId: opts.userId,
+          imageUrl,
+          scaleFactor: args.scaleFactor as number | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "imageSpecialist.getModels": {
+        const result = getImageModels();
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "imageSpecialist.getTips": {
+        const result = getImageGenerationTips(args.scenario as string | undefined);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown imageSpecialist tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// videoSpecialist.* 工具橋接：影影（video-specialist）的影片生成工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 videoSpecialist.* 工具呼叫橋接到 videoSpecialistTools 服務。
+ */
+async function dispatchVideoSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    generateVideo,
+    imageToVideo,
+    createLipSync,
+    getVideoModels,
+    getVideoGenerationTips,
+  } = await import("./spiritTools/videoSpecialistTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "videoSpecialist.generate": {
+        const prompt = args.prompt as string;
+        if (!prompt) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "prompt is required",
+          };
+        }
+
+        const result = await generateVideo({
+          userId: opts.userId,
+          prompt,
+          modelId: args.modelId as string | undefined,
+          duration: args.duration as number | undefined,
+          aspectRatio: args.aspectRatio as string | undefined,
+          fps: args.fps as number | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "videoSpecialist.imageToVideo": {
+        const imageUrl = args.imageUrl as string;
+        if (!imageUrl) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "imageUrl is required",
+          };
+        }
+
+        const result = await imageToVideo({
+          userId: opts.userId,
+          imageUrl,
+          prompt: args.prompt as string | undefined,
+          modelId: args.modelId as string | undefined,
+          duration: args.duration as number | undefined,
+          motion: args.motion as "subtle" | "moderate" | "dynamic" | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "videoSpecialist.lipSync": {
+        const videoUrl = args.videoUrl as string;
+        const audioUrl = args.audioUrl as string;
+
+        if (!videoUrl || !audioUrl) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "videoUrl and audioUrl are required",
+          };
+        }
+
+        const result = await createLipSync({
+          userId: opts.userId,
+          videoUrl,
+          audioUrl,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "videoSpecialist.getModels": {
+        const result = getVideoModels();
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "videoSpecialist.getTips": {
+        const result = getVideoGenerationTips();
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown videoSpecialist tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// voiceSpecialist.* 工具橋接：聲聲（voice-specialist）的語音合成工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 voiceSpecialist.* 工具呼叫橋接到 voiceSpecialistTools 服務。
+ */
+async function dispatchVoiceSpecialistTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    generateSpeech,
+    transcribeAudio,
+    getAvailableVoices,
+    getVoiceGenerationTips,
+  } = await import("./spiritTools/voiceSpecialistTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "voiceSpecialist.generateSpeech": {
+        const text = args.text as string;
+        if (!text) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "text is required",
+          };
+        }
+
+        const result = await generateSpeech({
+          userId: opts.userId,
+          text,
+          voiceId: args.voiceId as string | undefined,
+          language: args.language as string | undefined,
+          speed: args.speed as number | undefined,
+          emotion: args.emotion as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.transcribe": {
+        const audioUrl = args.audioUrl as string;
+        if (!audioUrl) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "audioUrl is required",
+          };
+        }
+
+        const result = await transcribeAudio({
+          userId: opts.userId,
+          audioUrl,
+          language: args.language as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.getVoices": {
+        const result = getAvailableVoices();
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "voiceSpecialist.getTips": {
+        const result = getVoiceGenerationTips();
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown voiceSpecialist tool: ${call.name}`,
         };
     }
   } catch (err) {
