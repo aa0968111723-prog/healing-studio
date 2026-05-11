@@ -2260,6 +2260,18 @@ async function dispatchStudioTool(
         return anatomyResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // memoryManager.* tools for memory-manager (記記)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "memoryManager.storeMemory":
+      case "memoryManager.searchMemories":
+      case "memoryManager.getStats":
+      case "memoryManager.consolidate": {
+        const memoryResult = await dispatchMemoryManagerTool(call, opts);
+        return memoryResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -3913,6 +3925,111 @@ async function dispatchAnatomySpecialistTool(
 
       default:
         return { name: call.name, ok: false, error: `unknown anatomySpecialist tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// memoryManager.* 工具橋接：記記（memory-manager）的長期記憶管理工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 memoryManager.* 工具呼叫橋接到 memoryManagerTools 服務。
+ * 提供記記（memory-manager）管理長期記憶的能力：
+ * - memoryManager.storeMemory: 儲存新記憶
+ * - memoryManager.searchMemories: 搜尋相關記憶
+ * - memoryManager.getStats: 取得記憶統計
+ * - memoryManager.consolidate: 整合與清理記憶
+ */
+async function dispatchMemoryManagerTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { storeMemory, searchMemories, getMemoryStats, consolidateMemories } = await import("./spiritTools/memoryManagerTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "memoryManager.storeMemory": {
+        const content = args.content as string;
+        const memoryType = args.memoryType as string;
+
+        if (!content || !memoryType) {
+          return { name: call.name, ok: false, error: "content and memoryType are required" };
+        }
+
+        const result = await storeMemory({
+          userId: opts.userId,
+          memoryType: memoryType as any,
+          content,
+          importanceScore: typeof args.importanceScore === "number" ? args.importanceScore : 0.5,
+          sourceType: (args.sourceType as any) || "conversation",
+          sourceId: args.sourceId as string | undefined,
+          spiritId: args.spiritId as string | undefined,
+          metadata: args.metadata as Record<string, unknown> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "memoryManager.searchMemories": {
+        const query = args.query as string;
+
+        if (!query) {
+          return { name: call.name, ok: false, error: "query is required" };
+        }
+
+        const result = await searchMemories({
+          userId: opts.userId,
+          query,
+          memoryType: args.memoryType as any,
+          limit: typeof args.limit === "number" ? args.limit : 10,
+          minImportance: typeof args.minImportance === "number" ? args.minImportance : undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "memoryManager.getStats": {
+        const result = await getMemoryStats(opts.userId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "memoryManager.consolidate": {
+        const result = await consolidateMemories(opts.userId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown memoryManager tool: ${call.name}` };
     }
   } catch (err) {
     return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
