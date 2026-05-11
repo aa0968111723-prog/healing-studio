@@ -3642,16 +3642,49 @@ export default function DirectorAI() {
       p => p.phase === planningPhase
     );
 
+    // ── Cross-phase coherence ──────────────────────────────────────────────
+    // Include the last few messages from each prior phase so the AI maintains
+    // continuity across all 5 stages (concept → outline → scenes → depth → schedule).
+    const PHASE_ORDER: PlanningPhase[] = [
+      "concept",
+      "outline",
+      "scene-planning",
+      "emotional-depth",
+      "schedule",
+    ];
+    const MAX_CROSS_PHASE_MESSAGES = 4;
+    const currentPhaseIdx = PHASE_ORDER.indexOf(planningPhase);
+
+    const priorPhaseMessages: PlanningMessage[] = PHASE_ORDER.slice(
+      0,
+      currentPhaseIdx
+    ).flatMap(ph => {
+      const phData = planningSession.phases.find(p => p.phase === ph);
+      if (!phData || phData.discussion.length === 0) return [];
+      return phData.discussion.slice(-MAX_CROSS_PHASE_MESSAGES).map(d => ({
+        ...d,
+        phase: ph, // ensure phase tag is set
+      }));
+    });
+
     planningDiscussMut.mutate({
       phase: planningPhase,
       message: planningInput,
       personality,
-      previousMessages: (currentPhaseData?.discussion ?? []).map(d => ({
-        role: d.role,
-        content: d.content,
-        timestamp: d.timestamp,
-        phase: d.phase,
-      })),
+      previousMessages: [
+        ...priorPhaseMessages.map(d => ({
+          role: d.role,
+          content: d.content,
+          timestamp: d.timestamp,
+          phase: d.phase,
+        })),
+        ...(currentPhaseData?.discussion ?? []).map(d => ({
+          role: d.role,
+          content: d.content,
+          timestamp: d.timestamp,
+          phase: d.phase,
+        })),
+      ],
       sessionContext: {
         concept: planningSession.concept,
         outline: planningSession.outline,
