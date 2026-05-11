@@ -86,7 +86,7 @@ export class DatabaseManager {
   private slowQueryCount = 0;
   private totalQueryTimeMs = 0;
 
-  constructor(databaseUrl: string, connectionLimit: number = 10) {
+  constructor(databaseUrl: string, connectionLimit: number = 20) {
     this.connectionLimit = connectionLimit;
     this.pool = mysql.createPool({
       uri: databaseUrl,

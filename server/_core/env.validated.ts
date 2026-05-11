@@ -476,6 +476,15 @@ const multimodalSchema = z.object({
   // ── Orb Webhook（n8n / Zapier / Make 觸發 POST /api/webhooks/orb）─────
   // 共享密鑰：請求 header `x-orb-webhook-secret` 必須等於此值，否則 401
   ORB_WEBHOOK_SECRET: z.string().optional().default(""),
+
+  // ── 功能旗標（featureFlags.ts 讀取 FEATURE_* 前綴）─────────────────────
+  // selfRepairEnv() 會把使用者設定的 ENABLE_ADVANCED_SEARCH / ENABLE_RAG_MEMORY /
+  // ENABLE_RESEARCH_MODE 自動重命名為以下三個標準名稱，因此兩種寫法皆可生效。
+  // 明確設定 "false" 或 "0" 可停用對應功能；留空則由 featureFlags.ts 的
+  // defaultResolver（依 API 金鑰是否存在）自動決定。
+  FEATURE_ADVANCED_SEARCH: z.string().default(""),
+  FEATURE_RAG_MEMORY: z.string().default(""),
+  FEATURE_RESEARCH_MODE: z.string().default(""),
 });
 
 // Combined schema

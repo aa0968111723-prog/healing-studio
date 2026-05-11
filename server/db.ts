@@ -200,8 +200,8 @@ export async function getDb() {
         connection: {
           uri: databaseUrl,
           waitForConnections: true,
-          connectionLimit: 10,
-          maxIdle: 5,
+          connectionLimit: 20,
+          maxIdle: 10,
           idleTimeout: 60_000, // Close idle connections after 60s
           enableKeepAlive: true,
           keepAliveInitialDelay: 30_000,
@@ -299,13 +299,18 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = { openId: user.openId };
+    // Explicitly exclude id from values — it's auto-increment and must never appear in INSERT.
+    // openId has already been validated to be non-empty above, so the cast is safe.
+    const { id: _id, ...userWithoutId } = user as InsertUser & { id?: number };
+    const values: Omit<InsertUser, "id"> & { openId: string } = {
+      openId: user.openId as string,
+    };
     const updateSet: Record<string, unknown> = {};
 
     const textFields = ["name", "email", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
     const assignNullable = (field: TextField) => {
-      const value = user[field];
+      const value = userWithoutId[field];
       if (value === undefined) return;
       const normalized = value ?? null;
       values[field] = normalized;
@@ -313,17 +318,17 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     };
     textFields.forEach(assignNullable);
 
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
+    if (userWithoutId.lastSignedIn !== undefined) {
+      values.lastSignedIn = userWithoutId.lastSignedIn;
+      updateSet.lastSignedIn = userWithoutId.lastSignedIn;
     }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    if (userWithoutId.role !== undefined) {
+      values.role = userWithoutId.role;
+      updateSet.role = userWithoutId.role;
+    } else if (userWithoutId.openId === ENV.ownerOpenId) {
       values.role = "admin";
       updateSet.role = "admin";
-    } else if (user.email && isAdminEmail(user.email)) {
+    } else if (userWithoutId.email && isAdminEmail(userWithoutId.email)) {
       values.role = "admin";
       updateSet.role = "admin";
     }
