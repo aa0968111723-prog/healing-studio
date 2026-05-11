@@ -1092,8 +1092,62 @@ async function discussPlanningPhase(
     contextParts.push(`【情感節拍分析】\n${beatsSummary}`);
   }
 
+  // Cross-phase coherence: split messages into "from a prior phase" vs "current phase".
+  // Messages tagged with a prior phase (or untagged messages that arrived from an
+  // older API call before phase tagging was added) are surfaced as a cross-phase
+  // narrative thread so the AI can maintain coherent continuity across all 5 stages.
+  const PHASE_ORDER: PlanningPhase[] = [
+    "concept",
+    "outline",
+    "scene-planning",
+    "emotional-depth",
+    "schedule",
+  ];
+  const currentPhaseIdx = PHASE_ORDER.indexOf(phase);
+
+  // Separate cross-phase messages from current-phase messages.
+  const crossPhaseMessages = messages.filter(
+    m => m.phase && PHASE_ORDER.indexOf(m.phase) < currentPhaseIdx
+  );
+  const currentPhaseMessages = messages.filter(
+    m => !m.phase || m.phase === phase
+  );
+
+  // Show at most the last MAX_CROSS_PHASE_MESSAGES cross-phase messages, grouped
+  // by phase so the AI can follow the phase-to-phase narrative thread.
+  const MAX_CROSS_PHASE_MESSAGES = 4;
+  if (crossPhaseMessages.length > 0) {
+    const phaseLabels: Record<PlanningPhase, string> = {
+      concept: "核心概念",
+      outline: "故事大綱",
+      "scene-planning": "場景規劃",
+      "emotional-depth": "情感深度",
+      schedule: "排程整合",
+    };
+    // Group by phase (preserving order) and take last N per phase.
+    const byPhase = new Map<PlanningPhase, PlanningMessage[]>();
+    for (const m of crossPhaseMessages) {
+      if (!m.phase) continue;
+      if (!byPhase.has(m.phase)) byPhase.set(m.phase, []);
+      byPhase.get(m.phase)!.push(m);
+    }
+    const crossPhaseLines: string[] = [];
+    for (const [ph, msgs] of byPhase) {
+      const lastMsgs = msgs.slice(-MAX_CROSS_PHASE_MESSAGES);
+      const lines = lastMsgs
+        .map(d => `  ${d.role === "user" ? "使用者" : "導演"}：${d.content}`)
+        .join("\n");
+      crossPhaseLines.push(`▸【${phaseLabels[ph]}階段的關鍵對話】\n${lines}`);
+    }
+    if (crossPhaseLines.length > 0) {
+      contextParts.push(
+        `\n【前面規劃階段的對話摘要（維持連貫性）】\n${crossPhaseLines.join("\n\n")}`
+      );
+    }
+  }
+
   // Previous discussion for this phase
-  const previousDiscussion = messages
+  const previousDiscussion = currentPhaseMessages
     .slice(-MAX_PLANNING_DISCUSSION_MESSAGES)
     .map(d => `${d.role === "user" ? "使用者" : "導演"}：${d.content}`)
     .join("\n");
@@ -1151,7 +1205,10 @@ ${persona.proactiveHint}${memorySection}
    \`[意圖卡] {"intent":"...","whyAsk":"...","options":["選項1","選項2","選項3"]}\`
    - intent：你理解的使用者當前核心意圖（20字內）
    - whyAsk：為什麼現在要先問這個問題（35字內）
-   - options：提供 2-3 個可直接回覆的方向（短句）`,
+   - options：提供 2-3 個可直接回覆的方向（短句）
+9. 【連貫性要求】若上方有「前面規劃階段的對話摘要」，務必在適當時機呼應
+   先前階段已確立的核心概念、角色設定或情感方向，讓每個階段的討論彼此銜接、
+   形成一條清晰的創作脈絡，而不是獨立的對話片段`,
         },
         {
           role: "user",

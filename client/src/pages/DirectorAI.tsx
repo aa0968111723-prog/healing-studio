@@ -558,6 +558,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   const [showGenPipeline, setShowGenPipeline] = useState(false);
   const [showCostar, setShowCostar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pendingQuote, setPendingQuote] = useState<{
+    text: string;
+    pos: { top: number; left: number };
+  } | null>(null);
   const config =
     PERSONALITIES.find(p => p.id === personality) ?? PERSONALITIES[1];
 
@@ -673,7 +678,49 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
     [segment, personality, discussMut, onUpdateSegment, adjacentSegments]
   );
 
-  // Group quick actions by category
+  // ── Text-selection quote ─────────────────────────────────────────────────
+
+  const handleStoryboardMouseUp = useCallback(() => {
+    const sel = window.getSelection();
+    const text = sel?.toString().trim();
+    if (!text) {
+      setPendingQuote(null);
+      return;
+    }
+    const range = sel?.getRangeAt(0);
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+    setPendingQuote({
+      text,
+      pos: {
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+      },
+    });
+  }, []);
+
+  const handleQuoteSelect = useCallback(() => {
+    if (!pendingQuote) return;
+    setInputMessage(prev =>
+      prev
+        ? `「${pendingQuote.text}」\n${prev}`
+        : `「${pendingQuote.text}」`
+    );
+    setPendingQuote(null);
+    window.getSelection()?.removeAllRanges();
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [pendingQuote]);
+
+  useEffect(() => {
+    if (!pendingQuote) return;
+    const dismiss = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPendingQuote(null);
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, [pendingQuote]);
+
+  // ────────────────────────────────────────────────────────────────────────
   const groupedActions = useMemo(() => {
     const groups: Record<string, QuickAction[]> = {};
     quickActions.forEach(a => {
@@ -781,8 +828,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
         </div>
       )}
 
-      {/* Storyboard info */}
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
+      {/* Storyboard info — 選取文字後可浮動引用至討論 */}
+      <div
+        className="grid grid-cols-2 gap-2 text-[11px] select-text"
+        onMouseUp={handleStoryboardMouseUp}
+      >
         {[
           {
             label: "視覺",
@@ -1028,6 +1078,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       {/* Input area */}
       <div className="flex gap-2">
         <input
+          ref={inputRef}
           type="text"
           value={inputMessage}
           onChange={e => setInputMessage(e.target.value)}
@@ -1085,6 +1136,32 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── 選取文字浮動引用按鈕 ─────────────────────────────────────────── */}
+      {pendingQuote && (
+        <div
+          style={{
+            position: "fixed",
+            top: pendingQuote.pos.top,
+            left: pendingQuote.pos.left,
+            zIndex: 9999,
+            maxWidth: 280,
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20 px-2.5 py-1.5 text-[11px] font-medium select-none animate-in fade-in zoom-in-95 duration-100"
+          // onMouseDown (not onClick) to fire before the browser clears the selection
+          onMouseDown={e => {
+            e.preventDefault();
+            handleQuoteSelect();
+          }}
+        >
+          <MessageSquare className="w-3 h-3 shrink-0" />
+          <span className="truncate">
+            引用「{pendingQuote.text.length > 18
+              ? pendingQuote.text.slice(0, 18) + "…"
+              : pendingQuote.text}」討論
+          </span>
+        </div>
+      )}
     </div>
   );
 });
@@ -2949,20 +3026,24 @@ export default function DirectorAI() {
     onError: e => toast.error("儲存失敗：" + e.message),
   });
 
-  const planningSessionsQuery = trpc.director.listPlanningSessions.useQuery(
-    undefined,
-    { enabled: showPlanningSessions }
-  );
+  // 單一查詢：常態啟用供「繼續上次規劃」橫幅使用；showPlanningSessions 為 true
+  // 時同一個 cache key 也供已儲存規劃列表重用，避免兩次重複請求。
+  const planningSessionsQuery = trpc.director.listPlanningSessions.useQuery();
 
-  // 進站時 query 一次最近的規劃 sessions，若有就提示「繼續上次規劃」
-  const recentSessionsQuery = trpc.director.listPlanningSessions.useQuery();
+  // 進站時若有已儲存的規劃，提示「繼續上次規劃」橫幅。
+  // director-resume-dismissed 儲存為 ISO 時間戳，24h 後自動過期。
   useEffect(() => {
     if (planningSession || resumePlanningCandidate) return; // 已在工作或已提示過
-    const list = recentSessionsQuery.data;
+    const list = planningSessionsQuery.data;
     if (!list || list.length === 0) return;
     const dismissed = (() => {
       try {
-        return localStorage.getItem("director-resume-dismissed") === "1";
+        const raw = localStorage.getItem("director-resume-dismissed");
+        if (!raw) return false;
+        const ts = Number(raw);
+        // 向下相容：舊版存 "1" 而非時間戳，視為已超時自動解除
+        if (!ts || isNaN(ts)) return false;
+        return Date.now() - ts < 24 * 60 * 60 * 1000; // 24h 有效期
       } catch {
         return false;
       }
@@ -2974,7 +3055,7 @@ export default function DirectorAI() {
         new Date(a.updatedAt ?? a.createdAt).getTime()
     );
     setResumePlanningCandidate(sorted[0]);
-  }, [recentSessionsQuery.data, planningSession, resumePlanningCandidate]);
+  }, [planningSessionsQuery.data, planningSession, resumePlanningCandidate]);
 
   // ─── Batch Generation Hooks ─────────────────────────────────────────────
   const autoGenerateMut = trpc.director.autoGenerateFromSegments.useMutation({
@@ -3378,6 +3459,28 @@ export default function DirectorAI() {
           setPersonality(data.personality);
           setGlobalPersonality(data.personality);
         }
+        // ── 腳本分析模式：還原分鏡 + 總覽並切換到 script tab ──
+        if (data.mode === "script-analysis") {
+          if (Array.isArray(data.importedSegments)) {
+            setImportedSegments(data.importedSegments);
+          }
+          if (typeof data.importedTitle === "string") {
+            setImportedTitle(data.importedTitle);
+          }
+          if (data.scriptOverview) {
+            setScriptOverview(data.scriptOverview);
+          }
+          setSelectedSegmentIdx(
+            Array.isArray(data.importedSegments) &&
+              data.importedSegments.length > 0
+              ? 0
+              : null
+          );
+          setActiveTab("script");
+          setShowSessions(false);
+          toast.success("腳本分析已載入");
+          return;
+        }
         if (Array.isArray(data.messages)) {
           setMessages([
             {
@@ -3539,16 +3642,49 @@ export default function DirectorAI() {
       p => p.phase === planningPhase
     );
 
+    // ── Cross-phase coherence ──────────────────────────────────────────────
+    // Include the last few messages from each prior phase so the AI maintains
+    // continuity across all 5 stages (concept → outline → scenes → depth → schedule).
+    const PHASE_ORDER: PlanningPhase[] = [
+      "concept",
+      "outline",
+      "scene-planning",
+      "emotional-depth",
+      "schedule",
+    ];
+    const MAX_CROSS_PHASE_MESSAGES = 4;
+    const currentPhaseIdx = PHASE_ORDER.indexOf(planningPhase);
+
+    const priorPhaseMessages: PlanningMessage[] = PHASE_ORDER.slice(
+      0,
+      currentPhaseIdx
+    ).flatMap(ph => {
+      const phData = planningSession.phases.find(p => p.phase === ph);
+      if (!phData || phData.discussion.length === 0) return [];
+      return phData.discussion.slice(-MAX_CROSS_PHASE_MESSAGES).map(d => ({
+        ...d,
+        phase: ph, // ensure phase tag is set
+      }));
+    });
+
     planningDiscussMut.mutate({
       phase: planningPhase,
       message: planningInput,
       personality,
-      previousMessages: (currentPhaseData?.discussion ?? []).map(d => ({
-        role: d.role,
-        content: d.content,
-        timestamp: d.timestamp,
-        phase: d.phase,
-      })),
+      previousMessages: [
+        ...priorPhaseMessages.map(d => ({
+          role: d.role,
+          content: d.content,
+          timestamp: d.timestamp,
+          phase: d.phase,
+        })),
+        ...(currentPhaseData?.discussion ?? []).map(d => ({
+          role: d.role,
+          content: d.content,
+          timestamp: d.timestamp,
+          phase: d.phase,
+        })),
+      ],
       sessionContext: {
         concept: planningSession.concept,
         outline: planningSession.outline,
@@ -3759,7 +3895,8 @@ export default function DirectorAI() {
 
   const handleDismissResumeBanner = useCallback(() => {
     try {
-      localStorage.setItem("director-resume-dismissed", "1");
+      // 儲存當前時間戳，24h 後自動解除（不再永久隱藏）
+      localStorage.setItem("director-resume-dismissed", String(Date.now()));
     } catch {
       // ignore
     }
@@ -5967,7 +6104,7 @@ const SessionItem = memo(function SessionItem({
   onLoad,
   onDelete,
 }: {
-  session: { id: number; title: string; createdAt: Date | string };
+  session: { id: number; title: string; createdAt: Date | string; updatedAt?: Date | string | null };
   onLoad: (data: string) => void;
   onDelete: (id: number) => void;
 }) {
@@ -5985,6 +6122,9 @@ const SessionItem = memo(function SessionItem({
     }
   };
 
+  const displayDate = session.updatedAt ?? session.createdAt;
+  const label = session.updatedAt ? "上次更新" : "建立";
+
   return (
     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
       <button onClick={handleLoad} className="flex-1 text-left min-w-0">
@@ -5992,7 +6132,7 @@ const SessionItem = memo(function SessionItem({
           {session.title}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          {new Date(session.createdAt).toLocaleDateString("zh-TW")}
+          {label}：{new Date(displayDate).toLocaleDateString("zh-TW")}
         </span>
       </button>
       <button
@@ -6013,7 +6153,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
   onLoad,
   onDelete,
 }: {
-  session: { id: number; title: string; createdAt: Date | string };
+  session: { id: number; title: string; createdAt: Date | string; updatedAt?: Date | string | null };
   onLoad: (data: string, id?: number) => void;
   onDelete: (id: number) => void;
 }) {
@@ -6031,6 +6171,9 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
     }
   };
 
+  const displayDate = session.updatedAt ?? session.createdAt;
+  const label = session.updatedAt ? "上次更新" : "建立";
+
   return (
     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
       <button onClick={handleLoad} className="flex-1 text-left min-w-0">
@@ -6038,7 +6181,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
           {session.title}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          {new Date(session.createdAt).toLocaleDateString("zh-TW")}
+          {label}：{new Date(displayDate).toLocaleDateString("zh-TW")}
         </span>
       </button>
       <button
