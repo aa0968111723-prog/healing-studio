@@ -32,7 +32,7 @@ import {
   stopBraveLearnFetcherCron,
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
-import { closeDb, runMigrations } from "../db";
+import { closeDb, runMigrations, getDrizzlePoolStats, checkDrizzleHealth } from "../db";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
@@ -65,7 +65,7 @@ import { toolsModelsRouter } from "../routes/toolsModels";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
-import { closeDatabaseManager } from "./DatabaseManager";
+import { closeDatabaseManager, getDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
 import { serverEnv } from "./env.validated";
@@ -486,15 +486,47 @@ async function startServer() {
 
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
-  app.get("/api/health", (_req, res) => {
+  app.get("/api/health", async (_req, res) => {
     const storageBackend = detectStorageBackend();
-    res.json({ ok: true, ts: Date.now(), storage: storageBackend });
+
+    // Collect database health from both connection systems
+    let dbHealth: Record<string, unknown> | null = null;
+    try {
+      const drizzleHealthy = await checkDrizzleHealth();
+      const drizzlePool = getDrizzlePoolStats();
+      let managerHealth: Record<string, unknown> | null = null;
+      try {
+        managerHealth = getDatabaseManager().getConnectionHealth() as Record<string, unknown>;
+      } catch {
+        // DatabaseManager may not be initialised if DATABASE_URL is absent
+      }
+      dbHealth = {
+        drizzle: { healthy: drizzleHealthy, poolStats: drizzlePool },
+        manager: managerHealth,
+      };
+    } catch {
+      // Never let a DB check crash the health endpoint
+    }
+
+    res.json({ ok: true, ts: Date.now(), storage: storageBackend, database: dbHealth });
   });
 
   // ── Performance metrics endpoint ─────────────────────────────────────────
   // Returns in-process latency, error rates, cache stats, and feature flags.
   // Restricted to internal/admin use — not rate-limited by the API limiter.
   app.get("/api/metrics", (_req, res) => {
+    // Refresh database metrics in the collector before responding
+    try {
+      const manager = getDatabaseManager();
+      metrics.setDatabaseMetrics({
+        connections: manager.getPoolStats(),
+        health: manager.getConnectionHealth(),
+        performance: manager.getPerformanceStats(),
+      });
+    } catch {
+      // DatabaseManager may not be initialised (no DATABASE_URL)
+    }
+
     const snap = metrics.getSnapshot();
     const cacheStats = cache.getStats();
     const flags = featureFlags.getAllStatuses();

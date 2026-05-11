@@ -248,6 +248,46 @@ export async function closeDb(): Promise<void> {
   }
 }
 
+// ─── Pool stats & health ──────────────────────────────────────────────────────
+
+export interface DrizzlePoolStats {
+  active: number;
+  idle: number;
+  queued: number;
+  total: number;
+}
+
+/**
+ * Return live connection pool statistics from the underlying mysql2 pool
+ * that Drizzle manages internally. Returns null when the pool is not yet
+ * initialised (e.g. DATABASE_URL is missing).
+ */
+export function getDrizzlePoolStats(): DrizzlePoolStats | null {
+  if (!_db) return null;
+  const pool = (_db as any).$client as any;
+  if (!pool) return null;
+  const total: number = pool._allConnections?.length ?? 0;
+  const idle: number = pool._freeConnections?.length ?? 0;
+  const queued: number = pool._connectionQueue?.length ?? 0;
+  const active = Math.max(0, total - idle);
+  return { active, idle, queued, total };
+}
+
+/**
+ * Run a lightweight `SELECT 1` health check against the Drizzle pool.
+ * Returns true when the database is reachable, false otherwise.
+ */
+export async function checkDrizzleHealth(): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await db.execute(sql`SELECT 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export async function upsertUser(user: InsertUser): Promise<void> {

@@ -4,6 +4,50 @@ import type { NextFunction, Request, Response } from "express";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
+// ─── Database-specific log helpers ──────────────────────────────────────────
+
+export interface DbErrorContext {
+  sql?: string;
+  params?: readonly unknown[];
+  errorCode?: string;
+  isTransient?: boolean;
+  poolStats?: { active: number; idle: number; queued: number; total: number };
+  circuitOpen?: boolean;
+  consecutiveFailures?: number;
+  elapsedMs?: number;
+}
+
+/**
+ * Log a database error with rich context. Automatically classifies the error
+ * as transient or permanent and adjusts the log level accordingly.
+ */
+export function logDbError(message: string, ctx: DbErrorContext & { err: unknown }): void {
+  const level: LogLevel = ctx.isTransient ? "warn" : "error";
+  write(level, `[DB] ${message}`, ctx);
+}
+
+/**
+ * Log a slow query warning with query details.
+ */
+export function logSlowQuery(sql: string, elapsedMs: number, params?: readonly unknown[]): void {
+  write("warn", "[DB] Slow query detected", {
+    sql: sql.slice(0, 500),
+    elapsedMs,
+    params,
+  });
+}
+
+/**
+ * Log a circuit-breaker state change.
+ */
+export function logCircuitBreaker(
+  state: "opened" | "closed" | "half-open",
+  context: { consecutiveFailures?: number; errorCode?: string; previousFailures?: number }
+): void {
+  const level: LogLevel = state === "opened" ? "error" : "info";
+  write(level, `[DB] Circuit breaker ${state}`, context);
+}
+
 type RequestContext = {
   traceId: string;
   orbTraceId: string;
