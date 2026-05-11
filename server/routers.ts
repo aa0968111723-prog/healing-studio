@@ -4455,6 +4455,7 @@ export const appRouter = router({
             .min(1)
             .max(5),
           subjectHint: z.string().max(200).optional(),
+          strength: z.number().min(0.2).max(0.8).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -4465,18 +4466,22 @@ export const appRouter = router({
           string
         > = {
           front:
-            "Front view portrait, subject facing camera directly, full visible, neutral pose. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
-          side: "Side profile view at 90 degrees, subject facing left. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
-          back: "Back view, subject facing away from camera. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+            "Rotate the subject to face the camera directly in a front view. IMPORTANT: Preserve exactly the same person/character, clothing, hairstyle, facial features, skin tone, and art style from the reference image. Only change the viewing angle to front-facing. Same lighting and background style.",
+          side: "Rotate the subject 90 degrees to show a side profile view. IMPORTANT: Preserve exactly the same person/character, clothing, hairstyle, facial features, skin tone, and art style from the reference image. Only change the viewing angle to side profile. Same lighting and background style.",
+          back: "Rotate the subject 180 degrees to show the back view. IMPORTANT: Preserve exactly the same person/character, clothing, hairstyle, body shape, and art style from the reference image. Only change the viewing angle to back. Same lighting and background style.",
           expression:
-            "Close-up portrait with a different facial expression (a warm smile or surprised look). Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+            "Show the same person with a different facial expression (warm smile or surprised look). IMPORTANT: Keep the exact same face, hairstyle, clothing, skin tone, and art style. Only change the facial expression. Same viewing angle, lighting and background.",
           other:
-            "Three-quarter view at 45 degrees. Keep the exact same character, outfit, hairstyle and art style as the reference image. Clean studio background, soft even lighting. LoRA training reference photo, photorealistic, high quality.",
+            "Rotate the subject to a three-quarter view at 45 degrees. IMPORTANT: Preserve exactly the same person/character, clothing, hairstyle, facial features, skin tone, and art style from the reference image. Only change the viewing angle to 45 degrees. Same lighting and background style.",
         };
 
         const subjectSuffix = input.subjectHint
           ? ` Subject context: ${input.subjectHint}.`
           : "";
+
+        // 強度控制：數值越低，越能保留參考圖的特徵；越高，創意變化越大
+        // 0.45 = 預設平衡值，在保留特徵與角度轉換間取得良好平衡
+        const imageStrength = input.strength ?? 0.45;
 
         const generated: Array<{
           angle: "front" | "side" | "back" | "expression" | "other";
@@ -4500,6 +4505,7 @@ export const appRouter = router({
                 prompt,
                 imageUrl: input.referenceImageUrl,
                 aspectRatio: "1:1",
+                strength: imageStrength,
               }),
               120_000,
               `AI 補齊（${target.angle}）`
