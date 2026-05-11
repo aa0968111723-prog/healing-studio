@@ -45,6 +45,9 @@ import {
   ShieldCheck,
   ShieldAlert,
   FileSignature,
+  Lightbulb,
+  Package,
+  Shirt,
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import ConsentFormDialog from "@/components/ConsentFormDialog";
@@ -127,6 +130,10 @@ const TRAINING_TYPE_ICONS: Record<string, React.ReactNode> = {
   scene_lora: <Mountain className="w-5 h-5" />,
   video_lora: <Film className="w-5 h-5" />,
   voice_clone: <Mic className="w-5 h-5" />,
+  concept_lora: <Lightbulb className="w-5 h-5" />,
+  product_lora: <Package className="w-5 h-5" />,
+  fashion_lora: <Shirt className="w-5 h-5" />,
+  pose_lora: <Activity className="w-5 h-5" />,
 };
 
 /** 模型類型中文標籤 */
@@ -137,6 +144,10 @@ const MODEL_TYPE_LABELS: Record<string, string> = {
   scene_lora: "場景 / 環境",
   video_lora: "影片 LoRA",
   voice_clone: "語音複製",
+  concept_lora: "概念訓練",
+  product_lora: "商品 / 物件",
+  fashion_lora: "時尚 / 服飾",
+  pose_lora: "姿態 / 動作",
 };
 
 /** 訓練引擎標籤 */
