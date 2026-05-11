@@ -487,6 +487,103 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 記記（notes-curator）筆記與資產管理工具 ──
+  {
+    name: "notesCurator.createNote",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      title: "string",
+      content: "string",
+      tags: "string[]?",
+      category: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.searchNotes",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      query: "string",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.scheduleTask",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      taskName: "string",
+      scheduledFor: "string",
+      description: "string?",
+      metadata: "object?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.tagAssets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      assetIds: "number[]",
+      tags: "string[]",
+      action: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.getAssetStatistics",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  // ─── 細細（settings-detail）設定管理工具 ──
+  {
+    name: "settingsDetail.getPreferences",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.updatePreference",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      key: "string",
+      value: "any",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.explainSetting",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      settingKey: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.getAllSettings",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.validatePreference",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      key: "string",
+      value: "any",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {
