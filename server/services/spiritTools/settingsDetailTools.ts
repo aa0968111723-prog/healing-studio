@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { userPreferences, agentPreferences } from "../../../drizzle/schema";
+import { users, agentPreferences } from "../../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
 /**
@@ -94,8 +94,8 @@ export async function getPreferences(userId: number): Promise<{
 
     const [userPref] = await db
       .select()
-      .from(userPreferences)
-      .where(eq(userPreferences.userId, userId))
+      .from(users)
+      .where(eq(users.userId, userId))
       .limit(1);
 
     const [agentPref] = await db
@@ -188,9 +188,9 @@ export async function updatePreference(input: {
       };
 
       await db
-        .update(userPreferences)
+        .update(users)
         .set(updateData)
-        .where(eq(userPreferences.userId, input.userId));
+        .where(eq(users.userId, input.userId));
     }
 
     logger.info("preference_updated", {
