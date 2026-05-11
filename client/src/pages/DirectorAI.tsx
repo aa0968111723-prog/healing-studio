@@ -2949,20 +2949,24 @@ export default function DirectorAI() {
     onError: e => toast.error("儲存失敗：" + e.message),
   });
 
-  const planningSessionsQuery = trpc.director.listPlanningSessions.useQuery(
-    undefined,
-    { enabled: showPlanningSessions }
-  );
+  // 單一查詢：常態啟用供「繼續上次規劃」橫幅使用；showPlanningSessions 為 true
+  // 時同一個 cache key 也供已儲存規劃列表重用，避免兩次重複請求。
+  const planningSessionsQuery = trpc.director.listPlanningSessions.useQuery();
 
-  // 進站時 query 一次最近的規劃 sessions，若有就提示「繼續上次規劃」
-  const recentSessionsQuery = trpc.director.listPlanningSessions.useQuery();
+  // 進站時若有已儲存的規劃，提示「繼續上次規劃」橫幅。
+  // director-resume-dismissed 儲存為 ISO 時間戳，24h 後自動過期。
   useEffect(() => {
     if (planningSession || resumePlanningCandidate) return; // 已在工作或已提示過
-    const list = recentSessionsQuery.data;
+    const list = planningSessionsQuery.data;
     if (!list || list.length === 0) return;
     const dismissed = (() => {
       try {
-        return localStorage.getItem("director-resume-dismissed") === "1";
+        const raw = localStorage.getItem("director-resume-dismissed");
+        if (!raw) return false;
+        const ts = Number(raw);
+        // 向下相容：舊版存 "1" 而非時間戳，視為已超時自動解除
+        if (!ts || isNaN(ts)) return false;
+        return Date.now() - ts < 24 * 60 * 60 * 1000; // 24h 有效期
       } catch {
         return false;
       }
@@ -2974,7 +2978,7 @@ export default function DirectorAI() {
         new Date(a.updatedAt ?? a.createdAt).getTime()
     );
     setResumePlanningCandidate(sorted[0]);
-  }, [recentSessionsQuery.data, planningSession, resumePlanningCandidate]);
+  }, [planningSessionsQuery.data, planningSession, resumePlanningCandidate]);
 
   // ─── Batch Generation Hooks ─────────────────────────────────────────────
   const autoGenerateMut = trpc.director.autoGenerateFromSegments.useMutation({
@@ -3378,6 +3382,28 @@ export default function DirectorAI() {
           setPersonality(data.personality);
           setGlobalPersonality(data.personality);
         }
+        // ── 腳本分析模式：還原分鏡 + 總覽並切換到 script tab ──
+        if (data.mode === "script-analysis") {
+          if (Array.isArray(data.importedSegments)) {
+            setImportedSegments(data.importedSegments);
+          }
+          if (typeof data.importedTitle === "string") {
+            setImportedTitle(data.importedTitle);
+          }
+          if (data.scriptOverview) {
+            setScriptOverview(data.scriptOverview);
+          }
+          setSelectedSegmentIdx(
+            Array.isArray(data.importedSegments) &&
+              data.importedSegments.length > 0
+              ? 0
+              : null
+          );
+          setActiveTab("script");
+          setShowSessions(false);
+          toast.success("腳本分析已載入");
+          return;
+        }
         if (Array.isArray(data.messages)) {
           setMessages([
             {
@@ -3759,7 +3785,8 @@ export default function DirectorAI() {
 
   const handleDismissResumeBanner = useCallback(() => {
     try {
-      localStorage.setItem("director-resume-dismissed", "1");
+      // 儲存當前時間戳，24h 後自動解除（不再永久隱藏）
+      localStorage.setItem("director-resume-dismissed", String(Date.now()));
     } catch {
       // ignore
     }
@@ -5967,7 +5994,7 @@ const SessionItem = memo(function SessionItem({
   onLoad,
   onDelete,
 }: {
-  session: { id: number; title: string; createdAt: Date | string };
+  session: { id: number; title: string; createdAt: Date | string; updatedAt?: Date | string | null };
   onLoad: (data: string) => void;
   onDelete: (id: number) => void;
 }) {
@@ -5985,6 +6012,9 @@ const SessionItem = memo(function SessionItem({
     }
   };
 
+  const displayDate = session.updatedAt ?? session.createdAt;
+  const label = session.updatedAt ? "上次更新" : "建立";
+
   return (
     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
       <button onClick={handleLoad} className="flex-1 text-left min-w-0">
@@ -5992,7 +6022,7 @@ const SessionItem = memo(function SessionItem({
           {session.title}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          {new Date(session.createdAt).toLocaleDateString("zh-TW")}
+          {label}：{new Date(displayDate).toLocaleDateString("zh-TW")}
         </span>
       </button>
       <button
@@ -6013,7 +6043,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
   onLoad,
   onDelete,
 }: {
-  session: { id: number; title: string; createdAt: Date | string };
+  session: { id: number; title: string; createdAt: Date | string; updatedAt?: Date | string | null };
   onLoad: (data: string, id?: number) => void;
   onDelete: (id: number) => void;
 }) {
@@ -6031,6 +6061,9 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
     }
   };
 
+  const displayDate = session.updatedAt ?? session.createdAt;
+  const label = session.updatedAt ? "上次更新" : "建立";
+
   return (
     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
       <button onClick={handleLoad} className="flex-1 text-left min-w-0">
@@ -6038,7 +6071,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
           {session.title}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          {new Date(session.createdAt).toLocaleDateString("zh-TW")}
+          {label}：{new Date(displayDate).toLocaleDateString("zh-TW")}
         </span>
       </button>
       <button
