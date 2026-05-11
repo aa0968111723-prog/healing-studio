@@ -2014,11 +2014,245 @@ async function dispatchStudioTool(
         return trainingResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // orchestrator.* tools for chief-orchestrator (總總)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "orchestrator.getTeamStatus": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
+      case "orchestrator.getSpiritStatus": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
+      case "orchestrator.delegateTask": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
+      case "orchestrator.queryProgress": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
+      case "orchestrator.escalateIssue": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
+      case "orchestrator.getStatistics": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
       default:
         return {
           name: call.name,
           ok: false,
           error: `unknown-studio-tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// orchestrator.* 工具橋接：總總（chief-orchestrator）的精靈調度與監控工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 orchestrator.* 工具呼叫橋接到 orchestratorTools 服務。
+ * 提供總總（chief-orchestrator）調度所有精靈的能力：
+ * - orchestrator.getTeamStatus: 查看所有精靈狀態
+ * - orchestrator.getSpiritStatus: 查看特定精靈狀態
+ * - orchestrator.delegateTask: 分配任務給精靈
+ * - orchestrator.queryProgress: 查詢任務進度
+ * - orchestrator.escalateIssue: 升級精靈執行失敗
+ * - orchestrator.getStatistics: 監控統計資料
+ */
+async function dispatchOrchestratorTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    getAllSpiritsStatus,
+    getSpiritStatus,
+    getSpiritsForUser,
+    delegateTaskToSpirit,
+    queryTaskProgress,
+    escalateIssue,
+    getMonitoringStatistics,
+  } = await import("./spiritTools/orchestratorTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "orchestrator.getTeamStatus": {
+        // Get complete team status including all spirits
+        const teamStatus = getAllSpiritsStatus();
+
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            totalSpirits: teamStatus.totalSpirits,
+            idleCount: teamStatus.idleCount,
+            busyCount: teamStatus.busyCount,
+            errorCount: teamStatus.errorCount,
+            offlineCount: teamStatus.offlineCount,
+            spirits: teamStatus.spirits,
+            longRunningTasks: teamStatus.longRunningTasks,
+            recentErrors: teamStatus.recentErrors,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.getSpiritStatus": {
+        // Get status of a specific spirit
+        const spiritId = args.spiritId as string;
+        if (!spiritId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "spiritId is required",
+          };
+        }
+
+        const status = getSpiritStatus(spiritId as any);
+        if (!status) {
+          return {
+            name: call.name,
+            ok: false,
+            error: `Spirit ${spiritId} not found`,
+          };
+        }
+
+        return {
+          name: call.name,
+          ok: true,
+          data: status,
+          usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.delegateTask": {
+        // Delegate a task to a specific spirit
+        const spiritId = args.spiritId as string;
+        const taskId = args.taskId as string;
+        const taskType = args.taskType as string;
+
+        if (!spiritId || !taskId || !taskType) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "spiritId, taskId, and taskType are required",
+          };
+        }
+
+        const result = await delegateTaskToSpirit({
+          spiritId: spiritId as any,
+          taskId,
+          taskType,
+          userId: opts.userId,
+          metadata: args.metadata as Record<string, unknown> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            message: result.message,
+            spiritStatus: result.spiritStatus,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "orchestrator.queryProgress": {
+        // Query progress of a specific task
+        const taskId = args.taskId as string;
+        if (!taskId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "taskId is required",
+          };
+        }
+
+        const progress = queryTaskProgress(taskId);
+
+        return {
+          name: call.name,
+          ok: progress.found,
+          data: progress,
+          usedTool: call.name,
+          ...(progress.found ? {} : { error: "Task not found" }),
+        };
+      }
+
+      case "orchestrator.escalateIssue": {
+        // Escalate an issue when a spirit encounters an error
+        const spiritId = args.spiritId as string;
+        const taskId = args.taskId as string;
+        const issue = args.issue as string;
+        const severity = (args.severity as "warning" | "error" | "critical") || "error";
+
+        if (!spiritId || !taskId || !issue) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "spiritId, taskId, and issue are required",
+          };
+        }
+
+        const result = await escalateIssue({
+          spiritId: spiritId as any,
+          taskId,
+          issue,
+          severity,
+        });
+
+        return {
+          name: call.name,
+          ok: result.escalated,
+          data: {
+            escalated: result.escalated,
+            recommendations: result.recommendations,
+            alternativeSpirits: result.alternativeSpirits,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.getStatistics": {
+        // Get monitoring statistics
+        const stats = getMonitoringStatistics();
+
+        return {
+          name: call.name,
+          ok: true,
+          data: stats,
+          usedTool: call.name,
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown orchestrator tool: ${call.name}`,
         };
     }
   } catch (err) {

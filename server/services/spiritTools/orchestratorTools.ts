@@ -14,6 +14,7 @@ import {
   type IntentClarity,
 } from "../../../shared/orchestrator-clarification";
 import { AgentCollaborationOrchestrator } from "../agentCollaborationOrchestrator";
+import { SpiritStatusMonitor, type SpiritStatus, type TeamStatusSummary } from "../spiritStatusMonitor";
 import { logger } from "../../_core/logger";
 
 export interface OrchestratorAnalysis {
@@ -238,5 +239,322 @@ export function suggestHandoffChain(input: {
     });
 
     return [];
+  }
+}
+
+// ============================================================================
+// NEW TOOLS FOR SPIRIT STATUS MONITORING (Gap 1 Implementation)
+// ============================================================================
+
+/**
+ * Get real-time status of all spirits.
+ * Returns comprehensive team monitoring data including:
+ * - Spirit status (idle/busy/error)
+ * - Current tasks and progress
+ * - Long-running tasks
+ * - Recent errors
+ */
+export function getAllSpiritsStatus(): TeamStatusSummary {
+  try {
+    const summary = SpiritStatusMonitor.getTeamSummary();
+
+    logger.debug("all_spirits_status_retrieved", {
+      totalSpirits: summary.totalSpirits,
+      busyCount: summary.busyCount,
+      errorCount: summary.errorCount,
+      longRunningTasks: summary.longRunningTasks.length,
+    });
+
+    return summary;
+  } catch (error) {
+    logger.error("get_all_spirits_status_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    // Return safe fallback
+    return {
+      totalSpirits: 0,
+      idleCount: 0,
+      busyCount: 0,
+      errorCount: 0,
+      offlineCount: 0,
+      spirits: [],
+      longRunningTasks: [],
+      recentErrors: [],
+    };
+  }
+}
+
+/**
+ * Get status of a specific spirit.
+ */
+export function getSpiritStatus(spiritId: AgentRole): SpiritStatus | null {
+  try {
+    const status = SpiritStatusMonitor.getStatus(spiritId);
+
+    if (status) {
+      logger.debug("spirit_status_retrieved", {
+        spiritId,
+        status: status.status,
+        currentTask: status.currentTaskId,
+      });
+    }
+
+    return status;
+  } catch (error) {
+    logger.error("get_spirit_status_failed", {
+      spiritId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return null;
+  }
+}
+
+/**
+ * Get all spirits currently working for a specific user.
+ */
+export function getSpiritsForUser(userId: number): SpiritStatus[] {
+  try {
+    const spirits = SpiritStatusMonitor.getSpiritsForUser(userId);
+
+    logger.debug("user_spirits_retrieved", {
+      userId,
+      spiritCount: spirits.length,
+    });
+
+    return spirits;
+  } catch (error) {
+    logger.error("get_user_spirits_failed", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return [];
+  }
+}
+
+/**
+ * Delegate a task to a specific spirit.
+ * Starts tracking the task and updates spirit status to busy.
+ */
+export async function delegateTaskToSpirit(input: {
+  spiritId: AgentRole;
+  taskId: string;
+  taskType: string;
+  userId: number;
+  metadata?: Record<string, unknown>;
+}): Promise<{
+  success: boolean;
+  message: string;
+  spiritStatus?: SpiritStatus;
+}> {
+  try {
+    // Check if spirit is available
+    const currentStatus = SpiritStatusMonitor.getStatus(input.spiritId);
+
+    if (!currentStatus) {
+      return {
+        success: false,
+        message: `Spirit ${input.spiritId} not found in monitoring system`,
+      };
+    }
+
+    if (currentStatus.status === "busy") {
+      return {
+        success: false,
+        message: `Spirit ${input.spiritId} is already busy with task ${currentStatus.currentTaskId}`,
+        spiritStatus: currentStatus,
+      };
+    }
+
+    if (currentStatus.status === "error") {
+      logger.warn("delegating_to_error_spirit", {
+        spiritId: input.spiritId,
+        lastError: currentStatus.lastError,
+      });
+    }
+
+    // Start tracking the task
+    SpiritStatusMonitor.startTask({
+      spiritId: input.spiritId,
+      taskId: input.taskId,
+      taskType: input.taskType,
+      userId: input.userId,
+      metadata: input.metadata,
+    });
+
+    const newStatus = SpiritStatusMonitor.getStatus(input.spiritId);
+
+    logger.info("task_delegated_to_spirit", {
+      spiritId: input.spiritId,
+      taskId: input.taskId,
+      taskType: input.taskType,
+      userId: input.userId,
+    });
+
+    return {
+      success: true,
+      message: `Task ${input.taskId} successfully delegated to ${input.spiritId}`,
+      spiritStatus: newStatus ?? undefined,
+    };
+  } catch (error) {
+    logger.error("delegate_task_failed", {
+      spiritId: input.spiritId,
+      taskId: input.taskId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return {
+      success: false,
+      message: `Failed to delegate task: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * Query the progress of a specific task.
+ */
+export function queryTaskProgress(taskId: string): {
+  found: boolean;
+  spiritId?: AgentRole;
+  status?: string;
+  progress?: number;
+  duration?: number;
+  taskType?: string;
+} {
+  try {
+    const allStatuses = SpiritStatusMonitor.getAllStatuses();
+    const spiritWithTask = allStatuses.find(s => s.currentTaskId === taskId);
+
+    if (!spiritWithTask) {
+      logger.debug("task_not_found", { taskId });
+      return { found: false };
+    }
+
+    const duration = spiritWithTask.startedAt
+      ? Date.now() - spiritWithTask.startedAt
+      : undefined;
+
+    logger.debug("task_progress_queried", {
+      taskId,
+      spiritId: spiritWithTask.spiritId,
+      progress: spiritWithTask.progress,
+    });
+
+    return {
+      found: true,
+      spiritId: spiritWithTask.spiritId,
+      status: spiritWithTask.status,
+      progress: spiritWithTask.progress,
+      duration,
+      taskType: spiritWithTask.currentTaskType,
+    };
+  } catch (error) {
+    logger.error("query_task_progress_failed", {
+      taskId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return { found: false };
+  }
+}
+
+/**
+ * Escalate an issue when a spirit encounters an error or gets stuck.
+ * Marks the spirit as having an error and provides recommendations.
+ */
+export async function escalateIssue(input: {
+  spiritId: AgentRole;
+  taskId: string;
+  issue: string;
+  severity: "warning" | "error" | "critical";
+}): Promise<{
+  escalated: boolean;
+  recommendations: string[];
+  alternativeSpirits?: AgentRole[];
+}> {
+  try {
+    // Report the error to status monitor
+    SpiritStatusMonitor.reportError(input.spiritId, input.issue, input.taskId);
+
+    const recommendations: string[] = [];
+    const alternativeSpirits: AgentRole[] = [];
+
+    // Generate recommendations based on severity
+    if (input.severity === "critical") {
+      recommendations.push(`Immediate attention required for ${input.spiritId}`);
+      recommendations.push(`Consider manual intervention or task cancellation`);
+    } else if (input.severity === "error") {
+      recommendations.push(`Task ${input.taskId} failed on ${input.spiritId}`);
+      recommendations.push(`Consider retrying with different parameters or switching to alternative spirit`);
+
+      // Suggest alternative spirits based on the failed spirit's role
+      if (input.spiritId === "image-specialist") {
+        alternativeSpirits.push("inspiration-specialist", "anatomy-specialist");
+      } else if (input.spiritId === "video-specialist") {
+        alternativeSpirits.push("image-specialist");
+      }
+    } else {
+      recommendations.push(`Warning from ${input.spiritId}: ${input.issue}`);
+      recommendations.push(`Monitor task ${input.taskId} for potential issues`);
+    }
+
+    logger.warn("issue_escalated", {
+      spiritId: input.spiritId,
+      taskId: input.taskId,
+      severity: input.severity,
+      issue: input.issue,
+    });
+
+    return {
+      escalated: true,
+      recommendations,
+      alternativeSpirits: alternativeSpirits.length > 0 ? alternativeSpirits : undefined,
+    };
+  } catch (error) {
+    logger.error("escalate_issue_failed", {
+      spiritId: input.spiritId,
+      taskId: input.taskId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return {
+      escalated: false,
+      recommendations: ["Failed to escalate issue - system error"],
+    };
+  }
+}
+
+/**
+ * Get monitoring statistics for dashboards and reporting.
+ */
+export function getMonitoringStatistics(): {
+  statusDistribution: Record<string, number>;
+  averageTaskDuration: number;
+  totalTasksInProgress: number;
+  errorRate: number;
+  longRunningCount: number;
+} {
+  try {
+    const stats = SpiritStatusMonitor.getStatistics();
+    const summary = SpiritStatusMonitor.getTeamSummary();
+
+    return {
+      ...stats,
+      longRunningCount: summary.longRunningTasks.length,
+    };
+  } catch (error) {
+    logger.error("get_monitoring_statistics_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return {
+      statusDistribution: {},
+      averageTaskDuration: 0,
+      totalTasksInProgress: 0,
+      errorRate: 0,
+      longRunningCount: 0,
+    };
   }
 }
