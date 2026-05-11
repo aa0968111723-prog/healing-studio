@@ -584,6 +584,48 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 記記（memory-manager）長期記憶管理工具 ──
+  {
+    name: "memoryManager.storeMemory",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      content: "string",
+      memoryType: "string",  // user_fact | user_preference | skill_learned | workflow_pattern | error_solution | success_recipe | context_snippet
+      importanceScore: "number?",
+      sourceType: "string?",
+      sourceId: "string?",
+      spiritId: "string?",
+      metadata: "object?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "memoryManager.searchMemories",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      query: "string",
+      memoryType: "string?",
+      limit: "number?",
+      minImportance: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "memoryManager.getStats",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "memoryManager.consolidate",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {
