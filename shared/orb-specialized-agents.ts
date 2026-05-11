@@ -238,6 +238,57 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
       "排程貼文行事曆",
     ],
   },
+  {
+    agentId: "inspiration-specialist",
+    displayName: "靈感精靈",
+    description: "專精於創意啟發與靈感蒐集，使用 inspiration.fetch 拉取網路趨勢、視覺參考、風格探索",
+    primaryTools: [
+      "inspiration.fetch",
+    ],
+    knowledgeDomains: [
+      "creative inspiration",
+      "visual references",
+      "mood boards",
+      "trending styles",
+      "creative brainstorming",
+      "style exploration",
+      "prompt examples",
+      "artistic trends",
+    ],
+    useCases: [
+      "提供創意靈感與視覺參考",
+      "探索當前流行風格",
+      "產生示範提示詞",
+      "蒐集情緒板素材",
+      "解決靈感卡關",
+    ],
+  },
+  {
+    agentId: "anatomy-specialist",
+    displayName: "解剖精靈",
+    description: "專精於人體解剖圖、醫學插圖、身體結構圖示，提供精確的解剖學術語與視覺呈現",
+    primaryTools: [
+      "studio.generateImage",
+    ],
+    knowledgeDomains: [
+      "human anatomy",
+      "skeletal system",
+      "muscular system",
+      "organ systems",
+      "medical illustration",
+      "anatomical terminology",
+      "body structure diagrams",
+      "physiological systems",
+      "anatomical views (anterior/posterior/lateral)",
+    ],
+    useCases: [
+      "產出人體解剖圖",
+      "繪製醫學教學插圖",
+      "製作骨骼肌肉圖示",
+      "標註解剖結構",
+      "提供精確解剖學術語",
+    ],
+  },
 ];
 
 /**
