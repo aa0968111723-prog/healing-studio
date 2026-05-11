@@ -497,7 +497,10 @@ async function startServer() {
       const drizzlePool = getDrizzlePoolStats();
       let managerHealth: Record<string, unknown> | null = null;
       try {
-        managerHealth = getDatabaseManager().getConnectionHealth() as Record<string, unknown>;
+        managerHealth = getDatabaseManager().getConnectionHealth() as unknown as Record<
+          string,
+          unknown
+        >;
       } catch {
         // DatabaseManager may not be initialised if DATABASE_URL is absent
       }

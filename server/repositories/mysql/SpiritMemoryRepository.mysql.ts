@@ -62,8 +62,8 @@ export class SpiritMemoryRepository {
       agentId: input.agentId,
       memoryType: input.memoryType,
       memoryKey: input.memoryKey,
-      memoryValue: input.memoryValue,
-      confidence: input.confidence ?? 0.5,
+      memoryValue: (input.memoryValue ?? {}) as Record<string, unknown>,
+      confidence: String(input.confidence ?? 0.5),
       usageCount: input.usageCount ?? 1,
       lastUsedAt: new Date(),
     };
@@ -89,8 +89,9 @@ export class SpiritMemoryRepository {
 
     const updateData: Partial<InsertSpecializedAgentMemory> = {};
 
-    if (input.memoryValue !== undefined) updateData.memoryValue = input.memoryValue;
-    if (input.confidence !== undefined) updateData.confidence = input.confidence;
+    if (input.memoryValue !== undefined)
+      updateData.memoryValue = input.memoryValue as Record<string, unknown>;
+    if (input.confidence !== undefined) updateData.confidence = String(input.confidence);
     if (input.usageCount !== undefined) updateData.usageCount = input.usageCount;
     if (input.lastUsedAt !== undefined) updateData.lastUsedAt = input.lastUsedAt;
 
@@ -146,7 +147,7 @@ export class SpiritMemoryRepository {
           eq(specializedAgentMemory.userId, input.userId),
           eq(specializedAgentMemory.agentId, input.agentId),
           input.minConfidence !== undefined
-            ? gte(specializedAgentMemory.confidence, input.minConfidence)
+            ? gte(specializedAgentMemory.confidence, String(input.minConfidence))
             : undefined,
           input.memoryType !== undefined
             ? eq(specializedAgentMemory.memoryType, input.memoryType)
@@ -176,7 +177,7 @@ export class SpiritMemoryRepository {
       .where(
         and(
           lte(specializedAgentMemory.createdAt, cutoffDate),
-          lte(specializedAgentMemory.confidence, input.maxConfidence),
+          lte(specializedAgentMemory.confidence, String(input.maxConfidence)),
           lte(specializedAgentMemory.usageCount, input.maxUsageCount)
         )
       );
@@ -211,7 +212,7 @@ export class SpiritMemoryRepository {
       memories.length > 0
         ? memories.reduce((sum, m) => sum + Number(m.confidence), 0) / memories.length
         : 0;
-    const totalUsages = memories.reduce((sum, m) => sum + m.usageCount, 0);
+    const totalUsages = memories.reduce((sum, m) => sum + Number(m.usageCount ?? 0), 0);
 
     const memoryTypeBreakdown: Record<SpiritMemoryType, number> = {
       preference: 0,
@@ -242,9 +243,9 @@ export class SpiritMemoryRepository {
       agentId: row.agentId as AgentRole,
       memoryType: row.memoryType as SpiritMemoryType,
       memoryKey: row.memoryKey,
-      memoryValue: row.memoryValue,
+      memoryValue: row.memoryValue ?? {},
       confidence: Number(row.confidence),
-      usageCount: row.usageCount,
+      usageCount: Number(row.usageCount ?? 0),
       lastUsedAt: row.lastUsedAt,
       createdAt: row.createdAt!,
       updatedAt: row.updatedAt!,

@@ -486,11 +486,6 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   ],
   // Perplexity Sonar：PERPLEXITY_API_KEY 不可用時降級到 Claude / Gemini。
   "perplexity/sonar-pro": [
-    "anthropic/claude-opus-4.7",
-    "anthropic/claude-sonnet-4.6",
-    "google/gemini-2.5-pro",
-  ],
-  "perplexity/sonar-pro": [
     "anthropic/claude-sonnet-4.6",
     "google/gemini-2.5-pro",
   ],
