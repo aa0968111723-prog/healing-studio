@@ -2048,6 +2048,64 @@ async function dispatchStudioTool(
         return orchestratorResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // notesCurator.* tools for notes-curator (記記)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "notesCurator.createNote": {
+        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
+        return notesCuratorResult;
+      }
+
+      case "notesCurator.searchNotes": {
+        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
+        return notesCuratorResult;
+      }
+
+      case "notesCurator.scheduleTask": {
+        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
+        return notesCuratorResult;
+      }
+
+      case "notesCurator.tagAssets": {
+        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
+        return notesCuratorResult;
+      }
+
+      case "notesCurator.getAssetStatistics": {
+        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
+        return notesCuratorResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // settingsDetail.* tools for settings-detail (細細)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "settingsDetail.getPreferences": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
+      case "settingsDetail.updatePreference": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
+      case "settingsDetail.explainSetting": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
+      case "settingsDetail.getAllSettings": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
+      case "settingsDetail.validatePreference": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -2253,6 +2311,362 @@ async function dispatchOrchestratorTool(
           name: call.name,
           ok: false,
           error: `unknown orchestrator tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// notesCurator.* 工具橋接：記記（notes-curator）的筆記與資產管理工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 notesCurator.* 工具呼叫橋接到 notesCuratorTools 服務。
+ * 提供記記（notes-curator）筆記與資產管理的能力：
+ * - notesCurator.createNote: 建立新筆記
+ * - notesCurator.searchNotes: 搜尋筆記
+ * - notesCurator.scheduleTask: 排程任務
+ * - notesCurator.tagAssets: 為資產加上標籤
+ * - notesCurator.getAssetStatistics: 取得資產統計與建議
+ */
+async function dispatchNotesCuratorTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    createNote,
+    searchNotes,
+    scheduleTask,
+    tagAssets,
+    getAssetStatistics,
+  } = await import("./spiritTools/notesCuratorTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "notesCurator.createNote": {
+        const title = args.title as string;
+        const content = args.content as string;
+
+        if (!title || !content) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "title and content are required",
+          };
+        }
+
+        const result = await createNote({
+          userId: opts.userId,
+          title,
+          content,
+          tags: args.tags as string[] | undefined,
+          category: args.category as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            noteId: result.noteId,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "notesCurator.searchNotes": {
+        const query = args.query as string;
+
+        if (!query) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "query is required",
+          };
+        }
+
+        const result = await searchNotes({
+          userId: opts.userId,
+          query,
+          limit: args.limit as number | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            notes: result.notes,
+            total: result.total,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: "search failed" }),
+        };
+      }
+
+      case "notesCurator.scheduleTask": {
+        const taskName = args.taskName as string;
+        const scheduledFor = args.scheduledFor as string;
+
+        if (!taskName || !scheduledFor) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "taskName and scheduledFor are required",
+          };
+        }
+
+        const result = await scheduleTask({
+          userId: opts.userId,
+          taskName,
+          scheduledFor,
+          description: args.description as string | undefined,
+          metadata: args.metadata as Record<string, unknown> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            jobId: result.jobId,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "notesCurator.tagAssets": {
+        const assetIds = args.assetIds as number[];
+        const tags = args.tags as string[];
+        const action = (args.action as "add" | "remove" | "replace") || "add";
+
+        if (!Array.isArray(assetIds) || !Array.isArray(tags)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "assetIds and tags must be arrays",
+          };
+        }
+
+        const result = await tagAssets({
+          userId: opts.userId,
+          assetIds,
+          tags,
+          action,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            updated: result.updated,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "notesCurator.getAssetStatistics": {
+        const result = await getAssetStatistics(opts.userId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            statistics: result.statistics,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: "failed to get statistics" }),
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown notesCurator tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// settingsDetail.* 工具橋接：細細（settings-detail）的設定管理工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 settingsDetail.* 工具呼叫橋接到 settingsDetailTools 服務。
+ * 提供細細（settings-detail）設定管理的能力：
+ * - settingsDetail.getPreferences: 取得使用者偏好設定
+ * - settingsDetail.updatePreference: 更新單一偏好設定
+ * - settingsDetail.explainSetting: 解釋設定項目
+ * - settingsDetail.getAllSettings: 取得所有可用設定
+ * - settingsDetail.validatePreference: 驗證偏好設定值
+ */
+async function dispatchSettingsDetailTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    getPreferences,
+    updatePreference,
+    explainSetting,
+    getAllSettings,
+    validatePreference,
+  } = await import("./spiritTools/settingsDetailTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "settingsDetail.getPreferences": {
+        const result = await getPreferences(opts.userId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            preferences: result.preferences,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: "failed to get preferences" }),
+        };
+      }
+
+      case "settingsDetail.updatePreference": {
+        const key = args.key as string;
+        const value = args.value;
+
+        if (!key || value === undefined) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "key and value are required",
+          };
+        }
+
+        // Validate before updating
+        const validation = validatePreference(key, value);
+        if (!validation.valid) {
+          return {
+            name: call.name,
+            ok: false,
+            error: validation.error,
+            data: {
+              suggestion: validation.suggestion,
+            },
+          };
+        }
+
+        const result = await updatePreference({
+          userId: opts.userId,
+          key,
+          value,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.explainSetting": {
+        const settingKey = args.settingKey as string;
+
+        if (!settingKey) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "settingKey is required",
+          };
+        }
+
+        const result = explainSetting(settingKey);
+
+        return {
+          name: call.name,
+          ok: result.found,
+          data: {
+            found: result.found,
+            explanation: result.explanation,
+          },
+          usedTool: call.name,
+          ...(result.found ? {} : { error: "setting not found" }),
+        };
+      }
+
+      case "settingsDetail.getAllSettings": {
+        const result = getAllSettings();
+
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            settings: result.settings,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.validatePreference": {
+        const key = args.key as string;
+        const value = args.value;
+
+        if (!key || value === undefined) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "key and value are required",
+          };
+        }
+
+        const result = validatePreference(key, value);
+
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            valid: result.valid,
+            error: result.error,
+            suggestion: result.suggestion,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown settingsDetail tool: ${call.name}`,
         };
     }
   } catch (err) {
