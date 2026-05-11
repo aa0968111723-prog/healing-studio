@@ -319,6 +319,32 @@ export const SPIRITS: SpiritVisual[] = [
     ring: "ring-purple-300/60",
     family: "role",
   },
+  // 靈靈：靈感 / 創意啟發 / 視覺參考蒐集
+  {
+    id: "inspiration-specialist",
+    emoji: "💡",
+    label: "靈感精靈",
+    nickname: "靈靈",
+    vibe: "幫你找靈感、給參考、丟趨勢，靈感卡住時找我",
+    greeting: "嗨我靈靈 💡 沒想法很正常～我來丟幾個方向 + 提示詞範例給你試。",
+    prompt: "@靈靈 給我一些靈感",
+    gradient: "from-yellow-300 to-orange-400",
+    ring: "ring-yellow-300/60",
+    family: "specialist",
+  },
+  // 體體：身體解剖圖 / 醫學插圖 / 人體結構專精
+  {
+    id: "anatomy-specialist",
+    emoji: "🫀",
+    label: "解剖精靈",
+    nickname: "體體",
+    vibe: "人體結構、骨骼肌肉、解剖圖示，醫學插圖找我",
+    greeting: "嗨我體體 🫀 解剖圖的事交給我，先說要哪個部位、什麼視角～",
+    prompt: "@體體 幫我畫解剖圖",
+    gradient: "from-red-400 to-pink-500",
+    ring: "ring-red-300/60",
+    family: "specialist",
+  },
 ];
 
 export const SPIRITS_BY_ID: Record<AgentRole, SpiritVisual> = SPIRITS.reduce(
@@ -337,7 +363,7 @@ export function getSpiritVisual(role: string | undefined | null): SpiritVisual |
 
 /** UI 標籤 — 多代理討論面板用，依 family 分區顯示。 */
 export const SPIRIT_FAMILY_LABEL: Record<SpiritFamily, string> = {
-  specialist: "專精精靈（圖 / 影 / 音 / 聲 / 訓 / 學 / 群）",
+  specialist: "專精精靈（圖 / 影 / 音 / 聲 / 訓 / 學 / 群 / 靈 / 體）",
   role: "通用同事（導 / 編 / 品 / 查 / 路 / 暖 / 總 / 記 / 細 / 步）",
   proactive: "主動精靈（財 / 巧 / 守 / 律 / 安 / 帶）",
 };

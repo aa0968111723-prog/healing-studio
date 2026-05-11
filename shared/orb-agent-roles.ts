@@ -39,7 +39,9 @@ export type AgentRole =
   | "onboarding-coach"     // 主動偵測使用者卡關並輔導操作 (帶帶)
   | "notes-curator"        // 筆記 / 排程 / 素材庫管理 (記記)
   | "settings-detail"      // 偏好 / 設定 / 細節微調 (細細)
-  | "plan-executor";       // 規劃 + 多步驟自動執行（接手 director 的計畫一條龍跑完）(步步)
+  | "plan-executor"        // 規劃 + 多步驟自動執行（接手 director 的計畫一條龍跑完）(步步)
+  | "inspiration-specialist" // 靈感 / 創意啟發 / 視覺參考蒐集 (靈靈)
+  | "anatomy-specialist";    // 身體解剖圖 / 醫學插圖 / 人體結構專精 (體體)
 
 export interface RoleSelectionInput {
   /** User's most recent utterance, lower-cased before matching. */
@@ -652,6 +654,79 @@ const KEYWORD_RULES: Array<{
     ],
     rationale: "user wants planning + autonomous multi-step execution — call 步步",
   },
+  // Inspiration Specialist (靈靈): creative inspiration, visual reference, mood boards
+  // 「被動」型 — 想要創意靈感 / 視覺參考 / 情緒板 / 風格探索時被叫到。
+  // 使用 inspiration.fetch 工具拉取真實網路情報與趨勢，回傳視覺參考與提示詞建議。
+  {
+    role: "inspiration-specialist",
+    keywords: [
+      "靈感",
+      "創意",
+      "參考",
+      "風格參考",
+      "視覺參考",
+      "範例",
+      "類似",
+      "像這樣",
+      "情緒板",
+      "mood board",
+      "找靈感",
+      "沒靈感",
+      "不知道做什麼",
+      "給我一些想法",
+      "給我靈感",
+      "找些例子",
+      "找些範例",
+      "流行",
+      "趨勢",
+      "熱門",
+      "風格探索",
+      "inspiration",
+      "creative ideas",
+      "reference",
+      "examples",
+      "similar to",
+      "trending",
+      "popular style",
+      "mood",
+    ],
+    rationale: "user needs creative inspiration or visual references — call 靈靈",
+  },
+  // Anatomy Specialist (體體): medical illustration, body anatomy, anatomical diagrams
+  // 「被動」型 — 需要人體解剖圖 / 醫學插圖 / 身體結構圖示時被叫到。
+  // 專精於精確的人體結構、肌肉骨骼系統、器官位置、醫學標註等。
+  {
+    role: "anatomy-specialist",
+    keywords: [
+      "解剖",
+      "解剖圖",
+      "人體",
+      "人體結構",
+      "身體結構",
+      "骨骼",
+      "肌肉",
+      "器官",
+      "醫學插圖",
+      "醫學圖",
+      "生理結構",
+      "骨架",
+      "肌肉群",
+      "神經系統",
+      "血管",
+      "關節",
+      "anatomy",
+      "anatomical",
+      "human body",
+      "body structure",
+      "skeleton",
+      "muscular system",
+      "organs",
+      "medical illustration",
+      "physiology",
+      "anatomical diagram",
+    ],
+    rationale: "user needs anatomical diagrams or medical illustrations — call 體體",
+  },
 ];
 
 const COMPOSER_ON_STUDIO_HINTS = [
@@ -769,6 +844,8 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
   { role: "notes-curator",       nicknames: ["記記", "筆記精靈", "排程精靈"] },
   { role: "settings-detail",     nicknames: ["細細", "設定精靈", "細節精靈"] },
   { role: "plan-executor",       nicknames: ["步步", "執行精靈", "規劃執行"] },
+  { role: "inspiration-specialist", nicknames: ["靈靈", "靈感精靈", "創意精靈"] },
+  { role: "anatomy-specialist",     nicknames: ["體體", "解剖精靈", "醫學插圖精靈"] },
 ];
 
 /**
@@ -866,6 +943,9 @@ export const SPIRIT_FAMILY: Record<AgentRole, SpiritFamily> = {
   "settings-detail": "role",
   // 步步：規劃 + 自動執行的工作流引擎，本質上是 role family 的同事
   "plan-executor": "role",
+  // 靈靈 / 體體：知識領域型專精，跟其他 specialist 同類
+  "inspiration-specialist": "specialist",
+  "anatomy-specialist": "specialist",
 };
 
 export function getFamilyForRole(role: AgentRole): SpiritFamily {
@@ -1206,6 +1286,27 @@ export function getRoleSystemPromptSlice(role: AgentRole): string {
         "交棒：每步抵達工作室頁面時 → 把該步 fillPrompt / setParam 細節交給編編；牽涉花費高的步驟先 ping 財財；中途某步真的壞掉（4xx/5xx）→ 把錯誤交給守守。整條跑完最後請品品看一輪整體性。",
         "地雷：別「規劃完就消失」（那是導導的工作）；別「在當頁送完一個就結束」（那是編編的工作）；步步的價值在「我把整條從頭到尾跑完並回報」。",
       ].join("\n");
+    case "inspiration-specialist":
+      return [
+        "【本回合扮演：靈靈（靈感精靈 inspiration specialist）】",
+        "你是團隊裡最會幫人找靈感的同事靈靈：當使用者「沒想法」「缺參考」「不知道做什麼風格」時被叫到。語氣像朋友分享 mood board，不是 AI 機器人。",
+        "工作模式：① 先確認「想找什麼類型的靈感？（圖 / 影 / 音 / 風格 / 主題）」② 用 inspiration.fetch 工具拉取真實網路趨勢 + 視覺參考 + prompt 關鍵字建議 ③ 給 2-3 個方向 + 每個方向附示範提示詞 ④ 問「想先試哪個方向？」",
+        "可呼叫：inspiration.fetch（傳 topic + modality + angle）— 回傳會附網路來源 + trending 標籤 + 視覺參考圖 URL；不直接生成圖片或影片（那是圖圖 / 影影的事）。",
+        "回答模板：① 一句話呼應使用者情緒（「理解～靈感卡住的時候最煩」）② 丟 2-3 個方向 + 每個方向附「你可以試試這樣寫提示詞：___」③ 附一句「最近 ___ 主題蠻熱的」給趨勢提示 ④ 問「想先從哪個方向開始？」",
+        "交棒：使用者選定方向 → 把精煉後的 prompt 交給對應專精精靈（圖圖 / 影影 / 音音 / 聲聲）；想進一步比較風格差異 → 交給查查；想看類似作品案例庫 → 交給記記翻素材庫。",
+        "地雷：不要只丟一堆「可以試試 ___」列表就消失；每個建議都要附具體可貼的提示詞範例。不要自己動手生成（那是各 specialist 的事），靈靈只負責「找靈感 + 給方向 + 寫範例提示詞」。",
+      ].join("\n");
+    case "anatomy-specialist":
+      return [
+        "【本回合扮演：體體（身體解剖圖專精精靈 anatomy specialist）】",
+        "你是團隊裡最懂人體結構的同事體體：當使用者需要「解剖圖」「醫學插圖」「人體結構」「骨骼肌肉圖」時被叫到。語氣像醫學院實習同學，專業但不拗口。",
+        "工作模式：① 先確認「要哪個部位？（全身 / 頭部 / 四肢 / 內臟 / 骨骼 / 肌肉 / 神經 / 血管）」② 確認用途「教學 / 標註 / 參考 / 藝術創作？」③ 確認風格「醫學教科書風 / 3D 渲染 / 手繪插畫 / 簡化示意圖？」",
+        "提示詞公式：「anatomical illustration of [部位], [視角], [系統], [風格], medical accuracy, labeled diagram, educational purpose」。例：「anatomical illustration of human skeleton, anterior view, full body, medical textbook style, labeled bones, white background」。",
+        "可使用：studio.generateImage（選模型時優先 fal-ai/flux-pro/v1.1 寫實 or fal-ai/stable-diffusion-v35-large 搭配醫學 LoRA）；對精確度要求高的圖建議 batch=3-4 讓使用者挑最準的。",
+        "回答模板：① 確認部位 + 用途 + 風格 ② 給一段可直接送出的提示詞 ③ 附「這個部位重點標註：___, ___, ___」提醒使用者檢查 ④ 做完問「角度 / 標註對嗎？要不要換個視角再出一張？」",
+        "交棒：圖出來後 → 請品品確認解剖準確度；需要加文字標註 → 交給編編用 image-to-image 疊上 label；想做成教學簡報 → 交給導導規劃整套；要做 3D 可旋轉版 → 交給圖圖用 studio.generate3D。",
+        "地雷：別用「a person」「human body」這種模糊詞，一定要寫清楚「anterior view of human skeletal system」這類精確解剖學術語。別讓使用者自己猜視角（anterior / posterior / lateral / superior），你要主動問並給選項。",
+      ].join("\n");
   }
 }
 
@@ -1253,6 +1354,10 @@ export const SPIRIT_PREFERRED_PROVIDER: Record<AgentRole, string> = {
   "settings-detail": "default_llm",
   // 步步：規劃 + 跨頁執行需要強推理保證每步參數正確，走 Gemini
   "plan-executor": "gemini",
+  // 靈靈：需要 inspiration.fetch + 趨勢判斷 + 多模態理解，走 Gemini
+  "inspiration-specialist": "gemini",
+  // 體體：需要精確解剖學知識 + 圖像理解，走 Gemini
+  "anatomy-specialist": "gemini",
 };
 
 export function getPreferredProviderForRole(role: AgentRole): string {
@@ -1392,6 +1497,16 @@ export const SPIRIT_MODEL_CAPABILITIES: Record<
   // 步步：跟 composer 一樣需要全模態（任何步驟都可能要送），但身分是
   // workflow owner — 可以直接觸發 fal generation 也可以下 navigate / fillPrompt。
   "plan-executor": ALL_CATEGORIES,
+  // 靈靈：使用 inspiration.fetch 拉取靈感，純文字推理 + 提示詞生成
+  "inspiration-specialist": TEXT_REASONING_CATEGORIES,
+  // 體體：專門產出解剖圖，需要圖像生成能力
+  "anatomy-specialist": [
+    "text-to-image",
+    "image-to-image",
+    "image-to-json",
+    "text-to-3d",
+    "image-to-3d",
+  ],
 };
 
 /**
@@ -1620,6 +1735,29 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "inspector", reason: "中途某步真壞了交給守守報修", when: "step fails with site error" },
     ],
     receivedFrom: ["director", "chief-orchestrator", "community-manager", "training-specialist"],
+  },
+  // 靈靈：拿到使用者靈感需求後，用 inspiration.fetch 拉回趨勢 + 參考，
+  // 給 2-3 個方向 + 示範提示詞，選定後交給對應專精精靈實作。
+  "inspiration-specialist": {
+    handoffs: [
+      { to: "image-specialist", reason: "靈感方向選定，prompt 精煉完交給圖圖出圖", when: "user picks image direction" },
+      { to: "video-specialist", reason: "影片風格選定，交給影影製作", when: "user picks video direction" },
+      { to: "music-specialist", reason: "音樂情緒選定，交給音音產出", when: "user picks music direction" },
+      { to: "researcher", reason: "想進一步比較風格差異交給查查", when: "user wants detailed comparison" },
+      { to: "notes-curator", reason: "靈感想存下來交給記記建檔", when: "user wants to save inspiration" },
+    ],
+    receivedFrom: ["companion", "director", "quality-coach", "community-manager", "chief-orchestrator"],
+  },
+  // 體體：接到解剖圖需求後，確認部位 + 用途 + 風格，給精確提示詞，
+  // 用 studio.generateImage 出圖，交給品品確認準確度或編編疊標註。
+  "anatomy-specialist": {
+    handoffs: [
+      { to: "critic", reason: "解剖圖出來請品品確認準確度", when: "anatomy illustration done" },
+      { to: "composer", reason: "需要疊文字標註交給編編用 image-to-image", when: "needs labels" },
+      { to: "director", reason: "想做成教學簡報整套交給導導規劃", when: "user wants full tutorial" },
+      { to: "image-specialist", reason: "要做 3D 可旋轉版交給圖圖用 generate3D", when: "user wants 3D anatomy" },
+    ],
+    receivedFrom: ["companion", "director", "learning-specialist", "community-manager", "chief-orchestrator"],
   },
 };
 
@@ -1852,6 +1990,12 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
     case "plan-executor":
       // 步步 接管後：先讓財財估算 → 自己跑跨頁步驟（rely on internal loop） → 品品總評。
       return ["plan-executor", "accountant", "critic"];
+    case "inspiration-specialist":
+      // 靈靈 給靈感 → 使用者選方向後交給對應 specialist（圖 / 影 / 音）→ 編編執行。
+      return ["inspiration-specialist", "image-specialist", "composer"];
+    case "anatomy-specialist":
+      // 體體 產出解剖圖 → 品品看解剖準確度 → 編編做標註或調整。
+      return ["anatomy-specialist", "critic", "composer"];
   }
 }
 
@@ -1988,6 +2132,10 @@ export function buildArrivalFollowUpText(
       return `細細接手 ⚙️ ${intentTail}想調哪個設定？通知 / 主題 / 預設模型 / 隱私 / 金鑰我都帶你過去並解釋打開後的副作用。`;
     case "plan-executor":
       return `步步接手 🧩 ${intentTail}我會把這條多步驟工作流跨頁跑完，每完成一步在這裡跟你回報。要先看計畫總覽，還是直接開跑？`;
+    case "inspiration-specialist":
+      return `靈靈接手 💡 ${intentTail}沒想法很正常～告訴我想找什麼類型的靈感（圖 / 影 / 音 / 風格 / 主題），我來丟幾個方向 + 提示詞範例給你試。`;
+    case "anatomy-specialist":
+      return `體體接手 🫀 ${intentTail}解剖圖的事交給我。先說要哪個部位（全身 / 頭部 / 四肢 / 內臟 / 骨骼 / 肌肉），什麼視角（前 / 後 / 側 / 剖面）～`;
   }
 }
 
@@ -2018,6 +2166,8 @@ export function summarizeRoleChainForPrompt(chain: AgentRole[]): string {
     "notes-curator": "記記",
     "settings-detail": "細細",
     "plan-executor": "步步",
+    "inspiration-specialist": "靈靈",
+    "anatomy-specialist": "體體",
   };
   if (chain.length === 1) return `【角色】${labels[chain[0]]}`;
   return `【角色鏈】${chain.map(r => labels[r]).join(" → ")}`;

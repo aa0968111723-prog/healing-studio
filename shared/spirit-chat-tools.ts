@@ -57,6 +57,10 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
     toPath: "/learn-hub",
     arrivalHint: "學學帶你到教學中心，挑一個主題開始。",
   },
+  // 靈靈：search 站內靈感 / 素材 + 用 LLM 給示範提示詞
+  "inspiration-specialist": { kind: "search", minPromptChars: 3 },
+  // 體體：真實打 fal.ai 模型產出解剖圖
+  "anatomy-specialist": { kind: "fal-generation", minPromptChars: 6 },
 
   // ─── 6 位通用工作流：路路真的跳頁 / 查查真的搜尋 / 其他用 LLM 人格 ──
   navigator: {

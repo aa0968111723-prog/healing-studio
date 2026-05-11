@@ -337,6 +337,16 @@ const SPECIALIST_PAGE_MAP: Record<string, { pages: string[]; modality: SkillModa
     pages: ["/image-studio", "/video-studio", "/agent"],
     modality: "text",
   },
+  "inspiration-specialist": {
+    // 靈靈在所有創作頁都可能被叫到（卡靈感時）
+    pages: ["/image-studio", "/video-studio", "/pro-studio", "/agent"],
+    modality: "general",
+  },
+  "anatomy-specialist": {
+    // 體體主要在圖像工作室產出解剖圖
+    pages: ["/image-studio", "/studio", "/agent"],
+    modality: "image",
+  },
 };
 
 function buildSpecialistSkill(cap: SpecializedAgentCapability): AgentSkill {
