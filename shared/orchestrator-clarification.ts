@@ -188,9 +188,7 @@ function detectBudget(
   if (remembered) return 0.5;
 
   const costSensitiveMarkers = /便宜|省|節省|經濟|free|cheap|save money|budget/;
-  const qualityFirstMarkers = /
-    頂級|最好|高品質|不計成本|premium|best quality|high.?end|top.?tier
-  /x;
+  const qualityFirstMarkers = /頂級|最好|高品質|不計成本|premium|best quality|high.?end|top.?tier/;
 
   if (qualityFirstMarkers.test(text)) return 0.85;
   if (costSensitiveMarkers.test(text)) return 0.8;
