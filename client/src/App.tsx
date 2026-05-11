@@ -25,6 +25,7 @@ import { PageAgentProvider } from "./contexts/PageAgentContext";
 import { GlobalOrbChatProvider } from "./contexts/GlobalOrbChatContext";
 import { OrbStateProvider } from "./contexts/OrbStateContext";
 import { PersonalSettingsProvider } from "./contexts/PersonalSettingsContext";
+import { IntentCardProvider } from "./contexts/IntentCardContext";
 import SkipToContent from "./components/SkipToContent";
 import RouteTransition from "./components/RouteTransition";
 const SiteOnboardingOverlay = lazy(
@@ -334,6 +335,7 @@ function App() {
                     <PageAgentProvider>
                     <OrbStateProvider>
                     <GlobalOrbChatProvider>
+                    <IntentCardProvider>
                     <TooltipProvider>
                       <SkipToContent />
                       <Toaster />
@@ -351,6 +353,7 @@ function App() {
                         <CommandPalette />
                       </Suspense>
                     </TooltipProvider>
+                    </IntentCardProvider>
                     </GlobalOrbChatProvider>
                     </OrbStateProvider>
                     </PageAgentProvider>
