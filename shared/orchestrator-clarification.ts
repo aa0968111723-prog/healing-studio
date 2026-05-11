@@ -47,7 +47,9 @@ export interface OrchestratorContext {
  * Returns clarity score and missing dimensions.
  */
 export function analyzeOrchestratorIntent(ctx: OrchestratorContext): IntentClarity {
-  const { userMessage, previousAnswers = {}, rememberedPreferences = {} } = ctx;
+  const { userMessage, rememberedPreferences = {} } = ctx;
+  const previousAnswers: Partial<Record<IntentDimension, string>> =
+    ctx.previousAnswers ?? {};
   const text = userMessage.toLowerCase();
 
   // Dimension detection logic

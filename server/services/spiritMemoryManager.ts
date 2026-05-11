@@ -308,7 +308,7 @@ class SpiritMemoryManagerClass {
       agentId: input.agentId,
       memoryType: "pattern",
       memoryKey: input.patternKey,
-      memoryValue: patternDescription,
+      memoryValue: input.patternDescription,
       initialConfidence: confidence,
     });
 

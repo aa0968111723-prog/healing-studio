@@ -719,7 +719,13 @@ export default function LoraTrainer() {
       name: modelName,
       triggerWord,
       description,
-      modelType: selectedTrainingType,
+      modelType: selectedTrainingType as
+        | "image_subject"
+        | "voice_clone"
+        | "style_lora"
+        | "scene_lora"
+        | "video_lora"
+        | "portrait_lora",
       trainingEngine,
       epochs: trainingEngine === "replicate" ? epochs : undefined,
       learningRate,

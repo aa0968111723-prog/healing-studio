@@ -1684,12 +1684,13 @@ export default function AgentChat() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2 space-y-3">
                   {(["proactive", "specialist", "role"] as const).map(family => {
+                    const familySpirits = SPIRITS.filter(s => s.family === family);
                     const groupTitle =
                       family === "proactive"
-                        ? "🚨 3 位主動出擊"
+                        ? `🚨 ${familySpirits.length} 位主動出擊`
                         : family === "specialist"
-                          ? "🛠 6 位專精同事"
-                          : "🤝 6 位通用夥伴";
+                          ? `🛠 ${familySpirits.length} 位專精同事`
+                          : `🤝 ${familySpirits.length} 位通用夥伴`;
                     const groupHint =
                       family === "proactive"
                         ? "財財 / 巧巧 / 守守 — 沒叫他們也會主動關心你"
@@ -1729,7 +1730,7 @@ export default function AgentChat() {
                           </span>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {SPIRITS.filter(s => s.family === family).map((spirit, i) => {
+                          {familySpirits.map((spirit, i) => {
                             const isPinned = pinnedSpirit === spirit.id;
                             return (
                               <motion.button
