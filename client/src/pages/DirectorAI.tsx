@@ -558,6 +558,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   const [showGenPipeline, setShowGenPipeline] = useState(false);
   const [showCostar, setShowCostar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pendingQuote, setPendingQuote] = useState<{
+    text: string;
+    pos: { top: number; left: number };
+  } | null>(null);
   const config =
     PERSONALITIES.find(p => p.id === personality) ?? PERSONALITIES[1];
 
@@ -673,7 +678,49 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
     [segment, personality, discussMut, onUpdateSegment, adjacentSegments]
   );
 
-  // Group quick actions by category
+  // ── Text-selection quote ─────────────────────────────────────────────────
+
+  const handleStoryboardMouseUp = useCallback(() => {
+    const sel = window.getSelection();
+    const text = sel?.toString().trim();
+    if (!text) {
+      setPendingQuote(null);
+      return;
+    }
+    const range = sel?.getRangeAt(0);
+    if (!range) return;
+    const rect = range.getBoundingClientRect();
+    setPendingQuote({
+      text,
+      pos: {
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+      },
+    });
+  }, []);
+
+  const handleQuoteSelect = useCallback(() => {
+    if (!pendingQuote) return;
+    setInputMessage(prev =>
+      prev
+        ? `「${pendingQuote.text}」\n${prev}`
+        : `「${pendingQuote.text}」`
+    );
+    setPendingQuote(null);
+    window.getSelection()?.removeAllRanges();
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [pendingQuote]);
+
+  useEffect(() => {
+    if (!pendingQuote) return;
+    const dismiss = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPendingQuote(null);
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, [pendingQuote]);
+
+  // ────────────────────────────────────────────────────────────────────────
   const groupedActions = useMemo(() => {
     const groups: Record<string, QuickAction[]> = {};
     quickActions.forEach(a => {
@@ -781,8 +828,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
         </div>
       )}
 
-      {/* Storyboard info */}
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
+      {/* Storyboard info — 選取文字後可浮動引用至討論 */}
+      <div
+        className="grid grid-cols-2 gap-2 text-[11px] select-text"
+        onMouseUp={handleStoryboardMouseUp}
+      >
         {[
           {
             label: "視覺",
@@ -1028,6 +1078,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       {/* Input area */}
       <div className="flex gap-2">
         <input
+          ref={inputRef}
           type="text"
           value={inputMessage}
           onChange={e => setInputMessage(e.target.value)}
@@ -1085,6 +1136,32 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── 選取文字浮動引用按鈕 ─────────────────────────────────────────── */}
+      {pendingQuote && (
+        <div
+          style={{
+            position: "fixed",
+            top: pendingQuote.pos.top,
+            left: pendingQuote.pos.left,
+            zIndex: 9999,
+            maxWidth: 280,
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20 px-2.5 py-1.5 text-[11px] font-medium select-none animate-in fade-in zoom-in-95 duration-100"
+          // onMouseDown (not onClick) to fire before the browser clears the selection
+          onMouseDown={e => {
+            e.preventDefault();
+            handleQuoteSelect();
+          }}
+        >
+          <MessageSquare className="w-3 h-3 shrink-0" />
+          <span className="truncate">
+            引用「{pendingQuote.text.length > 18
+              ? pendingQuote.text.slice(0, 18) + "…"
+              : pendingQuote.text}」討論
+          </span>
+        </div>
+      )}
     </div>
   );
 });
