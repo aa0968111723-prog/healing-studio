@@ -626,6 +626,199 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
+  // ─── 意圖澄清引擎（clarificationEngine）工具 ──
+  {
+    name: "clarificationEngine.identifyIntent",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      userInput: "string",
+      conversationId: "string",
+      context: "object?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "clarificationEngine.recordAnswer",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      clarificationId: "string",
+      userAnswer: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "clarificationEngine.getPattern",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      questionType: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "clarificationEngine.getStats",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  // ─── 功能發現引擎（featureDiscovery）工具 ──
+  {
+    name: "featureDiscovery.recordUsage",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      featureId: "string",
+      success: "boolean",
+      duration: "number?",
+      metadata: "object?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "featureDiscovery.recordDiscovery",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      featureId: "string",
+      discoveryMethod: "string", // orb_suggestion | menu_exploration | search | tutorial | friend_share | documentation | accident
+      fromFeatureId: "string?",
+      context: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "featureDiscovery.getStats",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      featureId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "featureDiscovery.getRecommendations",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "featureDiscovery.getInsights",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  // ─── 工作流程引擎（workflowEngine）工具 ──
+  {
+    name: "workflowEngine.createTemplate",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      name: "string",
+      description: "string?",
+      category: "string",
+      isPublic: "boolean?",
+      steps: "array",
+      difficulty: "string?", // beginner | intermediate | advanced
+      tags: "array?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "workflowEngine.getTemplates",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      category: "string?",
+      difficulty: "string?",
+      isPublic: "boolean?",
+      search: "string?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "workflowEngine.executeWorkflow",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      templateId: "number",
+      conversationId: "string?",
+      inputs: "object?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "workflowEngine.getStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      executionId: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "workflowEngine.controlWorkflow",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      executionId: "string",
+      action: "string", // pause | resume | cancel
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "workflowEngine.getHistory",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── 系統監控（systemMonitor）工具 ──
+  {
+    name: "systemMonitor.getHealth",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "systemMonitor.getCostAnalysis",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      userId: "number?",
+      startDate: "string?",
+      endDate: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "systemMonitor.getCollaborationStats",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "systemMonitor.getPerformanceTrends",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      metricType: "string", // response_time | error_rate | tool_success_rate | user_satisfaction
+      spiritId: "string?",
+      days: "number?",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {

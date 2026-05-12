@@ -2272,6 +2272,57 @@ async function dispatchStudioTool(
         return memoryResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // clarificationEngine.* tools for intent clarification
+      // ════════════════════════════════════════════════════════════════════
+
+      case "clarificationEngine.identifyIntent":
+      case "clarificationEngine.recordAnswer":
+      case "clarificationEngine.getPattern":
+      case "clarificationEngine.getStats": {
+        const clarificationResult = await dispatchClarificationEngineTool(call, opts);
+        return clarificationResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // featureDiscovery.* tools for feature usage tracking
+      // ════════════════════════════════════════════════════════════════════
+
+      case "featureDiscovery.recordUsage":
+      case "featureDiscovery.recordDiscovery":
+      case "featureDiscovery.getStats":
+      case "featureDiscovery.getRecommendations":
+      case "featureDiscovery.getInsights": {
+        const featureResult = await dispatchFeatureDiscoveryTool(call, opts);
+        return featureResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // workflowEngine.* tools for workflow automation
+      // ════════════════════════════════════════════════════════════════════
+
+      case "workflowEngine.createTemplate":
+      case "workflowEngine.getTemplates":
+      case "workflowEngine.executeWorkflow":
+      case "workflowEngine.getStatus":
+      case "workflowEngine.controlWorkflow":
+      case "workflowEngine.getHistory": {
+        const workflowResult = await dispatchWorkflowEngineTool(call, opts);
+        return workflowResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // systemMonitor.* tools for system health monitoring
+      // ════════════════════════════════════════════════════════════════════
+
+      case "systemMonitor.getHealth":
+      case "systemMonitor.getCostAnalysis":
+      case "systemMonitor.getCollaborationStats":
+      case "systemMonitor.getPerformanceTrends": {
+        const monitorResult = await dispatchSystemMonitorTool(call, opts);
+        return monitorResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -4030,6 +4081,506 @@ async function dispatchMemoryManagerTool(
 
       default:
         return { name: call.name, ok: false, error: `unknown memoryManager tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// clarificationEngine.* 工具橋接：意圖澄清與使用者模式學習工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 clarificationEngine.* 工具呼叫橋接到 clarificationEngineTools 服務。
+ * 提供意圖識別、澄清問題、學習使用者回答模式的能力：
+ * - clarificationEngine.identifyIntent: 識別使用者意圖
+ * - clarificationEngine.recordAnswer: 記錄澄清問題的答案
+ * - clarificationEngine.getPattern: 取得使用者回答模式
+ * - clarificationEngine.getStats: 取得澄清統計資料
+ */
+async function dispatchClarificationEngineTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    identifyUserIntent,
+    recordClarificationAnswer,
+    getUserAnswerPattern,
+    getClarificationStats,
+  } = await import("./spiritTools/clarificationEngineTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "clarificationEngine.identifyIntent": {
+        const userInput = args.userInput as string;
+        const conversationId = args.conversationId as string;
+
+        if (!userInput || !conversationId) {
+          return { name: call.name, ok: false, error: "userInput and conversationId are required" };
+        }
+
+        const result = await identifyUserIntent({
+          userId: opts.userId,
+          conversationId,
+          userInput,
+          context: args.context as Record<string, unknown> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "clarificationEngine.recordAnswer": {
+        const clarificationId = args.clarificationId as string;
+        const userAnswer = args.userAnswer as string;
+
+        if (!clarificationId || !userAnswer) {
+          return { name: call.name, ok: false, error: "clarificationId and userAnswer are required" };
+        }
+
+        const result = await recordClarificationAnswer({
+          clarificationId,
+          userAnswer,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "clarificationEngine.getPattern": {
+        const questionType = args.questionType as string;
+
+        if (!questionType) {
+          return { name: call.name, ok: false, error: "questionType is required" };
+        }
+
+        const result = await getUserAnswerPattern({
+          userId: opts.userId,
+          questionType,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "clarificationEngine.getStats": {
+        const result = await getClarificationStats(opts.userId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown clarificationEngine tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// featureDiscovery.* 工具橋接：功能使用追蹤與推薦工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 featureDiscovery.* 工具呼叫橋接到 featureDiscoveryTools 服務。
+ * 提供功能使用記錄、發現追蹤、個性化推薦的能力：
+ * - featureDiscovery.recordUsage: 記錄功能使用
+ * - featureDiscovery.recordDiscovery: 記錄功能發現路徑
+ * - featureDiscovery.getStats: 取得使用統計
+ * - featureDiscovery.getRecommendations: 生成功能推薦
+ * - featureDiscovery.getInsights: 取得發現洞察
+ */
+async function dispatchFeatureDiscoveryTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    recordFeatureUsage,
+    recordFeatureDiscovery,
+    getFeatureStats,
+    generateFeatureRecommendations,
+    getDiscoveryInsights,
+  } = await import("./spiritTools/featureDiscoveryTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "featureDiscovery.recordUsage": {
+        const featureId = args.featureId as string;
+        const success = args.success as boolean;
+
+        if (!featureId || typeof success !== "boolean") {
+          return { name: call.name, ok: false, error: "featureId and success are required" };
+        }
+
+        const result = await recordFeatureUsage({
+          userId: opts.userId,
+          featureId,
+          success,
+          duration: typeof args.duration === "number" ? args.duration : undefined,
+          metadata: args.metadata as Record<string, unknown> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "featureDiscovery.recordDiscovery": {
+        const featureId = args.featureId as string;
+        const discoveryMethod = args.discoveryMethod as string;
+
+        if (!featureId || !discoveryMethod) {
+          return { name: call.name, ok: false, error: "featureId and discoveryMethod are required" };
+        }
+
+        const result = await recordFeatureDiscovery({
+          userId: opts.userId,
+          featureId,
+          discoveryMethod: discoveryMethod as any,
+          fromFeatureId: args.fromFeatureId as string | undefined,
+          context: args.context as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "featureDiscovery.getStats": {
+        const result = await getFeatureStats({
+          userId: opts.userId,
+          featureId: args.featureId as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "featureDiscovery.getRecommendations": {
+        const result = await generateFeatureRecommendations({
+          userId: opts.userId,
+          limit: typeof args.limit === "number" ? args.limit : 5,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "featureDiscovery.getInsights": {
+        const result = await getDiscoveryInsights(opts.userId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown featureDiscovery tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// workflowEngine.* 工具橋接：工作流程自動化工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 workflowEngine.* 工具呼叫橋接到 workflowEngineTools 服務。
+ * 提供工作流程模板管理、執行、監控的能力：
+ * - workflowEngine.createTemplate: 建立工作流程模板
+ * - workflowEngine.getTemplates: 取得工作流程模板列表
+ * - workflowEngine.executeWorkflow: 執行工作流程
+ * - workflowEngine.getStatus: 取得執行狀態
+ * - workflowEngine.controlWorkflow: 控制工作流程（暫停/繼續/取消）
+ * - workflowEngine.getHistory: 取得執行歷史
+ */
+async function dispatchWorkflowEngineTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    createWorkflowTemplate,
+    getWorkflowTemplates,
+    executeWorkflow,
+    getWorkflowStatus,
+    controlWorkflow,
+    getWorkflowHistory,
+  } = await import("./spiritTools/workflowEngineTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "workflowEngine.createTemplate": {
+        const name = args.name as string;
+        const category = args.category as string;
+        const steps = args.steps as any[];
+
+        if (!name || !category || !steps || !Array.isArray(steps)) {
+          return { name: call.name, ok: false, error: "name, category, and steps are required" };
+        }
+
+        const result = await createWorkflowTemplate({
+          creatorUserId: opts.userId,
+          name,
+          description: args.description as string | undefined,
+          category,
+          isPublic: args.isPublic as boolean | undefined,
+          steps,
+          difficulty: args.difficulty as any,
+          tags: args.tags as string[] | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "workflowEngine.getTemplates": {
+        const result = await getWorkflowTemplates({
+          category: args.category as string | undefined,
+          difficulty: args.difficulty as any,
+          isPublic: args.isPublic as boolean | undefined,
+          search: args.search as string | undefined,
+          limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "workflowEngine.executeWorkflow": {
+        const templateId = args.templateId as number;
+
+        if (typeof templateId !== "number") {
+          return { name: call.name, ok: false, error: "templateId is required" };
+        }
+
+        const result = await executeWorkflow({
+          templateId,
+          userId: opts.userId,
+          conversationId: args.conversationId as string | undefined,
+          inputs: args.inputs as Record<string, unknown> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "workflowEngine.getStatus": {
+        const executionId = args.executionId as string;
+
+        if (!executionId) {
+          return { name: call.name, ok: false, error: "executionId is required" };
+        }
+
+        const result = await getWorkflowStatus(executionId);
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "workflowEngine.controlWorkflow": {
+        const executionId = args.executionId as string;
+        const action = args.action as "pause" | "resume" | "cancel";
+
+        if (!executionId || !action) {
+          return { name: call.name, ok: false, error: "executionId and action are required" };
+        }
+
+        const result = await controlWorkflow({
+          executionId,
+          action,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "workflowEngine.getHistory": {
+        const result = await getWorkflowHistory({
+          userId: opts.userId,
+          limit: typeof args.limit === "number" ? args.limit : 20,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown workflowEngine tool: ${call.name}` };
+    }
+  } catch (err) {
+    return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// systemMonitor.* 工具橋接：系統健康監控與分析工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 systemMonitor.* 工具呼叫橋接到 systemMonitorTools 服務。
+ * 提供系統健康監控、成本分析、協作效能追蹤的能力：
+ * - systemMonitor.getHealth: 取得系統健康摘要
+ * - systemMonitor.getCostAnalysis: 取得成本分析與優化建議
+ * - systemMonitor.getCollaborationStats: 取得精靈協作統計
+ * - systemMonitor.getPerformanceTrends: 取得效能趨勢
+ */
+async function dispatchSystemMonitorTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    getHealthSummary,
+    getCostAnalysis,
+    getCollaborationStats,
+    getPerformanceTrends,
+  } = await import("./spiritTools/systemMonitorTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "systemMonitor.getHealth": {
+        const result = await getHealthSummary();
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "systemMonitor.getCostAnalysis": {
+        const result = await getCostAnalysis({
+          userId: args.userId as number | undefined,
+          startDate: args.startDate as string | undefined,
+          endDate: args.endDate as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "systemMonitor.getCollaborationStats": {
+        const result = await getCollaborationStats();
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "systemMonitor.getPerformanceTrends": {
+        const metricType = args.metricType as any;
+
+        if (!metricType) {
+          return { name: call.name, ok: false, error: "metricType is required" };
+        }
+
+        const result = await getPerformanceTrends({
+          metricType,
+          spiritId: args.spiritId as string | undefined,
+          days: typeof args.days === "number" ? args.days : 7,
+        });
+
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      default:
+        return { name: call.name, ok: false, error: `unknown systemMonitor tool: ${call.name}` };
     }
   } catch (err) {
     return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
