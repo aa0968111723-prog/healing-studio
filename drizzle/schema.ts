@@ -2816,6 +2816,37 @@ export const orbWorkflowStepExecutions = mysqlTable(
 export type OrbWorkflowStepExecution = typeof orbWorkflowStepExecutions.$inferSelect;
 export type InsertOrbWorkflowStepExecution = typeof orbWorkflowStepExecutions.$inferInsert;
 
+export const orbWorkflowTemplateRatings = mysqlTable(
+  "orb_workflow_template_ratings",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    templateId: int("templateId").notNull(),
+    userId: int("userId").notNull(),
+    rating: int("rating").notNull(), // 1-5 stars
+    comment: text("comment"),
+    wasHelpful: boolean("wasHelpful"),
+    completedSuccessfully: boolean("completedSuccessfully"),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    uniqueUserRating: uniqueIndex("orb_tmpl_rating_uk").on(
+      table.templateId,
+      table.userId
+    ),
+    templateIdx: index("orb_tmpl_rating_template_idx").on(
+      table.templateId,
+      table.rating
+    ),
+    userIdx: index("orb_tmpl_rating_user_idx").on(table.userId),
+    createdIdx: index("orb_tmpl_rating_created_idx").on(table.createdAt),
+  })
+);
+
+export type OrbWorkflowTemplateRating = typeof orbWorkflowTemplateRatings.$inferSelect;
+export type InsertOrbWorkflowTemplateRating = typeof orbWorkflowTemplateRatings.$inferInsert;
+
 // ─── Orb System Monitoring ──────────────────────────────────────────────
 export const orbSpiritCollaborationMetrics = mysqlTable(
   "orb_spirit_collaboration_metrics",
@@ -2918,3 +2949,47 @@ export const orbCostAttribution = mysqlTable(
 
 export type OrbCostAttribution = typeof orbCostAttribution.$inferSelect;
 export type InsertOrbCostAttribution = typeof orbCostAttribution.$inferInsert;
+
+export const orbSystemAlerts = mysqlTable(
+  "orb_system_alerts",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    alertType: mysqlEnum("alertType", [
+      "health_critical",
+      "health_warning",
+      "cost_spike",
+      "performance_degradation",
+      "error_rate_high",
+      "system_overload",
+    ]).notNull(),
+    severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    message: text("message").notNull(),
+    spiritId: varchar("spiritId", { length: 64 }),
+    metricType: varchar("metricType", { length: 64 }),
+    metricValue: decimal("metricValue", { precision: 10, scale: 2 }),
+    threshold: decimal("threshold", { precision: 10, scale: 2 }),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    isResolved: boolean("isResolved").notNull().default(false),
+    resolvedAt: timestamp("resolvedAt"),
+    resolvedBy: int("resolvedBy"),
+    resolutionNotes: text("resolutionNotes"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    typeIdx: index("orb_alert_type_idx").on(
+      table.alertType,
+      table.severity,
+      table.createdAt
+    ),
+    resolvedIdx: index("orb_alert_resolved_idx").on(
+      table.isResolved,
+      table.createdAt
+    ),
+    spiritIdx: index("orb_alert_spirit_idx").on(table.spiritId),
+    metricIdx: index("orb_alert_metric_idx").on(table.metricType),
+  })
+);
+
+export type OrbSystemAlert = typeof orbSystemAlerts.$inferSelect;
+export type InsertOrbSystemAlert = typeof orbSystemAlerts.$inferInsert;
