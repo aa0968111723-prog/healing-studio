@@ -105,11 +105,74 @@ export class OrbSystemMonitor {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // TODO: Upsert daily collaboration metric
-      // - Increment handoffCount
-      // - Update avgHandoffTime (running average)
-      // - Increment successfulHandoffs or failedHandoffs
-      // - Update userSatisfactionScore if provided
+      const db = getDb();
+
+      // Upsert daily collaboration metric
+      const existingMetric = await db
+        .select()
+        .from(orbSpiritCollaborationMetrics)
+        .where(
+          and(
+            eq(orbSpiritCollaborationMetrics.date, today),
+            eq(orbSpiritCollaborationMetrics.fromSpiritId, input.fromSpiritId),
+            eq(orbSpiritCollaborationMetrics.toSpiritId, input.toSpiritId)
+          )
+        )
+        .limit(1);
+
+      if (existingMetric.length > 0) {
+        const existing = existingMetric[0];
+        const newHandoffCount = existing.handoffCount + 1;
+        const newSuccessful = existing.successfulHandoffs + (input.success ? 1 : 0);
+        const newFailed = existing.failedHandoffs + (input.success ? 0 : 1);
+
+        // Update running average for handoff time
+        let newAvgHandoffTime = existing.avgHandoffTime;
+        if (input.handoffTime !== undefined) {
+          if (existing.avgHandoffTime === null) {
+            newAvgHandoffTime = input.handoffTime;
+          } else {
+            newAvgHandoffTime =
+              (existing.avgHandoffTime * existing.handoffCount + input.handoffTime) /
+              newHandoffCount;
+          }
+        }
+
+        // Update running average for user satisfaction
+        let newSatisfaction = existing.userSatisfactionScore;
+        if (input.userFeedback !== undefined) {
+          if (existing.userSatisfactionScore === null) {
+            newSatisfaction = input.userFeedback;
+          } else {
+            newSatisfaction =
+              (existing.userSatisfactionScore * existing.handoffCount + input.userFeedback) /
+              newHandoffCount;
+          }
+        }
+
+        await db
+          .update(orbSpiritCollaborationMetrics)
+          .set({
+            handoffCount: newHandoffCount,
+            avgHandoffTime: newAvgHandoffTime,
+            successfulHandoffs: newSuccessful,
+            failedHandoffs: newFailed,
+            userSatisfactionScore: newSatisfaction,
+            updatedAt: new Date(),
+          })
+          .where(eq(orbSpiritCollaborationMetrics.id, existing.id));
+      } else {
+        await db.insert(orbSpiritCollaborationMetrics).values({
+          date: today,
+          fromSpiritId: input.fromSpiritId,
+          toSpiritId: input.toSpiritId,
+          handoffCount: 1,
+          avgHandoffTime: input.handoffTime ?? null,
+          successfulHandoffs: input.success ? 1 : 0,
+          failedHandoffs: input.success ? 0 : 1,
+          userSatisfactionScore: input.userFeedback ?? null,
+        });
+      }
 
       logger.info("orb_handoff_recorded", {
         from: input.fromSpiritId,
@@ -135,7 +198,19 @@ export class OrbSystemMonitor {
         ? input.value <= input.threshold
         : true;
 
-      // TODO: Insert health metric
+      const db = getDb();
+
+      // Insert health metric
+      await db.insert(orbSystemHealthMetrics).values({
+        timestamp: new Date(),
+        metricType: input.metricType,
+        spiritId: input.spiritId ?? null,
+        value: input.value,
+        unit: input.unit,
+        threshold: input.threshold ?? null,
+        isHealthy,
+        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+      });
 
       if (!isHealthy) {
         logger.warn("orb_health_metric_unhealthy", {
@@ -146,6 +221,7 @@ export class OrbSystemMonitor {
         });
 
         // TODO: Trigger alerts if needed
+        // This would integrate with an alerting system in production
       }
 
       logger.debug("orb_health_metric_recorded", {
@@ -170,12 +246,67 @@ export class OrbSystemMonitor {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // TODO: Upsert daily cost attribution
-      // - Increment usageCount
-      // - Add to totalTokens
-      // - Add to totalApiCalls
-      // - Add to estimatedCostUsd
-      // - Update avgDuration
+      const db = getDb();
+
+      // Upsert daily cost attribution
+      const existingCost = await db
+        .select()
+        .from(orbCostAttribution)
+        .where(
+          and(
+            eq(orbCostAttribution.date, today),
+            eq(orbCostAttribution.userId, input.userId),
+            eq(orbCostAttribution.spiritId, input.spiritId),
+            eq(orbCostAttribution.toolName, input.toolName)
+          )
+        )
+        .limit(1);
+
+      if (existingCost.length > 0) {
+        const existing = existingCost[0];
+        const newUsageCount = existing.usageCount + 1;
+        const newTotalTokens = (existing.totalTokens ?? 0) + (input.tokens ?? 0);
+        const newTotalApiCalls = (existing.totalApiCalls ?? 0) + (input.apiCalls ?? 0);
+        const newEstimatedCost = (existing.estimatedCostUsd ?? 0) + (input.estimatedCostUsd ?? 0);
+
+        // Update running average for duration
+        let newAvgDuration = existing.avgDuration;
+        if (input.duration !== undefined) {
+          if (existing.avgDuration === null) {
+            newAvgDuration = input.duration;
+          } else {
+            newAvgDuration =
+              (existing.avgDuration * existing.usageCount + input.duration) /
+              newUsageCount;
+          }
+        }
+
+        await db
+          .update(orbCostAttribution)
+          .set({
+            usageCount: newUsageCount,
+            totalTokens: newTotalTokens,
+            totalApiCalls: newTotalApiCalls,
+            estimatedCostUsd: newEstimatedCost,
+            avgDuration: newAvgDuration,
+            metadata: input.metadata ? JSON.stringify(input.metadata) : existing.metadata,
+            updatedAt: new Date(),
+          })
+          .where(eq(orbCostAttribution.id, existing.id));
+      } else {
+        await db.insert(orbCostAttribution).values({
+          date: today,
+          userId: input.userId,
+          spiritId: input.spiritId,
+          toolName: input.toolName,
+          usageCount: 1,
+          totalTokens: input.tokens ?? null,
+          totalApiCalls: input.apiCalls ?? null,
+          estimatedCostUsd: input.estimatedCostUsd ?? null,
+          avgDuration: input.duration ?? null,
+          metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+        });
+      }
 
       logger.debug("orb_cost_recorded", {
         userId: input.userId,
@@ -204,9 +335,52 @@ export class OrbSystemMonitor {
     limit?: number;
   }): Promise<SpiritCollaborationMetric[]> {
     try {
-      // TODO: Query database with filters
+      const db = getDb();
 
-      const metrics: SpiritCollaborationMetric[] = [];
+      // Query database with filters
+      let query = db.select().from(orbSpiritCollaborationMetrics);
+
+      const conditions: any[] = [];
+
+      if (options?.spiritId) {
+        conditions.push(
+          sql`(${orbSpiritCollaborationMetrics.fromSpiritId} = ${options.spiritId} OR ${orbSpiritCollaborationMetrics.toSpiritId} = ${options.spiritId})`
+        );
+      }
+
+      if (options?.startDate) {
+        conditions.push(gte(orbSpiritCollaborationMetrics.date, options.startDate));
+      }
+
+      if (options?.endDate) {
+        conditions.push(lte(orbSpiritCollaborationMetrics.date, options.endDate));
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+
+      query = query.orderBy(desc(orbSpiritCollaborationMetrics.date)) as any;
+
+      if (options?.limit) {
+        query = query.limit(options.limit) as any;
+      }
+
+      const rows = await query;
+
+      const metrics: SpiritCollaborationMetric[] = rows.map((row: any) => ({
+        id: row.id,
+        date: row.date,
+        fromSpiritId: row.fromSpiritId,
+        toSpiritId: row.toSpiritId,
+        handoffCount: row.handoffCount,
+        avgHandoffTime: row.avgHandoffTime ?? undefined,
+        successfulHandoffs: row.successfulHandoffs,
+        failedHandoffs: row.failedHandoffs,
+        userSatisfactionScore: row.userSatisfactionScore ?? undefined,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }));
 
       return metrics;
     } catch (error) {
@@ -230,9 +404,56 @@ export class OrbSystemMonitor {
     limit?: number;
   }): Promise<SystemHealthMetric[]> {
     try {
-      // TODO: Query database with filters
+      const db = getDb();
 
-      const metrics: SystemHealthMetric[] = [];
+      // Query database with filters
+      let query = db.select().from(orbSystemHealthMetrics);
+
+      const conditions: any[] = [];
+
+      if (options?.metricType) {
+        conditions.push(eq(orbSystemHealthMetrics.metricType, options.metricType));
+      }
+
+      if (options?.spiritId) {
+        conditions.push(eq(orbSystemHealthMetrics.spiritId, options.spiritId));
+      }
+
+      if (options?.startTime) {
+        conditions.push(gte(orbSystemHealthMetrics.timestamp, options.startTime));
+      }
+
+      if (options?.endTime) {
+        conditions.push(lte(orbSystemHealthMetrics.timestamp, options.endTime));
+      }
+
+      if (options?.unhealthyOnly) {
+        conditions.push(eq(orbSystemHealthMetrics.isHealthy, false));
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+
+      query = query.orderBy(desc(orbSystemHealthMetrics.timestamp)) as any;
+
+      if (options?.limit) {
+        query = query.limit(options.limit) as any;
+      }
+
+      const rows = await query;
+
+      const metrics: SystemHealthMetric[] = rows.map((row: any) => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        metricType: row.metricType as MetricType,
+        spiritId: row.spiritId ?? undefined,
+        value: row.value,
+        unit: row.unit,
+        threshold: row.threshold ?? undefined,
+        isHealthy: row.isHealthy,
+        metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      }));
 
       return metrics;
     } catch (error) {
@@ -259,13 +480,69 @@ export class OrbSystemMonitor {
     byUser?: Record<number, number>;
   }> {
     try {
-      // TODO: Aggregate cost data
+      const db = getDb();
+
+      // Query with filters
+      let query = db.select().from(orbCostAttribution);
+
+      const conditions: any[] = [];
+
+      if (options.userId) {
+        conditions.push(eq(orbCostAttribution.userId, options.userId));
+      }
+
+      if (options.spiritId) {
+        conditions.push(eq(orbCostAttribution.spiritId, options.spiritId));
+      }
+
+      if (options.startDate) {
+        conditions.push(gte(orbCostAttribution.date, options.startDate));
+      }
+
+      if (options.endDate) {
+        conditions.push(lte(orbCostAttribution.date, options.endDate));
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+
+      const rows = await query;
+
+      // Aggregate cost data
+      let totalCost = 0;
+      const bySpirit: Record<string, number> = {};
+      const byTool: Record<string, number> = {};
+      const byUser: Record<number, number> = {};
+
+      for (const row of rows) {
+        const cost = row.estimatedCostUsd ?? 0;
+        totalCost += cost;
+
+        // Aggregate by spirit
+        if (!bySpirit[row.spiritId]) {
+          bySpirit[row.spiritId] = 0;
+        }
+        bySpirit[row.spiritId] += cost;
+
+        // Aggregate by tool
+        if (!byTool[row.toolName]) {
+          byTool[row.toolName] = 0;
+        }
+        byTool[row.toolName] += cost;
+
+        // Aggregate by user
+        if (!byUser[row.userId]) {
+          byUser[row.userId] = 0;
+        }
+        byUser[row.userId] += cost;
+      }
 
       const breakdown = {
-        totalCost: 0,
-        bySpirit: {} as Record<string, number>,
-        byTool: {} as Record<string, number>,
-        byUser: {} as Record<number, number>,
+        totalCost,
+        bySpirit,
+        byTool,
+        byUser: options.userId ? undefined : byUser,
       };
 
       return breakdown;
@@ -298,25 +575,101 @@ export class OrbSystemMonitor {
     }>;
   }> {
     try {
-      // TODO: Aggregate recent health metrics
-      // TODO: Identify issues exceeding thresholds
-      // TODO: Calculate overall health status
+      const db = getDb();
+
+      // Aggregate recent health metrics (last hour)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+      const recentMetrics = await db
+        .select()
+        .from(orbSystemHealthMetrics)
+        .where(gte(orbSystemHealthMetrics.timestamp, oneHourAgo));
+
+      // Calculate aggregate metrics
+      let totalResponseTime = 0;
+      let responseTimeCount = 0;
+      let totalErrors = 0;
+      let totalAttempts = 0;
+      let totalToolSuccess = 0;
+      let totalToolAttempts = 0;
+
+      for (const metric of recentMetrics) {
+        if (metric.metricType === "response_time") {
+          totalResponseTime += metric.value;
+          responseTimeCount++;
+        } else if (metric.metricType === "error_rate") {
+          totalErrors += metric.value;
+          totalAttempts++;
+        } else if (metric.metricType === "tool_success_rate") {
+          totalToolSuccess += metric.value;
+          totalToolAttempts++;
+        }
+      }
+
+      const avgResponseTime = responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0;
+      const errorRate = totalAttempts > 0 ? totalErrors / totalAttempts : 0;
+      const toolSuccessRate = totalToolAttempts > 0 ? totalToolSuccess / totalToolAttempts : 1;
+
+      // Get avg user satisfaction from collaboration metrics (last 7 days)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const collaborationMetrics = await db
+        .select()
+        .from(orbSpiritCollaborationMetrics)
+        .where(gte(orbSpiritCollaborationMetrics.date, sevenDaysAgo));
+
+      let totalSatisfaction = 0;
+      let satisfactionCount = 0;
+      for (const metric of collaborationMetrics) {
+        if (metric.userSatisfactionScore !== null) {
+          totalSatisfaction += metric.userSatisfactionScore;
+          satisfactionCount++;
+        }
+      }
+      const avgUserSatisfaction = satisfactionCount > 0 ? totalSatisfaction / satisfactionCount : 0;
+
+      // Identify issues exceeding thresholds
+      const issues: Array<{
+        type: MetricType;
+        severity: "warning" | "critical";
+        message: string;
+        value: number;
+        threshold: number;
+      }> = [];
+
+      const unhealthyMetrics = recentMetrics.filter(m => !m.isHealthy && m.threshold !== null);
+      for (const metric of unhealthyMetrics) {
+        const severity = metric.value > (metric.threshold! * 2) ? "critical" : "warning";
+        issues.push({
+          type: metric.metricType as MetricType,
+          severity,
+          message: `${metric.metricType} is ${severity}: ${metric.value} ${metric.unit} (threshold: ${metric.threshold} ${metric.unit})`,
+          value: metric.value,
+          threshold: metric.threshold!,
+        });
+      }
+
+      // Calculate overall health status
+      const criticalCount = issues.filter(i => i.severity === "critical").length;
+      const warningCount = issues.filter(i => i.severity === "warning").length;
+
+      let overallHealth: "healthy" | "warning" | "critical" = "healthy";
+      if (criticalCount > 0) {
+        overallHealth = "critical";
+      } else if (warningCount > 2) {
+        overallHealth = "critical";
+      } else if (warningCount > 0) {
+        overallHealth = "warning";
+      }
 
       const summary = {
-        overallHealth: "healthy" as const,
+        overallHealth,
         metrics: {
-          avgResponseTime: 0,
-          errorRate: 0,
-          toolSuccessRate: 0,
-          avgUserSatisfaction: 0,
+          avgResponseTime,
+          errorRate,
+          toolSuccessRate,
+          avgUserSatisfaction,
         },
-        issues: [] as Array<{
-          type: MetricType;
-          severity: "warning" | "critical";
-          message: string;
-          value: number;
-          threshold: number;
-        }>,
+        issues,
       };
 
       return summary;
@@ -340,17 +693,83 @@ export class OrbSystemMonitor {
     userSatisfaction: number;
   }>> {
     try {
-      // TODO: Aggregate collaboration data
-      // TODO: Sort by success rate and satisfaction
+      const db = getDb();
 
-      const top: Array<{
+      // Aggregate collaboration data (last 30 days)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const metrics = await db
+        .select()
+        .from(orbSpiritCollaborationMetrics)
+        .where(gte(orbSpiritCollaborationMetrics.date, thirtyDaysAgo));
+
+      // Aggregate by spirit pair
+      const collaborationMap = new Map<string, {
         fromSpiritId: string;
         toSpiritId: string;
         totalHandoffs: number;
-        successRate: number;
-        avgHandoffTime: number;
-        userSatisfaction: number;
-      }> = [];
+        successfulHandoffs: number;
+        failedHandoffs: number;
+        totalHandoffTime: number;
+        handoffTimeCount: number;
+        totalSatisfaction: number;
+        satisfactionCount: number;
+      }>();
+
+      for (const metric of metrics) {
+        const key = `${metric.fromSpiritId}->${metric.toSpiritId}`;
+        const existing = collaborationMap.get(key);
+
+        if (existing) {
+          existing.totalHandoffs += metric.handoffCount;
+          existing.successfulHandoffs += metric.successfulHandoffs;
+          existing.failedHandoffs += metric.failedHandoffs;
+          if (metric.avgHandoffTime !== null) {
+            existing.totalHandoffTime += metric.avgHandoffTime * metric.handoffCount;
+            existing.handoffTimeCount += metric.handoffCount;
+          }
+          if (metric.userSatisfactionScore !== null) {
+            existing.totalSatisfaction += metric.userSatisfactionScore * metric.handoffCount;
+            existing.satisfactionCount += metric.handoffCount;
+          }
+        } else {
+          collaborationMap.set(key, {
+            fromSpiritId: metric.fromSpiritId,
+            toSpiritId: metric.toSpiritId,
+            totalHandoffs: metric.handoffCount,
+            successfulHandoffs: metric.successfulHandoffs,
+            failedHandoffs: metric.failedHandoffs,
+            totalHandoffTime: metric.avgHandoffTime !== null ? metric.avgHandoffTime * metric.handoffCount : 0,
+            handoffTimeCount: metric.avgHandoffTime !== null ? metric.handoffCount : 0,
+            totalSatisfaction: metric.userSatisfactionScore !== null ? metric.userSatisfactionScore * metric.handoffCount : 0,
+            satisfactionCount: metric.userSatisfactionScore !== null ? metric.handoffCount : 0,
+          });
+        }
+      }
+
+      // Convert to array and calculate averages
+      const top = Array.from(collaborationMap.values())
+        .map(collab => ({
+          fromSpiritId: collab.fromSpiritId,
+          toSpiritId: collab.toSpiritId,
+          totalHandoffs: collab.totalHandoffs,
+          successRate: collab.totalHandoffs > 0
+            ? collab.successfulHandoffs / collab.totalHandoffs
+            : 0,
+          avgHandoffTime: collab.handoffTimeCount > 0
+            ? collab.totalHandoffTime / collab.handoffTimeCount
+            : 0,
+          userSatisfaction: collab.satisfactionCount > 0
+            ? collab.totalSatisfaction / collab.satisfactionCount
+            : 0,
+        }))
+        .sort((a, b) => {
+          // Sort by success rate and satisfaction
+          const scoreA = a.successRate * 0.6 + a.userSatisfaction * 0.4;
+          const scoreB = b.successRate * 0.6 + b.userSatisfaction * 0.4;
+          return scoreB - scoreA;
+        })
+        .slice(0, limit);
 
       return top;
     } catch (error) {
@@ -409,15 +828,65 @@ export class OrbSystemMonitor {
     sampleCount: number;
   }>> {
     try {
-      // TODO: Aggregate metrics by day
+      const db = getDb();
 
-      const trends: Array<{
+      // Aggregate metrics by day
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      startDate.setHours(0, 0, 0, 0);
+
+      let query = db
+        .select()
+        .from(orbSystemHealthMetrics)
+        .where(
+          and(
+            eq(orbSystemHealthMetrics.metricType, metricType),
+            gte(orbSystemHealthMetrics.timestamp, startDate)
+          )
+        );
+
+      if (spiritId) {
+        query = query.where(
+          and(
+            eq(orbSystemHealthMetrics.metricType, metricType),
+            eq(orbSystemHealthMetrics.spiritId, spiritId),
+            gte(orbSystemHealthMetrics.timestamp, startDate)
+          )
+        ) as any;
+      }
+
+      const metrics = await query;
+
+      // Group by day
+      const dayMap = new Map<string, {
         date: Date;
-        avgValue: number;
-        minValue: number;
-        maxValue: number;
-        sampleCount: number;
-      }> = [];
+        values: number[];
+      }>();
+
+      for (const metric of metrics) {
+        const date = new Date(metric.timestamp);
+        date.setHours(0, 0, 0, 0);
+        const dateKey = date.toISOString().split('T')[0];
+
+        if (!dayMap.has(dateKey)) {
+          dayMap.set(dateKey, { date, values: [] });
+        }
+        dayMap.get(dateKey)!.values.push(metric.value);
+      }
+
+      // Calculate aggregates for each day
+      const trends = Array.from(dayMap.values())
+        .map(day => {
+          const values = day.values;
+          const sum = values.reduce((a, b) => a + b, 0);
+          return {
+            date: day.date,
+            avgValue: sum / values.length,
+            minValue: Math.min(...values),
+            maxValue: Math.max(...values),
+            sampleCount: values.length,
+          };
+        })
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
 
       return trends;
     } catch (error) {
@@ -446,16 +915,101 @@ export class OrbSystemMonitor {
       const targetDate = date ?? new Date();
       targetDate.setHours(0, 0, 0, 0);
 
-      // TODO: Aggregate all metrics for the day
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const db = getDb();
+
+      // Aggregate all metrics for the day
+
+      // Get collaboration metrics
+      const collaborationMetrics = await db
+        .select()
+        .from(orbSpiritCollaborationMetrics)
+        .where(eq(orbSpiritCollaborationMetrics.date, targetDate));
+
+      let totalHandoffs = 0;
+      let successfulHandoffs = 0;
+      let failedHandoffs = 0;
+
+      for (const metric of collaborationMetrics) {
+        totalHandoffs += metric.handoffCount;
+        successfulHandoffs += metric.successfulHandoffs;
+        failedHandoffs += metric.failedHandoffs;
+      }
+
+      const successRate = totalHandoffs > 0 ? successfulHandoffs / totalHandoffs : 0;
+
+      // Get health metrics
+      const healthMetrics = await db
+        .select()
+        .from(orbSystemHealthMetrics)
+        .where(
+          and(
+            gte(orbSystemHealthMetrics.timestamp, targetDate),
+            lte(orbSystemHealthMetrics.timestamp, nextDay)
+          )
+        );
+
+      let totalResponseTime = 0;
+      let responseTimeCount = 0;
+      const unhealthyMetrics = [];
+
+      for (const metric of healthMetrics) {
+        if (metric.metricType === "response_time") {
+          totalResponseTime += metric.value;
+          responseTimeCount++;
+        }
+        if (!metric.isHealthy) {
+          unhealthyMetrics.push(metric);
+        }
+      }
+
+      const avgResponseTime = responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0;
+
+      // Get cost data
+      const costMetrics = await db
+        .select()
+        .from(orbCostAttribution)
+        .where(eq(orbCostAttribution.date, targetDate));
+
+      let totalCost = 0;
+      for (const cost of costMetrics) {
+        totalCost += cost.estimatedCostUsd ?? 0;
+      }
+
+      // Identify top issues
+      const topIssues = unhealthyMetrics
+        .slice(0, 5)
+        .map(m => `${m.metricType}: ${m.value} ${m.unit}`);
+
+      // Generate recommendations
+      const recommendations: string[] = [];
+
+      if (successRate < 0.9 && totalHandoffs > 0) {
+        recommendations.push("Consider reviewing spirit handoff logic - success rate is below 90%");
+      }
+
+      if (avgResponseTime > 5000) {
+        recommendations.push("Response times are elevated - consider performance optimization");
+      }
+
+      if (unhealthyMetrics.length > 10) {
+        recommendations.push("Multiple health metrics are unhealthy - investigate system load");
+      }
+
+      if (totalCost > 100) {
+        recommendations.push("Daily costs are high - review cost optimization opportunities");
+      }
 
       const summary = {
         date: targetDate,
-        totalHandoffs: 0,
-        successRate: 0,
-        avgResponseTime: 0,
-        totalCost: 0,
-        topIssues: [] as string[],
-        recommendations: [] as string[],
+        totalHandoffs,
+        successRate,
+        avgResponseTime,
+        totalCost,
+        topIssues,
+        recommendations,
       };
 
       logger.info("orb_daily_summary_generated", {
