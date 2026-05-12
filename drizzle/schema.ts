@@ -2383,3 +2383,538 @@ export const studioVersions = mysqlTable(
 
 export type StudioVersion = typeof studioVersions.$inferSelect;
 export type InsertStudioVersion = typeof studioVersions.$inferInsert;
+
+// ─── Orb Long-Term Memory ───────────────────────────────────────────────
+export const orbLongTermMemories = mysqlTable(
+  "orb_long_term_memories",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    memoryType: mysqlEnum("memoryType", [
+      "user_fact",
+      "user_preference",
+      "skill_learned",
+      "workflow_pattern",
+      "error_solution",
+      "success_recipe",
+      "context_snippet",
+    ]).notNull(),
+    content: text("content").notNull(),
+    importanceScore: decimal("importanceScore", { precision: 3, scale: 2 })
+      .notNull()
+      .default("0.50"),
+    embeddingVector: json("embeddingVector").$type<number[]>(),
+    sourceType: mysqlEnum("sourceType", [
+      "conversation",
+      "action",
+      "observation",
+      "inference",
+    ])
+      .notNull()
+      .default("conversation"),
+    sourceId: varchar("sourceId", { length: 128 }),
+    spiritId: varchar("spiritId", { length: 64 }),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    accessCount: int("accessCount").notNull().default(0),
+    lastAccessedAt: timestamp("lastAccessedAt"),
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdx: index("orb_ltm_user_idx").on(table.userId),
+    userTypeIdx: index("orb_ltm_user_type_idx").on(table.userId, table.memoryType),
+    importanceIdx: index("orb_ltm_importance_idx").on(
+      table.userId,
+      table.importanceScore
+    ),
+    spiritIdx: index("orb_ltm_spirit_idx").on(table.spiritId),
+    accessedIdx: index("orb_ltm_accessed_idx").on(table.lastAccessedAt),
+    expiresIdx: index("orb_ltm_expires_idx").on(table.expiresAt),
+  })
+);
+
+export type OrbLongTermMemory = typeof orbLongTermMemories.$inferSelect;
+export type InsertOrbLongTermMemory = typeof orbLongTermMemories.$inferInsert;
+
+export const orbMemoryAssociations = mysqlTable(
+  "orb_memory_associations",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    fromMemoryId: bigint("fromMemoryId", { mode: "number" }).notNull(),
+    toMemoryId: bigint("toMemoryId", { mode: "number" }).notNull(),
+    associationType: mysqlEnum("associationType", [
+      "related_to",
+      "caused_by",
+      "part_of",
+      "similar_to",
+      "contradicts",
+      "supersedes",
+    ])
+      .notNull()
+      .default("related_to"),
+    strength: decimal("strength", { precision: 3, scale: 2 })
+      .notNull()
+      .default("0.50"),
+    createdBy: varchar("createdBy", { length: 64 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    uniqueAssoc: uniqueIndex("orb_memory_assoc_uk").on(
+      table.fromMemoryId,
+      table.toMemoryId,
+      table.associationType
+    ),
+    fromIdx: index("orb_memory_assoc_from_idx").on(table.fromMemoryId),
+    toIdx: index("orb_memory_assoc_to_idx").on(table.toMemoryId),
+    strengthIdx: index("orb_memory_assoc_strength_idx").on(table.strength),
+  })
+);
+
+export type OrbMemoryAssociation = typeof orbMemoryAssociations.$inferSelect;
+export type InsertOrbMemoryAssociation = typeof orbMemoryAssociations.$inferInsert;
+
+// ─── Orb Intent Clarification ───────────────────────────────────────────
+export const orbIntentLogs = mysqlTable(
+  "orb_intent_logs",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    conversationId: varchar("conversationId", { length: 128 }).notNull(),
+    userInput: text("userInput").notNull(),
+    detectedIntents: json("detectedIntents")
+      .$type<Array<{ intent: string; confidence: number; category: string }>>()
+      .notNull(),
+    primaryIntent: varchar("primaryIntent", { length: 128 }),
+    intentConfidence: decimal("intentConfidence", { precision: 3, scale: 2 }),
+    ambiguityScore: decimal("ambiguityScore", { precision: 3, scale: 2 }),
+    needsClarification: boolean("needsClarification").notNull().default(false),
+    context: json("context").$type<Record<string, unknown>>(),
+    spiritAssigned: varchar("spiritAssigned", { length: 64 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdx: index("orb_intent_user_idx").on(table.userId),
+    convIdx: index("orb_intent_conv_idx").on(table.conversationId),
+    primaryIdx: index("orb_intent_primary_idx").on(table.primaryIntent),
+    needsClarificationIdx: index("orb_intent_needs_clarification_idx").on(
+      table.needsClarification
+    ),
+    createdIdx: index("orb_intent_created_idx").on(table.createdAt),
+  })
+);
+
+export type OrbIntentLog = typeof orbIntentLogs.$inferSelect;
+export type InsertOrbIntentLog = typeof orbIntentLogs.$inferInsert;
+
+export const orbClarificationHistory = mysqlTable(
+  "orb_clarification_history",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    intentLogId: bigint("intentLogId", { mode: "number" }).notNull(),
+    userId: int("userId").notNull(),
+    conversationId: varchar("conversationId", { length: 128 }).notNull(),
+    clarificationQuestion: text("clarificationQuestion").notNull(),
+    questionType: mysqlEnum("questionType", [
+      "choice",
+      "confirm",
+      "parameter",
+      "constraint",
+      "preference",
+      "context",
+    ]).notNull(),
+    options: json("options").$type<
+      Array<{ value: string; label: string; description?: string }>
+    >(),
+    userAnswer: text("userAnswer"),
+    answeredAt: timestamp("answeredAt"),
+    resolvedIntent: varchar("resolvedIntent", { length: 128 }),
+    resolutionConfidence: decimal("resolutionConfidence", {
+      precision: 3,
+      scale: 2,
+    }),
+    spiritAsked: varchar("spiritAsked", { length: 64 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    intentIdx: index("orb_clarif_intent_idx").on(table.intentLogId),
+    userIdx: index("orb_clarif_user_idx").on(table.userId),
+    convIdx: index("orb_clarif_conv_idx").on(table.conversationId),
+    typeIdx: index("orb_clarif_type_idx").on(table.questionType),
+    answeredIdx: index("orb_clarif_answered_idx").on(table.answeredAt),
+  })
+);
+
+export type OrbClarificationHistory = typeof orbClarificationHistory.$inferSelect;
+export type InsertOrbClarificationHistory = typeof orbClarificationHistory.$inferInsert;
+
+export const orbUserAnswerPatterns = mysqlTable(
+  "orb_user_answer_patterns",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    questionType: varchar("questionType", { length: 64 }).notNull(),
+    contextPattern: text("contextPattern"),
+    commonAnswers: json("commonAnswers")
+      .$type<Array<{ answer: string; frequency: number; lastUsed: string }>>()
+      .notNull(),
+    defaultPreference: text("defaultPreference"),
+    confidenceScore: decimal("confidenceScore", { precision: 3, scale: 2 })
+      .notNull()
+      .default("0.50"),
+    sampleCount: int("sampleCount").notNull().default(0),
+    lastUpdatedAt: timestamp("lastUpdatedAt").defaultNow().onUpdateNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdx: index("orb_answer_user_idx").on(table.userId),
+    confidenceIdx: index("orb_answer_confidence_idx").on(
+      table.userId,
+      table.confidenceScore
+    ),
+  })
+);
+
+export type OrbUserAnswerPattern = typeof orbUserAnswerPatterns.$inferSelect;
+export type InsertOrbUserAnswerPattern = typeof orbUserAnswerPatterns.$inferInsert;
+
+// ─── Orb Feature Discovery ──────────────────────────────────────────────
+export const orbFeatureUsageStats = mysqlTable(
+  "orb_feature_usage_stats",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    featureId: varchar("featureId", { length: 128 }).notNull(),
+    usageCount: int("usageCount").notNull().default(0),
+    successCount: int("successCount").notNull().default(0),
+    failureCount: int("failureCount").notNull().default(0),
+    avgDuration: decimal("avgDuration", { precision: 10, scale: 2 }),
+    lastUsedAt: timestamp("lastUsedAt"),
+    firstUsedAt: timestamp("firstUsedAt").defaultNow().notNull(),
+    proficiencyScore: decimal("proficiencyScore", { precision: 3, scale: 2 }),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    uniqueUserFeature: uniqueIndex("orb_feature_usage_uk").on(
+      table.userId,
+      table.featureId
+    ),
+    userIdx: index("orb_feature_usage_user_idx").on(table.userId),
+    featureIdx: index("orb_feature_usage_feature_idx").on(table.featureId),
+    lastUsedIdx: index("orb_feature_usage_last_used_idx").on(
+      table.userId,
+      table.lastUsedAt
+    ),
+    proficiencyIdx: index("orb_feature_usage_proficiency_idx").on(
+      table.userId,
+      table.proficiencyScore
+    ),
+  })
+);
+
+export type OrbFeatureUsageStat = typeof orbFeatureUsageStats.$inferSelect;
+export type InsertOrbFeatureUsageStat = typeof orbFeatureUsageStats.$inferInsert;
+
+export const orbFeatureDiscoveryPaths = mysqlTable(
+  "orb_feature_discovery_paths",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    featureId: varchar("featureId", { length: 128 }).notNull(),
+    discoveryMethod: mysqlEnum("discoveryMethod", [
+      "orb_suggestion",
+      "menu_exploration",
+      "search",
+      "tutorial",
+      "friend_share",
+      "documentation",
+      "accident",
+    ]).notNull(),
+    fromFeatureId: varchar("fromFeatureId", { length: 128 }),
+    context: text("context"),
+    timeToFirstUse: int("timeToFirstUse"),
+    discoveredAt: timestamp("discoveredAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdx: index("orb_discovery_user_idx").on(table.userId),
+    featureIdx: index("orb_discovery_feature_idx").on(table.featureId),
+    methodIdx: index("orb_discovery_method_idx").on(table.discoveryMethod),
+    fromIdx: index("orb_discovery_from_idx").on(table.fromFeatureId),
+  })
+);
+
+export type OrbFeatureDiscoveryPath = typeof orbFeatureDiscoveryPaths.$inferSelect;
+export type InsertOrbFeatureDiscoveryPath = typeof orbFeatureDiscoveryPaths.$inferInsert;
+
+export const orbFeatureRecommendations = mysqlTable(
+  "orb_feature_recommendations",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    featureId: varchar("featureId", { length: 128 }).notNull(),
+    reason: text("reason").notNull(),
+    relevanceScore: decimal("relevanceScore", { precision: 3, scale: 2 }).notNull(),
+    basedOnFeatures: json("basedOnFeatures").$type<string[]>(),
+    presentedAt: timestamp("presentedAt").defaultNow().notNull(),
+    clickedAt: timestamp("clickedAt"),
+    usedAt: timestamp("usedAt"),
+    dismissedAt: timestamp("dismissedAt"),
+    feedbackRating: int("feedbackRating"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdx: index("orb_feature_rec_user_idx").on(table.userId),
+    featureIdx: index("orb_feature_rec_feature_idx").on(table.featureId),
+    presentedIdx: index("orb_feature_rec_presented_idx").on(table.presentedAt),
+    relevanceIdx: index("orb_feature_rec_relevance_idx").on(
+      table.userId,
+      table.relevanceScore
+    ),
+  })
+);
+
+export type OrbFeatureRecommendation = typeof orbFeatureRecommendations.$inferSelect;
+export type InsertOrbFeatureRecommendation = typeof orbFeatureRecommendations.$inferInsert;
+
+// ─── Orb Workflow Automation ────────────────────────────────────────────
+export const orbWorkflowTemplates = mysqlTable(
+  "orb_workflow_templates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    creatorUserId: int("creatorUserId"),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    category: varchar("category", { length: 64 }).notNull(),
+    isPublic: boolean("isPublic").notNull().default(false),
+    isVerified: boolean("isVerified").notNull().default(false),
+    steps: json("steps")
+      .$type<
+        Array<{
+          stepId: string;
+          spiritId: string;
+          toolName: string;
+          parameters: Record<string, unknown>;
+          conditions?: {
+            skipIf?: string;
+            retryOn?: string[];
+            maxRetries?: number;
+          };
+          description?: string;
+        }>
+      >()
+      .notNull(),
+    inputSchema: json("inputSchema").$type<Record<string, unknown>>(),
+    outputSchema: json("outputSchema").$type<Record<string, unknown>>(),
+    estimatedDuration: int("estimatedDuration"),
+    difficulty: mysqlEnum("difficulty", ["beginner", "intermediate", "advanced"])
+      .notNull()
+      .default("beginner"),
+    tags: json("tags").$type<string[]>(),
+    usageCount: int("usageCount").notNull().default(0),
+    avgRating: decimal("avgRating", { precision: 3, scale: 2 }),
+    ratingCount: int("ratingCount").notNull().default(0),
+    version: varchar("version", { length: 32 }).notNull().default("1.0.0"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    creatorIdx: index("orb_workflow_tmpl_creator_idx").on(table.creatorUserId),
+    categoryIdx: index("orb_workflow_tmpl_category_idx").on(table.category),
+    publicIdx: index("orb_workflow_tmpl_public_idx").on(
+      table.isPublic,
+      table.avgRating
+    ),
+    usageIdx: index("orb_workflow_tmpl_usage_idx").on(table.usageCount),
+  })
+);
+
+export type OrbWorkflowTemplate = typeof orbWorkflowTemplates.$inferSelect;
+export type InsertOrbWorkflowTemplate = typeof orbWorkflowTemplates.$inferInsert;
+
+export const orbWorkflowExecutions = mysqlTable(
+  "orb_workflow_executions",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    templateId: int("templateId").notNull(),
+    userId: int("userId").notNull(),
+    conversationId: varchar("conversationId", { length: 128 }),
+    status: mysqlEnum("status", [
+      "pending",
+      "running",
+      "paused",
+      "completed",
+      "failed",
+      "cancelled",
+    ])
+      .notNull()
+      .default("pending"),
+    inputs: json("inputs").$type<Record<string, unknown>>(),
+    outputs: json("outputs").$type<Record<string, unknown>>(),
+    currentStepIndex: int("currentStepIndex").notNull().default(0),
+    totalSteps: int("totalSteps").notNull(),
+    startedAt: timestamp("startedAt"),
+    completedAt: timestamp("completedAt"),
+    durationSeconds: int("durationSeconds"),
+    error: text("error"),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    templateIdx: index("orb_workflow_exec_template_idx").on(table.templateId),
+    userIdx: index("orb_workflow_exec_user_idx").on(table.userId),
+    statusIdx: index("orb_workflow_exec_status_idx").on(
+      table.status,
+      table.updatedAt
+    ),
+    convIdx: index("orb_workflow_exec_conv_idx").on(table.conversationId),
+  })
+);
+
+export type OrbWorkflowExecution = typeof orbWorkflowExecutions.$inferSelect;
+export type InsertOrbWorkflowExecution = typeof orbWorkflowExecutions.$inferInsert;
+
+export const orbWorkflowStepExecutions = mysqlTable(
+  "orb_workflow_step_executions",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    executionId: bigint("executionId", { mode: "number" }).notNull(),
+    stepIndex: int("stepIndex").notNull(),
+    stepId: varchar("stepId", { length: 128 }).notNull(),
+    spiritId: varchar("spiritId", { length: 64 }).notNull(),
+    toolName: varchar("toolName", { length: 128 }).notNull(),
+    status: mysqlEnum("status", [
+      "pending",
+      "running",
+      "completed",
+      "failed",
+      "skipped",
+    ])
+      .notNull()
+      .default("pending"),
+    inputs: json("inputs").$type<Record<string, unknown>>(),
+    outputs: json("outputs").$type<Record<string, unknown>>(),
+    error: text("error"),
+    retryCount: int("retryCount").notNull().default(0),
+    startedAt: timestamp("startedAt"),
+    completedAt: timestamp("completedAt"),
+    durationSeconds: int("durationSeconds"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    uniqueExecutionStep: uniqueIndex("orb_workflow_step_uk").on(
+      table.executionId,
+      table.stepIndex
+    ),
+    execIdx: index("orb_workflow_step_exec_idx").on(table.executionId),
+    statusIdx: index("orb_workflow_step_status_idx").on(table.status),
+    spiritIdx: index("orb_workflow_step_spirit_idx").on(table.spiritId),
+  })
+);
+
+export type OrbWorkflowStepExecution = typeof orbWorkflowStepExecutions.$inferSelect;
+export type InsertOrbWorkflowStepExecution = typeof orbWorkflowStepExecutions.$inferInsert;
+
+// ─── Orb System Monitoring ──────────────────────────────────────────────
+export const orbSpiritCollaborationMetrics = mysqlTable(
+  "orb_spirit_collaboration_metrics",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    date: date("date").notNull(),
+    fromSpiritId: varchar("fromSpiritId", { length: 64 }).notNull(),
+    toSpiritId: varchar("toSpiritId", { length: 64 }).notNull(),
+    handoffCount: int("handoffCount").notNull().default(0),
+    avgHandoffTime: decimal("avgHandoffTime", { precision: 10, scale: 2 }),
+    successfulHandoffs: int("successfulHandoffs").notNull().default(0),
+    failedHandoffs: int("failedHandoffs").notNull().default(0),
+    userSatisfactionScore: decimal("userSatisfactionScore", {
+      precision: 3,
+      scale: 2,
+    }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    uniqueCollabMetric: uniqueIndex("orb_collab_metrics_uk").on(
+      table.date,
+      table.fromSpiritId,
+      table.toSpiritId
+    ),
+    dateIdx: index("orb_collab_metrics_date_idx").on(table.date),
+    fromIdx: index("orb_collab_metrics_from_idx").on(table.fromSpiritId),
+    toIdx: index("orb_collab_metrics_to_idx").on(table.toSpiritId),
+  })
+);
+
+export type OrbSpiritCollaborationMetric = typeof orbSpiritCollaborationMetrics.$inferSelect;
+export type InsertOrbSpiritCollaborationMetric = typeof orbSpiritCollaborationMetrics.$inferInsert;
+
+export const orbSystemHealthMetrics = mysqlTable(
+  "orb_system_health_metrics",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    timestamp: timestamp("timestamp").defaultNow().notNull(),
+    metricType: mysqlEnum("metricType", [
+      "response_time",
+      "error_rate",
+      "tool_success_rate",
+      "user_satisfaction",
+      "memory_usage",
+      "api_latency",
+      "clarification_rate",
+    ]).notNull(),
+    spiritId: varchar("spiritId", { length: 64 }),
+    value: decimal("value", { precision: 10, scale: 2 }).notNull(),
+    unit: varchar("unit", { length: 32 }).notNull(),
+    threshold: decimal("threshold", { precision: 10, scale: 2 }),
+    isHealthy: boolean("isHealthy").notNull().default(true),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+  },
+  table => ({
+    timestampIdx: index("orb_health_timestamp_idx").on(table.timestamp),
+    typeIdx: index("orb_health_type_idx").on(table.metricType, table.timestamp),
+    spiritIdx: index("orb_health_spirit_idx").on(table.spiritId, table.timestamp),
+    unhealthyIdx: index("orb_health_unhealthy_idx").on(
+      table.isHealthy,
+      table.timestamp
+    ),
+  })
+);
+
+export type OrbSystemHealthMetric = typeof orbSystemHealthMetrics.$inferSelect;
+export type InsertOrbSystemHealthMetric = typeof orbSystemHealthMetrics.$inferInsert;
+
+export const orbCostAttribution = mysqlTable(
+  "orb_cost_attribution",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    date: date("date").notNull(),
+    userId: int("userId").notNull(),
+    spiritId: varchar("spiritId", { length: 64 }).notNull(),
+    toolName: varchar("toolName", { length: 128 }).notNull(),
+    usageCount: int("usageCount").notNull().default(0),
+    totalTokens: bigint("totalTokens", { mode: "number" }),
+    totalApiCalls: int("totalApiCalls"),
+    estimatedCostUsd: decimal("estimatedCostUsd", { precision: 10, scale: 4 }),
+    avgDuration: decimal("avgDuration", { precision: 10, scale: 2 }),
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    uniqueCostAttr: uniqueIndex("orb_cost_attr_uk").on(
+      table.date,
+      table.userId,
+      table.spiritId,
+      table.toolName
+    ),
+    dateIdx: index("orb_cost_date_idx").on(table.date),
+    userIdx: index("orb_cost_user_idx").on(table.userId, table.date),
+    spiritIdx: index("orb_cost_spirit_idx").on(table.spiritId, table.date),
+    amountIdx: index("orb_cost_amount_idx").on(table.estimatedCostUsd),
+  })
+);
+
+export type OrbCostAttribution = typeof orbCostAttribution.$inferSelect;
+export type InsertOrbCostAttribution = typeof orbCostAttribution.$inferInsert;

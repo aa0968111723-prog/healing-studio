@@ -5,6 +5,17 @@
  */
 
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
+import {
+  orbFeatureUsageStats,
+  orbFeatureDiscoveryPaths,
+  orbFeatureRecommendations,
+  type OrbFeatureUsageStat,
+  type InsertOrbFeatureUsageStat,
+  type InsertOrbFeatureDiscoveryPath,
+  type InsertOrbFeatureRecommendation,
+} from "../../drizzle/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export type DiscoveryMethod =
   | "orb_suggestion"
@@ -78,12 +89,70 @@ export class OrbFeatureDiscovery {
    */
   async recordUsage(input: RecordUsageInput): Promise<void> {
     try {
-      // TODO: Implement database upsert logic:
-      // - Increment usageCount
-      // - Update successCount or failureCount
-      // - Update avgDuration (running average)
-      // - Update lastUsedAt
-      // - Recalculate proficiencyScore based on success rate and usage frequency
+      const db = await getDb();
+
+      // Check if stats record exists
+      const [existing] = await db
+        .select()
+        .from(orbFeatureUsageStats)
+        .where(
+          and(
+            eq(orbFeatureUsageStats.userId, input.userId),
+            eq(orbFeatureUsageStats.featureId, input.featureId)
+          )
+        );
+
+      if (existing) {
+        // Update existing record
+        const newUsageCount = existing.usageCount + 1;
+        const newSuccessCount = existing.successCount + (input.success ? 1 : 0);
+        const newFailureCount = existing.failureCount + (input.success ? 0 : 1);
+
+        // Calculate new average duration
+        let newAvgDuration = existing.avgDuration
+          ? parseFloat(existing.avgDuration)
+          : undefined;
+        if (input.duration && newAvgDuration) {
+          newAvgDuration =
+            (newAvgDuration * existing.usageCount + input.duration) /
+            newUsageCount;
+        } else if (input.duration) {
+          newAvgDuration = input.duration;
+        }
+
+        // Calculate proficiency score (success rate * log(usage count))
+        const successRate = newSuccessCount / newUsageCount;
+        const proficiencyScore = successRate * Math.log10(newUsageCount + 1);
+
+        await db
+          .update(orbFeatureUsageStats)
+          .set({
+            usageCount: newUsageCount,
+            successCount: newSuccessCount,
+            failureCount: newFailureCount,
+            avgDuration: newAvgDuration ? String(newAvgDuration) : undefined,
+            lastUsedAt: new Date(),
+            proficiencyScore: String(proficiencyScore),
+            metadata: input.metadata ? (JSON.stringify(input.metadata) as any) : undefined,
+          })
+          .where(eq(orbFeatureUsageStats.id, existing.id));
+      } else {
+        // Create new record
+        const proficiencyScore = input.success ? 0.3 : 0.0;
+        const insertData: InsertOrbFeatureUsageStat = {
+          userId: input.userId,
+          featureId: input.featureId,
+          usageCount: 1,
+          successCount: input.success ? 1 : 0,
+          failureCount: input.success ? 0 : 1,
+          avgDuration: input.duration ? String(input.duration) : undefined,
+          lastUsedAt: new Date(),
+          proficiencyScore: String(proficiencyScore),
+          metadata: input.metadata ? (JSON.stringify(input.metadata) as any) : undefined,
+        };
+
+        await db.insert(orbFeatureUsageStats).values(insertData);
+      }
 
       logger.info("orb_feature_usage_recorded", {
         userId: input.userId,
@@ -105,7 +174,17 @@ export class OrbFeatureDiscovery {
    */
   async recordDiscovery(input: RecordDiscoveryInput): Promise<void> {
     try {
-      // TODO: Insert discovery record
+      const db = await getDb();
+
+      const insertData: InsertOrbFeatureDiscoveryPath = {
+        userId: input.userId,
+        featureId: input.featureId,
+        discoveryMethod: input.discoveryMethod,
+        fromFeatureId: input.fromFeatureId,
+        context: input.context,
+      };
+
+      await db.insert(orbFeatureDiscoveryPaths).values(insertData);
 
       logger.info("orb_feature_discovery_recorded", {
         userId: input.userId,
@@ -130,11 +209,35 @@ export class OrbFeatureDiscovery {
     featureId?: string
   ): Promise<FeatureUsageStats[]> {
     try {
-      // TODO: Query database
+      const db = await getDb();
 
-      const stats: FeatureUsageStats[] = [];
+      const conditions = [eq(orbFeatureUsageStats.userId, userId)];
+      if (featureId) {
+        conditions.push(eq(orbFeatureUsageStats.featureId, featureId));
+      }
 
-      return stats;
+      const results = await db
+        .select()
+        .from(orbFeatureUsageStats)
+        .where(and(...conditions))
+        .orderBy(desc(orbFeatureUsageStats.lastUsedAt));
+
+      return results.map((stat) => ({
+        id: String(stat.id),
+        userId: stat.userId,
+        featureId: stat.featureId,
+        usageCount: stat.usageCount,
+        successCount: stat.successCount,
+        failureCount: stat.failureCount,
+        avgDuration: stat.avgDuration ? parseFloat(stat.avgDuration) : undefined,
+        lastUsedAt: stat.lastUsedAt ?? undefined,
+        firstUsedAt: stat.firstUsedAt,
+        proficiencyScore: stat.proficiencyScore
+          ? parseFloat(stat.proficiencyScore)
+          : undefined,
+        metadata: stat.metadata ? JSON.parse(stat.metadata as any) : undefined,
+        updatedAt: stat.updatedAt,
+      }));
     } catch (error) {
       logger.error("orb_get_user_stats_failed", {
         userId,
