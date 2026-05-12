@@ -11,9 +11,11 @@ import {
   orbSpiritCollaborationMetrics,
   orbSystemHealthMetrics,
   orbCostAttribution,
+  orbSystemAlerts,
   type InsertOrbSpiritCollaborationMetric,
   type InsertOrbSystemHealthMetric,
   type InsertOrbCostAttribution,
+  type InsertOrbSystemAlert,
 } from "../../drizzle/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 
@@ -220,8 +222,24 @@ export class OrbSystemMonitor {
           threshold: input.threshold,
         });
 
-        // TODO: Trigger alerts if needed
-        // This would integrate with an alerting system in production
+        // Trigger alert for unhealthy metrics
+        await this.createAlert({
+          alertType: input.threshold && input.value > input.threshold * 2
+            ? "health_critical"
+            : "health_warning",
+          severity: input.threshold && input.value > input.threshold * 2
+            ? "critical"
+            : input.value > (input.threshold || 0) * 1.5
+            ? "high"
+            : "medium",
+          title: `${input.metricType} threshold exceeded`,
+          message: `${input.metricType} for ${input.spiritId || "system"} is ${input.value} ${input.unit}, exceeding threshold of ${input.threshold}`,
+          spiritId: input.spiritId,
+          metricType: input.metricType,
+          metricValue: input.value,
+          threshold: input.threshold,
+          metadata: input.metadata,
+        });
       }
 
       logger.debug("orb_health_metric_recorded", {
@@ -790,19 +808,141 @@ export class OrbSystemMonitor {
     recommendation: string;
   }>> {
     try {
-      // TODO: Analyze cost data
-      // TODO: Identify optimization opportunities:
-      // - High-cost tools with low success rate
-      // - Inefficient workflows (many retries)
-      // - Features with high cost but low usage
-      // - Alternative lower-cost tools
-
+      const db = getDb();
       const optimizations: Array<{
         type: "high_cost_tool" | "inefficient_workflow" | "unused_feature";
         description: string;
         potentialSavings: number;
         recommendation: string;
       }> = [];
+
+      // Get cost data for the last 30 days
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+      // 1. Identify high-cost tools
+      const costByTool = await db
+        .select({
+          spiritId: orbCostAttribution.spiritId,
+          toolName: orbCostAttribution.toolName,
+          totalCost: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd})`,
+          totalUsage: sql<number>`SUM(${orbCostAttribution.usageCount})`,
+          avgCostPerUse: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd}) / SUM(${orbCostAttribution.usageCount})`,
+        })
+        .from(orbCostAttribution)
+        .where(gte(orbCostAttribution.date, thirtyDaysAgo.toISOString().split('T')[0]))
+        .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName)
+        .having(sql`SUM(${orbCostAttribution.estimatedCostUsd}) > 10`)
+        .orderBy(desc(sql`SUM(${orbCostAttribution.estimatedCostUsd})`))
+        .limit(10);
+
+      for (const tool of costByTool) {
+        if (tool.avgCostPerUse > 0.5) {
+          // High cost per use
+          optimizations.push({
+            type: "high_cost_tool",
+            description: `${tool.spiritId}.${tool.toolName} has high cost per use ($${tool.avgCostPerUse.toFixed(4)})`,
+            potentialSavings: tool.totalCost * 0.3, // Assume 30% potential savings
+            recommendation: `Review ${tool.toolName} usage patterns and consider caching, batching, or alternative implementations to reduce API calls.`,
+          });
+        }
+      }
+
+      // 2. Identify unused/low-usage features with cost
+      const lowUsageTools = await db
+        .select({
+          spiritId: orbCostAttribution.spiritId,
+          toolName: orbCostAttribution.toolName,
+          totalCost: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd})`,
+          totalUsage: sql<number>`SUM(${orbCostAttribution.usageCount})`,
+        })
+        .from(orbCostAttribution)
+        .where(gte(orbCostAttribution.date, thirtyDaysAgo.toISOString().split('T')[0]))
+        .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName)
+        .having(
+          and(
+            sql`SUM(${orbCostAttribution.estimatedCostUsd}) > 5`,
+            sql`SUM(${orbCostAttribution.usageCount}) < 10`
+          )
+        );
+
+      for (const tool of lowUsageTools) {
+        optimizations.push({
+          type: "unused_feature",
+          description: `${tool.spiritId}.${tool.toolName} has low usage (${tool.totalUsage} calls) but costs $${tool.totalCost.toFixed(2)}`,
+          potentialSavings: tool.totalCost,
+          recommendation: `Consider disabling or optimizing ${tool.toolName} as it has minimal usage but incurs costs.`,
+        });
+      }
+
+      // 3. Identify cost spikes (tools with increasing costs)
+      const recentWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      recentWeek.setHours(0, 0, 0, 0);
+      const previousWeek = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+      previousWeek.setHours(0, 0, 0, 0);
+
+      const recentCosts = await db
+        .select({
+          spiritId: orbCostAttribution.spiritId,
+          toolName: orbCostAttribution.toolName,
+          totalCost: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd})`,
+        })
+        .from(orbCostAttribution)
+        .where(gte(orbCostAttribution.date, recentWeek.toISOString().split('T')[0]))
+        .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName);
+
+      const previousCosts = await db
+        .select({
+          spiritId: orbCostAttribution.spiritId,
+          toolName: orbCostAttribution.toolName,
+          totalCost: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd})`,
+        })
+        .from(orbCostAttribution)
+        .where(
+          and(
+            gte(orbCostAttribution.date, previousWeek.toISOString().split('T')[0]),
+            lte(orbCostAttribution.date, recentWeek.toISOString().split('T')[0])
+          )
+        )
+        .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName);
+
+      // Compare costs
+      const costMap = new Map<string, { recent: number; previous: number }>();
+      for (const cost of recentCosts) {
+        const key = `${cost.spiritId}:${cost.toolName}`;
+        costMap.set(key, { recent: cost.totalCost, previous: 0 });
+      }
+      for (const cost of previousCosts) {
+        const key = `${cost.spiritId}:${cost.toolName}`;
+        const existing = costMap.get(key);
+        if (existing) {
+          existing.previous = cost.totalCost;
+        } else {
+          costMap.set(key, { recent: 0, previous: cost.totalCost });
+        }
+      }
+
+      for (const [key, costs] of costMap.entries()) {
+        if (costs.previous > 0 && costs.recent > costs.previous * 1.5) {
+          // Cost increased by more than 50%
+          const [spiritId, toolName] = key.split(':');
+          const increase = costs.recent - costs.previous;
+          optimizations.push({
+            type: "inefficient_workflow",
+            description: `${spiritId}.${toolName} cost increased ${((costs.recent / costs.previous - 1) * 100).toFixed(0)}% (from $${costs.previous.toFixed(2)} to $${costs.recent.toFixed(2)})`,
+            potentialSavings: increase * 0.5,
+            recommendation: `Investigate recent changes to ${toolName} that may have increased costs. Look for inefficient retry loops or increased usage patterns.`,
+          });
+        }
+      }
+
+      // Sort by potential savings
+      optimizations.sort((a, b) => b.potentialSavings - a.potentialSavings);
+
+      logger.info("orb_cost_optimizations_analyzed", {
+        optimizationsFound: optimizations.length,
+        totalPotentialSavings: optimizations.reduce((sum, o) => sum + o.potentialSavings, 0),
+      });
 
       return optimizations;
     } catch (error) {
@@ -1030,13 +1170,157 @@ export class OrbSystemMonitor {
    * Set up automatic monitoring (to be called on system startup)
    */
   setupAutomaticMonitoring(): void {
-    // TODO: Set up periodic tasks:
-    // - Record system health metrics every minute
-    // - Generate daily summaries
-    // - Send alerts for critical issues
-    // - Clean up old metric data
+    // Setup periodic background monitoring tasks
+    // Note: In production, these would be scheduled using cron/scheduler service
+    // For now, we log the intent and document the required tasks
 
-    logger.info("orb_automatic_monitoring_setup");
+    logger.info("orb_automatic_monitoring_setup", {
+      tasks: [
+        "Record system health metrics every minute",
+        "Generate daily summaries at midnight",
+        "Check for critical issues every 5 minutes",
+        "Clean up old metric data weekly",
+      ],
+      note: "Integrate with job scheduler (e.g., node-cron, Bull) in production",
+    });
+
+    // Example integration points:
+    // 1. Schedule health check: Every 1 minute
+    //    - Call recordHealthMetric() for each spirit
+    //    - Check error rates, response times, etc.
+    //
+    // 2. Schedule daily summary: Every day at 00:00
+    //    - Call getDailySummary() for previous day
+    //    - Store or send summary report
+    //
+    // 3. Schedule cleanup: Every Sunday at 02:00
+    //    - Delete metrics older than 90 days
+    //    - Archive cost data older than 1 year
+    //
+    // 4. Schedule alert check: Every 5 minutes
+    //    - Query unresolved alerts
+    //    - Escalate critical alerts that remain unresolved
+  }
+
+  /**
+   * Create a system alert
+   */
+  async createAlert(input: {
+    alertType: "health_critical" | "health_warning" | "cost_spike" | "performance_degradation" | "error_rate_high" | "system_overload";
+    severity: "low" | "medium" | "high" | "critical";
+    title: string;
+    message: string;
+    spiritId?: string;
+    metricType?: string;
+    metricValue?: number;
+    threshold?: number;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    try {
+      const db = getDb();
+
+      await db.insert(orbSystemAlerts).values({
+        alertType: input.alertType,
+        severity: input.severity,
+        title: input.title,
+        message: input.message,
+        spiritId: input.spiritId,
+        metricType: input.metricType,
+        metricValue: input.metricValue?.toString(),
+        threshold: input.threshold?.toString(),
+        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+        isResolved: false,
+      });
+
+      logger.warn("orb_alert_created", {
+        type: input.alertType,
+        severity: input.severity,
+        title: input.title,
+        spiritId: input.spiritId,
+      });
+    } catch (error) {
+      logger.error("orb_create_alert_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Get unresolved alerts
+   */
+  async getUnresolvedAlerts(
+    severityFilter?: "low" | "medium" | "high" | "critical"
+  ): Promise<Array<{
+    id: number;
+    alertType: string;
+    severity: string;
+    title: string;
+    message: string;
+    spiritId?: string;
+    metricType?: string;
+    createdAt: Date;
+  }>> {
+    try {
+      const db = getDb();
+
+      const conditions = [eq(orbSystemAlerts.isResolved, false)];
+      if (severityFilter) {
+        conditions.push(eq(orbSystemAlerts.severity, severityFilter));
+      }
+
+      const alerts = await db
+        .select()
+        .from(orbSystemAlerts)
+        .where(and(...conditions))
+        .orderBy(desc(orbSystemAlerts.createdAt))
+        .limit(100);
+
+      return alerts.map(alert => ({
+        id: Number(alert.id),
+        alertType: alert.alertType,
+        severity: alert.severity,
+        title: alert.title,
+        message: alert.message,
+        spiritId: alert.spiritId || undefined,
+        metricType: alert.metricType || undefined,
+        createdAt: alert.createdAt,
+      }));
+    } catch (error) {
+      logger.error("orb_get_alerts_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Resolve an alert
+   */
+  async resolveAlert(
+    alertId: number,
+    resolvedBy?: number,
+    resolutionNotes?: string
+  ): Promise<void> {
+    try {
+      const db = getDb();
+
+      await db
+        .update(orbSystemAlerts)
+        .set({
+          isResolved: true,
+          resolvedAt: sql`CURRENT_TIMESTAMP`,
+          resolvedBy,
+          resolutionNotes,
+        })
+        .where(eq(orbSystemAlerts.id, alertId));
+
+      logger.info("orb_alert_resolved", { alertId, resolvedBy });
+    } catch (error) {
+      logger.error("orb_resolve_alert_failed", {
+        alertId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**

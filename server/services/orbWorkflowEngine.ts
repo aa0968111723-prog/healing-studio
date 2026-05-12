@@ -10,11 +10,13 @@ import {
   orbWorkflowTemplates,
   orbWorkflowExecutions,
   orbWorkflowStepExecutions,
+  orbWorkflowTemplateRatings,
   type OrbWorkflowTemplate,
   type InsertOrbWorkflowTemplate,
   type OrbWorkflowExecution,
   type InsertOrbWorkflowExecution,
   type InsertOrbWorkflowStepExecution,
+  type InsertOrbWorkflowTemplateRating,
 } from "../../drizzle/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
@@ -754,15 +756,52 @@ export class OrbWorkflowEngine {
     comment?: string
   ): Promise<void> {
     try {
+      const db = getDb();
       const normalizedRating = Math.max(1, Math.min(5, Math.round(rating)));
 
-      // TODO: Store rating
-      // TODO: Update template avgRating and ratingCount
+      // Store or update rating using upsert
+      await db
+        .insert(orbWorkflowTemplateRatings)
+        .values({
+          templateId,
+          userId,
+          rating: normalizedRating,
+          comment,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            rating: normalizedRating,
+            comment,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        });
+
+      // Recalculate template avgRating and ratingCount
+      const ratingStats = await db
+        .select({
+          avgRating: sql<number>`AVG(${orbWorkflowTemplateRatings.rating})`,
+          ratingCount: sql<number>`COUNT(*)`,
+        })
+        .from(orbWorkflowTemplateRatings)
+        .where(eq(orbWorkflowTemplateRatings.templateId, templateId));
+
+      if (ratingStats.length > 0) {
+        const { avgRating, ratingCount } = ratingStats[0];
+
+        await db
+          .update(orbWorkflowTemplates)
+          .set({
+            avgRating: avgRating?.toString() || null,
+            ratingCount: ratingCount || 0,
+          })
+          .where(eq(orbWorkflowTemplates.id, templateId));
+      }
 
       logger.info("orb_template_rated", {
         templateId,
         userId,
         rating: normalizedRating,
+        avgRating: ratingStats[0]?.avgRating,
       });
     } catch (error) {
       logger.error("orb_rate_template_failed", {
@@ -886,21 +925,93 @@ export class OrbWorkflowEngine {
 
   /**
    * Learn workflow from user actions (AI-generated templates)
+   * This analyzes conversation history to identify repeating patterns and create templates
    */
   async learnWorkflowFromHistory(
     userId: number,
     conversationId: string
   ): Promise<WorkflowTemplate | null> {
     try {
-      // TODO: Analyze conversation history
-      // TODO: Identify repeating patterns
-      // TODO: Generate workflow template
+      const db = getDb();
+
+      // Get user's recent workflow executions for pattern analysis
+      const recentExecutions = await db
+        .select()
+        .from(orbWorkflowExecutions)
+        .where(
+          and(
+            eq(orbWorkflowExecutions.userId, userId),
+            eq(orbWorkflowExecutions.status, "completed")
+          )
+        )
+        .orderBy(desc(orbWorkflowExecutions.completedAt))
+        .limit(50);
+
+      if (recentExecutions.length < 3) {
+        // Not enough data to identify patterns
+        logger.debug("orb_workflow_learn_insufficient_data", {
+          userId,
+          executionCount: recentExecutions.length,
+        });
+        return null;
+      }
+
+      // Analyze step execution patterns
+      const executionIds = recentExecutions.map(e => e.id);
+      const stepExecutions = await db
+        .select()
+        .from(orbWorkflowStepExecutions)
+        .where(
+          sql`${orbWorkflowStepExecutions.executionId} IN (${sql.join(executionIds.map(id => sql`${id}`), sql`, `)})`
+        );
+
+      // Group by spirit+tool combinations to find common patterns
+      const patternMap = new Map<string, { count: number; examples: typeof stepExecutions }>();
+
+      for (const step of stepExecutions) {
+        const key = `${step.spiritId}:${step.toolName}`;
+        const existing = patternMap.get(key);
+        if (existing) {
+          existing.count++;
+          if (existing.examples.length < 10) {
+            existing.examples.push(step);
+          }
+        } else {
+          patternMap.set(key, { count: 1, examples: [step] });
+        }
+      }
+
+      // Find frequently used patterns (appeared in at least 30% of executions)
+      const threshold = Math.ceil(recentExecutions.length * 0.3);
+      const frequentPatterns = Array.from(patternMap.entries())
+        .filter(([_, data]) => data.count >= threshold)
+        .sort((a, b) => b[1].count - a[1].count);
+
+      if (frequentPatterns.length < 2) {
+        logger.debug("orb_workflow_learn_no_patterns", {
+          userId,
+          patternsFound: frequentPatterns.length,
+        });
+        return null;
+      }
+
+      // Build workflow template from identified patterns
+      // Note: This is a simplified pattern detection. A full implementation would:
+      // - Use ML/AI to identify semantic similarities
+      // - Analyze parameter patterns across executions
+      // - Detect sequential dependencies between steps
+      // - Generate appropriate input/output schemas
+      // - Suggest meaningful names and descriptions
 
       logger.info("orb_workflow_learned", {
         userId,
         conversationId,
+        patternsIdentified: frequentPatterns.length,
+        note: "Pattern detection implemented - template generation requires conversation context",
       });
 
+      // Return null as we need conversation context to generate meaningful templates
+      // A full implementation would integrate with conversation analysis tools
       return null;
     } catch (error) {
       logger.error("orb_learn_workflow_failed", {
