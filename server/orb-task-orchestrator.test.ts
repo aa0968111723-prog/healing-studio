@@ -395,6 +395,75 @@ describe("runOrbTaskToCompletion (multi-step driver)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("passes onRequestReplan through the main loop so injected replacement steps can run", async () => {
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const store = new OrbTaskStore();
+    const created = store.create({
+      userId: 42,
+      intent: "render with recovery",
+      steps: [
+        {
+          id: "step_render",
+          label: "render",
+          uiActions: [],
+          toolCalls: [{ name: "video.render", args: { fps: 30 }, requiresApproval: false }],
+        },
+      ],
+      needsApproval: false,
+    });
+
+    const onRequestReplan = vi.fn(async ({ taskId }: { taskId: string }) => {
+      store.injectRevisedSteps(
+        taskId,
+        42,
+        0,
+        [
+          {
+            id: "step_render_retry",
+            label: "render retry",
+            uiActions: [],
+            toolCalls: [{ name: "video.render", args: { fps: 24 }, requiresApproval: false }],
+          },
+        ],
+      );
+    });
+
+    const result = await runOrbTaskToCompletion({
+      taskId: created.taskId,
+      userId: 42,
+      userRole: "user",
+      tools: ALL_TOOLS,
+      store,
+      onRequestReplan,
+    });
+
+    expect(onRequestReplan).toHaveBeenCalledOnce();
+    expect(result.outcome).toBe("completed");
+    expect(result.stepsRun).toBe(1);
+    expect(result.perStepToolResults[0]?.stepId).toBe("step_render_retry");
+    expect(result.finalTask?.steps[0]?.id).toBe("step_render_retry");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("returns awaiting_approval when an unapproved step requires confirmation", async () => {
     process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
     const fetchMock = vi.fn(async () =>
