@@ -727,6 +727,7 @@ export async function runOrbTaskToCompletion(
       agentPreferences: input.agentPreferences,
       autoApprovedStepsInRun,
       perStepToolResults,
+      onRequestReplan: input.onRequestReplan,
     });
     if (!stepRun.blockedByApproval && stepRun.attempted) autoApprovedStepsInRun += 1;
     for (const r of stepRun.toolResults) {
