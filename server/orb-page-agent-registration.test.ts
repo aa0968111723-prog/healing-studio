@@ -134,3 +134,82 @@ describe("GLOBAL_AGENT_CAPABILITY_REGISTRY", () => {
     }
   });
 });
+
+// ── supportedActions ↔ capability drift guard ────────────────────────────────
+//
+// 這些測試防的是「真實 PageAgent handler 接得了某個 action，但 appRegistry 的
+// supportedActions 沒宣告」這種靜默失敗。static-fallback router 用
+// supportedActions 決定哪個頁面能處理某個 action；若漂移就會出現「光球說
+// 沒人接得了」的假錯誤訊息。詳見 audit-studio-orb-2026-05-14.md O-M3。
+describe("supportedActions ↔ capability drift guard", () => {
+  it("core agent pages have non-empty supportedActions", () => {
+    for (const { id } of REQUIRED_AGENT_PAGES) {
+      const entry = APP_PAGE_REGISTRY.find(e => e.id === id);
+      expect(entry, `${id} missing from registry`).toBeDefined();
+      expect(
+        entry!.supportedActions.length,
+        `${id} has supportsPageAgent=true but supportedActions is empty — static-fallback router will skip it`
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("real-page useRegisterPageAgent capabilities are declared in supportedActions", async () => {
+    // 靜態掃描所有 client 頁面的 useRegisterPageAgent({ pageId, capabilities })
+    // 呼叫，把每個 capability action 對應回 appRegistry，確認 supportedActions
+    // 確實包含該 action。GLOBAL_AGENT_CAPABILITY_REGISTRY 是 cross-product
+    // 形式（每頁 × 所有可能動作），無法區分「實際 handler 接得了」與「只是
+    // 宣告」；要抓真正的 drift 必須讀 .tsx 原始檔。
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { glob } = await import("glob");
+    const REPO_ROOT = path.resolve(__dirname, "..");
+    const PAGES_GLOB = path.join(REPO_ROOT, "client/src/pages/**/*.tsx");
+    const files = await glob(PAGES_GLOB);
+    // navigate / focusElement 由 PageAgentContext 短路（runDispatch 一律先處理
+    // navigate / focusElement，不會走 page handler）；其餘必須出現在 supportedActions。
+    const SHORT_CIRCUITED = new Set(["navigate", "focusElement"]);
+    // 已記載的「intentional exclusion」：頁面 runtime handler 真的接得了某個 action，
+    // 但 appRegistry 的 supportedActions 故意不宣告，以免 static-fallback ranker
+    // 把該 action 路由到 Hub 而不是真正的目的地。新增條目前請務必在 appRegistry.ts
+    // 對應 entry 的註解中說明理由（grep "NOT listed here"）。
+    const INTENTIONAL_EXCLUSIONS = new Set([
+      "create.setTab",
+      "playground.setTab",
+    ]);
+    const missing: string[] = [];
+
+    for (const file of files) {
+      const src = await fs.readFile(file, "utf8");
+      // 抓 pageId
+      const pageIdMatch = src.match(/useRegisterPageAgent\([^)]*?pageId:\s*["']([^"']+)["']/s);
+      if (!pageIdMatch) continue;
+      const pageId = pageIdMatch[1];
+      const entry = APP_PAGE_REGISTRY.find(p => p.id === pageId);
+      if (!entry) {
+        missing.push(`${file}: useRegisterPageAgent({pageId:"${pageId}"}) 但 APP_PAGE_REGISTRY 沒這個 id`);
+        continue;
+      }
+      // 抓所有 capabilities[].action — 容忍多種寫法（單引號 / 雙引號 / 雙空白）
+      const actionRegex = /\baction:\s*["']([a-zA-Z]+)["']/g;
+      let m: RegExpExecArray | null;
+      const declared = new Set<string>();
+      while ((m = actionRegex.exec(src)) !== null) declared.add(m[1]);
+      for (const action of declared) {
+        if (SHORT_CIRCUITED.has(action)) continue;
+        if (INTENTIONAL_EXCLUSIONS.has(`${pageId}.${action}`)) continue;
+        if (!(entry.supportedActions as readonly string[]).includes(action)) {
+          missing.push(
+            `${pageId} (${path.relative(REPO_ROOT, file)}): handler 宣告 action="${action}" ` +
+              `但 appRegistry.supportedActions=${JSON.stringify(entry.supportedActions)} 沒這個 action`
+          );
+        }
+      }
+    }
+
+    expect(
+      missing,
+      `發現 ${missing.length} 處 useRegisterPageAgent / supportedActions 漂移：\n` +
+        missing.join("\n")
+    ).toEqual([]);
+  });
+});

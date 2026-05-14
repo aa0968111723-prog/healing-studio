@@ -503,7 +503,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我把這段記到筆記"],
-    supportedActions: ["setTab", "search", "reset"],
+    supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
     id: "langsmith",

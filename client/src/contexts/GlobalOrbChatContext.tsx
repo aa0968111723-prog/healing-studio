@@ -3199,6 +3199,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.error("[GlobalOrbChat] Action execution error:", reason);
+      // 與 sendMessage 失敗路徑（line ~4541）一致：把錯誤推上
+      // ProactiveEventBus 讓守守精靈能跳出「你可以這樣繞過」的提示，而不只是
+      // console + toast。dedupeKey 取 reason 前 16 字，30 秒內同訊息只通知一次。
+      ProactiveEventBus.publish(
+        "site_error_detected",
+        {
+          endpoint: "orb.actionExecution",
+          errorCode:
+            err instanceof Error && "data" in err
+              ? String((err as { data?: { code?: unknown } }).data?.code ?? "unknown")
+              : "unknown",
+          workaround: "請重新整理頁面，或在光球聊天視窗按「重試」",
+        },
+        { dedupeKey: reason.slice(0, 16) }
+      );
       setWorkflowExecution(prev =>
         prev ? failWorkflowAtCurrentStep(prev, reason, Date.now()) : prev
       );

@@ -536,9 +536,16 @@ export const proStudioRouter = router({
 
         // Sonauto API 限制：prompt + tags + lyrics_prompt 不能三者同時存在
         if (hasPrompt && hasTags && hasLyrics) {
-          // 優先使用 prompt + lyrics，移除 tags（tags 可從 prompt 推斷）
+          // 優先使用 prompt + lyrics，移除 tags（tags 可從 prompt 推斷）。
+          // 帶上 userId / traceId 方便事後比對使用者回報、排查為什麼 tags 沒生效。
+          const traceContext = {
+            userId: ctx.user?.id ?? "anonymous",
+            promptLen: (payload.prompt as string | undefined)?.length ?? 0,
+            droppedTags: payload.tags,
+          };
           console.warn(
-            "[ProStudio] Sonauto: prompt+tags+lyrics all set, dropping tags to comply with API constraints"
+            "[ProStudio] Sonauto: prompt+tags+lyrics all set, dropping tags to comply with API constraints",
+            traceContext
           );
           delete payload.tags;
         }

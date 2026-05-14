@@ -692,13 +692,17 @@ export default function Studio() {
   // RecipeLibraryPanel / VersionHistoryPanel 形同失效。改成從
   // trpc.studio.recipes.list / trpc.studio.versions.list 讀，所有寫入
   // 都同步到 studio_recipes / studio_versions（drizzle schema、migration 0030）。
+  //
+  // retry 設為 1：之前是 retry:false，網路抖動一次就直接顯示空清單；現在允許
+  // 重試一次（exponential backoff 由 React Query 預設處理），仍避免長時間
+  // hold 住 UI。staleTime 30s 表示 30 秒內切回 tab 不會 refetch。
   const recipesQuery = trpc.studio.recipes.list.useQuery(undefined, {
-    retry: false,
+    retry: 1,
     staleTime: 30_000,
   });
   const versionsQuery = trpc.studio.versions.list.useQuery(
     { limit: 50 },
-    { retry: false, staleTime: 30_000 }
+    { retry: 1, staleTime: 30_000 }
   );
   const createRecipeMutation = trpc.studio.recipes.create.useMutation({
     onSuccess: () => recipesQuery.refetch(),
