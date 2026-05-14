@@ -67,11 +67,21 @@ export interface RoleSelection {
   rationale: string;
 }
 
-const KEYWORD_RULES: Array<{
+interface KeywordRule {
   role: AgentRole;
   keywords: readonly string[];
+  /**
+   * Veto phrases — if any negative phrase substring-matches the user text,
+   * this rule is skipped even when a positive keyword matches. Prevents
+   * pre-existing collisions like "畫面糊" hitting image-specialist's 「畫」
+   * (which we previously patched only through global QUALITY_OVERRIDE_HINTS).
+   * Empty / omitted = no vetoes.
+   */
+  negativeKeywords?: readonly string[];
   rationale: string;
-}> = [
+}
+
+const KEYWORD_RULES: Array<KeywordRule> = [
   // Director: explicit multi-step / cross-page workflow asks.
   // 「腳本 / 劇本 / 故事大綱 / 分鏡」這類產出在站內由導演 AI（/director）擁有，
   // 落在這條規則才會把使用者帶過去；沒有的話「做腳本」會被 fallback 成 companion
@@ -134,6 +144,10 @@ const KEYWORD_RULES: Array<{
       "img2img",
       "inpainting",
     ],
+    // 「畫」是強訊號但會在 「畫面糊 / 畫面模糊 / 畫質很差」 等品質抱怨語境誤觸發
+    // （pre-existing global QUALITY_OVERRIDE_HINTS 已處理大部分，但 negative
+    // list 就近放在規則內，未來新增類似抱怨詞時不必再動 override hints）。
+    negativeKeywords: ["畫面糊", "畫面模糊", "畫質差", "畫質糊", "畫質很差"],
     rationale: "user wants image generation or editing assistance",
   },
   // Video Specialist: video generation and editing tasks
@@ -157,6 +171,11 @@ const KEYWORD_RULES: Array<{
       "v2v",
       "video style",
     ],
+    // 「教學影片 / 影片腳本」屬於 director（規劃 / 腳本撰寫），不該被 video-specialist
+    // 攔截。注意：「影片腳本」director 規則本身已 substring-match，但 KEYWORD_RULES
+    // 是按陣列順序匹配第一條，所以 director 在前優先；這份 negative list 是雙保險，
+    // 也涵蓋了 director 規則沒列的衍生詞（例如「動畫腳本」 / 「短片腳本」 也走 director）。
+    negativeKeywords: ["教學影片", "影片腳本", "短片腳本", "動畫腳本", "影片教學"],
     rationale: "user wants video generation or editing assistance",
   },
   // Music Specialist: music and audio generation tasks
@@ -746,11 +765,61 @@ function lowerOnce(s: string): string {
   return (s ?? "").toLowerCase();
 }
 
+// ASCII word-character regex (lower-case haystack is already passed in).
+// We only treat a keyword as ASCII when EVERY char is in [a-z0-9 +.-], so
+// English keywords with hyphens / spaces still match. CJK keywords (any
+// char outside ASCII) fall back to plain substring match — Chinese has no
+// word boundaries; CJK collisions are handled by per-rule negativeKeywords.
+const ASCII_RE = /^[\x00-\x7F]+$/;
+function isAsciiKeyword(k: string): boolean {
+  return ASCII_RE.test(k);
+}
+
+function matchesAsciiKeyword(haystack: string, keyword: string): boolean {
+  // Escape regex specials in user-supplied keyword (they shouldn't have
+  // any but be defensive — '+' / '.' / '*' appear in some lists).
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Word boundary on both sides. \b in JavaScript only works on ASCII
+  // word chars (which is exactly what we want — we already filtered to
+  // ASCII keywords). The haystack is already lower-cased by the caller.
+  const pattern = new RegExp(`(?:^|\\b|[^a-z0-9])${escaped}(?:$|\\b|[^a-z0-9])`, "i");
+  return pattern.test(haystack);
+}
+
+/**
+ * Token-aware keyword match.
+ *   • CJK keywords → plain substring (Chinese has no word boundaries).
+ *     Collisions like 「畫面糊」hitting 「畫」 are filtered out via the
+ *     rule's negativeKeywords list, not here.
+ *   • ASCII keywords → word-boundary regex. Prevents "are" hitting
+ *     "share", "lora" hitting "explorator", etc. — pre-existing
+ *     substring path was leaking these.
+ */
 function matchesAny(haystack: string, keywords: readonly string[]): boolean {
   for (const k of keywords) {
-    if (haystack.includes(k.toLowerCase())) return true;
+    const lowered = k.toLowerCase();
+    if (isAsciiKeyword(lowered)) {
+      if (matchesAsciiKeyword(haystack, lowered)) return true;
+    } else {
+      if (haystack.includes(lowered)) return true;
+    }
   }
   return false;
+}
+
+/**
+ * Does this rule fire for the given text? Wraps matchesAny + the rule's
+ * own negativeKeywords veto list (CJK substring veto, since negatives are
+ * typically Chinese phrases). Returning false here means we let the loop
+ * try the next rule, exactly as if the rule didn't match.
+ */
+function ruleMatches(haystack: string, rule: KeywordRule): boolean {
+  if (rule.negativeKeywords?.length) {
+    for (const neg of rule.negativeKeywords) {
+      if (haystack.includes(neg.toLowerCase())) return false;
+    }
+  }
+  return matchesAny(haystack, rule.keywords);
 }
 
 /**
@@ -806,6 +875,43 @@ const QUALITY_OVERRIDE_HINTS: readonly string[] = [
   "low quality",
   "looks weird",
 ];
+
+// 被 muted 的角色該怎麼降級：使用者把某位精靈靜音時，原本掉到 companion
+// 等同「沒人接」。這份表把每個專精精靈映射到能繼續做事的退路 —
+// 通常是 composer (頁面執行) 或 director (跨頁規劃)。companion 是最後底牌。
+// 設計原則：失去專業精靈時，至少還能跑工具或開規劃。
+const MUTED_FALLBACK_REDIRECT: Record<AgentRole, AgentRole> = {
+  // 內容生成類 → 失去專精時改走 composer 直接在頁面執行
+  "image-specialist": "composer",
+  "video-specialist": "composer",
+  "music-specialist": "composer",
+  "voice-specialist": "composer",
+  "training-specialist": "composer",
+  "inspiration-specialist": "researcher",
+  "anatomy-specialist": "composer",
+  // 規劃 / 教學類 → 退到陪聊
+  director: "companion",
+  "learning-specialist": "companion",
+  "plan-executor": "director",
+  // 主動關懷型 → mute = 不想被打擾，退到 companion
+  accountant: "companion",
+  "quality-coach": "companion",
+  inspector: "companion",
+  "legal-advisor": "companion",
+  "security-guard": "companion",
+  "onboarding-coach": "companion",
+  "community-manager": "companion",
+  // 工具型 → 退到 composer
+  "notes-curator": "composer",
+  "settings-detail": "composer",
+  "chief-orchestrator": "director",
+  // 通用內部角色 (mute 這幾個其實沒實際意義，但補滿型別)
+  composer: "companion",
+  critic: "companion",
+  researcher: "companion",
+  navigator: "companion",
+  companion: "companion",
+};
 
 /**
  * Friendly nicknames that map to a specific AgentRole. Lets users address
@@ -999,33 +1105,59 @@ export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
   const muted = new Set<AgentRole>(input.mutedRoles ?? []);
   const isMuted = (role: AgentRole) => muted.has(role);
 
+  // 第一個被 muted 的命中 — 用於後段選 fallback；不再讓使用者掉到 companion
+  // 後一片靜默。
+  let firstMutedHit: AgentRole | null = null;
+  const recordMuteHit = (role: AgentRole) => {
+    if (!firstMutedHit) firstMutedHit = role;
+  };
+
   // Override 1：強教學訊號優先。沒有這個 guard，「教我怎麼做影片」會
   // 被 video-specialist 的「影片」搶走而失去教學語氣。但若 director 規則
   // 也命中，視為「規劃裡含教學產物」，仍交給 director。
-  if (!isDirectorIntent && !isMuted("learning-specialist") && matchesAny(text, LEARNING_OVERRIDE_HINTS)) {
-    return {
-      role: "learning-specialist",
-      confidence: 0.85,
-      rationale: "user explicitly asked to be taught (LEARNING_OVERRIDE_HINTS)",
-    };
+  if (!isDirectorIntent && matchesAny(text, LEARNING_OVERRIDE_HINTS)) {
+    if (!isMuted("learning-specialist")) {
+      return {
+        role: "learning-specialist",
+        confidence: 0.85,
+        rationale: "user explicitly asked to be taught (LEARNING_OVERRIDE_HINTS)",
+      };
+    }
+    recordMuteHit("learning-specialist");
   }
 
   // Override 2：強品質抱怨訊號優先。「畫面糊」「品質很差」「looks weird」
   // 都是對既有結果不滿意，應該交給巧巧 (quality-coach) 給改寫建議；
   // 沒這個 guard 會被 image-specialist 的單字「畫」substring 搶走。
-  if (!isDirectorIntent && !isMuted("quality-coach") && matchesAny(text, QUALITY_OVERRIDE_HINTS)) {
-    return {
-      role: "quality-coach",
-      confidence: 0.85,
-      rationale: "user complained about output quality (QUALITY_OVERRIDE_HINTS)",
-    };
+  if (!isDirectorIntent && matchesAny(text, QUALITY_OVERRIDE_HINTS)) {
+    if (!isMuted("quality-coach")) {
+      return {
+        role: "quality-coach",
+        confidence: 0.85,
+        rationale: "user complained about output quality (QUALITY_OVERRIDE_HINTS)",
+      };
+    }
+    recordMuteHit("quality-coach");
   }
 
   for (const rule of KEYWORD_RULES) {
-    if (isMuted(rule.role)) continue;
-    if (matchesAny(text, rule.keywords)) {
-      return { role: rule.role, confidence: 0.85, rationale: rule.rationale };
+    if (!ruleMatches(text, rule)) continue;
+    if (isMuted(rule.role)) {
+      recordMuteHit(rule.role);
+      continue;
     }
+    return { role: rule.role, confidence: 0.85, rationale: rule.rationale };
+  }
+
+  // 如果有命中規則但全部被 mute，根據 MUTED_FALLBACK_REDIRECT 找替代角色
+  // 而不是讓使用者掉到 companion 一片靜默。
+  if (firstMutedHit && !isMuted(MUTED_FALLBACK_REDIRECT[firstMutedHit])) {
+    const fallback = MUTED_FALLBACK_REDIRECT[firstMutedHit];
+    return {
+      role: fallback,
+      confidence: 0.6,
+      rationale: `primary role @${firstMutedHit} muted by user — falling back to ${fallback}`,
+    };
   }
 
   // Composer: short imperative + we're already on a studio page.

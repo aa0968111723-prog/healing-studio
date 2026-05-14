@@ -104,20 +104,48 @@ export async function analyzeIntentForOrchestrator(input: {
 /**
  * Process clarification response from user.
  * Extracts chosen dimensions and updates context.
+ *
+ * 兩層命名空間 — 解析「總總澄清」與「使用者澄清」，並把 wizard 維度
+ * (format / duration / style / platform / audience / subject / usecase /
+ * purpose / open) 對應回總總的維度，讓兩層帳本互通。沒有對應映射的
+ * wizard 維度會以原 key 保留，呼叫端仍能讀到完整答案。
  */
 export function processClarificationResponse(
   response: string
 ): Record<string, string> {
   const parsed: Record<string, string> = {};
 
-  // Extract dimension choices from response
+  // Layer 1: 總總's own namespace.
   // Format: "[總總澄清/goal]: 一支短影片（15-60 秒）"
-  const matches = response.matchAll(/\[總總澄清\/([\w]+)\]:\s*(.+?)(?=\[|$)/g);
-
-  for (const match of matches) {
-    const dimension = match[1];
+  const totalMatches = response.matchAll(/\[總總澄清\/([\w]+)\]:\s*(.+?)(?=\[(?:總總澄清|使用者澄清)\/|$)/g);
+  for (const match of totalMatches) {
+    const dim = match[1];
     const choice = match[2].trim();
-    parsed[dimension] = choice;
+    if (dim && choice) parsed[dim] = choice;
+  }
+
+  // Layer 2: wizard's namespace. Map known wizard dims onto 總總's vocab so
+  // analyzeOrchestratorIntent's previousAnswers sees them as already-answered.
+  // Unknown wizard dims pass through verbatim under their own key.
+  const WIZARD_TO_TOTAL: Record<string, string> = {
+    format: "goal",
+    duration: "goal",
+    subject: "goal",
+    style: "complexity",
+    platform: "scope",
+    audience: "scope",
+    usecase: "scope",
+    purpose: "scope",
+  };
+  const wizardMatches = response.matchAll(/\[使用者澄清\/([\w]+)\]:\s*(.+?)(?=\[(?:總總澄清|使用者澄清)\/|$)/g);
+  for (const match of wizardMatches) {
+    const wizardDim = match[1];
+    const choice = match[2].trim();
+    if (!wizardDim || !choice) continue;
+    const mappedKey = WIZARD_TO_TOTAL[wizardDim] ?? wizardDim;
+    // Don't overwrite a more-specific 總總 answer with a wizard answer.
+    if (parsed[mappedKey]) continue;
+    parsed[mappedKey] = choice;
   }
 
   logger.debug("clarification_response_processed", {

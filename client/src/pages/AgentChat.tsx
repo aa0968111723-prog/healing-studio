@@ -147,6 +147,11 @@ const GREETINGS: Record<string, string[]> = {
 
 const AGENT_HOME_ENTRIES = getAgentHomeEntries();
 
+// 急件 escape hatch 文字標記 — 跟 server-side agentPlanner 的 URGENT_MARKERS
+// 對齊，client 端在 user message 上直接亮 ⚡ 徽章，讓使用者立即看到「我懂你急」
+// 即使這條訊息要等 server replan 才會回。改一邊兩邊都改。
+const URGENT_INPUT_RE = /別問了|不要再問|直接做|直接執行|直接跑|我趕時間|趕件|急件|很急|今天就要|現在就要|just do it|skip clarification|stop asking|run it now|go ahead/i;
+
 const NEED_CLUES = [
   "想要的成品與用途（平台/受眾/格式）",
   "尺寸/長寬比/時長/檔案格式",
@@ -2279,6 +2284,51 @@ export default function AgentChat() {
                       <span>{spirit.nickname} 接手</span>
                     </button>
                   )}
+                  {/* 急件徽章 — 偵測使用者自己輸入的「急 / 直接做 / skip」，跟
+                      server-side URGENT_MARKERS 對齊。讓使用者立即看到「我懂你急」。 */}
+                  {msg.role === "user" && URGENT_INPUT_RE.test(msg.text) && (
+                    <span
+                      className="mb-1.5 ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100/90 text-amber-700 text-[10px] font-medium ring-1 ring-amber-300/60"
+                      title="急件模式：光球會跳過 MIN 3 輪澄清，用 registry 預設值直接出計畫，缺哪一塊會在 summary 裡告訴你。"
+                      data-testid="message-urgent-badge"
+                    >
+                      <span aria-hidden>⚡</span>
+                      <span>急件模式</span>
+                    </span>
+                  )}
+                  {/* 後端通知 chip：精靈靜音 fallback / 模式重擬計畫 / circuit replan 等
+                      行為以前是「黑箱」，現在 inline 顯示給使用者看。 */}
+                  {msg.role === "orb" && msg.notices?.length ? (
+                    <div className="mb-1.5 flex flex-wrap gap-1">
+                      {msg.notices.map((notice, ni) => (
+                        <span
+                          key={`${notice.kind}-${ni}`}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ring-1 ${
+                            notice.kind === "muted_fallback"
+                              ? "bg-slate-100/90 text-slate-600 ring-slate-300/60 dark:bg-slate-700/40 dark:text-slate-300 dark:ring-slate-600/60"
+                              : notice.kind === "mode_replan"
+                                ? "bg-violet-100/90 text-violet-700 ring-violet-300/60"
+                                : notice.kind === "circuit_replan"
+                                  ? "bg-orange-100/90 text-orange-700 ring-orange-300/60"
+                                  : "bg-amber-100/90 text-amber-700 ring-amber-300/60"
+                          }`}
+                          title={notice.tooltip}
+                          data-testid={`message-notice-${notice.kind}`}
+                        >
+                          <span aria-hidden>
+                            {notice.kind === "muted_fallback"
+                              ? "🔇"
+                              : notice.kind === "mode_replan"
+                                ? "♻️"
+                                : notice.kind === "circuit_replan"
+                                  ? "🔁"
+                                  : "⚡"}
+                          </span>
+                          <span>{notice.text}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {msg.intent && msg.role === "orb" && (
                     <div className="mb-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
                       💭 {msg.intent}
