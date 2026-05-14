@@ -563,13 +563,31 @@ function ApiKeyBanner() {
       className="rounded-xl border border-amber-300/60 bg-amber-50/70 dark:bg-amber-900/20 px-3 py-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2 leading-relaxed"
     >
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-      <div>
+      <div className="space-y-1.5">
         <p className="font-semibold">FAL_API_KEY 尚未設定</p>
-        <p className="mt-0.5">
+        <p>
           影片創作室所有模型都仰賴 fal.ai。請在 Railway → Environment Variables
           中新增 <code className="font-mono">FAL_API_KEY</code> 後重啟服務，否則
           按下生成會立即失敗。
         </p>
+        <div className="flex flex-wrap gap-2 pt-0.5">
+          <a
+            href="https://fal.ai/dashboard/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-100/60 dark:bg-amber-900/40 px-2 py-1 font-medium hover:bg-amber-200/60 dark:hover:bg-amber-900/60 transition-colors"
+          >
+            取得 fal.ai 金鑰 →
+          </a>
+          <a
+            href="https://railway.app/dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-100/60 dark:bg-amber-900/40 px-2 py-1 font-medium hover:bg-amber-200/60 dark:hover:bg-amber-900/60 transition-colors"
+          >
+            前往 Railway 環境變數 →
+          </a>
+        </div>
       </div>
     </div>
   );

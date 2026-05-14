@@ -1,11 +1,35 @@
 # 創作工作室 × 光球助手 — 深度盤點報告
 
-- **日期**：2026-05-14
+- **日期**：2026-05-14（初版） / 2026-05-14（補充修復狀態）
 - **分支**：`claude/audit-studio-assistant-psWoF`
 - **盤點範圍**：
   1. 創作工作室（`/create`、`/studio`、`/image-studio`、`/video-studio`、`/pro-studio`）的程式碼健康度與功能缺陷
   2. 駐點在工作室的光球助手（ProactiveOrbWidget / OrbGuidePanel / GlobalOrbChatContext / PageAgentContext / `ai.chat`）的功能與缺陷
 - **方法**：兩個 Explore 子代理 + 主代理交叉驗證；逐項對照 `audit-findings.md`、`orb_connection_report.md`、`orb_optimization_plan.md`、`healing_studio_deep_audit_report.md` 等歷史紀錄，確認哪些已修、哪些仍未修、哪些是新發現。
+
+## 修復進度（commits on this branch）
+
+| 缺陷 | Commit | 狀態 |
+| ---- | ------ | ---- |
+| O-M1 `ENABLE_ORB_*` 寫進 `.env.example` | `ac47dcb` | ✅ 已修 |
+| S-L1 `CREATE_NAV_ALLOWLIST` 含三個專業工作室 | `ac47dcb` | ✅ 已修 |
+| O-M3 AgentPreferencesPage 補 `["navigate"]` | `ac47dcb` | ✅ 已修 |
+| S-M2 `OrbFeatureSearch.tsx` 刪檔 | `ac47dcb` | ✅ 已修 |
+| S-M3 `OrbSystemHealthDashboard.tsx` 刪檔 | `ac47dcb` | ✅ 已修 |
+| S-M1 / O-M4 `studioModality` 多 pageId 推斷 | `ac47dcb` | ✅ 已修 |
+| S-L2 Sonauto warn 帶 userId / promptLen / droppedTags | `9b488cc` | ✅ 已修 |
+| S-L3 Studio recipes/versions `retry: 1` | `9b488cc` | ✅ 已修 |
+| O-L1 action exec error → ProactiveEventBus | `9b488cc` | ✅ 已修 |
+| O-M3 follow-up — 新 CI drift guard 測試 | `9b488cc` | ✅ 已加 |
+| notes 補 `setParam`（drift 測試抓到） | `9b488cc` | ✅ 已修 |
+| O-M2 語音閘道改誠實 stub 模式 + `ENABLE_ORB_VOICE_GATEWAY` flag | 本次 | ✅ 部分修（ASR 整合仍未完成） |
+| S-L4 FAL_API_KEY 提示加 CTA 連結 | 本次 | ✅ 已修 |
+| Legacy ISSUE-01 ThoughtChain 真實時間戳 | 過去已修 | ✅ 已查證（`server/routers.ts:1506-2345`） |
+| S-L5 VideoStudio 文案截斷 | – | ❌ 誤判（grep 視覺截斷） |
+| O-L3 stale 註解 | – | ❌ 誤判（註解仍準確） |
+| O-L4 OrbGuidePanel 拆檔 | – | ⏸ 延後（5K 行需獨立 PR） |
+| O-L5 stripeWebhook TODO | – | ⏸ 等商務決策 |
+| O-L6 SSE/WebSocket 取代 polling | – | ⏸ 架構性變更 |
 
 ---
 

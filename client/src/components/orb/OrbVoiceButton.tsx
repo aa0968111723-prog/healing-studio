@@ -93,6 +93,11 @@ export function OrbVoiceButton({ enabled = true, autoActivate = false }: OrbVoic
           ⚠️ {voice.error}
         </div>
       )}
+      {voice.gatewayMode === "stub" && !voice.error && (
+        <div className="absolute bottom-12 right-0 bg-amber-50 border border-amber-200 p-2 rounded text-xs text-amber-700 max-w-[16rem]">
+          ℹ️ 語音 ASR 仍在串接，此模式回傳的內容皆為 [STUB]
+        </div>
+      )}
     </div>
   );
 }
