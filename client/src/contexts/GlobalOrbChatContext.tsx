@@ -4545,6 +4545,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       // mutation has resolved or thrown.
       setActiveProgressRequestId(null);
     }
+    } finally {
+      setIsSending(false);
+    }
   }, [
     // `messages` intentionally omitted — we read via messagesRef.current so
     // this callback (and every consumer of the context value) doesn't
@@ -4936,9 +4939,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         { conversationId: activeConversationId },
         { onError: () => {} }
       );
-    }
-    } finally {
-      setIsSending(false);
     }
   }, [
     welcomeMessage,
