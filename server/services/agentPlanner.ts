@@ -675,24 +675,44 @@ export async function runSchemaFirstAgentPlanner(
   let rawContent = extractPlannerContent(result);
   let gated = parseAndGatePlan(rawContent, gateOptions);
 
-  // ─── Mode-contract replan (single-pass) ──────────────────────────────
+  // ─── Mode-contract replan (bounded to 2 attempts) ────────────────────
   // When the gate rejects a multi-step plan because the LLM emitted
   // decision.mode='direct' or a phantom-plan reply, re-invoke the planner
-  // ONCE with an explicit refine message naming the violation. Bounded to
-  // one retry so we never loop. If the second attempt still violates,
-  // surface the invalid result and let the chat layer fall back.
-  if (
+  // with an explicit refine message naming the violation. Bounded to 2
+  // retries so a stubborn LLM that still violates on attempt 2 can recover
+  // on attempt 3 — but we never loop indefinitely. Cycle protection: each
+  // retry's `reason` is compared against the previous to detect "the same
+  // violation 3 times in a row" and bail early so we don't burn budget on
+  // a model that's clearly stuck.
+  const MAX_MODE_REPLAN_ATTEMPTS = 2;
+  let modeReplanAttempts = 0;
+  let lastReplanReason: string | null = null;
+  while (
     gateRequestedMode === "multi-step" &&
     gated.status === "invalid" &&
     typeof gated.reason === "string" &&
-    /Multi-step mode contract violated/i.test(gated.reason)
+    /Multi-step mode contract violated/i.test(gated.reason) &&
+    modeReplanAttempts < MAX_MODE_REPLAN_ATTEMPTS
   ) {
+    // Cycle break: if the LLM produced the same gate-rejection reason as
+    // last attempt, further retries are unlikely to converge. Bail.
+    if (lastReplanReason !== null && lastReplanReason === gated.reason) {
+      gated = {
+        ...gated,
+        warnings: [
+          ...gated.warnings,
+          `Mode-contract replan bailed: same violation repeated ${modeReplanAttempts + 1}×.`,
+        ],
+      };
+      break;
+    }
+    lastReplanReason = gated.reason;
     const refineMessages: Message[] = [
       ...input.messages,
       {
         role: "user",
         content:
-          `[Orb safety gate] 上一版計畫違反多步驟代理契約：${gated.reason}\n` +
+          `[Orb safety gate] 第 ${modeReplanAttempts + 1} 次：上一版計畫違反多步驟代理契約：${gated.reason}\n` +
           `請改用 decision.mode='clarification' (單一問題 + 2-4 選項) 或 decision.mode='tasked'（每步必須有 toolName 或非 navigate 的 UI action）。不要把步驟條列寫在 reply 中，也不要問「你想從哪一步開始」。`,
       } as Message,
     ];
@@ -702,8 +722,8 @@ export async function runSchemaFirstAgentPlanner(
         messages: refineMessages,
       }),
       runName: usedMultimodalPlanner
-        ? "orb-agent-gemini-multimodal-planner-mode-refine"
-        : "orb-agent-schema-first-planner-mode-refine",
+        ? `orb-agent-gemini-multimodal-planner-mode-refine-${modeReplanAttempts + 1}`
+        : `orb-agent-schema-first-planner-mode-refine-${modeReplanAttempts + 1}`,
       maxTokens: input.maxTokens ?? 2_500,
       preferEngine: usedMultimodalPlanner ? "gemini" : undefined,
       response_format: {
@@ -717,16 +737,22 @@ export async function runSchemaFirstAgentPlanner(
     });
     const modeReplanRaw = extractPlannerContent(modeReplan);
     const modeReplanGated = parseAndGatePlan(modeReplanRaw, gateOptions);
+    modeReplanAttempts += 1;
     if (modeReplanGated.status !== "invalid") {
       rawContent = modeReplanRaw;
       gated = {
         ...modeReplanGated,
         warnings: [
           ...modeReplanGated.warnings,
-          "Mode-contract replan triggered (multi-step mode enforcement).",
+          `Mode-contract replan succeeded on attempt ${modeReplanAttempts} (multi-step mode enforcement).`,
         ],
       };
+      break;
     }
+    // Still invalid — replace `gated` so the next loop iteration sees the
+    // latest reason for cycle detection and the refine prompt above
+    // references the most recent attempt's violation.
+    gated = modeReplanGated;
   }
 
   // ─── Phase 2 modality coherence gate (single-pass replan) ────────────
@@ -919,7 +945,11 @@ export async function runSchemaFirstAgentPlannerWithCritique(
   if (!workflow) return { ...draft, critique: null, critiqueRefined: false };
 
   const refineBelow = input.critiqueRefineBelow ?? 75;
-  const critique = critiquePlan(workflow, { refineBelow });
+  // Pass the latest user utterance into the critic so the modality coherence
+  // check has something to compare against; without it the critic skips
+  // coherence silently (back-compat).
+  const userText = extractLatestUserTextFromMessages(input.messages);
+  const critique = critiquePlan(workflow, { refineBelow, userText });
   if (!critique.shouldRefine) {
     return { ...draft, critique, critiqueRefined: false };
   }
@@ -970,7 +1000,7 @@ export async function runSchemaFirstAgentPlannerWithCritique(
   let postCritique: PlanCritiqueResult | null = null;
   for (const action of refinedGated.actions) {
     if (action.type === "runWorkflow") {
-      postCritique = critiquePlan(action, { refineBelow });
+      postCritique = critiquePlan(action, { refineBelow, userText });
       break;
     }
   }

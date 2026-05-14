@@ -40,6 +40,18 @@ export interface OrchestratorContext {
     usualProjectSize?: "single_asset" | "multi_step" | "campaign";
     typicalTimeline?: "urgent" | "planned" | "exploratory";
   };
+  /**
+   * Composer mode the user explicitly picked in the chat UI. Each mode has
+   * a different appetite for clarification:
+   *   • navigate    → bar lowered (0.50 floor) — user just wants to jump,
+   *                   don't pepper them with 5 questions.
+   *   • ask-feature → bar lowered (0.50 floor) — pure Q&A, no execution.
+   *   • plan        → standard bar (0.70) — wants to see structure first.
+   *   • multi-step  → bar raised (0.80 ceiling) — autonomous execution
+   *                   deserves more confirmation.
+   * Unset / undefined → standard adaptive bar (back-compat).
+   */
+  requestedMode?: "navigate" | "plan" | "multi-step" | "ask-feature";
 }
 
 /**
@@ -389,6 +401,25 @@ export function clarificationThresholdFor(ctx: OrchestratorContext): number {
   else if (prefs.typicalTimeline === "exploratory") threshold += 0.05;
   if (prefs.preferredQuality === "quality_first") threshold += 0.05;
   else if (prefs.preferredQuality === "cost_sensitive") threshold -= 0.05;
+  // Mode-aware adjustment. Navigate / ask-feature users explicitly told us
+  // they don't want a wizard — drop the bar so we only clarify on truly
+  // ambiguous prompts. Multi-step users opted into autonomous execution,
+  // so raise the bar — better one extra question than a wrong tasked plan.
+  switch (ctx.requestedMode) {
+    case "navigate":
+    case "ask-feature":
+      threshold -= 0.15;
+      break;
+    case "multi-step":
+      threshold += 0.10;
+      break;
+    case "plan":
+      // Standard appetite — plan mode already shows the user the steps
+      // for approval, so we don't need an extra clarification bias.
+      break;
+    default:
+      break;
+  }
   return Math.max(0.5, Math.min(0.85, threshold));
 }
 

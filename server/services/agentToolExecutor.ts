@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
 import { checkAndConsumeQuota } from "./orbQuota";
 import { injectModelPrompt } from "../../shared/modelPromptTemplates";
+import { moderateOrbContent } from "../../shared/orb-content-moderation";
 
 /** Tool names that consume a `generation` daily slot when executed. */
 const GENERATION_SLOT_TOOLS = new Set([
@@ -856,6 +857,25 @@ async function dispatchStudioTool(
   }
 
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  // ── DEF-AG3 內容審核閘門：每步的 prompt / text / script 過 moderateOrbContent ──
+  // 之前 moderation 只 gate planner 的 reply。planner 通過、但個別 step 的
+  // prompt 仍可能夾帶被禁內容（暴力 / 仇恨 / 露骨 / 自殘）— 沒這道 gate
+  // 那段 prompt 會原文送進 fal.ai / Suno / ElevenLabs。block 時直接擋下，
+  // warn 時不擋（self-harm 類別保留訊息但記 audit），讓使用者真的能看到提示。
+  for (const key of ["prompt", "text", "script", "lyrics", "negative_prompt"] as const) {
+    const value = args[key];
+    if (typeof value !== "string" || value.length === 0) continue;
+    const verdict = moderateOrbContent(value);
+    if (verdict.action === "block") {
+      const categories = Array.from(new Set(verdict.findings.map(f => f.category))).join(",");
+      return {
+        name: call.name,
+        ok: false,
+        error: `moderation-blocked:${categories || "policy"}`,
+      };
+    }
+  }
 
   try {
     switch (call.name) {

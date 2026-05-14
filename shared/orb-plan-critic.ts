@@ -18,6 +18,7 @@ import type {
   RunWorkflowAction,
 } from "./agent-actions";
 import { getGlobalAgentTool } from "./global-agent-tools";
+import { checkModalityCoherence } from "./orb-modality-coherence";
 
 export type PlanCritiqueIssueCode =
   | "unknown-tool"
@@ -29,7 +30,8 @@ export type PlanCritiqueIssueCode =
   | "submit-without-prompt"
   | "tool-arg-shape"
   | "dependency-cycle"
-  | "duplicate-step-id";
+  | "duplicate-step-id"
+  | "modality-mismatch";
 
 export interface PlanCritiqueIssue {
   code: PlanCritiqueIssueCode;
@@ -64,6 +66,14 @@ export interface CritiquePlanOptions {
    * repeat fillPrompt to extend prompt text.
    */
   treatRedundantAsWarning?: boolean;
+  /**
+   * Original user text (most recent user message). When supplied, the critic
+   * runs `checkModalityCoherence` against the plan's navigate / setModality
+   * steps and flags an explicit `modality-mismatch` blocker if the user asked
+   * for video but the plan targets /image-studio (or similar). Omitted →
+   * coherence check is skipped (back-compat with existing callers).
+   */
+  userText?: string;
 }
 
 const PLACEHOLDER_RE = /\$\{([^}]+)\}/g;
@@ -396,6 +406,30 @@ export function critiquePlan(
       message: `dependsOn forms a cycle: ${cycle}`,
       suggestion: "break the cycle by removing the back-edge dependsOn entry.",
     });
+  }
+
+  // 5) Modality coherence — only when caller supplied userText. Catches the
+  //    classic "user said video, planner dispatched on /image-studio" defect
+  //    BEFORE the plan ships to the orchestrator. We surface as a warning
+  //    (not blocker) because the heuristic is keyword-based and we'd rather
+  //    let an ambiguous case through than block a valid plan; the refine
+  //    pass will see the warning and rebuild against the correct page.
+  if (options.userText && options.userText.trim().length > 0) {
+    const coherence = checkModalityCoherence({
+      userText: options.userText,
+      steps: steps.map(s => ({
+        action: { type: s.actionType, path: s.path },
+        pagePath: s.path,
+      })),
+    });
+    if (coherence.mismatch) {
+      issues.push({
+        code: "modality-mismatch",
+        severity: "warning",
+        message: coherence.message,
+        suggestion: `Re-plan the step navigation to the ${coherence.declared}-studio page (or set decision.mode='clarification' to confirm).`,
+      });
+    }
   }
 
   const blockers = issues.filter(i => i.severity === "blocker");
