@@ -2244,6 +2244,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           });
           // fire-and-forget — 結果回來後在另一個 setMessages 接起
           void (async () => {
+            const capturedPath = locationPath;
             try {
               const result = await spiritInvokeMut.mutateAsync({
                 spirit: firstGen,
@@ -2254,7 +2255,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                   role: "orb",
                   text: `${genNickname} 嘗試執行時失敗：${result.error ?? "未知錯誤"}`,
                   at: Date.now(),
-                  pagePath: locationPath,
+                  pagePath: capturedPath,
                   agentRole: firstGen,
                 }]);
                 return;
@@ -2306,7 +2307,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                   ? `🎨 ${genNickname} 用 ${result.modelLabel || result.modelId} 完成執行了。`
                   : `${genNickname} 跑完了但沒拿到輸出 URL。`,
                 at: Date.now(),
-                pagePath: locationPath,
+                pagePath: capturedPath,
                 agentRole: firstGen,
                 attachments: attachment ? [attachment] : undefined,
               }]);
@@ -2316,7 +2317,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                 role: "orb",
                 text: `${genNickname} 執行時發生錯誤：${reason}`,
                 at: Date.now(),
-                pagePath: locationPath,
+                pagePath: capturedPath,
                 agentRole: firstGen,
               }]);
             }
@@ -3398,6 +3399,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           tool.kind === "fal-generation" &&
           cleanPrompt.length >= tool.minPromptChars
         ) {
+          const capturedPath = locationPath;
           const stateLabel: Partial<Record<AgentRole, string>> = {
             "image-specialist": "圖圖正在畫…",
             "video-specialist": "影影正在拍…",
@@ -3422,7 +3424,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                 role: "orb",
                 text: `${nickname} 沒辦法完成這次生成：${result.error ?? "未知錯誤"}`,
                 at: Date.now(),
-                pagePath: locationPath,
+                pagePath: capturedPath,
                 agentRole: mentioned,
               }]);
               return;
@@ -3486,7 +3488,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                 ? `🎨 ${nickname} 用 ${result.modelLabel || result.modelId} 完成了。`
                 : `${nickname} 完成了，但沒有取到輸出 URL。`,
               at: Date.now(),
-              pagePath: locationPath,
+              pagePath: capturedPath,
               agentRole: mentioned,
               attachments: attachment ? [attachment] : undefined,
             }]);
@@ -3514,7 +3516,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                   role: "orb",
                   text: `🤝 ${nextNicknames} 接手看一下這個結果，邊想邊給建議…`,
                   at: Date.now(),
-                  pagePath: locationPath,
+                  pagePath: capturedPath,
                   intent: "auto-handoff-discussion",
                 }]);
                 try {
@@ -3537,7 +3539,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                     role: "orb",
                     text: `（接手討論沒跑起來：${reason}）`,
                     at: Date.now(),
-                    pagePath: locationPath,
+                    pagePath: capturedPath,
                   }]);
                 }
               }
@@ -3550,7 +3552,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               role: "orb",
               text: `${nickname} 在呼叫模型時遇到錯誤：${reason}`,
               at: Date.now(),
-              pagePath: locationPath,
+              pagePath: capturedPath,
               agentRole: mentioned,
             }]);
           } finally {
@@ -3587,6 +3589,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
         // ── C) search: 查查走 unifiedSearch ──
         if (tool.kind === "search" && cleanPrompt.length >= tool.minPromptChars) {
+          const capturedPath = locationPath;
           orbState.setState("searching", `${nickname} 找「${cleanPrompt}」`);
           try {
             const result = await trpcUtils.orbProxy.unifiedSearch.fetch({
@@ -3604,7 +3607,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                   ? `${headerText}\n\n${formatUnifiedSearchReply(cleanPrompt, result.items)}`
                   : headerText,
               at: Date.now(),
-              pagePath: locationPath,
+              pagePath: capturedPath,
               agentRole: mentioned,
               searchResults: result.items.length > 0 ? result.items : undefined,
               searchQuery: cleanPrompt,
@@ -3623,7 +3626,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               role: "orb",
               text: `${nickname} 搜尋時遇到問題：${reason}`,
               at: Date.now(),
-              pagePath: locationPath,
+              pagePath: capturedPath,
               agentRole: mentioned,
             }]);
           } finally {
@@ -3646,12 +3649,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           && mentioned === "director"
           && cleanPrompt.length >= 6
         ) {
+          const capturedPath = locationPath;
           orbState.setState("thinking", "導導 開始排計畫…");
           setMessages(prev => [...prev, {
             role: "orb",
             text: `🗺️ 導導 排好計畫後，會把每一步交給對的精靈接手 — 你會看到他們一棒一棒接著做，最後第一位生成型精靈我會真的幫你做出來。`,
             at: Date.now(),
-            pagePath: locationPath,
+            pagePath: capturedPath,
             agentRole: "director",
             intent: "auto-multi-step-discussion",
           }]);
@@ -3677,7 +3681,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               role: "orb",
               text: `導導 啟動多步討論時遇到問題：${reason}`,
               at: Date.now(),
-              pagePath: locationPath,
+              pagePath: capturedPath,
               agentRole: "director",
             }]);
           } finally {
