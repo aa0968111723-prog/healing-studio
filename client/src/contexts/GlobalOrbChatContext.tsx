@@ -692,20 +692,19 @@ function compactHistoryForRequest(history: ChatMessage[]): ChatMessage[] {
   const cleaned = history.filter(m => m.role !== "orb" || m.at !== history[0]?.at);
   if (cleaned.length <= 1) return cleaned;
 
-  const kept: ChatMessage[] = [];
-  let usedChars = 0;
-  for (let i = cleaned.length - 1; i >= 0; i -= 1) {
+  const kept: ChatMessage[] = [cleaned[cleaned.length - 1]];
+  let usedChars = kept[0]?.text.length ?? 0;
+
+  for (let i = cleaned.length - 2; i >= 0; i -= 1) {
     const msg = cleaned[i];
     const msgChars = msg.text.length;
     const exceedChars = usedChars + msgChars > MAX_CHAT_REQUEST_CHARS;
     const exceedCount = kept.length >= MAX_CHAT_REQUEST_MESSAGES;
-    if (exceedChars || exceedCount) {
-      // Keep latest message, but stop adding old history once budget is reached.
-      if (i !== cleaned.length - 1) break;
-    }
+    if (exceedChars || exceedCount) break;
     kept.push(msg);
     usedChars += msgChars;
   }
+
   return kept.reverse();
 }
 
