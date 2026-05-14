@@ -549,25 +549,45 @@ const RECENT_LIMIT = 12;
 // card on every visit. Single boolean, mode-agnostic — collapsing it once
 // hides the flow pictograms + example chip for every mode until reopened.
 const MODE_PREVIEW_OPEN_KEY = "agent.mode_preview_open_v1";
+// Same write-through pattern for the 6-card "挑一個任務" multi-step-agent
+// template grid. Mobile first-view is dominated by these cards, so users
+// who already know what they want should be able to fold them down.
+const TASK_TEMPLATES_OPEN_KEY = "agent.task_templates_open_v1";
 
-function readModePreviewOpen(): boolean {
-  if (typeof window === "undefined") return true;
+function readBooleanFlag(key: string, fallback: boolean): boolean {
+  if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(MODE_PREVIEW_OPEN_KEY);
-    if (raw === null) return true;
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return fallback;
     return raw !== "false";
   } catch {
-    return true;
+    return fallback;
   }
 }
 
-function writeModePreviewOpen(open: boolean): void {
+function writeBooleanFlag(key: string, value: boolean): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(MODE_PREVIEW_OPEN_KEY, open ? "true" : "false");
+    window.localStorage.setItem(key, value ? "true" : "false");
   } catch {
     /* localStorage may be unavailable (private mode / quota) — degrade silently */
   }
+}
+
+function readModePreviewOpen(): boolean {
+  return readBooleanFlag(MODE_PREVIEW_OPEN_KEY, true);
+}
+
+function writeModePreviewOpen(open: boolean): void {
+  writeBooleanFlag(MODE_PREVIEW_OPEN_KEY, open);
+}
+
+function readTaskTemplatesOpen(): boolean {
+  return readBooleanFlag(TASK_TEMPLATES_OPEN_KEY, true);
+}
+
+function writeTaskTemplatesOpen(open: boolean): void {
+  writeBooleanFlag(TASK_TEMPLATES_OPEN_KEY, open);
 }
 
 function readRecent(): RecentEntry[] {
@@ -753,6 +773,14 @@ export default function AgentChat() {
   const setModePreviewOpen = useCallback((next: boolean) => {
     setModePreviewOpenState(next);
     writeModePreviewOpen(next);
+  }, []);
+  // Same pattern for the multi-step task templates grid below the hero.
+  const [taskTemplatesOpen, setTaskTemplatesOpenState] = useState<boolean>(() =>
+    readTaskTemplatesOpen()
+  );
+  const setTaskTemplatesOpen = useCallback((next: boolean) => {
+    setTaskTemplatesOpenState(next);
+    writeTaskTemplatesOpen(next);
   }, []);
   const [spiritDeckOpen, setSpiritDeckOpen] = useState(false);
   /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
@@ -1987,73 +2015,128 @@ export default function AgentChat() {
               transition={{ duration: 0.35, delay: 0.25 }}
               className="w-full mt-1 space-y-2.5 text-left"
             >
-              <header className="flex items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-1.5">
-                  <Workflow className="w-3.5 h-3.5 text-emerald-500" />
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    挑一個任務，光球幫你串好整套流程
-                  </p>
-                </div>
-                <span className="text-[10px] text-slate-400">點下去 = 自動跑多步驟</span>
-              </header>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {TASK_TEMPLATES.map((tpl, i) => (
-                  <motion.button
-                    key={tpl.id}
+              <Collapsible open={taskTemplatesOpen} onOpenChange={setTaskTemplatesOpen}>
+                {/* Header doubles as the trigger so the chevron + collapse hint
+                    are in the natural tap target. Right-hand 「點下去 = 自動跑
+                    多步驟」 hint stays visible regardless of state so users
+                    still understand what these cards do when collapsed. */}
+                <CollapsibleTrigger asChild>
+                  <button
                     type="button"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + i * 0.04 }}
-                    whileHover={{ y: -2, scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={() => void handleTaskTemplate(tpl)}
-                    className={`group relative text-left rounded-2xl border ${tpl.accentBorder} bg-gradient-to-br ${tpl.accentBg} p-3 hover:shadow-lg transition-all`}
-                    aria-label={`開始任務：${tpl.title}`}
+                    aria-expanded={taskTemplatesOpen}
+                    aria-controls="task-templates-grid"
+                    className="w-full flex items-center justify-between gap-2 px-1 py-0.5 rounded-lg hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-colors"
                   >
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                            {tpl.title}
-                          </p>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
-                            {tpl.subtitle}
-                          </p>
-                        </div>
-                        <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
-                      </div>
-
-                      {/* 工具鏈視覺化：每個 stage 是一顆漸層小圓，用 → 串接 */}
-                      <div className="flex items-center gap-0.5 flex-wrap">
-                        {tpl.chain.map((stage, idx) => {
-                          const stageVisual = CHAIN_VISUAL[stage];
-                          const StageIcon = stageVisual.icon;
-                          return (
-                            <div key={`${stage}-${idx}`} className="flex items-center gap-0.5">
-                              <div
-                                className={`w-7 h-7 rounded-lg bg-gradient-to-br ${stageVisual.tone} flex items-center justify-center text-white shadow-sm`}
-                                title={stageVisual.label}
-                              >
-                                <StageIcon className="w-3.5 h-3.5" />
-                              </div>
-                              {idx < tpl.chain.length - 1 && (
-                                <ArrowRight className="w-3 h-3 text-slate-400 mx-0.5" />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                        <span>{tpl.eta}</span>
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600 dark:text-emerald-400 font-medium">
-                          讓光球帶我做 →
+                    <div className="flex items-center gap-1.5">
+                      <Workflow className="w-3.5 h-3.5 text-emerald-500" />
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        挑一個任務，光球幫你串好整套流程
+                      </p>
+                      {!taskTemplatesOpen && (
+                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200 text-[10px] font-medium">
+                          {TASK_TEMPLATES.length} 個範本
                         </span>
-                      </div>
+                      )}
                     </div>
-                  </motion.button>
-                ))}
-              </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] text-slate-400 hidden sm:inline">
+                        {taskTemplatesOpen ? "點下去 = 自動跑多步驟" : "展開挑選"}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${taskTemplatesOpen ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2.5">
+                  <div
+                    id="task-templates-grid"
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+                  >
+                    {TASK_TEMPLATES.map((tpl, i) => (
+                      <motion.button
+                        key={tpl.id}
+                        type="button"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 + i * 0.04 }}
+                        whileHover={{ y: -2, scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => void handleTaskTemplate(tpl)}
+                        className={`group relative text-left rounded-2xl border ${tpl.accentBorder} bg-gradient-to-br ${tpl.accentBg} p-3 hover:shadow-lg transition-all`}
+                        aria-label={`開始任務：${tpl.title}`}
+                      >
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                {tpl.title}
+                              </p>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                                {tpl.subtitle}
+                              </p>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+                          </div>
+
+                          {/* 工具鏈視覺化：每個 stage 是一顆漸層小圓，用 → 串接 */}
+                          <div className="flex items-center gap-0.5 flex-wrap">
+                            {tpl.chain.map((stage, idx) => {
+                              const stageVisual = CHAIN_VISUAL[stage];
+                              const StageIcon = stageVisual.icon;
+                              return (
+                                <div key={`${stage}-${idx}`} className="flex items-center gap-0.5">
+                                  <div
+                                    className={`w-7 h-7 rounded-lg bg-gradient-to-br ${stageVisual.tone} flex items-center justify-center text-white shadow-sm`}
+                                    title={stageVisual.label}
+                                  >
+                                    <StageIcon className="w-3.5 h-3.5" />
+                                  </div>
+                                  {idx < tpl.chain.length - 1 && (
+                                    <ArrowRight className="w-3 h-3 text-slate-400 mx-0.5" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                            <span>{tpl.eta}</span>
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600 dark:text-emerald-400 font-medium">
+                              讓光球帶我做 →
+                            </span>
+                          </div>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* 收合狀態下露出橫向滑動的範本標題列：使用者仍能一指捲動
+                  挑選，不用先展開整個 6 卡網格。點擊即直接套用對應的
+                  multi-step 任務（等同點開大卡的效果）。 */}
+              {!taskTemplatesOpen && (
+                <div className="-mx-1 px-1 overflow-x-auto scrollbar-thin">
+                  <div className="flex items-center gap-1.5 pb-1">
+                    {TASK_TEMPLATES.map(tpl => (
+                      <button
+                        key={`compact-${tpl.id}`}
+                        type="button"
+                        onClick={() => void handleTaskTemplate(tpl)}
+                        className={`shrink-0 inline-flex items-center gap-1 rounded-full border ${tpl.accentBorder} bg-gradient-to-br ${tpl.accentBg} px-2.5 py-1 text-[11px] text-slate-700 dark:text-slate-200 hover:shadow-sm transition-all`}
+                        title={`${tpl.title} · ${tpl.subtitle}`}
+                      >
+                        <Workflow className="w-3 h-3 text-emerald-500/80" />
+                        <span className="font-medium">{tpl.title}</span>
+                        <span className="text-slate-500 dark:text-slate-400 opacity-70">
+                          · {tpl.eta}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.section>
           )}
 
