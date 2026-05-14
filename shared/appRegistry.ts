@@ -245,6 +245,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     orbHints: ["幫我生成一張圖片"],
     supportedActions: [
+      "navigate",
       "setTab",
       "setModel",
       "fillPrompt",
