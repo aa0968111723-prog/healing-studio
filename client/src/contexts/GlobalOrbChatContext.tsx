@@ -829,13 +829,42 @@ function loadClarificationFromStorage(): {
       localStorage.removeItem(STORAGE_KEY_CLARIFICATION);
       return { prompt: null };
     }
+    // Mid-wizard reload must rebuild the *same* prompt object the writer
+    // stored, including dimension (used by answerClarification to serialize
+    // `[使用者澄清/<dim>]`) and multiDim entries (the multi-row picker).
+    // The old reader silently dropped both, turning a multi-row card into an
+    // empty single-row one and re-tagging every answer as "format" regardless
+    // of what was actually asked — see processClarificationResponse.
+    const multiDim = Array.isArray(parsed.multiDim)
+      ? parsed.multiDim
+          .filter(
+            (e): e is { dimension: ClarificationDimension; question: string; options: string[] } =>
+              !!e &&
+              typeof e === "object" &&
+              typeof (e as { dimension?: unknown }).dimension === "string" &&
+              typeof (e as { question?: unknown }).question === "string" &&
+              Array.isArray((e as { options?: unknown }).options),
+          )
+          .map(e => ({
+            dimension: e.dimension,
+            question: e.question,
+            options: e.options.filter((o): o is string => typeof o === "string"),
+          }))
+      : undefined;
     return {
       prompt: {
         id: String(parsed.id ?? `clarify_${parsed.createdAt}`),
         question: String(parsed.question ?? ""),
-        options: Array.isArray(parsed.options) ? parsed.options : undefined,
+        options: Array.isArray(parsed.options)
+          ? parsed.options.filter((o): o is string => typeof o === "string")
+          : undefined,
+        dimension:
+          typeof parsed.dimension === "string"
+            ? (parsed.dimension as ClarificationDimension)
+            : undefined,
         originalUserText: String(parsed.originalUserText ?? ""),
         createdAt: parsed.createdAt,
+        ...(multiDim && multiDim.length > 0 ? { multiDim } : {}),
       },
     };
   } catch (err) {
@@ -4081,7 +4110,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           question: clarificationQuestion,
           options: clarificationOptions,
-          dimension: detectedDimension ?? "format",
+          // Only pin a dimension when the question text gave us a confident
+          // signal. The previous `?? "format"` fallback silently mis-tagged
+          // every dimension-unknown question as "format", which the server's
+          // WIZARD_TO_TOTAL map then re-routed to "goal" — so a question about
+          // timeline or audience would land in the goal bucket.
+          ...(detectedDimension ? { dimension: detectedDimension } : {}),
           originalUserText: trimmed,
           createdAt: Date.now(),
         });
@@ -4215,11 +4249,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             pagePath: locationPath,
             ...spiritFields,
           }]);
+          // Dimension is inferred from the wizard's question text (e.g. asks
+          // about 幾秒/時長 → "duration"). When inference is inconclusive we
+          // leave dimension undefined rather than mis-tagging as "format" —
+          // answerClarification will then forward the raw answer without
+          // adding a `[使用者澄清/<wrong>]` prefix.
+          const wizardDimension = detectDimensionFromQuestion(question);
           setPendingClarification({
             id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             question,
             options: intentDetection.options,
-            dimension: "format",
+            ...(wizardDimension ? { dimension: wizardDimension } : {}),
             originalUserText: trimmed,
             createdAt: Date.now(),
           });
@@ -4511,8 +4551,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         const question =
           extractPhantomPlanQuestion(dataReply) ??
           "我先確認一下你要的方向，這樣才能做對。";
-        const phantomDimension: ClarificationDimension =
-          /用途|use/i.test(question) ? "usecase" : "format";
+        // Run the question text through the same inference the server-driven
+        // path uses (style/duration/audience/...). The previous either-or
+        // (usecase | format) collapsed every non-"用途/use" phantom plan into
+        // "format" → "goal" via WIZARD_TO_TOTAL, which mis-routed answers to
+        // style / platform questions into the goal bucket.
+        const phantomDimension: ClarificationDimension | undefined =
+          detectDimensionFromQuestion(question) ??
+          (/用途|use/i.test(question) ? "usecase" : undefined);
         const optionPack = buildContextualClarificationOptions({
           userText: trimmed,
           dimension: phantomDimension,
@@ -4520,7 +4566,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         setPendingClarification({
           id: `clarify_phantom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           question,
-          dimension: phantomDimension,
+          ...(phantomDimension ? { dimension: phantomDimension } : {}),
           options: optionPack.options,
           originalUserText: trimmed,
           createdAt: Date.now(),
@@ -4746,6 +4792,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
   const cancelClarification = useCallback(() => {
     setPendingClarification(null);
+    // Cancelling counts as closing this clarification round — reset the
+    // counter so the user's next prompt gets a fresh 2-round budget. Without
+    // this, two cancels + one new question would immediately trigger the
+    // "繞了幾圈" best-guess cap on a brand-new request.
+    clarificationRoundsRef.current = 0;
     setMessages(prev => [...prev, {
       role: "orb",
       text: "好，我先放著這個問題不繼續。如果想接續，再告訴我新的方向就好 🌿",
@@ -4760,9 +4811,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     const active = pendingClarification;
     if (!active) return;
     setPendingClarification(null);
+    // When dimension is known, tag the answer so the server can fold it back
+    // into the right slot (goal / scope / style / ...). When unknown, append
+    // the raw answer with no tag — the planner re-runs intent detection on
+    // the combined text. Better to give the LLM untagged context than to
+    // mis-tag (the previous "format" default routed any unknown-dim answer
+    // into the goal bucket via WIZARD_TO_TOTAL).
     const composedUserText =
       active.originalUserText.length > 0
-        ? `${active.originalUserText}\n\n[使用者澄清/${active.dimension ?? "format"}]: ${trimmed}`
+        ? active.dimension
+          ? `${active.originalUserText}\n\n[使用者澄清/${active.dimension}]: ${trimmed}`
+          : `${active.originalUserText}\n\n${trimmed}`
         : trimmed;
     await sendMessage(composedUserText);
   }, [pendingClarification, sendMessage]);

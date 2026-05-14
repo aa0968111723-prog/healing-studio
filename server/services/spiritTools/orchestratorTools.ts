@@ -35,17 +35,24 @@ export interface OrchestratorAnalysis {
 /**
  * Analyze user intent for chief-orchestrator.
  * Determines if clarification is needed before delegation.
+ *
+ * `requestedMode` and `rememberedPreferences` propagate into
+ * `clarificationThresholdFor` (see shared/orchestrator-clarification.ts).
+ * They are optional — callers that don't know the user's mode / history
+ * skip them and the threshold stays at the standard 0.70 default.
  */
 export async function analyzeIntentForOrchestrator(input: {
   userId: number;
   userMessage: string;
   sessionId?: string;
   rememberedPreferences?: OrchestratorContext["rememberedPreferences"];
+  requestedMode?: OrchestratorContext["requestedMode"];
 }): Promise<OrchestratorAnalysis> {
   try {
     const context: OrchestratorContext = {
       userMessage: input.userMessage,
       rememberedPreferences: input.rememberedPreferences,
+      requestedMode: input.requestedMode,
     };
 
     // Analyze intent clarity
@@ -105,10 +112,14 @@ export async function analyzeIntentForOrchestrator(input: {
  * Process clarification response from user.
  * Extracts chosen dimensions and updates context.
  *
- * 兩層命名空間 — 解析「總總澄清」與「使用者澄清」，並把 wizard 維度
- * (format / duration / style / platform / audience / subject / usecase /
- * purpose / open) 對應回總總的維度，讓兩層帳本互通。沒有對應映射的
- * wizard 維度會以原 key 保留，呼叫端仍能讀到完整答案。
+ * 兩層命名空間 — 解析「總總澄清」與「使用者澄清」並一併回傳：
+ *   • 總總層 (goal/scope/timeline/budget/complexity) 直接存回原 key
+ *   • Wizard 層 (format/duration/style/platform/audience/subject/usecase/
+ *     purpose/open) 都以原 key 保留，呼叫端能讀到完整答案
+ *   • 只有 `format` 才同步寫入 `goal`（兩者語意一致：使用者選擇的成品類型），
+ *     其餘 wizard 維度不再被強行對應到 總總 詞彙——舊版把 style→complexity、
+ *     platform→scope、subject→goal 等做了語意失真的對應，會讓 總總層誤判
+ *     使用者已回答某維度。
  */
 export function processClarificationResponse(
   response: string
@@ -117,35 +128,41 @@ export function processClarificationResponse(
 
   // Layer 1: 總總's own namespace.
   // Format: "[總總澄清/goal]: 一支短影片（15-60 秒）"
-  const totalMatches = response.matchAll(/\[總總澄清\/([\w]+)\]:\s*(.+?)(?=\[(?:總總澄清|使用者澄清)\/|$)/g);
+  //
+  // The marker is line-bound: producers (orchestrator-clarification.ts and
+  // serializeMultiDimAnswers) always emit one marker per line. The old regex
+  // used `\s*(.+?)` with a lookahead, but `\s*` swallowed the separating
+  // newline so the lazy `.+?` would extend all the way to the next marker's
+  // text — i.e. scope's value bled into the audience answer below it. Using
+  // `[^\r\n]*` cleanly bounds the value to a single line.
+  const totalMatches = response.matchAll(/\[總總澄清\/(\w+)\][:：][ \t]*([^\r\n]*)/g);
   for (const match of totalMatches) {
     const dim = match[1];
     const choice = match[2].trim();
     if (dim && choice) parsed[dim] = choice;
   }
 
-  // Layer 2: wizard's namespace. Map known wizard dims onto 總總's vocab so
-  // analyzeOrchestratorIntent's previousAnswers sees them as already-answered.
-  // Unknown wizard dims pass through verbatim under their own key.
+  // Layer 2: wizard's namespace. Keep answers under their own wizard key so
+  // downstream prompt assembly / preference persistence can read the precise
+  // dimension the user actually picked. We bridge ONLY `format → goal`, since
+  // "what kind of deliverable" semantically equals 總總's `goal` bucket.
   const WIZARD_TO_TOTAL: Record<string, string> = {
     format: "goal",
-    duration: "goal",
-    subject: "goal",
-    style: "complexity",
-    platform: "scope",
-    audience: "scope",
-    usecase: "scope",
-    purpose: "scope",
   };
-  const wizardMatches = response.matchAll(/\[使用者澄清\/([\w]+)\]:\s*(.+?)(?=\[(?:總總澄清|使用者澄清)\/|$)/g);
+  // Same line-bounded form as the 總總 layer above — see the comment there
+  // for why `\s*(.+?)` with a lookahead was wrong.
+  const wizardMatches = response.matchAll(/\[使用者澄清\/(\w+)\][:：][ \t]*([^\r\n]*)/g);
   for (const match of wizardMatches) {
     const wizardDim = match[1];
     const choice = match[2].trim();
     if (!wizardDim || !choice) continue;
-    const mappedKey = WIZARD_TO_TOTAL[wizardDim] ?? wizardDim;
-    // Don't overwrite a more-specific 總總 answer with a wizard answer.
-    if (parsed[mappedKey]) continue;
-    parsed[mappedKey] = choice;
+    // Always preserve the wizard-level answer under its original key.
+    if (!parsed[wizardDim]) parsed[wizardDim] = choice;
+    // For dimensions that DO map cleanly onto 總總's vocab, also fill the
+    // bridged key — but only when 總總 hasn't already recorded a more
+    // authoritative answer for that bucket.
+    const bridged = WIZARD_TO_TOTAL[wizardDim];
+    if (bridged && !parsed[bridged]) parsed[bridged] = choice;
   }
 
   logger.debug("clarification_response_processed", {
