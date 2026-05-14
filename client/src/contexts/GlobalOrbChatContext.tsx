@@ -3320,6 +3320,65 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // 安安 (security-guard)：偵測使用者把 API key / token / password / 私鑰
+    // 貼進對話框。Blocking-surface 事件 — 一律警告，提醒搬到 /settings/api-keys。
+    // 規則寬鬆但要避免明顯 false positive（例如純英文短句「pkg」不算）。
+    {
+      const credPatterns: Array<{ pattern: RegExp; type: string }> = [
+        // OpenAI / Anthropic
+        { pattern: /\bsk-[A-Za-z0-9_-]{20,}\b/, type: "OpenAI/Anthropic API key" },
+        // Stripe
+        { pattern: /\b(?:pk|sk|rk)_(?:test|live)_[A-Za-z0-9]{16,}\b/, type: "Stripe key" },
+        // AWS access key
+        { pattern: /\bAKIA[0-9A-Z]{16}\b/, type: "AWS access key" },
+        // GitHub PAT / OAuth
+        { pattern: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/, type: "GitHub token" },
+        // Slack token
+        { pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/, type: "Slack token" },
+        // Generic Bearer JWT
+        { pattern: /\b[Bb]earer\s+eyJ[A-Za-z0-9_=.\-]{20,}/, type: "Bearer JWT" },
+        // PEM private key block
+        { pattern: /-----BEGIN[ A-Z]*PRIVATE KEY-----/, type: "private key" },
+        // password=xxx / password: "xxx" — only when value looks substantial
+        { pattern: /\b(?:password|passwd|pwd)\s*[:=]\s*['"]?[^\s'"]{6,}/i, type: "password" },
+      ];
+      for (const { pattern, type } of credPatterns) {
+        const m = trimmed.match(pattern);
+        if (m && m[0]) {
+          const raw = m[0];
+          // 截 prefix 顯示，避免重複洩漏整段金鑰到 toast。
+          const snippet = raw.length <= 12 ? raw.slice(0, 4) + "***" : raw.slice(0, 8) + "***";
+          ProactiveEventBus.publish(
+            "credential_leak_detected",
+            { credentialType: type, snippet },
+            // 每分鐘最多一次（避免使用者拼字慢時連續觸發），dedupe by type。
+            { dedupeKey: `cred:${type}`, dedupeMs: 60_000 },
+          );
+          break;
+        }
+      }
+    }
+
+    // 帶帶 (onboarding-coach)：偵測「使用者連續送同一條訊息」— 通常代表卡關
+    // 或上次回覆沒解到問題。比對最近一條 user 訊息（normalize 後相等）。
+    // dedupe 5 分鐘，避免同對話重複跳。
+    if (trimmed.length >= 4 && trimmed.length <= 80) {
+      const normalize = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+      const lastUser = [...messagesRef.current]
+        .reverse()
+        .find(m => m.role === "user");
+      if (lastUser && normalize(lastUser.text ?? "") === normalize(trimmed)) {
+        ProactiveEventBus.publish(
+          "user_stuck_detected",
+          {
+            pageHint: locationPath || "目前頁面",
+            detail: "我看你連續送了同一條，是不是上一輪回覆沒解到你的問題？",
+          },
+          { dedupeKey: `stuck:${normalize(trimmed).slice(0, 16)}`, dedupeMs: 5 * 60_000 },
+        );
+      }
+    }
+
     // Stamp this turn so any awaited result that resolves after the user
     // clears history (or kicks off a newer turn) can be detected and
     // discarded before it mutates state.

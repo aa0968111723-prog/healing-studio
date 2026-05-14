@@ -8,38 +8,14 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentRole } from "../../../shared/orb-agent-roles";
+import { SPIRITS_BY_ID } from "@/lib/spiritsVisual";
 
-// Import spirit visual data
-const SPIRIT_VISUALS: Record<
-  AgentRole,
-  { emoji: string; nickname: string; gradient: string }
-> = {
-  director: { emoji: "🎯", nickname: "導導", gradient: "from-blue-400 to-blue-600" },
-  composer: { emoji: "✍️", nickname: "編編", gradient: "from-green-400 to-green-600" },
-  critic: { emoji: "🔎", nickname: "品品", gradient: "from-purple-400 to-purple-600" },
-  researcher: { emoji: "🧭", nickname: "查查", gradient: "from-yellow-400 to-orange-500" },
-  navigator: { emoji: "🧳", nickname: "路路", gradient: "from-cyan-400 to-cyan-600" },
-  companion: { emoji: "🌿", nickname: "暖暖", gradient: "from-pink-400 to-pink-600" },
-  accountant: { emoji: "💰", nickname: "財財", gradient: "from-emerald-400 to-emerald-600" },
-  "quality-coach": { emoji: "✨", nickname: "巧巧", gradient: "from-amber-400 to-amber-600" },
-  inspector: { emoji: "🛡️", nickname: "守守", gradient: "from-slate-400 to-slate-600" },
-  "image-specialist": { emoji: "🎨", nickname: "圖圖", gradient: "from-pink-500 to-rose-500" },
-  "video-specialist": { emoji: "🎬", nickname: "影影", gradient: "from-indigo-500 to-purple-500" },
-  "music-specialist": { emoji: "🎵", nickname: "音音", gradient: "from-violet-400 to-fuchsia-500" },
-  "voice-specialist": { emoji: "🎙️", nickname: "聲聲", gradient: "from-blue-400 to-indigo-500" },
-  "training-specialist": { emoji: "🧪", nickname: "練練", gradient: "from-orange-400 to-red-500" },
-  "learning-specialist": { emoji: "📚", nickname: "學學", gradient: "from-teal-400 to-cyan-500" },
-  "legal-advisor": { emoji: "⚖️", nickname: "律律", gradient: "from-gray-500 to-slate-600" },
-  "security-guard": { emoji: "🔒", nickname: "安安", gradient: "from-red-500 to-rose-600" },
-  "community-manager": { emoji: "📣", nickname: "群群", gradient: "from-sky-400 to-blue-500" },
-  "chief-orchestrator": { emoji: "🎩", nickname: "總總", gradient: "from-indigo-600 to-purple-700" },
-  "onboarding-coach": { emoji: "🤝", nickname: "帶帶", gradient: "from-green-400 to-emerald-500" },
-  "notes-curator": { emoji: "📒", nickname: "記記", gradient: "from-amber-400 to-yellow-500" },
-  "settings-detail": { emoji: "⚙️", nickname: "細細", gradient: "from-gray-400 to-slate-500" },
-  "plan-executor": { emoji: "🧩", nickname: "步步", gradient: "from-blue-500 to-indigo-600" },
-  "inspiration-specialist": { emoji: "💡", nickname: "靈靈", gradient: "from-yellow-300 to-orange-400" },
-  "anatomy-specialist": { emoji: "🫀", nickname: "體體", gradient: "from-red-400 to-pink-500" },
-};
+// Visual data sourced from lib/spiritsVisual.ts — single source of truth
+// shared with AgentChat 的 SPIRITS chip 與 ProactiveNotificationCenter。
+// 之前在這裡內嵌一份 SPIRIT_VISUALS 結果與 source-of-truth 漂移
+// (例：導導從 amber→blue) 而且只覆蓋部分精靈；改成直接讀 SPIRITS_BY_ID
+// 即可保證 25 位精靈視覺一致且未來新增精靈時不需要在這同步維護。
+const SPIRIT_VISUALS = SPIRITS_BY_ID;
 
 interface SpiritHandoffIndicatorProps {
   fromSpirit: AgentRole;

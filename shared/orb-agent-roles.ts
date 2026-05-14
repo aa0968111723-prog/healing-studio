@@ -2169,22 +2169,22 @@ const PATH_SPIRIT_MAP: ReadonlyArray<{
   // 筆記 / 素材庫由記記接手；前綴比 researcher 更精準，所以排在 researcher 之前。
   { prefix: "/notes", role: "notes-curator" },
   { prefix: "/assets", role: "notes-curator" },
-  { prefix: "/schedule", role: "notes-curator" },
   { prefix: "/calendar", role: "notes-curator" },
-  // 設定相關全部交給細細
+  // /settings/agent 是團隊 / 精靈管理頁 — 總總在這裡看團隊現況。
+  // 必須排在 /settings 之前才會優先匹配。
+  { prefix: "/settings/agent", role: "chief-orchestrator" },
+  // 設定相關交給細細
   { prefix: "/settings", role: "settings-detail" },
-  // 社群行銷頁
-  { prefix: "/social", role: "community-manager" },
-  { prefix: "/community", role: "community-manager" },
-  // 法律 / 資安專區（如未來新增）
-  { prefix: "/legal", role: "legal-advisor" },
-  { prefix: "/security", role: "security-guard" },
-  // 團隊總覽
-  { prefix: "/team", role: "chief-orchestrator" },
-  { prefix: "/agents", role: "chief-orchestrator" },
-  // 步步的「自動執行任務面板」— /jobs 列出排隊中 / 進行中 / 已完成的多步驟任務
-  { prefix: "/jobs", role: "plan-executor" },
-  { prefix: "/tasks", role: "plan-executor" },
+  // 步步的「自動執行任務面板」— 列出排隊中 / 進行中 / 已完成的多步驟任務。
+  // 之前寫 /jobs、/tasks 但 App.tsx 沒這兩條路由，會把使用者帶到 404 頁。
+  { prefix: "/background-tasks", role: "plan-executor" },
+  // ── 以下精靈目前沒有專屬頁面，故不放在 PATH_SPIRIT_MAP ─────────────
+  //   - 律律 (legal-advisor)、安安 (security-guard)：對話為主
+  //   - 群群 (community-manager)：暫無社群行銷專頁
+  //   - 帶帶 (onboarding-coach)：操作疊加在各頁上，不需專屬路徑
+  //   - 暖暖 / 編編 / 品品 / 查查 / 路路 / 巧巧 / 守守 / 靈靈 / 體體：純對話 / 內嵌
+  // pickDefaultPathForRole 對上述角色回 null，caller 會 fallback 到
+  // companion / navigator 的口吻 — 這是設計上正確的行為，避免 navigate 後 404。
 ];
 
 /**

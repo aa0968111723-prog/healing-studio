@@ -108,7 +108,10 @@ class AgentCollaborationOrchestratorClass {
       available: true,
     });
 
-    // Specialized agents - dynamically load from registry
+    // Specialized agents - dynamically load from registry.
+    // 靈靈 / 體體 之前漏在外面 → findBestAgentForTask 永遠選不到，
+    // SPIRIT_COLLAB_PROTOCOL 寫「交給靈靈／體體」的 handoff 鏈直接斷掉。
+    // 對應條目已在 shared/orb-specialized-agents.ts:242,267。
     const specializedAgents: AgentRole[] = [
       "image-specialist",
       "video-specialist",
@@ -116,6 +119,8 @@ class AgentCollaborationOrchestratorClass {
       "voice-specialist",
       "training-specialist",
       "learning-specialist",
+      "inspiration-specialist",
+      "anatomy-specialist",
     ];
 
     specializedAgents.forEach(agentId => {
@@ -288,6 +293,8 @@ class AgentCollaborationOrchestratorClass {
       "notes-curator": "notes",
       "settings-detail": "settings",
       "plan-executor": "execution",
+      "inspiration-specialist": "inspiration",
+      "anatomy-specialist": "anatomy",
     };
     const spec = mapping[agentId];
     return spec ? [spec] : undefined;

@@ -5,7 +5,22 @@
 > 端到端盤點是否可真實運作。
 >
 > 對應 branch：`claude/audit-spirits-integration-2kt6y`
-> 審計時間：2026-05-14
+> 審計時間：2026-05-14（同 commit 補上首輪修補；見 §7）
+
+---
+
+## 0. 修補進度（後續 commit 已套用）
+
+本 PR 第二輪 commit 已套用 §5.3 建議順序的前 6 項（細節見 §7）。
+之後重新跑健康表，差異主要是：
+
+- 靈靈 / 體體 從 ❌ → ⚠️（已加入 orchestrator specializedAgents）
+- 步步、群群、律律、安安、總總、記記、帶帶的「navigate 後 404」風險解除（移除無實體頁的 PATH_SPIRIT_MAP 條目；步步重綁 `/background-tasks`、總總綁 `/settings/agent`）
+- 安安、帶帶 的主動觸發實際開始 publish（`credential_leak_detected` + `user_stuck_detected`）
+- 25/25 在 spiritStatusMonitor 都被監控（總總團隊看板可看到完整 team）
+- SpiritHandoffIndicator 改用 `SPIRITS_BY_ID` 統一視覺，自動覆蓋全 25 位
+
+剩餘的 ❌：律律 `ip_risk_detected`、群群 `social_post_ready`、總總 `team_status_overview`、記記 `notes_capture_suggested`、細細 `settings_drift_detected`、步步 `multi_step_plan_ready`、巧巧 `low_quality_generation` 仍缺 publisher，需要更多領域邏輯（LLM 介入或業務點偵測），列入後續 PR。
 
 ---
 
@@ -229,3 +244,20 @@
 - 主動通知中心：`client/src/lib/ProactiveNotificationCenter.tsx`
 - 真實 publisher：`GlobalOrbChatContext.tsx:2596/3312/4541`、`DashboardLayout.tsx:633`
 - 路由註冊：`client/src/App.tsx:196-316`
+
+---
+
+## 7. 本 PR 已套用的修補
+
+| # | 動作 | 檔案 | 影響 |
+|---|---|---|---|
+| 1 | 把 `inspiration-specialist`、`anatomy-specialist` 加入 orchestrator `specializedAgents[]`，同步擴充 `AgentCapabilityDeclaration.specializations` 與 `mapToSpecializations` | `server/services/agentCollaborationOrchestrator.ts`、`shared/agent-communication-protocol.ts` | 靈靈 / 體體 從 ❌ 變 ⚠️；`findBestAgentForTask` 真的會找到他們 |
+| 2 | `spiritStatusMonitor.MONITORED_SPIRITS` 從 16 擴到 25 | `server/services/spiritStatusMonitor.ts` | 總總團隊看板可見全員 busy/idle |
+| 3 | `SpiritHandoffIndicator` 改 import `SPIRITS_BY_ID`（移除內嵌字典） | `client/src/components/SpiritHandoffIndicator.tsx` | handoff UI 覆蓋全 25 位且未來同步維護單點 |
+| 4 | 移除 `PATH_SPIRIT_MAP` 中 9 條無實體頁的條目，新增 `/background-tasks` (步步)、`/settings/agent` (總總) | `shared/orb-agent-roles.ts` | navigate 後不再 404；步步 / 總總 有真實落地頁 |
+| 5 | 在 `sendMessage` 內加 `credential_leak_detected` + `user_stuck_detected` publisher | `client/src/contexts/GlobalOrbChatContext.tsx` | 安安偵測 API key/token/JWT/PEM 外洩、帶帶偵測重複提問 |
+| 6 | 重寫 `anatomySpecialistTools.ts` 對齊體體：`buildAnatomyPrompt` / `nextClarificationQuestion` / `getLabelChecklistForPart` | `server/services/spiritTools/anatomySpecialistTools.ts` | 體體實際能組對解剖學提示詞、推薦模型、給標註 checklist |
+
+未在本 PR 處理（追蹤）：
+- 21 個 `spiritTools/*.ts` 仍未接到 chat router → tool registry。需要設計 tRPC 端點或擴充 `agentToolExecutor` 動態載入策略，影響範圍較大，留待後續 PR。
+- 11 個剩餘 `ProactiveTriggerEvent` 未實作 publisher（如 `ip_risk_detected`、`team_status_overview`、`multi_step_plan_ready`），各需領域偵測邏輯。
