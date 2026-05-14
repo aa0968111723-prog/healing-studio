@@ -134,8 +134,9 @@ export class OrbWorkflowEngine {
         }
       }
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Insert into database
       const [result] = await db.insert(orbWorkflowTemplates).values({
         creatorUserId: input.creatorUserId,
@@ -205,8 +206,8 @@ export class OrbWorkflowEngine {
     limit?: number;
   }): Promise<WorkflowTemplate[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Build query with filters
       let query = db.select().from(orbWorkflowTemplates);
 
@@ -287,8 +288,8 @@ export class OrbWorkflowEngine {
    */
   async executeWorkflow(input: ExecuteWorkflowInput): Promise<WorkflowExecution> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Load template
       const [template] = await db
         .select()
@@ -389,8 +390,8 @@ export class OrbWorkflowEngine {
    */
   private async runWorkflow(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // 1. Load execution and template
       const [execution] = await db
         .select()
@@ -579,7 +580,8 @@ export class OrbWorkflowEngine {
       });
 
       // Update execution status to failed
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       await db
         .update(orbWorkflowExecutions)
         .set({
@@ -600,8 +602,8 @@ export class OrbWorkflowEngine {
     steps: StepExecution[];
   }> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database
       const [executionRow] = await db
         .select()
@@ -671,8 +673,8 @@ export class OrbWorkflowEngine {
    */
   async pauseExecution(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Update execution status to paused
       await db
         .update(orbWorkflowExecutions)
@@ -694,8 +696,8 @@ export class OrbWorkflowEngine {
    */
   async resumeExecution(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Update status and continue execution
       await db
         .update(orbWorkflowExecutions)
@@ -724,8 +726,8 @@ export class OrbWorkflowEngine {
    */
   async cancelExecution(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Update execution status to cancelled
       await db
         .update(orbWorkflowExecutions)
@@ -756,7 +758,8 @@ export class OrbWorkflowEngine {
     comment?: string
   ): Promise<void> {
     try {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const normalizedRating = Math.max(1, Math.min(5, Math.round(rating)));
 
       // Store or update rating using upsert
@@ -821,8 +824,8 @@ export class OrbWorkflowEngine {
     limit = 20
   ): Promise<WorkflowExecution[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database
       const rows = await db
         .select()
@@ -868,8 +871,8 @@ export class OrbWorkflowEngine {
     limit = 10
   ): Promise<WorkflowTemplate[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query by usageCount and avgRating
       let query = db
         .select()
@@ -932,8 +935,8 @@ export class OrbWorkflowEngine {
     conversationId: string
   ): Promise<WorkflowTemplate | null> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Get user's recent workflow executions for pattern analysis
       const recentExecutions = await db
         .select()

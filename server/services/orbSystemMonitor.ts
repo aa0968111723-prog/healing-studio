@@ -107,8 +107,9 @@ export class OrbSystemMonitor {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Upsert daily collaboration metric
       const existingMetric = await db
         .select()
@@ -200,8 +201,9 @@ export class OrbSystemMonitor {
         ? input.value <= input.threshold
         : true;
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Insert health metric
       await db.insert(orbSystemHealthMetrics).values({
         timestamp: new Date(),
@@ -264,8 +266,9 @@ export class OrbSystemMonitor {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Upsert daily cost attribution
       const existingCost = await db
         .select()
@@ -353,8 +356,8 @@ export class OrbSystemMonitor {
     limit?: number;
   }): Promise<SpiritCollaborationMetric[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database with filters
       let query = db.select().from(orbSpiritCollaborationMetrics);
 
@@ -422,8 +425,8 @@ export class OrbSystemMonitor {
     limit?: number;
   }): Promise<SystemHealthMetric[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database with filters
       let query = db.select().from(orbSystemHealthMetrics);
 
@@ -498,8 +501,8 @@ export class OrbSystemMonitor {
     byUser?: Record<number, number>;
   }> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query with filters
       let query = db.select().from(orbCostAttribution);
 
@@ -593,8 +596,8 @@ export class OrbSystemMonitor {
     }>;
   }> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Aggregate recent health metrics (last hour)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
@@ -711,8 +714,8 @@ export class OrbSystemMonitor {
     userSatisfaction: number;
   }>> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Aggregate collaboration data (last 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -808,7 +811,8 @@ export class OrbSystemMonitor {
     recommendation: string;
   }>> {
     try {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const optimizations: Array<{
         type: "high_cost_tool" | "inefficient_workflow" | "unused_feature";
         description: string;
@@ -968,8 +972,8 @@ export class OrbSystemMonitor {
     sampleCount: number;
   }>> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Aggregate metrics by day
       const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       startDate.setHours(0, 0, 0, 0);
@@ -1058,8 +1062,9 @@ export class OrbSystemMonitor {
       const nextDay = new Date(targetDate);
       nextDay.setDate(nextDay.getDate() + 1);
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Aggregate all metrics for the day
 
       // Get collaboration metrics
@@ -1217,8 +1222,8 @@ export class OrbSystemMonitor {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       await db.insert(orbSystemAlerts).values({
         alertType: input.alertType,
         severity: input.severity,
@@ -1261,8 +1266,8 @@ export class OrbSystemMonitor {
     createdAt: Date;
   }>> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const conditions = [eq(orbSystemAlerts.isResolved, false)];
       if (severityFilter) {
         conditions.push(eq(orbSystemAlerts.severity, severityFilter));
@@ -1302,8 +1307,8 @@ export class OrbSystemMonitor {
     resolutionNotes?: string
   ): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       await db
         .update(orbSystemAlerts)
         .set({

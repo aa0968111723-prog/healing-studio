@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { projectNotesCalendarCalendar, digitalAssetLibrary, orbScheduledJobs } from "../../../drizzle/schema";
+import { projectNotesCalendar, digitalAssetLibrary, orbScheduledJobs } from "../../../drizzle/schema";
 import { and, eq, like, or, desc, sql } from "drizzle-orm";
 
 /**
@@ -25,8 +25,8 @@ export async function createNote(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const [result] = await db.insert(projectNotesCalendar).values({
       userId: input.userId,
       title: input.title,
@@ -82,7 +82,8 @@ export async function searchNotes(input: {
   total: number;
 }> {
   try {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const limit = Math.min(input.limit || 10, 50);
 
     const results = await db
@@ -151,8 +152,8 @@ export async function scheduleTask(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const scheduledDate = new Date(input.scheduledFor);
     if (isNaN(scheduledDate.getTime())) {
       return {
@@ -210,7 +211,8 @@ export async function tagAssets(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     let updated = 0;
 
     for (const assetId of input.assetIds) {
@@ -294,8 +296,8 @@ export async function getAssetStatistics(userId: number): Promise<{
   };
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     // Get total assets
     const [totalResult] = await db
       .select({ count: sql<number>`count(*)` })

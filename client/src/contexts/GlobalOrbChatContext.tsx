@@ -231,6 +231,13 @@ export interface ChatMessage {
    * so the chat bubble stays scannable.
    */
   notices?: ChatMessageNotice[];
+  /**
+   * 思考步驟面板資料：planner artefacts（intent / steps / warnings / summary）
+   * 加上 tRPC 進度 ring buffer 經 buildOrbReasoningChain 合成的單一物件。
+   * 為什麼存在 message 上：使用者捲回去看舊回覆時，按下「💭 思考步驟」
+   * 仍能展開那一輪當時的思路，不必再呼叫一次 LLM。
+   */
+  reasoningChain?: OrbReasoningChain;
 }
 
 /**
@@ -244,13 +251,6 @@ export interface ChatMessageNotice {
   text: string;
   /** Optional tooltip / explanation shown on hover. */
   tooltip?: string;
-  /**
-   * 思考步驟面板資料：planner artefacts（intent / steps / warnings / summary）
-   * 加上 tRPC 進度 ring buffer 經 buildOrbReasoningChain 合成的單一物件。
-   * 為什麼存在 message 上：使用者捲回去看舊回覆時，按下「💭 思考步驟」
-   * 仍能展開那一輪當時的思路，不必再呼叫一次 LLM。
-   */
-  reasoningChain?: OrbReasoningChain;
 }
 
 export interface ChatSuggestion {

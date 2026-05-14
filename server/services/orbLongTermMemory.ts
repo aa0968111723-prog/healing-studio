@@ -98,7 +98,7 @@ export class OrbLongTermMemory {
   async create(input: CreateMemoryInput): Promise<LongTermMemory> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       const insertData: InsertOrbLongTermMemory = {
         userId: input.userId,
         memoryType: input.memoryType,
@@ -107,7 +107,7 @@ export class OrbLongTermMemory {
         sourceType: input.sourceType ?? "conversation",
         sourceId: input.sourceId,
         spiritId: input.spiritId,
-        metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
+        metadata: input.metadata ?? undefined,
         expiresAt: input.expiresAt,
       };
 
@@ -169,6 +169,7 @@ export class OrbLongTermMemory {
   async search(input: SearchMemoryInput): Promise<MemorySearchResult[]> {
     try {
       const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const limit = input.limit ?? 20;
 
       // Build query conditions
@@ -272,7 +273,7 @@ export class OrbLongTermMemory {
   ): Promise<LongTermMemory[]> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       const memories = await db
         .select()
         .from(orbLongTermMemories)
@@ -314,7 +315,7 @@ export class OrbLongTermMemory {
     try {
       const score = Math.max(0, Math.min(1, newScore));
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       await db
         .update(orbLongTermMemories)
         .set({ importanceScore: String(score) })
@@ -339,7 +340,7 @@ export class OrbLongTermMemory {
   async recordAccess(memoryId: string): Promise<void> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       await db
         .update(orbLongTermMemories)
         .set({
@@ -371,7 +372,7 @@ export class OrbLongTermMemory {
     try {
       const normalizedStrength = Math.max(0, Math.min(1, strength));
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       const insertData: InsertOrbMemoryAssociation = {
         fromMemoryId: Number(fromMemoryId),
         toMemoryId: Number(toMemoryId),
@@ -426,6 +427,7 @@ export class OrbLongTermMemory {
   ): Promise<Array<{ association: MemoryAssociation; memory: LongTermMemory }>> {
     try {
       const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const memId = Number(memoryId);
 
       // Build query conditions
@@ -505,6 +507,7 @@ export class OrbLongTermMemory {
   }> {
     try {
       const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       let consolidated = 0;
       let pruned = 0;
 
@@ -572,7 +575,7 @@ export class OrbLongTermMemory {
   }> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       // Get total count and average importance
       const [generalStats] = await db
         .select({

@@ -115,7 +115,7 @@ export class OrbClarificationEngine {
   async identifyIntent(input: IdentifyIntentInput): Promise<IntentLog> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       // TODO: Implement actual intent classification
       // Could use: keyword matching, LLM-based classification, learned patterns
 
@@ -266,47 +266,6 @@ export class OrbClarificationEngine {
   }
 
   /**
-   * Record user's answer to clarification question
-   */
-  async recordAnswer(
-    clarificationId: string,
-    userAnswer: string
-  ): Promise<ClarificationQuestion> {
-    try {
-      // TODO: Update database record
-      // Also update user answer patterns for learning
-
-      const updated: ClarificationQuestion = {
-        id: clarificationId,
-        intentLogId: "",
-        userId: 0,
-        conversationId: "",
-        clarificationQuestion: "",
-        questionType: "choice",
-        userAnswer,
-        answeredAt: new Date(),
-        createdAt: new Date(),
-      };
-
-      // TODO: Update answer patterns
-      await this.updateAnswerPattern(updated);
-
-      logger.info("orb_clarification_answered", {
-        clarificationId,
-        questionType: updated.questionType,
-      });
-
-      return updated;
-    } catch (error) {
-      logger.error("orb_clarification_record_answer_failed", {
-        clarificationId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  }
-
-  /**
    * Get user's historical answer patterns
    */
   async getUserAnswerPattern(
@@ -315,7 +274,7 @@ export class OrbClarificationEngine {
   ): Promise<AnswerPattern | null> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       const [pattern] = await db
         .select()
         .from(orbUserAnswerPatterns)
@@ -363,6 +322,7 @@ export class OrbClarificationEngine {
   ): Promise<ClarificationQuestion> {
     try {
       const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const clarId = Number(clarificationId);
 
       // Update the clarification record

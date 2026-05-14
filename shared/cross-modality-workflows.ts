@@ -32,7 +32,7 @@ export interface WorkflowStep {
   /** Step description */
   description: string;
   /** Expected output type */
-  outputType: "image" | "video" | "audio" | "text" | "plan" | "analysis" | "lora";
+  outputType: "image" | "video" | "audio" | "voice" | "text" | "plan" | "analysis" | "lora";
   /** Tools to use */
   tools: string[];
   /** Dependencies on previous steps */

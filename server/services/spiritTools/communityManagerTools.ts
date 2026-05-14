@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { userFeedbackReportsReports } from "../../../drizzle/schema";
+import { userFeedbackReports } from "../../../drizzle/schema";
 import { desc, eq } from "drizzle-orm";
 
 /**
@@ -25,8 +25,8 @@ export async function submitFeedback(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const [result] = await db.insert(userFeedbackReports).values({
       userId: input.userId,
       type: input.type,
@@ -78,8 +78,8 @@ export async function getUserFeedback(input: {
   }>;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const feedback = await db
       .select()
       .from(userFeedbackReports)

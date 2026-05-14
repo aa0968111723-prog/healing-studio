@@ -90,8 +90,8 @@ export async function getPreferences(userId: number): Promise<{
   preferences: Record<string, unknown>;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const [userPref] = await db
       .select()
       .from(users)
@@ -154,8 +154,8 @@ export async function updatePreference(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     // Determine which table to update
     const agentPrefKeys = [
       "confirmationPolicy",
