@@ -1464,14 +1464,33 @@ export default memo(function ProactiveOrbWidget({
     () => getPageByPath(locationPath),
     [locationPath]
   );
+  // creativeMode（simple / standard / pro）只有 /studio 跨模態頁有；三個專業
+  // 工作室原生 UI 已經是固定深度，沒有對應狀態，因此這裡仍限定在 /studio。
   const studioCreativeMode =
     pageAgent.snapshot?.pageId === "studio"
       ? String(pageAgent.snapshot.state?.creativeMode ?? "")
       : "";
-  const studioModality =
-    pageAgent.snapshot?.pageId === "studio"
-      ? String(pageAgent.snapshot.state?.activeModality ?? "image")
-      : "image";
+  // modality 對所有 studio 子頁都有意義：/studio 從 snapshot.activeModality 拿，
+  // 三個專業工作室（/image-studio、/video-studio、/pro-studio）則可以直接從
+  // pageId 推斷。光球的提示卡 / 文案會以此選擇 "image / video / audio / voice"
+  // 對應的話術，因此即使使用者沒有經過 /studio，這個欄位也能正確反映模態。
+  const studioModality = useMemo(() => {
+    const pid = pageAgent.snapshot?.pageId;
+    if (pid === "studio") {
+      return String(pageAgent.snapshot?.state?.activeModality ?? "image");
+    }
+    if (pid === "image-studio") return "image";
+    if (pid === "video-studio") return "video";
+    if (pid === "pro-studio") {
+      // pro-studio 同時管音樂與配音；若 snapshot 內有 activeTab 則優先採用，
+      // 否則退回 "audio" 當預設（與 STUDIO_MODALITY_PROFILES 一致）。
+      const tab = String(pageAgent.snapshot?.state?.activeTab ?? "");
+      if (tab === "voice" || tab === "tts") return "voice";
+      return "audio";
+    }
+    return "image";
+  }, [pageAgent.snapshot]);
+  // isStudio*Mode 仍綁在 /studio 的 creativeMode 上 — 專業工作室沒有對應旋鈕。
   const isStudioInspirationMode =
     pageContext?.pageId === "studio" &&
     pageAgent.snapshot?.pageId === "studio" &&

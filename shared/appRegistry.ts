@@ -575,7 +575,10 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "讓光球純聊天",
       "設定自動排程",
     ],
-    supportedActions: [],
+    // supportsPageAgent: false 意味著沒有 runtime handler 可接收 setTab / setParam，
+    // 但 static-fallback router 仍會把 navigate 派送到目標頁的網址，因此這裡至少
+    // 宣告 "navigate" 讓光球可以從別的頁面提議「我帶你去調整光球設定」。
+    supportedActions: ["navigate"],
   },
   {
     id: "settings",

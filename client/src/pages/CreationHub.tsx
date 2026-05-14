@@ -146,6 +146,9 @@ export default function CreationHub() {
       new Set([
         "/create",
         "/studio",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
         "/director",
         "/assets",
         "/notes",
@@ -172,6 +175,9 @@ export default function CreationHub() {
         label: "離開 Hub 進入單獨頁",
         options: [
           { id: "/studio", label: "創作工作室（獨立頁）" },
+          { id: "/image-studio", label: "圖片工作室（獨立頁）" },
+          { id: "/video-studio", label: "影片工作室（獨立頁）" },
+          { id: "/pro-studio", label: "音樂與配音工作室（獨立頁）" },
           { id: "/director", label: "導演 AI（獨立頁）" },
           { id: "/assets", label: "資產庫（獨立頁）" },
           { id: "/notes", label: "專案筆記（獨立頁）" },
