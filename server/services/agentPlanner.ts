@@ -391,6 +391,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
         return [
           "User-selected composer mode: 跳頁 (navigate).",
           "The user wants to be taken to a feature page. Return decision.mode='direct' with a single navigate step. If the destination is ambiguous, ask one short clarification with topic-aware options instead.",
+          "HARD CONSTRAINT (絕對不可違反): every navigate step's `path` MUST exactly match a path listed in the 'Global capability registry summary' above. Do NOT invent plausible-sounding routes (例如 /voice-studio-pro、/podcast、/做配音) — the SPA has no such routes and the user will land on a blank screen. If the user's intent does not unambiguously point to one registered page, return decision.mode='clarification' with clarificationQuestion 「想去哪個工具頁？」 + 2-4 clarificationOptions drawn from the registered page labels that match the user's modality (例如「VoiceStudio · 配音工作室」「Director · 旁白生成」). Always prefer asking once over jumping to a guessed path.",
         ].join("\n");
       case "ask-feature":
         return [
@@ -724,6 +725,59 @@ export async function runSchemaFirstAgentPlanner(
         warnings: [
           ...modeReplanGated.warnings,
           "Mode-contract replan triggered (multi-step mode enforcement).",
+        ],
+      };
+    }
+  }
+
+  // ─── Navigate-mode replan (single-pass) ──────────────────────────────
+  // Mirrors the multi-step replan above for the 跳頁 contract: when the
+  // gate rejected a direct plan because the target path isn't in
+  // APP_PAGE_REGISTRY, re-invoke the planner ONCE telling it which path
+  // was wrong and demanding clarification with registry-backed options.
+  if (
+    gateRequestedMode === "navigate" &&
+    gated.status === "invalid" &&
+    typeof gated.reason === "string" &&
+    /Navigate-mode contract violated/i.test(gated.reason)
+  ) {
+    const refineMessages: Message[] = [
+      ...input.messages,
+      {
+        role: "user",
+        content:
+          `[Orb safety gate] 上一版跳頁計畫違反 navigate 契約：${gated.reason}\n` +
+          `請改用 decision.mode='clarification'，clarificationQuestion 用「想去哪個工具頁？」之類的問法，clarificationOptions 必須選自 Global capability registry summary 中真實存在的頁面標題（2-4 個最相近的選項）。不要再產生 'direct' 計畫指向未註冊路徑。`,
+      } as Message,
+    ];
+    const navReplan = await llm({
+      messages: buildAgentPlannerMessages({
+        ...input,
+        messages: refineMessages,
+      }),
+      runName: usedMultimodalPlanner
+        ? "orb-agent-gemini-multimodal-planner-navigate-refine"
+        : "orb-agent-schema-first-planner-navigate-refine",
+      maxTokens: input.maxTokens ?? 2_500,
+      preferEngine: usedMultimodalPlanner ? "gemini" : undefined,
+      response_format: {
+        type: "json_schema",
+        json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
+          name: string;
+          schema: Record<string, unknown>;
+          strict?: boolean;
+        },
+      },
+    });
+    const navReplanRaw = extractPlannerContent(navReplan);
+    const navReplanGated = parseAndGatePlan(navReplanRaw, gateOptions);
+    if (navReplanGated.status !== "invalid") {
+      rawContent = navReplanRaw;
+      gated = {
+        ...navReplanGated,
+        warnings: [
+          ...navReplanGated.warnings,
+          "Mode-contract replan triggered (navigate mode enforcement).",
         ],
       };
     }
