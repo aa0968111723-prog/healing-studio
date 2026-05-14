@@ -92,10 +92,10 @@ export async function getPreferences(userId: number): Promise<{
   try {
     const db = await getDb();
     if (!db) throw new Error("Database is not configured");
-    const [userPref] = await db
+    const [userRow] = await db
       .select()
       .from(users)
-      .where(eq(users.userId, userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     const [agentPref] = await db
@@ -104,23 +104,18 @@ export async function getPreferences(userId: number): Promise<{
       .where(eq(agentPreferences.userId, userId))
       .limit(1);
 
+    // Only surface fields that actually exist on the deployed schema.
+    // Theme / language / per-modality engine selectors are configured in
+    // /settings/agent, not on agent_preferences — they're omitted here
+    // until that wiring lands.
     const preferences: Record<string, unknown> = {
-      // User preferences
-      theme: userPref?.theme || "system",
-      language: userPref?.language || "zh-TW",
-
-      // Agent preferences
+      hasUserRecord: Boolean(userRow),
       confirmationPolicy: agentPref?.confirmationPolicy || "confirm_high_risk",
-      imageEngine: agentPref?.imageEngine || "flux",
-      videoEngine: agentPref?.videoEngine || "hailu",
-      audioEngine: agentPref?.audioEngine || "suno",
-      voiceEngine: agentPref?.voiceEngine || "qwen-tts",
-      autoApproveTools: agentPref?.autoApproveTools
-        ? JSON.parse(agentPref.autoApproveTools as string)
-        : [],
-      blockedTools: agentPref?.blockedTools
-        ? JSON.parse(agentPref.blockedTools as string)
-        : [],
+      autoApproveTools: agentPref?.autoApproveTools ?? [],
+      blockedTools: agentPref?.blockedTools ?? [],
+      maxAutoStepsPerTask: agentPref?.maxAutoStepsPerTask ?? 5,
+      voiceEnabled: agentPref?.voiceEnabled ?? false,
+      preferredVoiceName: agentPref?.preferredVoiceName ?? "Puck",
     };
 
     logger.debug("preferences_retrieved", { userId });
@@ -156,42 +151,36 @@ export async function updatePreference(input: {
   try {
     const db = await getDb();
     if (!db) throw new Error("Database is not configured");
-    // Determine which table to update
-    const agentPrefKeys = [
+    // Whitelist of keys we actually know how to persist on the deployed
+    // schema. Anything outside this set is rejected up-front so we don't
+    // silently no-op or write to a column the schema doesn't have.
+    const agentPrefKeys = new Set([
       "confirmationPolicy",
-      "imageEngine",
-      "videoEngine",
-      "audioEngine",
-      "voiceEngine",
       "autoApproveTools",
       "blockedTools",
-    ];
+      "maxAutoStepsPerTask",
+      "voiceEnabled",
+      "preferredVoiceName",
+    ]);
 
-    if (agentPrefKeys.includes(input.key)) {
-      // Update agent preferences
-      const updateData: Record<string, unknown> = {
-        [input.key]: typeof input.value === "object"
-          ? JSON.stringify(input.value)
-          : input.value,
-        updatedAt: new Date(),
+    if (!agentPrefKeys.has(input.key)) {
+      return {
+        success: false,
+        message: `設定鍵「${input.key}」目前不支援；可用的鍵：${Array.from(agentPrefKeys).join("、")}`,
       };
-
-      await db
-        .update(agentPreferences)
-        .set(updateData)
-        .where(eq(agentPreferences.userId, input.userId));
-    } else {
-      // Update user preferences
-      const updateData: Record<string, unknown> = {
-        [input.key]: input.value,
-        updatedAt: new Date(),
-      };
-
-      await db
-        .update(users)
-        .set(updateData)
-        .where(eq(users.userId, input.userId));
     }
+
+    // json() columns (autoApproveTools / blockedTools) take arrays
+    // directly; drizzle serialises.
+    const updateData: Record<string, unknown> = {
+      [input.key]: input.value,
+      updatedAt: new Date(),
+    };
+
+    await db
+      .update(agentPreferences)
+      .set(updateData)
+      .where(eq(agentPreferences.userId, input.userId));
 
     logger.info("preference_updated", {
       userId: input.userId,

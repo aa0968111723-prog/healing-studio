@@ -3382,7 +3382,7 @@ async function dispatchMusicSpecialistTool(
           duration: args.duration as number | undefined,
           genre: args.genre as string | undefined,
           mood: args.mood as string | undefined,
-          tempo: args.tempo as string | undefined,
+          instrumental: args.instrumental as boolean | undefined,
         });
         return {
           name: call.name,
@@ -3444,20 +3444,33 @@ async function dispatchTrainingSpecialistTool(
   try {
     switch (call.name) {
       case "trainingSpecialist.train": {
-        const modelType = args.modelType as string;
-        const datasetUrl = args.datasetUrl as string;
+        const modelName = args.modelName as string;
+        const trainingType = args.trainingType as
+          | "lora"
+          | "dreambooth"
+          | "fine-tune"
+          | undefined;
 
-        if (!modelType || !datasetUrl) {
-          return { name: call.name, ok: false, error: "modelType and datasetUrl are required" };
+        if (!modelName || !trainingType) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "modelName and trainingType are required",
+          };
         }
+
+        const datasetImages = Array.isArray(args.datasetImages)
+          ? (args.datasetImages as string[])
+          : undefined;
 
         const result = await trainModel({
           userId: opts.userId,
-          modelType,
-          datasetUrl,
-          modelName: args.modelName as string | undefined,
-          epochs: args.epochs as number | undefined,
-          batchSize: args.batchSize as number | undefined,
+          modelName,
+          trainingType,
+          datasetImages,
+          baseModel: args.baseModel as string | undefined,
+          steps: args.steps as number | undefined,
+          learningRate: args.learningRate as number | undefined,
         });
 
         return {
@@ -3470,14 +3483,14 @@ async function dispatchTrainingSpecialistTool(
       }
 
       case "trainingSpecialist.getStatus": {
-        const jobId = args.jobId as string;
-        if (!jobId) {
-          return { name: call.name, ok: false, error: "jobId is required" };
+        const trainingId = (args.trainingId ?? args.jobId) as string;
+        if (!trainingId) {
+          return { name: call.name, ok: false, error: "trainingId is required" };
         }
 
         const result = await getTrainingStatus({
           userId: opts.userId,
-          jobId,
+          trainingId,
         });
 
         return {
@@ -4058,10 +4071,17 @@ async function dispatchMemoryManagerTool(
           return { name: call.name, ok: false, error: "query is required" };
         }
 
+        const memoryTypeArg = args.memoryType ?? args.memoryTypes;
+        const memoryTypes = Array.isArray(memoryTypeArg)
+          ? (memoryTypeArg as any[])
+          : memoryTypeArg
+            ? [memoryTypeArg as any]
+            : undefined;
+
         const result = await searchMemories({
           userId: opts.userId,
           query,
-          memoryType: args.memoryType as any,
+          memoryTypes,
           limit: typeof args.limit === "number" ? args.limit : 10,
           minImportance: typeof args.minImportance === "number" ? args.minImportance : undefined,
         });

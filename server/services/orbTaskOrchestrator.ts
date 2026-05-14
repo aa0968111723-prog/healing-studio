@@ -837,7 +837,8 @@ export async function runOrbTaskToCompletion(
         const refetched = store.get(input.taskId, input.userId, clock());
         const currentStepAfterReplan = refetched?.steps[refetched.currentStepIndex];
         circuitReplanApplied =
-          Boolean(currentStepAfterReplan) && currentStepAfterReplan.id !== stepIdBeforeReplan;
+          Boolean(currentStepAfterReplan) &&
+          currentStepAfterReplan!.id !== stepIdBeforeReplan;
         if (circuitReplanApplied) {
           // Give the loop room to run the freshly injected steps.
           maxIterations = Math.min(MAX_DYNAMIC_ITERATIONS, maxIterations + 4);
