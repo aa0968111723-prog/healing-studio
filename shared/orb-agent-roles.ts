@@ -807,6 +807,43 @@ const QUALITY_OVERRIDE_HINTS: readonly string[] = [
   "looks weird",
 ];
 
+// 被 muted 的角色該怎麼降級：使用者把某位精靈靜音時，原本掉到 companion
+// 等同「沒人接」。這份表把每個專精精靈映射到能繼續做事的退路 —
+// 通常是 composer (頁面執行) 或 director (跨頁規劃)。companion 是最後底牌。
+// 設計原則：失去專業精靈時，至少還能跑工具或開規劃。
+const MUTED_FALLBACK_REDIRECT: Record<AgentRole, AgentRole> = {
+  // 內容生成類 → 失去專精時改走 composer 直接在頁面執行
+  "image-specialist": "composer",
+  "video-specialist": "composer",
+  "music-specialist": "composer",
+  "voice-specialist": "composer",
+  "training-specialist": "composer",
+  "inspiration-specialist": "researcher",
+  "anatomy-specialist": "composer",
+  // 規劃 / 教學類 → 退到陪聊
+  director: "companion",
+  "learning-specialist": "companion",
+  "plan-executor": "director",
+  // 主動關懷型 → mute = 不想被打擾，退到 companion
+  accountant: "companion",
+  "quality-coach": "companion",
+  inspector: "companion",
+  "legal-advisor": "companion",
+  "security-guard": "companion",
+  "onboarding-coach": "companion",
+  "community-manager": "companion",
+  // 工具型 → 退到 composer
+  "notes-curator": "composer",
+  "settings-detail": "composer",
+  "chief-orchestrator": "director",
+  // 通用內部角色 (mute 這幾個其實沒實際意義，但補滿型別)
+  composer: "companion",
+  critic: "companion",
+  researcher: "companion",
+  navigator: "companion",
+  companion: "companion",
+};
+
 /**
  * Friendly nicknames that map to a specific AgentRole. Lets users address
  * a specific 「精靈」 directly with `@阿圖 ...` / `@老導 ...` syntax;
@@ -999,33 +1036,59 @@ export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
   const muted = new Set<AgentRole>(input.mutedRoles ?? []);
   const isMuted = (role: AgentRole) => muted.has(role);
 
+  // 第一個被 muted 的命中 — 用於後段選 fallback；不再讓使用者掉到 companion
+  // 後一片靜默。
+  let firstMutedHit: AgentRole | null = null;
+  const recordMuteHit = (role: AgentRole) => {
+    if (!firstMutedHit) firstMutedHit = role;
+  };
+
   // Override 1：強教學訊號優先。沒有這個 guard，「教我怎麼做影片」會
   // 被 video-specialist 的「影片」搶走而失去教學語氣。但若 director 規則
   // 也命中，視為「規劃裡含教學產物」，仍交給 director。
-  if (!isDirectorIntent && !isMuted("learning-specialist") && matchesAny(text, LEARNING_OVERRIDE_HINTS)) {
-    return {
-      role: "learning-specialist",
-      confidence: 0.85,
-      rationale: "user explicitly asked to be taught (LEARNING_OVERRIDE_HINTS)",
-    };
+  if (!isDirectorIntent && matchesAny(text, LEARNING_OVERRIDE_HINTS)) {
+    if (!isMuted("learning-specialist")) {
+      return {
+        role: "learning-specialist",
+        confidence: 0.85,
+        rationale: "user explicitly asked to be taught (LEARNING_OVERRIDE_HINTS)",
+      };
+    }
+    recordMuteHit("learning-specialist");
   }
 
   // Override 2：強品質抱怨訊號優先。「畫面糊」「品質很差」「looks weird」
   // 都是對既有結果不滿意，應該交給巧巧 (quality-coach) 給改寫建議；
   // 沒這個 guard 會被 image-specialist 的單字「畫」substring 搶走。
-  if (!isDirectorIntent && !isMuted("quality-coach") && matchesAny(text, QUALITY_OVERRIDE_HINTS)) {
-    return {
-      role: "quality-coach",
-      confidence: 0.85,
-      rationale: "user complained about output quality (QUALITY_OVERRIDE_HINTS)",
-    };
+  if (!isDirectorIntent && matchesAny(text, QUALITY_OVERRIDE_HINTS)) {
+    if (!isMuted("quality-coach")) {
+      return {
+        role: "quality-coach",
+        confidence: 0.85,
+        rationale: "user complained about output quality (QUALITY_OVERRIDE_HINTS)",
+      };
+    }
+    recordMuteHit("quality-coach");
   }
 
   for (const rule of KEYWORD_RULES) {
-    if (isMuted(rule.role)) continue;
-    if (matchesAny(text, rule.keywords)) {
-      return { role: rule.role, confidence: 0.85, rationale: rule.rationale };
+    if (!matchesAny(text, rule.keywords)) continue;
+    if (isMuted(rule.role)) {
+      recordMuteHit(rule.role);
+      continue;
     }
+    return { role: rule.role, confidence: 0.85, rationale: rule.rationale };
+  }
+
+  // 如果有命中規則但全部被 mute，根據 MUTED_FALLBACK_REDIRECT 找替代角色
+  // 而不是讓使用者掉到 companion 一片靜默。
+  if (firstMutedHit && !isMuted(MUTED_FALLBACK_REDIRECT[firstMutedHit])) {
+    const fallback = MUTED_FALLBACK_REDIRECT[firstMutedHit];
+    return {
+      role: fallback,
+      confidence: 0.6,
+      rationale: `primary role @${firstMutedHit} muted by user — falling back to ${fallback}`,
+    };
   }
 
   // Composer: short imperative + we're already on a studio page.

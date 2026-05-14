@@ -357,6 +357,14 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
     : null;
   const requestedMode = requestedModeMatch?.[1]?.toLowerCase() ?? null;
+  // Escape hatch — 使用者明確說「急 / 直接做 / 別問了」時，多步驟模式不再
+  // 強制 MIN 3 輪澄清。逐字偵測：避免誤判「我慢慢來」之類反向訊號。
+  // 偵測來源：最後一輪使用者文字 + 已有的 [使用者澄清/...] / [總總澄清/...]
+  // 答案（如果使用者上一輪已選「急件」維度的選項，這裡也算）。
+  const latestUserText = extractLatestUserTextFromMessages(input.messages);
+  const urgencySource = `${latestUserText}\n${input.context ?? ""}`;
+  const URGENT_MARKERS = /別問了|不要再問|直接做|直接執行|直接跑|我趕時間|趕件|急件|很急|今天就要|現在就要|just do it|skip clarification|stop asking|run it now|go ahead/i;
+  const isUrgentSkip = URGENT_MARKERS.test(urgencySource);
   const modeDirective = (() => {
     switch (requestedMode) {
       case "multi-step":
@@ -364,13 +372,16 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
           "User-selected composer mode (極為重要 / very important): 多步驟代理 (multi-step agent).",
           "The user explicitly opted into autonomous multi-step execution. You MUST commit to one of:",
           "  • decision.mode='clarification' with clarificationQuestion + 2-4 clarificationOptions — used when ANY wizard dimension (format / length / style / platform / audience / subject) is still unknown. The first turn for an ambiguous request defaults here.",
-          "  • decision.mode='tasked' with concrete toolName + toolArgs steps — used ONLY when every required wizard dimension is already pinned down (look in `[使用者澄清]:` lines + recalled memory).",
+          "  • decision.mode='tasked' with concrete toolName + toolArgs steps — used ONLY when every required wizard dimension is already pinned down (look in `[使用者澄清/...]:` AND `[總總澄清/...]:` lines + recalled memory — BOTH namespaces count as confirmed answers; treat `[總總澄清/goal]:` as confirming the wizard's `format` dimension).",
           "FORBIDDEN in this mode:",
           "  • decision.mode='direct' (multi-step needs the WorkflowConfirmationCard, not a single dispatch).",
           "  • Reply text containing numbered '步驟 1 / 步驟 2 / Step 1 / Step 2' lists — that's the phantom-plan anti-pattern.",
           "  • Asking the user '從哪個步驟開始？' or 'which step do you want to start with?' (commit to clarification or tasked instead).",
           "  • Empty / chatty replies that don't move the wizard forward.",
-        ].join("\n");
+          isUrgentSkip
+            ? "URGENT ESCAPE HATCH ACTIVE — user explicitly asked to skip clarification (急件 / 直接做 / skip-asking marker detected). Skip the MIN 3 rounds rule: if you have even ONE confirmed dimension (主題 OR 格式) AND a sensible default for the rest based on registry priors (e.g. 15 秒、IG 直式、品牌調性 vivid), commit to decision.mode='tasked' THIS turn. In summaryForUser, state explicitly which defaults you picked so the user can override after the fact."
+            : null,
+        ].filter(Boolean).join("\n");
       case "plan":
         return [
           "User-selected composer mode (重要): 計畫 (planning).",
@@ -432,8 +443,8 @@ Before producing a 'tasked' plan (multi-step / cross-page execution), you MUST g
 
 How the wizard works:
 - Ask ONE clarifying question at a time (decision.mode='clarification' + clarificationQuestion + 2-4 clarificationOptions). Never ask multiple questions in a single message.
-- Re-read the conversation each turn — earlier '[使用者澄清]:' answers count as already-confirmed parameters; do NOT ask the same dimension twice.
-- Continue clarification rounds until ALL the following MANDATORY dimensions for the user's modality are pinned down before switching to decision.mode='tasked'. For cross-page agent workflows you MUST run a minimum of 3 clarification rounds (主題 + 時長 + 風格 + 平台) before committing — even if you think you can guess, ASK. The orb's job is to feel like a human director who actually understands the brief, not a one-shot dispatcher.
+- Re-read the conversation each turn — earlier '[使用者澄清/...]:' AND '[總總澄清/...]:' lines BOTH count as already-confirmed parameters; do NOT ask the same dimension twice. Map 總總's dimensions onto wizard dimensions when checking: goal→format, scope→(plan size), complexity→(handoff needs). If 總總's goal answer already named a modality + length (e.g. 「一支短影片（15-60 秒）」), treat BOTH format AND a rough duration band as confirmed.
+- Continue clarification rounds until ALL the following MANDATORY dimensions for the user's modality are pinned down before switching to decision.mode='tasked'. For cross-page agent workflows you MUST run a minimum of 3 clarification rounds (主題 + 時長 + 風格 + 平台) before committing — even if you think you can guess, ASK. EXCEPTION — if the URGENT ESCAPE HATCH was activated above (user said 急/直接做/skip), drop the MIN 3 rule and ship a tasked plan as soon as ONE dimension is confirmed, picking registry-default values for the rest and disclosing them in summaryForUser. The orb's job is to feel like a human director who actually understands the brief, not a one-shot dispatcher.
   • Video (影片) — REQUIRED: 主題/主角、時長、風格/調性、平台/比例。MIN 3 rounds. RECOMMENDED extra: 素材來源 (手邊素材 vs AI 生成)、受眾、情緒節奏、配樂風格。
   • Image (圖片) — REQUIRED: 主體/構圖、風格/氛圍、比例/尺寸。RECOMMENDED extra: 用途／投放、模型偏好、色調。
   • Voice / 配音 — REQUIRED: 文本內容或主題、語氣/角色、語言、時長/字數。RECOMMENDED extra: 場景情境、引擎/聲線。

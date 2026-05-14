@@ -327,27 +327,40 @@ function extractSimpleTopic(text: string): string | null {
 /**
  * Format clarification as IntentCardOptions-compatible structure.
  * Used by chat router to render clarification cards.
+ *
+ * 單維度策略：每次只問一個維度 (2-4 chip)，而不是把 top 3 維度疊成
+ * 最多 12 chip 的密牆。維度優先序依 weights 排（goal > scope > complexity
+ * > timeline > budget），最高權重 missing 的維度先問。後續維度等使用者
+ * 回完這題下一輪再追問——這跟多步驟代理 wizard 的「ONE question per turn」
+ * 一致，避免使用者面對手機 UI 上 12 顆 chip 不知從何選起。
  */
 export function formatOrchestratorClarificationOptions(
   clarity: IntentClarity
 ): Array<{ key: string; title: string; description: string; pick: string }> {
-  const result: Array<{ key: string; title: string; description: string; pick: string }> = [];
+  if (clarity.suggestedQuestions.length === 0) return [];
 
-  // Take top 3 missing dimensions (avoid overwhelming user)
-  const topDimensions = clarity.suggestedQuestions.slice(0, 3);
+  // Priority by intent-clarity weights (matches analyzeOrchestratorIntent).
+  const DIMENSION_PRIORITY: Record<IntentDimension, number> = {
+    goal: 5,
+    scope: 4,
+    complexity: 3,
+    timeline: 2,
+    budget: 1,
+  };
 
-  topDimensions.forEach((q, index) => {
-    q.options.forEach((option, optIndex) => {
-      result.push({
-        key: `${index + 1}${String.fromCharCode(65 + optIndex)}`, // 1A, 1B, 2A, 2B...
-        title: option,
-        description: `${q.question}`,
-        pick: `[總總澄清/${q.dimension}]: ${option}`,
-      });
-    });
-  });
+  // Pick the single highest-priority missing dimension.
+  const sorted = [...clarity.suggestedQuestions].sort(
+    (a, b) => (DIMENSION_PRIORITY[b.dimension] ?? 0) - (DIMENSION_PRIORITY[a.dimension] ?? 0)
+  );
+  const q = sorted[0];
+  if (!q) return [];
 
-  return result;
+  return q.options.slice(0, 4).map((option, optIndex) => ({
+    key: `1${String.fromCharCode(65 + optIndex)}`, // 1A / 1B / 1C / 1D
+    title: option,
+    description: q.question,
+    pick: `[總總澄清/${q.dimension}]: ${option}`,
+  }));
 }
 
 /**
@@ -374,13 +387,20 @@ export function buildOrchestratorClarificationMessage(
     complexity: "協作需求",
   };
 
-  const missingNames = clarity.missingDimensions.map(d => dimensionNames[d]).join("、");
-
-  const message =
-    `我是總總 🎩 聽到你的需求了，但有幾個重點想先確認——這樣我才能幫你找對精靈、排對流程。\n\n` +
-    `目前不太確定：**${missingNames}**。每個問題挑一個最接近的選項就好，我就能馬上開跑。`;
-
   const options = formatOrchestratorClarificationOptions(clarity);
+  // 單維度模式：只提這一輪在問的維度，下一輪會再追問下一個。讓使用者一次
+  // 看一個重點，而不是「目前不太確定 A、B、C」這種讓人一進來就被五題包圍的開場。
+  const askingPick = options[0]?.pick.match(/\[總總澄清\/([\w]+)\]/);
+  const askingDim = (askingPick?.[1] as IntentDimension | undefined) ?? clarity.missingDimensions[0];
+  const askingName = askingDim ? dimensionNames[askingDim] : null;
+  const remainingCount = Math.max(0, clarity.missingDimensions.length - 1);
+  const tail = remainingCount > 0
+    ? `回完這題我會再追問剩 ${remainingCount} 個重點——一次一題比較好決定。`
+    : `回完這題就能直接開跑了。`;
+
+  const message = askingName
+    ? `我是總總 🎩 聽到你的需求了。先確認一個重點：**${askingName}**。${tail}`
+    : `我是總總 🎩 聽到你的需求了。挑一個最接近的選項就好。`;
 
   return { message, options };
 }

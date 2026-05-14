@@ -796,6 +796,61 @@ export async function runOrbTaskToCompletion(
         .findIndex(code => code !== error_code);
       const sameErrorCount = streak === -1 ? perStepToolResults.filter(x => x.error_code === error_code).length : streak;
       const trippedCircuit = Boolean(error_code) && sameErrorCount >= MAX_SAME_ERROR_STREAK;
+
+      // Circuit-breaker rescue：原本 trippedCircuit 直接回 handoff_to_human
+      // 等同死路（站內沒有真人客服在另一端接）。改成先讓 planner 試一次
+      // replan — 它可以改參數、換工具、或切割成更小步驟。replan 真的
+      // 注入了新步驟（current step id 換掉）就 continue；replan 也救不
+      // 起來再走原本的 failed 路徑。
+      let circuitReplanApplied = false;
+      if (trippedCircuit && input.onRequestReplan) {
+        const stepIdBeforeReplan = step.id;
+        const replanObservation: ToolFailureObservation = {
+          toolName: stepRun.toolResults.find(r => !r.ok)?.name ?? step.toolCalls[0]?.name ?? "unknown",
+          errorCode: error_code ?? "circuit_breaker_tripped",
+          issues: [
+            `Same error code "${error_code}" repeated ${sameErrorCount} times`,
+            failureReason,
+          ].filter((x): x is string => Boolean(x)),
+          toolArgs: step.toolCalls[0]?.args ?? {},
+        };
+        appendOrbAgentTaskAuditEvent(
+          input.taskId,
+          "task.replanning",
+          `Circuit-breaker tripped (${sameErrorCount}× ${error_code}); requesting replan before failing`,
+          { stepId: step.id, observation: replanObservation }
+        );
+        try {
+          await input.onRequestReplan({
+            taskId: input.taskId,
+            stepId: step.id,
+            toolName: replanObservation.toolName,
+            observation: replanObservation,
+            reason: "circuit-breaker-tripped",
+          });
+        } catch (replanError) {
+          console.warn(
+            `[Orb] circuit-breaker replan callback threw for taskId=${input.taskId}:`,
+            replanError instanceof Error ? replanError.message : String(replanError)
+          );
+        }
+        const refetched = store.get(input.taskId, input.userId, clock());
+        const currentStepAfterReplan = refetched?.steps[refetched.currentStepIndex];
+        circuitReplanApplied =
+          Boolean(currentStepAfterReplan) && currentStepAfterReplan.id !== stepIdBeforeReplan;
+        if (circuitReplanApplied) {
+          // Give the loop room to run the freshly injected steps.
+          maxIterations = Math.min(MAX_DYNAMIC_ITERATIONS, maxIterations + 4);
+          flushNewFsmEvents();
+          continue;
+        }
+      }
+
+      // No rescue path worked — mark step failed and exit. handoff_to_human
+      // is now only emitted as a metric/recovery_action label so dashboards
+      // can spot circuits that even replan couldn't save; the chat layer
+      // surfaces this with a structured user-decision card (retry / cancel /
+      // user-takeover) rather than a silent dead end.
       const finalRecoveryAction = trippedCircuit ? "handoff_to_human" : recovery_action;
       if (finalRecoveryAction) recordRecoveryMetric(finalRecoveryAction, false);
       const updatedTask = store.reportStep(
@@ -804,7 +859,7 @@ export async function runOrbTaskToCompletion(
           stepId: step.id,
           ok: false,
           errorCode: error_code ?? failureReason,
-          detail: [stepRun.toolResults.find(r => !r.ok)?.error, `recovery_action=${finalRecoveryAction ?? "none"}`]
+          detail: [stepRun.toolResults.find(r => !r.ok)?.error, `recovery_action=${finalRecoveryAction ?? "none"}`, trippedCircuit ? "replan_attempted=true" : null]
             .filter(Boolean)
             .join("; "),
           source: "tool",
@@ -826,7 +881,7 @@ export async function runOrbTaskToCompletion(
         perStepToolResults,
         finalTask: updatedTask,
         finalAgentTask: getOrbAgentTask(input.taskId),
-        reason: trippedCircuit ? "handoff_to_human" : failureReason,
+        reason: trippedCircuit ? "circuit-broken-replan-failed" : failureReason,
       };
     }
 
