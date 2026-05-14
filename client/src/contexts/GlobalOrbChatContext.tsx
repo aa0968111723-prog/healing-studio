@@ -3224,7 +3224,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     const turnId = ++sendRequestIdRef.current;
     const isStale = () => sendRequestIdRef.current !== turnId;
 
-    const userMessage: ChatMessage = {
+    try {
+      const userMessage: ChatMessage = {
       role: "user",
       text: trimmed,
       at: Date.now(),
@@ -3266,24 +3267,27 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         recentUserTexts,
       });
       if (scenario) {
-        const reply = buildScenarioReplyText(scenario);
-        setMessages(prev => [...prev, {
-          role: "orb",
-          text: reply,
-          at: Date.now(),
-          pagePath: locationPath,
-          intent: scenario.intent,
-        }]);
-        if (scenario.suggestions && scenario.suggestions.length > 0) {
-          setSuggestions(scenario.suggestions.map(text => ({ text })));
+        try {
+          const reply = buildScenarioReplyText(scenario);
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: reply,
+            at: Date.now(),
+            pagePath: locationPath,
+            intent: scenario.intent,
+          }]);
+          if (scenario.suggestions && scenario.suggestions.length > 0) {
+            setSuggestions(scenario.suggestions.map(text => ({ text })));
+          }
+          if (scenario.followUp === "reset-conversation") {
+            orbState.setState("idle", "等你再開口");
+          } else {
+            orbState.setState("idle");
+          }
+          return;
+        } finally {
+          setIsSending(false);
         }
-        if (scenario.followUp === "reset-conversation") {
-          orbState.setState("idle", "等你再開口");
-        } else {
-          orbState.setState("idle");
-        }
-        setIsSending(false);
-        return;
       }
     }
 
@@ -3333,8 +3337,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             at: Date.now(),
             pagePath: locationPath,
           }]);
-        } finally {
-          setIsSending(false);
         }
         return;
       }
@@ -3354,7 +3356,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         intent: "feature-inquiry",
       }]);
       orbState.setState("idle", "列了站上的功能");
-      setIsSending(false);
       return;
     }
 
@@ -3579,7 +3580,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             }]);
             setLocation(targetPath);
             setSuggestions(buildHandoffChips(mentioned));
-            setIsSending(false);
             return;
           }
           // intent-based 但沒推出來目的地 → fall through 給 LLM
@@ -3722,14 +3722,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           pagePath: locationPath,
           actions: [navWorkflow],
         }]);
-        try {
-          await executeActions([navWorkflow], {
-            intent: inferredLabel,
-            requireConfirmation: false,
-          });
-        } finally {
-          setIsSending(false);
-        }
+        await executeActions([navWorkflow], {
+          intent: inferredLabel,
+          requireConfirmation: false,
+        });
         return;
       }
       // No keyword match — let the LLM pick a destination, but tell it the
@@ -3749,7 +3745,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
       }]);
       orbState.setState("idle");
-      setIsSending(false);
       return;
     }
 
@@ -4817,6 +4812,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         { conversationId: activeConversationId },
         { onError: () => {} }
       );
+    }
+    } finally {
+      setIsSending(false);
     }
   }, [
     welcomeMessage,
