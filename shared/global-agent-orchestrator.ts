@@ -9,11 +9,26 @@ import type {
   PageAgentSnapshot,
   RunWorkflowAction,
 } from "./agent-actions";
+import { getPageByPath } from "./appRegistry";
 import { globalAgentRegistry, type GlobalAgentPlan } from "./global-agent-registry";
 import { expandWorkflowAction, type ExpandedWorkflowStep } from "./global-agent-workflows";
 import { topologicalBatches, ensureStepIds } from "./orb-dag-scheduler";
 import { resolveStepRefsInArgs } from "./orb-step-ref-resolver";
 import type { WorkflowRunState } from "./workflow-run-state";
+
+/**
+ * Last-line-of-defence path validator for navigate actions. The planner gate
+ * already rejects unknown paths server-side (see agent-plan-adapter
+ * navigate-mode branch), but workflows / chain-runners can still emit
+ * navigate steps whose `path` was rewritten by step-ref substitution or
+ * picked up from stale memory. We bail out before `ctx.navigate()` so the
+ * SPA never lands on a 404 / blank route just because the LLM hallucinated
+ * a plausible-looking path.
+ */
+function isKnownRegistryPath(path: string | undefined): boolean {
+  if (!path) return false;
+  return getPageByPath(path) !== undefined;
+}
 
 export interface GlobalAgentExecutionContext {
   currentPage?: PageAgentSnapshot | null;
@@ -1368,6 +1383,18 @@ export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentE
 
   for (const step of plan.steps) {
     if (step.path && step.path !== currentPath) {
+      if (!isKnownRegistryPath(step.path)) {
+        const reason = `navigate target '${step.path}' is not registered in APP_PAGE_REGISTRY`;
+        log("action.fail", { actionType: "navigate", reason });
+        results.push({ ok: false, reason });
+        return {
+          ok: false,
+          plan,
+          results,
+          reason,
+          endingPath: currentPath,
+        };
+      }
       await navigateAndSettle(step.path, ctx);
       currentPath = step.path;
     }

@@ -577,18 +577,54 @@ function buildFeatureInquiryCtaSuggestions(userText: string): ChatSuggestion[] {
   return chips;
 }
 
-function inferClarificationIntentCards(question: string, userText: string, dimension: ClarificationDimension = "format"): string[] {
+function inferClarificationIntentCards(question: string, userText: string, dimension?: ClarificationDimension): string[] {
   // Delegate to the shared context-aware generator so the options always
   // reference the user's own topic (e.g. "茶道體驗短片（30 秒）" instead of
   // generic "社群短片（15-30 秒）"). The shared util infers the modality
   // from `userText`; we pass `question` along too so modality detection
   // catches cases where the user asked about images but the question is
   // phrased around video.
+  //
+  // `dimension` is intentionally optional: when omitted, the shared util
+  // walks the wizard from the user's text instead of being pinned to a
+  // potentially-wrong dimension. Pin only when the question text gives
+  // you a confident dimension signal (see detectDimensionFromQuestion).
   const optionPack = buildContextualClarificationOptions({
     userText: `${userText}\n${question}`.trim(),
     dimension,
   });
   return optionPack.options;
+}
+
+/**
+ * Coarse classifier for clarification fallback. The server SHOULD return
+ * clarificationOptions directly; this only fires when the LLM forgot. We
+ * pick the dimension the question text most likely asks about so the
+ * generated chips line up with what the orb just asked. Returns undefined
+ * when no strong signal is detected — the shared option builder then
+ * auto-walks the wizard from the user's modality.
+ *
+ * Specifically: navigation-style questions ("想去哪個工具頁?") return
+ * undefined instead of being force-mapped to "format" — the old code
+ * surfaced video/image format chips for "which page do you want" prompts
+ * which made no sense and was the source of the 「跳頁反問選項跑掉」 bug.
+ */
+function detectDimensionFromQuestion(question: string): ClarificationDimension | undefined {
+  if (!question) return undefined;
+  if (/頁|哪一頁|哪個[頁工]|工具頁|跳頁|navigate|destination|目的地/i.test(question)) {
+    // Navigation question — defer to wizard auto-walk so the fallback
+    // chips ride the user's actual modality instead of being force-cast
+    // to "format" / "usecase".
+    return undefined;
+  }
+  if (/用途|usecase|use\s?case|purpose|目的(?!地)/i.test(question)) return "usecase";
+  if (/多長|時長|長度|幾秒|幾分|duration/i.test(question)) return "duration";
+  if (/風格|tone|style|調性|氛圍/i.test(question)) return "style";
+  if (/平台|哪個平台|平臺|platform/i.test(question)) return "platform";
+  if (/受眾|觀眾|audience|誰看/i.test(question)) return "audience";
+  if (/主題|主角|主體|subject|topic/i.test(question)) return "subject";
+  if (/格式|format/i.test(question)) return "format";
+  return undefined;
 }
 
 /**
@@ -4026,13 +4062,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               ? (data as { reply: string }).reply
               : "請幫我多說一點，我想先確認你的需求。";
         const clarificationOptionsRaw = (data as { clarificationOptions?: string[] }).clarificationOptions;
+        const detectedDimension = detectDimensionFromQuestion(clarificationQuestion);
         const clarificationOptions = Array.isArray(clarificationOptionsRaw)
           ? clarificationOptionsRaw
               .filter((s): s is string => typeof s === "string")
               .map(s => s.trim())
               .filter(s => s.length > 0)
               .slice(0, 4)
-          : inferClarificationIntentCards(clarificationQuestion, trimmed, /用途|use/i.test(clarificationQuestion) ? "usecase" : "format");
+          : inferClarificationIntentCards(clarificationQuestion, trimmed, detectedDimension);
         setMessages(prev => [...prev, {
           role: "orb",
           text: clarificationQuestion,
@@ -4044,7 +4081,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           question: clarificationQuestion,
           options: clarificationOptions,
-          dimension: /用途|use/i.test(clarificationQuestion) ? "usecase" : "format",
+          dimension: detectedDimension ?? "format",
           originalUserText: trimmed,
           createdAt: Date.now(),
         });

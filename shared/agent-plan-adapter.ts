@@ -18,6 +18,7 @@ import {
   type AgentPlanSafetyIssue,
   type AgentPlanV3RiskEvaluation,
 } from "./agent-plan-safety";
+import { getPageByPath } from "./appRegistry";
 
 export type AgentPlanAdapterStatus =
   | "converted"
@@ -591,6 +592,45 @@ function gateV3Plan(plan: AgentPlanV3, options?: ParseAndGatePlanOptions): Gated
         blockers: [],
         reason: phantomReason,
         issues: [phantomReason],
+      };
+    }
+  }
+
+  // Navigate-mode (跳頁) contract: when the user picked 跳頁 composer mode the
+  // planner is supposed to either jump to a real registered page or ask a
+  // clarification question. We enforce two rules here instead of trusting the
+  // LLM's prompt compliance:
+  //   1. every navigate step's destination must resolve in APP_PAGE_REGISTRY —
+  //      the LLM occasionally hallucinates plausible-looking paths
+  //      (`/voice-studio-pro`, `/podcast`) that 404 silently inside the SPA.
+  //   2. when the user really doesn't know where to go, the LLM must use
+  //      decision.mode='clarification' with options drawn from the registry;
+  //      a 'direct' plan that lands on an unknown page is rejected so the
+  //      replan layer gets one more shot.
+  if (options?.requestedMode === "navigate" && plan.decision.mode === "direct") {
+    const unknownPaths: string[] = [];
+    for (const step of plan.steps) {
+      const stepPath =
+        step.action.type === "navigate" ? step.action.path : step.pagePath;
+      if (!stepPath) continue;
+      if (!getPageByPath(stepPath)) unknownPaths.push(stepPath);
+    }
+    if (unknownPaths.length > 0) {
+      const navReason =
+        `Navigate-mode contract violated: target path(s) ${unknownPaths
+          .map(p => `'${p}'`)
+          .join(", ")} are not in APP_PAGE_REGISTRY. Replan as decision.mode='clarification' with 2-4 candidate page labels drawn from the registry.`;
+      return {
+        status: "invalid",
+        ok: false,
+        version: "agent-plan.v3",
+        plan,
+        actions: [],
+        askBeforeAct: false,
+        warnings: [...(plan.warnings ?? []), "navigate-unknown-path"],
+        blockers: [],
+        reason: navReason,
+        issues: [navReason],
       };
     }
   }
