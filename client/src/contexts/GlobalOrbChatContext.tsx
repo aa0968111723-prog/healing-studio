@@ -21,6 +21,7 @@ import {
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
+import { detectIpRisk } from "@/lib/ipRiskDetect";
 import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
@@ -2942,6 +2943,30 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     const nextWorkflowExecution = buildWorkflowExecutionState(orchestratorActions);
     if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
+    // 步步 (plan-executor)：使用者批准的 workflow ≥ 3 步時，主動冒出來宣告
+    // 「我接手跑完這 N 步」並提供「中途插話 / 暫停」入口。完全 background 跑
+    // 會讓使用者懷疑沒在做事；用 inline 卡片讓他看到由誰接管。dedupe by
+    // workflow.id 5 分鐘，避免重複跑同條時連續跳。
+    if (nextWorkflowExecution && nextWorkflowExecution.total >= 3) {
+      const firstStep = nextWorkflowExecution.steps[0];
+      // 粗估 — 每步約 1 分鐘 + 5 點，給使用者一個數量級。實際以 modelPricing 為準。
+      const etaMinutes = nextWorkflowExecution.total;
+      const creditsCost = nextWorkflowExecution.total * 5;
+      ProactiveEventBus.publish(
+        "multi_step_plan_ready",
+        {
+          stepCount: nextWorkflowExecution.total,
+          etaMinutes,
+          creditsCost,
+          firstStepLabel: firstStep?.label ?? nextWorkflowExecution.name,
+        },
+        {
+          dedupeKey: `plan:${nextWorkflowExecution.id}`,
+          dedupeMs: 5 * 60_000,
+        },
+      );
+    }
+
     orbState.setState(
       "executing",
       nextWorkflowExecution ? `${nextWorkflowExecution.name}（${nextWorkflowExecution.total} 步）` : "執行中"
@@ -3375,6 +3400,58 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             detail: "我看你連續送了同一條，是不是上一輪回覆沒解到你的問題？",
           },
           { dedupeKey: `stuck:${normalize(trimmed).slice(0, 16)}`, dedupeMs: 5 * 60_000 },
+        );
+      }
+    }
+
+    // 律律 (legal-advisor)：使用者打算「生成」含 IP / 商標 / 名人元素的內容時
+    // 主動冒出來，提供安全改寫範例。detectIpRisk 已內建「需有生成意圖」的
+    // 保護條件 — 純聊天提到品牌不會觸發。dedupe by trigger 30 分鐘避免吵。
+    if (!options.requestedMode) {
+      const ipRisk = detectIpRisk(trimmed);
+      if (ipRisk) {
+        ProactiveEventBus.publish(
+          "ip_risk_detected",
+          {
+            trigger: ipRisk.trigger,
+            riskLevel: ipRisk.riskLevel,
+            reason: ipRisk.reason,
+            safeRewrite: ipRisk.safeRewrite,
+          },
+          {
+            dedupeKey: `ip:${ipRisk.category}:${ipRisk.trigger}`,
+            dedupeMs: 30 * 60_000,
+          },
+        );
+      }
+    }
+
+    // 記記 (notes-curator)：使用者透露「想記下來」「之後再做」「下次想記得」
+    // 這類意圖時，主動建議建立筆記。dedupe 用前 12 字避免短時間多次跳。
+    {
+      const CAPTURE_HINTS: ReadonlyArray<RegExp> = [
+        /下次(想|要|得|記得|再做)/,
+        /(明天|之後|過幾天|稍後).{0,4}(再做|處理|繼續|提醒)/,
+        /備忘/,
+        /記一下/,
+        /幫我(記|存|留)/,
+        /提醒我/,
+        /(這個|這想法|這點子)(很|不錯|要|得).{0,3}(留|存|記)/,
+      ];
+      const matched = CAPTURE_HINTS.find(r => r.test(trimmed));
+      if (matched && trimmed.length >= 6) {
+        const snippet = trimmed.slice(0, 60);
+        ProactiveEventBus.publish(
+          "notes_capture_suggested",
+          {
+            snippet,
+            folderHint: "對話筆記",
+            searchHint: snippet.slice(0, 8),
+          },
+          {
+            dedupeKey: `note:${snippet.slice(0, 12)}`,
+            dedupeMs: 10 * 60_000,
+          },
         );
       }
     }

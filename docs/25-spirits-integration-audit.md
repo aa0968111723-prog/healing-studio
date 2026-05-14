@@ -258,6 +258,25 @@
 | 5 | 在 `sendMessage` 內加 `credential_leak_detected` + `user_stuck_detected` publisher | `client/src/contexts/GlobalOrbChatContext.tsx` | 安安偵測 API key/token/JWT/PEM 外洩、帶帶偵測重複提問 |
 | 6 | 重寫 `anatomySpecialistTools.ts` 對齊體體：`buildAnatomyPrompt` / `nextClarificationQuestion` / `getLabelChecklistForPart` | `server/services/spiritTools/anatomySpecialistTools.ts` | 體體實際能組對解剖學提示詞、推薦模型、給標註 checklist |
 
-未在本 PR 處理（追蹤）：
-- 21 個 `spiritTools/*.ts` 仍未接到 chat router → tool registry。需要設計 tRPC 端點或擴充 `agentToolExecutor` 動態載入策略，影響範圍較大，留待後續 PR。
-- 11 個剩餘 `ProactiveTriggerEvent` 未實作 publisher（如 `ip_risk_detected`、`team_status_overview`、`multi_step_plan_ready`），各需領域偵測邏輯。
+第二輪 commit 補完的部份：
+
+| # | 動作 | 檔案 |
+|---|---|---|
+| 7 | 修正第一輪打到 `agentToolExecutor.dispatchAnatomySpecialistTool` 的 anatomy 工具名稱（`buildPrompt` / `nextClarification` / `labelChecklist`）與 header 暱稱（「解解」→「體體」） | `server/services/agentToolExecutor.ts` |
+| 8 | `team_status_overview` publisher：BackgroundTasksContext 觀察活躍任務的 `studioType`，當 ≥3 位不同精靈同時跑時發給 ProactiveEventBus | `client/src/contexts/BackgroundTasksContext.tsx` |
+| 9 | `expensive_op_about_to_run` publisher：submitTask 在送出前比對 EXPENSIVE_MODEL_HINTS（Kling Pro / Runway / FLUX Pro / LoRA 訓練 / Suno）+ 讀 `credits.myBalance` 算 `pctOfRemaining` | `client/src/contexts/BackgroundTasksContext.tsx` |
+| 10 | `ip_risk_detected` publisher：新 `client/src/lib/ipRiskDetect.ts` 內建迪士尼 / 寶可夢 / Marvel / Star Wars / 吉卜力 / 哆啦 A 夢 / One Piece / 鬼滅、Coca-Cola / Nike / Apple、Taylor Swift / 周杰倫 / BTS / 政治人物等字典 + 「需有生成意圖」guard；GlobalOrbChatContext.sendMessage 命中即 publish | `client/src/lib/ipRiskDetect.ts`、`client/src/contexts/GlobalOrbChatContext.tsx` |
+| 11 | `notes_capture_suggested` publisher：sendMessage 偵測「下次想記得 / 明天再做 / 備忘 / 記一下 / 幫我記 / 提醒我」等意圖 → 主動建議建檔 | `client/src/contexts/GlobalOrbChatContext.tsx` |
+| 12 | `multi_step_plan_ready` publisher：當 `buildWorkflowExecutionState` 產生 ≥3 步的 workflow，步步主動接管並回報 stepCount / firstStepLabel | `client/src/contexts/GlobalOrbChatContext.tsx` |
+
+完成後 `ProactiveTriggerEvent` 16 種有 publisher 的進度：
+- ✅ context_near_full、prompt_too_short、site_error_detected、monthly_spend_threshold（第一版即存在）
+- ✅ credential_leak_detected、user_stuck_detected（PR commit 1）
+- ✅ ip_risk_detected、team_status_overview、expensive_op_about_to_run、notes_capture_suggested、multi_step_plan_ready（PR commit 2）
+
+剩餘無 publisher 的 5 種（追蹤）：
+- `low_quality_generation`（巧巧）：需 LLM 看圖判斷
+- `page_perf_bad`（守守）：需 Performance Observer 接入
+- `feature_not_used`（守守）：需使用行為長期紀錄
+- `settings_drift_detected`（細細）：需偏好 vs 行為對比
+- `social_post_ready`（群群）：需偵測「剛完成的素材 + 最近提過社群平台」
