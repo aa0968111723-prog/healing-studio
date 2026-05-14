@@ -158,12 +158,34 @@ export const orbProxyRouter = router({
   /**
    * Analyze user intent for chief-orchestrator.
    * Returns whether clarification is needed and suggested questions.
+   *
+   * `requestedMode` and `rememberedPreferences` are optional inputs — when
+   * provided they feed `clarificationThresholdFor`, which adjusts the
+   * clarification bar by ±0.05–0.15 (navigate / urgent users get fewer
+   * questions; multi-step / quality-first / campaign-scale users get more).
+   * Without them, the threshold stays at the unfavoured default 0.70.
    */
   analyzeOrchestratorIntent: protectedProcedure
     .input(
       z.object({
         userMessage: z.string().min(1).max(1000),
         sessionId: z.string().optional(),
+        requestedMode: z
+          .enum(["navigate", "plan", "multi-step", "ask-feature"])
+          .optional(),
+        rememberedPreferences: z
+          .object({
+            preferredQuality: z
+              .enum(["cost_sensitive", "balanced", "quality_first"])
+              .optional(),
+            usualProjectSize: z
+              .enum(["single_asset", "multi_step", "campaign"])
+              .optional(),
+            typicalTimeline: z
+              .enum(["urgent", "planned", "exploratory"])
+              .optional(),
+          })
+          .optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -171,6 +193,8 @@ export const orbProxyRouter = router({
         userId: ctx.user.id,
         userMessage: input.userMessage,
         sessionId: input.sessionId,
+        requestedMode: input.requestedMode,
+        rememberedPreferences: input.rememberedPreferences,
       });
 
       return analysis;
