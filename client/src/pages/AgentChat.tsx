@@ -544,6 +544,32 @@ type RecentEntry = {
 const RECENT_STORAGE_KEY = "agent.recent_v1";
 const RECENT_LIMIT = 12;
 
+// Persist the mode-preview card's collapsed state so power users who've
+// internalised the four agent flows don't have to re-collapse the example
+// card on every visit. Single boolean, mode-agnostic — collapsing it once
+// hides the flow pictograms + example chip for every mode until reopened.
+const MODE_PREVIEW_OPEN_KEY = "agent.mode_preview_open_v1";
+
+function readModePreviewOpen(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(MODE_PREVIEW_OPEN_KEY);
+    if (raw === null) return true;
+    return raw !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function writeModePreviewOpen(open: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MODE_PREVIEW_OPEN_KEY, open ? "true" : "false");
+  } catch {
+    /* localStorage may be unavailable (private mode / quota) — degrade silently */
+  }
+}
+
 function readRecent(): RecentEntry[] {
   if (typeof window === "undefined") return [];
   try {
@@ -719,6 +745,15 @@ export default function AgentChat() {
   const [activeMode, setActiveMode] = useState<string | null>(null);
   const [modeBarOpen, setModeBarOpen] = useState(false);
   const [modeCatalogOpen, setModeCatalogOpen] = useState(false);
+  // Collapsed-by-default once the user dismisses it. Hydrated from
+  // localStorage on first paint so the preference survives reloads.
+  const [modePreviewOpen, setModePreviewOpenState] = useState<boolean>(() =>
+    readModePreviewOpen()
+  );
+  const setModePreviewOpen = useCallback((next: boolean) => {
+    setModePreviewOpenState(next);
+    writeModePreviewOpen(next);
+  }, []);
   const [spiritDeckOpen, setSpiritDeckOpen] = useState(false);
   /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
   const [pinnedSpirit, setPinnedSpirit] = useState<AgentRole | null>(null);
@@ -1457,56 +1492,96 @@ export default function AgentChat() {
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                               已啟用：{activeModeOption.label}
                             </p>
-                            <button
-                              type="button"
-                              onClick={() => setActiveMode(null)}
-                              className="text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 shrink-0"
-                            >
-                              取消模式
-                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* 收合/展開「範例 + 流程圖示」。Header 一直保留可見，
+                                  熟悉模式的使用者可以把範例卡縮成一條，下次來自動沿用。
+                                  localStorage 記住偏好，跨頁不會重置。 */}
+                              <button
+                                type="button"
+                                onClick={() => setModePreviewOpen(!modePreviewOpen)}
+                                aria-expanded={modePreviewOpen}
+                                aria-controls={`mode-preview-body-${activeModeOption.id}`}
+                                title={modePreviewOpen ? "收合範例" : "展開範例"}
+                                className="inline-flex items-center gap-0.5 text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full px-1.5 py-0.5 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors"
+                              >
+                                <span className="hidden sm:inline">{modePreviewOpen ? "收合" : "展開"}</span>
+                                <ChevronDown
+                                  className={`w-3.5 h-3.5 transition-transform ${modePreviewOpen ? "rotate-180" : ""}`}
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActiveMode(null)}
+                                className="text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                              >
+                                取消模式
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
-                            {activeModeOption.tagline}
-                          </p>
+                          <AnimatePresence initial={false}>
+                            {modePreviewOpen && (
+                              <motion.div
+                                key={`mode-preview-body-${activeModeOption.id}`}
+                                id={`mode-preview-body-${activeModeOption.id}`}
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                                  {activeModeOption.tagline}
+                                </p>
 
-                          {/* 三段 pictogram flow */}
-                          <div className="mt-2 flex items-center gap-1 flex-wrap">
-                            {activeModeOption.flowSteps.map((step, idx) => {
-                              const StepIcon = step.icon;
-                              return (
-                                <div
-                                  key={`${step.label}-${idx}`}
-                                  className="flex items-center gap-1"
-                                >
-                                  <div
-                                    className={`flex items-center gap-1 rounded-full bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/60 px-2 py-0.5`}
-                                  >
-                                    <StepIcon className="w-3 h-3 text-slate-600 dark:text-slate-300" />
-                                    <span className="text-[10px] text-slate-700 dark:text-slate-200 font-medium">
-                                      {step.label}
-                                    </span>
-                                  </div>
-                                  {idx < activeModeOption.flowSteps.length - 1 && (
-                                    <ArrowRight className="w-3 h-3 text-slate-400 mx-0.5" />
-                                  )}
+                                {/* 三段 pictogram flow */}
+                                <div className="mt-2 flex items-center gap-1 flex-wrap">
+                                  {activeModeOption.flowSteps.map((step, idx) => {
+                                    const StepIcon = step.icon;
+                                    return (
+                                      <div
+                                        key={`${step.label}-${idx}`}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <div
+                                          className={`flex items-center gap-1 rounded-full bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/60 px-2 py-0.5`}
+                                        >
+                                          <StepIcon className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                                          <span className="text-[10px] text-slate-700 dark:text-slate-200 font-medium">
+                                            {step.label}
+                                          </span>
+                                        </div>
+                                        {idx < activeModeOption.flowSteps.length - 1 && (
+                                          <ArrowRight className="w-3 h-3 text-slate-400 mx-0.5" />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                              );
-                            })}
-                          </div>
 
-                          {/* 一鍵範例：直接套這個模式送出 */}
-                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400">範例：</span>
-                            <button
-                              type="button"
-                              onClick={() => void send(activeModeOption.example)}
-                              disabled={isSending}
-                              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-white/85 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-600/50 text-slate-700 dark:text-slate-200 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
-                            >
-                              <Play className="w-2.5 h-2.5" />
-                              {activeModeOption.example}
-                            </button>
-                          </div>
+                                {/* 一鍵範例：直接套這個模式送出 */}
+                                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400">範例：</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => void send(activeModeOption.example)}
+                                    disabled={isSending}
+                                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-white/85 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-600/50 text-slate-700 dark:text-slate-200 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                                  >
+                                    <Play className="w-2.5 h-2.5" />
+                                    {activeModeOption.example}
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                          {/* 收合狀態下露出一條超薄狀態列：使用者仍能一眼看到流程要點，
+                              但不佔三行垂直空間 — 點 chevron 即可展開回完整版本。 */}
+                          {!modePreviewOpen && (
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug mt-1 truncate">
+                              {activeModeOption.flowSteps.map(s => s.label).join(" → ")}
+                              <span className="opacity-60"> · 範例：{activeModeOption.example}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
