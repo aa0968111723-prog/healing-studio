@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { userFeedbackReportsReports } from "../../../drizzle/schema";
+import { userFeedbackReports } from "../../../drizzle/schema";
 import { desc, eq } from "drizzle-orm";
 
 /**
@@ -25,14 +25,26 @@ export async function submitFeedback(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
+
+    // Map the tool's coarse input type onto the schema's category enum.
+    // The schema has no `rating` column, so we discard the score (the
+    // /feedback page already has a richer rating widget that targets
+    // a different table).
+    const categoryMap: Record<typeof input.type, "bug" | "feature_request" | "quality_issue" | "general"> = {
+      bug: "bug",
+      feature: "feature_request",
+      improvement: "feature_request",
+      praise: "general",
+      other: "general",
+    };
 
     const [result] = await db.insert(userFeedbackReports).values({
       userId: input.userId,
-      type: input.type,
+      category: categoryMap[input.type],
       title: input.title,
       description: input.description,
-      rating: input.rating,
       createdAt: new Date(),
     });
 
@@ -78,8 +90,8 @@ export async function getUserFeedback(input: {
   }>;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const feedback = await db
       .select()
       .from(userFeedbackReports)

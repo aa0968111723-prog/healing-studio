@@ -7,7 +7,7 @@
 
 import { logger } from "../../_core/logger";
 import { getDb } from "../../db";
-import { projectNotesCalendarCalendar, digitalAssetLibrary, orbScheduledJobs } from "../../../drizzle/schema";
+import { projectNotesCalendar, digitalAssetLibrary, orbScheduledJobs } from "../../../drizzle/schema";
 import { and, eq, like, or, desc, sql } from "drizzle-orm";
 
 /**
@@ -25,14 +25,16 @@ export async function createNote(input: {
   message: string;
 }> {
   try {
-    const db = getDb();
-
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
+    // The schema's notes table has no `category` column — input.category is
+    // accepted but not persisted. Tags are a json() column so we pass the
+    // array directly; drizzle handles serialisation.
     const [result] = await db.insert(projectNotesCalendar).values({
       userId: input.userId,
       title: input.title,
       content: input.content,
-      tags: input.tags ? JSON.stringify(input.tags) : null,
-      category: input.category || "general",
+      tags: input.tags ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -82,9 +84,12 @@ export async function searchNotes(input: {
   total: number;
 }> {
   try {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const limit = Math.min(input.limit || 10, 50);
 
+    // Use a LIKE on the JSON-encoded tags column via a raw SQL expression
+    // because drizzle's `like()` helper expects a string column.
     const results = await db
       .select()
       .from(projectNotesCalendar)
@@ -94,7 +99,7 @@ export async function searchNotes(input: {
           or(
             like(projectNotesCalendar.title, `%${input.query}%`),
             like(projectNotesCalendar.content, `%${input.query}%`),
-            like(projectNotesCalendar.tags, `%${input.query}%`)
+            sql`CAST(${projectNotesCalendar.tags} AS CHAR) LIKE ${`%${input.query}%`}`
           )
         )
       )
@@ -104,9 +109,11 @@ export async function searchNotes(input: {
     const notes = results.map(note => ({
       id: note.id,
       title: note.title,
-      content: note.content,
-      tags: note.tags ? JSON.parse(note.tags as string) : [],
-      category: note.category || "general",
+      content: note.content ?? "",
+      tags: (note.tags ?? []) as string[],
+      // Notes schema has no category column; surface noteType so callers
+      // can still group by kind (note / script / calendar_event).
+      category: note.noteType ?? "general",
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
     }));
@@ -150,54 +157,30 @@ export async function scheduleTask(input: {
   jobId?: number;
   message: string;
 }> {
-  try {
-    const db = getDb();
-
-    const scheduledDate = new Date(input.scheduledFor);
-    if (isNaN(scheduledDate.getTime())) {
-      return {
-        success: false,
-        message: "無效的時間格式",
-      };
-    }
-
-    const [result] = await db.insert(orbScheduledJobs).values({
-      userId: input.userId,
-      jobName: input.taskName,
-      scheduledFor: scheduledDate,
-      status: "pending",
-      description: input.description || "",
-      metadata: input.metadata ? JSON.stringify(input.metadata) : null,
-      createdAt: new Date(),
-    });
-
-    logger.info("task_scheduled", {
-      userId: input.userId,
-      jobId: result.insertId,
-      taskName: input.taskName,
-      scheduledFor: input.scheduledFor,
-    });
-
-    return {
-      success: true,
-      jobId: Number(result.insertId),
-      message: `任務「${input.taskName}」已排程至 ${scheduledDate.toLocaleString("zh-TW")}`,
-    };
-  } catch (error) {
-    logger.error("schedule_task_failed", {
-      userId: input.userId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-
-    return {
-      success: false,
-      message: `排程失敗：${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
+  // The orb_scheduled_jobs table is a CRON-style recurring schedule
+  // (cronExpression / taskDescription / enabled / lastRun*), not a
+  // one-shot calendar entry. The original implementation here was
+  // written against a different schema. Until a one-shot job table
+  // exists (or a /scheduled-jobs page can map this into a real cron),
+  // surface a clear error rather than attempt a half-working insert.
+  logger.warn("schedule_task_not_supported", {
+    userId: input.userId,
+    taskName: input.taskName,
+  });
+  return {
+    success: false,
+    message: "目前只支援 cron 排程，還沒有單次任務排程功能。請改用 /scheduled-jobs 設定週期任務，或在筆記中加入提醒時間。",
+  };
 }
 
 /**
- * Organize asset library by adding tags
+ * Organize asset library by adding tags.
+ *
+ * Stubbed: the digital_asset_library schema has no `tags` column, so the
+ * original tagging logic was working against a non-existent shape. Until
+ * a migration adds tags (or this tool is rewired to a real tag table),
+ * surface a clear "not yet supported" message rather than silently
+ * failing on every call.
  */
 export async function tagAssets(input: {
   userId: number;
@@ -209,80 +192,22 @@ export async function tagAssets(input: {
   updated: number;
   message: string;
 }> {
-  try {
-    const db = getDb();
-    let updated = 0;
-
-    for (const assetId of input.assetIds) {
-      const [asset] = await db
-        .select()
-        .from(digitalAssetLibrary)
-        .where(
-          and(
-            eq(digitalAssetLibrary.id, assetId),
-            eq(digitalAssetLibrary.userId, input.userId)
-          )
-        )
-        .limit(1);
-
-      if (!asset) continue;
-
-      const currentTags: string[] = asset.tags ? JSON.parse(asset.tags as string) : [];
-      let newTags: string[];
-
-      switch (input.action) {
-        case "add":
-          newTags = [...new Set([...currentTags, ...input.tags])];
-          break;
-        case "remove":
-          newTags = currentTags.filter(tag => !input.tags.includes(tag));
-          break;
-        case "replace":
-          newTags = input.tags;
-          break;
-        default:
-          newTags = currentTags;
-      }
-
-      await db
-        .update(digitalAssetLibrary)
-        .set({
-          tags: JSON.stringify(newTags),
-          updatedAt: new Date(),
-        })
-        .where(eq(digitalAssetLibrary.id, assetId));
-
-      updated++;
-    }
-
-    logger.info("assets_tagged", {
-      userId: input.userId,
-      updated,
-      action: input.action,
-      tags: input.tags,
-    });
-
-    return {
-      success: true,
-      updated,
-      message: `已更新 ${updated} 個素材的標籤`,
-    };
-  } catch (error) {
-    logger.error("tag_assets_failed", {
-      userId: input.userId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-
-    return {
-      success: false,
-      updated: 0,
-      message: `標籤更新失敗：${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
+  logger.warn("tag_assets_not_supported", {
+    userId: input.userId,
+    assetCount: input.assetIds.length,
+    action: input.action,
+  });
+  return {
+    success: false,
+    updated: 0,
+    message: "素材標籤功能尚未上線（digital_asset_library 表沒有 tags 欄位）。請改用素材描述（description）作為臨時分類。",
+  };
 }
 
 /**
- * Get asset statistics and organization suggestions
+ * Get asset statistics. The tag-related fields surface as 0 / empty
+ * because the underlying schema has no tags column (see tagAssets above).
+ * Total count is real.
  */
 export async function getAssetStatistics(userId: number): Promise<{
   success: boolean;
@@ -294,9 +219,8 @@ export async function getAssetStatistics(userId: number): Promise<{
   };
 }> {
   try {
-    const db = getDb();
-
-    // Get total assets
+    const db = await getDb();
+    if (!db) throw new Error("Database is not configured");
     const [totalResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(digitalAssetLibrary)
@@ -304,47 +228,18 @@ export async function getAssetStatistics(userId: number): Promise<{
 
     const totalAssets = totalResult?.count || 0;
 
-    // Get untagged assets
-    const [untaggedResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(digitalAssetLibrary)
-      .where(
-        and(
-          eq(digitalAssetLibrary.userId, userId),
-          or(
-            eq(digitalAssetLibrary.tags, "null"),
-            eq(digitalAssetLibrary.tags, "[]"),
-            sql`${digitalAssetLibrary.tags} IS NULL`
-          )
-        )
-      );
-
-    const untaggedAssets = untaggedResult?.count || 0;
-
-    // Generate suggestions
     const suggestions: string[] = [];
-    if (untaggedAssets > 0) {
-      suggestions.push(`還有 ${untaggedAssets} 個素材未加標籤，建議整理`);
-    }
     if (totalAssets > 100) {
       suggestions.push("素材數量較多，建議建立分類資料夾");
     }
-    if (totalAssets > 0 && untaggedAssets / totalAssets > 0.5) {
-      suggestions.push("超過一半的素材未分類，建議批次加上標籤");
-    }
-
-    logger.debug("asset_statistics_retrieved", {
-      userId,
-      totalAssets,
-      untaggedAssets,
-    });
+    suggestions.push("標籤功能尚未上線，目前只能顯示素材總數");
 
     return {
       success: true,
       statistics: {
         totalAssets,
-        untaggedAssets,
-        topTags: [], // Could be enhanced with tag frequency analysis
+        untaggedAssets: 0,
+        topTags: [],
         suggestions,
       },
     };

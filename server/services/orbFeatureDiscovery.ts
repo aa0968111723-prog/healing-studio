@@ -90,7 +90,7 @@ export class OrbFeatureDiscovery {
   async recordUsage(input: RecordUsageInput): Promise<void> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       // Check if stats record exists
       const [existing] = await db
         .select()
@@ -175,7 +175,7 @@ export class OrbFeatureDiscovery {
   async recordDiscovery(input: RecordDiscoveryInput): Promise<void> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       const insertData: InsertOrbFeatureDiscoveryPath = {
         userId: input.userId,
         featureId: input.featureId,
@@ -210,7 +210,7 @@ export class OrbFeatureDiscovery {
   ): Promise<FeatureUsageStats[]> {
     try {
       const db = await getDb();
-
+      if (!db) throw new Error("Database is not configured");
       const conditions = [eq(orbFeatureUsageStats.userId, userId)];
       if (featureId) {
         conditions.push(eq(orbFeatureUsageStats.featureId, featureId));

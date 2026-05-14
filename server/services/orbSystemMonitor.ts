@@ -107,8 +107,9 @@ export class OrbSystemMonitor {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Upsert daily collaboration metric
       const existingMetric = await db
         .select()
@@ -128,27 +129,31 @@ export class OrbSystemMonitor {
         const newSuccessful = existing.successfulHandoffs + (input.success ? 1 : 0);
         const newFailed = existing.failedHandoffs + (input.success ? 0 : 1);
 
-        // Update running average for handoff time
-        let newAvgHandoffTime = existing.avgHandoffTime;
+        // Update running average for handoff time. Decimal columns surface
+        // as `string | null` from drizzle (JS can't round-trip decimals),
+        // so we parseFloat to do the math then String() on the way back in.
+        let newAvgHandoffTime: string | null = existing.avgHandoffTime;
         if (input.handoffTime !== undefined) {
           if (existing.avgHandoffTime === null) {
-            newAvgHandoffTime = input.handoffTime;
+            newAvgHandoffTime = String(input.handoffTime);
           } else {
-            newAvgHandoffTime =
-              (existing.avgHandoffTime * existing.handoffCount + input.handoffTime) /
-              newHandoffCount;
+            newAvgHandoffTime = String(
+              (parseFloat(existing.avgHandoffTime) * existing.handoffCount + input.handoffTime) /
+                newHandoffCount
+            );
           }
         }
 
-        // Update running average for user satisfaction
-        let newSatisfaction = existing.userSatisfactionScore;
+        // Update running average for user satisfaction (same pattern).
+        let newSatisfaction: string | null = existing.userSatisfactionScore;
         if (input.userFeedback !== undefined) {
           if (existing.userSatisfactionScore === null) {
-            newSatisfaction = input.userFeedback;
+            newSatisfaction = String(input.userFeedback);
           } else {
-            newSatisfaction =
-              (existing.userSatisfactionScore * existing.handoffCount + input.userFeedback) /
-              newHandoffCount;
+            newSatisfaction = String(
+              (parseFloat(existing.userSatisfactionScore) * existing.handoffCount + input.userFeedback) /
+                newHandoffCount
+            );
           }
         }
 
@@ -169,10 +174,10 @@ export class OrbSystemMonitor {
           fromSpiritId: input.fromSpiritId,
           toSpiritId: input.toSpiritId,
           handoffCount: 1,
-          avgHandoffTime: input.handoffTime ?? null,
+          avgHandoffTime: input.handoffTime !== undefined ? String(input.handoffTime) : null,
           successfulHandoffs: input.success ? 1 : 0,
           failedHandoffs: input.success ? 0 : 1,
-          userSatisfactionScore: input.userFeedback ?? null,
+          userSatisfactionScore: input.userFeedback !== undefined ? String(input.userFeedback) : null,
         });
       }
 
@@ -200,18 +205,20 @@ export class OrbSystemMonitor {
         ? input.value <= input.threshold
         : true;
 
-      const db = getDb();
+      const db = await getDb();
 
-      // Insert health metric
+      if (!db) throw new Error("Database is not configured");
+      // Insert health metric (decimal columns stringified; json() column
+      // is passed as object — drizzle stringifies on the way out).
       await db.insert(orbSystemHealthMetrics).values({
         timestamp: new Date(),
         metricType: input.metricType,
         spiritId: input.spiritId ?? null,
-        value: input.value,
+        value: String(input.value),
         unit: input.unit,
-        threshold: input.threshold ?? null,
+        threshold: input.threshold !== undefined ? String(input.threshold) : null,
         isHealthy,
-        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+        metadata: input.metadata ?? null,
       });
 
       if (!isHealthy) {
@@ -264,8 +271,9 @@ export class OrbSystemMonitor {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Upsert daily cost attribution
       const existingCost = await db
         .select()
@@ -285,17 +293,19 @@ export class OrbSystemMonitor {
         const newUsageCount = existing.usageCount + 1;
         const newTotalTokens = (existing.totalTokens ?? 0) + (input.tokens ?? 0);
         const newTotalApiCalls = (existing.totalApiCalls ?? 0) + (input.apiCalls ?? 0);
-        const newEstimatedCost = (existing.estimatedCostUsd ?? 0) + (input.estimatedCostUsd ?? 0);
+        const newEstimatedCost =
+          parseFloat(existing.estimatedCostUsd ?? "0") + (input.estimatedCostUsd ?? 0);
 
-        // Update running average for duration
-        let newAvgDuration = existing.avgDuration;
+        // Update running average for duration (decimal column → string).
+        let newAvgDuration: string | null = existing.avgDuration;
         if (input.duration !== undefined) {
           if (existing.avgDuration === null) {
-            newAvgDuration = input.duration;
+            newAvgDuration = String(input.duration);
           } else {
-            newAvgDuration =
-              (existing.avgDuration * existing.usageCount + input.duration) /
-              newUsageCount;
+            newAvgDuration = String(
+              (parseFloat(existing.avgDuration) * existing.usageCount + input.duration) /
+                newUsageCount
+            );
           }
         }
 
@@ -305,9 +315,9 @@ export class OrbSystemMonitor {
             usageCount: newUsageCount,
             totalTokens: newTotalTokens,
             totalApiCalls: newTotalApiCalls,
-            estimatedCostUsd: newEstimatedCost,
+            estimatedCostUsd: String(newEstimatedCost),
             avgDuration: newAvgDuration,
-            metadata: input.metadata ? JSON.stringify(input.metadata) : existing.metadata,
+            metadata: input.metadata ?? existing.metadata ?? null,
             updatedAt: new Date(),
           })
           .where(eq(orbCostAttribution.id, existing.id));
@@ -320,9 +330,9 @@ export class OrbSystemMonitor {
           usageCount: 1,
           totalTokens: input.tokens ?? null,
           totalApiCalls: input.apiCalls ?? null,
-          estimatedCostUsd: input.estimatedCostUsd ?? null,
-          avgDuration: input.duration ?? null,
-          metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+          estimatedCostUsd: input.estimatedCostUsd !== undefined ? String(input.estimatedCostUsd) : null,
+          avgDuration: input.duration !== undefined ? String(input.duration) : null,
+          metadata: input.metadata ?? null,
         });
       }
 
@@ -353,8 +363,8 @@ export class OrbSystemMonitor {
     limit?: number;
   }): Promise<SpiritCollaborationMetric[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database with filters
       let query = db.select().from(orbSpiritCollaborationMetrics);
 
@@ -422,8 +432,8 @@ export class OrbSystemMonitor {
     limit?: number;
   }): Promise<SystemHealthMetric[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database with filters
       let query = db.select().from(orbSystemHealthMetrics);
 
@@ -498,8 +508,8 @@ export class OrbSystemMonitor {
     byUser?: Record<number, number>;
   }> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query with filters
       let query = db.select().from(orbCostAttribution);
 
@@ -534,7 +544,7 @@ export class OrbSystemMonitor {
       const byUser: Record<number, number> = {};
 
       for (const row of rows) {
-        const cost = row.estimatedCostUsd ?? 0;
+        const cost = parseFloat(row.estimatedCostUsd ?? "0");
         totalCost += cost;
 
         // Aggregate by spirit
@@ -593,8 +603,8 @@ export class OrbSystemMonitor {
     }>;
   }> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Aggregate recent health metrics (last hour)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
@@ -612,14 +622,15 @@ export class OrbSystemMonitor {
       let totalToolAttempts = 0;
 
       for (const metric of recentMetrics) {
+        const numericValue = parseFloat(metric.value);
         if (metric.metricType === "response_time") {
-          totalResponseTime += metric.value;
+          totalResponseTime += numericValue;
           responseTimeCount++;
         } else if (metric.metricType === "error_rate") {
-          totalErrors += metric.value;
+          totalErrors += numericValue;
           totalAttempts++;
         } else if (metric.metricType === "tool_success_rate") {
-          totalToolSuccess += metric.value;
+          totalToolSuccess += numericValue;
           totalToolAttempts++;
         }
       }
@@ -639,7 +650,7 @@ export class OrbSystemMonitor {
       let satisfactionCount = 0;
       for (const metric of collaborationMetrics) {
         if (metric.userSatisfactionScore !== null) {
-          totalSatisfaction += metric.userSatisfactionScore;
+          totalSatisfaction += parseFloat(metric.userSatisfactionScore);
           satisfactionCount++;
         }
       }
@@ -656,13 +667,15 @@ export class OrbSystemMonitor {
 
       const unhealthyMetrics = recentMetrics.filter(m => !m.isHealthy && m.threshold !== null);
       for (const metric of unhealthyMetrics) {
-        const severity = metric.value > (metric.threshold! * 2) ? "critical" : "warning";
+        const numericValue = parseFloat(metric.value);
+        const numericThreshold = parseFloat(metric.threshold!);
+        const severity = numericValue > numericThreshold * 2 ? "critical" : "warning";
         issues.push({
           type: metric.metricType as MetricType,
           severity,
           message: `${metric.metricType} is ${severity}: ${metric.value} ${metric.unit} (threshold: ${metric.threshold} ${metric.unit})`,
-          value: metric.value,
-          threshold: metric.threshold!,
+          value: numericValue,
+          threshold: numericThreshold,
         });
       }
 
@@ -711,8 +724,8 @@ export class OrbSystemMonitor {
     userSatisfaction: number;
   }>> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Aggregate collaboration data (last 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -743,11 +756,11 @@ export class OrbSystemMonitor {
           existing.successfulHandoffs += metric.successfulHandoffs;
           existing.failedHandoffs += metric.failedHandoffs;
           if (metric.avgHandoffTime !== null) {
-            existing.totalHandoffTime += metric.avgHandoffTime * metric.handoffCount;
+            existing.totalHandoffTime += parseFloat(metric.avgHandoffTime) * metric.handoffCount;
             existing.handoffTimeCount += metric.handoffCount;
           }
           if (metric.userSatisfactionScore !== null) {
-            existing.totalSatisfaction += metric.userSatisfactionScore * metric.handoffCount;
+            existing.totalSatisfaction += parseFloat(metric.userSatisfactionScore) * metric.handoffCount;
             existing.satisfactionCount += metric.handoffCount;
           }
         } else {
@@ -757,9 +770,9 @@ export class OrbSystemMonitor {
             totalHandoffs: metric.handoffCount,
             successfulHandoffs: metric.successfulHandoffs,
             failedHandoffs: metric.failedHandoffs,
-            totalHandoffTime: metric.avgHandoffTime !== null ? metric.avgHandoffTime * metric.handoffCount : 0,
+            totalHandoffTime: metric.avgHandoffTime !== null ? parseFloat(metric.avgHandoffTime) * metric.handoffCount : 0,
             handoffTimeCount: metric.avgHandoffTime !== null ? metric.handoffCount : 0,
-            totalSatisfaction: metric.userSatisfactionScore !== null ? metric.userSatisfactionScore * metric.handoffCount : 0,
+            totalSatisfaction: metric.userSatisfactionScore !== null ? parseFloat(metric.userSatisfactionScore) * metric.handoffCount : 0,
             satisfactionCount: metric.userSatisfactionScore !== null ? metric.handoffCount : 0,
           });
         }
@@ -808,7 +821,8 @@ export class OrbSystemMonitor {
     recommendation: string;
   }>> {
     try {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const optimizations: Array<{
         type: "high_cost_tool" | "inefficient_workflow" | "unused_feature";
         description: string;
@@ -830,7 +844,7 @@ export class OrbSystemMonitor {
           avgCostPerUse: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd}) / SUM(${orbCostAttribution.usageCount})`,
         })
         .from(orbCostAttribution)
-        .where(gte(orbCostAttribution.date, thirtyDaysAgo.toISOString().split('T')[0]))
+        .where(gte(orbCostAttribution.date, thirtyDaysAgo))
         .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName)
         .having(sql`SUM(${orbCostAttribution.estimatedCostUsd}) > 10`)
         .orderBy(desc(sql`SUM(${orbCostAttribution.estimatedCostUsd})`))
@@ -857,7 +871,7 @@ export class OrbSystemMonitor {
           totalUsage: sql<number>`SUM(${orbCostAttribution.usageCount})`,
         })
         .from(orbCostAttribution)
-        .where(gte(orbCostAttribution.date, thirtyDaysAgo.toISOString().split('T')[0]))
+        .where(gte(orbCostAttribution.date, thirtyDaysAgo))
         .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName)
         .having(
           and(
@@ -888,7 +902,7 @@ export class OrbSystemMonitor {
           totalCost: sql<number>`SUM(${orbCostAttribution.estimatedCostUsd})`,
         })
         .from(orbCostAttribution)
-        .where(gte(orbCostAttribution.date, recentWeek.toISOString().split('T')[0]))
+        .where(gte(orbCostAttribution.date, recentWeek))
         .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName);
 
       const previousCosts = await db
@@ -900,8 +914,8 @@ export class OrbSystemMonitor {
         .from(orbCostAttribution)
         .where(
           and(
-            gte(orbCostAttribution.date, previousWeek.toISOString().split('T')[0]),
-            lte(orbCostAttribution.date, recentWeek.toISOString().split('T')[0])
+            gte(orbCostAttribution.date, previousWeek),
+            lte(orbCostAttribution.date, recentWeek)
           )
         )
         .groupBy(orbCostAttribution.spiritId, orbCostAttribution.toolName);
@@ -968,33 +982,30 @@ export class OrbSystemMonitor {
     sampleCount: number;
   }>> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Aggregate metrics by day
       const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       startDate.setHours(0, 0, 0, 0);
 
-      let query = db
-        .select()
-        .from(orbSystemHealthMetrics)
-        .where(
-          and(
-            eq(orbSystemHealthMetrics.metricType, metricType),
-            gte(orbSystemHealthMetrics.timestamp, startDate)
-          )
-        );
-
-      if (spiritId) {
-        query = query.where(
-          and(
+      // Build the WHERE clause once so we don't chain .where() twice on a
+      // narrowed select type (drizzle's builder type changes after the
+      // first .where call, which trips tsc).
+      const whereClause = spiritId
+        ? and(
             eq(orbSystemHealthMetrics.metricType, metricType),
             eq(orbSystemHealthMetrics.spiritId, spiritId),
             gte(orbSystemHealthMetrics.timestamp, startDate)
           )
-        ) as any;
-      }
+        : and(
+            eq(orbSystemHealthMetrics.metricType, metricType),
+            gte(orbSystemHealthMetrics.timestamp, startDate)
+          );
 
-      const metrics = await query;
+      const metrics = await db
+        .select()
+        .from(orbSystemHealthMetrics)
+        .where(whereClause);
 
       // Group by day
       const dayMap = new Map<string, {
@@ -1005,12 +1016,12 @@ export class OrbSystemMonitor {
       for (const metric of metrics) {
         const date = new Date(metric.timestamp);
         date.setHours(0, 0, 0, 0);
-        const dateKey = date.toISOString().split('T')[0];
+        const dateKey = date.toISOString().slice(0, 10);
 
         if (!dayMap.has(dateKey)) {
           dayMap.set(dateKey, { date, values: [] });
         }
-        dayMap.get(dateKey)!.values.push(metric.value);
+        dayMap.get(dateKey)!.values.push(parseFloat(metric.value));
       }
 
       // Calculate aggregates for each day
@@ -1058,8 +1069,9 @@ export class OrbSystemMonitor {
       const nextDay = new Date(targetDate);
       nextDay.setDate(nextDay.getDate() + 1);
 
-      const db = getDb();
+      const db = await getDb();
 
+      if (!db) throw new Error("Database is not configured");
       // Aggregate all metrics for the day
 
       // Get collaboration metrics
@@ -1097,7 +1109,7 @@ export class OrbSystemMonitor {
 
       for (const metric of healthMetrics) {
         if (metric.metricType === "response_time") {
-          totalResponseTime += metric.value;
+          totalResponseTime += parseFloat(metric.value);
           responseTimeCount++;
         }
         if (!metric.isHealthy) {
@@ -1115,7 +1127,7 @@ export class OrbSystemMonitor {
 
       let totalCost = 0;
       for (const cost of costMetrics) {
-        totalCost += cost.estimatedCostUsd ?? 0;
+        totalCost += parseFloat(cost.estimatedCostUsd ?? "0");
       }
 
       // Identify top issues
@@ -1217,8 +1229,8 @@ export class OrbSystemMonitor {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       await db.insert(orbSystemAlerts).values({
         alertType: input.alertType,
         severity: input.severity,
@@ -1226,9 +1238,9 @@ export class OrbSystemMonitor {
         message: input.message,
         spiritId: input.spiritId,
         metricType: input.metricType,
-        metricValue: input.metricValue?.toString(),
-        threshold: input.threshold?.toString(),
-        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+        metricValue: input.metricValue?.toString() ?? null,
+        threshold: input.threshold?.toString() ?? null,
+        metadata: input.metadata ?? null,
         isResolved: false,
       });
 
@@ -1261,8 +1273,8 @@ export class OrbSystemMonitor {
     createdAt: Date;
   }>> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const conditions = [eq(orbSystemAlerts.isResolved, false)];
       if (severityFilter) {
         conditions.push(eq(orbSystemAlerts.severity, severityFilter));
@@ -1302,8 +1314,8 @@ export class OrbSystemMonitor {
     resolutionNotes?: string
   ): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       await db
         .update(orbSystemAlerts)
         .set({

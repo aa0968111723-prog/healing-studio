@@ -134,9 +134,11 @@ export class OrbWorkflowEngine {
         }
       }
 
-      const db = getDb();
+      const db = await getDb();
 
-      // Insert into database
+      if (!db) throw new Error("Database is not configured");
+      // Insert into database (json() columns are passed as objects/arrays;
+      // drizzle handles serialization).
       const [result] = await db.insert(orbWorkflowTemplates).values({
         creatorUserId: input.creatorUserId,
         name: input.name,
@@ -144,12 +146,12 @@ export class OrbWorkflowEngine {
         category: input.category,
         isPublic: input.isPublic ?? false,
         isVerified: false,
-        steps: JSON.stringify(input.steps),
-        inputSchema: input.inputSchema ? JSON.stringify(input.inputSchema) : null,
-        outputSchema: input.outputSchema ? JSON.stringify(input.outputSchema) : null,
+        steps: input.steps,
+        inputSchema: input.inputSchema ?? null,
+        outputSchema: input.outputSchema ?? null,
         estimatedDuration: input.estimatedDuration,
         difficulty: input.difficulty ?? "beginner",
-        tags: input.tags ? JSON.stringify(input.tags) : null,
+        tags: input.tags ?? null,
         usageCount: 0,
         avgRating: null,
         ratingCount: 0,
@@ -205,8 +207,8 @@ export class OrbWorkflowEngine {
     limit?: number;
   }): Promise<WorkflowTemplate[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Build query with filters
       let query = db.select().from(orbWorkflowTemplates);
 
@@ -287,8 +289,8 @@ export class OrbWorkflowEngine {
    */
   async executeWorkflow(input: ExecuteWorkflowInput): Promise<WorkflowExecution> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Load template
       const [template] = await db
         .select()
@@ -317,16 +319,16 @@ export class OrbWorkflowEngine {
         }
       }
 
-      const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-
-      // Create execution record
-      await db.insert(orbWorkflowExecutions).values({
-        id: executionId,
+      // Create execution record. The schema autoincrements id (bigint);
+      // we surface it back as a string so the public API can stay
+      // human-readable in logs/URLs without forcing every caller through
+      // BigInt.
+      const [insertResult] = await db.insert(orbWorkflowExecutions).values({
         templateId: input.templateId,
         userId: input.userId,
         conversationId: input.conversationId,
         status: "pending",
-        inputs: input.inputs ? JSON.stringify(input.inputs) : null,
+        inputs: input.inputs ?? null,
         outputs: null,
         currentStepIndex: 0,
         totalSteps: steps.length,
@@ -336,6 +338,7 @@ export class OrbWorkflowEngine {
         error: null,
         metadata: null,
       });
+      const executionId = String(insertResult.insertId);
 
       // Increment usage count
       await db
@@ -389,13 +392,13 @@ export class OrbWorkflowEngine {
    */
   private async runWorkflow(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // 1. Load execution and template
       const [execution] = await db
         .select()
         .from(orbWorkflowExecutions)
-        .where(eq(orbWorkflowExecutions.id, executionId))
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)))
         .limit(1);
 
       if (!execution) {
@@ -420,7 +423,7 @@ export class OrbWorkflowEngine {
       await db
         .update(orbWorkflowExecutions)
         .set({ status: "running", startedAt: new Date(), updatedAt: new Date() })
-        .where(eq(orbWorkflowExecutions.id, executionId));
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)));
 
       const startTime = Date.now();
       const outputs: Record<string, unknown> = {};
@@ -433,7 +436,7 @@ export class OrbWorkflowEngine {
         const [currentExecution] = await db
           .select()
           .from(orbWorkflowExecutions)
-          .where(eq(orbWorkflowExecutions.id, executionId))
+          .where(eq(orbWorkflowExecutions.id, Number(executionId)))
           .limit(1);
 
         if (currentExecution.status === "paused" || currentExecution.status === "cancelled") {
@@ -457,10 +460,9 @@ export class OrbWorkflowEngine {
         }
 
         if (shouldSkip) {
-          // Record skipped step
+          // Record skipped step (id auto-increments)
           await db.insert(orbWorkflowStepExecutions).values({
-            id: `step_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-            executionId,
+            executionId: Number(executionId),
             stepIndex: i,
             stepId: step.stepId,
             spiritId: step.spiritId,
@@ -485,17 +487,14 @@ export class OrbWorkflowEngine {
         let stepOutputs: unknown = null;
 
         const stepStartTime = Date.now();
-        const stepExecId = `step_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-
-        await db.insert(orbWorkflowStepExecutions).values({
-          id: stepExecId,
-          executionId,
+        const [stepInsert] = await db.insert(orbWorkflowStepExecutions).values({
+          executionId: Number(executionId),
           stepIndex: i,
           stepId: step.stepId,
           spiritId: step.spiritId,
           toolName: step.toolName,
           status: "running",
-          inputs: JSON.stringify(step.parameters),
+          inputs: step.parameters,
           outputs: null,
           error: null,
           retryCount: 0,
@@ -503,6 +502,7 @@ export class OrbWorkflowEngine {
           completedAt: null,
           durationSeconds: null,
         });
+        const stepExecId = String(stepInsert.insertId);
 
         while (retryCount <= maxRetries && !stepSuccess) {
           try {
@@ -525,18 +525,18 @@ export class OrbWorkflowEngine {
 
         const stepDuration = Math.floor((Date.now() - stepStartTime) / 1000);
 
-        // c. Update step execution record
+        // c. Update step execution record (cast stepOutputs to json shape)
         await db
           .update(orbWorkflowStepExecutions)
           .set({
             status: stepSuccess ? "completed" : "failed",
-            outputs: stepOutputs ? JSON.stringify(stepOutputs) : null,
+            outputs: (stepOutputs ?? null) as Record<string, unknown> | null,
             error: stepError,
             retryCount,
             completedAt: new Date(),
             durationSeconds: stepDuration,
           })
-          .where(eq(orbWorkflowStepExecutions.id, stepExecId));
+          .where(eq(orbWorkflowStepExecutions.id, Number(stepExecId)));
 
         if (!stepSuccess) {
           throw new Error(`Step ${i} failed: ${stepError}`);
@@ -551,7 +551,7 @@ export class OrbWorkflowEngine {
         await db
           .update(orbWorkflowExecutions)
           .set({ currentStepIndex: i + 1, updatedAt: new Date() })
-          .where(eq(orbWorkflowExecutions.id, executionId));
+          .where(eq(orbWorkflowExecutions.id, Number(executionId)));
       }
 
       // 3. Update workflow execution status to completed
@@ -561,12 +561,12 @@ export class OrbWorkflowEngine {
         .update(orbWorkflowExecutions)
         .set({
           status: "completed",
-          outputs: JSON.stringify(outputs),
+          outputs,
           completedAt: new Date(),
           durationSeconds: duration,
           updatedAt: new Date(),
         })
-        .where(eq(orbWorkflowExecutions.id, executionId));
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)));
 
       logger.info("orb_workflow_completed", {
         executionId,
@@ -579,7 +579,8 @@ export class OrbWorkflowEngine {
       });
 
       // Update execution status to failed
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       await db
         .update(orbWorkflowExecutions)
         .set({
@@ -588,7 +589,7 @@ export class OrbWorkflowEngine {
           completedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(orbWorkflowExecutions.id, executionId));
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)));
     }
   }
 
@@ -600,13 +601,13 @@ export class OrbWorkflowEngine {
     steps: StepExecution[];
   }> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database
       const [executionRow] = await db
         .select()
         .from(orbWorkflowExecutions)
-        .where(eq(orbWorkflowExecutions.id, executionId))
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)))
         .limit(1);
 
       if (!executionRow) {
@@ -616,38 +617,38 @@ export class OrbWorkflowEngine {
       const stepsRows = await db
         .select()
         .from(orbWorkflowStepExecutions)
-        .where(eq(orbWorkflowStepExecutions.executionId, executionId))
+        .where(eq(orbWorkflowStepExecutions.executionId, Number(executionId)))
         .orderBy(orbWorkflowStepExecutions.stepIndex);
 
       const execution: WorkflowExecution = {
-        id: executionRow.id,
+        id: String(executionRow.id),
         templateId: executionRow.templateId,
         userId: executionRow.userId,
         conversationId: executionRow.conversationId ?? undefined,
         status: executionRow.status as WorkflowStatus,
-        inputs: executionRow.inputs ? JSON.parse(executionRow.inputs as string) : undefined,
-        outputs: executionRow.outputs ? JSON.parse(executionRow.outputs as string) : undefined,
+        inputs: executionRow.inputs ?? undefined,
+        outputs: executionRow.outputs ?? undefined,
         currentStepIndex: executionRow.currentStepIndex,
         totalSteps: executionRow.totalSteps,
         startedAt: executionRow.startedAt ?? undefined,
         completedAt: executionRow.completedAt ?? undefined,
         durationSeconds: executionRow.durationSeconds ?? undefined,
         error: executionRow.error ?? undefined,
-        metadata: executionRow.metadata ? JSON.parse(executionRow.metadata as string) : undefined,
+        metadata: executionRow.metadata ?? undefined,
         createdAt: executionRow.createdAt,
         updatedAt: executionRow.updatedAt,
       };
 
       const steps: StepExecution[] = stepsRows.map((row: any) => ({
-        id: row.id,
-        executionId: row.executionId,
+        id: String(row.id),
+        executionId: String(row.executionId),
         stepIndex: row.stepIndex,
         stepId: row.stepId,
         spiritId: row.spiritId,
         toolName: row.toolName,
         status: row.status as StepStatus,
-        inputs: row.inputs ? JSON.parse(row.inputs) : undefined,
-        outputs: row.outputs ? JSON.parse(row.outputs) : undefined,
+        inputs: row.inputs ?? undefined,
+        outputs: row.outputs ?? undefined,
         error: row.error ?? undefined,
         retryCount: row.retryCount,
         startedAt: row.startedAt ?? undefined,
@@ -671,13 +672,13 @@ export class OrbWorkflowEngine {
    */
   async pauseExecution(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Update execution status to paused
       await db
         .update(orbWorkflowExecutions)
         .set({ status: "paused", updatedAt: new Date() })
-        .where(eq(orbWorkflowExecutions.id, executionId));
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)));
 
       logger.info("orb_workflow_paused", { executionId });
     } catch (error) {
@@ -694,13 +695,13 @@ export class OrbWorkflowEngine {
    */
   async resumeExecution(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Update status and continue execution
       await db
         .update(orbWorkflowExecutions)
         .set({ status: "running", updatedAt: new Date() })
-        .where(eq(orbWorkflowExecutions.id, executionId));
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)));
 
       logger.info("orb_workflow_resumed", { executionId });
 
@@ -724,8 +725,8 @@ export class OrbWorkflowEngine {
    */
   async cancelExecution(executionId: string): Promise<void> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Update execution status to cancelled
       await db
         .update(orbWorkflowExecutions)
@@ -734,7 +735,7 @@ export class OrbWorkflowEngine {
           completedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(orbWorkflowExecutions.id, executionId));
+        .where(eq(orbWorkflowExecutions.id, Number(executionId)));
 
       logger.info("orb_workflow_cancelled", { executionId });
     } catch (error) {
@@ -756,7 +757,8 @@ export class OrbWorkflowEngine {
     comment?: string
   ): Promise<void> {
     try {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       const normalizedRating = Math.max(1, Math.min(5, Math.round(rating)));
 
       // Store or update rating using upsert
@@ -821,8 +823,8 @@ export class OrbWorkflowEngine {
     limit = 20
   ): Promise<WorkflowExecution[]> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Query database
       const rows = await db
         .select()
@@ -868,28 +870,23 @@ export class OrbWorkflowEngine {
     limit = 10
   ): Promise<WorkflowTemplate[]> {
     try {
-      const db = getDb();
-
-      // Query by usageCount and avgRating
-      let query = db
-        .select()
-        .from(orbWorkflowTemplates)
-        .where(eq(orbWorkflowTemplates.isPublic, true));
-
-      if (category) {
-        query = query.where(
-          and(
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
+      // Query by usageCount and avgRating. Build the WHERE clause once so
+      // we don't chain .where() twice on a narrowed select builder type.
+      const whereClause = category
+        ? and(
             eq(orbWorkflowTemplates.isPublic, true),
             eq(orbWorkflowTemplates.category, category)
           )
-        ) as any;
-      }
+        : eq(orbWorkflowTemplates.isPublic, true);
 
-      query = query
+      const rows = await db
+        .select()
+        .from(orbWorkflowTemplates)
+        .where(whereClause)
         .orderBy(desc(orbWorkflowTemplates.usageCount), desc(orbWorkflowTemplates.avgRating))
-        .limit(limit) as any;
-
-      const rows = await query;
+        .limit(limit);
 
       const popular: WorkflowTemplate[] = rows.map((row: any) => ({
         id: row.id,
@@ -932,8 +929,8 @@ export class OrbWorkflowEngine {
     conversationId: string
   ): Promise<WorkflowTemplate | null> {
     try {
-      const db = getDb();
-
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
       // Get user's recent workflow executions for pattern analysis
       const recentExecutions = await db
         .select()
