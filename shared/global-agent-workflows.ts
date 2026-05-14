@@ -15,9 +15,14 @@ import type {
   AgentWorkflowStep,
   RunWorkflowAction,
 } from "./agent-actions";
-import { APP_PAGE_REGISTRY } from "./appRegistry";
+import { APP_PAGE_REGISTRY, type AppPageRegistryItem } from "./appRegistry";
 import { buildWizardClarification } from "./orb-clarification-options";
 import { rememberedDimensionCoverage } from "./orb-clarification-memory";
+import {
+  type AgentRole,
+  getPrimaryNicknameForRole,
+  selectRoleForIntent,
+} from "./orb-agent-roles";
 
 export interface ExpandedWorkflowStep {
   path?: string;
@@ -902,30 +907,151 @@ export function detectNavIntent(text: string): { label: string; path: string } |
 }
 
 /**
+ * 把每個 page 映射到「主要負責的精靈」— 在 buildFeatureSummaryReply 顯示
+ * 「主要由 @暖暖 負責」這類署名，把 15 精靈架構暴露給使用者，不再讓功能
+ * 清單看起來像一份冷冰冰的路由表。
+ *
+ * 策略：
+ *   1. 先用 page.group 給一個確定的預設（learn/train/settings/... 都有專屬精靈）。
+ *   2. create / orb / project 群組裡頁面差異大（image-studio vs music-studio
+ *      vs director vs notes…），用 page.label + description + aliases 餵
+ *      `selectRoleForIntent`，借用既有的關鍵詞路由表決定。
+ *   3. 都沒命中時退回 companion（暖暖），確保 UI 永遠有人領銜。
+ */
+const GROUP_DEFAULT_ROLE: Record<AppPageRegistryItem["group"], AgentRole> = {
+  orb: "chief-orchestrator",
+  create: "director",
+  train: "training-specialist",
+  project: "notes-curator",
+  assets: "notes-curator",
+  learn: "learning-specialist",
+  settings: "settings-detail",
+  admin: "inspector",
+};
+
+const PAGE_ID_ROLE_OVERRIDES: Record<string, AgentRole> = {
+  "agent-chat": "companion",
+  "home": "companion",
+  "feedback": "companion",
+  "tutorial-overview": "onboarding-coach",
+  "credits": "accountant",
+  "dashboard": "researcher",
+  "langsmith": "researcher",
+  "admin-api-usage": "accountant",
+  "brain-settings": "settings-detail",
+  "my-brain": "notes-curator",
+  "calendar": "notes-curator",
+  "notes": "notes-curator",
+  "background-tasks": "plan-executor",
+  "focus-flow": "composer",
+  "prompt-library": "quality-coach",
+  "models": "quality-coach",
+  "vault": "settings-detail",
+  "shared": "notes-curator",
+  "agent-preferences": "settings-detail",
+  "account-settings": "settings-detail",
+};
+
+export function getPrimarySpiritForPage(page: AppPageRegistryItem): AgentRole {
+  const override = PAGE_ID_ROLE_OVERRIDES[page.id];
+  if (override) return override;
+  const groupFallback = GROUP_DEFAULT_ROLE[page.group] ?? "companion";
+  // create / playground / studio 等通用標籤交給關鍵詞路由表，讓「影片」抓到
+  // video-specialist、「音樂」抓到 music-specialist。空文字會 fallback 到
+  // companion，我們用 group 預設覆蓋掉那個 fallback。
+  const blob = [page.label, page.description, ...(page.aliases ?? [])]
+    .filter(Boolean)
+    .join("　");
+  const selection = selectRoleForIntent({ text: blob });
+  if (selection.confidence >= 0.7 && selection.role !== "companion") {
+    return selection.role;
+  }
+  return groupFallback;
+}
+
+export interface FeatureSummaryOpts {
+  /**
+   * 使用者最愛的精靈 — 命中精靈的頁面會被加 ★ 並排在前面。沒提供時不影響
+   * 排序，行為跟過去一樣。
+   */
+  favoriteSpirits?: ReadonlyArray<AgentRole>;
+  /**
+   * 使用者靜音的精靈 — 命中精靈的頁面會被略過（並在尾段附上一行說明，
+   * 提示使用者去 /agent-preferences 解除靜音）。
+   */
+  mutedSpirits?: ReadonlyArray<AgentRole>;
+  /** 預設 14 條；超過就在末段補一行「還有 N 項…」 */
+  limit?: number;
+}
+
+const DEFAULT_FEATURE_SUMMARY_LIMIT = 14;
+
+/**
  * Static reply for the orb's 「功能詢問」 chip. Drawn straight from
  * APP_PAGE_REGISTRY so we never hallucinate a feature: the user always sees
  * exactly what is wired up in the SPA. Sorted by `agentEntryPriority` so
  * the most useful pages come first; capped to keep the message scrollable.
+ *
+ * 升級：
+ *   1. 每行附上「主要由 @<暱稱> 負責」— 把 15 精靈分工帶到使用者面前。
+ *   2. 命中使用者 favoriteSpirits 的頁面加 ★ 並排到最前面。
+ *   3. 命中 mutedSpirits 的頁面隱藏（並提示去 /agent-preferences 設定）。
+ *   4. registry 比 limit 多時，末段補「還有 N 項…」並指向 /agent。
  */
-export function buildFeatureSummaryReply(): string {
-  const entries = APP_PAGE_REGISTRY
-    .filter(page => page.showInAgentHome && page.path && page.path !== "/agent")
-    .sort((a, b) => a.agentEntryPriority - b.agentEntryPriority)
-    .slice(0, 14);
+export function buildFeatureSummaryReply(opts: FeatureSummaryOpts = {}): string {
+  const limit = Math.max(1, opts.limit ?? DEFAULT_FEATURE_SUMMARY_LIMIT);
+  const favoriteSet = new Set<AgentRole>(opts.favoriteSpirits ?? []);
+  const mutedSet = new Set<AgentRole>(opts.mutedSpirits ?? []);
 
-  const lines = entries.map(page => {
+  const all = APP_PAGE_REGISTRY
+    .filter(page => page.showInAgentHome && page.path && page.path !== "/agent");
+
+  const annotated = all.map(page => ({
+    page,
+    role: getPrimarySpiritForPage(page),
+  }));
+
+  const visible = annotated.filter(({ role }) => !mutedSet.has(role));
+  const hiddenByMute = annotated.length - visible.length;
+
+  // 排序：① favorite 命中 → 排前面；② 同層內依 agentEntryPriority 升冪。
+  visible.sort((a, b) => {
+    const aFav = favoriteSet.has(a.role) ? 0 : 1;
+    const bFav = favoriteSet.has(b.role) ? 0 : 1;
+    if (aFav !== bFav) return aFav - bFav;
+    return a.page.agentEntryPriority - b.page.agentEntryPriority;
+  });
+
+  const shown = visible.slice(0, limit);
+  const remaining = visible.length - shown.length;
+
+  const lines = shown.map(({ page, role }) => {
     const hint = page.orbHints[0] ?? page.quickActions[0]?.label ?? "";
     const hintSuffix = hint ? `（例如：${hint}）` : "";
-    return `• ${page.label} — ${page.description}${hintSuffix}\n  路徑：${page.path}`;
+    const nickname = getPrimaryNicknameForRole(role);
+    const star = favoriteSet.has(role) ? "★ " : "";
+    return `• ${star}${page.label} — ${page.description}${hintSuffix}\n  路徑：${page.path}　主要由 @${nickname} 負責`;
   });
+
+  const tailLines: string[] = [];
+  if (remaining > 0) {
+    tailLines.push(`（還有 ${remaining} 項功能沒列出來，需要完整清單跟我說「全部功能」我再展開）`);
+  }
+  if (hiddenByMute > 0) {
+    tailLines.push(`（已依你的偏好隱藏 ${hiddenByMute} 項由靜音精靈負責的功能；要解除請到 /agent-preferences）`);
+  }
 
   return [
     "🧭 這個站目前能幫你做的事（取自實際註冊的功能列表）：",
     "",
     ...lines,
     "",
+    ...tailLines,
+    tailLines.length > 0 ? "" : null,
     "想直接過去任何一個功能，跟我說「帶我去 X」就行；想要一鍵流程，告訴我你要做的成品（圖片／影片／音樂／配音／腳本），我就會把跨頁工作流程拼好。",
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 /**
@@ -946,11 +1072,20 @@ const FEATURE_INQUIRY_PATTERNS: ReadonlyArray<RegExp> = [
   /^能不能.{1,12}(?:[?？]|$)/,
   /^(你|這站|平台)(到底|目前|現在)?(能|會|可以)(做|處理)/,
   /^給我(看|列|一份)?(?:全部|所有)?(功能|工具|服務)(列表|清單)?/,
+  // 新增：使用者請光球「介紹」自己的能力 — 自然的入門問法。
+  /^(介紹|簡介)(一下)?(你的|這個站的|平台的)?(功能|工具|服務|能力)/,
+  // 新增：「你的功能是什麼」「你的能力到哪」這類直白問句。
+  /^你的(功能|能力|本事)/,
+  // 新增：使用者要求展開完整清單 — 跟新版回覆裡「跟我說『全部功能』」對齊。
+  /^(全部|所有|完整)(功能|工具|清單|列表)$/,
 ];
 
 export function detectFeatureInquiry(text: string): boolean {
   const trimmed = (text ?? "").trim();
-  if (!trimmed || trimmed.length > 80) return false;
+  // 上限從 80 拉到 140：使用者真實打字常超過 80 字（「你這個平台到底能不能幫
+  // 我做角色一致性的 LoRA 訓練，順便講一下流程」這種就會被舊上限砍掉）。
+  // 140 字仍能擋掉長段對話訊息，且維持既有測試裡 145 字案例的 reject。
+  if (!trimmed || trimmed.length > 140) return false;
   return FEATURE_INQUIRY_PATTERNS.some(re => re.test(trimmed));
 }
 

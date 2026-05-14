@@ -538,6 +538,45 @@ function buildScenarioReplyText(outcome: OrbPromptScenarioOutcome): string {
   return outcome.reply;
 }
 
+/**
+ * 功能詢問模式回完之後丟出來的 CTA 建議按鈕。原本 ask-feature 只是「列清單
+ * 就結束」，使用者看完很常停在那兒、不知道下一步要說什麼。這組 chip 把純
+ * 問答接到真正動手的工作流：點下去等於送一條新訊息，讓 selectRoleForIntent
+ * 把該題丟給對的精靈，或自動切到 plan 模式擬計畫。
+ *
+ * 設計刻意保守：四顆按鈕 = 圖／影／音／計畫，把四大模態 + 跨頁規劃覆蓋掉，
+ * 避免主訊息已經很長還被一堆 chip 淹沒。使用者打 trimmed 原訊息時若已經
+ * 暗示了某個模態（例如「你能做角色一致性嗎」明顯是圖），就把對應 chip
+ * 放在第一個。
+ */
+function buildFeatureInquiryCtaSuggestions(userText: string): ChatSuggestion[] {
+  const text = (userText ?? "").toLowerCase();
+  const chips: ChatSuggestion[] = [
+    { text: "幫我做一張圖" },
+    { text: "幫我做一支短片" },
+    { text: "幫我配音／做音樂" },
+    { text: "幫我擬一份計畫" },
+  ];
+  // 把使用者原訊息已經暗示的模態提到第一個 — 讓 CTA 跟使用者意圖貼齊。
+  const hintOrder: Array<{ keywords: string[]; chipText: string }> = [
+    { keywords: ["影片", "短片", "video", "reel", "mv"], chipText: "幫我做一支短片" },
+    { keywords: ["配音", "聲音", "voice", "音樂", "music", "歌曲"], chipText: "幫我配音／做音樂" },
+    { keywords: ["圖", "image", "picture", "插畫", "海報"], chipText: "幫我做一張圖" },
+    { keywords: ["計畫", "規劃", "plan", "流程", "拆步驟"], chipText: "幫我擬一份計畫" },
+  ];
+  for (const { keywords, chipText } of hintOrder) {
+    if (keywords.some(k => text.includes(k))) {
+      const idx = chips.findIndex(c => c.text === chipText);
+      if (idx > 0) {
+        const [hit] = chips.splice(idx, 1);
+        chips.unshift(hit);
+      }
+      break;
+    }
+  }
+  return chips;
+}
+
 function inferClarificationIntentCards(question: string, userText: string, dimension: ClarificationDimension = "format"): string[] {
   // Delegate to the shared context-aware generator so the options always
   // reference the user's own topic (e.g. "茶道體驗短片（30 秒）" instead of
@@ -3373,8 +3412,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     // 「你能做什麼？」「有哪些功能？」這類 NL 詢問直接餵 buildFeatureSummaryReply
     // 結果（取自 APP_PAGE_REGISTRY），保證使用者看到的功能清單就是站上實際
     // 註冊的，不會被 LLM 幻想出不存在的 feature。
+    //
+    // 個人化：把 favoriteSpirits / mutedSpirits 從 agentPreferences 帶進去，
+    // 讓「最愛精靈負責的頁面」排在前面，「靜音精靈負責的頁面」隱藏起來。
+    // 之後再丟一排 suggestion chips 當作主動 CTA — 使用者可一鍵把純問答
+    // 切換成 plan 模式真的執行，不再停在「看完清單沒下一步」。
     if (!requestedMode && detectFeatureInquiry(trimmed)) {
-      const featureSummary = buildFeatureSummaryReply();
+      const prefForSummary = agentPreferencesQuery.data ?? null;
+      const featureSummary = buildFeatureSummaryReply({
+        favoriteSpirits:
+          ((prefForSummary as { favoriteSpirits?: string[] } | null)
+            ?.favoriteSpirits ?? []) as AgentRole[],
+        mutedSpirits:
+          ((prefForSummary as { mutedSpirits?: string[] } | null)
+            ?.mutedSpirits ?? []) as AgentRole[],
+      });
       setMessages(prev => [...prev, {
         role: "orb",
         text: featureSummary,
@@ -3382,6 +3434,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         pagePath: locationPath,
         intent: "feature-inquiry",
       }]);
+      setSuggestions(buildFeatureInquiryCtaSuggestions(trimmed));
       orbState.setState("idle", "列了站上的功能");
       return;
     }
@@ -3763,14 +3816,27 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     //   APP_PAGE_REGISTRY is the source of truth for site features, so this
     //   never needs an LLM — the answer is the same every time and avoids
     //   hallucinating features that don't exist.
+    //
+    // 個人化同 NL 分支：使用者的 favorite / muted 精靈會影響排序與顯示。
+    // 同時補一排 suggestion chips，讓使用者「看完清單」之後能夠一鍵把
+    // 純問答升級成 plan 模式真的開做。
     if (requestedMode === "ask-feature") {
-      const featureSummary = buildFeatureSummaryReply();
+      const prefForSummary = agentPreferencesQuery.data ?? null;
+      const featureSummary = buildFeatureSummaryReply({
+        favoriteSpirits:
+          ((prefForSummary as { favoriteSpirits?: string[] } | null)
+            ?.favoriteSpirits ?? []) as AgentRole[],
+        mutedSpirits:
+          ((prefForSummary as { mutedSpirits?: string[] } | null)
+            ?.mutedSpirits ?? []) as AgentRole[],
+      });
       setMessages(prev => [...prev, {
         role: "orb",
         text: featureSummary,
         at: Date.now(),
         pagePath: locationPath,
       }]);
+      setSuggestions(buildFeatureInquiryCtaSuggestions(trimmed));
       orbState.setState("idle");
       return;
     }
