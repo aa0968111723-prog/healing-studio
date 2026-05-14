@@ -18,6 +18,7 @@ import {
   summarizeRoleChainForPrompt,
   SPIRIT_COLLAB_PROTOCOL,
   SPIRIT_PROACTIVE_TRIGGERS,
+  getProtocolReceivedFromHandoffs,
   SPIRIT_FAMILY,
   SPIRIT_MODEL_CAPABILITIES,
   canSpiritCallCategory,
@@ -396,6 +397,16 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
       for (const r of spec.receivedFrom) {
         expect(ALL_ROLES).toContain(r);
       }
+    }
+  });
+
+  it("receivedFrom is the derived inverse of handoffs (no drift)", () => {
+    // 防止 SPIRIT_COLLAB_PROTOCOL.handoffs ↔ receivedFrom 又長出不對稱。
+    // 一旦有人改 handoffs 卻忘改 receivedFrom（或反之），這條會炸。
+    for (const role of ALL_ROLES) {
+      const derived = getProtocolReceivedFromHandoffs(role);
+      const declared = [...SPIRIT_COLLAB_PROTOCOL[role].receivedFrom].sort();
+      expect(declared).toEqual([...derived]);
     }
   });
 

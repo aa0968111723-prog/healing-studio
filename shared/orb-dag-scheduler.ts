@@ -144,21 +144,26 @@ export async function runBatchesWithConcurrency<T>(args: {
     let cursor = 0;
     while (cursor < batch.length) {
       const slice = batch.slice(cursor, cursor + cap);
-      try {
-        const sliceResults = await Promise.all(slice.map(step => args.runStep(step)));
-        results.push(...sliceResults);
-      } catch (err) {
-        // Find the first step in the slice that threw — Promise.all only
-        // surfaces the first rejection, so we re-run sequentially to find it.
-        for (const step of slice) {
+      // 用 allSettled 取代「Promise.all 失敗就整片重跑」— 後者會把已成功的
+      // step 再跑一次（重複扣點 / 重複生成 / results 重複塞），而且也無法
+      // 識別「真的壞掉」vs「transient」。allSettled 拿到每個 index 的結果
+      // 後，成功的塞 results，遇到第一個失敗就回報 — 不再重跑成功項。
+      const settled = await Promise.all(
+        slice.map(async step => {
           try {
-            const r = await args.runStep(step);
-            results.push(r);
-          } catch (innerErr) {
-            return { results, failed: { step, error: innerErr } };
+            return { ok: true as const, value: await args.runStep(step) };
+          } catch (err) {
+            return { ok: false as const, error: err };
           }
+        })
+      );
+      for (let i = 0; i < settled.length; i++) {
+        const r = settled[i];
+        if (r.ok) {
+          results.push(r.value);
+        } else {
+          return { results, failed: { step: slice[i], error: r.error } };
         }
-        // If we got here, the original error was transient — keep going.
       }
       cursor += cap;
     }

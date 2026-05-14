@@ -231,11 +231,19 @@ export function evaluateStepOutcome(args: EvaluateStepOutcomeArgs): PerceptionVe
     };
   }
 
-  // 3) New warning after the action almost always means the page is in a
+  // 3) New warning after a `submit` almost always means the page is in a
   //    worse state than before — submit + warning is the classic
-  //    "quota exceeded" / "missing API key" pattern.
+  //    "quota exceeded" / "missing API key" pattern. **僅限 submit 動作**：
+  //    navigate / fillPrompt / setParam 也可能讓頁面冒新警示（例如「字數
+  //    過長」這類提示），但那不是真的「規劃發散」需要 replan，只是 UX
+  //    feedback。docstring 早就講「When ... dispatched action was a submit」
+  //    但實作沒 gate 動作類型，會誤殺中間步驟。
   const treatWarnings = args.treatNewWarningsAsFailure ?? true;
-  if (treatWarnings && delta.newWarnings.length > 0) {
+  if (
+    treatWarnings &&
+    args.action.type === "submit" &&
+    delta.newWarnings.length > 0
+  ) {
     return {
       outcome: "diverged",
       recommendation: "replan",

@@ -1705,81 +1705,106 @@ export interface SpiritCollabSpec {
 }
 
 export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
-  // 通用工作流角色
   director: {
     handoffs: [
       { to: "plan-executor", reason: "整條跨頁多步驟自動跑完的最佳人選", when: "plan has >=3 steps and user wants auto-run" },
       { to: "composer", reason: "計畫拆好之後，編編在當頁套用每一步", when: "plan accepted, single-page execution" },
       { to: "accountant", reason: "規劃完先讓財財估算總花費再起跑", when: "plan involves >2 paid steps" },
       { to: "critic", reason: "整條 workflow 跑完後請品品看一輪整體性", when: "workflow completed" },
+      { to: "image-specialist", reason: "圖像步驟交給圖圖出圖", when: "plan contains image step" },
+      { to: "video-specialist", reason: "影片步驟交給影影製作", when: "plan contains video step" },
+      { to: "music-specialist", reason: "音樂步驟交給音音配樂", when: "plan contains music step" },
+      { to: "voice-specialist", reason: "配音步驟交給聲聲", when: "plan contains voiceover step" },
+      { to: "training-specialist", reason: "需要 LoRA 交給練練訓練", when: "plan needs custom model" },
+      { to: "learning-specialist", reason: "教學內容交給學學帶讀", when: "plan delivers tutorial" },
+      { to: "inspiration-specialist", reason: "缺方向時讓靈靈提案", when: "plan blocked on direction" },
+      { to: "anatomy-specialist", reason: "解剖圖步驟交給體體", when: "plan contains anatomy step" },
+      { to: "community-manager", reason: "社群發布步驟交給群群規劃", when: "plan involves social publish" },
+      { to: "legal-advisor", reason: "計畫含名人/IP 元素先請律律審", when: "plan touches IP risk" },
+      { to: "notes-curator", reason: "把計畫存進記記方便日後翻", when: "plan worth archiving" },
     ],
-    receivedFrom: ["companion", "researcher", "navigator", "inspector", "plan-executor"],
+    receivedFrom: ["anatomy-specialist", "chief-orchestrator", "companion", "inspector", "navigator", "plan-executor", "researcher"],
   },
   composer: {
     handoffs: [
       { to: "critic", reason: "送出後請品品挑 1-3 個改進", when: "execution finished" },
       { to: "quality-coach", reason: "如果結果不理想找巧巧改 prompt", when: "user says 不滿意 / 再試" },
+      { to: "legal-advisor", reason: "看到風險 prompt 交給律律審", when: "ip risk detected mid-edit" },
     ],
-    receivedFrom: ["director", "image-specialist", "video-specialist", "music-specialist", "voice-specialist", "training-specialist", "quality-coach"],
+    receivedFrom: ["accountant", "anatomy-specialist", "critic", "director", "image-specialist", "legal-advisor", "navigator", "notes-curator", "plan-executor", "quality-coach", "training-specialist"],
   },
   critic: {
     handoffs: [
       { to: "composer", reason: "改寫建議交給編編套到當頁", when: "user picks a critique to apply" },
       { to: "quality-coach", reason: "如果是 prompt 層問題交給巧巧", when: "critique is prompt-level" },
     ],
-    receivedFrom: ["composer", "director", "image-specialist", "video-specialist", "music-specialist", "voice-specialist"],
+    receivedFrom: ["anatomy-specialist", "chief-orchestrator", "composer", "director", "image-specialist", "music-specialist", "plan-executor", "quality-coach", "training-specialist", "video-specialist"],
   },
   researcher: {
     handoffs: [
       { to: "director", reason: "查完讓導導排成可執行步驟", when: "user picks a researched option" },
       { to: "accountant", reason: "比較完讓財財算成本再決定", when: "comparison includes paid options" },
+      { to: "notes-curator", reason: "查到的資料存進記記方便日後翻", when: "research worth saving" },
     ],
-    receivedFrom: ["companion", "director", "accountant"],
+    receivedFrom: ["accountant", "companion", "inspiration-specialist", "legal-advisor", "notes-curator"],
   },
   navigator: {
     handoffs: [
       { to: "composer", reason: "到了目標頁讓編編上場", when: "target page is a studio" },
       { to: "learning-specialist", reason: "如果是教程頁交給學學帶讀", when: "target page is /learn" },
+      { to: "director", reason: "目的地不明確讓導導重排", when: "user changes mind mid-route" },
     ],
-    receivedFrom: ["companion", "director", "inspector"],
+    receivedFrom: ["companion", "inspector", "learning-specialist", "onboarding-coach"],
   },
   companion: {
     handoffs: [
       { to: "director", reason: "聊清楚目標後交給導導排計畫", when: "user reveals goal" },
       { to: "navigator", reason: "如果只想去某頁就交給路路", when: "user wants destination" },
+      { to: "learning-specialist", reason: "想學東西交給學學帶讀", when: "user wants to learn" },
+      { to: "inspiration-specialist", reason: "沒靈感交給靈靈丟方向", when: "user lacks ideas" },
+      { to: "onboarding-coach", reason: "新手卡關交給帶帶引導", when: "user needs orientation" },
+      { to: "security-guard", reason: "聽到安全顧慮交給安安", when: "user mentions security" },
+      { to: "settings-detail", reason: "想調設定交給細細", when: "user asks about settings" },
+      { to: "notes-curator", reason: "想記錄交給記記", when: "user wants to save" },
+      { to: "researcher", reason: "需要查資料交給查查", when: "user asks for facts" },
+      { to: "community-manager", reason: "想經營社群交給群群", when: "user asks about social" },
+      { to: "anatomy-specialist", reason: "想做解剖圖交給體體", when: "user asks for anatomy" },
     ],
-    receivedFrom: [],
+    receivedFrom: ["learning-specialist"],
   },
-  // 三位主動出擊
   accountant: {
     handoffs: [
       { to: "researcher", reason: "推薦更省的選項時讓查查列出對照", when: "user wants cheaper alternative" },
       { to: "composer", reason: "確認方案後讓編編切換模型", when: "user accepts cheaper switch" },
+      { to: "settings-detail", reason: "想調整自動扣款 / 額度交給細細", when: "user wants quota change" },
     ],
-    receivedFrom: ["director", "researcher", "image-specialist", "video-specialist"],
+    receivedFrom: ["chief-orchestrator", "director", "notes-curator", "plan-executor", "researcher", "settings-detail"],
   },
   "quality-coach": {
     handoffs: [
       { to: "composer", reason: "改寫的 prompt 交給編編送出", when: "rewrite accepted" },
       { to: "critic", reason: "新一輪結果出來請品品複看", when: "after rerun" },
+      { to: "image-specialist", reason: "改寫好的 prompt 交給圖圖再生一張", when: "image rerun requested" },
+      { to: "video-specialist", reason: "改寫好的 prompt 交給影影再生一段", when: "video rerun requested" },
+      { to: "inspiration-specialist", reason: "提示詞卡死交給靈靈丟新方向", when: "user stuck on direction" },
     ],
-    receivedFrom: ["critic", "composer", "image-specialist", "video-specialist"],
+    receivedFrom: ["chief-orchestrator", "composer", "critic", "legal-advisor"],
   },
   inspector: {
     handoffs: [
       { to: "navigator", reason: "找到對的繞過頁讓路路帶過去", when: "workaround exists" },
       { to: "learning-specialist", reason: "如果是使用者卡關不是 bug 交給學學", when: "user error, not site bug" },
+      { to: "director", reason: "問題影響整條 workflow 讓導導重新規劃", when: "issue blocks workflow" },
     ],
-    receivedFrom: [],
+    receivedFrom: ["chief-orchestrator", "onboarding-coach", "plan-executor", "security-guard"],
   },
-  // 6 專精
   "image-specialist": {
     handoffs: [
       { to: "composer", reason: "出圖完讓編編套用到當頁", when: "image generated" },
       { to: "video-specialist", reason: "圖完成後接影影做動畫版", when: "user wants animation" },
       { to: "critic", reason: "結束讓品品挑改進處", when: "image finalised" },
     ],
-    receivedFrom: ["director", "training-specialist", "quality-coach"],
+    receivedFrom: ["anatomy-specialist", "chief-orchestrator", "community-manager", "director", "inspiration-specialist", "quality-coach", "training-specialist"],
   },
   "video-specialist": {
     handoffs: [
@@ -1787,59 +1812,63 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "music-specialist", reason: "再讓音音配 BGM", when: "video needs music" },
       { to: "critic", reason: "全部就緒後品品看一輪", when: "video finalised" },
     ],
-    receivedFrom: ["director", "image-specialist"],
+    receivedFrom: ["chief-orchestrator", "community-manager", "director", "image-specialist", "inspiration-specialist", "music-specialist", "quality-coach", "voice-specialist"],
   },
   "music-specialist": {
     handoffs: [
       { to: "video-specialist", reason: "音樂做完丟回影影合成", when: "music for video" },
       { to: "critic", reason: "成品出來讓品品聽一遍", when: "music finalised" },
     ],
-    receivedFrom: ["director", "video-specialist"],
+    receivedFrom: ["chief-orchestrator", "director", "inspiration-specialist", "video-specialist", "voice-specialist"],
   },
   "voice-specialist": {
     handoffs: [
       { to: "video-specialist", reason: "配音做完接回影影對嘴 / 合成", when: "voice for video" },
       { to: "music-specialist", reason: "再讓音音混底", when: "voice needs music bed" },
     ],
-    receivedFrom: ["director", "video-specialist"],
+    receivedFrom: ["chief-orchestrator", "director", "video-specialist"],
   },
   "training-specialist": {
     handoffs: [
       { to: "image-specialist", reason: "LoRA 訓好交給圖圖出第一張示範", when: "lora ready" },
       { to: "critic", reason: "示範圖出來請品品評估資料集", when: "first results in" },
+      { to: "composer", reason: "LoRA 訓完接給編編套用", when: "lora ready" },
+      { to: "plan-executor", reason: "訓完讓步步把後續流程跑完", when: "lora is part of larger workflow" },
     ],
-    receivedFrom: ["director"],
+    receivedFrom: ["chief-orchestrator", "director"],
   },
   "learning-specialist": {
     handoffs: [
       { to: "navigator", reason: "教完帶使用者去實作頁", when: "user ready to try" },
       { to: "companion", reason: "如果還沒準備好交給暖暖陪聊", when: "user hesitant" },
+      { to: "anatomy-specialist", reason: "解剖教學交給體體出圖", when: "tutorial needs anatomy diagram" },
     ],
-    receivedFrom: ["companion", "navigator", "inspector", "onboarding-coach", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "companion", "director", "inspector", "navigator", "onboarding-coach"],
   },
-  // 7 位新增精靈
   "legal-advisor": {
     handoffs: [
       { to: "quality-coach", reason: "改寫成安全提示詞交給巧巧套版", when: "user accepts safer rewrite" },
       { to: "researcher", reason: "需要查授權條款 / 判例給查查", when: "license question" },
       { to: "settings-detail", reason: "需要在偏好開啟版權警示交給細細", when: "user wants stricter policy" },
+      { to: "composer", reason: "安全改寫交給編編套到當頁", when: "user accepts rewrite" },
     ],
-    receivedFrom: ["director", "composer", "image-specialist", "video-specialist", "music-specialist", "training-specialist", "community-manager", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "composer", "director"],
   },
   "security-guard": {
     handoffs: [
       { to: "settings-detail", reason: "改密碼 / 開兩步驟交給細細帶到設定頁", when: "user wants to harden account" },
       { to: "inspector", reason: "懷疑站台本身有漏洞時請守守協同", when: "site-side risk" },
     ],
-    receivedFrom: ["companion", "composer", "inspector", "settings-detail", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "companion", "settings-detail"],
   },
   "community-manager": {
     handoffs: [
       { to: "image-specialist", reason: "貼文視覺交給圖圖出圖", when: "needs post visuals" },
       { to: "video-specialist", reason: "短影音交給影影產出", when: "needs short video" },
       { to: "notes-curator", reason: "排程交給記記排進貼文行事曆", when: "post scheduled" },
+      { to: "plan-executor", reason: "跨平台貼文流程交給步步跑完", when: "multi-platform schedule" },
     ],
-    receivedFrom: ["director", "researcher", "companion", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "companion", "director"],
   },
   "chief-orchestrator": {
     handoffs: [
@@ -1847,6 +1876,22 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "plan-executor", reason: "計畫批准後一條龍交給步步跑完", when: "plan ready, hands-free run" },
       { to: "accountant", reason: "整體預算先讓財財估算", when: "plan involves heavy spend" },
       { to: "critic", reason: "整條 workflow 完成請品品總評", when: "deliverable ready" },
+      { to: "image-specialist", reason: "圖像任務交給圖圖", when: "task is image-domain" },
+      { to: "video-specialist", reason: "影片任務交給影影", when: "task is video-domain" },
+      { to: "music-specialist", reason: "音樂任務交給音音", when: "task is music-domain" },
+      { to: "voice-specialist", reason: "配音任務交給聲聲", when: "task is voice-domain" },
+      { to: "training-specialist", reason: "LoRA 訓練交給練練", when: "task needs training" },
+      { to: "learning-specialist", reason: "教學任務交給學學", when: "user wants learning" },
+      { to: "inspiration-specialist", reason: "靈感問題交給靈靈", when: "user lacks direction" },
+      { to: "anatomy-specialist", reason: "解剖任務交給體體", when: "task involves anatomy" },
+      { to: "legal-advisor", reason: "版權 / 商標問題交給律律", when: "ip risk detected" },
+      { to: "security-guard", reason: "資安問題交給安安", when: "security risk detected" },
+      { to: "community-manager", reason: "社群行銷交給群群", when: "social marketing task" },
+      { to: "onboarding-coach", reason: "卡關使用者交給帶帶", when: "user stuck repeatedly" },
+      { to: "notes-curator", reason: "整理 / 排程交給記記", when: "task involves notes/schedule" },
+      { to: "settings-detail", reason: "偏好設定交給細細", when: "task involves preferences" },
+      { to: "quality-coach", reason: "品質問題交給巧巧", when: "quality issue detected" },
+      { to: "inspector", reason: "站台問題交給守守", when: "site bug suspected" },
     ],
     receivedFrom: [],
   },
@@ -1855,8 +1900,9 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "navigator", reason: "教完之後讓路路把使用者帶到實作頁", when: "user ready to try" },
       { to: "learning-specialist", reason: "想要更深入概念解說交給學學", when: "user wants theory" },
       { to: "inspector", reason: "卡關其實是 site bug 交給守守回報", when: "real bug spotted" },
+      { to: "settings-detail", reason: "新手第一次設定交給細細導覽", when: "first-time setup" },
     ],
-    receivedFrom: ["companion", "inspector", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "companion"],
   },
   "notes-curator": {
     handoffs: [
@@ -1864,29 +1910,25 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "researcher", reason: "想找的不在站內讓查查上網查", when: "asset not found" },
       { to: "accountant", reason: "排程涉及付費模型先 ping 財財", when: "schedule paid op" },
     ],
-    receivedFrom: ["director", "companion", "community-manager", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "community-manager", "companion", "director", "inspiration-specialist", "researcher"],
   },
   "settings-detail": {
     handoffs: [
       { to: "security-guard", reason: "改密碼 / 金鑰前先讓安安檢查", when: "credential changes" },
       { to: "accountant", reason: "改額度 / 訂閱讓財財估算影響", when: "billing settings" },
     ],
-    receivedFrom: ["companion", "security-guard", "onboarding-coach", "chief-orchestrator"],
+    receivedFrom: ["accountant", "chief-orchestrator", "companion", "legal-advisor", "onboarding-coach", "security-guard"],
   },
-  // 步步：拿到 director / chief-orchestrator 給的計畫之後，自己跨頁、跨精靈
-  // 把每一步真實送出。失敗時 ping 守守看是不是 site bug；要花的點數先 ping
-  // 財財估算；做完讓品品看一輪。
   "plan-executor": {
     handoffs: [
       { to: "accountant", reason: "起跑前先讓財財估算總點數", when: "before run starts" },
       { to: "composer", reason: "每一步在當頁的細節操作交給編編", when: "step lands on a studio page" },
       { to: "critic", reason: "整條跑完讓品品總評", when: "workflow done" },
       { to: "inspector", reason: "中途某步真壞了交給守守報修", when: "step fails with site error" },
+      { to: "director", reason: "步驟壞了讓導導重排", when: "step failure requires replan" },
     ],
-    receivedFrom: ["director", "chief-orchestrator", "community-manager", "training-specialist"],
+    receivedFrom: ["chief-orchestrator", "community-manager", "director", "training-specialist"],
   },
-  // 靈靈：拿到使用者靈感需求後，用 inspiration.fetch 拉回趨勢 + 參考，
-  // 給 2-3 個方向 + 示範提示詞，選定後交給對應專精精靈實作。
   "inspiration-specialist": {
     handoffs: [
       { to: "image-specialist", reason: "靈感方向選定，prompt 精煉完交給圖圖出圖", when: "user picks image direction" },
@@ -1895,10 +1937,8 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "researcher", reason: "想進一步比較風格差異交給查查", when: "user wants detailed comparison" },
       { to: "notes-curator", reason: "靈感想存下來交給記記建檔", when: "user wants to save inspiration" },
     ],
-    receivedFrom: ["companion", "director", "quality-coach", "community-manager", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "companion", "director", "quality-coach"],
   },
-  // 體體：接到解剖圖需求後，確認部位 + 用途 + 風格，給精確提示詞，
-  // 用 studio.generateImage 出圖，交給品品確認準確度或編編疊標註。
   "anatomy-specialist": {
     handoffs: [
       { to: "critic", reason: "解剖圖出來請品品確認準確度", when: "anatomy illustration done" },
@@ -1906,9 +1946,9 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "director", reason: "想做成教學簡報整套交給導導規劃", when: "user wants full tutorial" },
       { to: "image-specialist", reason: "要做 3D 可旋轉版交給圖圖用 generate3D", when: "user wants 3D anatomy" },
     ],
-    receivedFrom: ["companion", "director", "learning-specialist", "community-manager", "chief-orchestrator"],
+    receivedFrom: ["chief-orchestrator", "companion", "director", "learning-specialist"],
   },
-};
+};;
 
 // ─── 主動觸發條件 (proactive triggers) ──────────────────────────────────
 // 三位「主動出擊型」精靈的事件 spec — 還沒有 runtime event bus 在跑，這份
@@ -2064,6 +2104,26 @@ export const SPIRIT_PROACTIVE_TRIGGERS: ReadonlyArray<ProactiveTriggerSpec> = [
     surface: "inline",
   },
 ];
+
+/**
+ * 從 SPIRIT_COLLAB_PROTOCOL.handoffs 反推「誰會把工作交給我」— 也就是
+ * 把所有 X.handoffs 裡 to === role 的 X 蒐集起來。這是 receivedFrom 的
+ * 真實值（handoffs 為單一真實來源）。
+ *
+ * 為什麼存在：之前 receivedFrom 是手寫，跟 handoffs 容易漂移；曾經出現
+ * 「director.handoffs 沒列 image-specialist，但 image-specialist.receivedFrom
+ * 卻寫了 director」的不一致。改用這個 helper 推導後不再需要手動維護
+ * 雙向資料，runtime 永遠拿到對稱結果。SPIRIT_COLLAB_PROTOCOL 內仍保留
+ * `receivedFrom` 欄位作為快取/快速 lookup（並由 unit test 驗證它等於本
+ * helper 的輸出）。
+ */
+export function getProtocolReceivedFromHandoffs(role: AgentRole): readonly AgentRole[] {
+  const sources: AgentRole[] = [];
+  for (const [src, spec] of Object.entries(SPIRIT_COLLAB_PROTOCOL) as Array<[AgentRole, SpiritCollabSpec]>) {
+    if (spec.handoffs.some(h => h.to === role)) sources.push(src);
+  }
+  return sources.sort();
+}
 
 /**
  * For multi-step intents, return the sequence of roles the orb should

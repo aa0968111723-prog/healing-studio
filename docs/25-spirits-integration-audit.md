@@ -286,3 +286,38 @@
 - ✅ page_perf_bad、feature_not_used、settings_drift_detected、social_post_ready、low_quality_generation（PR commit 3）
 
 > 注意：這些是「客戶端能偵測得出來」的保守版偵測（regex / heuristic / localStorage）。後續若接入 LLM 視覺評分或長期行為資料庫，可在 `spiritWatchers.ts` 內換成更精準演算法而不動 publish 端。
+
+---
+
+## 8. 第四輪：協作與思考鏈缺陷修補
+
+跑了一個雙 agent 深度審計（協作 / 思考步驟），交叉驗證後實際修了下列：
+
+### 8.1 SPIRIT_COLLAB_PROTOCOL 對稱性（98 條不對稱 → 0）
+
+問題：`SPIRIT_COLLAB_PROTOCOL` 內 25 個角色的 `handoffs` 與 `receivedFrom` 嚴重漂移 — 跑驗證腳本顯示 98 條雙向不對稱（A 說「我交給 B」但 B 不收 A，或反之）。導致：
+
+- UI 顯示「同事網絡」資訊與真實 dispatch 行為不一致
+- 之前 `director` / `chief-orchestrator` 等管理型角色完全沒有 forward handoff 到大多數 specialist，雖然 system prompt 明寫要分派
+
+修法：
+1. 新增 helper `getProtocolReceivedFromHandoffs(role)` — 從 `handoffs` 反推「誰會傳工作給我」（單一真實來源）。
+2. 補上 40+ 條 forward handoff（director / chief-orchestrator / companion / quality-coach 等管理型 / 通用型角色 → 各 specialist），honor system prompt 的設計意圖。
+3. 重算所有 25 個 `receivedFrom` literal 為「衍生集合的排序版本」，確保 literal === derived。
+4. 加 unit test `receivedFrom is the derived inverse of handoffs (no drift)` 鎖死未來漂移。
+
+驗證：再跑 `/tmp/check-handoff-symmetry.mjs` 得 `Issues: 0`。
+
+### 8.2 思考鏈缺陷修補（3 條真實 bug）
+
+| # | 缺陷 | 檔案 | 修法 |
+|---|---|---|---|
+| 1 | `evaluateStepOutcome` 對「new warning」一律觸發 replan，連 navigate / fillPrompt 都被誤判（docstring 早就限定僅 submit） | `shared/orb-perception-loop.ts:234` | 加 `args.action.type === "submit"` gate |
+| 2 | `runBatchesWithConcurrency` 在 Promise.all reject 後 sequentially 重跑整片，**已成功的 step 會被 double-run 且 results 重複塞入** | `shared/orb-dag-scheduler.ts:136` | 改用 per-step try/catch + 順序檢視，成功的 push 一次、遇到失敗回報該 step |
+| 3 | 計畫 refine pass 第二次 LLM 呼叫沒包 try/catch — JSON 解析或 gate 任何錯都會 crash 整條 chat | `server/services/agentPlanner.ts:1011` | 包 try/catch，失敗 fall back 到 draft + 原 critique，記 `planner_refine_failed` |
+
+### 8.3 雙 agent 審計回報過但實際非缺陷（記錄避免下次又被誤報）
+
+- 「`SPIRIT_COLLAB_PROTOCOL` 漏掉 8 個 role」— 假的。25 role 都在，agent 對 grep 結果誤判。
+- 「`deliverToMultiple` 的 Promise.all 會在一個 handler 拋例外時跳過剩下的」— 假的。內層 `deliverToAgent` 已對每個 handler 包 try/catch，外層 Promise.all 不會看到 reject。
+- 「OrbThinkingStepsPanel 的 key 會碰撞」— 假的。`${idx}-...` 開頭 idx 從 map 來保證唯一。

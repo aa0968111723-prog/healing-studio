@@ -4,6 +4,7 @@ import {
   type Message,
   type InvokeResult,
 } from "../_core/llm";
+import { logger } from "../_core/logger";
 import { AGENT_PLAN_V3_JSON_SCHEMA } from "../../shared/agent-plan-schema";
 import { summarizeGlobalCapabilityRegistry } from "../../shared/global-agent-capabilities";
 import { summarizeTextToImageModelRegistry } from "../../shared/textToImageModelRegistry";
@@ -1020,33 +1021,55 @@ export async function runSchemaFirstAgentPlannerWithCritique(
       content: refinePrompt,
     } as Message,
   ];
-  const refineResult = await llm({
-    messages: buildAgentPlannerMessages({
-      ...input,
-      messages: refineMessages,
-    }),
-    runName: "orb-agent-schema-first-planner-refine",
-    maxTokens: input.maxTokens ?? 2_500,
-    response_format: {
-      type: "json_schema",
-      json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
-        name: string;
-        schema: Record<string, unknown>;
-        strict?: boolean;
+
+  // 第二次 LLM call 仍可能因 response_format 不完全強制（不同 provider 對
+  // strict json_schema 支援度不一）回傳壞掉的 JSON 或被 parseAndGatePlan
+  // gate 拒絕。整個 refine pass 包 try/catch — 失敗時 fall back 到 draft
+  // 並附 critique，比 crash 整條 chat 強。
+  let refinedGated: ReturnType<typeof parseAndGatePlan>;
+  let refinedRaw: string;
+  try {
+    const refineResult = await llm({
+      messages: buildAgentPlannerMessages({
+        ...input,
+        messages: refineMessages,
+      }),
+      runName: "orb-agent-schema-first-planner-refine",
+      maxTokens: input.maxTokens ?? 2_500,
+      response_format: {
+        type: "json_schema",
+        json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
+          name: string;
+          schema: Record<string, unknown>;
+          strict?: boolean;
+        },
       },
-    },
-  });
-  const refinedRaw = extractPlannerContent(refineResult);
-  // Re-detect the user-selected mode for the critique-refine pass so the
-  // gate keeps enforcing multi-step contracts on the refined plan too.
-  const critiqueGateModeMatch = input.context
-    ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
-    : null;
-  const critiqueGateMode = critiqueGateModeMatch?.[1]?.toLowerCase();
-  const refinedGated = parseAndGatePlan(
-    refinedRaw,
-    critiqueGateMode ? { requestedMode: critiqueGateMode } : undefined
-  );
+    });
+    refinedRaw = extractPlannerContent(refineResult);
+    // Re-detect the user-selected mode for the critique-refine pass so the
+    // gate keeps enforcing multi-step contracts on the refined plan too.
+    const critiqueGateModeMatch = input.context
+      ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
+      : null;
+    const critiqueGateMode = critiqueGateModeMatch?.[1]?.toLowerCase();
+    refinedGated = parseAndGatePlan(
+      refinedRaw,
+      critiqueGateMode ? { requestedMode: critiqueGateMode } : undefined
+    );
+  } catch (err) {
+    // refine 失敗 — 保留 draft + 原 critique。critiqueRefined=false 已經
+    // 告訴 caller「沒跑 refine」；錯誤詳情用 logger.warn 而不是塞進回傳
+    // 形狀，避免改 PlannerResult schema。
+    logger.warn("planner_refine_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      draftStatus: draft.status,
+    });
+    return {
+      ...draft,
+      critique,
+      critiqueRefined: false,
+    };
+  }
 
   // If the refine attempt itself produces a workflow, run the critic ONE
   // more time so callers can see the post-refine score (purely informational
