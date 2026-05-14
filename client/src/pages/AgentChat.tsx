@@ -427,11 +427,16 @@ type TaskTemplate = {
  * Look up which spirit handled a given orb message by re-running the same
  * router the server uses on the most recent user message. Pure / shared,
  * so we get the same answer the backend would have picked.
+ *
+ * Pass `mutedRoles` so the client honours the user's muted-spirits list —
+ * without it the client would display 「圖圖 接手」on a row where the server
+ * actually muted 圖圖 and dispatched the fallback role.
  */
 function inferRespondingSpirit(
   messages: { role: string; text: string; at: number }[],
   index: number,
   pagePath: string,
+  mutedRoles?: readonly AgentRole[],
 ): SpiritVisual | null {
   if (messages[index]?.role !== "orb") return null;
   for (let i = index - 1; i >= 0; i -= 1) {
@@ -440,6 +445,7 @@ function inferRespondingSpirit(
         text: messages[i].text,
         snapshot: { pageId: pagePath, pageLabel: pagePath, pagePath, capabilities: [] },
         turnCount: i,
+        mutedRoles,
       });
       return SPIRITS_BY_ID[sel.role] ?? null;
     }
@@ -716,6 +722,20 @@ export default function AgentChat() {
   const [spiritDeckOpen, setSpiritDeckOpen] = useState(false);
   /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
   const [pinnedSpirit, setPinnedSpirit] = useState<AgentRole | null>(null);
+
+  // Pull mutedSpirits from server-side agent preferences so the client's
+  // `selectRoleForIntent` fallback honours the same mute list as the server's
+  // selectRoleForIntent. Without this the UI labels「圖圖 接手」on a row
+  // where the server had already muted 圖圖 and dispatched the fallback.
+  const agentPreferencesQuery = trpc.agentPreferences.getPreferences.useQuery(
+    undefined,
+    { staleTime: 30_000, refetchOnWindowFocus: false }
+  );
+  const mutedRoles = useMemo<AgentRole[]>(() => {
+    const raw = (agentPreferencesQuery.data as { mutedSpirits?: string[] } | undefined)
+      ?.mutedSpirits;
+    return Array.isArray(raw) ? (raw as AgentRole[]) : [];
+  }, [agentPreferencesQuery.data]);
   const [recent, setRecent] = useState<RecentEntry[]>(() => readRecent());
   // 思考步驟面板：開啟時記住目前要顯示哪一條訊息的 reasoningChain。
   // 用 message.at 當索引值，因為它是訊息列表內的穩定 unique key。
@@ -943,9 +963,9 @@ export default function AgentChat() {
       if (serverRole && (SPIRITS_BY_ID as Record<string, SpiritVisual>)[serverRole]) {
         return (SPIRITS_BY_ID as Record<string, SpiritVisual>)[serverRole];
       }
-      return inferRespondingSpirit(messages, i, path);
+      return inferRespondingSpirit(messages, i, path, mutedRoles);
     });
-  }, [messages]);
+  }, [messages, mutedRoles]);
   /** 最近 3 則回覆的精靈，去重 — 給「現在誰在線」狀態條使用。 */
   const onlineSpirits = useMemo<SpiritVisual[]>(() => {
     const seen = new Set<AgentRole>();
@@ -2430,6 +2450,7 @@ export default function AgentChat() {
                       capabilities: [],
                     },
                     turnCount: messages.length,
+                    mutedRoles,
                   })
                 : null;
               const spirit = sel ? SPIRITS_BY_ID[sel.role] : null;

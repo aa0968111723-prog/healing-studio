@@ -1,4 +1,5 @@
 import type { AgentAction } from "./agent-actions";
+import { getGlobalAgentTool } from "./global-agent-tools";
 import {
   agentPlanToWorkflowAction,
   normalizeAgentPlanVersion,
@@ -396,20 +397,30 @@ export function adaptAgentPlanV3ToOrbTaskDraft(
   let isolation: "ui" | "tool" | "code" =
     plan.taskPolicy?.isolation ?? (evaluation.needsClaudeCode ? "code" : "ui");
   // Demote a hallucinated `taskPolicy.isolation: "code"` when the actual
-  // step toolNames are all server-side media calls. Without this, plans
-  // like "為使用者做普洱茶療癒影片" (steps = studio.generateImage / Video /
-  // Audio) keep getting forced into claudeCode isolation by an LLM that
-  // misclassifies "tasked" as "code work".
+  // step toolNames are all server-side / external-provider media calls.
+  // Without this, plans like "為使用者做普洱茶療癒影片" (steps =
+  // studio.generateImage / Video / Audio) keep getting forced into
+  // claudeCode isolation by an LLM that misclassifies "tasked" as
+  // "code work".
+  //
+  // Previously we matched by toolName prefix (`studio.`, `media.`, …) which
+  // broke as soon as a non-prefixed media tool was added to the registry.
+  // We now look up each step's registered `executionTarget` — anything that
+  // isn't `claudeCode` is treated as non-code work. Unknown / unregistered
+  // toolNames disqualify the downgrade (defensive: if we can't classify it,
+  // don't assume it's safe to demote).
   if (isolation === "code" && !evaluation.needsClaudeCode) {
     const stepsWithToolName = plan.steps.filter(step => Boolean(step.toolName));
-    const allServerMedia =
+    const allNonClaudeCode =
       stepsWithToolName.length > 0 &&
-      stepsWithToolName.every(step =>
-        ["studio.", "director.", "media.", "pro-studio."].some(prefix =>
-          String(step.toolName).startsWith(prefix)
-        )
-      );
-    if (allServerMedia) isolation = "ui";
+      stepsWithToolName.every(step => {
+        const def = getGlobalAgentTool(String(step.toolName));
+        // `def` is `null` for unknown tools — be defensive: don't demote
+        // unless every step's tool is REGISTERED and registered as
+        // non-claudeCode.
+        return def != null && def.executionTarget !== "claudeCode";
+      });
+    if (allNonClaudeCode) isolation = "ui";
   }
   return {
     taskId: plan.planId,

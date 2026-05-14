@@ -211,3 +211,40 @@ describe("buildCritiquePromptForLLM", () => {
     expect(prompt).toMatch(/原始計畫/);
   });
 });
+
+describe("critiquePlan — modality coherence", () => {
+  it("flags modality-mismatch when user asked for video but plan navigates to /image-studio", () => {
+    const r = critiquePlan(
+      wf([
+        { actionType: "navigate", payload: "/image-studio", label: "go", path: "/image-studio" },
+        { path: "/image-studio", actionType: "fillPrompt", payload: "森林", label: "fill" },
+      ]),
+      { userText: "幫我做一支 30 秒的療癒短片" }
+    );
+    const mismatch = r.issues.find(i => i.code === "modality-mismatch");
+    expect(mismatch).toBeDefined();
+    expect(mismatch?.severity).toBe("warning");
+    expect(mismatch?.message).toMatch(/video|影片|image/);
+  });
+
+  it("does not flag when user modality and plan modality agree", () => {
+    const r = critiquePlan(
+      wf([
+        { actionType: "navigate", payload: "/video-studio", label: "go", path: "/video-studio" },
+        { path: "/video-studio", actionType: "fillPrompt", payload: "森林", label: "fill" },
+      ]),
+      { userText: "幫我做一支 30 秒的療癒短片" }
+    );
+    expect(r.issues.find(i => i.code === "modality-mismatch")).toBeUndefined();
+  });
+
+  it("skips the coherence check entirely when userText is omitted (back-compat)", () => {
+    const r = critiquePlan(
+      wf([
+        { actionType: "navigate", payload: "/image-studio", label: "go", path: "/image-studio" },
+        { path: "/image-studio", actionType: "fillPrompt", payload: "森林", label: "fill" },
+      ])
+    );
+    expect(r.issues.find(i => i.code === "modality-mismatch")).toBeUndefined();
+  });
+});

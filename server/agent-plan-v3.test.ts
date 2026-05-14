@@ -735,6 +735,92 @@ describe("parseAndGatePlan — placeholder prompt rejection (Phase-2 auto-fill)"
   });
 });
 
+describe("adaptAgentPlanV3ToOrbTaskDraft — isolation downgrade via registry metadata", () => {
+  // Previously the downgrade-from-code rule used `toolName.startsWith("studio.")`
+  // and a few siblings; any registered media tool that didn't share the prefix
+  // got mistakenly held in claudeCode isolation. The refactor consults
+  // `GLOBAL_AGENT_TOOL_REGISTRY[].executionTarget` — anything that isn't
+  // `"claudeCode"` is treated as non-code work.
+  it("downgrades hallucinated isolation='code' to 'ui' when every step uses non-claudeCode tools", () => {
+    const plan = buildV3Plan({
+      planId: "task_media",
+      decision: { mode: "tasked" },
+      // Force-asserted hallucinated code isolation from the LLM.
+      taskPolicy: { needsApproval: true, isolation: "code", autoStart: false },
+      routing: { preferredEngine: "auto", capabilities: ["multimodal"], pageScope: "single" },
+      steps: [
+        {
+          id: "img",
+          label: "生圖",
+          pagePath: "/image-studio",
+          riskLevel: "medium",
+          requiresApproval: true,
+          undoable: false,
+          action: { type: "submit" },
+          // `media.transcribe` is registered with executionTarget="external-provider"
+          // — not "studio." prefix, but should still let the downgrade fire.
+          toolName: "media.transcribe",
+          toolArgs: { url: "https://x" },
+        },
+      ],
+    });
+    const evaluation = evaluateAgentPlanV3Risk(plan);
+    const draft = adaptAgentPlanV3ToOrbTaskDraft(plan, evaluation);
+    expect(draft.isolation).toBe("ui");
+  });
+
+  it("keeps isolation='code' when a step uses an unregistered (unknown) toolName", () => {
+    const plan = buildV3Plan({
+      planId: "task_unknown",
+      decision: { mode: "tasked" },
+      taskPolicy: { needsApproval: true, isolation: "code", autoStart: false },
+      routing: { preferredEngine: "auto", capabilities: ["code"], pageScope: "single" },
+      steps: [
+        {
+          id: "x",
+          label: "??",
+          pagePath: "/studio",
+          riskLevel: "medium",
+          requiresApproval: true,
+          undoable: false,
+          action: { type: "submit" },
+          toolName: "studio.notARealRegisteredTool",
+          toolArgs: { prompt: "x" },
+        },
+      ],
+    });
+    const evaluation = evaluateAgentPlanV3Risk(plan);
+    const draft = adaptAgentPlanV3ToOrbTaskDraft(plan, evaluation);
+    // We refuse to downgrade unknown tools — defensive default.
+    expect(draft.isolation).toBe("code");
+  });
+
+  it("keeps isolation='code' when a step uses a registered claudeCode tool", () => {
+    const plan = buildV3Plan({
+      planId: "task_code_real",
+      decision: { mode: "tasked" },
+      taskPolicy: { needsApproval: true, isolation: "code", autoStart: false },
+      routing: { preferredEngine: "auto", capabilities: ["code"], pageScope: "single" },
+      steps: [
+        {
+          id: "modify",
+          label: "改檔",
+          pagePath: "/director",
+          riskLevel: "high",
+          requiresApproval: true,
+          undoable: false,
+          action: { type: "submit" },
+          toolName: "code.modifyWithClaudeCode",
+          toolArgs: { task: "refactor X" },
+        },
+      ],
+    });
+    const evaluation = evaluateAgentPlanV3Risk(plan);
+    const draft = adaptAgentPlanV3ToOrbTaskDraft(plan, evaluation);
+    expect(draft.isolation).toBe("code");
+  });
+});
+
 describe("AgentPlanSchema (v1) is preserved unchanged", () => {
   it("rejects v3 schemaVersion", () => {
     const result = AgentPlanSchema.safeParse({
