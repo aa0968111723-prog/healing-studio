@@ -22,6 +22,11 @@ import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { detectIpRisk } from "@/lib/ipRiskDetect";
+import {
+  detectSettingsDrift,
+  detectStrugglingPrompt,
+  notePlatformMention,
+} from "@/lib/spiritWatchers";
 import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
@@ -2169,6 +2174,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // history and the director-handoff payload missed the message that
   // triggered the redirect.
   const messagesRef = useRef<ChatMessage[]>(messages);
+  // 巧巧 (quality-coach)：偵測使用者短時間內反覆送相似 prompt 用。
+  // 保留最近 6 次送出時間+內容，detectStrugglingPrompt 會看後 3 條。
+  const submitHistoryRef = useRef<Array<{ text: string; at: number }>>([]);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -3450,6 +3458,60 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           },
           {
             dedupeKey: `note:${snippet.slice(0, 12)}`,
+            dedupeMs: 10 * 60_000,
+          },
+        );
+      }
+    }
+
+    // 群群 (community-manager)：把當下訊息裡 mention 到的社群平台寫進
+    // localStorage，BackgroundTasksContext 在任務完成時讀此資料判斷要不要
+    // publish social_post_ready。沒 mention 就 no-op。
+    notePlatformMention(trimmed);
+
+    // 細細 (settings-detail)：偵測「使用者把某類精靈靜音了，卻又問該精靈的
+    // 領域」— 例如 mute 財財 但訊息含「多少點」。設定漂移時主動建議「要打開
+    // 通知還是維持靜音？」。dedupe 用 settingName 12 小時，避免一直跳。
+    {
+      const prefData = agentPreferencesQuery.data as
+        | { mutedSpirits?: string[] }
+        | undefined;
+      const muted = prefData?.mutedSpirits ?? [];
+      const drift = detectSettingsDrift(trimmed, muted);
+      if (drift) {
+        ProactiveEventBus.publish(
+          "settings_drift_detected",
+          { settingName: drift.settingName },
+          {
+            dedupeKey: `drift:${drift.settingName}`,
+            dedupeMs: 12 * 60 * 60_000,
+          },
+        );
+      }
+    }
+
+    // 巧巧 (quality-coach)：偵測「短時間內反覆送很相似的 prompt」— 結果不
+    // 滿意導致重試的徵兆。把當下這條推進 submitHistoryRef，再用 60 秒視窗
+    // + Jaccard 字元相似度 ≥0.6 × 3 次規則判斷。命中即 publish。
+    // 排除：太短（< 8 字）多半是延續對話，不算掙扎。
+    if (trimmed.length >= 8 && !/^@/.test(trimmed)) {
+      const now = Date.now();
+      submitHistoryRef.current = [
+        ...submitHistoryRef.current.slice(-5),
+        { text: trimmed, at: now },
+      ];
+      const struggle = detectStrugglingPrompt(submitHistoryRef.current, now);
+      if (struggle) {
+        ProactiveEventBus.publish(
+          "low_quality_generation",
+          {
+            issue: struggle.issue,
+            sampleCount: struggle.sampleCount,
+            rewrittenPrompt: struggle.rewrittenPrompt,
+          },
+          {
+            // 一次 detect 後 10 分鐘內不再重複跳，避免使用者持續修還被吵
+            dedupeKey: `struggle:${trimmed.slice(0, 8)}`,
             dedupeMs: 10 * 60_000,
           },
         );

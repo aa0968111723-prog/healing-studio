@@ -269,14 +269,20 @@
 | 11 | `notes_capture_suggested` publisher：sendMessage 偵測「下次想記得 / 明天再做 / 備忘 / 記一下 / 幫我記 / 提醒我」等意圖 → 主動建議建檔 | `client/src/contexts/GlobalOrbChatContext.tsx` |
 | 12 | `multi_step_plan_ready` publisher：當 `buildWorkflowExecutionState` 產生 ≥3 步的 workflow，步步主動接管並回報 stepCount / firstStepLabel | `client/src/contexts/GlobalOrbChatContext.tsx` |
 
-完成後 `ProactiveTriggerEvent` 16 種有 publisher 的進度：
-- ✅ context_near_full、prompt_too_short、site_error_detected、monthly_spend_threshold（第一版即存在）
+第三輪 commit 補完剩餘 5 個 publisher（透過新 `client/src/lib/spiritWatchers.ts`）：
+
+| # | 事件 | 精靈 | 觸發點 / 演算法 |
+|---|---|---|---|
+| 13 | `page_perf_bad` | 守守 | DashboardLayout × `measurePageTti()`：用 Navigation Timing API 讀 domInteractive，>5s 視為慢頁；同頁同天 dedupe |
+| 14 | `feature_not_used` | 守守 | DashboardLayout × `trackRouteVisit()` / `suggestUnusedFeature()`：localStorage 累積 visited routes；總訪問 ≥20 才會建議，7 天 dedupe |
+| 15 | `settings_drift_detected` | 細細 | sendMessage × `detectSettingsDrift()`：mute 財財但問成本 / mute 巧巧但問改 prompt / mute 守守但講壞掉 等 6 條規則 |
+| 16 | `social_post_ready` | 群群 | sendMessage 記 platform mention 進 localStorage (30 分鐘 TTL)；BackgroundTasksContext 任務完成時讀並 publish |
+| 17 | `low_quality_generation` | 巧巧 | sendMessage × `detectStrugglingPrompt()`：60 秒視窗內連 3 條 prompt Jaccard 字元相似度 ≥0.6 才算「正在反覆改」 |
+
+最終 ProactiveTriggerEvent 16 種全部有 publisher：
+- ✅ context_near_full、prompt_too_short、site_error_detected、monthly_spend_threshold（既有）
 - ✅ credential_leak_detected、user_stuck_detected（PR commit 1）
 - ✅ ip_risk_detected、team_status_overview、expensive_op_about_to_run、notes_capture_suggested、multi_step_plan_ready（PR commit 2）
+- ✅ page_perf_bad、feature_not_used、settings_drift_detected、social_post_ready、low_quality_generation（PR commit 3）
 
-剩餘無 publisher 的 5 種（追蹤）：
-- `low_quality_generation`（巧巧）：需 LLM 看圖判斷
-- `page_perf_bad`（守守）：需 Performance Observer 接入
-- `feature_not_used`（守守）：需使用行為長期紀錄
-- `settings_drift_detected`（細細）：需偏好 vs 行為對比
-- `social_post_ready`（群群）：需偵測「剛完成的素材 + 最近提過社群平台」
+> 注意：這些是「客戶端能偵測得出來」的保守版偵測（regex / heuristic / localStorage）。後續若接入 LLM 視覺評分或長期行為資料庫，可在 `spiritWatchers.ts` 內換成更精準演算法而不動 publish 端。

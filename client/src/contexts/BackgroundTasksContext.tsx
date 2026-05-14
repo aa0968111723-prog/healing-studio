@@ -20,6 +20,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { usePersonalSettings } from "./PersonalSettingsContext";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
+import { getRecentPlatformMention } from "@/lib/spiritWatchers";
 
 // 總總（chief-orchestrator）觀察「同時跑的精靈數」用：每種 studioType 對應
 // 哪位精靈正在工作。值是該精靈的暱稱（顯示用），key 對齊 StudioJobType。
@@ -303,6 +304,35 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 tag: `bg-task-${jobId}-completed`,
                 onClick: () => setDrawerOpen(true),
               });
+            }
+            // 群群 (community-manager)：剛完成的素材 + 最近 30 分鐘內有提過
+            // 社群平台 → 主動提案配標題、hashtag、排程。30 分鐘窗口是
+            // notePlatformMention 在 spiritWatchers.ts 設定的 TTL。
+            const platform = getRecentPlatformMention();
+            if (platform) {
+              const studioType = (meta?.studioType as string) ?? "media";
+              const assetType =
+                studioType === "image"
+                  ? "圖片"
+                  : studioType === "video"
+                    ? "短影音"
+                    : studioType === "audio"
+                      ? "音樂"
+                      : studioType === "voice"
+                        ? "配音"
+                        : "素材";
+              ProactiveEventBus.publish(
+                "social_post_ready",
+                {
+                  assetType,
+                  platform: platform.platform,
+                  timing: platform.timing,
+                },
+                {
+                  dedupeKey: `social:${jobId}:${platform.platform}`,
+                  dedupeMs: 30 * 60_000,
+                },
+              );
             }
             // 刷新 activeJobs 列表
             activeJobsQuery.refetch();
