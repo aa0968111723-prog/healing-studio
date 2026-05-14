@@ -364,12 +364,45 @@ export function formatOrchestratorClarificationOptions(
 }
 
 /**
+ * Compute the clarification threshold for a given user — adapts to their
+ * remembered preferences so熟練 power-users don't get badgered with
+ * questions for routine tasks, while first-time / campaign-scale users
+ * still get the structured wizard treatment.
+ *
+ * Base threshold is 0.7 (clarify when intent clarity < 0.7). Each signal
+ * nudges it by ±0.05–0.10, clamped to [0.50, 0.85] so we never disable
+ * clarification entirely nor force it for every message.
+ *
+ *   • usualProjectSize='single_asset'     → -0.10  (single-shot users can dispatch faster)
+ *   • usualProjectSize='campaign'         → +0.10  (large projects deserve more questions)
+ *   • typicalTimeline='urgent'            → -0.10  (急件 users hate being asked)
+ *   • typicalTimeline='exploratory'       → +0.05  (探索心態 — extra structure helps)
+ *   • preferredQuality='quality_first'    → +0.05  (品質優先 — confirm details)
+ *   • preferredQuality='cost_sensitive'   → -0.05  (省點數 — fewer LLM hops)
+ */
+export function clarificationThresholdFor(ctx: OrchestratorContext): number {
+  const prefs = ctx.rememberedPreferences ?? {};
+  let threshold = 0.7;
+  if (prefs.usualProjectSize === "single_asset") threshold -= 0.10;
+  else if (prefs.usualProjectSize === "campaign") threshold += 0.10;
+  if (prefs.typicalTimeline === "urgent") threshold -= 0.10;
+  else if (prefs.typicalTimeline === "exploratory") threshold += 0.05;
+  if (prefs.preferredQuality === "quality_first") threshold += 0.05;
+  else if (prefs.preferredQuality === "cost_sensitive") threshold -= 0.05;
+  return Math.max(0.5, Math.min(0.85, threshold));
+}
+
+/**
  * Check if user message should trigger chief-orchestrator's clarification.
  * Returns true if message is too vague for confident delegation.
+ *
+ * Threshold is adaptive — see clarificationThresholdFor. Power-users with
+ * a history of single-asset urgent dispatches get a lower bar; new /
+ * campaign-scale users get a higher one.
  */
 export function shouldChiefOrchestratorClarify(ctx: OrchestratorContext): boolean {
   const clarity = analyzeOrchestratorIntent(ctx);
-  return clarity.score < 0.7;
+  return clarity.score < clarificationThresholdFor(ctx);
 }
 
 /**

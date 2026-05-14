@@ -267,6 +267,27 @@ export interface GatedAgentPlanResult {
   clarificationOptions?: string[];
 }
 
+/**
+ * Options forwarded to the gating layer beyond the raw planner output.
+ * Threading these through (rather than re-reading server-side context)
+ * keeps gate logic in a single deterministic function and lets callers
+ * (planner / state-machine recovery) opt into stricter rules per turn.
+ */
+export interface ParseAndGatePlanOptions {
+  /**
+   * UI composer mode the user explicitly chose ("multi-step" / "plan" /
+   * "navigate" / "ask-feature"). When set to "multi-step" the gate
+   * enforces:
+   *   • decision.mode='direct' plans are downgraded to 'invalid' (the
+   *     multi-step contract is tasked or clarification only).
+   *   • summaryForUser containing phantom-plan markers ("步驟 1 / Step 1
+   *     …" + "從哪一步開始") is rejected and forced into clarification.
+   * Unrecognised values are ignored — keeps the gate forward-compatible
+   * with new modes.
+   */
+  requestedMode?: string;
+}
+
 function v3StepToUiAction(step: AgentPlanV3Step): { type: string; payload?: unknown } {
   const action = step.action;
   switch (action.type) {
@@ -485,7 +506,26 @@ function findPlanPlaceholderIssue(plan: AgentPlanV3): string | null {
   return null;
 }
 
-function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
+/**
+ * Detect the phantom-plan anti-pattern in user-facing text:
+ *   "步驟 1: 拍片 / 步驟 2: 上字幕 — 你想從哪一步開始？"
+ * The planner system prompt forbids this for multi-step mode, but the
+ * LLM still produces it occasionally. We reject so the chat layer falls
+ * back to clarification instead of dumping a wall of text on the user.
+ */
+function hasPhantomPlanText(text: string | undefined): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const hasStepEnumeration =
+    /步驟\s*[1-9一二三四五六七八九]/.test(text) ||
+    /\bstep\s*[1-9]/i.test(lower);
+  const asksWhichStep =
+    /哪[一個]?[步段]|哪一步|從哪/.test(text) ||
+    /which\s+step|where\s+to\s+start|where\s+do\s+you/i.test(lower);
+  return hasStepEnumeration && asksWhichStep;
+}
+
+function gateV3Plan(plan: AgentPlanV3, options?: ParseAndGatePlanOptions): GatedAgentPlanResult {
   const conditionValidationError = validateStepConditions(plan);
   if (conditionValidationError) {
     return {
@@ -501,6 +541,49 @@ function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
       issues: [conditionValidationError],
     };
   }
+
+  // Mode-constraint enforcement — independent of the LLM's compliance with
+  // system-prompt directives. When the user clicked 多步驟代理 the planner
+  // is supposed to commit to clarification OR tasked; 'direct' is forbidden
+  // because multi-step needs the WorkflowConfirmationCard, not a single
+  // dispatch. The LLM still produces 'direct' plans occasionally — catch
+  // them here so the chat layer triggers a replan rather than dispatching
+  // a one-shot action that bypasses the multi-step contract.
+  if (options?.requestedMode === "multi-step") {
+    if (plan.decision.mode === "direct") {
+      const directReason =
+        "Multi-step mode contract violated: decision.mode='direct' is forbidden when user explicitly selected 多步驟代理. Re-plan as 'tasked' (with concrete toolName/toolArgs steps) or 'clarification' (with a single quick-select question).";
+      return {
+        status: "invalid",
+        ok: false,
+        version: "agent-plan.v3",
+        plan,
+        actions: [],
+        askBeforeAct: false,
+        warnings: [...(plan.warnings ?? []), "multi-step-mode-direct-forbidden"],
+        blockers: [],
+        reason: directReason,
+        issues: [directReason],
+      };
+    }
+    if (hasPhantomPlanText(plan.summaryForUser) || hasPhantomPlanText(plan.clarificationQuestion)) {
+      const phantomReason =
+        "Multi-step mode contract violated: chat reply lists numbered '步驟 X' AND asks which step to start. That is the phantom-plan anti-pattern. Replan as decision.mode='clarification' with ONE concrete quick-select question (or 'tasked' with structured steps in plan.steps, not in the reply text).";
+      return {
+        status: "invalid",
+        ok: false,
+        version: "agent-plan.v3",
+        plan,
+        actions: [],
+        askBeforeAct: false,
+        warnings: [...(plan.warnings ?? []), "multi-step-phantom-plan"],
+        blockers: [],
+        reason: phantomReason,
+        issues: [phantomReason],
+      };
+    }
+  }
+
   const evaluation = evaluateAgentPlanV3Risk(plan);
   const warnings = [
     ...(plan.warnings ?? []),
@@ -700,7 +783,10 @@ function gateV1Plan(plan: AgentPlan): GatedAgentPlanResult {
  * 回 v1 或 v3 gating 結果。`server/services/agentPlanner.ts` 用這支當主入口；
  * 路由層仍可 fallback 回 legacy parseOrbReply。
  */
-export function parseAndGatePlan(rawPlannerOutput: unknown): GatedAgentPlanResult {
+export function parseAndGatePlan(
+  rawPlannerOutput: unknown,
+  options?: ParseAndGatePlanOptions
+): GatedAgentPlanResult {
   const normalized = normalizePlannerOutput(rawPlannerOutput);
   if (!normalized) {
     return {
@@ -733,7 +819,7 @@ export function parseAndGatePlan(rawPlannerOutput: unknown): GatedAgentPlanResul
   }
 
   if (parsed.version === "agent-plan.v3") {
-    return gateV3Plan(parsed.plan);
+    return gateV3Plan(parsed.plan, options);
   }
   return gateV1Plan(parsed.plan);
 }

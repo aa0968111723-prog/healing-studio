@@ -663,8 +663,71 @@ export async function runSchemaFirstAgentPlanner(
     },
   });
 
+  // Thread the user-selected composer mode into the gate so it can enforce
+  // mode contracts that the LLM may have skipped (e.g. 多步驟代理 forbids
+  // decision.mode='direct' and phantom-plan replies).
+  const gateRequestedModeMatch = input.context
+    ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
+    : null;
+  const gateRequestedMode = gateRequestedModeMatch?.[1]?.toLowerCase() ?? undefined;
+  const gateOptions = gateRequestedMode ? { requestedMode: gateRequestedMode } : undefined;
+
   let rawContent = extractPlannerContent(result);
-  let gated = parseAndGatePlan(rawContent);
+  let gated = parseAndGatePlan(rawContent, gateOptions);
+
+  // ─── Mode-contract replan (single-pass) ──────────────────────────────
+  // When the gate rejects a multi-step plan because the LLM emitted
+  // decision.mode='direct' or a phantom-plan reply, re-invoke the planner
+  // ONCE with an explicit refine message naming the violation. Bounded to
+  // one retry so we never loop. If the second attempt still violates,
+  // surface the invalid result and let the chat layer fall back.
+  if (
+    gateRequestedMode === "multi-step" &&
+    gated.status === "invalid" &&
+    typeof gated.reason === "string" &&
+    /Multi-step mode contract violated/i.test(gated.reason)
+  ) {
+    const refineMessages: Message[] = [
+      ...input.messages,
+      {
+        role: "user",
+        content:
+          `[Orb safety gate] 上一版計畫違反多步驟代理契約：${gated.reason}\n` +
+          `請改用 decision.mode='clarification' (單一問題 + 2-4 選項) 或 decision.mode='tasked'（每步必須有 toolName 或非 navigate 的 UI action）。不要把步驟條列寫在 reply 中，也不要問「你想從哪一步開始」。`,
+      } as Message,
+    ];
+    const modeReplan = await llm({
+      messages: buildAgentPlannerMessages({
+        ...input,
+        messages: refineMessages,
+      }),
+      runName: usedMultimodalPlanner
+        ? "orb-agent-gemini-multimodal-planner-mode-refine"
+        : "orb-agent-schema-first-planner-mode-refine",
+      maxTokens: input.maxTokens ?? 2_500,
+      preferEngine: usedMultimodalPlanner ? "gemini" : undefined,
+      response_format: {
+        type: "json_schema",
+        json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
+          name: string;
+          schema: Record<string, unknown>;
+          strict?: boolean;
+        },
+      },
+    });
+    const modeReplanRaw = extractPlannerContent(modeReplan);
+    const modeReplanGated = parseAndGatePlan(modeReplanRaw, gateOptions);
+    if (modeReplanGated.status !== "invalid") {
+      rawContent = modeReplanRaw;
+      gated = {
+        ...modeReplanGated,
+        warnings: [
+          ...modeReplanGated.warnings,
+          "Mode-contract replan triggered (multi-step mode enforcement).",
+        ],
+      };
+    }
+  }
 
   // ─── Phase 2 modality coherence gate (single-pass replan) ────────────
   // When the user clearly declared a modality (e.g. "做一支 30 秒影片") but
@@ -712,7 +775,7 @@ export async function runSchemaFirstAgentPlanner(
         },
       });
       const replanRaw = extractPlannerContent(replan);
-      const replanGated = parseAndGatePlan(replanRaw);
+      const replanGated = parseAndGatePlan(replanRaw, gateOptions);
       if (
         replanGated.status === "tasked" ||
         replanGated.status === "converted" ||
@@ -890,7 +953,16 @@ export async function runSchemaFirstAgentPlannerWithCritique(
     },
   });
   const refinedRaw = extractPlannerContent(refineResult);
-  const refinedGated = parseAndGatePlan(refinedRaw);
+  // Re-detect the user-selected mode for the critique-refine pass so the
+  // gate keeps enforcing multi-step contracts on the refined plan too.
+  const critiqueGateModeMatch = input.context
+    ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
+    : null;
+  const critiqueGateMode = critiqueGateModeMatch?.[1]?.toLowerCase();
+  const refinedGated = parseAndGatePlan(
+    refinedRaw,
+    critiqueGateMode ? { requestedMode: critiqueGateMode } : undefined
+  );
 
   // If the refine attempt itself produces a workflow, run the critic ONE
   // more time so callers can see the post-refine score (purely informational

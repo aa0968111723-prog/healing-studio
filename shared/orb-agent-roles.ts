@@ -67,11 +67,21 @@ export interface RoleSelection {
   rationale: string;
 }
 
-const KEYWORD_RULES: Array<{
+interface KeywordRule {
   role: AgentRole;
   keywords: readonly string[];
+  /**
+   * Veto phrases — if any negative phrase substring-matches the user text,
+   * this rule is skipped even when a positive keyword matches. Prevents
+   * pre-existing collisions like "畫面糊" hitting image-specialist's 「畫」
+   * (which we previously patched only through global QUALITY_OVERRIDE_HINTS).
+   * Empty / omitted = no vetoes.
+   */
+  negativeKeywords?: readonly string[];
   rationale: string;
-}> = [
+}
+
+const KEYWORD_RULES: Array<KeywordRule> = [
   // Director: explicit multi-step / cross-page workflow asks.
   // 「腳本 / 劇本 / 故事大綱 / 分鏡」這類產出在站內由導演 AI（/director）擁有，
   // 落在這條規則才會把使用者帶過去；沒有的話「做腳本」會被 fallback 成 companion
@@ -134,6 +144,10 @@ const KEYWORD_RULES: Array<{
       "img2img",
       "inpainting",
     ],
+    // 「畫」是強訊號但會在 「畫面糊 / 畫面模糊 / 畫質很差」 等品質抱怨語境誤觸發
+    // （pre-existing global QUALITY_OVERRIDE_HINTS 已處理大部分，但 negative
+    // list 就近放在規則內，未來新增類似抱怨詞時不必再動 override hints）。
+    negativeKeywords: ["畫面糊", "畫面模糊", "畫質差", "畫質糊", "畫質很差"],
     rationale: "user wants image generation or editing assistance",
   },
   // Video Specialist: video generation and editing tasks
@@ -157,6 +171,11 @@ const KEYWORD_RULES: Array<{
       "v2v",
       "video style",
     ],
+    // 「教學影片 / 影片腳本」屬於 director（規劃 / 腳本撰寫），不該被 video-specialist
+    // 攔截。注意：「影片腳本」director 規則本身已 substring-match，但 KEYWORD_RULES
+    // 是按陣列順序匹配第一條，所以 director 在前優先；這份 negative list 是雙保險，
+    // 也涵蓋了 director 規則沒列的衍生詞（例如「動畫腳本」 / 「短片腳本」 也走 director）。
+    negativeKeywords: ["教學影片", "影片腳本", "短片腳本", "動畫腳本", "影片教學"],
     rationale: "user wants video generation or editing assistance",
   },
   // Music Specialist: music and audio generation tasks
@@ -746,11 +765,61 @@ function lowerOnce(s: string): string {
   return (s ?? "").toLowerCase();
 }
 
+// ASCII word-character regex (lower-case haystack is already passed in).
+// We only treat a keyword as ASCII when EVERY char is in [a-z0-9 +.-], so
+// English keywords with hyphens / spaces still match. CJK keywords (any
+// char outside ASCII) fall back to plain substring match — Chinese has no
+// word boundaries; CJK collisions are handled by per-rule negativeKeywords.
+const ASCII_RE = /^[\x00-\x7F]+$/;
+function isAsciiKeyword(k: string): boolean {
+  return ASCII_RE.test(k);
+}
+
+function matchesAsciiKeyword(haystack: string, keyword: string): boolean {
+  // Escape regex specials in user-supplied keyword (they shouldn't have
+  // any but be defensive — '+' / '.' / '*' appear in some lists).
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Word boundary on both sides. \b in JavaScript only works on ASCII
+  // word chars (which is exactly what we want — we already filtered to
+  // ASCII keywords). The haystack is already lower-cased by the caller.
+  const pattern = new RegExp(`(?:^|\\b|[^a-z0-9])${escaped}(?:$|\\b|[^a-z0-9])`, "i");
+  return pattern.test(haystack);
+}
+
+/**
+ * Token-aware keyword match.
+ *   • CJK keywords → plain substring (Chinese has no word boundaries).
+ *     Collisions like 「畫面糊」hitting 「畫」 are filtered out via the
+ *     rule's negativeKeywords list, not here.
+ *   • ASCII keywords → word-boundary regex. Prevents "are" hitting
+ *     "share", "lora" hitting "explorator", etc. — pre-existing
+ *     substring path was leaking these.
+ */
 function matchesAny(haystack: string, keywords: readonly string[]): boolean {
   for (const k of keywords) {
-    if (haystack.includes(k.toLowerCase())) return true;
+    const lowered = k.toLowerCase();
+    if (isAsciiKeyword(lowered)) {
+      if (matchesAsciiKeyword(haystack, lowered)) return true;
+    } else {
+      if (haystack.includes(lowered)) return true;
+    }
   }
   return false;
+}
+
+/**
+ * Does this rule fire for the given text? Wraps matchesAny + the rule's
+ * own negativeKeywords veto list (CJK substring veto, since negatives are
+ * typically Chinese phrases). Returning false here means we let the loop
+ * try the next rule, exactly as if the rule didn't match.
+ */
+function ruleMatches(haystack: string, rule: KeywordRule): boolean {
+  if (rule.negativeKeywords?.length) {
+    for (const neg of rule.negativeKeywords) {
+      if (haystack.includes(neg.toLowerCase())) return false;
+    }
+  }
+  return matchesAny(haystack, rule.keywords);
 }
 
 /**
@@ -1072,7 +1141,7 @@ export function selectRoleForIntent(input: RoleSelectionInput): RoleSelection {
   }
 
   for (const rule of KEYWORD_RULES) {
-    if (!matchesAny(text, rule.keywords)) continue;
+    if (!ruleMatches(text, rule)) continue;
     if (isMuted(rule.role)) {
       recordMuteHit(rule.role);
       continue;

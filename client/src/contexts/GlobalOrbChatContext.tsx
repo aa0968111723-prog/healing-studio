@@ -217,6 +217,34 @@ export interface ChatMessage {
   /** 0-1 confidence the server had when picking the spirit. */
   agentRoleConfidence?: number;
   /**
+   * Free-form rationale string from `selectRoleForIntent` (e.g. "primary
+   * role @image-specialist muted by user — falling back to composer").
+   * UI uses this to render small inline chips for backend behaviours that
+   * would otherwise be invisible to the user (mute fallback / circuit
+   * replan / mode-contract replan). `undefined` for legacy messages.
+   */
+  agentRoleRationale?: string;
+  /**
+   * UI-only chips that surface notable backend behaviours for this turn
+   * (e.g. urgent escape hatch fired, mode-contract replan triggered).
+   * Server-side `notices` field is plumbed here verbatim — kept compact
+   * so the chat bubble stays scannable.
+   */
+  notices?: ChatMessageNotice[];
+}
+
+/**
+ * Small inline chip data — rendered above the orb's reply bubble to
+ * tell the user why the agent's behaviour deviated from defaults
+ * (急件模式 / 精靈靜音 fallback / 重新規劃 …). Keep `text` ≤ 24 chars
+ * so it fits the 11px chip line.
+ */
+export interface ChatMessageNotice {
+  kind: "urgent_mode" | "muted_fallback" | "mode_replan" | "circuit_replan";
+  text: string;
+  /** Optional tooltip / explanation shown on hover. */
+  tooltip?: string;
+  /**
    * 思考步驟面板資料：planner artefacts（intent / steps / warnings / summary）
    * 加上 tRPC 進度 ring buffer 經 buildOrbReasoningChain 合成的單一物件。
    * 為什麼存在 message 上：使用者捲回去看舊回覆時，按下「💭 思考步驟」
@@ -3870,14 +3898,45 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         typeof (data as { agentRoleConfidence?: number }).agentRoleConfidence === "number"
           ? (data as { agentRoleConfidence: number }).agentRoleConfidence
           : undefined;
+      const serverAgentRoleRationale =
+        typeof (data as { agentRoleRationale?: string }).agentRoleRationale === "string"
+          ? (data as { agentRoleRationale: string }).agentRoleRationale
+          : undefined;
+      // 從 server-side rationale 與 warnings 衍生小 chip：mute fallback /
+      // mode-contract replan / circuit replan。客戶端不重打 LLM，只 inline 顯示。
+      const derivedNotices: ChatMessageNotice[] = [];
+      if (serverAgentRoleRationale && /muted by user.*falling back to/i.test(serverAgentRoleRationale)) {
+        const fallbackMatch = serverAgentRoleRationale.match(/falling back to ([a-z-]+)/i);
+        derivedNotices.push({
+          kind: "muted_fallback",
+          text: "改由替代角色接手",
+          tooltip: fallbackMatch
+            ? `你靜音的精靈剛好命中這則訊息；改交給 ${fallbackMatch[1]} 處理。可在設定／精靈偏好中重新啟用。`
+            : "你靜音的精靈剛好命中這則訊息；改交給替代角色處理。",
+        });
+      }
+      const serverWarnings = Array.isArray((data as { warnings?: unknown }).warnings)
+        ? ((data as { warnings: unknown[] }).warnings.filter((w): w is string => typeof w === "string"))
+        : [];
+      if (serverWarnings.some(w => /Mode-contract replan triggered/i.test(w))) {
+        derivedNotices.push({
+          kind: "mode_replan",
+          text: "已重擬計畫",
+          tooltip: "前一版計畫違反多步驟代理契約（例如把步驟條列寫在聊天裡），系統自動重擬了一次。",
+        });
+      }
       const spiritFields = serverAgentRole
         ? {
             agentRole: serverAgentRole,
             ...(typeof serverAgentRoleConfidence === "number"
               ? { agentRoleConfidence: serverAgentRoleConfidence }
               : {}),
+            ...(serverAgentRoleRationale ? { agentRoleRationale: serverAgentRoleRationale } : {}),
+            ...(derivedNotices.length > 0 ? { notices: derivedNotices } : {}),
           }
-        : {};
+        : derivedNotices.length > 0
+          ? { notices: derivedNotices }
+          : {};
 
       // Server signalled it needs to ask the user before acting. Skip every
       // downstream action / workflow / executor branch and surface the
