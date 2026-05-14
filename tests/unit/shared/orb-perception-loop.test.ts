@@ -137,6 +137,25 @@ describe("evaluateStepOutcome", () => {
     expect(v.reason).toMatch(/quota/);
   });
 
+  it("does NOT replan on non-submit action surfacing a warning (e.g. fillPrompt info)", () => {
+    // 之前的實作對任何 action + new warning 都觸發 replan，但 docstring
+    // 早就限定僅 submit。navigate / fillPrompt / setParam 可能讓頁面冒
+    // info-level warning（例如「字數超過建議」），那只是 UX feedback，
+    // 不該升級成 replan 把中間步驟整條撕掉重排。
+    const before = makeSnapshot({ currentPrompt: "" });
+    const after = makeSnapshot({
+      currentPrompt: "long prompt",
+      warnings: ["prompt longer than recommended"],
+    });
+    const v = evaluateStepOutcome({
+      action: { type: "fillPrompt", text: "long prompt" },
+      before,
+      after,
+      dispatchResult: { ok: true },
+    });
+    expect(v.recommendation).not.toBe("replan");
+  });
+
   it("returns unknown/proceed when no snapshots provided", () => {
     const v = evaluateStepOutcome({
       action: { type: "setModel", modelId: "x" },
