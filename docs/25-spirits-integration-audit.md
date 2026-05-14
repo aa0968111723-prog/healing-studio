@@ -321,3 +321,26 @@
 - 「`SPIRIT_COLLAB_PROTOCOL` 漏掉 8 個 role」— 假的。25 role 都在，agent 對 grep 結果誤判。
 - 「`deliverToMultiple` 的 Promise.all 會在一個 handler 拋例外時跳過剩下的」— 假的。內層 `deliverToAgent` 已對每個 handler 包 try/catch，外層 Promise.all 不會看到 reject。
 - 「OrbThinkingStepsPanel 的 key 會碰撞」— 假的。`${idx}-...` 開頭 idx 從 map 來保證唯一。
+
+---
+
+## 9. 最終健康檢查（PR 合併前快速 sanity）
+
+| 項目 | 期望 | 實際 |
+|---|---|---|
+| AgentRole 角色數 | 25 | 25 |
+| SPIRIT_COLLAB_PROTOCOL 雙向對稱 | 0 issues | **0** |
+| spiritStatusMonitor.MONITORED_SPIRITS | 25 | **25** |
+| agentCollaborationOrchestrator 註冊 spirit | 25 | **25**（6 base + 8 specializedAgents + 3 proactive trio + 8 new） |
+| spiritsVisual SPIRITS_BY_ID | 25 | **25** |
+| SpiritHandoffIndicator 使用 SPIRITS_BY_ID | yes | **yes**（不再 inline） |
+| PATH_SPIRIT_MAP × App.tsx Route 比對 | 15/15 ✓ | **15/15** |
+| ProactiveTriggerEvent ↔ publisher | 16/16 | **16/16** |
+| 新精靈 spiritTools 檔案存在 | 10/10 | **10/10** |
+| 體體 (anatomy-specialist) tool 對齊角色 | yes | **yes**（buildAnatomyPrompt/nextClarification/labelChecklist） |
+| 受監督的 unit test | 既有 + 新增 2 條 | 新增「receivedFrom 對稱」「非 submit + warning 不 replan」 |
+
+未動到的（追蹤後續 PR）：
+- `composeRoleChain` 對 inspiration/anatomy 仍走固定 chain（協議允許多分支但函式 signature 沒帶模態偏好）。
+- `orb-step-ref-resolver` 對巢狀 `${a.${b}.c}` 仍只解一層（實務罕見，工具回傳值幾乎不含 placeholder）。
+- 21 個 `spiritTools/*.ts` 目前透過 `agentToolExecutor.ts` 動態 import 已可被呼叫，但統一 tool-name registry 與 capability schema 尚未抽出共用模組。
