@@ -4516,6 +4516,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       // mutation has resolved or thrown.
       setActiveProgressRequestId(null);
     }
+    } finally {
+      // Outer sending-state guard for the early-return paths above the
+      // inner try (scenario / feature-inquiry / nav handoff). The inner
+      // finally already covers the LLM-call path; this one rescues turns
+      // that returned before reaching the inner try.
+      setIsSending(false);
+    }
   }, [
     // `messages` intentionally omitted — we read via messagesRef.current so
     // this callback (and every consumer of the context value) doesn't
@@ -4907,9 +4914,6 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         { conversationId: activeConversationId },
         { onError: () => {} }
       );
-    }
-    } finally {
-      setIsSending(false);
     }
   }, [
     welcomeMessage,
