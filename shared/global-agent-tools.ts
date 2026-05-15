@@ -645,6 +645,31 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
+  {
+    name: "accountant.budget",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.trend",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      days: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.forecast",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      observationDays: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 品品（critic）結構化評審工具：五個唯讀工具，純函式（無 DB / 無 LLM）──
   {
     name: "critic.review",
