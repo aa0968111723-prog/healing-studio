@@ -54,22 +54,36 @@ interface ChatMessage {
 
 **檔案位置**: `client/src/App.tsx`
 
-GlobalOrbChatProvider 已加入 Provider 堆疊，位置在：
+GlobalOrbChatProvider 已加入 Provider 堆疊，位置在（截至 2026-05-15 的實際結構，
+詳見 `client/src/App.tsx:326-376`）：
+
 ```
-ThemeProvider
-  └─ PersonalityProvider
-      └─ NotesDrawerProvider
-          └─ ShowcaseTransferProvider
-              └─ SiteOnboardingProvider
-                  └─ FocusFlowProvider
-                      └─ AmbientProvider
-                          └─ OrbGuideProvider
+ErrorBoundary
+└─ ThemeProvider
+   └─ PersonalSettingsProvider
+      └─ PersonalityProvider
+         └─ NotesDrawerProvider
+            └─ AssetsDrawerProvider
+               └─ ShowcaseTransferProvider
+                  └─ SiteOnboardingProvider
+                     └─ FocusFlowProvider
+                        └─ AmbientProvider
+                           └─ OrbGuideProvider
                               └─ PageAgentProvider
-                                  └─ GlobalOrbChatProvider  ← 新增
-                                      └─ TooltipProvider
+                                 └─ OrbStateProvider
+                                    └─ GlobalOrbChatProvider  ← 全站聊天狀態
+                                       └─ IntentCardProvider
+                                          └─ TooltipProvider
+                                             └─ <Router />
 ```
 
-**重要性**: GlobalOrbChatProvider 必須在 PageAgentProvider 內部才能存取 pageAgent.dispatch 來執行動作。
+**重要性**:
+- GlobalOrbChatProvider 必須在 PageAgentProvider 內部，才能存取 `pageAgent.dispatch` 來執行 LLM 回傳的結構化動作。
+- 必須在 OrbStateProvider 內部，才能與光球視覺狀態（開/關面板）同步。
+- 必須在 PersonalityProvider 內部，才能依人格切換歡迎訊息。
+
+> 完整覆蓋矩陣（每頁 PageAgent 註冊、UI 表面、已知不一致）請見
+> `docs/global-orb-coverage-matrix.md`。
 
 ### 3. 後端整合
 
@@ -374,7 +388,7 @@ function ChatPanel() {
 - [ ] E2E 測試
 - [ ] 效能測試
 - [ ] 跨頁面聊天連續性手動測試
-- [ ] 文件更新
+- [x] 文件更新（2026-05-15：新增 `docs/global-orb-coverage-matrix.md` 並修正 Provider 堆疊圖）
 
 ## 下一步
 
@@ -419,8 +433,10 @@ function ChatPanel() {
 
 ---
 
-最後更新: 2026-04-21
+最後更新: 2026-05-15
 版本: Phase 3 Complete (Site-wide Detail Integration Finished)
+
+> 目前全站覆蓋盤點與不一致清單請查閱 `docs/global-orb-coverage-matrix.md`。
 
 ## 實作完成摘要
 
