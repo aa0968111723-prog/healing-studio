@@ -122,6 +122,45 @@ describe("shouldAskBeforeAct", () => {
     });
     expect(shouldAskBeforeAct([wf])).toBe(false);
   });
+
+  // ── cross-page navigation gate (自動跳頁修復) ─────────────────────────────
+  // shouldAskBeforeAct learned a third `options.currentPagePath` arg so
+  // the chat layer can flag any jump away from the current page as
+  // confirmation-worthy. Without this the orb auto-navigated mid-
+  // conversation with no dialog — the exact bug surfaced in 跳頁修復.
+
+  // Note: `makeAction` hardcodes `path: "/studio"` for navigate (the
+  // helper spreads extras BEFORE the hardcoded path, so overriding in the
+  // 2nd arg is a no-op). Build navigate actions directly here so the path
+  // we want is the path the gate actually sees.
+  const navTo = (path: string): AgentAction => ({ type: "navigate", path }) as AgentAction;
+
+  it("flags a cross-page top-level navigate when currentPagePath is provided", () => {
+    expect(
+      shouldAskBeforeAct([navTo("/director")], null, { currentPagePath: "/agent" })
+    ).toBe(true);
+  });
+
+  it("does not flag a same-page navigate", () => {
+    expect(
+      shouldAskBeforeAct([navTo("/agent")], null, { currentPagePath: "/agent" })
+    ).toBe(false);
+  });
+
+  it("flags a single-step workflow whose only step navigates cross-page", () => {
+    const wf = makeAction("runWorkflow", {
+      steps: [{ actionType: "navigate", label: "去配音工作室", path: "/voice-studio" }],
+    });
+    expect(
+      shouldAskBeforeAct([wf], null, { currentPagePath: "/agent" })
+    ).toBe(true);
+  });
+
+  it("ignores cross-page detection when currentPagePath is omitted (back-compat)", () => {
+    // Existing callers (server gating tests) pass only actions + preferences.
+    // The cross-page gate must stay opt-in so those tests don't flip.
+    expect(shouldAskBeforeAct([navTo("/director")])).toBe(false);
+  });
 });
 
 // ── workflowsEnabled (flag reading) ─────────────────────────────────────────

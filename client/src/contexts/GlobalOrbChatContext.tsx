@@ -345,6 +345,24 @@ export interface PendingExecutorTask {
   affectedPages: string[];
 }
 
+/**
+ * In-flight cross-page navigation that's waiting for the user to click
+ * 前往 / 繼續討論. The promise resolver lives here so the orchestrator's
+ * `confirmNavigation` hook can park while the React UI surfaces a card.
+ *
+ * Without this gate the orb auto-navigates the moment the planner emits a
+ * `navigate` action — the user sees the page change mid-conversation with
+ * no warning, which is exactly the 自動跳頁修復 bug.
+ */
+export interface PendingNavigationConfirm {
+  id: string;
+  targetPath: string;
+  fromPath?: string;
+  intentSummary?: string;
+  createdAt: number;
+  resolve: (decision: "proceed" | "abort") => void;
+}
+
 export interface PendingClarificationPrompt {
   /** Unique id for React keying / accessibility. */
   id: string;
@@ -1519,6 +1537,70 @@ export function WorkflowConfirmationCard({
 }
 
 /**
+ * Inline confirmation card surfaced when the orchestrator is about to
+ * navigate cross-page and the chat layer has asked for confirmation.
+ *
+ * The orchestrator parks on a Promise (`confirmNavigation` hook); the
+ * user's click on 前往 / 繼續討論 resolves it. Without this card the orb
+ * silently jumps the user away mid-conversation — the exact 自動跳頁修復
+ * bug surfaced when users said "navigation happens before we finish
+ * talking and there's no dialog asking me".
+ */
+export function NavigationConfirmationCard({
+  pendingNavigation,
+  isBusy,
+  onApprove,
+  onDecline,
+}: {
+  pendingNavigation: PendingNavigationConfirm | null;
+  isBusy: boolean;
+  onApprove: () => void;
+  onDecline: () => void;
+}) {
+  if (!pendingNavigation) return null;
+  return (
+    <div
+      className="pointer-events-auto w-full md:w-[340px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+      data-testid="orb-navigation-confirmation-card"
+    >
+      <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">需要你確認跳頁</div>
+      <div className="mt-1 text-base font-semibold">
+        我可以帶你去 <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm">{pendingNavigation.targetPath}</code> 嗎？
+      </div>
+      <div className="mt-2 text-sm leading-6 text-white/70">
+        確認後才會跨頁，沒按之前我會留在這頁繼續和你討論。
+      </div>
+      {pendingNavigation.intentSummary && (
+        <div className="mt-3 rounded-2xl bg-white/10 p-3">
+          <div className="text-xs text-white/50">這次的目的</div>
+          <div className="mt-1 line-clamp-2 text-sm text-white/80">
+            {pendingNavigation.intentSummary}
+          </div>
+        </div>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onDecline}
+          disabled={isBusy}
+          className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/75 hover:bg-white/15 disabled:opacity-50"
+        >
+          繼續討論
+        </button>
+        <button
+          type="button"
+          onClick={onApprove}
+          disabled={isBusy}
+          className="rounded-2xl bg-amber-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-200 disabled:opacity-50"
+        >
+          前往
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * 顯示「step 內部現在在做什麼 + 已花了多少秒」。獨立成 component 是因為
  * elapsed timer 需要一秒 tick 一次，把 setInterval 隔離在這裡才不會強制
  * 整個 Floating Panel 每秒重新 render。
@@ -1933,6 +2015,12 @@ interface GlobalOrbChatContextValue {
   pendingWorkflow: PendingWorkflowPlan | null;
   /** Open clarification prompt waiting for the user to disambiguate intent. */
   pendingClarification: PendingClarificationPrompt | null;
+  /**
+   * In-flight cross-page navigation waiting for the user to click 前往 /
+   * 繼續討論. Surfaced via `NavigationConfirmationCard` so the orb never
+   * silently jumps the user away mid-conversation.
+   */
+  pendingNavigation: PendingNavigationConfirm | null;
   /** When false, the orb delivers text replies only — no actions, no workflows. */
   orbAgentEnabled: boolean;
   /** Multi-session: list of the user's conversation tabs, newest first. */
@@ -1992,6 +2080,10 @@ interface GlobalOrbChatContextValue {
   ) => Promise<void>;
   /** Dismiss the clarification prompt without re-asking. */
   cancelClarification: () => void;
+  /** User confirmed the pending cross-page navigation — orb will jump. */
+  approvePendingNavigation: () => void;
+  /** User declined the navigation — orb stays on the current page. */
+  declinePendingNavigation: () => void;
   // ─── Multi-session controls (tabs) ─────────────────────────────────────
   /** Open a brand-new empty conversation and switch to it. */
   createConversation: (title?: string) => Promise<string>;
@@ -2054,6 +2146,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   workflowExecution: null,
   pendingWorkflow: null,
   pendingClarification: null,
+  pendingNavigation: null,
   orbAgentEnabled: ORB_AGENT_ENV_ENABLED,
   conversations: [],
   activeConversationId: "",
@@ -2075,6 +2168,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   answerClarification: async () => {},
   answerMultiClarification: async () => {},
   cancelClarification: () => {},
+  approvePendingNavigation: () => {},
+  declinePendingNavigation: () => {},
   createConversation: async () => "",
   switchConversation: async () => {},
   renameConversation: async () => {},
@@ -2133,6 +2228,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
   const [pendingWorkflow, setPendingWorkflow] = useState<PendingWorkflowPlan | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigationConfirm | null>(null);
+  // Stash the in-flight nav resolver in a ref so the approve/decline
+  // callbacks (which are recreated on every render) always resolve the
+  // current promise. Without this the user could click 前往 on a stale
+  // closure and the orchestrator would hang forever.
+  const pendingNavigationRef = useRef<PendingNavigationConfirm | null>(null);
+  useEffect(() => {
+    pendingNavigationRef.current = pendingNavigation;
+  }, [pendingNavigation]);
   const [pendingExecutorTask, setPendingExecutorTask] = useState<PendingExecutorTask | null>(null);
   const [activeExecutorTask, setActiveExecutorTask] = useState<GlobalOrbExecutorTask | null>(null);
   // Latest server-side OrbTask id we've seen come back from the brain
@@ -3194,6 +3298,30 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         intentSummary: options.intent,
         source: "ai-chat",
         waitAfterNavigateMs: 450,
+        // Pre-navigation gate: when this turn requires confirmation, park
+        // the orchestrator on a Promise while we surface a
+        // NavigationConfirmationCard. The user clicks 前往 / 繼續討論
+        // (approvePendingNavigation / declinePendingNavigation), the
+        // resolver fires, the orchestrator continues. Without this the
+        // SPA would jump pages before the user finished discussing —
+        // exactly the 自動跳頁修復 bug.
+        confirmNavigation: async ({ targetPath, fromPath, intentSummary }) => {
+          // Same-page or missing target → nothing to gate on. Defensive
+          // check; the orchestrator already guards against this, but if a
+          // future refactor wires us into a same-page step we shouldn't
+          // block waiting on a user click that will never come.
+          if (!targetPath || targetPath === fromPath) return "proceed";
+          return await new Promise<"proceed" | "abort">(resolve => {
+            setPendingNavigation({
+              id: `pn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              targetPath,
+              fromPath: fromPath ?? undefined,
+              intentSummary: intentSummary ?? undefined,
+              createdAt: Date.now(),
+              resolve,
+            });
+          });
+        },
         // Precision over speed: after navigate + the 450ms settle, poll the
         // global registry up to 4s waiting for the destination page to call
         // useRegisterPageAgent. This eliminates the silent-enqueue race where
@@ -5258,7 +5386,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       if (actionsToExecute.length > 0) {
         const askBeforeAct =
           (data as { askBeforeAct?: boolean }).askBeforeAct === true ||
-          shouldAskBeforeAct(actionsToExecute, preferencesForChat);
+          shouldAskBeforeAct(actionsToExecute, preferencesForChat, {
+            // Threading the current path lets shouldAskBeforeAct flag
+            // cross-page navigates as confirmation-worthy. Without it the
+            // orb auto-jumps the moment the planner emits `navigate`
+            // (自動跳頁修復).
+            currentPagePath: locationPath,
+          });
         await executeActions(actionsToExecute, {
           intent: effectiveIntent,
           requireConfirmation: askBeforeAct,
@@ -5524,6 +5658,39 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       at: Date.now(),
       pagePath: locationPath,
     }]);
+  }, [locationPath]);
+
+  // ─── Cross-page navigation gate (自動跳頁修復) ───────────────────────────
+  // The orchestrator parks on a Promise in `confirmNavigation` and we hold
+  // its resolver in `pendingNavigation`. These two callbacks resolve it.
+  // Resolving "proceed" lets the orchestrator run navigateAndSettle;
+  // resolving "abort" makes the action fail with a "navigation declined"
+  // reason and the SPA stays put. Always clear the state so the card
+  // disappears regardless of which choice the user made.
+  const approvePendingNavigation = useCallback(() => {
+    const active = pendingNavigationRef.current;
+    if (!active) return;
+    setPendingNavigation(null);
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: `✅ 好的，正在帶你到 ${active.targetPath}…`,
+      at: Date.now(),
+      pagePath: locationPath,
+    }]);
+    active.resolve("proceed");
+  }, [locationPath]);
+
+  const declinePendingNavigation = useCallback(() => {
+    const active = pendingNavigationRef.current;
+    if (!active) return;
+    setPendingNavigation(null);
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: `好，我先留在這頁繼續和你討論，不跳到 ${active.targetPath}。`,
+      at: Date.now(),
+      pagePath: locationPath,
+    }]);
+    active.resolve("abort");
   }, [locationPath]);
 
   const answerClarification = useCallback(async (answer: string) => {
@@ -6020,6 +6187,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     workflowExecution,
     pendingWorkflow,
     pendingClarification,
+    pendingNavigation,
     orbAgentEnabled: orbAgentEnabledResolved,
     conversations,
     activeConversationId,
@@ -6037,6 +6205,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     answerClarification,
     answerMultiClarification,
     cancelClarification,
+    approvePendingNavigation,
+    declinePendingNavigation,
     startCollaborativeDiscussion,
     isCollaborativeDiscussionActive: Boolean(activeDiscussionId),
     cancelCollaborativeDiscussion,
@@ -6045,7 +6215,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     switchConversation,
     renameConversation,
     deleteConversation,
-  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, startCollaborativeDiscussion, cancelCollaborativeDiscussion, collaborativeDiscussionMeta, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
+  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, pendingNavigation, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, approvePendingNavigation, declinePendingNavigation, startCollaborativeDiscussion, cancelCollaborativeDiscussion, collaborativeDiscussionMeta, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
@@ -6099,6 +6269,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
             onCancel={cancelClarification}
           />
+          <NavigationConfirmationCard
+            pendingNavigation={pendingNavigation}
+            isBusy={false}
+            onApprove={approvePendingNavigation}
+            onDecline={declinePendingNavigation}
+          />
           <WorkflowConfirmationCard
             pendingWorkflow={floatingWorkflow}
             isBusy={isSending}
@@ -6148,6 +6324,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               onAnswer={text => void answerClarification(text)}
               onMultiAnswer={(answers, extra) => void answerMultiClarification(answers, extra)}
               onCancel={cancelClarification}
+            />
+            <NavigationConfirmationCard
+              pendingNavigation={pendingNavigation}
+              isBusy={false}
+              onApprove={approvePendingNavigation}
+              onDecline={declinePendingNavigation}
             />
             <WorkflowConfirmationCard
               pendingWorkflow={floatingWorkflow}

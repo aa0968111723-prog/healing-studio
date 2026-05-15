@@ -199,6 +199,25 @@ export interface GlobalAgentExecutionContext {
    * up empty. Default 120ms; set 0 from tests / non-React callers.
    */
   samePageStateMutationSettleMs?: number;
+
+  /**
+   * Optional pre-navigation confirmation hook. Called BEFORE every
+   * cross-page `navigateAndSettle` (top-level dispatch and inside
+   * workflows) when `requireConfirmation` is true. Returning "abort"
+   * stops the action with a typed failure (`navigation declined`) and
+   * leaves the SPA where it was — the orb never silently jumps the user
+   * away mid-conversation. Returning "proceed" (or being undefined)
+   * falls back to the legacy behaviour of navigating immediately.
+   *
+   * Implementations (in the chat layer) typically surface a small inline
+   * confirmation card and resolve the promise when the user clicks
+   * "前往" / "繼續討論".
+   */
+  confirmNavigation?: (args: {
+    targetPath: string;
+    fromPath?: string;
+    intentSummary?: string;
+  }) => Promise<"proceed" | "abort">;
 }
 
 export interface GlobalDispatchOptions {
@@ -329,9 +348,48 @@ export interface OrchestratorPreferences {
   blockedTools?: string[];
 }
 
+/**
+ * True when at least one action would move the SPA away from
+ * `currentPagePath`. Top-level `navigate` actions and any `runWorkflow`
+ * whose steps' `path` differ from the current page both count. Used by
+ * `shouldAskBeforeAct` to flag cross-page jumps for confirmation so the
+ * orb doesn't auto-navigate mid-conversation.
+ */
+function hasCrossPageNavigation(
+  actions: AgentAction[],
+  currentPagePath: string | null | undefined
+): boolean {
+  if (!currentPagePath) return false;
+  return actions.some(action => {
+    if (action.type === "navigate") {
+      return Boolean(action.path) && action.path !== currentPagePath;
+    }
+    if (action.type === "runWorkflow") {
+      return action.steps.some(step => {
+        if (!step.path) return false;
+        return step.path !== currentPagePath;
+      });
+    }
+    return false;
+  });
+}
+
+export interface ShouldAskBeforeActOptions {
+  /**
+   * The path the SPA is currently on. When provided, the gate treats any
+   * action that would navigate the user to a different page as needing
+   * confirmation — even plain `navigate` actions and otherwise-safe
+   * single-step workflows. Without this we'd jump pages mid-conversation
+   * with no dialog, which is exactly the 跳頁 bug surfaced in
+   * 自動跳頁修復.
+   */
+  currentPagePath?: string | null;
+}
+
 export function shouldAskBeforeAct(
   actions: AgentAction[],
-  preferences?: OrchestratorPreferences | null
+  preferences?: OrchestratorPreferences | null,
+  options?: ShouldAskBeforeActOptions
 ): boolean {
   const policy = preferences?.confirmationPolicy ?? "confirm_high_risk";
 
@@ -341,6 +399,16 @@ export function shouldAskBeforeAct(
   // manual → caller should not be dispatching at all; if it does (kill-switch
   // bypassed) treat every action as needing confirmation as a safety net.
   if (policy === "manual") return actions.length > 0;
+
+  // Cross-page navigation is always confirmation-worthy when the caller
+  // gave us a current page reference. A plain `navigate` action is not in
+  // `DANGEROUS_ACTION_TYPES` (it has no side effects on its own) but
+  // jumping the user away from where they're chatting is visually
+  // disruptive and the user explicitly asked for a dialog before the orb
+  // moves them — see `自動跳頁修復`. Workflows whose any step navigates
+  // cross-page also gate here (single-step nav workflows previously slipped
+  // through because they're "non-dangerous").
+  if (hasCrossPageNavigation(actions, options?.currentPagePath)) return true;
 
   return actions.some(action => {
     if (action.type === "runWorkflow") {
@@ -1165,6 +1233,19 @@ async function executeStepOnce(
       };
     }
     if (step.path && step.path !== currentPath) {
+      if (ctx.requireConfirmation && ctx.confirmNavigation) {
+        const decision = await ctx.confirmNavigation({
+          targetPath: step.path,
+          fromPath: currentPath,
+          intentSummary: ctx.intentSummary,
+        });
+        if (decision === "abort") {
+          return {
+            result: { ok: false, reason: `navigation declined by user: ${step.path}` },
+            currentPath,
+          };
+        }
+      }
       await navigateAndSettle(step.path, ctx, { index, total: rsCtx.total });
       currentPath = step.path;
     }
@@ -1229,6 +1310,19 @@ async function executeStepOnce(
     : globalAgentRegistry.planWithFallback(step.action, rsCtx.currentPageContext)?.steps[0] ?? null;
   const effectivePath = step.path ?? fallbackForStep?.path;
   if (effectivePath && effectivePath !== currentPath) {
+    if (ctx.requireConfirmation && ctx.confirmNavigation) {
+      const decision = await ctx.confirmNavigation({
+        targetPath: effectivePath,
+        fromPath: currentPath,
+        intentSummary: ctx.intentSummary,
+      });
+      if (decision === "abort") {
+        return {
+          result: { ok: false, reason: `navigation declined by user: ${effectivePath}` },
+          currentPath,
+        };
+      }
+    }
     await navigateAndSettle(effectivePath, ctx, { index, total: rsCtx.total });
     currentPath = effectivePath;
   }
@@ -1394,6 +1488,30 @@ export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentE
           reason,
           endingPath: currentPath,
         };
+      }
+      // Pre-navigation confirmation gate: when the caller asked us to
+      // require confirmation and provided a `confirmNavigation` hook, ask
+      // before jumping pages. Without this, `requireConfirmation` only
+      // gates the post-navigate dispatch — the SPA has already moved by
+      // the time the dispatch checks the flag.
+      if (ctx.requireConfirmation && ctx.confirmNavigation) {
+        const decision = await ctx.confirmNavigation({
+          targetPath: step.path,
+          fromPath: currentPath,
+          intentSummary: ctx.intentSummary,
+        });
+        if (decision === "abort") {
+          const reason = `navigation declined by user: ${step.path}`;
+          log("action.navigate_declined", { path: step.path });
+          results.push({ ok: false, reason });
+          return {
+            ok: false,
+            plan,
+            results,
+            reason,
+            endingPath: currentPath,
+          };
+        }
       }
       await navigateAndSettle(step.path, ctx);
       currentPath = step.path;

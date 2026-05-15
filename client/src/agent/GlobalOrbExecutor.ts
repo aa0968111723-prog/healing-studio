@@ -184,6 +184,12 @@ export function createGlobalOrbExecutor(deps: GlobalOrbExecutorDeps) {
 
   const needsExplicitApproval = (step: GlobalOrbExecutorStep): boolean => {
     if (step.requiresApproval) return true;
+    // Cross-page move can feel abrupt; pause and ask before we auto-jump.
+    // This guard was added in PR #563 and accidentally reverted in
+    // e2d70b9 alongside an unrelated AGENTS / orb-memory revert — without
+    // it the orb jumps to a new page mid-conversation without a
+    // confirmation dialog, which is the bug surfaced in 自動跳頁修復.
+    if (step.pagePath && step.pagePath !== deps.getCurrentPagePath()) return true;
     if (step.uiActions.some(action => HIGH_RISK_ACTIONS.has(action.type) || action.type === "submit")) return true;
     if ((step.toolCalls ?? []).some(tool => tool.requiresApproval || EXTERNAL_TOOL_PREFIX.some(prefix => tool.name.startsWith(prefix)))) {
       return true;

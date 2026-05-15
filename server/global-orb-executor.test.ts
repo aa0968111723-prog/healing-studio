@@ -83,12 +83,48 @@ describe("GlobalOrbExecutor", () => {
     expect(executor.getState().retryCount).toBeGreaterThan(0);
   });
 
-  it("cross-page step waits for page ready", async () => {
-    const deps = makeDeps({ getCurrentPagePath: vi.fn(() => "/home"), waitForPageReady: vi.fn(async () => true) });
+  it("cross-page step pauses for approval before jumping (自動跳頁修復)", async () => {
+    // PR #563 added a cross-page approval gate so the orb never silently
+    // jumps the user away from a page. Commit e2d70b9 accidentally
+    // reverted it alongside an unrelated AGENTS revert; restoring it is
+    // the chief deliverable of 自動跳頁修復.
+    const deps = makeDeps({
+      getCurrentPagePath: vi.fn(() => "/home"),
+      waitForPageReady: vi.fn(async () => true),
+    });
     const executor = createGlobalOrbExecutor(deps);
-    await executor.start(makeTask({ status: "approved" }));
+    const state = await executor.start(makeTask({ status: "approved" }));
+    expect(state.status).toBe("paused");
+    expect(state.steps[0].status).toBe("awaiting_approval");
+    // Critically, navigation has NOT happened yet — the gate fires first.
+    expect(deps.navigate).not.toHaveBeenCalled();
+  });
+
+  it("cross-page step navigates after the user approves the step", async () => {
+    const deps = makeDeps({
+      getCurrentPagePath: vi.fn(() => "/home"),
+      waitForPageReady: vi.fn(async () => true),
+    });
+    const executor = createGlobalOrbExecutor(deps);
+    const task = makeTask({ status: "approved" });
+    await executor.start(task);
+    await executor.approveStep("s1");
+    // Retry resumes the run; with the step approved, navigation proceeds.
+    await executor.retry(task);
     expect(deps.navigate).toHaveBeenCalled();
     expect(deps.waitForPageReady).toHaveBeenCalled();
+  });
+
+  it("same-page step skips the cross-page approval gate", async () => {
+    // When the destination is the SAME page, no cross-page move happens
+    // and the gate must not fire — otherwise every benign in-page step
+    // would require a click. (The task here lands on /studio and the
+    // first step also targets /studio.)
+    const deps = makeDeps({ getCurrentPagePath: vi.fn(() => "/studio") });
+    const executor = createGlobalOrbExecutor(deps);
+    const state = await executor.start(makeTask({ status: "approved" }));
+    expect(state.status).toBe("completed");
+    expect(deps.navigate).not.toHaveBeenCalled();
   });
 
   it("page missing capability fails safely", async () => {
