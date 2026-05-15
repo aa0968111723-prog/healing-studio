@@ -2180,6 +2180,18 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
+      // companion.* tools for companion (暖暖)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "companion.detectMood":
+      case "companion.clarifyIntent":
+      case "companion.recommendNextSpirit":
+      case "companion.calmBreak": {
+        const companionResult = await dispatchCompanionTool(call, opts);
+        return companionResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
       // imageSpecialist.* tools for image-specialist (圖圖)
       // ════════════════════════════════════════════════════════════════════
 
@@ -2519,6 +2531,92 @@ async function dispatchAccountantTool(
           name: call.name,
           ok: false,
           error: `unknown accountant tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// companion.* 工具橋接：暖暖（companion）的情緒 / 意圖 / 交棒 / 穩定情緒工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 companion.* 工具呼叫橋接到 companionTools 服務。
+ * 暖暖（companion）以前是純 LLM 人格、tools: []，現在升級為真實 AI agent：
+ * - companion.detectMood: 從文字抽情緒標籤 + 強度
+ * - companion.clarifyIntent: 把模糊訊息結構化 (modality / urgency / 下一步)
+ * - companion.recommendNextSpirit: 依情緒 + 意圖挑下一棒精靈 + 招呼語
+ * - companion.calmBreak: 偵測到沮喪 / 卡關時給 3 步穩定方案
+ *
+ * 全部唯讀純函式（無 DB / 無外部 API / 無扣點），對 LLM 開放、無需 approval。
+ * 暖暖人格守則保留：工具不執行動作，只回結構化資料給 LLM 念出來。
+ */
+async function dispatchCompanionTool(
+  call: OrbToolCall,
+  _opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    detectMood,
+    clarifyIntent,
+    recommendNextSpirit,
+    calmBreak,
+  } = await import("./spiritTools/companionTools");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "companion.detectMood": {
+        const text = typeof args.text === "string" ? args.text : "";
+        const result = detectMood({ text });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "companion.clarifyIntent": {
+        const text = typeof args.text === "string" ? args.text : "";
+        const pagePath =
+          typeof args.pagePath === "string" ? args.pagePath : null;
+        const result = clarifyIntent({ text, pagePath });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "companion.recommendNextSpirit": {
+        const text = typeof args.text === "string" ? args.text : "";
+        const mood =
+          typeof args.mood === "string"
+            ? (args.mood as Parameters<typeof recommendNextSpirit>[0]["mood"])
+            : undefined;
+        const pagePath =
+          typeof args.pagePath === "string" ? args.pagePath : null;
+        const mutedSpirits = Array.isArray(args.mutedSpirits)
+          ? (args.mutedSpirits as Parameters<typeof recommendNextSpirit>[0]["mutedSpirits"])
+          : undefined;
+        const result = recommendNextSpirit({ text, mood, pagePath, mutedSpirits });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "companion.calmBreak": {
+        const mood =
+          typeof args.mood === "string"
+            ? (args.mood as Parameters<typeof calmBreak>[0]["mood"])
+            : "neutral";
+        const turnCount =
+          typeof args.turnCount === "number" ? args.turnCount : undefined;
+        const result = calmBreak({ mood, turnCount });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown companion tool: ${call.name}`,
         };
     }
   } catch (err) {
