@@ -1217,12 +1217,31 @@ export function getRoleSystemPromptSlice(role: AgentRole): string {
       ].join("\n");
     case "composer":
       return [
-        "【本回合扮演：編編（編排 composer）】",
-        "你是已經跟著使用者進工作室的同事：話很短，動作很多。",
-        "看當頁 capabilities 直接 dispatch：fillPrompt → setModel → setParam（aspect/length/seed）→ submit。每按一個用一句話說「我幫你按了 X」。",
-        "送出前一定確認三件事：模型名稱（用真實 ID，例如 fal-ai/flux-pro/v1.1）、長寬比、預估點數；少一項就先反問。",
-        "做完交棒：① 留下生成的 URL/asset id ② 一句話評價（光線/構圖/節奏）③ 主動問「要請品品看一輪、還是直接再來一張？」",
-        "地雷：別重規劃跨頁流程，除非他明確說「我們去別頁」；別猜參數，沒把握就用該頁 default 並寫明。",
+        "【本回合扮演：編編（編排 composer）— 真正的執行員】",
+        "你是已經跟著使用者進工作室的同事：話很短，動作很多。你的價值不在「想」，在「按」。",
+        "",
+        "【執行 SOP（每一輪都跑這 4 步）】",
+        "① 看 currentPage.capabilities 知道當頁能 dispatch 什麼動作。② 從使用者一句話抽出三件事：模型 ID（用真實 ID 例 `fal-ai/flux-pro/v1.1`）、長寬比、提示詞。③ 缺哪件就反問哪件，一次只問一個。④ 三件齊了 → emit AgentAction[] 陣列實際 dispatch 到頁面。",
+        "",
+        "【標準動作序列（複製貼上的範例）】",
+        "圖：[{type:\"setModel\",modelId:\"fal-ai/flux-pro/v1.1\"},{type:\"fillPrompt\",text:\"<改寫過的提示詞>\"},{type:\"setParam\",key:\"aspect\",value:\"9:16\"},{type:\"submit\"}]",
+        "影：[{type:\"setModel\",modelId:\"fal-ai/kling-video/v2.1/pro/image-to-video\"},{type:\"fillPrompt\",text:\"<分鏡描述>\"},{type:\"setParam\",key:\"durationSec\",value:5},{type:\"submit\"}]",
+        "音：[{type:\"setModel\",modelId:\"fal-ai/stable-audio-25/text-to-audio\"},{type:\"fillPrompt\",text:\"<情緒+樂器+BPM>\"},{type:\"setParam\",key:\"durationSec\",value:30},{type:\"submit\"}]",
+        "",
+        "【口頭回報模板（每按一個動作講一句）】",
+        "「✅ 模型已切到 X」「✅ 提示詞填好」「✅ 比例設成 9:16」「🚀 送出生成 — 大概 N 秒」。每句別超過 14 字。",
+        "",
+        "【反問模板（缺資訊時，一次只問一個）】",
+        "「比例要 1:1、9:16、還是 16:9？」「要走快草稿（Schnell, 0.5 點）還是寫實首選（FLUX Pro, 3-5 點）？」「要幾秒？」",
+        "",
+        "【交棒】",
+        "做完交棒：① 留下生成的 URL/asset id（在文字裡 inline 寫出來）② 一句話評價（光線/構圖/節奏）③ 主動問「要請 @品品 看一輪、還是 @編編 再來一張？」 改 prompt 找 @巧巧；換更省方案找 @財財；接動畫找 @影影；接配音找 @聲聲；接 BGM 找 @音音。",
+        "",
+        "【地雷】",
+        "- 不要只回文字、不 emit actions — 你是執行員，沒按到就是失職。",
+        "- 不要重規劃跨頁流程（那是 @導導 / @步步 的事），除非使用者明確說「我們去別頁」。",
+        "- 不要猜參數 — 沒把握就用該頁 default 並在回報裡明寫「我用了 default：aspect=1:1」。",
+        "- 不要 fillPrompt 後忘了 submit。一個完整意圖 → 一條完整 actions 鏈。",
       ].join("\n");
     case "critic":
       return [
@@ -1734,8 +1753,16 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
   composer: {
     handoffs: [
       { to: "critic", reason: "送出後請品品挑 1-3 個改進", when: "execution finished" },
-      { to: "quality-coach", reason: "如果結果不理想找巧巧改 prompt", when: "user says 不滿意 / 再試" },
-      { to: "legal-advisor", reason: "看到風險 prompt 交給律律審", when: "ip risk detected mid-edit" },
+      { to: "quality-coach", reason: "結果不理想找巧巧改 prompt", when: "user says 不滿意 / 再試" },
+      { to: "accountant", reason: "送出前估點數讓財財核一下", when: "expensive op about to run" },
+      { to: "image-specialist", reason: "純圖任務細節交給圖圖深掘", when: "user wants more image variations" },
+      { to: "video-specialist", reason: "圖完接動畫交給影影", when: "user wants animation" },
+      { to: "music-specialist", reason: "影完配 BGM 交給音音", when: "video needs music" },
+      { to: "voice-specialist", reason: "影完配旁白交給聲聲", when: "video needs voiceover" },
+      { to: "training-specialist", reason: "想保固定角色 / 風格交給練練訓 LoRA", when: "user wants reproducible style" },
+      { to: "plan-executor", reason: "本頁執行完還有跨頁步驟交給步步", when: "more steps remain across pages" },
+      { to: "legal-advisor", reason: "prompt 觸發 IP / 商標警示交給律律", when: "ip risk detected mid-edit" },
+      { to: "inspector", reason: "頁面 dispatch 連續失敗交給守守", when: "page dispatch fails 2+ times" },
     ],
     receivedFrom: ["accountant", "anatomy-specialist", "critic", "director", "image-specialist", "legal-advisor", "navigator", "notes-curator", "plan-executor", "quality-coach", "training-specialist"],
   },
@@ -1784,7 +1811,7 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "composer", reason: "確認方案後讓編編切換模型", when: "user accepts cheaper switch" },
       { to: "settings-detail", reason: "想調整自動扣款 / 額度交給細細", when: "user wants quota change" },
     ],
-    receivedFrom: ["chief-orchestrator", "director", "notes-curator", "plan-executor", "researcher", "settings-detail"],
+    receivedFrom: ["chief-orchestrator", "composer", "director", "notes-curator", "plan-executor", "researcher", "settings-detail"],
   },
   "quality-coach": {
     handoffs: [
@@ -1802,7 +1829,7 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "learning-specialist", reason: "如果是使用者卡關不是 bug 交給學學", when: "user error, not site bug" },
       { to: "director", reason: "問題影響整條 workflow 讓導導重新規劃", when: "issue blocks workflow" },
     ],
-    receivedFrom: ["chief-orchestrator", "onboarding-coach", "plan-executor", "security-guard"],
+    receivedFrom: ["chief-orchestrator", "composer", "onboarding-coach", "plan-executor", "security-guard"],
   },
   "image-specialist": {
     handoffs: [
@@ -1810,7 +1837,7 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "video-specialist", reason: "圖完成後接影影做動畫版", when: "user wants animation" },
       { to: "critic", reason: "結束讓品品挑改進處", when: "image finalised" },
     ],
-    receivedFrom: ["anatomy-specialist", "chief-orchestrator", "community-manager", "director", "inspiration-specialist", "quality-coach", "training-specialist"],
+    receivedFrom: ["anatomy-specialist", "chief-orchestrator", "community-manager", "composer", "director", "inspiration-specialist", "quality-coach", "training-specialist"],
   },
   "video-specialist": {
     handoffs: [
@@ -1818,21 +1845,21 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "music-specialist", reason: "再讓音音配 BGM", when: "video needs music" },
       { to: "critic", reason: "全部就緒後品品看一輪", when: "video finalised" },
     ],
-    receivedFrom: ["chief-orchestrator", "community-manager", "director", "image-specialist", "inspiration-specialist", "music-specialist", "quality-coach", "voice-specialist"],
+    receivedFrom: ["chief-orchestrator", "community-manager", "composer", "director", "image-specialist", "inspiration-specialist", "music-specialist", "quality-coach", "voice-specialist"],
   },
   "music-specialist": {
     handoffs: [
       { to: "video-specialist", reason: "音樂做完丟回影影合成", when: "music for video" },
       { to: "critic", reason: "成品出來讓品品聽一遍", when: "music finalised" },
     ],
-    receivedFrom: ["chief-orchestrator", "director", "inspiration-specialist", "video-specialist", "voice-specialist"],
+    receivedFrom: ["chief-orchestrator", "composer", "director", "inspiration-specialist", "video-specialist", "voice-specialist"],
   },
   "voice-specialist": {
     handoffs: [
       { to: "video-specialist", reason: "配音做完接回影影對嘴 / 合成", when: "voice for video" },
       { to: "music-specialist", reason: "再讓音音混底", when: "voice needs music bed" },
     ],
-    receivedFrom: ["chief-orchestrator", "director", "video-specialist"],
+    receivedFrom: ["chief-orchestrator", "composer", "director", "video-specialist"],
   },
   "training-specialist": {
     handoffs: [
@@ -1841,7 +1868,7 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "composer", reason: "LoRA 訓完接給編編套用", when: "lora ready" },
       { to: "plan-executor", reason: "訓完讓步步把後續流程跑完", when: "lora is part of larger workflow" },
     ],
-    receivedFrom: ["chief-orchestrator", "director"],
+    receivedFrom: ["chief-orchestrator", "composer", "director"],
   },
   "learning-specialist": {
     handoffs: [
@@ -1933,7 +1960,7 @@ export const SPIRIT_COLLAB_PROTOCOL: Record<AgentRole, SpiritCollabSpec> = {
       { to: "inspector", reason: "中途某步真壞了交給守守報修", when: "step fails with site error" },
       { to: "director", reason: "步驟壞了讓導導重排", when: "step failure requires replan" },
     ],
-    receivedFrom: ["chief-orchestrator", "community-manager", "director", "training-specialist"],
+    receivedFrom: ["chief-orchestrator", "community-manager", "composer", "director", "training-specialist"],
   },
   "inspiration-specialist": {
     handoffs: [
