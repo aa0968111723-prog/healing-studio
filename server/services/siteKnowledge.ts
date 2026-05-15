@@ -11,6 +11,11 @@ import {
   type SerializableAppRegistryItem,
 } from "../../shared/appRegistry";
 import {
+  WORKFLOW_TEMPLATES,
+  getWorkflowTemplate,
+  type WorkflowTemplate,
+} from "../../shared/cross-modality-workflows";
+import {
   distillPreferenceProfile,
   serializePreferenceProfileForPrompt,
   suggestAutoApproveActions,
@@ -2211,4 +2216,99 @@ ${WORKFLOW_KNOWLEDGE}
 - 估算總點數消耗（透明化成本）
 - 建議最佳aspect ratio與時長（基於情感節奏而非技術限制）
 - 提供alternative方案（如果預算或技術有限制）`;
+}
+
+// ─── 工作流程一鍵調用 (invokeWorkflow) ────────────────────────────────────
+//
+// `shared/cross-modality-workflows.ts` defines a static catalog of cross-
+// spirit templates (video-creation-full, social-media-post, …). Until now
+// the planner had to re-derive each template into steps at runtime, which
+// meant identical user intents could yield different orchestrator plans
+// run-to-run. `invokeWorkflowById` normalises a template into a stable
+// seed (intent + ordered step skeletons) that the planner can adopt
+// directly. The seed is intentionally tool-call-free — the planner still
+// fills concrete tool args after applying the user's preferences and
+// memory context.
+
+export interface InvokedWorkflowStepSeed {
+  /** Stable identifier within the workflow, kept from the template. */
+  stepId: string;
+  /** Single-line label suitable for the orb intent card / orchestrator UI. */
+  label: string;
+  /** Spirit role expected to own the step. */
+  spirit: WorkflowTemplate["steps"][number]["spirit"];
+  /** Output modality the planner should target on this step. */
+  outputType: WorkflowTemplate["steps"][number]["outputType"];
+  /** Suggested tools (planner is free to pick alternatives). */
+  suggestedTools: readonly string[];
+  /** Prior-step IDs this step depends on. */
+  dependsOn: readonly string[];
+  /** True when the step can be dropped without breaking the workflow. */
+  optional: boolean;
+}
+
+export interface InvokedWorkflowSeed {
+  templateId: string;
+  templateName: string;
+  category: WorkflowTemplate["category"];
+  difficulty: WorkflowTemplate["difficulty"];
+  /** Synthesised user-intent string the planner can drop into its prompt. */
+  intent: string;
+  steps: InvokedWorkflowStepSeed[];
+  /** Tags inherited from the template, useful for memory tagging. */
+  tags: readonly string[];
+}
+
+/**
+ * Look up a workflow template by ID and project it into a planner-friendly
+ * seed. Returns null when the ID is unknown — caller should fall back to
+ * the regular LLM planner pass instead of synthesising a fake template.
+ */
+export function invokeWorkflowById(templateId: string): InvokedWorkflowSeed | null {
+  const template = getWorkflowTemplate(templateId);
+  if (!template) return null;
+  const steps: InvokedWorkflowStepSeed[] = template.steps.map(step => ({
+    stepId: step.stepId,
+    label: step.description,
+    spirit: step.spirit,
+    outputType: step.outputType,
+    suggestedTools: step.tools,
+    dependsOn: step.dependsOn ?? [],
+    optional: Boolean(step.optional),
+  }));
+  return {
+    templateId: template.templateId,
+    templateName: template.name,
+    category: template.category,
+    difficulty: template.difficulty,
+    intent: `按「${template.name}」模板執行：${template.description}`,
+    steps,
+    tags: template.tags,
+  };
+}
+
+/**
+ * Lightweight catalog projection for chat / API surfaces that want to list
+ * the available workflow templates without exposing the full step graph.
+ */
+export interface WorkflowCatalogEntry {
+  templateId: string;
+  name: string;
+  description: string;
+  category: WorkflowTemplate["category"];
+  difficulty: WorkflowTemplate["difficulty"];
+  stepCount: number;
+  tags: readonly string[];
+}
+
+export function listInvocableWorkflows(): WorkflowCatalogEntry[] {
+  return Object.values(WORKFLOW_TEMPLATES).map(t => ({
+    templateId: t.templateId,
+    name: t.name,
+    description: t.description,
+    category: t.category,
+    difficulty: t.difficulty,
+    stepCount: t.steps.length,
+    tags: t.tags,
+  }));
 }
