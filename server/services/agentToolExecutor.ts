@@ -2177,7 +2177,10 @@ async function dispatchStudioTool(
       case "accountant.usage":
       case "accountant.savings":
       case "accountant.workflowEstimate":
-      case "accountant.budgetForecast": {
+      case "accountant.budgetForecast":
+      case "accountant.budget":
+      case "accountant.trend":
+      case "accountant.forecast": {
         const accountantResult = await dispatchAccountantTool(call, opts);
         return accountantResult;
       }
@@ -2510,6 +2513,9 @@ async function dispatchAccountantTool(
     suggestSavings,
     workflowEstimate,
     getBudgetForecast,
+    getBudget,
+    getDailyTrend,
+    getForecast,
   } = await import("./spiritTools/accountantTools");
   const { MODEL_PRICING_CATALOG } = await import("./modelPricing");
 
@@ -2625,6 +2631,26 @@ async function dispatchAccountantTool(
 
       case "accountant.budgetForecast": {
         const result = await getBudgetForecast(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.budget": {
+        const result = await getBudget(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.trend": {
+        const result = await getDailyTrend(opts.userId, {
+          days: typeof args.days === "number" ? args.days : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.forecast": {
+        const result = await getForecast(opts.userId, {
+          observationDays:
+            typeof args.observationDays === "number" ? args.observationDays : undefined,
+        });
         return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 

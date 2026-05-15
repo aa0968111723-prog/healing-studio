@@ -27,15 +27,18 @@ import {
   type ModelCategory,
 } from "../modelPricing";
 import {
+  getUserAccountInfo,
   getUserCostSummary,
   getUserDailyTrend,
+  getUserDailyTrendRange,
   getUserModalityBreakdown,
   getUserTopModelRecent,
 } from "../../db";
 
-// `getUserCostSummary` 仍由 getMonthlyUsage 使用（接受 lifetime aggregate
-// 因為它就是要顯示「累計用量」）。getBudgetForecast 故意不用它 —
-// lifetime 數字當不了 30 天 baseline，請看下面 PR review 修補。
+/** USD → 點數的轉換倍率。模型 catalog 的 baseCostUsd / estimatedCostUsd 一律
+ *  以美元計，使用者看到的卻是點數（pts）。1 USD ≈ 100 pts 是站內公定匯率。
+ *  這裡集中常數，未來要調倍率只改一處。 */
+const POINTS_PER_USD = 100;
 
 // ─── 估算單次任務點數 ────────────────────────────────────────────────────────
 
@@ -193,12 +196,20 @@ export interface MonthlyUsageResult {
 /**
  * 取近 30 天的使用摘要 — 給 LLM 一份具體數字，不用再瞎猜。
  * 任何一個底層 DB 查詢失敗都不會炸：返回零值，由 LLM 處理「沒資料」文案。
+ *
+ * BUG-FIX：之前這裡呼叫的 getUserCostSummary / getUserModalityBreakdown 沒帶
+ * date filter，會回傳「所有歷史紀錄」而不是 30 天。LLM 在使用者問「本月用到哪」
+ * 時就會講出全期累計值，與 dashboard /credits 頁互相矛盾。現在統一帶
+ * { days: 30 } 確保語意一致。
  */
 export async function getMonthlyUsage(userId: number): Promise<MonthlyUsageResult> {
   try {
     const [summary, modality, top] = await Promise.all([
-      getUserCostSummary(userId).catch(() => ({ totalCost: 0, totalRequests: 0 })),
-      getUserModalityBreakdown(userId).catch(() => []),
+      getUserCostSummary(userId, { days: 30 }).catch(() => ({
+        totalCost: 0,
+        totalRequests: 0,
+      })),
+      getUserModalityBreakdown(userId, { days: 30 }).catch(() => []),
       getUserTopModelRecent(userId, { days: 30 }).catch(() => null),
     ]);
 
@@ -212,7 +223,7 @@ export async function getMonthlyUsage(userId: number): Promise<MonthlyUsageResul
     return {
       totalRequests: Number(summary.totalRequests) || 0,
       totalCostUsd,
-      totalCostPoints: Math.round(totalCostUsd * 100),
+      totalCostPoints: Math.round(totalCostUsd * POINTS_PER_USD),
       modalityBreakdown,
       topModel: top
         ? {
@@ -235,6 +246,261 @@ export async function getMonthlyUsage(userId: number): Promise<MonthlyUsageResul
       topModel: null,
     };
   }
+}
+
+// ─── 預算 / 訂閱餘額 ─────────────────────────────────────────────────────
+
+export interface BudgetResult {
+  /** 用戶目前剩下幾點（站內統一以 remainingGenerations 為「點數帳本」） */
+  remainingPoints: number;
+  /** 各模態的可用份額（從 users.quotaJson 讀；null 代表沒有設定） */
+  perModalityQuota: {
+    image: number;
+    video: number;
+    audio: number;
+    voice: number;
+  } | null;
+  /** 自動加值是否啟用 + 下一次加值時間 + 金額（pts） */
+  autoCredit: {
+    enabled: boolean;
+    amountPoints: number;
+    intervalDays: number;
+    nextAtIso: string | null;
+  };
+  /** 資料庫不可用 / 用戶不存在時 true，由 LLM 處理 fallback 文案 */
+  noDataAvailable: boolean;
+}
+
+/**
+ * 給財財一份「使用者錢包」現況：剩餘點數 + 各模態份額 + 自動加值節奏。
+ *
+ * 健康度規則供 LLM 判讀：
+ *   - remainingPoints < 20 → 提醒接近見底，建議買點或開自動加值
+ *   - autoCredit.enabled && nextAtIso 在 7 天內 → 一切正常，不用主動勸購
+ *   - perModalityQuota 某一項 < 10 → 該模態快用完，建議節流或升級
+ */
+export async function getBudget(userId: number): Promise<BudgetResult> {
+  try {
+    const info = await getUserAccountInfo(userId).catch(() => null);
+    if (!info) {
+      return {
+        remainingPoints: 0,
+        perModalityQuota: null,
+        autoCredit: {
+          enabled: false,
+          amountPoints: 0,
+          intervalDays: 0,
+          nextAtIso: null,
+        },
+        noDataAvailable: true,
+      };
+    }
+    return {
+      remainingPoints: info.remainingGenerations,
+      perModalityQuota: info.quotaJson,
+      autoCredit: {
+        enabled: info.autoCreditEnabled,
+        amountPoints: info.autoCreditAmount,
+        intervalDays: info.autoCreditIntervalDays,
+        nextAtIso: info.autoCreditNextAt
+          ? info.autoCreditNextAt.toISOString()
+          : null,
+      },
+      noDataAvailable: false,
+    };
+  } catch (err) {
+    logger.warn("[AccountantTools] getBudget failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      remainingPoints: 0,
+      perModalityQuota: null,
+      autoCredit: {
+        enabled: false,
+        amountPoints: 0,
+        intervalDays: 0,
+        nextAtIso: null,
+      },
+      noDataAvailable: true,
+    };
+  }
+}
+
+// ─── 每日趨勢 + 預測 ─────────────────────────────────────────────────────
+
+export interface DailyTrendDay {
+  date: string;
+  requests: number;
+  costPoints: number;
+}
+
+export interface DailyTrendResult {
+  windowDays: number;
+  daysObserved: number;
+  series: DailyTrendDay[];
+  /** 平均每天花多少點（只算有資料的天，避免被休息日稀釋） */
+  avgPointsPerActiveDay: number;
+  /** 有沒有出現「單日成本 > 平均 × 3」的尖峰 */
+  hasSpike: boolean;
+  /** 最貴那一天的 ISO date + 點數，沒資料時 null */
+  peakDay: { date: string; costPoints: number } | null;
+}
+
+/**
+ * 取使用者最近 N 天每日成本（預設 14）。輸出已轉成「點數」，並附簡單
+ * 異常標記讓 LLM 不用自己算統計：
+ *   - hasSpike：最高日 > 平均 × 3
+ *   - peakDay：最貴那一天
+ */
+export async function getDailyTrend(
+  userId: number,
+  args?: { days?: number }
+): Promise<DailyTrendResult> {
+  const windowDays = Math.max(1, Math.min(90, Math.trunc(args?.days ?? 14)));
+  try {
+    const rows = await getUserDailyTrendRange(userId, { days: windowDays }).catch(
+      () => []
+    );
+    const series: DailyTrendDay[] = (rows ?? []).map(row => ({
+      date: String(row.date ?? ""),
+      requests: Number(row.count ?? 0),
+      costPoints: Math.round((parseFloat(String(row.totalCost ?? "0")) || 0) * POINTS_PER_USD),
+    }));
+    const totalPoints = series.reduce((sum, d) => sum + d.costPoints, 0);
+    const avgPointsPerActiveDay = series.length > 0 ? Math.round(totalPoints / series.length) : 0;
+    let peakDay: DailyTrendResult["peakDay"] = null;
+    for (const d of series) {
+      if (!peakDay || d.costPoints > peakDay.costPoints) {
+        peakDay = { date: d.date, costPoints: d.costPoints };
+      }
+    }
+    const hasSpike =
+      avgPointsPerActiveDay > 0 &&
+      peakDay !== null &&
+      peakDay.costPoints > avgPointsPerActiveDay * 3;
+    return {
+      windowDays,
+      daysObserved: series.length,
+      series,
+      avgPointsPerActiveDay,
+      hasSpike,
+      peakDay,
+    };
+  } catch (err) {
+    logger.warn("[AccountantTools] getDailyTrend failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      windowDays,
+      daysObserved: 0,
+      series: [],
+      avgPointsPerActiveDay: 0,
+      hasSpike: false,
+      peakDay: null,
+    };
+  }
+}
+
+export interface ForecastResult {
+  /** 觀察視窗（預設 14 天）— 用來估「每天平均花多少」的 baseline */
+  observationDays: number;
+  daysObserved: number;
+  /** 觀察期內每天平均花多少點（用「視窗總點數 / 視窗天數」算，包含零花費的天） */
+  avgPointsPerDay: number;
+  /** 距離本月結束還有幾天（含今天） */
+  daysRemainingInMonth: number;
+  /** 預計到月底還會再花的點數（avgPointsPerDay × daysRemainingInMonth） */
+  forecastPointsRemaining: number;
+  /** 本月（自然月 1 號開始）到目前為止實際已花的點數 */
+  monthToDatePoints: number;
+  /** 預估整月總點數（mtd + forecastRemaining） */
+  forecastMonthTotalPoints: number;
+  /** 若有 budget.remainingPoints，估計會在 N 天內見底；null = 不會見底或沒設預算 */
+  daysUntilDepletion: number | null;
+  /** baseline 資料不足（< 3 天）時 true，LLM 應提示「資料還不夠下定論」 */
+  insufficientData: boolean;
+}
+
+/**
+ * 用最近 N 天的平均日花費，預測到月底會用多少點。
+ * 設計上保守：
+ *   - 用「視窗總點數 / 視窗天數」（含零花費日），避免拿活躍日均值高估月底
+ *   - 觀察期不足 3 天時 insufficientData=true，LLM 要主動提示
+ *   - daysUntilDepletion 用 remainingPoints / avgPointsPerDay，沒有 budget 時為 null
+ */
+export async function getForecast(
+  userId: number,
+  args?: { observationDays?: number }
+): Promise<ForecastResult> {
+  const observationDays = Math.max(1, Math.min(30, Math.trunc(args?.observationDays ?? 14)));
+
+  try {
+    const [trend, mtdSummary, budget] = await Promise.all([
+      getDailyTrend(userId, { days: observationDays }),
+      getUserCostSummary(userId, { days: daysSinceMonthStart() }).catch(() => ({
+        totalCost: 0,
+        totalRequests: 0,
+      })),
+      getBudget(userId),
+    ]);
+
+    const windowTotalPoints = trend.series.reduce((s, d) => s + d.costPoints, 0);
+    // 用整個視窗的天數做分母（含零花費日），不是只算活躍日
+    const avgPointsPerDay =
+      observationDays > 0 ? Math.round(windowTotalPoints / observationDays) : 0;
+
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysRemainingInMonth = Math.max(0, daysInMonth - today.getDate() + 1);
+
+    const forecastPointsRemaining = avgPointsPerDay * daysRemainingInMonth;
+    const monthToDatePoints = Math.round((Number(mtdSummary.totalCost) || 0) * POINTS_PER_USD);
+    const forecastMonthTotalPoints = monthToDatePoints + forecastPointsRemaining;
+
+    const daysUntilDepletion =
+      budget.noDataAvailable || avgPointsPerDay <= 0 || budget.remainingPoints <= 0
+        ? null
+        : Math.max(0, Math.floor(budget.remainingPoints / avgPointsPerDay));
+
+    return {
+      observationDays,
+      daysObserved: trend.daysObserved,
+      avgPointsPerDay,
+      daysRemainingInMonth,
+      forecastPointsRemaining,
+      monthToDatePoints,
+      forecastMonthTotalPoints,
+      daysUntilDepletion,
+      insufficientData: trend.daysObserved < 3,
+    };
+  } catch (err) {
+    logger.warn("[AccountantTools] getForecast failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      observationDays,
+      daysObserved: 0,
+      avgPointsPerDay: 0,
+      daysRemainingInMonth: 0,
+      forecastPointsRemaining: 0,
+      monthToDatePoints: 0,
+      forecastMonthTotalPoints: 0,
+      daysUntilDepletion: null,
+      insufficientData: true,
+    };
+  }
+}
+
+/** 取「本月 1 號到今天」共幾天，供 month-to-date 查詢用。 */
+function daysSinceMonthStart(): number {
+  const today = new Date();
+  // 用 today.getDate() 直接拿「今天是這個月的第幾天」；getUserCostSummary
+  // 會用 DATE_SUB(NOW(), INTERVAL N DAY)，把 N=getDate() 帶進去剛好覆蓋
+  // 本月 00:00:00 到現在的區間（小誤差 < 1 天，acceptable for forecast）。
+  return Math.max(1, today.getDate());
 }
 
 // ─── 對單一模型給省法建議 ──────────────────────────────────────────────────

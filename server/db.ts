@@ -1217,26 +1217,55 @@ export async function getAllUsageLogs(limit = 100) {
     .limit(limit);
 }
 
-export async function getUserCostSummary(userId: number) {
+export async function getUserCostSummary(
+  userId: number,
+  args?: { days?: number }
+) {
   const db = await getDb();
   if (!db) return { totalCost: 0, totalRequests: 0 };
+  // days = undefined → all-time (existing dashboard / admin behaviour).
+  // days >= 1 → trailing window. 財財 (accountant) passes 30 here so its
+  // "近 30 天用量" summary actually reflects 30 days instead of all-time.
+  const days =
+    typeof args?.days === "number" && Number.isFinite(args.days)
+      ? Math.max(1, Math.min(90, Math.trunc(args.days)))
+      : undefined;
+  const whereClause = days
+    ? and(
+        eq(apiUsageLogs.userId, userId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
+      )
+    : eq(apiUsageLogs.userId, userId);
   const result = await db
     .select({
       totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
       totalRequests: sql<number>`COUNT(*)`,
     })
     .from(apiUsageLogs)
-    .where(eq(apiUsageLogs.userId, userId));
+    .where(whereClause);
   return {
     totalCost: parseFloat(result[0]?.totalCost || "0"),
     totalRequests: result[0]?.totalRequests || 0,
   };
 }
 
-/** 按模態分類的生成次數統計（用於 Dashboard 圓餅圖） */
-export async function getUserModalityBreakdown(userId: number) {
+/** 按模態分類的生成次數統計（用於 Dashboard 圓餅圖、財財近 30 天摘要） */
+export async function getUserModalityBreakdown(
+  userId: number,
+  args?: { days?: number }
+) {
   const db = await getDb();
   if (!db) return [];
+  const days =
+    typeof args?.days === "number" && Number.isFinite(args.days)
+      ? Math.max(1, Math.min(90, Math.trunc(args.days)))
+      : undefined;
+  const whereClause = days
+    ? and(
+        eq(apiUsageLogs.userId, userId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
+      )
+    : eq(apiUsageLogs.userId, userId);
   return db
     .select({
       requestType: apiUsageLogs.requestType,
@@ -1244,7 +1273,7 @@ export async function getUserModalityBreakdown(userId: number) {
       totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
     })
     .from(apiUsageLogs)
-    .where(eq(apiUsageLogs.userId, userId))
+    .where(whereClause)
     .groupBy(apiUsageLogs.requestType);
 }
 
@@ -1292,6 +1321,73 @@ export async function getUserDailyTrend(userId: number, opts?: { days?: number }
     )
     .groupBy(sql`DATE(${apiUsageLogs.createdAt})`)
     .orderBy(sql`DATE(${apiUsageLogs.createdAt})`);
+}
+
+/**
+ * 取得使用者「過去 N 天每日成本」明細 — 給 accountant 算 burn rate 與
+ * 簡單異常偵測用。和 getUserDailyTrend (7 天固定) 的差別是允許 1-90 天範圍。
+ */
+export async function getUserDailyTrendRange(
+  userId: number,
+  args?: { days?: number }
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const days = Math.max(1, Math.min(90, Math.trunc(args?.days ?? 14)));
+  return db
+    .select({
+      date: sql<string>`DATE(${apiUsageLogs.createdAt})`,
+      count: sql<number>`COUNT(*)`,
+      totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+    })
+    .from(apiUsageLogs)
+    .where(
+      and(
+        eq(apiUsageLogs.userId, userId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
+      )
+    )
+    .groupBy(sql`DATE(${apiUsageLogs.createdAt})`)
+    .orderBy(sql`DATE(${apiUsageLogs.createdAt})`);
+}
+
+/**
+ * 取 accountant 算預算 / 自動加值狀況需要的欄位 — 不回傳整個 user row
+ * （省記憶體 + 避免外洩 passwordHash / 2FA secret）。任何欄位查不到都
+ * 回 null，由 caller 決定要不要 fallback 文案。
+ */
+export async function getUserAccountInfo(userId: number): Promise<{
+  remainingGenerations: number;
+  quotaJson: { image: number; video: number; audio: number; voice: number } | null;
+  autoCreditEnabled: boolean;
+  autoCreditAmount: number;
+  autoCreditIntervalDays: number;
+  autoCreditNextAt: Date | null;
+} | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({
+      remainingGenerations: users.remainingGenerations,
+      quotaJson: users.quotaJson,
+      autoCreditEnabled: users.autoCreditEnabled,
+      autoCreditAmount: users.autoCreditAmount,
+      autoCreditIntervalDays: users.autoCreditIntervalDays,
+      autoCreditNextAt: users.autoCreditNextAt,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    remainingGenerations: Number(row.remainingGenerations ?? 0),
+    quotaJson: row.quotaJson ?? null,
+    autoCreditEnabled: !!row.autoCreditEnabled,
+    autoCreditAmount: Number(row.autoCreditAmount ?? 0),
+    autoCreditIntervalDays: Number(row.autoCreditIntervalDays ?? 0),
+    autoCreditNextAt: row.autoCreditNextAt ?? null,
+  };
 }
 
 export async function getTeamCostSummary() {
