@@ -2360,7 +2360,7 @@ export default function LearnHub() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div className="page-shell space-y-6">
       {/* ── 頁面標題 ────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
@@ -2368,8 +2368,9 @@ export default function LearnHub() {
             <BookOpen className="w-7 h-7 text-emerald-600" />
           </div>
           <div>
-            <h1 className="hs-h1 !mb-0 text-foreground">學習文件中心</h1>
-            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+            <p className="page-eyebrow">Learning Hub</p>
+            <h1 className="page-title !mb-0">學習文件中心</h1>
+            <p className="page-subtitle mt-1">
               文件教學、影片學習、互動測驗 — 全站知識補充都在學習文件中心
             </p>
           </div>

@@ -1226,17 +1226,17 @@ export default function AIModelsHub() {
 
   return (
     <div className="flex-1 w-full">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+      <div className="page-shell page-shell-wide">
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <header className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+        <header className="page-header">
+          <div className="flex items-center gap-3">
             <VisualSoul size="sm" state="thinking" personality="creative" />
-            <span className="text-xs text-muted-foreground tracking-wider uppercase">
+            <span className="page-eyebrow">
               情報站 · 深入專區 · 自動研究
             </span>
           </div>
-          <h1 className="hs-h1 !mb-2 text-foreground">AI 模型情報專區</h1>
-          <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
+          <h1 className="page-title">AI 模型情報專區</h1>
+          <p className="page-subtitle">
             一份由人工策展、再由自動管線每週查證的當代主流 AI 模型總覽。
             <span className="text-foreground font-medium">
               {" "}

@@ -211,12 +211,11 @@ export default function CreationHub() {
   });
 
   return (
-    <div className="creation-hub-shell space-y-5">
-      <header className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          創作中心
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
+    <div className="creation-hub-shell page-shell">
+      <header className="page-header">
+        <p className="page-eyebrow">Creation Hub</p>
+        <h1 className="page-title">創作中心</h1>
+        <p className="page-subtitle">
           整合創作工作室、導演 AI、資產、筆記與排程的單一工作台。切換上方頁籤即可在不同任務間流暢移動。
         </p>
       </header>
