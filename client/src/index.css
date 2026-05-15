@@ -382,38 +382,160 @@
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
   }
 
-  /* ─── Proactive Orb panels (mobile sheet + desktop popover) ─── */
+  /* ─── Proactive Orb panels (mobile sheet + desktop popover) ─────────
+     Aligned with .apple-dock-glass sidebar: lavender-aurora radial glow on
+     top + soft cyan glow at bottom + warm white linear blend. Same easing
+     vocabulary so the dock and the orb popover read as siblings. */
   .orb-mobile-sheet {
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    position: relative;
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.96 0.05 320 / 0.32) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.94 0.06 230 / 0.22) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.995 0.005 75 / 0.92) 0%,
+        oklch(0.98 0.018 300 / 0.82) 55%,
+        oklch(0.99 0.012 30 / 0.86) 100%
+      );
+    backdrop-filter: blur(28px) saturate(185%);
+    -webkit-backdrop-filter: blur(28px) saturate(185%);
+    border: 1px solid oklch(1 0 0 / 0.55);
     box-shadow:
-      0 -8px 40px rgba(0, 0, 0, 0.12),
-      0 -2px 12px rgba(0, 0, 0, 0.06);
+      0 -18px 50px -14px oklch(0.55 0.1 300 / 0.22),
+      0 -6px 18px -4px oklch(0.2 0.01 280 / 0.1),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.68),
+      inset 0 -1px 0 0 oklch(0.88 0.04 280 / 0.18);
+  }
+  .orb-mobile-sheet::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto 1px;
+    height: 32%;
+    border-radius: 23px 23px 60% 60% / 23px 23px 24% 24%;
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.32) 0%,
+      oklch(1 0 0 / 0.06) 55%,
+      transparent 100%
+    );
+    pointer-events: none;
   }
   :is(.dark) .orb-mobile-sheet {
-    background: rgba(18, 22, 36, 0.94);
-    border-color: rgba(180, 170, 220, 0.18);
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.42 0.08 320 / 0.32) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.4 0.06 230 / 0.24) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.27 0.028 300 / 0.92) 0%,
+        oklch(0.22 0.022 280 / 0.84) 55%,
+        oklch(0.24 0.03 320 / 0.88) 100%
+      );
+    border-color: oklch(1 0 0 / 0.1);
     box-shadow:
-      0 -8px 40px rgba(0, 0, 0, 0.55),
-      0 -2px 12px rgba(0, 0, 0, 0.35);
+      0 -18px 50px -14px oklch(0.55 0.1 300 / 0.42),
+      0 -6px 18px -4px oklch(0 0 0 / 0.4),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.1),
+      inset 0 -1px 0 0 oklch(0 0 0 / 0.2);
   }
+  :is(.dark) .orb-mobile-sheet::before {
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.07) 0%,
+      oklch(1 0 0 / 0.015) 60%,
+      transparent 100%
+    );
+  }
+
   .orb-desktop-popover {
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    position: relative;
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.96 0.05 320 / 0.32) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.94 0.06 230 / 0.22) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.995 0.005 75 / 0.9) 0%,
+        oklch(0.98 0.018 300 / 0.78) 55%,
+        oklch(0.99 0.012 30 / 0.84) 100%
+      );
+    backdrop-filter: blur(28px) saturate(185%);
+    -webkit-backdrop-filter: blur(28px) saturate(185%);
+    border: 1px solid oklch(1 0 0 / 0.55);
     box-shadow:
-      0 8px 40px rgba(0, 0, 0, 0.08),
-      0 2px 12px rgba(0, 0, 0, 0.04);
+      0 18px 50px -14px oklch(0.55 0.1 300 / 0.24),
+      0 6px 18px -4px oklch(0.2 0.01 280 / 0.1),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.68),
+      inset 0 -1px 0 0 oklch(0.88 0.04 280 / 0.18);
+  }
+  .orb-desktop-popover::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto 1px;
+    height: 36%;
+    border-radius: 15px 15px 60% 60% / 15px 15px 24% 24%;
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.38) 0%,
+      oklch(1 0 0 / 0.06) 55%,
+      transparent 100%
+    );
+    pointer-events: none;
   }
   :is(.dark) .orb-desktop-popover {
-    background: rgba(20, 24, 40, 0.92);
-    border-color: rgba(180, 170, 220, 0.2);
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.42 0.08 320 / 0.32) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.4 0.06 230 / 0.24) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.27 0.028 300 / 0.92) 0%,
+        oklch(0.22 0.022 280 / 0.78) 55%,
+        oklch(0.24 0.03 320 / 0.84) 100%
+      );
+    border-color: oklch(1 0 0 / 0.1);
     box-shadow:
-      0 8px 40px rgba(0, 0, 0, 0.55),
-      0 2px 12px rgba(0, 0, 0, 0.35);
+      0 18px 50px -14px oklch(0.55 0.1 300 / 0.5),
+      0 6px 18px -4px oklch(0 0 0 / 0.45),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.1),
+      inset 0 -1px 0 0 oklch(0 0 0 / 0.2);
+  }
+  :is(.dark) .orb-desktop-popover::before {
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.07) 0%,
+      oklch(1 0 0 / 0.015) 60%,
+      transparent 100%
+    );
   }
 
   /* ─── Inspiration preset tiles ─── */
@@ -2942,6 +3064,735 @@
   .login-auth-form button[aria-label="隱藏密碼"]:hover,
   .login-auth-form button[aria-label="顯示密碼"]:hover {
     color: rgba(245, 240, 255, 0.95);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     Healing Orb Kit — unified visual language for the site-wide orb proxy
+     surfaces (AgentChat page, ProactiveOrbWidget panel, OrbClarificationDialog).
+     Designed to share aesthetic vocabulary with .apple-dock-glass on the
+     sidebar and .card-healing on the homepage: lavender-aurora glass, soft
+     white reflection top, healing easing, generous radii.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Aurora glass panel — for major surfaces (chat container, popover panel,
+     clarification dialog). Matches apple-dock-glass radiance, calmer scale. */
+  .healing-aurora-panel {
+    position: relative;
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.96 0.05 320 / 0.32) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.94 0.06 230 / 0.22) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.995 0.005 75 / 0.88) 0%,
+        oklch(0.98 0.018 300 / 0.72) 55%,
+        oklch(0.99 0.012 30 / 0.78) 100%
+      );
+    border: 1px solid oklch(1 0 0 / 0.55);
+    border-radius: 24px;
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow:
+      0 18px 50px -14px oklch(0.55 0.1 300 / 0.22),
+      0 6px 18px -4px oklch(0.2 0.01 280 / 0.1),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.68),
+      inset 0 -1px 0 0 oklch(0.88 0.04 280 / 0.14);
+  }
+  .healing-aurora-panel::before {
+    content: "";
+    position: absolute;
+    inset: 1px 1px auto 1px;
+    height: 38%;
+    border-radius: 23px 23px 60% 60% / 23px 23px 24% 24%;
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.38) 0%,
+      oklch(1 0 0 / 0.06) 55%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+  :is(.dark) .healing-aurora-panel {
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.42 0.08 320 / 0.32) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.4 0.06 230 / 0.24) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.27 0.028 300 / 0.86) 0%,
+        oklch(0.22 0.022 280 / 0.72) 55%,
+        oklch(0.24 0.03 320 / 0.78) 100%
+      );
+    border-color: oklch(1 0 0 / 0.1);
+    box-shadow:
+      0 18px 50px -14px oklch(0.55 0.1 300 / 0.42),
+      0 6px 18px -4px oklch(0 0 0 / 0.4),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.1),
+      inset 0 -1px 0 0 oklch(0 0 0 / 0.2);
+  }
+  :is(.dark) .healing-aurora-panel::before {
+    background: linear-gradient(
+      180deg,
+      oklch(1 0 0 / 0.07) 0%,
+      oklch(1 0 0 / 0.015) 60%,
+      transparent 100%
+    );
+  }
+
+  /* Inner card — for stacked content cards inside aurora panels.
+     Calmer than the outer aurora, still glass. */
+  .healing-inner-card {
+    background: oklch(1 0 0 / 0.55);
+    border: 1px solid oklch(0.92 0.02 300 / 0.5);
+    border-radius: 16px;
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    transition: all 0.32s var(--ease-healing-out);
+  }
+  .healing-inner-card:hover {
+    border-color: oklch(0.82 0.06 300 / 0.55);
+    box-shadow:
+      0 6px 20px -8px oklch(0.55 0.1 300 / 0.18),
+      0 2px 6px -2px oklch(0.2 0.01 280 / 0.06);
+  }
+  :is(.dark) .healing-inner-card {
+    background: oklch(0.26 0.02 290 / 0.5);
+    border-color: oklch(0.45 0.05 300 / 0.32);
+  }
+  :is(.dark) .healing-inner-card:hover {
+    border-color: oklch(0.65 0.08 300 / 0.5);
+  }
+
+  /* Soft tint — used for proactive / suggestion strips (replaces ad-hoc
+     bg-emerald-50/40 etc.) */
+  .healing-tint-soft {
+    background: linear-gradient(
+      135deg,
+      oklch(0.97 0.025 300 / 0.55) 0%,
+      oklch(0.97 0.03 75 / 0.45) 100%
+    );
+    border: 1px solid oklch(0.85 0.05 300 / 0.35);
+    border-radius: 14px;
+  }
+  :is(.dark) .healing-tint-soft {
+    background: linear-gradient(
+      135deg,
+      oklch(0.32 0.05 300 / 0.4) 0%,
+      oklch(0.3 0.04 50 / 0.32) 100%
+    );
+    border-color: oklch(0.55 0.06 300 / 0.32);
+  }
+
+  /* Chat bubble — Orb (assistant) side */
+  .healing-bubble-orb {
+    position: relative;
+    background: linear-gradient(
+      135deg,
+      oklch(1 0 0 / 0.85) 0%,
+      oklch(0.98 0.015 300 / 0.78) 100%
+    );
+    color: var(--text-on-glass-strong);
+    border: 1px solid oklch(0.92 0.02 300 / 0.55);
+    border-radius: 20px 20px 20px 6px;
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    box-shadow:
+      0 2px 10px -2px oklch(0.55 0.1 300 / 0.08),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55);
+  }
+  :is(.dark) .healing-bubble-orb {
+    background: linear-gradient(
+      135deg,
+      oklch(0.28 0.02 290 / 0.78) 0%,
+      oklch(0.26 0.025 310 / 0.72) 100%
+    );
+    border-color: oklch(0.45 0.05 300 / 0.4);
+    box-shadow:
+      0 2px 10px -2px oklch(0 0 0 / 0.3),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.08);
+  }
+
+  /* Chat bubble — User side. Lavender → soft rose, matches sidebar active item. */
+  .healing-bubble-user {
+    position: relative;
+    background: linear-gradient(
+      135deg,
+      oklch(0.9 0.09 300) 0%,
+      oklch(0.84 0.12 320) 55%,
+      oklch(0.86 0.1 350) 100%
+    );
+    color: oklch(0.22 0.04 290);
+    border: 1px solid oklch(1 0 0 / 0.4);
+    border-radius: 20px 20px 6px 20px;
+    box-shadow:
+      0 6px 18px -6px oklch(0.74 0.14 300 / 0.45),
+      0 2px 6px -2px oklch(0.8 0.11 320 / 0.3),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55),
+      inset 0 -1px 0 0 oklch(0.55 0.1 300 / 0.18);
+  }
+  :is(.dark) .healing-bubble-user {
+    background: linear-gradient(
+      135deg,
+      oklch(0.78 0.11 300) 0%,
+      oklch(0.7 0.14 320) 55%,
+      oklch(0.74 0.12 350) 100%
+    );
+    color: oklch(0.18 0.04 290);
+    border-color: oklch(1 0 0 / 0.2);
+    box-shadow:
+      0 6px 18px -6px oklch(0.6 0.14 300 / 0.55),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.32);
+  }
+
+  /* "Spirit is typing" bubble — quieter than orb bubble */
+  .healing-bubble-typing {
+    background: oklch(1 0 0 / 0.6);
+    color: var(--text-on-glass-soft);
+    border: 1px solid oklch(0.92 0.02 300 / 0.4);
+    border-radius: 20px 20px 20px 6px;
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+  }
+  :is(.dark) .healing-bubble-typing {
+    background: oklch(0.26 0.02 290 / 0.58);
+    border-color: oklch(0.45 0.05 300 / 0.3);
+  }
+
+  /* Spirit chip — small pill that labels who replied. The spirit's own
+     gradient is preserved (so each spirit reads as themselves) but the
+     chip is wrapped in a lavender-friendly glow ring for cohesion. */
+  .healing-spirit-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    color: oklch(0.98 0.005 75);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    border: 1px solid oklch(1 0 0 / 0.42);
+    box-shadow:
+      0 2px 8px -2px oklch(0.55 0.1 300 / 0.25),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
+    transition: transform 0.22s var(--ease-healing-out);
+  }
+  .healing-spirit-chip:hover {
+    transform: translateY(-1px) scale(1.03);
+  }
+
+  /* Spirit deck card — used by the 25-spirit grid on /agent.
+     Default: soft glass. Pinned: lavender aurora (like apple-dock active). */
+  .healing-spirit-card {
+    position: relative;
+    isolation: isolate;
+    background: oklch(1 0 0 / 0.72);
+    border: 1px solid oklch(0.92 0.02 300 / 0.5);
+    border-radius: 18px;
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    transition:
+      transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      border-color 0.32s var(--ease-healing-out),
+      box-shadow 0.32s var(--ease-healing-out);
+  }
+  .healing-spirit-card:hover {
+    transform: translateY(-2px);
+    border-color: oklch(0.78 0.08 300 / 0.65);
+    box-shadow:
+      0 10px 28px -10px oklch(0.55 0.1 300 / 0.28),
+      0 3px 10px -3px oklch(0.2 0.01 280 / 0.08);
+  }
+  :is(.dark) .healing-spirit-card {
+    background: oklch(0.26 0.02 290 / 0.6);
+    border-color: oklch(0.45 0.05 300 / 0.36);
+  }
+  :is(.dark) .healing-spirit-card:hover {
+    border-color: oklch(0.7 0.1 300 / 0.55);
+  }
+  .healing-spirit-card[data-pinned="true"] {
+    background:
+      radial-gradient(
+        140% 100% at 30% 0%,
+        oklch(1 0 0 / 0.55) 0%,
+        oklch(1 0 0 / 0) 60%
+      ),
+      linear-gradient(
+        135deg,
+        oklch(0.94 0.08 300) 0%,
+        oklch(0.86 0.12 320) 55%,
+        oklch(0.88 0.09 250) 100%
+      );
+    border-color: oklch(1 0 0 / 0.5);
+    box-shadow:
+      0 10px 28px -8px oklch(0.74 0.14 300 / 0.5),
+      0 3px 10px -2px oklch(0.8 0.11 320 / 0.32),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55);
+  }
+  .healing-spirit-card[data-pinned="true"]::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 20px;
+    background: conic-gradient(
+      from 120deg,
+      oklch(0.9 0.1 300 / 0.32),
+      oklch(0.86 0.12 230 / 0.22),
+      oklch(0.88 0.1 350 / 0.28),
+      oklch(0.9 0.1 300 / 0.32)
+    );
+    opacity: 0.55;
+    filter: blur(8px);
+    z-index: -1;
+    pointer-events: none;
+    animation: apple-dock-bubble-spin 16s linear infinite;
+  }
+  :is(.dark) .healing-spirit-card[data-pinned="true"] {
+    background:
+      radial-gradient(
+        140% 100% at 30% 0%,
+        oklch(1 0 0 / 0.2) 0%,
+        oklch(1 0 0 / 0) 60%
+      ),
+      linear-gradient(
+        135deg,
+        oklch(0.94 0.09 300) 0%,
+        oklch(0.86 0.12 320) 55%,
+        oklch(0.9 0.1 250) 100%
+      );
+    box-shadow:
+      0 10px 28px -8px oklch(0.82 0.16 300 / 0.55),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.4);
+  }
+
+  /* Spirit avatar disc — the only place a spirit's own gradient is allowed
+     to dominate. Used inside cards and chips. */
+  .healing-spirit-disc {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: oklch(1 0 0);
+    border: 1px solid oklch(1 0 0 / 0.55);
+    box-shadow:
+      0 4px 12px -3px oklch(0.55 0.1 300 / 0.32),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.5);
+  }
+
+  /* Family ribbon — soft hue strip behind each family of spirits */
+  .healing-family-strip {
+    border-radius: 18px;
+    padding: 12px;
+    border: 1px solid oklch(0.9 0.04 300 / 0.4);
+  }
+  .healing-family-strip[data-family="specialist"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.97 0.025 230 / 0.55),
+      oklch(0.98 0.02 200 / 0.4)
+    );
+  }
+  .healing-family-strip[data-family="role"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.97 0.025 300 / 0.55),
+      oklch(0.98 0.02 280 / 0.4)
+    );
+  }
+  .healing-family-strip[data-family="proactive"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.97 0.03 75 / 0.55),
+      oklch(0.98 0.025 50 / 0.4)
+    );
+    border-color: oklch(0.86 0.06 75 / 0.45);
+  }
+  :is(.dark) .healing-family-strip {
+    border-color: oklch(0.45 0.05 300 / 0.32);
+  }
+  :is(.dark) .healing-family-strip[data-family="specialist"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.3 0.04 230 / 0.4),
+      oklch(0.28 0.03 200 / 0.3)
+    );
+  }
+  :is(.dark) .healing-family-strip[data-family="role"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.3 0.04 300 / 0.4),
+      oklch(0.28 0.03 280 / 0.3)
+    );
+  }
+  :is(.dark) .healing-family-strip[data-family="proactive"] {
+    background: linear-gradient(
+      135deg,
+      oklch(0.3 0.04 75 / 0.4),
+      oklch(0.28 0.03 50 / 0.3)
+    );
+  }
+
+  /* Input shell — unified textarea/input wrapper that breathes.
+     Default layout is row; consumers can opt into column with `flex-col`
+     Tailwind utility when they need attachments stacked above the row. */
+  .healing-input-shell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: oklch(1 0 0 / 0.78);
+    border: 1px solid oklch(0.9 0.04 300 / 0.5);
+    border-radius: 18px;
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    transition:
+      border-color 0.28s var(--ease-healing-out),
+      box-shadow 0.28s var(--ease-healing-out);
+  }
+  .healing-input-shell:focus-within {
+    border-color: oklch(0.78 0.08 300 / 0.7);
+    box-shadow:
+      0 0 0 4px oklch(0.86 0.08 300 / 0.18),
+      0 4px 14px -4px oklch(0.55 0.1 300 / 0.18);
+  }
+  :is(.dark) .healing-input-shell {
+    background: oklch(0.24 0.02 290 / 0.7);
+    border-color: oklch(0.45 0.05 300 / 0.4);
+  }
+  :is(.dark) .healing-input-shell:focus-within {
+    border-color: oklch(0.72 0.1 300 / 0.6);
+    box-shadow:
+      0 0 0 4px oklch(0.55 0.08 300 / 0.2),
+      0 4px 14px -4px oklch(0.55 0.1 300 / 0.32);
+  }
+
+  /* Healing scroll region — used for chat message lists */
+  .healing-scroll-region {
+    background: oklch(1 0 0 / 0.42);
+    border: 1px solid oklch(0.92 0.02 300 / 0.4);
+    border-radius: 22px;
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+  }
+  :is(.dark) .healing-scroll-region {
+    background: oklch(0.24 0.02 290 / 0.32);
+    border-color: oklch(0.45 0.05 300 / 0.28);
+  }
+
+  /* Number pill — for clarification dialog step numbers (1, 2, 3…) */
+  .healing-pill-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: oklch(0.3 0.07 300);
+    background: linear-gradient(
+      135deg,
+      oklch(0.94 0.08 300) 0%,
+      oklch(0.88 0.1 320) 100%
+    );
+    border: 1px solid oklch(1 0 0 / 0.55);
+    box-shadow:
+      0 2px 8px -2px oklch(0.74 0.14 300 / 0.32),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55);
+  }
+  :is(.dark) .healing-pill-num {
+    color: oklch(0.95 0.04 300);
+    background: linear-gradient(
+      135deg,
+      oklch(0.5 0.1 300) 0%,
+      oklch(0.42 0.12 320) 100%
+    );
+    border-color: oklch(1 0 0 / 0.2);
+  }
+
+  /* Urgency badge — for clarification dialog header */
+  .healing-urgency-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 9999px;
+    border: 1px solid transparent;
+  }
+  .healing-urgency-badge[data-urgency="blocking"] {
+    background: oklch(0.96 0.05 50 / 0.5);
+    color: oklch(0.5 0.12 50);
+    border-color: oklch(0.85 0.08 50 / 0.55);
+  }
+  .healing-urgency-badge[data-urgency="optional"] {
+    background: oklch(0.96 0.04 230 / 0.5);
+    color: oklch(0.5 0.08 230);
+    border-color: oklch(0.85 0.07 230 / 0.55);
+  }
+  .healing-urgency-badge[data-urgency="background"] {
+    background: oklch(0.96 0.01 280 / 0.5);
+    color: oklch(0.5 0.02 280);
+    border-color: oklch(0.85 0.02 280 / 0.55);
+  }
+  :is(.dark) .healing-urgency-badge[data-urgency="blocking"] {
+    background: oklch(0.4 0.08 50 / 0.4);
+    color: oklch(0.88 0.1 50);
+    border-color: oklch(0.55 0.1 50 / 0.5);
+  }
+  :is(.dark) .healing-urgency-badge[data-urgency="optional"] {
+    background: oklch(0.36 0.06 230 / 0.4);
+    color: oklch(0.85 0.08 230);
+    border-color: oklch(0.5 0.08 230 / 0.5);
+  }
+  :is(.dark) .healing-urgency-badge[data-urgency="background"] {
+    background: oklch(0.32 0.02 280 / 0.4);
+    color: oklch(0.85 0.02 280);
+    border-color: oklch(0.5 0.03 280 / 0.5);
+  }
+
+  /* Primary send button — matches sidebar active aesthetic */
+  .healing-send-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: oklch(0.22 0.04 290);
+    background: linear-gradient(
+      135deg,
+      oklch(0.94 0.08 300) 0%,
+      oklch(0.86 0.12 320) 55%,
+      oklch(0.88 0.09 250) 100%
+    );
+    border: 1px solid oklch(1 0 0 / 0.5);
+    box-shadow:
+      0 6px 18px -6px oklch(0.74 0.14 300 / 0.45),
+      0 2px 6px -2px oklch(0.8 0.11 320 / 0.28),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55);
+    transition: all 0.24s var(--ease-healing-out);
+  }
+  .healing-send-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+      0 10px 26px -8px oklch(0.74 0.14 300 / 0.55),
+      0 3px 10px -2px oklch(0.8 0.11 320 / 0.38),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.55);
+  }
+  .healing-send-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+  .healing-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  :is(.dark) .healing-send-btn {
+    color: oklch(0.18 0.04 290);
+  }
+
+  /* Ghost button — quiet secondary action ("稍後回答" etc.) */
+  .healing-ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-on-glass-soft);
+    background: transparent;
+    border: 1px solid oklch(0.9 0.02 300 / 0.4);
+    transition: all 0.24s var(--ease-healing-out);
+  }
+  .healing-ghost-btn:hover {
+    background: oklch(0.95 0.03 300 / 0.5);
+    color: var(--text-on-glass-strong);
+    border-color: oklch(0.82 0.06 300 / 0.55);
+  }
+  :is(.dark) .healing-ghost-btn:hover {
+    background: oklch(0.32 0.04 300 / 0.4);
+  }
+
+  /* Suggestion / quick-reply tile */
+  .healing-suggestion {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    text-align: left;
+    background: oklch(1 0 0 / 0.65);
+    border: 1px solid oklch(0.92 0.02 300 / 0.45);
+    border-radius: 16px;
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    transition:
+      transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1),
+      border-color 0.28s var(--ease-healing-out),
+      background 0.28s var(--ease-healing-out);
+  }
+  .healing-suggestion:hover:not(:disabled) {
+    transform: translateY(-1.5px);
+    background: oklch(0.98 0.025 300 / 0.7);
+    border-color: oklch(0.78 0.08 300 / 0.6);
+  }
+  .healing-suggestion:disabled {
+    opacity: 0.55;
+  }
+  :is(.dark) .healing-suggestion {
+    background: oklch(0.26 0.02 290 / 0.5);
+    border-color: oklch(0.45 0.05 300 / 0.32);
+  }
+  :is(.dark) .healing-suggestion:hover:not(:disabled) {
+    background: oklch(0.32 0.04 300 / 0.5);
+    border-color: oklch(0.65 0.08 300 / 0.5);
+  }
+
+  /* Dialog content override — gives ShadcnUI Dialog the aurora treatment.
+     Use by adding healing-dialog-content className to DialogContent. */
+  .healing-dialog-content {
+    border-radius: 24px !important;
+    border: 1px solid oklch(1 0 0 / 0.55) !important;
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.96 0.05 320 / 0.35) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.94 0.06 230 / 0.22) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.995 0.005 75 / 0.92) 0%,
+        oklch(0.98 0.018 300 / 0.84) 55%,
+        oklch(0.99 0.012 30 / 0.88) 100%
+      ) !important;
+    backdrop-filter: blur(34px) saturate(190%) !important;
+    -webkit-backdrop-filter: blur(34px) saturate(190%) !important;
+    box-shadow:
+      0 28px 70px -16px oklch(0.55 0.1 300 / 0.32),
+      0 8px 22px -6px oklch(0.2 0.01 280 / 0.14),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.72),
+      inset 0 -1px 0 0 oklch(0.88 0.04 280 / 0.18) !important;
+  }
+  :is(.dark) .healing-dialog-content {
+    border-color: oklch(1 0 0 / 0.12) !important;
+    background:
+      radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.42 0.08 320 / 0.4) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        100% 50% at 50% 100%,
+        oklch(0.4 0.06 230 / 0.28) 0%,
+        transparent 70%
+      ),
+      linear-gradient(
+        180deg,
+        oklch(0.27 0.028 300 / 0.92) 0%,
+        oklch(0.22 0.022 280 / 0.84) 55%,
+        oklch(0.24 0.03 320 / 0.88) 100%
+      ) !important;
+    box-shadow:
+      0 28px 70px -16px oklch(0.55 0.1 300 / 0.55),
+      0 8px 22px -6px oklch(0 0 0 / 0.5),
+      inset 0 1px 0 0 oklch(1 0 0 / 0.1) !important;
+  }
+
+  /* Soft hairline — replaces border-top inside aurora panels */
+  .healing-hairline {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(0.82 0.04 300 / 0.35) 30%,
+      oklch(0.82 0.04 300 / 0.35) 70%,
+      transparent 100%
+    );
+    border: none;
+  }
+
+  /* Ambient mist background — drifts behind chat region for atmosphere */
+  .healing-ambient-mist {
+    position: absolute;
+    inset: -40% -10% auto -10%;
+    height: 60%;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(
+        60% 50% at 20% 30%,
+        oklch(0.9 0.08 300 / 0.35) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 40% at 80% 60%,
+        oklch(0.9 0.07 230 / 0.28) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 35% at 50% 80%,
+        oklch(0.92 0.06 50 / 0.22) 0%,
+        transparent 70%
+      );
+    filter: blur(40px);
+    animation: orb-mist-drift 24s ease-in-out infinite;
+  }
+  :is(.dark) .healing-ambient-mist {
+    background:
+      radial-gradient(
+        60% 50% at 20% 30%,
+        oklch(0.5 0.1 300 / 0.3) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 40% at 80% 60%,
+        oklch(0.5 0.08 230 / 0.24) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        45% 35% at 50% 80%,
+        oklch(0.5 0.07 50 / 0.18) 0%,
+        transparent 70%
+      );
+  }
+  @keyframes orb-mist-drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+      opacity: 0.85;
+    }
+    50% {
+      transform: translate3d(-2%, 2%, 0) scale(1.05);
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .healing-ambient-mist {
+      animation: none;
+    }
   }
 }
 

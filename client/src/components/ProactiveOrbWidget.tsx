@@ -2881,7 +2881,7 @@ export default memo(function ProactiveOrbWidget({
                               <div className="flex flex-col gap-0.5 max-w-[85%]">
                                 {spirit && (
                                   <span
-                                    className={`self-start mb-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r ${spirit.gradient} text-white text-[10px] font-medium shadow-sm`}
+                                    className={`healing-spirit-chip self-start mb-0.5 bg-gradient-to-r ${spirit.gradient}`}
                                     data-testid={`widget-message-spirit-${spirit.id}`}
                                     title={spirit.vibe}
                                   >
@@ -2890,9 +2890,7 @@ export default memo(function ProactiveOrbWidget({
                                   </span>
                                 )}
                                 <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${
-                                  msg.role === "user"
-                                    ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
-                                    : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                                  msg.role === "user" ? "healing-bubble-user" : "healing-bubble-orb"
                                 }`}>
                                   {msg.text && (
                                     <div className="whitespace-pre-wrap break-words">
@@ -3005,10 +3003,10 @@ export default memo(function ProactiveOrbWidget({
                                 <button
                                   key={s}
                                   onClick={() => handleSuggestionClick(s)}
-                                  className="group flex items-start gap-2 rounded-xl border border-gray-200/60 bg-white/85 px-2.5 py-2 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50/70 transition-all"
+                                  className="healing-suggestion group !p-2 !gap-2 !rounded-xl"
                                 >
                                   <span className="text-sm leading-none mt-0.5 shrink-0">{emoji}</span>
-                                  <span className="text-[11px] leading-snug text-gray-600 group-hover:text-gray-700 line-clamp-2">
+                                  <span className="text-[11px] leading-snug text-glass-strong line-clamp-2">
                                     {s}
                                   </span>
                                 </button>
@@ -3033,19 +3031,19 @@ export default memo(function ProactiveOrbWidget({
                               ))}
                             </div>
                           )}
-                          <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-4 py-3 focus-within:border-gray-300 focus-within:ring-2 focus-within:ring-emerald-200/60 transition-colors">
+                          <div className="healing-input-shell !px-3 !py-2">
                             <button
                               type="button"
                               onClick={handlePickAttachment}
                               disabled={isUploadingAttachments || isChatLoading}
-                              className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                              className="p-2 rounded-lg hover:bg-[oklch(0.94_0.05_300_/_0.4)] transition-colors disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.82_0.04_300_/_0.55)]"
                               title="上傳圖像、影片、音訊或 PDF"
                               aria-label="上傳檔案"
                             >
                               {isUploadingAttachments ? (
-                                <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                                <Loader2 className="w-4 h-4 text-glass-soft animate-spin" />
                               ) : (
-                                <Paperclip className="w-4 h-4 text-gray-500" />
+                                <Paperclip className="w-4 h-4 text-glass-soft" />
                               )}
                             </button>
                             <OrbVoiceButton
@@ -3058,7 +3056,7 @@ export default memo(function ProactiveOrbWidget({
                               onChange={e => setChatInput(e.target.value)}
                               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
                               placeholder="分享你的想法，或問我任何事⋯⋯"
-                              className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
+                              className="bg-transparent text-sm text-glass-strong placeholder:text-glass-soft placeholder:opacity-60 outline-none flex-1 min-w-0"
                               aria-label="輸入訊息給光球"
                               autoFocus
                             />
@@ -3066,11 +3064,11 @@ export default memo(function ProactiveOrbWidget({
                               type="button"
                               onClick={handleChatSend}
                               disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments}
-                              className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                              className="p-2 rounded-lg hover:bg-[oklch(0.94_0.05_300_/_0.4)] transition-colors disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.82_0.04_300_/_0.55)]"
                               aria-label={isChatLoading ? "傳送中" : "傳送訊息"}
                               title={isChatLoading ? "傳送中" : "傳送 (Enter)"}
                             >
-                              {isChatLoading ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : <Send className="w-4 h-4 text-gray-500" />}
+                              {isChatLoading ? <Loader2 className="w-4 h-4 text-glass-soft animate-spin" /> : <Send className="w-4 h-4 text-[oklch(0.3_0.07_300)]" />}
                             </button>
                           </div>
                         </div>
@@ -3460,7 +3458,7 @@ export default memo(function ProactiveOrbWidget({
                           <div className="flex flex-col gap-0.5 max-w-[85%]">
                             {spirit && (
                               <span
-                                className={`self-start mb-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r ${spirit.gradient} text-white text-[9px] font-medium shadow-sm`}
+                                className={`healing-spirit-chip self-start mb-0.5 bg-gradient-to-r ${spirit.gradient}`}
                                 data-testid={`widget-mini-message-spirit-${spirit.id}`}
                                 title={spirit.vibe}
                               >
@@ -3470,9 +3468,7 @@ export default memo(function ProactiveOrbWidget({
                             )}
                             <div
                               className={`px-3.5 py-2.5 text-xs leading-relaxed ${
-                                msg.role === "user"
-                                  ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
-                                  : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                                msg.role === "user" ? "healing-bubble-user" : "healing-bubble-orb"
                               }`}
                             >
                               {msg.text && (
@@ -3572,10 +3568,10 @@ export default memo(function ProactiveOrbWidget({
                             <button
                               key={s}
                               onClick={() => handleSuggestionClick(s)}
-                              className="group flex items-start gap-1.5 rounded-xl border border-gray-200/60 bg-white/85 px-2 py-1.5 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50/70 transition-all"
+                              className="healing-suggestion group !p-1.5 !gap-1.5 !rounded-xl"
                             >
                               <span className="text-[13px] leading-none mt-0.5 shrink-0">{emoji}</span>
-                              <span className="text-[11px] leading-snug text-gray-600 group-hover:text-gray-700 line-clamp-2">
+                              <span className="text-[11px] leading-snug text-glass-strong line-clamp-2">
                                 {s}
                               </span>
                             </button>

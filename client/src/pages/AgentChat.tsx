@@ -1135,12 +1135,13 @@ export default function AgentChat() {
 
   return (
     <div className="flex-1 flex flex-col items-center w-full min-h-full">
-      {/* 柔和漸層背景，呼吸感 */}
+      {/* 療癒環境光 — 與側邊欄、首頁同一套薰衣草/桃霧調性 */}
       <div
+        aria-hidden
         className="fixed inset-0 pointer-events-none -z-10"
         style={{
           background:
-            "radial-gradient(60% 40% at 50% 0%, rgba(167, 243, 208, 0.18) 0%, transparent 60%), radial-gradient(50% 50% at 80% 100%, rgba(196, 181, 253, 0.15) 0%, transparent 60%)",
+            "radial-gradient(70% 45% at 50% 0%, oklch(0.94 0.06 320 / 0.22) 0%, transparent 65%), radial-gradient(55% 50% at 85% 95%, oklch(0.92 0.06 230 / 0.18) 0%, transparent 65%), radial-gradient(45% 40% at 10% 80%, oklch(0.94 0.05 75 / 0.16) 0%, transparent 65%)",
         }}
       />
 
@@ -1363,16 +1364,16 @@ export default function AgentChat() {
               transition={{ duration: 0.35, delay: 0.15 }}
               className="w-full mt-1 space-y-2"
             >
-              <div className="relative bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl rounded-3xl border-2 border-emerald-200/80 dark:border-emerald-700/40 shadow-2xl shadow-emerald-200/40 dark:shadow-emerald-900/30 ring-2 ring-emerald-100/50 dark:ring-emerald-900/20 focus-within:ring-emerald-300/70 dark:focus-within:ring-emerald-600/50 focus-within:border-emerald-400/80 transition-all p-1.5">
+              <div className="healing-input-shell relative p-2 flex-col items-stretch">
                 {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 px-2 pt-1.5">
+                  <div className="flex flex-wrap gap-1.5 px-1 pt-1 pb-1.5">
                     {attachments.map(attachment => (
                       <button
                         key={attachment.id}
                         type="button"
                         onClick={() => removeAttachment(attachment.id)}
                         title="移除附件"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/90 px-2.5 py-0.5 text-[11px] text-slate-600 shadow-sm hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-slate-200"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[oklch(0.9_0.04_300_/_0.5)] bg-white/85 px-2.5 py-0.5 text-[11px] text-glass-strong shadow-sm hover:bg-white dark:bg-[oklch(0.28_0.02_290_/_0.7)] dark:text-glass-strong"
                       >
                         <span>{attachmentKindEmoji(attachment.kind)}</span>
                         <span className="max-w-[140px] truncate">{attachment.name}</span>
@@ -1381,13 +1382,13 @@ export default function AgentChat() {
                     ))}
                   </div>
                 )}
-                <div className="flex items-center gap-2 px-1.5 py-1">
+                <div className="flex items-center gap-2 w-full">
                   <button
                     type="button"
                     onClick={pickAttachment}
                     disabled={isSending || isUploading}
                     title="上傳圖片 / 影片 / 音訊 / PDF"
-                    className="p-2.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors shrink-0"
+                    className="p-2.5 rounded-xl hover:bg-[oklch(0.94_0.05_300_/_0.45)] text-glass-soft hover:text-glass-strong disabled:opacity-40 transition-colors shrink-0"
                   >
                     {isUploading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -1402,16 +1403,17 @@ export default function AgentChat() {
                     onKeyDown={onKeyDown}
                     disabled={isSending}
                     placeholder={activeModeOption?.placeholder ?? "告訴光球你想做什麼，它幫你串好整套流程…"}
-                    className="flex-1 bg-transparent outline-none px-2 py-3 text-base text-slate-800 dark:text-slate-100 placeholder:text-slate-400 disabled:opacity-50 min-w-0"
+                    className="flex-1 bg-transparent outline-none px-2 py-3 text-base text-glass-strong placeholder:text-glass-soft placeholder:opacity-60 disabled:opacity-50 min-w-0"
                   />
-                  <Button
+                  <button
+                    type="button"
                     onClick={() => void send(input)}
                     disabled={(!input.trim() && attachments.length === 0 && !activeModeOption) || isSending || isUploading}
-                    className="bg-gradient-to-r from-emerald-400 to-sky-400 hover:from-emerald-500 hover:to-sky-500 text-white border-0 shadow-md hover:shadow-lg disabled:opacity-40 px-4 py-2.5 h-auto rounded-xl shrink-0"
+                    className="healing-send-btn shrink-0"
                   >
-                    <Send className="w-4 h-4 mr-1" />
-                    <span className="text-sm font-medium">送出</span>
-                  </Button>
+                    <Send className="w-4 h-4" />
+                    <span>送出</span>
+                  </button>
                 </div>
                 {/* 多代理「自動討論」面板：摺疊 / 展開 + 範圍 (家族 / 個別精靈 /
                     回合數 / 起跑那位) + 啟動鈕 + 進行中時的進度 + 停止鈕。
@@ -1691,20 +1693,22 @@ export default function AgentChat() {
                 <CollapsibleTrigger asChild>
                   <button
                     type="button"
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
+                    className="healing-inner-card w-full flex items-center justify-between gap-2 px-3.5 py-2.5"
                   >
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                      <Users className="w-3.5 h-3.5 text-pink-500" />
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-glass-strong">
+                      <Users className="w-3.5 h-3.5 text-[oklch(0.74_0.12_330)]" />
                       認識 {SPIRITS.length} 位代理精靈 — 像同事一樣，叫一聲就到
                       {pinnedSpirit && SPIRITS_BY_ID[pinnedSpirit] && (
-                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-200 text-[10px] font-medium">
+                        <span
+                          className={`ml-1 healing-spirit-chip bg-gradient-to-r ${SPIRITS_BY_ID[pinnedSpirit].gradient}`}
+                        >
                           <span>{SPIRITS_BY_ID[pinnedSpirit].emoji}</span>
                           {SPIRITS_BY_ID[pinnedSpirit].nickname} 在線
                         </span>
                       )}
                     </span>
                     <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-400 transition-transform ${spiritDeckOpen ? "rotate-180" : ""}`}
+                      className={`w-3.5 h-3.5 text-glass-soft transition-transform ${spiritDeckOpen ? "rotate-180" : ""}`}
                     />
                   </button>
                 </CollapsibleTrigger>
@@ -1713,47 +1717,30 @@ export default function AgentChat() {
                     const familySpirits = SPIRITS.filter(s => s.family === family);
                     const groupTitle =
                       family === "proactive"
-                        ? `🚨 ${familySpirits.length} 位主動出擊`
+                        ? `🌸 ${familySpirits.length} 位主動陪伴`
                         : family === "specialist"
                           ? `🛠 ${familySpirits.length} 位專精同事`
                           : `🤝 ${familySpirits.length} 位通用夥伴`;
                     const groupHint =
                       family === "proactive"
-                        ? "財財 / 巧巧 / 守守 — 沒叫他們也會主動關心你"
+                        ? "財財 / 巧巧 / 守守 / 律律 / 安安 / 帶帶 — 沒叫他們也會主動關心你"
                         : family === "specialist"
-                          ? "圖、影、音、聲、訓、學 — 各有領域的精靈"
-                          : "規劃、執行、評審、研究、導航、陪伴 — 工作流程裡的角色";
+                          ? "圖、影、音、聲、訓、學、群、靈、體 — 各有領域的精靈"
+                          : "規劃、執行、評審、研究、導航、陪伴、總管、筆記、設定、步步 — 工作流程裡的角色";
                     return (
                       <div
                         key={family}
-                        className={`space-y-1.5 ${
-                          family === "proactive"
-                            ? "rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10 p-2"
-                            : ""
-                        }`}
+                        className="healing-family-strip space-y-2"
+                        data-family={family}
                       >
                         <div className="flex items-center justify-between gap-2 px-1">
-                          <p
-                            className={`text-[11px] font-medium ${
-                              family === "proactive"
-                                ? "text-amber-700 dark:text-amber-300"
-                                : "text-slate-600 dark:text-slate-300"
-                            }`}
-                          >
+                          <p className="text-[11px] font-semibold text-glass-strong inline-flex items-center gap-1.5">
                             {groupTitle}
                             {family === "proactive" && (
-                              <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse align-middle" />
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[oklch(0.78_0.13_50)] animate-pulse" />
                             )}
                           </p>
-                          <span
-                            className={`text-[10px] ${
-                              family === "proactive"
-                                ? "text-amber-600/80 dark:text-amber-400/80"
-                                : "text-slate-400 dark:text-slate-500"
-                            }`}
-                          >
-                            {groupHint}
-                          </span>
+                          <span className="text-[10px] text-glass-soft">{groupHint}</span>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {familySpirits.map((spirit, i) => {
@@ -1764,27 +1751,19 @@ export default function AgentChat() {
                                 type="button"
                                 initial={{ opacity: 0, y: 4 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.05 * i }}
-                                whileHover={{ y: -2, scale: 1.01 }}
-                                whileTap={{ scale: 0.98 }}
+                                transition={{ delay: 0.04 * i }}
+                                whileTap={{ scale: 0.97 }}
                                 onClick={() => handleCallSpirit(spirit)}
                                 disabled={isSending}
                                 aria-pressed={isPinned}
                                 title={spirit.vibe}
                                 data-testid={`spirit-card-${spirit.id}`}
-                                className={`group relative overflow-hidden rounded-2xl text-left p-2.5 transition-all disabled:opacity-40 ${
-                                  isPinned
-                                    ? `ring-2 ${spirit.ring} bg-gradient-to-br ${spirit.gradient} text-white shadow-lg`
-                                    : `border border-slate-200/70 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/40 hover:shadow-md hover:border-transparent`
-                                }`}
+                                data-pinned={isPinned ? "true" : "false"}
+                                className="healing-spirit-card group text-left p-2.5 disabled:opacity-40"
                               >
                                 <div className="relative flex items-start gap-2">
                                   <div
-                                    className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-sm ${
-                                      isPinned
-                                        ? "bg-white/25"
-                                        : `bg-gradient-to-br ${spirit.gradient} text-white`
-                                    }`}
+                                    className={`healing-spirit-disc shrink-0 w-9 h-9 rounded-xl text-lg bg-gradient-to-br ${spirit.gradient}`}
                                   >
                                     <span aria-hidden>{spirit.emoji}</span>
                                   </div>
@@ -1792,16 +1771,14 @@ export default function AgentChat() {
                                     <div className="flex items-center gap-1">
                                       <p
                                         className={`text-xs font-semibold truncate ${
-                                          isPinned ? "text-white" : "text-slate-800 dark:text-slate-100"
+                                          isPinned ? "text-[oklch(0.22_0.04_290)]" : "text-glass-strong"
                                         }`}
                                       >
                                         {spirit.nickname}
                                       </p>
                                       <span
                                         className={`text-[9px] truncate ${
-                                          isPinned
-                                            ? "text-white/75"
-                                            : "text-slate-400 dark:text-slate-500"
+                                          isPinned ? "text-[oklch(0.3_0.04_290_/_0.7)]" : "text-glass-soft"
                                         }`}
                                       >
                                         · {spirit.label}
@@ -1809,9 +1786,7 @@ export default function AgentChat() {
                                     </div>
                                     <p
                                       className={`text-[10px] leading-snug line-clamp-2 mt-0.5 ${
-                                        isPinned
-                                          ? "text-white/90"
-                                          : "text-slate-500 dark:text-slate-400"
+                                        isPinned ? "text-[oklch(0.3_0.04_290_/_0.9)]" : "text-glass-soft"
                                       }`}
                                     >
                                       {spirit.vibe}
@@ -1819,8 +1794,8 @@ export default function AgentChat() {
                                     <p
                                       className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${
                                         isPinned
-                                          ? "text-white"
-                                          : "text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400"
+                                          ? "text-[oklch(0.22_0.04_290)]"
+                                          : "text-glass-soft group-hover:text-[oklch(0.4_0.08_300)]"
                                       }`}
                                     >
                                       {isPinned ? "已在線 ✓" : "叫他來 →"}
@@ -2277,7 +2252,7 @@ export default function AgentChat() {
           aria-live="polite"
           aria-relevant="additions"
           aria-label="光球對話"
-          className={`overflow-y-auto space-y-3 px-3 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/45 dark:bg-slate-900/25 backdrop-blur-sm scroll-smooth ${
+          className={`healing-scroll-region overflow-y-auto space-y-3 px-4 py-4 scroll-smooth ${
             isFirstTurn
               ? "min-h-[14rem] max-h-[40vh]"
               : "flex-1 min-h-[16rem]"
@@ -2298,9 +2273,7 @@ export default function AgentChat() {
               >
                 <div
                   className={`max-w-[88%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "bg-gradient-to-br from-emerald-400 to-sky-400 text-white rounded-2xl rounded-br-md shadow-md"
-                      : "bg-white/80 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 rounded-2xl rounded-bl-md border border-slate-200/60 dark:border-slate-700/60 backdrop-blur"
+                    msg.role === "user" ? "healing-bubble-user" : "healing-bubble-orb"
                   }`}
                 >
                   {/* 精靈 chip — 讓使用者感覺是某位「同事」接手回覆，不是匿名 AI */}
@@ -2308,7 +2281,7 @@ export default function AgentChat() {
                     <button
                       type="button"
                       onClick={() => handleCallSpirit(spirit)}
-                      className={`mb-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r ${spirit.gradient} text-white text-[10px] font-medium shadow-sm hover:scale-105 transition-transform`}
+                      className={`healing-spirit-chip mb-1.5 bg-gradient-to-r ${spirit.gradient}`}
                       data-testid={`message-spirit-${spirit.id}`}
                       title={`${spirit.vibe} — 點選再叫他來`}
                     >
@@ -2474,7 +2447,7 @@ export default function AgentChat() {
                   exit={{ opacity: 0 }}
                   className="flex justify-start"
                 >
-                  <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2">
+                  <div className="healing-bubble-typing px-4 py-3 text-sm flex items-center gap-2">
                     {spirit ? (
                       <>
                         <span className="text-base leading-none animate-pulse" aria-hidden>
@@ -2515,12 +2488,11 @@ export default function AgentChat() {
                     key={s}
                     onClick={() => void send(s)}
                     disabled={isSending}
-                    whileHover={{ y: -1.5 }}
                     whileTap={{ scale: 0.99 }}
-                    className="group flex items-start gap-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/70 px-3 py-2.5 text-left shadow-sm backdrop-blur hover:border-emerald-300 hover:bg-emerald-50/70 dark:hover:border-emerald-500/50 dark:hover:bg-emerald-900/30 disabled:opacity-50 transition-all"
+                    className="healing-suggestion group"
                   >
                     <span className="text-base leading-none mt-0.5 shrink-0">{emoji}</span>
-                    <span className="text-xs leading-snug text-slate-700 dark:text-slate-200 line-clamp-3">
+                    <span className="text-xs leading-snug text-glass-strong line-clamp-3">
                       {s}
                     </span>
                   </motion.button>
