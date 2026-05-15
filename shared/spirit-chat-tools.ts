@@ -81,8 +81,11 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
     passPromptAsSearch: true,
     arrivalHint: "學學帶你到教學中心，先用你的關鍵字搜尋預載結果。",
   },
-  // 靈靈：search 站內靈感 / 素材 + 用 LLM 給示範提示詞
-  "inspiration-specialist": { kind: "search", minPromptChars: 3 },
+  // 靈靈：靈感 / 趨勢 / 風格混搭 / 提示詞精煉 — 走 LLM persona 流程，
+  // 由 selectRoleForIntent 套人格切片並讓 LLM 呼叫 inspiration.fetch
+  // 與 inspirationSpecialist.* 工具（Perplexity Sonar 即時趨勢 + 策展風格庫
+  // + 動態 mood board / prompt variants）。站內素材搜尋是查查的職責。
+  "inspiration-specialist": { kind: "llm-persona" },
   // 體體：真實打 fal.ai 模型產出解剖圖
   "anatomy-specialist": { kind: "fal-generation", minPromptChars: 6 },
 

@@ -887,6 +887,97 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
+  // ─── 靈靈（inspiration-specialist）策展與動態提示詞工具 ──
+  // searchTrends：呼叫 inspiration.fetch（Perplexity Sonar）+ 策展風格庫 fallback；
+  // 其餘工具皆為 LLM 規劃端可直接呼叫的純函式（從策展風格庫動態合成）。
+  {
+    name: "inspirationSpecialist.searchTrends",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      category: "string", // image | video | music | general
+      region: "string?",
+      topic: "string?",
+      maxResults: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.getSuggestions",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      intent: "string",
+      style: "string?",
+      modality: "string?", // image | video | audio | voice | 3d | general
+      count: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.analyzeReference",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      imageUrl: "string",
+      userHint: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.getStyleMixing",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      seedStyle: "string?",
+      modality: "string?",
+      count: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.buildMoodBoard",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      topic: "string",
+      modality: "string?",
+      size: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.refinePromptVariants",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      draftPrompt: "string",
+      modality: "string?",
+      count: "number?",
+      excludeStyles: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.rankStylesByIntent",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      intent: "string",
+      modality: "string?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "inspirationSpecialist.getStyleAtlas",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 意圖澄清引擎（clarificationEngine）工具 ──
   {
     name: "clarificationEngine.identifyIntent",

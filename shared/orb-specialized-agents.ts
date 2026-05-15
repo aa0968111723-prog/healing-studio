@@ -256,9 +256,18 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
   {
     agentId: "inspiration-specialist",
     displayName: "靈感精靈",
-    description: "專精於創意啟發與靈感蒐集，使用 inspiration.fetch 拉取網路趨勢、視覺參考、風格探索",
+    description:
+      "專精於創意啟發與靈感蒐集：用 inspiration.fetch 拉取真實網路趨勢；用 inspirationSpecialist.* 工具從 30+ 風格策展庫動態組出 mood board、prompt 變體、風格排序、混搭建議。",
     primaryTools: [
       "inspiration.fetch",
+      "inspirationSpecialist.searchTrends",
+      "inspirationSpecialist.getSuggestions",
+      "inspirationSpecialist.analyzeReference",
+      "inspirationSpecialist.getStyleMixing",
+      "inspirationSpecialist.buildMoodBoard",
+      "inspirationSpecialist.refinePromptVariants",
+      "inspirationSpecialist.rankStylesByIntent",
+      "inspirationSpecialist.getStyleAtlas",
     ],
     knowledgeDomains: [
       "creative inspiration",

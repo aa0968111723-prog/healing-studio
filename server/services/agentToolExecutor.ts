@@ -2349,7 +2349,11 @@ async function dispatchStudioTool(
       case "inspirationSpecialist.searchTrends":
       case "inspirationSpecialist.getSuggestions":
       case "inspirationSpecialist.analyzeReference":
-      case "inspirationSpecialist.getStyleMixing": {
+      case "inspirationSpecialist.getStyleMixing":
+      case "inspirationSpecialist.buildMoodBoard":
+      case "inspirationSpecialist.refinePromptVariants":
+      case "inspirationSpecialist.rankStylesByIntent":
+      case "inspirationSpecialist.getStyleAtlas": {
         const inspirationSpecResult = await dispatchInspirationSpecialistTool(call, opts);
         return inspirationSpecResult;
       }
@@ -4986,8 +4990,38 @@ async function dispatchInspirationSpecialistTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { searchTrends, getCreativeSuggestions, analyzeReference, getStyleMixingSuggestions } = await import("./spiritTools/inspirationSpecialistTools");
+  const {
+    searchTrends,
+    getCreativeSuggestions,
+    analyzeReference,
+    getStyleMixingSuggestions,
+    buildMoodBoard,
+    refinePromptVariants,
+    rankStylesByIntent,
+    getStyleAtlas,
+  } = await import("./spiritTools/inspirationSpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  const asString = (v: unknown): string | undefined =>
+    typeof v === "string" && v.trim().length > 0 ? v : undefined;
+  const asNumber = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const asStringArray = (v: unknown): string[] | undefined =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined;
+
+  type Modality = "image" | "video" | "audio" | "voice" | "3d" | "general";
+  const VALID_MODALITIES: ReadonlyArray<Modality> = [
+    "image",
+    "video",
+    "audio",
+    "voice",
+    "3d",
+    "general",
+  ];
+  const asModality = (v: unknown): Modality | undefined => {
+    const s = asString(v);
+    return s && (VALID_MODALITIES as ReadonlyArray<string>).includes(s) ? (s as Modality) : undefined;
+  };
 
   try {
     switch (call.name) {
@@ -4999,32 +5033,40 @@ async function dispatchInspirationSpecialistTool(
 
         const result = await searchTrends({
           category,
-          region: args.region as string | undefined,
+          region: asString(args.region),
+          topic: asString(args.topic),
+          maxResults: asNumber(args.maxResults),
+          userId: opts.userId,
         });
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
       case "inspirationSpecialist.getSuggestions": {
-        const intent = args.intent as string;
+        const intent = asString(args.intent);
         if (!intent) {
           return { name: call.name, ok: false, error: "intent is required" };
         }
 
         const result = getCreativeSuggestions({
           intent,
-          style: args.style as string | undefined,
-          modality: args.modality as "image" | "video" | "audio" | undefined,
+          style: asString(args.style),
+          modality: asModality(args.modality),
+          count: asNumber(args.count),
         });
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
       case "inspirationSpecialist.analyzeReference": {
-        const imageUrl = args.imageUrl as string;
+        const imageUrl = asString(args.imageUrl);
         if (!imageUrl) {
           return { name: call.name, ok: false, error: "imageUrl is required" };
         }
 
-        const result = await analyzeReference({ imageUrl });
+        const result = await analyzeReference({
+          imageUrl,
+          userId: opts.userId,
+          userHint: asString(args.userHint),
+        });
         return {
           name: call.name,
           ok: result.success,
@@ -5035,7 +5077,59 @@ async function dispatchInspirationSpecialistTool(
       }
 
       case "inspirationSpecialist.getStyleMixing": {
-        const result = getStyleMixingSuggestions();
+        const result = getStyleMixingSuggestions({
+          seedStyle: asString(args.seedStyle),
+          modality: asModality(args.modality),
+          count: asNumber(args.count),
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "inspirationSpecialist.buildMoodBoard": {
+        const topic = asString(args.topic);
+        if (!topic) {
+          return { name: call.name, ok: false, error: "topic is required" };
+        }
+        const result = await buildMoodBoard({
+          topic,
+          modality: asModality(args.modality),
+          size: asNumber(args.size),
+          userId: opts.userId,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "inspirationSpecialist.refinePromptVariants": {
+        const draftPrompt = asString(args.draftPrompt);
+        if (!draftPrompt) {
+          return { name: call.name, ok: false, error: "draftPrompt is required" };
+        }
+        const result = refinePromptVariants({
+          draftPrompt,
+          modality: asModality(args.modality),
+          count: asNumber(args.count),
+          excludeStyles: asStringArray(args.excludeStyles),
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "inspirationSpecialist.rankStylesByIntent": {
+        const intent = asString(args.intent);
+        if (!intent) {
+          return { name: call.name, ok: false, error: "intent is required" };
+        }
+        const result = rankStylesByIntent({
+          intent,
+          modality: asModality(args.modality),
+          limit: asNumber(args.limit),
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "inspirationSpecialist.getStyleAtlas": {
+        const result = getStyleAtlas({
+          modality: asModality(args.modality),
+        });
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
