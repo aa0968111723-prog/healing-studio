@@ -10,14 +10,34 @@ import { resolve } from "node:path";
  * CO-STAR, batch CO-STAR, script overview), which is the bug this file pins.
  *
  * This is a static source-scan rather than a runtime mock — same pattern as
- * director-override-wiring.test.ts. It catches new invokeLLM call sites
+ * override-wiring.test.ts. It catches new invokeLLM call sites
  * landing without brain wiring on review.
  */
 describe("Director router invokeLLM brain-config wiring", () => {
-  const source = readFileSync(
-    resolve(process.cwd(), "server/routers/director.ts"),
-    "utf8"
-  );
+  // Scan the router plus every extracted service file — invokeLLM calls
+  // moved out of server/routers/director.ts during the Phase 4
+  // reorganization (costarService, scriptAnalysisService).
+  const source = [
+    readFileSync(resolve(process.cwd(), "server/routers/director.ts"), "utf8"),
+    readFileSync(
+      resolve(process.cwd(), "server/services/director/costarService.ts"),
+      "utf8"
+    ),
+    readFileSync(
+      resolve(
+        process.cwd(),
+        "server/services/director/scriptAnalysisService.ts"
+      ),
+      "utf8"
+    ),
+    readFileSync(
+      resolve(
+        process.cwd(),
+        "server/services/director/planningService.ts"
+      ),
+      "utf8"
+    ),
+  ].join("\n");
 
   // Find every `invokeLLM({ ... })` call. We extract the inner block and
   // check that it sets `model:` (which in this codebase is always paired
