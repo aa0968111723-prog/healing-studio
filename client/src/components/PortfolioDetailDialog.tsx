@@ -188,8 +188,8 @@ export default function PortfolioDetailDialog({
         showCloseButton
         className={`sm:max-w-2xl lg:max-w-3xl max-h-[92vh] overflow-y-auto p-0 border-0 rounded-3xl ${
           isDark
-            ? "bg-slate-900/90 text-slate-100"
-            : "bg-white/95 text-stone-900"
+            ? "bg-muted/90 text-slate-100"
+            : "bg-card/95 text-stone-900"
         }`}
         style={{
           backdropFilter: "blur(24px) saturate(180%)",
@@ -267,7 +267,7 @@ export default function PortfolioDetailDialog({
             {basic.description && (
               <DialogDescription
                 className={`text-[15px] leading-relaxed ${
-                  isDark ? "text-slate-300" : "text-stone-600"
+                  isDark ? "text-muted-foreground/60" : "text-stone-600"
                 }`}
               >
                 {basic.description}
@@ -357,7 +357,7 @@ export default function PortfolioDetailDialog({
                   onClick={handleCopyPrompt}
                   className={`inline-flex items-center gap-1 text-[11px] transition-colors ${
                     isDark
-                      ? "text-slate-400 hover:text-slate-200"
+                      ? "text-muted-foreground/70 hover:text-slate-200"
                       : "text-stone-500 hover:text-stone-800"
                   }`}
                 >
@@ -424,7 +424,7 @@ export default function PortfolioDetailDialog({
               onClick={() => onOpenChange(false)}
               className={`text-sm transition-colors ${
                 isDark
-                  ? "text-slate-400 hover:text-slate-200"
+                  ? "text-muted-foreground/70 hover:text-slate-200"
                   : "text-stone-500 hover:text-stone-800"
               }`}
             >
@@ -465,7 +465,7 @@ function StatBlock({
     <div className="flex items-center gap-2">
       <div
         className={`w-7 h-7 rounded-full flex items-center justify-center ${
-          isDark ? "bg-white/5" : "bg-black/5"
+          isDark ? "bg-card/5" : "bg-black/5"
         }`}
       >
         {icon}
@@ -642,7 +642,7 @@ function CommentsSection({
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 text-[11px] font-semibold ${
                       isDark
-                        ? "bg-white/10 text-slate-200"
+                        ? "bg-card/10 text-slate-200"
                         : "bg-stone-200 text-stone-700"
                     }`}
                   >

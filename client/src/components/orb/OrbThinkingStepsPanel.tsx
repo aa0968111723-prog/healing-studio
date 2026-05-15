@@ -185,8 +185,8 @@ function TabButton({
       className={cn(
         "px-3 py-1 text-xs font-medium rounded-md transition-colors",
         active
-          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
-          : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+          ? "bg-card text-foreground shadow-sm dark:text-white"
+          : "text-muted-foreground hover:text-foreground dark:hover:text-white"
       )}
     >
       {children}
@@ -195,8 +195,8 @@ function TabButton({
           className={cn(
             "ml-1 rounded-full px-1.5 py-0.5 text-[10px]",
             active
-              ? "bg-slate-100 text-slate-600 dark:bg-slate-600 dark:text-slate-200"
-              : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+              ? "bg-muted text-muted-foreground"
+              : "bg-muted text-muted-foreground"
           )}
         >
           {count}
@@ -234,7 +234,7 @@ function ThinkingSections({
     <div className="relative pl-4">
       <span
         aria-hidden
-        className="absolute left-0 top-1 bottom-1 w-px bg-slate-200 dark:bg-slate-700"
+        className="absolute left-0 top-1 bottom-1 w-px bg-muted"
       />
       <ol className="space-y-5">
         {sections.map((section, idx) => (
@@ -277,7 +277,7 @@ function ActionsTimeline({
           >
             <span
               aria-hidden
-              className="mt-0.5 inline-flex w-7 h-7 items-center justify-center rounded-full bg-slate-100 text-base dark:bg-slate-800"
+              className="mt-0.5 inline-flex w-7 h-7 items-center justify-center rounded-full bg-muted text-base"
             >
               {STAGE_EMOJI[event.stage] ?? "·"}
             </span>
@@ -291,7 +291,7 @@ function ActionsTimeline({
                   {formatElapsedMs(dt)}
                 </span>
               </div>
-              <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug truncate">
+              <p className="text-sm text-foreground leading-snug truncate">
                 {event.label}
               </p>
               {event.detail ? <ActionDetail detail={event.detail} /> : null}
@@ -316,7 +316,7 @@ function ActionDetail({ detail }: { detail: Record<string, unknown> }) {
       {entries.slice(0, 4).map(([k, v]) => (
         <span
           key={k}
-          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
         >
           <span className="font-medium">{k}</span>
           <span>{String(v)}</span>

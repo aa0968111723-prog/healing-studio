@@ -2550,9 +2550,9 @@ export default memo(function ProactiveOrbWidget({
   };
 
   const personalityBubbleColors: Record<string, string> = {
-    calm: "border-cyan-200/50 bg-white/90 shadow-cyan-200/20",
-    creative: "border-pink-200/50 bg-white/90 shadow-pink-200/20",
-    technical: "border-emerald-200/50 bg-white/90 shadow-emerald-200/20",
+    calm: "border-cyan-200/50 bg-card/90 shadow-cyan-200/20",
+    creative: "border-pink-200/50 bg-card/90 shadow-pink-200/20",
+    technical: "border-emerald-200/50 bg-card/90 shadow-emerald-200/20",
   };
 
   const personalityDotColors: Record<string, string> = {
@@ -2617,7 +2617,7 @@ export default memo(function ProactiveOrbWidget({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             onClick={skipOnboarding}
-            className="pointer-events-auto fixed top-4 right-4 z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/85 backdrop-blur-md border border-gray-200/50 text-gray-600 hover:text-gray-800 hover:bg-white transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            className="pointer-events-auto fixed top-4 right-4 z-[60] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-card/85 backdrop-blur-md border border-border/70 text-muted-foreground hover:text-foreground hover:bg-card transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
             aria-label="跳過光球引導流程"
           >
             <X className="w-3 h-3" />
@@ -2683,7 +2683,7 @@ export default memo(function ProactiveOrbWidget({
               >
                 {/* Drag handle */}
                 <div className="flex justify-center pt-3 pb-1">
-                  <div className="w-10 h-1 rounded-full bg-gray-300" />
+                  <div className="w-10 h-1 rounded-full bg-muted" />
                 </div>
 
                 {/* Panel Header (mobile) */}
@@ -2702,7 +2702,7 @@ export default memo(function ProactiveOrbWidget({
                         title="AI 代理人模式"
                       />
                     </div>
-                    <span className="text-base font-semibold text-gray-800">
+                    <span className="text-base font-semibold text-foreground">
                       {panelView === "chat"
                         ? "💬 對話"
                         : panelView === "inspiration"
@@ -2714,7 +2714,7 @@ export default memo(function ProactiveOrbWidget({
                               : "🌸 光球"}
                     </span>
                     {pageContext && panelView === "main" && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
                         {pageContext.pageLabel}
                       </span>
                     )}
@@ -2723,7 +2723,7 @@ export default memo(function ProactiveOrbWidget({
                     <button
                       type="button"
                       onClick={() => setQuietMode(!quietMode)}
-                      className={`p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                      className={`p-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-muted text-muted-foreground/70"}`}
                       title={quietMode ? "開啟提示" : "靜音模式"}
                       aria-label={quietMode ? "開啟主動提示" : "關閉主動提示"}
                       aria-pressed={quietMode}
@@ -2734,21 +2734,21 @@ export default memo(function ProactiveOrbWidget({
                       <button
                         type="button"
                         onClick={() => setPanelView("main")}
-                        className="p-2 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                        className="p-2 rounded-full hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-border"
                         aria-label="返回主面板"
                         title="返回主面板"
                       >
-                        <RotateCcw className="w-4 h-4 text-gray-400" />
+                        <RotateCcw className="w-4 h-4 text-muted-foreground/70" />
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => setShowPanel(false)}
-                      className="p-2 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                      className="p-2 rounded-full hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-border"
                       aria-label="關閉光球面板"
                       title="關閉"
                     >
-                      <X className="w-4 h-4 text-gray-400" />
+                      <X className="w-4 h-4 text-muted-foreground/70" />
                     </button>
                   </div>
                 </div>
@@ -2766,7 +2766,7 @@ export default memo(function ProactiveOrbWidget({
                       >
                         <div className="flex items-start gap-2 mb-3">
                           <Bot className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
-                          <p className="text-sm text-gray-500 leading-relaxed">{greeting}</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{greeting}</p>
                         </div>
                         {currentRegistryPage?.orbHints?.length ? (
                           <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2.5">
@@ -2785,7 +2785,7 @@ export default memo(function ProactiveOrbWidget({
                                 <button
                                   key={`proactive-${qa.action}`}
                                   onClick={() => handleQuickAction(qa.action)}
-                                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/80 hover:bg-white transition-colors text-left border border-emerald-100"
+                                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-card/80 hover:bg-card transition-colors text-left border border-emerald-100"
                                 >
                                   <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700">
                                     {qa.icon}
@@ -2811,31 +2811,31 @@ export default memo(function ProactiveOrbWidget({
                             <button
                               key={qa.action}
                               onClick={() => handleQuickAction(qa.action)}
-                              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 transition-colors text-left group"
+                              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted/60 transition-colors text-left group"
                             >
                               <div className={`p-2 rounded-lg ${personalityAccent[personality]} transition-colors`}>
                                 {qa.icon}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-700">{qa.label}</p>
-                                <p className="text-xs text-gray-400 truncate">{qa.description}</p>
+                                <p className="text-sm font-medium text-foreground/90">{qa.label}</p>
+                                <p className="text-xs text-muted-foreground/70 truncate">{qa.description}</p>
                               </div>
                             </button>
                           ))}
                         </div>
                         {currentRegistryPage?.quickActions?.length ? (
                           <div className="space-y-1.5 mb-3">
-                            <p className="text-xs text-gray-400 px-1">這頁可直接開始：</p>
+                            <p className="text-xs text-muted-foreground/70 px-1">這頁可直接開始：</p>
                             {currentRegistryPage.quickActions.map(action => (
                               <button
                                 key={action.id}
                                 onClick={() => void handleRegistryQuickAction({ path: action.path, action: action.action, prompt: action.prompt, label: action.label })}
-                                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200/70 bg-white/70 hover:bg-gray-50 transition-colors text-left"
+                                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border/70 bg-card/70 hover:bg-muted/60 transition-colors text-left"
                               >
                                 <Navigation className="w-4 h-4 text-emerald-500 shrink-0" />
                                 <div className="min-w-0">
-                                  <p className="text-sm font-medium text-gray-700 truncate">{action.label}</p>
-                                  <p className="text-xs text-gray-400 truncate">{action.description}</p>
+                                  <p className="text-sm font-medium text-foreground/90 truncate">{action.label}</p>
+                                  <p className="text-xs text-muted-foreground/70 truncate">{action.description}</p>
                                 </div>
                               </button>
                             ))}
@@ -2949,8 +2949,8 @@ export default memo(function ProactiveOrbWidget({
                                     </div>
                                   ) : null}
                                   {msg.webSources?.length ? (
-                                    <div className="mt-2 border-t border-gray-200/60 pt-2 space-y-0.5">
-                                      <div className="text-[9px] uppercase tracking-wider text-gray-400">來源</div>
+                                    <div className="mt-2 border-t border-border/70 pt-2 space-y-0.5">
+                                      <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70">來源</div>
                                       {msg.webSources.map((src, idx) => (
                                         <a
                                           key={`${src.url}-${idx}`}
@@ -3038,14 +3038,14 @@ export default memo(function ProactiveOrbWidget({
                             })}
                           </div>
                         )}
-                        <div className="px-4 py-3 border-t border-gray-100/60">
+                        <div className="px-4 py-3 border-t border-border/60">
                           {chatAttachments.length > 0 && (
                             <div className="mb-2 flex flex-wrap gap-1.5">
                               {chatAttachments.map(attachment => (
                                 <button
                                   key={attachment.id}
                                   onClick={() => handleRemoveAttachment(attachment.id)}
-                                  className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                                  className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
                                   title="移除附件"
                                 >
                                   <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : attachment.kind === "text" ? "📝" : "📄"}</span>
@@ -3115,13 +3115,13 @@ export default memo(function ProactiveOrbWidget({
                     )}
                     {panelView === "inspiration" && (
                       <motion.div key="inspiration-mobile" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="px-5 pb-5">
-                        <p className="text-sm text-gray-500 mb-3">選一個喜歡的主題，積木會自動填入。</p>
+                        <p className="text-sm text-muted-foreground mb-3">選一個喜歡的主題，積木會自動填入。</p>
                         <div className="grid grid-cols-2 gap-2.5">
                           {INSPIRATION_PRESETS.map(preset => (
-                            <button key={preset.label} onClick={() => handleApplyPreset(preset)} className="flex flex-col items-start gap-1 px-3 py-3 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/50 transition-all text-left group">
+                            <button key={preset.label} onClick={() => handleApplyPreset(preset)} className="flex flex-col items-start gap-1 px-3 py-3 rounded-xl border border-border/50 hover:border-amber-200 hover:bg-amber-50/50 transition-all text-left group">
                               <span className="text-xl">{preset.emoji}</span>
-                              <span className="text-sm font-medium text-gray-700 group-hover:text-amber-700">{preset.label}</span>
-                              <span className="text-xs text-gray-400">{preset.mood}</span>
+                              <span className="text-sm font-medium text-foreground/90 group-hover:text-amber-700">{preset.label}</span>
+                              <span className="text-xs text-muted-foreground/70">{preset.mood}</span>
                             </button>
                           ))}
                         </div>
@@ -3252,7 +3252,7 @@ export default memo(function ProactiveOrbWidget({
                       title="AI 代理人模式"
                     />
                   </div>
-                  <span className="text-sm font-semibold text-gray-800">
+                  <span className="text-sm font-semibold text-foreground">
                     {panelView === "chat"
                       ? "💬 對話"
                       : panelView === "inspiration"
@@ -3264,7 +3264,7 @@ export default memo(function ProactiveOrbWidget({
                             : "🌸 光球"}
                   </span>
                   {pageContext && panelView === "main" && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
                       {pageContext.pageLabel}
                     </span>
                   )}
@@ -3274,7 +3274,7 @@ export default memo(function ProactiveOrbWidget({
                   <button
                     type="button"
                     onClick={() => setQuietMode(!quietMode)}
-                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-muted text-muted-foreground/70"}`}
                     title={
                       quietMode
                         ? "開啟提示（目前靜音中）"
@@ -3293,21 +3293,21 @@ export default memo(function ProactiveOrbWidget({
                     <button
                       type="button"
                       onClick={() => setPanelView("main")}
-                      className="p-1.5 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                      className="p-1.5 rounded-full hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-border"
                       aria-label="返回主面板"
                       title="返回主面板"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-gray-400" />
+                      <RotateCcw className="w-3.5 h-3.5 text-muted-foreground/70" />
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => setShowPanel(false)}
-                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                    className="p-1.5 rounded-full hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-border"
                     aria-label="關閉光球面板"
                     title="關閉"
                   >
-                    <X className="w-3.5 h-3.5 text-gray-400" />
+                    <X className="w-3.5 h-3.5 text-muted-foreground/70" />
                   </button>
                 </div>
               </div>
@@ -3325,7 +3325,7 @@ export default memo(function ProactiveOrbWidget({
                     {/* Greeting with agent badge */}
                     <div className="flex items-start gap-2 mb-3">
                       <Bot className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-500" />
-                      <p className="text-xs text-gray-500 leading-relaxed">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
                         {greeting}
                       </p>
                     </div>
@@ -3348,7 +3348,7 @@ export default memo(function ProactiveOrbWidget({
                             <button
                               key={`proactive-desktop-${qa.action}`}
                               onClick={() => handleQuickAction(qa.action)}
-                              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/80 hover:bg-white transition-colors text-left border border-emerald-100"
+                              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-card/80 hover:bg-card transition-colors text-left border border-emerald-100"
                             >
                               <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700">
                                 {qa.icon}
@@ -3374,7 +3374,7 @@ export default memo(function ProactiveOrbWidget({
                         <button
                           key={qa.action}
                           onClick={() => handleQuickAction(qa.action)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left group"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/60 transition-colors text-left group"
                         >
                           <div
                             className={`p-1.5 rounded-lg ${personalityAccent[personality]} transition-colors`}
@@ -3382,10 +3382,10 @@ export default memo(function ProactiveOrbWidget({
                             {qa.icon}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-700">
+                            <p className="text-sm font-medium text-foreground/90">
                               {qa.label}
                             </p>
-                            <p className="text-xs text-gray-400 truncate">
+                            <p className="text-xs text-muted-foreground/70 truncate">
                               {qa.description}
                             </p>
                           </div>
@@ -3395,7 +3395,7 @@ export default memo(function ProactiveOrbWidget({
 
                     {currentRegistryPage?.quickActions?.length ? (
                       <div className="space-y-1.5 mb-3">
-                        <p className="text-[11px] text-gray-400 px-1">
+                        <p className="text-[11px] text-muted-foreground/70 px-1">
                           這頁可直接開始：
                         </p>
                         {currentRegistryPage.quickActions.map(action => (
@@ -3409,14 +3409,14 @@ export default memo(function ProactiveOrbWidget({
                                 label: action.label,
                               })
                             }
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200/70 bg-white/70 hover:bg-gray-50 transition-colors text-left"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-border/70 bg-card/70 hover:bg-muted/60 transition-colors text-left"
                           >
                             <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                             <div className="min-w-0">
-                              <p className="text-xs font-medium text-gray-700 truncate">
+                              <p className="text-xs font-medium text-foreground/90 truncate">
                                 {action.label}
                               </p>
-                              <p className="text-[11px] text-gray-400 truncate">
+                              <p className="text-[11px] text-muted-foreground/70 truncate">
                                 {action.description}
                               </p>
                             </div>
@@ -3544,8 +3544,8 @@ export default memo(function ProactiveOrbWidget({
                                 </div>
                               ) : null}
                               {msg.webSources?.length ? (
-                                <div className="mt-2 border-t border-gray-200/60 pt-2 space-y-0.5">
-                                  <div className="text-[9px] uppercase tracking-wider text-gray-400">來源</div>
+                                <div className="mt-2 border-t border-border/70 pt-2 space-y-0.5">
+                                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70">來源</div>
                                   {msg.webSources.map((src, idx) => (
                                     <a
                                       key={`${src.url}-${idx}`}
@@ -3620,14 +3620,14 @@ export default memo(function ProactiveOrbWidget({
                     )}
 
                     {/* Chat Input */}
-                    <div className="px-3 py-3 border-t border-gray-100/60">
+                    <div className="px-3 py-3 border-t border-border/60">
                       {chatAttachments.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-1.5">
                           {chatAttachments.map(attachment => (
                             <button
                               key={attachment.id}
                               onClick={() => handleRemoveAttachment(attachment.id)}
-                              className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                              className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
                               title="移除附件"
                             >
                               <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : attachment.kind === "text" ? "📝" : "📄"}</span>
@@ -3645,18 +3645,18 @@ export default memo(function ProactiveOrbWidget({
                           />
                         </div>
                       )}
-                      <div className="relative flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-3 py-2 focus-within:border-gray-300 transition-colors">
+                      <div className="relative flex items-center gap-2 rounded-xl border border-border/70 bg-muted/50 px-3 py-2 focus-within:border-border transition-colors">
                         <SlashCommandMenu {...slashMenu.menuProps} placement="above" />
                         <button
                           onClick={handlePickAttachment}
                           disabled={isUploadingAttachments || isChatLoading}
-                          className="p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
+                          className="p-1.5 rounded-lg hover:bg-muted/80 transition-colors disabled:opacity-30"
                           title="上傳圖像、影片、音訊或 PDF"
                         >
                           {isUploadingAttachments ? (
-                            <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                            <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
                           ) : (
-                            <Paperclip className="w-3.5 h-3.5 text-gray-500" />
+                            <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
                           )}
                         </button>
                         <OrbVoiceButton
@@ -3675,18 +3675,18 @@ export default memo(function ProactiveOrbWidget({
                             }
                           }}
                           placeholder="分享你的想法，或問我任何事…（打 /）"
-                          className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
+                          className="bg-transparent text-sm text-foreground/90 placeholder:text-muted-foreground outline-none flex-1 min-w-0"
                           autoFocus
                         />
                         <button
                           onClick={handleChatSend}
                           disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments}
-                          className="p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
+                          className="p-1.5 rounded-lg hover:bg-muted/80 transition-colors disabled:opacity-30"
                         >
                           {isChatLoading ? (
-                            <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                            <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
                           ) : (
-                            <Send className="w-3.5 h-3.5 text-gray-500" />
+                            <Send className="w-3.5 h-3.5 text-muted-foreground" />
                           )}
                         </button>
                       </div>
@@ -3703,7 +3703,7 @@ export default memo(function ProactiveOrbWidget({
                     exit={{ opacity: 0, x: -10 }}
                     className="px-4 pb-4"
                   >
-                    <p className="text-xs text-gray-500 mb-3">
+                    <p className="text-xs text-muted-foreground mb-3">
                       選一個喜歡的主題，積木會自動填入。
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -3711,13 +3711,13 @@ export default memo(function ProactiveOrbWidget({
                         <button
                           key={preset.label}
                           onClick={() => handleApplyPreset(preset)}
-                          className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/50 transition-all text-left group"
+                          className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border border-border/50 hover:border-amber-200 hover:bg-amber-50/50 transition-all text-left group"
                         >
                           <span className="text-lg">{preset.emoji}</span>
-                          <span className="text-xs font-medium text-gray-700 group-hover:text-amber-700">
+                          <span className="text-xs font-medium text-foreground/90 group-hover:text-amber-700">
                             {preset.label}
                           </span>
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-muted-foreground/70">
                             {preset.mood}
                           </span>
                         </button>
@@ -3781,14 +3781,14 @@ export default memo(function ProactiveOrbWidget({
               <div className="flex items-start gap-2">
                 <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-gray-500 mb-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
                     {isFeedback
                       ? "完成"
                       : isGuideMsg
                         ? "引導中"
                         : personalityLabels[personality]}
                   </p>
-                  <p className="text-sm text-gray-800 leading-relaxed font-medium">
+                  <p className="text-sm text-foreground leading-relaxed font-medium">
                     {activeMessage}
                   </p>
                   {isGuideMsg && onboardingActive && (
@@ -3799,7 +3799,7 @@ export default memo(function ProactiveOrbWidget({
                           className={`w-1.5 h-1.5 rounded-full transition-colors ${
                             guideMessage === ONBOARDING_STEPS[i]?.message
                               ? "bg-amber-500"
-                              : "bg-gray-300"
+                              : "bg-muted"
                           }`}
                         />
                       ))}
@@ -3813,11 +3813,11 @@ export default memo(function ProactiveOrbWidget({
                       e.stopPropagation();
                       dismissProactive();
                     }}
-                    className="shrink-0 p-1 -m-1 rounded-full hover:bg-gray-200/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                    className="shrink-0 p-1 -m-1 rounded-full hover:bg-muted/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-border"
                     aria-label="關閉提示氣泡"
                     title="關閉提示"
                   >
-                    <X className="w-3.5 h-3.5 text-gray-400" />
+                    <X className="w-3.5 h-3.5 text-muted-foreground/70" />
                   </button>
                 )}
               </div>
@@ -4076,7 +4076,7 @@ export default memo(function ProactiveOrbWidget({
                 initial={{ opacity: 0, scale: 0.6 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.6 }}
-                className="absolute -top-3 -left-3 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-full px-1.5 py-0.5 shadow-md border border-gray-200/60"
+                className="absolute -top-3 -left-3 flex items-center gap-1 bg-card/95 backdrop-blur-sm rounded-full px-1.5 py-0.5 shadow-md border border-border/70"
               >
                 <motion.div
                   className="w-1.5 h-1.5 rounded-full"
@@ -4092,7 +4092,7 @@ export default memo(function ProactiveOrbWidget({
                         : "#ec4899",
                   }}
                 />
-                <span className="text-[9px] font-bold tabular-nums text-gray-600">
+                <span className="text-[9px] font-bold tabular-nums text-muted-foreground">
                   {formatTimerBadge(
                     activeMode === "pomodoro"
                       ? pomodoroRemaining

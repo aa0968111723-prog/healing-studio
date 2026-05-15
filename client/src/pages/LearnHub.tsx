@@ -89,8 +89,8 @@ const CATEGORIES = [
     id: "all",
     label: "全部",
     icon: BookOpen,
-    color: "text-gray-600",
-    bg: "bg-gray-100",
+    color: "text-muted-foreground",
+    bg: "bg-muted",
   },
   {
     id: "getting-started",
@@ -176,29 +176,29 @@ function renderMarkdown(md: string): string {
       // Code blocks
       .replace(
         /```[\w]*\n([\s\S]*?)```/g,
-        '<pre class="bg-gray-900 text-green-300 p-4 rounded-xl text-xs overflow-x-auto my-3"><code>$1</code></pre>'
+        '<pre class="bg-muted text-green-300 p-4 rounded-xl text-xs overflow-x-auto my-3"><code>$1</code></pre>'
       )
       // Inline code
       .replace(
         /`([^`]+)`/g,
-        '<code class="bg-gray-100 text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>'
+        '<code class="bg-muted text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>'
       )
       // Headers
       .replace(
         /^#### (.+)$/gm,
-        '<h4 class="text-sm font-bold text-gray-800 mt-4 mb-1">$1</h4>'
+        '<h4 class="text-sm font-bold text-foreground mt-4 mb-1">$1</h4>'
       )
       .replace(
         /^### (.+)$/gm,
-        '<h3 class="hs-h3 !mb-0 text-gray-800 mt-5 mb-2">$1</h3>'
+        '<h3 class="hs-h3 !mb-0 text-foreground mt-5 mb-2">$1</h3>'
       )
       .replace(
         /^## (.+)$/gm,
-        '<h2 class="hs-h2 !mb-0 text-gray-900 mt-6 mb-3 border-b pb-1">$1</h2>'
+        '<h2 class="hs-h2 !mb-0 text-foreground mt-6 mb-3 border-b pb-1">$1</h2>'
       )
       .replace(
         /^# (.+)$/gm,
-        '<h1 class="text-xl font-bold text-gray-900 mt-2 mb-4">$1</h1>'
+        '<h1 class="text-xl font-bold text-foreground mt-2 mb-4">$1</h1>'
       )
       // Bold
       .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
@@ -210,22 +210,22 @@ function renderMarkdown(md: string): string {
           .filter(Boolean)
           .map(c => c.trim());
         const isHeader = false;
-        return `<tr>${cells.map(c => `<td class="px-3 py-2 border-b border-gray-100 text-sm">${c}</td>`).join("")}</tr>`;
+        return `<tr>${cells.map(c => `<td class="px-3 py-2 border-b border-border/50 text-sm">${c}</td>`).join("")}</tr>`;
       })
       // Horizontal rules
-      .replace(/^---$/gm, '<hr class="my-4 border-gray-200" />')
+      .replace(/^---$/gm, '<hr class="my-4 border-border" />')
       // Unordered list items
       .replace(
         /^- (.+)$/gm,
-        '<li class="ml-4 text-sm text-gray-700 list-disc mb-1">$1</li>'
+        '<li class="ml-4 text-sm text-foreground/90 list-disc mb-1">$1</li>'
       )
       // Ordered list items
       .replace(
         /^\d+\. (.+)$/gm,
-        '<li class="ml-4 text-sm text-gray-700 list-decimal mb-1">$1</li>'
+        '<li class="ml-4 text-sm text-foreground/90 list-decimal mb-1">$1</li>'
       )
       // Paragraphs (double newlines)
-      .replace(/\n\n/g, '</p><p class="hs-p !mb-0 text-gray-700 mb-3">')
+      .replace(/\n\n/g, '</p><p class="hs-p !mb-0 text-foreground/90 mb-3">')
       // Single newlines
       .replace(/\n/g, "<br />")
   );
@@ -256,7 +256,7 @@ function DocCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
+      className="cursor-pointer rounded-2xl border border-border/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
     >
       {/* Featured top bar */}
       {doc.featured && (
@@ -285,12 +285,12 @@ function DocCard({
         </div>
 
         {/* Title */}
-        <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="hs-h3 !mb-0 text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
           {doc.title}
         </h3>
 
         {/* Summary */}
-        <p className="hs-small !mb-0 text-gray-500 line-clamp-2 mb-3">
+        <p className="hs-small !mb-0 text-muted-foreground line-clamp-2 mb-3">
           {doc.summary}
         </p>
 
@@ -300,7 +300,7 @@ function DocCard({
             {doc.tags.slice(0, 3).map((tag: string) => (
               <span
                 key={tag}
-                className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full"
+                className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full"
               >
                 {tag}
               </span>
@@ -309,8 +309,8 @@ function DocCard({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
             <Clock className="w-3 h-3" />
             {doc.readingMinutes} 分鐘閱讀
           </div>
@@ -322,7 +322,7 @@ function DocCard({
                     e.stopPropagation();
                     onEdit();
                   }}
-                  className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground/70 hover:text-blue-600 transition-colors"
                 >
                   <Edit2 className="w-3 h-3" />
                 </button>
@@ -331,13 +331,13 @@ function DocCard({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground/70 hover:text-red-600 transition-colors"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </>
             )}
-            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
           </div>
         </div>
       </div>
@@ -394,13 +394,13 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
               >
                 {diffBadge.label}
               </span>
-              <span className="flex items-center gap-1 text-[10px] text-gray-400">
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
                 <Clock className="w-3 h-3" />
                 {doc.readingMinutes} 分鐘
               </span>
             </div>
-            <h2 className="hs-h2 !mb-0 text-gray-900">{doc.title}</h2>
-            <p className="hs-small !mb-0 text-gray-500 mt-1">{doc.summary}</p>
+            <h2 className="hs-h2 !mb-0 text-foreground">{doc.title}</h2>
+            <p className="hs-small !mb-0 text-muted-foreground mt-1">{doc.summary}</p>
           </div>
         </div>
 
@@ -408,7 +408,7 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
         <div
           className="flex-1 overflow-y-auto p-6 prose prose-sm max-w-none"
           dangerouslySetInnerHTML={{
-            __html: `<p class="hs-p !mb-0 text-gray-700 mb-3">${html}</p>`,
+            __html: `<p class="hs-p !mb-0 text-foreground/90 mb-3">${html}</p>`,
           }}
         />
         {attachments.length > 0 && (
@@ -416,7 +416,7 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
             <h3 className="text-sm font-semibold mb-2">附件資源</h3>
             <div className="space-y-3">
               {attachments.map((asset, idx) => (
-                <div key={`${asset.url}-${idx}`} className="rounded-xl border p-3 bg-white">
+                <div key={`${asset.url}-${idx}`} className="rounded-xl border p-3 bg-card">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       {asset.type === "image" && <ImageIcon className="w-3.5 h-3.5" />}
@@ -448,8 +448,8 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
         )}
 
         {/* Footer */}
-        <div className="p-4 border-t shrink-0 flex items-center justify-between bg-gray-50/50">
-          <div className="text-xs text-gray-400">
+        <div className="p-4 border-t shrink-0 flex items-center justify-between bg-muted/50">
+          <div className="text-xs text-muted-foreground/70">
             {doc.authorName && <span>作者：{doc.authorName}　</span>}
             更新於 {new Date(doc.updatedAt).toLocaleDateString("zh-TW")}
           </div>
@@ -746,7 +746,7 @@ function VideoCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
+      className="cursor-pointer rounded-2xl border border-border/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
     >
       {video.featured && (
         <div className="h-0.5 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400" />
@@ -759,7 +759,7 @@ function VideoCard({
             <Play className="w-6 h-6 text-white ml-0.5" />
           </div>
         </div>
-        <Video className="w-10 h-10 text-gray-300" />
+        <Video className="w-10 h-10 text-muted-foreground/60" />
         <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded-md">
           {video.durationMinutes} 分鐘
         </div>
@@ -780,10 +780,10 @@ function VideoCard({
           </span>
         </div>
 
-        <h3 className="hs-h3 !mb-0 text-gray-900 mb-1.5 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="hs-h3 !mb-0 text-foreground mb-1.5 line-clamp-2 group-hover:text-primary transition-colors">
           {video.title}
         </h3>
-        <p className="hs-small !mb-0 text-gray-500 line-clamp-2 mb-2">
+        <p className="hs-small !mb-0 text-muted-foreground line-clamp-2 mb-2">
           {video.summary}
         </p>
 
@@ -792,7 +792,7 @@ function VideoCard({
             {video.tags.slice(0, 3).map((tag: string) => (
               <span
                 key={tag}
-                className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full"
+                className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full"
               >
                 {tag}
               </span>
@@ -800,8 +800,8 @@ function VideoCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
             <Video className="w-3 h-3" />
             影片教學
           </div>
@@ -813,7 +813,7 @@ function VideoCard({
                     e.stopPropagation();
                     onEdit();
                   }}
-                  className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground/70 hover:text-blue-600 transition-colors"
                 >
                   <Edit2 className="w-3 h-3" />
                 </button>
@@ -822,13 +822,13 @@ function VideoCard({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground/70 hover:text-red-600 transition-colors"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </>
             )}
-            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
           </div>
         </div>
       </div>
@@ -911,18 +911,18 @@ function VideoPlayerModal({
             >
               {diffBadge.label}
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-gray-400">
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <Clock className="w-3 h-3" />
               {video.durationMinutes} 分鐘
             </span>
           </div>
-          <h2 className="hs-h2 !mb-0 text-gray-900">{video.title}</h2>
-          <p className="hs-small !mb-0 text-gray-500">{video.summary}</p>
+          <h2 className="hs-h2 !mb-0 text-foreground">{video.title}</h2>
+          <p className="hs-small !mb-0 text-muted-foreground">{video.summary}</p>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t shrink-0 flex items-center justify-between bg-gray-50/50">
-          <div className="text-xs text-gray-400">
+        <div className="p-4 border-t shrink-0 flex items-center justify-between bg-muted/50">
+          <div className="text-xs text-muted-foreground/70">
             {video.authorName && <span>作者：{video.authorName}　</span>}
           </div>
           <Button
@@ -1162,7 +1162,7 @@ function QuizCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
+      className="cursor-pointer rounded-2xl border border-border/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
     >
       {quiz.featured && (
         <div className="h-0.5 bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400" />
@@ -1188,10 +1188,10 @@ function QuizCard({
           </div>
         </div>
 
-        <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="hs-h3 !mb-0 text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
           {quiz.title}
         </h3>
-        <p className="hs-small !mb-0 text-gray-500 line-clamp-2 mb-3">
+        <p className="hs-small !mb-0 text-muted-foreground line-clamp-2 mb-3">
           {quiz.summary}
         </p>
 
@@ -1199,7 +1199,7 @@ function QuizCard({
           <span className="text-[10px] px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-medium">
             {quiz.questions?.length ?? 0} 題
           </span>
-          <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+          <span className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full">
             約 {quiz.estimatedMinutes} 分鐘
           </span>
         </div>
@@ -1209,7 +1209,7 @@ function QuizCard({
             {quiz.tags.slice(0, 3).map((tag: string) => (
               <span
                 key={tag}
-                className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full"
+                className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full"
               >
                 {tag}
               </span>
@@ -1217,8 +1217,8 @@ function QuizCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
             <ClipboardCheck className="w-3 h-3" />
             {QUIZ_FILTER_CATEGORIES.find(c => c.id === quiz.category)?.label ?? "學習測驗"}
           </div>
@@ -1230,7 +1230,7 @@ function QuizCard({
                     e.stopPropagation();
                     onEdit();
                   }}
-                  className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground/70 hover:text-blue-600 transition-colors"
                 >
                   <Edit2 className="w-3 h-3" />
                 </button>
@@ -1239,13 +1239,13 @@ function QuizCard({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground/70 hover:text-red-600 transition-colors"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </>
             )}
-            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
           </div>
         </div>
       </div>
@@ -1346,7 +1346,7 @@ function QuizPlayerModal({
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 rounded-3xl">
         {/* Progress */}
-        <div className="h-1 bg-gray-100 shrink-0">
+        <div className="h-1 bg-muted shrink-0">
           <div
             className="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-healing"
             style={{ width: `${((currentQ + 1) / totalQ) * 100}%` }}
@@ -1365,21 +1365,21 @@ function QuizPlayerModal({
 
         {/* Question */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <h3 className="hs-h3 !mb-0 text-gray-900">{q.question}</h3>
+          <h3 className="hs-h3 !mb-0 text-foreground">{q.question}</h3>
 
           <div className="space-y-2 mt-4">
             {q.options.map((opt: string, idx: number) => {
               const isSelected = selectedAnswer === idx;
               const isCorrect = idx === q.correctIndex;
               let optClass =
-                "border-gray-200 bg-white hover:border-primary/40 hover:bg-primary/5";
+                "border-border bg-card hover:border-primary/40 hover:bg-primary/5";
               if (showExplanation) {
                 if (isCorrect) {
                   optClass = "border-green-400 bg-green-50";
                 } else if (isSelected && !isCorrect) {
                   optClass = "border-red-400 bg-red-50";
                 } else {
-                  optClass = "border-gray-200 bg-gray-50 opacity-60";
+                  optClass = "border-border bg-muted/60 opacity-60";
                 }
               } else if (isSelected) {
                 optClass = "border-primary bg-primary/10";
@@ -1430,8 +1430,8 @@ function QuizPlayerModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t shrink-0 flex items-center justify-between bg-gray-50/50">
-          <span className="text-xs text-gray-400">
+        <div className="p-4 border-t shrink-0 flex items-center justify-between bg-muted/50">
+          <span className="text-xs text-muted-foreground/70">
             得分：{score} / {totalQ}
           </span>
           <div className="flex gap-2">
@@ -1772,8 +1772,8 @@ function VideoLearningTab({ isAdmin }: { isAdmin: boolean }) {
             onClick={() => setSelectedDifficulty(d.id as DifficultyId)}
             className={`text-xs px-3 py-1.5 rounded-full transition-all font-medium ${
               selectedDifficulty === d.id
-                ? "bg-gray-900 text-white"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                ? "bg-muted text-white"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
             {d.label}
@@ -1982,7 +1982,7 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
               className={`text-xs px-3 py-1.5 rounded-full transition-all font-medium flex items-center gap-1.5 ${
                 selectedCategory === c.id
                   ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
               <Icon className="w-3 h-3" />
@@ -2000,8 +2000,8 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
             onClick={() => setSelectedDifficulty(d.id as DifficultyId)}
             className={`text-xs px-3 py-1.5 rounded-full transition-all font-medium ${
               selectedDifficulty === d.id
-                ? "bg-gray-900 text-white"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                ? "bg-muted text-white"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
             {d.label}
@@ -2500,7 +2500,7 @@ export default function LearnHub() {
                   {cat.label}
                   {count > 0 && (
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? "bg-card/20" : "bg-primary/10 text-primary"}`}
                     >
                       {count}
                     </span>
@@ -2520,8 +2520,8 @@ export default function LearnHub() {
                   text-xs px-3 py-1.5 rounded-full transition-all font-medium
                   ${
                     selectedDifficulty === d.id
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      ? "bg-muted text-white"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }
                 `}
               >

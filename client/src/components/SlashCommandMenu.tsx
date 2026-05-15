@@ -147,7 +147,7 @@ export function SlashCommandMenu({
           className={cn(
             "absolute z-50 left-0 right-0 mx-auto w-[min(100%,28rem)]",
             "rounded-2xl border border-border",
-            "bg-white/95 dark:bg-slate-900/95 backdrop-blur-md",
+            "bg-card/80 backdrop-blur-md",
             "shadow-2xl shadow-slate-900/10 dark:shadow-black/40",
             "overflow-hidden",
             placement === "above" ? "bottom-full mb-2" : "top-full mt-2",
@@ -202,7 +202,7 @@ export function SlashCommandMenu({
                         "focus:outline-none",
                         isActive
                           ? "bg-emerald-50 dark:bg-emerald-900/20"
-                          : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                          : "hover:bg-slate-50"
                       )}
                       role="option"
                       aria-selected={isActive}
@@ -212,7 +212,7 @@ export function SlashCommandMenu({
                           "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
                           isActive
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : "bg-muted text-muted-foreground"
                         )}
                       >
                         <Icon className="h-4 w-4" />

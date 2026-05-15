@@ -149,8 +149,8 @@ const PERSONALITIES = [
     icon: Brain,
     description: "重邏輯、結構與可行性分析",
     color: "from-slate-500 to-blue-600",
-    bgActive: "bg-slate-50 ring-slate-400",
-    textColor: "text-slate-700",
+    bgActive: "bg-muted/60 ring-slate-400",
+    textColor: "text-foreground/90",
   },
   {
     id: "creative" as const,
@@ -248,7 +248,7 @@ const STATUS_CONFIG: Record<
     icon: React.ComponentType<{ className?: string }>;
   }
 > = {
-  pending: { label: "待分析", color: "bg-gray-100 text-gray-600", icon: Timer },
+  pending: { label: "待分析", color: "bg-muted text-muted-foreground", icon: Timer },
   draft: {
     label: "草稿",
     color: "bg-yellow-100 text-yellow-700",
@@ -516,7 +516,7 @@ const QuickActionChip = memo(function QuickActionChip({
         "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all",
         "hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]",
         disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-        catConfig?.color ?? "bg-gray-100 text-gray-700",
+        catConfig?.color ?? "bg-muted text-foreground/90",
         "border-current/10"
       )}
       title={action.promptTemplate}
@@ -1178,7 +1178,7 @@ type GenerationTask = {
 };
 
 const TIER_COLORS: Record<string, string> = {
-  free: "text-gray-500",
+  free: "text-muted-foreground",
   economy: "text-green-600",
   standard: "text-blue-600",
   premium: "text-purple-600",
@@ -5367,7 +5367,7 @@ export default function DirectorAI() {
                             onChange={e =>
                               setPlanningPasteFormat(e.target.value)
                             }
-                            className="rounded-xl text-xs px-3 py-2 border bg-white"
+                            className="rounded-xl text-xs px-3 py-2 border bg-card"
                           >
                             {FORMAT_OPTIONS.map(opt => (
                               <option key={opt.value} value={opt.value}>
@@ -5612,7 +5612,7 @@ export default function DirectorAI() {
                           onChange={e =>
                             setPlanningPasteFormat(e.target.value)
                           }
-                          className="rounded-xl text-xs px-3 py-2 border bg-white"
+                          className="rounded-xl text-xs px-3 py-2 border bg-card"
                         >
                           {FORMAT_OPTIONS.map(opt => (
                             <option key={opt.value} value={opt.value}>
@@ -5963,7 +5963,7 @@ export default function DirectorAI() {
                         </h4>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-muted-foreground">溫度</span>
-                          <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                             <div
                               className="h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500 transition-all"
                               style={{

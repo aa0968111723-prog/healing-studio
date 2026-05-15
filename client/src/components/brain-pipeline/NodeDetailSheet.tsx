@@ -105,7 +105,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                       <dl className="grid grid-cols-2 gap-2 text-xs">
                         {node.metrics.consecutiveFailures !== undefined && (
                           <>
-                            <dt className="text-slate-500">連續失敗</dt>
+                            <dt className="text-muted-foreground">連續失敗</dt>
                             <dd className="font-mono">
                               {node.metrics.consecutiveFailures}
                             </dd>
@@ -113,7 +113,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                         )}
                         {node.metrics.recentErrorCount !== undefined && (
                           <>
-                            <dt className="text-slate-500">近期錯誤</dt>
+                            <dt className="text-muted-foreground">近期錯誤</dt>
                             <dd className="font-mono">
                               {node.metrics.recentErrorCount}
                             </dd>
@@ -121,7 +121,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                         )}
                         {node.metrics.updatedAt && (
                           <>
-                            <dt className="text-slate-500">最後更新</dt>
+                            <dt className="text-muted-foreground">最後更新</dt>
                             <dd
                               className="font-mono"
                               title={new Date(
@@ -200,7 +200,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                   </section>
                 )}
 
-                <section className="text-xs text-slate-400 pt-2 border-t">
+                <section className="text-xs text-muted-foreground/70 pt-2 border-t">
                   節點 ID：<code className="font-mono">{node.id}</code>
                 </section>
               </div>
@@ -224,7 +224,7 @@ function DiagnosticRow({
 }) {
   return (
     <div>
-      <dt className="text-slate-500">{label}</dt>
+      <dt className="text-muted-foreground">{label}</dt>
       <dd>
         <CopyableBlock
           value={value}
@@ -240,9 +240,9 @@ function TraceSampleRow({ traceIds }: { traceIds: string[] }) {
   const [, navigate] = useLocation();
   return (
     <div>
-      <dt className="text-slate-500 flex items-center gap-1">
+      <dt className="text-muted-foreground flex items-center gap-1">
         Trace Samples
-        <span className="text-[10px] text-slate-400">（點擊跳到錯誤追蹤）</span>
+        <span className="text-[10px] text-muted-foreground/70">（點擊跳到錯誤追蹤）</span>
       </dt>
       <dd className="flex flex-wrap gap-1.5 mt-1">
         {traceIds.map(id => (
@@ -254,7 +254,7 @@ function TraceSampleRow({ traceIds }: { traceIds: string[] }) {
                 `/admin?section=brain&brainTab=errors&trace=${encodeURIComponent(id)}`
               )
             }
-            className="font-mono text-[11px] bg-muted hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded border break-all transition-colors inline-flex items-center gap-1"
+            className="font-mono text-[11px] bg-muted hover:bg-muted px-2 py-1 rounded border break-all transition-colors inline-flex items-center gap-1"
             title="點擊跳到 AI 大腦 → 錯誤追蹤分頁，並自動聚焦此 trace"
           >
             {id}

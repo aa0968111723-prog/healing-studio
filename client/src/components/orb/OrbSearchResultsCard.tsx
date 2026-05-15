@@ -163,14 +163,14 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
   return (
     <div
       data-testid="orb-search-results-card"
-      className={`mt-2 rounded-2xl border border-cyan-200/50 bg-white/90 backdrop-blur-sm ${
+      className={`mt-2 rounded-2xl border border-cyan-200/50 bg-card/90 backdrop-blur-sm ${
         compact ? "p-2" : "p-3"
       } shadow-sm`}
     >
       {/* Header line: query echo + filter chips */}
       <div className="flex flex-wrap items-center gap-1.5 mb-1.5 px-1">
         {query ? (
-          <span className="text-[11px] font-medium text-gray-700">「{query}」</span>
+          <span className="text-[11px] font-medium text-foreground/90">「{query}」</span>
         ) : null}
         {kindOrder.map(kind => {
           const isActive = kindFilter === kind;
@@ -182,8 +182,8 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
                 onClick={() => setKindFilter("all")}
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
                   isActive
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-400"
+                    ? "border-border bg-muted text-white"
+                    : "border-border bg-card text-muted-foreground hover:border-border"
                 }`}
                 data-testid="orb-search-filter-chip"
                 data-chip-kind="all"
@@ -225,7 +225,7 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
               className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
                 thisWeekOnly
                   ? "border-cyan-500 bg-cyan-50 text-cyan-700"
-                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                  : "border-border bg-card text-muted-foreground hover:border-border"
               }`}
               data-testid="orb-search-week-toggle"
               data-active={thisWeekOnly}
@@ -235,14 +235,14 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
             </button>
           ) : null}
         </div>
-        <div className="flex items-center gap-0.5 rounded-full bg-gray-100 p-0.5">
+        <div className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
           <button
             type="button"
             onClick={() => setSort("relevance")}
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition ${
               sort === "relevance"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground/90"
             }`}
             data-testid="orb-search-sort-relevance"
             data-active={sort === "relevance"}
@@ -255,8 +255,8 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
             onClick={() => setSort("recent")}
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition ${
               sort === "recent"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground/90"
             }`}
             data-testid="orb-search-sort-recent"
             data-active={sort === "recent"}
@@ -269,7 +269,7 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
 
       {refined.length === 0 ? (
         <div
-          className="text-[11px] text-gray-400 px-2 py-3 text-center"
+          className="text-[11px] text-muted-foreground/70 px-2 py-3 text-center"
           data-testid="orb-search-no-results"
         >
           這個篩選條件下沒有結果。
@@ -277,7 +277,7 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
             <button
               type="button"
               onClick={() => setThisWeekOnly(false)}
-              className="ml-1 underline hover:text-gray-600"
+              className="ml-1 underline hover:text-foreground/90"
             >
               關掉「只看本週」
             </button>
@@ -286,7 +286,7 @@ export default function OrbSearchResultsCard({ query, items, compact }: Props) {
             <button
               type="button"
               onClick={() => setKindFilter("all")}
-              className="ml-1 underline hover:text-gray-600"
+              className="ml-1 underline hover:text-foreground/90"
             >
               改看「全部」
             </button>
@@ -400,10 +400,10 @@ function SearchResultRow({
       type="button"
       data-testid="orb-search-result-link"
       onClick={onOpen}
-      className="group relative w-full text-left flex gap-2 rounded-xl border border-gray-200/80 hover:border-cyan-300 hover:bg-cyan-50/40 transition px-2.5 py-2 hover:shadow-md"
+      className="group relative w-full text-left flex gap-2 rounded-xl border border-border/70 hover:border-cyan-300 hover:bg-cyan-50/40 transition px-2.5 py-2 hover:shadow-md"
     >
       {showThumbnail ? (
-        <span className="shrink-0 mt-0.5 relative w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+        <span className="shrink-0 mt-0.5 relative w-10 h-10 rounded-lg overflow-hidden border border-border bg-muted">
           <img
             src={item.thumbnailUrl}
             alt=""
@@ -412,10 +412,10 @@ function SearchResultRow({
             onError={() => setThumbFailed(true)}
           />
           {item.modality && MODALITY_ICON[item.modality] ? (
-            <span className="absolute bottom-0.5 right-0.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-white/80 backdrop-blur shadow-sm">
+            <span className="absolute bottom-0.5 right-0.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-card/80 backdrop-blur shadow-sm">
               {(() => {
                 const ModIcon = MODALITY_ICON[item.modality]!;
-                return <ModIcon className="w-2.5 h-2.5 text-gray-700" />;
+                return <ModIcon className="w-2.5 h-2.5 text-foreground/90" />;
               })()}
             </span>
           ) : null}
@@ -429,25 +429,25 @@ function SearchResultRow({
       )}
       <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1">
-                    <span className="text-[12px] font-semibold text-gray-800 truncate">
+                    <span className="text-[12px] font-semibold text-foreground truncate">
                       {item.title}
                     </span>
                     {item.badge ? (
-                      <span className="shrink-0 text-[9px] uppercase tracking-wider text-gray-400">
+                      <span className="shrink-0 text-[9px] uppercase tracking-wider text-muted-foreground/70">
                         {item.badge}
                       </span>
                     ) : null}
                   </span>
                   {item.snippet ? (
-                    <span className="block text-[11px] leading-snug text-gray-500 line-clamp-2 mt-0.5">
+                    <span className="block text-[11px] leading-snug text-muted-foreground line-clamp-2 mt-0.5">
                       {item.snippet}
                     </span>
                   ) : null}
                   {relative ? (
-                    <span className="block text-[10px] text-gray-400 mt-0.5">{relative}</span>
+                    <span className="block text-[10px] text-muted-foreground/70 mt-0.5">{relative}</span>
                   ) : null}
                 </span>
-      <ArrowUpRight className="shrink-0 w-3.5 h-3.5 text-gray-300 group-hover:text-cyan-500 mt-1" />
+      <ArrowUpRight className="shrink-0 w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-cyan-500 mt-1" />
     </button>
   );
 }

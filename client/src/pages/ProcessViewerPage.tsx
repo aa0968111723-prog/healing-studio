@@ -237,10 +237,10 @@ export default function ProcessViewerPage() {
         <Card className="w-full max-w-lg shadow-lg border-0 bg-white/85 backdrop-blur-sm">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <div className="flex justify-center">
-              <ListChecks className="h-12 w-12 text-slate-400" />
+              <ListChecks className="h-12 w-12 text-muted-foreground/70" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-800">看不到流程內容</h1>
-            <p className="text-sm text-slate-600">
+            <h1 className="text-xl font-semibold text-foreground">看不到流程內容</h1>
+            <p className="text-sm text-muted-foreground">
               這個分享連結沒有附上完整的流程資料{reason ? `（${reason}）` : ""}。
               <br />
               你可以回首頁，請光球幫你重新產生一個。
@@ -286,7 +286,7 @@ export default function ProcessViewerPage() {
               <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   {spec.emoji && <span className="text-2xl">{spec.emoji}</span>}
-                  <CardTitle className="text-2xl sm:text-3xl text-slate-900">
+                  <CardTitle className="text-2xl sm:text-3xl text-foreground">
                     {spec.title}
                   </CardTitle>
                   <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
@@ -294,10 +294,10 @@ export default function ProcessViewerPage() {
                   </Badge>
                 </div>
                 {spec.summary && (
-                  <p className="text-sm text-slate-600 leading-6">{spec.summary}</p>
+                  <p className="text-sm text-muted-foreground leading-6">{spec.summary}</p>
                 )}
                 {spec.source && (
-                  <p className="text-xs text-slate-400">來源 · {spec.source}</p>
+                  <p className="text-xs text-muted-foreground/70">來源 · {spec.source}</p>
                 )}
               </div>
             </div>
@@ -305,7 +305,7 @@ export default function ProcessViewerPage() {
           <CardContent className="space-y-4">
             {/* Progress bar */}
             <div>
-              <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
                 <span>進度</span>
                 <span>
                   {doneCount}/{total}
@@ -331,7 +331,7 @@ export default function ProcessViewerPage() {
                       className={`w-full text-left rounded-2xl border p-3.5 sm:p-4 transition-all flex gap-3 group ${
                         done
                           ? "border-emerald-200 bg-emerald-50/60"
-                          : "border-slate-200 bg-white hover:border-cyan-300 hover:shadow-sm"
+                          : "border-border bg-card hover:border-cyan-300 hover:shadow-sm"
                       }`}
                       aria-pressed={done}
                     >
@@ -339,24 +339,24 @@ export default function ProcessViewerPage() {
                         {done ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         ) : (
-                          <Circle className="w-5 h-5 text-slate-300 group-hover:text-cyan-400" />
+                          <Circle className="w-5 h-5 text-muted-foreground/60 group-hover:text-cyan-400" />
                         )}
                       </span>
                       <span className="flex-1 space-y-1.5 min-w-0">
                         <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="text-xs text-slate-400 font-mono">
+                          <span className="text-xs text-muted-foreground/70 font-mono">
                             {String(index + 1).padStart(2, "0")}
                           </span>
                           <span
                             className={`text-sm sm:text-[15px] font-medium ${
-                              done ? "text-emerald-800 line-through decoration-emerald-300" : "text-slate-800"
+                              done ? "text-emerald-800 line-through decoration-emerald-300" : "text-foreground"
                             }`}
                           >
                             {step.title}
                           </span>
                         </div>
                         {step.detail && (
-                          <p className="text-xs sm:text-sm text-slate-500 leading-5">{step.detail}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground leading-5">{step.detail}</p>
                         )}
                         {step.path && (
                           <span
@@ -387,7 +387,7 @@ export default function ProcessViewerPage() {
             </ol>
 
             {total === 0 && (
-              <div className="text-center text-sm text-slate-500 py-6">
+              <div className="text-center text-sm text-muted-foreground py-6">
                 這個流程還沒有列出任何步驟。
               </div>
             )}
@@ -397,7 +397,7 @@ export default function ProcessViewerPage() {
         {/* Action bar */}
         <Card className="border-0 shadow-sm bg-cyan-50/60">
           <CardContent className="pt-4 pb-4 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-sm text-slate-700">
+            <div className="flex items-center gap-2 text-sm text-foreground/90">
               <Sparkles className="w-4 h-4 text-cyan-500" />
               想直接讓光球帶你做？
             </div>

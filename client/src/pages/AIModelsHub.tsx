@@ -200,7 +200,7 @@ function ModelCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
-      className="group text-left cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden w-full"
+      className="group text-left cursor-pointer rounded-2xl border border-border/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden w-full"
     >
       {model.featured && (
         <div className="h-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400" />
@@ -233,7 +233,7 @@ function ModelCard({
           {model.name}
         </h3>
         {model.apiId && (
-          <p className="text-[11px] font-mono text-gray-400 mb-2">
+          <p className="text-[11px] font-mono text-muted-foreground/70 mb-2">
             {model.apiId}
           </p>
         )}
@@ -290,7 +290,7 @@ function ModelCard({
             status={factStatus}
             checkedAt={model.factCheck?.checkedAt}
           />
-          <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400 group-hover:text-primary transition-colors">
+          <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground/70 group-hover:text-primary transition-colors">
             查看詳情
             <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
           </span>
@@ -306,10 +306,10 @@ function PricingBlock({ model }: { model: AIModelEntry }) {
   if (!model.pricing) return null;
   const tier = PRICING_TIER_STYLE[model.pricing.tier];
   return (
-    <section className="rounded-xl border border-gray-200 bg-gradient-to-br from-emerald-50/40 via-white to-sky-50/40 p-4">
+    <section className="rounded-xl border border-border bg-gradient-to-br from-emerald-500/5 via-card to-sky-500/5 p-4">
       <div className="flex items-center gap-2 mb-2">
         <DollarSign className="w-4 h-4 text-emerald-600" />
-        <h3 className="hs-h3 !mb-0 text-gray-900">定價</h3>
+        <h3 className="hs-h3 !mb-0 text-foreground">定價</h3>
         <span
           className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full ${tier.chipBg} ${tier.chipText}`}
           title={tier.hint}
@@ -319,45 +319,45 @@ function PricingBlock({ model }: { model: AIModelEntry }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
         {model.pricing.inputPerMillion && (
-          <div className="rounded-lg bg-white border border-gray-100 px-3 py-2">
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+          <div className="rounded-lg bg-card border border-border/50 px-3 py-2">
+            <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
               Input
             </div>
-            <div className="text-sm font-semibold text-gray-900">
+            <div className="text-sm font-semibold text-foreground">
               {model.pricing.inputPerMillion}
             </div>
-            <div className="text-[10px] text-gray-500">
+            <div className="text-[10px] text-muted-foreground">
               {model.pricing.unit}
             </div>
           </div>
         )}
         {model.pricing.outputPerMillion && (
-          <div className="rounded-lg bg-white border border-gray-100 px-3 py-2">
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+          <div className="rounded-lg bg-card border border-border/50 px-3 py-2">
+            <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
               Output
             </div>
-            <div className="text-sm font-semibold text-gray-900">
+            <div className="text-sm font-semibold text-foreground">
               {model.pricing.outputPerMillion}
             </div>
-            <div className="text-[10px] text-gray-500">
+            <div className="text-[10px] text-muted-foreground">
               {model.pricing.unit}
             </div>
           </div>
         )}
         {!model.pricing.inputPerMillion && !model.pricing.outputPerMillion && (
-          <div className="rounded-lg bg-white border border-gray-100 px-3 py-2 sm:col-span-3">
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+          <div className="rounded-lg bg-card border border-border/50 px-3 py-2 sm:col-span-3">
+            <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
               計價方式
             </div>
-            <div className="text-sm font-medium text-gray-900">
+            <div className="text-sm font-medium text-foreground">
               {model.pricing.unit}
             </div>
           </div>
         )}
       </div>
       {model.pricing.note && (
-        <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-          <span className="text-gray-400">註：</span>
+        <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+          <span className="text-muted-foreground/70">註：</span>
           {model.pricing.note}
         </p>
       )}
@@ -371,7 +371,7 @@ function BenchmarkBlock({ model }: { model: AIModelEntry }) {
   if (!model.benchmarks || model.benchmarks.length === 0) return null;
   return (
     <section>
-      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
         <BarChart3 className="w-4 h-4 text-indigo-500" />
         基準分數
       </h3>
@@ -379,12 +379,12 @@ function BenchmarkBlock({ model }: { model: AIModelEntry }) {
         {model.benchmarks.map((b, i) => (
           <div
             key={i}
-            className="rounded-lg border border-gray-200 bg-white p-3 flex items-start justify-between gap-3"
+            className="rounded-lg border border-border bg-card p-3 flex items-start justify-between gap-3"
           >
             <div className="min-w-0">
-              <div className="text-xs font-medium text-gray-800">{b.name}</div>
+              <div className="text-xs font-medium text-foreground">{b.name}</div>
               {b.rank && (
-                <div className="text-[10px] text-gray-400 mt-0.5">{b.rank}</div>
+                <div className="text-[10px] text-muted-foreground/70 mt-0.5">{b.rank}</div>
               )}
             </div>
             <div className="text-right shrink-0">
@@ -396,7 +396,7 @@ function BenchmarkBlock({ model }: { model: AIModelEntry }) {
                   href={b.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] text-gray-400 hover:text-primary inline-flex items-center gap-0.5"
+                  className="text-[10px] text-muted-foreground/70 hover:text-primary inline-flex items-center gap-0.5"
                   onClick={e => e.stopPropagation()}
                 >
                   來源
@@ -417,7 +417,7 @@ function LatestUpdatesBlock({ model }: { model: AIModelEntry }) {
   if (!model.latestUpdates || model.latestUpdates.length === 0) return null;
   return (
     <section>
-      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
         <Newspaper className="w-4 h-4 text-rose-500" />
         最新動態（自動追蹤）
       </h3>
@@ -425,14 +425,14 @@ function LatestUpdatesBlock({ model }: { model: AIModelEntry }) {
         {model.latestUpdates.map((u, i) => (
           <div
             key={i}
-            className="rounded-lg border border-gray-200 bg-white p-3"
+            className="rounded-lg border border-border bg-card p-3"
           >
             <div className="flex items-start gap-3">
-              <div className="text-[10px] font-mono text-gray-500 shrink-0 pt-0.5">
+              <div className="text-[10px] font-mono text-muted-foreground shrink-0 pt-0.5">
                 {u.date}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-700 leading-relaxed">
+                <p className="text-xs text-foreground/90 leading-relaxed">
                   {u.summary}
                 </p>
                 {u.url && (
@@ -463,30 +463,30 @@ function AvailabilityBlock({ model }: { model: AIModelEntry }) {
   const a = model.availability;
   return (
     <section>
-      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
         <Globe className="w-4 h-4 text-blue-500" />
         取得管道
       </h3>
       <div className="flex flex-wrap gap-2">
         <span
-          className={`text-xs px-3 py-1 rounded-full ${a.api ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-500"}`}
+          className={`text-xs px-3 py-1 rounded-full ${a.api ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground"}`}
         >
           {a.api ? "✓" : "—"} API
         </span>
         <span
-          className={`text-xs px-3 py-1 rounded-full ${a.web ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-500"}`}
+          className={`text-xs px-3 py-1 rounded-full ${a.web ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground"}`}
         >
           {a.web ? "✓" : "—"} Web UI
         </span>
         <span
-          className={`text-xs px-3 py-1 rounded-full inline-flex items-center gap-1 ${a.selfHost ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-gray-100 text-gray-500"}`}
+          className={`text-xs px-3 py-1 rounded-full inline-flex items-center gap-1 ${a.selfHost ? "bg-violet-50 text-violet-700 border border-violet-200" : "bg-muted text-muted-foreground"}`}
         >
           {a.selfHost ? <Server className="w-3 h-3" /> : null}
           {a.selfHost ? "可自架" : "無法自架"}
         </span>
       </div>
       {a.notes && (
-        <p className="text-xs text-gray-600 mt-2 leading-relaxed">{a.notes}</p>
+        <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{a.notes}</p>
       )}
     </section>
   );
@@ -501,9 +501,9 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
   const style = FACT_CHECK_STATUS_STYLE[status];
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-gradient-to-br from-sky-50/40 via-white to-violet-50/40 p-4">
+    <section className="rounded-xl border border-border bg-gradient-to-br from-sky-500/5 via-card to-violet-500/5 p-4">
       <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="hs-h3 !mb-0 text-gray-900 inline-flex items-center gap-2">
+        <h3 className="hs-h3 !mb-0 text-foreground inline-flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           事實查核
         </h3>
@@ -514,7 +514,7 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
         />
       </div>
 
-      <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+      <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
         {style.description}
         {factCheck.checkedAt ? `｜${relativeFromNow(factCheck.checkedAt)}` : ""}
         {factCheck.provider ? `｜提供者：${factCheck.provider}` : ""}
@@ -534,7 +534,7 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
 
       {factCheck.sources.length > 0 ? (
         <div className="space-y-1.5">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
             引用來源（{factCheck.sources.length}）
           </div>
           {factCheck.sources.map((s, i) => (
@@ -543,22 +543,22 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
               href={s.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg bg-white border border-gray-200 hover:border-primary/40 transition-colors p-2.5 group"
+              className="block rounded-lg bg-card border border-border hover:border-primary/40 transition-colors p-2.5 group"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center gap-2 mb-0.5">
-                <Link2 className="w-3 h-3 text-gray-400 shrink-0" />
-                <span className="text-[11px] font-medium text-gray-800 truncate group-hover:text-primary">
+                <Link2 className="w-3 h-3 text-muted-foreground/70 shrink-0" />
+                <span className="text-[11px] font-medium text-foreground truncate group-hover:text-primary">
                   {s.title}
                 </span>
                 {s.domain && (
-                  <span className="text-[10px] text-gray-400 ml-auto shrink-0">
+                  <span className="text-[10px] text-muted-foreground/70 ml-auto shrink-0">
                     {s.domain}
                   </span>
                 )}
               </div>
               {s.snippet && (
-                <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed pl-5">
+                <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed pl-5">
                   {s.snippet}
                 </p>
               )}
@@ -566,7 +566,7 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-gray-500 italic">
+        <p className="text-xs text-muted-foreground italic">
           尚未取得引用來源（下一輪自動研究會補上）。
         </p>
       )}
@@ -631,26 +631,26 @@ function ModelDetailModal({
               )}
             </div>
             <DialogHeader className="space-y-0">
-              <DialogTitle className="hs-h2 !mb-0 text-gray-900 leading-tight">
+              <DialogTitle className="hs-h2 !mb-0 text-foreground leading-tight">
                 {model.name}
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
               {model.apiId && (
-                <p className="text-xs font-mono text-gray-500">{model.apiId}</p>
+                <p className="text-xs font-mono text-muted-foreground">{model.apiId}</p>
               )}
               <FactCheckBadge
                 status={factStatus}
                 checkedAt={model.factCheck?.checkedAt}
               />
             </div>
-            <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               {model.tagline}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+            className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 rounded-xl hover:bg-muted text-muted-foreground/70 hover:text-foreground/90 transition-colors"
             aria-label="關閉"
           >
             <X className="w-4 h-4" />
@@ -662,29 +662,29 @@ function ModelDetailModal({
           <div className="p-6 space-y-6">
             {/* Spec strip */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+              <div className="rounded-xl border border-border bg-card p-3">
+                <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                   發佈時間
                 </div>
-                <div className="text-sm font-medium text-gray-800 mt-0.5">
+                <div className="text-sm font-medium text-foreground mt-0.5">
                   {formatReleaseDate(model.releaseDate)}
                 </div>
               </div>
               {model.contextWindow && (
-                <div className="rounded-xl border border-gray-200 bg-white p-3">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                     上下文視窗
                   </div>
-                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                  <div className="text-sm font-medium text-foreground mt-0.5">
                     {model.contextWindow}
                   </div>
                 </div>
               )}
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+              <div className="rounded-xl border border-border bg-card p-3">
+                <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                   授權方式
                 </div>
-                <div className="text-sm font-medium text-gray-800 mt-0.5">
+                <div className="text-sm font-medium text-foreground mt-0.5">
                   {model.openWeight ? "開源權重" : "閉源 / API"}
                 </div>
               </div>
@@ -692,8 +692,8 @@ function ModelDetailModal({
 
             {/* Description */}
             <section>
-              <h3 className="hs-h3 !mb-0 text-gray-900 mb-2">關於這個模型</h3>
-              <p className="text-sm text-gray-700 leading-relaxed">
+              <h3 className="hs-h3 !mb-0 text-foreground mb-2">關於這個模型</h3>
+              <p className="text-sm text-foreground/90 leading-relaxed">
                 {model.description}
               </p>
             </section>
@@ -712,7 +712,7 @@ function ModelDetailModal({
 
             {/* Strengths */}
             <section>
-              <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+              <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 強項
               </h3>
@@ -720,7 +720,7 @@ function ModelDetailModal({
                 {model.strengths.map((s, i) => (
                   <li
                     key={i}
-                    className="text-sm text-gray-700 pl-4 relative leading-relaxed"
+                    className="text-sm text-foreground/90 pl-4 relative leading-relaxed"
                   >
                     <span className="absolute left-0 top-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     {s}
@@ -732,7 +732,7 @@ function ModelDetailModal({
             {/* Limitations */}
             {model.limitations.length > 0 && (
               <section>
-                <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+                <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-600" />
                   使用前要知道
                 </h3>
@@ -740,7 +740,7 @@ function ModelDetailModal({
                   {model.limitations.map((s, i) => (
                     <li
                       key={i}
-                      className="text-sm text-gray-700 pl-4 relative leading-relaxed"
+                      className="text-sm text-foreground/90 pl-4 relative leading-relaxed"
                     >
                       <span className="absolute left-0 top-1.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
                       {s}
@@ -752,7 +752,7 @@ function ModelDetailModal({
 
             {/* Use cases */}
             <section>
-              <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+              <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
                 <Lightbulb className="w-4 h-4 text-yellow-500" />
                 建議使用情境
               </h3>
@@ -774,12 +774,12 @@ function ModelDetailModal({
             {/* Tags */}
             {model.tags.length > 0 && (
               <section>
-                <h3 className="hs-h3 !mb-0 text-gray-900 mb-2">標籤</h3>
+                <h3 className="hs-h3 !mb-0 text-foreground mb-2">標籤</h3>
                 <div className="flex flex-wrap gap-1.5">
                   {model.tags.map(t => (
                     <span
                       key={t}
-                      className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-md"
+                      className="text-xs px-2 py-1 bg-muted text-foreground/90 rounded-md"
                     >
                       #{t}
                     </span>
@@ -789,19 +789,19 @@ function ModelDetailModal({
             )}
 
             {/* Tier description */}
-            <section className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-              <div className="text-xs font-semibold text-gray-700 mb-1">
+            <section className="rounded-xl border border-border bg-muted/40 p-4">
+              <div className="text-xs font-semibold text-foreground/90 mb-1">
                 關於「{tier.label}」層級
               </div>
-              <div className="text-xs text-gray-600">{tier.description}</div>
+              <div className="text-xs text-muted-foreground">{tier.description}</div>
             </section>
           </div>
         </ScrollArea>
 
         {/* Footer with official link */}
         {model.officialUrl && (
-          <div className="border-t p-4 shrink-0 flex items-center justify-between gap-3 bg-gray-50/50">
-            <span className="text-xs text-gray-500">官方資訊與最新文件</span>
+          <div className="border-t p-4 shrink-0 flex items-center justify-between gap-3 bg-muted/40">
+            <span className="text-xs text-muted-foreground">官方資訊與最新文件</span>
             <a
               href={model.officialUrl}
               target="_blank"
@@ -832,11 +832,11 @@ function FeaturedSpotlight({
   return (
     <section className="mb-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="hs-h2 !mb-0 text-gray-900 inline-flex items-center gap-2">
+        <h2 className="hs-h2 !mb-0 text-foreground inline-flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-amber-500" />
           本期精選模型
         </h2>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {models.length} 款值得認識
         </span>
       </div>
@@ -864,13 +864,13 @@ function ReleasesTimeline({
   return (
     <section className="mb-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="hs-h2 !mb-0 text-gray-900 inline-flex items-center gap-2">
+        <h2 className="hs-h2 !mb-0 text-foreground inline-flex items-center gap-2">
           <Calendar className="w-5 h-5 text-blue-500" />
           發表時序
         </h2>
-        <span className="text-xs text-gray-500">由新到舊</span>
+        <span className="text-xs text-muted-foreground">由新到舊</span>
       </div>
-      <div className="relative pl-5 border-l-2 border-gray-200">
+      <div className="relative pl-5 border-l-2 border-border">
         {recent.map((m, i) => {
           const provider = PROVIDER_STYLE[m.provider];
           const modality = MODALITY_STYLE[m.modality];
@@ -882,7 +882,7 @@ function ReleasesTimeline({
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.03 }}
-              className="relative block w-full text-left mb-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
+              className="relative block w-full text-left mb-3 p-3 rounded-xl hover:bg-muted/60 transition-colors group"
             >
               <span
                 className={`absolute -left-[27px] top-4 w-3 h-3 rounded-full ring-2 ring-white ${provider.bg}`}
@@ -896,7 +896,7 @@ function ReleasesTimeline({
                     >
                       {provider.label}
                     </span>
-                    <span className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors">
+                    <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                       {m.name}
                     </span>
                     <span
@@ -905,15 +905,15 @@ function ReleasesTimeline({
                       {modality.label}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                     {m.tagline}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-xs font-medium text-gray-700">
+                  <div className="text-xs font-medium text-foreground/90">
                     {formatReleaseDate(m.releaseDate)}
                   </div>
-                  <div className="text-[10px] text-gray-400">
+                  <div className="text-[10px] text-muted-foreground/70">
                     {relativeRelease(m.releaseDate)}
                   </div>
                 </div>
@@ -945,7 +945,7 @@ function NewsStrip() {
   if (isLoading) {
     return (
       <section className="mb-10">
-        <h2 className="hs-h2 !mb-0 text-gray-900 mb-4 inline-flex items-center gap-2">
+        <h2 className="hs-h2 !mb-0 text-foreground mb-4 inline-flex items-center gap-2">
           <Newspaper className="w-5 h-5 text-rose-500" />
           模型新聞流
         </h2>
@@ -953,7 +953,7 @@ function NewsStrip() {
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="h-24 rounded-2xl bg-gray-100 animate-pulse"
+              className="h-24 rounded-2xl bg-muted animate-pulse"
             />
           ))}
         </div>
@@ -966,11 +966,11 @@ function NewsStrip() {
   return (
     <section className="mb-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="hs-h2 !mb-0 text-gray-900 inline-flex items-center gap-2">
+        <h2 className="hs-h2 !mb-0 text-foreground inline-flex items-center gap-2">
           <Newspaper className="w-5 h-5 text-rose-500" />
           模型新聞流
         </h2>
-        <span className="text-xs text-gray-500">來自首頁情報站的最新動態</span>
+        <span className="text-xs text-muted-foreground">來自首頁情報站的最新動態</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {breakthroughs.map(item => (
@@ -979,23 +979,23 @@ function NewsStrip() {
             href={item.sourceUrl ?? "#"}
             target={item.sourceUrl ? "_blank" : undefined}
             rel="noopener noreferrer"
-            className="group p-4 rounded-2xl border border-gray-200 hover:border-primary/30 hover:shadow-md transition-all bg-white"
+            className="group p-4 rounded-2xl border border-border hover:border-primary/30 hover:shadow-md transition-all bg-card"
           >
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] px-2 py-0.5 bg-rose-50 text-rose-700 rounded-full font-medium">
                 {item.sourceName}
               </span>
               {item.viewCount > 0 && (
-                <span className="text-[10px] text-gray-400 inline-flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground/70 inline-flex items-center gap-1">
                   <Eye className="w-3 h-3" />
                   {item.viewCount}
                 </span>
               )}
             </div>
-            <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-primary transition-colors">
+            <h3 className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
               {item.title}
             </h3>
-            <p className="text-xs text-gray-500 line-clamp-2 mt-1">
+            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
               {item.oarsSummary}
             </p>
           </a>
@@ -1018,29 +1018,29 @@ function AutoResearchStatusStrip() {
   const coveragePct = Math.round((data.stats.coverage ?? 0) * 100);
 
   return (
-    <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-r from-sky-50/40 via-white to-violet-50/40 p-3 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+    <div className="mt-4 rounded-xl border border-border bg-gradient-to-r from-sky-500/5 via-card to-violet-500/5 p-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
       <div className="inline-flex items-center gap-1.5">
         <RefreshCw
           className={`w-3.5 h-3.5 text-sky-500 ${inProgress ? "animate-spin" : ""}`}
         />
-        <span className="font-medium text-gray-700">
+        <span className="font-medium text-foreground/90">
           自動研究 {inProgress ? "進行中" : "待機中"}
         </span>
       </div>
-      <span className="text-gray-300">|</span>
+      <span className="text-muted-foreground/60">|</span>
       <span>
         覆蓋率{" "}
-        <span className="font-semibold text-gray-800">{coveragePct}%</span>
-        <span className="text-gray-400"> （{data.totalModels} 款模型）</span>
+        <span className="font-semibold text-foreground">{coveragePct}%</span>
+        <span className="text-muted-foreground/70"> （{data.totalModels} 款模型）</span>
       </span>
-      <span className="text-gray-300">|</span>
+      <span className="text-muted-foreground/60">|</span>
       <span>
         上次研究：
-        <span className="font-medium text-gray-700">
+        <span className="font-medium text-foreground/90">
           {relativeFromNow(last)}
         </span>
       </span>
-      <span className="text-gray-300">|</span>
+      <span className="text-muted-foreground/60">|</span>
       <span>排程：每週日 03:30</span>
       {data.stats.lastRunErrors.length > 0 && (
         <span className="ml-auto text-amber-600 inline-flex items-center gap-1">
@@ -1231,19 +1231,19 @@ export default function AIModelsHub() {
         <header className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <VisualSoul size="sm" state="thinking" personality="creative" />
-            <span className="text-xs text-gray-500 tracking-wider uppercase">
+            <span className="text-xs text-muted-foreground tracking-wider uppercase">
               情報站 · 深入專區 · 自動研究
             </span>
           </div>
-          <h1 className="hs-h1 !mb-2 text-gray-900">AI 模型情報專區</h1>
-          <p className="text-sm sm:text-base text-gray-600 max-w-2xl leading-relaxed">
+          <h1 className="hs-h1 !mb-2 text-foreground">AI 模型情報專區</h1>
+          <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
             一份由人工策展、再由自動管線每週查證的當代主流 AI 模型總覽。
-            <span className="text-gray-800 font-medium">
+            <span className="text-foreground font-medium">
               {" "}
               模態 · 廠商 · 層級{" "}
             </span>
             篩選之外，每個模型都附{" "}
-            <span className="text-gray-800 font-medium">
+            <span className="text-foreground font-medium">
               最新定價、基準分數、近期更新與引用來源
             </span>
             。
@@ -1251,38 +1251,38 @@ export default function AIModelsHub() {
 
           {/* Stats strip */}
           <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-gray-200 bg-white p-3">
-              <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            <div className="rounded-xl border border-border bg-card p-3">
+              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 模型總數
               </div>
-              <div className="text-xl font-semibold text-gray-900 mt-0.5">
+              <div className="text-xl font-semibold text-foreground mt-0.5">
                 {allModels.length}
               </div>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-3">
-              <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            <div className="rounded-xl border border-border bg-card p-3">
+              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 廠商
               </div>
-              <div className="text-xl font-semibold text-gray-900 mt-0.5">
+              <div className="text-xl font-semibold text-foreground mt-0.5">
                 {allProviders.length}
               </div>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-3">
-              <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            <div className="rounded-xl border border-border bg-card p-3">
+              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                 精選
               </div>
-              <div className="text-xl font-semibold text-gray-900 mt-0.5">
+              <div className="text-xl font-semibold text-foreground mt-0.5">
                 {featured.length}
               </div>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-emerald-50 to-white p-3">
-              <div className="text-[10px] text-gray-400 uppercase tracking-wider inline-flex items-center gap-1">
+            <div className="rounded-xl border border-border bg-gradient-to-br from-emerald-500/8 to-card p-3">
+              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider inline-flex items-center gap-1">
                 <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
                 已自動查核
               </div>
-              <div className="text-xl font-semibold text-gray-900 mt-0.5">
+              <div className="text-xl font-semibold text-foreground mt-0.5">
                 {verifiedCount}
-                <span className="text-xs text-gray-400 font-normal">
+                <span className="text-xs text-muted-foreground/70 font-normal">
                   {" "}
                   / {allModels.length}
                 </span>
@@ -1300,7 +1300,7 @@ export default function AIModelsHub() {
         )}
 
         {/* ── Filter bar ───────────────────────────────────────────────── */}
-        <section className="mb-6 sticky top-0 z-10 -mx-2 px-2 py-3 bg-gradient-to-b from-white via-white/95 to-white/80 backdrop-blur-sm">
+        <section className="mb-6 sticky top-0 z-10 -mx-2 px-2 py-3 bg-gradient-to-b from-background via-background/95 to-background/80 backdrop-blur-sm">
           {/* Modality tabs */}
           <div className="flex flex-wrap gap-2 mb-3">
             {MODALITY_TABS.map(t => {
@@ -1313,8 +1313,8 @@ export default function AIModelsHub() {
                   onClick={() => setActiveModality(t.id)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                     active
-                      ? "bg-gray-900 text-white shadow-sm"
-                      : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
+                      ? "bg-foreground text-background shadow-sm"
+                      : "bg-card border border-border text-muted-foreground hover:border-border"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -1333,8 +1333,8 @@ export default function AIModelsHub() {
                 onClick={() => setActiveProvider("all")}
                 className={`text-[11px] px-2.5 py-1 rounded-full transition-all ${
                   activeProvider === "all"
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
               >
                 所有廠商
@@ -1350,7 +1350,7 @@ export default function AIModelsHub() {
                     className={`text-[11px] px-2.5 py-1 rounded-full transition-all ring-1 ${
                       active
                         ? `${ps.bg} ${ps.accent} ${ps.ring} ring-2`
-                        : "bg-white text-gray-500 ring-gray-200 hover:ring-gray-300"
+                        : "bg-card text-muted-foreground ring-border hover:ring-border"
                     }`}
                   >
                     {ps.label}
@@ -1359,7 +1359,7 @@ export default function AIModelsHub() {
               })}
             </div>
 
-            <div className="hidden sm:block w-px h-5 bg-gray-200 mx-1" />
+            <div className="hidden sm:block w-px h-5 bg-border mx-1" />
 
             {/* Tier */}
             <div className="flex items-center gap-1.5">
@@ -1372,8 +1372,8 @@ export default function AIModelsHub() {
                     onClick={() => setActiveTier(t.id)}
                     className={`text-[11px] px-2.5 py-1 rounded-full transition-all ${
                       active
-                        ? "bg-gray-900 text-white"
-                        : "bg-white border border-gray-200 text-gray-500 hover:border-gray-300"
+                        ? "bg-foreground text-background"
+                        : "bg-card border border-border text-muted-foreground hover:border-border"
                     }`}
                   >
                     {t.label}
@@ -1386,7 +1386,7 @@ export default function AIModelsHub() {
 
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/70" />
               <Input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -1404,7 +1404,7 @@ export default function AIModelsHub() {
                   setActiveTier("all");
                   setSearch("");
                 }}
-                className="text-[11px] text-gray-500 hover:text-gray-800 inline-flex items-center gap-1"
+                className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
               >
                 <X className="w-3 h-3" />
                 清除篩選
@@ -1414,11 +1414,11 @@ export default function AIModelsHub() {
         </section>
 
         {/* ── Result count ─────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 mb-4 text-xs text-gray-500">
+        <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
           <Filter className="w-3.5 h-3.5" />
           顯示 {sorted.length} 款模型
           {hasActiveFilters && (
-            <span className="text-gray-400">（套用篩選後）</span>
+            <span className="text-muted-foreground/70">（套用篩選後）</span>
           )}
         </div>
 
@@ -1430,13 +1430,13 @@ export default function AIModelsHub() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="rounded-2xl border border-dashed border-gray-300 p-10 text-center"
+              className="rounded-2xl border border-dashed border-border p-10 text-center"
             >
               <div className="text-3xl mb-2">🔍</div>
-              <div className="text-sm font-medium text-gray-700 mb-1">
+              <div className="text-sm font-medium text-foreground/90 mb-1">
                 找不到符合條件的模型
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 試著放寬篩選或修改關鍵字
               </div>
             </motion.div>
@@ -1464,20 +1464,20 @@ export default function AIModelsHub() {
         <NewsStrip />
 
         {/* ── Footer CTA ─────────────────────────────────────────── */}
-        <section className="mt-10 rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50/40 via-white to-purple-50/40 p-6 sm:p-8">
+        <section className="mt-10 rounded-2xl border border-border bg-gradient-to-br from-blue-500/5 via-card to-purple-500/5 p-6 sm:p-8">
           <div className="flex items-start gap-4">
-            <div className="p-3 rounded-2xl bg-white ring-1 ring-gray-200">
+            <div className="p-3 rounded-2xl bg-card ring-1 ring-border">
               <Zap className="w-5 h-5 text-amber-500" />
             </div>
             <div className="flex-1">
-              <h3 className="hs-h3 !mb-0 text-gray-900 mb-1">
+              <h3 className="hs-h3 !mb-0 text-foreground mb-1">
                 找到合適的模型了嗎？
               </h3>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-muted-foreground mb-3">
                 從目錄選定模型後，可前往
-                <span className="text-gray-800 font-medium"> 我的模型 </span>
+                <span className="text-foreground font-medium"> 我的模型 </span>
                 訓練專屬 LoRA，或到
-                <span className="text-gray-800 font-medium"> 創作中心 </span>
+                <span className="text-foreground font-medium"> 創作中心 </span>
                 直接開始使用。
               </p>
               <div className="flex flex-wrap gap-2">
