@@ -14,10 +14,16 @@ import { resolve } from "node:path";
  * landing without brain wiring on review.
  */
 describe("Director router invokeLLM brain-config wiring", () => {
-  const source = readFileSync(
-    resolve(process.cwd(), "server/routers/director.ts"),
-    "utf8"
-  );
+  // Scan both the router and the extracted costarService — invokeLLM calls
+  // from runDirectorAI live in services/director/costarService.ts after the
+  // Phase 4 reorganization.
+  const source = [
+    readFileSync(resolve(process.cwd(), "server/routers/director.ts"), "utf8"),
+    readFileSync(
+      resolve(process.cwd(), "server/services/director/costarService.ts"),
+      "utf8"
+    ),
+  ].join("\n");
 
   // Find every `invokeLLM({ ... })` call. We extract the inner block and
   // check that it sets `model:` (which in this codebase is always paired
