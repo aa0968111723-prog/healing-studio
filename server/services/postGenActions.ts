@@ -129,6 +129,39 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
   } = params;
   const promptText = (prompt ?? "").trim();
 
+  // 1-0. dedupe 前檢 — checkImageStatus / checkVideoStatus / checkAudioStatus
+  // 都是輪詢端點，每 3 秒會打一次；命中 COMPLETED 就會呼叫到此處。沒有
+  // 前檢就會在 generation_history / digital_asset_library / promptLibrary /
+  // monitoring log 每輪都新增一筆。
+  // 所有 polling caller 都會帶 dedupeMarker（格式 [<source>:<modelId>:<requestId>]）—
+  // 在此用它做 generation_history.compiledPrompt 的存在檢查即可短路後續所有寫入。
+  if (dedupeMarker) {
+    try {
+      const dbConn = await getDb();
+      if (dbConn) {
+        const { generationHistory } = await import("../../drizzle/schema");
+        const { and, eq } = await import("drizzle-orm");
+        const existing = await dbConn
+          .select({ id: generationHistory.id })
+          .from(generationHistory)
+          .where(
+            and(
+              eq(generationHistory.userId, userId),
+              eq(generationHistory.compiledPrompt, dedupeMarker)
+            )
+          )
+          .limit(1);
+        if (existing.length > 0) {
+          // 同一個 fal request 已經寫過一次了 — 整個 post-gen 流程都跳過，
+          // 避免重複資產 / 歷史 / 監控紀錄。
+          return;
+        }
+      }
+    } catch {
+      // dedupe 查詢失敗時繼續執行（best-effort），可接受偶發重複。
+    }
+  }
+
   // 1-2. 提示詞庫
   if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
     try {

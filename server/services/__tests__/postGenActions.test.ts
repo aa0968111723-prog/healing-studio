@@ -17,6 +17,9 @@ const createDigitalAssetMock = vi.fn(async () => 1);
 const createHistoryEntryMock = vi.fn(async () => 1);
 const getBackgroundJobMock = vi.fn();
 const updateBackgroundJobMock = vi.fn(async () => undefined);
+// dedupe 前檢 — doPostGenComplete 會用 generation_history.compiledPrompt
+// 做存在檢查；mock 預設回空陣列代表「沒查到 → 繼續寫入」。
+const selectFromDedupeMock = vi.fn(async () => [] as Array<{ id: number }>);
 const insertMock = vi.fn(async () => undefined);
 const getDbMock = vi.fn();
 const addGenerationLogMock = vi.fn();
@@ -35,6 +38,14 @@ vi.mock("../../db", () => ({
 
 vi.mock("../../../drizzle/schema", () => ({
   promptLibrary: { __mocked: true },
+  // doPostGenComplete 的 dedupe 前檢用 generation_history.compiledPrompt
+  // 做 SELECT；mock object 隨意，drizzle-orm 比較會走 mocked and()/eq()。
+  generationHistory: { id: "gh.id", userId: "gh.userId", compiledPrompt: "gh.cp" },
+}));
+
+vi.mock("drizzle-orm", () => ({
+  and: (...args: unknown[]) => ({ __and: args }),
+  eq: (col: unknown, val: unknown) => ({ __eq: [col, val] }),
 }));
 
 vi.mock("../brainAutoRepair", () => ({
@@ -58,8 +69,17 @@ describe("doPostGenComplete", () => {
     insertMock.mockResolvedValue(undefined);
     addGenerationLogMock.mockReset();
     getDbMock.mockReset();
+    selectFromDedupeMock.mockReset();
+    selectFromDedupeMock.mockResolvedValue([]);
     getDbMock.mockReturnValue({
       insert: () => ({ values: insertMock }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: selectFromDedupeMock,
+          }),
+        }),
+      }),
     });
   });
 
@@ -150,8 +170,17 @@ describe("runPostGenForJob", () => {
     updateBackgroundJobMock.mockReset();
     updateBackgroundJobMock.mockResolvedValue(undefined);
     getDbMock.mockReset();
+    selectFromDedupeMock.mockReset();
+    selectFromDedupeMock.mockResolvedValue([]);
     getDbMock.mockReturnValue({
       insert: () => ({ values: insertMock }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: selectFromDedupeMock,
+          }),
+        }),
+      }),
     });
   });
 
@@ -313,8 +342,17 @@ describe("doPostGenComplete with caller-supplied dedupe / parameter snapshot", (
     insertMock.mockResolvedValue(undefined);
     addGenerationLogMock.mockReset();
     getDbMock.mockReset();
+    selectFromDedupeMock.mockReset();
+    selectFromDedupeMock.mockResolvedValue([]);
     getDbMock.mockReturnValue({
       insert: () => ({ values: insertMock }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: selectFromDedupeMock,
+          }),
+        }),
+      }),
     });
   });
 
@@ -471,5 +509,101 @@ describe("doPostGenComplete with caller-supplied dedupe / parameter snapshot", (
     >;
     expect(asset.backgroundJobId).toBe(4242);
     expect(asset.sourceStudio).toBe("director");
+  });
+});
+
+describe("doPostGenComplete dedupe pre-check (Codex P1 review fix)", () => {
+  beforeEach(() => {
+    createDigitalAssetMock.mockReset();
+    createDigitalAssetMock.mockResolvedValue(1);
+    createHistoryEntryMock.mockReset();
+    createHistoryEntryMock.mockResolvedValue(1);
+    insertMock.mockReset();
+    insertMock.mockResolvedValue(undefined);
+    addGenerationLogMock.mockReset();
+    selectFromDedupeMock.mockReset();
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue({
+      insert: () => ({ values: insertMock }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: selectFromDedupeMock,
+          }),
+        }),
+      }),
+    });
+  });
+
+  it("short-circuits writes when dedupeMarker already exists in generation_history", async () => {
+    // imageStudio / videoStudio / proStudio 都是輪詢端點，每 3 秒會打一次；
+    // 命中 COMPLETED 就會呼叫 doPostGenComplete。沒有前檢就會每輪重複寫
+    // generation_history + digital_asset_library + promptLibrary + monitoring。
+    // dedupeMarker 命中時整個 post-gen 流程都應跳過。
+    selectFromDedupeMock.mockResolvedValueOnce([{ id: 999 }]); // 既有紀錄
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat",
+      resultUrl: "https://cdn.example.com/x.png",
+      sourceStudio: "image",
+      dedupeMarker: "[imageStudio:fal-ai/nano-banana-2:req-abc]",
+    });
+
+    // 所有寫入路徑都應 short-circuit
+    expect(createDigitalAssetMock).not.toHaveBeenCalled();
+    expect(createHistoryEntryMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled(); // promptLibrary
+    expect(addGenerationLogMock).not.toHaveBeenCalled(); // monitoring
+  });
+
+  it("proceeds with all writes when dedupeMarker not yet stored (first poll hit)", async () => {
+    selectFromDedupeMock.mockResolvedValueOnce([]); // 沒有既有紀錄
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat",
+      resultUrl: "https://cdn.example.com/x.png",
+      sourceStudio: "image",
+      dedupeMarker: "[imageStudio:fal-ai/nano-banana-2:req-abc]",
+    });
+
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never queries dedupe when caller does not pass dedupeMarker", async () => {
+    // creative sync / director / runPostGenForJob 等不靠 dedupeMarker
+    // （靠 backgroundJob.resultJson.postGenComplete 旗標）的路徑，
+    // dedupe 查詢不該被觸發，避免額外 DB round-trip。
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      resultUrl: "https://cdn.example.com/x.png",
+    });
+
+    expect(selectFromDedupeMock).not.toHaveBeenCalled();
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls through to writes when dedupe query throws (best-effort, never blocks)", async () => {
+    // 如果 dedupe 查詢失敗（DB 暫時不可用、schema 不存在等），不應該
+    // 因此卡住主流程 — 寧可偶爾重複一筆，也不要完全沒寫。
+    selectFromDedupeMock.mockRejectedValueOnce(new Error("DB down"));
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      resultUrl: "https://cdn.example.com/x.png",
+      dedupeMarker: "[imageStudio:fal-ai/nano-banana-2:req-abc]",
+    });
+
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
   });
 });

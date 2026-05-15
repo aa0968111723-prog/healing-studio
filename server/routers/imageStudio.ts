@@ -50,9 +50,6 @@ import {
   doPostGenComplete,
   unifiedAssetPrefix,
 } from "../services/postGenActions";
-import { getDb } from "../db";
-import { generationHistory } from "../../drizzle/schema";
-import { and, eq } from "drizzle-orm";
 
 // ─── fal.ai 呼叫工具（透過 falDispatcher 統一派發，享有 fallback chain）────────
 
@@ -1386,48 +1383,33 @@ export const imageStudioRouter = router({
           localized?.model_glb?.url ||
           localized?.model_mesh?.url ||
           null;
+        // 統一儲存管線：走 doPostGenComplete 寫入提示詞庫 + 資產庫 + 歷史
+        // + AI 監控室。dedupeMarker 的存在檢查由 doPostGenComplete 自己做
+        // （依 generation_history.compiledPrompt），呼叫端不必再寫一遍。
         const dedupeMarker = `[imageStudio:${input.modelId}:${input.requestId}]`;
         if (primaryUrl) {
-          const database = await getDb();
-          const existed = database
-            ? await database
-                .select({ id: generationHistory.id })
-                .from(generationHistory)
-                .where(
-                  and(
-                    eq(generationHistory.userId, ctx.user.id),
-                    eq(generationHistory.compiledPrompt, dedupeMarker)
-                  )
-                )
-                .limit(1)
-            : [];
-          if (!existed.length) {
-            // 統一儲存管線：走 doPostGenComplete 寫入提示詞庫 + 資產庫 + 歷史
-            // + AI 監控室（與導演 AI / 創意工作室 / 各 webhook 共用）。
-            // dedupeMarker 仍以 compiledPrompt 持久化，下一輪輪詢看到就跳過。
-            const promptText =
-              typeof localized?.prompt === "string"
-                ? localized.prompt
-                : undefined;
-            const estimate = estimatePoints(input.modelId);
-            await doPostGenComplete({
-              userId: ctx.user.id,
-              modality: "image",
-              modelId: input.modelId,
-              prompt: promptText,
-              resultUrl: primaryUrl,
-              label: `Image Studio - ${input.modelId}`.slice(0, 100),
+          const promptText =
+            typeof localized?.prompt === "string"
+              ? localized.prompt
+              : undefined;
+          const estimate = estimatePoints(input.modelId);
+          await doPostGenComplete({
+            userId: ctx.user.id,
+            modality: "image",
+            modelId: input.modelId,
+            prompt: promptText,
+            resultUrl: primaryUrl,
+            label: `Image Studio - ${input.modelId}`.slice(0, 100),
+            sourceStudio: "image",
+            dedupeMarker,
+            parameterSnapshot: {
               sourceStudio: "image",
-              dedupeMarker,
-              parameterSnapshot: {
-                sourceStudio: "image",
-                modelId: input.modelId,
-                requestId: input.requestId,
-              },
-              thumbnailUrl: extractImageUrl(localized) || primaryUrl,
-              costCredits: estimate.totalPoints,
-            });
-          }
+              modelId: input.modelId,
+              requestId: input.requestId,
+            },
+            thumbnailUrl: extractImageUrl(localized) || primaryUrl,
+            costCredits: estimate.totalPoints,
+          });
         }
 
         return {
