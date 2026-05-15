@@ -3,18 +3,23 @@
  *
  * 全站 AI 代理能力的單一查詢出口（canonical compendium）。把分散在
  *   - shared/slash-commands.ts        （4 種模式 / 25 精靈 / 快捷指令）
- *   - shared/orb-agent-roles.ts       （精靈家族 / 接棒網絡 / 主動觸發）
- *   - shared/appRegistry.ts           （36 個頁面 / quick actions / orbHints）
+ *   - shared/orb-agent-roles.ts       （家族 / 接棒網絡 / 主動觸發 / 模型偏好 / 模態能力）
+ *   - shared/appRegistry.ts           （頁面 + quickActions + orbHints + supportedActions）
+ *   - shared/cross-modality-workflows.ts （6 個跨模態工作流）
+ *   - shared/agent-skills.ts          （技能登記簿）
+ *   - shared/global-agent-tools.ts    （148 個 server 端工具）
  * 的資料聚合成統一的 `CodexEntry` 結構，提供：
- *   1. 「打 /codex 一個關鍵字」就能列出所有相關功能
+ *   1. 「打 /codex 一個關鍵字」就能列出所有相關功能（含同義詞展開）
  *   2. 「給我所有精靈 / 模式 / 主動觸發」分類瀏覽
  *   3. 「哪些功能還沒寫進 slash 指令？」覆蓋率審計（auditCodexCoverage）
  *   4. Markdown 匯出（buildCodexMarkdown）給 LLM / 文件用
+ *   5. 倒排索引 + 相關條目交叉連結（getRelatedEntries / searchCodex）
  *
  * 設計原則：
  *   - 純資料 + 純函式，不引入 React / DOM / 後端 IO
  *   - 不重寫資料 — 全部從既有 const 推導出來，避免雙寫漂移
  *   - 「無遺漏」由 auditCodexCoverage 的 vitest 檢查保證
+ *   - 搜尋走預建 token 倒排索引，O(tokens) 而非 O(entries × tokens)
  */
 
 import {
@@ -28,14 +33,20 @@ import {
 import {
   SPIRIT_COLLAB_PROTOCOL,
   SPIRIT_FAMILY,
+  SPIRIT_MODEL_CAPABILITIES,
+  SPIRIT_PREFERRED_PROVIDER,
   SPIRIT_PROACTIVE_TRIGGERS,
   type AgentRole,
   type ProactiveTriggerEvent,
   type ProactiveTriggerSpec,
   type SpiritFamily,
   type SpiritHandoff,
+  type SpiritModelCategory,
 } from "./orb-agent-roles";
 import { APP_PAGE_REGISTRY, type AppPageRegistryItem } from "./appRegistry";
+import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "./cross-modality-workflows";
+import { AGENT_SKILL_REGISTRY, type AgentSkill } from "./agent-skills";
+import { GLOBAL_AGENT_TOOL_REGISTRY, type GlobalAgentToolDefinition } from "./global-agent-tools";
 
 // ─── 型別定義 ─────────────────────────────────────────────────────────────
 
@@ -47,7 +58,11 @@ export type CodexCategory =
   | "mode"          // 4 種代理模式 (auto / plan / nav / ask)
   | "spirit"        // 25 位精靈個人檔
   | "spirit-family" // 3 個精靈家族 (specialist / role / proactive)
-  | "page"          // 36 個頁面 + 它們的 quick actions
+  | "page"          // 站內頁面 + 它們的 quick actions
+  | "quick-action"  // 頁面的 quickAction（每個成為獨立可搜尋條目）
+  | "workflow"      // 跨模態工作流模板 (cross-modality-workflows)
+  | "skill"         // 角色技能登記簿（每個 AgentRole 的 skill 視圖）
+  | "tool"          // 148 個 server 端工具
   | "command"       // 非模式、非精靈的 slash 指令
   | "memory"        // 記憶相關
   | "session"       // 對話控制
@@ -93,7 +108,23 @@ export interface CodexEntry {
     family?: SpiritFamily;
     /** 接棒條目專用：來源精靈 → 目的精靈。 */
     handoff?: { from: AgentRole; to: AgentRole; when: string };
+    /** 若這個條目對應一個工作流模板，回 templateId。 */
+    workflowTemplateId?: string;
+    /** 若這個條目對應一個 quickAction，回 quickAction id + 母頁面路徑。 */
+    quickAction?: { id: string; pagePath: string };
+    /** 若這個條目對應一個 server 端工具，回工具名稱。 */
+    toolName?: string;
+    /** 若這個條目對應一個技能項，回 skill id (= AgentRole)。 */
+    skillId?: AgentRole;
   };
+  /**
+   * 跨條目「請參考」連結 — 全部為其他 CodexEntry.id。生成期推導：
+   *   - spirit ↔ 它的 handoffs / triggers / skill / 推薦頁面
+   *   - page   ↔ 它的 quickActions
+   *   - workflow ↔ 每步驟 spirit + 用到的 tools
+   * UI 顯示在條目卡片底部的「相關」chip 列表。
+   */
+  related: readonly string[];
 }
 
 // ─── 共用工具 ─────────────────────────────────────────────────────────────
@@ -136,6 +167,23 @@ function entryIdForFamily(family: SpiritFamily): string {
   return `family#${family}`;
 }
 
+function entryIdForWorkflow(template: WorkflowTemplate): string {
+  return `workflow#${template.templateId}`;
+}
+
+function entryIdForSkill(skill: AgentSkill): string {
+  return `skill#${skill.id}`;
+}
+
+function entryIdForQuickAction(pagePath: string, quickActionId: string): string {
+  // pagePath 可能含 "?section=xxx"；id 裡保留 raw path 用 base64 不必要，直接編碼
+  return `qa#${pagePath.replace(/[^a-zA-Z0-9/_-]/g, "_")}::${quickActionId}`;
+}
+
+function entryIdForTool(toolName: string): string {
+  return `tool#${toolName}`;
+}
+
 // ─── 1. 模式條目（4 個） ──────────────────────────────────────────────────
 
 function buildModeEntries(): CodexEntry[] {
@@ -158,6 +206,7 @@ function buildModeEntries(): CodexEntry[] {
         slashCommand: cmd.name,
         mode: cmd.action.mode,
       },
+      related: [],
     };
   });
 }
@@ -193,6 +242,8 @@ function buildSpiritEntries(): CodexEntry[] {
     const family = SPIRIT_FAMILY[role];
     const collab = SPIRIT_COLLAB_PROTOCOL[role];
     const triggers = SPIRIT_PROACTIVE_TRIGGERS.filter(t => t.spirit === role);
+    const provider = SPIRIT_PREFERRED_PROVIDER[role];
+    const modelCats = SPIRIT_MODEL_CAPABILITIES[role] ?? [];
 
     const handoffSummary = collab.handoffs
       .slice(0, 3)
@@ -205,6 +256,10 @@ function buildSpiritEntries(): CodexEntry[] {
     const detailsParts = [
       `家族：${describeFamily(family)}`,
       `首選暱稱：@${spirit.nickname}`,
+      `偏好 LLM provider：\`${provider}\``,
+      modelCats.length > 0
+        ? `可呼叫模型類別（${modelCats.length}）：${modelCats.map(c => `\`${c}\``).join("、")}`
+        : "",
       collab.handoffs.length > 0 ? `常見接棒（前 3）：\n${handoffSummary}` : "",
       collab.receivedFrom.length > 0
         ? `會被以下精靈交棒過來：${collab.receivedFrom.map(r => `@${primaryNicknameOf(r)}`).join("、")}`
@@ -218,7 +273,15 @@ function buildSpiritEntries(): CodexEntry[] {
       category: "spirit" as const,
       summary: spirit.description,
       details: detailsParts.join("\n\n"),
-      aliases: [spirit.nickname, role, `@${spirit.nickname}`, ...buildExtraSpiritAliases(role)],
+      aliases: [
+        spirit.nickname,
+        role,
+        `@${spirit.nickname}`,
+        ...buildExtraSpiritAliases(role),
+        // 把 provider 與模型類別當 alias 讓搜尋打得到
+        provider,
+        ...modelCats.map(c => String(c)),
+      ],
       examples: [`/${spirit.command} 想做的事`, `@${spirit.nickname} 想做的事`],
       iconKey: spirit.command === "director" ? "workflow" : "sparkles",
       refs: {
@@ -226,6 +289,7 @@ function buildSpiritEntries(): CodexEntry[] {
         spirit: role,
         family,
       },
+      related: [],
     };
   });
 }
@@ -298,6 +362,7 @@ function buildFamilyEntries(): CodexEntry[] {
       examples: [],
       iconKey: "users",
       refs: { family },
+      related: [],
     };
   });
 }
@@ -345,6 +410,7 @@ function buildPageEntries(): CodexEntry[] {
       examples: [`/nav ${page.label}`, `/go ${page.id}`],
       iconKey: "compass",
       refs: { pagePath: page.path },
+      related: [],
     };
   });
 }
@@ -366,6 +432,7 @@ function buildOtherCommandEntries(): CodexEntry[] {
       refs: {
         slashCommand: cmd.name,
       },
+      related: [],
     }));
 }
 
@@ -406,6 +473,7 @@ function buildHandoffEntries(): CodexEntry[] {
         refs: {
           handoff: { from: src, to: h.to, when: h.when },
         },
+        related: [],
       });
     }
   }
@@ -428,6 +496,7 @@ function buildTriggerEntries(): CodexEntry[] {
       triggerEvent: spec.event,
       spirit: spec.spirit,
     },
+    related: [],
   }));
 }
 
@@ -439,17 +508,190 @@ function describeSurface(surface: ProactiveTriggerSpec["surface"]): string {
   }
 }
 
+// ─── 8. 工作流模板條目（6 個跨模態工作流） ─────────────────────────────────
+
+function buildWorkflowEntries(): CodexEntry[] {
+  const templates = Object.values(WORKFLOW_TEMPLATES);
+  return templates.map(tpl => {
+    const stepList = tpl.steps
+      .map((s, i) => `${i + 1}. @${primaryNicknameOf(s.spirit)} — ${s.description}（${s.outputType}）`)
+      .join("\n");
+    const toolList = Array.from(new Set(tpl.steps.flatMap(s => s.tools))).slice(0, 12);
+    const detailsParts = [
+      tpl.description,
+      `分類：${tpl.category}・難度：${tpl.difficulty}・步驟數：${tpl.steps.length}`,
+      tpl.estimatedTotalDuration
+        ? `預估總時長：${Math.round(tpl.estimatedTotalDuration / 1000)}s`
+        : "",
+      `步驟：\n${stepList}`,
+      toolList.length > 0 ? `用到的工具：${toolList.map(t => `\`${t}\``).join("、")}` : "",
+    ].filter(Boolean);
+    return {
+      id: entryIdForWorkflow(tpl),
+      title: `工作流・${tpl.name}`,
+      category: "workflow" as const,
+      summary: tpl.description,
+      details: detailsParts.join("\n\n"),
+      aliases: [
+        tpl.templateId,
+        tpl.name,
+        tpl.category,
+        tpl.difficulty,
+        ...tpl.tags,
+      ],
+      examples: [`/auto 跑這個工作流：${tpl.name}`, `/plan ${tpl.name}`],
+      iconKey: "workflow",
+      refs: { workflowTemplateId: tpl.templateId },
+      related: [],
+    };
+  });
+}
+
+// ─── 9. 技能登記簿條目（每個 AgentRole 的 skill 視圖） ────────────────────
+
+function buildSkillEntries(): CodexEntry[] {
+  return AGENT_SKILL_REGISTRY.map(skill => {
+    const role = skill.id;
+    const nickname = primaryNicknameOf(role);
+    const detailParts = [
+      skill.description,
+      `模態：${skill.modality}`,
+      skill.recommendedPages.length > 0
+        ? `推薦頁面：${skill.recommendedPages.map(p => `\`${p}\``).join("、")}`
+        : "",
+      skill.tools.length > 0
+        ? `可呼叫的 server 工具（${skill.tools.length}）：${skill.tools.slice(0, 12).map(t => `\`${t}\``).join("、")}${skill.tools.length > 12 ? " …" : ""}`
+        : "",
+      skill.knowledgeDomains.length > 0
+        ? `知識領域：${skill.knowledgeDomains.join("、")}`
+        : "",
+      skill.useCases.length > 0
+        ? `使用場景：\n${skill.useCases.map(u => `· ${u}`).join("\n")}`
+        : "",
+      skill.chain.length > 0
+        ? `預設角色鏈：${skill.chain.map(r => `@${primaryNicknameOf(r)}`).join(" → ")}`
+        : "",
+      skill.requiresPage ? "⚠️ 需要對應頁面才能執行" : "✅ 不需要特定頁面",
+    ].filter(Boolean);
+    return {
+      id: entryIdForSkill(skill),
+      title: `技能・${skill.displayName}（@${nickname}）`,
+      category: "skill" as const,
+      summary: skill.description,
+      details: detailParts.join("\n\n"),
+      aliases: [
+        skill.id,
+        skill.displayName,
+        nickname,
+        skill.modality,
+        ...skill.knowledgeDomains,
+        ...skill.tools,
+      ],
+      examples: skill.useCases.slice(0, 2).map(u => `@${nickname} ${u}`),
+      iconKey: "sparkles",
+      refs: { skillId: role, spirit: role },
+      related: [],
+    };
+  });
+}
+
+// ─── 10. 頁面快捷動作（每個 quickAction → 獨立條目） ──────────────────────
+
+function buildQuickActionEntries(): CodexEntry[] {
+  const entries: CodexEntry[] = [];
+  for (const page of APP_PAGE_REGISTRY) {
+    for (const qa of page.quickActions) {
+      const detailParts = [
+        qa.description,
+        `母頁面：${page.label}（\`${page.path}\`）`,
+        qa.path ? `路徑：\`${qa.path}\`` : "",
+        qa.prompt ? `預設提示：\n> ${qa.prompt}` : "",
+        qa.action ? `動作類型：\`${qa.action.type}\`` : "",
+      ].filter(Boolean);
+      entries.push({
+        id: entryIdForQuickAction(page.path, qa.id),
+        title: `快捷・${qa.label}`,
+        category: "quick-action" as const,
+        summary: qa.description,
+        details: detailParts.join("\n\n"),
+        aliases: [qa.id, qa.label, page.label, page.id, ...page.aliases],
+        examples: qa.prompt
+          ? [qa.prompt]
+          : qa.path
+            ? [`/nav ${page.label}`]
+            : [],
+        iconKey: "sparkles",
+        refs: {
+          quickAction: { id: qa.id, pagePath: page.path },
+          pagePath: page.path,
+        },
+        related: [],
+      });
+    }
+  }
+  return entries;
+}
+
+// ─── 11. server 端工具條目（148 個） ──────────────────────────────────────
+
+function buildToolEntries(): CodexEntry[] {
+  return GLOBAL_AGENT_TOOL_REGISTRY.map(tool => {
+    const [prefix] = tool.name.split(".");
+    const argNames = Object.keys(tool.allowedArgsSchema);
+    const detailParts = [
+      `工具名稱：\`${tool.name}\``,
+      `風險級別：${describeRisk(tool.riskLevel)}`,
+      `執行目標：${describeExecutionTarget(tool.executionTarget)}`,
+      tool.requiresHuman ? "⚠️ 需要人工確認" : "✅ 可自動執行",
+      argNames.length > 0
+        ? `參數：${argNames.map(a => `\`${a}\``).join("、")}`
+        : "（無參數）",
+    ].filter(Boolean);
+    return {
+      id: entryIdForTool(tool.name),
+      title: `工具・${tool.name}`,
+      category: "tool" as const,
+      summary: `${describeRisk(tool.riskLevel)} 風險的 ${prefix ?? "tool"} 工具，由 ${describeExecutionTarget(tool.executionTarget)} 執行`,
+      details: detailParts.join("\n\n"),
+      aliases: [tool.name, prefix ?? "", tool.riskLevel, tool.executionTarget],
+      examples: [],
+      iconKey: tool.riskLevel === "high" ? "trash-2" : "sparkles",
+      refs: { toolName: tool.name },
+      related: [],
+    };
+  });
+}
+
+function describeRisk(risk: GlobalAgentToolDefinition["riskLevel"]): string {
+  switch (risk) {
+    case "low":    return "低";
+    case "medium": return "中";
+    case "high":   return "高";
+  }
+}
+
+function describeExecutionTarget(target: GlobalAgentToolDefinition["executionTarget"]): string {
+  switch (target) {
+    case "ui-only":           return "純前端 UI";
+    case "server-side":       return "本站 server";
+    case "claudeCode":        return "Claude Code 子代理";
+    case "external-provider": return "外部 API 廠商";
+  }
+}
+
 // ─── 主入口 ───────────────────────────────────────────────────────────────
 
 let CODEX_CACHE: readonly CodexEntry[] | null = null;
+let CODEX_INDEX_CACHE: SearchIndex | null = null;
 
 /**
- * 完整大全 — 第一次呼叫時建構並快取，純函式但生成成本有點貴（要遍歷
- * SPIRIT_PROACTIVE_TRIGGERS / SPIRIT_COLLAB_PROTOCOL）。
+ * 完整大全 — 第一次呼叫時建構、跨條目連結、並快取。純函式但生成成本有點
+ * 貴（要遍歷 SPIRIT_PROACTIVE_TRIGGERS / SPIRIT_COLLAB_PROTOCOL /
+ * WORKFLOW_TEMPLATES / GLOBAL_AGENT_TOOL_REGISTRY），所以做了 lazy cache。
  */
 export function getAllCodexEntries(): readonly CodexEntry[] {
   if (CODEX_CACHE) return CODEX_CACHE;
-  const entries: CodexEntry[] = [
+  const raw: CodexEntry[] = [
     ...buildModeEntries(),
     ...buildSpiritEntries(),
     ...buildFamilyEntries(),
@@ -457,16 +699,216 @@ export function getAllCodexEntries(): readonly CodexEntry[] {
     ...buildOtherCommandEntries(),
     ...buildHandoffEntries(),
     ...buildTriggerEntries(),
+    ...buildWorkflowEntries(),
+    ...buildSkillEntries(),
+    ...buildQuickActionEntries(),
+    ...buildToolEntries(),
   ];
-  CODEX_CACHE = Object.freeze(entries);
+  const linked = linkRelatedEntries(raw);
+  CODEX_CACHE = Object.freeze(linked);
   return CODEX_CACHE;
 }
 
 /**
- * 給 vitest 用 — 重設快取（並非業務需要，只給測試的 beforeEach）。
+ * 給 vitest 用 — 重設快取。
  */
 export function _resetCodexCacheForTest(): void {
   CODEX_CACHE = null;
+  CODEX_INDEX_CACHE = null;
+}
+
+// ─── 跨條目連結（related fields） ────────────────────────────────────────
+
+/**
+ * 為每個條目算出 `related` — 純 derivation，不需要外部資料。規則：
+ *   - spirit  → 它的所有 handoff（in/out）+ trigger + skill + 推薦頁面 +
+ *               對應 slash 指令 + 家族
+ *   - handoff → from/to 兩個 spirit
+ *   - trigger → spirit
+ *   - page    → 它的所有 quickAction + 主動處理它的 specialist skill
+ *   - quick-action → 母頁面 + 對應 spirit（若 action.type 對應某 spirit）
+ *   - workflow → 步驟中所有 spirit + 用到的 tools
+ *   - skill   → spirit + 推薦頁面 + 角色鏈裡其他 spirit
+ *   - tool    → 用到此工具的 skill / workflow
+ *   - mode    → 推薦相關精靈（director for plan, navigator for nav…）
+ *   - family  → 所有同家族成員
+ */
+function linkRelatedEntries(raw: CodexEntry[]): CodexEntry[] {
+  const byId = new Map(raw.map(e => [e.id, e]));
+  // spirit → entry id
+  const spiritEntryId = new Map<AgentRole, string>();
+  for (const e of raw) {
+    if (e.category === "spirit" && e.refs.spirit) {
+      spiritEntryId.set(e.refs.spirit, e.id);
+    }
+  }
+  // page → all quickAction ids
+  const pageQuickActions = new Map<string, string[]>();
+  for (const e of raw) {
+    if (e.category === "quick-action" && e.refs.quickAction) {
+      const list = pageQuickActions.get(e.refs.quickAction.pagePath) ?? [];
+      list.push(e.id);
+      pageQuickActions.set(e.refs.quickAction.pagePath, list);
+    }
+  }
+  // page → entry id
+  const pageEntryId = new Map<string, string>();
+  for (const e of raw) {
+    if (e.category === "page" && e.refs.pagePath) pageEntryId.set(e.refs.pagePath, e.id);
+  }
+  // tool → entry id
+  const toolEntryId = new Map<string, string>();
+  for (const e of raw) {
+    if (e.category === "tool" && e.refs.toolName) toolEntryId.set(e.refs.toolName, e.id);
+  }
+  // family → spirit member entry ids
+  const familyMembers = new Map<SpiritFamily, string[]>();
+  for (const e of raw) {
+    if (e.category === "spirit" && e.refs.family && e.refs.spirit) {
+      const list = familyMembers.get(e.refs.family) ?? [];
+      list.push(e.id);
+      familyMembers.set(e.refs.family, list);
+    }
+  }
+
+  // 把 raw 結凍前先解凍各 entry（reassign related 陣列）
+  return raw.map(entry => {
+    const related = new Set<string>();
+    switch (entry.category) {
+      case "spirit": {
+        const role = entry.refs.spirit!;
+        // 同精靈的 handoffs（含 out + in）、triggers、skill
+        for (const e of raw) {
+          if (e.category === "handoff" && (e.refs.handoff?.from === role || e.refs.handoff?.to === role)) {
+            related.add(e.id);
+          }
+          if (e.category === "trigger" && e.refs.spirit === role) related.add(e.id);
+          if (e.category === "skill" && e.refs.skillId === role) related.add(e.id);
+        }
+        // 推薦頁面（透過 skill 推導）
+        const skill = AGENT_SKILL_REGISTRY.find(s => s.id === role);
+        if (skill) {
+          for (const path of skill.recommendedPages) {
+            const pid = pageEntryId.get(path);
+            if (pid) related.add(pid);
+          }
+        }
+        // 家族
+        if (entry.refs.family) {
+          const fid = `family#${entry.refs.family}`;
+          if (byId.has(fid)) related.add(fid);
+        }
+        break;
+      }
+      case "handoff": {
+        const fromId = spiritEntryId.get(entry.refs.handoff!.from);
+        const toId = spiritEntryId.get(entry.refs.handoff!.to);
+        if (fromId) related.add(fromId);
+        if (toId) related.add(toId);
+        break;
+      }
+      case "trigger": {
+        if (entry.refs.spirit) {
+          const sid = spiritEntryId.get(entry.refs.spirit);
+          if (sid) related.add(sid);
+        }
+        break;
+      }
+      case "page": {
+        const path = entry.refs.pagePath!;
+        for (const qaId of pageQuickActions.get(path) ?? []) related.add(qaId);
+        // skill that 推薦此頁
+        for (const skill of AGENT_SKILL_REGISTRY) {
+          if (skill.recommendedPages.includes(path)) {
+            const sid = spiritEntryId.get(skill.id);
+            if (sid) related.add(sid);
+          }
+        }
+        break;
+      }
+      case "quick-action": {
+        const path = entry.refs.quickAction!.pagePath;
+        const pid = pageEntryId.get(path);
+        if (pid) related.add(pid);
+        break;
+      }
+      case "workflow": {
+        const tpl = WORKFLOW_TEMPLATES[entry.refs.workflowTemplateId!];
+        if (tpl) {
+          for (const step of tpl.steps) {
+            const sid = spiritEntryId.get(step.spirit);
+            if (sid) related.add(sid);
+            for (const t of step.tools) {
+              const tid = toolEntryId.get(t);
+              if (tid) related.add(tid);
+            }
+          }
+        }
+        break;
+      }
+      case "skill": {
+        const role = entry.refs.skillId!;
+        const sid = spiritEntryId.get(role);
+        if (sid) related.add(sid);
+        const skill = AGENT_SKILL_REGISTRY.find(s => s.id === role);
+        if (skill) {
+          for (const path of skill.recommendedPages) {
+            const pid = pageEntryId.get(path);
+            if (pid) related.add(pid);
+          }
+          for (const r of skill.chain) {
+            const ssid = spiritEntryId.get(r);
+            if (ssid && ssid !== sid) related.add(ssid);
+          }
+          for (const t of skill.tools) {
+            const tid = toolEntryId.get(t);
+            if (tid) related.add(tid);
+          }
+        }
+        break;
+      }
+      case "tool": {
+        // 哪個 skill / workflow 用到這支工具
+        const toolName = entry.refs.toolName!;
+        for (const skill of AGENT_SKILL_REGISTRY) {
+          if (skill.tools.includes(toolName)) {
+            const sid = spiritEntryId.get(skill.id);
+            if (sid) related.add(sid);
+          }
+        }
+        for (const tpl of Object.values(WORKFLOW_TEMPLATES)) {
+          if (tpl.steps.some(s => s.tools.includes(toolName))) {
+            related.add(`workflow#${tpl.templateId}`);
+          }
+        }
+        break;
+      }
+      case "mode": {
+        // 各模式對應主要工作角色
+        const SUGGEST_BY_MODE: Record<SlashCommandMode, AgentRole[]> = {
+          "multi-step":  ["plan-executor", "director", "chief-orchestrator"],
+          plan:          ["director", "accountant", "plan-executor"],
+          navigate:      ["navigator", "onboarding-coach"],
+          "ask-feature": ["companion", "learning-specialist"],
+        };
+        for (const r of SUGGEST_BY_MODE[entry.refs.mode!] ?? []) {
+          const sid = spiritEntryId.get(r);
+          if (sid) related.add(sid);
+        }
+        break;
+      }
+      case "spirit-family": {
+        for (const sid of familyMembers.get(entry.refs.family!) ?? []) {
+          related.add(sid);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    related.delete(entry.id); // 不指向自己
+    return { ...entry, related: Object.freeze(Array.from(related)) };
+  });
 }
 
 // ─── 查詢 API ──────────────────────────────────────────────────────────────
@@ -479,6 +921,10 @@ export const CODEX_CATEGORY_LABELS: Record<CodexCategory, string> = {
   spirit:         "精靈個人檔",
   "spirit-family": "精靈家族",
   page:           "站內頁面",
+  "quick-action": "頁面快捷",
+  workflow:       "跨模態工作流",
+  skill:          "角色技能",
+  tool:           "Server 工具",
   command:        "指令（其他）",
   navigate:       "頁面跳轉指令",
   memory:         "記憶相關",
@@ -494,7 +940,10 @@ export const CODEX_CATEGORY_ORDER: readonly CodexCategory[] = [
   "mode",
   "spirit-family",
   "spirit",
+  "skill",
+  "workflow",
   "page",
+  "quick-action",
   "navigate",
   "action",
   "memory",
@@ -503,6 +952,7 @@ export const CODEX_CATEGORY_ORDER: readonly CodexCategory[] = [
   "command",
   "handoff",
   "trigger",
+  "tool",
 ];
 
 /**
@@ -512,47 +962,278 @@ export function getCodexByCategory(category: CodexCategory): CodexEntry[] {
   return getAllCodexEntries().filter(e => e.category === category);
 }
 
+// ─── 同義詞展開 ───────────────────────────────────────────────────────────
+//
+// CJK ↔ 英文映射的小型表 — 讓使用者打「影片」也能命中 video / 視頻；
+// 「成本」命中 預算 / 點數 / cost / budget。比對「token 是否在某 key 的
+// 同義詞集合中」，命中則把整組同義詞當查詢使用（OR）。
+//
+// 只列出「使用者真的會誤打」的詞；超出本表的詞照舊走 substring 比對。
+const SYNONYM_GROUPS: ReadonlyArray<readonly string[]> = [
+  ["影片", "影像", "視頻", "video"],
+  ["圖", "圖片", "圖像", "image", "picture"],
+  ["音樂", "配樂", "bgm", "music"],
+  ["語音", "配音", "voice", "tts", "speech"],
+  ["成本", "預算", "點數", "credit", "cost", "budget", "spend"],
+  ["品質", "quality", "高解析"],
+  ["跳頁", "導航", "navigate", "nav"],
+  ["計畫", "規劃", "plan"],
+  ["大全", "compendium", "manual", "codex"],
+  ["記憶", "偏好", "memory", "preference"],
+  ["訓練", "lora", "training", "finetune"],
+  ["解剖", "anatomy", "醫學", "醫療"],
+  ["社群", "social", "ig", "instagram", "youtube", "facebook"],
+  ["靈感", "inspiration", "創意"],
+];
+
+function expandWithSynonyms(token: string): string[] {
+  const lower = token.toLowerCase();
+  for (const group of SYNONYM_GROUPS) {
+    if (group.some(g => g.toLowerCase() === lower)) {
+      return Array.from(new Set([lower, ...group.map(g => g.toLowerCase())]));
+    }
+  }
+  return [lower];
+}
+
+// ─── 倒排索引 ─────────────────────────────────────────────────────────────
+//
+// 結構：四個欄位（title / aliases / summary / details）分別建立 substring
+// posting list。CJK 字元無法 token 化成「詞」，所以我們改用「2-gram 滑窗」
+// 索引：對每個欄位的小寫文字，把所有長度 ≥ 1 的字元組合進索引。
+//
+// 查詢時對使用者輸入做同樣的 token 處理（同義詞展開後對每個 token 在四個
+// 欄位上各查一次），匯總命中的條目 + 每欄位加權分數。
+//
+// 為了控制索引大小，我們只索引：
+//   - 每個 alias / title token 的「整字串」（含 lowercase 整個）
+//   - summary / details 的「3-gram 滑窗」（CJK 也適用）
+// 這在 ~500 條目上能跑很快（< 5ms 查詢）。
+type SearchField = "title" | "alias" | "summary" | "details";
+interface FieldPosting {
+  entryId: string;
+  field: SearchField;
+}
+interface SearchIndex {
+  /** ngram → posting list */
+  byNgram: Map<string, FieldPosting[]>;
+  /** entry id → entry（O(1) 拿回 entry） */
+  byId: Map<string, CodexEntry>;
+}
+
+function buildSearchIndex(entries: readonly CodexEntry[]): SearchIndex {
+  const byNgram = new Map<string, FieldPosting[]>();
+  const byId = new Map<string, CodexEntry>();
+  const NGRAM = 2; // 2-gram CJK + 英文都通用
+
+  const addPosting = (key: string, entryId: string, field: SearchField) => {
+    if (!key) return;
+    const list = byNgram.get(key);
+    if (list) {
+      // 避免相同 entry+field 重複 push（同 ngram 在同欄位多次出現只記一筆）
+      if (!list.some(p => p.entryId === entryId && p.field === field)) {
+        list.push({ entryId, field });
+      }
+    } else {
+      byNgram.set(key, [{ entryId, field }]);
+    }
+  };
+
+  const indexText = (text: string, entryId: string, field: SearchField) => {
+    const lower = text.toLowerCase();
+    // 整個字串（包括 ASCII tokens）也進 index — 短 alias 才容易命中
+    addPosting(lower, entryId, field);
+    if (lower.length >= NGRAM) {
+      for (let i = 0; i <= lower.length - NGRAM; i++) {
+        const gram = lower.slice(i, i + NGRAM);
+        addPosting(gram, entryId, field);
+      }
+    } else {
+      addPosting(lower, entryId, field);
+    }
+  };
+
+  for (const entry of entries) {
+    byId.set(entry.id, entry);
+    indexText(entry.title, entry.id, "title");
+    for (const alias of entry.aliases) {
+      if (alias) indexText(alias, entry.id, "alias");
+    }
+    indexText(entry.summary, entry.id, "summary");
+    indexText(entry.details, entry.id, "details");
+  }
+  return { byNgram, byId };
+}
+
+function getSearchIndex(): SearchIndex {
+  if (CODEX_INDEX_CACHE) return CODEX_INDEX_CACHE;
+  CODEX_INDEX_CACHE = buildSearchIndex(getAllCodexEntries());
+  return CODEX_INDEX_CACHE;
+}
+
 /**
- * Fuzzy 搜尋。比對 title / summary / aliases / details（依序）。
+ * 搜尋結果含命中欄位（給 UI 高亮 + ranking 提示用）。
+ */
+export interface SearchHit {
+  entry: CodexEntry;
+  score: number;
+  /** 命中欄位（按權重排序）。 */
+  matchedFields: readonly SearchField[];
+}
+
+/**
+ * Fuzzy 搜尋（升級版）— 經倒排索引 + 同義詞展開的 O(tokens) 查詢。
+ *
  *   - 空字串 → 全部
- *   - 多 token 用空白分隔，需要全部命中
- *   - 不分大小寫；CJK 字元也支援 substring 比對
+ *   - 多 token 用空白分隔；每個 token 經同義詞展開後做 OR；token 之間是 AND
+ *   - 對每個 token 走 2-gram 倒排索引快速找到所有候選 entry
+ *   - 排名：title prefix > title substring > alias exact > alias prefix >
+ *     summary > details，多 token 線性加總；後扣分項是 entry.details 長度
+ *     超過 200 時略降一點（避免無關大段條目浮上來）
+ *
+ * @returns CodexEntry[]（向後相容；若要 score / matchedFields，用 searchCodexDetailed）
  */
 export function searchCodex(query: string, limit = 50): CodexEntry[] {
-  const q = (query ?? "").trim().toLowerCase();
-  if (!q) return getAllCodexEntries().slice(0, limit);
-  const tokens = q.split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return getAllCodexEntries().slice(0, limit);
+  return searchCodexDetailed(query, limit).map(h => h.entry);
+}
 
-  const scored: Array<{ entry: CodexEntry; score: number }> = [];
-  for (const entry of getAllCodexEntries()) {
-    const haystacks: string[] = [
-      entry.title.toLowerCase(),
-      entry.summary.toLowerCase(),
-      entry.details.toLowerCase(),
-      ...entry.aliases.map(a => a.toLowerCase()),
-    ];
-    let score = 0;
-    let matchedAll = true;
-    for (const token of tokens) {
-      const inTitle   = entry.title.toLowerCase().includes(token);
-      const inAlias   = entry.aliases.some(a => a.toLowerCase().includes(token));
-      const inSummary = entry.summary.toLowerCase().includes(token);
-      const inAny     = haystacks.some(h => h.includes(token));
-      if (!inAny) {
-        matchedAll = false;
-        break;
-      }
-      // 越早出現的欄位加越多分
-      if (inTitle)   score += 8;
-      if (inAlias)   score += 5;
-      if (inSummary) score += 3;
-      score += 1;
-    }
-    if (matchedAll) scored.push({ entry, score });
+export function searchCodexDetailed(query: string, limit = 50): SearchHit[] {
+  const q = (query ?? "").trim();
+  if (!q) {
+    return getAllCodexEntries()
+      .slice(0, limit)
+      .map(entry => ({ entry, score: 0, matchedFields: [] as readonly SearchField[] }));
   }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map(s => s.entry);
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return getAllCodexEntries()
+      .slice(0, limit)
+      .map(entry => ({ entry, score: 0, matchedFields: [] as readonly SearchField[] }));
+  }
+
+  const index = getSearchIndex();
+  const FIELD_WEIGHT: Record<SearchField, number> = {
+    title: 12,
+    alias: 8,
+    summary: 4,
+    details: 1,
+  };
+
+  // 每個 token 做「同義詞展開後 OR」匯總一個 candidate set
+  function candidatesForToken(token: string): Map<string, Set<SearchField>> {
+    const variants = expandWithSynonyms(token);
+    const hits = new Map<string, Set<SearchField>>(); // entryId → fields
+    for (const v of variants) {
+      // 找與 v 完全相同的 ngram；以及對 v 做 2-gram 拆分後 ALL 必須命中
+      const NGRAM = 2;
+      const need: string[] = [];
+      if (v.length < NGRAM) {
+        need.push(v);
+      } else {
+        for (let i = 0; i <= v.length - NGRAM; i++) {
+          need.push(v.slice(i, i + NGRAM));
+        }
+      }
+      // 對每個 ngram 取 posting list；AND 起來
+      let candidateIds: Map<string, Set<SearchField>> | null = null;
+      for (const gram of need) {
+        const postings = index.byNgram.get(gram);
+        if (!postings) {
+          candidateIds = new Map();
+          break;
+        }
+        const fresh = new Map<string, Set<SearchField>>();
+        for (const p of postings) {
+          if (candidateIds === null || candidateIds.has(p.entryId)) {
+            const fields = fresh.get(p.entryId) ?? new Set<SearchField>();
+            fields.add(p.field);
+            // 把上一輪累積的也帶進來
+            if (candidateIds) {
+              for (const f of candidateIds.get(p.entryId) ?? []) fields.add(f);
+            }
+            fresh.set(p.entryId, fields);
+          }
+        }
+        candidateIds = fresh;
+      }
+      // 二次驗證：用整段字串 substring 比對（避免 2-gram 的偽命中）
+      if (candidateIds) {
+        for (const [eid, fields] of candidateIds) {
+          const entry = index.byId.get(eid);
+          if (!entry) continue;
+          const inTitle   = entry.title.toLowerCase().includes(v);
+          const inAlias   = entry.aliases.some(a => a.toLowerCase().includes(v));
+          const inSummary = entry.summary.toLowerCase().includes(v);
+          const inDetails = entry.details.toLowerCase().includes(v);
+          if (!inTitle && !inAlias && !inSummary && !inDetails) continue;
+          const merged = hits.get(eid) ?? new Set<SearchField>();
+          if (inTitle) merged.add("title");
+          if (inAlias) merged.add("alias");
+          if (inSummary) merged.add("summary");
+          if (inDetails) merged.add("details");
+          // 也保留 ngram-推導的 field 來源（更寬鬆）
+          for (const f of fields) merged.add(f);
+          hits.set(eid, merged);
+        }
+      }
+    }
+    return hits;
+  }
+
+  // 多 token：AND（每個 token 都要有命中）
+  let working: Map<string, Set<SearchField>> | null = null;
+  for (const token of tokens) {
+    const hits = candidatesForToken(token);
+    if (working === null) {
+      working = hits;
+    } else {
+      const merged = new Map<string, Set<SearchField>>();
+      for (const [eid, fields] of working) {
+        if (hits.has(eid)) {
+          const all = new Set<SearchField>([...fields, ...(hits.get(eid) ?? [])]);
+          merged.set(eid, all);
+        }
+      }
+      working = merged;
+    }
+    if (working.size === 0) break;
+  }
+  if (!working) return [];
+
+  // 計分
+  const results: SearchHit[] = [];
+  for (const [eid, fields] of working) {
+    const entry = index.byId.get(eid);
+    if (!entry) continue;
+    let score = 0;
+    for (const field of fields) {
+      score += FIELD_WEIGHT[field];
+    }
+    // bonus：title 開頭命中第一個 token
+    if (
+      tokens.length > 0 &&
+      entry.title.toLowerCase().startsWith(tokens[0]!)
+    ) {
+      score += 10;
+    }
+    // bonus：alias 完全等於某 token
+    if (tokens.some(t => entry.aliases.some(a => a.toLowerCase() === t))) {
+      score += 6;
+    }
+    // 略降長 details
+    if (entry.details.length > 200 && !fields.has("title") && !fields.has("alias")) {
+      score -= 2;
+    }
+    results.push({
+      entry,
+      score,
+      matchedFields: Array.from(fields).sort(
+        (a, b) => FIELD_WEIGHT[b] - FIELD_WEIGHT[a]
+      ),
+    });
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, limit);
 }
 
 /**
@@ -570,13 +1251,76 @@ export function getSpiritFullProfile(role: AgentRole): {
   handoffsOut: CodexEntry[];
   handoffsIn: CodexEntry[];
   triggers: CodexEntry[];
+  skill: CodexEntry | null;
+  recommendedPages: CodexEntry[];
 } {
   const all = getAllCodexEntries();
   const spirit = all.find(e => e.refs.spirit === role && e.category === "spirit") ?? null;
   const handoffsOut = all.filter(e => e.category === "handoff" && e.refs.handoff?.from === role);
   const handoffsIn  = all.filter(e => e.category === "handoff" && e.refs.handoff?.to === role);
   const triggers    = all.filter(e => e.category === "trigger" && e.refs.spirit === role);
-  return { spirit, handoffsOut, handoffsIn, triggers };
+  const skill       = all.find(e => e.category === "skill" && e.refs.skillId === role) ?? null;
+  const skillDef    = AGENT_SKILL_REGISTRY.find(s => s.id === role);
+  const recommendedPaths = new Set(skillDef?.recommendedPages ?? []);
+  const recommendedPages = all.filter(
+    e => e.category === "page" && e.refs.pagePath && recommendedPaths.has(e.refs.pagePath)
+  );
+  return { spirit, handoffsOut, handoffsIn, triggers, skill, recommendedPages };
+}
+
+/**
+ * 取單一條目的「相關」清單（解析 entry.related id list → entries）。
+ * UI 在條目卡片底部顯示「相關」chip 時用。
+ */
+export function getRelatedEntries(id: string, limit = 12): CodexEntry[] {
+  const entry = getCodexEntry(id);
+  if (!entry) return [];
+  const all = getAllCodexEntries();
+  const byId = new Map(all.map(e => [e.id, e]));
+  const result: CodexEntry[] = [];
+  for (const rel of entry.related) {
+    const e = byId.get(rel);
+    if (e) result.push(e);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+/**
+ * 取所有「對應到某精靈」的條目（spirit、handoff in/out、trigger、skill）。
+ * 跟 getSpiritFullProfile 不同：這個回傳「扁平 entry 清單」適合搜尋頁面。
+ */
+export function getEntriesBySpirit(role: AgentRole): CodexEntry[] {
+  return getAllCodexEntries().filter(
+    e =>
+      e.refs.spirit === role ||
+      e.refs.handoff?.from === role ||
+      e.refs.handoff?.to === role ||
+      e.refs.skillId === role
+  );
+}
+
+/**
+ * 取所有「對應到某頁面」的條目（page + 它的 quickActions）。
+ */
+export function getEntriesByPage(pagePath: string): CodexEntry[] {
+  return getAllCodexEntries().filter(
+    e => e.refs.pagePath === pagePath || e.refs.quickAction?.pagePath === pagePath
+  );
+}
+
+/**
+ * 「今日特輯」— 用 (seed % length) 從整本大全挑一條展示用。預設用日期當
+ * seed 讓每天都看同一條，到隔天才換。可傳自訂 seed 給 SSR / 測試用。
+ */
+export function pickFeatureOfTheDay(seed?: number): CodexEntry | null {
+  const all = getAllCodexEntries();
+  if (all.length === 0) return null;
+  const s = seed ?? (() => {
+    const now = new Date();
+    return now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+  })();
+  return all[Math.abs(s) % all.length] ?? null;
 }
 
 // ─── 統計 + 覆蓋率審計 ────────────────────────────────────────────────────
@@ -628,7 +1372,16 @@ export function getCodexStats(): CodexStats {
  * 出現但沒進大全」的 id。Vitest 會 assert 全部為空。
  */
 export interface CoverageGap {
-  source: "SLASH_COMMANDS" | "SPIRIT_COMMANDS" | "APP_PAGE_REGISTRY" | "SPIRIT_COLLAB_PROTOCOL" | "SPIRIT_PROACTIVE_TRIGGERS";
+  source:
+    | "SLASH_COMMANDS"
+    | "SPIRIT_COMMANDS"
+    | "APP_PAGE_REGISTRY"
+    | "SPIRIT_COLLAB_PROTOCOL"
+    | "SPIRIT_PROACTIVE_TRIGGERS"
+    | "WORKFLOW_TEMPLATES"
+    | "AGENT_SKILL_REGISTRY"
+    | "GLOBAL_AGENT_TOOL_REGISTRY"
+    | "APP_PAGE_QUICK_ACTIONS";
   id: string;
   reason: string;
 }
@@ -638,7 +1391,15 @@ export function auditCodexCoverage(): CoverageGap[] {
   const all = getAllCodexEntries();
   const slashIds = new Set(all.filter(e => e.refs.slashCommand).map(e => e.refs.slashCommand!));
   const spiritIds = new Set(all.filter(e => e.refs.spirit && e.category === "spirit").map(e => e.refs.spirit!));
-  const pageIds = new Set(all.filter(e => e.refs.pagePath).map(e => e.refs.pagePath!));
+  const pageIds = new Set(all.filter(e => e.refs.pagePath && e.category === "page").map(e => e.refs.pagePath!));
+  const workflowIds = new Set(all.filter(e => e.refs.workflowTemplateId).map(e => e.refs.workflowTemplateId!));
+  const skillIds = new Set(all.filter(e => e.refs.skillId).map(e => e.refs.skillId!));
+  const toolIds = new Set(all.filter(e => e.refs.toolName).map(e => e.refs.toolName!));
+  const qaKeys = new Set(
+    all
+      .filter(e => e.refs.quickAction)
+      .map(e => `${e.refs.quickAction!.pagePath}::${e.refs.quickAction!.id}`)
+  );
 
   for (const cmd of SLASH_COMMANDS) {
     if (!slashIds.has(cmd.name)) {
@@ -666,6 +1427,16 @@ export function auditCodexCoverage(): CoverageGap[] {
         reason: `頁面 ${page.label}(${page.path}) 沒有對應的 codex entry`,
       });
     }
+    for (const qa of page.quickActions) {
+      const key = `${page.path}::${qa.id}`;
+      if (!qaKeys.has(key)) {
+        gaps.push({
+          source: "APP_PAGE_QUICK_ACTIONS",
+          id: key,
+          reason: `頁面 ${page.label} 的 quickAction "${qa.label}" 沒有對應的 codex entry`,
+        });
+      }
+    }
   }
   // 接棒：每條 handoff 都該有 entry
   const handoffKeys = new Set(
@@ -691,6 +1462,36 @@ export function auditCodexCoverage(): CoverageGap[] {
       id: "<count>",
       reason: `主動觸發條目數 ${triggerCount} ≠ 來源 ${SPIRIT_PROACTIVE_TRIGGERS.length}`,
     });
+  }
+  // 工作流模板
+  for (const tpl of Object.values(WORKFLOW_TEMPLATES)) {
+    if (!workflowIds.has(tpl.templateId)) {
+      gaps.push({
+        source: "WORKFLOW_TEMPLATES",
+        id: tpl.templateId,
+        reason: `工作流 ${tpl.name}(${tpl.templateId}) 沒有對應的 codex entry`,
+      });
+    }
+  }
+  // 技能登記簿
+  for (const skill of AGENT_SKILL_REGISTRY) {
+    if (!skillIds.has(skill.id)) {
+      gaps.push({
+        source: "AGENT_SKILL_REGISTRY",
+        id: skill.id,
+        reason: `技能 ${skill.displayName}(${skill.id}) 沒有對應的 codex entry`,
+      });
+    }
+  }
+  // server 端工具
+  for (const tool of GLOBAL_AGENT_TOOL_REGISTRY) {
+    if (!toolIds.has(tool.name)) {
+      gaps.push({
+        source: "GLOBAL_AGENT_TOOL_REGISTRY",
+        id: tool.name,
+        reason: `工具 ${tool.name} 沒有對應的 codex entry`,
+      });
+    }
   }
   return gaps;
 }

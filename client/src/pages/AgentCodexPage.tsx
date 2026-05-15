@@ -1,18 +1,20 @@
 /**
- * AgentCodexPage — 光球 AI 代理代碼大全
+ * AgentCodexPage — 光球 AI 代理代碼大全（深度版）
  *
- * 把 shared/agent-codex 的條目以卡片清單呈現。支援：
- *   - 上方搜尋框（同步進 URL ?q=）
- *   - 左側分類 chip（一鍵切換 / 跳到分類錨點）
- *   - 條目卡片：title + summary + aliases + examples（點 example 帶回光球輸入框）
- *   - 上方「複製為 markdown」按鈕（給 LLM 當 system prompt 補丁用）
+ * 把 shared/agent-codex 的 ~480 條目以卡片清單呈現。支援：
+ *   - 上方搜尋框（同步進 URL ?q=；同義詞展開）
+ *   - 上方分類 chip（一鍵切換）
+ *   - 「今日特輯」隨機條目（每日固定一條）
+ *   - 條目卡片：title + summary + aliases + examples + 相關條目 chips
+ *   - 命中欄位高亮（title 命中標粗體 / underline）
+ *   - 上方「複製為 markdown」按鈕
+ *   - URL hash 深連結（/codex#spirit#director → 滾動到該卡片並 highlight）
  *
  * 設計重點：
  *   - 純前端讀取共用大全資料；無 backend 呼叫，可離線顯示
- *   - 跟 /command-palette 一致的鍵盤可用性（Esc 清搜尋、Enter 跳第一個條目）
  *   - 條目順序與 CODEX_CATEGORY_ORDER 對齊，UI 永遠跟 source-of-truth 同步
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import {
@@ -20,6 +22,7 @@ import {
   Copy,
   Search,
   Sparkles,
+  Star,
   X,
 } from "lucide-react";
 
@@ -28,10 +31,14 @@ import {
   CODEX_CATEGORY_ORDER,
   buildCodexMarkdown,
   getAllCodexEntries,
+  getCodexEntry,
   getCodexStats,
-  searchCodex,
+  getRelatedEntries,
+  pickFeatureOfTheDay,
+  searchCodexDetailed,
   type CodexCategory,
   type CodexEntry,
+  type SearchHit,
 } from "../../../shared/agent-codex";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +49,7 @@ import { cn } from "@/lib/utils";
 
 const PAGE_TITLE = "光球 AI 代理・代碼大全";
 const PAGE_SUBTITLE =
-  "把 25 位精靈、36 個頁面、所有 / 指令、接棒網絡、主動觸發收攏成一份可搜尋的全圖。打 /codex 也能進來。";
+  "25 精靈・25 技能・36 頁面・6 工作流・148 工具・126 接棒・16 主動觸發 — 一份可搜尋的全圖。打 /codex 也能進來。";
 
 function readInitialQuery(): string {
   if (typeof window === "undefined") return "";
@@ -50,10 +57,17 @@ function readInitialQuery(): string {
   return params.get("q")?.trim() ?? "";
 }
 
+function readInitialHash(): string {
+  if (typeof window === "undefined") return "";
+  return decodeURIComponent(window.location.hash.replace(/^#/, ""));
+}
+
 export default function AgentCodexPage() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState(readInitialQuery);
   const [activeCategory, setActiveCategory] = useState<CodexCategory | "all">("all");
+  const [highlightedId, setHighlightedId] = useState<string>(readInitialHash);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // URL <-> state 同步：搜尋字串變化時更新 ?q=（不污染 history）
   useEffect(() => {
@@ -65,42 +79,72 @@ export default function AgentCodexPage() {
       params.delete("q");
     }
     const next = params.toString();
-    const nextUrl = next ? `/codex?${next}` : "/codex";
-    if (window.location.pathname + window.location.search !== nextUrl) {
+    const hash = highlightedId ? `#${encodeURIComponent(highlightedId)}` : window.location.hash;
+    const nextUrl = `/codex${next ? `?${next}` : ""}${hash}`;
+    if (window.location.pathname + window.location.search + window.location.hash !== nextUrl) {
       window.history.replaceState(null, "", nextUrl);
     }
-  }, [query]);
+  }, [query, highlightedId]);
+
+  // 進站時若有 hash → 捲到對應卡片
+  useEffect(() => {
+    if (!highlightedId) return;
+    const el = cardRefs.current.get(highlightedId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // 5 秒後解除 highlight（避免長期紅框）
+      const t = setTimeout(() => setHighlightedId(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [highlightedId]);
 
   const stats = useMemo(() => getCodexStats(), []);
+  const featureOfDay = useMemo(() => pickFeatureOfTheDay(), []);
 
-  // 搜尋結果（query 為空時退回 all）
-  const filteredEntries = useMemo<readonly CodexEntry[]>(() => {
-    const base = query.trim() ? searchCodex(query, 500) : getAllCodexEntries();
-    if (activeCategory === "all") return base;
-    return base.filter(e => e.category === activeCategory);
-  }, [query, activeCategory]);
+  // 搜尋結果含命中欄位資訊
+  const searchHits = useMemo<readonly SearchHit[]>(() => {
+    if (!query.trim()) {
+      return getAllCodexEntries().map(entry => ({
+        entry,
+        score: 0,
+        matchedFields: [] as readonly ("title" | "alias" | "summary" | "details")[],
+      }));
+    }
+    return searchCodexDetailed(query, 500);
+  }, [query]);
+
+  const filteredHits = useMemo(() => {
+    if (activeCategory === "all") return searchHits;
+    return searchHits.filter(h => h.entry.category === activeCategory);
+  }, [searchHits, activeCategory]);
+
+  const matchedFieldsById = useMemo(() => {
+    const m = new Map<string, readonly ("title" | "alias" | "summary" | "details")[]>();
+    for (const h of searchHits) m.set(h.entry.id, h.matchedFields);
+    return m;
+  }, [searchHits]);
 
   // 依分類分群（保留 CODEX_CATEGORY_ORDER 順序）
   const grouped = useMemo(() => {
     const byCat = new Map<CodexCategory, CodexEntry[]>();
-    for (const entry of filteredEntries) {
-      const list = byCat.get(entry.category) ?? [];
-      list.push(entry);
-      byCat.set(entry.category, list);
+    for (const hit of filteredHits) {
+      const list = byCat.get(hit.entry.category) ?? [];
+      list.push(hit.entry);
+      byCat.set(hit.entry.category, list);
     }
     return CODEX_CATEGORY_ORDER
       .map(cat => ({ category: cat, entries: byCat.get(cat) ?? [] }))
       .filter(g => g.entries.length > 0);
-  }, [filteredEntries]);
+  }, [filteredHits]);
 
   const handleCopyMarkdown = async () => {
     try {
       const md = buildCodexMarkdown(
-        query.trim() ? { entries: filteredEntries } : undefined
+        query.trim() ? { entries: filteredHits.map(h => h.entry) } : undefined
       );
       if (typeof navigator !== "undefined" && navigator.clipboard) {
         await navigator.clipboard.writeText(md);
-        toast.success("已複製大全 markdown 到剪貼簿");
+        toast.success(`已複製大全 markdown 到剪貼簿（${filteredHits.length} 條）`);
       } else {
         toast.error("此瀏覽器不支援剪貼簿 API");
       }
@@ -110,8 +154,7 @@ export default function AgentCodexPage() {
   };
 
   const handleNavigateExample = (example: string, entry: CodexEntry) => {
-    // 若是 navigate 類，直接跳；否則把例子塞進 chat 輸入框（透過 hash event）
-    if (entry.refs.pagePath) {
+    if (entry.refs.pagePath && !entry.refs.quickAction) {
       setLocation(entry.refs.pagePath);
       return;
     }
@@ -121,6 +164,19 @@ export default function AgentCodexPage() {
       );
     }
     toast.info(`已預填到光球輸入框：${example}`);
+  };
+
+  const handleJumpToEntry = (id: string) => {
+    setHighlightedId(id);
+    setActiveCategory("all"); // 確保跳過去能看到
+  };
+
+  const registerCardRef = (id: string) => (el: HTMLDivElement | null) => {
+    if (el) {
+      cardRefs.current.set(id, el);
+    } else {
+      cardRefs.current.delete(id);
+    }
   };
 
   return (
@@ -134,6 +190,29 @@ export default function AgentCodexPage() {
       </header>
 
       <CodexStatsBar stats={stats} />
+
+      {featureOfDay && !query.trim() && (
+        <Card className="mb-4 border-violet-200 dark:border-violet-900 bg-gradient-to-r from-violet-50/50 to-pink-50/50 dark:from-violet-950/30 dark:to-pink-950/30">
+          <CardContent className="py-3 px-4 flex items-start gap-3">
+            <Star className="h-5 w-5 text-violet-500 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs uppercase text-violet-600 dark:text-violet-300 mb-1">
+                今日特輯
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium hover:underline text-left"
+                onClick={() => handleJumpToEntry(featureOfDay.id)}
+              >
+                {featureOfDay.title}
+              </button>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                {featureOfDay.summary}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="sticky top-0 z-10 bg-background/85 backdrop-blur-md py-3 mb-4 border-b">
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
@@ -179,7 +258,7 @@ export default function AgentCodexPage() {
             <CategoryChip
               label="全部"
               active={activeCategory === "all"}
-              count={filteredEntries.length}
+              count={filteredHits.length}
               onClick={() => setActiveCategory("all")}
             />
             {CODEX_CATEGORY_ORDER.map(cat => {
@@ -199,7 +278,7 @@ export default function AgentCodexPage() {
         </ScrollArea>
       </div>
 
-      {filteredEntries.length === 0 ? (
+      {filteredHits.length === 0 ? (
         <Card className="bg-muted/30">
           <CardContent className="py-12 text-center text-muted-foreground">
             <Sparkles className="h-10 w-10 mx-auto mb-3 opacity-50" />
@@ -223,7 +302,11 @@ export default function AgentCodexPage() {
                   <EntryCard
                     key={entry.id}
                     entry={entry}
+                    matchedFields={matchedFieldsById.get(entry.id) ?? []}
+                    isHighlighted={entry.id === highlightedId}
                     onPickExample={handleNavigateExample}
+                    onJumpToEntry={handleJumpToEntry}
+                    registerRef={registerCardRef(entry.id)}
                   />
                 ))}
               </div>
@@ -289,56 +372,108 @@ function CategoryChip({
   );
 }
 
+type MatchField = "title" | "alias" | "summary" | "details";
+
 function EntryCard({
   entry,
+  matchedFields,
+  isHighlighted,
   onPickExample,
+  onJumpToEntry,
+  registerRef,
 }: {
   entry: CodexEntry;
+  matchedFields: readonly MatchField[];
+  isHighlighted: boolean;
   onPickExample: (example: string, entry: CodexEntry) => void;
+  onJumpToEntry: (id: string) => void;
+  registerRef: (el: HTMLDivElement | null) => void;
 }) {
+  const titleMatched = matchedFields.includes("title");
+  const aliasMatched = matchedFields.includes("alias");
+  const related = entry.related.length > 0 ? getRelatedEntries(entry.id, 6) : [];
+
   return (
-    <Card className="h-full hover:shadow-md transition-shadow">
-      <CardContent className="py-4 px-4 space-y-2">
-        <div className="font-medium text-sm leading-snug break-words">
-          {entry.title}
-        </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          {entry.summary}
-        </p>
-        {entry.aliases.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {entry.aliases.slice(0, 5).map(alias => (
-              <Badge key={alias} variant="outline" className="text-[10px] py-0">
-                {alias}
-              </Badge>
-            ))}
-          </div>
+    <div ref={registerRef} className="h-full">
+      <Card
+        className={cn(
+          "h-full hover:shadow-md transition-shadow",
+          isHighlighted &&
+            "ring-2 ring-violet-500 ring-offset-2 ring-offset-background animate-pulse"
         )}
-        {entry.examples.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {entry.examples.slice(0, 3).map(ex => (
-              <button
-                key={ex}
-                type="button"
-                onClick={() => onPickExample(ex, entry)}
-                className="text-[11px] px-2 py-0.5 rounded bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-950/70 transition-colors"
-              >
-                {ex}
-              </button>
-            ))}
+      >
+        <CardContent className="py-4 px-4 space-y-2">
+          <div
+            className={cn(
+              "font-medium text-sm leading-snug break-words",
+              titleMatched && "underline decoration-violet-500 decoration-2 underline-offset-2"
+            )}
+          >
+            {entry.title}
           </div>
-        )}
-        {entry.details && entry.details !== entry.summary && (
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer hover:text-foreground py-1">
-              展開細節
-            </summary>
-            <div className="mt-1 pl-2 border-l border-border whitespace-pre-line leading-relaxed">
-              {entry.details}
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {entry.summary}
+          </p>
+          {entry.aliases.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {entry.aliases.slice(0, 5).map(alias => (
+                <Badge
+                  key={alias}
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] py-0",
+                    aliasMatched && "border-violet-500/60 text-violet-700 dark:text-violet-300"
+                  )}
+                >
+                  {alias}
+                </Badge>
+              ))}
             </div>
-          </details>
-        )}
-      </CardContent>
-    </Card>
+          )}
+          {entry.examples.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {entry.examples.slice(0, 3).map(ex => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => onPickExample(ex, entry)}
+                  className="text-[11px] px-2 py-0.5 rounded bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-950/70 transition-colors"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          )}
+          {entry.details && entry.details !== entry.summary && (
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground py-1">
+                展開細節
+              </summary>
+              <div className="mt-1 pl-2 border-l border-border whitespace-pre-line leading-relaxed">
+                {entry.details}
+              </div>
+            </details>
+          )}
+          {related.length > 0 && (
+            <div className="pt-2 border-t border-border/40">
+              <div className="text-[10px] uppercase text-muted-foreground mb-1">相關</div>
+              <div className="flex flex-wrap gap-1">
+                {related.map(rel => (
+                  <button
+                    key={rel.id}
+                    type="button"
+                    onClick={() => onJumpToEntry(rel.id)}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 hover:bg-muted text-foreground/80 hover:text-foreground transition-colors max-w-[180px] truncate"
+                    title={rel.title}
+                  >
+                    {rel.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
