@@ -22,6 +22,7 @@ export type {
   FactCheckSource,
   ModelAvailability,
   FactCheckMeta,
+  LatencyClass,
 } from "../../../shared/aiModelsCatalog";
 
 export {

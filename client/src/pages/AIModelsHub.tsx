@@ -79,11 +79,19 @@ import {
   sortByLatest,
   computeFactCheckStatus,
   type AIModelEntry,
+  type LatencyClass,
   type ModelModality,
   type ModelProvider,
   type ModelTier,
   type FactCheckStatus,
 } from "@/data/aiModelsCatalog";
+
+const LATENCY_LABELS: Record<LatencyClass, string> = {
+  realtime: "即時 (<1s)",
+  fast: "快速 (1-3s)",
+  standard: "標準 (3-10s)",
+  slow: "深度 (>10s)",
+};
 
 // ─── Modality tabs config ──────────────────────────────────────────────────
 
@@ -798,7 +806,7 @@ function ModelDetailModal({
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-6 space-y-6">
             {/* Spec strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="text-[10px] text-gray-400 uppercase tracking-wider">
                   發佈時間
@@ -825,6 +833,50 @@ function ModelDetailModal({
                   {model.openWeight ? "開源權重" : "閉源 / API"}
                 </div>
               </div>
+              {model.trainingCutoff && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    訓練截止
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                    {formatReleaseDate(model.trainingCutoff)}
+                  </div>
+                </div>
+              )}
+              {model.latencyClass && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    回應延遲
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                    {LATENCY_LABELS[model.latencyClass]}
+                  </div>
+                </div>
+              )}
+              {model.languages && model.languages.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    主要語言
+                  </div>
+                  <div
+                    className="text-sm font-medium text-gray-800 mt-0.5 truncate"
+                    title={model.languages.join(" · ")}
+                  >
+                    {model.languages.slice(0, 3).join(" · ")}
+                    {model.languages.length > 3 ? ` +${model.languages.length - 3}` : ""}
+                  </div>
+                </div>
+              )}
+              {model.region && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3 sm:col-span-2">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    地區備註
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                    {model.region}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Description */}
