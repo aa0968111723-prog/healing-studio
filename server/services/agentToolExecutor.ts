@@ -2143,7 +2143,9 @@ async function dispatchStudioTool(
       case "accountant.estimate":
       case "accountant.compare":
       case "accountant.usage":
-      case "accountant.savings": {
+      case "accountant.savings":
+      case "accountant.workflowEstimate":
+      case "accountant.budgetForecast": {
         const accountantResult = await dispatchAccountantTool(call, opts);
         return accountantResult;
       }
@@ -2156,6 +2158,8 @@ async function dispatchStudioTool(
       case "imageSpecialist.edit":
       case "imageSpecialist.upscale":
       case "imageSpecialist.getModels":
+      case "imageSpecialist.recommendModel":
+      case "imageSpecialist.enhancePrompt":
       case "imageSpecialist.getTips": {
         const imageResult = await dispatchImageSpecialistTool(call, opts);
         return imageResult;
@@ -2404,6 +2408,8 @@ async function dispatchAccountantTool(
     compareModels,
     getMonthlyUsage,
     suggestSavings,
+    workflowEstimate,
+    getBudgetForecast,
   } = await import("./spiritTools/accountantTools");
   const { MODEL_PRICING_CATALOG } = await import("./modelPricing");
 
@@ -2471,6 +2477,54 @@ async function dispatchAccountantTool(
           imageCount: typeof args.imageCount === "number" ? args.imageCount : undefined,
           limit: typeof args.limit === "number" ? args.limit : undefined,
         });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.workflowEstimate": {
+        const stepsRaw = Array.isArray(args.steps) ? args.steps : null;
+        if (!stepsRaw || stepsRaw.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "steps[] is required and must contain at least one step",
+          };
+        }
+        // 對每個 step 收欄位 — 漏 modelId 直接 400，免得讓 estimate 把整條
+        // workflow 都用 5pts unknown-fallback 算出來給 LLM 報錯數字。
+        const steps: Array<{
+          label?: string;
+          modelId: string;
+          durationSec?: number;
+          charCount?: number;
+          imageCount?: number;
+          trainingSteps?: number;
+        }> = [];
+        for (let i = 0; i < stepsRaw.length; i++) {
+          const s = stepsRaw[i] as Record<string, unknown>;
+          const modelId = typeof s?.modelId === "string" ? s.modelId.trim() : "";
+          if (!modelId) {
+            return {
+              name: call.name,
+              ok: false,
+              error: `steps[${i}].modelId is required`,
+            };
+          }
+          steps.push({
+            label: typeof s.label === "string" ? s.label : undefined,
+            modelId,
+            durationSec: typeof s.durationSec === "number" ? s.durationSec : undefined,
+            charCount: typeof s.charCount === "number" ? s.charCount : undefined,
+            imageCount: typeof s.imageCount === "number" ? s.imageCount : undefined,
+            trainingSteps:
+              typeof s.trainingSteps === "number" ? s.trainingSteps : undefined,
+          });
+        }
+        const result = workflowEstimate({ steps });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.budgetForecast": {
+        const result = await getBudgetForecast(opts.userId);
         return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
@@ -3180,6 +3234,8 @@ async function dispatchImageSpecialistTool(
     editImage,
     upscaleImage,
     getImageModels,
+    recommendModel,
+    enhancePrompt,
     getImageGenerationTips,
   } = await import("./spiritTools/imageSpecialistTools");
 
@@ -3261,6 +3317,7 @@ async function dispatchImageSpecialistTool(
           userId: opts.userId,
           imageUrl,
           scaleFactor: args.scaleFactor as number | undefined,
+          modelId: args.modelId as string | undefined,
         });
 
         return {
@@ -3273,7 +3330,76 @@ async function dispatchImageSpecialistTool(
       }
 
       case "imageSpecialist.getModels": {
-        const result = getImageModels();
+        const rawCategory =
+          typeof args.category === "string" ? args.category.trim().toLowerCase() : "all";
+        const category: "text-to-image" | "image-to-image" | "all" =
+          rawCategory === "text-to-image" || rawCategory === "image-to-image"
+            ? rawCategory
+            : "all";
+        const result = getImageModels(category);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "imageSpecialist.recommendModel": {
+        const rawIntent =
+          typeof args.intent === "string" ? args.intent.trim().toLowerCase() : "";
+        // 對齊 imageSpecialistTools.ImageIntent — LLM 傳近似詞做白名單檢查，避免
+        // 用 "fancy" / "good" 之類無效 intent 落到 fallback。
+        const validIntents = [
+          "realistic",
+          "draft",
+          "illustration",
+          "brand",
+          "lora",
+          "edit",
+          "upscale",
+          "text-design",
+          "anatomy",
+          "anime",
+        ] as const;
+        type Intent = typeof validIntents[number];
+        if (!validIntents.includes(rawIntent as Intent)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: `intent must be one of: ${validIntents.join(", ")}`,
+          };
+        }
+        const result = recommendModel({
+          intent: rawIntent as Intent,
+          useCase: typeof args.useCase === "string" ? args.useCase : undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "imageSpecialist.enhancePrompt": {
+        const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+        if (!prompt) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "prompt is required",
+          };
+        }
+        const style = typeof args.style === "string" ? args.style : undefined;
+        const mood = typeof args.mood === "string" ? args.mood : undefined;
+        const useCase = typeof args.useCase === "string" ? args.useCase : undefined;
+        const result = enhancePrompt({
+          prompt,
+          style: style as Parameters<typeof enhancePrompt>[0]["style"],
+          mood: mood as Parameters<typeof enhancePrompt>[0]["mood"],
+          useCase,
+        });
         return {
           name: call.name,
           ok: result.success,

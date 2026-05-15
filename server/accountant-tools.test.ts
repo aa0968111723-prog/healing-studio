@@ -3,6 +3,7 @@ import {
   estimateCost,
   compareModels,
   suggestSavings,
+  workflowEstimate,
 } from "./services/spiritTools/accountantTools";
 import { MODEL_PRICING_CATALOG } from "./services/modelPricing";
 
@@ -172,5 +173,77 @@ describe("accountantTools.suggestSavings", () => {
     const result = suggestSavings({ modelId: cheapest.modelId });
     expect(result.alternatives).toHaveLength(0);
     expect(result.noBetterOption).toBe(true);
+  });
+});
+
+// ─── accountant.workflowEstimate ───────────────────────────────────────────
+
+describe("accountantTools.workflowEstimate", () => {
+  it("rolls up totalPoints across all steps with index + breakdown", () => {
+    const img = Object.values(MODEL_PRICING_CATALOG).find(
+      p => p.category === "text-to-image"
+    );
+    const vid = Object.values(MODEL_PRICING_CATALOG).find(
+      p => p.category === "text-to-video"
+    );
+    expect(img).toBeDefined();
+    expect(vid).toBeDefined();
+
+    const result = workflowEstimate({
+      steps: [
+        { label: "封面圖", modelId: img!.modelId, imageCount: 1 },
+        { label: "影片", modelId: vid!.modelId, durationSec: 5 },
+      ],
+    });
+
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].index).toBe(1);
+    expect(result.rows[1].index).toBe(2);
+    expect(result.rows[0].label).toBe("封面圖");
+    expect(result.totalPoints).toBe(
+      result.rows[0].totalPoints + result.rows[1].totalPoints
+    );
+    expect(result.mostExpensive?.modelId).toBe(
+      result.rows[0].totalPoints >= result.rows[1].totalPoints
+        ? result.rows[0].modelId
+        : result.rows[1].modelId
+    );
+    expect(result.unknownStepCount).toBe(0);
+  });
+
+  it("flags unknown modelIds via unknownStepCount but still totals points", () => {
+    const known = Object.values(MODEL_PRICING_CATALOG).find(
+      p => p.category === "text-to-image"
+    )!;
+    const result = workflowEstimate({
+      steps: [
+        { modelId: known.modelId, imageCount: 1 },
+        { modelId: "totally-fake-model-id", imageCount: 1 },
+      ],
+    });
+    expect(result.unknownStepCount).toBe(1);
+    expect(result.rows[1].isUnknownModel).toBe(true);
+    expect(result.rows[1].modelLabel).toBeNull();
+    // Unknown fallback is 5 pts (per estimatePoints) — total must include it.
+    expect(result.totalPoints).toBeGreaterThanOrEqual(
+      result.rows[0].totalPoints + 5
+    );
+  });
+
+  it("handles empty steps[] without throwing", () => {
+    const result = workflowEstimate({ steps: [] });
+    expect(result.totalPoints).toBe(0);
+    expect(result.rows).toHaveLength(0);
+    expect(result.mostExpensive).toBeNull();
+  });
+
+  it("preserves label and uses Step N default when label missing", () => {
+    const m = Object.values(MODEL_PRICING_CATALOG).find(
+      p => p.category === "text-to-image"
+    )!;
+    const result = workflowEstimate({
+      steps: [{ modelId: m.modelId }],
+    });
+    expect(result.rows[0].label).toBe("Step 1");
   });
 });

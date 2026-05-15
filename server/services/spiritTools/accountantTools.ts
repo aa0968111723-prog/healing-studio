@@ -28,6 +28,7 @@ import {
 } from "../modelPricing";
 import {
   getUserCostSummary,
+  getUserDailyTrend,
   getUserModalityBreakdown,
   getUserTopModelRecent,
 } from "../../db";
@@ -354,4 +355,199 @@ export function suggestSavings(input: SuggestSavingsInput): SuggestSavingsResult
     alternatives: candidates.slice(0, limit),
     noBetterOption: candidates.length === 0,
   };
+}
+
+// ─── 多步驟工作流總點數估算 ────────────────────────────────────────────────
+
+export interface WorkflowStep {
+  /** 步驟標籤（給使用者看的），如「①出圖」「②生影片」。 */
+  label?: string;
+  modelId: string;
+  durationSec?: number;
+  charCount?: number;
+  imageCount?: number;
+  trainingSteps?: number;
+}
+
+export interface WorkflowEstimateRow {
+  index: number;
+  label: string;
+  modelId: string;
+  modelLabel: string | null;
+  category: ModelCategory | null;
+  totalPoints: number;
+  breakdown: string;
+  isUnknownModel: boolean;
+}
+
+export interface WorkflowEstimateResult {
+  totalPoints: number;
+  rows: WorkflowEstimateRow[];
+  /** 整條鏈內哪一步最貴（給 LLM 一句話講「最大一筆是 ___」）。 */
+  mostExpensive: WorkflowEstimateRow | null;
+  /** 出現未知 modelId 的步驟數 — 用來給警示文案。 */
+  unknownStepCount: number;
+}
+
+/**
+ * 把多步驟工作流（步步 / 導導 規劃出來的 plan）整條算出總點數。
+ *
+ * 之前 LLM 要分別呼叫 N 次 accountant.estimate 再自己加總，會偷工漏算。
+ * 工作流估算唯讀，不會 mutate DB；對未知 modelId 走 estimatePoints 的
+ * 5 pts fallback 並標記 isUnknownModel:true 讓 LLM 老實提示使用者。
+ */
+export function workflowEstimate(input: {
+  steps: WorkflowStep[];
+}): WorkflowEstimateResult {
+  const rows: WorkflowEstimateRow[] = (input.steps ?? []).map((step, idx) => {
+    const pricing = getModelPricing(step.modelId);
+    const est = estimatePoints(step.modelId, {
+      durationSec: step.durationSec,
+      charCount: step.charCount,
+      imageCount: step.imageCount,
+      trainingSteps: step.trainingSteps,
+    });
+    return {
+      index: idx + 1,
+      label: step.label ?? `Step ${idx + 1}`,
+      modelId: step.modelId,
+      modelLabel: pricing?.label ?? null,
+      category: pricing?.category ?? null,
+      totalPoints: est.totalPoints,
+      breakdown: est.breakdown,
+      isUnknownModel: !pricing,
+    };
+  });
+
+  const totalPoints = rows.reduce((sum, r) => sum + r.totalPoints, 0);
+  let mostExpensive: WorkflowEstimateRow | null = null;
+  for (const row of rows) {
+    if (!mostExpensive || row.totalPoints > mostExpensive.totalPoints) {
+      mostExpensive = row;
+    }
+  }
+  const unknownStepCount = rows.filter(r => r.isUnknownModel).length;
+
+  return {
+    totalPoints,
+    rows,
+    mostExpensive,
+    unknownStepCount,
+  };
+}
+
+// ─── 本月支出預測 ──────────────────────────────────────────────────────────
+
+export interface BudgetForecastResult {
+  /** 本月已過幾天（含今天） */
+  daysElapsedInMonth: number;
+  /** 本月還剩幾天（不含今天） */
+  daysRemainingInMonth: number;
+  /** 近 7 天每日平均點數（從 getUserDailyTrend 取） */
+  recent7dAvgPoints: number;
+  /** 已知近 30 天總點數（從 getUserCostSummary 取 USD × 100） */
+  last30dTotalPoints: number;
+  /** 線性預測：以近 7 天日均推算到月底還會花多少 */
+  projectedMonthEndAddPoints: number;
+  /** 趨勢：on-track（接近 30 天均值）/ high（>20%）/ low（<−20%）/ no-data */
+  trajectory: "on-track" | "high" | "low" | "no-data";
+  /** 給 LLM 一段直接可講的中文摘要 */
+  humanSummary: string;
+}
+
+/**
+ * 從近 7 天日均推算到月底總花費，讓財財能主動講「按這節奏到月底再花 ___ 點」。
+ *
+ * 邏輯：
+ *   1. 取近 7 天 daily trend → 算日均花費（pts/day）
+ *   2. 取近 30 天 totalCostUsd → 換成 pts → 算 30 天均值（pts/day）
+ *   3. 比較兩者：>20% 上揚 → "high"；<−20% 下降 → "low"；其餘 "on-track"
+ *   4. 用「日均 × 月底剩餘天數」算 projectedMonthEndAddPoints
+ *
+ * 沒資料時不會炸：回 "no-data" 並全 0，由 LLM 給「我還沒有足夠數據估」的文案。
+ */
+export async function getBudgetForecast(userId: number): Promise<BudgetForecastResult> {
+  const now = new Date();
+  const daysElapsedInMonth = now.getUTCDate();
+  const lastDayOfMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  const daysRemainingInMonth = Math.max(0, lastDayOfMonth - daysElapsedInMonth);
+
+  try {
+    const [summary, daily] = await Promise.all([
+      getUserCostSummary(userId).catch(() => ({ totalCost: 0, totalRequests: 0 })),
+      getUserDailyTrend(userId).catch(() => [] as Array<{
+        date: string;
+        count: number;
+        totalCost: string;
+        totalTokens: number;
+      }>),
+    ]);
+
+    const last30dTotalPoints = Math.round((Number(summary.totalCost) || 0) * 100);
+
+    const dailyRows = daily ?? [];
+    const recent7dPoints = dailyRows.reduce(
+      (sum, row) => sum + Math.round((parseFloat(String(row.totalCost ?? "0")) || 0) * 100),
+      0
+    );
+    const recent7dDays = Math.max(1, dailyRows.length);
+    const recent7dAvgPoints = Math.round(recent7dPoints / recent7dDays);
+
+    if (recent7dAvgPoints === 0 && last30dTotalPoints === 0) {
+      return {
+        daysElapsedInMonth,
+        daysRemainingInMonth,
+        recent7dAvgPoints: 0,
+        last30dTotalPoints: 0,
+        projectedMonthEndAddPoints: 0,
+        trajectory: "no-data",
+        humanSummary: "你還沒有足夠的歷史用量讓我推算月底花費 — 跑幾筆任務後我會主動回報。",
+      };
+    }
+
+    const last30dAvg = last30dTotalPoints > 0 ? last30dTotalPoints / 30 : recent7dAvgPoints;
+    const projectedMonthEndAddPoints = recent7dAvgPoints * daysRemainingInMonth;
+
+    let trajectory: BudgetForecastResult["trajectory"] = "on-track";
+    if (last30dAvg > 0) {
+      const ratio = recent7dAvgPoints / last30dAvg;
+      if (ratio > 1.2) trajectory = "high";
+      else if (ratio < 0.8) trajectory = "low";
+    }
+
+    const trajectoryLabel = {
+      "on-track": "節奏跟近 30 天差不多",
+      high: "本週節奏比近 30 天均值高 20% 以上 — 留意一下",
+      low: "本週節奏比平常低 20% 以上 — 你少跑了，挺省的",
+      "no-data": "資料不足",
+    }[trajectory];
+
+    return {
+      daysElapsedInMonth,
+      daysRemainingInMonth,
+      recent7dAvgPoints,
+      last30dTotalPoints,
+      projectedMonthEndAddPoints,
+      trajectory,
+      humanSummary:
+        `近 7 天日均 ${recent7dAvgPoints} 點 · ${trajectoryLabel}。` +
+        `照這節奏到月底還會再花 ${projectedMonthEndAddPoints} 點（剩 ${daysRemainingInMonth} 天）。`,
+    };
+  } catch (err) {
+    logger.warn("[AccountantTools] getBudgetForecast failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      daysElapsedInMonth,
+      daysRemainingInMonth,
+      recent7dAvgPoints: 0,
+      last30dTotalPoints: 0,
+      projectedMonthEndAddPoints: 0,
+      trajectory: "no-data",
+      humanSummary: "目前抓不到用量資料，等資料回來我再算一次給你看。",
+    };
+  }
 }

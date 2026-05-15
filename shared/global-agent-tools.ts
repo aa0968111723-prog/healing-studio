@@ -540,6 +540,114 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // 多步驟工作流總點數估算 — 接 plan-executor / director 規劃出來的步驟陣列。
+  // steps[].modelId 是必填；未知 modelId 會以 5 pts fallback 但會標記
+  // unknownStepCount > 0，讓 LLM 老實提示「這幾步抓不到 catalog」。
+  {
+    name: "accountant.workflowEstimate",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      steps: "object[]",
+    },
+    executionTarget: "server-side",
+  },
+  // 本月支出預測 — 用近 7 天日均 × 月底剩餘天數線性外推；
+  // 同時與近 30 天均值比對給 "high" / "low" / "on-track" trajectory。
+  {
+    name: "accountant.budgetForecast",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  // ─── 圖圖（image-specialist）認知 + 出圖工具：5 個唯讀 + 3 個會跑 fal task ──
+  // 之前 imageSpecialist.* 雖然在 agentToolExecutor 的 switch 裡，但完全沒在
+  // 這份 catalog 註冊 → orb tool dispatcher 會視為「未知工具」直接丟回。圖圖
+  // 因此只能依靠 studio.* 的泛用工具，無法用「先 recommendModel → enhancePrompt
+  // → generateImage」這條 agent-style 思考鏈。
+  //
+  // generate / edit / upscale 標 medium：會花點數，但同 studio.generateImage
+  // 一樣不需要 requiresHuman=true（光球當回合 plan-step 已含批准 UX）。
+  // getModels / recommendModel / enhancePrompt / getTips 是純認知工具，唯讀。
+  {
+    name: "imageSpecialist.generate",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      aspectRatio: "string?",
+      numImages: "number?",
+      negativePrompt: "string?",
+      seed: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "imageSpecialist.edit",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      imageUrl: "string",
+      prompt: "string",
+      strength: "number?",
+      maskUrl: "string?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "imageSpecialist.upscale",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      imageUrl: "string",
+      scaleFactor: "number?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "imageSpecialist.getModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      category: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "imageSpecialist.recommendModel",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      intent: "string",
+      useCase: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "imageSpecialist.enhancePrompt",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      style: "string?",
+      mood: "string?",
+      useCase: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "imageSpecialist.getTips",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      scenario: "string?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 記記（notes-curator）筆記與資產管理工具 ──
   {
     name: "notesCurator.createNote",
