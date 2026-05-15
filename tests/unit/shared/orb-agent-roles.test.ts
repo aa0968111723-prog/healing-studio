@@ -415,7 +415,7 @@ describe("@nickname mention routing", () => {
 });
 
 describe("SPIRIT_COLLAB_PROTOCOL", () => {
-  // 全 23 個成員都要列出來 — handoffs[] 也只能指向已知角色。
+  // 全 25 個成員都要列出來 — handoffs[] 也只能指向已知角色。
   const ALL_ROLES: AgentRole[] = [
     "director",
     "composer",
@@ -442,9 +442,12 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
     "settings-detail",
     // 第 8 位新增：規劃 + 多步驟執行
     "plan-executor",
+    // 第 9-10 位：靈感 + 解剖
+    "inspiration-specialist",
+    "anatomy-specialist",
   ];
 
-  it("covers all 23 spirits", () => {
+  it("covers all 25 spirits", () => {
     for (const role of ALL_ROLES) {
       expect(SPIRIT_COLLAB_PROTOCOL[role]).toBeDefined();
     }
@@ -617,11 +620,14 @@ describe("SPIRIT_FAMILY classification", () => {
       "settings-detail",
       // 第 8 位新增：規劃 + 多步驟執行
       "plan-executor",
+      // 第 9-10 位：靈感 + 解剖
+      "inspiration-specialist",
+      "anatomy-specialist",
     ];
     for (const r of allRoles) {
       expect(SPIRIT_FAMILY[r]).toBeDefined();
     }
-    // exactly 23 entries — no orphans, no duplicates
+    // exactly 25 entries — no orphans, no duplicates
     expect(Object.keys(SPIRIT_FAMILY)).toHaveLength(allRoles.length);
   });
 
@@ -631,7 +637,7 @@ describe("SPIRIT_FAMILY classification", () => {
     expect(getFamilyForRole("inspector")).toBe("proactive");
   });
 
-  it("groups specialist family — 6 original + 群群", () => {
+  it("groups specialist family — 6 original + 群群 + 靈靈 + 體體", () => {
     const specialists = getRolesByFamily("specialist");
     expect(specialists).toEqual(
       expect.arrayContaining([
@@ -642,9 +648,11 @@ describe("SPIRIT_FAMILY classification", () => {
         "training-specialist",
         "learning-specialist",
         "community-manager",
+        "inspiration-specialist",
+        "anatomy-specialist",
       ]),
     );
-    expect(specialists).toHaveLength(7);
+    expect(specialists).toHaveLength(9);
   });
 
   it("groups role family — 6 original + 總總 / 記記 / 細細 / 步步", () => {
@@ -686,17 +694,17 @@ describe("SPIRIT_FAMILY classification", () => {
     const roles = getRolesByFamily("role");
     const proactive = getRolesByFamily("proactive");
     const total = specialists.length + roles.length + proactive.length;
-    expect(total).toBe(23);
+    expect(total).toBe(25);
     // no role appears in two families
     const set = new Set([...specialists, ...roles, ...proactive]);
-    expect(set.size).toBe(23);
+    expect(set.size).toBe(25);
   });
 });
 
 describe("SPIRIT_MODEL_CAPABILITIES", () => {
-  it("covers every one of the 23 spirits", () => {
+  it("covers every one of the 25 spirits", () => {
     const roles = Object.keys(SPIRIT_MODEL_CAPABILITIES) as AgentRole[];
-    expect(roles).toHaveLength(23);
+    expect(roles).toHaveLength(25);
   });
 
   it("圖圖 (image-specialist) can call image generation, editing, and 3D categories", () => {
