@@ -2168,6 +2168,10 @@ async function dispatchStudioTool(
       case "videoSpecialist.generate":
       case "videoSpecialist.imageToVideo":
       case "videoSpecialist.lipSync":
+      case "videoSpecialist.enhance":
+      case "videoSpecialist.recommendModel":
+      case "videoSpecialist.estimateCost":
+      case "videoSpecialist.planWorkflow":
       case "videoSpecialist.getModels":
       case "videoSpecialist.getTips": {
         const videoResult = await dispatchVideoSpecialistTool(call, opts);
@@ -3323,6 +3327,10 @@ async function dispatchVideoSpecialistTool(
     generateVideo,
     imageToVideo,
     createLipSync,
+    enhanceVideo,
+    recommendModel,
+    estimateCost,
+    planVideoWorkflow,
     getVideoModels,
     getVideoGenerationTips,
   } = await import("./spiritTools/videoSpecialistTools");
@@ -3345,9 +3353,21 @@ async function dispatchVideoSpecialistTool(
           userId: opts.userId,
           prompt,
           modelId: args.modelId as string | undefined,
+          imageUrl: args.imageUrl as string | undefined,
+          endImageUrl: args.endImageUrl as string | undefined,
+          videoUrl: args.videoUrl as string | undefined,
           duration: args.duration as number | undefined,
           aspectRatio: args.aspectRatio as string | undefined,
           fps: args.fps as number | undefined,
+          negativePrompt: args.negativePrompt as string | undefined,
+          qualityTier: args.qualityTier as
+            | "draft"
+            | "standard"
+            | "premium"
+            | "ultra"
+            | undefined,
+          seed: args.seed as number | undefined,
+          awaitCompletion: args.awaitCompletion as boolean | undefined,
         });
 
         return {
@@ -3355,7 +3375,7 @@ async function dispatchVideoSpecialistTool(
           ok: result.success,
           data: result,
           usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
+          ...(result.success ? {} : { error: result.error ?? result.message }),
         };
       }
 
@@ -3374,8 +3394,18 @@ async function dispatchVideoSpecialistTool(
           imageUrl,
           prompt: args.prompt as string | undefined,
           modelId: args.modelId as string | undefined,
+          endImageUrl: args.endImageUrl as string | undefined,
           duration: args.duration as number | undefined,
+          aspectRatio: args.aspectRatio as string | undefined,
           motion: args.motion as "subtle" | "moderate" | "dynamic" | undefined,
+          qualityTier: args.qualityTier as
+            | "draft"
+            | "standard"
+            | "premium"
+            | "ultra"
+            | undefined,
+          seed: args.seed as number | undefined,
+          awaitCompletion: args.awaitCompletion as boolean | undefined,
         });
 
         return {
@@ -3383,26 +3413,41 @@ async function dispatchVideoSpecialistTool(
           ok: result.success,
           data: result,
           usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
+          ...(result.success ? {} : { error: result.error ?? result.message }),
         };
       }
 
       case "videoSpecialist.lipSync": {
-        const videoUrl = args.videoUrl as string;
+        // 新版 lipSync 接收 imageUrl + audioUrl（image 是頭像，audio 是配音）。
+        // 舊版接收 videoUrl + audioUrl，所以 videoUrl 在缺 imageUrl 時可以做為
+        // fallback——這層相容性讓既有 LLM 規劃即使沒切換也能跑。
+        const imageUrl =
+          (args.imageUrl as string | undefined) ||
+          (args.videoUrl as string | undefined);
         const audioUrl = args.audioUrl as string;
 
-        if (!videoUrl || !audioUrl) {
+        if (!imageUrl || !audioUrl) {
           return {
             name: call.name,
             ok: false,
-            error: "videoUrl and audioUrl are required",
+            error: "imageUrl (or videoUrl) and audioUrl are required",
           };
         }
 
         const result = await createLipSync({
           userId: opts.userId,
-          videoUrl,
+          imageUrl,
           audioUrl,
+          prompt: args.prompt as string | undefined,
+          modelId: args.modelId as string | undefined,
+          qualityTier: args.qualityTier as
+            | "draft"
+            | "standard"
+            | "premium"
+            | "ultra"
+            | undefined,
+          numFrames: args.numFrames as number | undefined,
+          awaitCompletion: args.awaitCompletion as boolean | undefined,
         });
 
         return {
@@ -3410,7 +3455,135 @@ async function dispatchVideoSpecialistTool(
           ok: result.success,
           data: result,
           usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
+          ...(result.success ? {} : { error: result.error ?? result.message }),
+        };
+      }
+
+      case "videoSpecialist.enhance": {
+        const videoUrl = args.videoUrl as string;
+        const operation = args.operation as
+          | "upscale"
+          | "interpolate"
+          | "enhance"
+          | undefined;
+        if (!videoUrl) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "videoUrl is required",
+          };
+        }
+        if (
+          operation !== "upscale" &&
+          operation !== "interpolate" &&
+          operation !== "enhance"
+        ) {
+          return {
+            name: call.name,
+            ok: false,
+            error:
+              "operation must be one of: upscale, interpolate, enhance",
+          };
+        }
+        const result = await enhanceVideo({
+          userId: opts.userId,
+          videoUrl,
+          operation,
+          modelId: args.modelId as string | undefined,
+          upscaleFactor: args.upscaleFactor as number | undefined,
+          multiplier: args.multiplier as number | undefined,
+          outputFps: args.outputFps as number | undefined,
+          topazModel: args.topazModel as string | undefined,
+          awaitCompletion: args.awaitCompletion as boolean | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.error ?? result.message }),
+        };
+      }
+
+      case "videoSpecialist.recommendModel": {
+        const intent = args.intent as
+          | "text-to-video"
+          | "image-to-video"
+          | "video-to-video"
+          | "speech-to-video"
+          | "enhance-video"
+          | undefined;
+        if (!intent) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "intent is required",
+          };
+        }
+        const result = recommendModel({
+          intent,
+          durationSec: args.durationSec as number | undefined,
+          budgetPoints: args.budgetPoints as number | undefined,
+          qualityTier: args.qualityTier as
+            | "draft"
+            | "standard"
+            | "premium"
+            | "ultra"
+            | undefined,
+          hint: args.hint as string | undefined,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "videoSpecialist.estimateCost": {
+        const modelId = args.modelId as string;
+        if (!modelId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "modelId is required",
+          };
+        }
+        const result = await estimateCost({
+          modelId,
+          durationSec: args.durationSec as number | undefined,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "videoSpecialist.planWorkflow": {
+        const goal = args.goal as string;
+        if (!goal) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "goal is required",
+          };
+        }
+        const result = planVideoWorkflow({
+          goal,
+          durationSec: args.durationSec as number | undefined,
+          withLipSync: args.withLipSync as boolean | undefined,
+          withVoiceover: args.withVoiceover as boolean | undefined,
+          withMusic: args.withMusic as boolean | undefined,
+          withEnhance: args.withEnhance as boolean | undefined,
+          startingImageUrl: args.startingImageUrl as string | undefined,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
         };
       }
 
@@ -3425,7 +3598,15 @@ async function dispatchVideoSpecialistTool(
       }
 
       case "videoSpecialist.getTips": {
-        const result = getVideoGenerationTips();
+        const scenario = args.scenario as
+          | "text-to-video"
+          | "image-to-video"
+          | "video-to-video"
+          | "speech-to-video"
+          | "enhance-video"
+          | "general"
+          | undefined;
+        const result = getVideoGenerationTips(scenario);
         return {
           name: call.name,
           ok: result.success,
