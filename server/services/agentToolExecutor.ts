@@ -2239,7 +2239,13 @@ async function dispatchStudioTool(
 
       case "learningSpecialist.getTutorial":
       case "learningSpecialist.listTutorials":
-      case "learningSpecialist.getQuickTips": {
+      case "learningSpecialist.getQuickTips":
+      case "learningSpecialist.searchLearningContent":
+      case "learningSpecialist.recommendForContext":
+      case "learningSpecialist.generateLearningPath":
+      case "learningSpecialist.explainConcept":
+      case "learningSpecialist.getUserLearningProgress":
+      case "learningSpecialist.getNextLearningStep": {
         const learningResult = await dispatchLearningSpecialistTool(call, opts);
         return learningResult;
       }
@@ -4026,8 +4032,22 @@ async function dispatchLearningSpecialistTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { getTutorial, listTutorials, getQuickTips } = await import("./spiritTools/learningSpecialistTools");
+  const {
+    getTutorial,
+    listTutorials,
+    getQuickTips,
+    searchLearningContent,
+    recommendForContext,
+    generateLearningPath,
+    explainConcept,
+    getUserLearningProgress,
+    getNextLearningStep,
+  } = await import("./spiritTools/learningSpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  type Difficulty = "beginner" | "intermediate" | "advanced";
+  const asDifficulty = (v: unknown): Difficulty | undefined =>
+    v === "beginner" || v === "intermediate" || v === "advanced" ? v : undefined;
 
   try {
     switch (call.name) {
@@ -4054,6 +4074,107 @@ async function dispatchLearningSpecialistTool(
       case "learningSpecialist.getQuickTips": {
         const result = getQuickTips();
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "learningSpecialist.searchLearningContent": {
+        const query = args.query as string;
+        if (!query || typeof query !== "string") {
+          return { name: call.name, ok: false, error: "query is required" };
+        }
+        const type = args.type === "doc" || args.type === "video" || args.type === "quiz" || args.type === "all"
+          ? args.type
+          : undefined;
+        const limit = typeof args.limit === "number" ? args.limit : undefined;
+        const result = searchLearningContent({
+          query,
+          type,
+          difficulty: asDifficulty(args.difficulty),
+          limit,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "learningSpecialist.recommendForContext": {
+        const result = recommendForContext({
+          currentPath: typeof args.currentPath === "string" ? args.currentPath : undefined,
+          topic: typeof args.topic === "string" ? args.topic : undefined,
+          difficulty: asDifficulty(args.difficulty),
+          limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "learningSpecialist.generateLearningPath": {
+        const goal = args.goal as string;
+        if (!goal || typeof goal !== "string") {
+          return { name: call.name, ok: false, error: "goal is required" };
+        }
+        const result = generateLearningPath({
+          goal,
+          currentLevel: asDifficulty(args.currentLevel),
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "learningSpecialist.explainConcept": {
+        const concept = args.concept as string;
+        if (!concept || typeof concept !== "string") {
+          return { name: call.name, ok: false, error: "concept is required" };
+        }
+        const result = explainConcept({
+          concept,
+          level: asDifficulty(args.level),
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "learningSpecialist.getUserLearningProgress": {
+        const userId = typeof args.userId === "number" ? args.userId : opts.userId;
+        const result = await getUserLearningProgress({ userId });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "learningSpecialist.getNextLearningStep": {
+        const result = await getNextLearningStep({
+          userId: typeof args.userId === "number" ? args.userId : opts.userId,
+          currentPath: typeof args.currentPath === "string" ? args.currentPath : undefined,
+          hint: typeof args.hint === "string" ? args.hint : undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
       }
 
       default:

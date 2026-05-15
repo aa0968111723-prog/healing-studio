@@ -11962,6 +11962,60 @@ const SEED_QUIZZES: LearnQuiz[] = [
 
 let quizzes: LearnQuiz[] = [...SEED_QUIZZES];
 
+/**
+ * Internal accessors for video / quiz seed data — 給 spirit tools / siteKnowledge
+ * 翻全站學習素材時用。會回傳精簡投影，避免大欄位（content / questions）拖累呼叫端。
+ *
+ * Double-underscore prefix = "internal, not for tRPC". 不要在 router 暴露。
+ */
+export function __getAllVideos(): Array<{
+  id: string;
+  category: string;
+  title: string;
+  summary: string;
+  difficulty: string;
+  durationMinutes: number;
+  featured: boolean;
+  tags: string[];
+  videoUrl: string;
+}> {
+  return videos.map(v => ({
+    id: v.id,
+    category: v.category,
+    title: v.title,
+    summary: v.summary,
+    difficulty: v.difficulty,
+    durationMinutes: v.durationMinutes,
+    featured: v.featured,
+    tags: v.tags,
+    videoUrl: v.videoUrl,
+  }));
+}
+
+export function __getAllQuizzes(): Array<{
+  id: string;
+  category: string;
+  title: string;
+  summary: string;
+  difficulty: string;
+  estimatedMinutes: number;
+  featured: boolean;
+  tags: string[];
+  questionCount: number;
+}> {
+  return quizzes.map(q => ({
+    id: q.id,
+    category: q.category,
+    title: q.title,
+    summary: q.summary,
+    difficulty: q.difficulty,
+    estimatedMinutes: q.estimatedMinutes,
+    featured: q.featured,
+    tags: q.tags,
+    questionCount: q.questions.length,
+  }));
+}
+
 function upsertSeedDoc(nextDoc: LearnDoc): void {
   const idx = docs.findIndex(d => d.id === nextDoc.id);
   if (idx === -1) {

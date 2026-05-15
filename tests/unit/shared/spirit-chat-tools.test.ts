@@ -48,12 +48,15 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     }
   });
 
-  it("學學 (learning-specialist) navigates to /learn-hub", () => {
+  it("學學 (learning-specialist) navigates to /learn-hub with prompt-as-search deep-link", () => {
     const tool = getChatToolForSpirit("learning-specialist");
     expect(tool.kind).toBe("navigate");
     if (tool.kind === "navigate") {
       expect(tool.toPath).toBe("/learn-hub");
       expect(tool.intentBased).toBeFalsy();
+      // 學學 是唯一啟用 passPromptAsSearch 的精靈 — 把使用者的關鍵字帶進
+      // LearnHub 的 ?search= 預載狀態，讓著陸頁直接顯示相關內容。
+      expect(tool.passPromptAsSearch).toBe(true);
     }
   });
 
