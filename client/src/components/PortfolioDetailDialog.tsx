@@ -7,7 +7,7 @@
  * 資料來源：
  *   - 基本欄位：showcase.list 的 ShowcaseItem（傳入 basic）
  *   - 進階欄位：showcase.getById（傳入 detail，可選；載入期間顯示骨架）
- *   - 模型 & 評論數：schema 尚無欄位，於前端以 modality + id 推導假資料
+ *   - 模型：由 modality + parameters 推導
  */
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +25,8 @@ import {
   Music,
   Mic,
   Loader2,
+  Send,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +50,7 @@ export interface PortfolioBasicItem {
   modality: string;
   likeCount: number;
   forkCount: number;
+  commentCount: number;
   sortWeight: number;
   createdAt: Date | string;
 }
@@ -112,13 +117,6 @@ function resolveAiModel(
   return MODALITY_META[modality]?.model ?? "AI Studio Engine";
 }
 
-/** Deterministic mock comment count — until a real backend field exists. */
-function mockCommentCount(id: number, likeCount: number): number {
-  const base = Math.floor(likeCount * 0.18);
-  const jitter = (id * 37) % 23;
-  return Math.max(0, base + jitter);
-}
-
 function formatDate(value: Date | string): string {
   try {
     const d = value instanceof Date ? value : new Date(value);
@@ -167,11 +165,6 @@ export default function PortfolioDetailDialog({
       ""
     );
   }, [detail]);
-
-  const commentCount = useMemo(
-    () => (basic ? mockCommentCount(basic.id, basic.likeCount) : 0),
-    [basic]
-  );
 
   const handleCopyPrompt = async () => {
     if (!prompt) return;
@@ -302,7 +295,7 @@ export default function PortfolioDetailDialog({
                 />
               }
               label="評論"
-              value={commentCount.toLocaleString()}
+              value={basic.commentCount.toLocaleString()}
               isDark={isDark}
             />
             <StatBlock
@@ -414,6 +407,12 @@ export default function PortfolioDetailDialog({
             </div>
           </div>
 
+          {/* Comments — only available on curated showcase rows (positive id);
+              history-fallback rows have id < 0 and no comments table backing. */}
+          {basic.id > 0 && (
+            <CommentsSection showcaseId={basic.id} isDark={isDark} />
+          )}
+
           {/* CTA */}
           <div
             className={`flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t ${
@@ -487,6 +486,222 @@ function StatBlock({
           {value}
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatCommentTime(value: Date | string): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("zh-TW", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function CommentsSection({
+  showcaseId,
+  isDark,
+}: {
+  showcaseId: number;
+  isDark: boolean;
+}) {
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const [draft, setDraft] = useState("");
+
+  const commentsQuery = trpc.showcase.listComments.useQuery(
+    { showcaseId, limit: 30 },
+    { enabled: showcaseId > 0 }
+  );
+
+  const addMutation = trpc.showcase.addComment.useMutation({
+    onSuccess: () => {
+      setDraft("");
+      utils.showcase.listComments.invalidate({ showcaseId });
+      utils.showcase.getById.invalidate({ id: showcaseId });
+      utils.showcase.list.invalidate();
+    },
+  });
+
+  const deleteMutation = trpc.showcase.deleteComment.useMutation({
+    onSuccess: () => {
+      utils.showcase.listComments.invalidate({ showcaseId });
+      utils.showcase.getById.invalidate({ id: showcaseId });
+      utils.showcase.list.invalidate();
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const content = draft.trim();
+    if (!content || addMutation.isPending) return;
+    addMutation.mutate({ showcaseId, content });
+  };
+
+  const comments = commentsQuery.data?.items ?? [];
+
+  return (
+    <div>
+      <div
+        className={`text-[11px] tracking-[0.18em] uppercase mb-3 ${
+          isDark ? "text-white/40" : "text-black/40"
+        }`}
+      >
+        評論
+      </div>
+
+      {/* Add comment */}
+      {user ? (
+        <form onSubmit={handleSubmit} className="mb-4 space-y-2">
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value.slice(0, 500))}
+            placeholder="留下你的想法…"
+            rows={2}
+            disabled={addMutation.isPending}
+            className={`w-full rounded-2xl px-3 py-2 text-[13px] resize-none focus:outline-none transition-colors ${
+              isDark
+                ? "bg-black/30 text-slate-200 border border-white/10 placeholder:text-white/30 focus:border-white/30"
+                : "bg-stone-50 text-stone-800 border border-stone-200 placeholder:text-stone-400 focus:border-stone-400"
+            }`}
+          />
+          <div className="flex items-center justify-between">
+            <span
+              className={`text-[11px] ${
+                isDark ? "text-white/30" : "text-black/30"
+              }`}
+            >
+              {draft.length}/500
+            </span>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!draft.trim() || addMutation.isPending}
+              className="rounded-xl h-8 px-3 gap-1.5 text-xs"
+            >
+              {addMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              送出
+            </Button>
+          </div>
+          {addMutation.error && (
+            <p className="text-[11px] text-red-500">
+              {addMutation.error.message}
+            </p>
+          )}
+        </form>
+      ) : (
+        <p
+          className={`text-[12px] mb-4 ${
+            isDark ? "text-white/40" : "text-black/40"
+          }`}
+        >
+          登入後即可留言。
+        </p>
+      )}
+
+      {/* Comment list */}
+      {commentsQuery.isLoading ? (
+        <div
+          className={`flex items-center gap-2 text-[12px] ${
+            isDark ? "text-white/40" : "text-black/40"
+          }`}
+        >
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          載入評論...
+        </div>
+      ) : comments.length === 0 ? (
+        <p
+          className={`text-[12px] ${
+            isDark ? "text-white/40" : "text-black/40"
+          }`}
+        >
+          還沒有評論，搶先留下第一則吧。
+        </p>
+      ) : (
+        <ul className="space-y-3 max-h-72 overflow-y-auto pr-1">
+          {comments.map(c => {
+            const isOwn = user?.id === c.userId;
+            const initial = (c.authorName ?? "?").trim().charAt(0) || "?";
+            return (
+              <li
+                key={c.id}
+                className={`rounded-2xl px-3 py-2.5 ${
+                  isDark
+                    ? "bg-white/[0.04] border border-white/5"
+                    : "bg-stone-50 border border-stone-200"
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 text-[11px] font-semibold ${
+                      isDark
+                        ? "bg-white/10 text-slate-200"
+                        : "bg-stone-200 text-stone-700"
+                    }`}
+                  >
+                    {c.authorAvatarUrl ? (
+                      <img
+                        src={c.authorAvatarUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      initial
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[12px] font-semibold ${
+                          isDark ? "text-slate-100" : "text-stone-900"
+                        }`}
+                      >
+                        {c.authorName ?? "匿名創作者"}
+                      </span>
+                      <span
+                        className={`text-[10px] ${
+                          isDark ? "text-white/30" : "text-black/30"
+                        }`}
+                      >
+                        {formatCommentTime(c.createdAt)}
+                      </span>
+                      {isOwn && (
+                        <button
+                          type="button"
+                          onClick={() => deleteMutation.mutate({ id: c.id })}
+                          disabled={deleteMutation.isPending}
+                          aria-label="刪除這則評論"
+                          className={`ml-auto transition-colors ${
+                            isDark
+                              ? "text-white/30 hover:text-red-400"
+                              : "text-black/30 hover:text-red-500"
+                          }`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    <p
+                      className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words mt-1 ${
+                        isDark ? "text-slate-200" : "text-stone-800"
+                      }`}
+                    >
+                      {c.content}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

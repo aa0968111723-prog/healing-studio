@@ -61,6 +61,7 @@ interface ShowcaseItem {
   sortWeight: number;
   likeCount: number;
   forkCount: number;
+  commentCount: number;
   createdAt: Date | string;
 }
 

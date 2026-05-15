@@ -1222,7 +1222,7 @@ export async function getUserCostSummary(
   args?: { days?: number }
 ) {
   const db = await getDb();
-  if (!db) return { totalCost: 0, totalRequests: 0 };
+  if (!db) return { totalCost: 0, totalRequests: 0, totalCreditsConsumed: 0 };
   // days = undefined → all-time (existing dashboard / admin behaviour).
   // days >= 1 → trailing window. 財財 (accountant) passes 30 here so its
   // "近 30 天用量" summary actually reflects 30 days instead of all-time.
@@ -1240,12 +1240,14 @@ export async function getUserCostSummary(
     .select({
       totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
       totalRequests: sql<number>`COUNT(*)`,
+      totalCreditsConsumed: sql<number>`COALESCE(SUM(${apiUsageLogs.generationsDeducted}), 0)`,
     })
     .from(apiUsageLogs)
     .where(whereClause);
   return {
     totalCost: parseFloat(result[0]?.totalCost || "0"),
     totalRequests: result[0]?.totalRequests || 0,
+    totalCreditsConsumed: Number(result[0]?.totalCreditsConsumed || 0),
   };
 }
 
