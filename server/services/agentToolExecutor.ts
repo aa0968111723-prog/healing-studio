@@ -2068,6 +2068,16 @@ async function dispatchStudioTool(
         return orchestratorResult;
       }
 
+      // ── 自主能力 tools (autonomy) ──
+      case "orchestrator.decomposeGoal":
+      case "orchestrator.recommendSpirit":
+      case "orchestrator.analyzeBottlenecks":
+      case "orchestrator.retryWithFallback":
+      case "orchestrator.setDeadline": {
+        const orchestratorResult = await dispatchOrchestratorTool(call, opts);
+        return orchestratorResult;
+      }
+
       // ════════════════════════════════════════════════════════════════════
       // notesCurator.* tools for notes-curator (記記)
       // ════════════════════════════════════════════════════════════════════
@@ -2384,6 +2394,11 @@ async function dispatchOrchestratorTool(
     queryTaskProgress,
     escalateIssue,
     getMonitoringStatistics,
+    decomposeGoal,
+    recommendSpiritForTask,
+    analyzeBottlenecks,
+    retryTaskWithFallback,
+    setTaskDeadline,
   } = await import("./spiritTools/orchestratorTools");
 
   const args = (call.args ?? {}) as Record<string, unknown>;
@@ -2539,6 +2554,119 @@ async function dispatchOrchestratorTool(
           ok: true,
           data: stats,
           usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.decomposeGoal": {
+        // 把使用者目標拆成精靈分派 DAG — 給總總當骨架，他再用 LLM 細化。
+        const userMessage = args.userMessage as string;
+        if (!userMessage || typeof userMessage !== "string") {
+          return {
+            name: call.name,
+            ok: false,
+            error: "userMessage is required",
+          };
+        }
+
+        const plan = decomposeGoal({
+          userMessage,
+          domainHints: args.domainHints as ReadonlyArray<never> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: true,
+          data: plan,
+          usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.recommendSpirit": {
+        // 智能推薦：領域 + 負載 + 歷史成功率 三維打分。
+        const recommendations = recommendSpiritForTask({
+          domain: args.domain as never,
+          taskHint: args.taskHint as string | undefined,
+          specialisation: args.specialisation as string | undefined,
+          taskType: args.taskType as string | undefined,
+          excludeSpirits: args.excludeSpirits as ReadonlyArray<never> | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            recommendations,
+            top: recommendations[0] ?? null,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.analyzeBottlenecks": {
+        // 主動瓶頸分析：卡住任務 + 失敗聚類 + 到期風險。
+        const analysis = analyzeBottlenecks();
+        return {
+          name: call.name,
+          ok: true,
+          data: analysis,
+          usedTool: call.name,
+        };
+      }
+
+      case "orchestrator.retryWithFallback": {
+        // 自動降級重試：原精靈失敗 → 切替代精靈。
+        const failedSpiritId = args.failedSpiritId as string;
+        const failedTaskId = args.failedTaskId as string;
+        const taskType = args.taskType as string;
+        const failureReason = (args.failureReason as string) ?? "unspecified failure";
+
+        if (!failedSpiritId || !failedTaskId || !taskType) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "failedSpiritId, failedTaskId, and taskType are required",
+          };
+        }
+
+        const result = await retryTaskWithFallback({
+          failedSpiritId: failedSpiritId as never,
+          failedTaskId,
+          taskType,
+          userId: opts.userId,
+          failureReason,
+          preferredAlternatives: args.preferredAlternatives as ReadonlyArray<never> | undefined,
+          taskHint: args.taskHint as string | undefined,
+        });
+
+        return {
+          name: call.name,
+          ok: result.retrying,
+          data: result,
+          usedTool: call.name,
+          ...(result.retrying ? {} : { error: result.message }),
+        };
+      }
+
+      case "orchestrator.setDeadline": {
+        // 為任務加 SLA 截止時間，到期風險會出現在 team summary。
+        const taskId = args.taskId as string;
+        const deadlineAt = args.deadlineAt as number;
+
+        if (!taskId || typeof deadlineAt !== "number") {
+          return {
+            name: call.name,
+            ok: false,
+            error: "taskId and numeric deadlineAt are required",
+          };
+        }
+
+        const result = setTaskDeadline({ taskId, deadlineAt });
+        return {
+          name: call.name,
+          ok: result.set,
+          data: result,
+          usedTool: call.name,
+          ...(result.set ? {} : { error: result.message }),
         };
       }
 
