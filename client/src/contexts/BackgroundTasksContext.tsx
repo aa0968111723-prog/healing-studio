@@ -31,34 +31,32 @@ const STUDIO_TYPE_TO_SPIRIT_NICKNAME: Record<string, string> = {
   voice: "聲聲",
 };
 
-// 財財（accountant）警示用的「高成本模型」粗估點數表。
-// 對應 orb-agent-roles.ts:1266 的範圍 — 客戶端不打 modelPricing 服務，
-// 純表前端最低成本提示。Pattern 用 lower-case substring；命中即視為高成本。
-// 實際扣款仍以 server modelPricing 為準（我們只負責「提醒」）。
-const EXPENSIVE_MODEL_HINTS: ReadonlyArray<{
-  pattern: string;
-  approxPoints: number;
-  label: string;
-}> = [
-  // 影片：Kling Pro 是公認最貴的
-  { pattern: "kling-video/v2.1/pro", approxPoints: 100, label: "Kling 2.1 Pro 影片 (約 80-120 點 / 5s)" },
-  { pattern: "kling-video/v2.1", approxPoints: 70, label: "Kling 2.1 影片 (約 60-90 點 / 5s)" },
-  { pattern: "runway-gen4-turbo", approxPoints: 60, label: "Runway Gen4 Turbo 影片 (約 50-80 點)" },
-  { pattern: "pixverse/v4.5", approxPoints: 40, label: "PixVerse v4.5 影片 (約 30-50 點 / 5s)" },
-  { pattern: "minimax/hailuo-02/pro", approxPoints: 50, label: "Hailuo Pro 影片 (約 40-60 點)" },
-  // 圖像：FLUX Pro 較貴；其他都偏便宜
-  { pattern: "flux-pro/v1.1", approxPoints: 4, label: "FLUX Pro 1.1 圖像 (約 3-5 點 / 張)" },
+// 財財（accountant）警示用的「需要警告的高成本模型 prefix」。
+// 點數本身不寫死 — submitTask 會用 trpc.accountant.estimate 拉真實 catalog
+// 數字，這份表只回答「這個 modelId 是否值得跳一張 blocking 卡片」。
+// 之前用 EXPENSIVE_MODEL_HINTS 把點數一起寫死，導致 modelPricing 改了之後
+// 通知卡片永遠停留在舊數字；改成只判斷 prefix + 在 submitTask 內非同步
+// fetch 真實點數，數字才不會漂移。
+const EXPENSIVE_MODEL_PREFIXES: ReadonlyArray<{ pattern: string; label: string }> = [
+  // 影片：Kling Pro / Standard / Runway / PixVerse / Hailuo 都值得警示
+  { pattern: "kling-video/v2.1/pro", label: "Kling 2.1 Pro 影片" },
+  { pattern: "kling-video/v2.1", label: "Kling 2.1 影片" },
+  { pattern: "runway-gen4-turbo", label: "Runway Gen4 Turbo 影片" },
+  { pattern: "pixverse/v4.5", label: "PixVerse v4.5 影片" },
+  { pattern: "minimax/hailuo-02/pro", label: "Hailuo Pro 影片" },
+  // 圖像：FLUX Pro 較貴
+  { pattern: "flux-pro/v1.1", label: "FLUX Pro 1.1 圖像" },
   // 訓練：LoRA 最貴
-  { pattern: "train", approxPoints: 300, label: "LoRA 訓練 (約 200-400 點)" },
-  // 音樂
-  { pattern: "suno", approxPoints: 4, label: "Suno V4 歌曲 (約 4 點 / 30s)" },
+  { pattern: "train", label: "LoRA 訓練" },
+  // 音樂：Suno
+  { pattern: "suno", label: "Suno V4 歌曲" },
 ];
 
-function lookupExpensiveModel(modelId: string): { approxPoints: number; label: string } | null {
+function lookupExpensiveModel(modelId: string): { label: string } | null {
   const low = modelId.toLowerCase();
-  for (const entry of EXPENSIVE_MODEL_HINTS) {
+  for (const entry of EXPENSIVE_MODEL_PREFIXES) {
     if (low.includes(entry.pattern)) {
-      return { approxPoints: entry.approxPoints, label: entry.label };
+      return { label: entry.label };
     }
   }
   return null;
@@ -420,17 +418,32 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       // 通知中心會顯示「這個動作大概會花 N 點」卡片由使用者確認；不阻擋
       // 實際提交（避免使用者按了又被卡，反而體驗差）。dedupe 用 modelId
       // 60 秒，避免使用者連點時連續跳。
+      //
+      // 之前用 EXPENSIVE_MODEL_HINTS 的 approxPoints 寫死數字 → modelPricing
+      // 改了之後通知卡片永遠是舊的。改成走 accountant.estimate tRPC 拉真實
+      // catalog 數字；fetch 失敗才 fallback 到 prefix 表只給「label + 0 pts」
+      // 提示，至少 UI 不會因網路錯誤而吃下整次警示。
       const expensive = lookupExpensiveModel(params.modelId);
       if (expensive) {
+        let predicted = 0;
+        try {
+          const est = await utils.accountant.estimate.fetch({
+            modelId: params.modelId,
+          });
+          predicted = est.totalPoints;
+        } catch {
+          // tRPC fetch 失敗 — predicted 留 0，至少 opLabel 會顯示，
+          // 使用者仍能看到「這個動作會貴」這個訊號。
+        }
         const remaining = balanceQuery.data?.remaining;
         const pctOfRemaining =
-          typeof remaining === "number" && remaining > 0
-            ? Math.min(100, Math.round((expensive.approxPoints / remaining) * 100))
+          typeof remaining === "number" && remaining > 0 && predicted > 0
+            ? Math.min(100, Math.round((predicted / remaining) * 100))
             : 0;
         ProactiveEventBus.publish(
           "expensive_op_about_to_run",
           {
-            predicted: expensive.approxPoints,
+            predicted,
             pctOfRemaining,
             opLabel: expensive.label,
           },
@@ -446,7 +459,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    [submitMutation, activeJobsQuery, balanceQuery.data?.remaining]
+    [submitMutation, activeJobsQuery, balanceQuery.data?.remaining, utils]
   );
 
   const value = useMemo<BackgroundTasksContextValue>(

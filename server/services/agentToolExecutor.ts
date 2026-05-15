@@ -2137,6 +2137,18 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
+      // accountant.* tools for accountant (財財)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "accountant.estimate":
+      case "accountant.compare":
+      case "accountant.usage":
+      case "accountant.savings": {
+        const accountantResult = await dispatchAccountantTool(call, opts);
+        return accountantResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
       // imageSpecialist.* tools for image-specialist (圖圖)
       // ════════════════════════════════════════════════════════════════════
 
@@ -2357,6 +2369,116 @@ async function dispatchStudioTool(
           name: call.name,
           ok: false,
           error: `unknown-studio-tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// accountant.* 工具橋接：財財（accountant）的成本控制工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 accountant.* 工具呼叫橋接到 accountantTools 服務。
+ * 提供財財（accountant）即時呼叫的能力：
+ * - accountant.estimate: 精算單次任務點數
+ * - accountant.compare:  列出同類別所有模型 + 在這個 params 下的點數比較
+ * - accountant.usage:    取使用者近 30 天用量摘要
+ * - accountant.savings:  對特定模型給可替換的省法 + 預估省幾點 + tier 風險
+ *
+ * 四個工具都是唯讀（無扣款 / 無 DB 寫入），可放心對 LLM 開放、無需 approval。
+ * category 在 compare 工具裡會白名單驗證；非合法 enum 直接返回 400。
+ */
+async function dispatchAccountantTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    estimateCost,
+    compareModels,
+    getMonthlyUsage,
+    suggestSavings,
+  } = await import("./spiritTools/accountantTools");
+  const { MODEL_PRICING_CATALOG } = await import("./modelPricing");
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "accountant.estimate": {
+        const modelId = typeof args.modelId === "string" ? args.modelId.trim() : "";
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = estimateCost({
+          modelId,
+          durationSec: typeof args.durationSec === "number" ? args.durationSec : undefined,
+          charCount: typeof args.charCount === "number" ? args.charCount : undefined,
+          imageCount: typeof args.imageCount === "number" ? args.imageCount : undefined,
+          trainingSteps: typeof args.trainingSteps === "number" ? args.trainingSteps : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.compare": {
+        const category = typeof args.category === "string" ? args.category.trim() : "";
+        if (!category) {
+          return { name: call.name, ok: false, error: "category is required" };
+        }
+        // Validate category against catalog. We don't trust LLM-supplied enums
+        // — pass an unknown category and we'd silently return an empty list,
+        // which is worse than a clear error.
+        const knownCategories = new Set(
+          Object.values(MODEL_PRICING_CATALOG).map(p => p.category)
+        );
+        if (!knownCategories.has(category as never)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: `unknown category: ${category}. Valid examples: ${Array.from(knownCategories).slice(0, 5).join(", ")}…`,
+          };
+        }
+        const result = compareModels({
+          category: category as Parameters<typeof compareModels>[0]["category"],
+          durationSec: typeof args.durationSec === "number" ? args.durationSec : undefined,
+          charCount: typeof args.charCount === "number" ? args.charCount : undefined,
+          imageCount: typeof args.imageCount === "number" ? args.imageCount : undefined,
+          limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.usage": {
+        const result = await getMonthlyUsage(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.savings": {
+        const modelId = typeof args.modelId === "string" ? args.modelId.trim() : "";
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = suggestSavings({
+          modelId,
+          durationSec: typeof args.durationSec === "number" ? args.durationSec : undefined,
+          charCount: typeof args.charCount === "number" ? args.charCount : undefined,
+          imageCount: typeof args.imageCount === "number" ? args.imageCount : undefined,
+          limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown accountant tool: ${call.name}`,
         };
     }
   } catch (err) {

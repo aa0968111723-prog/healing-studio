@@ -1,0 +1,357 @@
+/**
+ * server/services/spiritTools/accountantTools.ts
+ *
+ * 財財 (accountant) 的真實工具集 — 把「主動全站成本控制」精算師從
+ * 「system prompt 嘴砲粗估」升級成「會呼叫實際 modelPricing / apiUsageLogs
+ * 的 AI agent」。
+ *
+ * 之前的問題：
+ *   - shared/agent-skills.ts:179 寫 `tools: []` → 財財沒有任何工具
+ *   - system prompt 寫的點數範圍是手動維護的字面數字（會跟 modelPricing 漂移）
+ *   - 「本月用到哪」「下一筆會花多少」「有沒有更省的做法」三件事
+ *     都要靠 LLM 自己編，不會去查 server 端 catalog
+ *
+ * 本檔提供四個工具，全部走純函式（不寫 DB），只讀：
+ *   - estimateCost(modelId, params)       — 精算單次任務點數
+ *   - compareModels(category, durationSec) — 列出同類別 N 個替代品（依點數遞增）
+ *   - getMonthlyUsage(userId)              — 近 30 天用量摘要（總點數 / 模態 / Top 模型）
+ *   - suggestSavings(modelId, params)      — 對單一模型給可替換的省法 + 預估省多少
+ */
+
+import { logger } from "../../_core/logger";
+import {
+  MODEL_PRICING_CATALOG,
+  estimatePoints,
+  getModelPricing,
+  type ModelPricing,
+  type ModelCategory,
+} from "../modelPricing";
+import {
+  getUserCostSummary,
+  getUserModalityBreakdown,
+  getUserTopModelRecent,
+} from "../../db";
+
+// ─── 估算單次任務點數 ────────────────────────────────────────────────────────
+
+export interface EstimateCostInput {
+  modelId: string;
+  durationSec?: number;
+  charCount?: number;
+  imageCount?: number;
+  trainingSteps?: number;
+}
+
+export interface EstimateCostResult {
+  modelId: string;
+  /** 該模型的 label / provider / category（找不到 catalog 條目時為 null） */
+  label: string | null;
+  provider: string | null;
+  category: ModelCategory | null;
+  /** 估算總點數（已套 minPoints / maxPoints clamp） */
+  totalPoints: number;
+  basePoints: number;
+  /** 中文逐項說明 */
+  breakdown: string;
+  /** 找不到 modelId 時為 true — 表示走「未知模型 5 pts」備援 */
+  isUnknownModel: boolean;
+}
+
+/**
+ * 精算單次呼叫的點數。直接走 modelPricing.estimatePoints，
+ * 但額外帶回 label / provider / category 讓 LLM 可以同時講「Kling 2.1 Pro」
+ * 而不是只給一串 modelId。
+ */
+export function estimateCost(input: EstimateCostInput): EstimateCostResult {
+  const pricing = getModelPricing(input.modelId);
+  const est = estimatePoints(input.modelId, {
+    durationSec: input.durationSec,
+    charCount: input.charCount,
+    imageCount: input.imageCount,
+    trainingSteps: input.trainingSteps,
+  });
+  return {
+    modelId: input.modelId,
+    label: pricing?.label ?? null,
+    provider: pricing?.provider ?? null,
+    category: pricing?.category ?? null,
+    totalPoints: est.totalPoints,
+    basePoints: est.basePoints,
+    breakdown: est.breakdown,
+    isUnknownModel: !pricing,
+  };
+}
+
+// ─── 同類別模型比較 ────────────────────────────────────────────────────────
+
+export interface CompareModelsInput {
+  /** ModelCategory（"text-to-image" / "image-to-video" / "text-to-speech" …） */
+  category: ModelCategory;
+  /** 估算用：影片 / 音檔長度（秒） */
+  durationSec?: number;
+  /** 估算用：TTS / LLM 字符數 */
+  charCount?: number;
+  /** 估算用：圖片張數 */
+  imageCount?: number;
+  /** 回傳幾筆（預設 5，最多 10） */
+  limit?: number;
+}
+
+export interface CompareModelsRow {
+  modelId: string;
+  label: string;
+  provider: string;
+  tier: string;
+  totalPoints: number;
+  breakdown: string;
+  /** 對 cheapest 而言這欄是 0；其他每筆是「比最便宜貴幾點」 */
+  premiumOverCheapest: number;
+  /** 對 cheapest 而言這欄是 100；其他每筆是「百分比成本（>100 表示比最便宜貴）」 */
+  pctOfCheapest: number;
+}
+
+export interface CompareModelsResult {
+  category: ModelCategory;
+  count: number;
+  cheapest: CompareModelsRow | null;
+  rows: CompareModelsRow[];
+}
+
+/**
+ * 列出同一 category 內所有模型，依「在這個 params 下會花多少點」遞增排序。
+ * 用途：使用者說「Kling Pro 影片要多少？」→ 財財同時列出「Wan / PixVerse」便宜替代品。
+ */
+export function compareModels(input: CompareModelsInput): CompareModelsResult {
+  const limit = Math.max(1, Math.min(10, Math.trunc(input.limit ?? 5)));
+  const inCategory: ModelPricing[] = Object.values(MODEL_PRICING_CATALOG).filter(
+    p => p.category === input.category
+  );
+
+  const rows: CompareModelsRow[] = inCategory.map(p => {
+    const est = estimatePoints(p.modelId, {
+      durationSec: input.durationSec,
+      charCount: input.charCount,
+      imageCount: input.imageCount,
+    });
+    return {
+      modelId: p.modelId,
+      label: p.label,
+      provider: p.provider,
+      tier: p.tier,
+      totalPoints: est.totalPoints,
+      breakdown: est.breakdown,
+      premiumOverCheapest: 0,
+      pctOfCheapest: 0,
+    };
+  });
+
+  rows.sort((a, b) => a.totalPoints - b.totalPoints);
+
+  const cheapest = rows[0] ?? null;
+  if (cheapest) {
+    const cheapestPts = Math.max(1, cheapest.totalPoints);
+    for (const r of rows) {
+      r.premiumOverCheapest = r.totalPoints - cheapest.totalPoints;
+      r.pctOfCheapest = Math.round((r.totalPoints / cheapestPts) * 100);
+    }
+  }
+
+  return {
+    category: input.category,
+    count: rows.length,
+    cheapest,
+    rows: rows.slice(0, limit),
+  };
+}
+
+// ─── 使用者本月用量摘要 ────────────────────────────────────────────────────
+
+export interface MonthlyUsageResult {
+  totalRequests: number;
+  totalCostUsd: number;
+  /** 對齊 modelPricing：1 USD ≈ 100 pts → 把 USD 轉成 pts，讓 LLM 一句話講得出來 */
+  totalCostPoints: number;
+  /** 按模態（image / video / audio / voice / text…）拆解的次數 + 成本（USD） */
+  modalityBreakdown: Array<{
+    requestType: string;
+    count: number;
+    totalCostUsd: number;
+  }>;
+  /** 近 30 天花最多的模型（依花費 USD 加總；無資料時為 null） */
+  topModel: {
+    modelId: string;
+    totalCalls: number;
+    totalCostUsd: number;
+  } | null;
+}
+
+/**
+ * 取近 30 天的使用摘要 — 給 LLM 一份具體數字，不用再瞎猜。
+ * 任何一個底層 DB 查詢失敗都不會炸：返回零值，由 LLM 處理「沒資料」文案。
+ */
+export async function getMonthlyUsage(userId: number): Promise<MonthlyUsageResult> {
+  try {
+    const [summary, modality, top] = await Promise.all([
+      getUserCostSummary(userId).catch(() => ({ totalCost: 0, totalRequests: 0 })),
+      getUserModalityBreakdown(userId).catch(() => []),
+      getUserTopModelRecent(userId, { days: 30 }).catch(() => null),
+    ]);
+
+    const totalCostUsd = Number(summary.totalCost) || 0;
+    const modalityBreakdown = (modality ?? []).map(row => ({
+      requestType: String(row.requestType ?? "unknown"),
+      count: Number(row.count) || 0,
+      totalCostUsd: parseFloat(String(row.totalCost ?? "0")) || 0,
+    }));
+
+    return {
+      totalRequests: Number(summary.totalRequests) || 0,
+      totalCostUsd,
+      totalCostPoints: Math.round(totalCostUsd * 100),
+      modalityBreakdown,
+      topModel: top
+        ? {
+            modelId: top.model,
+            totalCalls: top.totalCalls,
+            totalCostUsd: top.totalCostUsd,
+          }
+        : null,
+    };
+  } catch (err) {
+    logger.warn("[AccountantTools] getMonthlyUsage failed", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      totalRequests: 0,
+      totalCostUsd: 0,
+      totalCostPoints: 0,
+      modalityBreakdown: [],
+      topModel: null,
+    };
+  }
+}
+
+// ─── 對單一模型給省法建議 ──────────────────────────────────────────────────
+
+export interface SuggestSavingsInput {
+  modelId: string;
+  durationSec?: number;
+  charCount?: number;
+  imageCount?: number;
+  /** 最多回幾筆替代品（預設 3，最多 5） */
+  limit?: number;
+}
+
+export interface SavingsRow {
+  modelId: string;
+  label: string;
+  tier: string;
+  totalPoints: number;
+  savingsPoints: number;
+  savingsPct: number;
+  /** 替代品 tier 比原本低多少階；越大表示品質差距越大 */
+  tierGap: number;
+  /** 給使用者看的風險摘要（同 tier=安全；差 2 階以上=A/B 測試） */
+  riskNote: string;
+}
+
+export interface SuggestSavingsResult {
+  baseline: {
+    modelId: string;
+    label: string;
+    tier: string;
+    totalPoints: number;
+  };
+  /** 同類別下，比 baseline 便宜的選項（依省最多排序） */
+  alternatives: SavingsRow[];
+  /** baseline 找不到、或同類別沒有更便宜選項時為 true */
+  noBetterOption: boolean;
+}
+
+const TIER_RANK: Record<string, number> = {
+  free: 0,
+  economy: 1,
+  standard: 2,
+  premium: 3,
+  ultra: 4,
+};
+
+function describeRisk(baselineTier: string, candidateTier: string): { gap: number; note: string } {
+  const gap = (TIER_RANK[baselineTier] ?? 0) - (TIER_RANK[candidateTier] ?? 0);
+  if (gap <= 0) return { gap: 0, note: "同 tier，安全替換" };
+  if (gap === 1) return { gap, note: `品質可能略降（${baselineTier} → ${candidateTier}）` };
+  return { gap, note: `品質風險高（${baselineTier} → ${candidateTier}，建議先 A/B 測試）` };
+}
+
+/**
+ * 給定一個「正要跑的模型 + 參數」，列出同類別內所有更便宜的替代品 +
+ * 風險評估 + 估算可省點數。
+ *
+ * 風險評估規則（tier rank）：
+ *   - 同 tier 或更高（gap ≤ 0）→「安全替換」
+ *   - 低 1 tier（gap = 1）→「品質可能略降」
+ *   - 低 ≥ 2 tier（gap ≥ 2）→「品質風險高，建議先 A/B」
+ */
+export function suggestSavings(input: SuggestSavingsInput): SuggestSavingsResult {
+  const limit = Math.max(1, Math.min(5, Math.trunc(input.limit ?? 3)));
+  const baseline = getModelPricing(input.modelId);
+
+  if (!baseline) {
+    return {
+      baseline: {
+        modelId: input.modelId,
+        label: input.modelId,
+        tier: "unknown",
+        totalPoints: estimatePoints(input.modelId).totalPoints,
+      },
+      alternatives: [],
+      noBetterOption: true,
+    };
+  }
+
+  const baselineEst = estimatePoints(input.modelId, {
+    durationSec: input.durationSec,
+    charCount: input.charCount,
+    imageCount: input.imageCount,
+  });
+
+  const candidates: SavingsRow[] = Object.values(MODEL_PRICING_CATALOG)
+    .filter(p => p.category === baseline.category && p.modelId !== baseline.modelId)
+    .map(p => {
+      const est = estimatePoints(p.modelId, {
+        durationSec: input.durationSec,
+        charCount: input.charCount,
+        imageCount: input.imageCount,
+      });
+      const savingsPoints = baselineEst.totalPoints - est.totalPoints;
+      const savingsPct =
+        baselineEst.totalPoints > 0
+          ? Math.round((savingsPoints / baselineEst.totalPoints) * 100)
+          : 0;
+      const risk = describeRisk(baseline.tier, p.tier);
+      return {
+        modelId: p.modelId,
+        label: p.label,
+        tier: p.tier,
+        totalPoints: est.totalPoints,
+        savingsPoints,
+        savingsPct,
+        tierGap: risk.gap,
+        riskNote: risk.note,
+      };
+    })
+    .filter(row => row.savingsPoints > 0)
+    .sort((a, b) => b.savingsPoints - a.savingsPoints);
+
+  return {
+    baseline: {
+      modelId: baseline.modelId,
+      label: baseline.label,
+      tier: baseline.tier,
+      totalPoints: baselineEst.totalPoints,
+    },
+    alternatives: candidates.slice(0, limit),
+    noBetterOption: candidates.length === 0,
+  };
+}

@@ -145,7 +145,12 @@ class AgentCollaborationOrchestratorClass {
     this.registerAgentCapability({
       agentId: "accountant",
       capabilities: ["cost estimation", "budget tracking", "model price comparison", "spend forecasting"],
-      availableTools: [],
+      availableTools: [
+        "accountant.estimate",
+        "accountant.compare",
+        "accountant.usage",
+        "accountant.savings",
+      ],
       knowledgeDomains: ["model pricing", "quota", "subscription tiers"],
       available: true,
     });
