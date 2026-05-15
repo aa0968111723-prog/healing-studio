@@ -3,6 +3,7 @@ import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
 import { checkAndConsumeQuota } from "./orbQuota";
 import { injectModelPrompt } from "../../shared/modelPromptTemplates";
 import { moderateOrbContent } from "../../shared/orb-content-moderation";
+import type { AgentRole } from "../../shared/orb-agent-roles";
 
 /** Tool names that consume a `generation` daily slot when executed. */
 const GENERATION_SLOT_TOOLS = new Set([
@@ -2454,6 +2455,19 @@ async function dispatchStudioTool(
         return monitorResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // critic.* tools for critic (品品)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "critic.review":
+      case "critic.score":
+      case "critic.compare":
+      case "critic.suggestRewrite":
+      case "critic.planHandoff": {
+        const criticResult = await dispatchCriticTool(call, opts);
+        return criticResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -2619,6 +2633,225 @@ async function dispatchAccountantTool(
           name: call.name,
           ok: false,
           error: `unknown accountant tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// critic.* 工具橋接：品品（critic）的結構化評審工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 critic.* 工具呼叫橋接到 criticTools 服務。
+ * 提供品品（critic）即時呼叫的能力：
+ * - critic.review:         結構化評審（亮點 + 改進 + rubric scores + 交棒）
+ * - critic.score:          純打分，含 weakDimensions（給 proactive trigger）
+ * - critic.compare:        多輪迭代比較，回 winner + 進步 / 退步維度
+ * - critic.suggestRewrite: 給 1-3 個可貼的 prompt 改寫版本
+ * - critic.planHandoff:    依 critique 性質決定下一棒交給誰
+ *
+ * 五個工具都是純函式（無 DB / 無 LLM 呼叫），可放心對 LLM 開放、無需 approval。
+ * modality 在每個工具裡會白名單驗證；非合法 enum 直接返回 400。
+ */
+async function dispatchCriticTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    reviewAsset,
+    scoreAsset,
+    compareIterations,
+    suggestPromptRewrite,
+    planHandoff,
+  } = await import("./spiritTools/criticTools");
+
+  const VALID_MODALITIES = new Set(["image", "video", "music", "voice", "text"]);
+  const VALID_CRITIQUE_TYPES = new Set([
+    "prompt-level",
+    "model-level",
+    "settings-level",
+    "creative-direction",
+  ]);
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  function readModality(): {
+    ok: true;
+    value: "image" | "video" | "music" | "voice" | "text";
+  } | { ok: false; error: string } {
+    const m = typeof args.modality === "string" ? args.modality.trim() : "";
+    if (!VALID_MODALITIES.has(m)) {
+      return {
+        ok: false,
+        error: `modality must be one of: ${Array.from(VALID_MODALITIES).join(", ")}`,
+      };
+    }
+    return { ok: true, value: m as "image" | "video" | "music" | "voice" | "text" };
+  }
+
+  try {
+    switch (call.name) {
+      case "critic.review": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const result = reviewAsset({
+          modality: mod.value,
+          prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+          negativePrompt:
+            typeof args.negativePrompt === "string" ? args.negativePrompt : undefined,
+          modelId: typeof args.modelId === "string" ? args.modelId : undefined,
+          aspect: typeof args.aspect === "string" ? args.aspect : undefined,
+          durationSec:
+            typeof args.durationSec === "number" ? args.durationSec : undefined,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+          userFeedback:
+            typeof args.userFeedback === "string" ? args.userFeedback : undefined,
+          iteration:
+            typeof args.iteration === "number" ? args.iteration : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.score": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const result = scoreAsset({
+          modality: mod.value,
+          prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+          negativePrompt:
+            typeof args.negativePrompt === "string" ? args.negativePrompt : undefined,
+          modelId: typeof args.modelId === "string" ? args.modelId : undefined,
+          aspect: typeof args.aspect === "string" ? args.aspect : undefined,
+          durationSec:
+            typeof args.durationSec === "number" ? args.durationSec : undefined,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+          userFeedback:
+            typeof args.userFeedback === "string" ? args.userFeedback : undefined,
+          iteration:
+            typeof args.iteration === "number" ? args.iteration : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.compare": {
+        const iterationsArg = Array.isArray(args.iterations) ? args.iterations : [];
+        if (iterationsArg.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "iterations is required (non-empty array)",
+          };
+        }
+        // Validate each iteration has a modality
+        type IterationArg = Parameters<typeof compareIterations>[0]["iterations"][number];
+        const iterations: IterationArg[] = [];
+        for (let i = 0; i < iterationsArg.length; i++) {
+          const it = iterationsArg[i];
+          if (!it || typeof it !== "object") {
+            return {
+              name: call.name,
+              ok: false,
+              error: `iterations[${i}] must be an object`,
+            };
+          }
+          const itObj = it as Record<string, unknown>;
+          const itMod = typeof itObj.modality === "string" ? itObj.modality.trim() : "";
+          if (!VALID_MODALITIES.has(itMod)) {
+            return {
+              name: call.name,
+              ok: false,
+              error: `iterations[${i}].modality must be one of: ${Array.from(VALID_MODALITIES).join(", ")}`,
+            };
+          }
+          if (typeof itObj.id !== "string" || itObj.id.length === 0) {
+            return {
+              name: call.name,
+              ok: false,
+              error: `iterations[${i}].id is required`,
+            };
+          }
+          iterations.push({
+            id: itObj.id,
+            modality: itMod as "image" | "video" | "music" | "voice" | "text",
+            prompt: typeof itObj.prompt === "string" ? itObj.prompt : undefined,
+            modelId: typeof itObj.modelId === "string" ? itObj.modelId : undefined,
+            aspect: typeof itObj.aspect === "string" ? itObj.aspect : undefined,
+            durationSec:
+              typeof itObj.durationSec === "number" ? itObj.durationSec : undefined,
+            userFeedback:
+              typeof itObj.userFeedback === "string" ? itObj.userFeedback : undefined,
+            iteration:
+              typeof itObj.iteration === "number" ? itObj.iteration : undefined,
+          });
+        }
+        const result = compareIterations({
+          iterations,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.suggestRewrite": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const originalPrompt =
+          typeof args.originalPrompt === "string" ? args.originalPrompt : "";
+        if (originalPrompt.trim().length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "originalPrompt is required",
+          };
+        }
+        const targetDims = Array.isArray(args.targetDimensions)
+          ? (args.targetDimensions.filter(d => typeof d === "string") as string[])
+          : undefined;
+        const result = suggestPromptRewrite({
+          modality: mod.value,
+          originalPrompt,
+          targetDimensions: targetDims,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+          limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.planHandoff": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const ct =
+          typeof args.critiqueType === "string" ? args.critiqueType.trim() : "";
+        if (!VALID_CRITIQUE_TYPES.has(ct)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: `critiqueType must be one of: ${Array.from(VALID_CRITIQUE_TYPES).join(", ")}`,
+          };
+        }
+        const result = planHandoff({
+          modality: mod.value,
+          critiqueType: ct as "prompt-level" | "model-level" | "settings-level" | "creative-direction",
+          userAcceptedFix: args.userAcceptedFix === true,
+          suggestedHandoff:
+            args.suggestedHandoff && typeof args.suggestedHandoff === "object"
+              ? (args.suggestedHandoff as { to: AgentRole; reason: string })
+              : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown critic tool: ${call.name}`,
         };
     }
   } catch (err) {

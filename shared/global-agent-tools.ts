@@ -645,16 +645,77 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
+  // ─── 品品（critic）結構化評審工具：五個唯讀工具，純函式（無 DB / 無 LLM）──
+  {
+    name: "critic.review",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      prompt: "string?",
+      negativePrompt: "string?",
+      modelId: "string?",
+      aspect: "string?",
+      durationSec: "number?",
+      goal: "string?",
+      userFeedback: "string?",
+      iteration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.score",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      prompt: "string?",
+      negativePrompt: "string?",
+      modelId: "string?",
+      aspect: "string?",
+      durationSec: "number?",
+      goal: "string?",
+      userFeedback: "string?",
+      iteration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      iterations: "object[]",
+      goal: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.suggestRewrite",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      originalPrompt: "string",
+      targetDimensions: "string[]?",
+      goal: "string?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.planHandoff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      critiqueType: "string",
+      userAcceptedFix: "boolean?",
+      suggestedHandoff: "object?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 音音（music-specialist）音樂工具：八個工具（六讀兩寫） ──
-  // 之前音音 musicSpecialist.* 完全沒登錄在這份 registry 中 → LLM 想呼叫
-  // recommendEngine / buildPrompt / estimateCost / listEngines / getRecentAssets
-  // / getOptions / getTips（讀）+ generate / generateSoundEffect（寫）都被
-  // 防呆閘擋掉，音音實際上只能用嘴砲。補進這份 registry 後音音才能：
-  //   ① 看需求挑引擎（recommendEngine）
-  //   ② 把結構化欄位轉成 model-specific prompt（buildPrompt）
-  //   ③ 估價（estimateCost）+ 列引擎能力卡（listEngines）
-  //   ④ 掃使用者最近的音檔素材（getRecentAssets）
-  //   ⑤ 真實打音樂 / SFX 生成（generate / generateSoundEffect — 寫，扣點數）
   {
     name: "musicSpecialist.recommendEngine",
     riskLevel: "low",
@@ -727,8 +788,6 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
-  // generate / generateSoundEffect 會真的扣點數打 fal/Suno — risk=medium，
-  // requiresHuman=true 對齊 studio.generateAudio / studio.generateSfx 的閘控。
   {
     name: "musicSpecialist.generate",
     riskLevel: "medium",
@@ -754,18 +813,11 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       description: "string",
       modelId: "string?",
       duration: "number?",
+      limit: "number?",
     },
     executionTarget: "server-side",
   },
   // ─── 圖圖（image-specialist）認知 + 出圖工具：5 個唯讀 + 3 個會跑 fal task ──
-  // 之前 imageSpecialist.* 雖然在 agentToolExecutor 的 switch 裡，但完全沒在
-  // 這份 catalog 註冊 → orb tool dispatcher 會視為「未知工具」直接丟回。圖圖
-  // 因此只能依靠 studio.* 的泛用工具，無法用「先 recommendModel → enhancePrompt
-  // → generateImage」這條 agent-style 思考鏈。
-  //
-  // generate / edit / upscale 標 medium：會花點數，但同 studio.generateImage
-  // 一樣不需要 requiresHuman=true（光球當回合 plan-step 已含批准 UX）。
-  // getModels / recommendModel / enhancePrompt / getTips 是純認知工具，唯讀。
   {
     name: "imageSpecialist.generate",
     riskLevel: "medium",
