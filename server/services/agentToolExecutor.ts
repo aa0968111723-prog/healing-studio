@@ -462,6 +462,44 @@ export async function executeOrbToolCalls(
       continue;
     }
 
+    // ── research.compareModels：站內模型 catalogue 結構化比較（查查專用） ──
+    // 純資料工具，不打 LLM、不過 Perplexity 節流。
+    if (call.name === "research.compareModels") {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      const compareResult = await dispatchCompareModelsTool(call);
+      out.push(compareResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: compareResult.usedTool,
+        ok: compareResult.ok,
+        error: compareResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── inspiration.fetch：Perplexity Sonar 即時靈感 / 時事 / 社群偏好 ──
     if (call.name === "inspiration.fetch") {
       if ((opts.blockedTools ?? []).includes(call.name)) {
@@ -5042,6 +5080,88 @@ async function dispatchDeepSearchTool(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// research.compareModels 工具橋接：查查專用 — 站內模型 catalogue 結構化比較
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * compareModels 是純資料工具 — 從 MODEL_PRICING_CATALOG 拉出某類別所有
+ * 模型（或指定的 modelIds）做結構化比較。不打 LLM、不過外部 API，所以
+ * 不過 perplexityThrottle、也沒有 retry 包裝。失敗時直接回 ok=false。
+ */
+async function dispatchCompareModelsTool(
+  call: OrbToolCall,
+): Promise<OrbToolCallResult> {
+  const { getGlobalAgentTool } = await import("../../shared/global-agent-tools");
+  const def = getGlobalAgentTool(call.name);
+  if (!def) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "research-tool-not-registered",
+    };
+  }
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const category = typeof args.category === "string" ? args.category : "";
+  if (!category.trim()) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "missing-category",
+    };
+  }
+
+  try {
+    const { compareModels, getCategoriesInCatalog } = await import(
+      "./spiritTools/researcherTools"
+    );
+    const available = getCategoriesInCatalog();
+    if (!available.includes(category as never)) {
+      return {
+        name: call.name,
+        ok: false,
+        error: `unknown-category:${category}`,
+        data: { availableCategories: available },
+      };
+    }
+    const modelIds = Array.isArray(args.modelIds)
+      ? (args.modelIds.filter(m => typeof m === "string") as string[])
+      : undefined;
+    const useCase =
+      typeof args.useCase === "string" ? (args.useCase as never) : undefined;
+    const includeUnavailable = !!args.includeUnavailable;
+    const maxResults =
+      typeof args.maxResults === "number" ? args.maxResults : undefined;
+    const estimateFor =
+      args.estimateFor && typeof args.estimateFor === "object"
+        ? (args.estimateFor as Record<string, number>)
+        : undefined;
+
+    const result = compareModels({
+      category: category as never,
+      modelIds,
+      useCase,
+      includeUnavailable,
+      maxResults,
+      estimateFor,
+    });
+
+    return {
+      name: call.name,
+      ok: true,
+      data: result,
+      usedTool: call.name,
+    };
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // director.* 規劃工具橋接：呼叫導演 AI 為當前工作室規劃下一步
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -5313,6 +5433,143 @@ async function dispatchDirectorTool(
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
+    // ── 純資料工具（不打 LLM）：直接走 server-side 計算 ──
+    if (call.name === "director.composeWorkflow") {
+      const { composeWorkflow } = await import("./spiritTools/directorTools");
+      const brief = typeof args.brief === "string" ? args.brief : "";
+      if (!brief.trim()) {
+        return {
+          name: call.name,
+          ok: false,
+          error: "missing-brief",
+        };
+      }
+      const kind = typeof args.kind === "string" ? (args.kind as "short_video") : undefined;
+      const platform =
+        typeof args.platform === "string" ? (args.platform as "general") : undefined;
+      const budgetMode =
+        typeof args.budgetMode === "string" ? (args.budgetMode as "balanced") : undefined;
+      const stepByStep = !!args.stepByStep;
+      const result = composeWorkflow({ brief, kind, platform, budgetMode, stepByStep });
+      return {
+        name: call.name,
+        ok: true,
+        data: {
+          // 同時回傳 actions 陣列（前端 page-agent 可直接 dispatch）與
+          // workflow 物件（UI 渲染 plan preview 用）
+          actions: [result.workflow],
+          workflow: result.workflow,
+          handoffs: result.handoffs,
+          kind: result.kind,
+          rationale: `導導已組好「${result.workflow.name}」（${result.workflow.steps.length} 步），下一棒可交給 ${result.handoffs
+            .map(h => `@${h.nickname}`)
+            .join("→")}`,
+        },
+        usedTool: call.name,
+      };
+    }
+
+    if (call.name === "director.estimateBudget") {
+      const { estimateWorkflowBudget } = await import("./spiritTools/directorTools");
+      // 接受兩種輸入：直接給 steps 陣列、或包在 workflow 物件裡
+      const rawSteps = Array.isArray(args.steps)
+        ? args.steps
+        : args.workflow &&
+            typeof args.workflow === "object" &&
+            Array.isArray((args.workflow as { steps?: unknown }).steps)
+          ? (args.workflow as { steps: unknown[] }).steps
+          : null;
+      if (!rawSteps) {
+        return {
+          name: call.name,
+          ok: false,
+          error: "missing-steps",
+        };
+      }
+      // 型別硬轉到 AgentWorkflowStep[] — estimateWorkflowBudget 內部
+      // 會 pickStepParams 取需要的欄位、忽略不認識的；非標準步驟會被
+      // 當成「非生成步驟」算 0 點，不會丟例外。
+      const report = estimateWorkflowBudget({
+        steps: rawSteps as Array<{
+          id?: string;
+          label: string;
+          actionType: string;
+          payload: string;
+          toolArgs?: Record<string, unknown>;
+        }> as never,
+      });
+      return {
+        name: call.name,
+        ok: true,
+        data: report,
+        usedTool: call.name,
+      };
+    }
+
+    if (call.name === "director.suggestHandoff") {
+      const { suggestHandoff } = await import("./spiritTools/directorTools");
+      const fromRole =
+        typeof args.fromRole === "string" ? (args.fromRole as "director") : undefined;
+      const userIntent =
+        typeof args.userIntent === "string" ? args.userIntent : undefined;
+      const hintTokens = Array.isArray(args.hintTokens)
+        ? (args.hintTokens.filter(t => typeof t === "string") as string[])
+        : undefined;
+      const mutedRoles = Array.isArray(args.mutedRoles)
+        ? (args.mutedRoles.filter(t => typeof t === "string") as Array<"director">)
+        : undefined;
+      const busyRoles = Array.isArray(args.busyRoles)
+        ? (args.busyRoles.filter(t => typeof t === "string") as Array<"director">)
+        : undefined;
+      const recentRoles = Array.isArray(args.recentRoles)
+        ? (args.recentRoles.filter(t => typeof t === "string") as Array<"director">)
+        : undefined;
+      const maxDepth = typeof args.maxDepth === "number" ? args.maxDepth : undefined;
+      const result = suggestHandoff({
+        fromRole,
+        userIntent,
+        hintTokens,
+        mutedRoles,
+        busyRoles,
+        recentRoles,
+        maxDepth,
+      });
+      return {
+        name: call.name,
+        ok: true,
+        data: result,
+        usedTool: call.name,
+      };
+    }
+
+    if (call.name === "director.refineWorkflow") {
+      const { refineWorkflowMechanically } = await import("./spiritTools/directorTools");
+      const workflow = args.workflow;
+      const operations = args.operations;
+      if (
+        !workflow ||
+        typeof workflow !== "object" ||
+        !Array.isArray((workflow as { steps?: unknown }).steps) ||
+        !Array.isArray(operations)
+      ) {
+        return {
+          name: call.name,
+          ok: false,
+          error: "missing-workflow-or-operations",
+        };
+      }
+      const result = refineWorkflowMechanically({
+        workflow: workflow as never,
+        operations: operations as never,
+      });
+      return {
+        name: call.name,
+        ok: true,
+        data: result,
+        usedTool: call.name,
+      };
+    }
+
     if (call.name !== "director.suggestPlan") {
       return {
         name: call.name,
@@ -5321,6 +5578,7 @@ async function dispatchDirectorTool(
       };
     }
 
+    // ── LLM-driven 工具：director.suggestPlan ──
     const { invokeLLM, extractMessageText } = await import("../_core/llm");
     const { buildBrainContext } = await import("../middleware/brainContext");
     const { parseLLMActions } = await import("../../shared/agent-actions");
@@ -5344,24 +5602,68 @@ async function dispatchDirectorTool(
     const hasTokenWeights = !!args.hasTokenWeights;
     const hasFineTunedModel = !!args.hasFineTunedModel;
 
-    const systemPrompt = `你是「導演 AI」，使用者正在創作工作室裡建立內容。
-你的任務：根據使用者當前的工作室狀態，建議下一步行動。
+    // 升級版 system prompt：開放 `runWorkflow` 作為合法 action type，讓導演在
+    // 「跨頁 / 多步驟」需求下能直接回傳完整工作流，而不是單頁建議。為了
+    // 避免回到「光跳頁不執行」的反模式，prompt 明確要求多步驟計畫需含真正
+    // 會動作的 step（fillPrompt / submit / toolName=studio.*）。
+    const systemPrompt = `你是「導演 AI」（導導），使用者正在創作工作室裡建立內容。
+你的任務：根據使用者當前的工作室狀態，建議下一步行動 — 視需求可以是「單一動作組合」或「整條跨頁 workflow」。
 
 回傳格式（嚴格 JSON）：
 {
   "actions": [
-    { "type": "fillPrompt", "text": "...", "slot": "prompt", "append": false },
+    // 單頁動作（用在使用者已在對的頁、只差最後幾步）：
+    { "type": "fillPrompt", "text": "...", "slot": "prompt|negativePrompt|lyrics|voice", "append": false },
     { "type": "setModality", "modality": "image|video|audio|voice" },
-    { "type": "setMode", "modeId": "lightning|deep_precision" },
-    { "type": "setModel", "modelId": "fal-ai/..." }
+    { "type": "setTab", "tabId": "t2v|i2v|v2v|t2i|i2i|music|voice" },
+    { "type": "setMode", "modeId": "lightning|deep_precision|inspiration|standard|professional" },
+    { "type": "setModel", "modelId": "fal-ai/..." },
+    { "type": "setParam", "key": "duration|aspectRatio|...", "value": "..." },
+    { "type": "applyPreset", "presetId": "creative:simple|creative:standard|creative:pro" },
+    { "type": "submit" },
+    // 跨頁多步驟 workflow（用在使用者需求是「整條跑完」）：
+    {
+      "type": "runWorkflow",
+      "name": "中文摘要的計畫名稱",
+      "confirmationMode": "step-by-step|all-at-once|high-risk-only",
+      "steps": [
+        {
+          "id": "step_image", "path": "/image-studio",
+          "actionType": "submit", "payload": "",
+          "label": "圖圖：產 key visual",
+          "toolName": "studio.generateImage",
+          "toolArgs": { "prompt": "...", "modelId": "fal-ai/flux-pro/v1.1", "aspect_ratio": "9:16" }
+        },
+        {
+          "id": "step_video", "path": "/video-studio",
+          "actionType": "submit", "payload": "",
+          "label": "影影：i2v 動畫",
+          "toolName": "studio.generateVideo",
+          "dependsOn": ["step_image"],
+          "toolArgs": { "prompt": "...", "modelId": "fal-ai/kling-video/v2.1/standard/image-to-video",
+                        "image_url": "\${step_image.image_url}", "duration": 5, "aspect_ratio": "9:16" }
+        }
+      ]
+    }
   ],
-  "rationale": "簡短中文說明"
+  "rationale": "用 1-2 句中文說明為什麼這樣排，並指出下一棒交給哪位精靈（用 @暱稱）"
 }
 
-規範：
-- 最多回 4 個 actions
+決策規範：
 - 風格 = ${personality}
+- 使用者只在「當頁」需要幫助 → 回單頁動作組合（≤ 6 個）
+- 使用者目標是「整條短片 / 跨頁工作流」→ 回單一 \`runWorkflow\` action，每步用 \`toolName=studio.*\` 真的執行，不要只有 navigate
+- 多步驟 workflow 必須有真正會動作的 step（toolName / fillPrompt / submit），不能整條只跳頁
+- 影片 / 圖片步驟連動：i2v step 用 \`image_url: "\${step_image.image_url}"\` 引用上一步 image 結果
+- 預設 confirmationMode=step-by-step（先讓使用者逐步審核）
+- rationale 結尾用 @暱稱 點名下一棒接手的精靈（@圖圖 / @影影 / @音音 / @聲聲 / @品品 / @步步）
 - 不要回多餘內容，只回 JSON
+
+導導可主動呼叫的兄弟工具（在 plan 真正執行前先這樣鋪路會更穩）：
+- director.composeWorkflow（brief → 完整 workflow 模板）
+- director.estimateBudget（workflow → 總點數 + 替代模型省錢建議）
+- director.suggestHandoff（給 hintTokens → 下一棒精靈鏈）
+- director.refineWorkflow（已存在的 workflow → 機械式微調）
 ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : ""}`;
 
     const studioContext = `

@@ -439,6 +439,35 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 查查（researcher）站內模型比較工具 ──
+  // 查查在 prompt 裡承諾「比較模型時用站內 registry」，但之前只能靠 LLM
+  // 把目錄內容背出來。compareModels 把 MODEL_PRICING_CATALOG 直接結構化
+  // 回傳：每筆含 tier / pts range / API 可用性 / 擅長 vs 不擅長 / useCase
+  // 匹配度，再附三選一推薦（cheapest / bestQuality / bestFit）與下一棒
+  // 交給誰。完全 deterministic，可被測試釘規格。
+  {
+    name: "research.compareModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 必填：模型類別。MODEL_PRICING_CATALOG 的 ModelCategory enum。
+      // text-to-image / text-to-video / image-to-video / text-to-audio /
+      // text-to-speech / training …
+      category: "string",
+      // 選填：指定要比的 modelId 清單。不指定就抓該類別全部。
+      modelIds: "string[]?",
+      // 選填：是否含 API key 缺失的模型（預設 false）
+      includeUnavailable: "boolean?",
+      // 選填：用情境 — draft / production / cinematic / commercial /
+      // anatomical / loop_friendly / vocal / ambient / multilingual
+      useCase: "string?",
+      // 選填：估算花費用的內容尺寸
+      estimateFor: "object?",
+      // 選填：最多回幾個（預設 8、上限 20）
+      maxResults: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
   {
     name: "director.suggestPlan",
@@ -451,6 +480,61 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       hasTokenWeights: "boolean?",
       hasFineTunedModel: "boolean?",
       personality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // 跨頁多步驟 workflow：導導把使用者目標拆成 image → video → voice → music
+  // 一條龍，回傳可直接送進 page-agent dispatch 的 RunWorkflowAction + 每步
+  // 建議交手的精靈。kind / platform / budgetMode 不指定時會依 brief 推斷。
+  {
+    name: "director.composeWorkflow",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      brief: "string",
+      kind: "string?", // short_video | image_only | music_only | voice_only | key_visual_to_video | tutorial_set
+      platform: "string?", // instagram_reels | tiktok | youtube_shorts | youtube_long | general
+      budgetMode: "string?", // cheap | balanced | premium
+      stepByStep: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  // 估算 workflow 整體點數成本 + 每步替代模型建議。給導導 → 財財的接棒
+  // 用：在 plan 真的執行前讓使用者看到「整條約 X 點，切草稿可省 Y 點」。
+  {
+    name: "director.estimateBudget",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      steps: "object", // AgentWorkflowStep[]
+    },
+    executionTarget: "server-side",
+  },
+  // 智能交棒：依使用者意圖 + 協作協定挑下一棒精靈（含降頻 cycle 防呆）。
+  {
+    name: "director.suggestHandoff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      fromRole: "string?",
+      userIntent: "string?",
+      hintTokens: "string[]?",
+      mutedRoles: "string[]?",
+      busyRoles: "string[]?",
+      recentRoles: "string[]?",
+      maxDepth: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // 機械式 workflow 微調：刪步、換模型、改參數、改確認模式。命中不到的
+  // 大改（重排敘事 / 改鏡頭數）會 fallback 回 LLM 路徑。
+  {
+    name: "director.refineWorkflow",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      workflow: "object", // RunWorkflowAction
+      operations: "object", // RefineOp[]
     },
     executionTarget: "server-side",
   },
