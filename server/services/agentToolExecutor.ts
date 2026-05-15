@@ -2297,13 +2297,16 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
-      // communityManager.* tools for community-manager (社社)
+      // communityManager.* tools for community-manager (群群)
       // ════════════════════════════════════════════════════════════════════
 
-      case "communityManager.submitFeedback":
-      case "communityManager.getUserFeedback":
-      case "communityManager.getAnnouncements":
-      case "communityManager.getEngagementTips": {
+      case "communityManager.buildPostPlan":
+      case "communityManager.nextClarification":
+      case "communityManager.recommendHashtags":
+      case "communityManager.planWeeklySchedule":
+      case "communityManager.critiqueHook":
+      case "communityManager.formatCaption":
+      case "communityManager.listPlatforms": {
         const communityResult = await dispatchCommunityManagerTool(call, opts);
         return communityResult;
       }
@@ -4486,59 +4489,164 @@ async function dispatchSecurityGuardTool(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// communityManager.* 工具橋接：社社（community-manager）的社群互動工具
+// communityManager.* 工具橋接：群群（community-manager）的社群經營工具
+// 6 個純函式工具 + 1 個平台元資料查詢，全對應 system prompt slice 的
+// 「平台 × 年齡層 × 貼文公式 × hashtag × 排程」職責。
 // ═══════════════════════════════════════════════════════════════════════════
+
+const COMMUNITY_PLATFORMS: ReadonlySet<string> = new Set([
+  "instagram", "tiktok", "youtube", "xiaohongshu", "facebook", "linkedin",
+]);
+const COMMUNITY_AUDIENCE_AGES: ReadonlySet<string> = new Set([
+  "13-17", "18-24", "25-34", "35-44", "45+",
+]);
+const COMMUNITY_ASSET_TYPES: ReadonlySet<string> = new Set([
+  "short-video", "image-post", "carousel", "long-video", "text-only",
+]);
+const COMMUNITY_GOALS: ReadonlySet<string> = new Set([
+  "reach", "engagement", "conversion", "branding",
+]);
 
 async function dispatchCommunityManagerTool(
   call: OrbToolCall,
-  opts: ExecuteOrbToolCallsOptions
+  _opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { submitFeedback, getUserFeedback, getAnnouncements, getEngagementTips } = await import("./spiritTools/communityManagerTools");
+  const {
+    buildPostPlan,
+    nextClarificationQuestion,
+    recommendHashtags,
+    planWeeklySchedule,
+    critiqueHook,
+    formatCaption,
+    listSupportedPlatforms,
+  } = await import("./spiritTools/communityManagerTools");
+  type CM = typeof import("./spiritTools/communityManagerTools");
+  type Platform = Parameters<CM["buildPostPlan"]>[0]["platform"];
+  type Age = Parameters<CM["buildPostPlan"]>[0]["audienceAge"];
+  type Asset = Parameters<CM["buildPostPlan"]>[0]["assetType"];
+  type Goal = NonNullable<Parameters<CM["buildPostPlan"]>[0]["goal"]>;
+
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
     switch (call.name) {
-      case "communityManager.submitFeedback": {
-        const type = args.type as "bug" | "feature" | "improvement" | "praise" | "other";
-        const title = args.title as string;
-        const description = args.description as string;
+      case "communityManager.buildPostPlan": {
+        const platform = args.platform as string;
+        const audienceAge = args.audienceAge as string;
+        const theme = args.theme as string;
+        const assetType = args.assetType as string;
+        const goal = args.goal as string | undefined;
 
-        if (!type || !title || !description) {
-          return { name: call.name, ok: false, error: "type, title, and description are required" };
+        if (!COMMUNITY_PLATFORMS.has(platform)) {
+          return { name: call.name, ok: false, error: `platform must be one of: ${Array.from(COMMUNITY_PLATFORMS).join(", ")}` };
         }
-
-        const result = await submitFeedback({
-          userId: opts.userId,
-          type,
-          title,
-          description,
-          rating: args.rating as number | undefined,
+        if (!COMMUNITY_AUDIENCE_AGES.has(audienceAge)) {
+          return { name: call.name, ok: false, error: `audienceAge must be one of: ${Array.from(COMMUNITY_AUDIENCE_AGES).join(", ")}` };
+        }
+        if (typeof theme !== "string" || theme.trim().length === 0) {
+          return { name: call.name, ok: false, error: "theme is required" };
+        }
+        if (!COMMUNITY_ASSET_TYPES.has(assetType)) {
+          return { name: call.name, ok: false, error: `assetType must be one of: ${Array.from(COMMUNITY_ASSET_TYPES).join(", ")}` };
+        }
+        if (goal !== undefined && !COMMUNITY_GOALS.has(goal)) {
+          return { name: call.name, ok: false, error: `goal must be one of: ${Array.from(COMMUNITY_GOALS).join(", ")}` };
+        }
+        const result = buildPostPlan({
+          platform: platform as Platform,
+          audienceAge: audienceAge as Age,
+          theme: theme.trim(),
+          assetType: assetType as Asset,
+          ...(goal ? { goal: goal as Goal } : {}),
+          ...(typeof args.rawDraft === "string" ? { rawDraft: args.rawDraft } : {}),
         });
-        return {
-          name: call.name,
-          ok: result.success,
-          data: result,
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
-      case "communityManager.getUserFeedback": {
-        const result = await getUserFeedback({
-          userId: opts.userId,
-          limit: args.limit as number | undefined,
+      case "communityManager.nextClarification": {
+        // 只接受合法欄位名稱；多餘 key 不要傳進去，避免污染。
+        const partial = (args.partial ?? args) as Record<string, unknown>;
+        const safe: Record<string, unknown> = {};
+        if (typeof partial.platform === "string" && COMMUNITY_PLATFORMS.has(partial.platform)) safe.platform = partial.platform;
+        if (typeof partial.audienceAge === "string" && COMMUNITY_AUDIENCE_AGES.has(partial.audienceAge)) safe.audienceAge = partial.audienceAge;
+        if (typeof partial.theme === "string" && partial.theme.trim().length > 0) safe.theme = partial.theme.trim();
+        if (typeof partial.assetType === "string" && COMMUNITY_ASSET_TYPES.has(partial.assetType)) safe.assetType = partial.assetType;
+        if (typeof partial.goal === "string" && COMMUNITY_GOALS.has(partial.goal)) safe.goal = partial.goal;
+        const q = nextClarificationQuestion(safe as Parameters<typeof nextClarificationQuestion>[0]);
+        return { name: call.name, ok: true, data: { question: q }, usedTool: call.name };
+      }
+
+      case "communityManager.recommendHashtags": {
+        const platform = args.platform as string;
+        const theme = args.theme as string;
+        if (!COMMUNITY_PLATFORMS.has(platform)) {
+          return { name: call.name, ok: false, error: `platform must be one of: ${Array.from(COMMUNITY_PLATFORMS).join(", ")}` };
+        }
+        if (typeof theme !== "string" || theme.trim().length === 0) {
+          return { name: call.name, ok: false, error: "theme is required" };
+        }
+        const maxCount = typeof args.maxCount === "number" && Number.isFinite(args.maxCount) ? args.maxCount : undefined;
+        const result = recommendHashtags({
+          platform: platform as Platform,
+          theme: theme.trim(),
+          ...(maxCount !== undefined ? { maxCount } : {}),
         });
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
-      case "communityManager.getAnnouncements": {
-        const result = getAnnouncements();
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      case "communityManager.planWeeklySchedule": {
+        const platforms = args.platforms;
+        if (!Array.isArray(platforms) || platforms.length === 0) {
+          return { name: call.name, ok: false, error: "platforms must be a non-empty array" };
+        }
+        const invalid = platforms.find(p => typeof p !== "string" || !COMMUNITY_PLATFORMS.has(p));
+        if (invalid !== undefined) {
+          return { name: call.name, ok: false, error: `invalid platform: ${String(invalid)}` };
+        }
+        const startDate = typeof args.startDate === "string" ? args.startDate : undefined;
+        const result = planWeeklySchedule({
+          platforms: platforms as Platform[],
+          ...(startDate ? { startDate } : {}),
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
-      case "communityManager.getEngagementTips": {
-        const result = getEngagementTips();
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      case "communityManager.critiqueHook": {
+        const hook = args.hook as string;
+        const platform = args.platform as string;
+        if (typeof hook !== "string" || hook.trim().length === 0) {
+          return { name: call.name, ok: false, error: "hook is required" };
+        }
+        if (!COMMUNITY_PLATFORMS.has(platform)) {
+          return { name: call.name, ok: false, error: `platform must be one of: ${Array.from(COMMUNITY_PLATFORMS).join(", ")}` };
+        }
+        const result = critiqueHook({ hook: hook.trim(), platform: platform as Platform });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "communityManager.formatCaption": {
+        const rawText = args.rawText as string;
+        const platform = args.platform as string;
+        if (typeof rawText !== "string" || rawText.trim().length === 0) {
+          return { name: call.name, ok: false, error: "rawText is required" };
+        }
+        if (!COMMUNITY_PLATFORMS.has(platform)) {
+          return { name: call.name, ok: false, error: `platform must be one of: ${Array.from(COMMUNITY_PLATFORMS).join(", ")}` };
+        }
+        const hashtags = Array.isArray(args.hashtags)
+          ? (args.hashtags as unknown[]).filter((t): t is string => typeof t === "string")
+          : undefined;
+        const result = formatCaption({
+          rawText,
+          platform: platform as Platform,
+          ...(hashtags ? { hashtags } : {}),
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "communityManager.listPlatforms": {
+        const result = listSupportedPlatforms();
+        return { name: call.name, ok: true, data: { platforms: result }, usedTool: call.name };
       }
 
       default:
