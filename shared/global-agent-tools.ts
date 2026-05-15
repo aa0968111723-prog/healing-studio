@@ -977,6 +977,50 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 巧巧（quality-coach）提示詞品質教練工具 ──
+  {
+    name: "qualityCoach.diagnose",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.rewrite",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modality: "string?",
+      onlyFillDimensions: "string[]?",
+      includeDiagnosis: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      promptA: "string",
+      promptB: "string",
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.getTemplates",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      styleHint: "string?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 記記（notes-curator）筆記、待辦、行事曆與資產管理工具 ──
   {
     name: "notesCurator.createNote",

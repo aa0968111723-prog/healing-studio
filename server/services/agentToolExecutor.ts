@@ -2211,6 +2211,18 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
+      // qualityCoach.* tools for quality-coach (巧巧)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "qualityCoach.diagnose":
+      case "qualityCoach.rewrite":
+      case "qualityCoach.compare":
+      case "qualityCoach.getTemplates": {
+        const qualityCoachResult = await dispatchQualityCoachTool(call);
+        return qualityCoachResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
       // imageSpecialist.* tools for image-specialist (圖圖)
       // ════════════════════════════════════════════════════════════════════
 
@@ -2989,6 +3001,31 @@ async function dispatchCompanionTool(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// qualityCoach.* 工具橋接：巧巧（quality-coach）的提示詞品質教練工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchQualityCoachTool(
+  call: OrbToolCall
+): Promise<OrbToolCallResult> {
+  const { dispatchQualityCoach } = await import("./spiritTools/qualityCoachTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const name = call.name as
+    | "qualityCoach.diagnose"
+    | "qualityCoach.rewrite"
+    | "qualityCoach.compare"
+    | "qualityCoach.getTemplates";
+
+  const result = dispatchQualityCoach({ name, args });
+  return {
+    name: call.name,
+    ok: result.ok,
+    data: result.ok ? result.data : undefined,
+    error: result.ok ? undefined : result.error,
+    usedTool: result.ok ? call.name : undefined,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -26,6 +26,7 @@ import {
   detectSettingsDrift,
   detectStrugglingPrompt,
   notePlatformMention,
+  scoreShortPrompt,
 } from "@/lib/spiritWatchers";
 import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
@@ -3467,11 +3468,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       // 也跳過明顯是「同意 / 延續」短語：好、好的、繼續、ok、yes、go…
       const isContinuationCue = /^(好|好的|好喔|好啊|繼續|繼續做|ok|okay|yes|對|是的|可以|嗯|go|next|讚)$|(請|麻煩).{0,3}繼續/i.test(trimmed);
       if (!hasRecentLongPrompt && !isContinuationCue) {
+        // 用 qualityCoachEngine.scorePrompt 拿真實診斷 — 不再丟「場景、風格、用途
+        // 其中一個」這種抽象抽屜。對短 prompt，engine 通常缺 3-4 維，這裡只挑最
+        // 該補的第一個給使用者看。
+        const diag = scoreShortPrompt(trimmed);
         ProactiveEventBus.publish(
           "prompt_too_short",
           {
             prompt: trimmed,
-            suggestedAddition: "場景、風格、用途其中一個",
+            // suggestedAddition 是 prompt_too_short 的 template token
+            // (shared/orb-agent-roles.ts SPIRIT_PROACTIVE_TRIGGERS)
+            suggestedAddition: diag.suggestedAddition,
           },
           { dedupeKey: trimmed.slice(0, 4), dedupeMs: 60_000 }
         );
