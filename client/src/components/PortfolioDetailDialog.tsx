@@ -7,13 +7,12 @@
  * 資料來源：
  *   - 基本欄位：showcase.list 的 ShowcaseItem（傳入 basic）
  *   - 進階欄位：showcase.getById（傳入 detail，可選；載入期間顯示骨架）
- *   - 模型 & 評論數：schema 尚無欄位，於前端以 modality + id 推導假資料
+ *   - 模型：由 modality + parameters 推導
  */
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
-  MessageCircle,
   GitFork,
   Copy,
   Check,
@@ -112,13 +111,6 @@ function resolveAiModel(
   return MODALITY_META[modality]?.model ?? "AI Studio Engine";
 }
 
-/** Deterministic mock comment count — until a real backend field exists. */
-function mockCommentCount(id: number, likeCount: number): number {
-  const base = Math.floor(likeCount * 0.18);
-  const jitter = (id * 37) % 23;
-  return Math.max(0, base + jitter);
-}
-
 function formatDate(value: Date | string): string {
   try {
     const d = value instanceof Date ? value : new Date(value);
@@ -167,11 +159,6 @@ export default function PortfolioDetailDialog({
       ""
     );
   }, [detail]);
-
-  const commentCount = useMemo(
-    () => (basic ? mockCommentCount(basic.id, basic.likeCount) : 0),
-    [basic]
-  );
 
   const handleCopyPrompt = async () => {
     if (!prompt) return;
@@ -292,17 +279,6 @@ export default function PortfolioDetailDialog({
               icon={<Heart className="w-3.5 h-3.5" style={{ color: "#f472b6" }} />}
               label="愛心"
               value={basic.likeCount.toLocaleString()}
-              isDark={isDark}
-            />
-            <StatBlock
-              icon={
-                <MessageCircle
-                  className="w-3.5 h-3.5"
-                  style={{ color: "#60a5fa" }}
-                />
-              }
-              label="評論"
-              value={commentCount.toLocaleString()}
               isDark={isDark}
             />
             <StatBlock
