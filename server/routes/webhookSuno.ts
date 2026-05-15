@@ -31,6 +31,10 @@ import {
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
+import {
+  runPostGenForJob,
+  unifiedAssetPrefix,
+} from "../services/postGenActions.js";
 import { verifyWebhookToken } from "../_core/webhookTokens";
 
 export const sunoWebhookRouter = Router();
@@ -203,23 +207,41 @@ sunoWebhookRouter.post(
         return;
       }
 
+      // 統一前綴：generated/studio/<userId>/suno/<taskId>。
       const localized = (await localizeResultUrls(
         { clips, audioUrl: clips[0]?.audioUrl },
-        `generated/webhook/suno/${jobId}`
+        unifiedAssetPrefix({
+          userId: job.userId,
+          source: "suno",
+          modelId: taskId || String(jobId),
+        })
       )) as { clips: SunoWebhookClip[]; audioUrl?: string };
 
+      const audioUrl = localized.audioUrl ?? localized.clips[0]?.audioUrl;
       await updateBackgroundJob(jobId, {
         status: "completed",
         progress: 100,
         progressMessage: "生成完成",
         resultJson: {
+          ...(job.resultJson as Record<string, unknown> | null),
           sunoTaskId: taskId,
           mediaType: "audio",
-          audioUrl: localized.audioUrl ?? localized.clips[0]?.audioUrl,
+          audioUrl,
+          // 統一 resultUrl 鍵名 + studioType / modelId / sourceStudio，
+          // 讓 runPostGenForJob 能把 Suno 成品也灌進「我的資產 / 生成歷史
+          // / 提示詞庫 / AI 監控室」。
+          resultUrl: audioUrl,
+          studioType: "audio",
+          modelId: "suno",
+          sourceStudio: "pro",
           clips: localized.clips,
           completedAt: new Date().toISOString(),
         } as any,
       });
+      // 後置動作（idempotent，與 polling 端共用 postGenComplete 旗標）：
+      // 寫入提示詞庫 + 資產庫 + 歷史 + AI 監控室。Suno 走 webhook 完成路徑
+      // 過去從不呼叫 postGenActions，使用者音樂永遠不進「我的資產」。
+      void runPostGenForJob(jobId);
       generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
       console.log(
         `[WebhookSuno] ✅ Job ${jobId} completed (${localized.clips.length} clips)`

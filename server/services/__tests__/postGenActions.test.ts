@@ -4,6 +4,11 @@
  *  - runPostGenForJob runs once and respects postGenComplete idempotency flag
  *  - runPostGenForJob falls back to imageUrl/videoUrl when resultUrl missing
  *    (webhookFal only writes those, not the unified resultUrl)
+ *  - unifiedAssetPrefix produces generated/studio/<userId>/<source>/<model>
+ *    so director / image / video / pro studios all land under the same tree
+ *  - doPostGenComplete honours dedupeMarker / parameterSnapshot / thumbnailUrl
+ *    so imageStudio / videoStudio / proStudio's per-request dedupe still works
+ *    after migrating off ad-hoc createDigitalAsset / createHistoryEntry
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,7 +42,11 @@ vi.mock("../brainAutoRepair", () => ({
     addGenerationLogMock(...(args as [unknown])),
 }));
 
-import { doPostGenComplete, runPostGenForJob } from "../postGenActions";
+import {
+  doPostGenComplete,
+  runPostGenForJob,
+  unifiedAssetPrefix,
+} from "../postGenActions";
 
 describe("doPostGenComplete", () => {
   beforeEach(() => {
@@ -231,5 +240,155 @@ describe("runPostGenForJob", () => {
     const ran = await runPostGenForJob(0);
     expect(ran).toBe(false);
     expect(createDigitalAssetMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("unifiedAssetPrefix", () => {
+  it("emits generated/studio/<userId>/<source>/<sanitized-model>", () => {
+    // 沿用 routers.ts checkStudioJob 的 sanitiser（保留 \w / - / /，其他全
+    // 轉底線）— 點號 . 也屬於「其他」，會被轉成 _，避免在 S3 key 內混雜
+    // 不同 sanitisation 策略。
+    expect(
+      unifiedAssetPrefix({
+        userId: 42,
+        source: "director",
+        modelId: "fal-ai/kling-video/v2.1",
+      })
+    ).toBe("generated/studio/42/director/fal-ai/kling-video/v2_1");
+  });
+
+  it("strips path-unsafe chars from modelId (colons, dots, query strings)", () => {
+    expect(
+      unifiedAssetPrefix({
+        userId: 7,
+        source: "image",
+        modelId: "fal-ai/flux:pro@v1.1?seed=1",
+      })
+    ).toBe("generated/studio/7/image/fal-ai/flux_pro_v1_1_seed_1");
+  });
+
+  it("omits modelId segment when not supplied (e.g. webhook with only jobId)", () => {
+    expect(
+      unifiedAssetPrefix({
+        userId: 9,
+        source: "webhook",
+      })
+    ).toBe("generated/studio/9/webhook");
+  });
+
+  it("inserts subfolder between source and model (gemini async case)", () => {
+    expect(
+      unifiedAssetPrefix({
+        userId: 3,
+        source: "creative",
+        subfolder: "gemini-async",
+        modelId: "imagen-3",
+      })
+    ).toBe("generated/studio/3/creative/gemini-async/imagen-3");
+  });
+
+  it("never lets two studios collide on a user's path tree", () => {
+    // 同一個使用者、不同 source 必須產出不同前綴，否則「我的資產」
+    // 反向掃描就會把導演 AI 跟 image studio 的成品混在一起。
+    const userId = 100;
+    const modelId = "fal-ai/nano-banana-pro";
+    const prefixes = (
+      ["director", "image", "video", "pro", "creative", "background", "webhook", "suno", "replicate"] as const
+    ).map(source => unifiedAssetPrefix({ userId, source, modelId }));
+    expect(new Set(prefixes).size).toBe(prefixes.length);
+    // 全部都在同一個使用者的命名空間下
+    for (const p of prefixes) {
+      expect(p.startsWith("generated/studio/100/")).toBe(true);
+    }
+  });
+});
+
+describe("doPostGenComplete with caller-supplied dedupe / parameter snapshot", () => {
+  beforeEach(() => {
+    createDigitalAssetMock.mockReset();
+    createDigitalAssetMock.mockResolvedValue(1);
+    createHistoryEntryMock.mockReset();
+    createHistoryEntryMock.mockResolvedValue(1);
+    insertMock.mockReset();
+    insertMock.mockResolvedValue(undefined);
+    addGenerationLogMock.mockReset();
+    getDbMock.mockReset();
+    getDbMock.mockReturnValue({
+      insert: () => ({ values: insertMock }),
+    });
+  });
+
+  it("uses dedupeMarker as compiledPrompt so per-request dedupe still works", async () => {
+    // imageStudio / videoStudio / proStudio 都靠 compiledPrompt === dedupeMarker
+    // 做下一輪輪詢的 short-circuit。dedupeMarker 不能被 promptText 吃掉。
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat",
+      resultUrl: "https://cdn.example.com/result.png",
+      sourceStudio: "image",
+      dedupeMarker: "[imageStudio:fal-ai/nano-banana-2:req-abc]",
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(historyEntry.compiledPrompt).toBe(
+      "[imageStudio:fal-ai/nano-banana-2:req-abc]"
+    );
+    // prompt 還是原本的提示詞，dedupeMarker 只覆寫 compiledPrompt
+    expect(historyEntry.prompt).toBe("a cute cat");
+  });
+
+  it("merges caller's parameterSnapshot into the canonical {modelId, sourceStudio} shape", async () => {
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling-video",
+      prompt: "a cat dancing",
+      resultUrl: "https://cdn.example.com/video.mp4",
+      sourceStudio: "video",
+      parameterSnapshot: {
+        sourceStudio: "video", // caller can override; takes precedence
+        requestId: "req-xyz",
+        aspectRatio: "9:16",
+      },
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    const snapshot = historyEntry.parameterSnapshot as Record<string, unknown>;
+    expect(snapshot.modelId).toBe("fal-ai/kling-video");
+    expect(snapshot.sourceStudio).toBe("video");
+    expect(snapshot.requestId).toBe("req-xyz");
+    expect(snapshot.aspectRatio).toBe("9:16");
+  });
+
+  it("forwards thumbnailUrl + costCredits to both asset + history", async () => {
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      resultUrl: "https://cdn.example.com/result.png",
+      thumbnailUrl: "https://cdn.example.com/thumb.jpg",
+      costCredits: 12,
+    });
+
+    const asset = createDigitalAssetMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(asset.thumbnailUrl).toBe("https://cdn.example.com/thumb.jpg");
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(historyEntry.thumbnailUrl).toBe("https://cdn.example.com/thumb.jpg");
+    expect(historyEntry.costCredits).toBe(12);
   });
 });

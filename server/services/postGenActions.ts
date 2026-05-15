@@ -32,6 +32,46 @@ export const MAX_LOG_FIELD_LENGTH = 200;
 
 export type PostGenModality = "image" | "video" | "audio" | "voice";
 
+/**
+ * 統一 AI 生成資產的 S3/儲存路徑前綴。
+ *
+ * 過去各工作室自行組路徑（generated/director/<model>、
+ * generated/image-studio/<model>、generated/pro-studio/<model>、
+ * generated/webhook/<jobId>…）導致同一個使用者的資產散落在不同 prefix，
+ * 也讓「我的資產」反向掃描變得不可能。
+ *
+ * 一律走 `generated/studio/<userId>/<source>[/<subfolder>][/<sanitized-model>]`，
+ * 來源欄位包含：creative / director / image / video / pro / background /
+ * webhook / suno / replicate。
+ */
+export type AssetStorageSource =
+  | "creative"
+  | "director"
+  | "image"
+  | "video"
+  | "pro"
+  | "background"
+  | "webhook"
+  | "suno"
+  | "replicate";
+
+export function unifiedAssetPrefix(params: {
+  userId: number;
+  source: AssetStorageSource;
+  modelId?: string;
+  subfolder?: string;
+}): string {
+  const sanitizedModel = params.modelId
+    ? params.modelId.replace(/[^\w/-]+/g, "_")
+    : null;
+  const parts = [
+    `generated/studio/${params.userId}/${params.source}`,
+    ...(params.subfolder ? [params.subfolder] : []),
+    ...(sanitizedModel ? [sanitizedModel] : []),
+  ];
+  return parts.join("/");
+}
+
 export interface PostGenParams {
   userId: number;
   modality: PostGenModality;
@@ -40,6 +80,19 @@ export interface PostGenParams {
   resultUrl?: string;
   label?: string;
   sourceStudio?: string;
+  /**
+   * 自訂歷史紀錄 compiledPrompt，用來支援呼叫端自己的 dedupe（例如
+   * imageStudio.checkImageStatus 一份請求會被輪詢多次，靠
+   * compiledPrompt === `[imageStudio:<model>:<request>]` 作唯一鍵）。
+   * 若不提供，會 fallback 到 promptText 作 compiledPrompt（既有行為）。
+   */
+  dedupeMarker?: string;
+  /** 額外塞進 generationHistory.parameterSnapshot 的欄位 */
+  parameterSnapshot?: Record<string, unknown>;
+  /** 縮圖 URL — 影片 / 圖片預覽 */
+  thumbnailUrl?: string;
+  /** 此次生成扣除的點數，預設 1 */
+  costCredits?: number;
 }
 
 /**
@@ -47,8 +100,19 @@ export interface PostGenParams {
  * 各子任務皆吞錯，不影響主流程。
  */
 export async function doPostGenComplete(params: PostGenParams): Promise<void> {
-  const { userId, modality, modelId, prompt, resultUrl, label, sourceStudio } =
-    params;
+  const {
+    userId,
+    modality,
+    modelId,
+    prompt,
+    resultUrl,
+    label,
+    sourceStudio,
+    dedupeMarker,
+    parameterSnapshot,
+    thumbnailUrl,
+    costCredits,
+  } = params;
   const promptText = (prompt ?? "").trim();
 
   // 1-2. 提示詞庫
@@ -87,6 +151,7 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
         fileUrl: resultUrl,
         fileKey: resultUrl,
         promptUsed: promptText || undefined,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
       });
     } catch {
       // 靜默忽略
@@ -100,16 +165,20 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
         userId,
         modality,
         prompt: promptText || undefined,
-        compiledPrompt: promptText || undefined,
+        // 呼叫端若有 dedupe 機制（imageStudio 等），用 dedupeMarker 當
+        // compiledPrompt，下一輪輪詢就能靠唯一鍵 short-circuit。
+        compiledPrompt: dedupeMarker ?? (promptText || undefined),
         // 記下 modelId / sourceStudio 讓 ImageStudio 等頁面能反向 map 回模型
         // 名稱、決定點選歷史項目要切到哪個 tab。
         parameterSnapshot: {
           modelId,
           sourceStudio: sourceStudio ?? "unknown",
           ...(label ? { label } : {}),
+          ...(parameterSnapshot ?? {}),
         },
         resultUrl,
-        costCredits: 1,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
+        costCredits: costCredits ?? 1,
       });
     } catch {
       // 靜默忽略

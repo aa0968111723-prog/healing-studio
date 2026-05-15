@@ -223,6 +223,7 @@ import { runOrbWebResearch } from "./services/orbWebResearch";
 import {
   doPostGenComplete,
   runPostGenForJob,
+  unifiedAssetPrefix,
 } from "./services/postGenActions";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
@@ -3483,7 +3484,11 @@ export const appRouter = router({
             // 從結果中提取 URL（嘗試所有已知路徑）
             const localizedResult = (await localizeResultUrls(
               resultData,
-              `generated/studio/${ctx.user.id}/background/${modelId.replace(/[^\w/-]+/g, "_")}`
+              unifiedAssetPrefix({
+                userId: ctx.user.id,
+                source: "background",
+                modelId,
+              })
             )) as Record<string, unknown> | null;
             const r = localizedResult;
             const resultUrl =

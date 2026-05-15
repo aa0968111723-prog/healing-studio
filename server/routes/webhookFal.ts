@@ -21,7 +21,7 @@ import {
 import { serverEnv } from "../_core/env.validated";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
-import { runPostGenForJob } from "../services/postGenActions.js";
+import { runPostGenForJob, unifiedAssetPrefix } from "../services/postGenActions.js";
 
 export const falWebhookRouter = Router();
 
@@ -112,11 +112,17 @@ falWebhookRouter.post(
       //    讓訂閱 /api/generation-events/:jobId 的前端立即收到完成/失敗通知，
       //    不必等下一輪 5s 輪詢
       if (payload.status === "OK" || payload.status === "COMPLETED") {
-        // 成功：取出結果 URL，並將外部 CDN URL 持久化到 S3
+        // 成功：取出結果 URL，並將外部 CDN URL 持久化到 S3。
+        // 統一前綴：generated/studio/<userId>/webhook/<jobId>，讓所有 AI
+        // 生成的資產都落在同一個樹下（不論是 polling 還是 webhook 回呼）。
         const rawResult = extractResultData(payload);
         const resultData = (await localizeResultUrls(
           rawResult,
-          `generated/webhook/${jobId}`
+          unifiedAssetPrefix({
+            userId: job.userId,
+            source: "webhook",
+            modelId: String(jobId),
+          })
         )) as typeof rawResult;
         (resultData as Record<string, unknown>).orbTraceId = orbTraceId;
         // 合併既有 meta（studioType / modelId / prompt / label，由 submitStudioJob

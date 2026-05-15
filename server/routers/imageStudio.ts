@@ -46,7 +46,10 @@ import { traceToolRun } from "../services/langsmithTracer";
 import { estimatePoints } from "../services/modelPricing";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
-import * as db from "../db";
+import {
+  doPostGenComplete,
+  unifiedAssetPrefix,
+} from "../services/postGenActions";
 import { getDb } from "../db";
 import { generationHistory } from "../../drizzle/schema";
 import { and, eq } from "drizzle-orm";
@@ -1333,11 +1336,15 @@ export const imageStudioRouter = router({
 
   jobResult: brainProcedure
     .input(z.object({ request_id: z.string(), model: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const raw = await falQueueResult(input.request_id, input.model);
       return localizeResultUrls(
         raw,
-        `generated/image-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+        unifiedAssetPrefix({
+          userId: ctx.user.id,
+          source: "image",
+          modelId: input.model,
+        })
       );
     }),
 
@@ -1364,9 +1371,14 @@ export const imageStudioRouter = router({
           input.requestId,
           input.modelId
         )) as any;
+        // 統一前綴：generated/studio/<userId>/image/<modelId>
         const localized = (await localizeResultUrls(
           result,
-          `generated/image-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`
+          unifiedAssetPrefix({
+            userId: ctx.user.id,
+            source: "image",
+            modelId: input.modelId,
+          })
         )) as any;
 
         const primaryUrl =
@@ -1390,32 +1402,28 @@ export const imageStudioRouter = router({
                 .limit(1)
             : [];
           if (!existed.length) {
-            await db.createDigitalAsset({
-              userId: ctx.user.id,
-              title: `Image Studio - ${input.modelId}`.slice(0, 100),
-              assetType: "image",
-              fileUrl: primaryUrl,
-              thumbnailUrl: extractImageUrl(localized) || primaryUrl,
-              promptUsed:
-                typeof localized?.prompt === "string"
-                  ? localized.prompt
-                  : undefined,
-            });
+            // 統一儲存管線：走 doPostGenComplete 寫入提示詞庫 + 資產庫 + 歷史
+            // + AI 監控室（與導演 AI / 創意工作室 / 各 webhook 共用）。
+            // dedupeMarker 仍以 compiledPrompt 持久化，下一輪輪詢看到就跳過。
+            const promptText =
+              typeof localized?.prompt === "string"
+                ? localized.prompt
+                : undefined;
             const estimate = estimatePoints(input.modelId);
-            await db.createHistoryEntry({
+            await doPostGenComplete({
               userId: ctx.user.id,
               modality: "image",
-              prompt:
-                typeof localized?.prompt === "string"
-                  ? localized.prompt
-                  : `Image Studio ${input.modelId}`,
-              compiledPrompt: dedupeMarker,
+              modelId: input.modelId,
+              prompt: promptText,
+              resultUrl: primaryUrl,
+              label: `Image Studio - ${input.modelId}`.slice(0, 100),
+              sourceStudio: "image",
+              dedupeMarker,
               parameterSnapshot: {
-                source: "image_studio",
+                sourceStudio: "image",
                 modelId: input.modelId,
                 requestId: input.requestId,
               },
-              resultUrl: primaryUrl,
               thumbnailUrl: extractImageUrl(localized) || primaryUrl,
               costCredits: estimate.totalPoints,
             });
