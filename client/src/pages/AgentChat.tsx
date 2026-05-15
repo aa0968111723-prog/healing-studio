@@ -1241,11 +1241,11 @@ export default function AgentChat() {
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: 0.1 }}
-                className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100"
+                className="text-xl sm:text-2xl font-medium text-foreground"
               >
                 先聊聊看就好 🌿
               </motion.h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
+              <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
                 我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
               </p>
             </>
@@ -1261,10 +1261,10 @@ export default function AgentChat() {
                 <VisualSoul size="md" className="!w-7 !h-7" personality={personality} />
               </div>
               <div className="min-w-0 text-left flex-1">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                <p className="text-sm font-medium text-foreground/90 truncate">
                   繼續和光球聊 🌿
                 </p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                <p className="text-[11px] text-muted-foreground truncate">
                   輸入想做的事，我會幫你串好流程
                 </p>
               </div>
@@ -1278,7 +1278,7 @@ export default function AgentChat() {
               variant="outline"
               size="sm"
               onClick={() => setHowToOpen(prev => !prev)}
-              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+              className="h-8 px-3 text-xs gap-1.5 border-border text-foreground/90"
               aria-expanded={howToOpen}
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
@@ -1313,10 +1313,10 @@ export default function AgentChat() {
                         key={step.title}
                         className="flex flex-col gap-0.5 rounded-lg bg-white/70 dark:bg-slate-900/30 border border-emerald-100/80 dark:border-emerald-700/30 px-3 py-2"
                       >
-                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                        <p className="text-xs font-medium text-foreground/90">
                           {step.title}
                         </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
                           {step.description}
                         </p>
                       </li>
@@ -1349,14 +1349,14 @@ export default function AgentChat() {
             <Collapsible
               open={needGuideOpen}
               onOpenChange={setNeedGuideOpen}
-              className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/40 px-4 py-3 text-left shadow-sm"
+              className="rounded-xl border border-border/60 surface-2 px-4 py-3 text-left shadow-sm"
             >
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
                   className="w-full flex items-center justify-between gap-2"
                 >
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                  <p className="text-xs font-medium text-foreground/90">
                     提前告訴我這些，導引會更精準
                   </p>
                   <ChevronDown
@@ -1369,7 +1369,7 @@ export default function AgentChat() {
                   {NEED_CLUES.map(item => (
                     <span
                       key={item}
-                      className="text-[11px] px-2 py-1 rounded-full border border-slate-200/80 dark:border-slate-700/70 text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/50"
+                      className="text-[11px] px-2 py-1 rounded-full border border-border/60 text-muted-foreground surface-2"
                     >
                       {item}
                     </span>
@@ -1381,7 +1381,7 @@ export default function AgentChat() {
                       key={template}
                       variant="outline"
                       size="sm"
-                      className="text-[11px] h-8 px-3 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                      className="text-[11px] h-8 px-3 border-border text-foreground/90"
                       onClick={() => void send(template)}
                     >
                       示範 {i + 1}
@@ -1506,7 +1506,7 @@ export default function AgentChat() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                            <p className="text-sm font-semibold text-foreground">
                               已啟用：{activeModeOption.label}
                             </p>
                             <button
@@ -1517,7 +1517,7 @@ export default function AgentChat() {
                               取消模式
                             </button>
                           </div>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                          <p className="text-[11px] text-foreground/90 leading-snug mt-0.5">
                             {activeModeOption.tagline}
                           </p>
 
@@ -1531,10 +1531,10 @@ export default function AgentChat() {
                                   className="flex items-center gap-1"
                                 >
                                   <div
-                                    className={`flex items-center gap-1 rounded-full bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/60 px-2 py-0.5`}
+                                    className={`flex items-center gap-1 rounded-full surface-2 border border-border/60 px-2 py-0.5`}
                                   >
-                                    <StepIcon className="w-3 h-3 text-slate-600 dark:text-slate-300" />
-                                    <span className="text-[10px] text-slate-700 dark:text-slate-200 font-medium">
+                                    <StepIcon className="w-3 h-3 text-foreground/90" />
+                                    <span className="text-[10px] text-foreground/90 font-medium">
                                       {step.label}
                                     </span>
                                   </div>
@@ -1548,12 +1548,12 @@ export default function AgentChat() {
 
                           {/* 一鍵範例：直接套這個模式送出 */}
                           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400">範例：</span>
+                            <span className="text-[10px] text-muted-foreground">範例：</span>
                             <button
                               type="button"
                               onClick={() => void send(activeModeOption.example)}
                               disabled={isSending}
-                              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-white/85 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-600/50 text-slate-700 dark:text-slate-200 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-white/85 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-600/50 text-foreground/90 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
                             >
                               <Play className="w-2.5 h-2.5" />
                               {activeModeOption.example}
@@ -1569,7 +1569,7 @@ export default function AgentChat() {
 
               {/* 三個極簡示範 prompt — 取代原本長段「示範 1/2/3」按鈕 */}
               <div className="flex flex-wrap gap-1.5 px-1">
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">試試：</span>
+                <span className="text-[11px] text-muted-foreground">試試：</span>
                 {[
                   "做支 30 秒 IG 預告",
                   "幫我做角色立繪",
@@ -1579,7 +1579,7 @@ export default function AgentChat() {
                     key={hint}
                     type="button"
                     onClick={() => void send(hint)}
-                    className="text-[11px] px-2 py-0.5 rounded-full border border-slate-200/80 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 transition-colors"
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-border/60 text-foreground/90 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 transition-colors"
                   >
                     {hint}
                   </button>
@@ -1604,9 +1604,9 @@ export default function AgentChat() {
                 <CollapsibleTrigger asChild>
                   <button
                     type="button"
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-border/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
                   >
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground/90">
                       <Sparkles className="w-3.5 h-3.5 text-violet-500" />
                       切換代理風格（光球做事的方式）
                       {activeModeOption && (
@@ -1646,7 +1646,7 @@ export default function AgentChat() {
                       className={`group relative overflow-hidden rounded-2xl text-left p-2.5 transition-all disabled:opacity-40 ${
                         isActive
                           ? `ring-2 ${mode.ring} bg-gradient-to-br ${mode.gradient} text-white shadow-lg ${mode.glow}`
-                          : `border border-slate-200/70 dark:border-slate-700/50 bg-gradient-to-br ${mode.bg} hover:border-transparent hover:shadow-md ${mode.glow}`
+                          : `border border-border/60 bg-gradient-to-br ${mode.bg} hover:border-transparent hover:shadow-md ${mode.glow}`
                       }`}
                     >
                       {isActive && (
@@ -1668,7 +1668,7 @@ export default function AgentChat() {
                         <div className="min-w-0">
                           <p
                             className={`text-xs font-semibold truncate ${
-                              isActive ? "text-white" : "text-slate-800 dark:text-slate-100"
+                              isActive ? "text-white" : "text-foreground"
                             }`}
                           >
                             {mode.label}
@@ -1677,7 +1677,7 @@ export default function AgentChat() {
                             className={`text-[10px] leading-tight line-clamp-2 mt-0.5 ${
                               isActive
                                 ? "text-white/90"
-                                : "text-slate-600 dark:text-slate-400"
+                                : "text-muted-foreground"
                             }`}
                           >
                             {mode.tagline}
@@ -1693,7 +1693,7 @@ export default function AgentChat() {
                                   className={`w-4 h-4 rounded-md flex items-center justify-center ${
                                     isActive
                                       ? "bg-white/25 text-white"
-                                      : "bg-white/85 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700/60"
+                                      : "bg-white/85 dark:bg-slate-900/60 text-foreground/90 border border-border/60"
                                   }`}
                                   title={step.label}
                                 >
@@ -1883,7 +1883,7 @@ export default function AgentChat() {
             >
               <header className="flex items-center gap-1.5 px-1">
                 <Clock3 className="w-3.5 h-3.5 text-amber-500" />
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                <p className="text-xs font-semibold text-foreground/90">
                   繼續上次
                 </p>
               </header>
@@ -1911,7 +1911,7 @@ export default function AgentChat() {
                       key={`studio-${item.item.id}`}
                       type="button"
                       onClick={() => void handleStarterEntryClick(item.entry)}
-                      className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/85 dark:border-slate-700/50 dark:bg-slate-800/60 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/85 dark:border-slate-700/50 dark:bg-slate-800/60 px-3 py-1.5 text-xs text-foreground/90 hover:border-emerald-300 hover:bg-emerald-50/60 transition-colors"
                     >
                       <span
                         className={`w-4 h-4 rounded-md bg-gradient-to-br ${visual.gradient} flex items-center justify-center text-white shrink-0`}
@@ -1940,7 +1940,7 @@ export default function AgentChat() {
               <header className="flex items-center justify-between gap-2 px-1">
                 <div className="flex items-center gap-1.5">
                   <Workflow className="w-3.5 h-3.5 text-emerald-500" />
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  <p className="text-xs font-semibold text-foreground/90">
                     挑一個任務，光球幫你串好整套流程
                   </p>
                 </div>
@@ -1963,10 +1963,10 @@ export default function AgentChat() {
                     <div className="flex flex-col gap-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          <p className="text-sm font-semibold text-foreground">
                             {tpl.title}
                           </p>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                          <p className="text-[11px] text-foreground/90 leading-snug mt-0.5">
                             {tpl.subtitle}
                           </p>
                         </div>
@@ -1994,7 +1994,7 @@ export default function AgentChat() {
                         })}
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                         <span>{tpl.eta}</span>
                         <span className="opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600 dark:text-emerald-400 font-medium">
                           讓光球帶我做 →
@@ -2022,9 +2022,9 @@ export default function AgentChat() {
                 <CollapsibleTrigger asChild>
                   <button
                     type="button"
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-border/60 bg-white/55 dark:bg-slate-900/35 hover:bg-white/80 dark:hover:bg-slate-900/55 transition-colors"
                   >
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground/90">
                       <Compass className="w-3.5 h-3.5 text-sky-500" />
                       想直接跳工具？打開全站能力地圖
                     </span>
@@ -2039,7 +2039,7 @@ export default function AgentChat() {
                   <header className="flex items-center justify-between gap-2 px-1">
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      <p className="text-xs font-semibold text-foreground/90">
                         想做什麼？選一個，光球先釐清需求再帶路
                       </p>
                     </div>
@@ -2110,7 +2110,7 @@ export default function AgentChat() {
                   <header className="flex items-center justify-between gap-2 px-1">
                     <div className="flex items-center gap-1.5">
                       <Compass className="w-3.5 h-3.5 text-sky-500" />
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      <p className="text-xs font-semibold text-foreground/90">
                         全站能力地圖（直接跳到工具）
                       </p>
                     </div>
@@ -2138,7 +2138,7 @@ export default function AgentChat() {
                           whileHover={{ y: -2, scale: 1.03 }}
                           whileTap={{ scale: 0.97 }}
                           onClick={() => void handleStarterEntryClick(entry)}
-                          className={`group relative flex flex-col items-center gap-1.5 rounded-2xl p-2.5 border border-slate-200/70 dark:border-slate-700/50 bg-gradient-to-br ${visual.bg} hover:border-transparent hover:shadow-lg ${visual.glow} transition-all`}
+                          className={`group relative flex flex-col items-center gap-1.5 rounded-2xl p-2.5 border border-border/60 bg-gradient-to-br ${visual.bg} hover:border-transparent hover:shadow-lg ${visual.glow} transition-all`}
                           aria-label={`前往${entry.label}`}
                         >
                           <div
@@ -2146,10 +2146,10 @@ export default function AgentChat() {
                           >
                             <Icon className="w-5 h-5" />
                           </div>
-                          <p className="text-[11px] sm:text-xs font-medium text-slate-700 dark:text-slate-200 text-center leading-tight line-clamp-2">
+                          <p className="text-[11px] sm:text-xs font-medium text-foreground/90 text-center leading-tight line-clamp-2">
                             {entry.label}
                           </p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-tight line-clamp-1">
+                          <p className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-1">
                             {hint}
                           </p>
                         </motion.button>
@@ -2168,7 +2168,7 @@ export default function AgentChat() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/55 dark:bg-slate-900/35 p-2.5 space-y-2">
+                        <div className="rounded-xl border border-border/60 bg-white/55 dark:bg-slate-900/35 p-2.5 space-y-2">
                           {starterEntries
                             .filter(entry => entry.quickActions.length > 0)
                             .map(entry => {
@@ -2185,7 +2185,7 @@ export default function AgentChat() {
                                     >
                                       <Icon className="w-3 h-3" />
                                     </div>
-                                    <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate">
+                                    <span className="text-[11px] font-medium text-foreground/90 truncate">
                                       {entry.label}
                                     </span>
                                   </div>
@@ -2421,7 +2421,7 @@ export default function AgentChat() {
                     </div>
                   ) : null}
                   {msg.webSources?.length ? (
-                    <div className="mt-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2 space-y-1">
+                    <div className="mt-2 border-t border-border/60 pt-2 space-y-1">
                       <div className="text-[10px] uppercase tracking-wider text-slate-400">
                         來源 · Sources
                       </div>
@@ -2503,7 +2503,7 @@ export default function AgentChat() {
                           {spirit.emoji}
                         </span>
                         <span>
-                          <span className="font-medium text-slate-600 dark:text-slate-300">
+                          <span className="font-medium text-foreground/90">
                             {spirit.nickname}
                           </span>{" "}
                           正在想…
@@ -2526,7 +2526,7 @@ export default function AgentChat() {
         {/* 快速回覆（對話中途的反問建議）— 用快選圖卡呈現，比小膠囊更好讀 */}
         {!isFirstTurn && suggestions.length > 0 && (
           <div className="space-y-1.5">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1">
+            <p className="text-[11px] text-muted-foreground px-1">
               快選回應 ✨
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -2553,7 +2553,7 @@ export default function AgentChat() {
         {/* 學習中心捷徑（對話中途顯示） */}
         {!isFirstTurn && (
           <div className="flex items-center gap-2">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+            <p className="text-[11px] text-muted-foreground">
               想系統化學習 📚
             </p>
             <button
@@ -2601,7 +2601,7 @@ export default function AgentChat() {
               className="flex items-center gap-1.5 flex-wrap px-1 -mt-0.5"
               data-testid="spirits-online-bar"
             >
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
+              <span className="text-[10px] text-muted-foreground shrink-0">
                 {pinnedSpirit ? "目前鎖定：" : "現在線上："}
               </span>
               {(() => {
@@ -2627,7 +2627,7 @@ export default function AgentChat() {
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-all ${
                         isPinned
                           ? `bg-gradient-to-r ${s.gradient} text-white shadow-sm ring-1 ${s.ring}`
-                          : "bg-white/85 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:border-pink-300 hover:text-pink-700 dark:hover:text-pink-300"
+                          : "bg-white/85 dark:bg-slate-800/60 border border-border/60 text-foreground/90 hover:border-pink-300 hover:text-pink-700 dark:hover:text-pink-300"
                       }`}
                     >
                       <span aria-hidden className={isPinned ? "animate-pulse" : ""}>
@@ -2643,7 +2643,7 @@ export default function AgentChat() {
                 <button
                   type="button"
                   onClick={() => setSpiritDeckOpen(true)}
-                  className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-pink-600 dark:hover:text-pink-400 underline underline-offset-2"
+                  className="text-[10px] text-muted-foreground hover:text-pink-600 dark:hover:text-pink-400 underline underline-offset-2"
                 >
                   叫別人來
                 </button>
@@ -2673,7 +2673,7 @@ export default function AgentChat() {
             <CollapsibleTrigger asChild>
               <button
                 type="button"
-                className="w-full flex items-center justify-between px-2 text-[11px] text-slate-500 dark:text-slate-400"
+                className="w-full flex items-center justify-between px-2 text-[11px] text-muted-foreground"
               >
                 <span>進階模式（多步驟 / 計畫 / 跳頁 / 功能詢問）</span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${modeBarOpen ? "rotate-180" : ""}`} />
@@ -2746,7 +2746,7 @@ export default function AgentChat() {
             </motion.div>
           )}
 
-          <div className="relative flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2 ring-1 ring-emerald-100/60 dark:ring-emerald-900/20 focus-within:ring-emerald-300/70 dark:focus-within:ring-emerald-600/40 transition-all">
+          <div className="relative flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-border/60 shadow-lg p-2 ring-1 ring-emerald-100/60 dark:ring-emerald-900/20 focus-within:ring-emerald-300/70 dark:focus-within:ring-emerald-600/40 transition-all">
             <SlashCommandMenu {...slashMenu.menuProps} placement="above" />
             <button
               type="button"
@@ -2756,7 +2756,7 @@ export default function AgentChat() {
               aria-label={
                 isUploading ? "正在上傳附件" : "上傳圖片、影片、音訊或 PDF 附件"
               }
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-muted-foreground disabled:opacity-40 transition-colors"
             >
               {isUploading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -2770,7 +2770,7 @@ export default function AgentChat() {
               onKeyDown={onKeyDown}
               disabled={isSending}
               placeholder={activeModeOption?.placeholder ?? "說一句話就好…（打 /）"}
-              className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 disabled:opacity-50"
+              className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-foreground placeholder:text-slate-400 disabled:opacity-50"
             />
             <Button
               onClick={() => void send(input)}

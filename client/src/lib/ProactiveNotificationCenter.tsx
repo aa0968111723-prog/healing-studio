@@ -278,7 +278,7 @@ function ProactiveCard({ notification, onAck, onClose }: ProactiveCardProps) {
       className={`relative rounded-xl border shadow-lg backdrop-blur-md p-3 text-sm transition-all ${
         isBlocking
           ? "bg-rose-50/95 dark:bg-rose-950/80 border-rose-300 dark:border-rose-800"
-          : "bg-white/95 dark:bg-slate-900/85 border-slate-200/80 dark:border-slate-700/60"
+          : "bg-white/95 dark:bg-slate-900/85 border-border/60"
       }`}
       data-testid={`proactive-card-${notification.event}`}
     >
@@ -303,7 +303,7 @@ function ProactiveCard({ notification, onAck, onClose }: ProactiveCardProps) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-slate-800 dark:text-slate-100">
+          <div className="font-semibold text-foreground">
             {notification.emoji} {notification.nickname}
             {isBlocking && (
               <span className="ml-1 text-[10px] uppercase font-mono text-rose-600 dark:text-rose-300">
@@ -311,7 +311,7 @@ function ProactiveCard({ notification, onAck, onClose }: ProactiveCardProps) {
               </span>
             )}
           </div>
-          <div className="mt-0.5 text-slate-600 dark:text-slate-300 leading-snug whitespace-pre-wrap">
+          <div className="mt-0.5 text-foreground/90 leading-snug whitespace-pre-wrap">
             {notification.message}
           </div>
         </div>

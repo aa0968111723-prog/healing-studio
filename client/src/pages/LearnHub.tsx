@@ -256,7 +256,7 @@ function DocCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white dark:bg-white/5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 overflow-hidden group"
+      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
     >
       {/* Featured top bar */}
       {doc.featured && (
@@ -746,7 +746,7 @@ function VideoCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white dark:bg-white/5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 overflow-hidden group"
+      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
     >
       {video.featured && (
         <div className="h-0.5 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400" />
@@ -1162,7 +1162,7 @@ function QuizCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onOpen}
-      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white dark:bg-white/5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 overflow-hidden group"
+      className="cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden group"
     >
       {quiz.featured && (
         <div className="h-0.5 bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400" />
@@ -1348,7 +1348,7 @@ function QuizPlayerModal({
         {/* Progress */}
         <div className="h-1 bg-gray-100 shrink-0">
           <div
-            className="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-300"
+            className="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-healing"
             style={{ width: `${((currentQ + 1) / totalQ) * 100}%` }}
           />
         </div>

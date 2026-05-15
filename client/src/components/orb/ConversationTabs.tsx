@@ -339,7 +339,7 @@ export function ConversationTabs() {
               <button
                 type="button"
                 data-testid="conversation-tabs-overflow"
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/70 bg-white/70 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-300 hover:border-slate-300 hover:text-slate-700 dark:hover:text-slate-100 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 surface-2 text-xs text-muted-foreground hover:border-slate-300 hover:text-slate-700 dark:hover:text-slate-100 transition-colors whitespace-nowrap"
                 aria-label={
                   hasOverflow
                     ? `還有 ${overflow.length} 個對話`
@@ -360,7 +360,7 @@ export function ConversationTabs() {
             <DropdownMenuContent align="end" className="w-64">
               {hasOverflow && (
                 <>
-                  <DropdownMenuLabel className="text-xs text-slate-500 dark:text-slate-400">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
                     其他對話（{overflow.length}）
                   </DropdownMenuLabel>
                   {overflow.slice(0, 20).map(conv => {
@@ -394,7 +394,7 @@ export function ConversationTabs() {
                               "truncate",
                               conv.isEmpty &&
                                 !isActive &&
-                                "text-slate-400 dark:text-slate-500"
+                                "text-muted-foreground"
                             )}
                           >
                             {conv.displayLabel}
@@ -454,7 +454,7 @@ export function ConversationTabs() {
           onClick={() => void handleCreate()}
           disabled={pendingId === "__new__"}
           data-testid="conversation-tab-new"
-          className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-xs text-muted-foreground hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-300 transition-colors disabled:opacity-50 whitespace-nowrap"
           title="新開一個對話"
           aria-label="新增對話"
         >

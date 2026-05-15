@@ -56,7 +56,7 @@ export function SpiritHandoffIndicator({
           >
             <span className="text-lg">{fromVisual.emoji}</span>
           </div>
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-sm font-medium text-foreground/90">
             {fromVisual.nickname}
           </span>
         </motion.div>
@@ -69,7 +69,7 @@ export function SpiritHandoffIndicator({
           className="flex shrink-0 items-center"
         >
           <svg
-            className="h-6 w-6 text-gray-400 dark:text-gray-500"
+            className="h-6 w-6 text-muted-foreground"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -95,7 +95,7 @@ export function SpiritHandoffIndicator({
           >
             <span className="text-lg">{toVisual.emoji}</span>
           </div>
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <span className="text-sm font-semibold text-foreground">
             {toVisual.nickname}
           </span>
         </motion.div>
@@ -107,11 +107,11 @@ export function SpiritHandoffIndicator({
           transition={{ duration: 0.5, delay: 0.6 }}
           className="flex-1"
         >
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-muted-foreground">
             {reason}
           </p>
           {when && (
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               {when}
             </p>
           )}

@@ -1146,7 +1146,7 @@ export default function CalendarPage() {
               className="w-full"
               classNames={{
                 day: cn(
-                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-all duration-200"
+                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-healing"
                 ),
               }}
               components={{

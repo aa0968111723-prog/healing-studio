@@ -481,7 +481,7 @@ export default function VisualSoulInvitation({
               {/* Close button */}
               <button
                 onClick={handleDismiss}
-                className={`absolute top-3 right-3 p-1 rounded-full transition-colors duration-200 hover:bg-white/10 ${bubbleStyle.textMuted}`}
+                className={`absolute top-3 right-3 p-1 rounded-full transition-healing hover:bg-white/10 ${bubbleStyle.textMuted}`}
                 aria-label="關閉"
               >
                 <X className="w-3.5 h-3.5" />
@@ -531,7 +531,7 @@ export default function VisualSoulInvitation({
               {/* CTA Button */}
               <motion.button
                 onClick={handleAccept}
-                className={`mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${bubbleStyle.btnBg} ${bubbleStyle.btnText}`}
+                className={`mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-healing ${bubbleStyle.btnBg} ${bubbleStyle.btnText}`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -642,7 +642,7 @@ export default function VisualSoulInvitation({
                   <div className="px-1.5 pb-2 space-y-0.5">
                     <button
                       onClick={() => handleOpenFeedback("feedback")}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-white/8 group`}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-healing hover:bg-white/8 group`}
                     >
                       <div
                         className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
@@ -675,7 +675,7 @@ export default function VisualSoulInvitation({
 
                     <button
                       onClick={() => handleOpenFeedback("feature")}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-white/8 group`}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-healing hover:bg-white/8 group`}
                     >
                       <div
                         className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${

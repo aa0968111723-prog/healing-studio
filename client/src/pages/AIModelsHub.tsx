@@ -200,7 +200,7 @@ function ModelCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
-      className="group text-left cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-white dark:bg-white/5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 overflow-hidden w-full"
+      className="group text-left cursor-pointer rounded-2xl border border-gray-200/70 dark:border-white/10 bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-healing overflow-hidden w-full"
     >
       {model.featured && (
         <div className="h-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400" />
@@ -229,7 +229,7 @@ function ModelCard({
         </div>
 
         {/* Title + apiId */}
-        <h3 className="hs-h3 !mb-0 text-gray-900 dark:text-white mb-1 group-hover:text-primary transition-colors">
+        <h3 className="hs-h3 !mb-0 text-foreground mb-1 group-hover:text-primary transition-colors">
           {model.name}
         </h3>
         {model.apiId && (
@@ -239,14 +239,14 @@ function ModelCard({
         )}
 
         {/* Tagline */}
-        <p className="hs-small !mb-0 text-gray-600 dark:text-gray-300 line-clamp-2 mb-3">
+        <p className="hs-small !mb-0 text-foreground/90 line-clamp-2 mb-3">
           {model.tagline}
         </p>
 
         {/* Quick spec row */}
         <div className="flex flex-wrap items-center gap-2 mb-3">
           {model.contextWindow && (
-            <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-full">
+            <span className="text-[10px] px-2 py-0.5 bg-muted text-foreground/90 rounded-full">
               脈絡 {model.contextWindow}
             </span>
           )}
@@ -264,7 +264,7 @@ function ModelCard({
               開源權重
             </span>
           )}
-          <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full inline-flex items-center gap-1">
             <Calendar className="w-2.5 h-2.5" />
             {formatReleaseDate(model.releaseDate)}
           </span>
@@ -276,7 +276,7 @@ function ModelCard({
             {model.tags.slice(0, 3).map(t => (
               <span
                 key={t}
-                className="text-[10px] px-2 py-0.5 bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded-full"
+                className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full"
               >
                 #{t}
               </span>
@@ -285,7 +285,7 @@ function ModelCard({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
+        <div className="flex items-center justify-between pt-2 border-t border-border/70">
           <FactCheckBadge
             status={factStatus}
             checkedAt={model.factCheck?.checkedAt}

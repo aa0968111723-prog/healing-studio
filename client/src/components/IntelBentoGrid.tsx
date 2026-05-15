@@ -510,7 +510,7 @@ function BentoCard({
 
         {/* Title */}
         <h3
-          className={`font-semibold leading-snug tracking-tight transition-colors duration-300 ${styles.textPrimary} ${
+          className={`font-semibold leading-snug tracking-tight transition-healing ${styles.textPrimary} ${
             isHero
               ? "hs-h3-lg mb-3"
               : isMedium
@@ -652,7 +652,7 @@ function EmptyState({
         <button
           type="button"
           onClick={onResetTab}
-          className={`mt-4 inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 ${styles.textMuted}`}
+          className={`mt-4 inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-healing hover:scale-105 ${styles.textMuted}`}
           style={{ background: styles.tabsBg }}
         >
           查看全部
@@ -914,7 +914,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
-                  className={`rounded-lg px-3 sm:px-4 text-[11px] sm:text-xs font-medium border-0 transition-all duration-200
+                  className={`rounded-lg px-3 sm:px-4 text-[11px] sm:text-xs font-medium border-0 transition-healing
                     data-[state=active]:shadow-none
                     ${styles.textMuted}
                   `}
@@ -1021,7 +1021,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
                 if (!isFetchingNextPage) fetchNextPage();
               }}
               disabled={isFetchingNextPage}
-              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 disabled:opacity-60 disabled:cursor-wait ${styles.textMuted}`}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-healing hover:scale-105 disabled:opacity-60 disabled:cursor-wait ${styles.textMuted}`}
               style={{ background: styles.tabsBg }}
               aria-label="載入更多情報"
             >

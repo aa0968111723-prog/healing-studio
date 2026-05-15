@@ -84,7 +84,7 @@ export default function SceneSwitcher({
         onClick={() => setOpen(!open)}
         className={`
           flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium
-          backdrop-blur-md transition-all duration-300 hover:scale-105
+          backdrop-blur-md transition-healing hover:scale-105
           ${
             isDark
               ? "bg-white/10 hover:bg-white/15 text-white/80"
@@ -164,7 +164,7 @@ export default function SceneSwitcher({
                       setOpen(false);
                     }}
                     className={`
-                      w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-all duration-200
+                      w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-healing
                       ${
                         isActive
                           ? isDark

@@ -264,7 +264,7 @@ export function PipelineCanvas({
 
       {statusFilter !== "all" && layoutedNodes.length === 0 && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <div className="rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur border px-4 py-3 text-sm shadow text-slate-600 dark:text-slate-300 pointer-events-auto">
+          <div className="rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur border px-4 py-3 text-sm shadow text-foreground/90 pointer-events-auto">
             🎉 此狀態下沒有節點，全部健康。
           </div>
         </div>

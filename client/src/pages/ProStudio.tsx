@@ -924,7 +924,7 @@ function ToolCard({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`rounded-2xl bg-gradient-to-br ${colors[color]} border backdrop-blur-sm transition-all duration-300 ${open ? "shadow-md ring-1 ring-primary/10" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+        className={`rounded-2xl bg-gradient-to-br ${colors[color]} border backdrop-blur-sm transition-healing ${open ? "shadow-md ring-1 ring-primary/10" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
       >
         <CollapsibleTrigger asChild>
           <button
@@ -948,7 +948,7 @@ function ToolCard({
                 {description}
               </p>
             </div>
-            <div className={`p-1 rounded-lg transition-all duration-200 ${open ? "bg-primary/10" : "group-hover:bg-accent"}`}>
+            <div className={`p-1 rounded-lg transition-healing ${open ? "bg-primary/10" : "group-hover:bg-accent"}`}>
               <ChevronDown
                 className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-300 ${open ? "rotate-180 text-primary" : ""}`}
               />
@@ -4806,7 +4806,7 @@ export default function ProStudio() {
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 min-h-[40px] border ${
+              className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-healing min-h-[40px] border ${
                 tab === id
                   ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
                   : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:scale-[0.98] border-border/40"

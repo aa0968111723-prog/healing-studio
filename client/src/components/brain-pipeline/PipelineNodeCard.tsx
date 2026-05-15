@@ -77,7 +77,7 @@ function PipelineNodeCardImpl({ data, selected }: NodeProps) {
         <span aria-hidden className="text-lg leading-none">
           {KIND_ICON[node.kind] ?? "•"}
         </span>
-        <span className="font-medium text-sm truncate flex-1 text-slate-900 dark:text-slate-100">
+        <span className="font-medium text-sm truncate flex-1 text-foreground">
           {node.label}
         </span>
         {recentErrors > 0 && (
@@ -106,12 +106,12 @@ function PipelineNodeCardImpl({ data, selected }: NodeProps) {
         />
       </div>
       {node.description && (
-        <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400 line-clamp-2">
+        <p className="text-[11px] leading-snug text-muted-foreground line-clamp-2">
           {node.description}
         </p>
       )}
       {node.reason && node.status !== "healthy" && (
-        <p className="text-[11px] mt-1 text-slate-700 dark:text-slate-300 line-clamp-2 italic">
+        <p className="text-[11px] mt-1 text-foreground/90 line-clamp-2 italic">
           ⚠ {node.reason}
         </p>
       )}

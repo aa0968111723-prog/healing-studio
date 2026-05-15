@@ -38,7 +38,7 @@ export function ModalitySwitcher({ value, onChange }: ModalitySwitcherProps) {
             className={cn(
               "rounded-lg flex items-center justify-center gap-1.5 text-xs py-2.5 transition-all cursor-pointer",
               isActive
-                ? "bg-white dark:bg-white/10 shadow-sm text-primary font-medium"
+                ? "bg-card shadow-sm text-primary font-medium"
                 : "text-muted-foreground hover:text-foreground hover:bg-white/30 dark:hover:bg-white/5"
             )}
           >

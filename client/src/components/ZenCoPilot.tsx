@@ -235,7 +235,7 @@ export function GlassCard({
   return (
     <div
       id={id}
-      className={`zen-glass-card rounded-2xl p-5 transition-all duration-300 ${hover ? "zen-glass-card-hover hover:-translate-y-0.5" : ""} ${className}`}
+      className={`zen-glass-card rounded-2xl p-5 transition-healing ${hover ? "zen-glass-card-hover hover:-translate-y-0.5" : ""} ${className}`}
     >
       {children}
     </div>

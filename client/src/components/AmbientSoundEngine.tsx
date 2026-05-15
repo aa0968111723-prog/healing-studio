@@ -1234,7 +1234,7 @@ export const SoundControl = memo(function SoundControl({
             ? { duration: 3, repeat: Infinity, ease: "easeInOut" }
             : { duration: 0.4 }
         }
-        className={`flex items-center gap-1.5 rounded-full backdrop-blur-md transition-colors duration-300 cursor-pointer select-none ${
+        className={`flex items-center gap-1.5 rounded-full backdrop-blur-md transition-healing cursor-pointer select-none ${
           compact ? "p-2" : "px-2.5 py-1.5"
         } ${btnBase}`}
         title={!isUnlocked ? "點擊啟動輕音樂" : isMuted ? "取消靜音" : "靜音"}

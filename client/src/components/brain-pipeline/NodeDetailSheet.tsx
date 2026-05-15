@@ -65,10 +65,10 @@ export function NodeDetailSheet({ node, onClose }: Props) {
               <div className="space-y-4 text-sm">
                 {node.description && (
                   <section>
-                    <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    <h3 className="font-semibold mb-1 text-foreground/90">
                       說明
                     </h3>
-                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    <p className="text-muted-foreground leading-relaxed">
                       {node.description}
                     </p>
                   </section>
@@ -76,10 +76,10 @@ export function NodeDetailSheet({ node, onClose }: Props) {
 
                 {node.reason && (
                   <section>
-                    <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    <h3 className="font-semibold mb-1 text-foreground/90">
                       ⚠ 為什麼出問題
                     </h3>
-                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                    <p className="text-muted-foreground leading-relaxed bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
                       {node.reason}
                     </p>
                   </section>
@@ -87,10 +87,10 @@ export function NodeDetailSheet({ node, onClose }: Props) {
 
                 {node.recommendation && (
                   <section>
-                    <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    <h3 className="font-semibold mb-1 text-foreground/90">
                       💡 建議怎麼修
                     </h3>
-                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                    <p className="text-muted-foreground leading-relaxed bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
                       {node.recommendation}
                     </p>
                   </section>
@@ -99,7 +99,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                 {node.metrics &&
                   Object.values(node.metrics).some(v => v !== undefined) && (
                     <section>
-                      <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                      <h3 className="font-semibold mb-1 text-foreground/90">
                         📊 指標
                       </h3>
                       <dl className="grid grid-cols-2 gap-2 text-xs">
@@ -149,7 +149,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                     node.diagnostics.serviceFunction ||
                     (node.diagnostics.traceSampleIds && node.diagnostics.traceSampleIds.length > 0)) && (
                     <section>
-                      <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                      <h3 className="font-semibold mb-1 text-foreground/90">
                         🧭 節點排查線索
                       </h3>
                       <dl className="grid grid-cols-1 gap-2 text-xs">
@@ -183,7 +183,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                   )}
                 {node.relatedFiles && node.relatedFiles.length > 0 && (
                   <section>
-                    <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                    <h3 className="font-semibold mb-1 text-foreground/90">
                       📁 相關檔案
                     </h3>
                     <ul className="space-y-1 text-xs">
@@ -254,7 +254,7 @@ function TraceSampleRow({ traceIds }: { traceIds: string[] }) {
                 `/admin?section=brain&brainTab=errors&trace=${encodeURIComponent(id)}`
               )
             }
-            className="font-mono text-[11px] bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded border break-all transition-colors inline-flex items-center gap-1"
+            className="font-mono text-[11px] bg-muted hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded border break-all transition-colors inline-flex items-center gap-1"
             title="點擊跳到 AI 大腦 → 錯誤追蹤分頁，並自動聚焦此 trace"
           >
             {id}
@@ -300,7 +300,7 @@ function CopyableBlock({
 
   return (
     <Wrapper
-      className={`group relative bg-slate-50 dark:bg-slate-900 px-2 py-1 ${trailingPad} rounded border ${className ?? ""}`}
+      className={`group relative bg-muted px-2 py-1 ${trailingPad} rounded border ${className ?? ""}`}
     >
       <span>{value}</span>
       {githubUrl && (

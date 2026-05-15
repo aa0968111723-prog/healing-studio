@@ -631,7 +631,7 @@ export default function SharedSpace() {
                           {/* One-Click Use overlay — always visible on mobile, hover-only on desktop */}
                           {canUse && (
                             <div
-                              className={`absolute inset-0 transition-colors duration-300 flex items-center justify-center ${
+                              className={`absolute inset-0 transition-healing flex items-center justify-center ${
                                 isMobile
                                   ? "bg-black/0"
                                   : "bg-black/0 group-hover:bg-black/40"
@@ -640,7 +640,7 @@ export default function SharedSpace() {
                               <Button
                                 size="sm"
                                 onClick={() => handleUseAsset(asset)}
-                                className={`gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg transition-all duration-300 ${
+                                className={`gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg transition-healing ${
                                   isMobile
                                     ? "opacity-0 pointer-events-none"
                                     : "opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"

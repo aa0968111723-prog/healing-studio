@@ -179,7 +179,7 @@ function ActionableChip({
     >
       <div
         className={cn(
-          "group rounded-xl border transition-all duration-200 overflow-hidden",
+          "group rounded-xl border transition-healing overflow-hidden",
           config.bgColor
         )}
       >

@@ -62,11 +62,11 @@ export default function AgentIntentPreview() {
                     光球想跟你確認一下 🌿
                   </p>
                   {pendingConfirmation.intentSummary && (
-                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+                    <p className="mt-1 text-sm text-foreground/90 leading-relaxed">
                       {pendingConfirmation.intentSummary}
                     </p>
                   )}
-                  <p className="mt-1 text-sm text-slate-800 dark:text-slate-100 font-medium leading-relaxed">
+                  <p className="mt-1 text-sm text-foreground font-medium leading-relaxed">
                     {pendingConfirmation.summary}
                   </p>
                 </div>
@@ -77,7 +77,7 @@ export default function AgentIntentPreview() {
                   size="sm"
                   variant="ghost"
                   onClick={() => cancelPending()}
-                  className="flex-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="flex-1 text-foreground/90 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <X className="w-4 h-4 mr-1" />
                   先不要
@@ -92,7 +92,7 @@ export default function AgentIntentPreview() {
                 </Button>
               </div>
 
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center pt-1">
+              <p className="text-[10px] text-muted-foreground text-center pt-1">
                 你永遠可以反悔，沒有什麼是不能重來的 ✨
               </p>
             </div>

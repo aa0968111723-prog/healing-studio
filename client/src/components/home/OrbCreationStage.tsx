@@ -2599,7 +2599,7 @@ export default function OrbCreationStage({
                   onClick={() => handleSelectScenario(scenario)}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  className="group text-left rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 backdrop-blur-md transition-all duration-300"
+                  className="group text-left rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 backdrop-blur-md transition-healing"
                   style={{
                     background: isActive ? mode.tint : cardBg,
                     border: `1px solid ${isActive ? mode.tint : cardBorder}`,
@@ -3070,7 +3070,7 @@ export default function OrbCreationStage({
                   onClick={() => handleSelectMode(mode.id)}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.96 }}
-                  className="relative inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-300"
+                  className="relative inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-healing"
                   style={{
                     background: isActive ? mode.tint : featureBg,
                     color: isActive

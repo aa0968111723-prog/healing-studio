@@ -516,7 +516,7 @@ function ModalityTabs({
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.25, ease: SOFT_BOUNCE }}
-            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-300 ${
+            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-healing ${
               isActive
                 ? `${styles.badgeBg} ${styles.badgeText} ring-1 ring-current/20`
                 : `${styles.textMuted} hover:${styles.textSecondary}`
