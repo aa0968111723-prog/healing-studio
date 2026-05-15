@@ -30,6 +30,13 @@ describe("Director router invokeLLM brain-config wiring", () => {
       ),
       "utf8"
     ),
+    readFileSync(
+      resolve(
+        process.cwd(),
+        "server/services/director/planningService.ts"
+      ),
+      "utf8"
+    ),
   ].join("\n");
 
   // Find every `invokeLLM({ ... })` call. We extract the inner block and
