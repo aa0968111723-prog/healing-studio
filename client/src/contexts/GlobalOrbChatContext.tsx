@@ -108,6 +108,15 @@ import {
   describeComposerActions,
   describeComposerMissing,
 } from "../../../shared/composer-imperative-parser";
+import {
+  getComposerHandoffSuggestions,
+} from "../../../shared/composer-handoff-triggers";
+import {
+  createComposerAgentState,
+  captureTurn,
+  planContinuation,
+  type ComposerAgentState,
+} from "../../../shared/composer-agent-loop";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
 // the initial chat context payload. The bullet-list fallback inside the same
@@ -2115,6 +2124,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // observeAfterStep updates it to the post-step snapshot so the next
   // step compares against the most recent observation.
   const perceptionSnapshotRef = useRef<PageAgentSnapshot | null>(null);
+  // 編編 agent-loop 短期記憶 — 跨 turn 的「上一輪做了什麼 / verdict 怎樣」。
+  // 純客戶端 in-memory（不寫 DB / sessionStorage）— Reset 在使用者按 clear。
+  // 用 ref 保證 callback 抓到的是最新值，避免 stale closure。
+  const composerAgentStateRef = useRef<ComposerAgentState>(createComposerAgentState());
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
@@ -3951,10 +3964,19 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // ── C2) page-execution: @編編 — 解析使用者一句話成 AgentAction[]
-        //     並 dispatch 進現有 executeActions pipeline。沒在工作室頁
-        //     (snapshot.capabilities 空)、或沒命中任何規則 → fall through
-        //     到 LLM，讓 composer 系統提示詞切片自己 emit actions JSON。
+        // ── C2) page-execution: @編編 完整 agent loop
+        //     observe → think → act → verify → recover
+        //
+        //     1. observe: 拿當頁 snapshot + composerAgentStateRef 過去 N 輪
+        //     2. think:   先試 continuation (retry / cheaper / escalate)；
+        //                 沒命中再走 imperative parser
+        //     3. act:     dispatch AgentAction[] 進 executeActions pipeline
+        //     4. verify:  executeActions 內部已用 perception loop 評估每步
+        //     5. recover: 失敗 → 建議 @守守；perception 說 replan → 列 chips
+        //
+        //     沒在工作室頁 (snapshot.capabilities 空) 或完全沒命中 → fall
+        //     through 到 LLM；composer 系統提示詞切片會引導 LLM emit
+        //     actions JSON。
         if (
           tool.kind === "page-execution"
           && cleanPrompt.length >= tool.minPromptChars
@@ -3963,23 +3985,95 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           const onWorkstation =
             !!snapshot && snapshot.capabilities.length > 0;
 
-          // 不在工作室 → 不攔，讓 LLM 用 composer 人格回覆並建議跳頁
           if (onWorkstation) {
-            const parsed = parseComposerImperatives(cleanPrompt, snapshot);
+            // Phase 1: think — 先看是不是 continuation。
+            const continuation = planContinuation(
+              composerAgentStateRef.current,
+              cleanPrompt,
+            );
 
-            if (parsed.actions.length > 0) {
-              const summary = describeComposerActions(parsed.actions);
-              const missing = describeComposerMissing(parsed.missing);
-              orbState.setState("executing", `${nickname} 動手中…`);
+            // ── 1a) escalate continuation：使用者說「不行」之類 → 直接交棒。
+            //   不 dispatch、不 parse；只列建議 chip 與 escalate 訊息。
+            if (continuation.kind === "escalate" && continuation.escalateTo) {
+              const targetNick = getPrimaryNicknameForRole(continuation.escalateTo);
               setMessages(prev => [...prev, {
                 role: "orb",
-                text: missing
-                  ? `${nickname} 接手 ✍️ ${summary}\n${missing}`
-                  : `${nickname} 接手 ✍️ ${summary}`,
+                text: `${nickname} 收到，先把這件事交給 @${targetNick} 看 — ${continuation.rationale}`,
                 at: Date.now(),
                 pagePath: locationPath,
                 agentRole: "composer",
               }]);
+              setSuggestions([
+                { text: `@${targetNick} 上一輪的結果哪裡不對？` },
+                ...buildHandoffChips("composer").slice(0, 2),
+              ]);
+              // 記錄這輪是 escalate（無 dispatch）
+              composerAgentStateRef.current = captureTurn(
+                composerAgentStateRef.current,
+                {
+                  startedAt: Date.now(),
+                  userText: cleanPrompt,
+                  snapshotPath: snapshot?.pagePath ?? null,
+                  actions: [],
+                  dispatchOk: null,
+                  verdicts: [],
+                },
+              );
+              return;
+            }
+
+            // ── 1b) retry / cheaper continuation：複用上一輪 plan。
+            // ── 1c) new：走 imperative parser。
+            const parsed =
+              continuation.kind === "retry" || continuation.kind === "cheaper"
+                ? {
+                    actions: continuation.actions,
+                    missing: [] as ReturnType<typeof parseComposerImperatives>["missing"],
+                    matchedRules: [`continuation:${continuation.kind}`],
+                    matched: true,
+                  }
+                : parseComposerImperatives(cleanPrompt, snapshot);
+
+            if (parsed.actions.length > 0) {
+              const summary = describeComposerActions(parsed.actions);
+              const missing = describeComposerMissing(parsed.missing);
+
+              // Phase 2: think — 跑主動 handoff 觸發器 (proactive 預警)
+              const preTriggers = getComposerHandoffSuggestions({
+                userText: cleanPrompt,
+                parsed: {
+                  actions: parsed.actions,
+                  missing: parsed.missing,
+                  matchedRules: parsed.matchedRules,
+                  matched: true,
+                },
+                snapshot,
+                postDispatch: false,
+              });
+              const preWarning = preTriggers
+                .filter(t => t.priority === "high")
+                .map(t => `⚠️ ${t.reason}`)
+                .join(" ");
+
+              orbState.setState("executing", `${nickname} 動手中…`);
+              const continuationTag =
+                continuation.kind === "retry" ? "（重試上一輪）"
+                : continuation.kind === "cheaper" ? `（${continuation.rationale}）`
+                : "";
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: [
+                  `${nickname} 接手 ✍️${continuationTag} ${summary}`,
+                  missing,
+                  preWarning,
+                ].filter(Boolean).join("\n"),
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: "composer",
+              }]);
+
+              // Phase 3: act
+              let dispatchOk = true;
               try {
                 await executeActions(parsed.actions, {
                   intent: `編編：${cleanPrompt.slice(0, 40)}`,
@@ -3988,6 +4082,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                   requireConfirmation: false,
                 });
               } catch (err) {
+                dispatchOk = false;
                 if (!isStale()) {
                   const reason =
                     err instanceof Error ? err.message : String(err);
@@ -4000,12 +4095,65 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                   }]);
                 }
               }
-              setSuggestions(buildHandoffChips("composer"));
+
+              // Phase 5: recover — 跑 post-dispatch trigger，
+              // 把優先順序最高的當作下一輪建議 chip 的 top。
+              const postTriggers = getComposerHandoffSuggestions({
+                userText: cleanPrompt,
+                parsed: {
+                  actions: parsed.actions,
+                  missing: parsed.missing,
+                  matchedRules: parsed.matchedRules,
+                  matched: true,
+                },
+                snapshot,
+                postDispatch: true,
+                dispatchFailed: !dispatchOk,
+              });
+              const triggerChips = postTriggers.slice(0, 2).map(t => ({
+                text: `@${getPrimaryNicknameForRole(t.spirit)} ${t.reason}`,
+              }));
+              setSuggestions([
+                ...triggerChips,
+                ...buildHandoffChips("composer").slice(0, 3 - triggerChips.length),
+              ]);
+
+              // 記錄本輪 (給下一輪 planContinuation 用)
+              composerAgentStateRef.current = captureTurn(
+                composerAgentStateRef.current,
+                {
+                  startedAt: Date.now(),
+                  userText: cleanPrompt,
+                  snapshotPath: snapshot?.pagePath ?? null,
+                  actions: parsed.actions,
+                  dispatchOk,
+                  verdicts: [], // perception verdicts live in workflowExecution
+                  continuationOf:
+                    continuation.kind === "retry" || continuation.kind === "cheaper"
+                      ? 0
+                      : undefined,
+                },
+              );
               return;
             }
 
             if (parsed.missing.length > 0) {
-              // 命中了 submit 但缺資訊：直接反問，不要燒 LLM
+              // 命中了 submit 但缺資訊：先看 trigger 有沒有更具體的建議，
+              // 沒有就純反問。
+              const triggers = getComposerHandoffSuggestions({
+                userText: cleanPrompt,
+                parsed: {
+                  actions: parsed.actions,
+                  missing: parsed.missing,
+                  matchedRules: parsed.matchedRules,
+                  matched: true,
+                },
+                snapshot,
+                postDispatch: false,
+              });
+              const triggerChips = triggers.slice(0, 2).map(t => ({
+                text: `@${getPrimaryNicknameForRole(t.spirit)} ${t.reason}`,
+              }));
               setMessages(prev => [...prev, {
                 role: "orb",
                 text: `${nickname} 在這頁等你補一下：${describeComposerMissing(parsed.missing)}`,
@@ -4013,7 +4161,23 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
                 pagePath: locationPath,
                 agentRole: "composer",
               }]);
-              setSuggestions(buildHandoffChips("composer"));
+              setSuggestions([
+                ...triggerChips,
+                ...buildHandoffChips("composer").slice(0, 3 - triggerChips.length),
+              ]);
+              // 記錄這輪雖然沒 dispatch，但有 intent → 給下一輪 planContinuation
+              // 一個錨點（例如下一句是「prompt: 一隻貓」可以續上）。
+              composerAgentStateRef.current = captureTurn(
+                composerAgentStateRef.current,
+                {
+                  startedAt: Date.now(),
+                  userText: cleanPrompt,
+                  snapshotPath: snapshot?.pagePath ?? null,
+                  actions: [],
+                  dispatchOk: null,
+                  verdicts: [],
+                },
+              );
               return;
             }
           }
