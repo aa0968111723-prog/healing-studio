@@ -32,6 +32,7 @@ import {
 } from "./services/googleDrive";
 import { generationBus } from "./generationEvents";
 import { newsRouter } from "./routers/news";
+import { aiModelsRouter } from "./routers/aiModels";
 import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
@@ -1026,6 +1027,7 @@ export const appRouter = router({
 
   // ─── Homepage Public APIs (Read-only, LOD Pagination) ──────────────────
   news: newsRouter,
+  aiModels: aiModelsRouter,
   showcase: showcaseRouter,
   sense: senseRouter,
   brain: brainRouter,
