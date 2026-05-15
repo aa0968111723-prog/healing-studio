@@ -13,7 +13,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
   AgentAction,
@@ -60,6 +62,10 @@ import {
   Link2,
   Globe,
   Server,
+  PlayCircle,
+  Clock,
+  Activity,
+  ChevronDown,
 } from "lucide-react";
 import {
   AI_MODELS_CATALOG,
@@ -141,6 +147,56 @@ function relativeFromNow(iso?: string): string {
   return `${months} 個月前驗證`;
 }
 
+function formatAbsoluteTime(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatDurationMs(ms?: number): string {
+  if (!ms || ms < 0) return "—";
+  if (ms < 1000) return `${ms} ms`;
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec} 秒`;
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
+  if (minutes < 60) return seconds ? `${minutes} 分 ${seconds} 秒` : `${minutes} 分鐘`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  return remMin ? `${hours} 小時 ${remMin} 分` : `${hours} 小時`;
+}
+
+// 把 cron expression 翻成「每週日 03:30」這類的人話。無法解析時退回原字串。
+const WEEKDAY_LABELS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+function humanizeCron(expr?: string): string {
+  if (!expr) return "未設定";
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return expr;
+  const [min, hour, dom, mon, dow] = parts;
+  const pad = (s: string) => (s.length < 2 ? `0${s}` : s);
+
+  // 解析時間
+  const hasFixedTime = /^\d+$/.test(hour) && /^\d+$/.test(min);
+  const timeStr = hasFixedTime ? `${pad(hour)}:${pad(min)}` : null;
+
+  // dom / mon 都是 *，看 dow
+  if (dom === "*" && mon === "*") {
+    if (dow === "*") {
+      return timeStr ? `每天 ${timeStr}` : `每天 ${min} 分 ${hour} 時`;
+    }
+    if (/^\d$/.test(dow)) {
+      const label = WEEKDAY_LABELS[parseInt(dow, 10)] ?? `週${dow}`;
+      return timeStr ? `每${label} ${timeStr}` : `每${label}`;
+    }
+    if (dow === "1-5") {
+      return timeStr ? `平日 ${timeStr}` : `平日`;
+    }
+  }
+  return expr;
+}
+
 // ─── Fact-check badge ──────────────────────────────────────────────────────
 
 function FactCheckBadge({
@@ -192,6 +248,19 @@ function ModelCard({
   const pricingTier = model.pricing?.tier
     ? PRICING_TIER_STYLE[model.pricing.tier]
     : null;
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const refreshOne = trpc.aiModels.refreshOne.useMutation({
+    onSuccess: () => {
+      toast.success(`已重新研究：${model.name}`);
+      void utils.aiModels.list.invalidate();
+      void utils.aiModels.researchStats.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? `研究失敗：${model.name}`);
+    },
+  });
 
   return (
     <motion.button
@@ -290,10 +359,42 @@ function ModelCard({
             status={factStatus}
             checkedAt={model.factCheck?.checkedAt}
           />
-          <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400 group-hover:text-primary transition-colors">
-            查看詳情
-            <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-          </span>
+          <div className="inline-flex items-center gap-1.5">
+            {isAdmin && (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`重新研究 ${model.name}`}
+                title="僅管理員：重新跑這款模型的自動研究"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (refreshOne.isPending) return;
+                  refreshOne.mutate({ id: model.id, force: true });
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (refreshOne.isPending) return;
+                    refreshOne.mutate({ id: model.id, force: true });
+                  }
+                }}
+                className={`p-1 rounded-full transition-colors ${
+                  refreshOne.isPending
+                    ? "text-sky-500"
+                    : "text-gray-300 hover:text-primary hover:bg-primary/5"
+                }`}
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${refreshOne.isPending ? "animate-spin" : ""}`}
+                />
+              </span>
+            )}
+            <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400 group-hover:text-primary transition-colors">
+              查看詳情
+              <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
         </div>
       </div>
     </motion.button>
@@ -496,6 +597,20 @@ function AvailabilityBlock({ model }: { model: AIModelEntry }) {
 
 function FactCheckBlock({ model }: { model: AIModelEntry }) {
   const factCheck = model.factCheck;
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const refreshOne = trpc.aiModels.refreshOne.useMutation({
+    onSuccess: () => {
+      toast.success(`已重新研究：${model.name}`);
+      void utils.aiModels.list.invalidate();
+      void utils.aiModels.researchStats.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? `研究失敗：${model.name}`);
+    },
+  });
+
   if (!factCheck) return null;
   const status = computeFactCheckStatus(factCheck);
   const style = FACT_CHECK_STATUS_STYLE[status];
@@ -507,11 +622,33 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           事實查核
         </h3>
-        <FactCheckBadge
-          status={status}
-          checkedAt={factCheck.checkedAt}
-          size="md"
-        />
+        <div className="flex items-center gap-2">
+          <FactCheckBadge
+            status={status}
+            checkedAt={factCheck.checkedAt}
+            size="md"
+          />
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                if (refreshOne.isPending) return;
+                refreshOne.mutate({ id: model.id, force: true });
+              }}
+              disabled={refreshOne.isPending}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white border border-gray-200 text-gray-600 hover:border-primary/40 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="僅管理員：忽略 24h 快取，立刻重新查核這款模型"
+            >
+              {refreshOne.isPending ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3 h-3" />
+              )}
+              {refreshOne.isPending ? "研究中…" : "重新研究"}
+            </button>
+          )}
+        </div>
       </div>
 
       <p className="text-xs text-gray-600 mb-3 leading-relaxed">
@@ -1005,48 +1142,216 @@ function NewsStrip() {
   );
 }
 
-// ─── Auto-research status strip ────────────────────────────────────────────
+// ─── Auto-research status panel ────────────────────────────────────────────
+//
+// 提供「手動 + 自動」雙軌：cron 走每週固定排程，admin 也可以從這裡立即觸發
+// 全量研究。同時把上次跑的 metadata（耗時、嘗試/成功數、錯誤明細）都攤開來
+// 讓策展者一眼能看到目前是不是健康。
 
-function AutoResearchStatusStrip() {
+function AutoResearchPanel({
+  staleCount,
+  verifiedCount,
+}: {
+  staleCount: number;
+  verifiedCount: number;
+}) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const [showErrors, setShowErrors] = useState(false);
+
   const { data } = trpc.aiModels.researchStats.useQuery(undefined, {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+
+  const refreshAll = trpc.aiModels.refreshAll.useMutation({
+    onSuccess: data => {
+      toast.success(data?.message ?? "已在背景啟動完整研究");
+      void utils.aiModels.researchStats.invalidate();
+      void utils.aiModels.list.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? "無法啟動研究");
+    },
+  });
+
   if (!data) return null;
   const last = data.stats.lastRunAt;
   const inProgress = data.isRunning;
   const coveragePct = Math.round((data.stats.coverage ?? 0) * 100);
+  const tried = data.stats.lastRunModelsTried;
+  const succeeded = data.stats.lastRunModelsSucceeded;
+  const duration = data.stats.lastRunDurationMs;
+  const totalRuns = data.stats.totalRunsCompleted;
+  const errors = data.stats.lastRunErrors;
+  const scheduleLabel = humanizeCron(data.schedule);
 
   return (
-    <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-r from-sky-50/40 via-white to-violet-50/40 p-3 flex flex-wrap items-center gap-3 text-xs text-gray-600">
-      <div className="inline-flex items-center gap-1.5">
-        <RefreshCw
-          className={`w-3.5 h-3.5 text-sky-500 ${inProgress ? "animate-spin" : ""}`}
-        />
-        <span className="font-medium text-gray-700">
-          自動研究 {inProgress ? "進行中" : "待機中"}
-        </span>
+    <div className="mt-4 rounded-2xl border border-gray-200 bg-gradient-to-br from-sky-50/40 via-white to-violet-50/40 overflow-hidden">
+      {/* Header: 狀態 + 主要動作 */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100/80">
+        <div className="inline-flex items-center gap-2">
+          <span
+            className={`relative inline-flex items-center justify-center w-7 h-7 rounded-full ${
+              inProgress
+                ? "bg-sky-100 text-sky-600"
+                : data.scheduled
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            <Activity
+              className={`w-3.5 h-3.5 ${inProgress ? "animate-pulse" : ""}`}
+            />
+            {inProgress && (
+              <span className="absolute inset-0 rounded-full ring-2 ring-sky-300/60 animate-ping" />
+            )}
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold text-gray-800">
+              自動研究 ·{" "}
+              <span
+                className={
+                  inProgress
+                    ? "text-sky-600"
+                    : data.scheduled
+                      ? "text-emerald-600"
+                      : "text-gray-500"
+                }
+              >
+                {inProgress
+                  ? "進行中"
+                  : data.scheduled
+                    ? "排程已啟用"
+                    : "排程已停用"}
+              </span>
+            </div>
+            <div className="text-[11px] text-gray-500">
+              {scheduleLabel}
+              <span className="text-gray-300 mx-1.5">·</span>
+              累積 {totalRuns} 輪
+            </div>
+          </div>
+        </div>
+
+        <div className="ml-auto inline-flex items-center gap-2">
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => refreshAll.mutate()}
+              disabled={inProgress || refreshAll.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="立即在背景跑一輪完整 catalog 自動研究"
+            >
+              {refreshAll.isPending || inProgress ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <PlayCircle className="w-3.5 h-3.5" />
+              )}
+              {inProgress ? "研究進行中…" : "手動執行完整研究"}
+            </button>
+          ) : (
+            <span className="text-[11px] text-gray-400">
+              管理員可手動觸發研究
+            </span>
+          )}
+        </div>
       </div>
-      <span className="text-gray-300">|</span>
-      <span>
-        覆蓋率{" "}
-        <span className="font-semibold text-gray-800">{coveragePct}%</span>
-        <span className="text-gray-400"> （{data.totalModels} 款模型）</span>
-      </span>
-      <span className="text-gray-300">|</span>
-      <span>
-        上次研究：
-        <span className="font-medium text-gray-700">
-          {relativeFromNow(last)}
-        </span>
-      </span>
-      <span className="text-gray-300">|</span>
-      <span>排程：每週日 03:30</span>
-      {data.stats.lastRunErrors.length > 0 && (
-        <span className="ml-auto text-amber-600 inline-flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
-          上次有 {data.stats.lastRunErrors.length} 個錯誤
-        </span>
+
+      {/* 細節 grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-100/70">
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            覆蓋率
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-gray-800">
+            {coveragePct}%
+            <span className="text-[11px] font-normal text-gray-400 ml-1">
+              （{data.totalModels} 款）
+            </span>
+          </div>
+        </div>
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider inline-flex items-center gap-1">
+            <ShieldCheck className="w-2.5 h-2.5 text-emerald-500" />
+            已驗證 / 待補
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-gray-800">
+            {verifiedCount}
+            {staleCount > 0 && (
+              <span className="text-[11px] font-normal text-amber-600 ml-1">
+                · {staleCount} 過期
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider inline-flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5 text-gray-400" />
+            上次研究
+          </div>
+          <div
+            className="mt-0.5 text-sm font-semibold text-gray-800 truncate"
+            title={last ? formatAbsoluteTime(last) : "尚未執行"}
+          >
+            {last ? relativeFromNow(last).replace("驗證", "") : "尚未執行"}
+          </div>
+          {last && (
+            <div className="text-[10px] text-gray-400 truncate">
+              {formatAbsoluteTime(last)}
+            </div>
+          )}
+        </div>
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            上次耗時 / 嘗試
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-gray-800">
+            {formatDurationMs(duration)}
+          </div>
+          <div className="text-[10px] text-gray-400">
+            {tried > 0 ? `${succeeded}/${tried} 成功` : "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* 錯誤摺疊區 */}
+      {errors.length > 0 && (
+        <div className="border-t border-gray-100/80">
+          <button
+            type="button"
+            onClick={() => setShowErrors(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-2 text-xs text-amber-700 hover:bg-amber-50/40 transition-colors"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span className="font-medium">上次有 {errors.length} 個錯誤</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 ml-auto transition-transform ${
+                showErrors ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {showErrors && (
+            <div className="px-4 pb-3 max-h-40 overflow-y-auto">
+              <ul className="space-y-1 text-[11px] text-amber-800 font-mono">
+                {errors.slice(0, 50).map((e, i) => (
+                  <li
+                    key={i}
+                    className="pl-2 border-l-2 border-amber-200 leading-relaxed break-words"
+                  >
+                    {e}
+                  </li>
+                ))}
+                {errors.length > 50 && (
+                  <li className="pl-2 text-amber-600 italic">
+                    …還有 {errors.length - 50} 筆未顯示
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1223,6 +1528,7 @@ export default function AIModelsHub() {
     search.length > 0;
 
   const verifiedCount = catalogData?.meta.verifiedCount ?? 0;
+  const staleCount = catalogData?.meta.staleCount ?? 0;
 
   return (
     <div className="flex-1 w-full">
@@ -1290,8 +1596,11 @@ export default function AIModelsHub() {
             </div>
           </div>
 
-          {/* Auto-research status strip */}
-          <AutoResearchStatusStrip />
+          {/* Auto-research panel: 自動排程 + 手動觸發 + 上次跑的細節 */}
+          <AutoResearchPanel
+            staleCount={staleCount}
+            verifiedCount={verifiedCount}
+          />
         </header>
 
         {/* ── Featured spotlight ───────────────────────────────────────── */}
