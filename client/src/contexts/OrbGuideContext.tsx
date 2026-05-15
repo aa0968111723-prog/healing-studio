@@ -712,6 +712,8 @@ interface OrbGuideContextType {
   toggleManualStepDone: (stepId: string) => void;
   // 收掉到站引導卡（保留 plan 以便快速重看）
   dismissArrival: () => void;
+  // 聊天驅動跳頁時收起「已帶你到 X」橫幅，但保持面板與聊天開著。
+  clearArrivalBanner: () => void;
   // 到達目標頁面後，光球說的第一句話
   arrivedMessage: string | null;
   clearArrivedMessage: () => void;
@@ -768,6 +770,7 @@ const OrbGuideContext = createContext<OrbGuideContextType>({
   reset: () => {},
   toggleManualStepDone: () => {},
   dismissArrival: () => {},
+  clearArrivalBanner: () => {},
   arrivedMessage: null,
   clearArrivedMessage: () => {},
   patchPlan: () => {},
@@ -975,6 +978,18 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     questionIndexRef.current = 0;
   }, [cancelArrivalTimer]);
 
+  // 聊天驅動跳頁時的「收起到站橫幅」：使用者在 chat 視圖下不該被一張靜態
+  // 勾選卡蓋掉正在進行的對話，所以我們把到站資訊壓成一條細橫幅，使用者
+  // 按 X 收掉時只清掉 arrival 狀態（step / plan），面板保持開啟，聊天繼續走。
+  // 不要直接重用 dismissArrival —— 那會把 isPanelOpen 也關掉，使用者就看
+  // 不到正在串的多步驟對話了。
+  const clearArrivalBanner = useCallback(() => {
+    cancelArrivalTimer();
+    setStep("idle");
+    setPlan(null);
+    setCompletedManualStepIds([]);
+  }, [cancelArrivalTimer]);
+
   const attachArrivalGuide = useCallback(
     (input: {
       targetPath: string;
@@ -1085,6 +1100,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       reset,
       toggleManualStepDone,
       dismissArrival,
+      clearArrivalBanner,
       arrivedMessage,
       clearArrivedMessage,
       patchPlan,
@@ -1107,6 +1123,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       reset,
       toggleManualStepDone,
       dismissArrival,
+      clearArrivalBanner,
       arrivedMessage,
       clearArrivedMessage,
       patchPlan,
