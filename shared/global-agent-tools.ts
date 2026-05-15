@@ -439,6 +439,35 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 查查（researcher）站內模型比較工具 ──
+  // 查查在 prompt 裡承諾「比較模型時用站內 registry」，但之前只能靠 LLM
+  // 把目錄內容背出來。compareModels 把 MODEL_PRICING_CATALOG 直接結構化
+  // 回傳：每筆含 tier / pts range / API 可用性 / 擅長 vs 不擅長 / useCase
+  // 匹配度，再附三選一推薦（cheapest / bestQuality / bestFit）與下一棒
+  // 交給誰。完全 deterministic，可被測試釘規格。
+  {
+    name: "research.compareModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 必填：模型類別。MODEL_PRICING_CATALOG 的 ModelCategory enum。
+      // text-to-image / text-to-video / image-to-video / text-to-audio /
+      // text-to-speech / training …
+      category: "string",
+      // 選填：指定要比的 modelId 清單。不指定就抓該類別全部。
+      modelIds: "string[]?",
+      // 選填：是否含 API key 缺失的模型（預設 false）
+      includeUnavailable: "boolean?",
+      // 選填：用情境 — draft / production / cinematic / commercial /
+      // anatomical / loop_friendly / vocal / ambient / multilingual
+      useCase: "string?",
+      // 選填：估算花費用的內容尺寸
+      estimateFor: "object?",
+      // 選填：最多回幾個（預設 8、上限 20）
+      maxResults: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
   {
     name: "director.suggestPlan",

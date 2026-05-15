@@ -462,6 +462,44 @@ export async function executeOrbToolCalls(
       continue;
     }
 
+    // ── research.compareModels：站內模型 catalogue 結構化比較（查查專用） ──
+    // 純資料工具，不打 LLM、不過 Perplexity 節流。
+    if (call.name === "research.compareModels") {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      const compareResult = await dispatchCompareModelsTool(call);
+      out.push(compareResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: compareResult.usedTool,
+        ok: compareResult.ok,
+        error: compareResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── inspiration.fetch：Perplexity Sonar 即時靈感 / 時事 / 社群偏好 ──
     if (call.name === "inspiration.fetch") {
       if ((opts.blockedTools ?? []).includes(call.name)) {
@@ -4781,6 +4819,88 @@ async function dispatchDeepSearchTool(
         durationMs: result.durationMs,
         ...(result.error ? { warning: result.error } : {}),
       },
+    };
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// research.compareModels 工具橋接：查查專用 — 站內模型 catalogue 結構化比較
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * compareModels 是純資料工具 — 從 MODEL_PRICING_CATALOG 拉出某類別所有
+ * 模型（或指定的 modelIds）做結構化比較。不打 LLM、不過外部 API，所以
+ * 不過 perplexityThrottle、也沒有 retry 包裝。失敗時直接回 ok=false。
+ */
+async function dispatchCompareModelsTool(
+  call: OrbToolCall,
+): Promise<OrbToolCallResult> {
+  const { getGlobalAgentTool } = await import("../../shared/global-agent-tools");
+  const def = getGlobalAgentTool(call.name);
+  if (!def) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "research-tool-not-registered",
+    };
+  }
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const category = typeof args.category === "string" ? args.category : "";
+  if (!category.trim()) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "missing-category",
+    };
+  }
+
+  try {
+    const { compareModels, getCategoriesInCatalog } = await import(
+      "./spiritTools/researcherTools"
+    );
+    const available = getCategoriesInCatalog();
+    if (!available.includes(category as never)) {
+      return {
+        name: call.name,
+        ok: false,
+        error: `unknown-category:${category}`,
+        data: { availableCategories: available },
+      };
+    }
+    const modelIds = Array.isArray(args.modelIds)
+      ? (args.modelIds.filter(m => typeof m === "string") as string[])
+      : undefined;
+    const useCase =
+      typeof args.useCase === "string" ? (args.useCase as never) : undefined;
+    const includeUnavailable = !!args.includeUnavailable;
+    const maxResults =
+      typeof args.maxResults === "number" ? args.maxResults : undefined;
+    const estimateFor =
+      args.estimateFor && typeof args.estimateFor === "object"
+        ? (args.estimateFor as Record<string, number>)
+        : undefined;
+
+    const result = compareModels({
+      category: category as never,
+      modelIds,
+      useCase,
+      includeUnavailable,
+      maxResults,
+      estimateFor,
+    });
+
+    return {
+      name: call.name,
+      ok: true,
+      data: result,
+      usedTool: call.name,
     };
   } catch (err) {
     return {
