@@ -93,6 +93,9 @@ import {
   type Personality,
 } from "@/components/director/constants";
 import { scenesFromSegments } from "@/components/director/utils";
+import { QuickActionChip } from "@/components/director/QuickActionChip";
+import { SessionItem } from "@/components/director/SessionItem";
+import { PlanningSessionItem } from "@/components/director/PlanningSessionItem";
 import { useAIState } from "@/contexts/AIStateContext";
 import {
   useRegisterPageAgent,
@@ -288,39 +291,6 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
         )}
       </Button>
     </GlassCard>
-  );
-});
-
-// ─── Quick Action Chip ──────────────────────────────────────────────────────
-
-const QuickActionChip = memo(function QuickActionChip({
-  action,
-  onClick,
-  disabled,
-}: {
-  action: QuickAction;
-  onClick: (action: QuickAction) => void;
-  disabled?: boolean;
-}) {
-  const IconComp = QUICK_ACTION_ICONS[action.icon] ?? Sparkles;
-  const catConfig = QUICK_ACTION_CATEGORY_LABELS[action.category];
-
-  return (
-    <button
-      onClick={() => onClick(action)}
-      disabled={disabled}
-      className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all",
-        "hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]",
-        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-        catConfig?.color ?? "bg-gray-100 text-gray-700",
-        "border-current/10"
-      )}
-      title={action.promptTemplate}
-    >
-      <IconComp className="w-3 h-3" />
-      {action.labelZh}
-    </button>
   );
 });
 
@@ -5867,101 +5837,3 @@ export default function DirectorAI() {
     </div>
   );
 }
-
-// ─── Session Item ───────────────────────────────────────────────────────────
-
-const SessionItem = memo(function SessionItem({
-  session,
-  onLoad,
-  onDelete,
-}: {
-  session: { id: number; title: string; createdAt: Date | string; updatedAt?: Date | string | null };
-  onLoad: (data: string) => void;
-  onDelete: (id: number) => void;
-}) {
-  const loadQuery = trpc.director.loadSession.useQuery(
-    { id: session.id },
-    { enabled: false }
-  );
-
-  const handleLoad = async () => {
-    const result = await loadQuery.refetch();
-    if (result.data?.sessionData) {
-      onLoad(result.data.sessionData);
-    } else {
-      toast.error("無法載入對話");
-    }
-  };
-
-  const displayDate = session.updatedAt ?? session.createdAt;
-  const label = session.updatedAt ? "上次更新" : "建立";
-
-  return (
-    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
-      <button onClick={handleLoad} className="flex-1 text-left min-w-0">
-        <span className="text-xs font-medium truncate block">
-          {session.title}
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          {label}：{new Date(displayDate).toLocaleDateString("zh-TW")}
-        </span>
-      </button>
-      <button
-        onClick={() => onDelete(session.id)}
-        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all shrink-0"
-        title="刪除"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
-    </div>
-  );
-});
-
-// ─── Planning Session Item ──────────────────────────────────────────────────
-
-const PlanningSessionItem = memo(function PlanningSessionItem({
-  session,
-  onLoad,
-  onDelete,
-}: {
-  session: { id: number; title: string; createdAt: Date | string; updatedAt?: Date | string | null };
-  onLoad: (data: string, id?: number) => void;
-  onDelete: (id: number) => void;
-}) {
-  const loadQuery = trpc.director.loadPlanningSession.useQuery(
-    { id: session.id },
-    { enabled: false }
-  );
-
-  const handleLoad = async () => {
-    const result = await loadQuery.refetch();
-    if (result.data?.sessionData) {
-      onLoad(result.data.sessionData, session.id);
-    } else {
-      toast.error("無法載入規劃");
-    }
-  };
-
-  const displayDate = session.updatedAt ?? session.createdAt;
-  const label = session.updatedAt ? "上次更新" : "建立";
-
-  return (
-    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
-      <button onClick={handleLoad} className="flex-1 text-left min-w-0">
-        <span className="text-xs font-medium truncate block">
-          {session.title}
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          {label}：{new Date(displayDate).toLocaleDateString("zh-TW")}
-        </span>
-      </button>
-      <button
-        onClick={() => onDelete(session.id)}
-        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all shrink-0"
-        title="刪除"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
-    </div>
-  );
-});
