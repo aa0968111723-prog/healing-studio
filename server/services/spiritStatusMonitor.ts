@@ -72,6 +72,15 @@ export interface TeamStatusSummary {
     duration: number;
     taskType?: string;
   }>;
+  /** Tasks with a deadline that's already passed or within the at-risk window */
+  atRiskTasks: Array<{
+    spiritId: AgentRole;
+    taskId: string;
+    taskType?: string;
+    deadlineAt: number;
+    remainingMs: number;
+    overdue: boolean;
+  }>;
   /** Recent errors (last 10) */
   recentErrors: Array<{
     spiritId: AgentRole;
@@ -81,18 +90,49 @@ export interface TeamStatusSummary {
 }
 
 /**
+ * Outcome of a finished task, recorded so the orchestrator can learn which
+ * spirits handle which task types reliably and which keep failing.
+ * Kept in a bounded in-memory ring (HISTORY_LIMIT) — production callers that
+ * want long-term stats should persist these separately.
+ */
+export interface TaskOutcomeRecord {
+  spiritId: AgentRole;
+  taskId: string;
+  taskType: string;
+  outcome: "success" | "failure" | "cancelled";
+  durationMs: number;
+  recordedAt: number;
+  /** When outcome === "failure", the error message that ended the task. */
+  errorMessage?: string;
+}
+
+export interface TaskDeadline {
+  taskId: string;
+  spiritId: AgentRole;
+  deadlineAt: number;
+  setAt: number;
+}
+
+/**
  * In-memory status store for all spirits.
  * In production, this could be backed by Redis or another distributed cache.
  */
 class SpiritStatusMonitorClass {
   private statusMap: Map<AgentRole, SpiritStatus> = new Map();
   private readonly LONG_RUNNING_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+  /** A task is "at risk" if its deadline is within this window. */
+  private readonly DEADLINE_AT_RISK_WINDOW_MS = 60 * 1000; // 1 minute
   private readonly ERROR_HISTORY_LIMIT = 10;
+  /** Rolling outcome buffer used for historical success-rate calculations. */
+  private readonly OUTCOME_HISTORY_LIMIT = 200;
   private errorHistory: Array<{
     spiritId: AgentRole;
     error: string;
     occurredAt: number;
   }> = [];
+  private outcomeHistory: TaskOutcomeRecord[] = [];
+  /** Deadlines indexed by taskId — wins are unique per task. */
+  private deadlines: Map<string, TaskDeadline> = new Map();
 
   /**
    * All spirit roles that can be monitored.
@@ -233,6 +273,7 @@ class SpiritStatusMonitorClass {
     }
 
     const duration = current.startedAt ? Date.now() - current.startedAt : 0;
+    const taskType = current.currentTaskType ?? "unknown";
 
     const newStatus: SpiritStatus = {
       spiritId,
@@ -248,6 +289,15 @@ class SpiritStatusMonitorClass {
     };
 
     this.statusMap.set(spiritId, newStatus);
+    this.recordOutcome({
+      spiritId,
+      taskId,
+      taskType,
+      outcome: "success",
+      durationMs: duration,
+      recordedAt: Date.now(),
+    });
+    this.deadlines.delete(taskId);
 
     logger.info("spirit_task_completed", {
       spiritId,
@@ -288,6 +338,25 @@ class SpiritStatusMonitorClass {
     // Trim error history
     if (this.errorHistory.length > this.ERROR_HISTORY_LIMIT) {
       this.errorHistory = this.errorHistory.slice(0, this.ERROR_HISTORY_LIMIT);
+    }
+
+    // Failure outcome — only when the failing task is identifiable. Prefer the
+    // caller-supplied taskId; fall back to the spirit's current task if the
+    // caller omitted it (older call sites). Without either, we still flag the
+    // spirit but don't pollute outcome history with phantom records.
+    const failedTaskId = taskId ?? current.currentTaskId;
+    if (failedTaskId) {
+      const duration = current.startedAt ? now - current.startedAt : 0;
+      this.recordOutcome({
+        spiritId,
+        taskId: failedTaskId,
+        taskType: current.currentTaskType ?? "unknown",
+        outcome: "failure",
+        durationMs: duration,
+        recordedAt: now,
+        errorMessage: error,
+      });
+      this.deadlines.delete(failedTaskId);
     }
 
     logger.error("spirit_error_reported", {
@@ -355,10 +424,11 @@ class SpiritStatusMonitorClass {
       offlineCount: spirits.filter(s => s.status === "offline").length,
       spirits,
       longRunningTasks: [],
+      atRiskTasks: [],
       recentErrors: [...this.errorHistory],
     };
 
-    // Detect long-running tasks
+    // Detect long-running tasks + collect at-risk-by-deadline tasks
     spirits.forEach(spirit => {
       if (spirit.status === "busy" && spirit.startedAt && spirit.currentTaskId) {
         const duration = now - spirit.startedAt;
@@ -369,6 +439,21 @@ class SpiritStatusMonitorClass {
             duration,
             taskType: spirit.currentTaskType,
           });
+        }
+
+        const deadline = this.deadlines.get(spirit.currentTaskId);
+        if (deadline) {
+          const remainingMs = deadline.deadlineAt - now;
+          if (remainingMs <= this.DEADLINE_AT_RISK_WINDOW_MS) {
+            summary.atRiskTasks.push({
+              spiritId: spirit.spiritId,
+              taskId: spirit.currentTaskId,
+              taskType: spirit.currentTaskType,
+              deadlineAt: deadline.deadlineAt,
+              remainingMs,
+              overdue: remainingMs < 0,
+            });
+          }
         }
       }
     });
@@ -462,10 +547,207 @@ class SpiritStatusMonitorClass {
     });
 
     this.errorHistory = [];
+    this.outcomeHistory = [];
+    this.deadlines.clear();
 
     logger.info("all_spirits_reset_to_idle", {
       totalSpirits: this.MONITORED_SPIRITS.length,
     });
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Autonomy features for chief-orchestrator (總總)
+  //
+  // The methods below let 總總 reason about who to pick, who to retry on,
+  // and which tasks are at risk — turning the monitor from a read-only
+  // dashboard into an active decision support layer.
+  // ────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Append a finished-task record to the rolling outcome history. Bounded
+   * by OUTCOME_HISTORY_LIMIT so the buffer never grows unbounded in long-
+   * running processes. Newest records live at index 0.
+   */
+  recordOutcome(record: TaskOutcomeRecord): void {
+    this.outcomeHistory.unshift(record);
+    if (this.outcomeHistory.length > this.OUTCOME_HISTORY_LIMIT) {
+      this.outcomeHistory = this.outcomeHistory.slice(0, this.OUTCOME_HISTORY_LIMIT);
+    }
+  }
+
+  /**
+   * Read-only access to the outcome history (newest first). Callers must
+   * not mutate the returned array — defensive copy.
+   */
+  getOutcomeHistory(filter?: { spiritId?: AgentRole; taskType?: string }): TaskOutcomeRecord[] {
+    return this.outcomeHistory.filter(o => {
+      if (filter?.spiritId && o.spiritId !== filter.spiritId) return false;
+      if (filter?.taskType && o.taskType !== filter.taskType) return false;
+      return true;
+    });
+  }
+
+  /**
+   * Compute success rate (0..1) for a spirit, optionally filtered by task type.
+   * Returns `null` when there's no history to score against — callers should
+   * treat that as "unknown" rather than "zero".
+   */
+  getSuccessRate(
+    spiritId: AgentRole,
+    taskType?: string
+  ): { successRate: number; sampleSize: number } | null {
+    const records = this.getOutcomeHistory({ spiritId, taskType });
+    if (records.length === 0) return null;
+
+    const successes = records.filter(r => r.outcome === "success").length;
+    return {
+      successRate: successes / records.length,
+      sampleSize: records.length,
+    };
+  }
+
+  /**
+   * Set a soft deadline for a running task. Used by `getTeamSummary` to surface
+   * at-risk tasks so 總總 can intervene before SLA breach instead of after.
+   * Returns false if the task isn't currently owned by any spirit.
+   */
+  setDeadline(taskId: string, deadlineAt: number): boolean {
+    const owner = this.getAllStatuses().find(s => s.currentTaskId === taskId);
+    if (!owner) {
+      logger.warn("set_deadline_no_owner", { taskId });
+      return false;
+    }
+    this.deadlines.set(taskId, {
+      taskId,
+      spiritId: owner.spiritId,
+      deadlineAt,
+      setAt: Date.now(),
+    });
+    return true;
+  }
+
+  /** Remove a deadline (e.g. user cancelled the task externally). */
+  clearDeadline(taskId: string): void {
+    this.deadlines.delete(taskId);
+  }
+
+  /**
+   * Pick the least-loaded available spirit from a candidate list. Used by
+   * 總總 when more than one spirit can handle the same domain — gives
+   * preference to idle > low-progress busy > anything-else. Returns null
+   * when every candidate is unavailable.
+   */
+  getLeastLoadedSpirit(candidates: ReadonlyArray<AgentRole>): AgentRole | null {
+    type Scored = { spiritId: AgentRole; score: number };
+    const scored: Scored[] = [];
+
+    candidates.forEach(spiritId => {
+      const status = this.statusMap.get(spiritId);
+      if (!status) return;
+
+      // Score: higher is better. idle=100, just-started=60, busy=20, error=0, offline=skip.
+      let score = 0;
+      if (status.status === "idle") score = 100;
+      else if (status.status === "busy") {
+        score = status.progress !== undefined && status.progress < 10 ? 60 : 20;
+      } else if (status.status === "error") score = 0;
+      else return; // offline → don't consider
+
+      scored.push({ spiritId, score });
+    });
+
+    if (scored.length === 0) return null;
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0].spiritId;
+  }
+
+  /**
+   * Group long-running tasks by spirit + task type so 總總 can spot patterns
+   * ("video-specialist is stuck on every lipSync run today"). Returns the
+   * counts so callers can rank intervention priority.
+   */
+  getStuckTaskAnalysis(): Array<{
+    spiritId: AgentRole;
+    taskType: string;
+    stuckCount: number;
+    longestDurationMs: number;
+  }> {
+    const now = Date.now();
+    type Key = string;
+    const buckets = new Map<Key, {
+      spiritId: AgentRole;
+      taskType: string;
+      stuckCount: number;
+      longestDurationMs: number;
+    }>();
+
+    this.getAllStatuses().forEach(spirit => {
+      if (
+        spirit.status !== "busy" ||
+        !spirit.startedAt ||
+        !spirit.currentTaskId
+      ) {
+        return;
+      }
+      const duration = now - spirit.startedAt;
+      if (duration <= this.LONG_RUNNING_THRESHOLD_MS) return;
+
+      const taskType = spirit.currentTaskType ?? "unknown";
+      const key = `${spirit.spiritId}::${taskType}`;
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.stuckCount += 1;
+        existing.longestDurationMs = Math.max(existing.longestDurationMs, duration);
+      } else {
+        buckets.set(key, {
+          spiritId: spirit.spiritId,
+          taskType,
+          stuckCount: 1,
+          longestDurationMs: duration,
+        });
+      }
+    });
+
+    return Array.from(buckets.values()).sort(
+      (a, b) => b.longestDurationMs - a.longestDurationMs
+    );
+  }
+
+  /**
+   * Rank spirits by recent failure rate so 總總 can see who's degraded
+   * before assigning new work. Only includes spirits with at least one
+   * recorded outcome — silent ones aren't penalised.
+   */
+  getFailureClusters(windowMs: number = 60 * 60 * 1000): Array<{
+    spiritId: AgentRole;
+    failureCount: number;
+    successCount: number;
+    failureRate: number;
+  }> {
+    const cutoff = Date.now() - windowMs;
+    type Bucket = { failureCount: number; successCount: number };
+    const buckets = new Map<AgentRole, Bucket>();
+
+    this.outcomeHistory.forEach(record => {
+      if (record.recordedAt < cutoff) return;
+      const b = buckets.get(record.spiritId) ?? { failureCount: 0, successCount: 0 };
+      if (record.outcome === "failure") b.failureCount += 1;
+      else if (record.outcome === "success") b.successCount += 1;
+      buckets.set(record.spiritId, b);
+    });
+
+    return Array.from(buckets.entries())
+      .map(([spiritId, b]) => {
+        const total = b.failureCount + b.successCount;
+        return {
+          spiritId,
+          failureCount: b.failureCount,
+          successCount: b.successCount,
+          failureRate: total > 0 ? b.failureCount / total : 0,
+        };
+      })
+      .filter(entry => entry.failureCount > 0)
+      .sort((a, b) => b.failureRate - a.failureRate);
   }
 }
 
