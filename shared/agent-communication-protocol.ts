@@ -150,6 +150,9 @@ export interface AgentCapabilityDeclaration {
     | "notes"
     | "settings"
     | "execution"
+    // 靈靈 / 體體
+    | "inspiration"
+    | "anatomy"
   >;
 }
 

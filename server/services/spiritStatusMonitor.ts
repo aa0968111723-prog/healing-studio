@@ -95,15 +95,30 @@ class SpiritStatusMonitorClass {
   }> = [];
 
   /**
-   * All spirit roles that can be monitored
+   * All spirit roles that can be monitored.
+   * 必須涵蓋全 25 位 AgentRole — 不然總總 (chief-orchestrator) 的
+   * 「團隊現況」永遠看不到 6 通用 role 與 3 主動 trio 的 busy 狀態。
    */
   private readonly MONITORED_SPIRITS: readonly AgentRole[] = [
+    // 6 通用 role
+    "director",
+    "composer",
+    "critic",
+    "researcher",
+    "navigator",
+    "companion",
+    // 3 主動 trio
+    "accountant",
+    "quality-coach",
+    "inspector",
+    // 6 多模態 specialist
     "image-specialist",
     "video-specialist",
     "music-specialist",
     "voice-specialist",
     "training-specialist",
     "learning-specialist",
+    // 8 位新增精靈
     "legal-advisor",
     "security-guard",
     "community-manager",
@@ -112,6 +127,7 @@ class SpiritStatusMonitorClass {
     "notes-curator",
     "settings-detail",
     "plan-executor",
+    // 靈靈 / 體體
     "inspiration-specialist",
     "anatomy-specialist",
   ] as const;

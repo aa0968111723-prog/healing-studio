@@ -46,6 +46,12 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
+import {
+  measurePageTti,
+  isPageTtiSlow,
+  trackRouteVisit,
+  suggestUnusedFeature,
+} from "@/lib/spiritWatchers";
 import { ProactiveNotificationCenter } from "@/lib/ProactiveNotificationCenter";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -640,6 +646,53 @@ function DashboardLayoutContent({
       { dedupeKey: `low-balance-${user?.id ?? "anon"}-${day}`, dedupeMs: 86_400_000 }
     );
   }, [balanceQuery.data?.remaining, balanceQuery.data, user?.id]);
+
+  // 15 精靈 / 守守 (inspector)：page_perf_bad 偵測。Navigation Timing API
+  // 報的 domInteractive > 5000ms 視為慢頁。dedupe 用 location + 日期；同一
+  // 頁同一天最多一次提示，避免短促重複跳。只在首次掛載時量一次（不每次
+  // route change 都量，因為 SPA 切頁不會重置 navigation entry）。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // 等一個 tick 讓瀏覽器把 navigation entry 填好
+    const id = window.setTimeout(() => {
+      const tti = measurePageTti();
+      if (!isPageTtiSlow(tti)) return;
+      const day = Math.floor(Date.now() / 86_400_000);
+      ProactiveEventBus.publish(
+        "page_perf_bad",
+        {
+          tti: tti ?? 0,
+          alternativePage: undefined,
+        },
+        {
+          dedupeKey: `perf:${location}:${day}`,
+          dedupeMs: 86_400_000,
+        },
+      );
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [location]);
+
+  // 15 精靈 / 守守 (inspector)：route visit tracking + feature_not_used。
+  // 每次切頁累加 visit count；當 count ≥ 20（常駐使用者）且仍有沒走過的
+  // 推薦功能時，主動建議「你還沒試過 X」。dedupe 7 天，避免一直 spam。
+  useEffect(() => {
+    if (!location) return;
+    trackRouteVisit(location);
+    const suggestion = suggestUnusedFeature();
+    if (!suggestion) return;
+    ProactiveEventBus.publish(
+      "feature_not_used",
+      {
+        featureName: suggestion.featureName,
+        lastSeenAt: undefined,
+      },
+      {
+        dedupeKey: `feat:${suggestion.path}`,
+        dedupeMs: 7 * 86_400_000,
+      },
+    );
+  }, [location]);
 
   const isAdmin = user?.role === "admin";
   const displayName = settings.displayName.trim() || user?.name || "使用者";

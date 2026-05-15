@@ -21,6 +21,12 @@ import {
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { trpc } from "@/lib/trpc";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
+import { detectIpRisk } from "@/lib/ipRiskDetect";
+import {
+  detectSettingsDrift,
+  detectStrugglingPrompt,
+  notePlatformMention,
+} from "@/lib/spiritWatchers";
 import { toast } from "sonner";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
@@ -2168,6 +2174,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // history and the director-handoff payload missed the message that
   // triggered the redirect.
   const messagesRef = useRef<ChatMessage[]>(messages);
+  // 巧巧 (quality-coach)：偵測使用者短時間內反覆送相似 prompt 用。
+  // 保留最近 6 次送出時間+內容，detectStrugglingPrompt 會看後 3 條。
+  const submitHistoryRef = useRef<Array<{ text: string; at: number }>>([]);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -2942,6 +2951,30 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     const nextWorkflowExecution = buildWorkflowExecutionState(orchestratorActions);
     if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
+    // 步步 (plan-executor)：使用者批准的 workflow ≥ 3 步時，主動冒出來宣告
+    // 「我接手跑完這 N 步」並提供「中途插話 / 暫停」入口。完全 background 跑
+    // 會讓使用者懷疑沒在做事；用 inline 卡片讓他看到由誰接管。dedupe by
+    // workflow.id 5 分鐘，避免重複跑同條時連續跳。
+    if (nextWorkflowExecution && nextWorkflowExecution.total >= 3) {
+      const firstStep = nextWorkflowExecution.steps[0];
+      // 粗估 — 每步約 1 分鐘 + 5 點，給使用者一個數量級。實際以 modelPricing 為準。
+      const etaMinutes = nextWorkflowExecution.total;
+      const creditsCost = nextWorkflowExecution.total * 5;
+      ProactiveEventBus.publish(
+        "multi_step_plan_ready",
+        {
+          stepCount: nextWorkflowExecution.total,
+          etaMinutes,
+          creditsCost,
+          firstStepLabel: firstStep?.label ?? nextWorkflowExecution.name,
+        },
+        {
+          dedupeKey: `plan:${nextWorkflowExecution.id}`,
+          dedupeMs: 5 * 60_000,
+        },
+      );
+    }
+
     orbState.setState(
       "executing",
       nextWorkflowExecution ? `${nextWorkflowExecution.name}（${nextWorkflowExecution.total} 步）` : "執行中"
@@ -3316,6 +3349,171 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             suggestedAddition: "場景、風格、用途其中一個",
           },
           { dedupeKey: trimmed.slice(0, 4), dedupeMs: 60_000 }
+        );
+      }
+    }
+
+    // 安安 (security-guard)：偵測使用者把 API key / token / password / 私鑰
+    // 貼進對話框。Blocking-surface 事件 — 一律警告，提醒搬到 /settings/api-keys。
+    // 規則寬鬆但要避免明顯 false positive（例如純英文短句「pkg」不算）。
+    {
+      const credPatterns: Array<{ pattern: RegExp; type: string }> = [
+        // OpenAI / Anthropic
+        { pattern: /\bsk-[A-Za-z0-9_-]{20,}\b/, type: "OpenAI/Anthropic API key" },
+        // Stripe
+        { pattern: /\b(?:pk|sk|rk)_(?:test|live)_[A-Za-z0-9]{16,}\b/, type: "Stripe key" },
+        // AWS access key
+        { pattern: /\bAKIA[0-9A-Z]{16}\b/, type: "AWS access key" },
+        // GitHub PAT / OAuth
+        { pattern: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/, type: "GitHub token" },
+        // Slack token
+        { pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/, type: "Slack token" },
+        // Generic Bearer JWT
+        { pattern: /\b[Bb]earer\s+eyJ[A-Za-z0-9_=.\-]{20,}/, type: "Bearer JWT" },
+        // PEM private key block
+        { pattern: /-----BEGIN[ A-Z]*PRIVATE KEY-----/, type: "private key" },
+        // password=xxx / password: "xxx" — only when value looks substantial
+        { pattern: /\b(?:password|passwd|pwd)\s*[:=]\s*['"]?[^\s'"]{6,}/i, type: "password" },
+      ];
+      for (const { pattern, type } of credPatterns) {
+        const m = trimmed.match(pattern);
+        if (m && m[0]) {
+          const raw = m[0];
+          // 截 prefix 顯示，避免重複洩漏整段金鑰到 toast。
+          const snippet = raw.length <= 12 ? raw.slice(0, 4) + "***" : raw.slice(0, 8) + "***";
+          ProactiveEventBus.publish(
+            "credential_leak_detected",
+            { credentialType: type, snippet },
+            // 每分鐘最多一次（避免使用者拼字慢時連續觸發），dedupe by type。
+            { dedupeKey: `cred:${type}`, dedupeMs: 60_000 },
+          );
+          break;
+        }
+      }
+    }
+
+    // 帶帶 (onboarding-coach)：偵測「使用者連續送同一條訊息」— 通常代表卡關
+    // 或上次回覆沒解到問題。比對最近一條 user 訊息（normalize 後相等）。
+    // dedupe 5 分鐘，避免同對話重複跳。
+    if (trimmed.length >= 4 && trimmed.length <= 80) {
+      const normalize = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+      const lastUser = [...messagesRef.current]
+        .reverse()
+        .find(m => m.role === "user");
+      if (lastUser && normalize(lastUser.text ?? "") === normalize(trimmed)) {
+        ProactiveEventBus.publish(
+          "user_stuck_detected",
+          {
+            pageHint: locationPath || "目前頁面",
+            detail: "我看你連續送了同一條，是不是上一輪回覆沒解到你的問題？",
+          },
+          { dedupeKey: `stuck:${normalize(trimmed).slice(0, 16)}`, dedupeMs: 5 * 60_000 },
+        );
+      }
+    }
+
+    // 律律 (legal-advisor)：使用者打算「生成」含 IP / 商標 / 名人元素的內容時
+    // 主動冒出來，提供安全改寫範例。detectIpRisk 已內建「需有生成意圖」的
+    // 保護條件 — 純聊天提到品牌不會觸發。dedupe by trigger 30 分鐘避免吵。
+    if (!options.requestedMode) {
+      const ipRisk = detectIpRisk(trimmed);
+      if (ipRisk) {
+        ProactiveEventBus.publish(
+          "ip_risk_detected",
+          {
+            trigger: ipRisk.trigger,
+            riskLevel: ipRisk.riskLevel,
+            reason: ipRisk.reason,
+            safeRewrite: ipRisk.safeRewrite,
+          },
+          {
+            dedupeKey: `ip:${ipRisk.category}:${ipRisk.trigger}`,
+            dedupeMs: 30 * 60_000,
+          },
+        );
+      }
+    }
+
+    // 記記 (notes-curator)：使用者透露「想記下來」「之後再做」「下次想記得」
+    // 這類意圖時，主動建議建立筆記。dedupe 用前 12 字避免短時間多次跳。
+    {
+      const CAPTURE_HINTS: ReadonlyArray<RegExp> = [
+        /下次(想|要|得|記得|再做)/,
+        /(明天|之後|過幾天|稍後).{0,4}(再做|處理|繼續|提醒)/,
+        /備忘/,
+        /記一下/,
+        /幫我(記|存|留)/,
+        /提醒我/,
+        /(這個|這想法|這點子)(很|不錯|要|得).{0,3}(留|存|記)/,
+      ];
+      const matched = CAPTURE_HINTS.find(r => r.test(trimmed));
+      if (matched && trimmed.length >= 6) {
+        const snippet = trimmed.slice(0, 60);
+        ProactiveEventBus.publish(
+          "notes_capture_suggested",
+          {
+            snippet,
+            folderHint: "對話筆記",
+            searchHint: snippet.slice(0, 8),
+          },
+          {
+            dedupeKey: `note:${snippet.slice(0, 12)}`,
+            dedupeMs: 10 * 60_000,
+          },
+        );
+      }
+    }
+
+    // 群群 (community-manager)：把當下訊息裡 mention 到的社群平台寫進
+    // localStorage，BackgroundTasksContext 在任務完成時讀此資料判斷要不要
+    // publish social_post_ready。沒 mention 就 no-op。
+    notePlatformMention(trimmed);
+
+    // 細細 (settings-detail)：偵測「使用者把某類精靈靜音了，卻又問該精靈的
+    // 領域」— 例如 mute 財財 但訊息含「多少點」。設定漂移時主動建議「要打開
+    // 通知還是維持靜音？」。dedupe 用 settingName 12 小時，避免一直跳。
+    {
+      const prefData = agentPreferencesQuery.data as
+        | { mutedSpirits?: string[] }
+        | undefined;
+      const muted = prefData?.mutedSpirits ?? [];
+      const drift = detectSettingsDrift(trimmed, muted);
+      if (drift) {
+        ProactiveEventBus.publish(
+          "settings_drift_detected",
+          { settingName: drift.settingName },
+          {
+            dedupeKey: `drift:${drift.settingName}`,
+            dedupeMs: 12 * 60 * 60_000,
+          },
+        );
+      }
+    }
+
+    // 巧巧 (quality-coach)：偵測「短時間內反覆送很相似的 prompt」— 結果不
+    // 滿意導致重試的徵兆。把當下這條推進 submitHistoryRef，再用 60 秒視窗
+    // + Jaccard 字元相似度 ≥0.6 × 3 次規則判斷。命中即 publish。
+    // 排除：太短（< 8 字）多半是延續對話，不算掙扎。
+    if (trimmed.length >= 8 && !/^@/.test(trimmed)) {
+      const now = Date.now();
+      submitHistoryRef.current = [
+        ...submitHistoryRef.current.slice(-5),
+        { text: trimmed, at: now },
+      ];
+      const struggle = detectStrugglingPrompt(submitHistoryRef.current, now);
+      if (struggle) {
+        ProactiveEventBus.publish(
+          "low_quality_generation",
+          {
+            issue: struggle.issue,
+            sampleCount: struggle.sampleCount,
+            rewrittenPrompt: struggle.rewrittenPrompt,
+          },
+          {
+            // 一次 detect 後 10 分鐘內不再重複跳，避免使用者持續修還被吵
+            dedupeKey: `struggle:${trimmed.slice(0, 8)}`,
+            dedupeMs: 10 * 60_000,
+          },
         );
       }
     }

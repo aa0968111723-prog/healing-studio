@@ -2269,13 +2269,12 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
-      // anatomySpecialist.* tools for anatomy-specialist (解解)
+      // anatomySpecialist.* tools for anatomy-specialist (體體)
       // ════════════════════════════════════════════════════════════════════
 
-      case "anatomySpecialist.analyzeParameters":
-      case "anatomySpecialist.debugFailure":
-      case "anatomySpecialist.compareModels":
-      case "anatomySpecialist.getTechnicalDocs": {
+      case "anatomySpecialist.buildPrompt":
+      case "anatomySpecialist.nextClarification":
+      case "anatomySpecialist.labelChecklist": {
         const anatomyResult = await dispatchAnatomySpecialistTool(call, opts);
         return anatomyResult;
       }
@@ -3936,74 +3935,79 @@ async function dispatchInspirationSpecialistTool(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// anatomySpecialist.* 工具橋接：解解（anatomy-specialist）的技術分析工具
+// anatomySpecialist.* 工具橋接：體體（anatomy-specialist）的解剖插圖工具
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function dispatchAnatomySpecialistTool(
   call: OrbToolCall,
-  opts: ExecuteOrbToolCallsOptions
+  _opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { analyzeParameters, debugFailure, compareModels, getTechnicalDocs } = await import("./spiritTools/anatomySpecialistTools");
+  const {
+    buildAnatomyPrompt,
+    nextClarificationQuestion,
+    getLabelChecklistForPart,
+  } = await import("./spiritTools/anatomySpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
     switch (call.name) {
-      case "anatomySpecialist.analyzeParameters": {
-        const modality = args.modality as "image" | "video" | "audio" | "voice";
-        const parameters = args.parameters as Record<string, unknown>;
-
-        if (!modality || !parameters) {
-          return { name: call.name, ok: false, error: "modality and parameters are required" };
+      case "anatomySpecialist.buildPrompt": {
+        const bodyPart = args.bodyPart as
+          | "full-body" | "head" | "skeleton" | "muscular"
+          | "nervous" | "vascular" | "internal-organs" | "limbs";
+        const view = args.view as
+          | "anterior" | "posterior" | "lateral"
+          | "superior" | "inferior" | "cross-section";
+        const style = args.style as
+          | "medical-textbook" | "3d-render"
+          | "hand-drawn" | "simplified-diagram";
+        const purpose = args.purpose as
+          | "teaching" | "labeling" | "reference" | "artistic";
+        if (!bodyPart || !view || !style || !purpose) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "bodyPart, view, style, and purpose are required",
+          };
         }
-
-        const result = analyzeParameters({ modality, parameters });
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+        const extra = Array.isArray(args.extraDescriptors)
+          ? (args.extraDescriptors as string[])
+          : undefined;
+        const result = buildAnatomyPrompt({
+          bodyPart, view, style, purpose, extraDescriptors: extra,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
-      case "anatomySpecialist.debugFailure": {
-        const jobId = args.jobId as string;
-        if (!jobId) {
-          return { name: call.name, ok: false, error: "jobId is required" };
+      case "anatomySpecialist.nextClarification": {
+        const partial = (args.partial ?? {}) as Record<string, unknown>;
+        // 只接受合法欄位名稱；多餘 key 不要傳進去，避免污染。
+        const safe: Record<string, unknown> = {};
+        for (const k of ["bodyPart", "view", "style", "purpose"] as const) {
+          if (partial[k]) safe[k] = partial[k];
         }
-
-        const result = await debugFailure({
-          userId: opts.userId,
-          jobId,
-        });
+        const q = nextClarificationQuestion(safe as Parameters<typeof nextClarificationQuestion>[0]);
         return {
           name: call.name,
-          ok: result.success,
-          data: result,
+          ok: true,
+          data: { question: q },
           usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
         };
       }
 
-      case "anatomySpecialist.compareModels": {
-        const models = args.models as string[];
-        const criteria = args.criteria as "speed" | "quality" | "cost" | "versatility";
-
-        if (!models || !Array.isArray(models) || !criteria) {
-          return { name: call.name, ok: false, error: "models and criteria are required" };
+      case "anatomySpecialist.labelChecklist": {
+        const bodyPart = args.bodyPart as
+          | "full-body" | "head" | "skeleton" | "muscular"
+          | "nervous" | "vascular" | "internal-organs" | "limbs";
+        if (!bodyPart) {
+          return { name: call.name, ok: false, error: "bodyPart is required" };
         }
-
-        const result = compareModels({ models, criteria });
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
-      }
-
-      case "anatomySpecialist.getTechnicalDocs": {
-        const topic = args.topic as string;
-        if (!topic) {
-          return { name: call.name, ok: false, error: "topic is required" };
-        }
-
-        const result = getTechnicalDocs(topic);
+        const labels = getLabelChecklistForPart(bodyPart);
         return {
           name: call.name,
-          ok: result.success,
-          data: result,
+          ok: true,
+          data: { labels },
           usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
         };
       }
 
