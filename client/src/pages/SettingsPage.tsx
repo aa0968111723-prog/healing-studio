@@ -567,17 +567,17 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Header */}
-      <div>
-        <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
+    <div className="page-shell page-shell-narrow space-y-6">
+      <header className="page-header">
+        <p className="page-eyebrow">Settings</p>
+        <h1 className="page-title flex items-center gap-2">
           <Settings className="w-6 h-6" />
           個人設定
         </h1>
-        <p className="hs-small !mb-0 text-muted-foreground mt-1">
+        <p className="page-subtitle">
           管理你的帳號、外觀偏好與通知設定
         </p>
-      </div>
+      </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList

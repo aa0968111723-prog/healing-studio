@@ -380,15 +380,15 @@ export default function PromptLibraryPage() {
   // ─── UI ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-6 max-w-6xl mx-auto">
-      {/* Header */}
+    <div className="page-shell">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <p className="page-eyebrow">Prompt Library</p>
+          <h1 className="page-title flex items-center gap-2 !mb-0">
             <Layers className="w-6 h-6 text-primary" />
             提示詞庫
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="page-subtitle mt-1">
             管理、收藏、分享你的 AI 提示詞
           </p>
         </div>

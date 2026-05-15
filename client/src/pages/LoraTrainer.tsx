@@ -996,16 +996,16 @@ export default function LoraTrainer() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
-      {/* Header */}
+    <div className="page-shell page-shell-narrow space-y-5 sm:space-y-6">
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-2.5 sm:gap-3">
           <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-200/40 shrink-0">
             <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
           </div>
           <div className="min-w-0">
-            <h1 className="hs-h2 !mb-0">AI 模型訓練中心</h1>
-            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+            <p className="page-eyebrow">LoRA Trainer</p>
+            <h1 className="page-title !mb-0">AI 模型訓練中心</h1>
+            <p className="page-subtitle mt-1">
               多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎
             </p>
           </div>
