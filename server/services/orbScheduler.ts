@@ -356,10 +356,19 @@ export function getScheduledJob(jobId: string): OrbScheduledJob | undefined {
  * Toggle a job's enabled flag without losing its definition. When disabled
  * we stop the cron task but keep the row in the DB so the user can resume
  * it later from the panel without re-typing the cron expression.
+ *
+ * `expectedUserId` is the caller's authenticated user id. When provided,
+ * mutations are refused unless the persisted job belongs to that user —
+ * without this guard the DB-lookup fallback (used after a server restart
+ * before the cron registry has been rebuilt) would mutate ANY tenant's
+ * job because the legacy code only looked up by id. The route still
+ * double-checks the returned row, but doing the gate inside the service
+ * means no DB write ever happens for a cross-tenant request.
  */
 export async function setOrbJobEnabled(
   jobId: string,
-  enabled: boolean
+  enabled: boolean,
+  expectedUserId?: number
 ): Promise<OrbScheduledJob | undefined> {
   const existing = jobRegistry.get(jobId);
   if (!existing) {
@@ -375,6 +384,13 @@ export async function setOrbJobEnabled(
         .limit(1);
       const row = rows[0];
       if (!row) return undefined;
+      if (expectedUserId !== undefined && row.userId !== expectedUserId) {
+        // Cross-tenant request — refuse to read state back to the caller
+        // and refuse to mutate. Return undefined so the route's NOT_FOUND
+        // path fires (same surface as "no such job"), avoiding the leak
+        // that the row exists for another user.
+        return undefined;
+      }
       const job: OrbScheduledJob = { ...rowToJob(row as ScheduledJobRow), enabled };
       await scheduleOrbJob(job);
       return job;
@@ -385,6 +401,10 @@ export async function setOrbJobEnabled(
       );
       return undefined;
     }
+  }
+
+  if (expectedUserId !== undefined && existing.job.userId !== expectedUserId) {
+    return undefined;
   }
 
   existing.job.enabled = enabled;

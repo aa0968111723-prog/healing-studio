@@ -71,6 +71,7 @@ import { getAgentHomeEntries } from "@/config/appRegistry";
 import {
   useGlobalOrbChat,
   ClarificationPromptCard,
+  NavigationConfirmationCard,
   WorkflowConfirmationCard,
   WorkflowExecutionFloatingPanel,
 } from "@/contexts/GlobalOrbChatContext";
@@ -2200,6 +2201,7 @@ export default function AgentChat() {
             floating 版本，避免雙重顯示。 */}
         {(globalChat.pendingClarification ||
           globalChat.pendingWorkflow ||
+          globalChat.pendingNavigation ||
           globalChat.workflowExecution) && (
           <motion.section
             key="inline-pending-cards"
@@ -2214,9 +2216,11 @@ export default function AgentChat() {
               <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
                 {globalChat.pendingClarification
                   ? "光球正在問你"
-                  : globalChat.pendingWorkflow
-                    ? "光球擬好計畫，等你確認"
-                    : "光球正在執行中"}
+                  : globalChat.pendingNavigation
+                    ? "光球準備跳頁，等你點確認"
+                    : globalChat.pendingWorkflow
+                      ? "光球擬好計畫，等你確認"
+                      : "光球正在執行中"}
               </p>
             </div>
             <div className="flex flex-col gap-2 items-stretch">
@@ -2229,6 +2233,14 @@ export default function AgentChat() {
                     void globalChat.answerMultiClarification(answers, extra)
                   }
                   onCancel={globalChat.cancelClarification}
+                />
+              )}
+              {globalChat.pendingNavigation && (
+                <NavigationConfirmationCard
+                  pendingNavigation={globalChat.pendingNavigation}
+                  isBusy={false}
+                  onApprove={globalChat.approvePendingNavigation}
+                  onDecline={globalChat.declinePendingNavigation}
                 />
               )}
               {globalChat.pendingWorkflow && (

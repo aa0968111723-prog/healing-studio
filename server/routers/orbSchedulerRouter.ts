@@ -1,6 +1,9 @@
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
+import { orbScheduledJobs } from "../../drizzle/schema";
 import {
   getScheduledJob,
   isValidCronExpression,
@@ -74,6 +77,41 @@ export const orbSchedulerRouter = router({
           message: "此 ID 已被其他使用者使用，請換一個",
         });
       }
+      // After a server restart the in-memory registry hasn't been rebuilt
+      // yet for jobs that won't fire soon, so `getScheduledJob` can return
+      // undefined for an id that actually belongs to another tenant in the
+      // DB. Without this check `persistJob` would happily run
+      // `.onDuplicateKeyUpdate` and OVERWRITE the rightful owner's
+      // `userId`, hijacking the job. Look up the persisted row before we
+      // touch it.
+      if (!existing) {
+        try {
+          const db = await getDb();
+          if (db) {
+            const rows = await db
+              .select({ userId: orbScheduledJobs.userId })
+              .from(orbScheduledJobs)
+              .where(eq(orbScheduledJobs.id, input.id))
+              .limit(1);
+            const persisted = rows[0];
+            if (persisted && persisted.userId !== ctx.user.id) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "此 ID 已被其他使用者使用，請換一個",
+              });
+            }
+          }
+        } catch (error) {
+          if (error instanceof TRPCError) throw error;
+          // Other DB errors (missing table on first boot, transient
+          // outages) — log and fall through to the schedule attempt, since
+          // the existing scheduleOrbJob path is already defensive.
+          console.warn(
+            "[OrbScheduler] scheduleJob ownership pre-check failed:",
+            error instanceof Error ? error.message : error
+          );
+        }
+      }
       try {
         await scheduleOrbJob({ ...input, userId: ctx.user.id });
       } catch (error) {
@@ -121,17 +159,20 @@ export const orbSchedulerRouter = router({
           message: "你沒有權限修改此排程",
         });
       }
-      const updated = await setOrbJobEnabled(input.jobId, input.enabled);
+      // Pass the caller's userId through to the service so the DB-lookup
+      // fallback (used when the in-memory registry hasn't been rebuilt
+      // yet) refuses to mutate cross-tenant rows. Without this, calling
+      // setEnabled with another tenant's jobId would silently flip their
+      // job's enabled flag before the post-update userId check fired.
+      const updated = await setOrbJobEnabled(
+        input.jobId,
+        input.enabled,
+        ctx.user.id
+      );
       if (!updated) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "找不到此排程",
-        });
-      }
-      if (updated.userId !== ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "你沒有權限修改此排程",
         });
       }
       return { success: true, enabled: updated.enabled } as const;

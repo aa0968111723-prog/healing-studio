@@ -3,6 +3,9 @@ import {
   isValidCronExpression,
   runDirectLlmFallback,
   runScheduledOrbJob,
+  scheduleOrbJob,
+  setOrbJobEnabled,
+  unscheduleOrbJob,
   type OrbScheduledJob,
 } from "../orbScheduler";
 import type { AgentPlannerResult } from "../agentPlanner";
@@ -154,5 +157,54 @@ describe("orbScheduler.runScheduledOrbJob (fallback path)", () => {
 
     expect(job.lastRunStatus).toBe("error");
     expect(job.lastError).toBe("OpenAI 5xx");
+  });
+});
+
+// ── multi-tenant isolation (自動排程修復 audit finding) ──────────────────────
+// `setOrbJobEnabled` learned an `expectedUserId` arg so the DB-lookup
+// fallback (used when the in-memory registry hasn't been rebuilt yet)
+// refuses to mutate jobs that belong to a different tenant. Without the
+// guard, user A could call the setEnabled tRPC route with user B's jobId
+// and flip user B's `enabled` flag in the DB before the route's
+// post-update userId check fired.
+describe("orbScheduler.setOrbJobEnabled tenant isolation", () => {
+  it("refuses to mutate an in-memory job that belongs to another user", async () => {
+    // Seed the in-memory registry with user 100's job, then have user 200
+    // try to disable it. The service must refuse without throwing.
+    const seedJob: OrbScheduledJob = {
+      id: "tenant-iso-test-1",
+      userId: 100,
+      // Run yearly so the test never triggers a real cron tick before
+      // unschedule fires. The exact value doesn't matter — node-cron
+      // accepts it and we tear the task down in `finally`.
+      cronExpression: "0 0 1 1 *",
+      taskDescription: "owner-100 yearly task",
+      enabled: true,
+    };
+    try {
+      await scheduleOrbJob(seedJob);
+      const result = await setOrbJobEnabled(seedJob.id, false, 200);
+      expect(result).toBeUndefined();
+    } finally {
+      unscheduleOrbJob(seedJob.id);
+    }
+  });
+
+  it("still allows the rightful owner to mutate", async () => {
+    const seedJob: OrbScheduledJob = {
+      id: "tenant-iso-test-2",
+      userId: 100,
+      cronExpression: "0 0 1 1 *",
+      taskDescription: "owner-100 yearly task",
+      enabled: true,
+    };
+    try {
+      await scheduleOrbJob(seedJob);
+      const result = await setOrbJobEnabled(seedJob.id, false, 100);
+      expect(result).toBeDefined();
+      expect(result?.enabled).toBe(false);
+    } finally {
+      unscheduleOrbJob(seedJob.id);
+    }
   });
 });
