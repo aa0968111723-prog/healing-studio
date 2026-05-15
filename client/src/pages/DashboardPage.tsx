@@ -336,7 +336,7 @@ export default function DashboardPage() {
     {
       icon: Coins,
       label: "已消耗積分",
-      value: stats?.totalRequests ?? 0,
+      value: stats?.totalCreditsConsumed ?? 0,
       unit: "點積分",
       color: "bg-zen-peach/20",
       textColor: "text-orange-600",

@@ -1,5 +1,3 @@
-// Batch Generation Dialog Component - to be merged into DirectorAI.tsx
-
 import { memo } from "react";
 import type { ScriptSegment } from "@shared/types";
 import { Button } from "@/components/ui/button";

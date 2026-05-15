@@ -5,8 +5,8 @@ import {
   suggestHandoff,
   refineWorkflowMechanically,
   getDirectorHandoffCatalog,
-} from "./services/spiritTools/directorTools";
-import type { RunWorkflowAction } from "../shared/agent-actions";
+} from "../../services/spiritTools/directorTools";
+import type { RunWorkflowAction } from "../../../shared/agent-actions";
 
 /**
  * Regression-style tests for the 4 new director.* agent tools.
@@ -14,7 +14,7 @@ import type { RunWorkflowAction } from "../shared/agent-actions";
  * These cover the pure-data primitives that turn 導導 into a real AI agent
  * (composeWorkflow / estimateBudget / suggestHandoff / refineWorkflow). The
  * LLM-driven dispatch wrapper around them is exercised separately via the
- * tool registry tests in director-orb-tool.test.ts.
+ * tool registry tests in orb-tool.test.ts.
  */
 
 describe("directorTools.composeWorkflow", () => {
