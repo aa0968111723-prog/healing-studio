@@ -2334,7 +2334,12 @@ async function dispatchStudioTool(
 
       case "anatomySpecialist.buildPrompt":
       case "anatomySpecialist.nextClarification":
-      case "anatomySpecialist.labelChecklist": {
+      case "anatomySpecialist.labelChecklist":
+      case "anatomySpecialist.parseIntent":
+      case "anatomySpecialist.buildMultiViewBatch":
+      case "anatomySpecialist.verifyResult":
+      case "anatomySpecialist.recommendModels":
+      case "anatomySpecialist.summarize": {
         const anatomyResult = await dispatchAnatomySpecialistTool(call, opts);
         return anatomyResult;
       }
@@ -4234,23 +4239,46 @@ async function dispatchAnatomySpecialistTool(
     buildAnatomyPrompt,
     nextClarificationQuestion,
     getLabelChecklistForPart,
+    parseAnatomyIntent,
+    buildMultiViewBatch,
+    verifyAnatomyResult,
+    recommendAnatomyModels,
+    summarizeAnatomyRequest,
   } = await import("./spiritTools/anatomySpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  // 共用：narrow runtime string → enum，命中合法值才回，否則回 undefined。
+  // 用 readonly array 不是 Set 是因為這幾組 enum 太短，linear scan 更便宜。
+  const pickEnum = <T extends string>(
+    raw: unknown,
+    allowed: readonly T[],
+  ): T | undefined =>
+    typeof raw === "string" && (allowed as readonly string[]).includes(raw)
+      ? (raw as T)
+      : undefined;
+
+  const BODY_PARTS = [
+    "full-body", "head", "skeleton", "muscular",
+    "nervous", "vascular", "internal-organs", "limbs",
+  ] as const;
+  const VIEWS = [
+    "anterior", "posterior", "lateral",
+    "superior", "inferior", "cross-section",
+  ] as const;
+  const STYLES = [
+    "medical-textbook", "3d-render", "hand-drawn", "simplified-diagram",
+  ] as const;
+  const PURPOSES = [
+    "teaching", "labeling", "reference", "artistic",
+  ] as const;
 
   try {
     switch (call.name) {
       case "anatomySpecialist.buildPrompt": {
-        const bodyPart = args.bodyPart as
-          | "full-body" | "head" | "skeleton" | "muscular"
-          | "nervous" | "vascular" | "internal-organs" | "limbs";
-        const view = args.view as
-          | "anterior" | "posterior" | "lateral"
-          | "superior" | "inferior" | "cross-section";
-        const style = args.style as
-          | "medical-textbook" | "3d-render"
-          | "hand-drawn" | "simplified-diagram";
-        const purpose = args.purpose as
-          | "teaching" | "labeling" | "reference" | "artistic";
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
+        const view = pickEnum(args.view, VIEWS);
+        const style = pickEnum(args.style, STYLES);
+        const purpose = pickEnum(args.purpose, PURPOSES);
         if (!bodyPart || !view || !style || !purpose) {
           return {
             name: call.name,
@@ -4269,12 +4297,22 @@ async function dispatchAnatomySpecialistTool(
 
       case "anatomySpecialist.nextClarification": {
         const partial = (args.partial ?? {}) as Record<string, unknown>;
-        // 只接受合法欄位名稱；多餘 key 不要傳進去，避免污染。
-        const safe: Record<string, unknown> = {};
-        for (const k of ["bodyPart", "view", "style", "purpose"] as const) {
-          if (partial[k]) safe[k] = partial[k];
-        }
-        const q = nextClarificationQuestion(safe as Parameters<typeof nextClarificationQuestion>[0]);
+        // 只接受合法欄位 + 合法 enum 值，避免污染。
+        const safe: Record<string, string> = {};
+        const bp = pickEnum(partial.bodyPart, BODY_PARTS);
+        if (bp) safe.bodyPart = bp;
+        const vw = pickEnum(partial.view, VIEWS);
+        if (vw) safe.view = vw;
+        const st = pickEnum(partial.style, STYLES);
+        if (st) safe.style = st;
+        const pp = pickEnum(partial.purpose, PURPOSES);
+        if (pp) safe.purpose = pp;
+        const freeText =
+          typeof args.freeText === "string" ? args.freeText : undefined;
+        const q = nextClarificationQuestion(
+          safe as Parameters<typeof nextClarificationQuestion>[0],
+          freeText ? { freeText } : undefined,
+        );
         return {
           name: call.name,
           ok: true,
@@ -4284,9 +4322,7 @@ async function dispatchAnatomySpecialistTool(
       }
 
       case "anatomySpecialist.labelChecklist": {
-        const bodyPart = args.bodyPart as
-          | "full-body" | "head" | "skeleton" | "muscular"
-          | "nervous" | "vascular" | "internal-organs" | "limbs";
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
         if (!bodyPart) {
           return { name: call.name, ok: false, error: "bodyPart is required" };
         }
@@ -4295,6 +4331,109 @@ async function dispatchAnatomySpecialistTool(
           name: call.name,
           ok: true,
           data: { labels },
+          usedTool: call.name,
+        };
+      }
+
+      case "anatomySpecialist.parseIntent": {
+        const text = typeof args.text === "string" ? args.text : "";
+        if (!text) {
+          return { name: call.name, ok: false, error: "text is required" };
+        }
+        const partial = parseAnatomyIntent(text);
+        return {
+          name: call.name,
+          ok: true,
+          data: { partial },
+          usedTool: call.name,
+        };
+      }
+
+      case "anatomySpecialist.buildMultiViewBatch": {
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
+        const style = pickEnum(args.style, STYLES);
+        const purpose = pickEnum(args.purpose, PURPOSES);
+        if (!bodyPart || !style || !purpose) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "bodyPart, style, and purpose are required",
+          };
+        }
+        const views = Array.isArray(args.views)
+          ? (args.views as unknown[])
+              .map(v => pickEnum(v, VIEWS))
+              .filter((v): v is typeof VIEWS[number] => v != null)
+          : undefined;
+        const extra = Array.isArray(args.extraDescriptors)
+          ? (args.extraDescriptors as string[])
+          : undefined;
+        const result = buildMultiViewBatch({
+          bodyPart,
+          style,
+          purpose,
+          views,
+          extraDescriptors: extra,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.verifyResult": {
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
+        if (!bodyPart) {
+          return { name: call.name, ok: false, error: "bodyPart is required" };
+        }
+        const detected = Array.isArray(args.detectedLabels)
+          ? (args.detectedLabels as unknown[]).filter(
+              (s): s is string => typeof s === "string",
+            )
+          : [];
+        const result = verifyAnatomyResult({
+          bodyPart,
+          detectedLabels: detected,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.recommendModels": {
+        const style = pickEnum(args.style, STYLES);
+        const purpose = pickEnum(args.purpose, PURPOSES);
+        if (!style || !purpose) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "style and purpose are required",
+          };
+        }
+        const result = recommendAnatomyModels({
+          style,
+          purpose,
+          hasReferenceImage:
+            typeof args.hasReferenceImage === "boolean"
+              ? args.hasReferenceImage
+              : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.summarize": {
+        const partial = (args.partial ?? args) as Record<string, unknown>;
+        const safe: Record<string, string> = {};
+        const bp = pickEnum(partial.bodyPart, BODY_PARTS);
+        if (bp) safe.bodyPart = bp;
+        const vw = pickEnum(partial.view, VIEWS);
+        if (vw) safe.view = vw;
+        const st = pickEnum(partial.style, STYLES);
+        if (st) safe.style = st;
+        const pp = pickEnum(partial.purpose, PURPOSES);
+        if (pp) safe.purpose = pp;
+        const summary = summarizeAnatomyRequest(
+          safe as Parameters<typeof summarizeAnatomyRequest>[0],
+        );
+        return {
+          name: call.name,
+          ok: true,
+          data: { summary },
           usedTool: call.name,
         };
       }
