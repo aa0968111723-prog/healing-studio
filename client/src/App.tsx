@@ -66,6 +66,7 @@ const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const AccountSettingsPage = lazy(() => import("./pages/AccountSettingsPage"));
 const ProcessViewerPage = lazy(() => import("./pages/ProcessViewerPage"));
+const AgentCodexPage = lazy(() => import("./pages/AgentCodexPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -296,6 +297,9 @@ function Router() {
       </Route>
       <Route path="/agent">
         <DashboardRoute component={AgentChat} />
+      </Route>
+      <Route path="/codex">
+        <DashboardRoute component={AgentCodexPage} />
       </Route>
       <Route path="/forgot-password">
         <Suspense fallback={<PageSkeleton />}>

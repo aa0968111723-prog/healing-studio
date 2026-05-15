@@ -24,6 +24,7 @@ function makeCtx(overrides: Partial<SlashCommandContext> = {}): SlashCommandCont
     exportChatPdf: vi.fn(),
     shareLastWorkflow: vi.fn(),
     openCommandPalette: vi.fn(),
+    openCodex: vi.fn(),
     ...overrides,
   };
 }
