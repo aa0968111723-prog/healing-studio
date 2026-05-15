@@ -10,7 +10,7 @@ import { resolve } from "node:path";
  * CO-STAR, batch CO-STAR, script overview), which is the bug this file pins.
  *
  * This is a static source-scan rather than a runtime mock — same pattern as
- * director-override-wiring.test.ts. It catches new invokeLLM call sites
+ * override-wiring.test.ts. It catches new invokeLLM call sites
  * landing without brain wiring on review.
  */
 describe("Director router invokeLLM brain-config wiring", () => {

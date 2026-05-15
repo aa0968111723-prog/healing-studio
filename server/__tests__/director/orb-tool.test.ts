@@ -3,7 +3,7 @@ import {
   GLOBAL_AGENT_TOOL_REGISTRY,
   getGlobalAgentTool,
   isKnownGlobalAgentTool,
-} from "../shared/global-agent-tools";
+} from "../../../shared/global-agent-tools";
 
 describe("director.suggestPlan tool registration", () => {
   it("registers director.suggestPlan in the global agent registry", () => {
