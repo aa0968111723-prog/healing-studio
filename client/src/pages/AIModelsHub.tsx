@@ -587,22 +587,27 @@ function ModelDetailModal({
   const modality = MODALITY_STYLE[model.modality];
   const tier = TIER_STYLE[model.tier];
 
+  const factStatus = computeFactCheckStatus(model.factCheck);
+
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 rounded-3xl">
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 rounded-3xl"
+      >
         {model.featured && (
           <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400 shrink-0" />
         )}
 
         {/* Header */}
-        <div className="flex items-start gap-4 p-6 pb-4 border-b shrink-0">
+        <div className="relative flex items-start gap-3 sm:gap-4 p-5 sm:p-6 pr-12 sm:pr-14 pb-4 border-b shrink-0">
           <div
-            className={`p-3 rounded-2xl ring-1 ${provider.bg} ${provider.ring} shrink-0`}
+            className={`p-2.5 sm:p-3 rounded-2xl ring-1 ${provider.bg} ${provider.ring} shrink-0`}
           >
-            <Cpu className={`w-6 h-6 ${provider.accent}`} />
+            <Cpu className={`w-5 h-5 sm:w-6 sm:h-6 ${provider.accent}`} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-1.5 mb-2">
               <Badge
                 variant="outline"
                 className={`text-[10px] ${provider.accent}`}
@@ -624,26 +629,28 @@ function ModelDetailModal({
                   開源權重
                 </span>
               )}
-              <FactCheckBadge
-                status={computeFactCheckStatus(model.factCheck)}
-                checkedAt={model.factCheck?.checkedAt}
-              />
             </div>
             <DialogHeader className="space-y-0">
               <DialogTitle className="hs-h2 !mb-0 text-gray-900 leading-tight">
                 {model.name}
               </DialogTitle>
             </DialogHeader>
-            {model.apiId && (
-              <p className="text-xs font-mono text-gray-500 mt-1">
-                {model.apiId}
-              </p>
-            )}
-            <p className="text-sm text-gray-600 mt-2">{model.tagline}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+              {model.apiId && (
+                <p className="text-xs font-mono text-gray-500">{model.apiId}</p>
+              )}
+              <FactCheckBadge
+                status={factStatus}
+                checkedAt={model.factCheck?.checkedAt}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+              {model.tagline}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors shrink-0"
+            className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
             aria-label="關閉"
           >
             <X className="w-4 h-4" />
