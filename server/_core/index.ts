@@ -55,6 +55,10 @@ import {
   initUserAutoCreditCron,
   stopUserAutoCreditCron,
 } from "../jobs/userAutoCreditJob";
+import {
+  initModelCatalogResearchCron,
+  stopModelCatalogResearchCron,
+} from "../jobs/modelCatalogResearchJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -132,6 +136,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "userAutoCreditJob",
     start: initUserAutoCreditCron,
     stop: stopUserAutoCreditCron,
+  },
+  {
+    name: "modelCatalogResearchJob",
+    start: initModelCatalogResearchCron,
+    stop: stopModelCatalogResearchCron,
   },
 ];
 
