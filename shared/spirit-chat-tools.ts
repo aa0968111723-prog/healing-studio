@@ -8,6 +8,8 @@
  *   - fal-generation: 真實打 fal.ai 模型（透過 trpc.spirit.invoke）
  *   - navigate:       純客戶端跳頁（emit navigate AgentAction）
  *   - search:         打 trpc.orbProxy.unifiedSearch 並把結果秀回來
+ *   - agent-plan:     步步 (plan-executor) 專用 — 真實規劃 + 跨工具執行
+ *                     (trpc.spirit.plan → run → status 輪詢)
  *   - page-execution: 編編 (composer) 專用 — 解析使用者一句話為 AgentAction[]
  *                     並 dispatch 到當頁；解析不出來才 fall through 到 LLM。
  *   - llm-persona:    fall through 到既有 LLM 流程，由 selectRoleForIntent
@@ -46,6 +48,23 @@ export type SpiritChatTool =
   | {
       /** 打 unifiedSearch 把站內結果丟回對話框。 */
       kind: "search";
+      minPromptChars: number;
+    }
+  | {
+      /**
+       * 步步專屬：被 @ 時走「真實規劃 + 執行」agent 流程，不是只回人格回覆。
+       *
+       * 客戶端流程：
+       *   1. 把使用者的訊息當 goal 餵 trpc.spirit.plan → 拿 PlanRecord 預演卡
+       *   2. 在 chat 顯示「步驟 1..N + 預估點數」+ 兩顆按鈕（▶ 開跑 / ✕ 取消）
+       *   3. 按開跑 → trpc.spirit.run，並以 1.5s 輪詢 trpc.spirit.status 把每步
+       *      狀態更新進 chat（✓ 完成 / ✗ 失敗 / ⏸ 暫停）
+       *   4. 失敗 → 提供「替代方案 / 跳過 / 整條中止」按鈕，按了就打 spirit.replan
+       *
+       * 跟 llm-persona 的差別：那條只回「我會這樣做」的人話；這條真的去做。
+       */
+      kind: "agent-plan";
+      /** Prompt 至少這麼長才觸發 — 太短當成閒聊，fall through 到 LLM 人格。 */
       minPromptChars: number;
     }
   | {
@@ -124,14 +143,13 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
     toPath: "/notes",
     arrivalHint: "記記帶你到筆記中心，搜尋或建立都可以。",
   },
-  // 細細：跳到 /settings
-  "settings-detail": {
-    kind: "navigate",
-    toPath: "/settings",
-    arrivalHint: "細細帶你到設定頁，告訴我要調哪個我直接帶你切過去。",
-  },
-  // 步步：被 @ 時走 LLM 人格做計畫預演（之後接管真實執行另由 orchestrator 觸發）
-  "plan-executor": { kind: "llm-persona" },
+  // 細細：升級成真正的 AI agent — 走 LLM persona 並透過 settingsDetail.*
+  // 工具直接讀寫偏好、預覽 diff、套 preset、偵測衝突、推薦優化。需要把使
+  // 用者導到 /settings 時，由 LLM 自行呼叫 navigate（或 navigator 接手）。
+  "settings-detail": { kind: "llm-persona" },
+  // 步步：被 @ 時走真實 agent — 規劃 + 跨工具執行 + 失敗修補，不再只是
+  // 「人格回覆」。少於 minPromptChars 視為閒聊，fall through 到 LLM 人格。
+  "plan-executor": { kind: "agent-plan", minPromptChars: 6 },
 };
 
 export function getChatToolForSpirit(role: AgentRole): SpiritChatTool {

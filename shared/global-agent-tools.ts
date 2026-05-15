@@ -645,15 +645,260 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
+  {
+    name: "accountant.budget",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.trend",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      days: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.forecast",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      observationDays: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── 練練（training-specialist）的 sensing + 計算工具 ──
+  {
+    name: "trainingSpecialist.listMyModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.getModelStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { modelId: "number" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.recommendParams",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      imageCount: "number?",
+      videoCount: "number?",
+      preference: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.analyzeDataset",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      imageCount: "number?",
+      videoCount: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.estimateTraining",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      steps: "number?",
+      falModelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.getTips",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { modelType: "string?" },
+    executionTarget: "server-side",
+  },
+  // ─── 品品（critic）結構化評審工具：五個唯讀工具，純函式（無 DB / 無 LLM）──
+  {
+    name: "critic.review",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      prompt: "string?",
+      negativePrompt: "string?",
+      modelId: "string?",
+      aspect: "string?",
+      durationSec: "number?",
+      goal: "string?",
+      userFeedback: "string?",
+      iteration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.score",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      prompt: "string?",
+      negativePrompt: "string?",
+      modelId: "string?",
+      aspect: "string?",
+      durationSec: "number?",
+      goal: "string?",
+      userFeedback: "string?",
+      iteration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      iterations: "object[]",
+      goal: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.suggestRewrite",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      originalPrompt: "string",
+      targetDimensions: "string[]?",
+      goal: "string?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.planHandoff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      critiqueType: "string",
+      userAcceptedFix: "boolean?",
+      suggestedHandoff: "object?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── 音音（music-specialist）音樂工具：八個工具（六讀兩寫） ──
+  {
+    name: "musicSpecialist.recommendEngine",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      capability: "string",
+      durationSec: "number?",
+      needsVocals: "boolean?",
+      prioritizeBudget: "boolean?",
+      excludeModelIds: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.buildPrompt",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      mood: "string?",
+      genre: "string?",
+      instruments: "string[]?",
+      bpm: "number?",
+      seamlessLoop: "boolean?",
+      references: "string?",
+      lyrics: "string?",
+      durationSec: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.estimateCost",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      durationSec: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.listEngines",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      capability: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.getRecentAssets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.getOptions",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.getTips",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.generate",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      duration: "number?",
+      genre: "string?",
+      mood: "string?",
+      instrumental: "boolean?",
+      lyrics: "string?",
+      tags: "string?",
+      bpm: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.generateSoundEffect",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      description: "string",
+      modelId: "string?",
+      duration: "number?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 圖圖（image-specialist）認知 + 出圖工具：5 個唯讀 + 3 個會跑 fal task ──
-  // 之前 imageSpecialist.* 雖然在 agentToolExecutor 的 switch 裡，但完全沒在
-  // 這份 catalog 註冊 → orb tool dispatcher 會視為「未知工具」直接丟回。圖圖
-  // 因此只能依靠 studio.* 的泛用工具，無法用「先 recommendModel → enhancePrompt
-  // → generateImage」這條 agent-style 思考鏈。
-  //
-  // generate / edit / upscale 標 medium：會花點數，但同 studio.generateImage
-  // 一樣不需要 requiresHuman=true（光球當回合 plan-step 已含批准 UX）。
-  // getModels / recommendModel / enhancePrompt / getTips 是純認知工具，唯讀。
   {
     name: "imageSpecialist.generate",
     riskLevel: "medium",
@@ -729,6 +974,50 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     requiresHuman: false,
     allowedArgsSchema: {
       scenario: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── 巧巧（quality-coach）提示詞品質教練工具 ──
+  {
+    name: "qualityCoach.diagnose",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.rewrite",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modality: "string?",
+      onlyFillDimensions: "string[]?",
+      includeDiagnosis: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      promptA: "string",
+      promptB: "string",
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.getTemplates",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      styleHint: "string?",
     },
     executionTarget: "server-side",
   },
@@ -951,6 +1240,75 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       key: "string",
       value: "any",
     },
+    executionTarget: "server-side",
+  },
+  // ─── 細細 autonomous capabilities ─────────────────────────────────────
+  // 細細從「導頁工具」升級成 AI agent：可批次套用、預覽 diff、套預設、重設、
+  // 自然語意搜尋、偵測設定衝突、根據當前狀態主動推薦優化。
+  {
+    name: "settingsDetail.bulkUpdate",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      items: "array",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.previewDiff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      items: "array",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.applyPreset",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      presetId: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.listPresets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.resetPreference",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      key: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.searchSettings",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      query: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.detectInconsistencies",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.recommendOptimizations",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
     executionTarget: "server-side",
   },
   // ─── 記記（memory-manager）長期記憶管理工具 ──
@@ -1240,6 +1598,92 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {
       limit: "number?",
     },
+    executionTarget: "server-side",
+  },
+  // ─── 步步（planExecutor）— 規劃 + 多步驟執行 agent ──
+  // 這組工具讓 LLM planner 可以把「跑整條工作流」當成一個 step 開出來，
+  // 由 server 端 planExecutor 引擎接手規劃 + 跨工具派遣 + 失敗修補。
+  {
+    name: "planExecutor.planFromGoal",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      goal: "string",
+      context: "string?",
+      maxSteps: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.createPlan",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      goal: "string",
+      steps: "array",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.runPlan",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      planId: "string",
+      async: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.executeStep",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      planId: "string",
+      stepIndex: "number?",
+      stepId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.getStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { planId: "string" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.controlPlan",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      planId: "string",
+      action: "string", // pause | resume | cancel
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.listRuns",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { limit: "number?" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.replanOnFailure",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      planId: "string",
+      hint: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.getTemplates",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
     executionTarget: "server-side",
   },
   // ─── 系統監控（systemMonitor）工具 ──

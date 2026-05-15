@@ -19,6 +19,15 @@ import {
   getCategoriesForSpirit,
   type AgentRole,
 } from "../../shared/orb-agent-roles";
+import {
+  planFromGoal,
+  runPlan,
+  getStatus as getPlanStatus,
+  controlPlan,
+  listRuns as listPlanRuns,
+  replanOnFailure,
+  executeStep as executePlanStep,
+} from "../services/spiritTools/planExecutorTools";
 
 // 從 SPIRIT_FAMILY 把 15 位精靈鍵抓出來做 zod enum，這樣未來新增/重命名
 // 精靈時只需要動 shared/orb-agent-roles.ts。
@@ -95,5 +104,122 @@ export const spiritRouter = router({
         userId: ctx.user.id,
       });
       return result;
+    }),
+
+  // ────────────────────────────────────────────────────────────────────────
+  // 步步（plan-executor）的 agent 端點：規劃 + 執行 + 控制 + 修補
+  //
+  // 對前端 GlobalOrbChat 暴露五個 mutation / query：
+  //   - plan        : 把使用者自然語言 goal 餵給 agentPlanner，回傳預演卡
+  //   - run         : 啟動已建立的 plan（非同步，立刻回 status）
+  //   - status      : 查詢 plan / 每步進度，給 UI 輪詢用
+  //   - control     : pause / resume / cancel
+  //   - replan      : 失敗後用 LLM 重排剩餘步驟
+  //   - listRuns    : 列使用者近期 plan
+  //   - runStep     : 單獨跑指定步（debug / step-by-step UI）
+  //
+  // 這些端點刻意做成 protectedProcedure — plan 是「真的會花點數 / 動工具」
+  // 的入口，沒登入不該存取。
+  // ────────────────────────────────────────────────────────────────────────
+
+  plan: protectedProcedure
+    .input(
+      z.object({
+        goal: z.string().min(2).max(2000),
+        context: z.string().max(2000).optional(),
+        maxSteps: z.number().int().positive().max(40).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      return planFromGoal({
+        userId: ctx.user.id,
+        userRole: "user",
+        goal: input.goal,
+        context: input.context,
+        maxSteps: input.maxSteps,
+      });
+    }),
+
+  run: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        async: z.boolean().optional(),
+        /**
+         * Explicit user acknowledgement that high-risk steps may execute.
+         * Without this, plans containing risk:high / requiresHuman:true tools
+         * park at "awaiting_approval" instead of dispatching — see the P1
+         * review on PR #642.
+         */
+        approveHighRisk: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      return runPlan({
+        userId: ctx.user.id,
+        planId: input.planId,
+        async: input.async,
+        approveHighRisk: input.approveHighRisk,
+      });
+    }),
+
+  status: protectedProcedure
+    .input(z.object({ planId: z.string().min(1) }))
+    .query(({ input, ctx }) => {
+      return getPlanStatus({ userId: ctx.user.id, planId: input.planId });
+    }),
+
+  control: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        action: z.enum(["pause", "resume", "cancel"]),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      return controlPlan({
+        userId: ctx.user.id,
+        planId: input.planId,
+        action: input.action,
+      });
+    }),
+
+  replan: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        hint: z.string().max(2000).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      return replanOnFailure({
+        userId: ctx.user.id,
+        userRole: "user",
+        planId: input.planId,
+        hint: input.hint,
+      });
+    }),
+
+  listRuns: protectedProcedure
+    .input(z.object({ limit: z.number().int().positive().max(50).optional() }))
+    .query(({ input, ctx }) => {
+      return listPlanRuns({ userId: ctx.user.id, limit: input.limit });
+    }),
+
+  runStep: protectedProcedure
+    .input(
+      z.object({
+        planId: z.string().min(1),
+        stepIndex: z.number().int().nonnegative().optional(),
+        stepId: z.string().min(1).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      return executePlanStep({
+        userId: ctx.user.id,
+        planId: input.planId,
+        stepIndex: input.stepIndex,
+        stepId: input.stepId,
+      });
     }),
 });

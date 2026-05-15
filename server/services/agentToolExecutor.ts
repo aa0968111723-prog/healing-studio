@@ -3,6 +3,7 @@ import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
 import { checkAndConsumeQuota } from "./orbQuota";
 import { injectModelPrompt } from "../../shared/modelPromptTemplates";
 import { moderateOrbContent } from "../../shared/orb-content-moderation";
+import type { AgentRole } from "../../shared/orb-agent-roles";
 
 /** Tool names that consume a `generation` daily slot when executed. */
 const GENERATION_SLOT_TOOLS = new Set([
@@ -2167,6 +2168,19 @@ async function dispatchStudioTool(
         return settingsDetailResult;
       }
 
+      // ── 細細 autonomous capabilities ─────────────────────────────────
+      case "settingsDetail.bulkUpdate":
+      case "settingsDetail.previewDiff":
+      case "settingsDetail.applyPreset":
+      case "settingsDetail.listPresets":
+      case "settingsDetail.resetPreference":
+      case "settingsDetail.searchSettings":
+      case "settingsDetail.detectInconsistencies":
+      case "settingsDetail.recommendOptimizations": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
       // ════════════════════════════════════════════════════════════════════
       // accountant.* tools for accountant (財財)
       // ════════════════════════════════════════════════════════════════════
@@ -2176,7 +2190,10 @@ async function dispatchStudioTool(
       case "accountant.usage":
       case "accountant.savings":
       case "accountant.workflowEstimate":
-      case "accountant.budgetForecast": {
+      case "accountant.budgetForecast":
+      case "accountant.budget":
+      case "accountant.trend":
+      case "accountant.forecast": {
         const accountantResult = await dispatchAccountantTool(call, opts);
         return accountantResult;
       }
@@ -2191,6 +2208,18 @@ async function dispatchStudioTool(
       case "companion.calmBreak": {
         const companionResult = await dispatchCompanionTool(call, opts);
         return companionResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // qualityCoach.* tools for quality-coach (巧巧)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "qualityCoach.diagnose":
+      case "qualityCoach.rewrite":
+      case "qualityCoach.compare":
+      case "qualityCoach.getTemplates": {
+        const qualityCoachResult = await dispatchQualityCoachTool(call);
+        return qualityCoachResult;
       }
 
       // ════════════════════════════════════════════════════════════════════
@@ -2269,7 +2298,12 @@ async function dispatchStudioTool(
       case "musicSpecialist.generate":
       case "musicSpecialist.generateSoundEffect":
       case "musicSpecialist.getOptions":
-      case "musicSpecialist.getTips": {
+      case "musicSpecialist.getTips":
+      case "musicSpecialist.recommendEngine":
+      case "musicSpecialist.buildPrompt":
+      case "musicSpecialist.estimateCost":
+      case "musicSpecialist.listEngines":
+      case "musicSpecialist.getRecentAssets": {
         const musicResult = await dispatchMusicSpecialistTool(call, opts);
         return musicResult;
       }
@@ -2278,8 +2312,11 @@ async function dispatchStudioTool(
       // trainingSpecialist.* tools for training-specialist (練練)
       // ════════════════════════════════════════════════════════════════════
 
-      case "trainingSpecialist.train":
-      case "trainingSpecialist.getStatus":
+      case "trainingSpecialist.listMyModels":
+      case "trainingSpecialist.getModelStatus":
+      case "trainingSpecialist.recommendParams":
+      case "trainingSpecialist.analyzeDataset":
+      case "trainingSpecialist.estimateTraining":
       case "trainingSpecialist.getTips": {
         const trainingResult = await dispatchTrainingSpecialistTool(call, opts);
         return trainingResult;
@@ -2335,12 +2372,20 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
-      // planExecutor.* tools for plan-executor (執執)
+      // planExecutor.* tools for plan-executor (步步)
+      //
+      // 從 mock stub 升級為真實 agent：planFromGoal 餵 agentPlanner 規劃、
+      // runPlan 跑整條、controlPlan 暫停/續跑/中止、replanOnFailure 自動修補。
       // ════════════════════════════════════════════════════════════════════
 
+      case "planExecutor.planFromGoal":
       case "planExecutor.createPlan":
+      case "planExecutor.runPlan":
       case "planExecutor.executeStep":
       case "planExecutor.getStatus":
+      case "planExecutor.controlPlan":
+      case "planExecutor.listRuns":
+      case "planExecutor.replanOnFailure":
       case "planExecutor.getTemplates": {
         const planResult = await dispatchPlanExecutorTool(call, opts);
         return planResult;
@@ -2441,6 +2486,19 @@ async function dispatchStudioTool(
         return monitorResult;
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // critic.* tools for critic (品品)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "critic.review":
+      case "critic.score":
+      case "critic.compare":
+      case "critic.suggestRewrite":
+      case "critic.planHandoff": {
+        const criticResult = await dispatchCriticTool(call, opts);
+        return criticResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -2483,6 +2541,9 @@ async function dispatchAccountantTool(
     suggestSavings,
     workflowEstimate,
     getBudgetForecast,
+    getBudget,
+    getDailyTrend,
+    getForecast,
   } = await import("./spiritTools/accountantTools");
   const { MODEL_PRICING_CATALOG } = await import("./modelPricing");
 
@@ -2601,11 +2662,250 @@ async function dispatchAccountantTool(
         return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
+      case "accountant.budget": {
+        const result = await getBudget(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.trend": {
+        const result = await getDailyTrend(opts.userId, {
+          days: typeof args.days === "number" ? args.days : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.forecast": {
+        const result = await getForecast(opts.userId, {
+          observationDays:
+            typeof args.observationDays === "number" ? args.observationDays : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
       default:
         return {
           name: call.name,
           ok: false,
           error: `unknown accountant tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// critic.* 工具橋接：品品（critic）的結構化評審工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 critic.* 工具呼叫橋接到 criticTools 服務。
+ * 提供品品（critic）即時呼叫的能力：
+ * - critic.review:         結構化評審（亮點 + 改進 + rubric scores + 交棒）
+ * - critic.score:          純打分，含 weakDimensions（給 proactive trigger）
+ * - critic.compare:        多輪迭代比較，回 winner + 進步 / 退步維度
+ * - critic.suggestRewrite: 給 1-3 個可貼的 prompt 改寫版本
+ * - critic.planHandoff:    依 critique 性質決定下一棒交給誰
+ *
+ * 五個工具都是純函式（無 DB / 無 LLM 呼叫），可放心對 LLM 開放、無需 approval。
+ * modality 在每個工具裡會白名單驗證；非合法 enum 直接返回 400。
+ */
+async function dispatchCriticTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const {
+    reviewAsset,
+    scoreAsset,
+    compareIterations,
+    suggestPromptRewrite,
+    planHandoff,
+  } = await import("./spiritTools/criticTools");
+
+  const VALID_MODALITIES = new Set(["image", "video", "music", "voice", "text"]);
+  const VALID_CRITIQUE_TYPES = new Set([
+    "prompt-level",
+    "model-level",
+    "settings-level",
+    "creative-direction",
+  ]);
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  function readModality(): {
+    ok: true;
+    value: "image" | "video" | "music" | "voice" | "text";
+  } | { ok: false; error: string } {
+    const m = typeof args.modality === "string" ? args.modality.trim() : "";
+    if (!VALID_MODALITIES.has(m)) {
+      return {
+        ok: false,
+        error: `modality must be one of: ${Array.from(VALID_MODALITIES).join(", ")}`,
+      };
+    }
+    return { ok: true, value: m as "image" | "video" | "music" | "voice" | "text" };
+  }
+
+  try {
+    switch (call.name) {
+      case "critic.review": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const result = reviewAsset({
+          modality: mod.value,
+          prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+          negativePrompt:
+            typeof args.negativePrompt === "string" ? args.negativePrompt : undefined,
+          modelId: typeof args.modelId === "string" ? args.modelId : undefined,
+          aspect: typeof args.aspect === "string" ? args.aspect : undefined,
+          durationSec:
+            typeof args.durationSec === "number" ? args.durationSec : undefined,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+          userFeedback:
+            typeof args.userFeedback === "string" ? args.userFeedback : undefined,
+          iteration:
+            typeof args.iteration === "number" ? args.iteration : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.score": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const result = scoreAsset({
+          modality: mod.value,
+          prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+          negativePrompt:
+            typeof args.negativePrompt === "string" ? args.negativePrompt : undefined,
+          modelId: typeof args.modelId === "string" ? args.modelId : undefined,
+          aspect: typeof args.aspect === "string" ? args.aspect : undefined,
+          durationSec:
+            typeof args.durationSec === "number" ? args.durationSec : undefined,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+          userFeedback:
+            typeof args.userFeedback === "string" ? args.userFeedback : undefined,
+          iteration:
+            typeof args.iteration === "number" ? args.iteration : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.compare": {
+        const iterationsArg = Array.isArray(args.iterations) ? args.iterations : [];
+        if (iterationsArg.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "iterations is required (non-empty array)",
+          };
+        }
+        // Validate each iteration has a modality
+        type IterationArg = Parameters<typeof compareIterations>[0]["iterations"][number];
+        const iterations: IterationArg[] = [];
+        for (let i = 0; i < iterationsArg.length; i++) {
+          const it = iterationsArg[i];
+          if (!it || typeof it !== "object") {
+            return {
+              name: call.name,
+              ok: false,
+              error: `iterations[${i}] must be an object`,
+            };
+          }
+          const itObj = it as Record<string, unknown>;
+          const itMod = typeof itObj.modality === "string" ? itObj.modality.trim() : "";
+          if (!VALID_MODALITIES.has(itMod)) {
+            return {
+              name: call.name,
+              ok: false,
+              error: `iterations[${i}].modality must be one of: ${Array.from(VALID_MODALITIES).join(", ")}`,
+            };
+          }
+          if (typeof itObj.id !== "string" || itObj.id.length === 0) {
+            return {
+              name: call.name,
+              ok: false,
+              error: `iterations[${i}].id is required`,
+            };
+          }
+          iterations.push({
+            id: itObj.id,
+            modality: itMod as "image" | "video" | "music" | "voice" | "text",
+            prompt: typeof itObj.prompt === "string" ? itObj.prompt : undefined,
+            modelId: typeof itObj.modelId === "string" ? itObj.modelId : undefined,
+            aspect: typeof itObj.aspect === "string" ? itObj.aspect : undefined,
+            durationSec:
+              typeof itObj.durationSec === "number" ? itObj.durationSec : undefined,
+            userFeedback:
+              typeof itObj.userFeedback === "string" ? itObj.userFeedback : undefined,
+            iteration:
+              typeof itObj.iteration === "number" ? itObj.iteration : undefined,
+          });
+        }
+        const result = compareIterations({
+          iterations,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.suggestRewrite": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const originalPrompt =
+          typeof args.originalPrompt === "string" ? args.originalPrompt : "";
+        if (originalPrompt.trim().length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "originalPrompt is required",
+          };
+        }
+        const targetDims = Array.isArray(args.targetDimensions)
+          ? (args.targetDimensions.filter(d => typeof d === "string") as string[])
+          : undefined;
+        const result = suggestPromptRewrite({
+          modality: mod.value,
+          originalPrompt,
+          targetDimensions: targetDims,
+          goal: typeof args.goal === "string" ? args.goal : undefined,
+          limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "critic.planHandoff": {
+        const mod = readModality();
+        if (!mod.ok) return { name: call.name, ok: false, error: mod.error };
+        const ct =
+          typeof args.critiqueType === "string" ? args.critiqueType.trim() : "";
+        if (!VALID_CRITIQUE_TYPES.has(ct)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: `critiqueType must be one of: ${Array.from(VALID_CRITIQUE_TYPES).join(", ")}`,
+          };
+        }
+        const result = planHandoff({
+          modality: mod.value,
+          critiqueType: ct as "prompt-level" | "model-level" | "settings-level" | "creative-direction",
+          userAcceptedFix: args.userAcceptedFix === true,
+          suggestedHandoff:
+            args.suggestedHandoff && typeof args.suggestedHandoff === "object"
+              ? (args.suggestedHandoff as { to: AgentRole; reason: string })
+              : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown critic tool: ${call.name}`,
         };
     }
   } catch (err) {
@@ -2701,6 +3001,31 @@ async function dispatchCompanionTool(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// qualityCoach.* 工具橋接：巧巧（quality-coach）的提示詞品質教練工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dispatchQualityCoachTool(
+  call: OrbToolCall
+): Promise<OrbToolCallResult> {
+  const { dispatchQualityCoach } = await import("./spiritTools/qualityCoachTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const name = call.name as
+    | "qualityCoach.diagnose"
+    | "qualityCoach.rewrite"
+    | "qualityCoach.compare"
+    | "qualityCoach.getTemplates";
+
+  const result = dispatchQualityCoach({ name, args });
+  return {
+    name: call.name,
+    ok: result.ok,
+    data: result.ok ? result.data : undefined,
+    error: result.ok ? undefined : result.error,
+    usedTool: result.ok ? call.name : undefined,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3375,6 +3700,14 @@ async function dispatchSettingsDetailTool(
     explainSetting,
     getAllSettings,
     validatePreference,
+    bulkUpdatePreferences,
+    previewPreferenceDiff,
+    applyPreset,
+    listPresets,
+    resetPreference,
+    searchSettings,
+    detectInconsistencies,
+    recommendOptimizations,
   } = await import("./spiritTools/settingsDetailTools");
 
   const args = (call.args ?? {}) as Record<string, unknown>;
@@ -3498,6 +3831,159 @@ async function dispatchSettingsDetailTool(
             valid: result.valid,
             error: result.error,
             suggestion: result.suggestion,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.bulkUpdate": {
+        const items = args.items;
+        if (!Array.isArray(items) || items.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "items must be a non-empty array of { key, value } objects",
+          };
+        }
+        const result = await bulkUpdatePreferences({
+          userId: opts.userId,
+          items: items as Array<{ key: string; value: unknown }>,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            applied: result.applied,
+            failed: result.failed,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.previewDiff": {
+        const items = args.items;
+        if (!Array.isArray(items) || items.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "items must be a non-empty array of { key, value } objects",
+          };
+        }
+        const result = await previewPreferenceDiff({
+          userId: opts.userId,
+          items: items as Array<{ key: string; value: unknown }>,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            diff: result.diff,
+            invalid: result.invalid,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.applyPreset": {
+        const presetId = args.presetId as string;
+        if (!presetId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "presetId is required",
+          };
+        }
+        const result = await applyPreset({ userId: opts.userId, presetId });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            preset: result.preset,
+            applied: result.applied,
+            failed: result.failed,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.listPresets": {
+        const result = listPresets();
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.resetPreference": {
+        const key = args.key as string;
+        if (!key) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "key is required",
+          };
+        }
+        const result = await resetPreference({ userId: opts.userId, key });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            message: result.message,
+            resetTo: result.resetTo,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.searchSettings": {
+        const query = args.query as string;
+        if (typeof query !== "string") {
+          return {
+            name: call.name,
+            ok: false,
+            error: "query (string) is required",
+          };
+        }
+        const result = searchSettings(query);
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.detectInconsistencies": {
+        const result = await detectInconsistencies(opts.userId);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            inconsistencies: result.inconsistencies,
+            count: result.inconsistencies.length,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.recommendOptimizations": {
+        const result = await recommendOptimizations(opts.userId);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            recommendations: result.recommendations,
+            count: result.recommendations.length,
           },
           usedTool: call.name,
         };
@@ -4503,7 +4989,18 @@ async function dispatchMusicSpecialistTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { generateMusic, generateSoundEffect, getMusicOptions, getMusicGenerationTips } = await import("./spiritTools/musicSpecialistTools");
+  const tools = await import("./spiritTools/musicSpecialistTools");
+  const {
+    generateMusic,
+    generateSoundEffect,
+    getMusicOptions,
+    getMusicGenerationTips,
+    recommendEngine,
+    buildPrompt,
+    estimateMusicCost,
+    listEngines,
+    getRecentAudioAssets,
+  } = tools;
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
@@ -4516,10 +5013,14 @@ async function dispatchMusicSpecialistTool(
         const result = await generateMusic({
           userId: opts.userId,
           prompt,
+          modelId: args.modelId as string | undefined,
           duration: args.duration as number | undefined,
           genre: args.genre as string | undefined,
           mood: args.mood as string | undefined,
           instrumental: args.instrumental as boolean | undefined,
+          lyrics: args.lyrics as string | undefined,
+          tags: args.tags as string | undefined,
+          bpm: args.bpm as number | undefined,
         });
         return {
           name: call.name,
@@ -4538,6 +5039,7 @@ async function dispatchMusicSpecialistTool(
         const result = await generateSoundEffect({
           userId: opts.userId,
           description,
+          modelId: args.modelId as string | undefined,
           duration: args.duration as number | undefined,
         });
         return {
@@ -4559,6 +5061,73 @@ async function dispatchMusicSpecialistTool(
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
+      case "musicSpecialist.recommendEngine": {
+        const capability = args.capability as string | undefined;
+        if (!capability) {
+          return { name: call.name, ok: false, error: "capability is required" };
+        }
+        const result = recommendEngine({
+          capability: capability as Parameters<typeof recommendEngine>[0]["capability"],
+          durationSec: args.durationSec as number | undefined,
+          needsVocals: args.needsVocals as boolean | undefined,
+          prioritizeBudget: args.prioritizeBudget as boolean | undefined,
+          excludeModelIds: Array.isArray(args.excludeModelIds)
+            ? (args.excludeModelIds as string[])
+            : undefined,
+        });
+        return { name: call.name, ok: !!result.primary, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.buildPrompt": {
+        const modelId = args.modelId as string | undefined;
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = buildPrompt({
+          modelId,
+          mood: args.mood as string | undefined,
+          genre: args.genre as string | undefined,
+          instruments: Array.isArray(args.instruments)
+            ? (args.instruments as string[])
+            : undefined,
+          bpm: args.bpm as number | undefined,
+          seamlessLoop: args.seamlessLoop as boolean | undefined,
+          references: args.references as string | undefined,
+          lyrics: args.lyrics as string | undefined,
+          durationSec: args.durationSec as number | undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.estimateCost": {
+        const modelId = args.modelId as string | undefined;
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = estimateMusicCost({
+          modelId,
+          durationSec: args.durationSec as number | undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.listEngines": {
+        const capability = args.capability as string | undefined;
+        type ListEnginesInput = NonNullable<Parameters<typeof listEngines>[0]>;
+        const result = listEngines(
+          capability
+            ? { capability: capability as ListEnginesInput["capability"] }
+            : {}
+        );
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.getRecentAssets": {
+        const limit = typeof args.limit === "number" ? args.limit : 10;
+        const result = await getRecentAudioAssets(opts.userId, limit);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
       default:
         return { name: call.name, ok: false, error: `unknown musicSpecialist tool: ${call.name}` };
     }
@@ -4575,77 +5144,121 @@ async function dispatchTrainingSpecialistTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { trainModel, getTrainingStatus, getTrainingTips } = await import("./spiritTools/trainingSpecialistTools");
+  const {
+    listMyModels,
+    getModelStatus,
+    recommendParams,
+    analyzeDataset,
+    estimateTraining,
+    getTips,
+    isTrainingModelType,
+  } = await import("./spiritTools/trainingSpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
     switch (call.name) {
-      case "trainingSpecialist.train": {
-        const modelName = args.modelName as string;
-        const trainingType = args.trainingType as
-          | "lora"
-          | "dreambooth"
-          | "fine-tune"
-          | undefined;
+      case "trainingSpecialist.listMyModels": {
+        const result = await listMyModels(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
 
-        if (!modelName || !trainingType) {
+      case "trainingSpecialist.getModelStatus": {
+        const rawId = args.modelId ?? args.id;
+        const modelId =
+          typeof rawId === "number"
+            ? rawId
+            : typeof rawId === "string"
+              ? Number.parseInt(rawId, 10)
+              : NaN;
+        if (!Number.isFinite(modelId)) {
+          return { name: call.name, ok: false, error: "modelId (number) is required" };
+        }
+        const result = await getModelStatus({ userId: opts.userId, modelId });
+        return {
+          name: call.name,
+          ok: result.ok,
+          data: result,
+          usedTool: call.name,
+          ...(result.ok ? {} : { error: result.summary }),
+        };
+      }
+
+      case "trainingSpecialist.recommendParams": {
+        const modelType = args.modelType;
+        if (!isTrainingModelType(modelType)) {
           return {
             name: call.name,
             ok: false,
-            error: "modelName and trainingType are required",
+            error:
+              "modelType is required (image_subject | portrait_lora | style_lora | scene_lora | video_lora | voice_clone)",
           };
         }
-
-        const datasetImages = Array.isArray(args.datasetImages)
-          ? (args.datasetImages as string[])
-          : undefined;
-
-        const result = await trainModel({
-          userId: opts.userId,
-          modelName,
-          trainingType,
-          datasetImages,
-          baseModel: args.baseModel as string | undefined,
-          steps: args.steps as number | undefined,
-          learningRate: args.learningRate as number | undefined,
+        const imageCount =
+          typeof args.imageCount === "number" ? args.imageCount : undefined;
+        const videoCount =
+          typeof args.videoCount === "number" ? args.videoCount : undefined;
+        const preference =
+          args.preference === "speed" ||
+          args.preference === "quality" ||
+          args.preference === "balanced"
+            ? args.preference
+            : undefined;
+        const result = recommendParams({
+          modelType,
+          imageCount,
+          videoCount,
+          preference,
         });
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: result,
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
-      case "trainingSpecialist.getStatus": {
-        const trainingId = (args.trainingId ?? args.jobId) as string;
-        if (!trainingId) {
-          return { name: call.name, ok: false, error: "trainingId is required" };
+      case "trainingSpecialist.analyzeDataset": {
+        const modelType = args.modelType;
+        if (!isTrainingModelType(modelType)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "modelType is required",
+          };
         }
+        const imageCount =
+          typeof args.imageCount === "number" ? args.imageCount : undefined;
+        const videoCount =
+          typeof args.videoCount === "number" ? args.videoCount : undefined;
+        const result = analyzeDataset({ modelType, imageCount, videoCount });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
 
-        const result = await getTrainingStatus({
-          userId: opts.userId,
-          trainingId,
-        });
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: result,
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+      case "trainingSpecialist.estimateTraining": {
+        const modelType = args.modelType;
+        if (!isTrainingModelType(modelType)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "modelType is required",
+          };
+        }
+        const steps = typeof args.steps === "number" ? args.steps : undefined;
+        const falModelId =
+          typeof args.falModelId === "string" ? args.falModelId : undefined;
+        const result = estimateTraining({ modelType, steps, falModelId });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
       case "trainingSpecialist.getTips": {
-        const result = getTrainingTips();
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+        const modelType = args.modelType;
+        const result = getTips(
+          isTrainingModelType(modelType) ? { modelType } : {}
+        );
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
       default:
-        return { name: call.name, ok: false, error: `unknown trainingSpecialist tool: ${call.name}` };
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown trainingSpecialist tool: ${call.name}`,
+        };
     }
   } catch (err) {
     return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -5026,30 +5639,99 @@ async function dispatchOnboardingCoachTool(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// planExecutor.* 工具橋接：執執（plan-executor）的工作流程執行工具
+// planExecutor.* 工具橋接：步步（plan-executor）的真實 agent 引擎
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function dispatchPlanExecutorTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { createWorkflowPlan, executeWorkflowStep, getWorkflowStatus, getWorkflowTemplates } = await import("./spiritTools/planExecutorTools");
+  const mod = await import("./spiritTools/planExecutorTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
     switch (call.name) {
-      case "planExecutor.createPlan": {
-        const goal = args.goal as string;
-        const steps = args.steps as Array<{ action: string; parameters?: Record<string, unknown> }>;
+      case "planExecutor.planFromGoal": {
+        const goal = typeof args.goal === "string" ? args.goal : "";
+        if (!goal) return { name: call.name, ok: false, error: "goal is required" };
+        const result = await mod.planFromGoal({
+          userId: opts.userId,
+          userRole: opts.userRole,
+          goal,
+          context: typeof args.context === "string" ? args.context : undefined,
+          // Pass the orchestrator's tool registry so the runner can actually
+          // dispatch HTTP-target tools when the plan asks for them.
+          tools: opts.tools,
+          blockedTools: opts.blockedTools,
+          maxSteps: typeof args.maxSteps === "number" ? args.maxSteps : undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
 
-        if (!goal || !steps || !Array.isArray(steps)) {
+      case "planExecutor.createPlan": {
+        const goal = typeof args.goal === "string" ? args.goal : "";
+        const steps = Array.isArray(args.steps) ? args.steps : null;
+        if (!goal || !steps) {
           return { name: call.name, ok: false, error: "goal and steps are required" };
         }
-
-        const result = await createWorkflowPlan({
+        // Accept BOTH shapes:
+        //   - legacy: [{ action: "studio.x", parameters: {...} }]
+        //   - new:    [{ id, label, toolName, toolArgs, dependsOn, ... }]
+        const normalized = steps.map((raw, idx) => {
+          const r = raw as Record<string, unknown>;
+          const legacyAction = typeof r.action === "string" ? (r.action as string) : undefined;
+          return {
+            id: typeof r.id === "string" ? (r.id as string) : `step${idx + 1}`,
+            label: typeof r.label === "string" ? (r.label as string) : legacyAction ?? `Step ${idx + 1}`,
+            toolName:
+              typeof r.toolName === "string"
+                ? (r.toolName as string)
+                : legacyAction && legacyAction.includes(".")
+                  ? legacyAction
+                  : undefined,
+            toolArgs:
+              (r.toolArgs as Record<string, unknown> | undefined) ??
+              (r.parameters as Record<string, unknown> | undefined),
+            toolResultBinding: typeof r.toolResultBinding === "string" ? (r.toolResultBinding as string) : undefined,
+            dependsOn: Array.isArray(r.dependsOn) ? (r.dependsOn as string[]) : undefined,
+            path: typeof r.path === "string" ? (r.path as string) : undefined,
+            actionType: typeof r.actionType === "string" ? (r.actionType as string) : undefined,
+            payload: typeof r.payload === "string" ? (r.payload as string) : undefined,
+            retryPolicy: r.retryPolicy as
+              | { maxAttempts?: number; backoffMs?: number; skipOnFail?: boolean }
+              | undefined,
+          };
+        });
+        const result = mod.createPlan({
           userId: opts.userId,
+          userRole: opts.userRole,
           goal,
-          steps,
+          steps: normalized,
+          tools: opts.tools,
+          blockedTools: opts.blockedTools,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "planExecutor.runPlan": {
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const result = await mod.runPlan({
+          userId: opts.userId,
+          planId,
+          async: args.async === false ? false : true,
         });
         return {
           name: call.name,
@@ -5061,17 +5743,18 @@ async function dispatchPlanExecutorTool(
       }
 
       case "planExecutor.executeStep": {
-        const planId = args.planId as string;
-        const stepIndex = args.stepIndex as number;
-
-        if (!planId || typeof stepIndex !== "number") {
-          return { name: call.name, ok: false, error: "planId and stepIndex are required" };
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const stepIndex = typeof args.stepIndex === "number" ? (args.stepIndex as number) : undefined;
+        const stepId = typeof args.stepId === "string" ? (args.stepId as string) : undefined;
+        if (stepIndex === undefined && !stepId) {
+          return { name: call.name, ok: false, error: "stepIndex or stepId is required" };
         }
-
-        const result = await executeWorkflowStep({
+        const result = await mod.executeStep({
           userId: opts.userId,
           planId,
           stepIndex,
+          stepId,
         });
         return {
           name: call.name,
@@ -5083,20 +5766,59 @@ async function dispatchPlanExecutorTool(
       }
 
       case "planExecutor.getStatus": {
-        const planId = args.planId as string;
-        if (!planId) {
-          return { name: call.name, ok: false, error: "planId is required" };
-        }
-
-        const result = await getWorkflowStatus({
-          userId: opts.userId,
-          planId,
-        });
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const result = mod.getStatus({ userId: opts.userId, planId });
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
+      case "planExecutor.controlPlan": {
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        const action = args.action as "pause" | "resume" | "cancel" | undefined;
+        if (!planId || !action) {
+          return { name: call.name, ok: false, error: "planId and action are required" };
+        }
+        if (action !== "pause" && action !== "resume" && action !== "cancel") {
+          return { name: call.name, ok: false, error: `invalid action: ${action}` };
+        }
+        const result = mod.controlPlan({ userId: opts.userId, planId, action });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "planExecutor.listRuns": {
+        const limit = typeof args.limit === "number" ? (args.limit as number) : undefined;
+        const result = mod.listRuns({ userId: opts.userId, limit });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "planExecutor.replanOnFailure": {
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const result = await mod.replanOnFailure({
+          userId: opts.userId,
+          userRole: opts.userRole,
+          planId,
+          hint: typeof args.hint === "string" ? (args.hint as string) : undefined,
+          tools: opts.tools,
+          blockedTools: opts.blockedTools,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
       case "planExecutor.getTemplates": {
-        const result = getWorkflowTemplates();
+        const result = mod.getWorkflowTemplates();
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
