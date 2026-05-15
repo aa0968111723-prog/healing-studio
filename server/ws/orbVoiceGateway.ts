@@ -1,8 +1,10 @@
 import type { IncomingMessage } from "http";
 import type WebSocket from "ws";
+import { parse as parseCookie } from "cookie";
 import { verifySessionToken } from "../_core/googleAuth";
 import { getAllowedOrigins } from "../services/agentToolExecutor";
 import { randomUUID } from "node:crypto";
+import { COOKIE_NAME } from "../../shared/const";
 
 const activeSessions = new Map<number, number>();
 
@@ -19,9 +21,35 @@ function isGatewayEnabled(): boolean {
   return raw === "true" || raw === "1";
 }
 
+/**
+ * 解析 WS 升級請求的 session JWT。
+ *
+ * 生產環境的 session JWT 寫在 httpOnly cookie（COOKIE_NAME=app_session_id）裡，
+ * 瀏覽器發起 WS 連線時會自動帶這個 cookie。之前的程式碼只看 `?token=` query
+ * string，再去 localStorage.getItem("token") —— 但這個專案從未把 token 寫進
+ * localStorage，所以實際上 token 永遠是空字串、`verifySessionToken("")` 永遠
+ * 回 null、WS 一律收到 close 1008 "unauthorized"。等於這個閘道從來沒成功
+ * 驗證過任何使用者。
+ *
+ * 修正：以 cookie 為主、query 為 fallback（保留 query 是為了：
+ *   1. 既有單元測試（server/ws/__tests__/orbVoiceGateway.test.ts）能繼續跑
+ *   2. 從 curl / Postman / 開發工具帶 token 測試時仍可用
+ * ）。
+ */
+function extractSessionToken(req: IncomingMessage, queryToken: string): string {
+  const cookieHeader = req.headers.cookie ?? "";
+  if (cookieHeader) {
+    const cookies = parseCookie(cookieHeader);
+    const fromCookie = cookies[COOKIE_NAME];
+    if (fromCookie) return fromCookie;
+  }
+  return queryToken;
+}
+
 export async function handleOrbVoiceConnection(ws: WebSocket, req: IncomingMessage) {
   const url = new URL(req.url ?? "", "http://localhost");
-  const token = url.searchParams.get("token") ?? "";
+  const queryToken = url.searchParams.get("token") ?? "";
+  const token = extractSessionToken(req, queryToken);
   const payload = await verifySessionToken(token);
   if (!payload?.sub) {
     ws.close(1008, "unauthorized");

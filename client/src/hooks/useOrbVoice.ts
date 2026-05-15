@@ -14,8 +14,12 @@ export function useOrbVoice() {
   const [gatewayMode, setGatewayMode] = useState<"stub" | "live" | null>(null);
 
   const startVoice = () => {
-    const token = localStorage.getItem("token") ?? "";
-    const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/orb-voice?token=${encodeURIComponent(token)}`);
+    // session JWT 在 httpOnly cookie（app_session_id）裡，瀏覽器發起 WS 連線
+    // 時會自動帶這個 cookie。不要再去 localStorage.getItem("token") —— 那個
+    // key 從來沒被寫過，舊版每次都把空字串塞進 `?token=`，server 一律拒絕。
+    const ws = new WebSocket(
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/orb-voice`
+    );
     wsRef.current = ws;
     ws.onopen = () => { setIsConnected(true); setIsListening(true); setError(null); };
     ws.onmessage = evt => {
