@@ -106,15 +106,12 @@ describe("pickDefaultPathForRole", () => {
     expect(pickDefaultPathForRole("training-specialist")).toBe("/models");
     expect(pickDefaultPathForRole("learning-specialist")).toBe("/learn");
     expect(pickDefaultPathForRole("accountant")).toBe("/dashboard");
-    // 7 位新增精靈：notes-curator / settings-detail / community-manager / chief-orchestrator
-    // 各自接手了筆記 / 設定 / 社群 / 團隊頁面；researcher 改回沒有專屬頁面（workflow 角色）。
+    // 筆記 / 設定 / 步步：對應實際的 routed pages（社群 / 團隊 / 法務 / 資安 / 輔導
+    // 目前還沒專屬頁面，PATH_SPIRIT_MAP 沒有條目 → pickDefaultPathForRole 回 null）。
     expect(pickDefaultPathForRole("notes-curator")).toBe("/notes");
     expect(pickDefaultPathForRole("settings-detail")).toBe("/settings");
-    expect(pickDefaultPathForRole("community-manager")).toBe("/social");
-    expect(pickDefaultPathForRole("chief-orchestrator")).toBe("/team");
-    expect(pickDefaultPathForRole("legal-advisor")).toBe("/legal");
-    expect(pickDefaultPathForRole("security-guard")).toBe("/security");
-    expect(pickDefaultPathForRole("plan-executor")).toBe("/jobs");
+    expect(pickDefaultPathForRole("plan-executor")).toBe("/background-tasks");
+    expect(pickDefaultPathForRole("chief-orchestrator")).toBe("/settings/agent");
   });
 
   it("returns null for non-page workflow roles", () => {
@@ -128,6 +125,13 @@ describe("pickDefaultPathForRole", () => {
     expect(pickDefaultPathForRole("researcher")).toBeNull();
     // 帶帶 (onboarding-coach) 是「跟著使用者目前所在頁」的 coach，沒有專屬頁面。
     expect(pickDefaultPathForRole("onboarding-coach")).toBeNull();
+    // 社群 / 法務 / 資安：站台尚未提供專屬頁面，回 null（caller fallback）。
+    expect(pickDefaultPathForRole("community-manager")).toBeNull();
+    expect(pickDefaultPathForRole("legal-advisor")).toBeNull();
+    expect(pickDefaultPathForRole("security-guard")).toBeNull();
+    // 靈靈 / 體體：純對話 / 內嵌，無專屬頁面。
+    expect(pickDefaultPathForRole("inspiration-specialist")).toBeNull();
+    expect(pickDefaultPathForRole("anatomy-specialist")).toBeNull();
   });
 
   it("is the inverse of pickArrivalSpiritForPath for canonical paths", () => {
@@ -415,7 +419,7 @@ describe("@nickname mention routing", () => {
 });
 
 describe("SPIRIT_COLLAB_PROTOCOL", () => {
-  // 全 23 個成員都要列出來 — handoffs[] 也只能指向已知角色。
+  // 全 25 個成員都要列出來 — handoffs[] 也只能指向已知角色。
   const ALL_ROLES: AgentRole[] = [
     "director",
     "composer",
@@ -442,9 +446,12 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
     "settings-detail",
     // 第 8 位新增：規劃 + 多步驟執行
     "plan-executor",
+    // 第 9-10 位新增：靈感 / 解剖
+    "inspiration-specialist",
+    "anatomy-specialist",
   ];
 
-  it("covers all 23 spirits", () => {
+  it("covers all 25 spirits", () => {
     for (const role of ALL_ROLES) {
       expect(SPIRIT_COLLAB_PROTOCOL[role]).toBeDefined();
     }
@@ -617,11 +624,14 @@ describe("SPIRIT_FAMILY classification", () => {
       "settings-detail",
       // 第 8 位新增：規劃 + 多步驟執行
       "plan-executor",
+      // 第 9-10 位新增：靈感 / 解剖
+      "inspiration-specialist",
+      "anatomy-specialist",
     ];
     for (const r of allRoles) {
       expect(SPIRIT_FAMILY[r]).toBeDefined();
     }
-    // exactly 23 entries — no orphans, no duplicates
+    // exactly 25 entries — no orphans, no duplicates
     expect(Object.keys(SPIRIT_FAMILY)).toHaveLength(allRoles.length);
   });
 
@@ -631,7 +641,7 @@ describe("SPIRIT_FAMILY classification", () => {
     expect(getFamilyForRole("inspector")).toBe("proactive");
   });
 
-  it("groups specialist family — 6 original + 群群", () => {
+  it("groups specialist family — 6 original + 群群 + 靈靈 + 體體", () => {
     const specialists = getRolesByFamily("specialist");
     expect(specialists).toEqual(
       expect.arrayContaining([
@@ -642,9 +652,11 @@ describe("SPIRIT_FAMILY classification", () => {
         "training-specialist",
         "learning-specialist",
         "community-manager",
+        "inspiration-specialist",
+        "anatomy-specialist",
       ]),
     );
-    expect(specialists).toHaveLength(7);
+    expect(specialists).toHaveLength(9);
   });
 
   it("groups role family — 6 original + 總總 / 記記 / 細細 / 步步", () => {
@@ -686,17 +698,17 @@ describe("SPIRIT_FAMILY classification", () => {
     const roles = getRolesByFamily("role");
     const proactive = getRolesByFamily("proactive");
     const total = specialists.length + roles.length + proactive.length;
-    expect(total).toBe(23);
+    expect(total).toBe(25);
     // no role appears in two families
     const set = new Set([...specialists, ...roles, ...proactive]);
-    expect(set.size).toBe(23);
+    expect(set.size).toBe(25);
   });
 });
 
 describe("SPIRIT_MODEL_CAPABILITIES", () => {
-  it("covers every one of the 23 spirits", () => {
+  it("covers every one of the 25 spirits", () => {
     const roles = Object.keys(SPIRIT_MODEL_CAPABILITIES) as AgentRole[];
-    expect(roles).toHaveLength(23);
+    expect(roles).toHaveLength(25);
   });
 
   it("圖圖 (image-specialist) can call image generation, editing, and 3D categories", () => {

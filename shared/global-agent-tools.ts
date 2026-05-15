@@ -782,6 +782,92 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 步步（planExecutor）— 規劃 + 多步驟執行 agent ──
+  // 這組工具讓 LLM planner 可以把「跑整條工作流」當成一個 step 開出來，
+  // 由 server 端 planExecutor 引擎接手規劃 + 跨工具派遣 + 失敗修補。
+  {
+    name: "planExecutor.planFromGoal",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      goal: "string",
+      context: "string?",
+      maxSteps: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.createPlan",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      goal: "string",
+      steps: "array",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.runPlan",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      planId: "string",
+      async: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.executeStep",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      planId: "string",
+      stepIndex: "number?",
+      stepId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.getStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { planId: "string" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.controlPlan",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      planId: "string",
+      action: "string", // pause | resume | cancel
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.listRuns",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { limit: "number?" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.replanOnFailure",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      planId: "string",
+      hint: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "planExecutor.getTemplates",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
   // ─── 系統監控（systemMonitor）工具 ──
   {
     name: "systemMonitor.getHealth",

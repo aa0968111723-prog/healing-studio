@@ -2255,12 +2255,20 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
-      // planExecutor.* tools for plan-executor (執執)
+      // planExecutor.* tools for plan-executor (步步)
+      //
+      // 從 mock stub 升級為真實 agent：planFromGoal 餵 agentPlanner 規劃、
+      // runPlan 跑整條、controlPlan 暫停/續跑/中止、replanOnFailure 自動修補。
       // ════════════════════════════════════════════════════════════════════
 
+      case "planExecutor.planFromGoal":
       case "planExecutor.createPlan":
+      case "planExecutor.runPlan":
       case "planExecutor.executeStep":
       case "planExecutor.getStatus":
+      case "planExecutor.controlPlan":
+      case "planExecutor.listRuns":
+      case "planExecutor.replanOnFailure":
       case "planExecutor.getTemplates": {
         const planResult = await dispatchPlanExecutorTool(call, opts);
         return planResult;
@@ -3911,30 +3919,99 @@ async function dispatchOnboardingCoachTool(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// planExecutor.* 工具橋接：執執（plan-executor）的工作流程執行工具
+// planExecutor.* 工具橋接：步步（plan-executor）的真實 agent 引擎
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function dispatchPlanExecutorTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { createWorkflowPlan, executeWorkflowStep, getWorkflowStatus, getWorkflowTemplates } = await import("./spiritTools/planExecutorTools");
+  const mod = await import("./spiritTools/planExecutorTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
     switch (call.name) {
-      case "planExecutor.createPlan": {
-        const goal = args.goal as string;
-        const steps = args.steps as Array<{ action: string; parameters?: Record<string, unknown> }>;
+      case "planExecutor.planFromGoal": {
+        const goal = typeof args.goal === "string" ? args.goal : "";
+        if (!goal) return { name: call.name, ok: false, error: "goal is required" };
+        const result = await mod.planFromGoal({
+          userId: opts.userId,
+          userRole: opts.userRole,
+          goal,
+          context: typeof args.context === "string" ? args.context : undefined,
+          // Pass the orchestrator's tool registry so the runner can actually
+          // dispatch HTTP-target tools when the plan asks for them.
+          tools: opts.tools,
+          blockedTools: opts.blockedTools,
+          maxSteps: typeof args.maxSteps === "number" ? args.maxSteps : undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
 
-        if (!goal || !steps || !Array.isArray(steps)) {
+      case "planExecutor.createPlan": {
+        const goal = typeof args.goal === "string" ? args.goal : "";
+        const steps = Array.isArray(args.steps) ? args.steps : null;
+        if (!goal || !steps) {
           return { name: call.name, ok: false, error: "goal and steps are required" };
         }
-
-        const result = await createWorkflowPlan({
+        // Accept BOTH shapes:
+        //   - legacy: [{ action: "studio.x", parameters: {...} }]
+        //   - new:    [{ id, label, toolName, toolArgs, dependsOn, ... }]
+        const normalized = steps.map((raw, idx) => {
+          const r = raw as Record<string, unknown>;
+          const legacyAction = typeof r.action === "string" ? (r.action as string) : undefined;
+          return {
+            id: typeof r.id === "string" ? (r.id as string) : `step${idx + 1}`,
+            label: typeof r.label === "string" ? (r.label as string) : legacyAction ?? `Step ${idx + 1}`,
+            toolName:
+              typeof r.toolName === "string"
+                ? (r.toolName as string)
+                : legacyAction && legacyAction.includes(".")
+                  ? legacyAction
+                  : undefined,
+            toolArgs:
+              (r.toolArgs as Record<string, unknown> | undefined) ??
+              (r.parameters as Record<string, unknown> | undefined),
+            toolResultBinding: typeof r.toolResultBinding === "string" ? (r.toolResultBinding as string) : undefined,
+            dependsOn: Array.isArray(r.dependsOn) ? (r.dependsOn as string[]) : undefined,
+            path: typeof r.path === "string" ? (r.path as string) : undefined,
+            actionType: typeof r.actionType === "string" ? (r.actionType as string) : undefined,
+            payload: typeof r.payload === "string" ? (r.payload as string) : undefined,
+            retryPolicy: r.retryPolicy as
+              | { maxAttempts?: number; backoffMs?: number; skipOnFail?: boolean }
+              | undefined,
+          };
+        });
+        const result = mod.createPlan({
           userId: opts.userId,
+          userRole: opts.userRole,
           goal,
-          steps,
+          steps: normalized,
+          tools: opts.tools,
+          blockedTools: opts.blockedTools,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "planExecutor.runPlan": {
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const result = await mod.runPlan({
+          userId: opts.userId,
+          planId,
+          async: args.async === false ? false : true,
         });
         return {
           name: call.name,
@@ -3946,17 +4023,18 @@ async function dispatchPlanExecutorTool(
       }
 
       case "planExecutor.executeStep": {
-        const planId = args.planId as string;
-        const stepIndex = args.stepIndex as number;
-
-        if (!planId || typeof stepIndex !== "number") {
-          return { name: call.name, ok: false, error: "planId and stepIndex are required" };
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const stepIndex = typeof args.stepIndex === "number" ? (args.stepIndex as number) : undefined;
+        const stepId = typeof args.stepId === "string" ? (args.stepId as string) : undefined;
+        if (stepIndex === undefined && !stepId) {
+          return { name: call.name, ok: false, error: "stepIndex or stepId is required" };
         }
-
-        const result = await executeWorkflowStep({
+        const result = await mod.executeStep({
           userId: opts.userId,
           planId,
           stepIndex,
+          stepId,
         });
         return {
           name: call.name,
@@ -3968,20 +4046,59 @@ async function dispatchPlanExecutorTool(
       }
 
       case "planExecutor.getStatus": {
-        const planId = args.planId as string;
-        if (!planId) {
-          return { name: call.name, ok: false, error: "planId is required" };
-        }
-
-        const result = await getWorkflowStatus({
-          userId: opts.userId,
-          planId,
-        });
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const result = mod.getStatus({ userId: opts.userId, planId });
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
+      case "planExecutor.controlPlan": {
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        const action = args.action as "pause" | "resume" | "cancel" | undefined;
+        if (!planId || !action) {
+          return { name: call.name, ok: false, error: "planId and action are required" };
+        }
+        if (action !== "pause" && action !== "resume" && action !== "cancel") {
+          return { name: call.name, ok: false, error: `invalid action: ${action}` };
+        }
+        const result = mod.controlPlan({ userId: opts.userId, planId, action });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "planExecutor.listRuns": {
+        const limit = typeof args.limit === "number" ? (args.limit as number) : undefined;
+        const result = mod.listRuns({ userId: opts.userId, limit });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "planExecutor.replanOnFailure": {
+        const planId = typeof args.planId === "string" ? args.planId : "";
+        if (!planId) return { name: call.name, ok: false, error: "planId is required" };
+        const result = await mod.replanOnFailure({
+          userId: opts.userId,
+          userRole: opts.userRole,
+          planId,
+          hint: typeof args.hint === "string" ? (args.hint as string) : undefined,
+          tools: opts.tools,
+          blockedTools: opts.blockedTools,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
       case "planExecutor.getTemplates": {
-        const result = getWorkflowTemplates();
+        const result = mod.getWorkflowTemplates();
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 

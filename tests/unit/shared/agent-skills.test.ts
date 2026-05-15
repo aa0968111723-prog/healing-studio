@@ -29,8 +29,8 @@ const studioSnap = (path = "/image-studio"): PageAgentSnapshot => ({
 });
 
 describe("AGENT_SKILL_REGISTRY", () => {
-  it("contains all 23 known skills (6 generic + 7 specialists + 3 proactive + 7 new)", () => {
-    expect(AGENT_SKILL_REGISTRY.length).toBe(23);
+  it("contains all 25 known skills (6 generic + 9 specialists + 3 proactive + 7 new)", () => {
+    expect(AGENT_SKILL_REGISTRY.length).toBe(25);
     const ids = new Set(AGENT_SKILL_REGISTRY.map(s => s.id));
     for (const id of [
       // 6 generic workflow
@@ -44,7 +44,7 @@ describe("AGENT_SKILL_REGISTRY", () => {
       "accountant",
       "quality-coach",
       "inspector",
-      // 7 specialists（含新增的 community-manager）
+      // 9 specialists（含新增的 community-manager / inspiration / anatomy）
       "image-specialist",
       "video-specialist",
       "music-specialist",
@@ -52,6 +52,8 @@ describe("AGENT_SKILL_REGISTRY", () => {
       "training-specialist",
       "learning-specialist",
       "community-manager",
+      "inspiration-specialist",
+      "anatomy-specialist",
       // 7 new spirits（規劃 / 執行 / 法律 / 資安 / 總管 / 輔導 / 筆記 / 設定）
       "legal-advisor",
       "security-guard",

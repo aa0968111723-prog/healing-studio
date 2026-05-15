@@ -41,6 +41,23 @@ export type SpiritChatTool =
       minPromptChars: number;
     }
   | {
+      /**
+       * 步步專屬：被 @ 時走「真實規劃 + 執行」agent 流程，不是只回人格回覆。
+       *
+       * 客戶端流程：
+       *   1. 把使用者的訊息當 goal 餵 trpc.spirit.plan → 拿 PlanRecord 預演卡
+       *   2. 在 chat 顯示「步驟 1..N + 預估點數」+ 兩顆按鈕（▶ 開跑 / ✕ 取消）
+       *   3. 按開跑 → trpc.spirit.run，並以 1.5s 輪詢 trpc.spirit.status 把每步
+       *      狀態更新進 chat（✓ 完成 / ✗ 失敗 / ⏸ 暫停）
+       *   4. 失敗 → 提供「替代方案 / 跳過 / 整條中止」按鈕，按了就打 spirit.replan
+       *
+       * 跟 llm-persona 的差別：那條只回「我會這樣做」的人話；這條真的去做。
+       */
+      kind: "agent-plan";
+      /** Prompt 至少這麼長才觸發 — 太短當成閒聊，fall through 到 LLM 人格。 */
+      minPromptChars: number;
+    }
+  | {
       /** 沒有特殊工具 — fall through 到 LLM 並由 selectRoleForIntent 套人格。 */
       kind: "llm-persona";
     };
@@ -100,8 +117,9 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
     toPath: "/settings",
     arrivalHint: "細細帶你到設定頁，告訴我要調哪個我直接帶你切過去。",
   },
-  // 步步：被 @ 時走 LLM 人格做計畫預演（之後接管真實執行另由 orchestrator 觸發）
-  "plan-executor": { kind: "llm-persona" },
+  // 步步：被 @ 時走真實 agent — 規劃 + 跨工具執行 + 失敗修補，不再只是
+  // 「人格回覆」。少於 minPromptChars 視為閒聊，fall through 到 LLM 人格。
+  "plan-executor": { kind: "agent-plan", minPromptChars: 6 },
 };
 
 export function getChatToolForSpirit(role: AgentRole): SpiritChatTool {

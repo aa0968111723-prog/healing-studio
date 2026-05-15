@@ -20,11 +20,11 @@ import {
 } from "../../../shared/orb-agent-roles";
 
 describe("SPIRIT_CHAT_TOOLS", () => {
-  it("covers every one of the 23 spirits exactly once", () => {
+  it("covers every one of the 25 spirits exactly once", () => {
     const toolKeys = Object.keys(SPIRIT_CHAT_TOOLS).sort();
     const spiritKeys = Object.keys(SPIRIT_FAMILY).sort();
     expect(toolKeys).toEqual(spiritKeys);
-    expect(toolKeys).toHaveLength(23);
+    expect(toolKeys).toHaveLength(25);
   });
 
   it("classifies the 5 generators as fal-generation with consistent minimum length", () => {
@@ -67,7 +67,7 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     expect(tool.kind).toBe("search");
   });
 
-  it("reasoning + companion + proactive spirits are llm-persona (13 of the 23)", () => {
+  it("reasoning + companion + proactive spirits are llm-persona (12 of the 23)", () => {
     const llmRoles: AgentRole[] = [
       "director",
       "composer",
@@ -82,11 +82,17 @@ describe("SPIRIT_CHAT_TOOLS", () => {
       "onboarding-coach",
       "community-manager",
       "chief-orchestrator",
-      // 第 8 位新增：步步 走 llm-persona 做計畫預演
-      "plan-executor",
     ];
     for (const role of llmRoles) {
       expect(getChatToolForSpirit(role).kind).toBe("llm-persona");
+    }
+  });
+
+  it("步步 (plan-executor) is upgraded from llm-persona to agent-plan", () => {
+    const tool = getChatToolForSpirit("plan-executor");
+    expect(tool.kind).toBe("agent-plan");
+    if (tool.kind === "agent-plan") {
+      expect(tool.minPromptChars).toBe(6);
     }
   });
 
@@ -101,12 +107,12 @@ describe("SPIRIT_CHAT_TOOLS", () => {
   });
 });
 
-describe("SPIRIT_COLLAB_PROTOCOL coverage (23-spirit collab mechanism)", () => {
-  it("has a collab spec for every one of the 23 spirits", () => {
+describe("SPIRIT_COLLAB_PROTOCOL coverage (25-spirit collab mechanism)", () => {
+  it("has a collab spec for every one of the 25 spirits", () => {
     const collabKeys = Object.keys(SPIRIT_COLLAB_PROTOCOL).sort();
     const spiritKeys = Object.keys(SPIRIT_FAMILY).sort();
     expect(collabKeys).toEqual(spiritKeys);
-    expect(collabKeys).toHaveLength(23);
+    expect(collabKeys).toHaveLength(25);
   });
 
   it("every spirit hands off to at least one other spirit (no dead-ends)", () => {
