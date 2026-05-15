@@ -540,6 +540,73 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 練練（training-specialist）的 sensing + 計算工具 ──
+  // 之前練練只有 studio.trainLora 一支真工具（開訓練），完全沒有
+  // 「看過去訓過什麼」「現在訓到哪」「該下什麼參數」的能力。下面六支
+  // 全部唯讀 / 唯計算 — 真正開訓仍走 studio.trainLora（在
+  // server/services/agentToolExecutor.ts:5095 dispatchTrainingTool）。
+  //   ① listMyModels       — 列出使用者所有 fineTunedModels（狀態 + 觸發詞）
+  //   ② getModelStatus     — 單一模型 + 最新 backgroundJobs 進度
+  //   ③ recommendParams    — 依 modelType + 資料量 + 偏好給 epochs/lr/batch
+  //   ④ analyzeDataset     — 評估資料量是否夠、給補件建議
+  //   ⑤ estimateTraining   — 估算訓練時間（分鐘）+ 點數（modelPricing 真算）
+  //   ⑥ getTips            — 依 modelType 給針對性 tips
+  {
+    name: "trainingSpecialist.listMyModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.getModelStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { modelId: "number" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.recommendParams",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      imageCount: "number?",
+      videoCount: "number?",
+      // speed | quality | balanced（預設 balanced）
+      preference: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.analyzeDataset",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      imageCount: "number?",
+      videoCount: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.estimateTraining",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      steps: "number?",
+      falModelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.getTips",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { modelType: "string?" },
+    executionTarget: "server-side",
+  },
   // ─── 記記（notes-curator）筆記與資產管理工具 ──
   {
     name: "notesCurator.createNote",

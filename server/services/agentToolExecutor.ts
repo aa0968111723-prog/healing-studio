@@ -2213,8 +2213,11 @@ async function dispatchStudioTool(
       // trainingSpecialist.* tools for training-specialist (練練)
       // ════════════════════════════════════════════════════════════════════
 
-      case "trainingSpecialist.train":
-      case "trainingSpecialist.getStatus":
+      case "trainingSpecialist.listMyModels":
+      case "trainingSpecialist.getModelStatus":
+      case "trainingSpecialist.recommendParams":
+      case "trainingSpecialist.analyzeDataset":
+      case "trainingSpecialist.estimateTraining":
       case "trainingSpecialist.getTips": {
         const trainingResult = await dispatchTrainingSpecialistTool(call, opts);
         return trainingResult;
@@ -3687,77 +3690,121 @@ async function dispatchTrainingSpecialistTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { trainModel, getTrainingStatus, getTrainingTips } = await import("./spiritTools/trainingSpecialistTools");
+  const {
+    listMyModels,
+    getModelStatus,
+    recommendParams,
+    analyzeDataset,
+    estimateTraining,
+    getTips,
+    isTrainingModelType,
+  } = await import("./spiritTools/trainingSpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
     switch (call.name) {
-      case "trainingSpecialist.train": {
-        const modelName = args.modelName as string;
-        const trainingType = args.trainingType as
-          | "lora"
-          | "dreambooth"
-          | "fine-tune"
-          | undefined;
+      case "trainingSpecialist.listMyModels": {
+        const result = await listMyModels(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
 
-        if (!modelName || !trainingType) {
+      case "trainingSpecialist.getModelStatus": {
+        const rawId = args.modelId ?? args.id;
+        const modelId =
+          typeof rawId === "number"
+            ? rawId
+            : typeof rawId === "string"
+              ? Number.parseInt(rawId, 10)
+              : NaN;
+        if (!Number.isFinite(modelId)) {
+          return { name: call.name, ok: false, error: "modelId (number) is required" };
+        }
+        const result = await getModelStatus({ userId: opts.userId, modelId });
+        return {
+          name: call.name,
+          ok: result.ok,
+          data: result,
+          usedTool: call.name,
+          ...(result.ok ? {} : { error: result.summary }),
+        };
+      }
+
+      case "trainingSpecialist.recommendParams": {
+        const modelType = args.modelType;
+        if (!isTrainingModelType(modelType)) {
           return {
             name: call.name,
             ok: false,
-            error: "modelName and trainingType are required",
+            error:
+              "modelType is required (image_subject | portrait_lora | style_lora | scene_lora | video_lora | voice_clone)",
           };
         }
-
-        const datasetImages = Array.isArray(args.datasetImages)
-          ? (args.datasetImages as string[])
-          : undefined;
-
-        const result = await trainModel({
-          userId: opts.userId,
-          modelName,
-          trainingType,
-          datasetImages,
-          baseModel: args.baseModel as string | undefined,
-          steps: args.steps as number | undefined,
-          learningRate: args.learningRate as number | undefined,
+        const imageCount =
+          typeof args.imageCount === "number" ? args.imageCount : undefined;
+        const videoCount =
+          typeof args.videoCount === "number" ? args.videoCount : undefined;
+        const preference =
+          args.preference === "speed" ||
+          args.preference === "quality" ||
+          args.preference === "balanced"
+            ? args.preference
+            : undefined;
+        const result = recommendParams({
+          modelType,
+          imageCount,
+          videoCount,
+          preference,
         });
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: result,
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
-      case "trainingSpecialist.getStatus": {
-        const trainingId = (args.trainingId ?? args.jobId) as string;
-        if (!trainingId) {
-          return { name: call.name, ok: false, error: "trainingId is required" };
+      case "trainingSpecialist.analyzeDataset": {
+        const modelType = args.modelType;
+        if (!isTrainingModelType(modelType)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "modelType is required",
+          };
         }
+        const imageCount =
+          typeof args.imageCount === "number" ? args.imageCount : undefined;
+        const videoCount =
+          typeof args.videoCount === "number" ? args.videoCount : undefined;
+        const result = analyzeDataset({ modelType, imageCount, videoCount });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
 
-        const result = await getTrainingStatus({
-          userId: opts.userId,
-          trainingId,
-        });
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: result,
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+      case "trainingSpecialist.estimateTraining": {
+        const modelType = args.modelType;
+        if (!isTrainingModelType(modelType)) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "modelType is required",
+          };
+        }
+        const steps = typeof args.steps === "number" ? args.steps : undefined;
+        const falModelId =
+          typeof args.falModelId === "string" ? args.falModelId : undefined;
+        const result = estimateTraining({ modelType, steps, falModelId });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
       case "trainingSpecialist.getTips": {
-        const result = getTrainingTips();
-        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+        const modelType = args.modelType;
+        const result = getTips(
+          isTrainingModelType(modelType) ? { modelType } : {}
+        );
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
       default:
-        return { name: call.name, ok: false, error: `unknown trainingSpecialist tool: ${call.name}` };
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown trainingSpecialist tool: ${call.name}`,
+        };
     }
   } catch (err) {
     return { name: call.name, ok: false, error: err instanceof Error ? err.message : String(err) };

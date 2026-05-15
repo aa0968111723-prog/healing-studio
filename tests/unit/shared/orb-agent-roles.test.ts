@@ -269,12 +269,18 @@ describe("getRoleSystemPromptSlice", () => {
     expect(slice).toMatch(/cloneVoice/);
   });
 
-  it("training specialist gives concrete LoRA dataset + parameter defaults", () => {
+  it("training specialist points to the concrete sensing + sizing tools, not vague advice", () => {
     const slice = getRoleSystemPromptSlice("training-specialist");
-    // Concrete numbers users can act on, not vague "prepare data"
-    expect(slice).toMatch(/15-20|15\s*-\s*20/);
-    expect(slice).toMatch(/rank/);
-    expect(slice).toMatch(/trainLora/);
+    // Real concreteness now lives in tool outputs (recommendParams /
+    // analyzeDataset / estimateTraining), not in a fixed "rank=16 / 15-20" line.
+    // The prompt's job is to teach the spirit to actually CALL those tools
+    // instead of guessing — that's the AI-agent upgrade we want to lock in.
+    expect(slice).toMatch(/trainingSpecialist\.recommendParams/);
+    expect(slice).toMatch(/trainingSpecialist\.analyzeDataset/);
+    expect(slice).toMatch(/trainingSpecialist\.estimateTraining/);
+    // studio.trainLora is still the actual training entrypoint and must
+    // remain referenced (high-risk, requires-human).
+    expect(slice).toMatch(/studio\.trainLora|trainLora/);
   });
 
   it("learning specialist names concrete entry-point pages per modality", () => {
