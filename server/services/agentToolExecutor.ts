@@ -2168,6 +2168,19 @@ async function dispatchStudioTool(
         return settingsDetailResult;
       }
 
+      // ── 細細 autonomous capabilities ─────────────────────────────────
+      case "settingsDetail.bulkUpdate":
+      case "settingsDetail.previewDiff":
+      case "settingsDetail.applyPreset":
+      case "settingsDetail.listPresets":
+      case "settingsDetail.resetPreference":
+      case "settingsDetail.searchSettings":
+      case "settingsDetail.detectInconsistencies":
+      case "settingsDetail.recommendOptimizations": {
+        const settingsDetailResult = await dispatchSettingsDetailTool(call, opts);
+        return settingsDetailResult;
+      }
+
       // ════════════════════════════════════════════════════════════════════
       // accountant.* tools for accountant (財財)
       // ════════════════════════════════════════════════════════════════════
@@ -3647,6 +3660,14 @@ async function dispatchSettingsDetailTool(
     explainSetting,
     getAllSettings,
     validatePreference,
+    bulkUpdatePreferences,
+    previewPreferenceDiff,
+    applyPreset,
+    listPresets,
+    resetPreference,
+    searchSettings,
+    detectInconsistencies,
+    recommendOptimizations,
   } = await import("./spiritTools/settingsDetailTools");
 
   const args = (call.args ?? {}) as Record<string, unknown>;
@@ -3770,6 +3791,159 @@ async function dispatchSettingsDetailTool(
             valid: result.valid,
             error: result.error,
             suggestion: result.suggestion,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.bulkUpdate": {
+        const items = args.items;
+        if (!Array.isArray(items) || items.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "items must be a non-empty array of { key, value } objects",
+          };
+        }
+        const result = await bulkUpdatePreferences({
+          userId: opts.userId,
+          items: items as Array<{ key: string; value: unknown }>,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            applied: result.applied,
+            failed: result.failed,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.previewDiff": {
+        const items = args.items;
+        if (!Array.isArray(items) || items.length === 0) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "items must be a non-empty array of { key, value } objects",
+          };
+        }
+        const result = await previewPreferenceDiff({
+          userId: opts.userId,
+          items: items as Array<{ key: string; value: unknown }>,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            diff: result.diff,
+            invalid: result.invalid,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.applyPreset": {
+        const presetId = args.presetId as string;
+        if (!presetId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "presetId is required",
+          };
+        }
+        const result = await applyPreset({ userId: opts.userId, presetId });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            preset: result.preset,
+            applied: result.applied,
+            failed: result.failed,
+            message: result.message,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.listPresets": {
+        const result = listPresets();
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.resetPreference": {
+        const key = args.key as string;
+        if (!key) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "key is required",
+          };
+        }
+        const result = await resetPreference({ userId: opts.userId, key });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            success: result.success,
+            message: result.message,
+            resetTo: result.resetTo,
+          },
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "settingsDetail.searchSettings": {
+        const query = args.query as string;
+        if (typeof query !== "string") {
+          return {
+            name: call.name,
+            ok: false,
+            error: "query (string) is required",
+          };
+        }
+        const result = searchSettings(query);
+        return {
+          name: call.name,
+          ok: true,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.detectInconsistencies": {
+        const result = await detectInconsistencies(opts.userId);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            inconsistencies: result.inconsistencies,
+            count: result.inconsistencies.length,
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "settingsDetail.recommendOptimizations": {
+        const result = await recommendOptimizations(opts.userId);
+        return {
+          name: call.name,
+          ok: result.success,
+          data: {
+            recommendations: result.recommendations,
+            count: result.recommendations.length,
           },
           usedTool: call.name,
         };

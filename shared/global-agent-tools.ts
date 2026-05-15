@@ -1142,6 +1142,75 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 細細 autonomous capabilities ─────────────────────────────────────
+  // 細細從「導頁工具」升級成 AI agent：可批次套用、預覽 diff、套預設、重設、
+  // 自然語意搜尋、偵測設定衝突、根據當前狀態主動推薦優化。
+  {
+    name: "settingsDetail.bulkUpdate",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      items: "array",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.previewDiff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      items: "array",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.applyPreset",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      presetId: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.listPresets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.resetPreference",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      key: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.searchSettings",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      query: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.detectInconsistencies",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "settingsDetail.recommendOptimizations",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
   // ─── 記記（memory-manager）長期記憶管理工具 ──
   {
     name: "memoryManager.storeMemory",

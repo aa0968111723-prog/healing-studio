@@ -24,8 +24,6 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     const toolKeys = Object.keys(SPIRIT_CHAT_TOOLS).sort();
     const spiritKeys = Object.keys(SPIRIT_FAMILY).sort();
     expect(toolKeys).toEqual(spiritKeys);
-    // 25 = 6 generic role + 9 specialists (含 community-manager / 靈靈 / 體體)
-    //     + 3 proactive + 7 new spirits
     expect(toolKeys).toHaveLength(25);
   });
 
@@ -83,12 +81,14 @@ describe("SPIRIT_CHAT_TOOLS", () => {
       "accountant",
       "quality-coach",
       "inspector",
-      // 7 位新增精靈中走 llm-persona 的 5 位（記記 / 細細走 navigate）
+      // 7 位新增精靈中走 llm-persona 的 5 位（記記走 navigate）
       "legal-advisor",
       "security-guard",
       "onboarding-coach",
       "community-manager",
       "chief-orchestrator",
+      // 細細：升級成 AI agent 後改走 llm-persona，靠 settingsDetail.* 工具
+      "settings-detail",
     ];
     for (const role of llmRoles) {
       expect(getChatToolForSpirit(role).kind).toBe("llm-persona");
@@ -113,14 +113,15 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     }
   });
 
-  it("記記 (notes-curator) navigates to /notes; 細細 (settings-detail) navigates to /settings", () => {
+  it("記記 (notes-curator) navigates to /notes", () => {
     const notes = getChatToolForSpirit("notes-curator");
     expect(notes.kind).toBe("navigate");
     if (notes.kind === "navigate") expect(notes.toPath).toBe("/notes");
+  });
 
+  it("細細 (settings-detail) is an llm-persona agent (calls settingsDetail.* tools, not just navigate)", () => {
     const settings = getChatToolForSpirit("settings-detail");
-    expect(settings.kind).toBe("navigate");
-    if (settings.kind === "navigate") expect(settings.toPath).toBe("/settings");
+    expect(settings.kind).toBe("llm-persona");
   });
 });
 
