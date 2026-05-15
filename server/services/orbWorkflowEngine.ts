@@ -504,11 +504,46 @@ export class OrbWorkflowEngine {
         });
         const stepExecId = String(stepInsert.insertId);
 
+        // Real step execution — dispatch the step's toolName through
+        // executeOrbToolCalls and propagate `${stepId.path}` references
+        // from prior successful steps. Lazy-imported so the legacy code
+        // paths (template-create / list) don't pull in the dispatcher.
+        const { executeOrbToolCalls } = await import("./agentToolExecutor");
+        const { resolveStepRefsInArgs } = await import("../../shared/orb-step-ref-resolver");
+        const { isKnownGlobalAgentTool } = await import("../../shared/global-agent-tools");
+
+        // Build the cumulative result snapshot for ${stepId.path} resolution.
+        const priorResults = Object.entries(outputs).map(([stepId, data]) => ({
+          stepId,
+          toolResults: [{ ok: true, data: data as unknown }],
+        }));
+        const resolvedArgs =
+          step.parameters && Object.keys(step.parameters).length > 0
+            ? (resolveStepRefsInArgs({ args: step.parameters, perStepToolResults: priorResults }) ?? step.parameters)
+            : step.parameters;
+
         while (retryCount <= maxRetries && !stepSuccess) {
           try {
-            // Execute tool via agentToolExecutor would go here
-            // For now, simulate success
-            stepOutputs = { success: true, result: `Step ${i} completed` };
+            if (!step.toolName) {
+              throw new Error(`Step ${i} has no toolName`);
+            }
+            if (!isKnownGlobalAgentTool(step.toolName)) {
+              throw new Error(`Unknown tool: ${step.toolName}`);
+            }
+            const results = await executeOrbToolCalls({
+              tools: [],
+              calls: [{ name: step.toolName, args: resolvedArgs as Record<string, unknown> | undefined }],
+              userId: execution.userId,
+              userRole: "user",
+              approved: true,
+              taskId: executionId,
+              stepId: step.stepId,
+            });
+            const result = results[0];
+            if (!result?.ok) {
+              throw new Error(result?.error ?? "tool-call-failed");
+            }
+            stepOutputs = result.data ?? null;
             stepSuccess = true;
           } catch (error) {
             stepError = error instanceof Error ? error.message : String(error);

@@ -74,7 +74,7 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     expect(tool.kind).toBe("search");
   });
 
-  it("reasoning + companion + proactive spirits are llm-persona (12 of the 25)", () => {
+  it("reasoning + companion + proactive spirits are llm-persona (11 of the 25)", () => {
     const llmRoles: AgentRole[] = [
       "director",
       // 編編 (composer) 改走 page-execution — 不再是 llm-persona
@@ -89,11 +89,17 @@ describe("SPIRIT_CHAT_TOOLS", () => {
       "onboarding-coach",
       "community-manager",
       "chief-orchestrator",
-      // 第 8 位新增：步步 走 llm-persona 做計畫預演
-      "plan-executor",
     ];
     for (const role of llmRoles) {
       expect(getChatToolForSpirit(role).kind).toBe("llm-persona");
+    }
+  });
+
+  it("步步 (plan-executor) is upgraded from llm-persona to agent-plan", () => {
+    const tool = getChatToolForSpirit("plan-executor");
+    expect(tool.kind).toBe("agent-plan");
+    if (tool.kind === "agent-plan") {
+      expect(tool.minPromptChars).toBe(6);
     }
   });
 

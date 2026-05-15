@@ -106,15 +106,12 @@ describe("pickDefaultPathForRole", () => {
     expect(pickDefaultPathForRole("training-specialist")).toBe("/models");
     expect(pickDefaultPathForRole("learning-specialist")).toBe("/learn");
     expect(pickDefaultPathForRole("accountant")).toBe("/dashboard");
-    // 7 位新增精靈：notes-curator / settings-detail / community-manager / chief-orchestrator
-    // 各自接手了筆記 / 設定 / 社群 / 團隊頁面；researcher 改回沒有專屬頁面（workflow 角色）。
+    // 筆記 / 設定 / 步步：對應實際的 routed pages（社群 / 團隊 / 法務 / 資安 / 輔導
+    // 目前還沒專屬頁面，PATH_SPIRIT_MAP 沒有條目 → pickDefaultPathForRole 回 null）。
     expect(pickDefaultPathForRole("notes-curator")).toBe("/notes");
     expect(pickDefaultPathForRole("settings-detail")).toBe("/settings");
-    expect(pickDefaultPathForRole("community-manager")).toBe("/social");
-    expect(pickDefaultPathForRole("chief-orchestrator")).toBe("/team");
-    expect(pickDefaultPathForRole("legal-advisor")).toBe("/legal");
-    expect(pickDefaultPathForRole("security-guard")).toBe("/security");
-    expect(pickDefaultPathForRole("plan-executor")).toBe("/jobs");
+    expect(pickDefaultPathForRole("plan-executor")).toBe("/background-tasks");
+    expect(pickDefaultPathForRole("chief-orchestrator")).toBe("/settings/agent");
   });
 
   it("returns null for non-page workflow roles", () => {
@@ -128,6 +125,13 @@ describe("pickDefaultPathForRole", () => {
     expect(pickDefaultPathForRole("researcher")).toBeNull();
     // 帶帶 (onboarding-coach) 是「跟著使用者目前所在頁」的 coach，沒有專屬頁面。
     expect(pickDefaultPathForRole("onboarding-coach")).toBeNull();
+    // 社群 / 法務 / 資安：站台尚未提供專屬頁面，回 null（caller fallback）。
+    expect(pickDefaultPathForRole("community-manager")).toBeNull();
+    expect(pickDefaultPathForRole("legal-advisor")).toBeNull();
+    expect(pickDefaultPathForRole("security-guard")).toBeNull();
+    // 靈靈 / 體體：純對話 / 內嵌，無專屬頁面。
+    expect(pickDefaultPathForRole("inspiration-specialist")).toBeNull();
+    expect(pickDefaultPathForRole("anatomy-specialist")).toBeNull();
   });
 
   it("is the inverse of pickArrivalSpiritForPath for canonical paths", () => {
@@ -442,7 +446,7 @@ describe("SPIRIT_COLLAB_PROTOCOL", () => {
     "settings-detail",
     // 第 8 位新增：規劃 + 多步驟執行
     "plan-executor",
-    // 第 9-10 位：靈感 + 解剖
+    // 第 9-10 位新增：靈感 / 解剖
     "inspiration-specialist",
     "anatomy-specialist",
   ];
@@ -620,7 +624,7 @@ describe("SPIRIT_FAMILY classification", () => {
       "settings-detail",
       // 第 8 位新增：規劃 + 多步驟執行
       "plan-executor",
-      // 第 9-10 位：靈感 + 解剖
+      // 第 9-10 位新增：靈感 / 解剖
       "inspiration-specialist",
       "anatomy-specialist",
     ];

@@ -2145,6 +2145,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // 多代理「自動討論」目前進行中的 collaboration id。null 代表沒在跑；非 null 時
   // 下方 useEffect 會啟動 1.5s 輪詢，把 bus 上新冒出來的精靈訊息塞進 chat。
   const [activeDiscussionId, setActiveDiscussionId] = useState<string | null>(null);
+  // 步步（plan-executor）的目前 plan id — UI 用來輪詢 spirit.status，把每步
+  // 完成狀態塞進 chat。null 代表沒在跑 / 已收掉。
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  // 已塞進 chat 的「步驟完成事件」鍵（`${stepId}:${status}`），避免輪詢重複 push。
+  const seenPlanStepKeysRef = useRef<Set<string>>(new Set());
   // 已塞進 chat 的 message id，避免輪詢重複 push 同一段。
   const seenDiscussionMessageIdsRef = useRef<Set<string>>(new Set());
   // 追蹤目前討論最初的 user prompt — 等 discussion_complete 收到時，可以
@@ -2247,6 +2252,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // sendMessage 會走 spiritInvokeMut.mutateAsync 而不是 LLM 對話。
   // 也用在 discussion_complete 後的「真實執行」自動補一輪生成。
   const spiritInvokeMut = trpc.spirit.invoke.useMutation();
+  // 步步（plan-executor）的真實 agent：規劃 / 開跑 / 控制 / 重排。
+  // @步步 時走這條，不是 LLM 對話。
+  const spiritPlanMut = trpc.spirit.plan.useMutation();
+  const spiritRunMut = trpc.spirit.run.useMutation();
+  const spiritControlMut = trpc.spirit.control.useMutation();
+  const spiritReplanMut = trpc.spirit.replan.useMutation();
 
   // ─── 多代理討論：輪詢 + 訊息注入 ─────────────────────────────────────
   // 1.5s 一次的輪詢，把 bus 上的新精靈訊息塞成 chat bubble。stop 條件：
@@ -2501,6 +2512,102 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     }, 90_000);
     return () => clearTimeout(handle);
   }, [activeDiscussionId]);
+
+  // ─── 步步 plan 狀態輪詢：把每步完成 / 失敗即時同步進 chat ──────────
+  // 啟動條件：activePlanId 非 null（剛 @步步 觸發 spirit.run）。
+  // 1.5s 輪詢一次 spirit.status；每步狀態變化都附一條 chat 訊息，避免
+  // 使用者盯著 idle 不知道步步是死是活。
+  const planStatusQuery = trpc.spirit.status.useQuery(
+    { planId: activePlanId ?? "" },
+    {
+      enabled: Boolean(activePlanId),
+      refetchInterval: activePlanId ? 1500 : false,
+      refetchIntervalInBackground: false,
+      retry: 1,
+    }
+  );
+
+  useEffect(() => {
+    if (!activePlanId) return;
+    const data = planStatusQuery.data;
+    if (!data?.success || !data.steps) return;
+    const seen = seenPlanStepKeysRef.current;
+    for (const step of data.steps) {
+      // 只 push 「終態」事件（completed / failed / skipped / cancelled），
+      // pending / running 不灌訊息避免洗版。
+      if (
+        step.status === "completed" ||
+        step.status === "failed" ||
+        step.status === "skipped" ||
+        step.status === "cancelled"
+      ) {
+        const key = `${step.id}:${step.status}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const icon =
+          step.status === "completed"
+            ? "✓"
+            : step.status === "skipped"
+              ? "⤼"
+              : step.status === "cancelled"
+                ? "⏹"
+                : "✗";
+        const outputTail =
+          step.status === "completed" && step.outputs
+            ? typeof step.outputs === "object"
+              ? ` → ${JSON.stringify(step.outputs).slice(0, 160)}`
+              : ` → ${String(step.outputs).slice(0, 160)}`
+            : step.error
+              ? `（${step.error}）`
+              : "";
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: `${icon} 步步 第 ${data.steps!.indexOf(step) + 1} 步「${step.label}」${outputTail}`,
+          at: Date.now(),
+          pagePath: locationPath,
+          agentRole: "plan-executor",
+          intent: "plan-executor-step",
+        }]);
+      }
+    }
+    // plan 結束 → 收尾 + 清 activePlanId
+    if (
+      data.status === "completed" ||
+      data.status === "failed" ||
+      data.status === "cancelled"
+    ) {
+      const completed = data.currentStep ?? 0;
+      const total = data.totalSteps ?? 0;
+      const summary =
+        data.status === "completed"
+          ? `🧩 步步 把整條跑完了（${completed}/${total} 步）。`
+          : data.status === "cancelled"
+            ? `⏹ 步步 已停下（已完成 ${completed}/${total} 步）。`
+            : `✗ 步步 卡在第 ${completed + 1} 步停下了。打「重排 plan ${activePlanId}」我就用 LLM 重排剩下的。`;
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: summary,
+        at: Date.now(),
+        pagePath: locationPath,
+        agentRole: "plan-executor",
+        intent: "plan-executor-summary",
+      }]);
+      // 不直接呼叫 orbState.setState（在這個 effect 跑時 orbState 還沒
+      // 宣告好）；最終 chat 訊息已經夠醒目，UI orb 狀態由其他事件流接手。
+      setActivePlanId(null);
+      seenPlanStepKeysRef.current = new Set();
+    }
+  }, [activePlanId, planStatusQuery.data, locationPath]);
+
+  // 兜底：30 分鐘還沒收完就強制清掉 activePlanId（避免輪詢無限跑）。
+  // 上限刻意拉長 — 多步驟工作流（含影片生成）可能跑 15+ 分鐘。
+  useEffect(() => {
+    if (!activePlanId) return;
+    const handle = setTimeout(() => {
+      setActivePlanId(null);
+    }, 30 * 60 * 1000);
+    return () => clearTimeout(handle);
+  }, [activePlanId]);
 
   const persistClarificationPicks =
     trpc.orbProxy.persistClarificationPicks.useMutation();
@@ -3609,6 +3716,102 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // ─── 步步 plan 控制指令 (核可 / 取消 / 暫停 / 續跑 / 重排) ─────────
+    // 不想 @ 步步 又寫一長串 — 直接打「核可開跑 plan plan_xxxx」「取消 plan plan_xxxx」
+    // 「重排 plan plan_xxxx」「暫停 plan plan_xxxx」「續跑 plan plan_xxxx」
+    // 就會打到對應的 tRPC mutation。
+    // 不在 default mode 攔截 — 使用者明確選了模式時應走那條路。
+    if (!requestedMode) {
+      const controlMatch = trimmed.match(
+        /^(核可開跑|核可|approve|取消|中止|停止|cancel|暫停|pause|續跑|繼續|resume|重排|replan)\s+(?:plan\s+)?([\w-]+)/i
+      );
+      if (controlMatch) {
+        const verb = controlMatch[1].toLowerCase();
+        const planId = controlMatch[2];
+        const action: "pause" | "resume" | "cancel" | "replan" | "approve" =
+          /核可|approve/.test(verb)
+            ? "approve"
+            : /取消|中止|停止|cancel/.test(verb)
+              ? "cancel"
+              : /暫停|pause/.test(verb)
+                ? "pause"
+                : /續跑|繼續|resume/.test(verb)
+                  ? "resume"
+                  : "replan";
+        try {
+          if (action === "approve") {
+            // P1 修正：對高風險 plan 顯式按「核可開跑」→ run({ approveHighRisk: true })。
+            const r = await spiritRunMut.mutateAsync({
+              planId,
+              async: true,
+              approveHighRisk: true,
+            });
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: r.success ? `🧩 步步：已核可並開跑 plan ${planId}。` : `步步 開跑失敗：${r.message}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: "plan-executor",
+            }]);
+            if (r.success) {
+              seenPlanStepKeysRef.current = new Set();
+              setActivePlanId(planId);
+            }
+          } else if (action === "replan") {
+            const r = await spiritReplanMut.mutateAsync({ planId });
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: r.success && r.newPlanId
+                ? `🧩 步步 重排完成：新 plan = ${r.newPlanId}。已自動開跑，輪詢中…`
+                : `步步 重排失敗：${r.message}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: "plan-executor",
+            }]);
+            if (r.success && r.newPlanId) {
+              try {
+                await spiritRunMut.mutateAsync({ planId: r.newPlanId, async: true });
+                seenPlanStepKeysRef.current = new Set();
+                setActivePlanId(r.newPlanId);
+              } catch {
+                // 補開跑失敗只記在文字裡，不擋 UI
+              }
+            }
+          } else {
+            // 此 else 分支只剩 pause / resume / cancel — approve / replan 已上面處理
+            const controlAction = action as "pause" | "resume" | "cancel";
+            const r = await spiritControlMut.mutateAsync({ planId, action: controlAction });
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: r.success ? `🧩 步步：${r.message}` : `步步 控制失敗：${r.message}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: "plan-executor",
+            }]);
+            if (controlAction === "cancel" && activePlanId === planId) {
+              setActivePlanId(null);
+            }
+            if (controlAction === "resume" && r.success) {
+              setActivePlanId(planId);
+              seenPlanStepKeysRef.current = new Set();
+            }
+          }
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          setMessages(prev => [...prev, {
+            role: "orb",
+            text: `步步 控制指令出錯：${reason}`,
+            at: Date.now(),
+            pagePath: locationPath,
+            agentRole: "plan-executor",
+          }]);
+        } finally {
+          setIsSending(false);
+        }
+        return;
+      }
+    }
+
     // ─── Site-wide search shortcut ───────────────────────────────────────
     // "找我之前的森林圖" / "搜尋 calm BGM" / "翻一下我的筆記提到禪意"
     // 不走 LLM — 直接打 orbProxy.unifiedSearch 然後把結果 markdown 化。
@@ -3978,6 +4181,114 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // ── D) agent-plan: 步步 — 規劃 + 真實執行 ──
+        // 從前步步只是 llm-persona（只回人話、不動工具）；現在改成走
+        // trpc.spirit.plan 真規劃 + trpc.spirit.run 真執行：
+        //   1. plan 拿到 preview（steps + 高風險數）→ 在 chat 顯示預演卡
+        //   2. 沒有高風險步 → 自動開跑；有高風險 → 停在預演卡並列「核可開跑 /
+        //      取消」chips，使用者按了「核可開跑」才呼叫 spirit.run（P1 修正）
+        //   3. 啟動下方輪詢 effect 把每步狀態同步進 chat
+        //
+        // 短輸入（< minPromptChars）仍 fall through 到 llm-persona，讓
+        // 使用者跟步步閒聊。
+        if (
+          tool.kind === "agent-plan" &&
+          cleanPrompt.length >= tool.minPromptChars
+        ) {
+          orbState.setState("thinking", "步步 正在拆計畫…");
+          try {
+            const planRes = await spiritPlanMut.mutateAsync({
+              goal: cleanPrompt,
+              context: `currentPage=${locationPath}`,
+            });
+            if (isStale()) return;
+            if (!planRes.success || !planRes.planId || !planRes.preview) {
+              orbState.setState("error", "步步 規劃失敗");
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: `步步 沒辦法把這個目標拆成計畫：${planRes.message}`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: "plan-executor",
+              }]);
+              setIsSending(false);
+              return;
+            }
+
+            const hasHighRisk = (planRes.highRiskCount ?? 0) > 0;
+
+            // 預演卡：列出 step 1..N + 高風險步驟標 ⚠
+            const stepsList = planRes.preview.steps
+              .map((s, idx) => {
+                return `${idx + 1}. ${s.label}${s.toolName ? ` · 工具：${s.toolName}` : ""}`;
+              })
+              .join("\n");
+            const highRiskTail = hasHighRisk
+              ? `（其中 ${planRes.highRiskCount} 步是高風險，跑前等你核可）`
+              : "";
+            const callToAction = hasHighRisk
+              ? `這條 plan 含高風險步驟，先看完。要開跑就回「核可開跑 plan ${planRes.planId}」；不對就「取消 plan ${planRes.planId}」。`
+              : `我直接開跑，遇到每步完成 / 失敗會即時回報。要中止隨時跟我說「取消 plan ${planRes.planId}」。`;
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text:
+                `🧩 步步 把「${cleanPrompt}」拆成 ${planRes.preview!.steps.length} 步${highRiskTail}：\n\n${stepsList}\n\n${callToAction}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: "plan-executor",
+              intent: "plan-executor-preview",
+            }]);
+
+            // P1 修正：高風險 plan 停在這裡；列建議 chip 讓使用者顯式核可。
+            // 沒有高風險才自動開跑。
+            if (hasHighRisk) {
+              setSuggestions([
+                { text: `核可開跑 plan ${planRes.planId}` },
+                { text: `取消 plan ${planRes.planId}` },
+              ]);
+              orbState.setState("idle", "步步 等核可");
+              setIsSending(false);
+              return;
+            }
+
+            // 開跑（async=true：立刻回，下方輪詢 effect 更新進度）
+            try {
+              await spiritRunMut.mutateAsync({
+                planId: planRes.planId,
+                async: true,
+              });
+              seenPlanStepKeysRef.current = new Set();
+              setActivePlanId(planRes.planId);
+              setSuggestions(buildHandoffChips("plan-executor"));
+              orbState.setState("thinking", "步步 開跑");
+            } catch (runErr) {
+              const reason = runErr instanceof Error ? runErr.message : String(runErr);
+              orbState.setState("error", "步步 開跑失敗");
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: `步步 啟動執行時出錯：${reason}`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: "plan-executor",
+              }]);
+            }
+          } catch (err) {
+            if (isStale()) return;
+            const reason = err instanceof Error ? err.message : String(err);
+            orbState.setState("error", "步步 規劃失敗");
+            setMessages(prev => [...prev, {
+              role: "orb",
+              text: `步步 在規劃時遇到問題：${reason}`,
+              at: Date.now(),
+              pagePath: locationPath,
+              agentRole: "plan-executor",
+            }]);
+          } finally {
+            setIsSending(false);
+          }
+          return;
+        }
+
         // ── C2) page-execution: @編編 完整 agent loop
         //     observe → think → act → verify → recover
         //
@@ -4202,7 +4513,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           setSuggestions(buildHandoffChips("composer"));
         }
 
-        // ── D) llm-persona: 不在這裡攔，讓既有 LLM 流程接手（selectRoleForIntent
+        // ── E) llm-persona: 不在這裡攔，讓既有 LLM 流程接手（selectRoleForIntent
         //     會套上該精靈的人格切片）。但仍把 collab 下一棒列為建議，方便使用者
         //     看到 LLM 回覆後可以一鍵交棒給下一位精靈。
         //
