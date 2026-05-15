@@ -174,7 +174,12 @@ const GENERIC_SKILLS: Array<Pick<
     description: "主動全站成本控制：算這次花多少、本月用到哪、推 1 個更省的做法",
     modality: "general",
     recommendedPages: ["/agent", "/dashboard", "/settings"],
-    tools: [],
+    tools: [
+      "accountant.estimate",
+      "accountant.compare",
+      "accountant.usage",
+      "accountant.savings",
+    ],
     knowledgeDomains: ["cost estimation", "quota / usage tracking", "subscription tier", "model pricing"],
     useCases: ["這次會花多少", "本月用量還剩多少", "有沒有更便宜的做法", "推薦升降級時機"],
     chain: ["accountant"],

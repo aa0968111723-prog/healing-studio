@@ -613,8 +613,8 @@ function DashboardLayoutContent({
 
   // 15 精靈 / 財財 (accountant)：點數餘額 query。掉到門檻以下時 publish
   // monthly_spend_threshold，讓 toast 出現「本月剩 N 點」提示。
-  // 沒有 monthlyAllowance 資料 — 用「remaining 低於 100」當粗略門檻。
-  // 實際金流接上之後，這段直接換成 % 計算就行。
+  // 觸發門檻：① remaining ≤ 100，或 ② usedPct ≥ 80（已花掉 80% 以上）。
+  // usedPct 由後端用 spent / (spent + remaining) 算出，不再是硬寫 90 的占位。
   const balanceQuery = trpc.credits.myBalance.useQuery(undefined, {
     enabled: Boolean(user),
     refetchOnWindowFocus: false,
@@ -623,8 +623,13 @@ function DashboardLayoutContent({
   useEffect(() => {
     const remaining = balanceQuery.data?.remaining;
     if (typeof remaining !== "number") return;
-    const LOW_THRESHOLD = 100;
-    if (remaining > LOW_THRESHOLD) return;
+    const realUsedPct = balanceQuery.data?.usedPct ?? 0;
+    const LOW_REMAINING_THRESHOLD = 100;
+    const HIGH_USAGE_PCT_THRESHOLD = 80;
+    const shouldWarn =
+      remaining <= LOW_REMAINING_THRESHOLD ||
+      realUsedPct >= HIGH_USAGE_PCT_THRESHOLD;
+    if (!shouldWarn) return;
     // 真正花最多的模型（近 30 天）— 後端從 api_usage_logs 取，
     // 如果是新使用者沒任何 log，給「最近的高耗模型」這個備援文案，
     // 避免精靈嘴裡冒出 (待接入) 這種開發者佔位字串。
@@ -639,13 +644,13 @@ function DashboardLayoutContent({
     ProactiveEventBus.publish(
       "monthly_spend_threshold",
       {
-        usedPct: 90,
+        usedPct: realUsedPct,
         remainingCredits: remaining,
         topModel,
       },
       { dedupeKey: `low-balance-${user?.id ?? "anon"}-${day}`, dedupeMs: 86_400_000 }
     );
-  }, [balanceQuery.data?.remaining, balanceQuery.data, user?.id]);
+  }, [balanceQuery.data, user?.id]);
 
   // 15 精靈 / 守守 (inspector)：page_perf_bad 偵測。Navigation Timing API
   // 報的 domInteractive > 5000ms 視為慢頁。dedupe 用 location + 日期；同一

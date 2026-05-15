@@ -487,6 +487,59 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 財財（accountant）成本控制工具：四個唯讀工具，不會扣款也不會改設定 ──
+  // 之前財財 tools=[]，講出來的數字全是 system prompt 寫死的「粗估範圍」；
+  // 接上這四個工具後，財財能：
+  //   ① accountant.estimate   — 精算單次任務點數（含 minPoints / maxPoints clamp）
+  //   ② accountant.compare    — 列出同類別所有模型 + 在這個 params 下會花多少
+  //   ③ accountant.usage      — 取使用者近 30 天用量摘要（依 apiUsageLogs）
+  //   ④ accountant.savings    — 對特定模型給可替換的省法 + 預估省幾點 + tier 風險
+  {
+    name: "accountant.estimate",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      durationSec: "number?",
+      charCount: "number?",
+      imageCount: "number?",
+      trainingSteps: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      category: "string",
+      durationSec: "number?",
+      charCount: "number?",
+      imageCount: "number?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.usage",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.savings",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      durationSec: "number?",
+      charCount: "number?",
+      imageCount: "number?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 記記（notes-curator）筆記與資產管理工具 ──
   {
     name: "notesCurator.createNote",
