@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { agentPreferences } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -9,6 +9,10 @@ import { distillPreferenceProfile } from "../../shared/orb-preference-distiller"
 import { getRecentOrbMemories } from "../services/orbMemory";
 import { getAggregatedPicksForPrompt } from "../services/agentModelPicks";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
+import {
+  ensureAgentPreferencesSchema,
+  isUnknownColumnError,
+} from "../services/agentPreferencesSchemaEnsure";
 
 const CostBudgetSchema = z
   .object({
@@ -92,14 +96,10 @@ const UpdateSchema = z.object({
 async function ensurePreferences(userId: number) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-  // Schema migration is best-effort — any column we add at runtime is also
-  // declared in drizzle/schema.ts and covered by a checked-in .sql migration.
-  // If the runtime ALTER fails for any reason (driver wraps the duplicate-
-  // column error, ALTER privilege missing, transient connection issue), we
-  // log and continue: the user's UPDATE will either succeed (column already
-  // there from migrations) or fail with a clear error pointing at the real
-  // missing column. Refusing to save the entire row because of a single
-  // best-effort ALTER is worse than letting the actual UPDATE try.
+  // Schema check is shared with `loadAgentPreferencesForUser` so the AI
+  // agent runtime sees the same columns the settings UI does. Best-effort:
+  // a thrown error gets logged and we still try the SELECT — the SELECT
+  // below has its own self-heal retry on UnknownColumn errors.
   try {
     await ensureAgentPreferencesSchema(db);
   } catch (err) {
@@ -108,102 +108,27 @@ async function ensurePreferences(userId: number) {
       err instanceof Error ? err.message : String(err),
     );
   }
-  const existing = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
+
+  // Self-healing SELECT: if schema-ensure raced or partially failed, the
+  // first SELECT may hit "Unknown column 'mutedSpirits'" etc. Run the
+  // migration synchronously on that signal and retry once. Surfaces a
+  // clean error to the user if the retry still fails (e.g. DB user lacks
+  // ALTER privileges and the deploy migration has not run yet).
+  const selectExisting = () =>
+    db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
+  let existing;
+  try {
+    existing = await selectExisting();
+  } catch (err) {
+    if (!isUnknownColumnError(err)) throw err;
+    await ensureAgentPreferencesSchema(db);
+    existing = await selectExisting();
+  }
   if (existing[0]) return existing[0];
 
   await db.insert(agentPreferences).values({ userId, ...DEFAULT_AGENT_PREFERENCES });
-  const created = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
+  const created = await selectExisting();
   return created[0];
-}
-
-let ensureSchemaOnce: Promise<void> | null = null;
-async function ensureAgentPreferencesSchema(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
-  if (ensureSchemaOnce) return ensureSchemaOnce;
-  ensureSchemaOnce = (async () => {
-    const addColumnIfMissing = async (columnName: string, definitionSql: string) => {
-      const existsRows = (await db.execute(sql`
-        SELECT EXISTS(
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = DATABASE()
-            AND LOWER(table_name) = LOWER('agent_preferences')
-            AND LOWER(column_name) = LOWER(${columnName})
-        ) AS existsFlag
-      `)) as unknown as Array<{ existsFlag: number }>;
-      const existsFlag = Number(existsRows[0]?.existsFlag ?? 0);
-      if (existsFlag === 1) return;
-      try {
-        await db.execute(sql.raw(`ALTER TABLE agent_preferences ADD COLUMN ${definitionSql}`));
-      } catch (err) {
-        // TOCTOU race: between the SELECT above and this ALTER, another
-        // process can have added the column. MySQL surfaces that as
-        // ER_DUP_FIELDNAME (1060). Some drivers / pools wrap the error
-        // and lose the code/errno fields, so we also match on the
-        // canonical "Duplicate column name" message (any case) and on
-        // the bare SQLSTATE 42S21 used by some forks (TiDB, MariaDB).
-        // Treat any of these as success — column exists, which is what
-        // we wanted. Other failures rethrow so the outer .catch nulls
-        // ensureSchemaOnce and a retry can pick up.
-        const code = (err as { code?: string } | null)?.code ?? "";
-        const errno = Number((err as { errno?: number } | null)?.errno ?? 0);
-        const sqlState = (err as { sqlState?: string } | null)?.sqlState ?? "";
-        const message = err instanceof Error ? err.message : String(err);
-        if (
-          code === "ER_DUP_FIELDNAME"
-          || errno === 1060
-          || sqlState === "42S21"
-          || /duplicate column/i.test(message)
-        ) {
-          return;
-        }
-        throw err;
-      }
-    };
-
-    await addColumnIfMissing("preferredSpecialistAgent", "preferredSpecialistAgent varchar(64) NULL");
-    await addColumnIfMissing("specialistAutoActivate", "specialistAutoActivate boolean NOT NULL DEFAULT true");
-    await addColumnIfMissing("specialistProactiveMode", "specialistProactiveMode boolean NOT NULL DEFAULT true");
-    await addColumnIfMissing("specialistLearningEnabled", "specialistLearningEnabled boolean NOT NULL DEFAULT true");
-    await addColumnIfMissing("disabledSpecialistAgents", "disabledSpecialistAgents json NOT NULL");
-    // 15 精靈關係偏好欄位（mute / favorite）— 比 disabledSpecialistAgents 後加。
-    // 預設 NULL，下面 UPDATE 把 NULL 補成空陣列，避免 ORM 拿到 null 拋型別錯誤。
-    await addColumnIfMissing("mutedSpirits", "mutedSpirits json NULL");
-    await addColumnIfMissing("favoriteSpirits", "favoriteSpirits json NULL");
-    // Phase 3: stay-on-page execution mode (auto-approve tasks + run them
-    // server-side instead of routing the user away). Defaults false so
-    // existing rows keep the legacy navigate-and-fillPrompt UX.
-    await addColumnIfMissing(
-      "stayOnPageMode",
-      "stayOnPageMode boolean NOT NULL DEFAULT false"
-    );
-    // 主動精靈通知偏好（per-event enable / interval / requireAck），同樣 NULL→{}。
-    await addColumnIfMissing("proactiveTriggerSettings", "proactiveTriggerSettings json NULL");
-
-    await db.execute(sql`
-      UPDATE agent_preferences
-      SET disabledSpecialistAgents = JSON_ARRAY()
-      WHERE disabledSpecialistAgents IS NULL
-    `);
-    await db.execute(sql`
-      UPDATE agent_preferences
-      SET mutedSpirits = JSON_ARRAY()
-      WHERE mutedSpirits IS NULL
-    `);
-    await db.execute(sql`
-      UPDATE agent_preferences
-      SET favoriteSpirits = JSON_ARRAY()
-      WHERE favoriteSpirits IS NULL
-    `);
-    await db.execute(sql`
-      UPDATE agent_preferences
-      SET proactiveTriggerSettings = JSON_OBJECT()
-      WHERE proactiveTriggerSettings IS NULL
-    `);
-  })().catch(err => {
-    ensureSchemaOnce = null;
-    throw err;
-  });
-  return ensureSchemaOnce;
 }
 
 export const agentPreferencesRouter = router({
@@ -219,8 +144,25 @@ export const agentPreferencesRouter = router({
     if (typeof patch.onboardingCompletedAt === "string") {
       patch.onboardingCompletedAt = new Date(patch.onboardingCompletedAt);
     }
-    await db.update(agentPreferences).set(patch).where(and(eq(agentPreferences.userId, ctx.user.id)));
-    const rows = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, ctx.user.id)).limit(1);
+    const runUpdate = () =>
+      db.update(agentPreferences).set(patch).where(and(eq(agentPreferences.userId, ctx.user.id)));
+    const runSelect = () =>
+      db.select().from(agentPreferences).where(eq(agentPreferences.userId, ctx.user.id)).limit(1);
+    try {
+      await runUpdate();
+    } catch (err) {
+      if (!isUnknownColumnError(err)) throw err;
+      await ensureAgentPreferencesSchema(db);
+      await runUpdate();
+    }
+    let rows;
+    try {
+      rows = await runSelect();
+    } catch (err) {
+      if (!isUnknownColumnError(err)) throw err;
+      await ensureAgentPreferencesSchema(db);
+      rows = await runSelect();
+    }
     return rows[0];
   }),
 
