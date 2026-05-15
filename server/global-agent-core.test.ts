@@ -291,12 +291,26 @@ describe("global-agent-workflows", () => {
     }
   });
 
-  it("detectCreationIntent picks the script-only workflow for planning requests", () => {
+  it("detectCreationIntent asks the wizard before committing for under-specified script requests", () => {
     const detection = detectCreationIntent("幫我寫一個短片腳本");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.options.length).toBeGreaterThan(1);
+    }
+  });
+
+  it("detectCreationIntent commits to the script workflow once length/subject/style/platform are present", () => {
+    const detection = detectCreationIntent(
+      "幫我寫腳本：30 秒品牌敘事，主題禪學社秋季招新，9:16 IG 直式"
+    );
     expect(detection.kind).toBe("ready");
     if (detection.kind === "ready") {
       expect(detection.workflow.name).toBe("腳本規劃流程");
       expect(detection.workflow.steps[0]?.path).toBe("/director");
+      expect(detection.workflow.steps.length).toBeGreaterThan(1);
+      const actionTypes = detection.workflow.steps.map(s => s.actionType);
+      expect(actionTypes).toContain("fillPrompt");
+      expect(actionTypes).toContain("submit");
     }
   });
 

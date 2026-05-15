@@ -486,11 +486,23 @@ export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
     steps: [
       {
         path: "/director",
+        actionType: "setTab",
+        payload: "script",
+        label: "導演 AI：切到腳本分鏡分頁",
+      },
+      {
+        path: "/director",
         actionType: "fillPrompt",
         payload:
           `請幫我把這個需求拆成完整短片企劃，輸出時請分成` +
           `【一句話 logline】【三幕腳本（起／承／轉合）】【3 個鏡頭分鏡（shot type／運鏡／情緒／秒數）】` +
           `【旁白稿（60–80 字）】四個區塊，方便後續直接送進影像／配音流程：\n\n需求：${basePrompt}`,
+        label: "導演 AI：填入完整企劃需求",
+      },
+      {
+        path: "/director",
+        actionType: "submit",
+        payload: "",
         label: "導演 AI：產生腳本與分鏡",
       },
     ],
@@ -1371,6 +1383,29 @@ export function detectCreationIntent(
 
   const enrichedBrief = enrichedBriefEarly;
 
+  // Run the same length/subject/style/platform wizard the video branch uses
+  // before committing to a script workflow. Without this, a one-liner like
+  // 「我想做一個淡江禪學社的腳本」slipped straight through to a confirmation
+  // card whose 片長／主題／風格／用途 chips were all ✗ — the orb had pretended
+  // to plan without ever asking what the script is supposed to be.
+  const askScriptWizard = (): CreationIntentDetection => {
+    const wizard = buildWizardClarification(
+      trimmed,
+      "script",
+      rememberedDimensionCoverage(preferences)
+    );
+    if (wizard) {
+      return {
+        kind: "needs-clarification",
+        message:
+          "腳本企劃我可以一次幫你拆成 logline／三幕／分鏡／旁白四段，" +
+          `但先把方向定下來再寫，不然寫完才發現片長或調性對不上就要重來。${wizard.question}`,
+        options: wizard.options,
+      };
+    }
+    return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
+  };
+
   // Explicit "寫/規劃/設計 腳本/劇本/分鏡" — the user wants the script as a
   // text deliverable, not the actual film. Beat the video branch even when
   // 短片/影片 is mentioned alongside.
@@ -1379,7 +1414,7 @@ export function detectCreationIntent(
     /(寫|規劃|設計).{0,8}(腳本|劇本|分鏡|故事大綱|story outline|script|storyboard)/i.test(trimmed) &&
     !hits.image && !hits.music && !hits.voice && !hits.sfx;
   if (wantsScriptOnly) {
-    return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
+    return askScriptWizard();
   }
 
   // Video usually subsumes the other modalities (a short film naturally
@@ -1389,10 +1424,11 @@ export function detectCreationIntent(
     return detectVideoIntent(trimmed, preferences);
   }
 
-  // Pure script / planning request — script is structured text, not a media
-  // generation, so we never ask follow-up questions here.
+  // Pure script / planning request — script is structured text rather than a
+  // media generation, but the brief still needs片長／主題／風格／平台 before
+  // we can hand it to the director AI, so route through the same wizard.
   if (hits.script && !hits.image && !hits.music && !hits.voice && !hits.sfx) {
-    return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
+    return askScriptWizard();
   }
 
   // Audio cluster — music vs voice vs sfx. If the user mixed multiple audio
