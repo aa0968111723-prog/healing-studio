@@ -624,6 +624,83 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 品品（critic）結構化評審工具：五個唯讀工具，純函式（無 DB / 無 LLM）──
+  // 之前 critic tools=[]，評審只能憑 LLM 即興；接上這五個工具後品品能：
+  //   ① critic.review         — 結構化評審（亮點 + 改進 + dimensionScores + suggestedHandoff）
+  //   ② critic.score          — 純打分 + weakDimensions（給 proactive trigger 用）
+  //   ③ critic.compare        — 多輪迭代比較（winner + improved / regressed dims）
+  //   ④ critic.suggestRewrite — 1-3 個可貼的 prompt 改寫版（每版只動 1-2 維度）
+  //   ⑤ critic.planHandoff    — critique 類型 → 下一棒精靈（編編 / 巧巧 / 查查 / 靈靈）
+  // 全部無扣點 / 無副作用，requiresHuman=false 可放心給 LLM 直接呼叫。
+  {
+    name: "critic.review",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      prompt: "string?",
+      negativePrompt: "string?",
+      modelId: "string?",
+      aspect: "string?",
+      durationSec: "number?",
+      goal: "string?",
+      userFeedback: "string?",
+      iteration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.score",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      prompt: "string?",
+      negativePrompt: "string?",
+      modelId: "string?",
+      aspect: "string?",
+      durationSec: "number?",
+      goal: "string?",
+      userFeedback: "string?",
+      iteration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      iterations: "object[]",
+      goal: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.suggestRewrite",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      originalPrompt: "string",
+      targetDimensions: "string[]?",
+      goal: "string?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "critic.planHandoff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      critiqueType: "string",
+      userAcceptedFix: "boolean?",
+      suggestedHandoff: "object?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 記記（notes-curator）筆記、待辦、行事曆與資產管理工具 ──
   {
     name: "notesCurator.createNote",

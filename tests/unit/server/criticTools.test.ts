@@ -68,6 +68,116 @@ describe("reviewAsset", () => {
     expect(clarity!.priority).toBe("high");
   });
 
+  it("maps 'muddy/blurry' feedback to modality-appropriate dimensions only", () => {
+    // image / video → subject_clarity (out of rubric leakage was the bug)
+    const image = reviewAsset({
+      modality: "image",
+      prompt: "a cat",
+      userFeedback: "muddy",
+      iteration: 1,
+    });
+    const imageRubricKeys = new Set(image.rubric.map(r => r.key));
+    image.improvements.forEach(i => {
+      expect(imageRubricKeys.has(i.dimension)).toBe(true);
+    });
+
+    // music → mix_balance (NOT subject_clarity which doesn't exist in music rubric)
+    const music = reviewAsset({
+      modality: "music",
+      prompt: "a song",
+      userFeedback: "聽起來糊",
+      iteration: 1,
+    });
+    const musicRubricKeys = new Set(music.rubric.map(r => r.key));
+    music.improvements.forEach(i => {
+      expect(musicRubricKeys.has(i.dimension)).toBe(true);
+    });
+    expect(music.improvements.some(i => i.dimension === "mix_balance")).toBe(true);
+    expect(music.improvements.some(i => i.dimension === "subject_clarity")).toBe(false);
+
+    // voice → audio_quality
+    const voice = reviewAsset({
+      modality: "voice",
+      prompt: "narration",
+      userFeedback: "muddy recording",
+      iteration: 1,
+    });
+    const voiceRubricKeys = new Set(voice.rubric.map(r => r.key));
+    voice.improvements.forEach(i => {
+      expect(voiceRubricKeys.has(i.dimension)).toBe(true);
+    });
+
+    // text → concision (NOT detail_quality which doesn't exist in text rubric)
+    const text = reviewAsset({
+      modality: "text",
+      prompt: "ad copy",
+      userFeedback: "feels muddy",
+      iteration: 1,
+    });
+    const textRubricKeys = new Set(text.rubric.map(r => r.key));
+    text.improvements.forEach(i => {
+      expect(textRubricKeys.has(i.dimension)).toBe(true);
+    });
+    expect(text.improvements.some(i => i.dimension === "detail_quality")).toBe(false);
+  });
+
+  it("maps 'pacing' / 'loop' feedback only to modalities where those dims exist", () => {
+    // image has no pacing — feedback should not produce a pacing improvement
+    const image = reviewAsset({
+      modality: "image",
+      prompt: "a cat",
+      userFeedback: "節奏太快",
+      iteration: 1,
+    });
+    expect(image.improvements.some(i => i.dimension === "pacing")).toBe(false);
+
+    // music has no pacing — should fall back to dynamic_range
+    const music = reviewAsset({
+      modality: "music",
+      prompt: "a song",
+      userFeedback: "rhythm 太快",
+      iteration: 1,
+    });
+    expect(music.improvements.some(i => i.dimension === "pacing")).toBe(false);
+
+    // text doesn't have loop — loop feedback should not produce loop_seamlessness
+    const text = reviewAsset({
+      modality: "text",
+      prompt: "ad copy",
+      userFeedback: "loop 接不起來",
+      iteration: 1,
+    });
+    expect(text.improvements.some(i => i.dimension === "loop_seamlessness")).toBe(false);
+
+    // music does have loop — should still produce loop_seamlessness
+    const musicLoop = reviewAsset({
+      modality: "music",
+      prompt: "a song",
+      userFeedback: "loop 接不起來",
+      iteration: 1,
+    });
+    expect(
+      musicLoop.improvements.some(i => i.dimension === "loop_seamlessness")
+    ).toBe(true);
+  });
+
+  it("registers every critic.* tool in the global agent tool registry", async () => {
+    const { getGlobalAgentTool } = await import("../../../shared/global-agent-tools");
+    const names = [
+      "critic.review",
+      "critic.score",
+      "critic.compare",
+      "critic.suggestRewrite",
+      "critic.planHandoff",
+    ];
+    for (const name of names) {
+      const def = getGlobalAgentTool(name);
+      expect(def, `${name} should be in global-agent-tools.ts`).not.toBeNull();
+      expect(def!.executionTarget).toBe("server-side");
+      expect(def!.requiresHuman).toBe(false);
+    }
+  });
+
   it("returns deterministic scores for same input", () => {
     const a = reviewAsset({ modality: "image", prompt: "test prompt", iteration: 1 });
     const b = reviewAsset({ modality: "image", prompt: "test prompt", iteration: 1 });

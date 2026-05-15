@@ -440,10 +440,31 @@ function detectWeaknesses(input: ReviewAssetInput): DetectedWeakness[] {
   const promptLower = prompt.toLowerCase();
   const feedback = (input.userFeedback ?? "").toLowerCase();
 
-  // 使用者明說的不滿可以直接 map 到對應維度
-  if (/糊|模糊|不清楚|blurry|out of focus/.test(feedback)) {
-    pushWeakness(out, "subject_clarity", "high");
-    pushWeakness(out, "detail_quality", "medium");
+  // 使用者明說的不滿可以直接 map 到對應維度。每個 feedback pattern
+  // 必須 gate 在「該維度真的存在於當前 modality 的 rubric」之下，
+  // 否則 buildImprovements 會吐出不屬於當前 rubric 的維度（例如把
+  // image 的 subject_clarity 套到 text/voice 上），造成評審不一致。
+  // ── 「糊 / muddy / blurry」依模態映射到不同維度 ──
+  if (/糊|模糊|不清楚|blurry|out of focus|muddy/.test(feedback)) {
+    if (input.modality === "image" || input.modality === "video") {
+      // 視覺模態：主體模糊 → subject_clarity；紋理糊 → detail_quality
+      pushWeakness(out, "subject_clarity", "high");
+      if (input.modality === "image") {
+        pushWeakness(out, "detail_quality", "medium");
+      }
+    }
+    if (input.modality === "music") {
+      // 音樂「混在一起聽不清」→ mix balance
+      pushWeakness(out, "mix_balance", "high");
+    }
+    if (input.modality === "voice") {
+      // 語音「糊」通常是錄音底噪 / 壓縮
+      pushWeakness(out, "audio_quality", "high");
+    }
+    if (input.modality === "text") {
+      // 文字「糊」→ 不夠精簡 / 邏輯亂
+      pushWeakness(out, "concision", "medium");
+    }
   }
   if (/沒感覺|不夠|平|沒亮點|boring|flat/.test(feedback)) {
     if (input.modality === "image" || input.modality === "video") {
@@ -457,11 +478,25 @@ function detectWeaknesses(input: ReviewAssetInput): DetectedWeakness[] {
       pushWeakness(out, "hook", "high");
     }
   }
+  // pacing 只存在於 video / voice / text rubric — image / music 沒有此維度
   if (/節奏|太快|太慢|pacing|rhythm/.test(feedback)) {
-    pushWeakness(out, "pacing", "high");
+    if (
+      input.modality === "video" ||
+      input.modality === "voice" ||
+      input.modality === "text"
+    ) {
+      pushWeakness(out, "pacing", "high");
+    } else if (input.modality === "music") {
+      // 音樂節奏問題映射到 dynamic_range / structure（最接近的維度）
+      pushWeakness(out, "dynamic_range", "high");
+    }
+    // image：沒有 pacing 概念，忽略
   }
+  // loop seamlessness 只存在於 music rubric
   if (/loop|循環|接不起來/.test(feedback)) {
-    pushWeakness(out, "loop_seamlessness", "high");
+    if (input.modality === "music") {
+      pushWeakness(out, "loop_seamlessness", "high");
+    }
   }
 
   // Prompt 太短 → 細節維度往往不足
