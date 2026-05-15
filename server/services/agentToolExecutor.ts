@@ -2143,7 +2143,10 @@ async function dispatchStudioTool(
       case "accountant.estimate":
       case "accountant.compare":
       case "accountant.usage":
-      case "accountant.savings": {
+      case "accountant.savings":
+      case "accountant.budget":
+      case "accountant.trend":
+      case "accountant.forecast": {
         const accountantResult = await dispatchAccountantTool(call, opts);
         return accountantResult;
       }
@@ -2181,7 +2184,15 @@ async function dispatchStudioTool(
       case "voiceSpecialist.generateSpeech":
       case "voiceSpecialist.transcribe":
       case "voiceSpecialist.getVoices":
-      case "voiceSpecialist.getTips": {
+      case "voiceSpecialist.getTips":
+      case "voiceSpecialist.recommendModel":
+      case "voiceSpecialist.listVoices":
+      case "voiceSpecialist.checkCloneSample":
+      case "voiceSpecialist.estimateCost":
+      case "voiceSpecialist.detectLanguage":
+      case "voiceSpecialist.cloneVoice":
+      case "voiceSpecialist.designVoice":
+      case "voiceSpecialist.changeVoice": {
         const voiceResult = await dispatchVoiceSpecialistTool(call, opts);
         return voiceResult;
       }
@@ -2404,6 +2415,9 @@ async function dispatchAccountantTool(
     compareModels,
     getMonthlyUsage,
     suggestSavings,
+    getBudget,
+    getDailyTrend,
+    getForecast,
   } = await import("./spiritTools/accountantTools");
   const { MODEL_PRICING_CATALOG } = await import("./modelPricing");
 
@@ -2470,6 +2484,26 @@ async function dispatchAccountantTool(
           charCount: typeof args.charCount === "number" ? args.charCount : undefined,
           imageCount: typeof args.imageCount === "number" ? args.imageCount : undefined,
           limit: typeof args.limit === "number" ? args.limit : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.budget": {
+        const result = await getBudget(opts.userId);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.trend": {
+        const result = await getDailyTrend(opts.userId, {
+          days: typeof args.days === "number" ? args.days : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "accountant.forecast": {
+        const result = await getForecast(opts.userId, {
+          observationDays:
+            typeof args.observationDays === "number" ? args.observationDays : undefined,
         });
         return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
@@ -3466,6 +3500,14 @@ async function dispatchVoiceSpecialistTool(
     transcribeAudio,
     getAvailableVoices,
     getVoiceGenerationTips,
+    recommendModel,
+    listVoices,
+    checkCloneSample,
+    estimateVoiceCost,
+    detectLanguage,
+    cloneVoiceJob,
+    designVoiceJob,
+    changeVoiceJob,
   } = await import("./spiritTools/voiceSpecialistTools");
 
   const args = (call.args ?? {}) as Record<string, unknown>;
@@ -3475,22 +3517,19 @@ async function dispatchVoiceSpecialistTool(
       case "voiceSpecialist.generateSpeech": {
         const text = args.text as string;
         if (!text) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "text is required",
-          };
+          return { name: call.name, ok: false, error: "text is required" };
         }
-
         const result = await generateSpeech({
           userId: opts.userId,
           text,
-          voiceId: args.voiceId as string | undefined,
-          language: args.language as string | undefined,
-          speed: args.speed as number | undefined,
-          emotion: args.emotion as string | undefined,
+          modelId: typeof args.modelId === "string" ? args.modelId : undefined,
+          voiceId: typeof args.voiceId === "string" ? args.voiceId : undefined,
+          language: typeof args.language === "string" ? args.language : undefined,
+          stability: typeof args.stability === "number" ? args.stability : undefined,
+          similarityBoost:
+            typeof args.similarityBoost === "number" ? args.similarityBoost : undefined,
+          style: typeof args.style === "number" ? args.style : undefined,
         });
-
         return {
           name: call.name,
           ok: result.success,
@@ -3503,19 +3542,13 @@ async function dispatchVoiceSpecialistTool(
       case "voiceSpecialist.transcribe": {
         const audioUrl = args.audioUrl as string;
         if (!audioUrl) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "audioUrl is required",
-          };
+          return { name: call.name, ok: false, error: "audioUrl is required" };
         }
-
         const result = await transcribeAudio({
           userId: opts.userId,
           audioUrl,
-          language: args.language as string | undefined,
+          language: typeof args.language === "string" ? args.language : undefined,
         });
-
         return {
           name: call.name,
           ok: result.success,
@@ -3527,21 +3560,136 @@ async function dispatchVoiceSpecialistTool(
 
       case "voiceSpecialist.getVoices": {
         const result = getAvailableVoices();
-        return {
-          name: call.name,
-          ok: result.success,
-          data: result,
-          usedTool: call.name,
-        };
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
       }
 
       case "voiceSpecialist.getTips": {
         const result = getVoiceGenerationTips();
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "voiceSpecialist.recommendModel": {
+        const result = recommendModel({
+          prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+          language: typeof args.language === "string" ? args.language : undefined,
+          tone: typeof args.tone === "string" ? args.tone : undefined,
+          priority:
+            args.priority === "speed" || args.priority === "quality" || args.priority === "cheap"
+              ? args.priority
+              : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "voiceSpecialist.listVoices": {
+        const result = listVoices({
+          language: typeof args.language === "string" ? args.language : undefined,
+          gender:
+            args.gender === "male" || args.gender === "female" || args.gender === "neutral"
+              ? args.gender
+              : undefined,
+        });
+        return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "voiceSpecialist.checkCloneSample": {
+        const durationSec = typeof args.durationSec === "number" ? args.durationSec : NaN;
+        if (!Number.isFinite(durationSec) || durationSec <= 0) {
+          return { name: call.name, ok: false, error: "durationSec is required (positive number)" };
+        }
+        const result = checkCloneSample({
+          durationSec,
+          mimeType: typeof args.mimeType === "string" ? args.mimeType : undefined,
+          sizeMb: typeof args.sizeMb === "number" ? args.sizeMb : undefined,
+          engine:
+            args.engine === "elevenlabs" || args.engine === "qwen" || args.engine === "auto"
+              ? args.engine
+              : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "voiceSpecialist.estimateCost": {
+        const modelId = typeof args.modelId === "string" ? args.modelId.trim() : "";
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = await estimateVoiceCost({
+          modelId,
+          charCount: typeof args.charCount === "number" ? args.charCount : undefined,
+          durationSec: typeof args.durationSec === "number" ? args.durationSec : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "voiceSpecialist.detectLanguage": {
+        const text = typeof args.text === "string" ? args.text : "";
+        const result = detectLanguage(text);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "voiceSpecialist.cloneVoice": {
+        const audioUrl = typeof args.audioUrl === "string" ? args.audioUrl : "";
+        if (!audioUrl) {
+          return { name: call.name, ok: false, error: "audioUrl is required" };
+        }
+        const result = await cloneVoiceJob({
+          userId: opts.userId,
+          audioUrl,
+          engine:
+            args.engine === "elevenlabs" || args.engine === "qwen" ? args.engine : undefined,
+          voiceName: typeof args.voiceName === "string" ? args.voiceName : undefined,
+        });
         return {
           name: call.name,
           ok: result.success,
           data: result,
           usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.designVoice": {
+        const voiceDescription =
+          typeof args.voiceDescription === "string" ? args.voiceDescription : "";
+        if (!voiceDescription) {
+          return { name: call.name, ok: false, error: "voiceDescription is required" };
+        }
+        const result = await designVoiceJob({
+          userId: opts.userId,
+          voiceDescription,
+          previewText: typeof args.previewText === "string" ? args.previewText : undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.changeVoice": {
+        const audioUrl = typeof args.audioUrl === "string" ? args.audioUrl : "";
+        const voiceId = typeof args.voiceId === "string" ? args.voiceId : "";
+        if (!audioUrl || !voiceId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "audioUrl and voiceId are required",
+          };
+        }
+        const result = await changeVoiceJob({
+          userId: opts.userId,
+          audioUrl,
+          voiceId,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
         };
       }
 

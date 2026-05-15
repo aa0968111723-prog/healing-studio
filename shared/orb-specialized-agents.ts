@@ -128,8 +128,20 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
   {
     agentId: "voice-specialist",
     displayName: "語音精靈",
-    description: "專精於語音生成與配音，熟悉語音克隆、語音合成、變聲技術",
+    description: "專精於語音生成與配音，熟悉語音克隆、語音合成、變聲技術；具備推薦引擎 / 樣本健檢 / 語言偵測等 AI agent 能力",
     primaryTools: [
+      // ── 自家 namespace（voiceSpecialist.*）：AI agent 工具 ──
+      "voiceSpecialist.recommendModel",
+      "voiceSpecialist.listVoices",
+      "voiceSpecialist.checkCloneSample",
+      "voiceSpecialist.detectLanguage",
+      "voiceSpecialist.estimateCost",
+      "voiceSpecialist.generateSpeech",
+      "voiceSpecialist.cloneVoice",
+      "voiceSpecialist.designVoice",
+      "voiceSpecialist.changeVoice",
+      "voiceSpecialist.transcribe",
+      // ── studio.* namespace：與 composer / proStudio 共用的低階 dispatch ──
       "studio.generateVoice",
       "studio.cloneVoice",
       "studio.designVoice",
