@@ -2227,7 +2227,15 @@ async function dispatchStudioTool(
 
       case "voiceSpecialist.generateSpeech":
       case "voiceSpecialist.transcribe":
+      case "voiceSpecialist.cloneVoice":
+      case "voiceSpecialist.designVoice":
+      case "voiceSpecialist.changeVoice":
+      case "voiceSpecialist.generateSfx":
       case "voiceSpecialist.getVoices":
+      case "voiceSpecialist.pickVoice":
+      case "voiceSpecialist.recommendModel":
+      case "voiceSpecialist.planVoiceover":
+      case "voiceSpecialist.getEmotionTags":
       case "voiceSpecialist.getTips": {
         const voiceResult = await dispatchVoiceSpecialistTool(call, opts);
         return voiceResult;
@@ -3930,7 +3938,15 @@ async function dispatchVoiceSpecialistTool(
   const {
     generateSpeech,
     transcribeAudio,
+    cloneVoice,
+    designVoice,
+    changeVoice,
+    generateSfx,
     getAvailableVoices,
+    pickVoice,
+    recommendModel,
+    planVoiceover,
+    getEmotionTags,
     getVoiceGenerationTips,
   } = await import("./spiritTools/voiceSpecialistTools");
 
@@ -3941,22 +3957,22 @@ async function dispatchVoiceSpecialistTool(
       case "voiceSpecialist.generateSpeech": {
         const text = args.text as string;
         if (!text) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "text is required",
-          };
+          return { name: call.name, ok: false, error: "text is required" };
         }
-
         const result = await generateSpeech({
           userId: opts.userId,
           text,
           voiceId: args.voiceId as string | undefined,
           language: args.language as string | undefined,
           speed: args.speed as number | undefined,
-          emotion: args.emotion as string | undefined,
+          emotionTags: Array.isArray(args.emotionTags)
+            ? (args.emotionTags as string[])
+            : undefined,
+          stability: args.stability as number | undefined,
+          similarityBoost: args.similarityBoost as number | undefined,
+          style: args.style as number | undefined,
+          modelId: args.modelId as string | undefined,
         });
-
         return {
           name: call.name,
           ok: result.success,
@@ -3969,19 +3985,107 @@ async function dispatchVoiceSpecialistTool(
       case "voiceSpecialist.transcribe": {
         const audioUrl = args.audioUrl as string;
         if (!audioUrl) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "audioUrl is required",
-          };
+          return { name: call.name, ok: false, error: "audioUrl is required" };
         }
-
         const result = await transcribeAudio({
           userId: opts.userId,
           audioUrl,
           language: args.language as string | undefined,
         });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
 
+      case "voiceSpecialist.cloneVoice": {
+        const audioUrl = args.audioUrl as string;
+        if (!audioUrl) {
+          return { name: call.name, ok: false, error: "audioUrl is required" };
+        }
+        const result = await cloneVoice({
+          userId: opts.userId,
+          audioUrl,
+          name: args.name as string | undefined,
+          description: args.description as string | undefined,
+          modelId: args.modelId as string | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.designVoice": {
+        const description = args.description as string;
+        if (!description) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "description is required",
+          };
+        }
+        const result = await designVoice({
+          userId: opts.userId,
+          description,
+          previewText: args.previewText as string | undefined,
+          modelId: args.modelId as string | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.changeVoice": {
+        const audioUrl = args.audioUrl as string;
+        const voiceId = args.voiceId as string;
+        if (!audioUrl || !voiceId) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "audioUrl and voiceId are required",
+          };
+        }
+        const result = await changeVoice({
+          userId: opts.userId,
+          audioUrl,
+          voiceId,
+          removeBackgroundNoise:
+            args.removeBackgroundNoise as boolean | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.message }),
+        };
+      }
+
+      case "voiceSpecialist.generateSfx": {
+        const description = args.description as string;
+        if (!description) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "description is required",
+          };
+        }
+        const result = await generateSfx({
+          userId: opts.userId,
+          description,
+          durationSeconds: args.durationSeconds as number | undefined,
+        });
         return {
           name: call.name,
           ok: result.success,
@@ -3992,7 +4096,80 @@ async function dispatchVoiceSpecialistTool(
       }
 
       case "voiceSpecialist.getVoices": {
-        const result = getAvailableVoices();
+        const result = getAvailableVoices({
+          gender: args.gender as "male" | "female" | "neutral" | undefined,
+          language: args.language as string | undefined,
+          mood: args.mood as string | undefined,
+          limit: args.limit as number | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "voiceSpecialist.pickVoice": {
+        const result = pickVoice({
+          language: args.language as string | undefined,
+          gender: args.gender as "male" | "female" | "neutral" | undefined,
+          scenario: args.scenario as string | undefined,
+          mood: args.mood as string | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "voiceSpecialist.recommendModel": {
+        const result = recommendModel({
+          language: args.language as string | undefined,
+          scenario: args.scenario as string | undefined,
+          needsEmotion: args.needsEmotion as boolean | undefined,
+          needsLowLatency: args.needsLowLatency as boolean | undefined,
+          needsMultiSpeaker: args.needsMultiSpeaker as boolean | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+        };
+      }
+
+      case "voiceSpecialist.planVoiceover": {
+        const script = args.script as string;
+        if (!script) {
+          return { name: call.name, ok: false, error: "script is required" };
+        }
+        const result = planVoiceover({
+          script,
+          baseEmotion: args.baseEmotion as
+            | "neutral"
+            | "calm"
+            | "warm"
+            | "excited"
+            | "serious"
+            | "playful"
+            | undefined,
+          multiSpeaker: args.multiSpeaker as boolean | undefined,
+          charsPerSecond: args.charsPerSecond as number | undefined,
+        });
+        return {
+          name: call.name,
+          ok: result.success,
+          data: result,
+          usedTool: call.name,
+          ...(result.success ? {} : { error: result.reasoning }),
+        };
+      }
+
+      case "voiceSpecialist.getEmotionTags": {
+        const result = getEmotionTags();
         return {
           name: call.name,
           ok: result.success,
@@ -4002,7 +4179,7 @@ async function dispatchVoiceSpecialistTool(
       }
 
       case "voiceSpecialist.getTips": {
-        const result = getVoiceGenerationTips();
+        const result = getVoiceGenerationTips(args.scenario as string | undefined);
         return {
           name: call.name,
           ok: result.success,
