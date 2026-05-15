@@ -19,7 +19,7 @@ Healing Studio 的 AI 精靈系統包含 **25 個專業精靈**，分為三大�
 |-----|-----|---------|-------------|-----|
 | 圖圖 🎨 | `imageSpecialist` | 圖像生成/編輯/放大 | 5 tools | ✅ |
 | 影影 🎬 | `videoSpecialist` | 影片生成/動畫/對嘴 | 5 tools | ✅ |
-| 聲聲 🎙️ | `voiceSpecialist` | 語音合成/克隆/轉錄 | 4 tools | ✅ |
+| 聲聲 🎙️ | `voiceSpecialist` | 語音合成/克隆/轉錄/規劃 (AI agent) | 12 tools | ✅ |
 | 學學 📚 | `learningSpecialist` | 教學/導引/新手幫助 | 3 tools | ✅ |
 | 音音 🎵 | `musicSpecialist` | 音樂/音效生成 | 4 tools | ✅ |
 | 練練 🧪 | `trainingSpecialist` | LoRA 訓練/模型微調 | 3 tools | ✅ |
@@ -143,11 +143,19 @@ healing-studio/
 - `videoSpecialist.getModels` - 獲取可用模型
 - `videoSpecialist.getTips` - 獲取使用技巧
 
-#### voiceSpecialist (聲聲)
-- `voiceSpecialist.generateSpeech` - 語音合成
-- `voiceSpecialist.transcribe` - 語音轉文字
-- `voiceSpecialist.getVoices` - 獲取可用聲音
-- `voiceSpecialist.getTips` - 獲取使用技巧
+#### voiceSpecialist (聲聲) — 12 tools, true voice agent
+- `voiceSpecialist.generateSpeech` - 語音合成（自動依語言挑引擎、真實 voice_id、支援情緒標籤 / voice_settings）
+- `voiceSpecialist.transcribe` - 語音轉文字（含 word-level timestamps + speaker diarization）
+- `voiceSpecialist.cloneVoice` - 上傳音檔克隆永久聲線（ElevenLabs IVC，缺 key 退回 Qwen zero-shot）
+- `voiceSpecialist.designVoice` - 以文字描述設計虛擬聲線
+- `voiceSpecialist.changeVoice` - 聲音變換（換音色保留情緒）
+- `voiceSpecialist.generateSfx` - 音效生成
+- `voiceSpecialist.getVoices` - 過濾聲線目錄（gender / language / mood）
+- `voiceSpecialist.pickVoice` - **agentic**：依 scenario + language + mood 推薦首選 + 替代聲線
+- `voiceSpecialist.recommendModel` - **agentic**：推薦最適 TTS 引擎（V3 / Multilingual / Turbo / Flash / Qwen）
+- `voiceSpecialist.planVoiceover` - **agentic**：長劇本切段 + 情緒標籤 + 停頓 + 時長估算
+- `voiceSpecialist.getEmotionTags` - 列出 V3 支援的情緒 / 表演 / 停頓標籤
+- `voiceSpecialist.getTips` - 按情境（meditation / narration / advertisement / podcast …）回訣竅
 
 #### learningSpecialist (學學)
 - `learningSpecialist.getTutorial` - 獲取教程
