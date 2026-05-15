@@ -14,13 +14,20 @@ import { resolve } from "node:path";
  * landing without brain wiring on review.
  */
 describe("Director router invokeLLM brain-config wiring", () => {
-  // Scan both the router and the extracted costarService — invokeLLM calls
-  // from runDirectorAI live in services/director/costarService.ts after the
-  // Phase 4 reorganization.
+  // Scan the router plus every extracted service file — invokeLLM calls
+  // moved out of server/routers/director.ts during the Phase 4
+  // reorganization (costarService, scriptAnalysisService).
   const source = [
     readFileSync(resolve(process.cwd(), "server/routers/director.ts"), "utf8"),
     readFileSync(
       resolve(process.cwd(), "server/services/director/costarService.ts"),
+      "utf8"
+    ),
+    readFileSync(
+      resolve(
+        process.cwd(),
+        "server/services/director/scriptAnalysisService.ts"
+      ),
       "utf8"
     ),
   ].join("\n");
