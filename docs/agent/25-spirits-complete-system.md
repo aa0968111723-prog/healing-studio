@@ -30,7 +30,7 @@ Healing Studio 的 AI 精靈系統包含 **25 個專業精靈**，分為三大�
 |-----|-----|---------|-------------|-----|
 | 法法 ⚖️ | `legalAdvisor` | 法律合規/授權檢查 | 3 tools | ✅ |
 | 守守 🛡️ | `securityGuard` | 安全監控/健康檢查 | 4 tools | ✅ |
-| 社社 👥 | `communityManager` | 社群互動/反饋管理 | 4 tools | ✅ |
+| 群群 📣 | `communityManager` | 社群平台經營 (IG/TikTok/小紅書/YT)：貼文公式 + hashtag + 排程 | 7 tools | ✅ |
 | 引引 🌟 | `onboardingCoach` | 新手引導/快速上手 | 3 tools | ✅ |
 | 執執 ⚙️ | `planExecutor` | 工作流程執行/計畫管理 | 4 tools | ✅ |
 | 靈靈 💡 | `inspirationSpecialist` | 趨勢研究/創意靈感 | 4 tools | ✅ |
@@ -178,11 +178,14 @@ healing-studio/
 - `securityGuard.getRecommendations` - 獲取安全建議
 - `securityGuard.reportIssue` - 報告安全問題
 
-#### communityManager (社社)
-- `communityManager.submitFeedback` - 提交反饋
-- `communityManager.getUserFeedback` - 獲取用戶反饋
-- `communityManager.getAnnouncements` - 獲取公告
-- `communityManager.getEngagementTips` - 獲取互動技巧
+#### communityManager (群群)
+- `communityManager.buildPostPlan` - 依平台 / 受眾年齡 / 主題 / 素材輸出完整貼文計畫（鉤子→衝突→揭曉→CTA + 規格 + hashtag + 時段）
+- `communityManager.nextClarification` - 缺欄位時主動問下一個（platform / audienceAge / theme / assetType / goal）
+- `communityManager.recommendHashtags` - 平台 hashtag budget 內的廣/中/窄組合
+- `communityManager.planWeeklySchedule` - 跨平台週節奏排程（台灣 timezone 最佳時段）
+- `communityManager.critiqueHook` - 鉤子四維評分（attention / specificity / cta / platformFit）+ 改寫示範
+- `communityManager.formatCaption` - 依平台慣例重排 caption（IG 段落 / TikTok 短句 / 小紅書條列 / YT 第一行強 hook）
+- `communityManager.listPlatforms` - 列出支援平台與元資料
 
 #### onboardingCoach (引引)
 - `onboardingCoach.startOnboarding` - 開始引導流程
@@ -254,7 +257,7 @@ healing-studio/
 #### This PR - 支援管理精靈 (2026-05-11)
 - ✅ Legal Advisor Tools (法法 3 個)
 - ✅ Security Guard Tools (守守 4 個)
-- ✅ Community Manager Tools (社社 4 個)
+- ✅ Community Manager Tools (群群 7 個 — 2026-05-15 重寫對齊角色)
 - ✅ Onboarding Coach Tools (引引 3 個)
 - ✅ Plan Executor Tools (執執 4 個)
 - ✅ Inspiration Specialist Tools (靈靈 4 個)

@@ -179,7 +179,7 @@
 | 15 學學 | ✅ | ✅ | ⚠️ 同上 | n/a | ✅ /learn | ⚠️ |
 | 16 律律 | ✅ | ✅ | ⚠️ tool 未接 | ❌ `ip_risk_detected` 零 publisher | ❌ /legal 不存在 | ❌ |
 | 17 安安 | ✅ | ✅ | ⚠️ tool 未接 | ❌ `credential_leak_detected` 零 publisher（含資安阻擋） | ❌ /security 不存在 | ❌ |
-| 18 群群 | ✅ | ✅ | ⚠️ tool 未接 | ❌ `social_post_ready` 零 publisher | ❌ /social、/community 不存在 | ❌ |
+| 18 群群 | ✅ | ✅ | ✅ 7 個社群經營工具 (buildPostPlan / nextClarification / recommendHashtags / planWeeklySchedule / critiqueHook / formatCaption / listPlatforms) | ✅ `social_post_ready` publisher 已在 spiritWatchers | ⚠️ /social、/community 不存在但 /image-studio + /video-studio 可承接素材製作 | ✅ |
 | 19 總總 | ✅ | ✅ | ✅ orchestratorTools 已 wired (`orbProxyRouter`) | ❌ `team_status_overview` 零 publisher | ❌ /team、/agents 不存在 | ⚠️ |
 | 20 帶帶 | ✅ | ✅ | ⚠️ tool 未接 | ❌ `user_stuck_detected` 零 publisher | n/a | ❌ |
 | 21 記記 | ✅ | ✅ | ⚠️ tool 未接 | ❌ `notes_capture_suggested` 零 publisher | ⚠️ /notes、/assets、/calendar ✅，/schedule ❌ | ⚠️ |
