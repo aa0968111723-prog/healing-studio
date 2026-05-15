@@ -75,7 +75,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import VisualSoul from "@/components/VisualSoul";
-import { BatchGenerationDialog } from "./DirectorAI_batch_dialog";
+import { BatchGenerationDialog } from "@/components/director/BatchGenerationDialog";
 import { useAIState } from "@/contexts/AIStateContext";
 import {
   useRegisterPageAgent,
