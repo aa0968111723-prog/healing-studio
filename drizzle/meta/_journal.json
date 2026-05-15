@@ -267,6 +267,13 @@
       "when": 1779050000006,
       "tag": "0038_users_orb_memory_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1779050000045,
+      "tag": "0045_notes_curator_enhancements",
+      "breakpoints": true
     }
   ]
 }

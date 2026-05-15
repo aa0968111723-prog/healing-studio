@@ -462,6 +462,44 @@ export async function executeOrbToolCalls(
       continue;
     }
 
+    // ── research.compareModels：站內模型 catalogue 結構化比較（查查專用） ──
+    // 純資料工具，不打 LLM、不過 Perplexity 節流。
+    if (call.name === "research.compareModels") {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      const compareResult = await dispatchCompareModelsTool(call);
+      out.push(compareResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: compareResult.usedTool,
+        ok: compareResult.ok,
+        error: compareResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     // ── inspiration.fetch：Perplexity Sonar 即時靈感 / 時事 / 社群偏好 ──
     if (call.name === "inspiration.fetch") {
       if ((opts.blockedTools ?? []).includes(call.name)) {
@@ -2082,26 +2120,19 @@ async function dispatchStudioTool(
       // notesCurator.* tools for notes-curator (記記)
       // ════════════════════════════════════════════════════════════════════
 
-      case "notesCurator.createNote": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
-      case "notesCurator.searchNotes": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
-      case "notesCurator.scheduleTask": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
-      case "notesCurator.tagAssets": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
+      case "notesCurator.createNote":
+      case "notesCurator.searchNotes":
+      case "notesCurator.listNotes":
+      case "notesCurator.updateNote":
+      case "notesCurator.updateNoteStatus":
+      case "notesCurator.deleteNote":
+      case "notesCurator.scheduleTask":
+      case "notesCurator.scheduleEvent":
+      case "notesCurator.listUpcoming":
+      case "notesCurator.summarizeRecent":
+      case "notesCurator.tagAssets":
+      case "notesCurator.categorizeAsset":
+      case "notesCurator.searchAssets":
       case "notesCurator.getAssetStatistics": {
         const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
         return notesCuratorResult;
@@ -2300,7 +2331,12 @@ async function dispatchStudioTool(
 
       case "anatomySpecialist.buildPrompt":
       case "anatomySpecialist.nextClarification":
-      case "anatomySpecialist.labelChecklist": {
+      case "anatomySpecialist.labelChecklist":
+      case "anatomySpecialist.parseIntent":
+      case "anatomySpecialist.buildMultiViewBatch":
+      case "anatomySpecialist.verifyResult":
+      case "anatomySpecialist.recommendModels":
+      case "anatomySpecialist.summarize": {
         const anatomyResult = await dispatchAnatomySpecialistTool(call, opts);
         return anatomyResult;
       }
@@ -2868,186 +2904,328 @@ async function dispatchOrchestratorTool(
 
 /**
  * 把光球發出的 notesCurator.* 工具呼叫橋接到 notesCuratorTools 服務。
- * 提供記記（notes-curator）筆記與資產管理的能力：
- * - notesCurator.createNote: 建立新筆記
- * - notesCurator.searchNotes: 搜尋筆記
- * - notesCurator.scheduleTask: 排程任務
- * - notesCurator.tagAssets: 為資產加上標籤
- * - notesCurator.getAssetStatistics: 取得資產統計與建議
+ * 提供記記（notes-curator）筆記、待辦、行事曆與資產管理的完整能力：
+ *
+ * 筆記 / 待辦：
+ * - notesCurator.createNote: 建立筆記 / 腳本 / 行事曆事件
+ * - notesCurator.searchNotes: 依關鍵字搜尋筆記（可附 noteType / status filter）
+ * - notesCurator.listNotes: 列出筆記（可依 noteType / status / category / tag 篩選）
+ * - notesCurator.updateNote: 修改既有筆記
+ * - notesCurator.updateNoteStatus: 標記任務 todo → in_progress → done
+ * - notesCurator.deleteNote: 刪除筆記
+ *
+ * 排程：
+ * - notesCurator.scheduleEvent: 建立行事曆事件（推薦使用）
+ * - notesCurator.scheduleTask: 舊版 alias，內部走 scheduleEvent
+ * - notesCurator.listUpcoming: 近期即將到來的事件（預設 7 天）
+ * - notesCurator.summarizeRecent: 近期活動摘要（記憶用）
+ *
+ * 素材庫：
+ * - notesCurator.tagAssets: 為素材加 / 移除 / 覆蓋標籤
+ * - notesCurator.categorizeAsset: 設定素材分類
+ * - notesCurator.searchAssets: 搜尋素材
+ * - notesCurator.getAssetStatistics: 素材統計與建議
  */
 async function dispatchNotesCuratorTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const {
-    createNote,
-    searchNotes,
-    scheduleTask,
-    tagAssets,
-    getAssetStatistics,
-  } = await import("./spiritTools/notesCuratorTools");
+  const tools = await import("./spiritTools/notesCuratorTools");
 
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  const ok = (data: Record<string, unknown>): OrbToolCallResult => ({
+    name: call.name,
+    ok: true,
+    data,
+    usedTool: call.name,
+  });
+  const fail = (error: string): OrbToolCallResult => ({
+    name: call.name,
+    ok: false,
+    error,
+    usedTool: call.name,
+  });
 
   try {
     switch (call.name) {
       case "notesCurator.createNote": {
         const title = args.title as string;
         const content = args.content as string;
+        if (!title || !content) return fail("title and content are required");
 
-        if (!title || !content) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "title and content are required",
-          };
-        }
-
-        const result = await createNote({
+        const result = await tools.createNote({
           userId: opts.userId,
           title,
           content,
           tags: args.tags as string[] | undefined,
           category: args.category as string | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          scheduledDate: args.scheduledDate as string | undefined,
+          endDate: args.endDate as string | undefined,
+          reminderMinutes: args.reminderMinutes as number | undefined,
+          location: args.location as Parameters<typeof tools.createNote>[0]["location"],
+          meetingUrl: args.meetingUrl as string | undefined,
         });
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            noteId: result.noteId,
-            message: result.message,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          noteId: result.noteId,
+          message: result.message,
+        });
       }
 
       case "notesCurator.searchNotes": {
         const query = args.query as string;
-
-        if (!query) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "query is required",
-          };
-        }
-
-        const result = await searchNotes({
+        if (!query) return fail("query is required");
+        const result = await tools.searchNotes({
           userId: opts.userId,
           query,
           limit: args.limit as number | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          category: args.category as string | undefined,
         });
+        if (!result.success) return fail("search failed");
+        return ok({
+          success: true,
+          notes: result.notes,
+          total: result.total,
+        });
+      }
 
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            notes: result.notes,
-            total: result.total,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: "search failed" }),
-        };
+      case "notesCurator.listNotes": {
+        const result = await tools.listNotes({
+          userId: opts.userId,
+          limit: args.limit as number | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          category: args.category as string | undefined,
+          tag: args.tag as string | undefined,
+        });
+        if (!result.success) return fail("list failed");
+        return ok({
+          success: true,
+          notes: result.notes,
+          total: result.total,
+        });
+      }
+
+      case "notesCurator.updateNote": {
+        const noteId = args.noteId as number;
+        if (!Number.isFinite(noteId)) return fail("noteId is required");
+        const result = await tools.updateNote({
+          userId: opts.userId,
+          noteId,
+          title: args.title as string | undefined,
+          content: args.content as string | undefined,
+          tags: args.tags as string[] | undefined,
+          category: args.category as string | null | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          scheduledDate: args.scheduledDate as string | null | undefined,
+          endDate: args.endDate as string | null | undefined,
+          reminderMinutes: args.reminderMinutes as number | null | undefined,
+          location: args.location as Parameters<typeof tools.updateNote>[0]["location"],
+          meetingUrl: args.meetingUrl as string | null | undefined,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          note: result.note,
+          message: result.message,
+        });
+      }
+
+      case "notesCurator.updateNoteStatus": {
+        const noteId = args.noteId as number;
+        const status = args.status as "todo" | "in_progress" | "done";
+        if (!Number.isFinite(noteId) || !status) {
+          return fail("noteId and status are required");
+        }
+        if (!["todo", "in_progress", "done"].includes(status)) {
+          return fail("status must be todo | in_progress | done");
+        }
+        const result = await tools.updateNoteStatus({
+          userId: opts.userId,
+          noteId,
+          status,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          note: result.note,
+          message: result.message,
+        });
+      }
+
+      case "notesCurator.deleteNote": {
+        const noteId = args.noteId as number;
+        if (!Number.isFinite(noteId)) return fail("noteId is required");
+        const result = await tools.deleteNote({
+          userId: opts.userId,
+          noteId,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({ success: true, message: result.message });
       }
 
       case "notesCurator.scheduleTask": {
         const taskName = args.taskName as string;
         const scheduledFor = args.scheduledFor as string;
-
         if (!taskName || !scheduledFor) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "taskName and scheduledFor are required",
-          };
+          return fail("taskName and scheduledFor are required");
         }
-
-        const result = await scheduleTask({
+        const result = await tools.scheduleTask({
           userId: opts.userId,
           taskName,
           scheduledFor,
           description: args.description as string | undefined,
           metadata: args.metadata as Record<string, unknown> | undefined,
         });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          jobId: result.jobId,
+          message: result.message,
+        });
+      }
 
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            jobId: result.jobId,
-            message: result.message,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+      case "notesCurator.scheduleEvent": {
+        const title = args.title as string;
+        const scheduledFor = args.scheduledFor as string;
+        if (!title || !scheduledFor) {
+          return fail("title and scheduledFor are required");
+        }
+        const result = await tools.scheduleEvent({
+          userId: opts.userId,
+          title,
+          scheduledFor,
+          endDate: args.endDate as string | undefined,
+          description: args.description as string | undefined,
+          reminderMinutes: args.reminderMinutes as number | undefined,
+          location: args.location as Parameters<typeof tools.scheduleEvent>[0]["location"],
+          meetingUrl: args.meetingUrl as string | undefined,
+          tags: args.tags as string[] | undefined,
+          category: args.category as string | undefined,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          eventId: result.eventId,
+          message: result.message,
+        });
+      }
+
+      case "notesCurator.listUpcoming": {
+        const result = await tools.listUpcoming({
+          userId: opts.userId,
+          withinDays: args.withinDays as number | undefined,
+          limit: args.limit as number | undefined,
+          includeStatuses: args.includeStatuses as
+            | Array<"todo" | "in_progress" | "done">
+            | undefined,
+        });
+        if (!result.success) return fail("list upcoming failed");
+        return ok({
+          success: true,
+          events: result.events,
+          windowStart: result.windowStart,
+          windowEnd: result.windowEnd,
+        });
+      }
+
+      case "notesCurator.summarizeRecent": {
+        const result = await tools.summarizeRecentActivity({
+          userId: opts.userId,
+          sinceDays: args.sinceDays as number | undefined,
+        });
+        if (!result.success) return fail("summarize failed");
+        return ok({
+          success: true,
+          sinceDays: result.sinceDays,
+          counts: result.counts,
+          byStatus: result.byStatus,
+          recentTitles: result.recentTitles,
+        });
       }
 
       case "notesCurator.tagAssets": {
         const assetIds = args.assetIds as number[];
         const tags = args.tags as string[];
         const action = (args.action as "add" | "remove" | "replace") || "add";
-
         if (!Array.isArray(assetIds) || !Array.isArray(tags)) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "assetIds and tags must be arrays",
-          };
+          return fail("assetIds and tags must be arrays");
         }
-
-        const result = await tagAssets({
+        const result = await tools.tagAssets({
           userId: opts.userId,
           assetIds,
           tags,
           action,
         });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          updated: result.updated,
+          message: result.message,
+        });
+      }
 
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            updated: result.updated,
-            message: result.message,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+      case "notesCurator.categorizeAsset": {
+        const assetId = args.assetId as number;
+        if (!Number.isFinite(assetId)) return fail("assetId is required");
+        const category =
+          args.category === null || args.category === undefined
+            ? null
+            : String(args.category);
+        const result = await tools.categorizeAsset({
+          userId: opts.userId,
+          assetId,
+          category,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({ success: true, message: result.message });
+      }
+
+      case "notesCurator.searchAssets": {
+        const result = await tools.searchAssets({
+          userId: opts.userId,
+          query: args.query as string | undefined,
+          tag: args.tag as string | undefined,
+          category: args.category as string | undefined,
+          assetType: args.assetType as
+            | "image"
+            | "video"
+            | "audio"
+            | "voice"
+            | "script"
+            | "zip_bundle"
+            | undefined,
+          limit: args.limit as number | undefined,
+        });
+        if (!result.success) return fail("search assets failed");
+        return ok({
+          success: true,
+          assets: result.assets,
+          total: result.total,
+        });
       }
 
       case "notesCurator.getAssetStatistics": {
-        const result = await getAssetStatistics(opts.userId);
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            statistics: result.statistics,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: "failed to get statistics" }),
-        };
+        const result = await tools.getAssetStatistics(opts.userId);
+        if (!result.success) return fail("failed to get statistics");
+        return ok({
+          success: true,
+          statistics: result.statistics,
+        });
       }
 
       default:
-        return {
-          name: call.name,
-          ok: false,
-          error: `unknown notesCurator tool: ${call.name}`,
-        };
+        return fail(`unknown notesCurator tool: ${call.name}`);
     }
   } catch (err) {
-    return {
-      name: call.name,
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return fail(err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -4322,23 +4500,46 @@ async function dispatchAnatomySpecialistTool(
     buildAnatomyPrompt,
     nextClarificationQuestion,
     getLabelChecklistForPart,
+    parseAnatomyIntent,
+    buildMultiViewBatch,
+    verifyAnatomyResult,
+    recommendAnatomyModels,
+    summarizeAnatomyRequest,
   } = await import("./spiritTools/anatomySpecialistTools");
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  // 共用：narrow runtime string → enum，命中合法值才回，否則回 undefined。
+  // 用 readonly array 不是 Set 是因為這幾組 enum 太短，linear scan 更便宜。
+  const pickEnum = <T extends string>(
+    raw: unknown,
+    allowed: readonly T[],
+  ): T | undefined =>
+    typeof raw === "string" && (allowed as readonly string[]).includes(raw)
+      ? (raw as T)
+      : undefined;
+
+  const BODY_PARTS = [
+    "full-body", "head", "skeleton", "muscular",
+    "nervous", "vascular", "internal-organs", "limbs",
+  ] as const;
+  const VIEWS = [
+    "anterior", "posterior", "lateral",
+    "superior", "inferior", "cross-section",
+  ] as const;
+  const STYLES = [
+    "medical-textbook", "3d-render", "hand-drawn", "simplified-diagram",
+  ] as const;
+  const PURPOSES = [
+    "teaching", "labeling", "reference", "artistic",
+  ] as const;
 
   try {
     switch (call.name) {
       case "anatomySpecialist.buildPrompt": {
-        const bodyPart = args.bodyPart as
-          | "full-body" | "head" | "skeleton" | "muscular"
-          | "nervous" | "vascular" | "internal-organs" | "limbs";
-        const view = args.view as
-          | "anterior" | "posterior" | "lateral"
-          | "superior" | "inferior" | "cross-section";
-        const style = args.style as
-          | "medical-textbook" | "3d-render"
-          | "hand-drawn" | "simplified-diagram";
-        const purpose = args.purpose as
-          | "teaching" | "labeling" | "reference" | "artistic";
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
+        const view = pickEnum(args.view, VIEWS);
+        const style = pickEnum(args.style, STYLES);
+        const purpose = pickEnum(args.purpose, PURPOSES);
         if (!bodyPart || !view || !style || !purpose) {
           return {
             name: call.name,
@@ -4357,12 +4558,22 @@ async function dispatchAnatomySpecialistTool(
 
       case "anatomySpecialist.nextClarification": {
         const partial = (args.partial ?? {}) as Record<string, unknown>;
-        // 只接受合法欄位名稱；多餘 key 不要傳進去，避免污染。
-        const safe: Record<string, unknown> = {};
-        for (const k of ["bodyPart", "view", "style", "purpose"] as const) {
-          if (partial[k]) safe[k] = partial[k];
-        }
-        const q = nextClarificationQuestion(safe as Parameters<typeof nextClarificationQuestion>[0]);
+        // 只接受合法欄位 + 合法 enum 值，避免污染。
+        const safe: Record<string, string> = {};
+        const bp = pickEnum(partial.bodyPart, BODY_PARTS);
+        if (bp) safe.bodyPart = bp;
+        const vw = pickEnum(partial.view, VIEWS);
+        if (vw) safe.view = vw;
+        const st = pickEnum(partial.style, STYLES);
+        if (st) safe.style = st;
+        const pp = pickEnum(partial.purpose, PURPOSES);
+        if (pp) safe.purpose = pp;
+        const freeText =
+          typeof args.freeText === "string" ? args.freeText : undefined;
+        const q = nextClarificationQuestion(
+          safe as Parameters<typeof nextClarificationQuestion>[0],
+          freeText ? { freeText } : undefined,
+        );
         return {
           name: call.name,
           ok: true,
@@ -4372,9 +4583,7 @@ async function dispatchAnatomySpecialistTool(
       }
 
       case "anatomySpecialist.labelChecklist": {
-        const bodyPart = args.bodyPart as
-          | "full-body" | "head" | "skeleton" | "muscular"
-          | "nervous" | "vascular" | "internal-organs" | "limbs";
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
         if (!bodyPart) {
           return { name: call.name, ok: false, error: "bodyPart is required" };
         }
@@ -4383,6 +4592,109 @@ async function dispatchAnatomySpecialistTool(
           name: call.name,
           ok: true,
           data: { labels },
+          usedTool: call.name,
+        };
+      }
+
+      case "anatomySpecialist.parseIntent": {
+        const text = typeof args.text === "string" ? args.text : "";
+        if (!text) {
+          return { name: call.name, ok: false, error: "text is required" };
+        }
+        const partial = parseAnatomyIntent(text);
+        return {
+          name: call.name,
+          ok: true,
+          data: { partial },
+          usedTool: call.name,
+        };
+      }
+
+      case "anatomySpecialist.buildMultiViewBatch": {
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
+        const style = pickEnum(args.style, STYLES);
+        const purpose = pickEnum(args.purpose, PURPOSES);
+        if (!bodyPart || !style || !purpose) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "bodyPart, style, and purpose are required",
+          };
+        }
+        const views = Array.isArray(args.views)
+          ? (args.views as unknown[])
+              .map(v => pickEnum(v, VIEWS))
+              .filter((v): v is typeof VIEWS[number] => v != null)
+          : undefined;
+        const extra = Array.isArray(args.extraDescriptors)
+          ? (args.extraDescriptors as string[])
+          : undefined;
+        const result = buildMultiViewBatch({
+          bodyPart,
+          style,
+          purpose,
+          views,
+          extraDescriptors: extra,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.verifyResult": {
+        const bodyPart = pickEnum(args.bodyPart, BODY_PARTS);
+        if (!bodyPart) {
+          return { name: call.name, ok: false, error: "bodyPart is required" };
+        }
+        const detected = Array.isArray(args.detectedLabels)
+          ? (args.detectedLabels as unknown[]).filter(
+              (s): s is string => typeof s === "string",
+            )
+          : [];
+        const result = verifyAnatomyResult({
+          bodyPart,
+          detectedLabels: detected,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.recommendModels": {
+        const style = pickEnum(args.style, STYLES);
+        const purpose = pickEnum(args.purpose, PURPOSES);
+        if (!style || !purpose) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "style and purpose are required",
+          };
+        }
+        const result = recommendAnatomyModels({
+          style,
+          purpose,
+          hasReferenceImage:
+            typeof args.hasReferenceImage === "boolean"
+              ? args.hasReferenceImage
+              : undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "anatomySpecialist.summarize": {
+        const partial = (args.partial ?? args) as Record<string, unknown>;
+        const safe: Record<string, string> = {};
+        const bp = pickEnum(partial.bodyPart, BODY_PARTS);
+        if (bp) safe.bodyPart = bp;
+        const vw = pickEnum(partial.view, VIEWS);
+        if (vw) safe.view = vw;
+        const st = pickEnum(partial.style, STYLES);
+        if (st) safe.style = st;
+        const pp = pickEnum(partial.purpose, PURPOSES);
+        if (pp) safe.purpose = pp;
+        const summary = summarizeAnatomyRequest(
+          safe as Parameters<typeof summarizeAnatomyRequest>[0],
+        );
+        return {
+          name: call.name,
+          ok: true,
+          data: { summary },
           usedTool: call.name,
         };
       }
@@ -5168,6 +5480,88 @@ async function dispatchDeepSearchTool(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// research.compareModels 工具橋接：查查專用 — 站內模型 catalogue 結構化比較
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * compareModels 是純資料工具 — 從 MODEL_PRICING_CATALOG 拉出某類別所有
+ * 模型（或指定的 modelIds）做結構化比較。不打 LLM、不過外部 API，所以
+ * 不過 perplexityThrottle、也沒有 retry 包裝。失敗時直接回 ok=false。
+ */
+async function dispatchCompareModelsTool(
+  call: OrbToolCall,
+): Promise<OrbToolCallResult> {
+  const { getGlobalAgentTool } = await import("../../shared/global-agent-tools");
+  const def = getGlobalAgentTool(call.name);
+  if (!def) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "research-tool-not-registered",
+    };
+  }
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const category = typeof args.category === "string" ? args.category : "";
+  if (!category.trim()) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "missing-category",
+    };
+  }
+
+  try {
+    const { compareModels, getCategoriesInCatalog } = await import(
+      "./spiritTools/researcherTools"
+    );
+    const available = getCategoriesInCatalog();
+    if (!available.includes(category as never)) {
+      return {
+        name: call.name,
+        ok: false,
+        error: `unknown-category:${category}`,
+        data: { availableCategories: available },
+      };
+    }
+    const modelIds = Array.isArray(args.modelIds)
+      ? (args.modelIds.filter(m => typeof m === "string") as string[])
+      : undefined;
+    const useCase =
+      typeof args.useCase === "string" ? (args.useCase as never) : undefined;
+    const includeUnavailable = !!args.includeUnavailable;
+    const maxResults =
+      typeof args.maxResults === "number" ? args.maxResults : undefined;
+    const estimateFor =
+      args.estimateFor && typeof args.estimateFor === "object"
+        ? (args.estimateFor as Record<string, number>)
+        : undefined;
+
+    const result = compareModels({
+      category: category as never,
+      modelIds,
+      useCase,
+      includeUnavailable,
+      maxResults,
+      estimateFor,
+    });
+
+    return {
+      name: call.name,
+      ok: true,
+      data: result,
+      usedTool: call.name,
+    };
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // director.* 規劃工具橋接：呼叫導演 AI 為當前工作室規劃下一步
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -5439,6 +5833,143 @@ async function dispatchDirectorTool(
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
+    // ── 純資料工具（不打 LLM）：直接走 server-side 計算 ──
+    if (call.name === "director.composeWorkflow") {
+      const { composeWorkflow } = await import("./spiritTools/directorTools");
+      const brief = typeof args.brief === "string" ? args.brief : "";
+      if (!brief.trim()) {
+        return {
+          name: call.name,
+          ok: false,
+          error: "missing-brief",
+        };
+      }
+      const kind = typeof args.kind === "string" ? (args.kind as "short_video") : undefined;
+      const platform =
+        typeof args.platform === "string" ? (args.platform as "general") : undefined;
+      const budgetMode =
+        typeof args.budgetMode === "string" ? (args.budgetMode as "balanced") : undefined;
+      const stepByStep = !!args.stepByStep;
+      const result = composeWorkflow({ brief, kind, platform, budgetMode, stepByStep });
+      return {
+        name: call.name,
+        ok: true,
+        data: {
+          // 同時回傳 actions 陣列（前端 page-agent 可直接 dispatch）與
+          // workflow 物件（UI 渲染 plan preview 用）
+          actions: [result.workflow],
+          workflow: result.workflow,
+          handoffs: result.handoffs,
+          kind: result.kind,
+          rationale: `導導已組好「${result.workflow.name}」（${result.workflow.steps.length} 步），下一棒可交給 ${result.handoffs
+            .map(h => `@${h.nickname}`)
+            .join("→")}`,
+        },
+        usedTool: call.name,
+      };
+    }
+
+    if (call.name === "director.estimateBudget") {
+      const { estimateWorkflowBudget } = await import("./spiritTools/directorTools");
+      // 接受兩種輸入：直接給 steps 陣列、或包在 workflow 物件裡
+      const rawSteps = Array.isArray(args.steps)
+        ? args.steps
+        : args.workflow &&
+            typeof args.workflow === "object" &&
+            Array.isArray((args.workflow as { steps?: unknown }).steps)
+          ? (args.workflow as { steps: unknown[] }).steps
+          : null;
+      if (!rawSteps) {
+        return {
+          name: call.name,
+          ok: false,
+          error: "missing-steps",
+        };
+      }
+      // 型別硬轉到 AgentWorkflowStep[] — estimateWorkflowBudget 內部
+      // 會 pickStepParams 取需要的欄位、忽略不認識的；非標準步驟會被
+      // 當成「非生成步驟」算 0 點，不會丟例外。
+      const report = estimateWorkflowBudget({
+        steps: rawSteps as Array<{
+          id?: string;
+          label: string;
+          actionType: string;
+          payload: string;
+          toolArgs?: Record<string, unknown>;
+        }> as never,
+      });
+      return {
+        name: call.name,
+        ok: true,
+        data: report,
+        usedTool: call.name,
+      };
+    }
+
+    if (call.name === "director.suggestHandoff") {
+      const { suggestHandoff } = await import("./spiritTools/directorTools");
+      const fromRole =
+        typeof args.fromRole === "string" ? (args.fromRole as "director") : undefined;
+      const userIntent =
+        typeof args.userIntent === "string" ? args.userIntent : undefined;
+      const hintTokens = Array.isArray(args.hintTokens)
+        ? (args.hintTokens.filter(t => typeof t === "string") as string[])
+        : undefined;
+      const mutedRoles = Array.isArray(args.mutedRoles)
+        ? (args.mutedRoles.filter(t => typeof t === "string") as Array<"director">)
+        : undefined;
+      const busyRoles = Array.isArray(args.busyRoles)
+        ? (args.busyRoles.filter(t => typeof t === "string") as Array<"director">)
+        : undefined;
+      const recentRoles = Array.isArray(args.recentRoles)
+        ? (args.recentRoles.filter(t => typeof t === "string") as Array<"director">)
+        : undefined;
+      const maxDepth = typeof args.maxDepth === "number" ? args.maxDepth : undefined;
+      const result = suggestHandoff({
+        fromRole,
+        userIntent,
+        hintTokens,
+        mutedRoles,
+        busyRoles,
+        recentRoles,
+        maxDepth,
+      });
+      return {
+        name: call.name,
+        ok: true,
+        data: result,
+        usedTool: call.name,
+      };
+    }
+
+    if (call.name === "director.refineWorkflow") {
+      const { refineWorkflowMechanically } = await import("./spiritTools/directorTools");
+      const workflow = args.workflow;
+      const operations = args.operations;
+      if (
+        !workflow ||
+        typeof workflow !== "object" ||
+        !Array.isArray((workflow as { steps?: unknown }).steps) ||
+        !Array.isArray(operations)
+      ) {
+        return {
+          name: call.name,
+          ok: false,
+          error: "missing-workflow-or-operations",
+        };
+      }
+      const result = refineWorkflowMechanically({
+        workflow: workflow as never,
+        operations: operations as never,
+      });
+      return {
+        name: call.name,
+        ok: true,
+        data: result,
+        usedTool: call.name,
+      };
+    }
+
     if (call.name !== "director.suggestPlan") {
       return {
         name: call.name,
@@ -5447,6 +5978,7 @@ async function dispatchDirectorTool(
       };
     }
 
+    // ── LLM-driven 工具：director.suggestPlan ──
     const { invokeLLM, extractMessageText } = await import("../_core/llm");
     const { buildBrainContext } = await import("../middleware/brainContext");
     const { parseLLMActions } = await import("../../shared/agent-actions");
@@ -5470,24 +6002,68 @@ async function dispatchDirectorTool(
     const hasTokenWeights = !!args.hasTokenWeights;
     const hasFineTunedModel = !!args.hasFineTunedModel;
 
-    const systemPrompt = `你是「導演 AI」，使用者正在創作工作室裡建立內容。
-你的任務：根據使用者當前的工作室狀態，建議下一步行動。
+    // 升級版 system prompt：開放 `runWorkflow` 作為合法 action type，讓導演在
+    // 「跨頁 / 多步驟」需求下能直接回傳完整工作流，而不是單頁建議。為了
+    // 避免回到「光跳頁不執行」的反模式，prompt 明確要求多步驟計畫需含真正
+    // 會動作的 step（fillPrompt / submit / toolName=studio.*）。
+    const systemPrompt = `你是「導演 AI」（導導），使用者正在創作工作室裡建立內容。
+你的任務：根據使用者當前的工作室狀態，建議下一步行動 — 視需求可以是「單一動作組合」或「整條跨頁 workflow」。
 
 回傳格式（嚴格 JSON）：
 {
   "actions": [
-    { "type": "fillPrompt", "text": "...", "slot": "prompt", "append": false },
+    // 單頁動作（用在使用者已在對的頁、只差最後幾步）：
+    { "type": "fillPrompt", "text": "...", "slot": "prompt|negativePrompt|lyrics|voice", "append": false },
     { "type": "setModality", "modality": "image|video|audio|voice" },
-    { "type": "setMode", "modeId": "lightning|deep_precision" },
-    { "type": "setModel", "modelId": "fal-ai/..." }
+    { "type": "setTab", "tabId": "t2v|i2v|v2v|t2i|i2i|music|voice" },
+    { "type": "setMode", "modeId": "lightning|deep_precision|inspiration|standard|professional" },
+    { "type": "setModel", "modelId": "fal-ai/..." },
+    { "type": "setParam", "key": "duration|aspectRatio|...", "value": "..." },
+    { "type": "applyPreset", "presetId": "creative:simple|creative:standard|creative:pro" },
+    { "type": "submit" },
+    // 跨頁多步驟 workflow（用在使用者需求是「整條跑完」）：
+    {
+      "type": "runWorkflow",
+      "name": "中文摘要的計畫名稱",
+      "confirmationMode": "step-by-step|all-at-once|high-risk-only",
+      "steps": [
+        {
+          "id": "step_image", "path": "/image-studio",
+          "actionType": "submit", "payload": "",
+          "label": "圖圖：產 key visual",
+          "toolName": "studio.generateImage",
+          "toolArgs": { "prompt": "...", "modelId": "fal-ai/flux-pro/v1.1", "aspect_ratio": "9:16" }
+        },
+        {
+          "id": "step_video", "path": "/video-studio",
+          "actionType": "submit", "payload": "",
+          "label": "影影：i2v 動畫",
+          "toolName": "studio.generateVideo",
+          "dependsOn": ["step_image"],
+          "toolArgs": { "prompt": "...", "modelId": "fal-ai/kling-video/v2.1/standard/image-to-video",
+                        "image_url": "\${step_image.image_url}", "duration": 5, "aspect_ratio": "9:16" }
+        }
+      ]
+    }
   ],
-  "rationale": "簡短中文說明"
+  "rationale": "用 1-2 句中文說明為什麼這樣排，並指出下一棒交給哪位精靈（用 @暱稱）"
 }
 
-規範：
-- 最多回 4 個 actions
+決策規範：
 - 風格 = ${personality}
+- 使用者只在「當頁」需要幫助 → 回單頁動作組合（≤ 6 個）
+- 使用者目標是「整條短片 / 跨頁工作流」→ 回單一 \`runWorkflow\` action，每步用 \`toolName=studio.*\` 真的執行，不要只有 navigate
+- 多步驟 workflow 必須有真正會動作的 step（toolName / fillPrompt / submit），不能整條只跳頁
+- 影片 / 圖片步驟連動：i2v step 用 \`image_url: "\${step_image.image_url}"\` 引用上一步 image 結果
+- 預設 confirmationMode=step-by-step（先讓使用者逐步審核）
+- rationale 結尾用 @暱稱 點名下一棒接手的精靈（@圖圖 / @影影 / @音音 / @聲聲 / @品品 / @步步）
 - 不要回多餘內容，只回 JSON
+
+導導可主動呼叫的兄弟工具（在 plan 真正執行前先這樣鋪路會更穩）：
+- director.composeWorkflow（brief → 完整 workflow 模板）
+- director.estimateBudget（workflow → 總點數 + 替代模型省錢建議）
+- director.suggestHandoff（給 hintTokens → 下一棒精靈鏈）
+- director.refineWorkflow（已存在的 workflow → 機械式微調）
 ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : ""}`;
 
     const studioContext = `

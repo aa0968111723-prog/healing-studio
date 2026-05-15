@@ -274,6 +274,41 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
     ],
   },
   {
+    // 編編 (composer) — 是「跨模態執行員」而非單一專業，但他有實際的工具
+    // 表（頁面動作）+ 跨頁工作室知識，要被 findBestAgent / findAgentForTool /
+    // recommendAgent 認得，所以列在 SPECIALIZED 裡。注意：他的 tools 是
+    // 「頁面動作 namespace」(page.*)，跟 specialist 的 fal.ai studio.*
+    // 工具不衝突 — findAgentForTool("page.fillPrompt") 會回 composer，
+    // 而 findAgentForTool("studio.generateImage") 仍回 image-specialist。
+    agentId: "composer",
+    displayName: "編編",
+    description: "在當前工作室一次把事情做完：填提示詞、選模型、調參數、按送出，並回報結果",
+    primaryTools: [
+      "page.fillPrompt",
+      "page.setModel",
+      "page.setParam",
+      "page.setTab",
+      "page.setMode",
+      "page.applyPreset",
+      "page.submit",
+      "page.runWorkflow",
+    ],
+    knowledgeDomains: [
+      "page action dispatch",
+      "studio capabilities discovery",
+      "form filling",
+      "parameter tuning",
+      "model selection",
+      "submit + observe loop",
+    ],
+    useCases: [
+      "在工作室直接執行使用者的指令",
+      "把跨頁計畫的單頁步驟轉為動作",
+      "回報每一步的結果（已填 / 已選 / 已送出）",
+      "一句話跑完當頁的「填提示 → 設參數 → 送出」",
+    ],
+  },
+  {
     agentId: "anatomy-specialist",
     displayName: "解剖精靈",
     description: "專精於人體解剖圖、醫學插圖、身體結構圖示，提供精確的解剖學術語與視覺呈現",
