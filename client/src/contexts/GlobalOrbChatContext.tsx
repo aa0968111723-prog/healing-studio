@@ -2093,6 +2093,16 @@ interface GlobalOrbChatContextValue {
   renameConversation: (conversationId: string, title: string) => Promise<void>;
   /** Hard-delete a conversation; if it was active, switch to the next one. */
   deleteConversation: (conversationId: string) => Promise<void>;
+  /**
+   * 直接執行純客戶端的 meta action（exportChatPdf / shareViaLink）— 用在
+   * 快速按鈕（例：創作工作室「API 深度連結」），完全繞過 LLM 不卡「思考
+   * 中…」。可選擇同時把使用者那條觸發訊息加入聊天歷史，讓使用者看到自己
+   * 「按了什麼」與光球的回應前後對齊。
+   */
+  dispatchMetaAction: (
+    action: AgentAction,
+    options?: { userMessage?: string; intent?: string }
+  ) => Promise<void>;
 }
 
 /**
@@ -2174,6 +2184,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   switchConversation: async () => {},
   renameConversation: async () => {},
   deleteConversation: async () => {},
+  dispatchMetaAction: async () => {},
 });
 
 export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
@@ -3112,6 +3123,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           target: action.target,
           workflow: action.target === "lastWorkflow" ? findLastWorkflow() : null,
           chatMessages: action.target === "currentChat" ? messagesForExport : undefined,
+          studioSnapshot: action.target === "studioState" ? pageAgent.snapshot : undefined,
           title: action.title,
         });
         let text: string;
@@ -3126,10 +3138,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           const copyHint = result.copied
             ? "已複製到剪貼簿"
             : "請手動複製這個連結";
-          text =
-            `🔗 已把${
-              action.target === "currentChat" ? "這段對話" : "剛剛的工作流程"
-            }打包成可分享連結（共 ${result.stepCount ?? 0} 步），${copyHint}：\n${result.url ?? ""}`;
+          const targetLabel =
+            action.target === "currentChat"
+              ? "這段對話"
+              : action.target === "studioState"
+                ? "目前的創作工作室設定"
+                : "剛剛的工作流程";
+          text = `🔗 已把${targetLabel}打包成可分享連結（共 ${
+            result.stepCount ?? 0
+          } 步），${copyHint}：\n${result.url ?? ""}`;
         }
         setMessages(prev => [
           ...prev,
@@ -3137,7 +3154,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         ]);
       }
     };
-  }, [messagesForExport, findLastWorkflow, locationPath]);
+  }, [messagesForExport, findLastWorkflow, locationPath, pageAgent.snapshot]);
 
   const executeActions = useCallback(async (actionsToExecute: AgentAction[], options: {
     intent?: string;
@@ -5592,6 +5609,38 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setPendingCodeTask(null);
   }, [pendingCodeTask, codeTaskCancel, locationPath]);
 
+  const dispatchMetaAction = useCallback(
+    async (
+      action: AgentAction,
+      options: { userMessage?: string; intent?: string } = {}
+    ) => {
+      if (action.type !== "exportChatPdf" && action.type !== "shareViaLink") {
+        // 守門：dispatchMetaAction 故意只接純客戶端 meta action，避免被誤
+        // 用來繞過正常 sendMessage 流程的權限 / 確認卡 / 偏好檢查。
+        console.warn(
+          "[GlobalOrbChat] dispatchMetaAction rejected non-meta action:",
+          action.type
+        );
+        return;
+      }
+      const userText = options.userMessage?.trim();
+      if (userText) {
+        setMessages(prev => [
+          ...prev,
+          {
+            role: "user",
+            text: userText,
+            at: Date.now(),
+            pagePath: locationPath,
+            ...(options.intent ? { intent: options.intent } : {}),
+          },
+        ]);
+      }
+      await runMetaActionRef.current?.(action);
+    },
+    [locationPath]
+  );
+
   const startPendingWorkflow = useCallback(async () => {
     if (!pendingWorkflow || isSending) return;
     const plan = pendingWorkflow;
@@ -6215,7 +6264,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     switchConversation,
     renameConversation,
     deleteConversation,
-  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, pendingNavigation, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, approvePendingNavigation, declinePendingNavigation, startCollaborativeDiscussion, cancelCollaborativeDiscussion, collaborativeDiscussionMeta, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation]);
+    dispatchMetaAction,
+  }), [messages, input, isSending, progressEvents, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, pendingNavigation, orbAgentEnabledResolved, conversations, activeConversationId, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, answerMultiClarification, cancelClarification, approvePendingNavigation, declinePendingNavigation, startCollaborativeDiscussion, cancelCollaborativeDiscussion, collaborativeDiscussionMeta, activeDiscussionId, createConversation, switchConversation, renameConversation, deleteConversation, dispatchMetaAction]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>

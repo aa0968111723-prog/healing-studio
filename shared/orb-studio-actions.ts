@@ -264,6 +264,13 @@ export interface StudioCollaborationLink {
    * 後端 ai.chat router 會把它路由到對應的工具 / 導演 AI / 模型推薦。
    */
   chatPrompt: string;
+  /**
+   * 可選：純客戶端的直接動作。當設定時，UI 應該直接 dispatch 這個動作而
+   * 不是把 `chatPrompt` 送進 LLM — 適合「目前 studio 狀態 → process spec
+   * 連結」這類純打包操作，不需要 LLM 規劃。`chatPrompt` 會被保留成
+   * fallback（無 directAction 時走 LLM 路徑）以及在聊天裡顯示成使用者訊息。
+   */
+  directAction?: AgentAction;
 }
 
 export const STUDIO_COLLABORATION_LINKS: StudioCollaborationLink[] = [
@@ -290,6 +297,10 @@ export const STUDIO_COLLABORATION_LINKS: StudioCollaborationLink[] = [
     description: "把目前參數打包成可分享的 /process spec 連結",
     chatPrompt:
       "把我目前的提示詞、模態、模型與所有參數，打包成一份 /process spec 連結並複製到剪貼簿，方便分享或留底。",
+    // 點下去當場讀 studio 的 PageAgentSnapshot.state 打包成連結並複製到剪
+    // 貼簿；不繞 LLM，所以不會卡在「思考中…」也不會因為還沒跑過 workflow
+    // 而失敗。LLM 在自由聊天裡也能 emit 同一個 action。
+    directAction: { type: "shareViaLink", target: "studioState" },
   },
   {
     id: "site-orb-collab",
