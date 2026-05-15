@@ -51,6 +51,24 @@
   --color-zen-peach: oklch(0.88 0.06 75);
   --color-zen-rose: oklch(0.75 0.05 15);
   --font-sans: "Noto Sans TC", "Inter", system-ui, sans-serif;
+  /* ──────────────────────────────────────────────────────────────
+   * Healing typography scale — extends Tailwind defaults at the
+   * sub-12px end to cover ad-hoc `text-[10px]` / `text-[9px]` usage
+   * concentrated in CJK chip/label/metadata UI.
+   * Tailwind defaults (kept): text-xs=12px → text-9xl=128px.
+   * Additions: text-2xs=10px, text-3xs=9px.
+   * ────────────────────────────────────────────────────────────── */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.5625rem;
+  --text-3xs--line-height: 0.875rem;
+  /* ──────────────────────────────────────────────────────────────
+   * CJK display tracking — Tailwind's `tracking-widest` tops out at
+   * 0.1em, but healing UI uses 0.18–0.2em for breathing room around
+   * short Chinese display strings (login orb, eyebrow labels, etc.).
+   * ────────────────────────────────────────────────────────────── */
+  --tracking-cjk-wide: 0.18em;
+  --tracking-cjk-display: 0.2em;
   /* Healing animation timing tokens */
   --ease-healing: cubic-bezier(0.25, 0.46, 0.45, 0.94);
   --ease-healing-out: cubic-bezier(0.16, 1, 0.3, 1);
