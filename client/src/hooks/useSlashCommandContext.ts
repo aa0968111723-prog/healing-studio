@@ -66,6 +66,15 @@ export function useSlashCommandContext(): SlashCommandContext {
     }
   }, []);
 
+  const openCodex = useCallback(
+    (query?: string) => {
+      const trimmed = (query ?? "").trim();
+      const path = trimmed ? `/codex?q=${encodeURIComponent(trimmed)}` : "/codex";
+      setLocation(path);
+    },
+    [setLocation]
+  );
+
   return useMemo<SlashCommandContext>(
     () => ({
       sendMessage: (text, attachments, options) =>
@@ -84,6 +93,7 @@ export function useSlashCommandContext(): SlashCommandContext {
       exportChatPdf,
       shareLastWorkflow,
       openCommandPalette,
+      openCodex,
     }),
     [
       globalChat.sendMessage,
@@ -96,6 +106,7 @@ export function useSlashCommandContext(): SlashCommandContext {
       exportChatPdf,
       shareLastWorkflow,
       openCommandPalette,
+      openCodex,
     ]
   );
 }

@@ -68,7 +68,8 @@ export type SlashClientAction =
   | "export-pdf" // 列印對話成 PDF
   | "share-workflow" // 把上一個 workflow 打包成 link
   | "open-palette" // 開啟 ⌘K 全站搜尋（fallback 用）
-  | "open-settings"; // 跳到設定頁
+  | "open-settings" // 跳到設定頁
+  | "open-codex"; // 跳到大全頁（可帶 query 字串做預搜尋）
 
 /**
  * 指令範本 — 自動完成選單與解析器都用這份資料。
@@ -336,6 +337,17 @@ const HELP_COMMANDS: SlashCommand[] = [
     iconKey: "users",
     takesArgument: false,
     action: { kind: "info", topic: "spirits" },
+  },
+  {
+    name: "/codex",
+    aliases: ["大全", "compendium", "manual", "代碼大全"],
+    group: "help",
+    description: "打開 AI 代理代碼大全（25 精靈・36 頁面・全指令一覽）",
+    example: "codex 影片",
+    iconKey: "book-open",
+    takesArgument: false,
+    argumentHint: "（可選）關鍵字，例如「影片」「成本」",
+    action: { kind: "client-action", action: "open-codex" },
   },
 ];
 

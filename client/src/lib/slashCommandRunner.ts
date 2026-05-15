@@ -63,6 +63,8 @@ export interface SlashCommandContext {
   shareLastWorkflow: () => void;
   /** 開 ⌘K palette（給 / 找不到匹配時的 fallback）。 */
   openCommandPalette: () => void;
+  /** 開大全頁，可帶選填的預搜尋 query。 */
+  openCodex: (query?: string) => void;
 }
 
 // ─── 執行結果 ─────────────────────────────────────────────────────────────
@@ -216,6 +218,7 @@ export async function runSlashCommand(
         await runClientAction(cmd.action.action, ctx, parsed.argument);
         return { status: "ran", commandName: cmd.name };
       }
+
       case "info": {
         ctx.openChat();
         // 直接把 help 內容當成 user 訊息送進對話，再讓 sendMessage 把它顯示出來
@@ -253,7 +256,7 @@ export async function runSlashCommand(
 async function runClientAction(
   action: SlashClientAction,
   ctx: SlashCommandContext,
-  _argument: string
+  argument: string
 ): Promise<void> {
   switch (action) {
     case "clear-history":
@@ -295,6 +298,9 @@ async function runClientAction(
       return;
     case "open-settings":
       ctx.navigate("/settings");
+      return;
+    case "open-codex":
+      ctx.openCodex(argument || undefined);
       return;
     default: {
       const _exhaustive: never = action;

@@ -19,6 +19,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowDown,
   ArrowUp,
+  BookOpen,
   Brain,
   Compass,
   CornerUpRight,
@@ -62,6 +63,7 @@ const ICON_MAP: Record<string, typeof Sparkles> = {
   plus: Plus,
   "rotate-ccw": RotateCcw,
   users: Users,
+  "book-open": BookOpen,
 };
 
 function iconFor(iconKey: string) {
