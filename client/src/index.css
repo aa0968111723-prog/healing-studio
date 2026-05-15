@@ -2456,22 +2456,28 @@
     border: none;
   }
 
-  /* ─── Page Shell — uniform page container with healing breathing space
-     Provides max-width, responsive horizontal padding, and generous top/
-     bottom rhythm so every page reads as a sibling instead of rolling its
-     own layout. */
+  /* ─── Page Shell — uniform max-width container with healing breathing
+     Designed to nest INSIDE DashboardLayout's <main>, which already
+     provides p-4 sm:p-6 lg:p-8 horizontal padding. So page-shell does
+     NOT add its own horizontal padding (would double-stack). Use the
+     `-pad` modifier for stand-alone routes (Home, Login) that aren't
+     wrapped by DashboardLayout's main. */
   .page-shell {
     width: 100%;
     margin-left: auto;
     margin-right: auto;
     max-width: 1280px;
+  }
+  /* Stand-alone variant: includes responsive horizontal padding for
+     pages rendered outside DashboardLayout's <main>. */
+  .page-shell-pad {
     padding-left: 1rem;
     padding-right: 1rem;
     padding-top: 1.25rem;
     padding-bottom: 2.5rem;
   }
   @media (min-width: 640px) {
-    .page-shell {
+    .page-shell-pad {
       padding-left: 1.5rem;
       padding-right: 1.5rem;
       padding-top: 2rem;
@@ -2479,7 +2485,7 @@
     }
   }
   @media (min-width: 1024px) {
-    .page-shell {
+    .page-shell-pad {
       padding-left: 2.5rem;
       padding-right: 2.5rem;
       padding-top: 2.75rem;

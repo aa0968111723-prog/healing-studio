@@ -211,7 +211,7 @@ export default function CreationHub() {
   });
 
   return (
-    <div className="creation-hub-shell page-shell">
+    <div className="creation-hub-shell page-shell space-y-5">
       <header className="page-header">
         <p className="page-eyebrow">Creation Hub</p>
         <h1 className="page-title">創作中心</h1>
