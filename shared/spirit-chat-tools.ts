@@ -94,12 +94,10 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
     toPath: "/notes",
     arrivalHint: "記記帶你到筆記中心，搜尋或建立都可以。",
   },
-  // 細細：跳到 /settings
-  "settings-detail": {
-    kind: "navigate",
-    toPath: "/settings",
-    arrivalHint: "細細帶你到設定頁，告訴我要調哪個我直接帶你切過去。",
-  },
+  // 細細：升級成真正的 AI agent — 走 LLM persona 並透過 settingsDetail.*
+  // 工具直接讀寫偏好、預覽 diff、套 preset、偵測衝突、推薦優化。需要把使
+  // 用者導到 /settings 時，由 LLM 自行呼叫 navigate（或 navigator 接手）。
+  "settings-detail": { kind: "llm-persona" },
   // 步步：被 @ 時走 LLM 人格做計畫預演（之後接管真實執行另由 orchestrator 觸發）
   "plan-executor": { kind: "llm-persona" },
 };
