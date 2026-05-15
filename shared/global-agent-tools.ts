@@ -670,6 +670,62 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 練練（training-specialist）的 sensing + 計算工具 ──
+  {
+    name: "trainingSpecialist.listMyModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.getModelStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { modelId: "number" },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.recommendParams",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      imageCount: "number?",
+      videoCount: "number?",
+      preference: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.analyzeDataset",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      imageCount: "number?",
+      videoCount: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.estimateTraining",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelType: "string",
+      steps: "number?",
+      falModelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "trainingSpecialist.getTips",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: { modelType: "string?" },
+    executionTarget: "server-side",
+  },
   // ─── 品品（critic）結構化評審工具：五個唯讀工具，純函式（無 DB / 無 LLM）──
   {
     name: "critic.review",

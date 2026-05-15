@@ -193,7 +193,15 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
     displayName: "訓練精靈",
     description: "專精於模型訓練與 LoRA 微調，熟悉客製化模型訓練流程",
     primaryTools: [
+      // 真正開訓的入口（high-risk，會建 fineTunedModels + backgroundJobs）：
       "studio.trainLora",
+      // 練練的 sensing + 計算工具：開訓前能看清現況、給準確點數與時間估算
+      "trainingSpecialist.listMyModels",
+      "trainingSpecialist.getModelStatus",
+      "trainingSpecialist.recommendParams",
+      "trainingSpecialist.analyzeDataset",
+      "trainingSpecialist.estimateTraining",
+      "trainingSpecialist.getTips",
     ],
     knowledgeDomains: [
       "LoRA training",
