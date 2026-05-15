@@ -108,13 +108,24 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
   {
     agentId: "music-specialist",
     displayName: "音樂精靈",
-    description: "專精於音樂與音訊生成，熟悉音樂創作、音效製作、音軌分離與混音",
+    description: "專精於音樂與音訊生成，熟悉音樂創作、音效製作、音軌分離與混音；會依需求挑引擎、組 model-specific prompt、估點數、掃使用者素材庫",
+    // 12 個工具 = 5 個 studio.* 真實生成 + 7 個 musicSpecialist.* 推理工具
+    // （recommendEngine / buildPrompt / estimateCost / listEngines /
+    //  getRecentAssets / getOptions / getTips）。前 5 個動引擎、後 7 個動腦
+    //  —— 補進來後音音才從「只會打 fal」變成「會推理 + 打 fal」的 AI agent。
     primaryTools: [
       "studio.generateAudio",
       "studio.generateSfx",
       "studio.separateStems",
       "studio.isolateAudio",
       "studio.mergeAudios",
+      "musicSpecialist.recommendEngine",
+      "musicSpecialist.buildPrompt",
+      "musicSpecialist.estimateCost",
+      "musicSpecialist.listEngines",
+      "musicSpecialist.getRecentAssets",
+      "musicSpecialist.getOptions",
+      "musicSpecialist.getTips",
     ],
     knowledgeDomains: [
       "music generation",

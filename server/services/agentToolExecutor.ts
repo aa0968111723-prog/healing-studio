@@ -2269,7 +2269,12 @@ async function dispatchStudioTool(
       case "musicSpecialist.generate":
       case "musicSpecialist.generateSoundEffect":
       case "musicSpecialist.getOptions":
-      case "musicSpecialist.getTips": {
+      case "musicSpecialist.getTips":
+      case "musicSpecialist.recommendEngine":
+      case "musicSpecialist.buildPrompt":
+      case "musicSpecialist.estimateCost":
+      case "musicSpecialist.listEngines":
+      case "musicSpecialist.getRecentAssets": {
         const musicResult = await dispatchMusicSpecialistTool(call, opts);
         return musicResult;
       }
@@ -4511,7 +4516,18 @@ async function dispatchMusicSpecialistTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const { generateMusic, generateSoundEffect, getMusicOptions, getMusicGenerationTips } = await import("./spiritTools/musicSpecialistTools");
+  const tools = await import("./spiritTools/musicSpecialistTools");
+  const {
+    generateMusic,
+    generateSoundEffect,
+    getMusicOptions,
+    getMusicGenerationTips,
+    recommendEngine,
+    buildPrompt,
+    estimateMusicCost,
+    listEngines,
+    getRecentAudioAssets,
+  } = tools;
   const args = (call.args ?? {}) as Record<string, unknown>;
 
   try {
@@ -4524,10 +4540,14 @@ async function dispatchMusicSpecialistTool(
         const result = await generateMusic({
           userId: opts.userId,
           prompt,
+          modelId: args.modelId as string | undefined,
           duration: args.duration as number | undefined,
           genre: args.genre as string | undefined,
           mood: args.mood as string | undefined,
           instrumental: args.instrumental as boolean | undefined,
+          lyrics: args.lyrics as string | undefined,
+          tags: args.tags as string | undefined,
+          bpm: args.bpm as number | undefined,
         });
         return {
           name: call.name,
@@ -4546,6 +4566,7 @@ async function dispatchMusicSpecialistTool(
         const result = await generateSoundEffect({
           userId: opts.userId,
           description,
+          modelId: args.modelId as string | undefined,
           duration: args.duration as number | undefined,
         });
         return {
@@ -4565,6 +4586,73 @@ async function dispatchMusicSpecialistTool(
       case "musicSpecialist.getTips": {
         const result = getMusicGenerationTips();
         return { name: call.name, ok: result.success, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.recommendEngine": {
+        const capability = args.capability as string | undefined;
+        if (!capability) {
+          return { name: call.name, ok: false, error: "capability is required" };
+        }
+        const result = recommendEngine({
+          capability: capability as Parameters<typeof recommendEngine>[0]["capability"],
+          durationSec: args.durationSec as number | undefined,
+          needsVocals: args.needsVocals as boolean | undefined,
+          prioritizeBudget: args.prioritizeBudget as boolean | undefined,
+          excludeModelIds: Array.isArray(args.excludeModelIds)
+            ? (args.excludeModelIds as string[])
+            : undefined,
+        });
+        return { name: call.name, ok: !!result.primary, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.buildPrompt": {
+        const modelId = args.modelId as string | undefined;
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = buildPrompt({
+          modelId,
+          mood: args.mood as string | undefined,
+          genre: args.genre as string | undefined,
+          instruments: Array.isArray(args.instruments)
+            ? (args.instruments as string[])
+            : undefined,
+          bpm: args.bpm as number | undefined,
+          seamlessLoop: args.seamlessLoop as boolean | undefined,
+          references: args.references as string | undefined,
+          lyrics: args.lyrics as string | undefined,
+          durationSec: args.durationSec as number | undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.estimateCost": {
+        const modelId = args.modelId as string | undefined;
+        if (!modelId) {
+          return { name: call.name, ok: false, error: "modelId is required" };
+        }
+        const result = estimateMusicCost({
+          modelId,
+          durationSec: args.durationSec as number | undefined,
+        });
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.listEngines": {
+        const capability = args.capability as string | undefined;
+        type ListEnginesInput = NonNullable<Parameters<typeof listEngines>[0]>;
+        const result = listEngines(
+          capability
+            ? { capability: capability as ListEnginesInput["capability"] }
+            : {}
+        );
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
+      }
+
+      case "musicSpecialist.getRecentAssets": {
+        const limit = typeof args.limit === "number" ? args.limit : 10;
+        const result = await getRecentAudioAssets(opts.userId, limit);
+        return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
       default:

@@ -645,6 +645,118 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {},
     executionTarget: "server-side",
   },
+  // ─── 音音（music-specialist）音樂工具：八個工具（六讀兩寫） ──
+  // 之前音音 musicSpecialist.* 完全沒登錄在這份 registry 中 → LLM 想呼叫
+  // recommendEngine / buildPrompt / estimateCost / listEngines / getRecentAssets
+  // / getOptions / getTips（讀）+ generate / generateSoundEffect（寫）都被
+  // 防呆閘擋掉，音音實際上只能用嘴砲。補進這份 registry 後音音才能：
+  //   ① 看需求挑引擎（recommendEngine）
+  //   ② 把結構化欄位轉成 model-specific prompt（buildPrompt）
+  //   ③ 估價（estimateCost）+ 列引擎能力卡（listEngines）
+  //   ④ 掃使用者最近的音檔素材（getRecentAssets）
+  //   ⑤ 真實打音樂 / SFX 生成（generate / generateSoundEffect — 寫，扣點數）
+  {
+    name: "musicSpecialist.recommendEngine",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      capability: "string",
+      durationSec: "number?",
+      needsVocals: "boolean?",
+      prioritizeBudget: "boolean?",
+      excludeModelIds: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.buildPrompt",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      mood: "string?",
+      genre: "string?",
+      instruments: "string[]?",
+      bpm: "number?",
+      seamlessLoop: "boolean?",
+      references: "string?",
+      lyrics: "string?",
+      durationSec: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.estimateCost",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      durationSec: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.listEngines",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      capability: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.getRecentAssets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.getOptions",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.getTips",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  // generate / generateSoundEffect 會真的扣點數打 fal/Suno — risk=medium，
+  // requiresHuman=true 對齊 studio.generateAudio / studio.generateSfx 的閘控。
+  {
+    name: "musicSpecialist.generate",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      duration: "number?",
+      genre: "string?",
+      mood: "string?",
+      instrumental: "boolean?",
+      lyrics: "string?",
+      tags: "string?",
+      bpm: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "musicSpecialist.generateSoundEffect",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      description: "string",
+      modelId: "string?",
+      duration: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 圖圖（image-specialist）認知 + 出圖工具：5 個唯讀 + 3 個會跑 fal task ──
   // 之前 imageSpecialist.* 雖然在 agentToolExecutor 的 switch 裡，但完全沒在
   // 這份 catalog 註冊 → orb tool dispatcher 會視為「未知工具」直接丟回。圖圖
