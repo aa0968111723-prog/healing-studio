@@ -2140,9 +2140,12 @@ export default function LearnHub() {
 
   // ── Deep-link support: ?docId=... opens a doc directly ──────────
   // Lets the global orb agent (and external links) jump straight to
-  // a specific learn doc via [ACTION:navigate:/learn?docId=<id>].
+  // a specific learn doc via [ACTION:navigate:/learn?docId=<id>], or
+  // pre-load a search via [ACTION:navigate:/learn-hub?search=<query>]
+  // — used by 學學's chat tool to land users on filtered results
+  // instead of an empty hub.
   // We watch the search string each time it changes so re-clicking the
-  // same orb suggestion still re-opens the modal.
+  // same orb suggestion still re-opens the modal / re-applies search.
   useEffect(() => {
     try {
       const params = new URLSearchParams(search);
@@ -2150,8 +2153,12 @@ export default function LearnHub() {
       if (docIdFromUrl && docIdFromUrl !== openDocId) {
         setOpenDocId(docIdFromUrl);
       }
+      const searchFromUrl = params.get("search");
+      if (searchFromUrl && searchFromUrl !== searchQuery) {
+        setSearchQuery(searchFromUrl);
+      }
     } catch {
-      // Malformed search string — ignore, behave like no docId param.
+      // Malformed search string — ignore, behave like no params.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);

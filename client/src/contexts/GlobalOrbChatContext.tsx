@@ -3876,11 +3876,25 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
         // ── B) navigate: 路路（intent-based）/ 學學（固定到 /learn-hub）──
         if (tool.kind === "navigate") {
-          const targetPath =
+          const basePath =
             tool.toPath
             ?? (tool.intentBased ? detectNavIntent(cleanPrompt)?.path : undefined);
           const targetLabel =
             tool.intentBased ? detectNavIntent(cleanPrompt)?.label : undefined;
+          // 若工具有 passPromptAsSearch 旗標且 cleanPrompt 非空，把 prompt
+          // 附加成 ?search=<encoded>，讓著陸頁（如 LearnHub）以預載搜尋狀態打開。
+          // 學學從「永遠跳到首頁」進化成「帶著你的關鍵字跳到結果頁」。
+          const targetPath = (() => {
+            if (!basePath) return undefined;
+            if (
+              tool.passPromptAsSearch
+              && cleanPrompt.length > 0
+              && !basePath.includes("?")
+            ) {
+              return `${basePath}?search=${encodeURIComponent(cleanPrompt)}`;
+            }
+            return basePath;
+          })();
           if (targetPath) {
             orbState.setState("success", `${nickname} 帶你跳頁`);
             setMessages(prev => [...prev, {

@@ -34,6 +34,12 @@ export type SpiritChatTool =
       intentBased?: boolean;
       /** 跳完後在 chat 顯示的提示文字模板。 */
       arrivalHint: string;
+      /**
+       * 若為 true，並且 cleanPrompt 非空，會把 cleanPrompt 加到 toPath 的
+       * `?search=` query string — 讓著陸頁直接以搜尋預載狀態打開（例如 學學
+       * 帶人到 /learn-hub?search=lora）。fall back：toPath 不變。
+       */
+      passPromptAsSearch?: boolean;
     }
   | {
       /** 打 unifiedSearch 把站內結果丟回對話框。 */
@@ -55,7 +61,8 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
   "learning-specialist": {
     kind: "navigate",
     toPath: "/learn-hub",
-    arrivalHint: "學學帶你到教學中心，挑一個主題開始。",
+    passPromptAsSearch: true,
+    arrivalHint: "學學帶你到教學中心，先用你的關鍵字搜尋預載結果。",
   },
   // 靈靈：search 站內靈感 / 素材 + 用 LLM 給示範提示詞
   "inspiration-specialist": { kind: "search", minPromptChars: 3 },

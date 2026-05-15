@@ -184,11 +184,21 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
     agentId: "learning-specialist",
     displayName: "學習精靈",
     description: "專精於平台教學與導引，熟悉所有功能、教程與最佳實踐",
-    // 注意：director.suggestPlan 屬於 director、research.deepSearch 屬於
-    // researcher（兩者都是泛用 advisory tools，由 generic skill 認領，
-    // 詳見 shared/agent-skills.ts）。學習精靈專屬 inspiration.fetch，
-    // 用來在教學時抓示範素材／靈感。
+    // 學學是真正的學習 AI agent — 不只是 FAQ 機器人：
+    //   - learningSpecialist.* 9 個工具會真實打 LearnHub / orbFeatureDiscovery
+    //   - inspiration.fetch 用來在教學時抓示範素材
+    // 注意：director.suggestPlan / research.deepSearch 分別屬於 director /
+    // researcher（generic skill 認領，詳見 shared/agent-skills.ts）。
     primaryTools: [
+      "learningSpecialist.getTutorial",
+      "learningSpecialist.listTutorials",
+      "learningSpecialist.searchLearningContent",
+      "learningSpecialist.recommendForContext",
+      "learningSpecialist.generateLearningPath",
+      "learningSpecialist.explainConcept",
+      "learningSpecialist.getUserLearningProgress",
+      "learningSpecialist.getNextLearningStep",
+      "learningSpecialist.getQuickTips",
       "inspiration.fetch",
     ],
     knowledgeDomains: [
@@ -199,6 +209,8 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
       "feature discovery",
       "beginner guidance",
       "advanced techniques",
+      "concept explanation",
+      "personalized learning paths",
     ],
     useCases: [
       "新手入門指導",
@@ -206,6 +218,9 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
       "工作流程規劃",
       "問題排除協助",
       "進階技巧學習",
+      "概念解釋（LoRA / negative prompt / ControlNet …）",
+      "依目標規劃學習路徑",
+      "依使用紀錄推薦下一步",
     ],
   },
   {
