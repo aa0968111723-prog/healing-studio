@@ -169,6 +169,36 @@ const SOURCE_STUDIO_LABELS: Record<SourceStudioFilter, string> = {
   unknown: "其他 / 手動",
 };
 
+// 常用 6 個 source 直接 inline 顯示，其餘收進「更多來源」下拉 — 避免單列
+// 11 個按鈕在桌面 wrap 兩行、手機 wrap 五六行，讓使用者掃描篩選變得很
+// 累。剩下的低頻分類（背景任務 / Webhook / Replicate / 其他）保留可選
+// 但不佔視覺空間。
+const PRIMARY_SOURCES: readonly SourceStudioFilter[] = [
+  "all",
+  "creative",
+  "director",
+  "image",
+  "video",
+  "pro",
+];
+const SECONDARY_SOURCES: readonly SourceStudioFilter[] = [
+  "background",
+  "webhook",
+  "suno",
+  "replicate",
+  "unknown",
+];
+
+// 排序選項 — client-side 在 useMemo 內依此 key 排，伺服器端預設已是
+// createdAt DESC（最新優先）。
+type AssetSortKey = "newest" | "oldest" | "by_source" | "by_type";
+const SORT_LABELS: Record<AssetSortKey, string> = {
+  newest: "最新優先",
+  oldest: "最舊優先",
+  by_source: "依來源分組",
+  by_type: "依類型分組",
+};
+
 // ─── Section Tabs (合併後的大分頁) ───────────────────────────────────────────
 type SectionId =
   | "assets"
@@ -469,6 +499,7 @@ export default function AssetsLibrary() {
   const [typeFilter, setTypeFilter] = useState<AssetTypeFilter>("all");
   const [sourceFilter, setSourceFilter] =
     useState<SourceStudioFilter>("all");
+  const [sortKey, setSortKey] = useState<AssetSortKey>("newest");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const myAssetsQuery = trpc.assets.myAssets.useQuery(
@@ -503,10 +534,64 @@ export default function AssetsLibrary() {
     },
   });
 
-  const assets = tab === "my" ? myAssetsQuery.data : teamAssetsQuery.data;
+  const rawAssets = tab === "my" ? myAssetsQuery.data : teamAssetsQuery.data;
   const isLoading =
     tab === "my" ? myAssetsQuery.isLoading : teamAssetsQuery.isLoading;
   const totalMyAssets = myAssetsQuery.data?.length ?? 0;
+
+  // 是否有任何篩選作用中 — 用於切換「重設」chip 和空狀態文案。
+  const hasActiveFilter =
+    typeFilter !== "all" ||
+    sourceFilter !== "all" ||
+    search.trim().length > 0;
+
+  // 排序：使用者選擇的 sortKey 在後端 fetch 完成後 client-side 套用。
+  // by_source / by_type 同時按二級鍵（createdAt DESC）維持新舊順序穩定。
+  const assets = useMemo(() => {
+    if (!rawAssets) return rawAssets;
+    const sorted = [...rawAssets];
+    const tsOf = (v: unknown): number =>
+      v instanceof Date ? v.getTime() : new Date(v as string).getTime();
+    switch (sortKey) {
+      case "newest":
+        sorted.sort((a, b) => tsOf(b.createdAt) - tsOf(a.createdAt));
+        break;
+      case "oldest":
+        sorted.sort((a, b) => tsOf(a.createdAt) - tsOf(b.createdAt));
+        break;
+      case "by_source": {
+        const order: Record<string, number> = Object.fromEntries(
+          SOURCE_STUDIOS.map((s, i) => [s, i])
+        );
+        sorted.sort((a, b) => {
+          const ra = order[a.sourceStudio ?? "unknown"] ?? 999;
+          const rb = order[b.sourceStudio ?? "unknown"] ?? 999;
+          if (ra !== rb) return ra - rb;
+          return tsOf(b.createdAt) - tsOf(a.createdAt);
+        });
+        break;
+      }
+      case "by_type": {
+        const order: Record<string, number> = Object.fromEntries(
+          ASSET_TYPES.map((t, i) => [t, i])
+        );
+        sorted.sort((a, b) => {
+          const ra = order[a.assetType] ?? 999;
+          const rb = order[b.assetType] ?? 999;
+          if (ra !== rb) return ra - rb;
+          return tsOf(b.createdAt) - tsOf(a.createdAt);
+        });
+        break;
+      }
+    }
+    return sorted;
+  }, [rawAssets, sortKey]);
+
+  const resetFilters = () => {
+    setTypeFilter("all");
+    setSourceFilter("all");
+    setSearch("");
+  };
 
   // ─── PageAgent 註冊（Phase 4b：資產庫接入光球） ──────────────────────────
   // 光球可：切 my/team 分頁、切資產類型、下搜尋字串、清空條件。
@@ -544,6 +629,16 @@ export default function AssetsLibrary() {
         hint: "setParam key='assetType' value=all|image|video|audio|voice|script|zip_bundle",
       },
       {
+        action: "setParam",
+        label: "來源篩選",
+        hint: "setParam key='sourceStudio' value=all|creative|director|image|video|pro|background|webhook|suno|replicate|unknown",
+      },
+      {
+        action: "setParam",
+        label: "排序方式",
+        hint: "setParam key='sort' value=newest|oldest|by_source|by_type",
+      },
+      {
         action: "search",
         label: "搜尋資產",
         hint: "搜尋資產標題或內容。建議搜尋詞格式：用途 + 角色/場景 + 版本",
@@ -578,6 +673,8 @@ export default function AssetsLibrary() {
     state: {
       tab,
       typeFilter,
+      sourceFilter,
+      sortKey,
       search,
       visibleCount: assets?.length ?? 0,
       myTotal: totalMyAssets,
@@ -599,6 +696,28 @@ export default function AssetsLibrary() {
             }
             setTypeFilter(v as AssetTypeFilter);
             return { ok: true, message: `類型切到「${v}」` };
+          }
+          if (action.key === "sourceStudio") {
+            const v = String(action.value ?? "");
+            if (!SOURCE_STUDIOS.includes(v as SourceStudioFilter)) {
+              return { ok: false, reason: `unknown sourceStudio: ${v}` };
+            }
+            setSourceFilter(v as SourceStudioFilter);
+            return {
+              ok: true,
+              message: `來源切到「${SOURCE_STUDIO_LABELS[v as SourceStudioFilter]}」`,
+            };
+          }
+          if (action.key === "sort") {
+            const v = String(action.value ?? "");
+            if (!(v in SORT_LABELS)) {
+              return { ok: false, reason: `unknown sort: ${v}` };
+            }
+            setSortKey(v as AssetSortKey);
+            return {
+              ok: true,
+              message: `排序改為「${SORT_LABELS[v as AssetSortKey]}」`,
+            };
           }
           return { ok: false, reason: `unknown param key: ${action.key}` };
         }
@@ -640,9 +759,9 @@ export default function AssetsLibrary() {
           }
         }
         case "reset": {
-          setTypeFilter("all");
-          setSearch("");
-          return { ok: true, message: "已清空條件" };
+          resetFilters();
+          setSortKey("newest");
+          return { ok: true, message: "已清空所有篩選與排序" };
         }
         default:
           return {
@@ -699,59 +818,8 @@ export default function AssetsLibrary() {
           </p>
           <AssetModelSubpageGuide page="assets" />
 
-          {/* Search + Filter bar */}
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2 flex-wrap">
-              <div className="relative flex-1 min-w-[180px]">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="搜尋資產..."
-                  className="pl-8 h-8 text-xs rounded-lg"
-                />
-                {search && (
-                  <button
-                    className="absolute right-2 top-1/2 -translate-y-1/2"
-                    onClick={() => setSearch("")}
-                  >
-                    <X className="w-3 h-3 text-muted-foreground" />
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {ASSET_TYPES.map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setTypeFilter(t)}
-                    className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${typeFilter === t ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
-                  >
-                    {t === "all" ? (
-                      <Filter className="w-3 h-3" />
-                    ) : (
-                      typeConfig[t]?.icon
-                    )}
-                    {t === "all" ? "全部" : typeConfig[t]?.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* 第二列：依「來源工作室」過濾 — 對應 0046 migration 的
-                sourceStudio 欄位，讓使用者可以分開看「導演 AI 出的」、
-                「Image Studio 出的」… 而不是全部混在一起。 */}
-            <div className="flex gap-1 flex-wrap">
-              {SOURCE_STUDIOS.map(s => (
-                <button
-                  key={s}
-                  onClick={() => setSourceFilter(s)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${sourceFilter === s ? "bg-primary/80 text-primary-foreground" : "bg-muted/30 text-muted-foreground hover:bg-muted/50"}`}
-                >
-                  {SOURCE_STUDIO_LABELS[s]}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* ── 範圍分頁（我的 / 團隊）— 移到篩選之上，因為使用者
+                通常先決定要看哪個範圍，再依類型/來源過濾。 */}
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="rounded-xl bg-muted/40 p-1">
               <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
@@ -762,6 +830,142 @@ export default function AssetsLibrary() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {/* ── 工具列：搜尋 + 排序 + 重設 ───────────────────────────── */}
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="搜尋資產（標題 / 描述 / 提示詞）..."
+                className="pl-8 h-8 text-xs rounded-lg"
+              />
+              {search && (
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                  onClick={() => setSearch("")}
+                  aria-label="清除搜尋"
+                >
+                  <X className="w-3 h-3 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+            <Select
+              value={sortKey}
+              onValueChange={v => setSortKey(v as AssetSortKey)}
+            >
+              <SelectTrigger className="h-8 w-[140px] text-xs rounded-lg">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SORT_LABELS) as AssetSortKey[]).map(k => (
+                  <SelectItem key={k} value={k} className="text-xs">
+                    {SORT_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasActiveFilter && (
+              <button
+                onClick={resetFilters}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-muted/50 hover:bg-muted text-muted-foreground transition-colors"
+              >
+                <X className="w-3 h-3" /> 重設篩選
+              </button>
+            )}
+          </div>
+
+          {/* ── 篩選列 1：類型（圖 / 影 / 音 / 語 / 腳 / 包） ─────────── */}
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+              類型
+            </span>
+            <div className="flex gap-1 flex-wrap">
+              {ASSET_TYPES.map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${typeFilter === t ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
+                >
+                  {t === "all" ? (
+                    <Filter className="w-3 h-3" />
+                  ) : (
+                    typeConfig[t]?.icon
+                  )}
+                  {t === "all" ? "全部" : typeConfig[t]?.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── 篩選列 2：來源工作室（常用 6 + 下拉收合其餘） ───────── */}
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+              來源
+            </span>
+            <div className="flex gap-1 flex-wrap">
+              {PRIMARY_SOURCES.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSourceFilter(s)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${sourceFilter === s ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
+                >
+                  {SOURCE_STUDIO_LABELS[s]}
+                </button>
+              ))}
+              {/* 其餘低頻來源收進下拉，避免單列 11 個按鈕在桌面 wrap 兩
+                  行、手機 wrap 五六行。被選中時 trigger 自動高亮。 */}
+              <Select
+                value={
+                  SECONDARY_SOURCES.includes(sourceFilter)
+                    ? sourceFilter
+                    : "__placeholder__"
+                }
+                onValueChange={v => {
+                  if (v !== "__placeholder__")
+                    setSourceFilter(v as SourceStudioFilter);
+                }}
+              >
+                <SelectTrigger
+                  className={`h-7 w-[120px] text-[11px] rounded-lg ${SECONDARY_SOURCES.includes(sourceFilter) ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground"}`}
+                >
+                  <SelectValue placeholder="更多來源…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    value="__placeholder__"
+                    className="text-xs text-muted-foreground"
+                    disabled
+                  >
+                    更多來源…
+                  </SelectItem>
+                  {SECONDARY_SOURCES.map(s => (
+                    <SelectItem key={s} value={s} className="text-xs">
+                      {SOURCE_STUDIO_LABELS[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* ── 結果統計 — 讓使用者知道目前篩選下顯示幾個 / 共幾個 ─── */}
+          {!isLoading && rawAssets && (
+            <p className="hs-small !mb-0 text-muted-foreground">
+              {hasActiveFilter ? (
+                <>
+                  顯示 <span className="text-foreground font-medium">{rawAssets.length}</span>{" "}
+                  個資產
+                </>
+              ) : (
+                <>
+                  共 <span className="text-foreground font-medium">{rawAssets.length}</span>{" "}
+                  個資產
+                </>
+              )}
+            </p>
+          )}
 
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -967,20 +1171,45 @@ export default function AssetsLibrary() {
                       </span>
                       {/* 來源工作室 badge — 0046 migration 寫入的
                           sourceStudio 欄位，讓使用者一眼看出資產來自哪
-                          個工作室。舊資料（NULL）不顯示。 */}
+                          個工作室。前綴的小色點區分不同來源；舊資料
+                          （NULL）不顯示。 */}
                       {asset.sourceStudio && (
-                        <span
-                          className="inline-flex items-center text-[10px] text-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded-md"
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setSourceFilter(
+                              asset.sourceStudio as SourceStudioFilter
+                            );
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] text-foreground/80 bg-foreground/5 hover:bg-foreground/10 px-1.5 py-0.5 rounded-md transition-colors"
                           title={
                             asset.modelId
-                              ? `模型：${asset.modelId}`
-                              : undefined
+                              ? `來源：${SOURCE_STUDIO_LABELS[asset.sourceStudio as SourceStudioFilter] ?? asset.sourceStudio}\n模型：${asset.modelId}\n（點選只看此來源）`
+                              : `來源（點選只看此來源）`
                           }
                         >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              asset.sourceStudio === "creative"
+                                ? "bg-zen-lavender"
+                                : asset.sourceStudio === "director"
+                                  ? "bg-zen-sage"
+                                  : asset.sourceStudio === "image"
+                                    ? "bg-zen-sky"
+                                    : asset.sourceStudio === "video"
+                                      ? "bg-zen-peach"
+                                      : asset.sourceStudio === "pro"
+                                        ? "bg-zen-blush"
+                                        : asset.sourceStudio === "suno"
+                                          ? "bg-amber-400"
+                                          : "bg-muted-foreground/50"
+                            }`}
+                          />
                           {SOURCE_STUDIO_LABELS[
                             asset.sourceStudio as SourceStudioFilter
                           ] ?? asset.sourceStudio}
-                        </span>
+                        </button>
                       )}
                       {asset.visibility === "team_shared" && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded-md">
@@ -1092,19 +1321,34 @@ export default function AssetsLibrary() {
           })}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <h3 className="hs-h3 !mb-0 mt-6">
-            {search || typeFilter !== "all"
-              ? "沒有符合條件的資產"
-              : "尚無數位資產"}
+        <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
+            {hasActiveFilter ? (
+              <Filter className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <Package className="w-5 h-5 text-muted-foreground" />
+            )}
+          </div>
+          <h3 className="hs-h3 !mb-0">
+            {hasActiveFilter ? "目前篩選下沒有資產" : "尚無數位資產"}
           </h3>
-          <p className="hs-p !mb-0 text-muted-foreground mt-2 max-w-sm">
-            {search || typeFilter !== "all"
-              ? "請嘗試其他搜尋條件"
+          <p className="hs-p !mb-0 text-muted-foreground max-w-sm">
+            {hasActiveFilter
+              ? "試試改變類型 / 來源 / 搜尋字詞，或清除全部篩選"
               : tab === "my"
-                ? "前往工作室生成或點擊「上傳資產」手動添加"
+                ? "前往工作室生成，或點擊「上傳資產」手動添加"
                 : "還沒有團隊共享的資產"}
           </p>
+          {hasActiveFilter && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs gap-1 mt-1"
+              onClick={resetFilters}
+            >
+              <X className="w-3 h-3" /> 重設篩選
+            </Button>
+          )}
         </div>
       )}
         </>
