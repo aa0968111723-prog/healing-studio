@@ -44,8 +44,18 @@ export const SPECIALIZED_AGENT_CAPABILITIES: SpecializedAgentCapability[] = [
     displayName: "圖像精靈",
     description: "專精於圖像生成與編輯，熟悉所有圖像模型、參數調整與風格控制",
     primaryTools: [
+      // studio.* 是泛用 dispatch（給編編 / 步步 也能呼叫）
       "studio.generateImage",
       "studio.generate3D",
+      // imageSpecialist.* 是圖圖獨家的「認知 + 出圖一體」工具集
+      // 推薦模型 / 改寫 prompt / 抓 catalog 真實清單 → 才是 AI agent 該有的能力
+      "imageSpecialist.recommendModel",
+      "imageSpecialist.enhancePrompt",
+      "imageSpecialist.getModels",
+      "imageSpecialist.generate",
+      "imageSpecialist.edit",
+      "imageSpecialist.upscale",
+      "imageSpecialist.getTips",
     ],
     knowledgeDomains: [
       "text-to-image",

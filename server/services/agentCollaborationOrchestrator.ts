@@ -171,14 +171,23 @@ class AgentCollaborationOrchestratorClass {
     // findBestAgentForTask 找不到他們，造成「被動的事永遠交給導導 / 編編」。
     this.registerAgentCapability({
       agentId: "accountant",
-      capabilities: ["cost estimation", "budget tracking", "model price comparison", "spend forecasting"],
+      capabilities: [
+        "cost estimation",
+        "budget tracking",
+        "model price comparison",
+        "spend forecasting",
+        "workflow rollup",
+        "month-end projection",
+      ],
       availableTools: [
         "accountant.estimate",
         "accountant.compare",
         "accountant.usage",
         "accountant.savings",
+        "accountant.workflowEstimate",
+        "accountant.budgetForecast",
       ],
-      knowledgeDomains: ["model pricing", "quota", "subscription tiers"],
+      knowledgeDomains: ["model pricing", "quota", "subscription tiers", "daily spend trends"],
       available: true,
     });
     this.registerAgentCapability({
