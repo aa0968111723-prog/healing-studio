@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Share2,
+  Slash,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -30,6 +31,9 @@ import { useSiteOnboarding } from "@/contexts/SiteOnboardingContext";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { SLASH_COMMANDS, SLASH_GROUP_LABELS } from "../../../shared/slash-commands";
+import { useSlashCommandContext } from "@/hooks/useSlashCommandContext";
+import { runSlashCommand } from "@/lib/slashCommandRunner";
 
 const GROUP_LABELS: Record<AppPageGroupId, string> = {
   orb: "光球與首頁",
@@ -133,8 +137,40 @@ export default function CommandPalette() {
     clearMemory.mutate();
   }, [clearMemory]);
 
+  // ─── Slash command 整合：palette 也能呼叫 / 指令（沒有 argument 的那
+  //     些）。需要 argument 的指令會把光球面板打開並把指令名稱預填到輸入
+  //     框，讓使用者補上參數。
+  const slashCtx = useSlashCommandContext();
+  const runSlashFromPalette = useCallback(
+    async (commandName: string, takesArgument: boolean) => {
+      setOpen(false);
+      if (takesArgument) {
+        // 打開光球面板並把指令名稱預填到輸入框
+        setTimeout(() => {
+          globalChat.open();
+          globalChat.setInput(`${commandName} `);
+        }, 80);
+        return;
+      }
+      // 沒參數的指令直接執行
+      await runSlashCommand(commandName, slashCtx);
+    },
+    [slashCtx, globalChat]
+  );
+
   const groups = getSidebarGroups();
   const allPages = getAllPages();
+
+  // Slash commands 按 group 分桶，給 palette 顯示分組
+  const slashCommandsByGroup = SLASH_COMMANDS.reduce<
+    Record<string, typeof SLASH_COMMANDS[number][]>
+  >((acc, cmd) => {
+    if (cmd.hidden) return acc;
+    const list = acc[cmd.group] ?? [];
+    list.push(cmd);
+    acc[cmd.group] = list;
+    return acc;
+  }, {});
 
   return (
     <CommandDialog
@@ -265,6 +301,35 @@ export default function CommandPalette() {
             </div>
           </CommandItem>
         </CommandGroup>
+
+        <CommandSeparator />
+
+        {/* Slash commands — 全套 / 指令系統的入口。給還沒習慣在 chat
+            裡直接打 / 的使用者一個發現入口；點選後若需要參數會把光球
+            面板打開並預填指令名稱。*/}
+        {Object.entries(slashCommandsByGroup).map(([groupId, cmds]) => (
+          <CommandGroup
+            key={`slash-${groupId}`}
+            heading={`Slash · ${SLASH_GROUP_LABELS[groupId as keyof typeof SLASH_GROUP_LABELS] ?? groupId}`}
+          >
+            {cmds.map(cmd => (
+              <CommandItem
+                key={cmd.name}
+                value={`${cmd.name} ${cmd.aliases.join(" ")} ${cmd.description}`}
+                onSelect={() => void runSlashFromPalette(cmd.name, cmd.takesArgument)}
+                data-testid={`cmdk-slash-${cmd.name.slice(1)}`}
+              >
+                <Slash />
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-mono text-sm">{cmd.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {cmd.description}
+                  </span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ))}
 
         <CommandSeparator />
 

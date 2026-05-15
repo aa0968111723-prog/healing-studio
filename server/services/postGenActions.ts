@@ -101,7 +101,7 @@ export interface PostGenParams {
   /**
    * 對應的 backgroundJobs.id（若有）。寫入 digital_asset_library 與
    * generation_history.parameterSnapshot 讓「我的資產」反向查得到原始
-   * 任務記錄（fal request_id、降級紀錄等）。Schema 欄位於 migration 0046
+   * 任務記錄（fal request_id、降級紀錄等）。Schema 欄位於 migration 0047
    * 新增；舊 schema 下會被 ORM 忽略。
    */
   backgroundJobId?: number;
@@ -152,7 +152,7 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
     }
   }
 
-  // 1-3a. 數位資產庫 — 補上 0046 migration 新增的來源追蹤欄位
+  // 1-3a. 數位資產庫 — 補上 0047 migration 新增的來源追蹤欄位
   // （sourceStudio / modelId / backgroundJobId），讓「我的資產」可依
   // 工作室與 AI 模型分類，並反向連回 backgroundJobs。
   if (resultUrl) {

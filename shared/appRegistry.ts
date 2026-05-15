@@ -892,6 +892,38 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["fillPrompt", "setParam", "submit"],
   },
   {
+    id: "agent-codex",
+    label: "AI 代理代碼大全",
+    path: "/codex",
+    group: "learn",
+    description: "光球 AI 代理全功能總覽：25 精靈 / 36 頁面 / 全指令 / 接棒網絡 / 主動觸發，可搜尋",
+    aliases: ["codex", "大全", "代碼大全", "compendium", "manual", "全功能"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 42,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-codex",
+        label: "打開大全",
+        description: "瀏覽全部 AI 代理能力",
+        path: "/codex",
+      },
+      {
+        id: "search-codex",
+        label: "搜尋功能",
+        description: "用關鍵字找站內任何 AI 能力",
+        prompt: "/codex ",
+      },
+    ],
+    orbHints: [
+      "光球有什麼功能？",
+      "列出所有精靈",
+      "這個站到底能做什麼",
+    ],
+    supportedActions: [],
+  },
+  {
     id: "background-tasks",
     label: "背景任務中心",
     path: "/assets?section=tasks",

@@ -206,6 +206,26 @@ describe("orb-studio-actions: collaboration links", () => {
     expect(getStudioCollaborationLink("director-handoff")?.label).toBe("交給導演 AI");
     expect(getStudioCollaborationLink("nope")).toBeUndefined();
   });
+
+  it("api-deep-link ships a directAction so it bypasses the LLM", () => {
+    // 「API 深度連結」必須當場讀 studio snapshot 打包成連結，不能走 LLM
+    // round-trip — 不然會卡在「思考中…」，且 shareViaLink 沒有 studioState
+    // target 時只能挑 lastWorkflow / currentChat 兩個對使用者沒意義的目標。
+    const link = getStudioCollaborationLink("api-deep-link");
+    expect(link?.directAction).toEqual({
+      type: "shareViaLink",
+      target: "studioState",
+    });
+  });
+
+  it("other collaboration links keep their LLM round-trip (no directAction)", () => {
+    // 模型推薦 / 導演 AI / 全站光球協作 都需要 LLM 規劃，這層測試確保
+    // 我們沒有不小心把它們也改成直接執行。
+    const ids = ["recommend-model", "director-handoff", "site-orb-collab"];
+    for (const id of ids) {
+      expect(getStudioCollaborationLink(id)?.directAction).toBeUndefined();
+    }
+  });
 });
 
 describe("orb-studio-actions: image studio T2I profile", () => {

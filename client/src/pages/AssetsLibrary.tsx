@@ -137,7 +137,7 @@ const ASSET_TYPES = [
 ] as const;
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 
-// 對應後端 digital_asset_library.sourceStudio enum（0046 migration）+
+// 對應後端 digital_asset_library.sourceStudio enum（0047 migration）+
 // 「unknown」 = 舊資料或手動上傳。讓使用者依「哪個工作室產的」分類資產，
 // 解決過去全部混在一起、無法回追的「資產庫亂掉」問題。
 const SOURCE_STUDIOS = [
@@ -1169,7 +1169,7 @@ export default function AssetsLibrary() {
                       >
                         {config.label}
                       </span>
-                      {/* 來源工作室 badge — 0046 migration 寫入的
+                      {/* 來源工作室 badge — 0047 migration 寫入的
                           sourceStudio 欄位，讓使用者一眼看出資產來自哪
                           個工作室。前綴的小色點區分不同來源；舊資料
                           （NULL）不顯示。 */}

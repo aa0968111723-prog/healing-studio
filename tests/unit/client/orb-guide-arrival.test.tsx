@@ -31,7 +31,12 @@ describe("OrbGuideContext.attachArrivalGuide", () => {
     vi.useRealTimers();
   });
 
-  it("flips the panel into navigating, then arrived after 600ms", () => {
+  it("flips the panel into navigating, then arrived once URL settles (or timeout)", async () => {
+    // attachArrivalGuide 不再用 setTimeout(600) 翻 arrived，而是 poll
+    // window.location.pathname 直到目標路徑命中，沒命中就在 5 秒 timeout
+    // fallback。jsdom 不會自己跟著 wouter 動 location，所以這個測試靠
+    // timeout 兜底；改用 runAllTimersAsync 把 Promise.then 的 microtask
+    // 也排空，否則 setStep("arrived") 不會被 React 看見。
     const { result } = renderHook(() => useOrbGuide(), { wrapper });
 
     expect(result.current.step).toBe("idle");
@@ -49,8 +54,8 @@ describe("OrbGuideContext.attachArrivalGuide", () => {
     expect(result.current.plan?.targetPath).toBe("/image-studio");
     expect(result.current.plan?.targetLabel).toBe("圖像工作室");
 
-    act(() => {
-      vi.advanceTimersByTime(600);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000);
     });
 
     expect(result.current.step).toBe("arrived");
@@ -150,14 +155,16 @@ describe("OrbGuideContext.attachArrivalGuide", () => {
     ]);
   });
 
-  it("re-attaching with a different path resets timer and step", () => {
+  it("re-attaching with a different path resets timer and step", async () => {
+    // Same caveat as the first test: implementation polls window.location;
+    // jsdom doesn't auto-sync, so we rely on the 5s timeout fallback.
     const { result } = renderHook(() => useOrbGuide(), { wrapper });
 
     act(() => {
       result.current.attachArrivalGuide({ targetPath: "/image-studio" });
     });
-    act(() => {
-      vi.advanceTimersByTime(300);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
     });
     // Mid-flight: still navigating
     expect(result.current.step).toBe("navigating");
@@ -169,15 +176,18 @@ describe("OrbGuideContext.attachArrivalGuide", () => {
     expect(result.current.step).toBe("navigating");
     expect(result.current.plan?.targetPath).toBe("/video-studio");
 
-    // The original 300ms-already-elapsed timer must NOT prematurely flip to
-    // arrived — i.e. only 300ms more should not be enough; we need 600.
-    act(() => {
-      vi.advanceTimersByTime(300);
+    // 第一次 attach 已經跑了 2 秒；如果舊的 polling 沒有被 navigationRunIdRef
+    // bump 掉，這條 2 秒之後又走 3 秒（總計 5 秒）就會把 step 翻成 arrived。
+    // 但 attachArrivalGuide 在 cancelArrivalTimer + ++navigationRunIdRef 時
+    // 應該把舊的 promise resolve 結果直接丟掉，所以這 3 秒不應該翻 arrived。
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
     });
     expect(result.current.step).toBe("navigating");
 
-    act(() => {
-      vi.advanceTimersByTime(300);
+    // 再走 3 秒，第二次 attach 自己的 polling 應該已經 timeout 並翻 arrived。
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
     });
     expect(result.current.step).toBe("arrived");
   });
@@ -203,6 +213,31 @@ describe("OrbGuideContext.attachArrivalGuide", () => {
       vi.advanceTimersByTime(1000);
     });
     expect(result.current.step).toBe("idle");
+  });
+
+  it("clearArrivalBanner clears arrival state but keeps the panel open", () => {
+    // 聊天驅動跳頁時，「收掉到站橫幅」必須保留 isPanelOpen，否則使用者
+    // 一按 X 整個聊天就跟著消失 —— 那等於把多步驟對話又藏回去了，
+    // 也就是這次修補在解的「跳頁完沒有引導」回報。
+    const { result } = renderHook(() => useOrbGuide(), { wrapper });
+
+    act(() => {
+      result.current.attachArrivalGuide({
+        targetPath: "/director",
+        preferredPanelMode: "chat",
+      });
+    });
+    expect(result.current.step).toBe("navigating");
+    expect(result.current.isPanelOpen).toBe(true);
+    expect(result.current.plan).not.toBeNull();
+
+    act(() => {
+      result.current.clearArrivalBanner();
+    });
+    expect(result.current.step).toBe("idle");
+    // 對比 dismissArrival：面板必須保持開著，聊天才有地方繼續走。
+    expect(result.current.isPanelOpen).toBe(true);
+    expect(result.current.plan).toBeNull();
   });
 
   it("uses provided manualSteps verbatim", () => {

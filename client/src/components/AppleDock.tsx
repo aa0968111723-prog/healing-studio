@@ -530,6 +530,14 @@ function AppleDock({
     return () => window.removeEventListener("keydown", onKey);
   }, [immersive, revealed, onToggleImmersive]);
 
+  // Open command palette via the global event we wired in CommandPalette.tsx.
+  // Must stay above the early returns below — otherwise useIsMobile() flipping
+  // from `undefined` to `true` on first effect changes the hook count between
+  // renders and throws React error #300.
+  const openCommandPalette = React.useCallback(() => {
+    window.dispatchEvent(new CustomEvent("open-command-palette"));
+  }, []);
+
   // On mobile, default to the bubble form (regardless of persisted minimized
   // state) so the dock stays out of the chat/content area until the user
   // explicitly opens it. Tapping the bubble flips local mobileOpen, which is
@@ -581,11 +589,6 @@ function AppleDock({
   const staggerDelay = (i: number) => ({
     animationDelay: `${i * 45}ms`,
   });
-
-  // Open command palette via the global event we wired in CommandPalette.tsx
-  const openCommandPalette = React.useCallback(() => {
-    window.dispatchEvent(new CustomEvent("open-command-palette"));
-  }, []);
 
   // In immersive mode the nav is hidden but reveals on hover/focus
   const immersiveHidden = immersive && !revealed;

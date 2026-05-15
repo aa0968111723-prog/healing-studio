@@ -96,6 +96,11 @@ import ChatMessageText from "@/components/ChatMessageText";
 import type { IntentOption } from "@/lib/intentOptions";
 import OrbSearchResultsCard from "@/components/orb/OrbSearchResultsCard";
 import OrbThinkingStepsPanel from "@/components/orb/OrbThinkingStepsPanel";
+import { SlashCommandMenu } from "@/components/SlashCommandMenu";
+import { SlashCommandChip } from "@/components/SlashCommandChip";
+import { useSlashCommandMenu } from "@/hooks/useSlashCommandMenu";
+import { useSlashCommandContext } from "@/hooks/useSlashCommandContext";
+import { runSlashCommand } from "@/lib/slashCommandRunner";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -896,11 +901,33 @@ export default function AgentChat() {
     setActiveMode(prev => (prev === modeId ? null : modeId));
   }, []);
 
+  // ─── Slash command — / 開頭的指令會繞過 sendMessage / 模式邏輯，直接
+  //     讓 runSlashCommand 處理（內部會視情況再呼叫 sendMessage）。
+  const slashCtx = useSlashCommandContext();
+  const slashMenu = useSlashCommandMenu(input, setInput);
+
   // ─── 送出訊息 ───────────────────────────────────────────────────────
   const send = useCallback(
     async (raw: string) => {
       const text = raw.trim();
       if ((!text && attachments.length === 0) || isSending) return;
+
+      // 以 / 開頭 → 走 slash command pipeline。runner 會視情況呼叫
+      // sendMessage / navigate / client-action，並回傳 result 告訴我們
+      // 要不要清掉輸入框。
+      if (text.startsWith("/")) {
+        const result = await runSlashCommand(text, slashCtx);
+        if (result.status === "ran") {
+          setInput("");
+          slashMenu.forceClose();
+          clearAttachments();
+          if (activeModeOption) setActiveMode(null);
+        }
+        // missing-argument / unknown-command 已經被 runner toast 過了；
+        // 保留輸入框內容讓使用者繼續修改。
+        return;
+      }
+
       // 使用者打什麼，聊天紀錄就顯示什麼。模式以 requestedMode 結構化欄位
       // 傳遞，由 GlobalOrbChatContext 內的 hard-coded 邏輯接手 — 不再注入
       // 一段中文 instruction 蓋掉使用者原文。
@@ -926,7 +953,17 @@ export default function AgentChat() {
       // 送出後自動關閉模式，避免下一句又意外帶到模式上下文。
       if (activeModeOption) setActiveMode(null);
     },
-    [isSending, globalChat, attachments, clearAttachments, activeModeOption, pinnedSpirit]
+    [
+      isSending,
+      globalChat,
+      attachments,
+      clearAttachments,
+      activeModeOption,
+      pinnedSpirit,
+      slashCtx,
+      slashMenu,
+      setInput,
+    ]
   );
 
   // Keep sendRef in sync with the latest `send` callback
@@ -943,12 +980,15 @@ export default function AgentChat() {
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // 先讓 slash menu 有機會接走 ↑↓ Enter Tab Esc。回傳 true 表示
+      // menu 已經處理掉這個鍵，就不要再走「Enter→送出」的預設邏輯。
+      if (slashMenu.handleKeyDown(e)) return;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         void send(input);
       }
     },
-    [input, send]
+    [input, send, slashMenu]
   );
 
   const isFirstTurn = messages.length <= 1;
@@ -1365,6 +1405,7 @@ export default function AgentChat() {
               className="w-full mt-1 space-y-2"
             >
               <div className="healing-input-shell relative p-2 flex-col items-stretch">
+                <SlashCommandMenu {...slashMenu.menuProps} placement="above" />
                 {attachments.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 px-1 pt-1 pb-1.5">
                     {attachments.map(attachment => (
@@ -1380,6 +1421,14 @@ export default function AgentChat() {
                         <X className="w-3 h-3 opacity-70" />
                       </button>
                     ))}
+                  </div>
+                )}
+                {input.startsWith("/") && (
+                  <div className="px-1 pt-1.5 pb-1">
+                    <SlashCommandChip
+                      input={input}
+                      onClear={() => setInput("")}
+                    />
                   </div>
                 )}
                 <div className="flex items-center gap-2 w-full">
@@ -1402,7 +1451,7 @@ export default function AgentChat() {
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={onKeyDown}
                     disabled={isSending}
-                    placeholder={activeModeOption?.placeholder ?? "告訴光球你想做什麼，它幫你串好整套流程…"}
+                    placeholder={activeModeOption?.placeholder ?? "告訴光球你想做什麼，它幫你串好整套流程…（打 / 開指令選單）"}
                     className="flex-1 bg-transparent outline-none px-2 py-3 text-base text-glass-strong placeholder:text-glass-soft placeholder:opacity-60 disabled:opacity-50 min-w-0"
                   />
                   <button
@@ -2697,7 +2746,8 @@ export default function AgentChat() {
             </motion.div>
           )}
 
-          <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2 ring-1 ring-emerald-100/60 dark:ring-emerald-900/20 focus-within:ring-emerald-300/70 dark:focus-within:ring-emerald-600/40 transition-all">
+          <div className="relative flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2 ring-1 ring-emerald-100/60 dark:ring-emerald-900/20 focus-within:ring-emerald-300/70 dark:focus-within:ring-emerald-600/40 transition-all">
+            <SlashCommandMenu {...slashMenu.menuProps} placement="above" />
             <button
               type="button"
               onClick={pickAttachment}
@@ -2719,7 +2769,7 @@ export default function AgentChat() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               disabled={isSending}
-              placeholder={activeModeOption?.placeholder ?? "說一句話就好…"}
+              placeholder={activeModeOption?.placeholder ?? "說一句話就好…（打 /）"}
               className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 disabled:opacity-50"
             />
             <Button

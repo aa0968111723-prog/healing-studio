@@ -508,6 +508,19 @@ const ROUTER_TO_PROVIDERS: Array<{
     files: ["server/routers/news.ts"],
   },
   {
+    id: "router:aiModels",
+    label: "aiModels（AI 模型情報）",
+    description:
+      "策展 AI 模型目錄 + 自動研究 / 事實查核 enrichment（透過 Perplexity / OpenRouter Sonar）",
+    providers: ["openrouter"],
+    files: [
+      "server/routers/aiModels.ts",
+      "server/services/modelResearcher.ts",
+      "server/jobs/modelCatalogResearchJob.ts",
+      "shared/aiModelsCatalog.ts",
+    ],
+  },
+  {
     id: "router:showcase",
     label: "showcase（精選作品）",
     description: "首頁作品展示與分類查詢",
@@ -1207,6 +1220,19 @@ const CRON_JOBS: CronJobMeta[] = [
     description: "每天備份重要 DB 表到物件儲存（容災）",
     files: ["server/jobs/r2SnapshotJob.ts"],
     downstream: ["db:main", "storage:assets"],
+  },
+  {
+    id: "cron:model-catalog-research",
+    label: "AI 模型情報自動研究（每週日 03:30）",
+    schedule: "30 3 * * 0",
+    description:
+      "對 AI 模型目錄每個條目跑 Perplexity 深度搜尋：更新定價、benchmark、近期動態並做事實查核，結果寫入 in-memory enrichment store 供 trpc.aiModels.list 使用",
+    files: [
+      "server/jobs/modelCatalogResearchJob.ts",
+      "server/services/modelResearcher.ts",
+    ],
+    downstream: ["ext:perplexity", "router:aiModels"],
+    envKey: "PERPLEXITY_API_KEY",
   },
 ];
 

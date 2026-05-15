@@ -392,8 +392,8 @@ describe("doPostGenComplete with caller-supplied dedupe / parameter snapshot", (
     expect(historyEntry.costCredits).toBe(12);
   });
 
-  it("writes sourceStudio + modelId + backgroundJobId into digital_asset_library (0046 migration)", async () => {
-    // 0046 新增的來源追蹤欄位 — 讓「我的資產」可依工作室與 AI 模型分類，
+  it("writes sourceStudio + modelId + backgroundJobId into digital_asset_library (0047 migration)", async () => {
+    // 0047 新增的來源追蹤欄位 — 讓「我的資產」可依工作室與 AI 模型分類，
     // 並反向連回 backgroundJobs 取得原始任務細節（fal request_id 等）。
     await doPostGenComplete({
       userId: 7,

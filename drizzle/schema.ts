@@ -348,7 +348,7 @@ export const digitalAssetLibrary = mysqlTable(
     // notesCurator.categorizeAsset.
     tags: json("tags").$type<string[]>(),
     category: varchar("category", { length: 64 }),
-    // 0046: AI 生成來源追蹤 — sourceStudio / modelId 標註資產來自哪個工作室
+    // 0047: AI 生成來源追蹤 — sourceStudio / modelId 標註資產來自哪個工作室
     // 與哪個 AI 模型，讓「我的資產」可依工作室分類；backgroundJobId 連回原
     // 始任務記錄。皆為 nullable 以相容手動上傳與舊資料。
     sourceStudio: varchar("sourceStudio", { length: 32 }),

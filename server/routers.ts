@@ -32,6 +32,7 @@ import {
 } from "./services/googleDrive";
 import { generationBus } from "./generationEvents";
 import { newsRouter } from "./routers/news";
+import { aiModelsRouter } from "./routers/aiModels";
 import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
@@ -1027,6 +1028,7 @@ export const appRouter = router({
 
   // ─── Homepage Public APIs (Read-only, LOD Pagination) ──────────────────
   news: newsRouter,
+  aiModels: aiModelsRouter,
   showcase: showcaseRouter,
   sense: senseRouter,
   brain: brainRouter,
@@ -3926,7 +3928,7 @@ export const appRouter = router({
               ])
               .default("all"),
             // 來源工作室過濾 — 對應 digital_asset_library.sourceStudio
-            // （0046 migration 新增）。"all" 顯示全部；"unknown" 顯示舊資料
+            // （0047 migration 新增）。"all" 顯示全部；"unknown" 顯示舊資料
             // 與手動上傳（NULL 值）。
             sourceStudio: z
               .enum([

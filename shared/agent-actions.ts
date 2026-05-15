@@ -138,8 +138,10 @@ export interface ShareViaLinkAction {
    * 要分享什麼：
    *  - "lastWorkflow"：最近一次的 pending / 已執行 workflow
    *  - "currentChat"：目前聊天歷史摘要成一張流程清單
+   *  - "studioState"：創作工作室當下的提示詞 / 模態 / 模型 / 各模態參數
+   *    （不需要已跑過 workflow，純讀 PageAgentSnapshot.state）
    */
-  target: "lastWorkflow" | "currentChat";
+  target: "lastWorkflow" | "currentChat" | "studioState";
   /** 自訂分享標題。 */
   title?: string;
 }
@@ -556,7 +558,9 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
     case "shareViaLink":
     case "share": {
       const target =
-        obj.target === "lastWorkflow" || obj.target === "currentChat"
+        obj.target === "lastWorkflow" ||
+        obj.target === "currentChat" ||
+        obj.target === "studioState"
           ? obj.target
           : "lastWorkflow";
       return {
@@ -733,7 +737,9 @@ export function summarizeAction(action: AgentAction): string {
     case "shareViaLink":
       return action.target === "currentChat"
         ? "想幫你把這段對話打包成可分享的流程連結"
-        : "想幫你把剛剛的工作流程打包成可分享連結";
+        : action.target === "studioState"
+          ? "想幫你把目前創作工作室的設定打包成可分享連結"
+          : "想幫你把剛剛的工作流程打包成可分享連結";
   }
 }
 
