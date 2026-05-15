@@ -69,7 +69,7 @@ export default function MyBrainPage() {
         <h1 className="text-2xl font-bold text-foreground">
           🧠 我的腦組態狀態
         </h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           看看你目前選用的 5 個推理大腦、4 個生成引擎，以及光球代理／導演 AI
           的即時運作狀況。點擊節點查看詳細說明與建議。
         </p>
@@ -85,7 +85,7 @@ export default function MyBrainPage() {
         onStatusFilterChange={setStatusFilter}
       />
 
-      <div className="flex-1 min-h-0 rounded-2xl border border-border bg-white/40 dark:bg-slate-950/40 overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-2xl border border-border bg-white/40 overflow-hidden">
         {graphQuery.isLoading && (
           <div className="p-6 space-y-4">
             <Skeleton className="h-32 w-full" />

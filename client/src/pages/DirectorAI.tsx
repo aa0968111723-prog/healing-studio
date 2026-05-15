@@ -149,7 +149,7 @@ const PERSONALITIES = [
     icon: Brain,
     description: "重邏輯、結構與可行性分析",
     color: "from-slate-500 to-blue-600",
-    bgActive: "bg-muted/60 ring-slate-400",
+    bgActive: "bg-muted/60 ring-border",
     textColor: "text-foreground/90",
   },
   {

@@ -238,20 +238,20 @@ function TourCard({
                 </div>
                 <button
                   onClick={onSkip}
-                  className="p-1 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+                  className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground/70 hover:text-foreground"
                   aria-label="跳過引導"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <h3 className="text-sm sm:text-base font-bold text-gray-800 mt-1.5">
+              <h3 className="text-sm sm:text-base font-bold text-foreground mt-1.5">
                 {step.title}
               </h3>
             </div>
           </div>
 
           {/* Description */}
-          <p className="text-xs sm:text-sm text-gray-600 leading-relaxed mb-3 whitespace-pre-line">
+          <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed mb-3 whitespace-pre-line">
             {step.description}
           </p>
 
@@ -293,7 +293,7 @@ function TourCard({
                   size="sm"
                   variant="ghost"
                   onClick={onPrev}
-                  className="text-[11px] sm:text-xs h-8 px-2.5 sm:px-3 gap-1 text-gray-500 rounded-full"
+                  className="text-[11px] sm:text-xs h-8 px-2.5 sm:px-3 gap-1 text-muted-foreground rounded-full"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   上一步
@@ -324,7 +324,7 @@ function TourCard({
         <div className="px-5 pb-4 -mt-1">
           <button
             onClick={onSkip}
-            className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
           >
             跳過引導
           </button>

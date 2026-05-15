@@ -43,7 +43,7 @@ export default function AgentIntentPreview() {
               : "fixed z-[60] right-6 bottom-28 max-w-[22rem] w-[min(22rem,calc(100vw-3rem))] pointer-events-auto"
           }
         >
-          <div className="relative rounded-2xl border border-emerald-200/60 dark:border-emerald-400/30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xl overflow-hidden">
+          <div className="relative rounded-2xl border border-emerald-200/60 dark:border-emerald-400/30 bg-white/90 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* 柔和光暈 */}
             <div
               className="absolute inset-0 pointer-events-none opacity-60"
@@ -77,7 +77,7 @@ export default function AgentIntentPreview() {
                   size="sm"
                   variant="ghost"
                   onClick={() => cancelPending()}
-                  className="flex-1 text-foreground/90 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="flex-1 text-foreground/90 hover:bg-muted"
                 >
                   <X className="w-4 h-4 mr-1" />
                   先不要

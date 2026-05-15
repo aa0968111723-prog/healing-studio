@@ -158,7 +158,7 @@ export default function OrbMemoryDashboard({ compact }: Props) {
             <button
               type="button"
               onClick={() => setConfirmClear(false)}
-              className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground hover:bg-gray-200"
+              className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground hover:bg-muted"
             >
               取消
             </button>

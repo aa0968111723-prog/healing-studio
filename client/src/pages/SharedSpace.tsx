@@ -640,7 +640,7 @@ export default function SharedSpace() {
                               <Button
                                 size="sm"
                                 onClick={() => handleUseAsset(asset)}
-                                className={`gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg transition-healing ${
+                                className={`gap-1.5 bg-white/90 hover:bg-card text-foreground shadow-lg transition-healing ${
                                   isMobile
                                     ? "opacity-0 pointer-events-none"
                                     : "opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"

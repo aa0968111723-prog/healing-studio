@@ -57,7 +57,7 @@ export function OrbVoiceButton({ enabled = true, autoActivate = false }: OrbVoic
         ? "bg-blue-500 hover:bg-blue-600"
         : voice.isConnected
           ? "bg-orange-500 hover:bg-orange-600"
-          : "bg-gray-400 hover:bg-gray-500";
+          : "bg-muted hover:bg-muted";
   const ariaLabel = voice.isConnected
     ? voice.isListening
       ? "停止語音"

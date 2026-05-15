@@ -38,7 +38,7 @@ import { Link } from "wouter";
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   free: {
     label: "免費",
-    color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    color: "bg-muted text-foreground/90",
   },
   economy: {
     label: "經濟",

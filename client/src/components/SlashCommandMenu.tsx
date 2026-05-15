@@ -202,7 +202,7 @@ export function SlashCommandMenu({
                         "focus:outline-none",
                         isActive
                           ? "bg-emerald-50 dark:bg-emerald-900/20"
-                          : "hover:bg-slate-50"
+                          : "hover:bg-muted"
                       )}
                       role="option"
                       aria-selected={isActive}

@@ -2837,7 +2837,7 @@ export default function Studio() {
                   onClick={() => setLeftDrawerTab("vault")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
                     leftDrawerTab === "vault"
-                      ? "bg-white shadow-sm text-foreground font-medium"
+                      ? "bg-card shadow-sm text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -2848,7 +2848,7 @@ export default function Studio() {
                   onClick={() => setLeftDrawerTab("assets")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
                     leftDrawerTab === "assets"
-                      ? "bg-white shadow-sm text-foreground font-medium"
+                      ? "bg-card shadow-sm text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -2859,7 +2859,7 @@ export default function Studio() {
                   onClick={() => setLeftDrawerTab("models")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
                     leftDrawerTab === "models"
-                      ? "bg-white shadow-sm text-foreground font-medium"
+                      ? "bg-card shadow-sm text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -2870,7 +2870,7 @@ export default function Studio() {
                   onClick={() => setLeftDrawerTab("recipes")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
                     leftDrawerTab === "recipes"
-                      ? "bg-white shadow-sm text-foreground font-medium"
+                      ? "bg-card shadow-sm text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -2881,7 +2881,7 @@ export default function Studio() {
                   onClick={() => setLeftDrawerTab("versions")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
                     leftDrawerTab === "versions"
-                      ? "bg-white shadow-sm text-foreground font-medium"
+                      ? "bg-card shadow-sm text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >

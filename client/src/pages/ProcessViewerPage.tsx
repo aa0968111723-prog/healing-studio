@@ -311,7 +311,7 @@ export default function ProcessViewerPage() {
                   {doneCount}/{total}
                 </span>
               </div>
-              <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-500"
                   style={{ width: `${percent}%` }}

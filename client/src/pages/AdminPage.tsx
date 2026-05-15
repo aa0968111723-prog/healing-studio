@@ -1320,7 +1320,7 @@ export default function AdminPage() {
                 failed:
                   "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
                 cancelled:
-                  "bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400",
+                  "bg-muted text-foreground/90",
               };
               return (
                 <GlassCard key={job.id}>
@@ -1465,7 +1465,7 @@ const SEVERITY_BADGE_CLASS: Record<string, string> = {
   high: "border-orange-500/40 text-orange-600 bg-orange-500/10",
   medium: "border-yellow-500/40 text-yellow-600 bg-yellow-500/10",
   low: "border-blue-500/30 text-blue-600 bg-blue-500/10",
-  info: "border-slate-500/30 text-slate-500 bg-slate-500/10",
+  info: "border-border/30 text-muted-foreground bg-muted/10",
 };
 
 const SEVERITY_LABEL: Record<string, string> = {

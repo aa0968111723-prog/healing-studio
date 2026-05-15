@@ -13,7 +13,7 @@ interface Props {
 
 export function Legend({ legend }: Props) {
   return (
-    <div className="absolute bottom-4 right-4 z-10 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur border shadow-lg p-3 space-y-2 text-xs max-w-[260px]">
+    <div className="absolute bottom-4 right-4 z-10 rounded-xl bg-white/90 backdrop-blur border shadow-lg p-3 space-y-2 text-xs max-w-[260px]">
       <div className="font-semibold mb-1">圖例</div>
       {legend.map(item => (
         <div key={item.status} className="flex items-start gap-2">
@@ -22,7 +22,7 @@ export function Legend({ legend }: Props) {
           />
           <div>
             <div className="font-medium">{item.label}</div>
-            <div className="text-[10px] text-slate-500 leading-tight">
+            <div className="text-[10px] text-muted-foreground leading-tight">
               {item.description}
             </div>
           </div>

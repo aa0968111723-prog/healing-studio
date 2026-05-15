@@ -43,7 +43,7 @@ const KIND_LABEL: Record<LibraryKind, string> = {
 const KIND_TONE: Record<LibraryKind, string> = {
   shoot: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   personal: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
-  other: "border-slate-500/30 bg-slate-500/10 text-slate-300",
+  other: "border-border/30 bg-muted/10 text-muted-foreground/70",
 };
 
 export function DriveLibrarySection() {

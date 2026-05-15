@@ -52,7 +52,7 @@ export default function ScrollToTop({
           exit={{ opacity: 0, scale: 0.8, y: 10 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm border border-white/60 shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white hover:shadow-xl transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm border border-white/60 shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card hover:shadow-xl transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="回到頂部"
         >
           <ArrowUp className="w-4 h-4" />

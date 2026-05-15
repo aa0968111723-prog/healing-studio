@@ -96,7 +96,7 @@ export default function AuthExpiredModal() {
               {/* Close button */}
               <button
                 onClick={handleDismiss}
-                className="absolute top-4 right-4 p-1 rounded-full hover:bg-zinc-100 transition-colors text-muted-foreground/70 hover:text-foreground"
+                className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground/70 hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>

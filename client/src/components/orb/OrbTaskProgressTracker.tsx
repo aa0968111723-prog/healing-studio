@@ -88,9 +88,9 @@ export default function OrbTaskProgressTracker({
       case "failed":
         return <AlertTriangle className="w-4 h-4 text-red-500" />;
       case "skipped":
-        return <Circle className="w-4 h-4 text-gray-400" />;
+        return <Circle className="w-4 h-4 text-muted-foreground/70" />;
       default:
-        return <Circle className="w-4 h-4 text-gray-300" />;
+        return <Circle className="w-4 h-4 text-muted-foreground/70" />;
     }
   };
 
@@ -230,8 +230,8 @@ export default function OrbTaskProgressTracker({
                     <p
                       className={cn(
                         "text-sm font-medium",
-                        step.status === "pending" && "text-gray-500",
-                        step.status === "skipped" && "text-gray-400 line-through"
+                        step.status === "pending" && "text-muted-foreground",
+                        step.status === "skipped" && "text-muted-foreground/70 line-through"
                       )}
                     >
                       {step.stepName}

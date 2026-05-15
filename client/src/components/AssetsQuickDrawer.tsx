@@ -43,7 +43,7 @@ const TYPE_COLORS: Record<string, string> = {
   audio: "bg-amber-500/20 text-amber-300 border-amber-500/30",
   voice: "bg-rose-500/20 text-rose-300 border-rose-500/30",
   script: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  zip_bundle: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  zip_bundle: "bg-muted/20 text-muted-foreground/70 border-border/30",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -80,7 +80,7 @@ function AssetCard({
 }) {
   const isImage = asset.assetType === "image";
   const isVideo = asset.assetType === "video";
-  const typeColor = TYPE_COLORS[asset.assetType] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+  const typeColor = TYPE_COLORS[asset.assetType] ?? "bg-muted/20 text-muted-foreground/70 border-border/30";
   const typeIcon = TYPE_ICONS[asset.assetType] ?? <Package className="w-3.5 h-3.5" />;
   const displayUrl = asset.thumbnailUrl || asset.fileUrl;
 

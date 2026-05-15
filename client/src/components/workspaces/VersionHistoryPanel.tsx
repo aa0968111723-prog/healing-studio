@@ -62,7 +62,7 @@ const strengthLabels: Record<PromptStrengthLevel, string> = {
 };
 
 const strengthColors: Record<PromptStrengthLevel, string> = {
-  low: "bg-gray-400/20 text-gray-300",
+  low: "bg-muted/20 text-muted-foreground/70",
   medium: "bg-amber-400/20 text-amber-300",
   high: "bg-orange-500/20 text-orange-300",
   locked: "bg-red-500/20 text-red-300",

@@ -127,8 +127,8 @@ const WEIGHT_CONFIG: Record<WeightLabel, WeightConfig> = {
     icon: Newspaper,
     label: "一般更新",
     size: "small",
-    accentColor: "text-slate-400",
-    accentBg: "bg-slate-400/10",
+    accentColor: "text-muted-foreground/70",
+    accentBg: "bg-muted/10",
   },
 };
 
@@ -252,8 +252,8 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
     cardBg: "rgba(15,18,45,0.5)",
     cardBorder: "rgba(100,120,200,0.1)",
     textPrimary: "text-white",
-    textSecondary: "text-slate-300",
-    textMuted: "text-slate-400",
+    textSecondary: "text-muted-foreground/70",
+    textMuted: "text-muted-foreground/70",
     tabsBg: "rgba(20,25,60,0.5)",
     tabsActiveBg: "rgba(80,90,180,0.25)",
     tabsActiveText: "text-indigo-200",

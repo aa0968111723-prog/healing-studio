@@ -116,7 +116,7 @@ export default function SceneSwitcher({
               backdrop-blur-xl shadow-2xl border
               ${
                 isDark
-                  ? "bg-slate-900/90 border-white/10"
+                  ? "bg-muted/90 border-white/10"
                   : "bg-white/90 border-black/10"
               }
             `}

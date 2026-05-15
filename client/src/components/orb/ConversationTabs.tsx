@@ -296,7 +296,7 @@ export function ConversationTabs() {
               "rounded p-0.5 -mr-1 transition-opacity shrink-0",
               isActive
                 ? "opacity-60 hover:opacity-100 hover:bg-emerald-100 dark:hover:bg-emerald-800/40"
-                : "opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-slate-200"
+                : "opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-muted"
             )}
             aria-label={`刪除對話：${conv.displayLabel}`}
             title="刪除這個對話"

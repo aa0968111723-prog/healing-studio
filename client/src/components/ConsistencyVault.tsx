@@ -315,7 +315,7 @@ function UploadPanel({
               setFile(null);
               setPreview(null);
             }}
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center hover:bg-white"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center hover:bg-card"
           >
             <X className="w-3 h-3" />
           </button>
@@ -692,7 +692,7 @@ export function VaultDropzone({
           <Button
             variant="outline"
             size="icon"
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 hover:bg-white shadow-sm"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 hover:bg-card shadow-sm"
             onClick={e => {
               e.stopPropagation();
               onClear();

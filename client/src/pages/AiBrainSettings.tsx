@@ -1158,9 +1158,9 @@ export default function AiBrainSettings() {
                           <span
                             className={`w-2 h-2 rounded-full flex-shrink-0 ${
                               isLoading
-                                ? "bg-gray-300 animate-pulse"
+                                ? "bg-muted animate-pulse"
                                 : pingResult === undefined
-                                  ? "bg-gray-300"
+                                  ? "bg-muted"
                                   : pingResult.ok
                                     ? s.dotOk
                                     : s.dotFail

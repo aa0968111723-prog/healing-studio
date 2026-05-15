@@ -50,9 +50,9 @@ const STATUS_TONE: Record<
   { ring: string; bg: string; text: string; icon: typeof Check }
 > = {
   pending: {
-    ring: "ring-1 ring-slate-400/40",
-    bg: "bg-slate-900/70",
-    text: "text-slate-300",
+    ring: "ring-1 ring-border/40",
+    bg: "bg-muted/70",
+    text: "text-muted-foreground/70",
     icon: Clock,
   },
   running: {
@@ -184,7 +184,7 @@ function OrbWorkflowDAGInner({ workflowExecution, compact }: Props) {
 
   return (
     <div
-      className="rounded-2xl border border-white/10 bg-slate-950/40 overflow-hidden"
+      className="rounded-2xl border border-white/10 bg-muted/40 overflow-hidden"
       style={{ height }}
       data-testid="orb-workflow-dag"
     >

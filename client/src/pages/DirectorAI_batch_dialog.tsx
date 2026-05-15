@@ -78,7 +78,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+              className="p-2 hover:bg-muted dark:hover:bg-white/5 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -102,7 +102,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                     "p-3 rounded-xl border-2 transition-all flex items-center gap-2",
                     options.modalities.includes(mod.value)
                       ? "border-purple-400 bg-purple-50 dark:bg-purple-500/15"
-                      : "border-border/70 bg-card hover:border-gray-300 dark:hover:border-white/20"
+                      : "border-border/70 bg-card hover:border-border dark:hover:border-white/20"
                   )}
                 >
                   <mod.icon className={cn("w-5 h-5", mod.color)} />
@@ -135,7 +135,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                       },
                     })
                   }
-                  className="w-full rounded-lg border border-border/70 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-sm"
                 >
                   <option value="16:9">16:9 寬螢幕</option>
                   <option value="1:1">1:1 正方形</option>
@@ -205,7 +205,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                     "p-3 rounded-xl border-2 transition-all text-left",
                     options.mode === mode.value
                       ? "border-purple-400 bg-purple-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      : "border-border bg-card hover:border-border"
                   )}
                 >
                   <div className="text-sm font-medium">{mode.label}</div>
