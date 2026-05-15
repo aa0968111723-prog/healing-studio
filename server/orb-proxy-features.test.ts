@@ -23,6 +23,7 @@ import { coerceAgentAction, summarizeAction } from "../shared/agent-actions";
 import {
   filterMessagesByScope,
   buildChatExportHtml,
+  studioSnapshotToProcessSpec,
 } from "../client/src/lib/orbExportShare";
 import { scoreMatch } from "./services/orbUnifiedSearch";
 
@@ -263,5 +264,126 @@ describe("orbExportShare — buildChatExportHtml", () => {
       NOW
     );
     expect(built.count).toBe(1);
+  });
+});
+
+describe("orbExportShare — studioSnapshotToProcessSpec", () => {
+  it("returns a usable spec even when the studio is in its empty default state", () => {
+    const spec = studioSnapshotToProcessSpec(null);
+    expect(spec.title).toContain("圖片");
+    expect(spec.steps.length).toBeGreaterThanOrEqual(2);
+    // Modality + prompt placeholders are always present so the link is
+    // self-describing even before the user types anything.
+    expect(spec.steps[0]?.title).toContain("模態");
+    expect(spec.steps[1]?.title).toContain("提示詞");
+    expect(spec.steps[1]?.detail).toBe("(尚未輸入)");
+  });
+
+  it("packages prompt / model / aspect ratio from an image-mode snapshot", () => {
+    const spec = studioSnapshotToProcessSpec({
+      pageId: "studio",
+      pageLabel: "創作工作室",
+      pagePath: "/studio",
+      capabilities: [],
+      state: {
+        activeModality: "image",
+        promptPreview: "森林清晨，櫻花飄落",
+        selectedModelId: "fal-ai/flux/dev",
+        aspectRatio: "16:9",
+        negativePrompt: "blurry, lowres",
+        temperature: 0.7,
+        seed: "42",
+      },
+    });
+    const stepTitles = spec.steps.map(s => s.title);
+    expect(stepTitles).toContain("📝 提示詞");
+    expect(spec.steps.find(s => s.title === "📝 提示詞")?.detail).toBe(
+      "森林清晨，櫻花飄落"
+    );
+    expect(stepTitles).toContain("🧠 模型");
+    expect(stepTitles).toContain("📐 畫面比例");
+    expect(stepTitles).toContain("🚫 負面提示");
+    expect(stepTitles).toContain("🌡️ 溫度");
+    expect(stepTitles).toContain("🌱 種子");
+  });
+
+  it("packages duration + camera params from a video-mode snapshot", () => {
+    const spec = studioSnapshotToProcessSpec({
+      pageId: "studio",
+      pageLabel: "創作工作室",
+      pagePath: "/studio",
+      capabilities: [],
+      state: {
+        activeModality: "video",
+        promptPreview: "海邊散步的女生",
+        duration: 8,
+        cameraPan: "right",
+        cameraZoom: "in",
+        cameraTilt: "none",
+      },
+    });
+    const detailByTitle = new Map(spec.steps.map(s => [s.title, s.detail]));
+    expect(detailByTitle.get("⏱️ 時長")).toBe("8 秒");
+    expect(detailByTitle.get("🎥 鏡頭 - 平移")).toBe("right");
+    expect(detailByTitle.get("🎥 鏡頭 - 縮放")).toBe("in");
+    expect(spec.title).toContain("影片");
+  });
+
+  it("skips the random-seed placeholder so it doesn't pollute the spec", () => {
+    const spec = studioSnapshotToProcessSpec({
+      pageId: "studio",
+      pageLabel: "創作工作室",
+      pagePath: "/studio",
+      capabilities: [],
+      state: {
+        activeModality: "image",
+        seed: "(隨機)",
+      },
+    });
+    expect(spec.steps.find(s => s.title === "🌱 種子")).toBeUndefined();
+  });
+
+  it("falls back to the image label for unknown modalities", () => {
+    const spec = studioSnapshotToProcessSpec({
+      pageId: "studio",
+      pageLabel: "創作工作室",
+      pagePath: "/studio",
+      capabilities: [],
+      state: { activeModality: "weirdmode" },
+    });
+    // No throw — degrades gracefully to image defaults.
+    expect(spec.title).toContain("圖片");
+  });
+});
+
+describe("agent-actions — shareViaLink target parsing", () => {
+  it("accepts studioState as a valid shareViaLink target", () => {
+    const parsed = coerceAgentAction({
+      type: "shareViaLink",
+      target: "studioState",
+    });
+    expect(parsed).toEqual({ type: "shareViaLink", target: "studioState" });
+  });
+
+  it("preserves lastWorkflow / currentChat targets", () => {
+    expect(coerceAgentAction({ type: "shareViaLink", target: "lastWorkflow" }))
+      .toEqual({ type: "shareViaLink", target: "lastWorkflow" });
+    expect(coerceAgentAction({ type: "shareViaLink", target: "currentChat" }))
+      .toEqual({ type: "shareViaLink", target: "currentChat" });
+  });
+
+  it("falls back to lastWorkflow when target is missing or invalid", () => {
+    expect(coerceAgentAction({ type: "shareViaLink" }))
+      .toEqual({ type: "shareViaLink", target: "lastWorkflow" });
+    expect(coerceAgentAction({ type: "shareViaLink", target: "garbage" }))
+      .toEqual({ type: "shareViaLink", target: "lastWorkflow" });
+  });
+
+  it("summarizeAction labels the studioState target explicitly", () => {
+    const summary = summarizeAction({
+      type: "shareViaLink",
+      target: "studioState",
+    });
+    expect(summary).toContain("創作工作室");
   });
 });

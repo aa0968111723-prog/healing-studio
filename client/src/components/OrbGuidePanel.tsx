@@ -27,6 +27,7 @@ import {
   STUDIO_MODALITY_PROFILES,
   STUDIO_TOOLBOX_ENTRIES,
   STUDIO_COLLABORATION_LINKS,
+  type StudioCollaborationLink,
   buildToolboxOpenAction,
   getStudioModalityProfile,
   IMAGE_STUDIO_T2I_PROFILE,
@@ -584,17 +585,17 @@ function StudioToolboxRow({
 
 function StudioCollaborationRow({
   fullscreen,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   return (
     <StudioCollaborationLinkGrid
       fullscreen={fullscreen}
       title="生成模型 / 導演 AI / API 連結"
       links={STUDIO_COLLABORATION_LINKS}
-      onSendChat={onSendChat}
+      onLinkClick={onLinkClick}
     />
   );
 }
@@ -605,12 +606,12 @@ function StudioOrbDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   // Studio.tsx 的 useRegisterPageAgent state 會把 activeModality 揭示出來
   const rawModality = pageAgent.snapshot?.state?.activeModality as
@@ -653,7 +654,7 @@ function StudioOrbDeepActions({
 
       <StudioCollaborationRow
         fullscreen={fullscreen}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -665,12 +666,12 @@ function ImageStudioT2IDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = IMAGE_STUDIO_T2I_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -902,7 +903,7 @@ function ImageStudioT2IDeepActions({
         fullscreen={fullscreen}
         title="提示詞 / 模型 / 導演 AI 連結"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -914,12 +915,12 @@ function ImageStudioEditDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = IMAGE_STUDIO_EDIT_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -1188,7 +1189,7 @@ function ImageStudioEditDeepActions({
         fullscreen={fullscreen}
         title="編輯指令 / 模型推薦 / 導演 AI 連結"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -1200,12 +1201,12 @@ function ImageStudioUpscaleDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = IMAGE_STUDIO_UPSCALE_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -1378,7 +1379,7 @@ function ImageStudioUpscaleDeepActions({
         fullscreen={fullscreen}
         title="跨頁串接 / 批次放大 / 導演 AI 連結"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -1390,12 +1391,12 @@ function ImageStudioPoseDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = IMAGE_STUDIO_POSE_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -1545,7 +1546,7 @@ function ImageStudioPoseDeepActions({
         fullscreen={fullscreen}
         title="骨骼 → ControlNet / t2i / 導演 AI"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -1557,12 +1558,12 @@ function ImageStudioSDDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = IMAGE_STUDIO_SD_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -1850,7 +1851,7 @@ function ImageStudioSDDeepActions({
         fullscreen={fullscreen}
         title="SD 提示詞 / LoRA / ControlNet / 模型推薦"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -1862,12 +1863,12 @@ function VideoStudioT2VDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = VIDEO_STUDIO_T2V_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -2148,7 +2149,7 @@ function VideoStudioT2VDeepActions({
         fullscreen={fullscreen}
         title="提示詞 / 模型推薦 / 改用 i2v / 導演 AI 拆鏡"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -2160,12 +2161,12 @@ function VideoStudioI2VDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   const profile = VIDEO_STUDIO_I2V_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -2414,7 +2415,7 @@ function VideoStudioI2VDeepActions({
         fullscreen={fullscreen}
         title="動作擴寫 / 模型推薦 / 從圖片創作室拿圖 / 導演 AI"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -2427,7 +2428,7 @@ interface StudioDeepActionsCommonProps {
   fullscreen: boolean;
   pageAgent: ReturnType<typeof usePageAgent>;
   onClose: () => void;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }
 
 const IMAGE_STUDIO_PANELS: Record<
@@ -2455,7 +2456,7 @@ function VideoStudioV2VDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: StudioDeepActionsCommonProps) {
   const profile = VIDEO_STUDIO_V2V_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -2667,7 +2668,7 @@ function VideoStudioV2VDeepActions({
         fullscreen={fullscreen}
         title="風格化指令 / 模型 / 從 i2v 接過來 / 導演 AI 批次"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -2679,7 +2680,7 @@ function VideoStudioEnhanceDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: StudioDeepActionsCommonProps) {
   const profile = VIDEO_STUDIO_ENHANCE_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -2930,7 +2931,7 @@ function VideoStudioEnhanceDeepActions({
         fullscreen={fullscreen}
         title="工具推薦 / 多工具流程 / 從歷史拉素材 / 導演 AI 批次"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -2942,7 +2943,7 @@ function VideoStudioControlDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: StudioDeepActionsCommonProps) {
   const profile = VIDEO_STUDIO_CONTROL_PROFILE;
   const snapshotState = pageAgent.snapshot?.state;
@@ -3174,7 +3175,7 @@ function VideoStudioControlDeepActions({
         fullscreen={fullscreen}
         title="工具推薦 / 用骨骼當 ControlNet / 從圖片創作室拿圖 / 導演 AI 排運鏡"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -3391,7 +3392,7 @@ function ProStudioDeepActions({
   fullscreen,
   pageAgent,
   onClose,
-  onSendChat,
+  onLinkClick,
 }: { tab: ProStudioTab } & StudioDeepActionsCommonProps) {
   const config = PRO_STUDIO_TAB_CONFIGS[tab];
   const profile = config.profile;
@@ -3587,7 +3588,7 @@ function ProStudioDeepActions({
         fullscreen={fullscreen}
         title="提示詞 / 模型推薦 / 跨分頁串接 / 導演 AI"
         links={profile.collaborations}
-        onSendChat={onSendChat}
+        onLinkClick={onLinkClick}
       />
     </div>
   );
@@ -3599,12 +3600,12 @@ function StudioCollaborationLinkGrid({
   fullscreen,
   title,
   links,
-  onSendChat,
+  onLinkClick,
 }: {
   fullscreen: boolean;
   title: string;
-  links: Array<{ id: string; label: string; emoji: string; description: string; chatPrompt: string }>;
-  onSendChat: (prompt: string) => void | Promise<void>;
+  links: StudioCollaborationLink[];
+  onLinkClick: (link: StudioCollaborationLink) => void | Promise<void>;
 }) {
   return (
     <div className="space-y-1.5">
@@ -3620,7 +3621,7 @@ function StudioCollaborationLinkGrid({
         {links.map((link, i) => (
           <motion.button
             key={link.id}
-            onClick={() => void onSendChat(link.chatPrompt)}
+            onClick={() => void onLinkClick(link)}
             className={cn(
               "rounded-xl border border-white/10 bg-white/4 hover:bg-white/12 hover:border-white/25",
               "transition-all px-3 py-2 text-left flex items-start gap-2",
@@ -3702,12 +3703,25 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
 
-  // 統一 collaboration row 的點擊行為：先收掉面板，再把 prompt 推進全站光球聊天
-  const handleStudioCollabChat = useCallback(
-    async (prompt: string) => {
+  // 統一 collaboration row 的點擊行為。兩條路：
+  //   1. link.directAction 有設 → 直接 dispatch 純客戶端 meta action（不
+  //      走 LLM），避免「API 深度連結」這種純打包操作卡在「思考中…」。
+  //      把 chatPrompt 當成 user message 一起補進對話，使用者看得到自己
+  //      按了什麼。
+  //   2. 沒有 directAction → 跟以前一樣把 chatPrompt 送進自由聊天，讓
+  //      LLM 規劃模型推薦 / 跨頁協作 / 背景排程。
+  const handleStudioCollabLink = useCallback(
+    async (link: StudioCollaborationLink) => {
       onClose();
-      await globalChat.sendMessage(prompt);
       globalChat.open();
+      if (link.directAction) {
+        await globalChat.dispatchMetaAction(link.directAction, {
+          userMessage: link.chatPrompt,
+          intent: link.label,
+        });
+        return;
+      }
+      await globalChat.sendMessage(link.chatPrompt);
     },
     [onClose, globalChat]
   );
@@ -4400,7 +4414,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
-                  onSendChat={handleStudioCollabChat}
+                  onLinkClick={handleStudioCollabLink}
                 />
               ) : videoStudioTab ? (
                 <VideoStudioDeepActionsForTab
@@ -4408,7 +4422,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
-                  onSendChat={handleStudioCollabChat}
+                  onLinkClick={handleStudioCollabLink}
                 />
               ) : proStudioTab ? (
                 <ProStudioDeepActions
@@ -4416,7 +4430,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
-                  onSendChat={handleStudioCollabChat}
+                  onLinkClick={handleStudioCollabLink}
                 />
               ) : isStudioPage ? (
                 /* Studio 頁面專屬：四模態 + 細節操作 + 工具箱 + 全站協作 */
@@ -4424,7 +4438,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   fullscreen={fullscreen}
                   pageAgent={pageAgent}
                   onClose={onClose}
-                  onSendChat={handleStudioCollabChat}
+                  onLinkClick={handleStudioCollabLink}
                 />
               ) : (
                 <div
