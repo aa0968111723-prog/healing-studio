@@ -343,6 +343,11 @@ export const digitalAssetLibrary = mysqlTable(
       .default("private")
       .notNull(),
     rewardCredits: int("rewardCredits").default(0).notNull(),
+    // 0045: notes-curator (記記) tagging / category — both nullable to keep
+    // existing rows valid; populated through notesCurator.tagAssets and
+    // notesCurator.categorizeAsset.
+    tags: json("tags").$type<string[]>(),
+    category: varchar("category", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -355,6 +360,10 @@ export const digitalAssetLibrary = mysqlTable(
     userIdCreatedAtIdx: index("dal_userId_createdAt_idx").on(
       table.userId,
       table.createdAt
+    ),
+    userIdCategoryIdx: index("dal_userId_category_idx").on(
+      table.userId,
+      table.category
     ),
   })
 );
@@ -462,6 +471,9 @@ export const projectNotesCalendar = mysqlTable(
     }>(),
     meetingUrl: varchar("meetingUrl", { length: 512 }),
     tags: json("tags").$type<string[]>(),
+    // 0045: 記記 categorisation — orthogonal to noteType (生活 / 工作 /
+    // 創作 etc.). Nullable so legacy rows remain valid.
+    category: varchar("category", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -478,6 +490,10 @@ export const projectNotesCalendar = mysqlTable(
     userIdStatusIdx: index("pnc_userId_status_idx").on(
       table.userId,
       table.status
+    ),
+    userIdCategoryIdx: index("pnc_userId_category_idx").on(
+      table.userId,
+      table.category
     ),
   })
 );

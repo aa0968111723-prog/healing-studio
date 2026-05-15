@@ -2082,26 +2082,19 @@ async function dispatchStudioTool(
       // notesCurator.* tools for notes-curator (記記)
       // ════════════════════════════════════════════════════════════════════
 
-      case "notesCurator.createNote": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
-      case "notesCurator.searchNotes": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
-      case "notesCurator.scheduleTask": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
-      case "notesCurator.tagAssets": {
-        const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
-        return notesCuratorResult;
-      }
-
+      case "notesCurator.createNote":
+      case "notesCurator.searchNotes":
+      case "notesCurator.listNotes":
+      case "notesCurator.updateNote":
+      case "notesCurator.updateNoteStatus":
+      case "notesCurator.deleteNote":
+      case "notesCurator.scheduleTask":
+      case "notesCurator.scheduleEvent":
+      case "notesCurator.listUpcoming":
+      case "notesCurator.summarizeRecent":
+      case "notesCurator.tagAssets":
+      case "notesCurator.categorizeAsset":
+      case "notesCurator.searchAssets":
       case "notesCurator.getAssetStatistics": {
         const notesCuratorResult = await dispatchNotesCuratorTool(call, opts);
         return notesCuratorResult;
@@ -2814,186 +2807,328 @@ async function dispatchOrchestratorTool(
 
 /**
  * 把光球發出的 notesCurator.* 工具呼叫橋接到 notesCuratorTools 服務。
- * 提供記記（notes-curator）筆記與資產管理的能力：
- * - notesCurator.createNote: 建立新筆記
- * - notesCurator.searchNotes: 搜尋筆記
- * - notesCurator.scheduleTask: 排程任務
- * - notesCurator.tagAssets: 為資產加上標籤
- * - notesCurator.getAssetStatistics: 取得資產統計與建議
+ * 提供記記（notes-curator）筆記、待辦、行事曆與資產管理的完整能力：
+ *
+ * 筆記 / 待辦：
+ * - notesCurator.createNote: 建立筆記 / 腳本 / 行事曆事件
+ * - notesCurator.searchNotes: 依關鍵字搜尋筆記（可附 noteType / status filter）
+ * - notesCurator.listNotes: 列出筆記（可依 noteType / status / category / tag 篩選）
+ * - notesCurator.updateNote: 修改既有筆記
+ * - notesCurator.updateNoteStatus: 標記任務 todo → in_progress → done
+ * - notesCurator.deleteNote: 刪除筆記
+ *
+ * 排程：
+ * - notesCurator.scheduleEvent: 建立行事曆事件（推薦使用）
+ * - notesCurator.scheduleTask: 舊版 alias，內部走 scheduleEvent
+ * - notesCurator.listUpcoming: 近期即將到來的事件（預設 7 天）
+ * - notesCurator.summarizeRecent: 近期活動摘要（記憶用）
+ *
+ * 素材庫：
+ * - notesCurator.tagAssets: 為素材加 / 移除 / 覆蓋標籤
+ * - notesCurator.categorizeAsset: 設定素材分類
+ * - notesCurator.searchAssets: 搜尋素材
+ * - notesCurator.getAssetStatistics: 素材統計與建議
  */
 async function dispatchNotesCuratorTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
-  const {
-    createNote,
-    searchNotes,
-    scheduleTask,
-    tagAssets,
-    getAssetStatistics,
-  } = await import("./spiritTools/notesCuratorTools");
+  const tools = await import("./spiritTools/notesCuratorTools");
 
   const args = (call.args ?? {}) as Record<string, unknown>;
+
+  const ok = (data: Record<string, unknown>): OrbToolCallResult => ({
+    name: call.name,
+    ok: true,
+    data,
+    usedTool: call.name,
+  });
+  const fail = (error: string): OrbToolCallResult => ({
+    name: call.name,
+    ok: false,
+    error,
+    usedTool: call.name,
+  });
 
   try {
     switch (call.name) {
       case "notesCurator.createNote": {
         const title = args.title as string;
         const content = args.content as string;
+        if (!title || !content) return fail("title and content are required");
 
-        if (!title || !content) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "title and content are required",
-          };
-        }
-
-        const result = await createNote({
+        const result = await tools.createNote({
           userId: opts.userId,
           title,
           content,
           tags: args.tags as string[] | undefined,
           category: args.category as string | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          scheduledDate: args.scheduledDate as string | undefined,
+          endDate: args.endDate as string | undefined,
+          reminderMinutes: args.reminderMinutes as number | undefined,
+          location: args.location as Parameters<typeof tools.createNote>[0]["location"],
+          meetingUrl: args.meetingUrl as string | undefined,
         });
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            noteId: result.noteId,
-            message: result.message,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          noteId: result.noteId,
+          message: result.message,
+        });
       }
 
       case "notesCurator.searchNotes": {
         const query = args.query as string;
-
-        if (!query) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "query is required",
-          };
-        }
-
-        const result = await searchNotes({
+        if (!query) return fail("query is required");
+        const result = await tools.searchNotes({
           userId: opts.userId,
           query,
           limit: args.limit as number | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          category: args.category as string | undefined,
         });
+        if (!result.success) return fail("search failed");
+        return ok({
+          success: true,
+          notes: result.notes,
+          total: result.total,
+        });
+      }
 
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            notes: result.notes,
-            total: result.total,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: "search failed" }),
-        };
+      case "notesCurator.listNotes": {
+        const result = await tools.listNotes({
+          userId: opts.userId,
+          limit: args.limit as number | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          category: args.category as string | undefined,
+          tag: args.tag as string | undefined,
+        });
+        if (!result.success) return fail("list failed");
+        return ok({
+          success: true,
+          notes: result.notes,
+          total: result.total,
+        });
+      }
+
+      case "notesCurator.updateNote": {
+        const noteId = args.noteId as number;
+        if (!Number.isFinite(noteId)) return fail("noteId is required");
+        const result = await tools.updateNote({
+          userId: opts.userId,
+          noteId,
+          title: args.title as string | undefined,
+          content: args.content as string | undefined,
+          tags: args.tags as string[] | undefined,
+          category: args.category as string | null | undefined,
+          status: args.status as "todo" | "in_progress" | "done" | undefined,
+          noteType: args.noteType as "note" | "script" | "calendar_event" | undefined,
+          scheduledDate: args.scheduledDate as string | null | undefined,
+          endDate: args.endDate as string | null | undefined,
+          reminderMinutes: args.reminderMinutes as number | null | undefined,
+          location: args.location as Parameters<typeof tools.updateNote>[0]["location"],
+          meetingUrl: args.meetingUrl as string | null | undefined,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          note: result.note,
+          message: result.message,
+        });
+      }
+
+      case "notesCurator.updateNoteStatus": {
+        const noteId = args.noteId as number;
+        const status = args.status as "todo" | "in_progress" | "done";
+        if (!Number.isFinite(noteId) || !status) {
+          return fail("noteId and status are required");
+        }
+        if (!["todo", "in_progress", "done"].includes(status)) {
+          return fail("status must be todo | in_progress | done");
+        }
+        const result = await tools.updateNoteStatus({
+          userId: opts.userId,
+          noteId,
+          status,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          note: result.note,
+          message: result.message,
+        });
+      }
+
+      case "notesCurator.deleteNote": {
+        const noteId = args.noteId as number;
+        if (!Number.isFinite(noteId)) return fail("noteId is required");
+        const result = await tools.deleteNote({
+          userId: opts.userId,
+          noteId,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({ success: true, message: result.message });
       }
 
       case "notesCurator.scheduleTask": {
         const taskName = args.taskName as string;
         const scheduledFor = args.scheduledFor as string;
-
         if (!taskName || !scheduledFor) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "taskName and scheduledFor are required",
-          };
+          return fail("taskName and scheduledFor are required");
         }
-
-        const result = await scheduleTask({
+        const result = await tools.scheduleTask({
           userId: opts.userId,
           taskName,
           scheduledFor,
           description: args.description as string | undefined,
           metadata: args.metadata as Record<string, unknown> | undefined,
         });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          jobId: result.jobId,
+          message: result.message,
+        });
+      }
 
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            jobId: result.jobId,
-            message: result.message,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+      case "notesCurator.scheduleEvent": {
+        const title = args.title as string;
+        const scheduledFor = args.scheduledFor as string;
+        if (!title || !scheduledFor) {
+          return fail("title and scheduledFor are required");
+        }
+        const result = await tools.scheduleEvent({
+          userId: opts.userId,
+          title,
+          scheduledFor,
+          endDate: args.endDate as string | undefined,
+          description: args.description as string | undefined,
+          reminderMinutes: args.reminderMinutes as number | undefined,
+          location: args.location as Parameters<typeof tools.scheduleEvent>[0]["location"],
+          meetingUrl: args.meetingUrl as string | undefined,
+          tags: args.tags as string[] | undefined,
+          category: args.category as string | undefined,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          eventId: result.eventId,
+          message: result.message,
+        });
+      }
+
+      case "notesCurator.listUpcoming": {
+        const result = await tools.listUpcoming({
+          userId: opts.userId,
+          withinDays: args.withinDays as number | undefined,
+          limit: args.limit as number | undefined,
+          includeStatuses: args.includeStatuses as
+            | Array<"todo" | "in_progress" | "done">
+            | undefined,
+        });
+        if (!result.success) return fail("list upcoming failed");
+        return ok({
+          success: true,
+          events: result.events,
+          windowStart: result.windowStart,
+          windowEnd: result.windowEnd,
+        });
+      }
+
+      case "notesCurator.summarizeRecent": {
+        const result = await tools.summarizeRecentActivity({
+          userId: opts.userId,
+          sinceDays: args.sinceDays as number | undefined,
+        });
+        if (!result.success) return fail("summarize failed");
+        return ok({
+          success: true,
+          sinceDays: result.sinceDays,
+          counts: result.counts,
+          byStatus: result.byStatus,
+          recentTitles: result.recentTitles,
+        });
       }
 
       case "notesCurator.tagAssets": {
         const assetIds = args.assetIds as number[];
         const tags = args.tags as string[];
         const action = (args.action as "add" | "remove" | "replace") || "add";
-
         if (!Array.isArray(assetIds) || !Array.isArray(tags)) {
-          return {
-            name: call.name,
-            ok: false,
-            error: "assetIds and tags must be arrays",
-          };
+          return fail("assetIds and tags must be arrays");
         }
-
-        const result = await tagAssets({
+        const result = await tools.tagAssets({
           userId: opts.userId,
           assetIds,
           tags,
           action,
         });
+        if (!result.success) return fail(result.message);
+        return ok({
+          success: true,
+          updated: result.updated,
+          message: result.message,
+        });
+      }
 
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            updated: result.updated,
-            message: result.message,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: result.message }),
-        };
+      case "notesCurator.categorizeAsset": {
+        const assetId = args.assetId as number;
+        if (!Number.isFinite(assetId)) return fail("assetId is required");
+        const category =
+          args.category === null || args.category === undefined
+            ? null
+            : String(args.category);
+        const result = await tools.categorizeAsset({
+          userId: opts.userId,
+          assetId,
+          category,
+        });
+        if (!result.success) return fail(result.message);
+        return ok({ success: true, message: result.message });
+      }
+
+      case "notesCurator.searchAssets": {
+        const result = await tools.searchAssets({
+          userId: opts.userId,
+          query: args.query as string | undefined,
+          tag: args.tag as string | undefined,
+          category: args.category as string | undefined,
+          assetType: args.assetType as
+            | "image"
+            | "video"
+            | "audio"
+            | "voice"
+            | "script"
+            | "zip_bundle"
+            | undefined,
+          limit: args.limit as number | undefined,
+        });
+        if (!result.success) return fail("search assets failed");
+        return ok({
+          success: true,
+          assets: result.assets,
+          total: result.total,
+        });
       }
 
       case "notesCurator.getAssetStatistics": {
-        const result = await getAssetStatistics(opts.userId);
-
-        return {
-          name: call.name,
-          ok: result.success,
-          data: {
-            success: result.success,
-            statistics: result.statistics,
-          },
-          usedTool: call.name,
-          ...(result.success ? {} : { error: "failed to get statistics" }),
-        };
+        const result = await tools.getAssetStatistics(opts.userId);
+        if (!result.success) return fail("failed to get statistics");
+        return ok({
+          success: true,
+          statistics: result.statistics,
+        });
       }
 
       default:
-        return {
-          name: call.name,
-          ok: false,
-          error: `unknown notesCurator tool: ${call.name}`,
-        };
+        return fail(`unknown notesCurator tool: ${call.name}`);
     }
   } catch (err) {
-    return {
-      name: call.name,
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return fail(err instanceof Error ? err.message : String(err));
   }
 }
 
