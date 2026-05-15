@@ -454,6 +454,61 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // 跨頁多步驟 workflow：導導把使用者目標拆成 image → video → voice → music
+  // 一條龍，回傳可直接送進 page-agent dispatch 的 RunWorkflowAction + 每步
+  // 建議交手的精靈。kind / platform / budgetMode 不指定時會依 brief 推斷。
+  {
+    name: "director.composeWorkflow",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      brief: "string",
+      kind: "string?", // short_video | image_only | music_only | voice_only | key_visual_to_video | tutorial_set
+      platform: "string?", // instagram_reels | tiktok | youtube_shorts | youtube_long | general
+      budgetMode: "string?", // cheap | balanced | premium
+      stepByStep: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  // 估算 workflow 整體點數成本 + 每步替代模型建議。給導導 → 財財的接棒
+  // 用：在 plan 真的執行前讓使用者看到「整條約 X 點，切草稿可省 Y 點」。
+  {
+    name: "director.estimateBudget",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      steps: "object", // AgentWorkflowStep[]
+    },
+    executionTarget: "server-side",
+  },
+  // 智能交棒：依使用者意圖 + 協作協定挑下一棒精靈（含降頻 cycle 防呆）。
+  {
+    name: "director.suggestHandoff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      fromRole: "string?",
+      userIntent: "string?",
+      hintTokens: "string[]?",
+      mutedRoles: "string[]?",
+      busyRoles: "string[]?",
+      recentRoles: "string[]?",
+      maxDepth: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // 機械式 workflow 微調：刪步、換模型、改參數、改確認模式。命中不到的
+  // 大改（重排敘事 / 改鏡頭數）會 fallback 回 LLM 路徑。
+  {
+    name: "director.refineWorkflow",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      workflow: "object", // RunWorkflowAction
+      operations: "object", // RefineOp[]
+    },
+    executionTarget: "server-side",
+  },
   // ─── 訓練 / 微調工具（光球可幫使用者訓練屬於自己的 LoRA / 風格 / 角色模型） ──
   {
     // 啟動 LoRA / 風格 / 角色 / 場景 / 影片 LoRA / 肖像 LoRA 訓練。
