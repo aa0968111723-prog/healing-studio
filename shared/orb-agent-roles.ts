@@ -2125,21 +2125,229 @@ export function getProtocolReceivedFromHandoffs(role: AgentRole): readonly Agent
   return sources.sort();
 }
 
+// ─── 協作優化：smart handoff picker ────────────────────────────────────
+//
+// `executeProtocolHandoff` 之前用 substring match 對 `whenHint`，找不到就
+// 回 handoffs[0]。這在實務上有三個問題：
+//   1. 「導導跑完規劃 → 第一個 handoff 永遠是 plan-executor」即便使用者
+//      只想做一張圖（只佔一步、不需要步步）。
+//   2. 沒考慮被選的精靈是不是 busy（總總團隊看板已經知道，但 picker 沒讀）。
+//   3. 沒做 cycle 偵測 — A→B→A 同對話內可能反覆觸發。
+//
+// 這個 helper 給每條 handoff 打分數，呼叫端取最高的一條：
+//   + whenHint 與 handoff.when 的關鍵字命中 (×4)
+//   + 命中 hintTokens 任一 (×2)
+//   - 被列在 busyRoles (×3)
+//   - 被列在 recentRoles 末段 (避免 cycle，×5)
+//   - 被列在 mutedRoles → 直接濾掉
+// 0 是中立分；候選都同分時保留 SPIRIT_COLLAB_PROTOCOL 原本的順序。
+
+export interface HandoffPickContext {
+  /** 使用者剛剛的指示 / 上下文，substring match 用 */
+  whenHint?: string;
+  /** 額外加分用的 token 清單 — 由 client 抽出（intent / 模態關鍵字） */
+  hintTokens?: readonly string[];
+  /** SpiritStatusMonitor 報的 busy 精靈（會被扣分但不剔除） */
+  busyRoles?: readonly AgentRole[];
+  /** 使用者 mute 的精靈（直接剔除，不參與評分） */
+  mutedRoles?: readonly AgentRole[];
+  /** 本對話 / session 最近 N 個 handoff 的目標精靈（cycle 防呆，越靠後扣越多） */
+  recentRoles?: readonly AgentRole[];
+}
+
+export interface ScoredHandoff {
+  handoff: SpiritHandoff;
+  score: number;
+  /** debug：哪些因素加 / 扣分 */
+  rationale: string;
+}
+
+/** 替每條來自 `role` 的 handoff 打分；可用於 picker 與 telemetry。 */
+export function scoreProtocolHandoffs(
+  role: AgentRole,
+  ctx: HandoffPickContext,
+): ScoredHandoff[] {
+  const spec = SPIRIT_COLLAB_PROTOCOL[role];
+  if (!spec) return [];
+  const muted = new Set<AgentRole>(ctx.mutedRoles ?? []);
+  const busy = new Set<AgentRole>(ctx.busyRoles ?? []);
+  const hintLow = (ctx.whenHint ?? "").toLowerCase();
+  const tokens = (ctx.hintTokens ?? []).map(t => t.toLowerCase()).filter(Boolean);
+  const recent = ctx.recentRoles ?? [];
+  // recency penalty: more recent → larger penalty
+  const recencyPenalty = (target: AgentRole) => {
+    const idx = recent.lastIndexOf(target);
+    if (idx === -1) return 0;
+    // last entry → 5, second-to-last → 4, …
+    const distance = recent.length - 1 - idx;
+    return Math.max(1, 5 - distance);
+  };
+
+  const scored: ScoredHandoff[] = [];
+  for (const h of spec.handoffs) {
+    if (muted.has(h.to)) continue;
+    const reasons: string[] = [];
+    let score = 0;
+
+    if (hintLow && h.when.toLowerCase().includes(hintLow)) {
+      score += 4;
+      reasons.push("whenHint substring match (+4)");
+    }
+    const tokenHits = tokens.filter(t =>
+      h.when.toLowerCase().includes(t) || h.reason.toLowerCase().includes(t),
+    );
+    if (tokenHits.length > 0) {
+      score += tokenHits.length * 2;
+      reasons.push(`hintToken hits ${tokenHits.length} (+${tokenHits.length * 2})`);
+    }
+    if (busy.has(h.to)) {
+      score -= 3;
+      reasons.push(`target busy (-3)`);
+    }
+    const recPenalty = recencyPenalty(h.to);
+    if (recPenalty > 0) {
+      score -= recPenalty;
+      reasons.push(`recently used (-${recPenalty})`);
+    }
+    scored.push({
+      handoff: h,
+      score,
+      rationale: reasons.length === 0 ? "neutral baseline" : reasons.join(", "),
+    });
+  }
+  // Stable-sort: highest score first; preserve original order for ties.
+  return scored
+    .map((s, idx) => ({ s, idx }))
+    .sort((a, b) => b.s.score - a.s.score || a.idx - b.idx)
+    .map(x => x.s);
+}
+
+/**
+ * 從 `role` 的 handoffs 挑最佳下一棒（依 scoreProtocolHandoffs）。沒有可選
+ * 對象（全被 mute / 無 spec）回 null。比 substring + handoffs[0] 更聰明。
+ */
+export function pickBestHandoff(
+  role: AgentRole,
+  ctx: HandoffPickContext,
+): SpiritHandoff | null {
+  const scored = scoreProtocolHandoffs(role, ctx);
+  return scored.length > 0 ? scored[0].handoff : null;
+}
+
+/**
+ * 沿著 SPIRIT_COLLAB_PROTOCOL.handoffs 走 N 步，建出一條鏈。每一步用
+ * `pickBestHandoff` + 把已走過的角色塞進 recentRoles 防 cycle。回傳的鏈
+ * 第一個元素是 `start`，後續是依序挑出的 handoff target。最多走 maxDepth
+ * 步（預設 4）— 大部分使用情境 3-4 步就夠（director→composer→critic）。
+ *
+ * 取代 composeRoleChain 內 25 個 case 的硬編碼 — 那邊的設計意圖是把每位
+ * 角色的「典型下一棒順序」寫死，但既然 SPIRIT_COLLAB_PROTOCOL.handoffs[0]
+ * 已經是「該角色預設首選」，我們順著它走就能得到一條真實反映 protocol
+ * 的鏈，未來新增 handoff 不用同步改兩邊。
+ */
+export function walkProtocolHandoffChain(
+  start: AgentRole,
+  options?: HandoffPickContext & { maxDepth?: number },
+): AgentRole[] {
+  const maxDepth = Math.max(1, options?.maxDepth ?? 4);
+  const chain: AgentRole[] = [start];
+  const recent: AgentRole[] = [start];
+  for (let i = 1; i < maxDepth; i++) {
+    const cur = chain[chain.length - 1];
+    const next = pickBestHandoff(cur, {
+      ...options,
+      recentRoles: recent,
+    });
+    if (!next) break;
+    if (chain.includes(next.to)) break; // cycle hit even after recency penalty
+    chain.push(next.to);
+    recent.push(next.to);
+  }
+  return chain;
+}
+
+// 把使用者句子拆出對 picker 有意義的 hint token —— 不必完美，能把
+// 「影片 / 圖 / 音樂」這類模態詞撈出來讓 walkProtocolHandoffChain 推到
+// 對的下一棒就好。沒命中就回空陣列，picker 走 baseline。
+function extractHintTokens(text: string): string[] {
+  const low = (text ?? "").toLowerCase();
+  const tokens: string[] = [];
+  // 模態關鍵字
+  if (/影片|video|短片|reels?|短影音/.test(low)) tokens.push("video");
+  if (/圖|illustration|海報|插畫|image|picture|photo/.test(low)) tokens.push("image");
+  if (/音樂|歌|bgm|配樂|music|sound/.test(low)) tokens.push("music");
+  if (/配音|語音|voice|tts|旁白|對嘴/.test(low)) tokens.push("voice");
+  if (/lora|訓練|train|微調|fine.?tune/.test(low)) tokens.push("training");
+  if (/解剖|anatomy|骨骼|肌肉|內臟/.test(low)) tokens.push("anatomy");
+  // 流程強度
+  if (/規劃|計畫|流程|workflow|跨頁/.test(low)) tokens.push("plan");
+  if (/批准|跑完|一條龍|自動|hands-?free/.test(low)) tokens.push("auto");
+  if (/檢查|看一輪|改善|品質|評估/.test(low)) tokens.push("review");
+  if (/版權|商標|肖像|授權|ip/.test(low)) tokens.push("ip");
+  if (/排程|貼文|hashtag|社群|ig|tiktok|youtube|fb/.test(low)) tokens.push("social");
+  return tokens;
+}
+
 /**
  * For multi-step intents, return the sequence of roles the orb should
  * play in order. Used by chat routers that surface "我接下來會這樣陪你"
  * preview cards — purely advisory; the actual planner still owns step
  * generation.
+ *
+ * 動態化策略：六位「分派型」與「靈感 / 解剖 / 社群 / 步步」這類有多條
+ * handoff 分支的角色改走 `walkProtocolHandoffChain`，會依使用者文字裡
+ * 抽出的 hint token 動態挑下一棒（影片→video-specialist、圖→image…）。
+ * 其餘短鏈（accountant / settings-detail / navigator…）保留原本固定鏈
+ * — 那些角色本來就單槍匹馬居多，硬編碼比較直觀。
  */
 export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
   const head = selectRoleForIntent(input);
+  const hintTokens = extractHintTokens(input.text ?? "");
+  const dynamicCtx: HandoffPickContext = {
+    whenHint: input.text,
+    hintTokens,
+    mutedRoles: input.mutedRoles,
+  };
   switch (head.role) {
+    // ── 分派型：handoffs 多達 5+ 條，依 hintTokens 動態挑模態相關下一棒
+    //    （「想做影片」→ inspiration → video-specialist；「想出圖」→ image）
+    case "chief-orchestrator":
+    case "inspiration-specialist":
+    case "community-manager":
+    case "anatomy-specialist":
+      return walkProtocolHandoffChain(head.role, { ...dynamicCtx, maxDepth: 4 });
+
+    // ── 固定 chain：這些是站內公認的「先規劃→執行→品檢」三步主軸，
+    //    UI preview 卡片直接這樣寫對使用者最直觀；不用 walker 是為了避免
+    //    依 hint token 把 critic 換成別的角色而失去「最後品檢」這個
+    //    心智模型。
     case "director":
-      // Director typically delegates to composer once each downstream
-      // page is reached; critic optionally reviews before final ship.
       return ["director", "composer", "critic"];
     case "researcher":
       return ["researcher", "director", "composer"];
+    case "image-specialist":
+    case "video-specialist":
+    case "music-specialist":
+    case "voice-specialist":
+    case "training-specialist":
+      return [head.role, "composer", "critic"];
+    case "learning-specialist":
+      return [head.role, "navigator"];
+    case "quality-coach":
+      return ["quality-coach", "composer", "critic"];
+    case "inspector":
+      return ["inspector", "navigator"];
+    case "legal-advisor":
+      return ["legal-advisor", "quality-coach", "composer"];
+    case "security-guard":
+      return ["security-guard", "settings-detail"];
+    case "onboarding-coach":
+      return ["onboarding-coach", "navigator"];
+    case "notes-curator":
+      return ["notes-curator", "composer"];
+    case "plan-executor":
+      return ["plan-executor", "accountant", "critic"];
+    // ── 短鏈型：單槍匹馬居多
     case "critic":
       return ["critic", "composer"];
     case "navigator":
@@ -2148,63 +2356,10 @@ export function composeRoleChain(input: RoleSelectionInput): AgentRole[] {
       return ["composer"];
     case "companion":
       return ["companion"];
-    case "image-specialist":
-    case "video-specialist":
-    case "music-specialist":
-    case "voice-specialist":
-      // Domain specialists hand off to composer for execution and end
-      // with critic so the user gets one round of refinement on the
-      // generated asset.
-      return [head.role, "composer", "critic"];
-    case "training-specialist":
-      // Training is execution-heavy on a single page (lora-trainer);
-      // skip the upfront director planning and end with critic to
-      // suggest dataset refinements.
-      return [head.role, "composer", "critic"];
-    case "learning-specialist":
-      // Learning chain stays advisory — navigator pulls the user to the
-      // right tutorial, critic offers a debrief once they've explored.
-      return [head.role, "navigator"];
     case "accountant":
-      // 財財 通常單槍匹馬把帳算清楚；如果使用者後續要做更省的選擇，
-      // 才會交棒給 director 重新規劃。
       return ["accountant"];
-    case "quality-coach":
-      // 巧巧 給完改寫建議後，自然交給 composer 套用 → critic 複看一輪。
-      return ["quality-coach", "composer", "critic"];
-    case "inspector":
-      // 守守 巡到問題，把使用者帶到對的頁面 / 工具 — 通常以 navigator 收尾。
-      return ["inspector", "navigator"];
-    case "legal-advisor":
-      // 律律 給安全改寫 → 巧巧整理 prompt → 編編套用。
-      return ["legal-advisor", "quality-coach", "composer"];
-    case "security-guard":
-      // 安安 警示 → 細細帶到設定頁加固。
-      return ["security-guard", "settings-detail"];
-    case "community-manager":
-      // 群群 規劃貼文 → 圖圖 / 影影 出素材 → 記記排程。
-      return ["community-manager", "image-specialist", "notes-curator"];
-    case "chief-orchestrator":
-      // 總總 看完團隊狀態 → 把任務交給導導排計畫 → 編編執行。
-      return ["chief-orchestrator", "director", "composer"];
-    case "onboarding-coach":
-      // 帶帶 把使用者帶通操作 → 路路引到實作頁 → 對應 specialist 接手。
-      return ["onboarding-coach", "navigator"];
-    case "notes-curator":
-      // 記記 翻舊素材 / 存筆記 → 編編套用到當頁。
-      return ["notes-curator", "composer"];
     case "settings-detail":
-      // 細細 帶人到設定頁 → 通常單槍匹馬即可結束。
       return ["settings-detail"];
-    case "plan-executor":
-      // 步步 接管後：先讓財財估算 → 自己跑跨頁步驟（rely on internal loop） → 品品總評。
-      return ["plan-executor", "accountant", "critic"];
-    case "inspiration-specialist":
-      // 靈靈 給靈感 → 使用者選方向後交給對應 specialist（圖 / 影 / 音）→ 編編執行。
-      return ["inspiration-specialist", "image-specialist", "composer"];
-    case "anatomy-specialist":
-      // 體體 產出解剖圖 → 品品看解剖準確度 → 編編做標註或調整。
-      return ["anatomy-specialist", "critic", "composer"];
   }
 }
 

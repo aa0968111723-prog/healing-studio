@@ -7,9 +7,11 @@
 
 import {
   SPIRIT_COLLAB_PROTOCOL,
+  pickBestHandoff,
   type AgentRole,
   type SpiritHandoff,
 } from "../../shared/orb-agent-roles";
+import { SpiritStatusMonitor } from "./spiritStatusMonitor";
 import type {
   AgentMessage,
   AgentSharedContext,
@@ -493,33 +495,43 @@ class AgentCollaborationOrchestratorClass {
     collaborationId: string;
     fromAgent: AgentRole;
     whenHint?: string;
+    /** 額外加分用的 hint token（例如使用者剛剛訊息的關鍵字） */
+    hintTokens?: ReadonlyArray<string>;
     mutedRoles?: ReadonlyArray<AgentRole>;
     extraContext?: Record<string, unknown>;
   }): Promise<{ executed: boolean; handoff: SpiritHandoff | null; toAgent: AgentRole | null }> {
-    const candidates = this.getProtocolHandoffsFor(args.fromAgent, {
-      mutedRoles: args.mutedRoles,
-    });
-    if (candidates.length === 0) {
-      logger.debug("protocol_handoff_no_candidates", {
-        fromAgent: args.fromAgent,
-        muted: args.mutedRoles ?? [],
-      });
-      return { executed: false, handoff: null, toAgent: null };
-    }
-
-    const picked: SpiritHandoff = (() => {
-      if (args.whenHint) {
-        const hint = args.whenHint.toLowerCase();
-        const matched = candidates.find(h => h.when.toLowerCase().includes(hint));
-        if (matched) return matched;
-      }
-      return candidates[0];
-    })();
-
     const session = this.activeSessions.get(args.collaborationId)
       ?? Array.from(this.activeSessions.values()).find(
         s => s.collaborationId === args.collaborationId
       );
+
+    // 用 SpiritStatusMonitor 拿目前 busy 的精靈，給 picker 扣分（不剔除，
+    // 因為「全員都 busy」時還是要派人，扣分讓 idle 優先選即可）。
+    const busyRoles = SpiritStatusMonitor.getAllStatuses()
+      .filter(s => s.status === "busy")
+      .map(s => s.spiritId);
+
+    // session.recentHandoffTargets 給 cycle 防呆。沒 session（很罕見的早期
+    // call）就傳空陣列。
+    const recentRoles = session?.recentHandoffTargets ?? [];
+
+    const picked = pickBestHandoff(args.fromAgent, {
+      whenHint: args.whenHint,
+      hintTokens: args.hintTokens,
+      mutedRoles: args.mutedRoles,
+      busyRoles,
+      recentRoles,
+    });
+
+    if (!picked) {
+      logger.debug("protocol_handoff_no_candidates", {
+        fromAgent: args.fromAgent,
+        muted: args.mutedRoles ?? [],
+        busy: busyRoles,
+      });
+      return { executed: false, handoff: null, toAgent: null };
+    }
+
     if (!session) {
       logger.warn("protocol_handoff_no_session", { collaborationId: args.collaborationId });
       return { executed: false, handoff: picked, toAgent: picked.to };
@@ -541,6 +553,14 @@ class AgentCollaborationOrchestratorClass {
       nextAction: picked.when,
     };
     await this.executeHandoff(handoff);
+
+    // 推進 recentHandoffTargets 給下一輪 picker 的 cycle 防呆參考；保留
+    // 末端 6 個。直接 mutate session 物件 — 它就在 activeSessions Map 內。
+    session.recentHandoffTargets = [
+      ...(session.recentHandoffTargets ?? []),
+      picked.to,
+    ].slice(-6);
+
     return { executed: true, handoff: picked, toAgent: picked.to };
   }
 

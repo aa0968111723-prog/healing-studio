@@ -248,6 +248,13 @@ export interface CollaborationSession {
   status: "active" | "completed" | "failed" | "cancelled";
   completedSteps: string[];
   result?: AgentCollaborationResult;
+  /**
+   * 最近 N 個成功的 handoff 目標，最新的塞末端。pickBestHandoff 用此做
+   * cycle 防呆 — A→B→A→B 反覆觸發時越靠後的扣越多分，迫使選擇其它
+   * handoff。orchestrator.executeProtocolHandoff 會在每次 handoff 完成
+   * 後 push、保留最後 6 個 entry。
+   */
+  recentHandoffTargets?: AgentRole[];
 }
 
 /** Agent handoff - transfer control from one agent to another */

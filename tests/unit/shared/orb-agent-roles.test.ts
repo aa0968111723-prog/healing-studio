@@ -159,6 +159,69 @@ describe("composeRoleChain", () => {
   });
 });
 
+describe("scoreProtocolHandoffs / pickBestHandoff", () => {
+  // 動態 picker：依 hintTokens 選擇命中的 handoff，busyRoles 扣分，
+  // recentRoles 防止 cycle。
+  it("scores handoffs higher when hintToken matches the when-text", async () => {
+    const { scoreProtocolHandoffs } = await import("../../../shared/orb-agent-roles");
+    const scored = scoreProtocolHandoffs("director", { hintTokens: ["video"] });
+    // 至少有一條 handoff 應該因為 'video' token 命中而分數 > 0
+    const top = scored[0];
+    expect(top.score).toBeGreaterThan(0);
+    // 命中的多半是 video-specialist
+    const videoHandoff = scored.find(s => s.handoff.to === "video-specialist");
+    expect(videoHandoff).toBeDefined();
+    expect(videoHandoff!.score).toBeGreaterThan(0);
+  });
+
+  it("pickBestHandoff returns null when every candidate is muted", async () => {
+    const { pickBestHandoff, SPIRIT_COLLAB_PROTOCOL } = await import("../../../shared/orb-agent-roles");
+    const allTargets = SPIRIT_COLLAB_PROTOCOL["accountant"].handoffs.map(h => h.to);
+    const picked = pickBestHandoff("accountant", { mutedRoles: allTargets });
+    expect(picked).toBeNull();
+  });
+
+  it("pickBestHandoff penalises busy spirits without removing them", async () => {
+    const { scoreProtocolHandoffs } = await import("../../../shared/orb-agent-roles");
+    const scored = scoreProtocolHandoffs("director", {
+      busyRoles: ["composer"],
+    });
+    const composer = scored.find(s => s.handoff.to === "composer");
+    expect(composer).toBeDefined();
+    expect(composer!.score).toBeLessThan(0);
+  });
+
+  it("walkProtocolHandoffChain breaks on cycle", async () => {
+    const { walkProtocolHandoffChain } = await import("../../../shared/orb-agent-roles");
+    const chain = walkProtocolHandoffChain("director", { maxDepth: 6 });
+    // 不該出現重複角色
+    const unique = new Set(chain);
+    expect(unique.size).toBe(chain.length);
+  });
+
+  it("walkProtocolHandoffChain respects maxDepth", async () => {
+    const { walkProtocolHandoffChain } = await import("../../../shared/orb-agent-roles");
+    const chain = walkProtocolHandoffChain("director", { maxDepth: 2 });
+    expect(chain.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("composeRoleChain dynamic routing", () => {
+  // chief-orchestrator 走 walker，hintTokens 從文字抽 — 「想做影片」應該
+  // 把 video-specialist 推到鏈中。
+  it("chief-orchestrator chain includes video-specialist when user asks about video", () => {
+    const chain = composeRoleChain({ text: "@總總 幫我安排做一支短影片的流程" });
+    expect(chain[0]).toBe("chief-orchestrator");
+    expect(chain).toContain("video-specialist");
+  });
+
+  it("inspiration-specialist chain leans to image when user mentions illustration", () => {
+    const chain = composeRoleChain({ text: "@靈靈 我想做一張海報插畫但沒靈感" });
+    expect(chain[0]).toBe("inspiration-specialist");
+    expect(chain).toContain("image-specialist");
+  });
+});
+
 describe("getRoleSystemPromptSlice", () => {
   it("emits a non-empty prompt for every role", () => {
     const roles = ["director", "composer", "critic", "researcher", "navigator", "companion"] as const;
