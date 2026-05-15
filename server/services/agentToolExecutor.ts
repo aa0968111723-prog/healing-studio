@@ -2149,6 +2149,18 @@ async function dispatchStudioTool(
       }
 
       // ════════════════════════════════════════════════════════════════════
+      // qualityCoach.* tools for quality-coach (巧巧)
+      // ════════════════════════════════════════════════════════════════════
+
+      case "qualityCoach.diagnose":
+      case "qualityCoach.rewrite":
+      case "qualityCoach.compare":
+      case "qualityCoach.getTemplates": {
+        const qualityCoachResult = await dispatchQualityCoachTool(call);
+        return qualityCoachResult;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
       // imageSpecialist.* tools for image-specialist (圖圖)
       // ════════════════════════════════════════════════════════════════════
 
@@ -2488,6 +2500,45 @@ async function dispatchAccountantTool(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// qualityCoach.* 工具橋接：巧巧（quality-coach）的提示詞品質教練工具
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 qualityCoach.* 工具呼叫橋接到 qualityCoachTools 服務。
+ * 提供巧巧（quality-coach）即時呼叫的能力：
+ * - qualityCoach.diagnose:    7 維度命中 + 0-100 分 + issues + next-step
+ * - qualityCoach.rewrite:     補齊缺失維度的可貼版本 + 解釋這次補了什麼
+ * - qualityCoach.compare:     兩條 prompt 哪條好 + 多覆蓋了哪些維度
+ * - qualityCoach.getTemplates: 該模態的「照樣造句」模板（image/video/music/voice/general）
+ *
+ * 四個工具都是純函式（不打 LLM、不寫 DB），呼叫 shared/qualityCoachEngine
+ * 的確定性引擎；可放心對 LLM 開放、無需 approval。
+ */
+async function dispatchQualityCoachTool(
+  call: OrbToolCall
+): Promise<OrbToolCallResult> {
+  const { dispatchQualityCoach } = await import("./spiritTools/qualityCoachTools");
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  // qualityCoach dispatcher 內部已經做 type narrowing — 但 agentToolExecutor
+  // 用 OrbToolCall.name 是更寬的 string union，這裡先 narrow。
+  const name = call.name as
+    | "qualityCoach.diagnose"
+    | "qualityCoach.rewrite"
+    | "qualityCoach.compare"
+    | "qualityCoach.getTemplates";
+
+  const result = dispatchQualityCoach({ name, args });
+  return {
+    name: call.name,
+    ok: result.ok,
+    data: result.ok ? result.data : undefined,
+    error: result.ok ? undefined : result.error,
+    usedTool: result.ok ? call.name : undefined,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

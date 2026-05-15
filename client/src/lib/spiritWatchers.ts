@@ -260,50 +260,92 @@ export function suggestUnusedFeature(): { featureName: string; path: string } | 
 // ─── 巧巧：low_quality_generation ──────────────────────────────────────
 /**
  * 偵測「使用者短時間內重複送很相似的 prompt」— 這通常代表上一張結果不理想，
- * 在反覆嘗試。用簡單的 Jaccard 字元集合相似度（≥0.6 算相似），加上時間視窗
- * （60 秒內 3 次以上算「正在掙扎」）。回傳被認定不理想的取樣 prompt 與
- * 一條粗略改寫建議；呼叫端 publish 後由巧巧的 system prompt 細化。
+ * 在反覆嘗試。
+ *
+ * 之前版本的問題：
+ *   - 用 char-level Jaccard set similarity 對中文偏誤太大（兩條完全不同
+ *     需求的中文短句字元集合常 ≥0.5）
+ *   - 改寫建議硬寫死「午後光線、35mm 淺景深、水彩插畫風」對 video /
+ *     music / voice 完全不適用
+ *   - 沒判斷分數高低 — 短時間內微改錯字（已是好 prompt）也會跳出來
+ *
+ * 新版改走 shared/qualityCoachEngine 的真實診斷管線：
+ *   - jaccardWordSimilarity 用 word/char bigram 對中文穩 10×
+ *   - rewrittenPrompt 依模態挑對應的 SUGGESTION_SNIPPETS（圖 / 影 / 音 /
+ *     聲 / 通用），不再用一條 image-only 硬編字串對所有情境
+ *   - 多帶 modality / missingDimensions 給 ProactiveEventBus，巧巧 system
+ *     prompt 拿到後可以一次給「真的缺哪幾維」的反饋
  */
+import {
+  detectModality,
+  detectStruggle,
+  scorePrompt,
+  type StruggleDiagnosis,
+} from "../../../shared/qualityCoachEngine";
+
 interface PromptHistoryEntry {
   text: string;
   at: number;
 }
 
-function jaccardCharSimilarity(a: string, b: string): number {
-  const sa = new Set(a);
-  const sb = new Set(b);
-  let inter = 0;
-  for (const c of sa) if (sb.has(c)) inter++;
-  const uni = sa.size + sb.size - inter;
-  return uni === 0 ? 0 : inter / uni;
+export interface StrugglingPromptResult {
+  issue: string;
+  sampleCount: number;
+  rewrittenPrompt?: string;
+  /** 補資料：給 ProactiveEventBus payload，巧巧可拿來精細回覆 */
+  modality?: StruggleDiagnosis["modality"];
+  missingDimensions?: StruggleDiagnosis["missingDimensions"];
+  lastScore?: number;
 }
 
 export function detectStrugglingPrompt(
   history: readonly PromptHistoryEntry[],
   now: number,
-): {
-  issue: string;
-  sampleCount: number;
-  rewrittenPrompt?: string;
-} | null {
-  // 60 秒視窗內的 prompt
-  const WINDOW_MS = 60_000;
-  const recent = history.filter(h => now - h.at <= WINDOW_MS);
-  if (recent.length < 3) return null;
-  // 看後 3 條兩兩相似度 ≥0.6 才算「真的在反覆改」
-  const last3 = recent.slice(-3);
-  const sim1 = jaccardCharSimilarity(last3[0].text, last3[1].text);
-  const sim2 = jaccardCharSimilarity(last3[1].text, last3[2].text);
-  if (sim1 < 0.6 || sim2 < 0.6) return null;
-  const sample = last3[last3.length - 1].text;
-  // 簡單建議：依長度給方向。短 prompt 提示加維度；長 prompt 提示刪冗詞。
-  const suggestion =
-    sample.length < 30
-      ? `${sample}，柔和午後光線，35mm 淺景深，水彩插畫風`
-      : "建議：拆成兩句 — 第一句寫主體，第二句寫光線 / 風格 / 鏡頭";
+): StrugglingPromptResult | null {
+  const diag = detectStruggle(history, now);
+  if (!diag) return null;
   return {
-    issue: "你連改了 3 次都很接近 — 可能是某個維度沒抓對",
-    sampleCount: last3.length,
-    rewrittenPrompt: suggestion,
+    issue: diag.issue,
+    sampleCount: diag.sampleCount,
+    rewrittenPrompt: diag.rewrittenPrompt,
+    modality: diag.modality,
+    missingDimensions: diag.missingDimensions,
+    lastScore: diag.lastScore,
+  };
+}
+
+// ─── 巧巧：prompt_too_short ──────────────────────────────────────────────
+/**
+ * 把「prompt 太短」的抽象提示換成依模態的具體建議。
+ * 用 scorePrompt 找出第一個缺的維度，回傳對應的 SUGGESTION_SNIPPET 字串，
+ * 給 prompt_too_short proactive event 的 suggestedAddition 欄位填入。
+ *
+ * 例：
+ *   - 「一隻貓」(image) → "柔和午後逆光"（缺 lighting）
+ *   - 「做支廣告」(general) → "明確目的（例如：建立月訂閱會員）"
+ *   - "聲音"（voice）→ "腳本內容（請唸：「XXX」）"
+ *
+ * 取代之前硬寫死的「場景、風格、用途其中一個」抽屜。
+ */
+export interface ShortPromptScore {
+  modality: ReturnType<typeof detectModality>;
+  /** 給 ProactiveEventBus prompt_too_short 的 suggestedAddition token */
+  suggestedAddition: string;
+  /** 0-100 分（供 UI 顯示） */
+  score: number;
+}
+
+export function scoreShortPrompt(text: string): ShortPromptScore {
+  const modality = detectModality(text);
+  const diag = scorePrompt(text, modality);
+  // 第一個缺的維度通常是「應該補什麼」最強訊號 — engine 已經依重要度排序
+  const firstMissing = diag.missingDimensions[0];
+  const suggestedAddition = firstMissing
+    ? diag.dimensions.find(d => d.dimension === firstMissing)!.label
+    : "更具體的細節";
+  return {
+    modality,
+    suggestedAddition,
+    score: diag.score,
   };
 }

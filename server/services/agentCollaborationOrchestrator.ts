@@ -156,9 +156,26 @@ class AgentCollaborationOrchestratorClass {
     });
     this.registerAgentCapability({
       agentId: "quality-coach",
-      capabilities: ["prompt rewriting", "output quality review", "iteration coaching"],
-      availableTools: [],
-      knowledgeDomains: ["prompt engineering", "image / video quality heuristics"],
+      capabilities: [
+        "prompt rewriting",
+        "output quality review",
+        "iteration coaching",
+        "7-dimension prompt diagnosis",
+        "A/B prompt comparison",
+        "template lookup by modality",
+      ],
+      availableTools: [
+        "qualityCoach.diagnose",
+        "qualityCoach.rewrite",
+        "qualityCoach.compare",
+        "qualityCoach.getTemplates",
+      ],
+      knowledgeDomains: [
+        "prompt engineering",
+        "image / video quality heuristics",
+        "modality-aware rewriting",
+        "prompt scoring",
+      ],
       available: true,
     });
     this.registerAgentCapability({

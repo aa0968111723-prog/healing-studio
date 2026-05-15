@@ -540,6 +540,57 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 巧巧（quality-coach）提示詞品質教練工具 ──
+  // 巧巧之前 tools=[]，所有「主動改寫 prompt」全靠 LLM 嘴砲；接上這四個
+  // 工具後，巧巧能：
+  //   ① qualityCoach.diagnose      — 7 維度命中 + 0-100 分 + issues
+  //   ② qualityCoach.rewrite       — 補齊缺失維度的可貼版本
+  //   ③ qualityCoach.compare       — 兩條 prompt A/B 比較
+  //   ④ qualityCoach.getTemplates  — 該模態的照樣造句模板
+  {
+    name: "qualityCoach.diagnose",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.rewrite",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      prompt: "string",
+      modality: "string?",
+      onlyFillDimensions: "string[]?",
+      style: "string?",
+      includeDiagnosis: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      promptA: "string",
+      promptB: "string",
+      modality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "qualityCoach.getTemplates",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modality: "string",
+      styleHint: "string?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 記記（notes-curator）筆記與資產管理工具 ──
   {
     name: "notesCurator.createNote",
