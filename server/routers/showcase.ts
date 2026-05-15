@@ -22,7 +22,12 @@
 
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
-import { featuredShowcase, generationHistory } from "../../drizzle/schema";
+import {
+  featuredShowcase,
+  featuredShowcaseComments,
+  generationHistory,
+  users,
+} from "../../drizzle/schema";
 import {
   eq,
   desc,
@@ -109,6 +114,7 @@ interface ShowcaseListItem {
   sortWeight: number;
   likeCount: number;
   forkCount: number;
+  commentCount: number;
   createdAt: Date;
 }
 
@@ -124,6 +130,8 @@ function mapHistoryToShowcase(row: FallbackRow): ShowcaseListItem {
     sortWeight: 0,
     likeCount: row.isBookmarked ? 1 : 0,
     forkCount: 0,
+    // History-fallback rows live in a separate table — they can't carry comments.
+    commentCount: 0,
     createdAt: row.createdAt,
   };
 }
@@ -228,9 +236,14 @@ const LIST_FIELDS = {
   sortWeight: featuredShowcase.sortWeight,
   likeCount: featuredShowcase.likeCount,
   forkCount: featuredShowcase.forkCount,
+  commentCount: featuredShowcase.commentCount,
   createdAt: featuredShowcase.createdAt,
   // LOD: 不含 vibeParameters、completelyDeconstructedBlocks、originalPrompt
 } as const;
+
+// ─── Comments Constants ───────────────────────────────────────────────────────
+const COMMENT_MAX_LENGTH = 500;
+const COMMENTS_PAGE_SIZE = 30;
 
 // ─── Showcase Router ──────────────────────────────────────────────────────────
 
@@ -373,6 +386,8 @@ export const showcaseRouter = router({
           isActive: true,
           likeCount: h.isBookmarked ? 1 : 0,
           forkCount: 0,
+          // History-fallback rows can't accept comments (no foreign key target).
+          commentCount: 0,
           createdAt: h.createdAt,
           updatedAt: h.createdAt,
         };
@@ -757,6 +772,165 @@ export const showcaseRouter = router({
         .update(featuredShowcase)
         .set({ isActive: false })
         .where(eq(featuredShowcase.id, input.id));
+
+      return { success: true };
+    }),
+
+  /**
+   * showcase.listComments — 列出某件精選作品的評論
+   *
+   * 公開唯讀。歷史回填作品（負值 id）一律回傳空陣列，因為它們沒有對應
+   * 的 featured_showcase 主鍵。
+   */
+  listComments: publicProcedure
+    .input(
+      z.object({
+        showcaseId: z.number(),
+        limit: z
+          .number()
+          .min(1)
+          .max(COMMENTS_PAGE_SIZE * 2)
+          .default(COMMENTS_PAGE_SIZE),
+        cursor: z.number().nullish(),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = await tryDb();
+      if (!db) return { items: [], nextCursor: undefined };
+      // Negative IDs map to generation_history fallbacks — no comments table.
+      if (input.showcaseId < 0)
+        return { items: [], nextCursor: undefined };
+
+      const conditions = [
+        eq(featuredShowcaseComments.showcaseId, input.showcaseId),
+      ];
+      if (typeof input.cursor === "number" && input.cursor > 0) {
+        conditions.push(lt(featuredShowcaseComments.id, input.cursor));
+      }
+
+      const rows = await db
+        .select({
+          id: featuredShowcaseComments.id,
+          showcaseId: featuredShowcaseComments.showcaseId,
+          userId: featuredShowcaseComments.userId,
+          content: featuredShowcaseComments.content,
+          createdAt: featuredShowcaseComments.createdAt,
+          authorName: users.name,
+          authorAvatarUrl: users.avatarUrl,
+        })
+        .from(featuredShowcaseComments)
+        .leftJoin(users, eq(featuredShowcaseComments.userId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(featuredShowcaseComments.id))
+        .limit(input.limit + 1);
+
+      let nextCursor: number | undefined;
+      if (rows.length > input.limit) {
+        const popped = rows.pop()!;
+        nextCursor = popped.id;
+      }
+
+      return { items: rows, nextCursor };
+    }),
+
+  /**
+   * showcase.addComment — 對某件精選作品新增評論（需登入）
+   *
+   * 同時把 featured_showcase.commentCount + 1，讓詳情卡片不必每次都 COUNT(*)。
+   */
+  addComment: protectedProcedure
+    .input(
+      z.object({
+        showcaseId: z.number().int().positive(),
+        content: z.string().trim().min(1).max(COMMENT_MAX_LENGTH),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+
+      // Confirm the showcase actually exists and is active before letting a
+      // comment land — otherwise we'd accumulate orphan rows.
+      const target = await db
+        .select({ id: featuredShowcase.id })
+        .from(featuredShowcase)
+        .where(
+          and(
+            eq(featuredShowcase.id, input.showcaseId),
+            eq(featuredShowcase.isActive, true)
+          )
+        )
+        .limit(1);
+
+      if (target.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "找不到這件展示作品，無法新增評論。",
+        });
+      }
+
+      const inserted = await db.insert(featuredShowcaseComments).values({
+        showcaseId: input.showcaseId,
+        userId: ctx.user.id,
+        content: input.content,
+      });
+
+      await db
+        .update(featuredShowcase)
+        .set({
+          commentCount: sql`${featuredShowcase.commentCount} + 1`,
+        })
+        .where(eq(featuredShowcase.id, input.showcaseId));
+
+      const newId = Number((inserted as any)?.[0]?.insertId ?? 0);
+      return { success: true, id: newId };
+    }),
+
+  /**
+   * showcase.deleteComment — 刪除自己的評論（需登入）
+   *
+   * 只有評論作者本人可刪。連動把 commentCount - 1（floor 0）。
+   */
+  deleteComment: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+
+      const rows = await db
+        .select({
+          id: featuredShowcaseComments.id,
+          showcaseId: featuredShowcaseComments.showcaseId,
+          userId: featuredShowcaseComments.userId,
+        })
+        .from(featuredShowcaseComments)
+        .where(eq(featuredShowcaseComments.id, input.id))
+        .limit(1);
+
+      if (rows.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "找不到此評論。",
+        });
+      }
+
+      const comment = rows[0];
+      if (comment.userId !== ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "只有評論作者本人可以刪除這則評論。",
+        });
+      }
+
+      await db
+        .delete(featuredShowcaseComments)
+        .where(eq(featuredShowcaseComments.id, input.id));
+
+      // GREATEST clamps the counter at 0 in case it drifts (manual deletes etc.)
+      await db
+        .update(featuredShowcase)
+        .set({
+          commentCount: sql`GREATEST(${featuredShowcase.commentCount} - 1, 0)`,
+        })
+        .where(eq(featuredShowcase.id, comment.showcaseId));
 
       return { success: true };
     }),

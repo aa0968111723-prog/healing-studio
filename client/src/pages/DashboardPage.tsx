@@ -335,9 +335,9 @@ export default function DashboardPage() {
     },
     {
       icon: Coins,
-      label: "累積花費",
-      value: `$${(stats?.totalCost ?? 0).toFixed(4)}`,
-      unit: "USD",
+      label: "已消耗積分",
+      value: stats?.totalCreditsConsumed ?? 0,
+      unit: "點積分",
       color: "bg-zen-peach/20",
       textColor: "text-orange-600",
     },

@@ -1203,6 +1203,9 @@ export const featuredShowcase = mysqlTable(
     /** 被複製配方次數 */
     forkCount: int("forkCount").default(0).notNull(),
 
+    /** 評論數（denormalised from featured_showcase_comments） */
+    commentCount: int("commentCount").default(0).notNull(),
+
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -1222,6 +1225,31 @@ export const featuredShowcase = mysqlTable(
 
 export type FeaturedShowcaseItem = typeof featuredShowcase.$inferSelect;
 export type InsertFeaturedShowcaseItem = typeof featuredShowcase.$inferInsert;
+
+// ─── Featured Showcase Comments ────────────────────────────────────────────
+export const featuredShowcaseComments = mysqlTable(
+  "featured_showcase_comments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    showcaseId: int("showcaseId").notNull(),
+    userId: int("userId").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    showcaseCreatedIdx: index("fsc_showcase_created_idx").on(
+      table.showcaseId,
+      table.createdAt
+    ),
+    userIdx: index("fsc_user_idx").on(table.userId),
+  })
+);
+
+export type FeaturedShowcaseComment =
+  typeof featuredShowcaseComments.$inferSelect;
+export type InsertFeaturedShowcaseComment =
+  typeof featuredShowcaseComments.$inferInsert;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NEW TABLES — AI Brain Configuration Database (大腦組態資料庫)
