@@ -159,12 +159,31 @@ const GENERIC_SKILLS: Array<Pick<
   {
     id: "companion",
     displayName: "陪伴",
-    description: "開放對話，沒有明確目標時提供 1-2 個下一步",
+    description: "暖暖：偵測情緒、整理意圖、推薦下一棒精靈，必要時陪你穩定情緒",
     modality: "general",
     recommendedPages: ["/agent", "/"],
-    tools: [],
-    knowledgeDomains: ["open conversation", "intent clarification"],
-    useCases: ["閒聊 / 暖身", "整理混亂的需求", "情緒陪伴"],
+    // 暖暖（companion）的真實 AI agent 能力：純函式工具，唯讀、無扣點、
+    // 無 DB 寫入；對應 server/services/spiritTools/companionTools.ts。
+    tools: [
+      "companion.detectMood",
+      "companion.clarifyIntent",
+      "companion.recommendNextSpirit",
+      "companion.calmBreak",
+    ],
+    knowledgeDomains: [
+      "open conversation",
+      "intent clarification",
+      "mood detection",
+      "emotional grounding",
+      "handoff routing",
+    ],
+    useCases: [
+      "閒聊 / 暖身",
+      "整理混亂的需求",
+      "情緒陪伴",
+      "卡關穩定情緒",
+      "建議下一棒精靈",
+    ],
     chain: ["companion"],
     requiresPage: false,
   },
