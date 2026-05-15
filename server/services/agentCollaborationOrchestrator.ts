@@ -70,11 +70,38 @@ class AgentCollaborationOrchestratorClass {
       available: true,
     });
 
+    // 編編 (composer) — 在當頁實際執行的執行員。tools 同時涵蓋
+    // 「頁面動作 namespace」(page.*)＋「跨模態 fal 派遣前綴」(studio.*)，
+    // 因為 SPIRIT_MODEL_CAPABILITIES.composer = ALL_CATEGORIES，編編的
+    // dispatch 範圍真的橫跨所有 modality；只是大多時候是用 page.* 走 UI
+    // 路徑，少數時候直接用 studio.* / spirit.invoke 打 fal.ai。
     this.registerAgentCapability({
       agentId: "composer",
-      capabilities: ["task execution", "parameter filling", "form submission"],
-      availableTools: ["studio.*"],
-      knowledgeDomains: ["studio operations", "parameter tuning"],
+      capabilities: [
+        "page action dispatch",
+        "model selection on current page",
+        "parameter filling",
+        "form submission",
+        "submit + observe loop",
+        "single-page workflow execution",
+      ],
+      availableTools: [
+        "page.fillPrompt",
+        "page.setModel",
+        "page.setParam",
+        "page.setTab",
+        "page.setMode",
+        "page.applyPreset",
+        "page.submit",
+        "page.runWorkflow",
+        "studio.*",
+      ],
+      knowledgeDomains: [
+        "studio operations",
+        "parameter tuning",
+        "page capabilities discovery",
+        "fal model id mapping",
+      ],
       available: true,
     });
 
@@ -145,7 +172,12 @@ class AgentCollaborationOrchestratorClass {
     this.registerAgentCapability({
       agentId: "accountant",
       capabilities: ["cost estimation", "budget tracking", "model price comparison", "spend forecasting"],
-      availableTools: [],
+      availableTools: [
+        "accountant.estimate",
+        "accountant.compare",
+        "accountant.usage",
+        "accountant.savings",
+      ],
       knowledgeDomains: ["model pricing", "quota", "subscription tiers"],
       available: true,
     });

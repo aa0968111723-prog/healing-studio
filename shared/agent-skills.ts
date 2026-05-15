@@ -110,14 +110,39 @@ const GENERIC_SKILLS: Array<Pick<
   },
   {
     id: "composer",
-    displayName: "作曲家",
-    description: "在當前工作室執行：填提示詞、設參數、按送出",
+    displayName: "編編",
+    description: "在當前工作室直接動手：填提示詞、設模型、調參數、按送出 — 把意圖一次轉成可執行的頁面動作",
     modality: "general",
+    // /studio 是創作分流頁；其餘三個是真的會被 dispatch 的工作室。
     recommendedPages: ["/studio", "/image-studio", "/video-studio", "/pro-studio"],
-    tools: [],
-    knowledgeDomains: ["page action dispatch", "form filling", "parameter tuning"],
-    useCases: ["在當頁直接執行", "把計畫轉為實際操作"],
-    chain: ["composer"],
+    // 編編 不擁有 fal 直呼工具（那是各 specialist 的事），但它擁有
+    // 「頁面動作」這條路徑：fillPrompt / setModel / setParam / setTab /
+    // setMode / applyPreset / submit / runWorkflow。把這份清單明確列出來，
+    // findSkillForTool / system prompt 都會以此為準，不再回傳空陣列。
+    tools: [
+      "page.fillPrompt",
+      "page.setModel",
+      "page.setParam",
+      "page.setTab",
+      "page.setMode",
+      "page.applyPreset",
+      "page.submit",
+      "page.runWorkflow",
+    ],
+    knowledgeDomains: [
+      "page action dispatch",
+      "form filling",
+      "parameter tuning",
+      "model selection on current page",
+      "submit + verify loop",
+    ],
+    useCases: [
+      "在當頁直接執行（@編編 用 flux pro 畫一隻貓）",
+      "把計畫轉為實際操作（送出 / 換模型 / 比例 9:16）",
+      "一句話填好提示詞並按下生成",
+      "跑完一條當頁工作流（fillPrompt → setParam → submit）",
+    ],
+    chain: ["composer", "critic"],
     requiresPage: true,
   },
   {
@@ -159,12 +184,31 @@ const GENERIC_SKILLS: Array<Pick<
   {
     id: "companion",
     displayName: "陪伴",
-    description: "開放對話，沒有明確目標時提供 1-2 個下一步",
+    description: "暖暖：偵測情緒、整理意圖、推薦下一棒精靈，必要時陪你穩定情緒",
     modality: "general",
     recommendedPages: ["/agent", "/"],
-    tools: [],
-    knowledgeDomains: ["open conversation", "intent clarification"],
-    useCases: ["閒聊 / 暖身", "整理混亂的需求", "情緒陪伴"],
+    // 暖暖（companion）的真實 AI agent 能力：純函式工具，唯讀、無扣點、
+    // 無 DB 寫入；對應 server/services/spiritTools/companionTools.ts。
+    tools: [
+      "companion.detectMood",
+      "companion.clarifyIntent",
+      "companion.recommendNextSpirit",
+      "companion.calmBreak",
+    ],
+    knowledgeDomains: [
+      "open conversation",
+      "intent clarification",
+      "mood detection",
+      "emotional grounding",
+      "handoff routing",
+    ],
+    useCases: [
+      "閒聊 / 暖身",
+      "整理混亂的需求",
+      "情緒陪伴",
+      "卡關穩定情緒",
+      "建議下一棒精靈",
+    ],
     chain: ["companion"],
     requiresPage: false,
   },
@@ -174,7 +218,12 @@ const GENERIC_SKILLS: Array<Pick<
     description: "主動全站成本控制：算這次花多少、本月用到哪、推 1 個更省的做法",
     modality: "general",
     recommendedPages: ["/agent", "/dashboard", "/settings"],
-    tools: [],
+    tools: [
+      "accountant.estimate",
+      "accountant.compare",
+      "accountant.usage",
+      "accountant.savings",
+    ],
     knowledgeDomains: ["cost estimation", "quota / usage tracking", "subscription tier", "model pricing"],
     useCases: ["這次會花多少", "本月用量還剩多少", "有沒有更便宜的做法", "推薦升降級時機"],
     chain: ["accountant"],
@@ -388,9 +437,18 @@ function buildSpecialistSkill(cap: SpecializedAgentCapability): AgentSkill {
   };
 }
 
+// Build the registry: GENERIC_SKILLS first (canonical entries with explicit
+// chain / pages), then specialists. If a specialist id already appears in
+// GENERIC_SKILLS (e.g. 編編 / composer is "specialist-shaped" because it has
+// real page-action tools, but its skill entry is curated by us), skip the
+// auto-built duplicate so SKILL_BY_ID's last-write semantics don't shadow
+// the curated chain / pages and validateSkillRegistry stays clean.
+const GENERIC_IDS = new Set<AgentRole>(GENERIC_SKILLS.map(s => s.id));
 export const AGENT_SKILL_REGISTRY: AgentSkill[] = [
   ...GENERIC_SKILLS.map(skill => ({ ...skill })),
-  ...SPECIALIZED_AGENT_CAPABILITIES.map(buildSpecialistSkill),
+  ...SPECIALIZED_AGENT_CAPABILITIES
+    .filter(cap => !GENERIC_IDS.has(cap.agentId as AgentRole))
+    .map(buildSpecialistSkill),
 ];
 
 const SKILL_BY_ID: Map<AgentRole, AgentSkill> = new Map(
@@ -424,9 +482,17 @@ export function findSkillForTool(toolName: string): AgentSkill | null {
 
 export function findSkillForPage(pagePath: string | undefined | null): AgentSkill | null {
   if (!pagePath) return null;
-  // Prefer specialists over generics — composer matches every studio so
-  // it would always win the first hit otherwise.
-  const specialists = AGENT_SKILL_REGISTRY.filter(s => SPECIALIST_BY_ID.has(s.id));
+  // Prefer domain specialists over generics — composer ALSO advertises
+  // every studio page (it's the executor there) but in routing terms the
+  // domain specialist (圖圖 on /image-studio, 影影 on /video-studio …)
+  // owns the page; composer comes in only when the user explicitly @'s it
+  // (handled by SPIRIT_CHAT_TOOLS.composer = page-execution).
+  // So when ranking by page, treat composer like a generic skill — it
+  // never wins the specialist pass even though `SPECIALIST_BY_ID` knows
+  // about it (that registration is for findAgentForTool / recommendAgent).
+  const specialists = AGENT_SKILL_REGISTRY.filter(
+    s => SPECIALIST_BY_ID.has(s.id) && s.id !== "composer",
+  );
   for (const skill of specialists) {
     if (skill.recommendedPages.includes(pagePath)) return skill;
   }

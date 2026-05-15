@@ -303,12 +303,12 @@ export function isHandoffComplete(handoff: SpiritHandoff): boolean {
 export function getHandoffDisplayName(fromSpirit: AgentRole, toSpirit: AgentRole): string {
   const spiritNames: Record<AgentRole, string> = {
     // Core roles
-    "director": "導演",
-    "composer": "作曲家",
-    "critic": "評論者",
-    "researcher": "研究員",
-    "navigator": "導航",
-    "companion": "夥伴",
+    "director": "導導",
+    "composer": "編編",
+    "critic": "品品",
+    "researcher": "查查",
+    "navigator": "路路",
+    "companion": "暖暖",
     // Specialized
     "image-specialist": "圖圖",
     "video-specialist": "影影",

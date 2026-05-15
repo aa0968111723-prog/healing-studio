@@ -1,12 +1,12 @@
 /**
- * Unit tests for SPIRIT_CHAT_TOOLS — the 23-spirit chat-tool registry.
+ * Unit tests for SPIRIT_CHAT_TOOLS — the 25-spirit chat-tool registry.
  *
  * Guards:
- *   - 全 23 位都被覆蓋（type-level + runtime size）
- *   - 5 位生成型走 fal-generation；最少字數一致
+ *   - 全 25 位都被覆蓋（type-level + runtime size）
+ *   - 6 位生成型走 fal-generation（含體體）；最少字數一致
  *   - 路路 intentBased / 學學 toPath 對應正確
- *   - 查查 走 search；其餘 15 位走 llm-persona / navigate
- *   - SPIRIT_COLLAB_PROTOCOL 對 23 位都有條目（協作機制覆蓋一致）
+ *   - 查查 + 靈靈 走 search；編編 走 page-execution；其餘走 llm-persona / navigate
+ *   - SPIRIT_COLLAB_PROTOCOL 對 25 位都有條目（協作機制覆蓋一致）
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -24,16 +24,20 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     const toolKeys = Object.keys(SPIRIT_CHAT_TOOLS).sort();
     const spiritKeys = Object.keys(SPIRIT_FAMILY).sort();
     expect(toolKeys).toEqual(spiritKeys);
+    // 25 = 6 generic role + 9 specialists (含 community-manager / 靈靈 / 體體)
+    //     + 3 proactive + 7 new spirits
     expect(toolKeys).toHaveLength(25);
   });
 
-  it("classifies the 5 generators as fal-generation with consistent minimum length", () => {
+  it("classifies the 6 generators as fal-generation with consistent minimum length", () => {
     const generators: AgentRole[] = [
       "image-specialist",
       "video-specialist",
       "music-specialist",
       "voice-specialist",
       "training-specialist",
+      // 體體 — 解剖圖也走 fal.ai 生成
+      "anatomy-specialist",
     ];
     for (const role of generators) {
       const tool = getChatToolForSpirit(role);
@@ -67,10 +71,10 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     expect(tool.kind).toBe("search");
   });
 
-  it("reasoning + companion + proactive spirits are llm-persona (12 of the 23)", () => {
+  it("reasoning + companion + proactive spirits are llm-persona (11 of the 25)", () => {
     const llmRoles: AgentRole[] = [
       "director",
-      "composer",
+      // 編編 (composer) 改走 page-execution — 不再是 llm-persona
       "critic",
       "companion",
       "accountant",
@@ -93,6 +97,16 @@ describe("SPIRIT_CHAT_TOOLS", () => {
     expect(tool.kind).toBe("agent-plan");
     if (tool.kind === "agent-plan") {
       expect(tool.minPromptChars).toBe(6);
+    }
+  });
+
+  it("編編 (composer) is page-execution — parses user imperatives into AgentActions and dispatches", () => {
+    const tool = getChatToolForSpirit("composer");
+    expect(tool.kind).toBe("page-execution");
+    if (tool.kind === "page-execution") {
+      // Short threshold: even one word commands like "送出" should trigger parsing.
+      expect(tool.minPromptChars).toBeLessThanOrEqual(6);
+      expect(tool.minPromptChars).toBeGreaterThan(0);
     }
   });
 

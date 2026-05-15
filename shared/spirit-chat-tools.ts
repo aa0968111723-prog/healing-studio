@@ -8,6 +8,10 @@
  *   - fal-generation: 真實打 fal.ai 模型（透過 trpc.spirit.invoke）
  *   - navigate:       純客戶端跳頁（emit navigate AgentAction）
  *   - search:         打 trpc.orbProxy.unifiedSearch 並把結果秀回來
+ *   - agent-plan:     步步 (plan-executor) 專用 — 真實規劃 + 跨工具執行
+ *                     (trpc.spirit.plan → run → status 輪詢)
+ *   - page-execution: 編編 (composer) 專用 — 解析使用者一句話為 AgentAction[]
+ *                     並 dispatch 到當頁；解析不出來才 fall through 到 LLM。
  *   - llm-persona:    fall through 到既有 LLM 流程，由 selectRoleForIntent
  *                     套上該精靈的人格切片回應
  *
@@ -58,6 +62,21 @@ export type SpiritChatTool =
       minPromptChars: number;
     }
   | {
+      /**
+       * 編編 (composer) 專用：在當頁直接執行使用者的指令。客戶端會：
+       *   1. 看 currentPage.snapshot.capabilities，把使用者一句話翻成
+       *      AgentAction[] (fillPrompt / setModel / setParam / submit …)
+       *   2. dispatch 進現有的 executeActions pipeline
+       *   3. 解析不出任何動作（太抽象 / 缺資訊）→ fall through 到 LLM，
+       *      讓編編的 system prompt 切片帶回 actions JSON 或反問
+       * 沒站在工作室頁時 (snapshot.capabilities 空) 會自動退到 LLM 並
+       * 提示使用者先去 /image-studio /video-studio /pro-studio。
+       */
+      kind: "page-execution";
+      /** Prompt 至少要這麼長才嘗試解析 — 太短直接走 LLM。 */
+      minPromptChars: number;
+    }
+  | {
       /** 沒有特殊工具 — fall through 到 LLM 並由 selectRoleForIntent 套人格。 */
       kind: "llm-persona";
     };
@@ -87,7 +106,10 @@ export const SPIRIT_CHAT_TOOLS: Record<AgentRole, SpiritChatTool> = {
   },
   researcher: { kind: "search", minPromptChars: 3 },
   director:  { kind: "llm-persona" },
-  composer:  { kind: "llm-persona" },
+  // 編編：被 @ 時真的會在當頁動手 — 解析自然語言成 AgentAction[] 並
+  // dispatch。解析不出來 / 不在工作室頁，自動 fall back 到 LLM 用編編
+  // 的人格切片產出 actions JSON。
+  composer:  { kind: "page-execution", minPromptChars: 4 },
   critic:    { kind: "llm-persona" },
   companion: { kind: "llm-persona" },
 

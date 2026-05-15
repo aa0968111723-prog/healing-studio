@@ -49,7 +49,8 @@ import type { AgentWorkflowStep, RunWorkflowAction } from "../../../shared/agent
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type PlanStatus =
-  | "draft"        // 已建立、尚未開跑（等使用者按「好，跑」）
+  | "draft"                 // 已建立、尚未開跑（等使用者按「好，跑」）
+  | "awaiting_approval"     // 高風險步驟等使用者明確核可（P1: 不能 auto-run）
   | "running"
   | "paused"
   | "completed"
@@ -113,6 +114,16 @@ export interface PlanRecord {
   blockedTools?: string[];
   /** Concrete tools registry handed to executeOrbToolCalls (HTTP-tool subset). */
   tools?: OrbApiTool[];
+  /**
+   * High-risk steps gated on explicit user approval (P1 review fix).
+   *
+   * GLOBAL_AGENT_TOOL_REGISTRY marks each tool with `riskLevel` + `requiresHuman`;
+   * any step where either flag is set ("high" or `requiresHuman: true`) is held
+   * back until the caller passes `approveHighRisk: true` to runPlan. Without
+   * this, hard-coding `approved: true` for `executeOrbToolCalls` would silently
+   * bypass the human-in-the-loop contract that the registry promises.
+   */
+  approvedHighRisk?: boolean;
 }
 
 interface CreatePlanInput {
@@ -281,12 +292,18 @@ async function executeSingleStep(
     }
 
     step.attempts += 1;
+    // P1 fix: don't blanket-approve every step. High-risk steps (riskLevel:high
+    // or requiresHuman:true in the global registry) need explicit user approval
+    // — runPlan() refuses to even enter executeSingleStep for those without
+    // `approvedHighRisk`, but this defence-in-depth also tells the executor
+    // which gate to apply so any future downstream check stays honest.
+    const approved = !isStepHighRisk(step) || plan.approvedHighRisk === true;
     const results = await executeOrbToolCalls({
       tools: plan.tools ?? [],
       calls: [call],
       userId: plan.userId,
       userRole: plan.userRole,
-      approved: true,
+      approved,
       taskId,
       stepId: step.id,
       blockedTools: plan.blockedTools,
@@ -484,12 +501,20 @@ export async function runPlan(input: {
   planId: string;
   /** When true, return after kicking off (default). False = await full completion. */
   async?: boolean;
+  /**
+   * Caller acknowledges that high-risk steps (riskLevel:high OR requiresHuman:true
+   * in the global tool registry) may execute without further interactive
+   * confirmation. Without this flag, a plan that contains any high-risk step
+   * is parked in `awaiting_approval` instead of running — P1 review fix.
+   */
+  approveHighRisk?: boolean;
 }): Promise<{
   success: boolean;
   status: PlanStatus;
   message: string;
   completedSteps?: number;
   totalSteps?: number;
+  highRiskCount?: number;
   failedStep?: { id: string; error: string };
 }> {
   const plan = PLAN_STORE.get(input.planId);
@@ -502,6 +527,27 @@ export async function runPlan(input: {
   }
   if (plan.status === "completed") {
     return { success: true, status: "completed", message: "plan 已經跑完", totalSteps: plan.steps.length, completedSteps: plan.steps.length };
+  }
+
+  // P1 fix: gate high-risk plans behind explicit approval. The caller must
+  // pass approveHighRisk=true after the user sees the preview card — without
+  // it, the plan flips to `awaiting_approval` and never dispatches a tool.
+  if (input.approveHighRisk === true) {
+    plan.approvedHighRisk = true;
+  }
+  const highRiskCount = plan.steps.filter(isStepHighRisk).length;
+  if (highRiskCount > 0 && !plan.approvedHighRisk) {
+    plan.status = "awaiting_approval";
+    return {
+      success: false,
+      status: "awaiting_approval",
+      message:
+        `這個計畫有 ${highRiskCount} 個高風險步驟（標 high 或 requiresHuman），需要使用者明確核可。` +
+        ` 請再呼叫一次 planExecutor.runPlan({ planId, approveHighRisk: true })。`,
+      highRiskCount,
+      totalSteps: plan.steps.length,
+      completedSteps: plan.steps.filter(s => s.status === "completed").length,
+    };
   }
 
   plan.status = "running";

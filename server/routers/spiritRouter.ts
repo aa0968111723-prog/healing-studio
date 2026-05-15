@@ -145,6 +145,13 @@ export const spiritRouter = router({
       z.object({
         planId: z.string().min(1),
         async: z.boolean().optional(),
+        /**
+         * Explicit user acknowledgement that high-risk steps may execute.
+         * Without this, plans containing risk:high / requiresHuman:true tools
+         * park at "awaiting_approval" instead of dispatching — see the P1
+         * review on PR #642.
+         */
+        approveHighRisk: z.boolean().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -152,6 +159,7 @@ export const spiritRouter = router({
         userId: ctx.user.id,
         planId: input.planId,
         async: input.async,
+        approveHighRisk: input.approveHighRisk,
       });
     }),
 

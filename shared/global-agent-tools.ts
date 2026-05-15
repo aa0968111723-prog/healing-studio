@@ -439,6 +439,35 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 查查（researcher）站內模型比較工具 ──
+  // 查查在 prompt 裡承諾「比較模型時用站內 registry」，但之前只能靠 LLM
+  // 把目錄內容背出來。compareModels 把 MODEL_PRICING_CATALOG 直接結構化
+  // 回傳：每筆含 tier / pts range / API 可用性 / 擅長 vs 不擅長 / useCase
+  // 匹配度，再附三選一推薦（cheapest / bestQuality / bestFit）與下一棒
+  // 交給誰。完全 deterministic，可被測試釘規格。
+  {
+    name: "research.compareModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 必填：模型類別。MODEL_PRICING_CATALOG 的 ModelCategory enum。
+      // text-to-image / text-to-video / image-to-video / text-to-audio /
+      // text-to-speech / training …
+      category: "string",
+      // 選填：指定要比的 modelId 清單。不指定就抓該類別全部。
+      modelIds: "string[]?",
+      // 選填：是否含 API key 缺失的模型（預設 false）
+      includeUnavailable: "boolean?",
+      // 選填：用情境 — draft / production / cinematic / commercial /
+      // anatomical / loop_friendly / vocal / ambient / multilingual
+      useCase: "string?",
+      // 選填：估算花費用的內容尺寸
+      estimateFor: "object?",
+      // 選填：最多回幾個（預設 8、上限 20）
+      maxResults: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
   {
     name: "director.suggestPlan",
@@ -451,6 +480,61 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       hasTokenWeights: "boolean?",
       hasFineTunedModel: "boolean?",
       personality: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // 跨頁多步驟 workflow：導導把使用者目標拆成 image → video → voice → music
+  // 一條龍，回傳可直接送進 page-agent dispatch 的 RunWorkflowAction + 每步
+  // 建議交手的精靈。kind / platform / budgetMode 不指定時會依 brief 推斷。
+  {
+    name: "director.composeWorkflow",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      brief: "string",
+      kind: "string?", // short_video | image_only | music_only | voice_only | key_visual_to_video | tutorial_set
+      platform: "string?", // instagram_reels | tiktok | youtube_shorts | youtube_long | general
+      budgetMode: "string?", // cheap | balanced | premium
+      stepByStep: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  // 估算 workflow 整體點數成本 + 每步替代模型建議。給導導 → 財財的接棒
+  // 用：在 plan 真的執行前讓使用者看到「整條約 X 點，切草稿可省 Y 點」。
+  {
+    name: "director.estimateBudget",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      steps: "object", // AgentWorkflowStep[]
+    },
+    executionTarget: "server-side",
+  },
+  // 智能交棒：依使用者意圖 + 協作協定挑下一棒精靈（含降頻 cycle 防呆）。
+  {
+    name: "director.suggestHandoff",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      fromRole: "string?",
+      userIntent: "string?",
+      hintTokens: "string[]?",
+      mutedRoles: "string[]?",
+      busyRoles: "string[]?",
+      recentRoles: "string[]?",
+      maxDepth: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // 機械式 workflow 微調：刪步、換模型、改參數、改確認模式。命中不到的
+  // 大改（重排敘事 / 改鏡頭數）會 fallback 回 LLM 路徑。
+  {
+    name: "director.refineWorkflow",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      workflow: "object", // RunWorkflowAction
+      operations: "object", // RefineOp[]
     },
     executionTarget: "server-side",
   },
@@ -487,7 +571,60 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
-  // ─── 記記（notes-curator）筆記與資產管理工具 ──
+  // ─── 財財（accountant）成本控制工具：四個唯讀工具，不會扣款也不會改設定 ──
+  // 之前財財 tools=[]，講出來的數字全是 system prompt 寫死的「粗估範圍」；
+  // 接上這四個工具後，財財能：
+  //   ① accountant.estimate   — 精算單次任務點數（含 minPoints / maxPoints clamp）
+  //   ② accountant.compare    — 列出同類別所有模型 + 在這個 params 下會花多少
+  //   ③ accountant.usage      — 取使用者近 30 天用量摘要（依 apiUsageLogs）
+  //   ④ accountant.savings    — 對特定模型給可替換的省法 + 預估省幾點 + tier 風險
+  {
+    name: "accountant.estimate",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      durationSec: "number?",
+      charCount: "number?",
+      imageCount: "number?",
+      trainingSteps: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.compare",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      category: "string",
+      durationSec: "number?",
+      charCount: "number?",
+      imageCount: "number?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.usage",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {},
+    executionTarget: "server-side",
+  },
+  {
+    name: "accountant.savings",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      modelId: "string",
+      durationSec: "number?",
+      charCount: "number?",
+      imageCount: "number?",
+      limit: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── 記記（notes-curator）筆記、待辦、行事曆與資產管理工具 ──
   {
     name: "notesCurator.createNote",
     riskLevel: "low",
@@ -497,6 +634,13 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       content: "string",
       tags: "string[]?",
       category: "string?",
+      noteType: "string?",
+      status: "string?",
+      scheduledDate: "string?",
+      endDate: "string?",
+      reminderMinutes: "number?",
+      location: "object?",
+      meetingUrl: "string?",
     },
     executionTarget: "server-side",
   },
@@ -507,6 +651,63 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {
       query: "string",
       limit: "number?",
+      noteType: "string?",
+      status: "string?",
+      category: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.listNotes",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      limit: "number?",
+      noteType: "string?",
+      status: "string?",
+      category: "string?",
+      tag: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.updateNote",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      noteId: "number",
+      title: "string?",
+      content: "string?",
+      tags: "string[]?",
+      category: "string?",
+      status: "string?",
+      noteType: "string?",
+      scheduledDate: "string?",
+      endDate: "string?",
+      reminderMinutes: "number?",
+      location: "object?",
+      meetingUrl: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.updateNoteStatus",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      noteId: "number",
+      status: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    // Mutates user data — keep medium risk so requiresApproval can short-
+    // circuit destructive intent if the calling spirit didn't confirm.
+    name: "notesCurator.deleteNote",
+    riskLevel: "medium",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      noteId: "number",
     },
     executionTarget: "server-side",
   },
@@ -523,6 +724,43 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     executionTarget: "server-side",
   },
   {
+    name: "notesCurator.scheduleEvent",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      title: "string",
+      scheduledFor: "string",
+      endDate: "string?",
+      description: "string?",
+      reminderMinutes: "number?",
+      location: "object?",
+      meetingUrl: "string?",
+      tags: "string[]?",
+      category: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.listUpcoming",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      withinDays: "number?",
+      limit: "number?",
+      includeStatuses: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.summarizeRecent",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      sinceDays: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
     name: "notesCurator.tagAssets",
     riskLevel: "low",
     requiresHuman: false,
@@ -530,6 +768,29 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       assetIds: "number[]",
       tags: "string[]",
       action: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.categorizeAsset",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      assetId: "number",
+      category: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "notesCurator.searchAssets",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      query: "string?",
+      tag: "string?",
+      category: "string?",
+      assetType: "string?",
+      limit: "number?",
     },
     executionTarget: "server-side",
   },
@@ -902,6 +1163,110 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       metricType: "string", // response_time | error_rate | tool_success_rate | user_satisfaction
       spiritId: "string?",
       days: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── anatomySpecialist.* — 體體（解剖精靈）的 AI agent 工具集 ──
+  // 為什麼註冊：之前這幾支工具有實作（agentToolExecutor.ts 有 switch case）但
+  // 沒登錄在 registry → orb-plan-critic 會把任何含這些 step 的計畫標成
+  // "unknown tool"，導致導導 / 步步 一路規劃下來只要派到體體就被擋。
+  // 全部 riskLevel=low、不需要 human approval — 純函式不寫 DB、不打 LLM、
+  // 不打 fal 端點，只做 prompt 組合 / 自然語意萃取 / 標籤驗證。實際出圖
+  // 仍交給 studio.generateImage（high-risk + requiresHuman）。
+  {
+    name: "anatomySpecialist.buildPrompt",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 必填 — 部位 / 視角 / 風格 / 用途。enum 在 executor 端 narrow。
+      bodyPart: "string",
+      view: "string",
+      style: "string",
+      purpose: "string",
+      // 選填 — 額外語意修飾（pediatric / female only / 等）。
+      extraDescriptors: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.nextClarification",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 目前已知欄位（任何子集合法）
+      partial: "object?",
+      // 使用者上一句話 — 先萃取已可推得的欄位再決定要問什麼
+      freeText: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.labelChecklist",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      bodyPart: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.parseIntent",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 使用者自然語句（中 / 英），會抽 bodyPart / view / style / purpose
+      text: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.buildMultiViewBatch",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      bodyPart: "string",
+      style: "string",
+      purpose: "string",
+      // 省略則用該部位的合理預設組合（anterior + posterior + lateral 等）
+      views: "string[]?",
+      extraDescriptors: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.verifyResult",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      bodyPart: "string",
+      // 上游 vision LLM / OCR / 使用者偵測到的標籤集（中 / 英都吃）
+      detectedLabels: "string[]",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.recommendModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      style: "string",
+      purpose: "string",
+      // 有參考圖 → 首選改為 img2img 路徑
+      hasReferenceImage: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.summarize",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 結構化請求（任何子集合法）— 也接受直接攤平在 args 上的舊呼叫格式
+      partial: "object?",
+      bodyPart: "string?",
+      view: "string?",
+      style: "string?",
+      purpose: "string?",
     },
     executionTarget: "server-side",
   },
