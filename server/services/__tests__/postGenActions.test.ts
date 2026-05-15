@@ -391,4 +391,85 @@ describe("doPostGenComplete with caller-supplied dedupe / parameter snapshot", (
     expect(historyEntry.thumbnailUrl).toBe("https://cdn.example.com/thumb.jpg");
     expect(historyEntry.costCredits).toBe(12);
   });
+
+  it("writes sourceStudio + modelId + backgroundJobId into digital_asset_library (0046 migration)", async () => {
+    // 0046 新增的來源追蹤欄位 — 讓「我的資產」可依工作室與 AI 模型分類，
+    // 並反向連回 backgroundJobs 取得原始任務細節（fal request_id 等）。
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling-video/v2.1",
+      prompt: "a cat dancing",
+      resultUrl: "https://cdn.example.com/video.mp4",
+      sourceStudio: "director",
+      backgroundJobId: 999,
+    });
+
+    const asset = createDigitalAssetMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(asset.sourceStudio).toBe("director");
+    expect(asset.modelId).toBe("fal-ai/kling-video/v2.1");
+    expect(asset.backgroundJobId).toBe(999);
+
+    // generation_history.parameterSnapshot 也應該帶 backgroundJobId
+    // 讓歷史頁點選後能反向查到原始任務。
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    const snapshot = historyEntry.parameterSnapshot as Record<string, unknown>;
+    expect(snapshot.backgroundJobId).toBe(999);
+    expect(snapshot.modelId).toBe("fal-ai/kling-video/v2.1");
+    expect(snapshot.sourceStudio).toBe("director");
+  });
+
+  it("nulls sourceStudio / modelId / backgroundJobId when caller doesn't supply them (back-compat)", async () => {
+    // 舊呼叫端、手動上傳、未來不走 backgroundJob 的路徑都要能直接走
+    // doPostGenComplete 而不違反 schema —— 三個欄位皆 nullable。
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      resultUrl: "https://cdn.example.com/x.png",
+    });
+
+    const asset = createDigitalAssetMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(asset.sourceStudio).toBeNull();
+    expect(asset.backgroundJobId).toBeNull();
+    // modelId 一律寫入（最多 MAX_MODEL_HINT_LENGTH 字元）
+    expect(asset.modelId).toBe("fal-ai/nano-banana-2");
+  });
+
+  it("propagates jobId into doPostGenComplete via runPostGenForJob", async () => {
+    // runPostGenForJob 必須把 jobId 透傳給 doPostGenComplete，否則資產庫
+    // 的 backgroundJobId 永遠是 null，使用者點開歷史也無從追蹤。
+    getBackgroundJobMock.mockResolvedValueOnce({
+      id: 4242,
+      userId: 7,
+      jobType: "image",
+      status: "completed",
+      resultJson: {
+        studioType: "image",
+        modelId: "fal-ai/nano-banana-2",
+        prompt: "a cute cat",
+        resultUrl: "https://cdn.example.com/x.png",
+        sourceStudio: "director",
+      },
+    });
+
+    const ran = await runPostGenForJob(4242);
+    expect(ran).toBe(true);
+
+    const asset = createDigitalAssetMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(asset.backgroundJobId).toBe(4242);
+    expect(asset.sourceStudio).toBe("director");
+  });
 });

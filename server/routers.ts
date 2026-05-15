@@ -2599,80 +2599,80 @@ export const appRouter = router({
               generationsDeducted: _genEstimate.totalPoints,
             });
 
-            // Save to asset library
-            if (resultUrl) {
-              await db.createDigitalAsset({
-                userId,
-                title: input.prompt.substring(0, 100),
-                assetType:
-                  input.generationType === "multimodal"
-                    ? "image"
-                    : input.generationType,
-                fileUrl: resultUrl,
-                promptUsed: input.prompt,
-              });
-            }
+            // 統一儲存管線：寫入提示詞庫 + 資產庫 + 歷史 + AI 監控室。
+            // 替代原本手寫的 db.createDigitalAsset + db.createHistoryEntry —
+            // 走 doPostGenComplete 確保所有 AI 生成（含 director / image /
+            // video / pro studios + 此處 creative sync 路徑）落入同一條
+            // 寫入流程，沒漏網之魚。
+            //
+            // 注意：multimodal 是 UI 上的 generationType，落到 DB 上必須收
+            // 斂到 schema enum 內的 image/video/audio/voice，否則違反
+            // assetType / modality 的 mysqlEnum 約束。
+            const persistedModality: "image" | "video" | "audio" | "voice" =
+              input.generationType === "multimodal"
+                ? "image"
+                : input.generationType;
+            const compiledParameterSnapshot = {
+              mode: input.mode,
+              temperature: input.temperature,
+              vibeCardIds: input.vibeCardIds,
+              seed: input.seed,
+              loraWeight: input.loraWeight,
+              visualWeight,
+              controlNetParams,
+              ...(input.fineTunedModelId && {
+                fineTunedModelId: input.fineTunedModelId,
+              }),
+              ...(input.vaultCharacterId && {
+                vaultCharacterId: input.vaultCharacterId,
+              }),
+              ...(input.vaultSceneId && { vaultSceneId: input.vaultSceneId }),
+              ...(input.generationType === "image" && {
+                aspectRatio: input.aspectRatio,
+                negativePrompt: input.negativePrompt,
+                styleReferenceUrl: input.styleReferenceUrl,
+                vibeReferenceUrl: input.vibeReferenceUrl,
+              }),
+              ...(input.generationType === "video" && {
+                videoDurationSeconds: input.videoDurationSeconds,
+                firstFrameUrl: input.firstFrameUrl,
+                lastFrameUrl: input.lastFrameUrl,
+                characterRefUrl: input.characterRefUrl,
+                cameraMotion: input.cameraMotion,
+              }),
+              ...(input.generationType === "audio" && {
+                musicStyle: input.musicStyle,
+                isInstrumental: input.isInstrumental,
+                lyrics: input.lyrics,
+                audioDuration: input.audioDuration,
+                audioEnergy: input.audioEnergy,
+              }),
+              ...(input.generationType === "voice" && {
+                voiceModelId: input.voiceModelId,
+                voiceText: input.voiceText,
+                voiceSpeed: input.voiceSpeed,
+                voiceStability: input.voiceStability,
+                voiceEmotionType: input.voiceEmotionType,
+                voiceEmotionIntensity: input.voiceEmotionIntensity,
+              }),
+            };
 
-            // Save to generation history
-            await db.createHistoryEntry({
+            await doPostGenComplete({
               userId,
-              modality:
-                input.generationType === "multimodal"
-                  ? "image"
-                  : (input.generationType as
-                      | "image"
-                      | "video"
-                      | "audio"
-                      | "voice"),
+              modality: persistedModality,
+              // _genModelId 已在 prepareJob 推算完成（依 generationType 對應
+              // 到 image/video/audio/voice 的最終引擎），這裡剛好可以當作
+              // postGen 追蹤的 modelId。
+              modelId: _genModelId,
               prompt: input.prompt,
-              compiledPrompt,
-              parameterSnapshot: {
-                mode: input.mode,
-                temperature: input.temperature,
-                vibeCardIds: input.vibeCardIds,
-                seed: input.seed,
-                loraWeight: input.loraWeight,
-                visualWeight,
-                controlNetParams,
-                ...(input.fineTunedModelId && {
-                  fineTunedModelId: input.fineTunedModelId,
-                }),
-                ...(input.vaultCharacterId && {
-                  vaultCharacterId: input.vaultCharacterId,
-                }),
-                ...(input.vaultSceneId && { vaultSceneId: input.vaultSceneId }),
-                ...(input.generationType === "image" && {
-                  aspectRatio: input.aspectRatio,
-                  negativePrompt: input.negativePrompt,
-                  styleReferenceUrl: input.styleReferenceUrl,
-                  vibeReferenceUrl: input.vibeReferenceUrl,
-                }),
-                ...(input.generationType === "video" && {
-                  videoDurationSeconds: input.videoDurationSeconds,
-                  firstFrameUrl: input.firstFrameUrl,
-                  lastFrameUrl: input.lastFrameUrl,
-                  characterRefUrl: input.characterRefUrl,
-                  cameraMotion: input.cameraMotion,
-                }),
-                ...(input.generationType === "audio" && {
-                  musicStyle: input.musicStyle,
-                  isInstrumental: input.isInstrumental,
-                  lyrics: input.lyrics,
-                  audioDuration: input.audioDuration,
-                  audioEnergy: input.audioEnergy,
-                }),
-                ...(input.generationType === "voice" && {
-                  voiceModelId: input.voiceModelId,
-                  voiceText: input.voiceText,
-                  voiceSpeed: input.voiceSpeed,
-                  voiceStability: input.voiceStability,
-                  voiceEmotionType: input.voiceEmotionType,
-                  voiceEmotionIntensity: input.voiceEmotionIntensity,
-                }),
-              },
               resultUrl: resultUrl || undefined,
+              label: input.prompt.substring(0, 100),
+              sourceStudio: "creative",
+              parameterSnapshot: compiledParameterSnapshot,
               thumbnailUrl: resultUrl || undefined,
               costCredits: _genEstimate.totalPoints,
+              backgroundJobId: jobId,
+              compiledPrompt,
             });
 
             // Update job
@@ -3925,6 +3925,24 @@ export const appRouter = router({
                 "all",
               ])
               .default("all"),
+            // 來源工作室過濾 — 對應 digital_asset_library.sourceStudio
+            // （0046 migration 新增）。"all" 顯示全部；"unknown" 顯示舊資料
+            // 與手動上傳（NULL 值）。
+            sourceStudio: z
+              .enum([
+                "all",
+                "creative",
+                "director",
+                "image",
+                "video",
+                "pro",
+                "background",
+                "webhook",
+                "suno",
+                "replicate",
+                "unknown",
+              ])
+              .default("all"),
             search: z.string().optional(),
           })
           .optional()
@@ -3935,6 +3953,13 @@ export const appRouter = router({
           let result = all;
           if (input?.assetType && input.assetType !== "all") {
             result = result.filter(a => a.assetType === input.assetType);
+          }
+          if (input?.sourceStudio && input.sourceStudio !== "all") {
+            if (input.sourceStudio === "unknown") {
+              result = result.filter(a => !a.sourceStudio);
+            } else {
+              result = result.filter(a => a.sourceStudio === input.sourceStudio);
+            }
           }
           if (input?.search) {
             const q = input.search.toLowerCase();
@@ -3966,6 +3991,21 @@ export const appRouter = router({
                 "all",
               ])
               .default("all"),
+            sourceStudio: z
+              .enum([
+                "all",
+                "creative",
+                "director",
+                "image",
+                "video",
+                "pro",
+                "background",
+                "webhook",
+                "suno",
+                "replicate",
+                "unknown",
+              ])
+              .default("all"),
             search: z.string().optional(),
           })
           .optional()
@@ -3976,6 +4016,13 @@ export const appRouter = router({
           let result = all;
           if (input?.assetType && input.assetType !== "all") {
             result = result.filter(a => a.assetType === input.assetType);
+          }
+          if (input?.sourceStudio && input.sourceStudio !== "all") {
+            if (input.sourceStudio === "unknown") {
+              result = result.filter(a => !a.sourceStudio);
+            } else {
+              result = result.filter(a => a.sourceStudio === input.sourceStudio);
+            }
           }
           if (input?.search) {
             const q = input.search.toLowerCase();

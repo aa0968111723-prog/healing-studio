@@ -137,6 +137,38 @@ const ASSET_TYPES = [
 ] as const;
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 
+// 對應後端 digital_asset_library.sourceStudio enum（0046 migration）+
+// 「unknown」 = 舊資料或手動上傳。讓使用者依「哪個工作室產的」分類資產，
+// 解決過去全部混在一起、無法回追的「資產庫亂掉」問題。
+const SOURCE_STUDIOS = [
+  "all",
+  "creative",
+  "director",
+  "image",
+  "video",
+  "pro",
+  "background",
+  "webhook",
+  "suno",
+  "replicate",
+  "unknown",
+] as const;
+type SourceStudioFilter = (typeof SOURCE_STUDIOS)[number];
+
+const SOURCE_STUDIO_LABELS: Record<SourceStudioFilter, string> = {
+  all: "全部來源",
+  creative: "創意工作室",
+  director: "導演 AI",
+  image: "Image Studio",
+  video: "Video Studio",
+  pro: "Pro Studio",
+  background: "背景任務",
+  webhook: "Webhook",
+  suno: "Suno 音樂",
+  replicate: "Replicate",
+  unknown: "其他 / 手動",
+};
+
 // ─── Section Tabs (合併後的大分頁) ───────────────────────────────────────────
 type SectionId =
   | "assets"
@@ -435,14 +467,24 @@ export default function AssetsLibrary() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<AssetTypeFilter>("all");
+  const [sourceFilter, setSourceFilter] =
+    useState<SourceStudioFilter>("all");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const myAssetsQuery = trpc.assets.myAssets.useQuery(
-    { assetType: typeFilter, search: search || undefined },
+    {
+      assetType: typeFilter,
+      sourceStudio: sourceFilter,
+      search: search || undefined,
+    },
     { retry: false }
   );
   const teamAssetsQuery = trpc.assets.teamAssets.useQuery(
-    { assetType: typeFilter, search: search || undefined },
+    {
+      assetType: typeFilter,
+      sourceStudio: sourceFilter,
+      search: search || undefined,
+    },
     { retry: false }
   );
 
@@ -658,37 +700,53 @@ export default function AssetsLibrary() {
           <AssetModelSubpageGuide page="assets" />
 
           {/* Search + Filter bar */}
-          <div className="flex gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="搜尋資產..."
-                className="pl-8 h-8 text-xs rounded-lg"
-              />
-              {search && (
-                <button
-                  className="absolute right-2 top-1/2 -translate-y-1/2"
-                  onClick={() => setSearch("")}
-                >
-                  <X className="w-3 h-3 text-muted-foreground" />
-                </button>
-              )}
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="搜尋資產..."
+                  className="pl-8 h-8 text-xs rounded-lg"
+                />
+                {search && (
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2"
+                    onClick={() => setSearch("")}
+                  >
+                    <X className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {ASSET_TYPES.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTypeFilter(t)}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${typeFilter === t ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
+                  >
+                    {t === "all" ? (
+                      <Filter className="w-3 h-3" />
+                    ) : (
+                      typeConfig[t]?.icon
+                    )}
+                    {t === "all" ? "全部" : typeConfig[t]?.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-1">
-              {ASSET_TYPES.map(t => (
+            {/* 第二列：依「來源工作室」過濾 — 對應 0046 migration 的
+                sourceStudio 欄位，讓使用者可以分開看「導演 AI 出的」、
+                「Image Studio 出的」… 而不是全部混在一起。 */}
+            <div className="flex gap-1 flex-wrap">
+              {SOURCE_STUDIOS.map(s => (
                 <button
-                  key={t}
-                  onClick={() => setTypeFilter(t)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${typeFilter === t ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
+                  key={s}
+                  onClick={() => setSourceFilter(s)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${sourceFilter === s ? "bg-primary/80 text-primary-foreground" : "bg-muted/30 text-muted-foreground hover:bg-muted/50"}`}
                 >
-                  {t === "all" ? (
-                    <Filter className="w-3 h-3" />
-                  ) : (
-                    typeConfig[t]?.icon
-                  )}
-                  {t === "all" ? "全部" : typeConfig[t]?.label}
+                  {SOURCE_STUDIO_LABELS[s]}
                 </button>
               ))}
             </div>
@@ -907,6 +965,23 @@ export default function AssetsLibrary() {
                       >
                         {config.label}
                       </span>
+                      {/* 來源工作室 badge — 0046 migration 寫入的
+                          sourceStudio 欄位，讓使用者一眼看出資產來自哪
+                          個工作室。舊資料（NULL）不顯示。 */}
+                      {asset.sourceStudio && (
+                        <span
+                          className="inline-flex items-center text-[10px] text-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded-md"
+                          title={
+                            asset.modelId
+                              ? `模型：${asset.modelId}`
+                              : undefined
+                          }
+                        >
+                          {SOURCE_STUDIO_LABELS[
+                            asset.sourceStudio as SourceStudioFilter
+                          ] ?? asset.sourceStudio}
+                        </span>
+                      )}
                       {asset.visibility === "team_shared" && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded-md">
                           <Gift className="w-2.5 h-2.5" /> 共享

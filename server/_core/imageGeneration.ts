@@ -1,10 +1,11 @@
 /**
  * imageGeneration.ts — 圖片生成介面（fal.ai Flux Pro）
  *
- * 已完全移除對 Manus Forge 私有閘道的依賴。
- * 統一改用 fal.ai 官方 API：
- *   - 文字生圖 → fal-ai/flux-pro/v1.1
- *   - 圖片參考生圖 → fal-ai/flux-pro/v1.1（附 image_url 參數）
+ * ⚠️ 目前沒有任何呼叫端 — 4 種模態都已改走 falDispatcher / 各 studio
+ * router。這個檔案保留作為「最小參考實作」，新功能不要再用。若日後需
+ * 要恢復使用，userId 必須當作參數傳入，並用 `unifiedAssetPrefix` 組
+ * `generated/studio/<userId>/<source>/<modelId>` 統一前綴（請見
+ * services/postGenActions.ts.unifiedAssetPrefix）。
  *
  * 需要環境變數：FAL_API_KEY
  */
@@ -104,8 +105,10 @@ export async function generateImage(
       const buffer = Buffer.from(await res.arrayBuffer());
       const contentType = res.headers.get("content-type") || "image/png";
       const ext = contentType.includes("jpeg") ? "jpg" : "png";
+      // ⚠️ 此分支現在沒有呼叫端；保留前綴標記讓未來如果重新接上能立刻
+      // 在 S3 看出是 legacy 路徑 — 真要走，請改用 unifiedAssetPrefix。
       const { url } = await storagePut(
-        `generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`,
+        `generated/studio/_legacy/imageGeneration/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`,
         buffer,
         contentType
       );
