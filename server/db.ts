@@ -1265,10 +1265,17 @@ export async function getUserProviderBreakdown(userId: number) {
     .groupBy(apiUsageLogs.apiProvider);
 }
 
-/** 近 7 天每日請求數量趨勢（用於 Dashboard 折線圖） */
-export async function getUserDailyTrend(userId: number) {
+/**
+ * 近 N 天每日請求數量趨勢（用於 Dashboard 折線圖 / 財財月底預測）。
+ *
+ * days 預設 7（既有 Dashboard caller 行為不變）；clamp 到 1..90 避免
+ * 誤傳大數爆 query。注意 rows 只包含「有記錄的天」— 沒跑任務的日期會被
+ * SQL 的 GROUP BY 過濾掉，呼叫者要算日均時請除以 days 參數而非 rows.length。
+ */
+export async function getUserDailyTrend(userId: number, opts?: { days?: number }) {
   const db = await getDb();
   if (!db) return [];
+  const days = Math.max(1, Math.min(90, Math.trunc(opts?.days ?? 7)));
   return db
     .select({
       date: sql<string>`DATE(${apiUsageLogs.createdAt})`,
@@ -1280,7 +1287,7 @@ export async function getUserDailyTrend(userId: number) {
     .where(
       and(
         eq(apiUsageLogs.userId, userId),
-        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(days))} DAY)`
       )
     )
     .groupBy(sql`DATE(${apiUsageLogs.createdAt})`)

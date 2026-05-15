@@ -33,6 +33,10 @@ import {
   getUserTopModelRecent,
 } from "../../db";
 
+// `getUserCostSummary` 仍由 getMonthlyUsage 使用（接受 lifetime aggregate
+// 因為它就是要顯示「累計用量」）。getBudgetForecast 故意不用它 —
+// lifetime 數字當不了 30 天 baseline，請看下面 PR review 修補。
+
 // ─── 估算單次任務點數 ────────────────────────────────────────────────────────
 
 export interface EstimateCostInput {
@@ -443,10 +447,12 @@ export interface BudgetForecastResult {
   daysElapsedInMonth: number;
   /** 本月還剩幾天（不含今天） */
   daysRemainingInMonth: number;
-  /** 近 7 天每日平均點數（從 getUserDailyTrend 取） */
+  /** 近 7 天每日平均點數（總點數 ÷ 7 calendar days，零用量天也算進去） */
   recent7dAvgPoints: number;
-  /** 已知近 30 天總點數（從 getUserCostSummary 取 USD × 100） */
+  /** 近 30 天總點數（從時間範圍真正限定的 daily trend 加總，USD × 100） */
   last30dTotalPoints: number;
+  /** 近 30 天每日平均點數（總點數 ÷ 30 calendar days） */
+  last30dAvgPoints: number;
   /** 線性預測：以近 7 天日均推算到月底還會花多少 */
   projectedMonthEndAddPoints: number;
   /** 趨勢：on-track（接近 30 天均值）/ high（>20%）/ low（<−20%）/ no-data */
@@ -459,13 +465,26 @@ export interface BudgetForecastResult {
  * 從近 7 天日均推算到月底總花費，讓財財能主動講「按這節奏到月底再花 ___ 點」。
  *
  * 邏輯：
- *   1. 取近 7 天 daily trend → 算日均花費（pts/day）
- *   2. 取近 30 天 totalCostUsd → 換成 pts → 算 30 天均值（pts/day）
- *   3. 比較兩者：>20% 上揚 → "high"；<−20% 下降 → "low"；其餘 "on-track"
- *   4. 用「日均 × 月底剩餘天數」算 projectedMonthEndAddPoints
+ *   1. 取近 30 天 daily trend → 加總得 30 天總點數 → 除 30 calendar days 得日均
+ *      （**不用 getUserCostSummary**，那是 lifetime 累加沒時間範圍限制，會把
+ *       老用戶的歷史全堆進來導致 baseline 失真）
+ *   2. 取近 7 天 daily trend → 加總得 7 天總點數 → 除 7 calendar days 得日均
+ *      （**用 7 calendar days 不是 rows.length** — daily trend 會跳過零用量天，
+ *       用 row count 當分母會在「7 天只跑 1 天」這種稀疏分布下把日均高估 7 倍）
+ *   3. 比較 7d avg / 30d avg：>20% 上揚 → "high"；<−20% 下降 → "low"；其餘 "on-track"
+ *   4. 用「7 天日均 × 月底剩餘天數」算 projectedMonthEndAddPoints
  *
  * 沒資料時不會炸：回 "no-data" 並全 0，由 LLM 給「我還沒有足夠數據估」的文案。
  */
+function sumPointsFromDailyRows(
+  rows: Array<{ totalCost?: string | number | null }>
+): number {
+  return rows.reduce((sum, row) => {
+    const usd = parseFloat(String(row?.totalCost ?? "0")) || 0;
+    return sum + Math.round(usd * 100);
+  }, 0);
+}
+
 export async function getBudgetForecast(userId: number): Promise<BudgetForecastResult> {
   const now = new Date();
   const daysElapsedInMonth = now.getUTCDate();
@@ -475,9 +494,17 @@ export async function getBudgetForecast(userId: number): Promise<BudgetForecastR
   const daysRemainingInMonth = Math.max(0, lastDayOfMonth - daysElapsedInMonth);
 
   try {
-    const [summary, daily] = await Promise.all([
-      getUserCostSummary(userId).catch(() => ({ totalCost: 0, totalRequests: 0 })),
-      getUserDailyTrend(userId).catch(() => [] as Array<{
+    // 兩份 daily trend：30d 當 baseline、7d 當當前節奏。getUserDailyTrend
+    // 內部已經 clamp days 到 1..90，並且 rows 只回有用量的日期，所以兩個
+    // 查詢都安全。Promise.all 並行抓 — 一邊掛掉另一邊還能用。
+    const [d30, d7] = await Promise.all([
+      getUserDailyTrend(userId, { days: 30 }).catch(() => [] as Array<{
+        date: string;
+        count: number;
+        totalCost: string;
+        totalTokens: number;
+      }>),
+      getUserDailyTrend(userId, { days: 7 }).catch(() => [] as Array<{
         date: string;
         count: number;
         totalCost: string;
@@ -485,15 +512,12 @@ export async function getBudgetForecast(userId: number): Promise<BudgetForecastR
       }>),
     ]);
 
-    const last30dTotalPoints = Math.round((Number(summary.totalCost) || 0) * 100);
+    const last30dTotalPoints = sumPointsFromDailyRows(d30 ?? []);
+    const last30dAvgPoints = Math.round(last30dTotalPoints / 30);
 
-    const dailyRows = daily ?? [];
-    const recent7dPoints = dailyRows.reduce(
-      (sum, row) => sum + Math.round((parseFloat(String(row.totalCost ?? "0")) || 0) * 100),
-      0
-    );
-    const recent7dDays = Math.max(1, dailyRows.length);
-    const recent7dAvgPoints = Math.round(recent7dPoints / recent7dDays);
+    const recent7dTotalPoints = sumPointsFromDailyRows(d7 ?? []);
+    // 用 7 calendar days 當分母 — 零用量天也算進日均，避免稀疏資料把日均高估。
+    const recent7dAvgPoints = Math.round(recent7dTotalPoints / 7);
 
     if (recent7dAvgPoints === 0 && last30dTotalPoints === 0) {
       return {
@@ -501,20 +525,23 @@ export async function getBudgetForecast(userId: number): Promise<BudgetForecastR
         daysRemainingInMonth,
         recent7dAvgPoints: 0,
         last30dTotalPoints: 0,
+        last30dAvgPoints: 0,
         projectedMonthEndAddPoints: 0,
         trajectory: "no-data",
         humanSummary: "你還沒有足夠的歷史用量讓我推算月底花費 — 跑幾筆任務後我會主動回報。",
       };
     }
 
-    const last30dAvg = last30dTotalPoints > 0 ? last30dTotalPoints / 30 : recent7dAvgPoints;
     const projectedMonthEndAddPoints = recent7dAvgPoints * daysRemainingInMonth;
 
     let trajectory: BudgetForecastResult["trajectory"] = "on-track";
-    if (last30dAvg > 0) {
-      const ratio = recent7dAvgPoints / last30dAvg;
+    if (last30dAvgPoints > 0) {
+      const ratio = recent7dAvgPoints / last30dAvgPoints;
       if (ratio > 1.2) trajectory = "high";
       else if (ratio < 0.8) trajectory = "low";
+    } else if (recent7dAvgPoints > 0) {
+      // 30 天沒資料但 7 天有 → 算「剛開始用」，視為 on-track 不誤判 high/low。
+      trajectory = "on-track";
     }
 
     const trajectoryLabel = {
@@ -529,6 +556,7 @@ export async function getBudgetForecast(userId: number): Promise<BudgetForecastR
       daysRemainingInMonth,
       recent7dAvgPoints,
       last30dTotalPoints,
+      last30dAvgPoints,
       projectedMonthEndAddPoints,
       trajectory,
       humanSummary:
@@ -545,6 +573,7 @@ export async function getBudgetForecast(userId: number): Promise<BudgetForecastR
       daysRemainingInMonth,
       recent7dAvgPoints: 0,
       last30dTotalPoints: 0,
+      last30dAvgPoints: 0,
       projectedMonthEndAddPoints: 0,
       trajectory: "no-data",
       humanSummary: "目前抓不到用量資料，等資料回來我再算一次給你看。",
