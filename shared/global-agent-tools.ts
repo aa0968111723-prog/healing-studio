@@ -872,6 +872,110 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── anatomySpecialist.* — 體體（解剖精靈）的 AI agent 工具集 ──
+  // 為什麼註冊：之前這幾支工具有實作（agentToolExecutor.ts 有 switch case）但
+  // 沒登錄在 registry → orb-plan-critic 會把任何含這些 step 的計畫標成
+  // "unknown tool"，導致導導 / 步步 一路規劃下來只要派到體體就被擋。
+  // 全部 riskLevel=low、不需要 human approval — 純函式不寫 DB、不打 LLM、
+  // 不打 fal 端點，只做 prompt 組合 / 自然語意萃取 / 標籤驗證。實際出圖
+  // 仍交給 studio.generateImage（high-risk + requiresHuman）。
+  {
+    name: "anatomySpecialist.buildPrompt",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 必填 — 部位 / 視角 / 風格 / 用途。enum 在 executor 端 narrow。
+      bodyPart: "string",
+      view: "string",
+      style: "string",
+      purpose: "string",
+      // 選填 — 額外語意修飾（pediatric / female only / 等）。
+      extraDescriptors: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.nextClarification",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 目前已知欄位（任何子集合法）
+      partial: "object?",
+      // 使用者上一句話 — 先萃取已可推得的欄位再決定要問什麼
+      freeText: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.labelChecklist",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      bodyPart: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.parseIntent",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 使用者自然語句（中 / 英），會抽 bodyPart / view / style / purpose
+      text: "string",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.buildMultiViewBatch",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      bodyPart: "string",
+      style: "string",
+      purpose: "string",
+      // 省略則用該部位的合理預設組合（anterior + posterior + lateral 等）
+      views: "string[]?",
+      extraDescriptors: "string[]?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.verifyResult",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      bodyPart: "string",
+      // 上游 vision LLM / OCR / 使用者偵測到的標籤集（中 / 英都吃）
+      detectedLabels: "string[]",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.recommendModels",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      style: "string",
+      purpose: "string",
+      // 有參考圖 → 首選改為 img2img 路徑
+      hasReferenceImage: "boolean?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "anatomySpecialist.summarize",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      // 結構化請求（任何子集合法）— 也接受直接攤平在 args 上的舊呼叫格式
+      partial: "object?",
+      bodyPart: "string?",
+      view: "string?",
+      style: "string?",
+      purpose: "string?",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {

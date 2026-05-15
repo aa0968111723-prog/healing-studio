@@ -413,7 +413,10 @@ export const CHARACTER_DESIGN_WORKFLOW: WorkflowTemplate = {
       spirit: "anatomy-specialist",
       description: "檢查人體比例與結構",
       outputType: "analysis",
-      tools: [],
+      // 之前 tools:[] 是占位 — 體體沒工具可呼叫，整個 step 是 no-op。
+      // 現在交給 anatomySpecialist.verifyResult：上游 vision LLM / 標籤偵測
+      // 把 detectedLabels 餵進來，體體比對該部位的期望重點回 score + 缺漏。
+      tools: ["anatomySpecialist.verifyResult"],
       dependsOn: ["concept"],
       qualityRequirements: ["解剖學正確性", "姿態自然"],
       optional: true,
