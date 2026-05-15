@@ -98,6 +98,11 @@ import OrbActionFlow from "./orb/OrbActionFlow";
 import { OrbThinkingTimeline } from "./orb/OrbThinkingTimeline";
 import { OrbVoiceButton } from "./orb/OrbVoiceButton";
 import OrbThinkingStepsPanel from "./orb/OrbThinkingStepsPanel";
+import { SlashCommandMenu } from "./SlashCommandMenu";
+import { SlashCommandChip } from "./SlashCommandChip";
+import { useSlashCommandMenu } from "@/hooks/useSlashCommandMenu";
+import { useSlashCommandContext } from "@/hooks/useSlashCommandContext";
+import { runSlashCommand } from "@/lib/slashCommandRunner";
 import { useOrbState, ORB_STATE_VISUAL } from "@/contexts/OrbStateContext";
 import type { CreativeCapability } from "@/data/creativeCapabilities";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -2361,12 +2366,28 @@ export default memo(function ProactiveOrbWidget({
     [onNavigate, pageAgent, showFeedback]
   );
 
+  // ─── Slash command — / 開頭直接走 runSlashCommand，繞過 sendMessage
+  //     讓 4 種模式／25 位精靈／頁面跳轉都能一鍵呼叫。
+  const slashCtx = useSlashCommandContext();
+  const slashMenu = useSlashCommandMenu(chatInput, setChatInput);
+
   // ─── Chat handler (with real LLM + conversation history) ─────────────
 
   const handleChatSend = useCallback(async () => {
     if ((!chatInput.trim() && chatAttachments.length === 0) || isChatLoading) return;
 
     const userMsg = chatInput.trim();
+
+    // / 開頭 → slash command pipeline。執行成功才清空輸入框。
+    if (userMsg.startsWith("/")) {
+      const result = await runSlashCommand(userMsg, slashCtx);
+      if (result.status === "ran") {
+        setChatInput("");
+        slashMenu.forceClose();
+        setChatAttachments([]);
+      }
+      return;
+    }
 
     // Check for modality keywords to trigger UI side effects
     const lower = userMsg.toLowerCase();
@@ -2396,6 +2417,9 @@ export default memo(function ProactiveOrbWidget({
     isChatLoading,
     onSwitchModality,
     globalChat,
+    slashCtx,
+    slashMenu,
+    setChatInput,
   ]);
 
   const handlePickAttachment = useCallback(() => {
@@ -3031,7 +3055,16 @@ export default memo(function ProactiveOrbWidget({
                               ))}
                             </div>
                           )}
-                          <div className="healing-input-shell !px-3 !py-2">
+                          {chatInput.startsWith("/") && (
+                            <div className="mb-1.5">
+                              <SlashCommandChip
+                                input={chatInput}
+                                onClear={() => setChatInput("")}
+                              />
+                            </div>
+                          )}
+                          <div className="healing-input-shell !px-3 !py-2 relative">
+                            <SlashCommandMenu {...slashMenu.menuProps} placement="above" />
                             <button
                               type="button"
                               onClick={handlePickAttachment}
@@ -3054,8 +3087,14 @@ export default memo(function ProactiveOrbWidget({
                               type="text"
                               value={chatInput}
                               onChange={e => setChatInput(e.target.value)}
-                              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
-                              placeholder="分享你的想法，或問我任何事⋯⋯"
+                              onKeyDown={e => {
+                                if (slashMenu.handleKeyDown(e)) return;
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleChatSend();
+                                }
+                              }}
+                              placeholder="分享你的想法，或問我任何事…（打 /）"
                               className="bg-transparent text-sm text-glass-strong placeholder:text-glass-soft placeholder:opacity-60 outline-none flex-1 min-w-0"
                               aria-label="輸入訊息給光球"
                               autoFocus
@@ -3598,7 +3637,16 @@ export default memo(function ProactiveOrbWidget({
                           ))}
                         </div>
                       )}
-                      <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-3 py-2 focus-within:border-gray-300 transition-colors">
+                      {chatInput.startsWith("/") && (
+                        <div className="mb-1.5">
+                          <SlashCommandChip
+                            input={chatInput}
+                            onClear={() => setChatInput("")}
+                          />
+                        </div>
+                      )}
+                      <div className="relative flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-3 py-2 focus-within:border-gray-300 transition-colors">
+                        <SlashCommandMenu {...slashMenu.menuProps} placement="above" />
                         <button
                           onClick={handlePickAttachment}
                           disabled={isUploadingAttachments || isChatLoading}
@@ -3620,12 +3668,13 @@ export default memo(function ProactiveOrbWidget({
                           value={chatInput}
                           onChange={e => setChatInput(e.target.value)}
                           onKeyDown={e => {
+                            if (slashMenu.handleKeyDown(e)) return;
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
                               handleChatSend();
                             }
                           }}
-                          placeholder="分享你的想法，或問我任何事⋯⋯"
+                          placeholder="分享你的想法，或問我任何事…（打 /）"
                           className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
                           autoFocus
                         />
