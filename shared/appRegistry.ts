@@ -837,6 +837,46 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
+    id: "ai-models-hub",
+    label: "AI 模型情報",
+    path: "/ai-models-hub",
+    group: "learn",
+    description:
+      "情報站深入專區：策展的當代主流 AI 模型目錄，含廠商、模態、層級篩選與動態新聞流",
+    aliases: [
+      "ai-models-hub",
+      "ai 模型",
+      "ai模型",
+      "模型情報",
+      "模型動態",
+      "情報專區",
+      "model hub",
+      "models hub",
+    ],
+    showInSidebar: true,
+    showInAgentHome: true,
+    agentEntryPriority: 42,
+    supportsPageAgent: true,
+    quickActions: [
+      {
+        id: "open-ai-models-hub",
+        label: "瀏覽 AI 模型情報",
+        description: "查看當代主流 AI 模型策展目錄與最新動態",
+        path: "/ai-models-hub",
+      },
+      {
+        id: "ai-models-hub-deep-dive",
+        label: "幫我挑模型",
+        description: "依用途與預算推薦最適合的模型組合",
+        path: "/ai-models-hub",
+        prompt:
+          "請根據我的用途與預算，從 AI 模型情報專區中挑出 3 個最適合我的模型，並比較它們的強弱項與成本。",
+      },
+    ],
+    orbHints: ["現在有哪些 AI 模型", "推薦模型", "Claude / GPT / Gemini 差別"],
+    supportedActions: ["setTab", "search", "setParam", "reset"],
+  },
+  {
     id: "feedback",
     label: "回饋中心",
     path: "/feedback",

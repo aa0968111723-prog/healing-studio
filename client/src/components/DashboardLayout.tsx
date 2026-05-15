@@ -130,6 +130,7 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   dashboard: BarChart3,
   credits: Coins,
   learn: BookOpen,
+  "ai-models-hub": Sparkles,
   feedback: MessageSquare,
   langsmith: Monitor,
   settings: Settings,
@@ -182,7 +183,7 @@ const sidebarStructure: SidebarEntry[] = (() => {
     ])
   );
   push(buildGroup("資源庫", FolderOpen, ["models", "assets"]));
-  push(buildGroup("知識中心", GraduationCap, ["notes", "learn"]));
+  push(buildGroup("知識中心", GraduationCap, ["notes", "learn", "ai-models-hub"]));
   return entries;
 })();
 
