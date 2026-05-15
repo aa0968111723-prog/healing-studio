@@ -103,6 +103,11 @@ import {
   SPIRIT_CHAT_TOOLS,
   type SpiritChatTool,
 } from "../../../shared/spirit-chat-tools";
+import {
+  parseComposerImperatives,
+  describeComposerActions,
+  describeComposerMissing,
+} from "../../../shared/composer-imperative-parser";
 
 // Lazy-load the xyflow-based DAG view — keeps the @xyflow/react bundle out of
 // the initial chat context payload. The bullet-list fallback inside the same
@@ -3944,6 +3949,79 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             setIsSending(false);
           }
           return;
+        }
+
+        // ── C2) page-execution: @編編 — 解析使用者一句話成 AgentAction[]
+        //     並 dispatch 進現有 executeActions pipeline。沒在工作室頁
+        //     (snapshot.capabilities 空)、或沒命中任何規則 → fall through
+        //     到 LLM，讓 composer 系統提示詞切片自己 emit actions JSON。
+        if (
+          tool.kind === "page-execution"
+          && cleanPrompt.length >= tool.minPromptChars
+        ) {
+          const snapshot = pageAgent.snapshot;
+          const onWorkstation =
+            !!snapshot && snapshot.capabilities.length > 0;
+
+          // 不在工作室 → 不攔，讓 LLM 用 composer 人格回覆並建議跳頁
+          if (onWorkstation) {
+            const parsed = parseComposerImperatives(cleanPrompt, snapshot);
+
+            if (parsed.actions.length > 0) {
+              const summary = describeComposerActions(parsed.actions);
+              const missing = describeComposerMissing(parsed.missing);
+              orbState.setState("executing", `${nickname} 動手中…`);
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: missing
+                  ? `${nickname} 接手 ✍️ ${summary}\n${missing}`
+                  : `${nickname} 接手 ✍️ ${summary}`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: "composer",
+              }]);
+              try {
+                await executeActions(parsed.actions, {
+                  intent: `編編：${cleanPrompt.slice(0, 40)}`,
+                  // 純頁面動作風險低；submit 時 executeActions 內部
+                  // 已會依 preferences 決定是否要彈確認卡。
+                  requireConfirmation: false,
+                });
+              } catch (err) {
+                if (!isStale()) {
+                  const reason =
+                    err instanceof Error ? err.message : String(err);
+                  setMessages(prev => [...prev, {
+                    role: "orb",
+                    text: `${nickname} dispatch 失敗：${reason}`,
+                    at: Date.now(),
+                    pagePath: locationPath,
+                    agentRole: "composer",
+                  }]);
+                }
+              }
+              setSuggestions(buildHandoffChips("composer"));
+              return;
+            }
+
+            if (parsed.missing.length > 0) {
+              // 命中了 submit 但缺資訊：直接反問，不要燒 LLM
+              setMessages(prev => [...prev, {
+                role: "orb",
+                text: `${nickname} 在這頁等你補一下：${describeComposerMissing(parsed.missing)}`,
+                at: Date.now(),
+                pagePath: locationPath,
+                agentRole: "composer",
+              }]);
+              setSuggestions(buildHandoffChips("composer"));
+              return;
+            }
+          }
+
+          // 不在工作室或解析不出任何規則 → fall through 到 LLM；
+          // composer 的 system prompt 切片會引導 LLM emit actions JSON
+          // (executeActions 之後會跑那批 actions)。
+          setSuggestions(buildHandoffChips("composer"));
         }
 
         // ── D) llm-persona: 不在這裡攔，讓既有 LLM 流程接手（selectRoleForIntent
