@@ -32,7 +32,7 @@ import {
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
 import { verifyWebhookToken } from "../_core/webhookTokens";
-import { runPostGenForJob } from "../services/postGenActions.js";
+import { runPostGenForJob, refundJobIfBilled } from "../services/postGenActions.js";
 
 export const sunoWebhookRouter = Router();
 
@@ -200,6 +200,9 @@ sunoWebhookRouter.post(
           progressMessage: "Suno 生成失敗",
           errorMessage,
         });
+        // Suno 回呼未帶 audio URL → 使用者沒成品,退回 chargeForFalTask 預扣的點數
+        // （proStudio.generateMusicSuno 已將 costPoints 寫入 resultJson）。
+        void refundJobIfBilled(jobId);
         generationBus.emit(jobId, { type: "error", message: errorMessage });
         return;
       }

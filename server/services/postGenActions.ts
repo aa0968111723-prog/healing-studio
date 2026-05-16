@@ -40,6 +40,12 @@ export interface PostGenParams {
   resultUrl?: string;
   label?: string;
   sourceStudio?: string;
+  /**
+   * 實際扣款點數（由 submitMultimodalAsync 的 estimatePoints().totalPoints 算出，
+   * 經 backgroundJob.resultJson.costPoints 透過 runPostGenForJob 帶入）。
+   * 缺值時退回 1 以保留原行為 — 寫入 generation_history.costCredits 用以做帳。
+   */
+  costCredits?: number;
 }
 
 /**
@@ -47,9 +53,21 @@ export interface PostGenParams {
  * 各子任務皆吞錯，不影響主流程。
  */
 export async function doPostGenComplete(params: PostGenParams): Promise<void> {
-  const { userId, modality, modelId, prompt, resultUrl, label, sourceStudio } =
-    params;
+  const {
+    userId,
+    modality,
+    modelId,
+    prompt,
+    resultUrl,
+    label,
+    sourceStudio,
+    costCredits,
+  } = params;
   const promptText = (prompt ?? "").trim();
+  const historyCostCredits =
+    typeof costCredits === "number" && Number.isFinite(costCredits) && costCredits > 0
+      ? Math.round(costCredits)
+      : 1;
 
   // 1-2. 提示詞庫
   if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
@@ -109,7 +127,7 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
           ...(label ? { label } : {}),
         },
         resultUrl,
-        costCredits: 1,
+        costCredits: historyCostCredits,
       });
     } catch {
       // 靜默忽略
@@ -190,6 +208,11 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
   const label = meta.label as string | undefined;
   const sourceStudio =
     (meta.sourceStudio as string | undefined) ?? studioType;
+  // submitMultimodalAsync 在預扣款後把實際扣的點數寫入 resultJson.costPoints,
+  // 讓 history 端能記下真實費用而非寫死 1。
+  const costPointsRaw = meta.costPoints;
+  const costCredits =
+    typeof costPointsRaw === "number" ? costPointsRaw : undefined;
 
   await doPostGenComplete({
     userId: job.userId,
@@ -199,6 +222,7 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
     resultUrl,
     label,
     sourceStudio,
+    costCredits,
   });
 
   // 寫旗標。失敗時不重試 — 若 doPostGenComplete 已成功插入，重複呼叫的
@@ -209,6 +233,59 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
     });
   } catch {
     // 靜默忽略
+  }
+
+  return true;
+}
+
+/**
+ * 任務失敗時退回 submitMultimodalAsync 預扣的點數。
+ *
+ * submitMultimodalAsync / chargeForFalTask 在送出 fal queue 前先扣點，但失敗
+ * 路徑只在「queue submit 拋例外」時退款。fal queue 成功送出後若任務本身失敗
+ * （webhook ERROR、checkStudioJob 偵測 FAILED、30 分鐘 stale 超時、completed
+ * 但 URL 抽不到等），原本沒人退款 → 使用者扣了錢卻拿不到成品。
+ *
+ * 此函式以 backgroundJob.resultJson.costPoints 為退款金額來源、refunded 旗標
+ * 做冪等（同一 job 多條失敗路徑被同時打到只會退一次）。
+ *
+ * 回傳：true=有退款；false=已退過 / 無金額紀錄 / job 不存在。
+ */
+export async function refundJobIfBilled(jobId: number): Promise<boolean> {
+  const job = await db.getBackgroundJob(jobId);
+  if (!job) return false;
+
+  const meta = (job.resultJson ?? {}) as Record<string, unknown>;
+  if (meta.refunded === true) return false;
+
+  const costPointsRaw = meta.costPoints;
+  const points =
+    typeof costPointsRaw === "number" &&
+    Number.isFinite(costPointsRaw) &&
+    costPointsRaw > 0
+      ? Math.round(costPointsRaw)
+      : 0;
+  if (points <= 0) return false;
+
+  try {
+    await db.refundUserPoints(job.userId, points);
+  } catch (err) {
+    // refund 失敗不要拋 — 若整個 DB layer 都掛掉，failure path 也救不回來。
+    // 記日誌讓後續審計可以對帳。
+    console.error(
+      `[refundJobIfBilled] Refund failed for job=${jobId} user=${job.userId} points=${points}:`,
+      err
+    );
+    return false;
+  }
+
+  try {
+    await db.updateBackgroundJob(jobId, {
+      resultJson: { ...meta, refunded: true, refundedPoints: points } as any,
+    });
+  } catch {
+    // 旗標寫失敗時下一次呼叫會再退一次 — 比起完全不退,寧可有少數重複退款,
+    // 至少使用者不會虧錢。
   }
 
   return true;

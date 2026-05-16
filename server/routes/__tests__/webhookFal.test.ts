@@ -20,6 +20,7 @@ const getBackgroundJobMock = vi.fn(async (id: number) => ({
 }));
 const findProcessingJobByRequestIdMock = vi.fn();
 const runPostGenForJobMock = vi.fn(async () => true);
+const refundJobIfBilledMock = vi.fn(async () => false);
 
 vi.mock("../../db.js", () => ({
   getBackgroundJob: (...args: unknown[]) => getBackgroundJobMock(...(args as [number])),
@@ -37,6 +38,8 @@ vi.mock("../../services/internalMedia.js", () => ({
 vi.mock("../../services/postGenActions.js", () => ({
   runPostGenForJob: (...args: unknown[]) =>
     runPostGenForJobMock(...(args as [number])),
+  refundJobIfBilled: (...args: unknown[]) =>
+    refundJobIfBilledMock(...(args as [number])),
 }));
 
 import { falWebhookRouter } from "../webhookFal";
@@ -72,6 +75,8 @@ describe("webhookFal /api/webhook/fal", () => {
     findProcessingJobByRequestIdMock.mockResolvedValue(undefined);
     runPostGenForJobMock.mockReset();
     runPostGenForJobMock.mockResolvedValue(true);
+    refundJobIfBilledMock.mockReset();
+    refundJobIfBilledMock.mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -188,6 +193,8 @@ describe("webhookFal /api/webhook/fal", () => {
     expect(patch.status).toBe("failed");
     expect(patch.errorMessage).toBe("model_blew_up");
     expect(events).toEqual([{ type: "error", message: "model_blew_up" }]);
+    // fal.ai 回 ERROR → 必須退回預扣的點數（refunded 旗標確保只退一次）
+    expect(refundJobIfBilledMock).toHaveBeenCalledWith(42);
     unsubscribe();
     server.close();
   });
@@ -355,6 +362,8 @@ describe("webhookFal /api/webhook/fal", () => {
     expect((events[0] as { type: string }).type).toBe("error");
     // 沒 URL 時不應該觸發後置動作（資產庫/歷史/提示詞庫）
     expect(runPostGenForJobMock).not.toHaveBeenCalled();
+    // 拿不到結果 URL → 使用者沒成品,必須退回預扣的點數
+    expect(refundJobIfBilledMock).toHaveBeenCalledWith(55);
     unsubscribe();
     server.close();
   });

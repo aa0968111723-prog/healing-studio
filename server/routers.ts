@@ -227,6 +227,7 @@ import {
 import {
   doPostGenComplete,
   runPostGenForJob,
+  refundJobIfBilled,
 } from "./services/postGenActions";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
@@ -3171,6 +3172,9 @@ export const appRouter = router({
         }
 
         // 建立 background_job 記錄（先 processing，拿到 request_id 後更新）
+        // costPoints 寫進 resultJson — 兩條後續流程會用到:
+        //   1. runPostGenForJob → doPostGenComplete: 寫入 generation_history.costCredits
+        //   2. refundJobIfBilled: 失敗路徑（webhook ERROR / 超時 / no-URL）退點依據
         const label = `${modalityLabel}生成`;
         const jobId = await db.createBackgroundJob({
           userId,
@@ -3183,6 +3187,7 @@ export const appRouter = router({
             label,
             modelId,
             prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
+            costPoints: points,
           },
         });
 
@@ -3285,6 +3290,7 @@ export const appRouter = router({
                 requestId,
                 resultUrl,
                 prompt: promptForJob,
+                costPoints: points,
               } as any,
             });
 
@@ -3297,6 +3303,7 @@ export const appRouter = router({
               resultUrl,
               label,
               sourceStudio: "creative",
+              costCredits: points,
             });
 
             return {
@@ -3354,6 +3361,7 @@ export const appRouter = router({
           const submittedModelId = queueResult.modelId;
 
           // 更新 job 記錄，加入 requestId（checkStudioJob 輪詢需要）
+          // costPoints 必須保留 — 否則 refundJobIfBilled 在失敗路徑找不到金額。
           await db.updateBackgroundJob(jobId, {
             resultJson: {
               studioType: input.generationType,
@@ -3361,6 +3369,7 @@ export const appRouter = router({
               modelId: submittedModelId,
               requestId: request_id,
               prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
+              costPoints: points,
               ...(queueResult.degraded && queueResult.originalModel
                 ? { originalModel: queueResult.originalModel, degraded: true }
                 : {}),
@@ -3456,6 +3465,10 @@ export const appRouter = router({
             status: "failed",
             errorMessage: timeoutMsg,
           });
+          // 退回 submitMultimodalAsync 預扣的點數 — 任務超時不應讓使用者買單。
+          // refundJobIfBilled 內以 meta.refunded 旗標冪等,polling/webhook 同時
+          // 偵測到 stale 也只會退一次。
+          void refundJobIfBilled(job.id);
           return {
             ...job,
             status: "failed" as const,
@@ -3546,6 +3559,8 @@ export const appRouter = router({
                   rawCompletedAt: new Date().toISOString(),
                 },
               });
+              // fal 回 COMPLETED 但抽不到 URL — 使用者拿不到成品,退款。
+              void refundJobIfBilled(job.id);
               return {
                 ...job,
                 status: "failed" as const,
@@ -3593,6 +3608,8 @@ export const appRouter = router({
               status: "failed",
               errorMessage: errMsg,
             });
+            // fal queue FAILED — 退回預扣點數（與 webhook ERROR 路徑對稱）。
+            void refundJobIfBilled(job.id);
             return { ...job, status: "failed" as const, errorMessage: errMsg };
           }
         } catch {
