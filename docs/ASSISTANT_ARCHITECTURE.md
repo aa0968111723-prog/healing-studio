@@ -4,9 +4,9 @@
 > Assistant,使用者面)與 AI 代理(AI Agent runtime,平台基礎建設)兩
 > 個子系統如何接縫運作。
 >
-> 與根目錄的散落文件(`GLOBAL_ORB_CHAT_INTEGRATION.md`、`orb_optimization_plan.md`、
-> `orb_connection_report.md`、`brain-config-gap-audit-2026-04-20.md`、
-> `brain-route-scan-2026-04-21.md`)互補:本文件畫架構脊椎、舊文件留歷史
+> 與 docs/ 下的歷史文件(`GLOBAL_ORB_CHAT_INTEGRATION.md`、`plans/orb_optimization_plan.md`、
+> `reports/orb_connection_report.md`、`audits/brain-config-gap-audit-2026-04-20.md`、
+> `audits/brain-route-scan-2026-04-21.md`)互補:本文件畫架構脊椎、舊文件留歷史
 > 細節。Phase 4 會把舊文件正式合併進來。
 
 ## 1. 兩個子系統的位置

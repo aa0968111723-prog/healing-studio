@@ -1,7 +1,7 @@
 /**
  * shared/videoModelCatalog.ts — 影片創作室「canonical model id」單一真實來源
  *
- * 這是 brain-config-gap-audit-2026-04-20.md 標的 P0 SSOT 修復。
+ * 這是 docs/audits/brain-config-gap-audit-2026-04-20.md 標的 P0 SSOT 修復。
  * UI（VideoStudio.tsx）、router（videoStudio.ts）、middleware
  * （brainContext.ts）、dispatcher（falDispatcher.ts）都應以這份為準，
  * 避免 `fal/...` 與 `fal-ai/...` 風格漂移。

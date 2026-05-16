@@ -11,7 +11,7 @@
  *  5. 每個模態的 fallback 鏈中至少首選模型可被 catalog 解析（無 typo）
  *
  * 注意：此測試**不**呼叫實際 fal.ai / gemini API，僅驗證路由邏輯與目錄一致性。
- * 實際線上連線測試見 API_PIPELINE_TEST_REPORT_2026-04-30.md。
+ * 實際線上連線測試見 docs/reports/API_PIPELINE_TEST_REPORT_2026-04-30.md。
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
