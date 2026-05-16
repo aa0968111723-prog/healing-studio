@@ -62,13 +62,21 @@ export interface FalModelConfig {
    * Mark a model as broken upstream at fal — submit accepts but the model
    * either never runs (gateway short-circuit, e.g. kling-video t2v) or its
    * result endpoint returns `200 {"detail": "Path X not found"}` (e.g.
-   * elevenlabs/tts/flash-v2.5 as of 2026-05). Disabled models are filtered
-   * out of `getAllFalModels()` and the studio dropdowns; the entry is kept
-   * in the catalog so historical jobs and `getFalModelById` lookups still
-   * resolve metadata for billing / UI labels.
+   * elevenlabs/tts/flash-v2.5 as of 2026-05). Disabled entries stay in the
+   * catalog (so `getFalModelById`, pricing, billing and UI labels keep
+   * resolving), but the studio routers re-route the request to `replacement`
+   * before submit so the user still gets a working generation + a saved
+   * artefact instead of a thrown error.
    */
   disabled?: boolean;
   disabledReason?: string;
+  /**
+   * When `disabled: true`, the working fal modelId to transparently
+   * substitute at dispatch time. The router still reports the user-selected
+   * `modelId` as `model_requested` and the actual fal call as `model_used`
+   * so the UI can surface "上游暫停，已使用 X 代替" without losing context.
+   */
+  replacement?: string;
 }
 
 export interface FalInputSchema {
@@ -730,9 +738,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 300_000,
       // Live audit (2026-05-03): fal returns
       // 404 'Application "cammaster" not found' on submit. Model removed.
+      // Substituted to kling-pro i2v (closest premium i2v with motion control;
+      // camera_motion payload field is silently ignored by kling-pro so the
+      // prompt's camera-motion language carries the intent).
       disabled: true,
       disabledReason:
         "fal returns 404 'Application \"cammaster\" not found' on submit; removed at fal",
+      replacement: "fal-ai/kling-video/v2.1/pro/image-to-video",
     },
     {
       modelId: "fal-ai/vidu/q1/reference-to-video",
@@ -1391,10 +1403,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       // Broken upstream at fal as of 2026-05-03: submit accepts and status
       // reports COMPLETED, but result endpoint returns
       // 200 {"detail":"Path /tts/flash-v2.5 not found"}. Sister models
-      // turbo-v2.5 and multilingual-v2 work fine.
+      // turbo-v2.5 and multilingual-v2 work fine; substitute to turbo-v2.5
+      // (same fast tier, same voice library, harness-verified).
       disabled: true,
       disabledReason:
         "fal upstream returns COMPLETED but result endpoint reports 'Path /tts/flash-v2.5 not found'; use turbo-v2.5 or multilingual-v2 instead",
+      replacement: "fal-ai/elevenlabs/tts/turbo-v2.5",
     },
     {
       modelId: "fal-ai/elevenlabs/tts/eleven-v3",
@@ -1578,9 +1592,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       // 200 {"detail":"Path /v2.1/standard/text-to-video not found"}.
       // Same failure across v1, v1.6, v2, v2.5, v2.5-turbo. Kling i2v still
       // works, so the i2v workflow (image first, then animate) remains viable.
+      // Substitute to kling-pro t2v (same v2.1 family, verified working —
+      // it is the codebase's canonical text-to-video model on line 1546).
       disabled: true,
       disabledReason:
         "fal upstream short-circuits the t2v gateway and returns no inference; use wan-t2v / minimax / sora for t2v, or generate an image first and use a kling i2v model",
+      replacement: "fal-ai/kling-video/v2.1/pro/text-to-video",
     },
     {
       modelId: "fal-ai/minimax-video/text-to-video",
@@ -1652,10 +1669,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       // submit but its result endpoint returns 200 {"detail":"Path / not
       // found"} (same gateway short-circuit pattern as kling t2v / topaz).
       // Veo3 still works as the ultra-tier text-to-video; LTX-13B remains
-      // a working premium fallback in this category.
+      // a working premium fallback in this category. Substitute to veo3
+      // (same ultra-tier; harness-verified in FINDINGS round 5 line 530).
       disabled: true,
       disabledReason:
         "fal returns 404 on /sora and the /sora-2 result endpoint also short-circuits; use veo3 or ltx-video-13b for ultra/premium text-to-video",
+      replacement: "fal-ai/veo3",
     },
     {
       modelId: "fal-ai/ltx-video-13b-distilled",
@@ -2074,9 +2093,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       // short-circuits (status COMPLETED in <5s, no inference, empty
       // metrics), and the result endpoint returns
       // 200 {"detail":"Path /upscaler/video not found"}. Model removed at fal.
+      // No video-upscaling endpoint on fal is harness-verified working; we
+      // substitute to wan v2v (same category, verified working, preserves
+      // the video with a generic v2v "enhance details" pass). UI will surface
+      // model_requested vs model_used so users know quality differs.
       disabled: true,
       disabledReason:
         "fal upstream short-circuits the submit; result endpoint returns 'Path /upscaler/video not found'",
+      replacement: "fal-ai/wan/v2.1/video-to-video",
     },
     {
       modelId: "fal-ai/rife-v4.6/video",
@@ -2092,9 +2116,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       // accepts {start_image_url, end_image_url} (image-pair interpolation,
       // not video). Both /fal-ai/rife-v4.6/video and /fal-ai/rife/v4.6
       // return 200 {detail: "Path /v4.6 not found"} on result fetch.
+      // No fal alternative — substitute to wan v2v as a "preserve the video
+      // and improve smoothness" pass; doesn't truly interpolate frames but
+      // keeps the user's job from failing outright.
       disabled: true,
       disabledReason:
         "fal removed the video frame-interpolation endpoint; the bare /fal-ai/rife is image-pair only, not video",
+      replacement: "fal-ai/wan/v2.1/video-to-video",
     },
     {
       modelId: "fal-ai/topaz/video-enhance",
@@ -2109,10 +2137,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       // Submit accepts; status COMPLETED in <5s with empty metrics; result
       // endpoint returns 200 {"detail":"Path /video-enhance not found"}.
       // fal stripped the suffix at the queue layer but no actual handler
-      // exists for the topaz model anymore.
+      // exists for the topaz model anymore. Substitute to wan v2v (same
+      // category fallback) so the user's pipeline still produces a video.
       disabled: true,
       disabledReason:
         "fal upstream short-circuits the submit; result endpoint returns 'Path /video-enhance not found'",
+      replacement: "fal-ai/wan/v2.1/video-to-video",
     },
     // ── 進階控制：v2v 變體 ──
     {
@@ -2126,11 +2156,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 300_000,
       // Live audit (2026-05-03): fal returns
       // 404 'Application "depthcrafter" not found' on submit. fal removed
-      // the model. Mark disabled until fal restores it or we replace with
-      // an equivalent depth-from-video model.
+      // the model. Substitute to animatediff-v2v which natively supports a
+      // depth ControlNet (controlnet_type: "depth") — produces a depth-aware
+      // video without depthcrafter's explicit depth-timeseries output, but
+      // preserves the user-facing "depth-aware video" intent.
       disabled: true,
       disabledReason:
         "fal returns 404 'Application \"depthcrafter\" not found' on submit; model removed at fal",
+      replacement: "fal-ai/animatediff-v2v",
     },
   ],
 };
@@ -2154,6 +2187,37 @@ export function getActiveFalModelsByCategory(
   category: FalCategory
 ): FalModelConfig[] {
   return (FAL_MODEL_CATALOG[category] ?? []).filter(m => !m.disabled);
+}
+
+/**
+ * Resolve a user-requested modelId to the modelId we should actually
+ * submit to fal. If the requested model is flagged `disabled` and has a
+ * `replacement`, returns the replacement; otherwise returns the input
+ * unchanged. Callers should preserve the original id as `model_requested`
+ * in their response payload so the UI can show "上游暫停，已使用 X 代替".
+ *
+ * Returns `{ modelId, substituted, original, reason }` so the caller can
+ * surface telemetry without re-looking-up the catalog.
+ */
+export function resolveActiveModelId(modelId: string): {
+  modelId: string;
+  substituted: boolean;
+  original: string;
+  reason?: string;
+  replacementLabel?: string;
+} {
+  const cfg = getFalModelById(modelId);
+  if (!cfg || !cfg.disabled || !cfg.replacement) {
+    return { modelId, substituted: false, original: modelId };
+  }
+  const replacement = getFalModelById(cfg.replacement);
+  return {
+    modelId: cfg.replacement,
+    substituted: true,
+    original: modelId,
+    reason: cfg.disabledReason,
+    replacementLabel: replacement?.label,
+  };
 }
 
 /**
