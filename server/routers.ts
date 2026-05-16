@@ -6107,18 +6107,21 @@ export const appRouter = router({
 
         // 精靈派工進度。spiritSelection 為 null 時(roleAutoSwitch=false 或
         // 抓不到 lastUserText)就不發 — 不要顯示「召喚 default」這種空字。
+        // M4: 只顯示 lead spirit 的召喚事件。chain 純粹是 UI suggestion,
+        // 顯示「召喚 導導→編編→品品」會讓使用者誤以為 3 位精靈會輪流真
+        // 接手,事實上 executor 只跑 lead。
         if (spiritSelection) {
           const leadNickname = getPrimaryNicknameForRole(spiritSelection.role);
           emitOrbChatProgress(
             idempKey,
             "calling_specialist",
-            spiritTeam.length > 1 && spiritTeamNicknames
-              ? `召喚 ${spiritTeamNicknames}`
-              : `召喚 ${leadNickname}`,
+            `召喚 ${leadNickname}`,
             {
               role: spiritSelection.role,
               confidence: spiritSelection.confidence,
               teamSize: spiritTeam.length,
+              // 建議協作鏈進 detail,監控可看「使用者實際走完整 chain 的比例」
+              suggestedChain: spiritTeam.length > 1 ? spiritTeamNicknames : undefined,
             }
           );
         }
@@ -6329,10 +6332,14 @@ export const appRouter = router({
           const modelLabel = preferredEngine
             ? `引擎：${preferredEngine}`
             : undefined;
-          // 「召喚協作精靈」— 把 composeRoleChain 算出來的接手團隊（暱稱串）
-          // 當成一條 warning 餵進 sections。warning 的標題本來叫「釐清限制」，
-          // 對應出來後 panel 上會看到一條「導導 → 編編 → 品品」的清楚名單，
-          // 解掉「15 精靈感覺沒在思考與協作」的回報。
+          // 「召喚協作精靈」— composeRoleChain 算出來的建議協作順序。
+          // M4 修正(部分):原本寫成「接手團隊:A→B→C(共 N 位精靈接力)」
+          // 這個措辭隱含「執行端會輪流叫每位精靈」,但事實上 executor 只
+          // 跑 head spirit;chain 純粹是 UI 顯示,後續 spirit 不會真接手。
+          // 改成「建議協作順序」+「目前由 X 主答」明示「這是建議流程,不
+          // 是會自動接力」,使用者不會誤以為被代理。
+          // 真正的多 spirit 接力需要 plan-step / per-step owner 改造,
+          // 列在 H6+M4 architectural backlog,本回不做。
           const teamLabel =
             typeof r?.spiritTeamLabel === "string" && r.spiritTeamLabel.trim()
               ? r.spiritTeamLabel.trim()
@@ -6340,9 +6347,15 @@ export const appRouter = router({
           const teamMemberCount = Array.isArray(r?.spiritTeam)
             ? r.spiritTeam.length
             : 0;
+          const leadNickname = spiritSelection
+            ? getPrimaryNicknameForRole(spiritSelection.role)
+            : null;
           const enrichedWarnings =
             teamLabel && teamMemberCount > 1
-              ? [`接手團隊：${teamLabel}（共 ${teamMemberCount} 位精靈接力）`, ...warnings]
+              ? [
+                  `建議協作順序:${teamLabel}${leadNickname ? `(目前由 ${leadNickname} 主答,其他精靈待你呼叫)` : "(僅作建議)"}`,
+                  ...warnings,
+                ]
               : warnings;
           return buildOrbReasoningChain({
             plan: {
@@ -7027,9 +7040,10 @@ export const appRouter = router({
             emitOrbChatProgress(idempKey, "selecting_provider", "選擇模型中…", {
               routeIntent,
               spirit: spiritSelection?.role,
-              // 團隊接手順序（暱稱串）— 沒選到精靈時就省略，避免空 chip。
+              // M4: 建議協作順序(暱稱串)— 注意這是顯示用建議,executor
+              // 目前只跑 head spirit,後續 spirit 不會自動接手。
               ...(spiritTeam.length > 0
-                ? { 接手團隊: spiritTeamNicknames }
+                ? { 建議協作順序: spiritTeamNicknames }
                 : {}),
             });
             let selection = selectProvider({
