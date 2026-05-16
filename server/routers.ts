@@ -6030,6 +6030,10 @@ export const appRouter = router({
           }
         }
 
+        // 進度時間軸的第一站。需要在精靈挑選 / 網路研究之前就發,否則時間
+        // 軸看起來會像「網路研究做完才開始收訊」— 從使用者角度看是亂序。
+        emitOrbChatProgress(idempKey, "received", "收到請求");
+
         // 15 精靈：先把這一輪該由誰接手算出來。這個值有兩個下游：
         //   1) selectProvider() 用 preferredProviderId 切到對應 LLM
         //   2) finalizeIdempotentResponse 把 agentRole 塞進每一條回覆，
@@ -6094,6 +6098,24 @@ export const appRouter = router({
         const spiritTeamNicknames = spiritTeam
           .map(role => getPrimaryNicknameForRole(role))
           .join(" → ");
+
+        // 精靈派工進度。spiritSelection 為 null 時(roleAutoSwitch=false 或
+        // 抓不到 lastUserText)就不發 — 不要顯示「召喚 default」這種空字。
+        if (spiritSelection) {
+          const leadNickname = getPrimaryNicknameForRole(spiritSelection.role);
+          emitOrbChatProgress(
+            idempKey,
+            "calling_specialist",
+            spiritTeam.length > 1 && spiritTeamNicknames
+              ? `召喚 ${spiritTeamNicknames}`
+              : `召喚 ${leadNickname}`,
+            {
+              role: spiritSelection.role,
+              confidence: spiritSelection.confidence,
+              teamSize: spiritTeam.length,
+            }
+          );
+        }
 
         const finalizeIdempotentResponse = <T extends object | null | undefined>(result: T): T => {
           // Inject identity / preference profile for the client. We do it here so
@@ -6697,6 +6719,11 @@ export const appRouter = router({
         const webResearchEnabled =
           serverEnv.ENABLE_ORB_WEB_RESEARCH !== "false" &&
           featureFlags.isEnabled("RESEARCH_MODE");
+        // 旗標關掉時 runOrbWebResearch 直接 short-circuit,不要發誤導使用者
+        // 的「搜尋網路中…」事件。
+        if (webResearchEnabled) {
+          emitOrbChatProgress(idempKey, "researching_web", "搜尋網路中…");
+        }
         const webResearchOutcome = await runOrbWebResearch(
           latestUserTextForRouting,
           {
@@ -6757,7 +6784,8 @@ export const appRouter = router({
         // Phase-1 multi-step thinking UX: emit milestones to a per-request
         // ring buffer so the client can poll `ai.chatProgress` and render
         // an inline timeline during the otherwise-opaque planning window.
-        emitOrbChatProgress(idempKey, "received", "收到請求");
+        // `received` 已經在 handler 前段(精靈/網路研究之前)發過了,這裡
+        // 不重發以免時間軸出現兩顆「收到請求」。
 
         try {
           emitOrbChatProgress(idempKey, "sanitizing", "檢查訊息中…");
