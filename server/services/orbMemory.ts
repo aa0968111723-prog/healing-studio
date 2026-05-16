@@ -94,13 +94,24 @@ export function recordOrbMemory(input: RecordOrbMemoryInput): OrbMemory | null {
   });
   store.push(memory);
   if (input.userId) {
-    void storeToRag({
+    // Fire-and-forget by design — the in-RAM tier owns the immediate response.
+    // BUT: we MUST surface RAG persistence failures, otherwise a transient
+    // RAG outage silently strands every memory written during the outage.
+    storeToRag({
       userId: input.userId,
       generationId: Date.now(),
       prompt: summary,
       generationType: input.type,
       resultSummary: input.source,
       vibeCardIds: input.tags ?? [],
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn("[orbMemory] storeToRag failed; memory persisted in-RAM only", {
+        userId: input.userId,
+        traceId: input.traceId,
+        type: input.type,
+        error: message,
+      });
     });
   }
   return memory;

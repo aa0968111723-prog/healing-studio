@@ -72,8 +72,18 @@ const LEARN_HUB_CATEGORY_LABEL: Record<string, string> = {
  *
  * 規則：master-* 開頭的索引型文件 100% 包含；其餘 featured 文件以分類為單位
  * 各保留前 3 篇，總筆數上限 30，避免 prompt 超量。
+ *
+ * Memoized per `limit` — the underlying `docs` array in `learnHub.ts` is
+ * static at module load, so the bucketed result is stable for the lifetime
+ * of the process. `orbUnifiedSearch` calls this on every search keystroke
+ * and the bucketing was showing up in CPU profiles at scale.
  */
+const learnHubOrbIndexCache = new Map<number, LearnDocSummaryForOrb[]>();
+
 export function getLearnHubOrbIndex(limit = 30): LearnDocSummaryForOrb[] {
+  const cached = learnHubOrbIndexCache.get(limit);
+  if (cached) return cached;
+
   const all = getAllLearnDocsForOrbIndex();
 
   const masters = all.filter(d => d.id.startsWith("master-"));
@@ -91,7 +101,18 @@ export function getLearnHubOrbIndex(limit = 30): LearnDocSummaryForOrb[] {
 
   const featured = Array.from(featuredByCategory.values()).flat();
 
-  return [...masters, ...featured].slice(0, limit);
+  const result = [...masters, ...featured].slice(0, limit);
+  learnHubOrbIndexCache.set(limit, result);
+  return result;
+}
+
+/**
+ * Test-only: drop the memoized learn-hub index. Production code does not
+ * need this — the underlying `docs` array is static — but tests that
+ * stub the docs source need a reset hook.
+ */
+export function __resetLearnHubOrbIndexCacheForTests(): void {
+  learnHubOrbIndexCache.clear();
 }
 
 /**
