@@ -87,6 +87,32 @@ async function awaitFalForOrb(
     envelope.modelId,
     { timeoutMs }
   );
+  // F1/F8 修復:fal 偶爾回 status="completed" 但 output_url / image_url /
+  // video_url / audio_url 都拿不到(fal SDK 異常 shape / 模型輸出格式變更)。
+  // 原本照搬 awaited.status,使用者在對話看到「✅ 已完成」卻點不到任何
+  // 連結 — 跟 PR #684 webhookFal / checkStudioJob 修的是同一個 bug,只
+  // 是 orb 路徑沒被覆蓋。在這裡 fail-safe 改成 failed,讓上游能進 catch /
+  // 顯示「執行失敗」而不是「成功但消失」。
+  const hasAnyUrl = !!(
+    awaited.output_url ||
+    awaited.image_url ||
+    awaited.video_url ||
+    awaited.audio_url
+  );
+  if (awaited.status === "completed" && !hasAnyUrl) {
+    return {
+      request_id: envelope.request_id,
+      modelId: envelope.modelId,
+      degraded: envelope.degraded ?? false,
+      status: "failed",
+      output_url: undefined,
+      image_url: undefined,
+      video_url: undefined,
+      audio_url: undefined,
+      raw: awaited.raw,
+      error: awaited.error ?? "no-url-extracted",
+    };
+  }
   return {
     request_id: envelope.request_id,
     modelId: envelope.modelId,
@@ -7259,11 +7285,27 @@ async function dispatchTrainingTool(
           falModelId: resolvedFalModel,
         });
       })
-      .catch(err => {
+      .catch(async err => {
+        // F3 修復:fal trainer 起動失敗只 console.error,backgroundJob 永遠
+        // 卡 queued/0%,使用者在 /training-jobs 看到「光球已將訓練任務加入
+        // 佇列」永遠不動。把對應 jobId 寫成 failed 才讓 UI 顯示真實狀態。
+        const errMsg = err instanceof Error ? err.message : String(err);
         console.error(
           `[orb-tool/studio.trainLora] fal background job failed for model ${modelId}:`,
           err
         );
+        try {
+          const db = await import("../db");
+          await db.updateBackgroundJob(jobId, {
+            status: "failed",
+            errorMessage: `trainer-startup-failed: ${errMsg}`,
+          });
+        } catch (dbErr) {
+          console.error(
+            `[orb-tool/studio.trainLora] also failed to mark job ${jobId} failed:`,
+            dbErr
+          );
+        }
       });
   } else {
     void import("./loraTrainer")
@@ -7281,11 +7323,25 @@ async function dispatchTrainingTool(
           imageUrls,
         } as never)
       )
-      .catch(err => {
+      .catch(async err => {
+        // F3 修復:同上,replicate trainer 也要把 jobId 標 failed。
+        const errMsg = err instanceof Error ? err.message : String(err);
         console.error(
           `[orb-tool/studio.trainLora] replicate background job failed for model ${modelId}:`,
           err
         );
+        try {
+          const db = await import("../db");
+          await db.updateBackgroundJob(jobId, {
+            status: "failed",
+            errorMessage: `trainer-startup-failed: ${errMsg}`,
+          });
+        } catch (dbErr) {
+          console.error(
+            `[orb-tool/studio.trainLora] also failed to mark job ${jobId} failed:`,
+            dbErr
+          );
+        }
       });
   }
 

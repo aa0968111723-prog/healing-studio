@@ -214,7 +214,13 @@ export async function executeCurrentStepTools(
       (input.agentPreferences?.allowedRiskLevels ?? ["low", "medium"]).includes(stepRisk));
   const shouldForceManual = policy === "confirm_all" || policy === "manual";
   const autoStepLimitReached = (input.autoApprovedStepsInRun ?? 0) >= maxAuto;
-  const isStepApproved = input.task.approvedStepIds.includes(step.id);
+  // F4 修復:不能直接看 approvedStepIds — 那是 legacy 永久陣列,沒 TTL。
+  // 必須對應 stepApprovals 的 expiresAt 才不會讓「6 分鐘前同意,5 分鐘
+  // 後重連」這種情境誤觸發昂貴工具呼叫。沒在 stepApprovals 內或已過期
+  // 都視為未授權。
+  const nowForApprovalCheck = Date.now();
+  const cachedApproval = input.task.stepApprovals.find(x => x.stepId === step.id);
+  const isStepApproved = !!(cachedApproval && cachedApproval.expiresAt >= nowForApprovalCheck);
   const effectiveApproved = shouldForceManual ? false : (shouldForceApprove ? true : input.approved);
   if ((stepNeedsApproval && !(effectiveApproved || isStepApproved)) || autoStepLimitReached) {
     return {
@@ -775,7 +781,15 @@ export async function runOrbTaskToCompletion(
           t.requireConfirmation &&
           step.toolCalls.some(c => c.name === t.name)
       );
-    const stepAlreadyApproved = task.approvedStepIds.includes(step.id);
+    // F4 修復:用 store.hasUnexpiredStepApproval 才會檢查 expiresAt。
+    // 原本 task.approvedStepIds.includes 完全繞過 TTL,使用者過期同意
+    // 仍會觸發昂貴工具呼叫。
+    const stepAlreadyApproved = store.hasUnexpiredStepApproval(
+      input.taskId,
+      input.userId,
+      step.id,
+      clock()
+    );
     const stepToken = input.approvalTokensByStepId?.[step.id];
     const stepTokenValid =
       stepToken !== undefined &&
@@ -858,12 +872,20 @@ export async function runOrbTaskToCompletion(
 
     if (!stepRun.ok) {
       const failureReason = stepRun.toolResults.find(r => !r.ok)?.error ?? "step-failed";
-      const streak = [...perStepToolResults]
-        .reverse()
-        .filter(x => !x.ok)
-        .map(x => x.error_code)
-        .findIndex(code => code !== error_code);
-      const sameErrorCount = streak === -1 ? perStepToolResults.filter(x => x.error_code === error_code).length : streak;
+      // F5 修復:circuit-breaker 算「連續同錯」必須真連續,不能 filter
+      // 掉 ok 步驟。原本 [reverse].filter(!ok).map(code).findIndex(!==code)
+      // 會把「A-成功-A-成功-A」算成 3 連續同錯而誤觸發 replan/handoff_to_
+      // human。實際是 33% 間歇性失敗,不該跳閘。改成直接 reverse 後找第
+      // 一個「ok 為 true 或 error_code 不同」的位置,真連續才計入。
+      let sameErrorCount = 0;
+      if (error_code) {
+        for (let i = perStepToolResults.length - 1; i >= 0; i--) {
+          const r = perStepToolResults[i];
+          // 一遇到「ok 成功」或「不同 error_code」就 break 中斷 streak
+          if (r.ok || r.error_code !== error_code) break;
+          sameErrorCount += 1;
+        }
+      }
       const trippedCircuit = Boolean(error_code) && sameErrorCount >= MAX_SAME_ERROR_STREAK;
 
       // Circuit-breaker rescue：原本 trippedCircuit 直接回 handoff_to_human
