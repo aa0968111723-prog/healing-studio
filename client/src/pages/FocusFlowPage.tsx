@@ -747,14 +747,14 @@ export default function FocusFlowPage() {
   });
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="text-center" id="focus-flow-header">
-        <h1 className="hs-h1 !mb-0 text-foreground">專注流</h1>
-        <p className="hs-small !mb-0 text-muted-foreground mt-1">
+    <div className="page-shell page-shell-narrow !max-w-2xl space-y-6">
+      <header className="page-header text-center items-center" id="focus-flow-header">
+        <p className="page-eyebrow">Focus Flow</p>
+        <h1 className="page-title">專注流</h1>
+        <p className="page-subtitle">
           放鬆 → 專注 → 聚焦想法
         </p>
-      </div>
+      </header>
 
       {/* Flow stepper */}
       <FlowStepper currentStep={flowStep} onStepClick={handleStepClick} />

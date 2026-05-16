@@ -40,7 +40,7 @@ export interface PreferenceNudgeCardProps {
 }
 
 const TONE_CLASSES: Record<NonNullable<PreferenceNudgeCardProps["tone"]>, string> = {
-  neutral: "border-cyan-200/30 bg-slate-950/95 text-white",
+  neutral: "border-cyan-200/30 bg-muted/95 text-white",
   positive: "border-emerald-300/40 bg-emerald-950/85 text-emerald-50",
   warning: "border-amber-300/40 bg-amber-950/85 text-amber-50",
 };

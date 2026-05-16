@@ -196,7 +196,7 @@ function SpotlightBubble({ rect, message }: { rect: DOMRect; message: string }) 
       style={{ position: "fixed", top, left, width: bubbleW }}
       className="pointer-events-auto"
     >
-      <div className="relative rounded-2xl border border-emerald-200/70 bg-white/95 backdrop-blur-xl shadow-xl shadow-emerald-500/10 overflow-hidden dark:border-emerald-400/30 dark:bg-slate-900/95">
+      <div className="relative rounded-2xl border border-emerald-200/70 bg-card/95 backdrop-blur-xl shadow-xl shadow-emerald-500/10 overflow-hidden dark:border-emerald-400/30">
         <div className="h-1 bg-gradient-to-r from-emerald-300 via-sky-300 to-fuchsia-300" />
         <div className="p-3 flex items-start gap-2">
           <div className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-300 to-sky-300 flex items-center justify-center shadow-inner">
@@ -206,7 +206,7 @@ function SpotlightBubble({ rect, message }: { rect: DOMRect; message: string }) 
             <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-300">
               光球指一下這裡 🌿
             </p>
-            <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-100 leading-relaxed">
+            <p className="mt-0.5 text-sm text-foreground/90 leading-relaxed">
               {message}
             </p>
           </div>

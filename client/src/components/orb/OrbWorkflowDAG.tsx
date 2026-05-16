@@ -50,9 +50,9 @@ const STATUS_TONE: Record<
   { ring: string; bg: string; text: string; icon: typeof Check }
 > = {
   pending: {
-    ring: "ring-1 ring-slate-400/40",
-    bg: "bg-slate-900/70",
-    text: "text-slate-300",
+    ring: "ring-1 ring-border/40",
+    bg: "bg-muted/70",
+    text: "text-muted-foreground/70",
     icon: Clock,
   },
   running: {
@@ -109,7 +109,7 @@ function StepNode({ data }: NodeProps<Node<NodeData>>) {
               {data.index + 1}/{data.total}
             </span>
             {data.path ? (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] text-white/70">
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-card/10 px-1.5 py-0.5 text-[9px] text-white/70">
                 <MapPin className="w-2.5 h-2.5" />
                 {data.path}
               </span>
@@ -184,7 +184,7 @@ function OrbWorkflowDAGInner({ workflowExecution, compact }: Props) {
 
   return (
     <div
-      className="rounded-2xl border border-white/10 bg-slate-950/40 overflow-hidden"
+      className="rounded-2xl border border-white/10 bg-muted/40 overflow-hidden"
       style={{ height }}
       data-testid="orb-workflow-dag"
     >

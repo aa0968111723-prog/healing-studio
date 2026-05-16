@@ -156,11 +156,11 @@ const THEME_CLASSES: Record<
     header: "text-[11px] text-emerald-700 font-medium",
     headerIcon: "text-emerald-500",
     card:
-      "flex items-start gap-2 rounded-lg border border-emerald-100/80 bg-white px-2 py-1.5 shadow-sm",
+      "flex items-start gap-2 rounded-lg border border-emerald-100/80 bg-card px-2 py-1.5 shadow-sm",
     iconWrap: "p-1.5 rounded-md bg-emerald-100",
     iconStroke: "text-emerald-700",
-    label: "text-[11px] font-medium text-gray-800 leading-tight",
-    detail: "text-[10px] text-gray-500 truncate",
+    label: "text-[11px] font-medium text-foreground leading-tight",
+    detail: "text-[10px] text-muted-foreground truncate",
     badge:
       "w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-semibold flex items-center justify-center shrink-0 mt-0.5",
     arrow: "text-emerald-300",
@@ -172,7 +172,7 @@ const THEME_CLASSES: Record<
     header: "text-[11px] text-white/65 font-medium",
     headerIcon: "text-cyan-200",
     card:
-      "flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5",
+      "flex items-start gap-2 rounded-lg border border-white/10 bg-card/5 px-2 py-1.5",
     iconWrap: "p-1.5 rounded-md bg-cyan-300/15",
     iconStroke: "text-cyan-100",
     label: "text-[11px] font-medium text-white/90 leading-tight",
@@ -272,7 +272,7 @@ const OrbActionFlow = memo(function OrbActionFlow({
         <p
           className={cn(
             "mt-1.5 text-center",
-            theme === "light" ? "text-[10px] text-gray-400" : "text-[10px] text-white/40"
+            theme === "light" ? "text-[10px] text-muted-foreground/70" : "text-[10px] text-white/40"
           )}
         >
           …還有 {overflow} 步

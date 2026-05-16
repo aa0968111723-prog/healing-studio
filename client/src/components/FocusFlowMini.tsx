@@ -71,7 +71,7 @@ function MiniPomodoro() {
         >
           {pomodoroPhase === "work" ? "🍅 專注" : "☕ 休息"}
         </span>
-        <span className="text-[10px] text-gray-400">{pomodoroRounds} 輪</span>
+        <span className="text-[10px] text-muted-foreground/70">{pomodoroRounds} 輪</span>
       </div>
 
       {/* Compact circular timer */}
@@ -106,7 +106,7 @@ function MiniPomodoro() {
             }
           />
         </svg>
-        <span className="text-base font-bold tabular-nums text-gray-800">
+        <span className="text-base font-bold tabular-nums text-foreground">
           {formatTime(pomodoroRemaining)}
         </span>
       </div>
@@ -115,14 +115,14 @@ function MiniPomodoro() {
       <div className="flex items-center gap-2">
         <button
           onClick={resetPomodoro}
-          className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-full hover:bg-muted transition-colors"
           aria-label="重置"
         >
-          <RotateCcw className="h-3.5 w-3.5 text-gray-400" />
+          <RotateCcw className="h-3.5 w-3.5 text-muted-foreground/70" />
         </button>
         <button
           onClick={togglePomodoro}
-          className="p-2 rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors shadow-sm"
+          className="p-2 rounded-full bg-muted text-white hover:bg-gray-700 transition-colors shadow-sm"
           aria-label={pomodoroRunning ? "暫停" : "開始"}
         >
           {pomodoroRunning ? (
@@ -156,7 +156,7 @@ function MiniHealing() {
 
   return (
     <div className="flex flex-col items-center gap-3 py-2">
-      <span className="text-[10px] text-gray-400">深呼吸，放鬆身心</span>
+      <span className="text-[10px] text-muted-foreground/70">深呼吸，放鬆身心</span>
 
       {/* Breathing orb */}
       <div className="relative w-20 h-20 flex items-center justify-center">
@@ -185,19 +185,19 @@ function MiniHealing() {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="text-[11px] font-medium text-gray-700"
+              className="text-[11px] font-medium text-foreground/90"
             >
               {healingRunning ? breathLabel : "準備"}
             </motion.span>
           </AnimatePresence>
-          <span className="text-base font-bold tabular-nums text-gray-800 mt-0.5">
+          <span className="text-base font-bold tabular-nums text-foreground mt-0.5">
             {formatTime(healingRemaining)}
           </span>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="w-full h-1 rounded-full bg-gray-100 overflow-hidden">
+      <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
         <div
           className="h-full rounded-full bg-pink-300 transition-all duration-1000"
           style={{ width: `${progress}%` }}
@@ -208,14 +208,14 @@ function MiniHealing() {
       <div className="flex items-center gap-2">
         <button
           onClick={resetHealing}
-          className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-full hover:bg-muted transition-colors"
           aria-label="重置"
         >
-          <RotateCcw className="h-3.5 w-3.5 text-gray-400" />
+          <RotateCcw className="h-3.5 w-3.5 text-muted-foreground/70" />
         </button>
         <button
           onClick={toggleHealing}
-          className="p-2 rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors shadow-sm"
+          className="p-2 rounded-full bg-muted text-white hover:bg-gray-700 transition-colors shadow-sm"
           aria-label={healingRunning ? "暫停" : "開始"}
         >
           {healingRunning ? (
@@ -243,7 +243,7 @@ function MiniThoughts() {
 
   return (
     <div className="flex flex-col gap-2 py-2">
-      <span className="text-[10px] text-gray-400 text-center">
+      <span className="text-[10px] text-muted-foreground/70 text-center">
         快速記下想法
       </span>
 
@@ -260,7 +260,7 @@ function MiniThoughts() {
             }
           }}
           placeholder="腦中浮現什麼..."
-          className="flex-1 min-w-0 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-indigo-300 transition-colors placeholder:text-gray-300"
+          className="flex-1 min-w-0 text-xs bg-muted/60 border border-border rounded-lg px-2.5 py-1.5 outline-none focus:border-indigo-300 transition-colors placeholder:text-muted-foreground"
         />
         <button
           onClick={handleAdd}
@@ -276,7 +276,7 @@ function MiniThoughts() {
       <div className="max-h-24 overflow-y-auto space-y-1">
         {thoughts.slice(-3).map(t => (
           <div key={t.id} className="flex items-center gap-1.5 group">
-            <span className="text-[10px] text-gray-500 flex-1 truncate">
+            <span className="text-[10px] text-muted-foreground flex-1 truncate">
               {t.text}
             </span>
             <button
@@ -293,12 +293,12 @@ function MiniThoughts() {
       {/* Count + clear */}
       {thoughts.length > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">
+          <span className="text-[10px] text-muted-foreground/70">
             {thoughts.length} 則想法
           </span>
           <button
             onClick={clearThoughts}
-            className="text-[10px] text-gray-400 hover:text-red-400 transition-colors"
+            className="text-[10px] text-muted-foreground/70 hover:text-red-400 transition-colors"
           >
             清除全部
           </button>
@@ -306,7 +306,7 @@ function MiniThoughts() {
       )}
 
       {thoughts.length === 0 && (
-        <p className="text-[10px] text-gray-300 text-center py-1">
+        <p className="text-[10px] text-muted-foreground/60 text-center py-1">
           還沒有想法，寫下第一個吧 ✨
         </p>
       )}
@@ -335,7 +335,7 @@ export default function FocusFlowMini() {
   return (
     <div className="px-4 pb-4">
       {/* Tab bar */}
-      <div className="flex rounded-lg bg-gray-50 p-0.5 mb-3">
+      <div className="flex rounded-lg bg-muted/60 p-0.5 mb-3">
         {tabs.map(t => {
           const isActive = tab === t.key;
           return (
@@ -344,8 +344,8 @@ export default function FocusFlowMini() {
               onClick={() => setTab(t.key)}
               className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[11px] font-medium transition-all ${
                 isActive
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground/70 hover:text-foreground/90"
               }`}
             >
               <t.icon className="h-3 w-3" />

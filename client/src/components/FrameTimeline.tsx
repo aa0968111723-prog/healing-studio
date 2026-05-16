@@ -104,7 +104,7 @@ export function FrameTimeline({
           <Button
             variant="outline"
             size="icon"
-            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80"
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-card/80"
             onClick={e => {
               e.stopPropagation();
               onClear();

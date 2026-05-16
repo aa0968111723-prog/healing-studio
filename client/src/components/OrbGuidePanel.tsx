@@ -195,7 +195,7 @@ function IntentCard({
       className={cn(
         "relative flex flex-col items-start gap-1.5 p-3.5 rounded-2xl",
         "bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/25",
-        "transition-all duration-200 text-left group w-full"
+        "transition-healing text-left group w-full"
       )}
       whileHover={{ scale: 1.02, y: -1 }}
       whileTap={{ scale: 0.97 }}
@@ -231,7 +231,7 @@ function AnswerOption({
       className={cn(
         "flex items-center gap-2.5 px-4 py-3 rounded-2xl w-full text-left",
         "bg-white/8 hover:bg-white/18 border border-white/10 hover:border-white/30",
-        "transition-all duration-200 group"
+        "transition-healing group"
       )}
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
@@ -4658,7 +4658,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   "w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl",
                   "bg-gradient-to-r from-white/20 to-white/12 hover:from-white/28 hover:to-white/18",
                   "border border-white/20 hover:border-white/35",
-                  "text-sm font-medium text-white transition-all duration-200",
+                  "text-sm font-medium text-white transition-healing",
                   "shadow-lg shadow-black/20"
                 )}
                 initial={{ opacity: 0, y: 6 }}

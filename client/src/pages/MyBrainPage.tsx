@@ -64,12 +64,11 @@ export default function MyBrainPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 h-[calc(100vh-4rem)] min-h-0">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          🧠 我的腦組態狀態
-        </h1>
-        <p className="text-sm text-slate-500">
+    <div className="flex-1 flex flex-col gap-4 h-[calc(100vh-4rem)] min-h-0 page-shell page-shell-pad">
+      <header className="page-header !mb-0">
+        <p className="page-eyebrow">My Brain</p>
+        <h1 className="page-title !mb-0">🧠 我的腦組態狀態</h1>
+        <p className="page-subtitle">
           看看你目前選用的 5 個推理大腦、4 個生成引擎，以及光球代理／導演 AI
           的即時運作狀況。點擊節點查看詳細說明與建議。
         </p>
@@ -85,7 +84,7 @@ export default function MyBrainPage() {
         onStatusFilterChange={setStatusFilter}
       />
 
-      <div className="flex-1 min-h-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/40 overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-2xl border border-border bg-card/40 overflow-hidden">
         {graphQuery.isLoading && (
           <div className="p-6 space-y-4">
             <Skeleton className="h-32 w-full" />
@@ -96,7 +95,7 @@ export default function MyBrainPage() {
           <div className="flex items-center justify-center h-full p-6 text-center">
             <div className="space-y-2 max-w-md">
               <div className="text-3xl">⚠</div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-muted-foreground">
                 無法載入：{graphQuery.error?.message ?? "未知錯誤"}
               </p>
             </div>

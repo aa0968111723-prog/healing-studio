@@ -576,8 +576,8 @@ function TemplateCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "bg-white/30 rounded-xl border border-white/40 p-3",
-        "hover:bg-white/50 transition-colors cursor-pointer group"
+        "bg-card/30 rounded-xl border border-white/40 p-3",
+        "hover:bg-card/50 transition-colors cursor-pointer group"
       )}
     >
       <div className="flex items-start gap-2">
@@ -589,10 +589,10 @@ function TemplateCard({
           {template.icon}
         </span>
         <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-semibold text-slate-800 truncate">
+          <h4 className="text-sm font-semibold text-foreground truncate">
             {template.name}
           </h4>
-          <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
             {template.description}
           </p>
         </div>
@@ -633,15 +633,15 @@ function SavedRecipeCard({
       exit={{ opacity: 0, x: 8 }}
       className={cn(
         "flex items-center gap-3 px-3 py-2 rounded-lg",
-        "bg-white/20 border border-white/30 hover:bg-white/40 transition-colors"
+        "bg-card/20 border border-white/30 hover:bg-card/40 transition-colors"
       )}
     >
-      <ModalityIcon className="w-4 h-4 text-slate-500 shrink-0" />
+      <ModalityIcon className="w-4 h-4 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-700 truncate">
+        <p className="text-sm font-medium text-foreground/90 truncate">
           {recipe.name}
         </p>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground/70">
           {dateStr} · {recipe.blocks.length} 個區塊
         </p>
       </div>
@@ -700,7 +700,7 @@ export function RecipeLibraryPanel({
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2">
         <BookOpen className="w-5 h-5 text-indigo-500" />
-        <h3 className="text-base font-bold text-slate-800">配方庫</h3>
+        <h3 className="text-base font-bold text-foreground">配方庫</h3>
       </div>
 
       {/* ── Starter Templates ──────────────────────────────────── */}
@@ -711,13 +711,13 @@ export function RecipeLibraryPanel({
           onClick={() => setTemplatesOpen(o => !o)}
         >
           <Sparkles className="w-4 h-4 text-amber-500" />
-          <span className="text-sm font-semibold text-slate-700 flex-1">
+          <span className="text-sm font-semibold text-foreground/90 flex-1">
             推薦模板
           </span>
           {templatesOpen ? (
-            <ChevronUp className="w-4 h-4 text-slate-400" />
+            <ChevronUp className="w-4 h-4 text-muted-foreground/70" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground/70" />
           )}
         </button>
 
@@ -753,13 +753,13 @@ export function RecipeLibraryPanel({
           onClick={() => setSavedOpen(o => !o)}
         >
           <FolderOpen className="w-4 h-4 text-teal-500" />
-          <span className="text-sm font-semibold text-slate-700 flex-1">
+          <span className="text-sm font-semibold text-foreground/90 flex-1">
             已保存配方
           </span>
           {savedOpen ? (
-            <ChevronUp className="w-4 h-4 text-slate-400" />
+            <ChevronUp className="w-4 h-4 text-muted-foreground/70" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground/70" />
           )}
         </button>
 
@@ -799,7 +799,7 @@ export function RecipeLibraryPanel({
               <div className="space-y-1.5">
                 <AnimatePresence initial={false}>
                   {filteredRecipes.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-3">
+                    <p className="text-xs text-muted-foreground/70 text-center py-3">
                       尚無已保存配方
                     </p>
                   ) : (

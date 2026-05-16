@@ -437,26 +437,28 @@ export default function AdminPage() {
   }, [users, userSearch, autoCreditFilter]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Shield className="w-5 h-5 text-muted-foreground" />
-        <h1 className="hs-h2 !mb-0">管理後台</h1>
-        <Badge variant="outline" className="text-[10px]">
-          管理員
-        </Badge>
-        <div className="flex-1" />
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="gap-1.5"
-          data-testid="admin-brain-pipeline-link"
-        >
-          <Link href="/admin/brain-pipeline">
-            🧠 大腦管線可視化
-          </Link>
-        </Button>
-      </div>
+    <div className="page-shell space-y-6">
+      <header className="page-header !mb-0">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Shield className="w-5 h-5 text-muted-foreground" />
+          <h1 className="page-title !mb-0">管理後台</h1>
+          <Badge variant="outline" className="text-[10px]">
+            管理員
+          </Badge>
+          <div className="flex-1" />
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            data-testid="admin-brain-pipeline-link"
+          >
+            <Link href="/admin/brain-pipeline">
+              🧠 大腦管線可視化
+            </Link>
+          </Button>
+        </div>
+      </header>
 
       <p className="text-xs text-muted-foreground">
         管理使用者配額、角色權限、API 金鑰、系統監控、使用紀錄與回饋處理。
@@ -1320,7 +1322,7 @@ export default function AdminPage() {
                 failed:
                   "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
                 cancelled:
-                  "bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400",
+                  "bg-muted text-foreground/90",
               };
               return (
                 <GlassCard key={job.id}>
@@ -1465,7 +1467,7 @@ const SEVERITY_BADGE_CLASS: Record<string, string> = {
   high: "border-orange-500/40 text-orange-600 bg-orange-500/10",
   medium: "border-yellow-500/40 text-yellow-600 bg-yellow-500/10",
   low: "border-blue-500/30 text-blue-600 bg-blue-500/10",
-  info: "border-slate-500/30 text-slate-500 bg-slate-500/10",
+  info: "border-border/30 text-muted-foreground bg-muted/10",
 };
 
 const SEVERITY_LABEL: Record<string, string> = {

@@ -224,12 +224,12 @@ export function CollaborativeDiscussionLauncher({
   // ─── 展開：完整設定面板 ───────────────────────────────────────────────
   return (
     <div
-      className="rounded-xl border border-slate-200/80 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 px-3 py-3 mt-1.5 space-y-3 text-xs"
+      className="rounded-xl border border-border/60 surface-2 px-3 py-3 mt-1.5 space-y-3 text-xs"
       data-testid="orb-collab-discuss-panel"
     >
       <div className="flex items-center gap-2">
         <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-        <span className="font-semibold text-slate-700 dark:text-slate-200">
+        <span className="font-semibold text-foreground/90">
           多代理討論設定
         </span>
         <button
@@ -243,7 +243,7 @@ export function CollaborativeDiscussionLauncher({
 
       {/* 規模 */}
       <div>
-        <label className="flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-1">
+        <label className="flex items-center gap-2 text-foreground/90 mb-1">
           <span>最多回合</span>
           <span className="ml-auto font-mono text-[11px] text-slate-500">
             {maxRounds} 棒
@@ -266,7 +266,7 @@ export function CollaborativeDiscussionLauncher({
 
       {/* 家族 */}
       <div>
-        <div className="text-slate-700 dark:text-slate-200 mb-1">
+        <div className="text-foreground/90 mb-1">
           參與家族（不勾 = 不限制）
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -279,7 +279,7 @@ export function CollaborativeDiscussionLauncher({
                 onClick={() => toggleFamily(family)}
                 className={`px-2.5 py-1 rounded-full border text-[11px] transition-colors ${
                   active
-                    ? `${FAMILY_BG[family]} text-slate-800 dark:text-slate-100 ring-1 ring-emerald-400/50`
+                    ? `${FAMILY_BG[family]} text-foreground ring-1 ring-emerald-400/50`
                     : "border-slate-200/70 text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-800/40"
                 }`}
               >
@@ -292,7 +292,7 @@ export function CollaborativeDiscussionLauncher({
 
       {/* 個別精靈 — 兩欄 grid */}
       <div>
-        <div className="flex items-center text-slate-700 dark:text-slate-200 mb-1">
+        <div className="flex items-center text-foreground/90 mb-1">
           <span>個別精靈（不勾 = 沿用家族 / 預設）</span>
           <button
             type="button"
@@ -314,11 +314,11 @@ export function CollaborativeDiscussionLauncher({
                     ? "border-emerald-300/70 bg-emerald-50/70 dark:bg-emerald-900/20"
                     : muted
                       ? "border-rose-300/60 bg-rose-50/60 dark:bg-rose-900/20 opacity-70"
-                      : "border-slate-200/60 dark:border-slate-700/50"
+                      : "border-border/60"
                 }`}
               >
                 <span className="text-base leading-none">{spirit.emoji}</span>
-                <span className="text-[11px] truncate text-slate-700 dark:text-slate-200">
+                <span className="text-[11px] truncate text-foreground/90">
                   {spirit.nickname}
                 </span>
                 <div className="ml-auto flex items-center gap-0.5">
@@ -329,7 +329,7 @@ export function CollaborativeDiscussionLauncher({
                     className={`text-[10px] px-1 rounded ${
                       allowed
                         ? "bg-emerald-500 text-white"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                        : "bg-muted text-slate-500"
                     }`}
                   >
                     +
@@ -341,7 +341,7 @@ export function CollaborativeDiscussionLauncher({
                     className={`text-[10px] px-1 rounded ${
                       muted
                         ? "bg-rose-500 text-white"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                        : "bg-muted text-slate-500"
                     }`}
                   >
                     −
@@ -358,13 +358,13 @@ export function CollaborativeDiscussionLauncher({
 
       {/* 起跑那位（可選） */}
       <div>
-        <label className="text-slate-700 dark:text-slate-200 mb-1 block">
+        <label className="text-foreground/90 mb-1 block">
           起跑那位（不選 = 自動依需求挑）
         </label>
         <select
           value={initialAgent}
           onChange={e => setInitialAgent(e.target.value)}
-          className="w-full px-2 py-1 rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs"
+          className="w-full px-2 py-1 rounded-lg border border-border/60 bg-card text-foreground/90 text-xs"
         >
           <option value="">自動挑 (selectRoleForIntent)</option>
           {SPIRITS.map(s => (
@@ -376,7 +376,7 @@ export function CollaborativeDiscussionLauncher({
       </div>
 
       {/* roster preview + launch */}
-      <div className="flex items-center gap-2 pt-1 border-t border-slate-200/70 dark:border-slate-700/50">
+      <div className="flex items-center gap-2 pt-1 border-t border-border/60">
         <div className="text-[11px] text-slate-500 truncate">
           將從 {effectiveRoster.length} 位中接力（{effectiveRoster
             .slice(0, 6)

@@ -567,17 +567,17 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Header */}
-      <div>
-        <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
+    <div className="page-shell page-shell-narrow space-y-6">
+      <header className="page-header">
+        <p className="page-eyebrow">Settings</p>
+        <h1 className="page-title flex items-center gap-2">
           <Settings className="w-6 h-6" />
           個人設定
         </h1>
-        <p className="hs-small !mb-0 text-muted-foreground mt-1">
+        <p className="page-subtitle">
           管理你的帳號、外觀偏好與通知設定
         </p>
-      </div>
+      </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
@@ -860,7 +860,7 @@ export default function SettingsPage() {
           <GlassCard>
             <button
               onClick={() => navigate("/director")}
-              className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 transition-colors group"
+              className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 transition-colors group"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
@@ -881,7 +881,7 @@ export default function SettingsPage() {
           <GlassCard>
             <button
               onClick={() => navigate("/credits")}
-              className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 transition-colors group"
+              className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 transition-colors group"
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -1115,7 +1115,7 @@ export default function SettingsPage() {
                   key={res.name}
                   type="button"
                   onClick={() => handleOpenExternalResource(res.url, res.name)}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-border/60 hover:bg-white/30 dark:hover:bg-white/5 transition-all group"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-border/60 hover:bg-card/30 dark:hover:bg-white/5 transition-all group"
                 >
                   <span className="text-xl shrink-0">{res.icon}</span>
                   <div className="flex-1 min-w-0">
@@ -1245,7 +1245,7 @@ export default function SettingsPage() {
                 {/* Admin Panel */}
                 <button
                   onClick={() => navigate("/admin")}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center">
@@ -1264,7 +1264,7 @@ export default function SettingsPage() {
                 {/* AI Brain */}
                 <button
                   onClick={() => navigate("/admin")}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -1285,7 +1285,7 @@ export default function SettingsPage() {
                 {/* My Brain Pipeline */}
                 <button
                   onClick={() => navigate("/my-brain")}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
                   data-testid="settings-my-brain-link"
                 >
                   <div className="flex items-center gap-3">
@@ -1307,7 +1307,7 @@ export default function SettingsPage() {
                 {/* Cost Dashboard */}
                 <button
                   onClick={() => navigate("/admin")}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center">
@@ -1328,7 +1328,7 @@ export default function SettingsPage() {
                 {/* LangSmith / AI Monitoring */}
                 <button
                   onClick={() => navigate("/langsmith")}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-card/30 dark:hover:bg-white/5 border border-transparent hover:border-border/30 transition-all group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">

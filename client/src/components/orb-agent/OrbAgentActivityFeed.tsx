@@ -83,8 +83,8 @@ const STATUS_META: Record<FeedbackStatus, StatusMeta> = {
 const FALLBACK_META: StatusMeta = {
   label: "未知",
   icon: Clock,
-  tone: "bg-gray-100 border-gray-200",
-  textTone: "text-gray-700",
+  tone: "bg-muted border-border",
+  textTone: "text-foreground/90",
 };
 
 const ACTION_TYPE_LABEL: Record<string, string> = {
@@ -134,8 +134,8 @@ export default function OrbAgentActivityFeed({ limit = 12 }: Props) {
 
   if (query.isLoading) {
     return (
-      <div className="rounded-2xl border border-gray-200/70 bg-white/60 p-3" data-testid="orb-agent-activity-feed">
-        <div className="flex items-center gap-2 text-xs text-gray-400">
+      <div className="rounded-2xl border border-border/70 bg-card/60 p-3" data-testid="orb-agent-activity-feed">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
           整理光球最近做了什麼…
         </div>
@@ -146,11 +146,11 @@ export default function OrbAgentActivityFeed({ limit = 12 }: Props) {
   if (!events.length) {
     return (
       <div
-        className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 p-3 text-center"
+        className="rounded-2xl border border-dashed border-border bg-muted/60 p-3 text-center"
         data-testid="orb-agent-activity-feed-empty"
       >
-        <Clock className="w-4 h-4 text-gray-300 inline-block mr-1.5 -mt-0.5" />
-        <span className="text-[12px] text-gray-500">
+        <Clock className="w-4 h-4 text-muted-foreground/60 inline-block mr-1.5 -mt-0.5" />
+        <span className="text-[12px] text-muted-foreground">
           還沒有活動紀錄。光球幫你做動作後（接受／取消／完成）會自動出現在這裡。
         </span>
       </div>
@@ -158,19 +158,19 @@ export default function OrbAgentActivityFeed({ limit = 12 }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-cyan-200/40 bg-white/80 p-3" data-testid="orb-agent-activity-feed">
+    <div className="rounded-2xl border border-cyan-200/40 bg-card/80 p-3" data-testid="orb-agent-activity-feed">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-cyan-500" />
-          <span className="text-[12px] font-semibold text-gray-700">
+          <span className="text-[12px] font-semibold text-foreground/90">
             光球最近做了什麼
           </span>
-          <span className="text-[10px] text-gray-400">· {events.length} 條</span>
+          <span className="text-[10px] text-muted-foreground/70">· {events.length} 條</span>
         </div>
         <button
           type="button"
           onClick={() => void query.refetch()}
-          className="text-[10px] text-gray-400 hover:text-gray-700 inline-flex items-center gap-1"
+          className="text-[10px] text-muted-foreground/70 hover:text-foreground/90 inline-flex items-center gap-1"
           data-testid="orb-agent-activity-refresh"
         >
           <RefreshCw className={`w-2.5 h-2.5 ${query.isRefetching ? "animate-spin" : ""}`} />
@@ -193,7 +193,7 @@ export default function OrbAgentActivityFeed({ limit = 12 }: Props) {
               className={`flex items-start gap-2 rounded-xl border ${meta.tone} px-2 py-1.5`}
             >
               <span
-                className={`shrink-0 mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-md bg-white/80 ${meta.textTone}`}
+                className={`shrink-0 mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-md bg-card/80 ${meta.textTone}`}
               >
                 <Icon className="w-3 h-3" />
               </span>
@@ -202,16 +202,16 @@ export default function OrbAgentActivityFeed({ limit = 12 }: Props) {
                   <span className={`text-[11px] font-medium ${meta.textTone}`}>
                     {meta.label}
                   </span>
-                  <span className="text-[11px] text-gray-700">{actionLabel}</span>
+                  <span className="text-[11px] text-foreground/90">{actionLabel}</span>
                   {evt.pageId ? (
-                    <span className="text-[10px] text-gray-400">@{evt.pageId}</span>
+                    <span className="text-[10px] text-muted-foreground/70">@{evt.pageId}</span>
                   ) : null}
                 </div>
                 {evt.note ? (
-                  <div className="text-[10px] text-gray-500 truncate mt-0.5">{evt.note}</div>
+                  <div className="text-[10px] text-muted-foreground truncate mt-0.5">{evt.note}</div>
                 ) : null}
               </div>
-              <span className="shrink-0 text-[10px] text-gray-400 mt-0.5">
+              <span className="shrink-0 text-[10px] text-muted-foreground/70 mt-0.5">
                 {formatRelative(evt.at)}
               </span>
             </motion.li>
@@ -219,7 +219,7 @@ export default function OrbAgentActivityFeed({ limit = 12 }: Props) {
         })}
       </ol>
 
-      <p className="mt-2 text-[10px] text-gray-400 leading-snug">
+      <p className="mt-2 text-[10px] text-muted-foreground/70 leading-snug">
         每次光球動作（接受／取消／完成／失敗）會即時記錄，作為下一輪偏好學習的依據。
       </p>
     </div>

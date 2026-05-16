@@ -180,13 +180,14 @@ export default function AgentCodexPage() {
   };
 
   return (
-    <div className="flex-1 px-4 sm:px-6 lg:px-10 py-6 sm:py-8 max-w-7xl mx-auto w-full">
-      <header className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
+    <div className="page-shell page-shell-wide w-full">
+      <header className="page-header">
+        <p className="page-eyebrow">Agent Codex</p>
+        <div className="flex items-center gap-3">
           <BookOpen className="h-8 w-8 text-violet-500" />
-          <h1 className="hs-h1 text-foreground">{PAGE_TITLE}</h1>
+          <h1 className="page-title !mb-0">{PAGE_TITLE}</h1>
         </div>
-        <p className="hs-p text-muted-foreground">{PAGE_SUBTITLE}</p>
+        <p className="page-subtitle">{PAGE_SUBTITLE}</p>
       </header>
 
       <CodexStatsBar stats={stats} />

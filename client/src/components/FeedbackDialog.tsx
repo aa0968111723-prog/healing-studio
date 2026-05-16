@@ -248,7 +248,7 @@ export default function FeedbackDialog({
                             <button
                               key={cat.value}
                               onClick={() => setCategory(cat.value)}
-                              className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-2 rounded-xl text-[11px] transition-all duration-200 ${
+                              className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-2 rounded-xl text-[11px] transition-healing ${
                                 isActive
                                   ? isDark
                                     ? "bg-indigo-500/20 ring-1 ring-indigo-400/40 text-indigo-300"

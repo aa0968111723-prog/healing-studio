@@ -634,12 +634,16 @@ export default function AssetsLibrary() {
       {/* ─── 數位資產庫（主內容） ──────────────────────────────────────────── */}
       {section === "assets" && (
         <>
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Package className="w-5 h-5 text-muted-foreground" />
-              <h1 className="hs-h2 !mb-0">數位資產庫</h1>
-            </div>
+          <div className="flex items-end justify-between gap-4">
+            <header className="page-header !mb-0">
+              <div className="flex items-center gap-3">
+                <Package className="w-5 h-5 text-muted-foreground" />
+                <h1 className="page-title !mb-0">數位資產庫</h1>
+              </div>
+              <p className="page-subtitle">
+                管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。
+              </p>
+            </header>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="rounded-lg text-xs">
                 {totalMyAssets} 個資產
@@ -652,9 +656,6 @@ export default function AssetsLibrary() {
             </div>
           </div>
 
-          <p className="hs-small !mb-0 text-muted-foreground">
-            管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。
-          </p>
           <AssetModelSubpageGuide page="assets" />
 
           {/* Search + Filter bar */}
@@ -773,7 +774,7 @@ export default function AssetsLibrary() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                              className="rounded-lg bg-card/90 text-xs h-7 gap-1"
                               onClick={() =>
                                 downloadFile(
                                   asset.fileUrl!,
@@ -788,7 +789,7 @@ export default function AssetsLibrary() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                              className="rounded-lg bg-card/90 text-xs h-7 gap-1"
                               onClick={() =>
                                 window.open(asset.fileUrl!, "_blank")
                               }
@@ -801,7 +802,7 @@ export default function AssetsLibrary() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                                className="rounded-lg bg-card/90 text-xs h-7 gap-1"
                                 onClick={() =>
                                   toggleVisibility.mutate({
                                     id: asset.id,
@@ -821,7 +822,7 @@ export default function AssetsLibrary() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-lg bg-white/90 text-xs h-7 text-destructive"
+                                className="rounded-lg bg-card/90 text-xs h-7 text-destructive"
                                 onClick={() =>
                                   deleteAsset.mutate({ id: asset.id })
                                 }

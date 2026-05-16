@@ -38,7 +38,7 @@ export default function OrbCapabilitiesView({
           className={`mt-0.5 shrink-0 text-purple-500 ${compact ? "w-3.5 h-3.5" : "w-4 h-4"}`}
         />
         <p
-          className={`leading-relaxed text-gray-500 ${compact ? "text-xs" : "text-sm"}`}
+          className={`leading-relaxed text-muted-foreground ${compact ? "text-xs" : "text-sm"}`}
         >
           選一個方向，光球帶你直接進入工作室。
         </p>
@@ -60,7 +60,7 @@ export default function OrbCapabilitiesView({
               delay: reduceMotion ? 0 : idx * 0.04,
               ease: cubic,
             }}
-            className="relative rounded-xl overflow-hidden border bg-white/70 backdrop-blur-sm"
+            className="relative rounded-xl overflow-hidden border bg-card/70 backdrop-blur-sm"
             style={{
               borderColor: isOpen
                 ? `${cap.accentColor}55`
@@ -131,7 +131,7 @@ export default function OrbCapabilitiesView({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p
-                    className={`font-semibold text-gray-800 truncate ${
+                    className={`font-semibold text-foreground truncate ${
                       compact ? "text-sm" : "text-[15px]"
                     }`}
                   >
@@ -149,7 +149,7 @@ export default function OrbCapabilitiesView({
                   </span>
                 </div>
                 <p
-                  className={`text-gray-500 leading-snug truncate ${
+                  className={`text-muted-foreground leading-snug truncate ${
                     compact ? "text-[11px]" : "text-xs"
                   }`}
                 >
@@ -159,7 +159,7 @@ export default function OrbCapabilitiesView({
               <motion.div
                 animate={{ rotate: isOpen ? 180 : 0 }}
                 transition={{ duration: 0.3, ease: cubic }}
-                className="shrink-0 text-gray-400"
+                className="shrink-0 text-muted-foreground/70"
               >
                 <ChevronDown className={compact ? "w-4 h-4" : "w-4 h-4"} />
               </motion.div>
@@ -191,7 +191,7 @@ export default function OrbCapabilitiesView({
                     className={`relative ${compact ? "px-3.5 pb-3" : "px-4 pb-4"}`}
                   >
                     <p
-                      className={`text-gray-600 leading-relaxed mb-3 ${
+                      className={`text-muted-foreground leading-relaxed mb-3 ${
                         compact ? "text-[12px]" : "text-[13px]"
                       }`}
                     >
@@ -201,7 +201,7 @@ export default function OrbCapabilitiesView({
                       {cap.features.map((feat, i) => (
                         <li
                           key={i}
-                          className={`flex items-start gap-2 text-gray-600 ${
+                          className={`flex items-start gap-2 text-muted-foreground ${
                             compact ? "text-[11px]" : "text-xs"
                           }`}
                         >

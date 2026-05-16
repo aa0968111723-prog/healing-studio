@@ -81,7 +81,7 @@ function NoteCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 50 }}
       className={cn(
-        "group relative rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 hover:bg-white/8 transition-all",
+        "group relative rounded-xl border border-white/10 bg-card/5 backdrop-blur-sm p-3 hover:bg-card/8 transition-all",
         isDone && "opacity-60"
       )}
     >
@@ -131,7 +131,7 @@ function NoteCard({
             {note.tags?.map(tag => (
               <span
                 key={tag}
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-muted-foreground/60"
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-card/10 text-muted-foreground/60"
               >
                 <Tag className="w-2.5 h-2.5 inline mr-0.5" />
                 {tag}
@@ -239,7 +239,7 @@ function QuickSaveForm({
         value={title}
         onChange={e => setTitle(e.target.value)}
         placeholder="筆記標題"
-        className="bg-white/5 border-white/10 text-sm"
+        className="bg-card/5 border-white/10 text-sm"
       />
 
       <Textarea
@@ -247,7 +247,7 @@ function QuickSaveForm({
         onChange={e => setContent(e.target.value)}
         placeholder="筆記內容..."
         rows={4}
-        className="bg-white/5 border-white/10 text-xs resize-none"
+        className="bg-card/5 border-white/10 text-xs resize-none"
       />
 
       <div className="flex items-center gap-2">
@@ -256,7 +256,7 @@ function QuickSaveForm({
           onChange={e => setTagInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())}
           placeholder="新增標籤..."
-          className="bg-white/5 border-white/10 text-xs flex-1"
+          className="bg-card/5 border-white/10 text-xs flex-1"
         />
         <Button size="sm" variant="ghost" onClick={addTag} className="text-xs">
           <Plus className="w-3 h-3" />
@@ -382,7 +382,7 @@ export default function ProjectNotesDrawer() {
                 {[1, 2, 3].map(i => (
                   <div
                     key={i}
-                    className="h-20 rounded-xl bg-white/5 animate-pulse"
+                    className="h-20 rounded-xl bg-card/5 animate-pulse"
                   />
                 ))}
               </div>
@@ -411,7 +411,7 @@ export default function ProjectNotesDrawer() {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-white/10 bg-white/3">
+          <div className="px-4 py-3 border-t border-white/10 bg-card/3">
             <div className="flex items-center justify-between text-xs text-muted-foreground/40">
               <span>{notesQuery.data?.length ?? 0} 則筆記</span>
               <button

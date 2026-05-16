@@ -84,10 +84,10 @@ export default function SceneSwitcher({
         onClick={() => setOpen(!open)}
         className={`
           flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium
-          backdrop-blur-md transition-all duration-300 hover:scale-105
+          backdrop-blur-md transition-healing hover:scale-105
           ${
             isDark
-              ? "bg-white/10 hover:bg-white/15 text-white/80"
+              ? "bg-card/10 hover:bg-card/15 text-white/80"
               : "bg-black/5 hover:bg-black/10 text-black/60"
           }
           ${override ? "ring-1 ring-amber-400/50" : ""}
@@ -116,8 +116,8 @@ export default function SceneSwitcher({
               backdrop-blur-xl shadow-2xl border
               ${
                 isDark
-                  ? "bg-slate-900/90 border-white/10"
-                  : "bg-white/90 border-black/10"
+                  ? "bg-muted/90 border-white/10"
+                  : "bg-card/90 border-black/10"
               }
             `}
           >
@@ -164,14 +164,14 @@ export default function SceneSwitcher({
                       setOpen(false);
                     }}
                     className={`
-                      w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-all duration-200
+                      w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-healing
                       ${
                         isActive
                           ? isDark
-                            ? "bg-white/10 ring-1 ring-white/20"
+                            ? "bg-card/10 ring-1 ring-white/20"
                             : "bg-black/5 ring-1 ring-black/10"
                           : isDark
-                            ? "hover:bg-white/5"
+                            ? "hover:bg-card/5"
                             : "hover:bg-black/3"
                       }
                     `}
@@ -214,7 +214,7 @@ export default function SceneSwitcher({
                     {isActive && (
                       <div
                         className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                          isDark ? "bg-white/60" : "bg-black/40"
+                          isDark ? "bg-card/60" : "bg-black/40"
                         }`}
                       />
                     )}

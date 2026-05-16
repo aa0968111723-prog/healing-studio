@@ -6,11 +6,11 @@ type CardTone = "default" | "glass" | "raised";
 
 const toneClasses: Record<CardTone, string> = {
   default:
-    "bg-card text-card-foreground border shadow-sm card-healing",
+    "bg-card text-card-foreground border shadow-healing-sm card-healing",
   glass:
-    "surface-2 text-glass-strong border-0 shadow-sm card-healing",
+    "surface-2 text-glass-strong border-0 shadow-healing-sm card-healing",
   raised:
-    "surface-3 text-glass-strong border-0 shadow-md card-healing",
+    "surface-3 text-glass-strong border-0 shadow-healing-md card-healing",
 };
 
 function Card({
@@ -23,7 +23,7 @@ function Card({
       data-slot="card"
       data-tone={tone}
       className={cn(
-        "flex flex-col gap-6 rounded-xl py-6",
+        "flex flex-col gap-6 rounded-2xl py-6",
         toneClasses[tone],
         className
       )}

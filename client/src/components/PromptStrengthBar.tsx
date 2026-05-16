@@ -179,7 +179,7 @@ function ActionableChip({
     >
       <div
         className={cn(
-          "group rounded-xl border transition-all duration-200 overflow-hidden",
+          "group rounded-xl border transition-healing overflow-hidden",
           config.bgColor
         )}
       >
@@ -213,7 +213,7 @@ function ActionableChip({
               e.stopPropagation();
               setShowPayload(!showPayload);
             }}
-            className="shrink-0 p-1 rounded-md hover:bg-white/20 transition-colors"
+            className="shrink-0 p-1 rounded-md hover:bg-card/20 transition-colors"
             title="預覽內容"
           >
             {showPayload ? (
@@ -230,7 +230,7 @@ function ActionableChip({
             className={cn(
               "shrink-0 h-7 text-[10px] gap-1 rounded-lg font-semibold",
               config.color,
-              "hover:bg-white/30 dark:hover:bg-white/5"
+              "hover:bg-card/30 dark:hover:bg-white/5"
             )}
             onClick={() => {
               onApply({
@@ -459,7 +459,7 @@ export function PromptStrengthBar({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border border-border/40 bg-white/30 p-3.5 space-y-3">
+            <div className="rounded-xl border border-border/40 bg-card/30 p-3.5 space-y-3">
               {/* Dimension Bars */}
               <div className="space-y-1.5">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">

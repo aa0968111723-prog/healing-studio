@@ -211,12 +211,11 @@ export default function CreationHub() {
   });
 
   return (
-    <div className="creation-hub-shell space-y-5">
-      <header className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          創作中心
-        </h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
+    <div className="creation-hub-shell page-shell space-y-5">
+      <header className="page-header">
+        <p className="page-eyebrow">Creation Hub</p>
+        <h1 className="page-title">創作中心</h1>
+        <p className="page-subtitle">
           整合創作工作室、導演 AI、資產、筆記與排程的單一工作台。切換上方頁籤即可在不同任務間流暢移動。
         </p>
       </header>
@@ -231,7 +230,7 @@ export default function CreationHub() {
             <TabsTrigger
               key={tab.id}
               value={tab.id}
-              className="hub-tab-trigger gap-2 h-10 px-3.5 rounded-xl border border-border/40 bg-background/60 text-foreground/80 hover:bg-accent/40 hover:text-foreground transition-all duration-200 ease-out data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary/30 data-[state=active]:shadow-sm"
+              className="hub-tab-trigger gap-2 h-10 px-3.5 rounded-xl border border-border/40 bg-background/60 text-foreground/80 hover:bg-accent/40 hover:text-foreground transition-healing ease-out data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary/30 data-[state=active]:shadow-sm"
               title={tab.hint}
             >
               <tab.icon className="size-4" />

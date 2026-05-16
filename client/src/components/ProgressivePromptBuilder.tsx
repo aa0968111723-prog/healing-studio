@@ -1493,7 +1493,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
           }}
           rows={simpleMode ? 4 : 3}
           className={cn(
-            "rounded-xl bg-white/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30",
+            "rounded-xl bg-card/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30",
             simpleMode && "text-base py-4 px-5 rounded-2xl"
           )}
         />
@@ -1514,7 +1514,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
           >
             <button
               onClick={() => setBlocksOpen(!blocksOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/10 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-card/10 transition-colors"
             >
               <div className="flex items-center gap-2">
                 <Blocks className="w-4 h-4 text-primary" />
@@ -1550,7 +1550,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-[11px] gap-1 bg-white/30 border-white/40 hover:bg-white/50"
+                        className="h-7 text-[11px] gap-1 bg-card/30 border-white/40 hover:bg-card/50"
                         onClick={() => setCreateBlockOpen(true)}
                       >
                         <Plus className="w-3 h-3" />
@@ -1798,7 +1798,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
             >
               <button
                 onClick={() => setAttentionOpen(!attentionOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/10 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-card/10 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <Focus className="w-4 h-4 text-amber-500" />
@@ -1930,7 +1930,7 @@ function ComboCard({
   const totalItems = blockIds.length + customIds.length + vibeIds.length;
 
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-white/30 hover:bg-white/50 transition-colors group">
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-card/30 hover:bg-card/50 transition-colors group">
       {editing ? (
         <div className="flex items-center gap-1 flex-1">
           <Input

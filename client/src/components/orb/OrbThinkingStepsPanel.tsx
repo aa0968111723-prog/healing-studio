@@ -100,12 +100,12 @@ export default function OrbThinkingStepsPanel({
         className="w-full sm:max-w-md flex flex-col gap-0 p-0"
         data-testid="orb-thinking-steps-panel"
       >
-        <SheetHeader className="px-5 pt-5 pb-3 border-b border-slate-200 dark:border-slate-700">
+        <SheetHeader className="px-5 pt-5 pb-3 border-b border-border">
           <SheetTitle className="text-lg font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-500" aria-hidden />
             思考步驟
           </SheetTitle>
-          <SheetDescription className="text-xs text-slate-500 dark:text-slate-400">
+          <SheetDescription className="text-xs text-muted-foreground">
             {chain?.modelLabel ? <span>{chain.modelLabel}</span> : null}
             {chain?.modelLabel && typeof chain?.durationMs === "number" ? (
               <span className="px-1.5">·</span>
@@ -125,7 +125,7 @@ export default function OrbThinkingStepsPanel({
               </>
             ) : null}
           </SheetDescription>
-          <div className="mt-3 inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 self-start">
+          <div className="mt-3 inline-flex rounded-lg bg-muted p-0.5 self-start">
             <TabButton
               active={tab === "thinking"}
               onClick={() => setTab("thinking")}
@@ -153,7 +153,7 @@ export default function OrbThinkingStepsPanel({
           )}
         </div>
 
-        <footer className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+        <footer className="px-5 py-3 border-t border-border text-[11px] text-muted-foreground flex items-center gap-2">
           <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />
           <span>
             完成
@@ -185,8 +185,8 @@ function TabButton({
       className={cn(
         "px-3 py-1 text-xs font-medium rounded-md transition-colors",
         active
-          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
-          : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+          ? "bg-card text-foreground shadow-sm dark:text-white"
+          : "text-muted-foreground hover:text-foreground dark:hover:text-white"
       )}
     >
       {children}
@@ -195,8 +195,8 @@ function TabButton({
           className={cn(
             "ml-1 rounded-full px-1.5 py-0.5 text-[10px]",
             active
-              ? "bg-slate-100 text-slate-600 dark:bg-slate-600 dark:text-slate-200"
-              : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+              ? "bg-muted text-muted-foreground"
+              : "bg-muted text-muted-foreground"
           )}
         >
           {count}
@@ -208,7 +208,7 @@ function TabButton({
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center text-center text-slate-500 dark:text-slate-400 py-12 gap-2">
+    <div className="flex flex-col items-center justify-center text-center text-muted-foreground py-12 gap-2">
       <AlertTriangle className="w-6 h-6 opacity-60" aria-hidden />
       <p className="text-sm">這一輪沒有產生額外的思考紀錄。</p>
       <p className="text-[11px]">
@@ -225,7 +225,7 @@ function ThinkingSections({
 }) {
   if (sections.length === 0) {
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400 py-6">
+      <p className="text-sm text-muted-foreground py-6">
         這次回覆沒有結構化的思考片段。切到「行動」分頁看執行軌跡。
       </p>
     );
@@ -234,15 +234,15 @@ function ThinkingSections({
     <div className="relative pl-4">
       <span
         aria-hidden
-        className="absolute left-0 top-1 bottom-1 w-px bg-slate-200 dark:bg-slate-700"
+        className="absolute left-0 top-1 bottom-1 w-px bg-muted"
       />
       <ol className="space-y-5">
         {sections.map((section, idx) => (
           <li key={`${idx}-${section.title}`} className="relative">
-            <h3 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+            <h3 className="text-[15px] font-semibold text-foreground leading-snug">
               {section.title}
             </h3>
-            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+            <p className="mt-1 text-sm text-foreground/90 leading-relaxed whitespace-pre-line">
               {section.body}
             </p>
           </li>
@@ -259,7 +259,7 @@ function ActionsTimeline({
 }) {
   if (actions.length === 0) {
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400 py-6">
+      <p className="text-sm text-muted-foreground py-6">
         這一輪沒有觸發任何子流程。
       </p>
     );
@@ -277,12 +277,12 @@ function ActionsTimeline({
           >
             <span
               aria-hidden
-              className="mt-0.5 inline-flex w-7 h-7 items-center justify-center rounded-full bg-slate-100 text-base dark:bg-slate-800"
+              className="mt-0.5 inline-flex w-7 h-7 items-center justify-center rounded-full bg-muted text-base"
             >
               {STAGE_EMOJI[event.stage] ?? "·"}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 text-[12px] text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
                 <span className="font-medium uppercase tracking-wider text-[10px]">
                   {stageLabel}
                 </span>
@@ -291,7 +291,7 @@ function ActionsTimeline({
                   {formatElapsedMs(dt)}
                 </span>
               </div>
-              <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug truncate">
+              <p className="text-sm text-foreground leading-snug truncate">
                 {event.label}
               </p>
               {event.detail ? <ActionDetail detail={event.detail} /> : null}
@@ -316,7 +316,7 @@ function ActionDetail({ detail }: { detail: Record<string, unknown> }) {
       {entries.slice(0, 4).map(([k, v]) => (
         <span
           key={k}
-          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
         >
           <span className="font-medium">{k}</span>
           <span>{String(v)}</span>

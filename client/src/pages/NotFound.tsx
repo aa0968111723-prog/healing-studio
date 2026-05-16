@@ -12,7 +12,7 @@ export default function NotFound() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-card/80 backdrop-blur-sm">
         <CardContent className="pt-8 pb-8 text-center">
           <div className="flex justify-center mb-6">
             <div className="relative">
@@ -21,11 +21,11 @@ export default function NotFound() {
             </div>
           </div>
 
-          <h1 className="hs-h1 text-slate-900 mb-2">404</h1>
+          <h1 className="hs-h1 text-foreground mb-2">404</h1>
 
-          <h2 className="hs-h2 text-slate-700 mb-4">Page Not Found</h2>
+          <h2 className="hs-h2 text-foreground/90 mb-4">Page Not Found</h2>
 
-          <p className="hs-p text-slate-600 mb-8">
+          <p className="hs-p text-foreground/90 mb-8">
             Sorry, the page you are looking for doesn't exist.
             <br />
             It may have been moved or deleted.
@@ -37,7 +37,7 @@ export default function NotFound() {
           >
             <Button
               onClick={handleGoHome}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-healing shadow-md hover:shadow-lg"
             >
               <Home className="w-4 h-4 mr-2" />
               Go Home

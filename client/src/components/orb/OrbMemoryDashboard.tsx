@@ -27,11 +27,11 @@ function MemoryRow({ label, icon: Icon, values, tone, onRemove }: RowProps) {
   if (!values || values.length === 0) return null;
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
         <Icon className="w-3 h-3" />
         {label}
-        <span className="text-gray-300">·</span>
-        <span className="text-gray-400 normal-case tracking-normal">{values.length}</span>
+        <span className="text-muted-foreground/60">·</span>
+        <span className="text-muted-foreground/70 normal-case tracking-normal">{values.length}</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
         <AnimatePresence initial={false}>
@@ -93,12 +93,12 @@ export default function OrbMemoryDashboard({ compact }: Props) {
   if (memoryQuery.isLoading) {
     return (
       <div
-        className={`rounded-2xl border border-gray-200/70 bg-white/80 backdrop-blur-sm p-3 ${
+        className={`rounded-2xl border border-border/70 bg-card/80 backdrop-blur-sm p-3 ${
           compact ? "" : "shadow-sm"
         }`}
         data-testid="orb-memory-dashboard"
       >
-        <div className="flex items-center gap-2 text-[12px] text-gray-400">
+        <div className="flex items-center gap-2 text-[12px] text-muted-foreground/70">
           <Brain className="w-3.5 h-3.5 animate-pulse" />
           整理光球記得的偏好…
         </div>
@@ -109,16 +109,16 @@ export default function OrbMemoryDashboard({ compact }: Props) {
   if (!hasAny) {
     return (
       <div
-        className={`rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 p-3 ${
+        className={`rounded-2xl border border-dashed border-border bg-muted/60 p-3 ${
           compact ? "" : ""
         }`}
         data-testid="orb-memory-dashboard"
       >
         <div className="flex items-start gap-2">
-          <Brain className="w-4 h-4 text-gray-300 mt-0.5 shrink-0" />
+          <Brain className="w-4 h-4 text-muted-foreground/60 mt-0.5 shrink-0" />
           <div>
-            <p className="text-[12px] font-medium text-gray-700">光球還沒記住你的偏好</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">
+            <p className="text-[12px] font-medium text-foreground/90">光球還沒記住你的偏好</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5">
               聊幾次後，光球會記下你常用的風格、平台、用途，下次就不再重複問。
             </p>
           </div>
@@ -137,8 +137,8 @@ export default function OrbMemoryDashboard({ compact }: Props) {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Brain className="w-3.5 h-3.5 text-violet-500" />
-          <span className="text-[12px] font-semibold text-gray-700">光球記得你</span>
-          <span className="text-[10px] text-gray-400">
+          <span className="text-[12px] font-semibold text-foreground/90">光球記得你</span>
+          <span className="text-[10px] text-muted-foreground/70">
             · {profile!.evidenceCount} 條記憶
           </span>
         </div>
@@ -158,7 +158,7 @@ export default function OrbMemoryDashboard({ compact }: Props) {
             <button
               type="button"
               onClick={() => setConfirmClear(false)}
-              className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+              className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground hover:bg-muted"
             >
               取消
             </button>
@@ -167,7 +167,7 @@ export default function OrbMemoryDashboard({ compact }: Props) {
           <button
             type="button"
             onClick={() => setConfirmClear(true)}
-            className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-rose-500 transition"
+            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-rose-500 transition"
             data-testid="orb-memory-clear-all"
             title="把所有偏好清掉，光球會重新詢問"
           >
@@ -208,7 +208,7 @@ export default function OrbMemoryDashboard({ compact }: Props) {
         />
       </div>
 
-      <p className="mt-2 text-[10px] text-gray-400 leading-snug">
+      <p className="mt-2 text-[10px] text-muted-foreground/70 leading-snug">
         每次選了風格、平台、用途，光球會偷偷記下來。隨時點 ✕ 移除單一偏好，或按右上「重置」全部清掉。
       </p>
     </div>

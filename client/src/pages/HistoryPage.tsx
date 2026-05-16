@@ -391,16 +391,15 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <header className="page-header">
         <div className="flex items-center gap-3">
           <Clock className="w-5 h-5 text-muted-foreground" />
-          <h1 className="hs-h2 !mb-0">生成歷史</h1>
+          <h1 className="page-title !mb-0">生成歷史</h1>
           <span className="text-xs text-muted-foreground tabular-nums">
             共 {stats.total} 筆紀錄
           </span>
         </div>
-      </div>
+      </header>
       <AssetModelSubpageGuide page="history" />
 
       {/* Stats Bar — horizontal scroll on mobile */}
@@ -449,7 +448,7 @@ export default function HistoryPage() {
           placeholder="搜尋提示詞..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="pl-9 rounded-xl bg-white/40 border-white/60 h-11 sm:h-9 text-base sm:text-sm"
+          className="pl-9 rounded-xl bg-card/40 border-white/60 h-11 sm:h-9 text-base sm:text-sm"
         />
       </div>
 

@@ -318,17 +318,17 @@ export default function VaultPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      {/* Header */}
-      <div>
-        <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
+    <div className="page-shell page-shell-narrow space-y-6">
+      <header className="page-header">
+        <p className="page-eyebrow">Vault</p>
+        <h1 className="page-title flex items-center gap-2">
           <Layers className="w-6 h-6" />
           資產保險庫
         </h1>
-        <p className="hs-small !mb-0 text-muted-foreground mt-1">
+        <p className="page-subtitle">
           管理角色參考圖，並查看三個工作室生成的所有成品。
         </p>
-      </div>
+      </header>
 
       <AssetModelSubpageGuide page="vault" />
 

@@ -275,7 +275,7 @@ export default function ArticleDialog({
                   {/* ── Close Button ── */}
                   <DialogPrimitive.Close asChild>
                     <button
-                      className={`absolute top-4 right-4 z-20 rounded-full p-2 transition-all duration-200 ${styles.closeBtnBg} ${styles.textMuted} ${styles.closeBtnHover}`}
+                      className={`absolute top-4 right-4 z-20 rounded-full p-2 transition-healing ${styles.closeBtnBg} ${styles.textMuted} ${styles.closeBtnHover}`}
                       aria-label="關閉"
                     >
                       <X className="w-4 h-4" />
@@ -441,7 +441,7 @@ export default function ArticleDialog({
                             href={article.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-all duration-200 hover:scale-105 ${styles.accentColor}`}
+                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-healing hover:scale-105 ${styles.accentColor}`}
                             style={{ background: `${styles.panelBorder}` }}
                           >
                             <ExternalLink className="w-3 h-3" />

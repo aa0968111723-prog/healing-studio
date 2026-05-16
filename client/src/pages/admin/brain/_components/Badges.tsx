@@ -33,7 +33,7 @@ export function HealthDot({
     label = "Offline";
     pulseClass = "";
   } else if (state === "unverified") {
-    color = "bg-slate-400";
+    color = "bg-muted";
     label = "未驗證";
     pulseClass = "animate-pulse";
   } else if (failures > 0) {

@@ -127,8 +127,8 @@ const WEIGHT_CONFIG: Record<WeightLabel, WeightConfig> = {
     icon: Newspaper,
     label: "一般更新",
     size: "small",
-    accentColor: "text-slate-400",
-    accentBg: "bg-slate-400/10",
+    accentColor: "text-muted-foreground/70",
+    accentBg: "bg-muted/10",
   },
 };
 
@@ -252,8 +252,8 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
     cardBg: "rgba(15,18,45,0.5)",
     cardBorder: "rgba(100,120,200,0.1)",
     textPrimary: "text-white",
-    textSecondary: "text-slate-300",
-    textMuted: "text-slate-400",
+    textSecondary: "text-muted-foreground/70",
+    textMuted: "text-muted-foreground/70",
     tabsBg: "rgba(20,25,60,0.5)",
     tabsActiveBg: "rgba(80,90,180,0.25)",
     tabsActiveText: "text-indigo-200",
@@ -510,7 +510,7 @@ function BentoCard({
 
         {/* Title */}
         <h3
-          className={`font-semibold leading-snug tracking-tight transition-colors duration-300 ${styles.textPrimary} ${
+          className={`font-semibold leading-snug tracking-tight transition-healing ${styles.textPrimary} ${
             isHero
               ? "hs-h3-lg mb-3"
               : isMedium
@@ -652,7 +652,7 @@ function EmptyState({
         <button
           type="button"
           onClick={onResetTab}
-          className={`mt-4 inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 ${styles.textMuted}`}
+          className={`mt-4 inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-healing hover:scale-105 ${styles.textMuted}`}
           style={{ background: styles.tabsBg }}
         >
           查看全部
@@ -914,7 +914,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
-                  className={`rounded-lg px-3 sm:px-4 text-[11px] sm:text-xs font-medium border-0 transition-all duration-200
+                  className={`rounded-lg px-3 sm:px-4 text-[11px] sm:text-xs font-medium border-0 transition-healing
                     data-[state=active]:shadow-none
                     ${styles.textMuted}
                   `}
@@ -1021,7 +1021,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
                 if (!isFetchingNextPage) fetchNextPage();
               }}
               disabled={isFetchingNextPage}
-              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 disabled:opacity-60 disabled:cursor-wait ${styles.textMuted}`}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-healing hover:scale-105 disabled:opacity-60 disabled:cursor-wait ${styles.textMuted}`}
               style={{ background: styles.tabsBg }}
               aria-label="載入更多情報"
             >

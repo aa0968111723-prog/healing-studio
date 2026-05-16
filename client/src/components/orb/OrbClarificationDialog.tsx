@@ -191,7 +191,7 @@ export default function OrbClarificationDialog({
               }
               placeholder={question.hint || "請輸入..."}
               className={cn(
-                "rounded-2xl border-[oklch(0.9_0.04_300_/_0.5)] bg-white/70 backdrop-blur focus-visible:ring-2 focus-visible:ring-[oklch(0.82_0.04_300_/_0.55)]",
+                "rounded-2xl border-[oklch(0.9_0.04_300_/_0.5)] bg-card/70 backdrop-blur focus-visible:ring-2 focus-visible:ring-[oklch(0.82_0.04_300_/_0.55)]",
                 error && "border-rose-400",
               )}
             />
@@ -210,7 +210,7 @@ export default function OrbClarificationDialog({
               placeholder={question.hint || "請提供更多細節..."}
               rows={3}
               className={cn(
-                "rounded-2xl border-[oklch(0.9_0.04_300_/_0.5)] bg-white/70 backdrop-blur focus-visible:ring-2 focus-visible:ring-[oklch(0.82_0.04_300_/_0.55)] resize-none leading-relaxed",
+                "rounded-2xl border-[oklch(0.9_0.04_300_/_0.5)] bg-card/70 backdrop-blur focus-visible:ring-2 focus-visible:ring-[oklch(0.82_0.04_300_/_0.55)] resize-none leading-relaxed",
                 error && "border-rose-400",
               )}
             />
@@ -229,7 +229,7 @@ export default function OrbClarificationDialog({
               }
               placeholder={question.hint || "請輸入..."}
               className={cn(
-                "rounded-2xl border-[oklch(0.9_0.04_300_/_0.5)] bg-white/70 backdrop-blur",
+                "rounded-2xl border-[oklch(0.9_0.04_300_/_0.5)] bg-card/70 backdrop-blur",
                 error && "border-rose-400",
               )}
             />

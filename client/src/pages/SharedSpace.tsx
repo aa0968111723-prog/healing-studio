@@ -456,19 +456,17 @@ export default function SharedSpace() {
 
   return (
     <SharedSpaceErrorBoundary>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
-              <Users className="w-6 h-6" />
-              共享空間
-            </h1>
-            <p className="hs-p !mb-0 text-muted-foreground mt-1">
-              探索社群創作、分享你的作品，獲得配額獎勵
-            </p>
-          </div>
-        </div>
+      <div className="page-shell space-y-6">
+        <header className="page-header">
+          <p className="page-eyebrow">Shared Space</p>
+          <h1 className="page-title flex items-center gap-2 !mb-0">
+            <Users className="w-6 h-6" />
+            共享空間
+          </h1>
+          <p className="page-subtitle">
+            探索社群創作、分享你的作品，獲得配額獎勵
+          </p>
+        </header>
 
         <AssetModelSubpageGuide page="shared" />
 
@@ -508,7 +506,7 @@ export default function SharedSpace() {
               placeholder="搜尋共享素材或模型..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-10 h-10 rounded-xl bg-white/40 border-white/60"
+              className="pl-10 h-10 rounded-xl bg-card/40 border-white/60"
             />
           </div>
           {activeTab === "assets" && (
@@ -620,7 +618,7 @@ export default function SharedSpace() {
                           )}
                           <div className="absolute top-2 left-2">
                             <span
-                              className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-white/80 text-muted-foreground"
+                              className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-card/80 text-muted-foreground"
                               style={{ backdropFilter: "blur(4px)" }}
                             >
                               {MODALITY_LABELS[asset.assetType] ||
@@ -631,7 +629,7 @@ export default function SharedSpace() {
                           {/* One-Click Use overlay — always visible on mobile, hover-only on desktop */}
                           {canUse && (
                             <div
-                              className={`absolute inset-0 transition-colors duration-300 flex items-center justify-center ${
+                              className={`absolute inset-0 transition-healing flex items-center justify-center ${
                                 isMobile
                                   ? "bg-black/0"
                                   : "bg-black/0 group-hover:bg-black/40"
@@ -640,7 +638,7 @@ export default function SharedSpace() {
                               <Button
                                 size="sm"
                                 onClick={() => handleUseAsset(asset)}
-                                className={`gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg transition-all duration-300 ${
+                                className={`gap-1.5 bg-card/90 hover:bg-card text-foreground shadow-lg transition-healing ${
                                   isMobile
                                     ? "opacity-0 pointer-events-none"
                                     : "opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"

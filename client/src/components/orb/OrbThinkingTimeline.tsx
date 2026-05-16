@@ -50,13 +50,13 @@ export function OrbThinkingTimeline({
   return (
     <div className="flex justify-start">
       <div
-        className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-2.5 border border-gray-100/60 max-w-[88%]"
+        className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-2.5 border border-border/60 max-w-[88%]"
         role="status"
         aria-live="polite"
         aria-label="光球正在思考"
       >
         {isEmpty ? (
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
             <span>{fallbackLabel}</span>
           </div>
@@ -89,14 +89,14 @@ export function OrbThinkingTimeline({
                     <span
                       className={
                         isLatest
-                          ? "text-gray-700 font-medium"
-                          : "text-gray-400"
+                          ? "text-foreground/90 font-medium"
+                          : "text-muted-foreground/70"
                       }
                     >
                       {event.label}
                       {isLatest && event.stage !== "finalizing" && event.stage !== "error" ? (
                         <Loader2
-                          className="inline-block w-3 h-3 ml-1 animate-spin text-gray-400"
+                          className="inline-block w-3 h-3 ml-1 animate-spin text-muted-foreground/70"
                           aria-hidden="true"
                         />
                       ) : null}

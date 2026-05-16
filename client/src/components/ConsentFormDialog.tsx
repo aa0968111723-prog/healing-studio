@@ -482,7 +482,7 @@ export default function ConsentFormDialog({
                 <Eraser className="w-3.5 h-3.5 mr-1" /> 重新簽名
               </Button>
             </div>
-            <div className="rounded-md border border-input bg-white">
+            <div className="rounded-md border border-input bg-card">
               <canvas
                 ref={canvasRef}
                 width={640}

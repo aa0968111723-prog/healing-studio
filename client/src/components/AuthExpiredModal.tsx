@@ -92,11 +92,11 @@ export default function AuthExpiredModal() {
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className="fixed inset-0 flex items-center justify-center z-[10001] pointer-events-none"
           >
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 max-w-md w-full mx-4 p-8 pointer-events-auto relative">
+            <div className="bg-card rounded-2xl shadow-2xl border border-border max-w-md w-full mx-4 p-8 pointer-events-auto relative">
               {/* Close button */}
               <button
                 onClick={handleDismiss}
-                className="absolute top-4 right-4 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-zinc-600"
+                className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground/70 hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -109,15 +109,15 @@ export default function AuthExpiredModal() {
               </div>
 
               {/* Title */}
-              <h2 className="text-xl font-semibold text-center text-zinc-900 dark:text-zinc-100 mb-2">
+              <h2 className="text-xl font-semibold text-center text-foreground mb-2">
                 登入已過期
               </h2>
 
               {/* Description */}
-              <p className="text-center text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed mb-2">
+              <p className="text-center text-muted-foreground text-sm leading-relaxed mb-2">
                 您的登入狀態已過期，需要重新登入才能繼續操作。
               </p>
-              <p className="text-center text-zinc-400 dark:text-zinc-500 text-xs mb-6">
+              <p className="text-center text-muted-foreground text-xs mb-6">
                 您的創作進度不會遺失，登入後即可繼續。
               </p>
 
@@ -125,7 +125,7 @@ export default function AuthExpiredModal() {
               <div className="flex flex-col gap-3">
                 <Button
                   onClick={handleLogin}
-                  className="w-full h-11 rounded-xl gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+                  className="w-full h-11 rounded-xl gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-healing"
                 >
                   <LogIn className="w-4 h-4" />
                   Google 登入
@@ -139,14 +139,14 @@ export default function AuthExpiredModal() {
                   onClick={() => {
                     window.location.href = getDemoLoginUrl();
                   }}
-                  className="w-full h-11 rounded-xl gap-2 border-dashed border-muted-foreground/30 hover:bg-muted/30 hover:shadow-md transition-all duration-200"
+                  className="w-full h-11 rounded-xl gap-2 border-dashed border-muted-foreground/30 hover:bg-muted/30 hover:shadow-md transition-healing"
                 >
                   ✨ 訪客體驗（免登入）
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={handleDismiss}
-                  className="w-full h-10 rounded-xl text-zinc-500 hover:text-zinc-700"
+                  className="w-full h-10 rounded-xl text-muted-foreground hover:text-foreground"
                 >
                   稍後再說
                 </Button>

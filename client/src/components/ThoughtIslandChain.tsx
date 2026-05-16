@@ -499,7 +499,7 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
                 "flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all",
                 zoomLevel === level
                   ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5"
+                  : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-card/5"
               )}
             >
               {ZOOM_LABELS[level].icon}
@@ -509,7 +509,7 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
 
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5 transition-colors ml-1"
+            className="p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-card/5 transition-colors ml-1"
           >
             {isExpanded ? (
               <ChevronUp className="w-4 h-4" />
@@ -521,7 +521,7 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
       </div>
 
       {/* Progress bar */}
-      <div className="h-0.5 mx-4 rounded-full bg-white/5 overflow-hidden">
+      <div className="h-0.5 mx-4 rounded-full bg-card/5 overflow-hidden">
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-primary/60 to-emerald-500/60"
           initial={{ width: "0%" }}

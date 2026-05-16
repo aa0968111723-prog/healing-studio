@@ -292,14 +292,14 @@ function UploadPanel({
         placeholder={itemType === "character" ? "角色名稱" : "場景名稱"}
         value={name}
         onChange={e => setName(e.target.value)}
-        className="h-8 text-xs rounded-lg bg-white/40 border-white/60"
+        className="h-8 text-xs rounded-lg bg-card/40 border-white/60"
       />
 
       <Input
         placeholder="標籤（逗號分隔）"
         value={tags}
         onChange={e => setTags(e.target.value)}
-        className="h-8 text-xs rounded-lg bg-white/40 border-white/60"
+        className="h-8 text-xs rounded-lg bg-card/40 border-white/60"
       />
 
       {preview ? (
@@ -315,7 +315,7 @@ function UploadPanel({
               setFile(null);
               setPreview(null);
             }}
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center hover:bg-white"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-card/80 flex items-center justify-center hover:bg-card"
           >
             <X className="w-3 h-3" />
           </button>
@@ -487,7 +487,7 @@ export function ConsistencyVault({
             placeholder="搜尋..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-xs rounded-lg bg-white/40 border-white/60"
+            className="pl-8 h-8 text-xs rounded-lg bg-card/40 border-white/60"
           />
         </div>
 
@@ -692,7 +692,7 @@ export function VaultDropzone({
           <Button
             variant="outline"
             size="icon"
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 hover:bg-white shadow-sm"
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-card/80 hover:bg-card shadow-sm"
             onClick={e => {
               e.stopPropagation();
               onClear();
@@ -726,7 +726,7 @@ export function VaultDropzone({
               }}
               placeholder="貼上圖片 URL..."
               autoFocus
-              className="flex-1 text-[11px] bg-white/60 border border-border/40 rounded-lg px-2 py-1.5 outline-none focus:border-primary/50 min-w-0"
+              className="flex-1 text-[11px] bg-card/60 border border-border/40 rounded-lg px-2 py-1.5 outline-none focus:border-primary/50 min-w-0"
             />
             <button
               onClick={handleUrlSubmit}

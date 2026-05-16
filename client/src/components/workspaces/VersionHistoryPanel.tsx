@@ -62,7 +62,7 @@ const strengthLabels: Record<PromptStrengthLevel, string> = {
 };
 
 const strengthColors: Record<PromptStrengthLevel, string> = {
-  low: "bg-gray-400/20 text-gray-300",
+  low: "bg-muted/20 text-muted-foreground/70",
   medium: "bg-amber-400/20 text-amber-300",
   high: "bg-orange-500/20 text-orange-300",
   locked: "bg-red-500/20 text-red-300",
@@ -173,8 +173,8 @@ function VersionCard({
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        "bg-white/30 rounded-xl border border-white/40 p-3 backdrop-blur-sm",
-        "cursor-pointer transition-colors hover:bg-white/40",
+        "bg-card/30 rounded-xl border border-white/40 p-3 backdrop-blur-sm",
+        "cursor-pointer transition-colors hover:bg-card/40",
         isPinned && "ring-1 ring-amber-400/50"
       )}
       onClick={() => setExpanded(v => !v)}
@@ -222,7 +222,7 @@ function VersionCard({
           {version.changedFields.map(field => (
             <span
               key={field}
-              className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-white/60"
+              className="rounded-full bg-card/10 px-1.5 py-0.5 text-[10px] text-white/60"
             >
               {field}
             </span>
@@ -304,7 +304,7 @@ function VersionCard({
                       .map(block => (
                         <span
                           key={block.id}
-                          className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/60"
+                          className="rounded bg-card/10 px-1.5 py-0.5 text-[10px] text-white/60"
                         >
                           {block.label}: {block.value.slice(0, 30)}
                           {block.value.length > 30 ? "…" : ""}
@@ -350,7 +350,7 @@ function VersionCard({
                         key={ref.id}
                         className="flex items-center gap-1.5 text-[10px] text-white/60"
                       >
-                        <span className="rounded bg-white/10 px-1 py-0.5">
+                        <span className="rounded bg-card/10 px-1 py-0.5">
                           {ref.type}
                         </span>
                         <span className="truncate">{ref.purpose}</span>
@@ -371,7 +371,7 @@ function VersionCard({
                     {settingsEntries.map(([key, value]) => (
                       <span
                         key={key}
-                        className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/60"
+                        className="rounded bg-card/10 px-1.5 py-0.5 text-[10px] text-white/60"
                       >
                         {key}: {String(value)}
                       </span>
@@ -433,7 +433,7 @@ export function VersionHistoryPanel({
           <Clock className="size-4 text-white/60" />
           <span className="text-sm font-medium text-white/80">版本歷史</span>
         </div>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/50">
+        <span className="rounded-full bg-card/10 px-2 py-0.5 text-[10px] text-white/50">
           {versions.length}
         </span>
       </div>

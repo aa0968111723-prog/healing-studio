@@ -83,7 +83,7 @@ export function SummaryBar({
     (summary?.abnormal ?? 0);
 
   return (
-    <div className="flex items-center gap-3 flex-wrap p-4 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur border border-slate-200 dark:border-slate-800">
+    <div className="flex items-center gap-3 flex-wrap p-4 rounded-2xl surface-2 backdrop-blur border border-border">
       {showViewToggle && (
         <>
           <ToggleGroup
@@ -101,7 +101,7 @@ export function SummaryBar({
                 onViewModeChange!(value);
               }
             }}
-            className="h-7 rounded-md border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70"
+            className="h-7 rounded-md border border-border surface-2"
           >
             <ToggleGroupItem
               value="site"

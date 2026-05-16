@@ -82,7 +82,7 @@ export function CreativeModeSelector({
             {active && (
               <motion.div
                 layoutId="creative-mode-pill"
-                className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                className="absolute inset-0 rounded-lg bg-card shadow-sm"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}

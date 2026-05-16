@@ -226,8 +226,8 @@ export function ConversationTabs() {
           isActive
             ? "bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-600/60 dark:text-emerald-200"
             : conv.isEmpty
-              ? "bg-white/40 border-slate-200/60 text-slate-400 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-600 dark:bg-slate-800/30 dark:border-slate-700/40 dark:text-slate-500 dark:hover:text-slate-300"
-              : "bg-white/70 border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-800/60 dark:border-slate-700/70 dark:text-slate-300 dark:hover:bg-slate-700/60"
+              ? "bg-card/40 border-border/70 text-muted-foreground/70 hover:bg-muted/60 hover:border-border hover:text-foreground/90"
+              : "bg-card/70 border-border/70 text-muted-foreground hover:bg-muted/60 hover:border-border"
         )}
       >
         <MessageSquare
@@ -236,8 +236,8 @@ export function ConversationTabs() {
             isActive
               ? "text-emerald-500"
               : conv.isEmpty
-                ? "text-slate-300 dark:text-slate-600"
-                : "text-slate-400"
+                ? "text-muted-foreground/60"
+                : "text-muted-foreground/70"
           )}
         />
         {isRenaming ? (
@@ -276,7 +276,7 @@ export function ConversationTabs() {
               "shrink-0 rounded-full px-1 text-[10px] leading-none py-0.5 tabular-nums",
               isActive
                 ? "bg-emerald-200/80 text-emerald-800 dark:bg-emerald-800/60 dark:text-emerald-100"
-                : "bg-slate-200/80 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300"
+                : "bg-muted/80 text-muted-foreground"
             )}
             aria-label={`${conv.messageCount} 則訊息`}
           >
@@ -284,7 +284,7 @@ export function ConversationTabs() {
           </span>
         )}
         {isPending ? (
-          <Loader2 className="w-3 h-3 animate-spin text-slate-400 shrink-0" />
+          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground/70 shrink-0" />
         ) : (
           <button
             type="button"
@@ -296,7 +296,7 @@ export function ConversationTabs() {
               "rounded p-0.5 -mr-1 transition-opacity shrink-0",
               isActive
                 ? "opacity-60 hover:opacity-100 hover:bg-emerald-100 dark:hover:bg-emerald-800/40"
-                : "opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-700"
+                : "opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-muted"
             )}
             aria-label={`刪除對話：${conv.displayLabel}`}
             title="刪除這個對話"
@@ -319,7 +319,7 @@ export function ConversationTabs() {
       className="flex items-center gap-1.5 py-1.5 px-1"
     >
       {visible.length === 0 ? (
-        <div className="text-xs text-slate-400 px-2 py-1 flex-1">
+        <div className="text-xs text-muted-foreground/70 px-2 py-1 flex-1">
           還沒有對話 — 點 + 開新對話
         </div>
       ) : (
@@ -339,7 +339,7 @@ export function ConversationTabs() {
               <button
                 type="button"
                 data-testid="conversation-tabs-overflow"
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200/80 dark:border-slate-700/70 bg-white/70 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-300 hover:border-slate-300 hover:text-slate-700 dark:hover:text-slate-100 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 surface-2 text-xs text-muted-foreground hover:border-border hover:text-foreground/90 transition-colors whitespace-nowrap"
                 aria-label={
                   hasOverflow
                     ? `還有 ${overflow.length} 個對話`
@@ -360,7 +360,7 @@ export function ConversationTabs() {
             <DropdownMenuContent align="end" className="w-64">
               {hasOverflow && (
                 <>
-                  <DropdownMenuLabel className="text-xs text-slate-500 dark:text-slate-400">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
                     其他對話（{overflow.length}）
                   </DropdownMenuLabel>
                   {overflow.slice(0, 20).map(conv => {
@@ -385,8 +385,8 @@ export function ConversationTabs() {
                               isActive
                                 ? "text-emerald-500"
                                 : conv.isEmpty
-                                  ? "text-slate-300 dark:text-slate-600"
-                                  : "text-slate-400"
+                                  ? "text-muted-foreground/60"
+                                  : "text-muted-foreground/70"
                             )}
                           />
                           <span
@@ -394,13 +394,13 @@ export function ConversationTabs() {
                               "truncate",
                               conv.isEmpty &&
                                 !isActive &&
-                                "text-slate-400 dark:text-slate-500"
+                                "text-muted-foreground"
                             )}
                           >
                             {conv.displayLabel}
                           </span>
                         </span>
-                        <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
+                        <span className="text-[10px] text-muted-foreground/70 tabular-nums shrink-0">
                           {conv.messageCount > 1
                             ? `${conv.messageCount > 99 ? "99+" : conv.messageCount} 則`
                             : conv.lastMessageAt
@@ -411,7 +411,7 @@ export function ConversationTabs() {
                     );
                   })}
                   {overflow.length > 20 && (
-                    <div className="px-2 py-1 text-[10px] text-slate-400">
+                    <div className="px-2 py-1 text-[10px] text-muted-foreground/70">
                       只列前 20 個。更舊的可以從對話設定找回。
                     </div>
                   )}
@@ -441,7 +441,7 @@ export function ConversationTabs() {
                 )}
               </DropdownMenuItem>
               {emptyCount === 0 && !hasOverflow && (
-                <div className="px-2 py-1 text-[10px] text-slate-400 flex items-center gap-1">
+                <div className="px-2 py-1 text-[10px] text-muted-foreground/70 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
                   沒有可以清的空對話
                 </div>
@@ -454,7 +454,7 @@ export function ConversationTabs() {
           onClick={() => void handleCreate()}
           disabled={pendingId === "__new__"}
           data-testid="conversation-tab-new"
-          className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-300 transition-colors disabled:opacity-50 whitespace-nowrap"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-300 transition-colors disabled:opacity-50 whitespace-nowrap"
           title="新開一個對話"
           aria-label="新增對話"
         >

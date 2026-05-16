@@ -100,7 +100,7 @@ function ReferenceCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="rounded-xl border border-white/50 bg-white/30 backdrop-blur-sm p-3 space-y-3"
+      className="rounded-xl border border-white/50 bg-card/30 backdrop-blur-sm p-3 space-y-3"
     >
       {/* Card header */}
       <div className="flex items-center justify-between gap-2">
@@ -121,7 +121,7 @@ function ReferenceCard({
           <button
             type="button"
             onClick={() => setExpanded(v => !v)}
-            className="p-1 rounded-md text-muted-foreground hover:bg-white/40 transition-colors"
+            className="p-1 rounded-md text-muted-foreground hover:bg-card/40 transition-colors"
           >
             {expanded ? (
               <ChevronUp className="w-3.5 h-3.5" />
@@ -159,7 +159,7 @@ function ReferenceCard({
                   value={item.type}
                   onValueChange={v => onUpdate({ ...item, type: v })}
                 >
-                  <SelectTrigger size="sm" className="h-8 text-xs bg-white/50">
+                  <SelectTrigger size="sm" className="h-8 text-xs bg-card/50">
                     <SelectValue placeholder="選擇類型" />
                   </SelectTrigger>
                   <SelectContent>
@@ -179,7 +179,7 @@ function ReferenceCard({
                   value={item.purpose}
                   onChange={e => onUpdate({ ...item, purpose: e.target.value })}
                   placeholder="描述用途"
-                  className="h-8 text-xs bg-white/50"
+                  className="h-8 text-xs bg-card/50"
                 />
               </div>
             </div>
@@ -218,7 +218,7 @@ function ReferenceCard({
                         "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition-colors cursor-pointer",
                         checked
                           ? "bg-primary/10 text-primary"
-                          : "bg-white/40 text-muted-foreground hover:bg-white/60"
+                          : "bg-card/40 text-muted-foreground hover:bg-card/60"
                       )}
                     >
                       <Checkbox
@@ -301,10 +301,10 @@ export function ReferencePanel({
             if (e.key === "Enter") handleAdd();
           }}
           placeholder="輸入參考素材 URL…"
-          className="flex-1 h-8 text-xs bg-white/50"
+          className="flex-1 h-8 text-xs bg-card/50"
         />
         <Select value={newType} onValueChange={setNewType}>
-          <SelectTrigger size="sm" className="w-24 h-8 text-xs bg-white/50">
+          <SelectTrigger size="sm" className="w-24 h-8 text-xs bg-card/50">
             <SelectValue placeholder="類型" />
           </SelectTrigger>
           <SelectContent>

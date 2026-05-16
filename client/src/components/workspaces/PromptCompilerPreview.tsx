@@ -50,7 +50,7 @@ export function PromptCompilerPreview({
   };
 
   return (
-    <div className="bg-white/30 backdrop-blur-sm border border-white/50 rounded-xl p-3 space-y-2">
+    <div className="bg-card/30 backdrop-blur-sm border border-white/50 rounded-xl p-3 space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">

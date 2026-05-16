@@ -55,7 +55,7 @@ function outcomeTone(outcome: PerceptionVerdict["outcome"]): {
     default:
       return {
         label: "無法判斷",
-        className: "border-white/20 bg-white/10 text-white/70",
+        className: "border-white/20 bg-card/10 text-white/70",
         emoji: "?",
       };
   }
@@ -92,7 +92,7 @@ export function PerceptionVerdictCard(props: PerceptionVerdictCardProps) {
 
   return (
     <div
-      className="fixed bottom-24 right-5 z-[87] w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/20 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+      className="fixed bottom-24 right-5 z-[87] w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/20 bg-muted/95 p-4 text-white shadow-2xl backdrop-blur-xl"
       role="dialog"
       aria-label="光球：執行驗證"
       data-testid="orb-perception-verdict-card"
@@ -111,7 +111,7 @@ export function PerceptionVerdictCard(props: PerceptionVerdictCardProps) {
         <span className="text-sm font-medium">{stepLabel}</span>
       </div>
 
-      <div className="mt-3 rounded-2xl bg-white/5 p-3 text-sm leading-6 text-white/80">
+      <div className="mt-3 rounded-2xl bg-card/5 p-3 text-sm leading-6 text-white/80">
         {verdict.reason}
       </div>
 
@@ -128,8 +128,8 @@ export function PerceptionVerdictCard(props: PerceptionVerdictCardProps) {
           disabled={isBusy}
           className={`rounded-2xl px-3 py-2 text-xs hover:opacity-90 disabled:opacity-50 ${
             isRecommended("proceed")
-              ? "bg-cyan-300 font-semibold text-slate-950"
-              : "bg-white/10 text-white/80"
+              ? "bg-cyan-300 font-semibold text-foreground"
+              : "bg-card/10 text-white/80"
           }`}
           data-testid="perception-proceed"
         >
@@ -141,8 +141,8 @@ export function PerceptionVerdictCard(props: PerceptionVerdictCardProps) {
           disabled={isBusy}
           className={`rounded-2xl px-3 py-2 text-xs hover:opacity-90 disabled:opacity-50 ${
             isRecommended("retry")
-              ? "bg-cyan-300 font-semibold text-slate-950"
-              : "bg-white/10 text-white/80"
+              ? "bg-cyan-300 font-semibold text-foreground"
+              : "bg-card/10 text-white/80"
           }`}
           data-testid="perception-retry"
         >
@@ -154,8 +154,8 @@ export function PerceptionVerdictCard(props: PerceptionVerdictCardProps) {
           disabled={isBusy}
           className={`rounded-2xl px-3 py-2 text-xs hover:opacity-90 disabled:opacity-50 ${
             isRecommended("replan")
-              ? "bg-amber-300 font-semibold text-slate-950"
-              : "bg-white/10 text-white/80"
+              ? "bg-amber-300 font-semibold text-foreground"
+              : "bg-card/10 text-white/80"
           }`}
           data-testid="perception-replan"
         >
@@ -168,7 +168,7 @@ export function PerceptionVerdictCard(props: PerceptionVerdictCardProps) {
           className={`rounded-2xl px-3 py-2 text-xs hover:opacity-90 disabled:opacity-50 ${
             isRecommended("abort")
               ? "bg-rose-500/30 font-semibold text-rose-100"
-              : "bg-white/10 text-white/80"
+              : "bg-card/10 text-white/80"
           }`}
           data-testid="perception-abort"
         >

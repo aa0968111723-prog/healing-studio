@@ -381,7 +381,7 @@ function NewEventForm({
           <CalendarDays className="w-4 h-4" />
           新增排程 - {date.toLocaleDateString("zh-TW")}
         </h4>
-        <button onClick={onClose} className="p-1 rounded hover:bg-white/10">
+        <button onClick={onClose} className="p-1 rounded hover:bg-card/10">
           <X className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
       </div>
@@ -390,7 +390,7 @@ function NewEventForm({
         value={title}
         onChange={e => setTitle(e.target.value)}
         placeholder="排程標題（例如：陽明山外拍）"
-        className="bg-white/5 border-white/10 text-sm"
+        className="bg-card/5 border-white/10 text-sm"
       />
 
       <Textarea
@@ -398,7 +398,7 @@ function NewEventForm({
         onChange={e => setContent(e.target.value)}
         placeholder="描述（選填）"
         rows={2}
-        className="bg-white/5 border-white/10 text-xs resize-none"
+        className="bg-card/5 border-white/10 text-xs resize-none"
       />
 
       <div className="space-y-2">
@@ -407,7 +407,7 @@ function NewEventForm({
             type="checkbox"
             checked={allDay}
             onChange={e => setAllDay(e.target.checked)}
-            className="rounded border-white/20 bg-white/5 h-3.5 w-3.5 accent-amber-500"
+            className="rounded border-white/20 bg-card/5 h-3.5 w-3.5 accent-amber-500"
           />
           全天事件
         </label>
@@ -422,7 +422,7 @@ function NewEventForm({
               value={timeStr}
               onChange={e => setTimeStr(e.target.value)}
               disabled={allDay}
-              className="bg-white/5 border-white/10 text-xs h-8 disabled:opacity-40"
+              className="bg-card/5 border-white/10 text-xs h-8 disabled:opacity-40"
             />
           </label>
           <label className="space-y-1">
@@ -431,7 +431,7 @@ function NewEventForm({
               value={durationMinutes}
               onChange={e => setDurationMinutes(Number(e.target.value))}
               disabled={allDay}
-              className="w-full bg-white/5 border border-white/10 rounded-md text-xs h-8 px-2 disabled:opacity-40"
+              className="w-full bg-card/5 border border-white/10 rounded-md text-xs h-8 px-2 disabled:opacity-40"
             >
               <option value={30}>30 分鐘</option>
               <option value={60}>1 小時</option>
@@ -449,7 +449,7 @@ function NewEventForm({
             <select
               value={reminderMinutes}
               onChange={e => setReminderMinutes(Number(e.target.value))}
-              className="w-full bg-white/5 border border-white/10 rounded-md text-xs h-8 px-2"
+              className="w-full bg-card/5 border border-white/10 rounded-md text-xs h-8 px-2"
             >
               {REMINDER_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>
@@ -464,7 +464,7 @@ function NewEventForm({
           <button
             type="button"
             onClick={() => setShowLocationPicker(v => !v)}
-            className="w-full flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs hover:border-amber-500/30"
+            className="w-full flex items-center justify-between rounded-md border border-white/10 bg-card/5 px-2.5 py-1.5 text-xs hover:border-amber-500/30"
           >
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <MapPin className="w-3 h-3 text-amber-400" />
@@ -493,7 +493,7 @@ function NewEventForm({
           type="checkbox"
           checked={addToGoogle}
           onChange={e => setAddToGoogle(e.target.checked)}
-          className="rounded border-white/20 bg-white/5 h-3.5 w-3.5 accent-blue-500"
+          className="rounded border-white/20 bg-card/5 h-3.5 w-3.5 accent-blue-500"
         />
         <ExternalLink className="w-3 h-3" />
         同時加入 Google 日曆
@@ -911,16 +911,13 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="hs-h2 !mb-0">創作排程</h1>
-            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-              拖曳筆記到日曆上安排創作時程
-            </p>
-          </div>
-        </div>
+      <div className="flex items-end justify-between gap-4">
+        <header className="page-header !mb-0">
+          <h1 className="page-title !mb-0">創作排程</h1>
+          <p className="page-subtitle">
+            拖曳筆記到日曆上安排創作時程
+          </p>
+        </header>
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -1146,7 +1143,7 @@ export default function CalendarPage() {
               className="w-full"
               classNames={{
                 day: cn(
-                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-all duration-200"
+                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-healing"
                 ),
               }}
               components={{
@@ -1363,7 +1360,7 @@ export default function CalendarPage() {
                 {[1, 2, 3].map(i => (
                   <div
                     key={i}
-                    className="h-10 rounded-lg bg-white/5 animate-pulse"
+                    className="h-10 rounded-lg bg-card/5 animate-pulse"
                   />
                 ))}
               </div>
@@ -1483,14 +1480,14 @@ function PhoneSubscribePanel() {
       </p>
 
       {feedQuery.isLoading ? (
-        <div className="h-9 rounded-md bg-white/5 animate-pulse" />
+        <div className="h-9 rounded-md bg-card/5 animate-pulse" />
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-1">
             <Input
               readOnly
               value={fullUrl}
-              className="bg-white/5 border-white/10 text-[11px] font-mono"
+              className="bg-card/5 border-white/10 text-[11px] font-mono"
               onFocus={e => e.currentTarget.select()}
             />
             <Button

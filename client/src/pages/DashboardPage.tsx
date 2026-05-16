@@ -402,14 +402,15 @@ export default function DashboardPage() {
 
       {/* ─── 使用統計（主內容） ────────────────────────────────────────────── */}
       {section === "dashboard" && (<>
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
-        <h1 className="hs-h2 !mb-0">儀表板</h1>
-      </div>
-      <p className="hs-small !mb-0 text-muted-foreground -mt-4">
-        查看個人使用統計、配額餘額與成本分析。
-      </p>
+      <header className="page-header">
+        <div className="flex items-center gap-3">
+          <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
+          <h1 className="page-title !mb-0">儀表板</h1>
+        </div>
+        <p className="page-subtitle">
+          查看個人使用統計、配額餘額與成本分析。
+        </p>
+      </header>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

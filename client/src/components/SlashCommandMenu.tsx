@@ -146,8 +146,8 @@ export function SlashCommandMenu({
           transition={{ duration: 0.15, ease: "easeOut" }}
           className={cn(
             "absolute z-50 left-0 right-0 mx-auto w-[min(100%,28rem)]",
-            "rounded-2xl border border-slate-200 dark:border-slate-700",
-            "bg-white/95 dark:bg-slate-900/95 backdrop-blur-md",
+            "rounded-2xl border border-border",
+            "bg-card/80 backdrop-blur-md",
             "shadow-2xl shadow-slate-900/10 dark:shadow-black/40",
             "overflow-hidden",
             placement === "above" ? "bottom-full mb-2" : "top-full mt-2",
@@ -157,11 +157,11 @@ export function SlashCommandMenu({
           aria-label="Slash 指令"
           data-testid="slash-command-menu"
         >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <span className="text-xs font-medium text-muted-foreground">
               Slash 指令
             </span>
-            <KbdGroup className="text-slate-400 dark:text-slate-500">
+            <KbdGroup className="text-muted-foreground">
               <Kbd>
                 <ArrowUp />
               </Kbd>
@@ -178,7 +178,7 @@ export function SlashCommandMenu({
           >
             {groupedCommands.map(([group, items]) => (
               <div key={group}>
-                <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                   {SLASH_GROUP_LABELS[group] ?? group}
                 </div>
                 {items.map(({ cmd, index }) => {
@@ -202,7 +202,7 @@ export function SlashCommandMenu({
                         "focus:outline-none",
                         isActive
                           ? "bg-emerald-50 dark:bg-emerald-900/20"
-                          : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                          : "hover:bg-muted"
                       )}
                       role="option"
                       aria-selected={isActive}
@@ -212,7 +212,7 @@ export function SlashCommandMenu({
                           "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
                           isActive
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : "bg-muted text-muted-foreground"
                         )}
                       >
                         <Icon className="h-4 w-4" />
@@ -224,18 +224,18 @@ export function SlashCommandMenu({
                               "font-mono text-sm font-medium",
                               isActive
                                 ? "text-emerald-700 dark:text-emerald-300"
-                                : "text-slate-700 dark:text-slate-200"
+                                : "text-foreground/90"
                             )}
                           >
                             {cmd.name}
                           </span>
                           {cmd.takesArgument && cmd.argumentHint && (
-                            <span className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                            <span className="text-xs text-muted-foreground truncate">
                               {cmd.argumentHint}
                             </span>
                           )}
                         </span>
-                        <span className="block text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <span className="block text-xs text-muted-foreground truncate">
                           {cmd.description}
                         </span>
                       </span>

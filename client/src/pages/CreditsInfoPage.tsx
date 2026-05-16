@@ -38,7 +38,7 @@ import { Link } from "wouter";
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   free: {
     label: "免費",
-    color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    color: "bg-muted text-foreground/90",
   },
   economy: {
     label: "經濟",
@@ -337,25 +337,26 @@ export default function CreditsInfoPage() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-16">
-      {/* Header */}
-      <motion.div
+    <div className="page-shell page-shell-narrow space-y-8 pb-16">
+      <motion.header
+        className="page-header"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <div className="flex items-center gap-3 mb-2">
+        <p className="page-eyebrow">Credits</p>
+        <div className="flex items-center gap-3">
           <Coins className="w-7 h-7 text-primary" />
-          <h1 className="hs-h1 !mb-0">積分說明</h1>
+          <h1 className="page-title !mb-0">積分說明</h1>
         </div>
-        <p className="hs-p !mb-0 text-muted-foreground">
+        <p className="page-subtitle">
           Healing Studio 使用「平台積分」作為所有 AI 生成的計費單位。
           <strong className="text-foreground">
             {" "}
             不需要信用卡，不涉及任何真實金錢交易。
           </strong>
         </p>
-      </motion.div>
+      </motion.header>
 
       {/* Balance Card */}
       <motion.div

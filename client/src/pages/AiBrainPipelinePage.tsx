@@ -92,10 +92,10 @@ export default function AiBrainPipelinePage() {
   return (
     <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 h-[calc(100vh-4rem)] min-h-0">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl font-bold text-foreground">
           🧠 AI 大腦組態管線 ＆ 全站關係圖
         </h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           六層視覺化儀表板：瀏覽器 → 前端頁面 → API/tRPC → AI 大腦 / 光球代理 →
           外部模型 → 資料庫 / 部署平台 的即時健康狀態。可切換「站點 / 大腦 / 運作 / 完整」
           四種視圖；「運作」視圖適合向主管或新成員介紹網站如何運作。
@@ -114,7 +114,7 @@ export default function AiBrainPipelinePage() {
         onViewModeChange={setViewMode}
       />
 
-      <div className="flex-1 min-h-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/40 overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-2xl border border-border bg-card/40 overflow-hidden">
         {graphQuery.isLoading && (
           <div className="p-6 space-y-4">
             <Skeleton className="h-32 w-full" />
@@ -125,10 +125,10 @@ export default function AiBrainPipelinePage() {
           <div className="flex items-center justify-center h-full p-6 text-center">
             <div className="space-y-2 max-w-md">
               <div className="text-3xl">⚠</div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-muted-foreground">
                 無法載入管線圖：{graphQuery.error?.message ?? "未知錯誤"}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 此頁面僅限 admin 存取。請確認你的帳號權限。
               </p>
             </div>

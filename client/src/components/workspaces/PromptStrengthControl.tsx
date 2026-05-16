@@ -124,7 +124,7 @@ export function PromptStrengthControl({
                     "flex items-center gap-1.5",
                     isActive
                       ? cn(level.activeBg, level.activeShadow)
-                      : "bg-white/40 text-muted-foreground hover:bg-white/60"
+                      : "bg-card/40 text-muted-foreground hover:bg-card/60"
                   )}
                 >
                   {level.key === "locked" ? (

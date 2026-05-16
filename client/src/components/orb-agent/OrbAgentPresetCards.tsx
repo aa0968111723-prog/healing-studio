@@ -209,28 +209,28 @@ export default function OrbAgentPresetCards({ current, onApplied }: Props) {
             } ${
               isActive
                 ? `${preset.accent} ring-2 shadow-md`
-                : "border-gray-200/60 hover:border-gray-300"
+                : "border-border/70 hover:border-border"
             }`}
           >
             {isActive ? (
-              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-gray-700">
+              <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-card/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-foreground/90">
                 ✓ 使用中
               </span>
             ) : null}
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white/60 backdrop-blur-sm text-gray-700">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-card/60 backdrop-blur-sm text-foreground/90">
                 <Icon className="w-4 h-4" />
               </span>
-              <span className="text-sm font-semibold text-gray-800">{preset.title}</span>
+              <span className="text-sm font-semibold text-foreground">{preset.title}</span>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-gray-600 line-clamp-3">
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground line-clamp-3">
               {preset.description}
             </p>
             <div className="mt-2 flex flex-wrap gap-1">
               {preset.badges.map(badge => (
                 <span
                   key={badge}
-                  className="inline-flex items-center rounded-full bg-white/70 px-1.5 py-0.5 text-[9px] text-gray-600"
+                  className="inline-flex items-center rounded-full bg-card/70 px-1.5 py-0.5 text-[9px] text-muted-foreground"
                 >
                   {badge}
                 </span>

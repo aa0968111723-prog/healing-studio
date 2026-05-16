@@ -1464,16 +1464,19 @@ export default function AdminApiUsagePage() {
   });
 
   return (
-    <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
-      <div className="flex items-center gap-3 mb-6">
-        <Shield className="w-6 h-6 text-primary" />
-        <div>
-          <h1 className="hs-h2 !mb-0">API 用量管理</h1>
-          <p className="hs-small !mb-0 text-muted-foreground">
-            統一管理 AI 供應商呼叫次數、費用、配額與告警
-          </p>
+    <div className="page-shell page-shell-wide w-full">
+      <header className="page-header">
+        <div className="flex items-center gap-3">
+          <Shield className="w-6 h-6 text-primary" />
+          <div>
+            <p className="page-eyebrow">Admin · API Usage</p>
+            <h1 className="page-title !mb-0">API 用量管理</h1>
+          </div>
         </div>
-      </div>
+        <p className="page-subtitle">
+          統一管理 AI 供應商呼叫次數、費用、配額與告警
+        </p>
+      </header>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">

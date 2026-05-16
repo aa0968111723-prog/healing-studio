@@ -58,7 +58,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white dark:bg-zinc-900 text-foreground rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-card text-foreground rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
       >
         <div className="p-6 space-y-6">
           {/* Header */}
@@ -76,7 +76,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+              className="p-2 hover:bg-muted rounded-lg transition-healing"
             >
               <X className="w-5 h-5" />
             </button>
@@ -100,7 +100,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                     "p-3 rounded-xl border-2 transition-all flex items-center gap-2",
                     options.modalities.includes(mod.value)
                       ? "border-purple-400 bg-purple-50 dark:bg-purple-500/15"
-                      : "border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:border-gray-300 dark:hover:border-white/20"
+                      : "border-border/70 bg-card hover:border-border dark:hover:border-white/20"
                   )}
                 >
                   <mod.icon className={cn("w-5 h-5", mod.color)} />
@@ -133,7 +133,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                       },
                     })
                   }
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-sm"
                 >
                   <option value="16:9">16:9 寬螢幕</option>
                   <option value="1:1">1:1 正方形</option>
@@ -203,7 +203,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                     "p-3 rounded-xl border-2 transition-all text-left",
                     options.mode === mode.value
                       ? "border-purple-400 bg-purple-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      : "border-border bg-card hover:border-border"
                   )}
                 >
                   <div className="text-sm font-medium">{mode.label}</div>

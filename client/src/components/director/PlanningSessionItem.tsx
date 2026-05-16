@@ -35,7 +35,7 @@ export const PlanningSessionItem = memo(function PlanningSessionItem({
   const label = session.updatedAt ? "上次更新" : "建立";
 
   return (
-    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
+    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-card/40 transition-colors group">
       <button onClick={handleLoad} className="flex-1 text-left min-w-0">
         <span className="text-xs font-medium truncate block">
           {session.title}

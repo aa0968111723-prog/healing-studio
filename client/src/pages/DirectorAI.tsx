@@ -214,7 +214,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
           value={scriptTitle}
           onChange={e => setScriptTitle(e.target.value)}
           placeholder="例：品牌宣傳短片 V2"
-          className="w-full rounded-lg border border-border/50 bg-white/50 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="w-full rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
 
@@ -230,7 +230,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
                 "px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all",
                 sourceFormat === fmt.value
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-white/50 border-border/50 hover:bg-white/80 text-muted-foreground"
+                  : "bg-card/50 border-border/50 hover:bg-card/80 text-muted-foreground"
               )}
             >
               {fmt.label}
@@ -269,7 +269,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
           value={scriptContent}
           onChange={e => setScriptContent(e.target.value)}
           placeholder="貼上你的腳本內容... 可以是任何格式的長腳本文字"
-          className="min-h-[200px] text-xs leading-relaxed resize-y bg-white/50"
+          className="min-h-[200px] text-xs leading-relaxed resize-y bg-card/50"
         />
       </div>
 
@@ -857,7 +857,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           }}
           placeholder="輸入討論內容，或直接點擊快選動作..."
           disabled={discussMut.isPending}
-          className="flex-1 rounded-lg border border-border/50 bg-white/50 px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="flex-1 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <Button
           size="sm"
@@ -1319,7 +1319,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
               className={cn(
                 "rounded-xl border p-3 transition-all",
                 task.enabled
-                  ? "border-border/50 bg-white/40"
+                  ? "border-border/50 bg-card/40"
                   : "border-transparent bg-muted/10 opacity-50"
               )}
             >
@@ -1337,7 +1337,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                       "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
                       task.enabled
                         ? "bg-primary border-primary text-primary-foreground"
-                        : "border-border/50 bg-white/30"
+                        : "border-border/50 bg-card/30"
                     )}
                   >
                     {task.enabled && <CheckCircle2 className="w-3 h-3" />}
@@ -1401,7 +1401,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                                 isSelected
                                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                                   : m.available
-                                    ? "bg-white/50 border-border/40 hover:bg-white/80 text-muted-foreground hover:text-foreground"
+                                    ? "bg-card/50 border-border/40 hover:bg-card/80 text-muted-foreground hover:text-foreground"
                                     : "bg-muted/20 border-border/20 text-muted-foreground/40 cursor-not-allowed line-through"
                               )}
                               title={`${m.label} · ${coaching.bestFor} · ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}${isBrainDefault ? " · 你的 AI 大腦組態預設" : ""}`}
@@ -1442,7 +1442,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                                 {coaching.advantages.map(adv => (
                                   <span
                                     key={adv}
-                                    className="text-[9px] rounded-full border border-primary/20 bg-white/70 px-1.5 py-0.5 text-primary/80"
+                                    className="text-[9px] rounded-full border border-primary/20 bg-card/70 px-1.5 py-0.5 text-primary/80"
                                   >
                                     {adv}
                                   </span>
@@ -1607,7 +1607,7 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
           : "text-muted-foreground";
 
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-white/60 border border-border/40 text-xs">
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-card/60 border border-border/40 text-xs">
       <span
         className={cn(
           "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-medium shrink-0",
@@ -1682,7 +1682,7 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
   if (tasks.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-[min(420px,calc(100vw-2rem))] rounded-xl border border-border/50 bg-white/95 backdrop-blur-sm shadow-2xl">
+    <div className="fixed bottom-4 right-4 z-40 w-[min(420px,calc(100vw-2rem))] rounded-xl border border-border/50 bg-card/95 backdrop-blur-sm shadow-2xl">
       <div className="flex items-center gap-2 p-3 border-b border-border/40">
         <Zap className="w-4 h-4 text-amber-500" />
         <span className="text-sm font-semibold">批次生成進度</span>
@@ -1830,7 +1830,7 @@ const ExportPanel = memo(function ExportPanel({
                 "px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all",
                 selectedFormat === fmt.value
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-white/50 border-border/50 hover:bg-white/80 text-muted-foreground"
+                  : "bg-card/50 border-border/50 hover:bg-card/80 text-muted-foreground"
               )}
             >
               {fmt.label} ({fmt.ext})
@@ -1876,7 +1876,7 @@ const ExportPanel = memo(function ExportPanel({
           <Textarea
             value={customTemplate}
             onChange={e => setCustomTemplate(e.target.value)}
-            className="text-xs min-h-[100px] bg-white/50"
+            className="text-xs min-h-[100px] bg-card/50"
           />
         </div>
       )}
@@ -1896,7 +1896,7 @@ const ExportPanel = memo(function ExportPanel({
                     next[i] = { ...next[i], header: e.target.value };
                     setCustomColumns(next);
                   }}
-                  className="flex-1 rounded border border-border/50 px-2 py-1 text-[11px] bg-white/50"
+                  className="flex-1 rounded border border-border/50 px-2 py-1 text-[11px] bg-card/50"
                   placeholder="表頭名稱"
                 />
                 <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -1908,7 +1908,7 @@ const ExportPanel = memo(function ExportPanel({
                     next[i] = { ...next[i], field: e.target.value };
                     setCustomColumns(next);
                   }}
-                  className="flex-1 rounded border border-border/50 px-2 py-1 text-[11px] bg-white/50"
+                  className="flex-1 rounded border border-border/50 px-2 py-1 text-[11px] bg-card/50"
                   placeholder="欄位名（如 sceneHeading）"
                 />
                 <button
@@ -2054,7 +2054,7 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
             導演主動提問
           </span>
           {intentCard?.intent ? (
-            <div className="mt-1 rounded-md border border-current/15 bg-white/60 p-2">
+            <div className="mt-1 rounded-md border border-current/15 bg-card/60 p-2">
               <p className="text-[11px] font-medium">
                 意圖：{intentCard.intent}
               </p>
@@ -2081,7 +2081,7 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
               onClick={() => onUse(question)}
               className={cn(
                 "mt-2 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
-                "hover:bg-white/60 border-current/20",
+                "hover:bg-card/60 border-current/20",
                 config.textColor
               )}
             >
@@ -4211,7 +4211,7 @@ export default function DirectorAI() {
                           t.personality as Personality
                         )
                       }
-                      className="text-left rounded-xl border border-border/50 p-3 hover:bg-white/60 transition-all group"
+                      className="text-left rounded-xl border border-border/50 p-3 hover:bg-card/60 transition-all group"
                     >
                       <div className="flex items-center gap-2 mb-1.5">
                         <span
@@ -4438,7 +4438,7 @@ export default function DirectorAI() {
         onValueChange={setActiveTab}
         className="space-y-4"
       >
-        <TabsList className="bg-white/50 border border-border/30 rounded-xl p-1">
+        <TabsList className="bg-card/50 border border-border/30 rounded-xl p-1">
           <TabsTrigger
             value="chat"
             className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm"
@@ -4908,7 +4908,7 @@ export default function DirectorAI() {
                                   "flex-1 text-left rounded-lg p-2.5 transition-all border",
                                   isSelected
                                     ? "bg-primary/5 border-primary/30 shadow-sm"
-                                    : "bg-white/30 border-transparent hover:bg-white/60 hover:border-border/30"
+                                    : "bg-card/30 border-transparent hover:bg-card/60 hover:border-border/30"
                                 )}
                               >
                                 <div className="flex items-center justify-between mb-1">
@@ -5084,7 +5084,7 @@ export default function DirectorAI() {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-6 text-left space-y-3 p-4 rounded-xl border border-border/40 bg-white/60">
+                      <div className="mt-6 text-left space-y-3 p-4 rounded-xl border border-border/40 bg-card/60">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-primary" />
                           <span className="text-sm font-semibold">
@@ -5108,7 +5108,7 @@ export default function DirectorAI() {
                             onChange={e =>
                               setPlanningPasteFormat(e.target.value)
                             }
-                            className="rounded-xl text-xs px-3 py-2 border bg-white"
+                            className="rounded-xl text-xs px-3 py-2 border bg-card"
                           >
                             {FORMAT_OPTIONS.map(opt => (
                               <option key={opt.value} value={opt.value}>
@@ -5174,7 +5174,7 @@ export default function DirectorAI() {
                   {PLANNING_PHASES.map((phase, i) => (
                     <div
                       key={phase.id}
-                      className="p-3 rounded-xl border border-border/40 bg-white/40 text-left"
+                      className="p-3 rounded-xl border border-border/40 bg-card/40 text-left"
                     >
                       <div className="flex items-center gap-2 mb-1.5">
                         <phase.icon
@@ -5353,7 +5353,7 @@ export default function DirectorAI() {
                           onChange={e =>
                             setPlanningPasteFormat(e.target.value)
                           }
-                          className="rounded-xl text-xs px-3 py-2 border bg-white"
+                          className="rounded-xl text-xs px-3 py-2 border bg-card"
                         >
                           {FORMAT_OPTIONS.map(opt => (
                             <option key={opt.value} value={opt.value}>
@@ -5437,7 +5437,7 @@ export default function DirectorAI() {
                           ? cn("ring-1 shadow-sm", phase.activeColor)
                           : isCompleted
                             ? "bg-green-50 border-green-200 text-green-700"
-                            : "bg-white/50 border-border/40 text-muted-foreground hover:bg-white/80"
+                            : "bg-card/50 border-border/40 text-muted-foreground hover:bg-card/80"
                       )}
                     >
                       {isCompleted ? (
@@ -5704,7 +5704,7 @@ export default function DirectorAI() {
                         </h4>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-muted-foreground">溫度</span>
-                          <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                             <div
                               className="h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500 transition-all"
                               style={{

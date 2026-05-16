@@ -55,7 +55,7 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
   return (
     <div className="space-y-5">
       {/* Instrumental vs Vocal Toggle */}
-      <div className="flex items-center justify-between p-3 rounded-xl bg-white/35 border border-white/50">
+      <div className="flex items-center justify-between p-3 rounded-xl bg-card/35 border border-white/50">
         <div className="flex items-center gap-3">
           <div
             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
@@ -96,7 +96,7 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
             value={value.lyrics}
             onChange={e => update({ lyrics: e.target.value })}
             rows={6}
-            className="rounded-xl bg-white/40 border-white/60 resize-none text-xs font-mono placeholder:text-muted-foreground/35 leading-relaxed"
+            className="rounded-xl bg-card/40 border-white/60 resize-none text-xs font-mono placeholder:text-muted-foreground/35 leading-relaxed"
           />
           <p className="text-[10px] text-muted-foreground/60">
             使用 [Verse]、[Chorus]、[Bridge] 標記歌曲結構
@@ -117,7 +117,7 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
               className={`px-2 py-2 rounded-lg text-[10px] font-medium transition-all ${
                 value.musicStyle === style.value
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-white/40 text-muted-foreground hover:bg-white/60"
+                  : "bg-card/40 text-muted-foreground hover:bg-card/60"
               }`}
             >
               {style.label}

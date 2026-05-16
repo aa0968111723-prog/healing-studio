@@ -704,15 +704,15 @@ export default function BackgroundTasksPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto" id="background-tasks-page">
-      {/* Header */}
+    <div className="page-shell space-y-6" id="background-tasks-page">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="hs-h1 !mb-0 flex items-center gap-2">
+          <p className="page-eyebrow">Background Tasks</p>
+          <h1 className="page-title flex items-center gap-2 !mb-0">
             <Loader2 className="w-6 h-6 text-primary" />
             背景任務中心
           </h1>
-          <p className="hs-small !mb-0 text-muted-foreground mt-1">
+          <p className="page-subtitle mt-1">
             所有生成與訓練任務一覽，支援背景執行與即時追蹤
           </p>
         </div>

@@ -43,7 +43,7 @@ const KIND_LABEL: Record<LibraryKind, string> = {
 const KIND_TONE: Record<LibraryKind, string> = {
   shoot: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   personal: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
-  other: "border-slate-500/30 bg-slate-500/10 text-slate-300",
+  other: "border-border/30 bg-muted/10 text-muted-foreground/70",
 };
 
 export function DriveLibrarySection() {
@@ -75,7 +75,7 @@ export function DriveLibrarySection() {
 
   if (status.isLoading) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-white/10 bg-card/5 p-6 text-sm text-muted-foreground">
         正在檢查 Google Drive 連結狀態…
       </div>
     );
@@ -151,7 +151,7 @@ export function DriveLibrarySection() {
         {libraries.isLoading ? (
           <div className="space-y-2">
             {[1, 2].map(i => (
-              <div key={i} className="h-12 rounded-lg bg-white/5 animate-pulse" />
+              <div key={i} className="h-12 rounded-lg bg-card/5 animate-pulse" />
             ))}
           </div>
         ) : !libraries.data || libraries.data.length === 0 ? (
@@ -185,7 +185,7 @@ export function DriveLibrarySection() {
                 <button
                   onClick={() => handleBreadcrumb(i)}
                   className={cn(
-                    "px-1.5 py-0.5 rounded hover:bg-white/10",
+                    "px-1.5 py-0.5 rounded hover:bg-card/10",
                     i === breadcrumb.length - 1
                       ? "text-foreground/90 font-medium"
                       : "text-muted-foreground"
@@ -258,18 +258,18 @@ function AddLibraryForm({ onAdded }: { onAdded: () => void }) {
           value={folderInput}
           onChange={e => setFolderInput(e.target.value)}
           placeholder="貼上 Drive 資料夾網址或 ID"
-          className="bg-white/5 border-white/10 text-xs"
+          className="bg-card/5 border-white/10 text-xs"
         />
         <Input
           value={label}
           onChange={e => setLabel(e.target.value)}
           placeholder="顯示名稱（選填）"
-          className="bg-white/5 border-white/10 text-xs"
+          className="bg-card/5 border-white/10 text-xs"
         />
         <select
           value={kind}
           onChange={e => setKind(e.target.value as LibraryKind)}
-          className="bg-white/5 border border-white/10 rounded-md text-xs h-9 px-2 text-foreground"
+          className="bg-card/5 border border-white/10 rounded-md text-xs h-9 px-2 text-foreground"
         >
           <option value="shoot">外拍</option>
           <option value="personal">個人</option>
@@ -320,7 +320,7 @@ function LibraryRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 rounded-lg border px-3 py-2 transition-all hover:bg-white/5",
+        "group flex items-center gap-2 rounded-lg border px-3 py-2 transition-all hover:bg-card/5",
         active ? "border-amber-500/40 bg-amber-500/5" : "border-white/10"
       )}
     >
@@ -343,7 +343,7 @@ function LibraryRow({
         href={`https://drive.google.com/drive/folders/${library.driveFolderId}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="p-1 rounded hover:bg-white/10 text-muted-foreground/60 hover:text-foreground"
+        className="p-1 rounded hover:bg-card/10 text-muted-foreground/60 hover:text-foreground"
         title="在 Google Drive 開啟"
       >
         <ExternalLink className="w-3 h-3" />
@@ -407,7 +407,7 @@ function DriveFolderBrowser({
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {[1, 2, 3, 4, 5, 6].map(i => (
-          <div key={i} className="aspect-square rounded-lg bg-white/5 animate-pulse" />
+          <div key={i} className="aspect-square rounded-lg bg-card/5 animate-pulse" />
         ))}
       </div>
     );
