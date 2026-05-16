@@ -30,6 +30,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { useEmptyPromptHelper } from "@/lib/emptyPromptHelper";
 import {
   Film,
   Image,
@@ -686,6 +687,7 @@ function TextToVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
+  const notifyEmptyPrompt = useEmptyPromptHelper();
   // ─ Kling
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingNeg, setKlingNeg] = useState("");
@@ -869,7 +871,7 @@ function TextToVideoTab() {
   });
 
   async function runKling() {
-    if (!klingPrompt.trim()) return toast.error("請輸入提詞");
+    if (!klingPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Kling", modality: "影片" });
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
@@ -892,7 +894,7 @@ function TextToVideoTab() {
   runKlingRef.current = runKling;
 
   async function runWan() {
-    if (!wanPrompt.trim()) return toast.error("請輸入提詞");
+    if (!wanPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Wan", modality: "影片" });
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
@@ -914,7 +916,7 @@ function TextToVideoTab() {
   runWanRef.current = runWan;
 
   async function runMinimax() {
-    if (!mmPrompt.trim()) return toast.error("請輸入提詞");
+    if (!mmPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "MiniMax", modality: "影片" });
     setAIState("generating");
     try {
       const r = await mmMut.mutateAsync({
@@ -934,7 +936,7 @@ function TextToVideoTab() {
   runMmRef.current = runMinimax;
 
   async function runVeo3() {
-    if (!veoPrompt.trim()) return toast.error("請輸入提詞");
+    if (!veoPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Veo 3", modality: "影片" });
     setAIState("generating");
     try {
       const r = await veoMut.mutateAsync({
@@ -955,7 +957,7 @@ function TextToVideoTab() {
   runVeoRef.current = runVeo3;
 
   async function runVeo3Pro() {
-    if (!veoPrompt.trim()) return toast.error("請輸入提詞");
+    if (!veoPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Veo 3 Pro", modality: "影片" });
     setAIState("generating");
     try {
       const r = await veoProMut.mutateAsync({
@@ -977,7 +979,7 @@ function TextToVideoTab() {
 
 
   async function runLtx() {
-    if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
+    if (!ltxPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "LTX", modality: "影片" });
     setAIState("generating");
     try {
       const r = await ltxMut.mutateAsync({
@@ -997,7 +999,7 @@ function TextToVideoTab() {
   runLtxRef.current = runLtx;
 
   async function runSora() {
-    if (!soraPrompt.trim()) return toast.error("請輸入提詞");
+    if (!soraPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Sora", modality: "影片" });
     setAIState("generating");
     try {
       const r = await soraMut.mutateAsync({
@@ -1599,6 +1601,7 @@ function ImageToVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
+  const notifyEmptyPrompt = useEmptyPromptHelper();
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingImage, setKlingImage] = useState("");
   const [klingTail, setKlingTail] = useState("");
@@ -1745,7 +1748,7 @@ function ImageToVideoTab() {
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
@@ -1768,7 +1771,7 @@ function ImageToVideoTab() {
 
   async function runKlingPro() {
     if (!klingPrompt.trim() || !klingImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await klingProMut.mutateAsync({
@@ -1791,7 +1794,7 @@ function ImageToVideoTab() {
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
@@ -1815,7 +1818,7 @@ function ImageToVideoTab() {
 
   async function runRunway() {
     if (!runwayPrompt.trim() || !runwayImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await runwayMut.mutateAsync({
@@ -1838,7 +1841,7 @@ function ImageToVideoTab() {
 
   async function runPixverse() {
     if (!pvPrompt.trim() || !pvImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await pvMut.mutateAsync({
@@ -1864,7 +1867,7 @@ function ImageToVideoTab() {
 
   async function runMinimax() {
     if (!mmPrompt.trim() || !mmImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await mmMut.mutateAsync({
@@ -2433,6 +2436,7 @@ function VideoToVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
+  const notifyEmptyPrompt = useEmptyPromptHelper();
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanVideo, setWanVideo] = useState("");
   const [wanNeg, setWanNeg] = useState("");
@@ -2536,7 +2540,7 @@ function VideoToVideoTab() {
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanVideo.trim())
-      return toast.error("請輸入提詞與影片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與影片 URL" });
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
@@ -2559,7 +2563,7 @@ function VideoToVideoTab() {
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingVideo.trim())
-      return toast.error("請輸入提詞與影片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與影片 URL" });
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
@@ -2582,7 +2586,7 @@ function VideoToVideoTab() {
 
   async function runLtx() {
     if (!ltxPrompt.trim() || !ltxImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await ltxMut.mutateAsync({
@@ -3278,6 +3282,7 @@ function AdvancedControlTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
+  const notifyEmptyPrompt = useEmptyPromptHelper();
   type ControlModel = "cam" | "ad" | "depth" | "vidu";
   const [activeControlModel, setActiveControlModel] =
     useState<ControlModel>("cam");
@@ -3321,7 +3326,7 @@ function AdvancedControlTab() {
 
   async function runCam() {
     if (!camPrompt.trim() || !camImage.trim())
-      return toast.error("請輸入提詞與圖片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
     setAIState("generating");
     try {
       const r = await camMut.mutateAsync({
@@ -3343,7 +3348,7 @@ function AdvancedControlTab() {
 
   async function runAnimateDiff() {
     if (!adPrompt.trim() || !adVideo.trim())
-      return toast.error("請輸入提詞與影片 URL");
+      return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與影片 URL" });
     setAIState("generating");
     try {
       const r = await adMut.mutateAsync({
@@ -3383,7 +3388,7 @@ function AdvancedControlTab() {
   async function runVidu() {
     const urls = viduImages.filter(u => u.trim());
     if (!viduPrompt.trim() || urls.length === 0)
-      return toast.error("請輸入提詞與至少一張圖片 URL");
+      return notifyEmptyPrompt({ modelLabel: "Vidu", modality: "影片", missing: "請輸入提示詞與至少一張圖片 URL" });
     setAIState("generating");
     try {
       const r = await viduMut.mutateAsync({

@@ -101,6 +101,8 @@ import { SlashCommandChip } from "@/components/SlashCommandChip";
 import { useSlashCommandMenu } from "@/hooks/useSlashCommandMenu";
 import { useSlashCommandContext } from "@/hooks/useSlashCommandContext";
 import { runSlashCommand } from "@/lib/slashCommandRunner";
+import { summarizeMultimodalIntent } from "../../../shared/global-agent-workflows";
+import { MultimodalSuggestCard } from "@/components/orb-agent/MultimodalSuggestCard";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -726,6 +728,16 @@ export default function AgentChat() {
   const [modeBarOpen, setModeBarOpen] = useState(false);
   const [modeCatalogOpen, setModeCatalogOpen] = useState(false);
   const [spiritDeckOpen, setSpiritDeckOpen] = useState(false);
+  /**
+   * 跨模態建議卡：使用者送出的訊息同時提到多種模態（影片＋音樂…）
+   * 而當下不是「多步驟代理」模式時，先掛起卡片詢問是否轉模式，避免單
+   * 步驟模式只處理到第一種模態、另一半被忽略。`text` 是原訊息，待確認
+   * 後重送。null = 沒有掛起的訊息。
+   */
+  const [pendingMultimodal, setPendingMultimodal] = useState<{
+    text: string;
+    labels: string[];
+  } | null>(null);
   /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
   const [pinnedSpirit, setPinnedSpirit] = useState<AgentRole | null>(null);
 
@@ -907,10 +919,64 @@ export default function AgentChat() {
   const slashMenu = useSlashCommandMenu(input, setInput);
 
   // ─── 送出訊息 ───────────────────────────────────────────────────────
+  /**
+   * 把文字送進 globalChat 並收尾（清附件、退出模式）。抽出來是因為
+   * 「多模態建議卡」確認 / 拒絕兩條路徑都要原樣把訊息送出去，避免兩份
+   * 邏輯漂移。`overrideMode` 可以蓋掉目前 activeMode，給「轉多步驟」用。
+   */
+  const dispatchSend = useCallback(
+    async (
+      text: string,
+      currentAttachments: typeof attachments,
+      overrideMode?: string | null
+    ) => {
+      const mode = overrideMode ?? activeModeOption?.id;
+      const fallbackPrompt =
+        text || (mode ? activeModeOption?.defaultPrompt ?? "" : "");
+      let promptToSend = fallbackPrompt;
+      // 鎖定的精靈：使用者把 @暱稱 編掉時，預設行為會掉回關鍵字路由，
+      // 等同「鎖定」變成 UI 假象。這裡在送出前確認文字裡仍有任一精靈
+      // 的 @-mention；沒有的話自動把鎖定者的暱稱補在最前面，server 端
+      // 的 detectSpiritMention 就能維持高信心交給他接手。
+      if (pinnedSpirit && promptToSend && !hasSpiritMention(promptToSend)) {
+        const pinned = SPIRITS_BY_ID[pinnedSpirit];
+        if (pinned) {
+          promptToSend = `@${pinned.nickname} ${promptToSend}`;
+        }
+      }
+      await globalChat.sendMessage(promptToSend, currentAttachments, {
+        requestedMode: (mode as
+          | "navigate"
+          | "plan"
+          | "multi-step"
+          | "ask-feature"
+          | undefined),
+      });
+      clearAttachments();
+      // 送出後自動關閉模式，避免下一句又意外帶到模式上下文。
+      if (activeModeOption) setActiveMode(null);
+    },
+    [globalChat, activeModeOption, pinnedSpirit, clearAttachments]
+  );
+
   const send = useCallback(
     async (raw: string) => {
       const text = raw.trim();
-      if ((!text && attachments.length === 0) || isSending) return;
+      if (isSending) return;
+      if (!text && attachments.length === 0) {
+        // 選了模式但完全空白 → 友善提醒 + 一鍵套範例，避免靜默無回應。
+        if (activeModeOption) {
+          toast.error(`「${activeModeOption.label}」還沒寫目標`, {
+            description: `補一句話它才能動，例如：${activeModeOption.example}`,
+            action: {
+              label: "套用範例",
+              onClick: () => setInput(activeModeOption.example),
+            },
+            duration: 6000,
+          });
+        }
+        return;
+      }
 
       // 以 / 開頭 → 走 slash command pipeline。runner 會視情況呼叫
       // sendMessage / navigate / client-action，並回傳 result 告訴我們
@@ -928,43 +994,52 @@ export default function AgentChat() {
         return;
       }
 
-      // 使用者打什麼，聊天紀錄就顯示什麼。模式以 requestedMode 結構化欄位
-      // 傳遞，由 GlobalOrbChatContext 內的 hard-coded 邏輯接手 — 不再注入
-      // 一段中文 instruction 蓋掉使用者原文。
-      let promptToSend = text || activeModeOption?.defaultPrompt || "";
-      // 鎖定的精靈：使用者把 @暱稱 編掉時，預設行為會掉回關鍵字路由，
-      // 等同「鎖定」變成 UI 假象。這裡在送出前確認文字裡仍有任一精靈
-      // 的 @-mention；沒有的話自動把鎖定者的暱稱補在最前面，server 端
-      // 的 detectSpiritMention 就能維持高信心交給他接手。
+      // 多模態任務偵測：使用者一句話同時提到兩種以上模態（如「30 秒短片
+      // 配音樂」），但目前不是「多步驟代理」模式時，先掛起建議卡片詢問
+      // 是否轉模式。避免單步驟模式只跑到第一種模態、另一半被吞掉。
       if (
-        pinnedSpirit &&
-        promptToSend &&
-        !hasSpiritMention(promptToSend)
+        text &&
+        activeModeOption?.id !== "multi-step" &&
+        !pendingMultimodal
       ) {
-        const pinned = SPIRITS_BY_ID[pinnedSpirit];
-        if (pinned) {
-          promptToSend = `@${pinned.nickname} ${promptToSend}`;
+        const summary = summarizeMultimodalIntent(text);
+        if (summary.isMultimodal) {
+          setPendingMultimodal({ text, labels: summary.labels });
+          return;
         }
       }
-      await globalChat.sendMessage(promptToSend, attachments, {
-        requestedMode: activeModeOption?.id,
-      });
-      clearAttachments();
-      // 送出後自動關閉模式，避免下一句又意外帶到模式上下文。
-      if (activeModeOption) setActiveMode(null);
+
+      await dispatchSend(text, attachments);
     },
     [
       isSending,
-      globalChat,
       attachments,
       clearAttachments,
       activeModeOption,
-      pinnedSpirit,
+      pendingMultimodal,
+      dispatchSend,
       slashCtx,
       slashMenu,
       setInput,
     ]
   );
+
+  /** 使用者選「轉多步驟代理」：重送一次帶 multi-step mode。 */
+  const acceptMultimodalSuggestion = useCallback(async () => {
+    if (!pendingMultimodal) return;
+    const { text } = pendingMultimodal;
+    setPendingMultimodal(null);
+    setActiveMode("multi-step");
+    await dispatchSend(text, attachments, "multi-step");
+  }, [pendingMultimodal, attachments, dispatchSend]);
+
+  /** 使用者選「維持目前模式」：照原本模式送出。 */
+  const declineMultimodalSuggestion = useCallback(async () => {
+    if (!pendingMultimodal) return;
+    const { text } = pendingMultimodal;
+    setPendingMultimodal(null);
+    await dispatchSend(text, attachments);
+  }, [pendingMultimodal, attachments, dispatchSend]);
 
   // Keep sendRef in sync with the latest `send` callback
   sendRef.current = send;
@@ -2799,6 +2874,13 @@ export default function AgentChat() {
         }
         messageAt={thinkingPanelMessageAt ?? undefined}
       />
+      {pendingMultimodal && (
+        <MultimodalSuggestCard
+          modalityLabels={pendingMultimodal.labels}
+          onAccept={() => void acceptMultimodalSuggestion()}
+          onDecline={() => void declineMultimodalSuggestion()}
+        />
+      )}
     </div>
   );
 }

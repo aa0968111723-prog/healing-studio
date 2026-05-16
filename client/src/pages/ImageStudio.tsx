@@ -30,6 +30,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { useEmptyPromptHelper } from "@/lib/emptyPromptHelper";
 import {
   Image,
   Wand2,
@@ -2891,6 +2892,8 @@ export default function ImageStudio() {
     setPageContext,
   } = useAIState();
 
+  const notifyEmptyPrompt = useEmptyPromptHelper();
+
   // ── Tab / Model ──
   const [activeTab, setActiveTab] = useState<StudioTab>("t2i");
   const [selectedModelId, setSelectedModelId] = useState("nanoBanana2");
@@ -3338,7 +3341,7 @@ export default function ImageStudio() {
           ...(extraValid.length && { image_urls: extraValid }),
         };
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
       } else if (model.id === "nanoBananaPro") {
@@ -3349,7 +3352,7 @@ export default function ImageStudio() {
           ...(extraValid.length && { image_urls: extraValid }),
         };
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
       } else if (model.id === "seedreamV4") {
@@ -3361,7 +3364,7 @@ export default function ImageStudio() {
           ...(seedNum !== undefined && { seed: seedNum }),
         };
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
       } else if (model.id === "imagen4") {
@@ -3372,14 +3375,18 @@ export default function ImageStudio() {
           ...(negPrompt && { negative_prompt: negPrompt }),
         };
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
       }
       // ── Edit ──
       else if (model.id === "nanoBananaProEdit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3389,7 +3396,11 @@ export default function ImageStudio() {
         };
       } else if (model.id === "nanoBananaEdit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3399,7 +3410,11 @@ export default function ImageStudio() {
         };
       } else if (model.id === "nanoBanana2Edit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3410,7 +3425,11 @@ export default function ImageStudio() {
         };
       } else if (model.id === "seedreamV45Edit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3421,7 +3440,11 @@ export default function ImageStudio() {
         };
       } else if (model.id === "seedreamV5LiteEdit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3432,13 +3455,21 @@ export default function ImageStudio() {
         };
       } else if (model.id === "grokEdit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = { prompt: fullPrompt, image_url: refImageUrl };
       } else if (model.id === "gptImage15Edit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3449,7 +3480,11 @@ export default function ImageStudio() {
         };
       } else if (model.id === "fluxKontext") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3461,7 +3496,11 @@ export default function ImageStudio() {
         };
       } else if (model.id === "flux2ProEdit") {
         if (!fullPrompt || !refImageUrl) {
-          toast.error("請輸入提示詞和參考圖片");
+          notifyEmptyPrompt({
+            modelLabel: model.name,
+            modality: "圖片",
+            missing: "請輸入提示詞和參考圖片",
+          });
           return;
         }
         input = {
@@ -3496,7 +3535,7 @@ export default function ImageStudio() {
       // ── SD ──
       else if (model.id === "stableDiffusion35") {
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
         input = {
@@ -3517,7 +3556,7 @@ export default function ImageStudio() {
         };
       } else if (model.id === "fastSdxl") {
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
         input = {
@@ -3530,7 +3569,7 @@ export default function ImageStudio() {
         };
       } else if (model.id === "sdLora") {
         if (!fullPrompt) {
-          toast.error("請輸入提示詞");
+          notifyEmptyPrompt({ modelLabel: model.name, modality: "圖片" });
           return;
         }
         input = {

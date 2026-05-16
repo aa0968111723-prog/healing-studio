@@ -1238,6 +1238,44 @@ function detectModalityHits(q: string): ModalityHits {
   };
 }
 
+const MODALITY_LABELS: Record<keyof ModalityHits, string> = {
+  video: "影片",
+  image: "圖片",
+  music: "音樂",
+  voice: "配音",
+  sfx: "音效",
+  script: "腳本",
+};
+
+export interface MultimodalSummary {
+  isMultimodal: boolean;
+  modalities: Array<keyof ModalityHits>;
+  labels: string[];
+}
+
+/**
+ * 判斷使用者一句話是否同時跨越 2 種以上模態（影片＋音樂、圖＋配音…）。
+ *
+ * 這個 helper 給 client 端的 AgentChat / Studio 使用：使用者送出前，若
+ * 還沒選「多步驟代理」模式且文本顯然跨多個工具，提示卡片詢問是否轉為
+ * multi-step。設計上故意不檢查 BUILD_KEYWORDS — 即便沒有「做」「生成」
+ * 之類動詞，「30 秒短片配音樂」這種要點也算多模態，使用者大概率想要
+ * 一鍵流程。
+ */
+export function summarizeMultimodalIntent(text: string): MultimodalSummary {
+  const q = (text ?? "").trim().toLowerCase();
+  if (!q) return { isMultimodal: false, modalities: [], labels: [] };
+  const hits = detectModalityHits(q);
+  const modalities = (Object.keys(hits) as Array<keyof ModalityHits>).filter(
+    k => hits[k]
+  );
+  return {
+    isMultimodal: modalities.length >= 2,
+    modalities,
+    labels: modalities.map(m => MODALITY_LABELS[m]),
+  };
+}
+
 export function detectVideoIntent(
   text: string,
   preferences?: RememberedCreationPreferences

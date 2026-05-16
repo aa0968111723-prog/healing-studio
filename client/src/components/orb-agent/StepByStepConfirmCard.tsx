@@ -11,6 +11,7 @@
  * serialises confirms).
  */
 import type { AgentWorkflowStep } from "@shared/agent-actions";
+import { getPageLabelByPath } from "@/lib/orbChatHelpers";
 
 export interface StepByStepConfirmCardProps {
   step: AgentWorkflowStep;
@@ -33,7 +34,11 @@ function describeStep(step: AgentWorkflowStep): string {
         : "";
     return `工具呼叫：${step.toolName}${argPreview}`;
   }
-  if (step.actionType === "navigate") return `跳到 ${step.payload || "<unknown>"}`;
+  if (step.actionType === "navigate") {
+    const target = step.payload || step.path || "";
+    const label = getPageLabelByPath(target);
+    return `跳到 ${label ?? target ?? "未知頁面"}`;
+  }
   if (step.actionType === "fillPrompt") {
     const text = step.payload || "";
     return `填入提示詞：「${text.length > 36 ? text.slice(0, 36) + "…" : text}」`;
@@ -80,7 +85,13 @@ export function StepByStepConfirmCard(props: StepByStepConfirmCardProps) {
       </div>
       {step.path && (
         <div className="mt-2 text-xs text-white/50">
-          目的頁面：<code className="rounded bg-card/10 px-1.5 py-0.5">{step.path}</code>
+          目的頁面：
+          <span
+            className="rounded bg-card/10 px-1.5 py-0.5"
+            title={step.path}
+          >
+            {getPageLabelByPath(step.path) ?? step.path}
+          </span>
         </div>
       )}
 

@@ -2595,7 +2595,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           if (nav?.path) {
             additions.push({
               role: "orb" as const,
-              text: `🧭 路路 帶你到「${nav.label}」(${nav.path})。`,
+              text: `🧭 路路 帶你到「${nav.label}」。`,
               at: m.timestamp + 2,
               pagePath: locationPath,
               agentRole: "navigator",
