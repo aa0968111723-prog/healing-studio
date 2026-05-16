@@ -207,6 +207,33 @@ function humanizeCron(expr?: string): string {
 
 // ─── Fact-check badge ──────────────────────────────────────────────────────
 
+// 把「YYYY-MM-DD」、「YYYY-MM」、「YYYY」皆轉成可比較的 timestamp。
+function parseUpdateDate(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y) return 0;
+  return new Date(y, (m ?? 1) - 1, d ?? 1).getTime();
+}
+
+const FRESH_UPDATE_DAYS = 7;
+function isFreshUpdate(iso: string, days: number = FRESH_UPDATE_DAYS): boolean {
+  const t = parseUpdateDate(iso);
+  if (!t) return false;
+  return Date.now() - t < days * 86400_000;
+}
+
+function relativeUpdateLabel(iso: string): string {
+  const t = parseUpdateDate(iso);
+  if (!t) return iso;
+  const diffDays = Math.floor((Date.now() - t) / 86400_000);
+  if (diffDays < 0) return "即將發佈";
+  if (diffDays < 1) return "今天";
+  if (diffDays === 1) return "昨天";
+  if (diffDays < 7) return `${diffDays} 天前`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} 週前`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} 個月前`;
+  return `${Math.floor(diffDays / 365)} 年前`;
+}
+
 function FactCheckBadge({
   status,
   checkedAt,
@@ -256,6 +283,17 @@ function ModelCard({
   const pricingTier = model.pricing?.tier
     ? PRICING_TIER_STYLE[model.pricing.tier]
     : null;
+  const freshUpdate = useMemo(() => {
+    if (!model.latestUpdates || model.latestUpdates.length === 0) return null;
+    return (
+      model.latestUpdates.find(u => isFreshUpdate(u.date)) ??
+      [...model.latestUpdates].sort(
+        (a, b) => parseUpdateDate(b.date) - parseUpdateDate(a.date)
+      )[0] ??
+      null
+    );
+  }, [model.latestUpdates]);
+  const isFresh = freshUpdate ? isFreshUpdate(freshUpdate.date) : false;
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
@@ -286,10 +324,21 @@ function ModelCard({
       <div className="p-5">
         {/* Header row: provider badge + modality + tier */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ring-1 ${provider.bg} ${provider.accent} ${provider.ring}`}
-          >
-            {provider.label}
+          <div className="inline-flex items-center gap-1.5 flex-wrap">
+            <div
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ring-1 ${provider.bg} ${provider.accent} ${provider.ring}`}
+            >
+              {provider.label}
+            </div>
+            {isFresh && freshUpdate && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-200 animate-pulse"
+                title={`${relativeUpdateLabel(freshUpdate.date)}：${freshUpdate.summary}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                最新動態
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <span
@@ -1226,6 +1275,143 @@ function ModelDetailModal({
 
 // ─── Featured model spotlight (compact horizontal scroll) ──────────────────
 
+// ─── Cross-model latest activity feed ─────────────────────────────────────
+//
+// 把所有模型的 `latestUpdates` 攤平、依日期排序，取最新 ~10 筆。
+// 讓使用者一眼看到「整個 AI 生態最近發生了什麼」，而不是要逐一點開卡片。
+
+function CrossModelUpdatesFeed({
+  models,
+  onOpen,
+  limit = 10,
+}: {
+  models: AIModelEntry[];
+  onOpen: (m: AIModelEntry) => void;
+  limit?: number;
+}) {
+  const items = useMemo(() => {
+    type FeedItem = {
+      modelId: string;
+      modelName: string;
+      provider: AIModelEntry["provider"];
+      modality: AIModelEntry["modality"];
+      date: string;
+      summary: string;
+      url?: string;
+      ts: number;
+    };
+    const flat: FeedItem[] = [];
+    for (const m of models) {
+      if (!m.latestUpdates) continue;
+      for (const u of m.latestUpdates) {
+        flat.push({
+          modelId: m.id,
+          modelName: m.name,
+          provider: m.provider,
+          modality: m.modality,
+          date: u.date,
+          summary: u.summary,
+          url: u.url,
+          ts: parseUpdateDate(u.date),
+        });
+      }
+    }
+    flat.sort((a, b) => b.ts - a.ts);
+    return flat.slice(0, limit);
+  }, [models, limit]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mb-10">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="hs-h2 !mb-0 text-gray-900 inline-flex items-center gap-2">
+          <Activity className="w-5 h-5 text-rose-500" />
+          最新動態（自動追蹤）
+        </h2>
+        <span className="text-xs text-gray-500">
+          每日 03:30 由自動研究補上
+        </span>
+      </div>
+      <div className="space-y-2">
+        {items.map((item, i) => {
+          const ps = PROVIDER_STYLE[item.provider];
+          const ms = MODALITY_STYLE[item.modality];
+          const fresh = isFreshUpdate(item.date);
+          const model = models.find(m => m.id === item.modelId);
+          return (
+            <motion.div
+              key={`${item.modelId}-${i}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.02 }}
+              className={`group flex items-start gap-3 p-3 rounded-xl border ${
+                fresh
+                  ? "border-rose-200 bg-rose-50/30"
+                  : "border-gray-200 bg-white"
+              } hover:border-primary/40 hover:shadow-sm transition-all`}
+            >
+              <div className="text-[11px] font-mono text-gray-500 shrink-0 pt-0.5 w-16 sm:w-20">
+                <div className={fresh ? "text-rose-600 font-semibold" : ""}>
+                  {relativeUpdateLabel(item.date)}
+                </div>
+                <div className="text-[10px] text-gray-400 mt-0.5">
+                  {item.date}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                  <button
+                    type="button"
+                    onClick={() => model && onOpen(model)}
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ring-1 ${ps.bg} ${ps.accent} ${ps.ring} hover:underline`}
+                  >
+                    {ps.label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => model && onOpen(model)}
+                    className="text-sm font-medium text-gray-900 hover:text-primary transition-colors truncate text-left"
+                  >
+                    {item.modelName}
+                  </button>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${ms.chipBg} ${ms.chipText}`}
+                  >
+                    {ms.label}
+                  </span>
+                  {fresh && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      新
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed">
+                  {item.summary}
+                </p>
+              </div>
+              <div className="shrink-0 flex flex-col gap-1">
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-gray-400 hover:text-primary inline-flex items-center gap-0.5"
+                    title="查看來源連結"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function FeaturedSpotlight({
   models,
   onOpen,
@@ -1444,6 +1630,16 @@ function AutoResearchPanel({
       toast.error(err.message ?? "無法啟動研究");
     },
   });
+  const refreshStale = trpc.aiModels.refreshStale.useMutation({
+    onSuccess: data => {
+      toast.success(data?.message ?? "已啟動 stale 模型補抓");
+      void utils.aiModels.researchStats.invalidate();
+      void utils.aiModels.list.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? "無法啟動 stale 補抓");
+    },
+  });
 
   if (!data) return null;
   const last = data.stats.lastRunAt;
@@ -1504,22 +1700,43 @@ function AutoResearchPanel({
           </div>
         </div>
 
-        <div className="ml-auto inline-flex items-center gap-2">
+        <div className="ml-auto inline-flex items-center gap-2 flex-wrap justify-end">
           {isAdmin ? (
-            <button
-              type="button"
-              onClick={() => refreshAll.mutate()}
-              disabled={inProgress || refreshAll.isPending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="立即在背景跑一輪完整 catalog 自動研究"
-            >
-              {refreshAll.isPending || inProgress ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <PlayCircle className="w-3.5 h-3.5" />
-              )}
-              {inProgress ? "研究進行中…" : "手動執行完整研究"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => refreshStale.mutate()}
+                disabled={
+                  inProgress ||
+                  refreshAll.isPending ||
+                  refreshStale.isPending ||
+                  staleCount + (data.totalModels - verifiedCount - staleCount) === 0
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:border-primary/40 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="只重抓 stale / pending / error 的模型，比完整研究便宜很多"
+              >
+                {refreshStale.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5" />
+                )}
+                只刷新過期 ({staleCount + (data.totalModels - verifiedCount - staleCount)})
+              </button>
+              <button
+                type="button"
+                onClick={() => refreshAll.mutate()}
+                disabled={inProgress || refreshAll.isPending || refreshStale.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="立即在背景跑一輪完整 catalog 自動研究"
+              >
+                {refreshAll.isPending || inProgress ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <PlayCircle className="w-3.5 h-3.5" />
+                )}
+                {inProgress ? "研究進行中…" : "手動執行完整研究"}
+              </button>
+            </>
           ) : (
             <span className="text-[11px] text-gray-400">
               管理員可手動觸發研究
@@ -1875,6 +2092,15 @@ export default function AIModelsHub() {
         {/* ── Featured spotlight ───────────────────────────────────────── */}
         {!hasActiveFilters && (
           <FeaturedSpotlight models={featured} onOpen={setOpenModel} />
+        )}
+
+        {/* ── Cross-model latest activity feed ─────────────────────────── */}
+        {!hasActiveFilters && (
+          <CrossModelUpdatesFeed
+            models={allModels}
+            onOpen={setOpenModel}
+            limit={10}
+          />
         )}
 
         {/* ── Filter bar ───────────────────────────────────────────────── */}
