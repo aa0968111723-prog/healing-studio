@@ -1197,7 +1197,7 @@ const normalizePathname = (rawPath: string) => {
   const [pathname] = rawPath.split(/[?#]/);
   // query/hash-only inputs collapse to "/" so lookups stay stable even when a
   // caller passes "?section=..." or "#fragment" without a leading pathname.
-  if (!pathname) return "/";
+  if (pathname === "") return "/";
   if (pathname !== "/" && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
   }
