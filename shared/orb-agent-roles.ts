@@ -971,32 +971,49 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
  * whether to auto-prepend a pinned spirit's @ tag (i.e. "is the user already
  * addressing a spirit?"); when null is returned, no spirit was named.
  */
-// 已知會撞普通詞的 bare nickname,叫名時必須後接空白 / 標點才算 mention。
-// 否則「總管理一下今天的點數」「編排一下流程」「學長告訴我怎麼用」這種
-// 句子會被誤判為 @chief-orchestrator / @composer / @learning,使用者實際
-// 想找的精靈被搶走。@-prefix 形式不受此影響(顯式 mention 永遠有效)。
-const AMBIGUOUS_BARE_NICKNAMES = new Set([
-  "總管", "總精靈",        // chief-orchestrator
-  "編排",                   // composer
-  "學長",                   // learning-specialist
-  "圖像精靈", "影像精靈",   // image / video specialist (full words 不歧義但
-                            // 短形「圖」「影」未列入 nicknames 已避免)
-]);
+// 已知會撞普通詞的 bare nickname → 每個 nickname 列出「下一字若是這個就
+// 不算 mention(會形成另一個常見詞)」的 denylist。沒列出的接續(其他
+// Han、空白、標點、字串結束)都算 mention。
+// 這條規則比一刀切「Han 接續都不算」精準很多 — 中文不靠空白斷詞,「總
+// 管幫我看一下」「學長教我 LoRA」這種正當 bare-address 句型本來就是
+// 「nickname + 動作動詞」,直接接 Han 字是常態。
+//
+// Codex review 反饋:原本 /[\s\p{P}]/u.test(next) 把所有 Han 接續都濾
+// 掉,導致 `總管幫我看一下` / `學長教我 LoRA` 被當組合詞,使用者明顯
+// 在叫精靈卻被踢到 generic intent routing。
+const AMBIGUOUS_BARE_NICKNAMES: Record<string, readonly string[]> = {
+  // 總管理 = 「(總)管理」名詞,常見組合詞 → 後接「理」濾掉
+  "總管": ["理"],
+  // 總精靈 沒有常見組合,但保留條目讓未來新增防護點清楚
+  "總精靈": [],
+  // 編排 + 「成」「成為」「為」等 → 動詞用法(編排成 X / 編排為 X),
+  // 但「編排一下」「編排這個」「編排流程」都是動作命令,user 在叫編編。
+  // 嚴格說 user 在說「請編編做編排」的意圖也成立,當 mention 處理。
+  // 留空 denylist,讓 bare「編排」開頭一律當 mention。
+  "編排": [],
+  // 學長 + 姊 / 們 → 「學長姊」「學長們」是另指他人,濾掉
+  "學長": ["姊", "們"],
+  // 圖像精靈 / 影像精靈 沒有常見組合詞(本身已長),留空
+  "圖像精靈": [],
+  "影像精靈": [],
+};
 
 /**
- * M5 修復:Bare-nickname 必須有「結尾邊界」才算真的叫精靈,不能單純
- * startsWith。否則使用者打「總管理一下今天的點數」會被當成 @總管(chief)。
- * 邊界 = 字串結束 / 空白 / CJK / ASCII 標點。
+ * M5 修復:Bare-nickname 出現在歧義詞首時做一道防護,只有「會形成另一個
+ * 已知詞」的 Han 接續才算組合詞被濾掉。其他接續(空白 / 標點 / 字串結
+ * 束 / 其他 Han)都算 mention,符合中文不空白斷詞的書寫習慣。
  */
 function isBareNicknameMention(text: string, name: string): boolean {
   if (!text.startsWith(name)) return false;
-  if (!AMBIGUOUS_BARE_NICKNAMES.has(name)) return true; // 不歧義的 bare 直接過
+  const denyList = AMBIGUOUS_BARE_NICKNAMES[name];
+  if (!denyList) return true; // 不歧義的 bare 直接過
   const rest = text.slice(name.length);
-  if (rest.length === 0) return true; // 純 "總管" 一個字確實是 mention
+  if (rest.length === 0) return true; // 純 nickname 一個字一定是 mention
   const next = rest.charAt(0);
-  // 後接空白 / 換行 / 標點:確定是 mention
-  // 後接其他字:屬於組合詞(總管理 / 編排器 / 學長姊)— 不算 mention
-  return /[\s\p{P}]/u.test(next);
+  // 列在 denylist 的 Han 接續 = 形成另一個常用詞 → 不算 mention
+  if (denyList.includes(next)) return false;
+  // 其他接續(空白 / 標點 / 字串結束 / 其他 Han 動詞 / 名詞)= 都算 mention
+  return true;
 }
 
 export function detectSpiritMention(text: string): AgentRole | null {

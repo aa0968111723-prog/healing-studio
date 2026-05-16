@@ -560,40 +560,55 @@ describe("detectSpiritMention / hasSpiritMention", () => {
 
   // M5 修復:bare-nickname 不能單純 startsWith,必須在邊界結束(空白 /
   // CJK 標點 / 字串結束)。否則 ambiguous bare 會被誤觸發。
-  describe("M5: bare-nickname 邊界檢查", () => {
-    it("「總管理」不會誤判成 @總管(chief-orchestrator)", () => {
-      // 「總管理一下今天的點數」是「(總)管理」,不是叫總管去做事
+  describe("M5: bare-nickname 邊界檢查 (denylist-based)", () => {
+    // 第一輪修法: /[\s\p{P}]/ 過嚴,中文 Han 接續一律當組合詞 → 把
+    // 「總管幫我看一下」「學長教我 LoRA」這種正當 bare-address 也濾掉。
+    // 改成每個 ambiguous nickname 各自帶 denylist,只擋會形成「另一個
+    // 常見詞」的接續字元(總管+理 / 學長+姊/們 等),其他接續算 mention。
+
+    // ── 真正的組合詞接續(denylist 命中)→ 不算 mention ──
+    it("「總管理」不會誤判成 @總管(denylist:理)", () => {
+      // 「總管理一下」是「(總)管理」,是組合詞,不是叫總管做事
       expect(detectSpiritMention("總管理一下今天的點數")).toBeNull();
     });
 
-    it("「編排一下流程」不會誤判成 @編排(composer)", () => {
-      expect(detectSpiritMention("編排一下流程")).toBeNull();
+    it("「學長姊」「學長們」不會誤判成 @學長(denylist:姊/們)", () => {
+      expect(detectSpiritMention("學長姊都這樣說")).toBeNull();
+      expect(detectSpiritMention("學長們最近忙嗎")).toBeNull();
     });
 
-    it("「學長告訴我怎麼用」不會誤判成 @學長(learning-specialist)", () => {
-      expect(detectSpiritMention("學長告訴我怎麼用")).toBeNull();
+    // ── Codex review 反饋:正當 bare-address 加 Han 動詞接續應該認可 ──
+    it("「總管幫我看一下」是 mention(Codex case;接 Han 動詞 幫)", () => {
+      expect(detectSpiritMention("總管幫我看一下")).toBe("chief-orchestrator");
     });
 
-    it("但「總管 」(後接空白)還是會認可", () => {
+    it("「學長教我 LoRA」是 mention(Codex case;接 Han 動詞 教)", () => {
+      expect(detectSpiritMention("學長教我 LoRA")).toBe("learning-specialist");
+    });
+
+    it("「學長告訴我怎麼用」是 mention(接 Han 動詞 告訴)", () => {
+      // 中文不空白斷詞,「學長 + 告訴」就是叫學長告訴我
+      expect(detectSpiritMention("學長告訴我怎麼用")).toBe("learning-specialist");
+    });
+
+    // ── 既有 boundary 案例維持 ──
+    it("「總管 」(後接空白)是 mention", () => {
       expect(detectSpiritMention("總管 請幫我看一下")).toBe("chief-orchestrator");
     });
 
-    it("純「總管」一個字也認可(完整 mention)", () => {
+    it("純「總管」一個字是 mention", () => {
       expect(detectSpiritMention("總管")).toBe("chief-orchestrator");
     });
 
-    it("「總管,我有問題」(後接中文逗號)也認可", () => {
+    it("「總管,我有問題」(後接中文逗號)是 mention", () => {
       expect(detectSpiritMention("總管,我有問題")).toBe("chief-orchestrator");
     });
 
-    it("「@總管理一下」(顯式 @-prefix)永遠認可,不受邊界檢查影響", () => {
-      // @ 是顯式叫人,不管後面接什麼都當 mention
+    it("「@總管理一下」(顯式 @-prefix)永遠認可", () => {
       expect(detectSpiritMention("@總管理一下我的點數")).toBe("chief-orchestrator");
     });
 
-    it("不歧義的 bare(如「圖圖」)仍維持原行為", () => {
-      // 「圖圖管理...」極少見,且「圖圖」不在 AMBIGUOUS_BARE_NICKNAMES,
-      // 維持原 startsWith 行為(會 match)。
+    it("不歧義的 bare(如「圖圖」)維持原行為", () => {
       expect(detectSpiritMention("圖圖 幫我畫")).toBe("image-specialist");
     });
   });
