@@ -15,10 +15,25 @@
  *   6. 模擬隊列 + timeline + 成本累計
  *
  * 純 Node.js — 不需 build / tsx；直接 `node scripts/simulate-orb-studio-25.mjs`。
- * 25 精靈資料 inline 在本檔（鏡像 shared/orb-agent-roles.ts + spiritsVisual.ts）
- * 以避免 TS import；如未來修改 source-of-truth，跑 `npm run check:smoke` 不會
- * 動到本檔，需手動同步暱稱 / family（每加一位精靈才會動到一次）。
+ *
+ * Source-driven 設計（2026-05-16 修補 Codex P1/P2 反饋）：
+ *   Phase 2 的「routing 命中」改用 detectSpiritMention 的 faithful mini-impl
+ *   跑真實 SPIRIT_NICKNAMES（從 shared/orb-agent-roles.ts 解析），所以使用者
+ *   把暱稱改名 / 刪一位精靈 / 主要 nickname 漂移時模擬會立刻失敗，不會永
+ *   遠綠燈。Phase 8 的健康總表每一行都從真實檔案 grep 計算，沒有寫死 "ok"。
+ *
+ *   inline SPIRITS 表只保留視覺資料（emoji / 漸層）；roleId / 暱稱 / family
+ *   清單來自 source-of-truth 解析。若 source 多出一位 inline 沒有的精靈，
+ *   visual 會 fallback 但 health 會 warn。
  */
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(__dirname, "..");
+const read = (rel) => readFileSync(resolve(ROOT, rel), "utf8");
 
 const C = {
   reset: "\x1b[0m",
@@ -81,6 +96,122 @@ const SPIRITS = [
 
 const byId = Object.fromEntries(SPIRITS.map(s => [s.id, s]));
 
+// ─── Source-of-truth parsers ──────────────────────────────────────────
+// 直接 grep 真實檔案而不 import .ts —— 因為 monorepo 用 NodeNext ESM，
+// `import "./foo"` 沒有 `.js` 後綴會跑不起來。改用 regex 解析比建一條
+// tsx/ts-node 工具鏈簡單，也與本檔「純 .mjs，零依賴」的設計保持一致。
+
+function parseAgentRoles() {
+  // `export type AgentRole = | "director" | "composer" | ...;`
+  const src = read("shared/orb-agent-roles.ts");
+  const block = src.match(/export type AgentRole =([\s\S]*?);/);
+  if (!block) throw new Error("無法解析 AgentRole union（shared/orb-agent-roles.ts）");
+  return [...block[1].matchAll(/"([a-z-]+)"/g)].map(m => m[1]);
+}
+
+function parseSpiritNicknames() {
+  // `{ role: "image-specialist", nicknames: ["圖圖", "阿圖", ...] },`
+  const src = read("shared/orb-agent-roles.ts");
+  const block = src.match(/const SPIRIT_NICKNAMES[\s\S]*?=\s*\[([\s\S]*?)\];/);
+  if (!block) throw new Error("無法解析 SPIRIT_NICKNAMES");
+  const out = {};
+  const re = /\{\s*role:\s*"([a-z-]+)"\s*,\s*nicknames:\s*\[([^\]]+)\]\s*\}/g;
+  let m;
+  while ((m = re.exec(block[1])) !== null) {
+    const role = m[1];
+    const names = [...m[2].matchAll(/"([^"]+)"/g)].map(x => x[1]);
+    out[role] = names;
+  }
+  return out;
+}
+
+function parseSpiritsById() {
+  // `export const SPIRITS: SpiritVisual[] = [ { id: "image-specialist", ... } ]`
+  const src = read("client/src/lib/spiritsVisual.ts");
+  return [...src.matchAll(/\bid:\s*"([a-z-]+)"/g)].map(m => m[1]);
+}
+
+function parseMonitoredSpirits() {
+  // `private readonly MONITORED_SPIRITS: readonly AgentRole[] = [ ... ] as const;`
+  // 注意：陣列結尾是 `] as const;` 不是 `];`，不容忍會吃進後面的程式碼。
+  const src = read("server/services/spiritStatusMonitor.ts");
+  const block = src.match(/MONITORED_SPIRITS[^=]*=\s*\[([\s\S]*?)\]\s*(?:as\s+const)?\s*;/);
+  if (!block) return [];
+  return [...block[1].matchAll(/"([a-z-]+)"/g)].map(m => m[1]);
+}
+
+function parseProactiveEventUnion() {
+  // `export type ProactiveTriggerEvent = | "monthly_spend_threshold" | ...;`
+  const src = read("shared/orb-agent-roles.ts");
+  const block = src.match(/export type ProactiveTriggerEvent =([\s\S]*?);/);
+  if (!block) return [];
+  return [...block[1].matchAll(/"([a-z_]+)"/g)].map(m => m[1]);
+}
+
+function parseProactiveTriggerSpecs() {
+  // `export const SPIRIT_PROACTIVE_TRIGGERS = [{ spirit, event, surface, ... }]`
+  // 抓 event 欄位即可
+  const src = read("shared/orb-agent-roles.ts");
+  const block = src.match(/SPIRIT_PROACTIVE_TRIGGERS[^=]*=\s*\[([\s\S]*?)\];/);
+  if (!block) return [];
+  return [...block[1].matchAll(/event:\s*"([a-z_]+)"/g)].map(m => m[1]);
+}
+
+function parsePathSpiritMap() {
+  // `const PATH_SPIRIT_MAP: ... = [ { prefix: "/director", role: "director" }, ... ]`
+  const src = read("shared/orb-agent-roles.ts");
+  const block = src.match(/const PATH_SPIRIT_MAP[\s\S]*?=\s*\[([\s\S]*?)\];/);
+  if (!block) return [];
+  return [...block[1].matchAll(/prefix:\s*"([^"]+)"/g)].map(m => m[1]);
+}
+
+function parseAppRoutes() {
+  // `<Route path="...">` and `<Route path="..." component={X} />`
+  const src = read("client/src/App.tsx");
+  const paths = new Set();
+  for (const m of src.matchAll(/<Route\s+path="([^"]+)"/g)) paths.add(m[1].split(/[?#]/)[0]);
+  return [...paths];
+}
+
+function parseHandoffIndicatorUsesById() {
+  const src = read("client/src/components/SpiritHandoffIndicator.tsx");
+  // 看它是否從 spiritsVisual import SPIRITS_BY_ID
+  return /from\s+["'][^"']*spiritsVisual["']/.test(src)
+      && /SPIRITS_BY_ID/.test(src);
+}
+
+// ─── Faithful detectSpiritMention re-impl ─────────────────────────────
+// 跟 shared/orb-agent-roles.ts:1019 一致：先檢查 `@暱稱` 出現於任何位置，
+// 再檢查純 bare nickname 開頭（含 AMBIGUOUS denylist）。本檔的測試 prompt
+// 全部以 `@<primaryNickname>` 開頭，所以走的是第一條路徑；如果 source 把
+// 某位精靈的主要暱稱改名，這裡就會 detect 失敗，Phase 2 會立刻變紅。
+function detectSpiritMentionMini(text, nicknamesByRole) {
+  for (const [role, names] of Object.entries(nicknamesByRole)) {
+    for (const n of names) {
+      if (text.includes(`@${n}`)) return role;
+    }
+  }
+  return null;
+}
+
+// ─── 載入 source state（lazy；main 開頭呼叫一次）────────────────────
+let SOURCE = null;
+function loadSourceState() {
+  if (SOURCE) return SOURCE;
+  SOURCE = {
+    agentRoles:           parseAgentRoles(),
+    nicknames:            parseSpiritNicknames(),
+    spiritsById:          parseSpiritsById(),
+    monitoredSpirits:     parseMonitoredSpirits(),
+    proactiveEvents:      parseProactiveEventUnion(),
+    proactiveTriggers:    parseProactiveTriggerSpecs(),
+    pathSpiritMap:        parsePathSpiritMap(),
+    appRoutes:            parseAppRoutes(),
+    handoffIndicatorOK:   parseHandoffIndicatorUsesById(),
+  };
+  return SOURCE;
+}
+
 const STUDIO_PAGES = [
   { path: "/director",         label: "AI Director 劇場", host: "director",            cap: "規劃跨頁工作流" },
   { path: "/studio",           label: "創作工作室",        host: "composer",            cap: "在當頁直接執行" },
@@ -98,32 +229,35 @@ const STUDIO_PAGES = [
 ];
 
 // ─── 真實 prompt 對應每位精靈（mirror audit-12-roles.mjs）─────────────────
+// 每條 prompt 以 `@<暱稱>` 起頭，讓 Phase 2 可以用真實 detectSpiritMention
+// 的 @-prefix 路徑驗證命中（如 source 把某位精靈的主要 nickname 改名，
+// 這裡就會直接命中失敗 → Phase 2 變紅而不是無聲通過）。
 const SPIRIT_PROMPTS = {
-  "director":               "幫我規劃一個從腳本到影片到配樂的完整工作流",
-  "composer":               "幫我把這頁的提示詞改成 35mm 底片質感再送出",
-  "critic":                 "幫我看一下這張海報哪裡可以再改",
-  "researcher":             "幫我比較 Flux Pro / Veo 3 / Kling 2.1 的差別",
-  "navigator":              "帶我去模型總覽頁",
-  "companion":              "今天有點累，先陪我聊一下再開始",
-  "accountant":             "本月點數還剩多少？最近最花錢的是哪個模型？",
-  "quality-coach":          "這個 prompt 一直生不出我要的，幫我看是哪裡寫得不好",
-  "inspector":              "剛剛圖片生成又失敗了，是不是站上有問題？",
-  "image-specialist":       "夕陽下的少女側臉，電影感、淺景深、35mm 底片質感",
-  "video-specialist":       "把這張圖做成 8 秒直式短影片，鏡頭緩慢推進",
-  "music-specialist":       "幫我寫一段 lo-fi 療癒系背景音樂，60 秒",
-  "voice-specialist":       "幫我配一段 30 秒的女聲旁白，溫暖、慢節奏",
-  "training-specialist":    "我有 20 張參考圖，想練一個自己角色的 LoRA",
-  "learning-specialist":    "我是新手，教我怎麼從零開始做第一支 AI 影片",
-  "legal-advisor":          "我想做一張米老鼠風格的圖貼到 IG，這樣會有問題嗎？",
-  "security-guard":         "我把我的 OpenAI key 直接貼進對話了，怎麼辦？",
-  "community-manager":      "教我經營 IG 的療癒系帳號，目標 25-35 歲女性",
-  "chief-orchestrator":     "現在團隊有哪幾位在跑？下一棒應該交給誰？",
-  "onboarding-coach":       "我同一個操作試了 4 次都沒成功，是不是哪裡操作錯了",
-  "notes-curator":          "幫我把剛剛聊到的「療癒系品牌調性」記下來",
-  "settings-detail":        "我想關掉成本提醒但保留錯誤通知，怎麼調？",
-  "plan-executor":          "把這條 5 步驟的計畫從頭跑到尾，每完成一步通知我",
-  "inspiration-specialist": "完全沒想法，給我 3 個療癒系視覺方向",
-  "anatomy-specialist":     "幫我畫一張人體心臟解剖剖面圖，標出主要血管",
+  "director":               "@導導 幫我規劃一個從腳本到影片到配樂的完整工作流",
+  "composer":               "@編編 幫我把這頁的提示詞改成 35mm 底片質感再送出",
+  "critic":                 "@品品 幫我看一下這張海報哪裡可以再改",
+  "researcher":             "@查查 幫我比較 Flux Pro / Veo 3 / Kling 2.1 的差別",
+  "navigator":              "@路路 帶我去模型總覽頁",
+  "companion":              "@暖暖 今天有點累，先陪我聊一下再開始",
+  "accountant":             "@財財 本月點數還剩多少？最近最花錢的是哪個模型？",
+  "quality-coach":          "@巧巧 這個 prompt 一直生不出我要的，幫我看是哪裡寫得不好",
+  "inspector":              "@守守 剛剛圖片生成又失敗了，是不是站上有問題？",
+  "image-specialist":       "@圖圖 夕陽下的少女側臉，電影感、淺景深、35mm 底片質感",
+  "video-specialist":       "@影影 把這張圖做成 8 秒直式短影片，鏡頭緩慢推進",
+  "music-specialist":       "@音音 幫我寫一段 lo-fi 療癒系背景音樂，60 秒",
+  "voice-specialist":       "@聲聲 幫我配一段 30 秒的女聲旁白，溫暖、慢節奏",
+  "training-specialist":    "@練練 我有 20 張參考圖，想練一個自己角色的 LoRA",
+  "learning-specialist":    "@學學 我是新手，教我怎麼從零開始做第一支 AI 影片",
+  "legal-advisor":          "@律律 我想做一張米老鼠風格的圖貼到 IG，這樣會有問題嗎？",
+  "security-guard":         "@安安 我把我的 OpenAI key 直接貼進對話了，怎麼辦？",
+  "community-manager":      "@群群 教我經營 IG 的療癒系帳號，目標 25-35 歲女性",
+  "chief-orchestrator":     "@總總 現在團隊有哪幾位在跑？下一棒應該交給誰？",
+  "onboarding-coach":       "@帶帶 我同一個操作試了 4 次都沒成功，是不是哪裡操作錯了",
+  "notes-curator":          "@記記 幫我把剛剛聊到的「療癒系品牌調性」記下來",
+  "settings-detail":        "@細細 我想關掉成本提醒但保留錯誤通知，怎麼調？",
+  "plan-executor":          "@步步 把這條 5 步驟的計畫從頭跑到尾，每完成一步通知我",
+  "inspiration-specialist": "@靈靈 完全沒想法，給我 3 個療癒系視覺方向",
+  "anatomy-specialist":     "@體體 幫我畫一張人體心臟解剖剖面圖，標出主要血管",
 };
 
 // ─── 16 主動觸發事件 ────────────────────────────────────────────────────
@@ -297,16 +431,22 @@ function phase0_intro() {
 
 // ─── PHASE 1 點名 25 精靈 ──────────────────────────────────────────
 function phase1_roster() {
-  console.log(rule("PHASE 1 · 25 精靈到場點名"));
+  console.log(rule("PHASE 1 · 25 精靈到場點名（對照 source AgentRole union）"));
   console.log();
+  const src = loadSourceState();
+  const inlineIds = new Set(SPIRITS.map(s => s.id));
+  const sourceIds = new Set(src.agentRoles);
+  const missingInInline = [...sourceIds].filter(id => !inlineIds.has(id));
+  const missingInSource = [...inlineIds].filter(id => !sourceIds.has(id));
+
   const families = [
-    ["role",       "通用同事（10 位）— 導 / 編 / 品 / 查 / 路 / 暖 / 總 / 記 / 細 / 步"],
-    ["specialist", "專精精靈（9 位）— 圖 / 影 / 音 / 聲 / 訓 / 學 / 群 / 靈 / 體"],
-    ["proactive",  "主動精靈（6 位）— 財 / 巧 / 守 / 律 / 安 / 帶"],
+    ["role",       "通用同事 — 導 / 編 / 品 / 查 / 路 / 暖 / 總 / 記 / 細 / 步"],
+    ["specialist", "專精精靈 — 圖 / 影 / 音 / 聲 / 訓 / 學 / 群 / 靈 / 體"],
+    ["proactive",  "主動精靈 — 財 / 巧 / 守 / 律 / 安 / 帶"],
   ];
   for (const [fam, label] of families) {
-    console.log(c("purple", "  ▌ ") + bold(label));
     const list = SPIRITS.filter(s => s.family === fam);
+    console.log(c("purple", "  ▌ ") + bold(`${label}（${list.length} 位）`));
     const cols = 4;
     for (let i = 0; i < list.length; i += cols) {
       const row = list.slice(i, i + cols)
@@ -315,29 +455,58 @@ function phase1_roster() {
     }
     console.log();
   }
-  console.log(c("gray", `  合計：${SPIRITS.length} 位精靈 · 100% 對齊 shared/orb-agent-roles.ts AgentRole`));
+  const driftMark = (missingInInline.length === 0 && missingInSource.length === 0)
+    ? c("green", "✓")
+    : c("yellow", "⚠");
+  console.log(`  ${driftMark} inline ${SPIRITS.length} 位 ↔ source AgentRole ${sourceIds.size} 位`);
+  if (missingInInline.length > 0) {
+    console.log(c("yellow", `    ⚠ source 有但 inline 缺：${missingInInline.join(", ")}`));
+  }
+  if (missingInSource.length > 0) {
+    console.log(c("red", `    ✗ inline 有但 source 沒：${missingInSource.join(", ")}（可能已被刪除）`));
+  }
   console.log();
 }
 
 // ─── PHASE 2 逐位 orb proxy 路由 ──────────────────────────────────
+// 每條 prompt 跑 detectSpiritMention 的 faithful mini-impl，用 source 解
+// 出來的真實 SPIRIT_NICKNAMES 做對照。pass = detected === expected。
+// 任何 source 漂移（暱稱改名 / 主要 nickname 換、role 被刪、@-prefix 邏
+// 輯改動）都會讓對應行變紅，總計變 <25/25。
 async function phase2_orb_routing() {
-  console.log(rule("PHASE 2 · 逐位精靈：真實 prompt → orb proxy → 命中"));
+  console.log(rule("PHASE 2 · 逐位精靈：prompt → detectSpiritMention(source) → 命中"));
   console.log();
+  const src = loadSourceState();
   let hits = 0;
+  let misses = [];
   for (const s of SPIRITS) {
-    const prompt = SPIRIT_PROMPTS[s.id];
-    // 模擬 router 命中：所有 prompt 含 spirit 字眼或關鍵詞，假設 100% 命中
-    const hit = true; hits += hit ? 1 : 0;
+    const prompt = SPIRIT_PROMPTS[s.id] ?? `@${s.nick} test`;
+    const detected = detectSpiritMentionMini(prompt, src.nicknames);
+    const hit = detected === s.id;
+    if (hit) hits++;
+    else misses.push({ id: s.id, expected: s.id, got: detected });
     const mark = hit ? c("green", "✓") : c("red", "✗");
     const promptShort = prompt.length > 38 ? prompt.slice(0, 36) + "…" : prompt.padEnd(38);
+    const gotLabel = hit ? s.id : `${detected ?? "(none)"} ≠ ${s.id}`;
+    const gotColor = hit ? "cyan" : "red";
     console.log(`  ${mark} ${chip(s)} ${c("dim", "←")} ${c("white", promptShort)}` +
-                `  ${c("cyan", "→ " + s.id.padEnd(22))}` +
+                `  ${c(gotColor, "→ " + gotLabel.padEnd(28))}` +
                 `${c("dim", "LLM=" + s.llm)}`);
     await tick(20);
   }
   console.log();
-  console.log(c("green", `  ✓ orb proxy 路由：${hits}/${SPIRITS.length} 命中（含 @暱稱 + keyword router）`));
+  const allOk = hits === SPIRITS.length;
+  if (allOk) {
+    console.log(c("green", `  ✓ orb proxy 路由：${hits}/${SPIRITS.length} 命中（@-prefix faithful to source SPIRIT_NICKNAMES）`));
+  } else {
+    console.log(c("red", `  ✗ orb proxy 路由：${hits}/${SPIRITS.length} 命中 — ${misses.length} 條漂移：`));
+    for (const m of misses) {
+      console.log(c("red", `    - ${m.expected} → 實際得到 ${m.got ?? "(none)"}`));
+    }
+    process.exitCode = 1; // CI 友善 — 漂移時非 0 結束
+  }
   console.log();
+  return { hits, total: SPIRITS.length, misses };
 }
 
 // ─── PHASE 3 創作工作室落地 ─────────────────────────────────────
@@ -432,7 +601,15 @@ async function phase6_proactive() {
     await tick(20);
   }
   console.log();
-  console.log(c("green", `  ✓ 16/16 事件 → 對應精靈活著；其中 2 條 blocking（律律 IP / 安安 金鑰）會擋下高風險`));
+  const src = loadSourceState();
+  const localCount = PROACTIVE_TRIGGERS.length;
+  const sourceCount = src.proactiveTriggers.length;
+  const sourceUnion = src.proactiveEvents.length;
+  if (localCount === sourceCount && sourceCount === sourceUnion) {
+    console.log(c("green", `  ✓ ${localCount}/${sourceUnion} 事件 → 對應精靈活著；其中 2 條 blocking（律律 IP / 安安 金鑰）會擋下高風險`));
+  } else {
+    console.log(c("yellow", `  ⚠ 本檔列 ${localCount} 條；source union ${sourceUnion}；spec 陣列 ${sourceCount} — 三者應一致`));
+  }
   console.log();
 }
 
@@ -451,25 +628,80 @@ function phase7_handoffs() {
 }
 
 // ─── PHASE 8 最終 health card ─────────────────────────────────
-function phase8_health() {
-  console.log(rule("PHASE 8 · 全站 orb × 25 精靈 × 創作工作室 健康總表"));
+// 每行從真實 source 計算，沒有寫死字面值。某行 < 期望時 row 變黃/紅，
+// 整體 process.exitCode 設為 1 — 讓 CI / `npm run simulate:orb-studio`
+// 在對齊漂移時能阻擋合併。
+function phase8_health(routing) {
+  console.log(rule("PHASE 8 · 全站 orb × 25 精靈 × 創作工作室 健康總表（source-derived）"));
   console.log();
-  const checks = [
-    ["AgentRole 角色數",                             "25 / 25",  "ok"],
-    ["spiritStatusMonitor.MONITORED_SPIRITS",         "25 / 25",  "ok"],
-    ["agentCollaborationOrchestrator 註冊 spirit",    "25 / 25",  "ok"],
-    ["spiritsVisual SPIRITS_BY_ID",                   "25 / 25",  "ok"],
-    ["SpiritHandoffIndicator 使用 SPIRITS_BY_ID",     "yes",      "ok"],
-    ["PATH_SPIRIT_MAP × App.tsx Route 比對",          "15 / 15",  "ok"],
-    ["ProactiveTriggerEvent ↔ publisher",             "16 / 16",  "ok"],
-    ["SPIRIT_COLLAB_PROTOCOL 對稱性",                 "0 issues", "ok"],
-    ["全站創作工作室落地頁",                          `${STUDIO_PAGES.length} / ${STUDIO_PAGES.length}`, "ok"],
-    ["靈靈 / 體體 capability registry",               "wired",    "ok"],
+  const src = loadSourceState();
+  const EXPECT = 25;
+
+  // PATH_SPIRIT_MAP × App.tsx Route 比對 — 哪些 path 真的有對應 <Route>
+  const appRouteSet = new Set(src.appRoutes);
+  const mappedPaths = src.pathSpiritMap;
+  const mappedOK = mappedPaths.filter(p => {
+    for (const r of appRouteSet) {
+      if (p === r || r.startsWith(`${p}/`) || p.startsWith(`${r}/`)) return true;
+    }
+    return false;
+  });
+
+  // 靈靈 / 體體 是否在 source AgentRole union 中（被認可為精靈）
+  const inspirationWired = src.agentRoles.includes("inspiration-specialist");
+  const anatomyWired     = src.agentRoles.includes("anatomy-specialist");
+
+  // 每行：name / 實際值 / 期望值 / status（ok / warn / fail）
+  const rows = [
+    { name: "AgentRole 角色數",
+      actual: src.agentRoles.length, expected: EXPECT,
+      status: src.agentRoles.length === EXPECT ? "ok" : (src.agentRoles.length >= EXPECT ? "warn" : "fail") },
+    { name: "spiritStatusMonitor.MONITORED_SPIRITS",
+      actual: src.monitoredSpirits.length, expected: EXPECT,
+      status: src.monitoredSpirits.length === EXPECT ? "ok" : (src.monitoredSpirits.length >= EXPECT ? "warn" : "fail") },
+    { name: "spiritsVisual SPIRITS_BY_ID",
+      actual: src.spiritsById.length, expected: EXPECT,
+      status: src.spiritsById.length === EXPECT ? "ok" : (src.spiritsById.length >= EXPECT ? "warn" : "fail") },
+    { name: "SpiritHandoffIndicator 使用 spiritsVisual",
+      actual: src.handoffIndicatorOK ? "yes" : "no", expected: "yes",
+      status: src.handoffIndicatorOK ? "ok" : "fail" },
+    { name: "PATH_SPIRIT_MAP × App.tsx Route 比對",
+      actual: mappedOK.length, expected: mappedPaths.length,
+      status: mappedOK.length === mappedPaths.length ? "ok" : "fail" },
+    { name: "ProactiveTriggerEvent ↔ publisher (union vs spec)",
+      actual: src.proactiveTriggers.length, expected: src.proactiveEvents.length,
+      status: src.proactiveTriggers.length === src.proactiveEvents.length ? "ok" : "fail" },
+    { name: "全站創作工作室落地頁（本檔覆蓋）",
+      actual: STUDIO_PAGES.filter(p => appRouteSet.has(p.path) || src.appRoutes.some(r => p.path === r || r.startsWith(`${p.path}/`))).length,
+      expected: STUDIO_PAGES.length,
+      status: "computed" },
+    { name: "Phase 2 orb routing pass rate",
+      actual: routing ? `${routing.hits} / ${routing.total}` : "—",
+      expected: `${SPIRITS.length} / ${SPIRITS.length}`,
+      status: routing && routing.hits === routing.total ? "ok" : "fail" },
+    { name: "靈靈 (inspiration-specialist) wired",
+      actual: inspirationWired ? "yes" : "no", expected: "yes",
+      status: inspirationWired ? "ok" : "fail" },
+    { name: "體體 (anatomy-specialist) wired",
+      actual: anatomyWired ? "yes" : "no", expected: "yes",
+      status: anatomyWired ? "ok" : "fail" },
   ];
-  for (const [name, val, st] of checks) {
-    const ic = st === "ok" ? c("green", "✓") : st === "warn" ? c("yellow", "⚠") : c("red", "✗");
-    console.log(`  ${ic} ${name.padEnd(48)} ${c("cyan", val)}`);
+
+  // 動態算 studio landing pages 列的 status
+  const studioRow = rows.find(r => r.status === "computed");
+  studioRow.status = studioRow.actual === studioRow.expected ? "ok" : "warn";
+
+  let failed = 0;
+  for (const r of rows) {
+    const ic = r.status === "ok" ? c("green", "✓") : r.status === "warn" ? c("yellow", "⚠") : c("red", "✗");
+    const colour = r.status === "ok" ? "cyan" : r.status === "warn" ? "yellow" : "red";
+    const valLabel = typeof r.actual === "number" && typeof r.expected === "number"
+      ? `${r.actual} / ${r.expected}`
+      : `${r.actual} (期望 ${r.expected})`;
+    console.log(`  ${ic} ${r.name.padEnd(48)} ${c(colour, valLabel)}`);
+    if (r.status === "fail") failed++;
   }
+  if (failed > 0) process.exitCode = 1;
   console.log();
   console.log(c("purple", "  ╭─ 模擬總結 ───────────────────────────────────────────────────────╮"));
   console.log(c("purple", "  │") + ` 精靈到場    : ${c("white", String(SPIRITS.length).padStart(3))} 位                                              ` + c("purple", "│"));
@@ -486,15 +718,16 @@ function phase8_health() {
 
 // ─── 主流程 ───────────────────────────────────────────────────────
 async function main() {
+  loadSourceState();
   phase0_intro();
   phase1_roster();
-  await phase2_orb_routing();
+  const routing = await phase2_orb_routing();
   await phase3_studio_landings();
   await phase4_theater_modes();
   await phase5_multistep_run();
   await phase6_proactive();
   phase7_handoffs();
-  phase8_health();
+  phase8_health(routing);
 }
 
 main().catch(err => {
