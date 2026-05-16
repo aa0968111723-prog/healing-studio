@@ -194,12 +194,17 @@ function getInitialSection(): SectionId {
 
 function getInitialViewMode(): AssetsViewMode {
   const params = new URLSearchParams(window.location.search);
+  // 新版直接走 ?view=history;舊書籤 ?section=history 也仍然 land 在 history viewMode
+  const v = params.get("view");
+  if (v === "history" || v === "cards") return v;
   if (params.get("section") === "history") return "history";
   return "cards";
 }
 
 function getInitialTab(): "my" | "team" {
   const params = new URLSearchParams(window.location.search);
+  const t = params.get("tab");
+  if (t === "team" || t === "my") return t;
   if (params.get("section") === "shared") return "team";
   return "my";
 }
@@ -451,7 +456,32 @@ export default function AssetsLibrary() {
     setSection(id);
     const params = new URLSearchParams(window.location.search);
     params.set("section", id);
+    // 切到非 assets 分頁時清掉舊的 view / tab 參數(它們只屬於 assets 內部)
+    if (id !== "assets") {
+      params.delete("view");
+      params.delete("tab");
+    }
     window.history.replaceState(null, "", `?${params.toString()}`);
+  };
+
+  // 把 viewMode / tab 同步進 URL,讓使用者重新整理 / 分享連結時保留狀態
+  const updateAssetsUrlParam = (key: "view" | "tab", value: string, defaultValue: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (value === defaultValue) {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  };
+  const handleViewModeChange = (m: AssetsViewMode) => {
+    setViewMode(m);
+    updateAssetsUrlParam("view", m, "cards");
+  };
+  const handleAssetsTabChange = (t: "my" | "team") => {
+    setTab(t);
+    updateAssetsUrlParam("tab", t, "my");
   };
 
   // 全站新手引導
@@ -572,7 +602,7 @@ export default function AssetsLibrary() {
           if (action.tabId !== "my" && action.tabId !== "team") {
             return { ok: false, reason: `unknown tab: ${action.tabId}` };
           }
-          setTab(action.tabId);
+          handleAssetsTabChange(action.tabId);
           return { ok: true, message: `切到「${action.tabId}」` };
         }
         case "setParam": {
@@ -687,7 +717,7 @@ export default function AssetsLibrary() {
           {/* viewMode 切換:資產卡 / 歷史時間軸(原「生成歷史」分頁併入) */}
           <Tabs
             value={viewMode}
-            onValueChange={v => setViewMode(v as AssetsViewMode)}
+            onValueChange={v => handleViewModeChange(v as AssetsViewMode)}
           >
             <TabsList className="rounded-xl bg-muted/40 p-1">
               <TabsTrigger value="cards" className="rounded-lg gap-1 text-xs">
@@ -701,7 +731,7 @@ export default function AssetsLibrary() {
 
           {viewMode === "history" && (
             <Suspense fallback={<SubPageSkeleton />}>
-              <HistoryPage />
+              <HistoryPage embedded />
             </Suspense>
           )}
 
@@ -744,7 +774,7 @@ export default function AssetsLibrary() {
             </div>
           </div>
 
-          <Tabs value={tab} onValueChange={v => setTab(v as "my" | "team")}>
+          <Tabs value={tab} onValueChange={v => handleAssetsTabChange(v as "my" | "team")}>
             <TabsList className="rounded-xl bg-muted/40 p-1">
               <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
                 <Lock className="w-3 h-3" /> 我的資產

@@ -67,6 +67,7 @@ const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const AccountSettingsPage = lazy(() => import("./pages/AccountSettingsPage"));
 const ProcessViewerPage = lazy(() => import("./pages/ProcessViewerPage"));
 const AgentCodexPage = lazy(() => import("./pages/AgentCodexPage"));
+const SharedSpace = lazy(() => import("./pages/SharedSpace"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -217,8 +218,10 @@ function Router() {
       <Route path="/vault">
         <AssetsRedirect section="vault" />
       </Route>
+      {/* /shared 不再走 AssetsRedirect:資產相關分頁已併入 /assets,但 SharedSpace
+          有獨家的「團隊共享模型」與「直送工作室」流程,需保留直連入口。 */}
       <Route path="/shared">
-        <AssetsRedirect section="shared" />
+        <DashboardRoute component={SharedSpace} />
       </Route>
       <Route path="/notes">
         <DashboardRoute component={NotesPage} />
