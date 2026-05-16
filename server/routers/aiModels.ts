@@ -30,6 +30,7 @@ import {
 } from "../../shared/aiModelsCatalog";
 import {
   triggerModelResearchRunNow,
+  triggerStaleRefreshNow,
   getCronStatus,
 } from "../jobs/modelCatalogResearchJob";
 
@@ -153,6 +154,21 @@ export const aiModelsRouter = router({
    */
   refreshAll: adminProcedure.mutation(async () => {
     const result = await triggerModelResearchRunNow();
+    if (!result.ok) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: result.message,
+      });
+    }
+    return { message: result.message };
+  }),
+
+  /**
+   * aiModels.refreshStale — admin 只查核 stale / pending / error 的模型
+   * 用於日常維護，比 refreshAll 便宜很多。
+   */
+  refreshStale: adminProcedure.mutation(async () => {
+    const result = await triggerStaleRefreshNow();
     if (!result.ok) {
       throw new TRPCError({
         code: "BAD_REQUEST",

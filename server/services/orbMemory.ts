@@ -1,3 +1,11 @@
+/**
+ * server/services/orbMemory.ts
+ *
+ * MEMORY TIER: B — Session / conversation memory (in-RAM + RAG index).
+ * 收集「光球觀察到的瑣事」— 偏好、注意事項、安全事件。詳見
+ * `server/services/memory/MEMORY_TIERS.md`。
+ */
+
 import {
   OrbMemorySchema,
   type OrbMemory,

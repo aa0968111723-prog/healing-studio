@@ -1,6 +1,7 @@
 /**
  * server/services/spiritMemoryManager.ts
  *
+ * MEMORY TIER: C — Persistent / cross-session memory (per-spirit learning).
  * Spirit memory and learning system. Enables each spirit to:
  * - Persist learned patterns, preferences, and context
  * - Retrieve relevant memories when activated
@@ -12,6 +13,8 @@
  * - pattern: Learned behavioral patterns (e.g., "user often requests 9:16 format")
  * - context: Session context (e.g., "working on brand campaign X")
  * - feedback: User feedback on spirit performance (e.g., "accepted suggestion")
+ *
+ * 詳見 `server/services/memory/MEMORY_TIERS.md`。
  */
 
 import type { AgentRole } from "../../shared/orb-agent-roles";

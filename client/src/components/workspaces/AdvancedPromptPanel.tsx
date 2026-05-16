@@ -39,14 +39,14 @@ export function AdvancedPromptPanel({
   const [notes, setNotes] = useState("");
 
   return (
-    <div className="bg-white/30 backdrop-blur-sm border border-white/50 rounded-xl">
+    <div className="bg-card/30 backdrop-blur-sm border border-white/50 rounded-xl">
       {/* Header / Toggle */}
       <button
         type="button"
         onClick={() => setOpen(prev => !prev)}
         className={cn(
           "flex w-full items-center justify-between px-3 py-2",
-          "text-xs text-muted-foreground hover:bg-white/60 transition-colors rounded-xl"
+          "text-xs text-muted-foreground hover:bg-card/60 transition-colors rounded-xl"
         )}
       >
         <span className="flex items-center gap-1.5 font-medium">
@@ -80,7 +80,7 @@ export function AdvancedPromptPanel({
                 </Label>
                 <pre
                   className={cn(
-                    "rounded-xl bg-white/40 border border-white/60 p-2",
+                    "rounded-xl bg-card/40 border border-white/60 p-2",
                     "text-[11px] font-mono leading-relaxed whitespace-pre-wrap break-words",
                     "max-h-32 overflow-y-auto text-muted-foreground select-all"
                   )}
@@ -90,7 +90,7 @@ export function AdvancedPromptPanel({
               </div>
 
               {/* b. Override Toggle */}
-              <div className="flex items-center justify-between gap-2 rounded-xl bg-white/40 border border-white/60 px-3 py-2">
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-card/40 border border-white/60 px-3 py-2">
                 <div className="space-y-0.5">
                   <Label
                     htmlFor="override-switch"
@@ -120,7 +120,7 @@ export function AdvancedPromptPanel({
                   value={advancedPrompt}
                   onChange={e => onAdvancedPromptChange(e.target.value)}
                   rows={3}
-                  className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
+                  className="rounded-xl bg-card/40 border-white/60 text-xs resize-none"
                 />
               </div>
 
@@ -134,7 +134,7 @@ export function AdvancedPromptPanel({
                   value={negativePrompt}
                   onChange={e => onNegativePromptChange(e.target.value)}
                   rows={2}
-                  className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
+                  className="rounded-xl bg-card/40 border-white/60 text-xs resize-none"
                 />
               </div>
 
@@ -148,7 +148,7 @@ export function AdvancedPromptPanel({
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   rows={2}
-                  className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
+                  className="rounded-xl bg-card/40 border-white/60 text-xs resize-none"
                 />
               </div>
             </div>

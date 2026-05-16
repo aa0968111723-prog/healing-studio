@@ -74,10 +74,10 @@ export function CostGateCard(props: CostGateCardProps) {
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5">
+        <span className="rounded-full border border-white/15 bg-card/5 px-2 py-0.5">
           {estimate.totalCredits} 點
         </span>
-        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5">
+        <span className="rounded-full border border-white/15 bg-card/5 px-2 py-0.5">
           約 {minutes} 分鐘
         </span>
         <span className={`rounded-full border px-2 py-0.5 ${tierTone}`}>
@@ -85,7 +85,7 @@ export function CostGateCard(props: CostGateCardProps) {
         </span>
       </div>
 
-      <div className="mt-3 max-h-40 space-y-1 overflow-auto rounded-2xl bg-white/5 p-3 text-xs">
+      <div className="mt-3 max-h-40 space-y-1 overflow-auto rounded-2xl bg-card/5 p-3 text-xs">
         {previewRows.map(row => (
           <div
             key={row.stepIndex}
@@ -113,7 +113,7 @@ export function CostGateCard(props: CostGateCardProps) {
           type="button"
           onClick={onAbort}
           disabled={isBusy}
-          className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/15 disabled:opacity-50"
+          className="rounded-2xl bg-card/10 px-3 py-2 text-xs text-white/70 hover:bg-card/15 disabled:opacity-50"
           data-testid="cost-gate-abort"
         >
           先取消
@@ -122,7 +122,7 @@ export function CostGateCard(props: CostGateCardProps) {
           type="button"
           onClick={onConfirmStepByStep}
           disabled={isBusy}
-          className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 hover:bg-white/15 disabled:opacity-50"
+          className="rounded-2xl bg-card/10 px-3 py-2 text-xs text-white/80 hover:bg-card/15 disabled:opacity-50"
           data-testid="cost-gate-step-by-step"
         >
           逐步審查

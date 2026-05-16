@@ -43,7 +43,7 @@ export default function AgentIntentPreview() {
               : "fixed z-[60] right-6 bottom-28 max-w-[22rem] w-[min(22rem,calc(100vw-3rem))] pointer-events-auto"
           }
         >
-          <div className="relative rounded-2xl border border-emerald-200/60 dark:border-emerald-400/30 bg-white/90 backdrop-blur-xl shadow-2xl overflow-hidden">
+          <div className="relative rounded-2xl border border-emerald-200/60 dark:border-emerald-400/30 bg-card/90 backdrop-blur-xl shadow-healing-lg overflow-hidden">
             {/* 柔和光暈 */}
             <div
               className="absolute inset-0 pointer-events-none opacity-60"

@@ -774,7 +774,7 @@ export default function AssetsLibrary() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                              className="rounded-lg bg-card/90 text-xs h-7 gap-1"
                               onClick={() =>
                                 downloadFile(
                                   asset.fileUrl!,
@@ -789,7 +789,7 @@ export default function AssetsLibrary() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                              className="rounded-lg bg-card/90 text-xs h-7 gap-1"
                               onClick={() =>
                                 window.open(asset.fileUrl!, "_blank")
                               }
@@ -802,7 +802,7 @@ export default function AssetsLibrary() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                                className="rounded-lg bg-card/90 text-xs h-7 gap-1"
                                 onClick={() =>
                                   toggleVisibility.mutate({
                                     id: asset.id,
@@ -822,7 +822,7 @@ export default function AssetsLibrary() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-lg bg-white/90 text-xs h-7 text-destructive"
+                                className="rounded-lg bg-card/90 text-xs h-7 text-destructive"
                                 onClick={() =>
                                   deleteAsset.mutate({ id: asset.id })
                                 }

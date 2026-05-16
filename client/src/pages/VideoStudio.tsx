@@ -4989,7 +4989,7 @@ export default function VideoStudio() {
                 <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>{tab.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${isActive ? "bg-card/20" : "bg-primary/10 text-primary"}`}
                 >
                   {count}
                 </span>

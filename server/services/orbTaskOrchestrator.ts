@@ -1,3 +1,24 @@
+/**
+ * server/services/orbTaskOrchestrator.ts
+ *
+ * SCOPE: **server** only — orchestrates a server-side LLM tool plan
+ * (planner output) by calling registered API tools (`OrbApiTool`),
+ * tracking per-step audit events, and driving retry / replan when a
+ * tool call fails or its result fails verification.
+ *
+ * This is one half of a deliberate two-orchestrator split. The other
+ * half (`shared/global-agent-orchestrator.ts`) runs on the **client**
+ * and orchestrates DOM/page-level workflow steps (navigate, fillPrompt,
+ * setModel, …) via `PageAgentContext`. The two share concept names
+ * ("step", "retry", "audit") but operate on completely different units
+ * of work: server steps invoke tRPC tool endpoints; client steps drive
+ * a React SPA. They are intentionally NOT merged.
+ *
+ * Hard rule: this file must never be imported from `client/**`.
+ * Conversely, `shared/global-agent-orchestrator.ts` must never import
+ * `server/**`. The boundary is enforced by
+ * `tests/unit/shared/orchestrator-boundary.test.ts`.
+ */
 import type { OrbTask } from "../../shared/orb-agent-contract";
 import type {
   OrbAgentTask,

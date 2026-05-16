@@ -1170,7 +1170,7 @@ export const SoundControl = memo(function SoundControl({
   const isActive = isUnlocked && !isMuted;
   const glowColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)";
   const btnBase = isDark
-    ? "bg-white/10 hover:bg-white/15 text-white/80"
+    ? "bg-card/10 hover:bg-card/15 text-white/80"
     : "bg-black/5 hover:bg-black/10 text-black/60";
 
   return (
@@ -1184,7 +1184,7 @@ export const SoundControl = memo(function SoundControl({
             exit={{ opacity: 0, width: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full overflow-hidden backdrop-blur-md ${
-              isDark ? "bg-white/10" : "bg-black/5"
+              isDark ? "bg-card/10" : "bg-black/5"
             }`}
           >
             <input
@@ -1251,7 +1251,7 @@ export const SoundControl = memo(function SoundControl({
                 <motion.div
                   key={i}
                   className={`flex-1 rounded-full ${
-                    isDark ? "bg-white/70" : "bg-black/50"
+                    isDark ? "bg-card/70" : "bg-black/50"
                   }`}
                   animate={{ scaleY: [base, 1, base * 0.4, 0.9, base] }}
                   transition={{

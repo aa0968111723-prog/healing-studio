@@ -87,7 +87,7 @@ export default function SceneSwitcher({
           backdrop-blur-md transition-healing hover:scale-105
           ${
             isDark
-              ? "bg-white/10 hover:bg-white/15 text-white/80"
+              ? "bg-card/10 hover:bg-card/15 text-white/80"
               : "bg-black/5 hover:bg-black/10 text-black/60"
           }
           ${override ? "ring-1 ring-amber-400/50" : ""}
@@ -117,7 +117,7 @@ export default function SceneSwitcher({
               ${
                 isDark
                   ? "bg-muted/90 border-white/10"
-                  : "bg-white/90 border-black/10"
+                  : "bg-card/90 border-black/10"
               }
             `}
           >
@@ -168,10 +168,10 @@ export default function SceneSwitcher({
                       ${
                         isActive
                           ? isDark
-                            ? "bg-white/10 ring-1 ring-white/20"
+                            ? "bg-card/10 ring-1 ring-white/20"
                             : "bg-black/5 ring-1 ring-black/10"
                           : isDark
-                            ? "hover:bg-white/5"
+                            ? "hover:bg-card/5"
                             : "hover:bg-black/3"
                       }
                     `}
@@ -214,7 +214,7 @@ export default function SceneSwitcher({
                     {isActive && (
                       <div
                         className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                          isDark ? "bg-white/60" : "bg-black/40"
+                          isDark ? "bg-card/60" : "bg-black/40"
                         }`}
                       />
                     )}

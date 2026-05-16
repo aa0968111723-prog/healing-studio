@@ -214,7 +214,7 @@ function TourCard({
       className="z-[9999] pointer-events-auto"
       style={style}
     >
-      <div className="rounded-3xl border border-amber-200/40 bg-white/97 backdrop-blur-2xl shadow-2xl shadow-amber-500/15 overflow-hidden max-h-[calc(100vh-20px)] sm:max-h-none flex flex-col">
+      <div className="rounded-3xl border border-amber-200/40 bg-card/97 backdrop-blur-2xl shadow-2xl shadow-amber-500/15 overflow-hidden max-h-[calc(100vh-20px)] sm:max-h-none flex flex-col">
         {/* Top accent bar */}
         <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400" />
 

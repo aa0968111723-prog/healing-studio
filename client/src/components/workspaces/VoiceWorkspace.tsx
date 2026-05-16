@@ -191,7 +191,7 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                   value.voiceActorId === voice.id
                     ? "bg-primary/10 ring-1 ring-primary/30"
-                    : "bg-white/30 hover:bg-white/50"
+                    : "bg-card/30 hover:bg-card/50"
                 }`}
               >
                 <div
@@ -235,7 +235,7 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all w-full ${
                     value.voiceActorId === `custom-${model.id}`
                       ? "bg-violet-500/10 ring-1 ring-violet-500/30"
-                      : "bg-white/30 hover:bg-white/50"
+                      : "bg-card/30 hover:bg-card/50"
                   }`}
                 >
                   <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -266,7 +266,7 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
           value={value.text}
           onChange={e => update({ text: e.target.value })}
           rows={4}
-          className="rounded-xl bg-white/40 border-white/60 resize-none text-xs placeholder:text-muted-foreground/35 leading-relaxed"
+          className="rounded-xl bg-card/40 border-white/60 resize-none text-xs placeholder:text-muted-foreground/35 leading-relaxed"
         />
         <p className="text-[10px] text-muted-foreground/60 text-right">
           {value.text.length} 字
@@ -286,7 +286,7 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
               className={`px-2.5 py-2 rounded-lg text-[11px] font-medium transition-all ${
                 value.emotionType === emo.value
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-white/40 text-muted-foreground hover:bg-white/60"
+                  : "bg-card/40 text-muted-foreground hover:bg-card/60"
               }`}
             >
               {emo.label}

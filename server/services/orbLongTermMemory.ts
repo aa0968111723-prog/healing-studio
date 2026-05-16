@@ -1,8 +1,10 @@
 /**
  * server/services/orbLongTermMemory.ts
  *
+ * MEMORY TIER: C — Persistent / cross-session memory (semantic store).
  * Service for managing Orb's long-term structured memory system.
  * Provides semantic search, memory association, and importance scoring.
+ * 詳見 `server/services/memory/MEMORY_TIERS.md`。
  */
 
 import { logger } from "../_core/logger";

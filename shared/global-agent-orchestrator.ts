@@ -1,5 +1,28 @@
 /*
  * shared/global-agent-orchestrator.ts
+ *
+ * SCOPE: **client** only (despite living in `shared/`). This file
+ * orchestrates DOM/page-level workflow steps — navigate, fillPrompt,
+ * setModel, setModality, applyPreset, runWorkflow — by driving
+ * `PageAgentContext.dispatch()` and awaiting page-handler readiness
+ * after route changes. It depends on a browser-side navigate / dispatch
+ * pair provided through `GlobalAgentExecutionContext`.
+ *
+ * It is one half of a deliberate two-orchestrator split. The server
+ * half (`server/services/orbTaskOrchestrator.ts`) handles server-side
+ * LLM tool-plan execution: API calls, verification, retry / replan.
+ * The two share concept names ("step", "retry") but operate on
+ * different units of work and intentionally do NOT share a base class
+ * or executor — merging them would couple SPA-navigation concerns to
+ * tRPC tool-dispatch concerns.
+ *
+ * Lives in `shared/` rather than `client/` only because the planner
+ * (server-side) needs the **type** definitions (`GlobalAgentPlan`,
+ * `RunWorkflowAction`) to shape its output. The runtime executor
+ * (`executeGlobalActions` / `runWorkflowSteps` etc.) is reachable only
+ * from client code. Hard rule: this file must never import from
+ * `server/**`. The boundary is enforced by
+ * `tests/unit/shared/orchestrator-boundary.test.ts`.
  */
 
 import type {

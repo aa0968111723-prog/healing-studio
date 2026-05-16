@@ -146,13 +146,13 @@ export function LocationPicker({ value, onChange, className }: LocationPickerPro
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="搜尋外拍地點（地址、地標、店名）"
-          className="pl-7 pr-8 text-xs bg-white/5 border-white/10"
+          className="pl-7 pr-8 text-xs bg-card/5 border-white/10"
         />
         {value && (
           <button
             type="button"
             onClick={clear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-white/10 text-muted-foreground/60 hover:text-red-400"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-card/10 text-muted-foreground/60 hover:text-red-400"
             aria-label="清除地點"
           >
             <X className="w-3 h-3" />

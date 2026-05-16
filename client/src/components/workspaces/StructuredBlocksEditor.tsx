@@ -218,7 +218,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
   return (
     <div
       className={cn(
-        "p-2 rounded-lg hover:bg-white/20 transition-colors",
+        "p-2 rounded-lg hover:bg-card/20 transition-colors",
         !block.enabled && "opacity-50"
       )}
     >
@@ -252,7 +252,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
           placeholder={placeholder}
           disabled={!block.enabled}
           rows={2}
-          className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
+          className="rounded-xl bg-card/40 border-white/60 text-xs resize-none"
         />
       ) : (
         <Input
@@ -261,7 +261,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
           onChange={e => onValueChange(e.target.value)}
           placeholder={placeholder}
           disabled={!block.enabled}
-          className="rounded-xl bg-white/40 border-white/60 text-xs"
+          className="rounded-xl bg-card/40 border-white/60 text-xs"
         />
       )}
     </div>

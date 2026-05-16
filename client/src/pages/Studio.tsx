@@ -405,7 +405,7 @@ function DrawerPanel({
           transition={{ duration: 0.25, ease: "easeInOut" }}
           className={`shrink-0 overflow-hidden ${side === "left" ? "order-first" : "order-last"}`}
         >
-          <div className="h-full rounded-xl overflow-hidden flex flex-col bg-white/50 backdrop-blur-md border border-white/50">
+          <div className="h-full rounded-xl overflow-hidden flex flex-col bg-card/50 backdrop-blur-md border border-white/50">
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -2990,7 +2990,7 @@ export default function Studio() {
             >
               <TabsList
                 id="modality-tabs"
-                className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm"
+                className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-card/40 border border-white/50 backdrop-blur-sm"
               >
                 {MODALITY_TABS.map(t => (
                   <TabsTrigger

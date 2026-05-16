@@ -1,5 +1,3 @@
-// Batch Generation Dialog Component - to be merged into DirectorAI.tsx
-
 import { memo } from "react";
 import type { ScriptSegment } from "@shared/types";
 import { Button } from "@/components/ui/button";
@@ -78,7 +76,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-muted dark:hover:bg-white/5 rounded-lg transition-colors"
+              className="p-2 hover:bg-muted rounded-lg transition-healing"
             >
               <X className="w-5 h-5" />
             </button>

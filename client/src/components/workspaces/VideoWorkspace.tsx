@@ -146,7 +146,7 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
               className={`px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
                 value.duration === d.value
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-white/40 text-muted-foreground hover:bg-white/60"
+                  : "bg-card/40 text-muted-foreground hover:bg-card/60"
               }`}
             >
               {d.label}

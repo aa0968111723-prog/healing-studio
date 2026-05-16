@@ -264,7 +264,7 @@ export function PipelineCanvas({
 
       {statusFilter !== "all" && layoutedNodes.length === 0 && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <div className="rounded-xl bg-white/90 backdrop-blur border px-4 py-3 text-sm shadow text-foreground/90 pointer-events-auto">
+          <div className="rounded-xl bg-card/90 backdrop-blur border px-4 py-3 text-sm shadow text-foreground/90 pointer-events-auto">
             🎉 此狀態下沒有節點，全部健康。
           </div>
         </div>
@@ -273,7 +273,7 @@ export function PipelineCanvas({
       {viewMode === "full" &&
         !groupExpanded &&
         graph.nodes.some(n => n.kind === "page-group") && (
-          <div className="absolute top-4 left-4 z-10 rounded-lg bg-white/90 backdrop-blur border px-3 py-1.5 text-xs shadow">
+          <div className="absolute top-4 left-4 z-10 rounded-lg bg-card/90 backdrop-blur border px-3 py-1.5 text-xs shadow">
             💡 點擊任一「📱 …」群組可展開查看頁面與助手狀態
           </div>
         )}

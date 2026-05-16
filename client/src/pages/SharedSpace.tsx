@@ -506,7 +506,7 @@ export default function SharedSpace() {
               placeholder="搜尋共享素材或模型..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-10 h-10 rounded-xl bg-white/40 border-white/60"
+              className="pl-10 h-10 rounded-xl bg-card/40 border-white/60"
             />
           </div>
           {activeTab === "assets" && (
@@ -618,7 +618,7 @@ export default function SharedSpace() {
                           )}
                           <div className="absolute top-2 left-2">
                             <span
-                              className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-white/80 text-muted-foreground"
+                              className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-card/80 text-muted-foreground"
                               style={{ backdropFilter: "blur(4px)" }}
                             >
                               {MODALITY_LABELS[asset.assetType] ||
@@ -638,7 +638,7 @@ export default function SharedSpace() {
                               <Button
                                 size="sm"
                                 onClick={() => handleUseAsset(asset)}
-                                className={`gap-1.5 bg-white/90 hover:bg-card text-foreground shadow-lg transition-healing ${
+                                className={`gap-1.5 bg-card/90 hover:bg-card text-foreground shadow-lg transition-healing ${
                                   isMobile
                                     ? "opacity-0 pointer-events-none"
                                     : "opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"

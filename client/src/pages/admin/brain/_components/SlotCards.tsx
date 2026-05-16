@@ -362,7 +362,7 @@ export function FalTaskCard({
     >
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between p-3 hover:bg-white/20 dark:hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-3 hover:bg-card/20 dark:hover:bg-white/5 transition-colors"
       >
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-violet-500/10 text-violet-600">

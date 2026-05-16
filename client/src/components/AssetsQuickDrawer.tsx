@@ -85,9 +85,9 @@ function AssetCard({
   const displayUrl = asset.thumbnailUrl || asset.fileUrl;
 
   return (
-    <div className="group flex items-start gap-3 p-3 rounded-lg border border-white/8 bg-white/4 hover:bg-white/8 transition-colors">
+    <div className="group flex items-start gap-3 p-3 rounded-lg border border-white/8 bg-card/4 hover:bg-card/8 transition-colors">
       {/* Thumbnail / Icon */}
-      <div className="w-14 h-14 rounded-md overflow-hidden bg-white/5 flex-shrink-0 flex items-center justify-center">
+      <div className="w-14 h-14 rounded-md overflow-hidden bg-card/5 flex-shrink-0 flex items-center justify-center">
         {isImage && displayUrl ? (
           <img src={displayUrl} alt={asset.title} className="w-full h-full object-cover" />
         ) : isVideo && asset.fileUrl ? (
@@ -208,7 +208,7 @@ export default function AssetsQuickDrawer() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="搜尋素材名稱…"
-                className="pl-8 h-8 text-sm bg-white/5 border-white/10"
+                className="pl-8 h-8 text-sm bg-card/5 border-white/10"
               />
             </div>
 
@@ -222,7 +222,7 @@ export default function AssetsQuickDrawer() {
                     "text-[11px] px-2.5 py-0.5 rounded-full border transition-colors",
                     typeFilter === type
                       ? "bg-violet-500/30 border-violet-500/50 text-violet-200"
-                      : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
+                      : "bg-card/5 border-white/10 text-muted-foreground hover:bg-card/10"
                   )}
                 >
                   {TYPE_LABELS[type]}
@@ -236,7 +236,7 @@ export default function AssetsQuickDrawer() {
             {assetsQuery.isLoading ? (
               <div className="space-y-2">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-20 rounded-lg bg-white/5 animate-pulse" />
+                  <div key={i} className="h-20 rounded-lg bg-card/5 animate-pulse" />
                 ))}
               </div>
             ) : assets.length === 0 ? (

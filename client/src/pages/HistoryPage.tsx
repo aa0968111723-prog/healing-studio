@@ -448,7 +448,7 @@ export default function HistoryPage() {
           placeholder="搜尋提示詞..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="pl-9 rounded-xl bg-white/40 border-white/60 h-11 sm:h-9 text-base sm:text-sm"
+          className="pl-9 rounded-xl bg-card/40 border-white/60 h-11 sm:h-9 text-base sm:text-sm"
         />
       </div>
 

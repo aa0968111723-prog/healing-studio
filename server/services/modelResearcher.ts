@@ -430,6 +430,107 @@ export async function researchAndFactCheckAllModels(
   }
 }
 
+/**
+ * 只查核狀態為 stale / pending / error 的模型 — 用於日常維護。
+ * 比 researchAndFactCheckAllModels 便宜很多，不會碰已驗證的條目。
+ */
+export async function researchAndFactCheckStaleModels(
+  options: {
+    concurrency?: number;
+    userId?: number | null;
+  } = {}
+): Promise<ResearchRunResult> {
+  if (activeRunPromise) {
+    logger.info("[modelResearcher] Run already active, awaiting it");
+    return activeRunPromise;
+  }
+
+  const concurrency = Math.max(1, Math.min(4, options.concurrency ?? 2));
+  const promise = (async () => {
+    const started = Date.now();
+    stats.currentRunStartedAt = new Date(started).toISOString();
+    stats.lastRunErrors = [];
+    stats.lastRunModelsTried = 0;
+    stats.lastRunModelsSucceeded = 0;
+
+    const errors: ResearchRunResult["errors"] = [];
+    const now = new Date();
+    // 篩出 stale / pending / error — verified 與 auto-checked 視為健康跳過
+    const queue = AI_MODELS_CATALOG.filter(base => {
+      const enrichment = enrichmentStore.get(base.id);
+      const factCheck = enrichment?.factCheck ?? base.factCheck ?? {
+        status: "pending" as const,
+        sources: [],
+      };
+      const status = computeFactCheckStatus(factCheck, now);
+      return status === "stale" || status === "pending" || status === "error";
+    }).map(m => m.id);
+
+    logger.info("[modelResearcher] Stale-only queue prepared", {
+      total: AI_MODELS_CATALOG.length,
+      stale: queue.length,
+    });
+
+    const worker = async () => {
+      while (queue.length > 0) {
+        const id = queue.shift();
+        if (!id) break;
+        stats.lastRunModelsTried += 1;
+        try {
+          // force=true so 24h cache 跳過 stale 不影響重新查核
+          const result = await researchAndFactCheckModel(id, {
+            force: true,
+            userId: options.userId,
+          });
+          if (result.ok) {
+            stats.lastRunModelsSucceeded += 1;
+          } else {
+            errors.push({ modelId: id, reason: result.reason ?? "unknown" });
+          }
+        } catch (err) {
+          errors.push({
+            modelId: id,
+            reason: (err as Error).message ?? "exception",
+          });
+        }
+      }
+    };
+
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < concurrency; i += 1) workers.push(worker());
+    await Promise.all(workers);
+
+    const finished = Date.now();
+    stats.lastRunAt = new Date(finished).toISOString();
+    stats.lastRunDurationMs = finished - started;
+    stats.lastRunErrors = errors.map(e => `${e.modelId}: ${e.reason}`);
+    stats.totalRunsCompleted += 1;
+    stats.currentRunStartedAt = undefined;
+
+    logger.info("[modelResearcher] Stale-only run complete", {
+      tried: stats.lastRunModelsTried,
+      succeeded: stats.lastRunModelsSucceeded,
+      durationMs: stats.lastRunDurationMs,
+    });
+
+    return {
+      modelsTried: stats.lastRunModelsTried,
+      modelsSucceeded: stats.lastRunModelsSucceeded,
+      errors,
+      durationMs: finished - started,
+      startedAt: new Date(started).toISOString(),
+      finishedAt: new Date(finished).toISOString(),
+    };
+  })();
+
+  activeRunPromise = promise;
+  try {
+    return await promise;
+  } finally {
+    activeRunPromise = null;
+  }
+}
+
 // ─── Internals ─────────────────────────────────────────────────────────────
 
 function storeError(modelId: string, reason: string): void {

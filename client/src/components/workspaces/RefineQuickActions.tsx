@@ -208,7 +208,7 @@ export function RefineQuickActions({
             type="button"
             className={cn(
               "px-3 py-1.5 rounded-full text-[11px] font-medium",
-              "bg-white/40 border border-white/60",
+              "bg-card/40 border border-white/60",
               "hover:bg-primary/10 hover:border-primary/30",
               "transition-all whitespace-nowrap shrink-0",
               "cursor-pointer select-none"

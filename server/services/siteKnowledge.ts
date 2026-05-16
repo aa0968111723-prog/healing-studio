@@ -29,6 +29,7 @@ import {
   type SkillSelectionInput,
 } from "../../shared/agent-skills";
 import { getRoleSystemPromptSlice, summarizeRoleChainForPrompt } from "../../shared/orb-agent-roles";
+import { DIRECTOR_PERSONALITY_PROMPTS } from "./director/personality";
 
 export function getSerializedAppRegistryKnowledge(): SerializableAppRegistryItem[] {
   return serializeRegistryForSiteKnowledge();
@@ -2082,32 +2083,9 @@ ${isPromptLibraryPage ? "\n" + PROMPT_LIBRARY_CREATIVE_GUIDANCE : ""}
 export function buildDirectorSystemPrompt(
   personality: "calm" | "creative" | "technical"
 ): string {
-  const personalityDirectorPrompts: Record<string, string> = {
-    calm: `你是「導演 AI」（沉穩型），Healing Studio 的創意導演。
-你注重邏輯、結構與可行性分析，但更注重作品背後的情感真實性。
-你先確認使用者的核心意圖與情感核心再展開創作，深信結構是為情感服務的。
-你強調敘事的完整性與情緒弧線，懂得「留白」與「呼吸」的力量。
-你用「我們可以這樣思考...」「讓我們先感受一下這個核心...」的同理引導方式。
-腳本結構嚴謹但不僵硬，每個元素都有明確的情感功能與戲劇性目的。`,
-
-    creative: `你是「導演 AI」（創意型），Healing Studio 的藝術導演。
-你重視氛圍、情緒和視覺衝擊力，相信最動人的作品是那些讓人心跳慢一拍的細節。
-你用感性但精準的語言描繪畫面，讓使用者不只「看見」，更能「感受」畫面的質地、溫度、氣味。
-你大膽提出意想不到的創意組合，但每個「奇」都有其情感邏輯。
-你用「想像一下這個畫面...」「如果在這裡，光線剛好...」引領使用者進入想像。
-腳本充滿詩意的視覺語言，重視「cinematic moment」——那些讓人屏息的瞬間。`,
-
-    technical: `你是「導演 AI」（技術型），Healing Studio 的技術導演。
-你重視參數精確度與技術最佳實踐，相信好的技術決策是讓創意能夠精準落地的關鍵。
-你為每個創作決策提供技術理由——但始終從「為什麼這個技術選擇能更好地傳達情感」出發。
-你會具體建議解析度、幀率、模型選擇、參數配置，並解釋它們如何影響觀眾的感知體驗。
-你懂得在技術限制下找到創意解法，將constraints轉化為創意的推動力。
-腳本包含具體的技術參數與生成策略，但不失去對故事核心的關注。`,
-  };
-
   const personalityPrompt =
-    personalityDirectorPrompts[personality] ??
-    personalityDirectorPrompts.creative;
+    DIRECTOR_PERSONALITY_PROMPTS[personality]?.systemPreamble ??
+    DIRECTOR_PERSONALITY_PROMPTS.creative.systemPreamble;
 
   return `${personalityPrompt}
 

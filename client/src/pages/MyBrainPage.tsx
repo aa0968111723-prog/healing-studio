@@ -84,7 +84,7 @@ export default function MyBrainPage() {
         onStatusFilterChange={setStatusFilter}
       />
 
-      <div className="flex-1 min-h-0 rounded-2xl border border-border bg-white/40 overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-2xl border border-border bg-card/40 overflow-hidden">
         {graphQuery.isLoading && (
           <div className="p-6 space-y-4">
             <Skeleton className="h-32 w-full" />

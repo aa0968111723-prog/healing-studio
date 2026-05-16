@@ -234,7 +234,7 @@ export default function ProcessViewerPage() {
   if (!spec) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-        <Card className="w-full max-w-lg shadow-lg border-0 bg-white/85 backdrop-blur-sm">
+        <Card className="w-full max-w-lg shadow-lg border-0 bg-card/85 backdrop-blur-sm">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <div className="flex justify-center">
               <ListChecks className="h-12 w-12 text-muted-foreground/70" />
@@ -280,7 +280,7 @@ export default function ProcessViewerPage() {
           </Button>
         </div>
 
-        <Card className="border-0 shadow-md bg-white/85 backdrop-blur-sm">
+        <Card className="border-0 shadow-md bg-card/85 backdrop-blur-sm">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-2 flex-1">

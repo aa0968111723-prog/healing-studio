@@ -172,7 +172,7 @@ const THEME_CLASSES: Record<
     header: "text-[11px] text-white/65 font-medium",
     headerIcon: "text-cyan-200",
     card:
-      "flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5",
+      "flex items-start gap-2 rounded-lg border border-white/10 bg-card/5 px-2 py-1.5",
     iconWrap: "p-1.5 rounded-md bg-cyan-300/15",
     iconStroke: "text-cyan-100",
     label: "text-[11px] font-medium text-white/90 leading-tight",

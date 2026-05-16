@@ -72,9 +72,9 @@ export function ThoughtIslandsPanel({
         onClick={() => setOpen(v => !v)}
         className={cn(
           "flex w-full items-center justify-between rounded-lg px-3 py-2",
-          "bg-white/30 backdrop-blur-sm border border-white/50",
+          "bg-card/30 backdrop-blur-sm border border-white/50",
           "text-xs font-medium text-muted-foreground",
-          "hover:bg-white/40 transition-colors"
+          "hover:bg-card/40 transition-colors"
         )}
       >
         <span>思維島鏈 — {modality}</span>
@@ -105,7 +105,7 @@ export function ThoughtIslandsPanel({
                   <div
                     key={island.id}
                     className={cn(
-                      "bg-white/30 backdrop-blur-sm border border-white/50 rounded-xl",
+                      "bg-card/30 backdrop-blur-sm border border-white/50 rounded-xl",
                       "p-3 space-y-1.5"
                     )}
                   >

@@ -1,3 +1,11 @@
+/**
+ * server/services/orbUserMemory.ts
+ *
+ * MEMORY TIER: B — Session / conversation memory (per-user summary string).
+ * 寫到 `users.orbMemorySummary` 欄位的一句話摘要,LLM 啟動上下文用。
+ * 詳見 `server/services/memory/MEMORY_TIERS.md`。
+ */
+
 import { eq } from "drizzle-orm";
 import { users } from "../../drizzle/schema";
 import { getDb } from "../db";
