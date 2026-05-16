@@ -431,6 +431,9 @@ function simulate(scenario) {
   // ─── 合成 wire payload ─────────────────────────────────────
   let wire;
   let note;
+  // 對 page-execution 額外標記：parser 解不出 actions 時設為 true，
+  // gate 會把這種 case 也視為失敗（路由命中 ✓、實際執行 ✗ 不是綠燈）。
+  let parserFallthrough = false;
   switch (tool.kind) {
     case "fal-generation": {
       if (cleanPrompt.length < tool.minPromptChars) {
@@ -512,6 +515,7 @@ function simulate(scenario) {
       if (actions.length === 0) {
         wire = { fallthrough: "llm-persona", reason: "parser 解不出 actions" };
         note = "→ LLM 接手，編編出 actions JSON 或反問";
+        parserFallthrough = true;
       } else {
         wire = { actions, dispatchVia: "executeActions(pageHandle)" };
         note = `→ 在 ${snap.pageId} 頁真實 dispatch [${actions
@@ -530,7 +534,7 @@ function simulate(scenario) {
       break;
     }
   }
-  return { sel, tool, wire, note, engineInfo, cleanPrompt };
+  return { sel, tool, wire, note, engineInfo, cleanPrompt, parserFallthrough };
 }
 
 // 編編 page-execution 用：把「再來一段慢一點」「換引擎成 stable-audio」翻
@@ -548,7 +552,12 @@ function parseStudioActions(prompt, snap) {
   if (/快一點|快一些|加速|更快/.test(prompt) && has("setParam")) {
     actions.push({ type: "setParam", param: "tempo", delta: +10 });
   }
-  const engineMatch = prompt.match(/(?:換|改|改成|換成).*?(?:引擎|模型).*?([\w\-\/.]+)/);
+  // 接受兩種詞序：
+  //   「換 / 改成 (引擎|模型) ... X」
+  //   「把 / 將 (引擎|模型) ... 換 / 改成 X」
+  const engineMatch =
+    prompt.match(/(?:換|改)(?:成|為)?\s*(?:引擎|模型)[^\w]*([\w\-\/.]+)/) ||
+    prompt.match(/(?:把|將)?\s*(?:引擎|模型)[^\w]*(?:換|改)(?:成|為)?\s*([\w\-\/.]+)/);
   if (engineMatch && has("setEngine")) {
     actions.push({ type: "setEngine", engine: engineMatch[1] });
   }
@@ -570,13 +579,14 @@ console.log(`場景數：${SCENARIOS.length}\n`);
 
 const eaten = new Set();
 const failures = [];
+const parserFallthroughs = [];
 const engineDist = {};
 const toolKindDist = {};
 let pass = 0;
 let fall = 0;
 
 SCENARIOS.forEach((sc, i) => {
-  const { sel, tool, wire, note, engineInfo, cleanPrompt } = simulate(sc);
+  const { sel, tool, wire, note, engineInfo, parserFallthrough } = simulate(sc);
   const matched = sel.role === sc.spirit;
   const nick = getPrimaryNicknameForRole(sel.role) ?? sel.role;
   const expectedNick = getPrimaryNicknameForRole(sc.spirit) ?? sc.spirit;
@@ -610,6 +620,10 @@ SCENARIOS.forEach((sc, i) => {
     failures.push({ scenario: sc, got: sel.role });
     if (sel.role === "companion") fall++;
   }
+  // 路由命中但實際 page-execution parser 掛掉也算「假綠燈」。
+  if (parserFallthrough) {
+    parserFallthroughs.push({ scenario: sc, route: sel.role });
+  }
 });
 
 // ─── 9. 報表 ─────────────────────────────────────────────────────
@@ -617,6 +631,7 @@ console.log("════════ 路由 / 覆蓋 ════════")
 console.log(`Pass / Total            : ${pass}/${SCENARIOS.length}`);
 console.log(`不同精靈被路由命中      : ${eaten.size} 位 → ${[...eaten].join(", ")}`);
 console.log(`掉到 companion fallback : ${fall}`);
+console.log(`page-execution parser 掉回 LLM : ${parserFallthroughs.length}`);
 
 console.log("\n════════ Tool kind 分佈 ════════");
 for (const [k, n] of Object.entries(toolKindDist).sort((a, b) => b[1] - a[1])) {
@@ -636,6 +651,14 @@ if (failures.length) {
   }
 }
 
+if (parserFallthroughs.length) {
+  console.log("\n════════ 假綠燈詳情（路由 ✓、page-execution parser ✗）════════");
+  for (const f of parserFallthroughs) {
+    console.log(`  ⚠ "${f.scenario.utterance}"`);
+    console.log(`     route=${f.route}  → parser 解不出 actions，靜默掉回 LLM`);
+  }
+}
+
 // ─── 10. 收斂條件 ────────────────────────────────────────────────
 const musicCount = SCENARIOS.filter((s) => s.spirit === "music-specialist").length;
 const voiceCount = SCENARIOS.filter((s) => s.spirit === "voice-specialist").length;
@@ -651,7 +674,8 @@ const ok =
   musicCount >= 8 &&
   voiceCount >= 8 &&
   collabCount >= 6 &&
-  fall === 0;
+  fall === 0 &&
+  parserFallthroughs.length === 0;
 
 if (ok) {
   console.log("\n✓ 音樂配音創作室 × 全站光球代理 — 25 條場景全部走通。");
