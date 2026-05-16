@@ -32,6 +32,13 @@ describe("inferEngineFromModelId — model id prefix → engine routing", () => 
   it("nvidia/* prefix routes to nvidia engine (NVIDIA NIM)", () => {
     expect(inferEngineFromModelId("nvidia/minimax-m2.7")).toBe("nvidia");
     expect(inferEngineFromModelId("minimaxai/minimax-m2.7")).toBe("nvidia");
+    // Nemotron 系列也走 NIM（catalog 與 OpenRouter 共用 nvidia/* 命名）
+    expect(
+      inferEngineFromModelId("nvidia/llama-3.1-nemotron-ultra-253b-v1")
+    ).toBe("nvidia");
+    expect(
+      inferEngineFromModelId("nvidia/llama-3.3-nemotron-super-49b-v1.5")
+    ).toBe("nvidia");
   });
 
   it("vertex/* prefix routes to vertex engine, not OpenRouter", () => {

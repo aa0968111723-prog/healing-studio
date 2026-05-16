@@ -93,6 +93,15 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   ],
   // MiniMax M2.7(NVIDIA NIM 代理人引擎)→ 降級到 Gemini
   "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
+  // NVIDIA Nemotron 推理系列 → OpenRouter 同名,再退 Claude Sonnet
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1": [
+    "anthropic/claude-sonnet-4.6",
+    "gemini-2.5-pro",
+  ],
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5": [
+    "anthropic/claude-sonnet-4.6",
+    "gemini-2.5-flash",
+  ],
   // OpenAI 模型名稱 → Gemini fallback(向後相容,防止舊設定觸發 404)
   "gpt-4o": ["gemini-2.5-pro", "gemini-2.5-flash"],
   "gpt-4o-mini": ["gemini-2.5-flash"],
