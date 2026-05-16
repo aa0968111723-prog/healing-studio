@@ -7384,6 +7384,16 @@ export const appRouter = router({
                 action => (action as { type?: string }).type === "execute_generate_image"
               ) as { type: string; payload?: string; prompt?: string; model?: string } | undefined;
               if (generateAction) {
+                // M12: 圖像生成可能跑數十秒,執行前 emit milestone 讓使用者
+                // 看得到「不是卡住,正在執行」。沒這個的話,materializing_task
+                // 之後到 finalizing 之間時間軸完全靜默。
+                emitOrbChatProgress(idempKey, "executing_tool", "執行圖像生成…", {
+                  tool: "execute_generate_image",
+                  model:
+                    typeof generateAction.model === "string"
+                      ? generateAction.model
+                      : undefined,
+                });
                 try {
                   const imagePrompt =
                     (typeof generateAction.prompt === "string" && generateAction.prompt.trim()) ||
@@ -7410,6 +7420,14 @@ export const appRouter = router({
               for (const action of convertedActions) {
                 if ((action as { type?: string }).type !== "execute_task") continue;
                 const taskAction = action as { type: string; task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> }; resultUrl?: string; error?: string };
+                // M12: 同上,執行前 emit。TASK_TYPE_LABEL 把英文 enum 翻
+                // 成中文(圖像生成 / 音樂生成 / 影片生成)。
+                emitOrbChatProgress(
+                  idempKey,
+                  "executing_tool",
+                  `執行${TASK_TYPE_LABEL[taskAction.task.type] ?? "任務"}…`,
+                  { tool: "execute_task", taskType: taskAction.task.type }
+                );
                 try {
                   taskAction.resultUrl = await executeOrbTask(ctx.user.id, taskAction.task);
                 } catch (err) {
@@ -7927,6 +7945,14 @@ export const appRouter = router({
             action => (action as { type?: string }).type === "execute_generate_image"
           ) as { type: string; payload?: string; prompt?: string; model?: string } | undefined;
           if (legacyGenerateAction) {
+            // M12: legacy fallback 也要發 milestone 才完整。
+            emitOrbChatProgress(idempKey, "executing_tool", "執行圖像生成…", {
+              tool: "execute_generate_image",
+              model:
+                typeof legacyGenerateAction.model === "string"
+                  ? legacyGenerateAction.model
+                  : undefined,
+            });
             try {
               const imagePrompt =
                 (typeof legacyGenerateAction.prompt === "string" && legacyGenerateAction.prompt.trim()) ||
@@ -7958,6 +7984,13 @@ export const appRouter = router({
               resultUrl?: string;
               error?: string;
             };
+            // M12: legacy fallback execute_task milestone。
+            emitOrbChatProgress(
+              idempKey,
+              "executing_tool",
+              `執行${TASK_TYPE_LABEL[typed.task.type] ?? "任務"}…`,
+              { tool: "execute_task", taskType: typed.task.type }
+            );
             try {
               typed.resultUrl = await executeOrbTask(ctx.user.id, typed.task);
             } catch (err) {

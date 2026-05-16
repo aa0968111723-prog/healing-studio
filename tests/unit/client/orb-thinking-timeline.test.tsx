@@ -25,6 +25,7 @@ const ALL_STAGES: OrbChatProgressEvent["stage"][] = [
   "planning",
   "calling_specialist",
   "materializing_task",
+  "executing_tool",
   "finalizing",
   "error",
 ];
@@ -39,6 +40,7 @@ const STAGE_LABEL: Record<OrbChatProgressEvent["stage"], string> = {
   planning: "規劃步驟中…",
   calling_specialist: "召喚 圖圖",
   materializing_task: "整理任務步驟…",
+  executing_tool: "執行圖像生成…",
   finalizing: "整理回應…",
   error: "發生錯誤…",
 };
@@ -53,6 +55,7 @@ const EXPECTED_EMOJI: Record<OrbChatProgressEvent["stage"], string> = {
   planning: "🧠",
   calling_specialist: "🎨",
   materializing_task: "📋",
+  executing_tool: "🛠️",
   finalizing: "✨",
   error: "⚠️",
 };
@@ -67,7 +70,9 @@ function buildEvent(
 describe("OrbThinkingTimeline 端到端渲染", () => {
   it("空事件時顯示 fallback「光球思考中…」", () => {
     render(<OrbThinkingTimeline events={[]} />);
-    expect(screen.getByText("光球思考中…")).toBeTruthy();
+    // M13 後 fallback 文字會出現在兩處:讀屏專用 sr-only live region +
+    // 視覺面 aria-hidden 區塊。allByText 至少 1 個就算通過。
+    expect(screen.getAllByText("光球思考中…").length).toBeGreaterThanOrEqual(1);
   });
 
   it("至多顯示最近 6 個事件(避免長 trace 蓋掉聊天視窗)", () => {
@@ -126,5 +131,48 @@ describe("OrbThinkingTimeline 端到端渲染", () => {
     };
     render(<OrbThinkingTimeline events={[event]} reduceMotion />);
     expect(screen.getAllByText("搜尋網路中…").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// M13: aria-live noise 修復後的不變式
+describe("OrbThinkingTimeline 無障礙(M13)", () => {
+  it("螢幕閱讀器只播最新一條,不會把 6 條全唸出來", () => {
+    const events = ALL_STAGES.slice(0, 6).map((s, i) => buildEvent(i + 1, s));
+    const { container } = render(
+      <OrbThinkingTimeline events={events} reduceMotion />
+    );
+    // 找 aria-live region
+    const liveRegions = container.querySelectorAll('[aria-live="polite"]');
+    expect(liveRegions.length).toBe(1); // 只有一顆 live region
+    const liveText = liveRegions[0].textContent ?? "";
+    // 只包含最新一條的 label(events 最後一條是 ALL_STAGES[5]="researching_web")
+    expect(liveText).toContain(STAGE_LABEL.researching_web.replace(/…$/, ""));
+    // 不包含較早的 label(避免重唸)
+    expect(liveText).not.toContain(STAGE_LABEL.received);
+    expect(liveText).not.toContain(STAGE_LABEL.sanitizing);
+  });
+
+  it("視覺區塊整段 aria-hidden,讀屏不會抓到視覺面的多筆訊息", () => {
+    const events = ALL_STAGES.slice(0, 4).map((s, i) => buildEvent(i + 1, s));
+    const { container } = render(
+      <OrbThinkingTimeline events={events} reduceMotion />
+    );
+    // 視覺面(emoji + label 那塊)整段包在 aria-hidden 容器內
+    const hiddenWrapper = container.querySelector('[aria-hidden="true"]');
+    expect(hiddenWrapper).not.toBeNull();
+    // 確認視覺面內含所有 4 個 emoji
+    const emojis = ["🌟", "🧹", "📎", "📄"];
+    for (const emoji of emojis) {
+      expect(hiddenWrapper!.textContent).toContain(emoji);
+    }
+  });
+
+  it("live region 是 atomic(整段重播,不會只播 diff)", () => {
+    const events = [buildEvent(1, "received")];
+    const { container } = render(
+      <OrbThinkingTimeline events={events} reduceMotion />
+    );
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion?.getAttribute("aria-atomic")).toBe("true");
   });
 });

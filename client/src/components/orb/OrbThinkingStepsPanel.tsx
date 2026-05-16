@@ -39,6 +39,7 @@ const STAGE_EMOJI: Record<OrbReasoningAction["stage"], string> = {
   planning: "🧠",
   calling_specialist: "🎨",
   materializing_task: "📋",
+  executing_tool: "🛠️",
   finalizing: "✨",
   error: "⚠️",
 };
@@ -53,6 +54,7 @@ const STAGE_LABEL_ZH: Record<OrbReasoningAction["stage"], string> = {
   planning: "規劃步驟",
   calling_specialist: "召喚精靈",
   materializing_task: "整理任務",
+  executing_tool: "執行工具",
   finalizing: "整理回應",
   error: "錯誤",
 };

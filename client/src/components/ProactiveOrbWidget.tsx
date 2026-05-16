@@ -2602,6 +2602,34 @@ export default memo(function ProactiveOrbWidget({
 
   // Auto-scroll chat
   const chatEndRef = useRef<HTMLDivElement>(null);
+  // M14: 桌面對話面板開啟時,把焦點交給面板,並支援 Escape 關閉。
+  // 注意這只是「初始 focus + Escape 關閉」,不是完整的 focus trap;鍵盤
+  // 使用者 Tab 仍可能跑出面板。完整 trap 需要 focus-trap-react 之類函式
+  // 庫,本回只解決最痛的 a11y 問題(打開沒有焦點 + 無法用鍵盤關閉)。
+  const desktopPanelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showPanel || isMobile) return;
+    const node = desktopPanelRef.current;
+    if (!node) return;
+    // 找面板內第一個 focusable 元素;若無就 focus 面板本身(tabIndex=-1)。
+    const first = node.querySelector<HTMLElement>(
+      "input, textarea, button, [href], [tabindex]:not([tabindex='-1'])"
+    );
+    (first ?? node).focus();
+  }, [showPanel, isMobile]);
+  // 桌面面板的 Escape handler。整個 window 監聽,避免焦點剛好不在面板
+  // 內(例如使用者點背景空白處後想按 Esc 關掉)時失效。
+  useEffect(() => {
+    if (!showPanel || isMobile) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setShowPanel(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showPanel, isMobile]);
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -3221,9 +3249,12 @@ export default memo(function ProactiveOrbWidget({
         <AnimatePresence>
           {showPanel && (
             <motion.div
+              ref={desktopPanelRef}
               data-orb-panel
               role="dialog"
+              aria-modal="true"
               aria-label="光球助手互動面板"
+              tabIndex={-1}
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}

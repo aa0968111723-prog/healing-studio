@@ -205,6 +205,7 @@ export interface OrbChatProgressEvent {
     | "planning"
     | "calling_specialist"
     | "materializing_task"
+    | "executing_tool"
     | "finalizing"
     | "error";
   label: string;
