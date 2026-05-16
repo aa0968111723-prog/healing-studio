@@ -135,10 +135,17 @@ export const orbSchedulerRouter = router({
       try {
         await scheduleOrbJob({ ...input, userId: ctx.user.id });
       } catch (error) {
+        // L13:server-side log 完整 error,user message 只回通用文案,不
+        // 把 DB / drizzle 原始錯誤(可能含 connection string / 表名)洩
+        // 漏給 client。極端罕見:scheduleOrbJob 本身就丟人類可讀的中文
+        // 訊息(例如「cron 表達式無效」),但保險起見一律重寫。
+        console.error(
+          "[OrbScheduler] scheduleJob failed:",
+          error instanceof Error ? error.message : error
+        );
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            error instanceof Error ? error.message : "建立排程失敗，請稍後再試",
+          message: "建立排程失敗,請稍後再試",
         });
       }
       return { success: true } as const;

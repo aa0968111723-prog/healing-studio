@@ -84,7 +84,6 @@ import type { GenerationMode, GenerationType } from "@shared/types";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
 import JSZip from "jszip";
 
-import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import {
   useRegisterPageAgent,
   usePageAgent,
