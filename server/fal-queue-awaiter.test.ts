@@ -41,6 +41,30 @@ describe("extractFalMediaUrl", () => {
     expect(out.output_url).toBe("https://cdn/i.png");
   });
 
+  it("finds videos[0].url (array shape used by some fal video models)", () => {
+    // 回歸:videoStudio.extractVideoUrl 早就支援 videos[]，但通用 extractor
+    // 過去漏 — 導致 checkStudioJob 在我們新加的「沒 URL 改 failed」分支
+    // 把本來有 URL 的完成任務誤判為失敗。
+    const out = extractFalMediaUrl({
+      videos: [{ url: "https://cdn/vid-arr.mp4" }],
+    });
+    expect(out.video_url).toBe("https://cdn/vid-arr.mp4");
+    expect(out.output_url).toBe("https://cdn/vid-arr.mp4");
+  });
+
+  it("finds videos[0].url nested under data / output envelopes", () => {
+    expect(
+      extractFalMediaUrl({
+        output: { videos: [{ url: "https://cdn/o-vid.mp4" }] },
+      }).video_url
+    ).toBe("https://cdn/o-vid.mp4");
+    expect(
+      extractFalMediaUrl({
+        data: { videos: [{ url: "https://cdn/d-vid.mp4" }] },
+      }).video_url
+    ).toBe("https://cdn/d-vid.mp4");
+  });
+
   it("walks the data / output / result envelopes that some models nest under", () => {
     expect(
       extractFalMediaUrl({ data: { video: { url: "https://cdn/d.mp4" } } }).video_url
