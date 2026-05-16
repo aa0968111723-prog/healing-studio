@@ -56,13 +56,23 @@ async function falQueueSubmit(
   input: Record<string, unknown>,
   jobId?: number
 ): Promise<{ request_id: string }> {
-  // 若設定了 VITE_SITE_URL 且有 jobId，加入帶 jobId 的 webhook 回呼，
-  // fal.ai 完成時主動 POST 到 /api/webhook/fal?jobId=<id>，瀏覽器關閉也能持久化結果
+  // 若設定了 VITE_SITE_URL，一律帶 webhook 回呼。
+  //  - 有 jobId（理論上沒走過這條,VideoStudio 入口先送 fal 才建 backgroundJob）→
+  //    直接帶 ?jobId=<id> 走最快路徑。
+  //  - 沒有 jobId（VideoStudio klingTextToVideo 等）→ 走通用 /api/webhook/fal,
+  //    webhook handler 會用 payload.request_id 反查 resultJson.requestId 找到 job。
+  //
+  // 之前條件是 `siteUrl && jobId`，所以 VideoStudio 全線都跳過 webhook,
+  // 完成時只能靠 BackgroundTasksContext 5 秒輪詢 + checkStudioJob 拉結果。
+  // 一旦 polling 端某條 modelId 路徑（例如 Kling Pro/i2v 深巢狀 modelId）
+  // 命不中 fal queue endpoint,影片就只剩「processing 30 分鐘 → 超時失敗」
+  // 一條路 — 或更糟,完成卻沒寫入 URL,UI 顯示完成卻無預覽/無下載。
   const siteUrl = process.env.VITE_SITE_URL?.trim();
-  const webhookUrl =
-    siteUrl && jobId
+  const webhookUrl = siteUrl
+    ? jobId
       ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
-      : undefined;
+      : `${siteUrl}/api/webhook/fal`
+    : undefined;
 
   try {
     const result = await dispatchFalQueueTask({

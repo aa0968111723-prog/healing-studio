@@ -21,20 +21,53 @@ type JobType = "image" | "video" | "audio" | "voice" | "multimodal";
 function mediaUrlFromResult(resultJson: unknown): string | null {
   if (!resultJson || typeof resultJson !== "object") return null;
   const r = resultJson as Record<string, unknown>;
-  return (
-    (r.resultUrl as string) ??
-    (((r.result as Record<string, unknown>)?.video as Record<string, unknown>)?.url as string) ??
-    ((r.result as Record<string, unknown>)?.videoUrl as string) ??
-    (((r.result as Record<string, unknown>)?.audio as Record<string, unknown>)?.url as string) ??
-    ((r.result as Record<string, unknown>)?.audioUrl as string) ??
-    (((r.result as Record<string, unknown>)?.image as Record<string, unknown>)?.url as string) ??
-    ((r.result as Record<string, unknown>)?.imageUrl as string) ??
-    ((r.result as Record<string, unknown>)?.images as string[])?.[0] ??
-    (r.videoUrl as string) ??
-    (r.audioUrl as string) ??
-    (r.imageUrl as string) ??
-    null
-  );
+
+  // 在多個常見 envelope 下尋找媒體 URL。
+  //   - r.resultUrl: 統一鍵，webhookFal / checkStudioJob / director 皆寫此鍵
+  //   - r.{video,image,audio}Url: 各模態 top-level 直接寫的鍵
+  //   - r.result.{video,image,audio}.url: fal 原生 nested shape（checkStudioJob 寫 result）
+  //   - r.result.{output,data}.{video,image,audio}.url: 某些 fal 模型外層多包一層
+  //   - r.result.images[0]: 注意 fal 圖片是 array of {url}，所以 [0].url 才對
+  const candidates: Array<unknown> = [
+    r.resultUrl,
+    r.videoUrl,
+    r.audioUrl,
+    r.imageUrl,
+  ];
+  // 從多個 envelope 抓 nested {video|image|audio: {url}} / *_url / images[0].url
+  const envelopes: Array<Record<string, unknown> | undefined> = [
+    r.result as Record<string, unknown> | undefined,
+    (r.result as Record<string, unknown> | undefined)?.output as
+      | Record<string, unknown>
+      | undefined,
+    (r.result as Record<string, unknown> | undefined)?.data as
+      | Record<string, unknown>
+      | undefined,
+    r as Record<string, unknown>,
+  ];
+  for (const env of envelopes) {
+    if (!env) continue;
+    const v = env.video as Record<string, unknown> | undefined;
+    if (v?.url) candidates.push(v.url);
+    if (typeof env.video_url === "string") candidates.push(env.video_url);
+    const a = env.audio as Record<string, unknown> | undefined;
+    if (a?.url) candidates.push(a.url);
+    if (typeof env.audio_url === "string") candidates.push(env.audio_url);
+    const i = env.image as Record<string, unknown> | undefined;
+    if (i?.url) candidates.push(i.url);
+    if (typeof env.image_url === "string") candidates.push(env.image_url);
+    const imgs = env.images;
+    if (Array.isArray(imgs) && imgs.length > 0) {
+      const first = imgs[0];
+      if (typeof first === "string") candidates.push(first);
+      else if (first && typeof first === "object" && "url" in (first as object))
+        candidates.push((first as { url?: unknown }).url);
+    }
+  }
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 0) return c;
+  }
+  return null;
 }
 
 function jobTypeIcon(type: string) {

@@ -22,6 +22,7 @@ import { serverEnv } from "../_core/env.validated";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
 import { runPostGenForJob } from "../services/postGenActions.js";
+import { extractFalMediaUrl } from "../services/falQueueAwaiter.js";
 
 export const falWebhookRouter = Router();
 
@@ -124,20 +125,59 @@ falWebhookRouter.post(
         // runPostGenForJob 找不到 studioType/modelId/prompt → 永不持久化到
         // 資產庫/歷史/提示詞庫。
         const existingMeta = (job.resultJson ?? {}) as Record<string, unknown>;
-        // resultUrl 統一鍵名，下游（runPostGenForJob、前端）優先讀此欄位
+        // resultUrl 統一鍵名，下游（runPostGenForJob、前端）優先讀此欄位。
+        // 用通用 extractor 重新解析 localize 過後的物件 — 涵蓋 root / data /
+        // output / result 四種 envelope + nested {video: {url}} / video_url /
+        // images[0].url 等 shape,避免漏接 fal 不同模型族系的 shape 差異。
+        const localizedData = resultData as Record<string, unknown>;
+        const extracted = extractFalMediaUrl(localizedData);
         const resultUrl =
-          (resultData as Record<string, unknown>).imageUrl ??
-          (resultData as Record<string, unknown>).videoUrl ??
-          (resultData as Record<string, unknown>).audioUrl ??
+          extracted.output_url ??
+          (localizedData.imageUrl as string | undefined) ??
+          (localizedData.videoUrl as string | undefined) ??
+          (localizedData.audioUrl as string | undefined) ??
           undefined;
+
+        // ⚠️ 若 status=OK 卻完全沒 URL → 不要標 completed,改標 failed,
+        // 讓 UI 顯示「需重試」而不是一張無預覽無下載的卡片永遠卡在資產庫。
+        if (!resultUrl) {
+          const errMsg =
+            "生成已完成但無法解析結果連結（fal 回傳格式異常），請重試或更換模型";
+          await updateBackgroundJob(jobId, {
+            status: "failed",
+            errorMessage: errMsg,
+            resultJson: {
+              ...existingMeta,
+              ...localizedData,
+            } as any,
+          });
+          generationBus.emit(jobId, { type: "error", message: errMsg });
+          console.warn(
+            `[WebhookFal] ⚠️  Job ${jobId} completed but no URL extracted. orbTraceId=${orbTraceId} rawPayload=${JSON.stringify(localizedData.rawPayload ?? {}).slice(0, 400)}`
+          );
+          return;
+        }
+
+        // 同時補上各模態 top-level URL 鍵（videoUrl/imageUrl/audioUrl），
+        // 讓不同前端頁面（用 r.videoUrl / r.imageUrl / r.resultUrl 任一格）
+        // 都能找到 URL,不再依賴 extractResultData 是否剛好寫對 key。
+        const urlFields: Record<string, unknown> = {};
+        if (extracted.video_url && !localizedData.videoUrl)
+          urlFields.videoUrl = extracted.video_url;
+        if (extracted.image_url && !localizedData.imageUrl)
+          urlFields.imageUrl = extracted.image_url;
+        if (extracted.audio_url && !localizedData.audioUrl)
+          urlFields.audioUrl = extracted.audio_url;
+
         await updateBackgroundJob(jobId, {
           status: "completed",
           progress: 100,
           progressMessage: "生成完成",
           resultJson: {
             ...existingMeta,
-            ...resultData,
-            ...(resultUrl ? { resultUrl } : {}),
+            ...localizedData,
+            ...urlFields,
+            resultUrl,
           } as any,
         });
         // 後置動作（idempotent）：寫入提示詞庫 / 資產庫 / 歷史 / AI 監控室
