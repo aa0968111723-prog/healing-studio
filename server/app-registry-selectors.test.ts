@@ -28,7 +28,7 @@ describe("appRegistry selectors", () => {
     expect(getPageByPath("/langsmith")?.id).toBe("langsmith");
   });
 
-  it("keeps /shared on the dedicated page while legacy asset links stay on /assets", () => {
+  it("resolves /shared to the dedicated page and /assets?section=shared to assets", () => {
     // /shared now opens the dedicated SharedSpace page, but old bookmarks using
     // /assets?section=shared must still land on the asset library's team view.
     expect(getPageById("assets")?.path).toBe("/assets");
