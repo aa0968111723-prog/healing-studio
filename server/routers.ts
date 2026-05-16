@@ -6753,6 +6753,10 @@ export const appRouter = router({
             // that conflicts with the planner's clarification / tasked
             // commitment. Legacy fallback can still call the qna shape.
             mode: "agent",
+            // H2 修復:沒帶 userId 時 perplexity / brave 節流會以全站 bucket
+            // 計算,單一惡意帳號連發「幫我搜尋 X」可把全站額度燒光。帶上
+            // ctx.user.id 後節流改為 per-user,惡意者只能燒自己那份。
+            userId: ctx.user.id,
           }
         );
         if (webResearchOutcome.reason === "matched" || webResearchOutcome.reason === "matched:explicit_search" || webResearchOutcome.reason === "matched:deep_search") {
