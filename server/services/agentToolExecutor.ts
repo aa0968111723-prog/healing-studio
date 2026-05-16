@@ -73,9 +73,38 @@ async function resolveOrbEngine(
  * step-ref placeholders (`${step1.video_url}`) resolve. Honours the
  * conventional `args.wait === false` opt-out for fire-and-forget callers.
  */
+/**
+ * F2/F6 修復:從 fal category 推導出 PostGenModality,給 doPostGenComplete 用。
+ * 不在表內的(audio-to-text / image-to-3d / training 等)回 null → 不寫資產庫。
+ */
+type OrbPostGenModality = "image" | "video" | "audio" | "voice";
+function modalityForFalCategory(category: string | undefined): OrbPostGenModality | null {
+  if (!category) return null;
+  if (category.startsWith("text-to-image") || category.startsWith("image-to-image")) {
+    return "image";
+  }
+  if (
+    category === "text-to-video" ||
+    category === "image-to-video" ||
+    category === "video-to-video"
+  ) {
+    return "video";
+  }
+  if (category === "text-to-audio" || category === "video-to-audio") {
+    return "audio";
+  }
+  if (category === "text-to-speech") {
+    return "voice";
+  }
+  return null;
+}
+
 async function awaitFalForOrb(
   envelope: FalDispatchEnvelope,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  // F2/F6: 加 opts 給 postgen 寫資產庫 / 歷史 / 提示詞庫用。
+  // 不帶就退化為 legacy 行為(只 await + return),向後相容。
+  opts?: { userId?: number; prompt?: string }
 ): Promise<FalDispatchEnvelope & Partial<FalAwaitResult>> {
   if (args.wait === false) return { ...envelope, status: "pending" };
   const timeoutMs =
@@ -112,6 +141,37 @@ async function awaitFalForOrb(
       raw: awaited.raw,
       error: awaited.error ?? "no-url-extracted",
     };
+  }
+  // F2/F6 修復:orb 走 dispatchFalQueueTask + awaitFalForOrb 的路徑從來沒
+  // 走過 doPostGenComplete,使用者跟光球說「幫我生圖/影/音」之後在「我的
+  // 資產」永遠找不到 — 因為 prompt_library / digital_asset_library /
+  // generation_history / AI 監控 都沒寫。
+  // PR #682 修了 proStudio / webhookFal / checkStudioJob 三條路徑,但 orb
+  // 第四條路徑沒覆蓋。在這條 bottleneck function 內 fire-and-forget 補上,
+  // 一處修法涵蓋所有 15+ 個 orb studio.generate* case。
+  if (awaited.status === "completed" && hasAnyUrl && opts?.userId) {
+    void (async () => {
+      try {
+        const { getFalModelById } = await import("./falModels");
+        const cfg = getFalModelById(envelope.modelId);
+        const modality = modalityForFalCategory(cfg?.category);
+        if (!modality) return; // 不在 image/video/audio/voice 範圍就跳過(3D / 轉文字 / 訓練)
+        const resultUrl =
+          awaited.image_url ?? awaited.video_url ?? awaited.audio_url ?? awaited.output_url;
+        if (!resultUrl) return;
+        const { doPostGenComplete } = await import("./postGenActions");
+        await doPostGenComplete({
+          userId: opts.userId!,
+          modality,
+          modelId: envelope.modelId,
+          prompt: opts.prompt,
+          resultUrl,
+          sourceStudio: "orb",
+        });
+      } catch (err) {
+        console.warn("[awaitFalForOrb] postgen write failed:", err);
+      }
+    })();
   }
   return {
     request_id: envelope.request_id,
@@ -1034,7 +1094,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
@@ -1128,7 +1189,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
@@ -1209,7 +1271,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
@@ -1254,7 +1317,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
@@ -1278,11 +1342,74 @@ async function dispatchStudioTool(
               error: "SUNO_API_KEY 未設定",
             };
           }
+          // F2 修復:orb 走 Suno 原本完全繞過 backgroundJobs / 資產庫 —
+          // webhookSuno 用 jobId 反查時找不到、runPostGenForJob 永遠不
+          // 跑,使用者在「我的資產」永遠找不到。鏡像 proStudio:1960 的
+          // 流程,先建 backgroundJob,再把 sunoTaskId 補回 resultJson。
+          const sunoPrompt = (args.prompt as string) ?? "";
+          let orbSunoJobId: number | null = null;
+          try {
+            const db = await import("../db");
+            const insertId = await db.createBackgroundJob({
+              userId: opts.userId,
+              jobType: "audio",
+              status: "processing",
+              progressMessage: `Suno ${requestedModel} 生成中…`,
+              resultJson: {
+                studioType: "audio",
+                modelId: requestedModel,
+                prompt: sunoPrompt,
+                sourceStudio: "orb",
+              } as never,
+            });
+            orbSunoJobId =
+              typeof insertId === "number" && insertId > 0 ? insertId : null;
+          } catch (err) {
+            // backgroundJob 失敗也別讓使用者拿不到結果,只是後續不會進
+            // 資產庫。提前 log + 繼續往下跑。
+            console.warn(
+              "[orb-tool/studio.generateAudio:suno] createBackgroundJob failed:",
+              err
+            );
+          }
+          // 構造 callBackUrl 給 webhookSuno 反查 jobId(F2 主要修復)
+          const siteUrl = process.env.VITE_SITE_URL?.trim();
+          let callBackUrl: string | undefined;
+          if (siteUrl && orbSunoJobId) {
+            try {
+              const { signWebhookToken } = await import("../_core/webhookTokens");
+              const token = signWebhookToken("suno", orbSunoJobId);
+              callBackUrl = `${siteUrl}/api/webhook/suno?jobId=${orbSunoJobId}${token ? `&token=${token}` : ""}`;
+            } catch {
+              callBackUrl = `${siteUrl}/api/webhook/suno?jobId=${orbSunoJobId}`;
+            }
+          }
           const sunoResult = await suno.generateMusic({
-            prompt: (args.prompt as string) ?? "",
+            prompt: sunoPrompt,
             instrumental: (args.instrumental as boolean) ?? false,
             lyrics: args.lyrics as string | undefined,
-          });
+            ...(callBackUrl ? { callBackUrl } : {}),
+          } as never);
+          // 把 sunoTaskId merge 回 resultJson 供 webhook 反查
+          if (orbSunoJobId) {
+            try {
+              const db = await import("../db");
+              const existing = await db.getBackgroundJob(orbSunoJobId);
+              const existingMeta = (existing?.resultJson ?? {}) as Record<string, unknown>;
+              await db.updateBackgroundJob(orbSunoJobId, {
+                resultJson: {
+                  ...existingMeta,
+                  sunoTaskId: sunoResult.taskId,
+                  userId: opts.userId,
+                } as never,
+              });
+            } catch (err) {
+              console.warn(
+                "[orb-tool/studio.generateAudio:suno] update sunoTaskId failed:",
+                err
+              );
+            }
+          }
           return {
             name: call.name,
             ok: true,
@@ -1290,6 +1417,7 @@ async function dispatchStudioTool(
               taskId: sunoResult.taskId,
               status: sunoResult.status,
               engine: "suno",
+              ...(orbSunoJobId ? { jobId: orbSunoJobId } : {}),
             },
             usedTool: call.name,
           };
@@ -1370,7 +1498,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
@@ -1452,7 +1581,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
@@ -1512,7 +1642,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // 兩種引擎都 hoist 各自的 voice 識別子到 data 頂層 —
         //   - Qwen → speaker_voice_embedding_file_url（.safetensors）
@@ -1577,7 +1708,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // 與 cloneVoice 同一回傳契約：把 speaker_embedding.url 平推到頂層 —
         // 後續 step 可用 ${stepN.speaker_voice_embedding_file_url} 接到 generateVoice。
@@ -1638,7 +1770,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // Demucs 回 { vocals: { url }, drums: { url }, ... } —— 把每軌 URL
         // 平推到 data 頂層，方便 step refs 使用 ${stepN.vocals_url} 等。
@@ -1707,7 +1840,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // 兩條路徑的輸出形狀不同：
         //   - ElevenLabs isolation → audio.url（單軌）
@@ -1772,7 +1906,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // FFmpeg merge 通常回 audio.url（單一輸出）；統一以 data.audio_url 平推
         // 到頂層，後續 step 可用 ${stepN.audio_url} 接到 isolation / voiceChanger / 終端發布。
@@ -1838,7 +1973,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // ElevenLabs voice-changer 回 audio.url；統一以 data.audio_url 平推到頂層。
         const raw = awaited.raw as { audio?: { url?: string } } | undefined;
@@ -1900,7 +2036,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // Wan 回傳 { video: { url } }；統一以 data.video_url 平推到頂層。
         const raw = awaited.raw as { video?: { url?: string } } | undefined;
@@ -1948,7 +2085,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         // ASR 模型回傳格式不一：Nemotron 回 { text, segments? }；wizper/whisper
         // 回 { text, chunks }。統一抓出 text 欄位平推到 data.text。
@@ -2077,7 +2215,8 @@ async function dispatchStudioTool(
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args
+          args,
+          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
         );
         return {
           name: call.name,
