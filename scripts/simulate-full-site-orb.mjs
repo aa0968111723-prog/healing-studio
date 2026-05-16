@@ -417,52 +417,61 @@ async function main() {
   }
 
   // ── 走 16 phase（畫面右下 LIVE timeline）
-  header("Timeline · 16 段協作（LIVE）");
+  // QUIET 模式下不打字、不睡 TICK；只跑 fired 累計給 summary 用。
+  if (!QUIET) header("Timeline · 16 段協作（LIVE）");
   const fired = new Set();
   for (const ph of PHASES) {
-    const tag = ph.isLive ? paint(" ◉ LIVE", "pink") : "";
-    const head = `phase ${String(ph.n).padStart(2, "0")}/16 · ${ph.name}${tag}`;
-    console.log("\n" + paint(head, "cyan"));
-    console.log("  " + paint(ph.layer, "gray"));
+    if (!QUIET) {
+      const tag = ph.isLive ? paint(" ◉ LIVE", "pink") : "";
+      const head = `phase ${String(ph.n).padStart(2, "0")}/16 · ${ph.name}${tag}`;
+      console.log("\n" + paint(head, "cyan"));
+      console.log("  " + paint(ph.layer, "gray"));
+    }
 
     for (const role of ph.spirits) {
       fired.add(role);
-      const sp = SPIRITS[role];
-      bullet(`${sp.emoji} ${paint(sp.nick, "bold")} ${paint(`(${role})`, "gray")}  ↻ on-stage`);
+      if (!QUIET) {
+        const sp = SPIRITS[role];
+        bullet(`${sp.emoji} ${paint(sp.nick, "bold")} ${paint(`(${role})`, "gray")}  ↻ on-stage`);
+      }
     }
 
-    for (const [role, line] of ph.dialog) {
-      const sp = SPIRITS[role];
-      console.log(`    ${paint("›", "magenta")} ${paint(sp.nick, "yellow")}：${line}`);
-    }
+    if (!QUIET) {
+      for (const [role, line] of ph.dialog) {
+        const sp = SPIRITS[role];
+        console.log(`    ${paint("›", "magenta")} ${paint(sp.nick, "yellow")}：${line}`);
+      }
 
-    if (ph.streamPartial) {
-      const pct = [25, 65, 100][ph.streamPartial - 1];
-      console.log(`    ${paint("queue", "gray")}  ${progressBar(pct)}  ${paint(`partial ${ph.streamPartial}`, "pink")}`);
-      if (TICK > 0) await sleep(TICK);
+      if (ph.streamPartial) {
+        const pct = [25, 65, 100][ph.streamPartial - 1];
+        console.log(`    ${paint("queue", "gray")}  ${progressBar(pct)}  ${paint(`partial ${ph.streamPartial}`, "pink")}`);
+        if (TICK > 0) await sleep(TICK);
+      }
     }
   }
 
   // ── 覆蓋率報表（25 位都吃過？）
-  header("精靈覆蓋率");
   const missing = ALL_25.filter((r) => !fired.has(r));
-  const familyBuckets = { specialist: [], role: [], proactive: [] };
-  for (const r of ALL_25) familyBuckets[SPIRITS[r].family].push(r);
+  if (!QUIET) {
+    header("精靈覆蓋率");
+    const familyBuckets = { specialist: [], role: [], proactive: [] };
+    for (const r of ALL_25) familyBuckets[SPIRITS[r].family].push(r);
 
-  for (const [fam, list] of Object.entries(familyBuckets)) {
-    const hit = list.filter((r) => fired.has(r));
-    console.log(
-      `  ${paint(fam.padEnd(10), "cyan")} ${paint(`${hit.length}/${list.length}`, "bold")}  ` +
-      list.map((r) => fired.has(r)
-        ? paint(SPIRITS[r].nick, "green")
-        : paint(SPIRITS[r].nick, "red")).join(" "),
-    );
-  }
-  console.log();
-  if (missing.length === 0) {
-    console.log(paint("  ✓ 25 / 25 精靈全部協作就位", "green"));
-  } else {
-    console.log(paint(`  ✗ ${missing.length} 位未上場：${missing.map((r) => SPIRITS[r].nick).join(" ")}`, "red"));
+    for (const [fam, list] of Object.entries(familyBuckets)) {
+      const hit = list.filter((r) => fired.has(r));
+      console.log(
+        `  ${paint(fam.padEnd(10), "cyan")} ${paint(`${hit.length}/${list.length}`, "bold")}  ` +
+        list.map((r) => fired.has(r)
+          ? paint(SPIRITS[r].nick, "green")
+          : paint(SPIRITS[r].nick, "red")).join(" "),
+      );
+    }
+    console.log();
+    if (missing.length === 0) {
+      console.log(paint("  ✓ 25 / 25 精靈全部協作就位", "green"));
+    } else {
+      console.log(paint(`  ✗ ${missing.length} 位未上場：${missing.map((r) => SPIRITS[r].nick).join(" ")}`, "red"));
+    }
   }
 
   // ── 最終 summary
