@@ -54,7 +54,7 @@ function visualForAction(action: AgentAction): ActionVisual {
       return {
         icon: Compass,
         label: label ? `前往 ${label}` : "前往頁面",
-        detail: action.path,
+        detail: label ? undefined : action.path,
       };
     }
     case "setModel":

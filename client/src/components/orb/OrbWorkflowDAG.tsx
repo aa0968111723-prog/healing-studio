@@ -35,6 +35,7 @@ import type {
   WorkflowExecutionStepState,
   WorkflowExecutionStepStatus,
 } from "@/contexts/GlobalOrbChatContext";
+import { getPageLabelByPath } from "@/lib/orbChatHelpers";
 
 interface NodeData extends Record<string, unknown> {
   label: string;
@@ -109,9 +110,12 @@ function StepNode({ data }: NodeProps<Node<NodeData>>) {
               {data.index + 1}/{data.total}
             </span>
             {data.path ? (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-card/10 px-1.5 py-0.5 text-[9px] text-white/70">
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-card/10 px-1.5 py-0.5 text-[9px] text-white/70"
+                title={data.path}
+              >
                 <MapPin className="w-2.5 h-2.5" />
-                {data.path}
+                {getPageLabelByPath(data.path) ?? data.path}
               </span>
             ) : null}
           </div>
