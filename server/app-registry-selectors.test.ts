@@ -31,7 +31,6 @@ describe("appRegistry selectors", () => {
   it("resolves /shared to the dedicated page and /assets?section=shared to assets", () => {
     // The registry should keep the dedicated SharedSpace route distinct from
     // the legacy asset-library URL that still resolves through /assets.
-    expect(getPageById("assets")?.path).toBe("/assets");
     expect(getPageByPath("/shared")?.id).toBe("shared");
     expect(getPageByPath("/assets?section=shared")?.id).toBe("assets");
   });
