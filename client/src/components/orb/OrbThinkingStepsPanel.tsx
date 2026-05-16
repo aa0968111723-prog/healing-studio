@@ -39,6 +39,7 @@ const STAGE_EMOJI: Record<OrbReasoningAction["stage"], string> = {
   planning: "🧠",
   calling_specialist: "🎨",
   materializing_task: "📋",
+  executing_tool: "🛠️",
   finalizing: "✨",
   error: "⚠️",
 };
@@ -53,6 +54,7 @@ const STAGE_LABEL_ZH: Record<OrbReasoningAction["stage"], string> = {
   planning: "規劃步驟",
   calling_specialist: "召喚精靈",
   materializing_task: "整理任務",
+  executing_tool: "執行工具",
   finalizing: "整理回應",
   error: "錯誤",
 };
@@ -80,8 +82,11 @@ export default function OrbThinkingStepsPanel({
   messageAt,
 }: OrbThinkingStepsPanelProps) {
   const initialTab: Tab = useMemo(() => {
-    if (chain?.sections.length) return "thinking";
-    if (chain?.actions.length) return "actions";
+    // L11:`chain?.sections.length` 等同 `(chain?.sections).length`,
+    // 若 server 回 chain={} 缺 sections 就是 `.length of undefined` 直接
+    // crash。所有 chain 子欄位都改 optional chain。
+    if (chain?.sections?.length) return "thinking";
+    if (chain?.actions?.length) return "actions";
     return "thinking";
   }, [chain]);
   const [tab, setTab] = useState<Tab>(initialTab);

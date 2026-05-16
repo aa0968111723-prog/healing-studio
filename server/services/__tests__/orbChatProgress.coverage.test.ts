@@ -36,6 +36,7 @@ const ALL_STAGES: OrbChatProgressStage[] = [
   "planning",
   "calling_specialist",
   "materializing_task",
+  "executing_tool",
   "finalizing",
   "error",
 ];

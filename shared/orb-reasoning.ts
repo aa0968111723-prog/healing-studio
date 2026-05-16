@@ -35,6 +35,7 @@ export type OrbReasoningActionStage =
   | "planning"
   | "calling_specialist"
   | "materializing_task"
+  | "executing_tool"
   | "finalizing"
   | "error";
 
@@ -96,8 +97,9 @@ const STAGE_ORDER: Record<OrbReasoningActionStage, number> = {
   planning: 6,
   calling_specialist: 7,
   materializing_task: 8,
-  finalizing: 9,
-  error: 10,
+  executing_tool: 9,
+  finalizing: 10,
+  error: 11,
 };
 
 export function isOrbReasoningActionStage(

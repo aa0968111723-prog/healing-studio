@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  __unsafe_resetScheduledJobLocksForTests,
   isValidCronExpression,
   runDirectLlmFallback,
   runScheduledOrbJob,
@@ -157,6 +158,92 @@ describe("orbScheduler.runScheduledOrbJob (fallback path)", () => {
 
     expect(job.lastRunStatus).toBe("error");
     expect(job.lastError).toBe("OpenAI 5xx");
+  });
+});
+
+// ── H7: per-job in-flight lock ─────────────────────────────────────────────
+// 沒這個鎖時 cron 1 分鐘觸發但 LLM 任務跑 90 秒,下一 tick 直接再 fire,
+// 兩個 runner 同時改寫同 job 的 lastResult/lastRunAt、向 fal 雙扣計費。
+describe("orbScheduler.runScheduledOrbJob in-flight lock (H7)", () => {
+  beforeEach(() => {
+    __unsafe_resetScheduledJobLocksForTests();
+  });
+  afterEach(() => {
+    __unsafe_resetScheduledJobLocksForTests();
+  });
+
+  it("第二次並發呼叫被跳過,planner 只跑一次", async () => {
+    const job = makeJob();
+    // 慢 planner:用 deferred promise 控制 resolve 時機,確保第二個呼叫
+    // 進來時第一個還沒結束。
+    let resolveFirst: ((value: AgentPlannerResult) => void) | undefined;
+    const firstCallPromise = new Promise<AgentPlannerResult>(resolve => {
+      resolveFirst = resolve;
+    });
+    const runPlanner = vi.fn().mockReturnValue(firstCallPromise);
+    const runFallback = vi.fn().mockResolvedValue("OK");
+
+    // 第一個 fire 但不 await — 模擬 cron 觸發後 LLM 還沒跑完。
+    const firstRun = runScheduledOrbJob(job, { runPlanner, runFallback });
+    // 同步等下一個 microtask 確保 lock 已 acquire。
+    await Promise.resolve();
+    // 第二個並發 fire,應該被跳過。
+    const secondRun = runScheduledOrbJob(job, { runPlanner, runFallback });
+    await secondRun; // 第二個會立刻 return(被跳過)
+
+    expect(runPlanner).toHaveBeenCalledTimes(1); // 第二個沒進 planner
+    expect(job.lastRunStatus).toBe("skipped:in_flight");
+
+    // 收尾:讓第一個跑完,避免 promise leak。
+    resolveFirst!(makeInvalidPlannerResult());
+    await firstRun;
+  });
+
+  it("第一個跑完後,第三個呼叫不再被跳過", async () => {
+    const job = makeJob();
+    const runPlanner = vi.fn().mockResolvedValue(makeInvalidPlannerResult());
+    const runFallback = vi.fn().mockResolvedValue("第一輪結果");
+
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+    expect(job.lastRunStatus).toBe("fallback:invalid");
+
+    // 第二輪改 fallback 回應,確認真的跑了第二次而不是延用第一次。
+    runFallback.mockResolvedValueOnce("第二輪結果");
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+    expect(runPlanner).toHaveBeenCalledTimes(2);
+    expect(job.lastResult).toContain("第二輪");
+  });
+
+  it("第一個 throw 後 lock 也會釋放,後續可以重跑", async () => {
+    const job = makeJob();
+    const failingPlanner = vi.fn().mockRejectedValue(new Error("network blip"));
+    const okPlanner = vi.fn().mockResolvedValue(makeInvalidPlannerResult());
+    const runFallback = vi.fn().mockResolvedValue("恢復後的結果");
+
+    await runScheduledOrbJob(job, { runPlanner: failingPlanner, runFallback });
+    expect(job.lastRunStatus).toBe("error");
+
+    // try/finally 釋放 lock 後,新 runner 必須能進去。
+    await runScheduledOrbJob(job, { runPlanner: okPlanner, runFallback });
+    expect(job.lastRunStatus).toBe("fallback:invalid");
+    expect(okPlanner).toHaveBeenCalledOnce();
+  });
+
+  it("不同 jobId 的並發互不影響,各跑各的", async () => {
+    const jobA = makeJob({ id: "job-a" });
+    const jobB = makeJob({ id: "job-b" });
+    const runPlanner = vi.fn().mockResolvedValue(makeInvalidPlannerResult());
+    const runFallback = vi.fn().mockResolvedValue("OK");
+
+    await Promise.all([
+      runScheduledOrbJob(jobA, { runPlanner, runFallback }),
+      runScheduledOrbJob(jobB, { runPlanner, runFallback }),
+    ]);
+
+    // 兩個不同 job 各自走完整 flow,共 2 次 planner。
+    expect(runPlanner).toHaveBeenCalledTimes(2);
+    expect(jobA.lastRunStatus).toBe("fallback:invalid");
+    expect(jobB.lastRunStatus).toBe("fallback:invalid");
   });
 });
 

@@ -204,7 +204,70 @@ export interface RunScheduledOrbJobDeps {
   runFallback?: (taskDescription: string) => Promise<string>;
 }
 
+// H7 修復:per-job in-flight lock。沒這個的話 cron 1 分鐘觸發但 LLM
+// 任務跑 90 秒,下一個 tick 直接再 fire,兩個 runner 同時改寫同一個 job
+// 的 lastRunAt/lastResult、向 fal 雙扣計費、寫兩次 DB(競態互覆)。
+// 同樣保護 runNow + cron overlap、使用者快速雙擊 runNow 等案例。
+//
+// 安全網:STALE_LOCK_MS 之後鎖自動失效。極端情況下 finally 沒跑(process
+// 被 SIGKILL / 未捕 OOM 等)不會永久卡住任務。45 分鐘對齊
+// orbAutoDriverInFlight 的 10 分鐘 STALE 上限 + 3 倍緩衝,因為排程任務
+// 可能跑長視訊生成。
+const inFlightScheduledJobs = new Map<string, number>();
+const STALE_SCHEDULED_LOCK_MS = 45 * 60_000;
+
+function tryAcquireScheduledJobLock(jobId: string): boolean {
+  const startedAt = inFlightScheduledJobs.get(jobId);
+  if (startedAt !== undefined && Date.now() - startedAt < STALE_SCHEDULED_LOCK_MS) {
+    return false;
+  }
+  inFlightScheduledJobs.set(jobId, Date.now());
+  return true;
+}
+
+function releaseScheduledJobLock(jobId: string): void {
+  inFlightScheduledJobs.delete(jobId);
+}
+
+/** Test-only:清掉所有 in-flight lock,讓相鄰測試之間 lock 不互相洩漏。 */
+export function __unsafe_resetScheduledJobLocksForTests(): void {
+  inFlightScheduledJobs.clear();
+}
+
 export async function runScheduledOrbJob(
+  job: OrbScheduledJob,
+  deps: RunScheduledOrbJobDeps = {}
+): Promise<void> {
+  if (!tryAcquireScheduledJobLock(job.id)) {
+    // 上一輪還沒跑完 — 跳過這一 tick 避免 double-fire。記到 lastRunStatus
+    // 讓 UI / 監控看得到「曾被 skip」,而不是靜默忽略。
+    console.warn(
+      `[OrbScheduler] job "${job.id}" skipped: previous run still in flight`
+    );
+    // 同時更新 in-memory job 物件,讓 caller / 監控立刻看到狀態。注意:
+    // job 是 caller 傳進來的同一個物件,但不能覆寫 lastRunAt — 那會干擾
+    // 仍在跑的第一個 runner 算「最近一次成功時間」。只更新 status。
+    job.lastRunStatus = "skipped:in_flight";
+    try {
+      await recordRunResult(job.id, {
+        lastRunAt: job.lastRunAt ?? Date.now(),
+        lastError: job.lastError,
+        lastResult: job.lastResult,
+        lastRunStatus: "skipped:in_flight",
+      });
+    } catch {
+      // recordRunResult 失敗也別讓 cron 整顆爆,DB 暫時不可用是 acceptable。
+    }
+    return;
+  }
+  try {
+    await runScheduledOrbJobInner(job, deps);
+  } finally {
+    releaseScheduledJobLock(job.id);
+  }
+}
+
+async function runScheduledOrbJobInner(
   job: OrbScheduledJob,
   deps: RunScheduledOrbJobDeps = {}
 ): Promise<void> {

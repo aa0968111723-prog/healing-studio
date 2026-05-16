@@ -22,6 +22,7 @@ const STAGE_EMOJI: Record<OrbChatProgressEvent["stage"], string> = {
   planning: "🧠",
   calling_specialist: "🎨",
   materializing_task: "📋",
+  executing_tool: "🛠️",
   finalizing: "✨",
   error: "⚠️",
 };
@@ -47,14 +48,29 @@ export function OrbThinkingTimeline({
   const visible = events.slice(-6);
   const isEmpty = visible.length === 0;
 
+  // M13: 視覺區塊 + 螢幕閱讀器區塊分離。原本 role="status" aria-live 包整
+  // 段 visible.slice(-6),每收一筆 progress 整個 DOM 換掉,讀屏會把 6 條全
+  // 部重唸(每 ~400ms 一次),形同噪音。改成:
+  //   - 視覺面:照舊渲染 6 條(aria-hidden 不被讀屏抓)
+  //   - 讀屏面:獨立 sr-only div 只放「最新一條」純文字,aria-live 只在這
+  //     一條變化時才播一次。
+  const latest = isEmpty ? null : visible[visible.length - 1];
+  const liveText = latest
+    ? `光球${latest.label.replace(/…$/, "")}`
+    : fallbackLabel;
   return (
     <div className="flex justify-start">
       <div
         className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-2.5 border border-border/60 max-w-[88%]"
-        role="status"
-        aria-live="polite"
         aria-label="光球正在思考"
       >
+        {/* 讀屏專用:只播最新一條。aria-live 在 outer container 會把整個
+            子樹的變化都重播一次,所以這顆獨立放、且其他兄弟節點都 aria-
+            hidden 防雙重播報。 */}
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {liveText}
+        </div>
+        <div aria-hidden="true">
         {isEmpty ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
@@ -107,6 +123,7 @@ export function OrbThinkingTimeline({
             </AnimatePresence>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

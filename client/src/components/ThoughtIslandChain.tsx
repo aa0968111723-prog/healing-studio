@@ -96,6 +96,17 @@ const STATUS_GLOW: Record<string, string> = {
   error: "rgba(239, 68, 68, 0.25)",
 };
 
+// L12:未知 status(例:server 加新狀態但 client 沒同步)時 fallback 成
+// 中性灰,而不是 undefined → "undefined" stroke 讓 d3 path 整條無色。
+const FALLBACK_COLOR = "#6b7280";
+const FALLBACK_GLOW = "rgba(107, 114, 128, 0.15)";
+function colorForStatus(status: string): string {
+  return STATUS_COLORS[status] ?? FALLBACK_COLOR;
+}
+function glowForStatus(status: string): string {
+  return STATUS_GLOW[status] ?? FALLBACK_GLOW;
+}
+
 const NODE_ICONS: Record<
   string,
   React.ComponentType<{ className?: string }>
@@ -224,7 +235,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
       g.append("path")
         .attr("d", pathData)
         .attr("fill", "none")
-        .attr("stroke", STATUS_COLORS[nodes[i].status])
+        .attr("stroke", colorForStatus(nodes[i].status))
         .attr("stroke-width", 3)
         .attr("stroke-opacity", 0.15)
         .attr("filter", "url(#node-glow)");
@@ -234,7 +245,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .append("path")
         .attr("d", pathData)
         .attr("fill", "none")
-        .attr("stroke", STATUS_COLORS[nodes[i].status])
+        .attr("stroke", colorForStatus(nodes[i].status))
         .attr("stroke-width", 1.5)
         .attr("stroke-opacity", 0.5)
         .attr("stroke-dasharray", function () {
@@ -258,8 +269,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
       const cx = nodeSpacing * (i + 1);
       const cy = centerY;
       const isSelected = selectedNode === node.id;
-      const color = STATUS_COLORS[node.status];
-      const glowColor = STATUS_GLOW[node.status];
+      const color = colorForStatus(node.status);
+      const glowColor = glowForStatus(node.status);
 
       const nodeGroup = g
         .append("g")
@@ -561,8 +572,8 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
                   transition={{ duration: 0.2 }}
                   className="mx-4 mt-3 rounded-lg overflow-hidden"
                   style={{
-                    background: `${STATUS_GLOW[selectedNodeData.status]}`,
-                    border: `1px solid ${STATUS_COLORS[selectedNodeData.status]}30`,
+                    background: `${glowForStatus(selectedNodeData.status)}`,
+                    border: `1px solid ${colorForStatus(selectedNodeData.status)}30`,
                   }}
                 >
                   <div className="p-3 space-y-2">
@@ -574,7 +585,7 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
                           return (
                             <span
                               style={{
-                                color: STATUS_COLORS[selectedNodeData.status],
+                                color: colorForStatus(selectedNodeData.status),
                               }}
                             >
                               <Icon className="w-4 h-4" />
@@ -587,8 +598,8 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
                         <span
                           className="text-[10px] px-1.5 py-0.5 rounded-full"
                           style={{
-                            background: `${STATUS_COLORS[selectedNodeData.status]}20`,
-                            color: STATUS_COLORS[selectedNodeData.status],
+                            background: `${colorForStatus(selectedNodeData.status)}20`,
+                            color: colorForStatus(selectedNodeData.status),
                           }}
                         >
                           {selectedNodeData.status === "completed"
@@ -702,11 +713,11 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({
                       isSelected && "ring-2 ring-primary/40"
                     )}
                     style={{
-                      backgroundColor: `${STATUS_COLORS[node.status]}${isSelected ? "25" : "10"}`,
-                      border: `1px solid ${STATUS_COLORS[node.status]}${isSelected ? "60" : "30"}`,
+                      backgroundColor: `${colorForStatus(node.status)}${isSelected ? "25" : "10"}`,
+                      border: `1px solid ${colorForStatus(node.status)}${isSelected ? "60" : "30"}`,
                     }}
                   >
-                    <span style={{ color: STATUS_COLORS[node.status] }}>
+                    <span style={{ color: colorForStatus(node.status) }}>
                       <Icon className="w-3 h-3" />
                     </span>
                     <span className="text-foreground/70">{node.label}</span>

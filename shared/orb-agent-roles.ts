@@ -144,10 +144,15 @@ const KEYWORD_RULES: Array<KeywordRule> = [
       "img2img",
       "inpainting",
     ],
-    // 「畫」是強訊號但會在 「畫面糊 / 畫面模糊 / 畫質很差」 等品質抱怨語境誤觸發
-    // （pre-existing global QUALITY_OVERRIDE_HINTS 已處理大部分，但 negative
-    // list 就近放在規則內，未來新增類似抱怨詞時不必再動 override hints）。
-    negativeKeywords: ["畫面糊", "畫面模糊", "畫質差", "畫質糊", "畫質很差"],
+    // M5 修復:「畫」是強訊號但會在「畫面糊 / 畫面模糊 / 畫質很差」「畫面
+    // 比例 / 畫風 / 畫質想調」「畫圖工具在哪」等語境誤觸發。原本只擋品質
+    // 抱怨類,擴充覆蓋 UI 詢問類(畫面比例 / 畫質想調)、學習類(畫圖工具
+    // 在哪)、純名詞(畫風)— 這些都不該搶走 image-specialist。
+    negativeKeywords: [
+      "畫面糊", "畫面模糊", "畫質差", "畫質糊", "畫質很差",
+      "畫面比例", "畫質想調", "畫質設定", "畫風",
+      "畫圖工具", "畫畫工具",
+    ],
     rationale: "user wants image generation or editing assistance",
   },
   // Video Specialist: video generation and editing tasks
@@ -200,6 +205,11 @@ const KEYWORD_RULES: Array<KeywordRule> = [
       "sound effect",
       "audio mix",
       "stems",
+    ],
+    // M5 修復:「音效」是強訊號但「提示音效 / 系統音效 / 音效設定 / 關掉
+    // 音效」都是 UI 詢問,不該搶走 music-specialist 去做生成。
+    negativeKeywords: [
+      "提示音效", "系統音效", "音效設定", "關掉音效", "關閉音效", "音效開關",
     ],
     rationale: "user wants music or audio generation assistance",
   },
@@ -961,12 +971,57 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
  * whether to auto-prepend a pinned spirit's @ tag (i.e. "is the user already
  * addressing a spirit?"); when null is returned, no spirit was named.
  */
+// 已知會撞普通詞的 bare nickname → 每個 nickname 列出「下一字若是這個就
+// 不算 mention(會形成另一個常見詞)」的 denylist。沒列出的接續(其他
+// Han、空白、標點、字串結束)都算 mention。
+// 這條規則比一刀切「Han 接續都不算」精準很多 — 中文不靠空白斷詞,「總
+// 管幫我看一下」「學長教我 LoRA」這種正當 bare-address 句型本來就是
+// 「nickname + 動作動詞」,直接接 Han 字是常態。
+//
+// Codex review 反饋:原本 /[\s\p{P}]/u.test(next) 把所有 Han 接續都濾
+// 掉,導致 `總管幫我看一下` / `學長教我 LoRA` 被當組合詞,使用者明顯
+// 在叫精靈卻被踢到 generic intent routing。
+const AMBIGUOUS_BARE_NICKNAMES: Record<string, readonly string[]> = {
+  // 總管理 = 「(總)管理」名詞,常見組合詞 → 後接「理」濾掉
+  "總管": ["理"],
+  // 總精靈 沒有常見組合,但保留條目讓未來新增防護點清楚
+  "總精靈": [],
+  // 編排 + 「成」「成為」「為」等 → 動詞用法(編排成 X / 編排為 X),
+  // 但「編排一下」「編排這個」「編排流程」都是動作命令,user 在叫編編。
+  // 嚴格說 user 在說「請編編做編排」的意圖也成立,當 mention 處理。
+  // 留空 denylist,讓 bare「編排」開頭一律當 mention。
+  "編排": [],
+  // 學長 + 姊 / 們 → 「學長姊」「學長們」是另指他人,濾掉
+  "學長": ["姊", "們"],
+  // 圖像精靈 / 影像精靈 沒有常見組合詞(本身已長),留空
+  "圖像精靈": [],
+  "影像精靈": [],
+};
+
+/**
+ * M5 修復:Bare-nickname 出現在歧義詞首時做一道防護,只有「會形成另一個
+ * 已知詞」的 Han 接續才算組合詞被濾掉。其他接續(空白 / 標點 / 字串結
+ * 束 / 其他 Han)都算 mention,符合中文不空白斷詞的書寫習慣。
+ */
+function isBareNicknameMention(text: string, name: string): boolean {
+  if (!text.startsWith(name)) return false;
+  const denyList = AMBIGUOUS_BARE_NICKNAMES[name];
+  if (!denyList) return true; // 不歧義的 bare 直接過
+  const rest = text.slice(name.length);
+  if (rest.length === 0) return true; // 純 nickname 一個字一定是 mention
+  const next = rest.charAt(0);
+  // 列在 denylist 的 Han 接續 = 形成另一個常用詞 → 不算 mention
+  if (denyList.includes(next)) return false;
+  // 其他接續(空白 / 標點 / 字串結束 / 其他 Han 動詞 / 名詞)= 都算 mention
+  return true;
+}
+
 export function detectSpiritMention(text: string): AgentRole | null {
   for (const entry of SPIRIT_NICKNAMES) {
     for (const name of entry.nicknames) {
-      if (text.includes(`@${name}`) || text.startsWith(name)) {
-        return entry.role;
-      }
+      // @-prefix 是顯式 mention,永遠認可
+      if (text.includes(`@${name}`)) return entry.role;
+      if (isBareNicknameMention(text, name)) return entry.role;
     }
   }
   return null;

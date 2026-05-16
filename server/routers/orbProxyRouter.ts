@@ -23,12 +23,6 @@ import {
   buildClarificationPickMemory,
   CLARIFICATION_DIMENSION_SCHEMA,
 } from "../../shared/orb-clarification-memory";
-import {
-  analyzeIntentForOrchestrator,
-  getTeamStatusSummary,
-} from "../services/spiritTools/orchestratorTools";
-import { getEnhancedSpiritPrompt } from "../services/spiritPromptEnhancer";
-import type { AgentRole } from "../../shared/orb-agent-roles";
 
 const SEARCH_KIND_SCHEMA = z.enum(["asset", "note", "history", "tutorial"]);
 const PREFERENCE_KEY_SCHEMA = z.enum(["styles", "platforms", "outputs", "models"]);
@@ -154,61 +148,6 @@ export const orbProxyRouter = router({
         }, {}),
       };
     }),
-
-  /**
-   * Analyze user intent for chief-orchestrator.
-   * Returns whether clarification is needed and suggested questions.
-   */
-  analyzeOrchestratorIntent: protectedProcedure
-    .input(
-      z.object({
-        userMessage: z.string().min(1).max(1000),
-        sessionId: z.string().optional(),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const analysis = await analyzeIntentForOrchestrator({
-        userId: ctx.user.id,
-        userMessage: input.userMessage,
-        sessionId: input.sessionId,
-      });
-
-      return analysis;
-    }),
-
-  /**
-   * Get enhanced system prompt for a spirit including learned memories.
-   * Used by chat router to personalize spirit responses.
-   */
-  getEnhancedSpiritPrompt: protectedProcedure
-    .input(
-      z.object({
-        role: z.string() as z.ZodType<AgentRole>,
-        sessionId: z.string().optional(),
-        currentPage: z.string().optional(),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const enhancedPrompt = await getEnhancedSpiritPrompt(input.role, {
-        userId: ctx.user.id,
-        sessionId: input.sessionId,
-        currentPage: input.currentPage,
-      });
-
-      return {
-        role: input.role,
-        prompt: enhancedPrompt,
-      };
-    }),
-
-  /**
-   * Get team status summary for chief-orchestrator.
-   * Shows current state of all active spirits and collaborations.
-   */
-  getTeamStatus: protectedProcedure.query(async ({ ctx }) => {
-    const status = await getTeamStatusSummary(ctx.user.id);
-    return status;
-  }),
 });
 
 export type OrbProxyRouter = typeof orbProxyRouter;

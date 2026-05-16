@@ -37,6 +37,57 @@ describe("H2: runOrbWebResearch 必須帶 userId", () => {
   });
 });
 
+describe("H1: orbCapabilitiesRouter 必須 protected", () => {
+  const routerSrc = readFileSync(
+    path.join(repoRoot, "server/routers/orbCapabilitiesRouter.ts"),
+    "utf8"
+  );
+
+  // 用 import + procedure 宣告做精確比對,避免抓到註解裡解釋歷史脈絡
+  // 提到的「publicProcedure」字串。
+  it("不從 trpc core import publicProcedure", () => {
+    expect(routerSrc).not.toMatch(
+      /import\s*\{[^}]*\bpublicProcedure\b[^}]*\}\s*from\s*["']\.\.\/_core\/trpc["']/
+    );
+  });
+
+  it("沒有任何 procedure 宣告掛在 publicProcedure 上", () => {
+    expect(routerSrc).not.toMatch(/:\s*publicProcedure\b/);
+  });
+
+  it("list 與 suggestImageEditModels 都用 protectedProcedure", () => {
+    expect(routerSrc).toMatch(/list\s*:\s*protectedProcedure/);
+    expect(routerSrc).toMatch(/suggestImageEditModels\s*:\s*protectedProcedure/);
+  });
+});
+
+describe("H7: orbScheduler.runScheduledOrbJob 必須有 per-job in-flight lock", () => {
+  const schedulerSrc = readFileSync(
+    path.join(repoRoot, "server/services/orbScheduler.ts"),
+    "utf8"
+  );
+
+  it("有 in-flight lock Map(避免 cron 撞長任務 double-fire)", () => {
+    expect(schedulerSrc).toMatch(/inFlightScheduledJobs\s*=\s*new\s+Map/);
+  });
+
+  it("runScheduledOrbJob 入口先呼叫 tryAcquireScheduledJobLock", () => {
+    expect(schedulerSrc).toMatch(
+      /export\s+async\s+function\s+runScheduledOrbJob[\s\S]{0,300}tryAcquireScheduledJobLock/
+    );
+  });
+
+  it("有 finally 釋放鎖(避免 throw 後永久鎖死)", () => {
+    expect(schedulerSrc).toMatch(
+      /finally\s*\{\s*releaseScheduledJobLock/
+    );
+  });
+
+  it("被跳過時 lastRunStatus = 'skipped:in_flight'", () => {
+    expect(schedulerSrc).toMatch(/lastRunStatus\s*:\s*"skipped:in_flight"/);
+  });
+});
+
 describe("H3: orbSchedulerRouter 必須有 per-user job 上限", () => {
   const routerSrc = readFileSync(
     path.join(repoRoot, "server/routers/orbSchedulerRouter.ts"),

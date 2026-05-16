@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -72,6 +72,16 @@ export const orbConversationsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
       const limit = input?.limit ?? DEFAULT_LIST_LIMIT;
+      // M8 修復:archivedAt 必須在 SQL where 過濾,不能 LIMIT 後在 JS filter。
+      // 原本 includeArchived=false 時先 LIMIT 30 再 JS 過濾,使用者有 30+ 條
+      // 已封存對話時 LIMIT 取的全是 archived 列,JS 過濾完變空陣列,UI 看起
+      // 來像「所有對話被刪了」。
+      const whereClause = input?.includeArchived
+        ? eq(orbConversations.userId, ctx.user.id)
+        : and(
+            eq(orbConversations.userId, ctx.user.id),
+            isNull(orbConversations.archivedAt)
+          );
       const rows = await db
         .select({
           conversationId: orbConversations.conversationId,
@@ -84,17 +94,14 @@ export const orbConversationsRouter = router({
           updatedAt: orbConversations.updatedAt,
         })
         .from(orbConversations)
-        .where(eq(orbConversations.userId, ctx.user.id))
+        .where(whereClause)
         .orderBy(
           desc(orbConversations.pinned),
           desc(orbConversations.updatedAt)
         )
         .limit(limit);
 
-      const filtered = input?.includeArchived
-        ? rows
-        : rows.filter(r => !r.archivedAt);
-      return { conversations: filtered };
+      return { conversations: rows };
     }),
 
   /** Create a new (empty) conversation and return its summary row. */
@@ -318,7 +325,26 @@ export const orbConversationsRouter = router({
         });
       }
 
-      const rows = input.messages.map(m => ({
+      // L14 修復:重試 / 雙擊送出時 client 會把同一批訊息再 push 一次,
+      // 沒去重的話 DB 留兩份。schema 沒 unique constraint(避開 migration),
+      // 改用「at 已存在就跳過」 — at 是 client-side ms timestamp,同訊息
+      // 重送會帶相同值;新訊息會帶新值。
+      // 競態空窗極小(同用戶連送兩個 mutation 之間 ms 級),保險 OK。
+      const atsToInsert = input.messages.map(m => m.at);
+      const existingAts = atsToInsert.length
+        ? await db
+            .select({ at: orbConversationMessages.at })
+            .from(orbConversationMessages)
+            .where(
+              and(
+                eq(orbConversationMessages.conversationId, input.conversationId),
+                inArray(orbConversationMessages.at, atsToInsert)
+              )
+            )
+        : [];
+      const existingAtSet = new Set(existingAts.map(r => r.at));
+      const newMessages = input.messages.filter(m => !existingAtSet.has(m.at));
+      const rows = newMessages.map(m => ({
         conversationId: input.conversationId,
         userId: ctx.user.id,
         role: m.role,
@@ -326,7 +352,9 @@ export const orbConversationsRouter = router({
         at: m.at,
         metadata: m.metadata,
       }));
-      await db.insert(orbConversationMessages).values(rows);
+      if (rows.length > 0) {
+        await db.insert(orbConversationMessages).values(rows);
+      }
 
       const lastAt = Math.max(...input.messages.map(m => m.at));
       const newCount = (conv.messageCount ?? 0) + rows.length;

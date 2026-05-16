@@ -34,7 +34,21 @@ import {
 } from "../../drizzle/schema";
 import { findSkillForTool } from "../../shared/agent-skills";
 import { isSpecializedAgent } from "../../shared/orb-specialized-agents";
+import { SPIRIT_FAMILY, type AgentRole } from "../../shared/orb-agent-roles";
 import { logger } from "../_core/logger";
+
+// L9 修復:composer 同時被列在 SPECIALIZED_AGENT_CAPABILITIES(為了讓
+// findAgentForTool 認得他的 page.* 工具)又被分類為 SPIRIT_FAMILY = "role"
+// (因為他是跨模態執行員,非單一專業)。原本 isSpecializedAgent 只看
+// SPECIALIZED_AGENT_CAPABILITIES,會把編編的活動寫進 specialist 統計表,
+// 污染圖圖/影影/音音的「使用者愛用 specialist」排行。
+// 修法:額外用 SPIRIT_FAMILY 二次過濾 — 必須同時是 SPECIALIZED + family
+// 為 "specialist" 才算可歸屬的 specialist。composer 因為 family="role"
+// 被自動排除。
+function isReportableSpecialist(agentId: string): boolean {
+  if (!isSpecializedAgent(agentId)) return false;
+  return SPIRIT_FAMILY[agentId as AgentRole] === "specialist";
+}
 
 export type SpecialistInteractionType =
   | "activated"
@@ -67,7 +81,7 @@ export interface RecordSpecialistInteractionInput {
 export async function recordSpecialistInteraction(
   input: RecordSpecialistInteractionInput
 ): Promise<number | null> {
-  if (!isSpecializedAgent(input.agentId)) return null;
+  if (!isReportableSpecialist(input.agentId)) return null;
 
   try {
     const db = await getDb();
@@ -113,7 +127,9 @@ export function recordToolAuditAsSpecialistInteraction(event: {
   error?: string;
 }): void {
   const skill = findSkillForTool(event.toolName);
-  if (!skill || !isSpecializedAgent(skill.id)) return;
+  // 跟 recordSpecialistInteraction 統一用 isReportableSpecialist,避免把
+  // composer 的 page.* tool 活動寫進 specialist 排行(L9)。
+  if (!skill || !isReportableSpecialist(skill.id)) return;
   void recordSpecialistInteraction({
     userId: event.userId,
     agentId: skill.id,
@@ -186,6 +202,10 @@ export async function getSpecialistMemoryHints(
         specializedAgentInteractions.agentId,
         specializedAgentInteractions.interactionType
       )
+      // L10:沒 ORDER BY 時 LIMIT 切到的是 SQL 引擎決定的「任意 60 列」,
+      // 真正常用的精靈統計可能被截走。按 count DESC 排序確保即使
+      // 觸發 LIMIT 也是保留最活躍的精靈。
+      .orderBy(desc(sql`cnt`))
       .limit(limit);
 
     if (rows.length === 0) return "";

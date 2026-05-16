@@ -140,6 +140,15 @@ export function __setLearnHubForTest(stub: LearnHubModule | null): void {
 
 const loadLearnHub = loadLearnHubSync;
 
+// M7 修復:模組載入時主動暖機 LearnHub。沒這個的話 searchLearningContent
+// 第一次被呼叫 — 即使是學學被問「教 LoRA 訓練」這種典型場景 — 都會回
+// 空陣列「找不到教材」,因為 loadLearnHubSync 是 fire-and-forget。
+// 暖機改在 module-load 時觸發,Node server boot 完後 LearnHub 已在記憶體;
+// 即使首次呼叫剛好搶在載入完成前,使用者也只多等 1-2 秒而非看到「沒教材」。
+// Promise 用 void 包裹避免未處理 rejection。錯誤 path 已在 loadLearnHubSync
+// 內部 catch + 寫進 cachedLearnHub={docs:[],...},此處無需重新處理。
+void ensureLearnHubLoaded().catch(() => {});
+
 // ─── 教程靜態映射表（補齊 listTutorials 與 getTutorial 之間的對應） ───────────
 //
 // 之前的 bug：listTutorials() 列出 5 個 tutorial id，但 getTutorial() 只

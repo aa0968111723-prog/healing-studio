@@ -156,6 +156,34 @@ describe("learningSpecialistTools — searchLearningContent", () => {
   });
 });
 
+// M7 修復:module-load 時主動暖機 LearnHub。沒這個的話 searchLearningContent
+// 第一次被呼叫(學學典型場景「教我 LoRA 訓練」)會回空陣列「找不到教材」。
+describe("learningSpecialistTools — M7 cold-start warmup", () => {
+  it("module load 後 cache 已暖機,searchLearningContent 第一次呼叫就能找到", () => {
+    // beforeAll 已用 __setLearnHubForTest 把 cache 填好,這是「暖機後」的代表狀態
+    // (實際生產的 module-load auto-warm 機制由 source-scan invariant 守住)
+    const result = searchLearningContent({ query: "lora", limit: 5 });
+    expect(result.success).toBe(true);
+    expect(result.results.length).toBeGreaterThan(0);
+  });
+
+  it("source 內必有 module-level `void ensureLearnHubLoaded()` 暖機呼叫", async () => {
+    // 用 source-scan 守住「未來重構別意外移除暖機」。實際暖機行為由 Node
+    // module load 觸發,純 unit test 拿不到那個 timing。
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const src = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../server/services/spiritTools/learningSpecialistTools.ts"
+      ),
+      "utf8"
+    );
+    // 模組頂層必有 void ensureLearnHubLoaded() 或等價的 warmup pattern
+    expect(src).toMatch(/void\s+ensureLearnHubLoaded\s*\(\s*\)/);
+  });
+});
+
 describe("learningSpecialistTools — generateLearningPath", () => {
   it("空 goal → 回 success:false", () => {
     const result = generateLearningPath({ goal: "  " });

@@ -4,6 +4,7 @@
  * Service for feature usage analytics, discovery tracking, and personalized recommendations.
  */
 
+import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import {
@@ -244,7 +245,12 @@ export class OrbFeatureDiscovery {
         featureId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 
@@ -280,7 +286,12 @@ export class OrbFeatureDiscovery {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 
@@ -338,7 +349,12 @@ export class OrbFeatureDiscovery {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 
@@ -371,7 +387,12 @@ export class OrbFeatureDiscovery {
         featureId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 
@@ -400,7 +421,12 @@ export class OrbFeatureDiscovery {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 
@@ -441,7 +467,12 @@ export class OrbFeatureDiscovery {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 
@@ -477,7 +508,12 @@ export class OrbFeatureDiscovery {
         timeframe,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
+      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "feature-discovery-failed",
+      });
     }
   }
 }
