@@ -1195,6 +1195,8 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
 const normalizePathname = (rawPath: string) => {
   if (!rawPath) return "/";
   const [pathname] = rawPath.split(/[?#]/);
+  // query/hash-only inputs collapse to "/" so lookups stay stable even when a
+  // caller passes "?section=..." or "#fragment" without a leading pathname.
   if (!pathname) return "/";
   if (pathname !== "/" && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
@@ -1210,7 +1212,7 @@ const normalizeRoutePath = (rawPath: string) => {
   return search ? `${normalizedPathname}?${search}` : normalizedPathname;
 };
 
-const getRouteCandidates = (page: AppPageRegistryItem) => [
+const getPageRoutes = (page: AppPageRegistryItem) => [
   page.path,
   ...(page.routeAliases ?? []),
 ];
@@ -1225,12 +1227,12 @@ export const getPageByPath = (path: string) => {
   const normalizedPathname = normalizePathname(path);
   return (
     APP_PAGE_REGISTRY.find(page =>
-      getRouteCandidates(page).some(
+      getPageRoutes(page).some(
         candidate => normalizeRoutePath(candidate) === normalizedRoutePath
       )
     ) ??
     APP_PAGE_REGISTRY.find(page =>
-      getRouteCandidates(page).some(
+      getPageRoutes(page).some(
         candidate => normalizePathname(candidate) === normalizedPathname
       )
     )
