@@ -13,7 +13,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
   AgentAction,
@@ -60,6 +62,10 @@ import {
   Link2,
   Globe,
   Server,
+  PlayCircle,
+  Clock,
+  Activity,
+  ChevronDown,
 } from "lucide-react";
 import {
   AI_MODELS_CATALOG,
@@ -73,11 +79,19 @@ import {
   sortByLatest,
   computeFactCheckStatus,
   type AIModelEntry,
+  type LatencyClass,
   type ModelModality,
   type ModelProvider,
   type ModelTier,
   type FactCheckStatus,
 } from "@/data/aiModelsCatalog";
+
+const LATENCY_LABELS: Record<LatencyClass, string> = {
+  realtime: "即時 (<1s)",
+  fast: "快速 (1-3s)",
+  standard: "標準 (3-10s)",
+  slow: "深度 (>10s)",
+};
 
 // ─── Modality tabs config ──────────────────────────────────────────────────
 
@@ -141,7 +155,84 @@ function relativeFromNow(iso?: string): string {
   return `${months} 個月前驗證`;
 }
 
+function formatAbsoluteTime(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatDurationMs(ms?: number): string {
+  if (!ms || ms < 0) return "—";
+  if (ms < 1000) return `${ms} ms`;
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec} 秒`;
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
+  if (minutes < 60) return seconds ? `${minutes} 分 ${seconds} 秒` : `${minutes} 分鐘`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  return remMin ? `${hours} 小時 ${remMin} 分` : `${hours} 小時`;
+}
+
+// 把 cron expression 翻成「每週日 03:30」這類的人話。無法解析時退回原字串。
+const WEEKDAY_LABELS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+function humanizeCron(expr?: string): string {
+  if (!expr) return "未設定";
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return expr;
+  const [min, hour, dom, mon, dow] = parts;
+  const pad = (s: string) => (s.length < 2 ? `0${s}` : s);
+
+  // 解析時間
+  const hasFixedTime = /^\d+$/.test(hour) && /^\d+$/.test(min);
+  const timeStr = hasFixedTime ? `${pad(hour)}:${pad(min)}` : null;
+
+  // dom / mon 都是 *，看 dow
+  if (dom === "*" && mon === "*") {
+    if (dow === "*") {
+      return timeStr ? `每天 ${timeStr}` : `每天 ${min} 分 ${hour} 時`;
+    }
+    if (/^\d$/.test(dow)) {
+      const label = WEEKDAY_LABELS[parseInt(dow, 10)] ?? `週${dow}`;
+      return timeStr ? `每${label} ${timeStr}` : `每${label}`;
+    }
+    if (dow === "1-5") {
+      return timeStr ? `平日 ${timeStr}` : `平日`;
+    }
+  }
+  return expr;
+}
+
 // ─── Fact-check badge ──────────────────────────────────────────────────────
+
+// 把「YYYY-MM-DD」、「YYYY-MM」、「YYYY」皆轉成可比較的 timestamp。
+function parseUpdateDate(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y) return 0;
+  return new Date(y, (m ?? 1) - 1, d ?? 1).getTime();
+}
+
+const FRESH_UPDATE_DAYS = 7;
+function isFreshUpdate(iso: string, days: number = FRESH_UPDATE_DAYS): boolean {
+  const t = parseUpdateDate(iso);
+  if (!t) return false;
+  return Date.now() - t < days * 86400_000;
+}
+
+function relativeUpdateLabel(iso: string): string {
+  const t = parseUpdateDate(iso);
+  if (!t) return iso;
+  const diffDays = Math.floor((Date.now() - t) / 86400_000);
+  if (diffDays < 0) return "即將發佈";
+  if (diffDays < 1) return "今天";
+  if (diffDays === 1) return "昨天";
+  if (diffDays < 7) return `${diffDays} 天前`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} 週前`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} 個月前`;
+  return `${Math.floor(diffDays / 365)} 年前`;
+}
 
 function FactCheckBadge({
   status,
@@ -192,6 +283,30 @@ function ModelCard({
   const pricingTier = model.pricing?.tier
     ? PRICING_TIER_STYLE[model.pricing.tier]
     : null;
+  const freshUpdate = useMemo(() => {
+    if (!model.latestUpdates || model.latestUpdates.length === 0) return null;
+    return (
+      model.latestUpdates.find(u => isFreshUpdate(u.date)) ??
+      [...model.latestUpdates].sort(
+        (a, b) => parseUpdateDate(b.date) - parseUpdateDate(a.date)
+      )[0] ??
+      null
+    );
+  }, [model.latestUpdates]);
+  const isFresh = freshUpdate ? isFreshUpdate(freshUpdate.date) : false;
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const refreshOne = trpc.aiModels.refreshOne.useMutation({
+    onSuccess: () => {
+      toast.success(`已重新研究：${model.name}`);
+      void utils.aiModels.list.invalidate();
+      void utils.aiModels.researchStats.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? `研究失敗：${model.name}`);
+    },
+  });
 
   return (
     <motion.button
@@ -209,10 +324,21 @@ function ModelCard({
       <div className="p-5">
         {/* Header row: provider badge + modality + tier */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ring-1 ${provider.bg} ${provider.accent} ${provider.ring}`}
-          >
-            {provider.label}
+          <div className="inline-flex items-center gap-1.5 flex-wrap">
+            <div
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ring-1 ${provider.bg} ${provider.accent} ${provider.ring}`}
+            >
+              {provider.label}
+            </div>
+            {isFresh && freshUpdate && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 ring-1 ring-rose-200 animate-pulse"
+                title={`${relativeUpdateLabel(freshUpdate.date)}：${freshUpdate.summary}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                最新動態
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <span
@@ -290,10 +416,42 @@ function ModelCard({
             status={factStatus}
             checkedAt={model.factCheck?.checkedAt}
           />
-          <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400 group-hover:text-primary transition-colors">
-            查看詳情
-            <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-          </span>
+          <div className="inline-flex items-center gap-1.5">
+            {isAdmin && (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`重新研究 ${model.name}`}
+                title="僅管理員：重新跑這款模型的自動研究"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (refreshOne.isPending) return;
+                  refreshOne.mutate({ id: model.id, force: true });
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (refreshOne.isPending) return;
+                    refreshOne.mutate({ id: model.id, force: true });
+                  }
+                }}
+                className={`p-1 rounded-full transition-colors ${
+                  refreshOne.isPending
+                    ? "text-sky-500"
+                    : "text-gray-300 hover:text-primary hover:bg-primary/5"
+                }`}
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${refreshOne.isPending ? "animate-spin" : ""}`}
+                />
+              </span>
+            )}
+            <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-400 group-hover:text-primary transition-colors">
+              查看詳情
+              <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
         </div>
       </div>
     </motion.button>
@@ -492,10 +650,224 @@ function AvailabilityBlock({ model }: { model: AIModelEntry }) {
   );
 }
 
+// ─── Capabilities block (能力矩陣) ─────────────────────────────────────────
+
+const CAPABILITY_ROWS: Array<{
+  key: keyof NonNullable<AIModelEntry["capabilities"]>;
+  label: string;
+  hint: string;
+}> = [
+  { key: "visionInput", label: "圖像輸入", hint: "可讀取圖片內容" },
+  { key: "audioInput", label: "音訊輸入", hint: "可讀取聲音輸入" },
+  { key: "videoInput", label: "影片輸入", hint: "可讀取影片內容" },
+  { key: "functionCalling", label: "Function Calling", hint: "支援工具呼叫" },
+  { key: "structuredOutput", label: "結構化輸出", hint: "JSON / schema 強制" },
+  { key: "streaming", label: "串流輸出", hint: "支援 SSE / streaming" },
+  { key: "fineTuning", label: "Fine-tuning", hint: "可自行微調" },
+  { key: "codeExecution", label: "程式碼執行", hint: "內建 sandbox 執行" },
+  { key: "webSearch", label: "網路搜尋", hint: "內建瀏覽 / 搜尋工具" },
+  { key: "promptCaching", label: "Prompt Caching", hint: "重複 input 折扣" },
+  { key: "batchApi", label: "Batch API", hint: "批次任務通常 50% 折扣" },
+];
+
+function CapabilityCell({
+  state,
+  label,
+  hint,
+}: {
+  state: boolean | undefined;
+  label: string;
+  hint: string;
+}) {
+  const color =
+    state === true
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : state === false
+        ? "bg-gray-50 text-gray-400 border-gray-200"
+        : "bg-amber-50 text-amber-700 border-amber-200 border-dashed";
+  const symbol = state === true ? "✓" : state === false ? "—" : "?";
+  return (
+    <div
+      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${color}`}
+      title={state === undefined ? `${hint}（尚未確認）` : hint}
+    >
+      <span className="font-mono w-3 text-center">{symbol}</span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function CapabilitiesBlock({ model }: { model: AIModelEntry }) {
+  if (!model.capabilities) return null;
+  const caps = model.capabilities;
+  return (
+    <section>
+      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-indigo-500" />
+        能力矩陣
+      </h3>
+      <div className="flex flex-wrap gap-1.5">
+        {CAPABILITY_ROWS.map(row => (
+          <CapabilityCell
+            key={row.key}
+            state={caps[row.key]}
+            label={row.label}
+            hint={row.hint}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Safety / compliance badges ─────────────────────────────────────────────
+
+const SAFETY_STYLE: Record<
+  NonNullable<AIModelEntry["safetyTier"]>,
+  { label: string; chipBg: string; chipText: string; hint: string }
+> = {
+  high: {
+    label: "高度對齊",
+    chipBg: "bg-emerald-50",
+    chipText: "text-emerald-700",
+    hint: "嚴格安全微調、企業級合規友善",
+  },
+  medium: {
+    label: "標準對齊",
+    chipBg: "bg-sky-50",
+    chipText: "text-sky-700",
+    hint: "業界一般水準的安全微調",
+  },
+  low: {
+    label: "輕度對齊",
+    chipBg: "bg-amber-50",
+    chipText: "text-amber-700",
+    hint: "創意空間較大，需自行加上 guardrails",
+  },
+  unrestricted: {
+    label: "無限制",
+    chipBg: "bg-rose-50",
+    chipText: "text-rose-700",
+    hint: "幾乎不做內容過濾，部署時請自帶安全層",
+  },
+};
+
+function SafetyComplianceBlock({ model }: { model: AIModelEntry }) {
+  if (!model.safetyTier && (!model.compliance || model.compliance.length === 0))
+    return null;
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+        <ShieldCheck className="w-4 h-4 text-blue-500" />
+        安全與合規
+      </h3>
+      <div className="flex flex-wrap items-center gap-2">
+        {model.safetyTier && (
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full font-medium ${SAFETY_STYLE[model.safetyTier].chipBg} ${SAFETY_STYLE[model.safetyTier].chipText}`}
+            title={SAFETY_STYLE[model.safetyTier].hint}
+          >
+            {SAFETY_STYLE[model.safetyTier].label}
+          </span>
+        )}
+        {model.compliance?.map(tag => (
+          <span
+            key={tag}
+            className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium font-mono"
+            title={`${tag} compliance`}
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Peers / similar models ────────────────────────────────────────────────
+
+function PeersBlock({
+  model,
+  allModels,
+  onOpen,
+}: {
+  model: AIModelEntry;
+  allModels: AIModelEntry[];
+  onOpen: (m: AIModelEntry) => void;
+}) {
+  const peers = useMemo(() => {
+    if (!model.peers || model.peers.length === 0) return [];
+    return model.peers
+      .map(id => allModels.find(m => m.id === id))
+      .filter((m): m is AIModelEntry => Boolean(m));
+  }, [model.peers, allModels]);
+
+  if (peers.length === 0) return null;
+
+  return (
+    <section>
+      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+        <Layers className="w-4 h-4 text-violet-500" />
+        相似模型
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {peers.map(p => {
+          const ps = PROVIDER_STYLE[p.provider];
+          const ts = TIER_STYLE[p.tier];
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onOpen(p)}
+              className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-primary/40 hover:shadow-sm transition-all text-left group"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ring-1 ${ps.bg} ${ps.accent} ${ps.ring}`}
+                  >
+                    {ps.label}
+                  </span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${ts.chipBg} ${ts.chipText}`}
+                  >
+                    {ts.label}
+                  </span>
+                </div>
+                <div className="text-sm font-medium text-gray-800 mt-1 truncate group-hover:text-primary">
+                  {p.name}
+                </div>
+                <div className="text-[11px] text-gray-500 truncate">
+                  {p.tagline}
+                </div>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ─── Fact-check sources block ──────────────────────────────────────────────
 
 function FactCheckBlock({ model }: { model: AIModelEntry }) {
   const factCheck = model.factCheck;
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const refreshOne = trpc.aiModels.refreshOne.useMutation({
+    onSuccess: () => {
+      toast.success(`已重新研究：${model.name}`);
+      void utils.aiModels.list.invalidate();
+      void utils.aiModels.researchStats.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? `研究失敗：${model.name}`);
+    },
+  });
+
   if (!factCheck) return null;
   const status = computeFactCheckStatus(factCheck);
   const style = FACT_CHECK_STATUS_STYLE[status];
@@ -507,11 +879,33 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           事實查核
         </h3>
-        <FactCheckBadge
-          status={status}
-          checkedAt={factCheck.checkedAt}
-          size="md"
-        />
+        <div className="flex items-center gap-2">
+          <FactCheckBadge
+            status={status}
+            checkedAt={factCheck.checkedAt}
+            size="md"
+          />
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                if (refreshOne.isPending) return;
+                refreshOne.mutate({ id: model.id, force: true });
+              }}
+              disabled={refreshOne.isPending}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white border border-gray-200 text-gray-600 hover:border-primary/40 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="僅管理員：忽略 24h 快取，立刻重新查核這款模型"
+            >
+              {refreshOne.isPending ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3 h-3" />
+              )}
+              {refreshOne.isPending ? "研究中…" : "重新研究"}
+            </button>
+          )}
+        </div>
       </div>
 
       <p className="text-xs text-gray-600 mb-3 leading-relaxed">
@@ -578,9 +972,13 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
 
 function ModelDetailModal({
   model,
+  allModels,
+  onOpen,
   onClose,
 }: {
   model: AIModelEntry;
+  allModels: AIModelEntry[];
+  onOpen: (m: AIModelEntry) => void;
   onClose: () => void;
 }) {
   const provider = PROVIDER_STYLE[model.provider];
@@ -661,7 +1059,7 @@ function ModelDetailModal({
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-6 space-y-6">
             {/* Spec strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="text-[10px] text-gray-400 uppercase tracking-wider">
                   發佈時間
@@ -688,6 +1086,50 @@ function ModelDetailModal({
                   {model.openWeight ? "開源權重" : "閉源 / API"}
                 </div>
               </div>
+              {model.trainingCutoff && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    訓練截止
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                    {formatReleaseDate(model.trainingCutoff)}
+                  </div>
+                </div>
+              )}
+              {model.latencyClass && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    回應延遲
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                    {LATENCY_LABELS[model.latencyClass]}
+                  </div>
+                </div>
+              )}
+              {model.languages && model.languages.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    主要語言
+                  </div>
+                  <div
+                    className="text-sm font-medium text-gray-800 mt-0.5 truncate"
+                    title={model.languages.join(" · ")}
+                  >
+                    {model.languages.slice(0, 3).join(" · ")}
+                    {model.languages.length > 3 ? ` +${model.languages.length - 3}` : ""}
+                  </div>
+                </div>
+              )}
+              {model.region && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3 sm:col-span-2">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+                    地區備註
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                    {model.region}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -704,11 +1146,17 @@ function ModelDetailModal({
             {/* Benchmarks — auto-researched */}
             <BenchmarkBlock model={model} />
 
+            {/* Capabilities matrix */}
+            <CapabilitiesBlock model={model} />
+
             {/* Latest updates — auto-researched */}
             <LatestUpdatesBlock model={model} />
 
             {/* Availability */}
             <AvailabilityBlock model={model} />
+
+            {/* Safety + compliance */}
+            <SafetyComplianceBlock model={model} />
 
             {/* Strengths */}
             <section>
@@ -771,6 +1219,13 @@ function ModelDetailModal({
             {/* Fact-check sources — the trust layer */}
             <FactCheckBlock model={model} />
 
+            {/* Peers / similar models */}
+            <PeersBlock
+              model={model}
+              allModels={allModels}
+              onOpen={onOpen}
+            />
+
             {/* Tags */}
             {model.tags.length > 0 && (
               <section>
@@ -819,6 +1274,143 @@ function ModelDetailModal({
 }
 
 // ─── Featured model spotlight (compact horizontal scroll) ──────────────────
+
+// ─── Cross-model latest activity feed ─────────────────────────────────────
+//
+// 把所有模型的 `latestUpdates` 攤平、依日期排序，取最新 ~10 筆。
+// 讓使用者一眼看到「整個 AI 生態最近發生了什麼」，而不是要逐一點開卡片。
+
+function CrossModelUpdatesFeed({
+  models,
+  onOpen,
+  limit = 10,
+}: {
+  models: AIModelEntry[];
+  onOpen: (m: AIModelEntry) => void;
+  limit?: number;
+}) {
+  const items = useMemo(() => {
+    type FeedItem = {
+      modelId: string;
+      modelName: string;
+      provider: AIModelEntry["provider"];
+      modality: AIModelEntry["modality"];
+      date: string;
+      summary: string;
+      url?: string;
+      ts: number;
+    };
+    const flat: FeedItem[] = [];
+    for (const m of models) {
+      if (!m.latestUpdates) continue;
+      for (const u of m.latestUpdates) {
+        flat.push({
+          modelId: m.id,
+          modelName: m.name,
+          provider: m.provider,
+          modality: m.modality,
+          date: u.date,
+          summary: u.summary,
+          url: u.url,
+          ts: parseUpdateDate(u.date),
+        });
+      }
+    }
+    flat.sort((a, b) => b.ts - a.ts);
+    return flat.slice(0, limit);
+  }, [models, limit]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mb-10">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="hs-h2 !mb-0 text-gray-900 inline-flex items-center gap-2">
+          <Activity className="w-5 h-5 text-rose-500" />
+          最新動態（自動追蹤）
+        </h2>
+        <span className="text-xs text-gray-500">
+          每日 03:30 由自動研究補上
+        </span>
+      </div>
+      <div className="space-y-2">
+        {items.map((item, i) => {
+          const ps = PROVIDER_STYLE[item.provider];
+          const ms = MODALITY_STYLE[item.modality];
+          const fresh = isFreshUpdate(item.date);
+          const model = models.find(m => m.id === item.modelId);
+          return (
+            <motion.div
+              key={`${item.modelId}-${i}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.02 }}
+              className={`group flex items-start gap-3 p-3 rounded-xl border ${
+                fresh
+                  ? "border-rose-200 bg-rose-50/30"
+                  : "border-gray-200 bg-white"
+              } hover:border-primary/40 hover:shadow-sm transition-all`}
+            >
+              <div className="text-[11px] font-mono text-gray-500 shrink-0 pt-0.5 w-16 sm:w-20">
+                <div className={fresh ? "text-rose-600 font-semibold" : ""}>
+                  {relativeUpdateLabel(item.date)}
+                </div>
+                <div className="text-[10px] text-gray-400 mt-0.5">
+                  {item.date}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                  <button
+                    type="button"
+                    onClick={() => model && onOpen(model)}
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ring-1 ${ps.bg} ${ps.accent} ${ps.ring} hover:underline`}
+                  >
+                    {ps.label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => model && onOpen(model)}
+                    className="text-sm font-medium text-gray-900 hover:text-primary transition-colors truncate text-left"
+                  >
+                    {item.modelName}
+                  </button>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${ms.chipBg} ${ms.chipText}`}
+                  >
+                    {ms.label}
+                  </span>
+                  {fresh && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      新
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed">
+                  {item.summary}
+                </p>
+              </div>
+              <div className="shrink-0 flex flex-col gap-1">
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-gray-400 hover:text-primary inline-flex items-center gap-0.5"
+                    title="查看來源連結"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 function FeaturedSpotlight({
   models,
@@ -1005,48 +1597,247 @@ function NewsStrip() {
   );
 }
 
-// ─── Auto-research status strip ────────────────────────────────────────────
+// ─── Auto-research status panel ────────────────────────────────────────────
+//
+// 提供「手動 + 自動」雙軌：cron 走每週固定排程，admin 也可以從這裡立即觸發
+// 全量研究。同時把上次跑的 metadata（耗時、嘗試/成功數、錯誤明細）都攤開來
+// 讓策展者一眼能看到目前是不是健康。
 
-function AutoResearchStatusStrip() {
+function AutoResearchPanel({
+  staleCount,
+  verifiedCount,
+}: {
+  staleCount: number;
+  verifiedCount: number;
+}) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const [showErrors, setShowErrors] = useState(false);
+
   const { data } = trpc.aiModels.researchStats.useQuery(undefined, {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
+
+  const refreshAll = trpc.aiModels.refreshAll.useMutation({
+    onSuccess: data => {
+      toast.success(data?.message ?? "已在背景啟動完整研究");
+      void utils.aiModels.researchStats.invalidate();
+      void utils.aiModels.list.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? "無法啟動研究");
+    },
+  });
+  const refreshStale = trpc.aiModels.refreshStale.useMutation({
+    onSuccess: data => {
+      toast.success(data?.message ?? "已啟動 stale 模型補抓");
+      void utils.aiModels.researchStats.invalidate();
+      void utils.aiModels.list.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? "無法啟動 stale 補抓");
+    },
+  });
+
   if (!data) return null;
   const last = data.stats.lastRunAt;
   const inProgress = data.isRunning;
   const coveragePct = Math.round((data.stats.coverage ?? 0) * 100);
+  const tried = data.stats.lastRunModelsTried;
+  const succeeded = data.stats.lastRunModelsSucceeded;
+  const duration = data.stats.lastRunDurationMs;
+  const totalRuns = data.stats.totalRunsCompleted;
+  const errors = data.stats.lastRunErrors;
+  const scheduleLabel = humanizeCron(data.schedule);
 
   return (
-    <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-r from-sky-50/40 via-white to-violet-50/40 p-3 flex flex-wrap items-center gap-3 text-xs text-gray-600">
-      <div className="inline-flex items-center gap-1.5">
-        <RefreshCw
-          className={`w-3.5 h-3.5 text-sky-500 ${inProgress ? "animate-spin" : ""}`}
-        />
-        <span className="font-medium text-gray-700">
-          自動研究 {inProgress ? "進行中" : "待機中"}
-        </span>
+    <div className="mt-4 rounded-2xl border border-gray-200 bg-gradient-to-br from-sky-50/40 via-white to-violet-50/40 overflow-hidden">
+      {/* Header: 狀態 + 主要動作 */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100/80">
+        <div className="inline-flex items-center gap-2">
+          <span
+            className={`relative inline-flex items-center justify-center w-7 h-7 rounded-full ${
+              inProgress
+                ? "bg-sky-100 text-sky-600"
+                : data.scheduled
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            <Activity
+              className={`w-3.5 h-3.5 ${inProgress ? "animate-pulse" : ""}`}
+            />
+            {inProgress && (
+              <span className="absolute inset-0 rounded-full ring-2 ring-sky-300/60 animate-ping" />
+            )}
+          </span>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold text-gray-800">
+              自動研究 ·{" "}
+              <span
+                className={
+                  inProgress
+                    ? "text-sky-600"
+                    : data.scheduled
+                      ? "text-emerald-600"
+                      : "text-gray-500"
+                }
+              >
+                {inProgress
+                  ? "進行中"
+                  : data.scheduled
+                    ? "排程已啟用"
+                    : "排程已停用"}
+              </span>
+            </div>
+            <div className="text-[11px] text-gray-500">
+              {scheduleLabel}
+              <span className="text-gray-300 mx-1.5">·</span>
+              累積 {totalRuns} 輪
+            </div>
+          </div>
+        </div>
+
+        <div className="ml-auto inline-flex items-center gap-2 flex-wrap justify-end">
+          {isAdmin ? (
+            <>
+              <button
+                type="button"
+                onClick={() => refreshStale.mutate()}
+                disabled={
+                  inProgress ||
+                  refreshAll.isPending ||
+                  refreshStale.isPending ||
+                  staleCount + (data.totalModels - verifiedCount - staleCount) === 0
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-gray-300 text-gray-700 hover:border-primary/40 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="只重抓 stale / pending / error 的模型，比完整研究便宜很多"
+              >
+                {refreshStale.isPending ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5" />
+                )}
+                只刷新過期 ({staleCount + (data.totalModels - verifiedCount - staleCount)})
+              </button>
+              <button
+                type="button"
+                onClick={() => refreshAll.mutate()}
+                disabled={inProgress || refreshAll.isPending || refreshStale.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="立即在背景跑一輪完整 catalog 自動研究"
+              >
+                {refreshAll.isPending || inProgress ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <PlayCircle className="w-3.5 h-3.5" />
+                )}
+                {inProgress ? "研究進行中…" : "手動執行完整研究"}
+              </button>
+            </>
+          ) : (
+            <span className="text-[11px] text-gray-400">
+              管理員可手動觸發研究
+            </span>
+          )}
+        </div>
       </div>
-      <span className="text-gray-300">|</span>
-      <span>
-        覆蓋率{" "}
-        <span className="font-semibold text-gray-800">{coveragePct}%</span>
-        <span className="text-gray-400"> （{data.totalModels} 款模型）</span>
-      </span>
-      <span className="text-gray-300">|</span>
-      <span>
-        上次研究：
-        <span className="font-medium text-gray-700">
-          {relativeFromNow(last)}
-        </span>
-      </span>
-      <span className="text-gray-300">|</span>
-      <span>排程：每週日 03:30</span>
-      {data.stats.lastRunErrors.length > 0 && (
-        <span className="ml-auto text-amber-600 inline-flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
-          上次有 {data.stats.lastRunErrors.length} 個錯誤
-        </span>
+
+      {/* 細節 grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-gray-100/70">
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            覆蓋率
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-gray-800">
+            {coveragePct}%
+            <span className="text-[11px] font-normal text-gray-400 ml-1">
+              （{data.totalModels} 款）
+            </span>
+          </div>
+        </div>
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider inline-flex items-center gap-1">
+            <ShieldCheck className="w-2.5 h-2.5 text-emerald-500" />
+            已驗證 / 待補
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-gray-800">
+            {verifiedCount}
+            {staleCount > 0 && (
+              <span className="text-[11px] font-normal text-amber-600 ml-1">
+                · {staleCount} 過期
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider inline-flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5 text-gray-400" />
+            上次研究
+          </div>
+          <div
+            className="mt-0.5 text-sm font-semibold text-gray-800 truncate"
+            title={last ? formatAbsoluteTime(last) : "尚未執行"}
+          >
+            {last ? relativeFromNow(last).replace("驗證", "") : "尚未執行"}
+          </div>
+          {last && (
+            <div className="text-[10px] text-gray-400 truncate">
+              {formatAbsoluteTime(last)}
+            </div>
+          )}
+        </div>
+        <div className="bg-white/80 p-3">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wider">
+            上次耗時 / 嘗試
+          </div>
+          <div className="mt-0.5 text-sm font-semibold text-gray-800">
+            {formatDurationMs(duration)}
+          </div>
+          <div className="text-[10px] text-gray-400">
+            {tried > 0 ? `${succeeded}/${tried} 成功` : "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* 錯誤摺疊區 */}
+      {errors.length > 0 && (
+        <div className="border-t border-gray-100/80">
+          <button
+            type="button"
+            onClick={() => setShowErrors(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-2 text-xs text-amber-700 hover:bg-amber-50/40 transition-colors"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span className="font-medium">上次有 {errors.length} 個錯誤</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 ml-auto transition-transform ${
+                showErrors ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {showErrors && (
+            <div className="px-4 pb-3 max-h-40 overflow-y-auto">
+              <ul className="space-y-1 text-[11px] text-amber-800 font-mono">
+                {errors.slice(0, 50).map((e, i) => (
+                  <li
+                    key={i}
+                    className="pl-2 border-l-2 border-amber-200 leading-relaxed break-words"
+                  >
+                    {e}
+                  </li>
+                ))}
+                {errors.length > 50 && (
+                  <li className="pl-2 text-amber-600 italic">
+                    …還有 {errors.length - 50} 筆未顯示
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1223,6 +2014,7 @@ export default function AIModelsHub() {
     search.length > 0;
 
   const verifiedCount = catalogData?.meta.verifiedCount ?? 0;
+  const staleCount = catalogData?.meta.staleCount ?? 0;
 
   return (
     <div className="flex-1 w-full">
@@ -1290,13 +2082,25 @@ export default function AIModelsHub() {
             </div>
           </div>
 
-          {/* Auto-research status strip */}
-          <AutoResearchStatusStrip />
+          {/* Auto-research panel: 自動排程 + 手動觸發 + 上次跑的細節 */}
+          <AutoResearchPanel
+            staleCount={staleCount}
+            verifiedCount={verifiedCount}
+          />
         </header>
 
         {/* ── Featured spotlight ───────────────────────────────────────── */}
         {!hasActiveFilters && (
           <FeaturedSpotlight models={featured} onOpen={setOpenModel} />
+        )}
+
+        {/* ── Cross-model latest activity feed ─────────────────────────── */}
+        {!hasActiveFilters && (
+          <CrossModelUpdatesFeed
+            models={allModels}
+            onOpen={setOpenModel}
+            limit={10}
+          />
         )}
 
         {/* ── Filter bar ───────────────────────────────────────────────── */}
@@ -1516,6 +2320,8 @@ export default function AIModelsHub() {
       {openModel && (
         <ModelDetailModal
           model={openModel}
+          allModels={allModels}
+          onOpen={setOpenModel}
           onClose={() => setOpenModel(null)}
         />
       )}
