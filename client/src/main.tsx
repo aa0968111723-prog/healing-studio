@@ -138,23 +138,41 @@ function resolveClientFetchUrl(input: RequestInfo | URL): string {
 // connect". We compose the timeout abort with React Query's caller signal
 // so unmount cancellation still works — losing that would defeat the whole
 // React Query lifecycle model.
+//
+// When OUR timeout fires (not the caller's), we surface a localized "請求
+// 超時" message instead of the browser's generic `TypeError: Failed to
+// fetch` — that string leaked into the導演 AI toast and looked like a
+// random network failure when it was actually our own ceiling firing.
 function fetchWithTimeout(timeoutMs: number) {
-  return (input: RequestInfo | URL, init?: RequestInit) => {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
     const finalUrl = resolveClientFetchUrl(input);
     const controller = new AbortController();
-    const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     const callerSignal = init?.signal;
     if (callerSignal) {
       if (callerSignal.aborted) controller.abort();
       else callerSignal.addEventListener("abort", () => controller.abort(), { once: true });
     }
-    return globalThis
-      .fetch(finalUrl, {
+    try {
+      return await globalThis.fetch(finalUrl, {
         ...(init ?? {}),
         credentials: "include",
         signal: controller.signal,
-      })
-      .finally(() => clearTimeout(timeoutHandle));
+      });
+    } catch (err) {
+      if (timedOut) {
+        throw new Error(
+          `請求超時（${Math.round(timeoutMs / 1000)} 秒）— AI 思考時間較長，請稍後再試或縮短輸入內容。`
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutHandle);
+    }
   };
 }
 
@@ -168,13 +186,26 @@ const trpcClient = trpc.createClient({
   links: [
     splitLink({
       condition: op => isHeavyProcedurePath(op.path),
-      // Heavy: own request, 90s ceiling (LLM calls + image gen routinely
-      // take 30-60s; 90s leaves headroom without making a truly hung
-      // request invisible).
+      // Heavy: own request, 180s ceiling.
+      //
+      // Why 180s (was 90s): the導演 AI `chat` mutation runs a sequential
+      // dual-engine pipeline — Step 1 research (Perplexity Sonar 或 fallback
+      // brainConfig, server-side `withTimeout(90s)`) then Step 2 CO-STAR
+      // creation (`withTimeout(45s)`). Server worst-case ≈135s. Anything
+      // less than that on the client guarantees the fetch aborts while the
+      // server is still working, surfaces as `TypeError: Failed to fetch`,
+      // and the user sees a generic browser error toast. 180s gives ~45s
+      // of headroom over the server failsafe so the actual upstream error
+      // (5xx, parse failure, etc.) gets through to the toast instead of
+      // being masked by our own abort.
+      //
+      // Other heavy paths (ai.*, generate.*, evaluate.*, …) are single LLM
+      // calls and finish in 10-60s — they still benefit from the extra
+      // headroom on cold-start Railway boots and slower thinking models.
       true: httpLink({
         url: resolveClientFetchUrl("/api/trpc"),
         transformer: superjson,
-        fetch: fetchWithTimeout(90_000),
+        fetch: fetchWithTimeout(180_000),
       }),
       // Light: batched, 30s ceiling (auth, profile, page data — anything
       // beyond 30s on these is a backend problem worth surfacing).
