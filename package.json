@@ -23,6 +23,7 @@
     "gitnexus": "node scripts/gitnexus-launcher.mjs",
     "check:navigation": "node scripts/check-internal-navigation.mjs",
     "audit:spirits": "tsx scripts/audit-25-spirits.mjs",
+    "audit:music-voice": "tsx scripts/audit-music-voice-studio.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "eslint": "npm run lint --"
   },
