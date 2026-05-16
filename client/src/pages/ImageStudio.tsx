@@ -75,6 +75,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
+import { readImageStudioHandoff } from "@/components/home/OrbCreationStage";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
@@ -3092,6 +3093,22 @@ export default function ImageStudio() {
     });
     return () => setPageContext(null);
   }, [model.name, activeTab, setPageContext]);
+
+  // ── 接手首頁光球的圖片交接 — 由 OrbCreationStage 透過 sessionStorage 傳遞
+  //    prompt 與參考圖。一次性消費，避免回頭重訪時又覆蓋使用者新輸入。
+  useEffect(() => {
+    const handoff = readImageStudioHandoff();
+    if (!handoff) return;
+    setActiveTab(handoff.referenceImageUrl ? "edit" : "t2i");
+    setPrompt(handoff.prompt);
+    if (handoff.referenceImageUrl) {
+      setRefImageUrl(handoff.referenceImageUrl);
+    }
+    const lead = handoff.leadSpirit ? `${handoff.leadSpirit} · ` : "";
+    toast.success(`🪄 ${lead}已從首頁光球接手，可繼續深度調整。`);
+    // Run-once on mount — refs above are stable setters; intentional empty deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-select first model when switching tabs
   useEffect(() => {

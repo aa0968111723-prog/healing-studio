@@ -31,11 +31,57 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import AgentBlueprint from "./AgentBlueprint";
+
+/** Key used to hand off a prompt (and optionally a reference image) from the
+ *  home orb stage into the image studio. ImageStudio reads this on mount,
+ *  prefills the prompt textarea, then clears the key so back-button revisits
+ *  don't re-trigger the prefill. */
+const IMAGE_STUDIO_HANDOFF_KEY = "orb-handoff-image-studio";
+
+export interface ImageStudioOrbHandoff {
+  prompt: string;
+  /** URL of the orb-generated image, so the studio can offer it as a reference. */
+  referenceImageUrl?: string;
+  /** Spirit nickname that led this generation (for the studio's status bar). */
+  leadSpirit?: string;
+  /** Set on the originating tick so old handoffs can be garbage-collected. */
+  createdAt: number;
+}
+
+/** Tiny helper so both OrbCreationStage and ImageStudio agree on the key
+ *  and parse safely. Exported for the studio's mount-time reader. */
+export function readImageStudioHandoff(): ImageStudioOrbHandoff | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(IMAGE_STUDIO_HANDOFF_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(IMAGE_STUDIO_HANDOFF_KEY);
+    const parsed = JSON.parse(raw) as Partial<ImageStudioOrbHandoff> | null;
+    if (!parsed || typeof parsed.prompt !== "string") return null;
+    // 5-minute freshness window — drop ancient handoffs left over from a
+    // closed tab so we never silently overwrite a fresh studio session.
+    if (
+      typeof parsed.createdAt === "number" &&
+      Date.now() - parsed.createdAt > 5 * 60 * 1000
+    ) {
+      return null;
+    }
+    return {
+      prompt: parsed.prompt,
+      referenceImageUrl: parsed.referenceImageUrl,
+      leadSpirit: parsed.leadSpirit,
+      createdAt: parsed.createdAt ?? Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ─── Modality definitions ───────────────────────────────────────────────────
 
@@ -127,24 +173,40 @@ const MODES: readonly Mode[] = [
 // ─── Scenario presets — fold the former "你可以這樣用" use cases into the
 //    orb stage so the agent can dispatch them inline (no studio detour). ──
 
-/** The 15 in-house spirits — nicknames mirror shared/orb-agent-roles.ts so
- *  the homepage demo addresses the same routed roles the chat router uses. */
+/** The 25 in-house spirits — nicknames mirror shared/orb-agent-roles.ts so
+ *  the homepage demo addresses the same routed roles the chat router uses.
+ *  Order kept in sync with client/src/lib/spiritsVisual.ts (single source of
+ *  truth for the chat router, deck and proactive widget). */
 type SpiritNickname =
+  // 6 專精 specialist
   | "圖圖"
   | "影影"
   | "音音"
   | "聲聲"
   | "練練"
   | "學學"
+  // 6 通用 role
   | "導導"
   | "編編"
   | "品品"
   | "查查"
   | "路路"
   | "暖暖"
+  // 3 主動 proactive (original)
   | "財財"
   | "巧巧"
-  | "守守";
+  | "守守"
+  // 10 新增精靈 — 與 shared/orb-agent-roles.ts 對齊
+  | "律律"
+  | "安安"
+  | "帶帶"
+  | "群群"
+  | "總總"
+  | "記記"
+  | "細細"
+  | "步步"
+  | "靈靈"
+  | "體體";
 
 interface SpiritMeta {
   name: SpiritNickname;
@@ -154,21 +216,35 @@ interface SpiritMeta {
 }
 
 const SPIRITS: Readonly<Record<SpiritNickname, SpiritMeta>> = {
+  // ── 6 專精 specialist ──────────────────────────────────────────────────
   圖圖:   { name: "圖圖", role: "圖像精靈 · 主視覺",       tint: "rgba(168,85,247,0.85)" },
   影影:   { name: "影影", role: "影像精靈 · 分鏡與運鏡",   tint: "rgba(59,130,246,0.85)" },
   音音:   { name: "音音", role: "音樂精靈 · 配樂情緒",     tint: "rgba(236,72,153,0.85)" },
   聲聲:   { name: "聲聲", role: "語音精靈 · 旁白配音",     tint: "rgba(249,115,22,0.85)" },
   練練:   { name: "練練", role: "訓練精靈 · LoRA 訓練",    tint: "rgba(14,165,233,0.85)" },
   學學:   { name: "學學", role: "學習精靈 · 教學引導",     tint: "rgba(20,184,166,0.85)" },
+  // ── 6 通用 role ───────────────────────────────────────────────────────
   導導:   { name: "導導", role: "導演精靈 · 拆鏡編排",     tint: "rgba(34,197,94,0.85)" },
   編編:   { name: "編編", role: "編排精靈 · 跨素材組裝",   tint: "rgba(139,92,246,0.85)" },
   品品:   { name: "品品", role: "評審精靈 · 候選評分",     tint: "rgba(217,70,239,0.85)" },
   查查:   { name: "查查", role: "研究精靈 · 風格調研",     tint: "rgba(99,102,241,0.85)" },
   路路:   { name: "路路", role: "領航精靈 · 跨平台路由",   tint: "rgba(6,182,212,0.85)" },
   暖暖:   { name: "暖暖", role: "陪伴精靈 · 情緒承接",     tint: "rgba(244,114,182,0.85)" },
+  // ── 3 主動 proactive ──────────────────────────────────────────────────
   財財:   { name: "財財", role: "精算精靈 · 預算守門",     tint: "rgba(234,179,8,0.85)" },
   巧巧:   { name: "巧巧", role: "提示詞教練 · 詞彙打磨",   tint: "rgba(132,204,22,0.85)" },
   守守:   { name: "守守", role: "糾察精靈 · 一致性巡檢",   tint: "rgba(244,63,94,0.85)" },
+  // ── 10 新增精靈 — proactive / role / specialist 混編 ──────────────────
+  律律:   { name: "律律", role: "法律精靈 · 版權與商標紅線", tint: "rgba(217,119,6,0.85)" },
+  安安:   { name: "安安", role: "資安精靈 · 金鑰與隱私守門", tint: "rgba(71,85,105,0.85)" },
+  帶帶:   { name: "帶帶", role: "輔導精靈 · 卡關陪走",       tint: "rgba(132,204,22,0.85)" },
+  群群:   { name: "群群", role: "社群精靈 · 平台公式 + 標籤", tint: "rgba(225,29,72,0.85)" },
+  總總:   { name: "總總", role: "總管精靈 · 團隊狀態 + 派工", tint: "rgba(124,58,237,0.85)" },
+  記記:   { name: "記記", role: "筆記精靈 · 素材與排程",     tint: "rgba(245,158,11,0.85)" },
+  細細:   { name: "細細", role: "設定精靈 · 細節與偏好",     tint: "rgba(8,145,178,0.85)" },
+  步步:   { name: "步步", role: "規劃精靈 · 跨頁長流程",     tint: "rgba(192,38,211,0.85)" },
+  靈靈:   { name: "靈靈", role: "靈感精靈 · 發想與參考",     tint: "rgba(251,146,60,0.85)" },
+  體體:   { name: "體體", role: "解剖精靈 · 醫學插圖",       tint: "rgba(239,68,68,0.85)" },
 } as const;
 
 interface Scenario {
@@ -533,6 +609,146 @@ const SCENARIOS: readonly Scenario[] = [
       plan: "先框架、再差異提示詞、最後並行出圖。",
       tools: "composer.frame → prompt.craft → image.batch。",
       output: "四季主視覺 + 共用構圖手冊。",
+    },
+  },
+  // ─── 新增 6 組情境 — 帶入 10 位新精靈（律律 / 安安 / 帶帶 / 群群 / 總總 /
+  //     記記 / 細細 / 步步 / 靈靈 / 體體），讓首頁 demo 真正覆蓋全 25 精靈 ───
+  {
+    id: "inspiration-spark",
+    modeId: "image",
+    demoForm: "quick",
+    label: "靈感火花",
+    eta: "3-5 分鐘",
+    summary: "靈靈 × 巧巧 × 圖圖 從零到第一張圖",
+    prompt:
+      "我只有「秋天 × 安靜 × 一點點孤獨」三個關鍵詞，幫我發想 3 個方向再出一張代表圖。",
+    spirits: ["靈靈", "巧巧", "圖圖"],
+    handoffs: [
+      { from: "靈靈", do: "把模糊感覺擴成 3 個視覺方向 + 參考片單", next: "巧巧" },
+      { from: "巧巧", do: "挑首選方向，改寫成可直接出圖的 prompt", next: "圖圖" },
+      { from: "圖圖", do: "出 1 張代表圖、保留 seed 與下輪變化建議" },
+    ],
+    runbook: {
+      perceive: "辨識使用者「想不到」而非「想很多」，先補靈感再出圖。",
+      plan: "先發散 3 方向 → 收斂首選 → 出圖。",
+      tools: "inspiration.suggest → prompt.craft → image_generator。",
+      output: "1 張代表圖 + 3 個變體方向 + 改寫過的 prompt。",
+    },
+  },
+  {
+    id: "anatomy-textbook",
+    modeId: "image",
+    demoForm: "style",
+    label: "解剖教學圖鑑",
+    eta: "10-15 分鐘",
+    summary: "體體 × 學學 × 圖圖 醫學教材級插圖",
+    prompt:
+      "幫醫學院做一張肩關節解剖圖：標示三角肌 / 旋轉肌群、線稿 + 半透明肌肉層、附中英文標籤。",
+    spirits: ["體體", "學學", "圖圖"],
+    handoffs: [
+      { from: "體體", do: "確認部位、視角、肌群分層與標準命名", next: "學學" },
+      { from: "學學", do: "把命名翻成教材語氣，列中英對照清單", next: "圖圖" },
+      { from: "圖圖", do: "出線稿 + 半透明肌肉層、預留標籤版位" },
+    ],
+    runbook: {
+      perceive: "辨識醫學教學需求，鎖正確解剖術語與分層視覺。",
+      plan: "先解剖規格 → 教學標籤 → 出圖。",
+      tools: "anatomy.spec → learn.label → image_generator。",
+      output: "教材插圖 + 中英對照標籤表 + 學生練習問題建議。",
+    },
+  },
+  {
+    id: "compliance-launch-pack",
+    modeId: "director",
+    demoForm: "multi-step",
+    label: "合規上架素材包",
+    eta: "20-30 分鐘",
+    summary: "律律 × 安安 × 圖圖 × 影影 × 守守 過審即上",
+    prompt:
+      "保健食品的廣告素材包：主視覺 + 15 秒短片 + 文案，避開違規字眼、不可宣稱療效，可上 IG / FB。",
+    spirits: ["律律", "安安", "圖圖", "影影", "守守"],
+    handoffs: [
+      { from: "律律", do: "標出版權 / 商標 / 醫療宣稱紅線清單", next: "安安" },
+      { from: "安安", do: "檢查素材內無 PII、敏感金鑰或外部連結", next: "圖圖" },
+      { from: "圖圖", do: "依紅線出主視覺 3 版", next: "影影" },
+      { from: "影影", do: "把主視覺延伸成 15 秒短片、補字幕", next: "守守" },
+      { from: "守守", do: "對 IG / FB 規範跑最後巡檢、出可上架版本" },
+    ],
+    runbook: {
+      perceive: "辨識是高敏感類別（保健 / 醫療），合規優先於創意。",
+      plan: "紅線 → 視覺 → 短片 → 平台規範巡檢。",
+      tools: "legal.review → security.scan → image → video → policy.check。",
+      output: "可上架素材包 + 紅線報告 + 安全替代字眼建議。",
+    },
+  },
+  {
+    id: "team-orchestration",
+    modeId: "director",
+    demoForm: "multi-step",
+    label: "跨頁長流程一條龍",
+    eta: "30-45 分鐘",
+    summary: "總總 × 步步 × 路路 × 記記 × 編編 全程自動跑",
+    prompt:
+      "我從靈感到發文都想交給你：先發想、再出圖、再剪短片、最後排到下週三早上 9 點上 IG。",
+    spirits: ["總總", "步步", "路路", "靈靈", "圖圖", "影影", "記記", "編編"],
+    handoffs: [
+      { from: "總總", do: "盤點 25 位同事、決定本次該誰上場與順序", next: "步步" },
+      { from: "步步", do: "把 8 個步驟串成可中斷重啟的 DAG", next: "路路" },
+      { from: "路路", do: "在創作頁 / 影像創作室 / 排程頁之間自動切換", next: "記記" },
+      { from: "記記", do: "把最終素材歸檔、排下週三 09:00 自動發文" },
+    ],
+    runbook: {
+      perceive: "識別是橫跨多頁、多模態、多時段的長流程。",
+      plan: "建立 DAG + 排程點 + 失敗復原策略。",
+      tools: "orchestrator.plan → plan.exec → navigator.route → notes.schedule。",
+      output: "完整成品 + 排程紀錄 + 每步重跑入口。",
+    },
+  },
+  {
+    id: "community-series-pack",
+    modeId: "image",
+    demoForm: "multimodal",
+    label: "社群連載發文包",
+    eta: "15-20 分鐘",
+    summary: "群群 × 編編 × 記記 × 圖圖 七天連發",
+    prompt:
+      "幫我經營小紅書，主題「20 歲設計新鮮人的辦公日常」，做 7 篇連載：每篇 1 張圖 + 文案 + hashtag。",
+    spirits: ["群群", "靈靈", "圖圖", "編編", "記記"],
+    handoffs: [
+      { from: "群群", do: "依平台 + 年齡層挑文案公式與 hashtag 池", next: "靈靈" },
+      { from: "靈靈", do: "為 7 天生 7 個切入點，避免重複", next: "圖圖" },
+      { from: "圖圖", do: "鎖風格出 7 張系列圖", next: "編編" },
+      { from: "編編", do: "把圖 + 文案 + 標籤組裝成可貼版本", next: "記記" },
+      { from: "記記", do: "依平台演算法甜蜜時段排 7 天發文" },
+    ],
+    runbook: {
+      perceive: "辨識平台 + 受眾 + 連載特性，需要風格一致 + 時段最佳化。",
+      plan: "公式 → 切入點 → 視覺 → 組裝 → 排程。",
+      tools: "community.format → inspiration → image → composer → schedule。",
+      output: "7 天發文包 + 排程表 + 互動引導語建議。",
+    },
+  },
+  {
+    id: "newbie-walkthrough",
+    modeId: "image",
+    demoForm: "quick",
+    label: "新手一鍵帶飛",
+    eta: "5-8 分鐘",
+    summary: "帶帶 × 細細 × 學學 × 圖圖 第一次也能出圖",
+    prompt:
+      "我第一次用，不知道從哪開始 — 想要一張「貓咪在窗邊曬太陽」的圖，請帶我走完整流程。",
+    spirits: ["帶帶", "細細", "學學", "圖圖"],
+    handoffs: [
+      { from: "帶帶", do: "問清楚情境、預期用途、可接受等待時間", next: "細細" },
+      { from: "細細", do: "依等級調出 1:1 比例 + 預設模型 + 安全模式", next: "學學" },
+      { from: "學學", do: "用 3 句話講為什麼這樣設定", next: "圖圖" },
+      { from: "圖圖", do: "出第一張圖 + 下一輪 2 個調整方向" },
+    ],
+    runbook: {
+      perceive: "識別是新手 / 首次使用，預設值要保守、解釋要溫和。",
+      plan: "陪走 → 預設參數 → 教學 → 出圖。",
+      tools: "onboarding.guide → settings.preset → learn.explain → image_generator。",
+      output: "第一張圖 + 為什麼這樣設 + 下一輪可調 2 個點。",
     },
   },
 ] as const;
@@ -1967,6 +2183,7 @@ export default function OrbCreationStage({
   const isMobile = useIsMobile();
   const reduce = useReducedMotion();
   const { isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
 
   const [activeId, setActiveId] = useState<ModeId>("image");
   const activeMode = useMemo(
@@ -2381,6 +2598,31 @@ export default function OrbCreationStage({
     voiceGenMut,
     runSimulatedDispatch,
   ]);
+
+  /** Hand off the current prompt + result image to the full image studio so
+   *  the user can keep iterating with the studio's deeper tooling (LoRA mix,
+   *  upscale, edit, style reference). Saves the prompt in sessionStorage so
+   *  ImageStudio prefills on mount. */
+  const handleContinueInImageStudio = useCallback(() => {
+    const lead = activeScenario?.spirits[0];
+    const payload: ImageStudioOrbHandoff = {
+      prompt: prompt.trim(),
+      referenceImageUrl:
+        mediaResult?.kind === "image" ? mediaResult.url : undefined,
+      leadSpirit: lead,
+      createdAt: Date.now(),
+    };
+    try {
+      window.sessionStorage.setItem(
+        IMAGE_STUDIO_HANDOFF_KEY,
+        JSON.stringify(payload),
+      );
+    } catch {
+      // sessionStorage unavailable (private mode) — fall through to navigate
+      // so the user still lands in the studio, just without prefill.
+    }
+    navigate("/image-studio");
+  }, [activeScenario, prompt, mediaResult, navigate]);
 
   // Drive the LIVE dispatch trace through its phases as the real mutation
   // progresses, so the trace mirrors the actual API call rather than just
@@ -3027,6 +3269,42 @@ export default function OrbCreationStage({
                   )}
                 </AnimatePresence>
               </div>
+              {/* ── 影像創作室深度交接 — 一句話即時生成的成品，可直接帶進
+                  完整工作室做 LoRA / 編輯 / 升級。透過 sessionStorage 把
+                  prompt + 參考圖傳過去，路路會接手導航。 ── */}
+              <AnimatePresence>
+                {mediaResult?.kind === "image" &&
+                  activeMode.id === "image" &&
+                  dispatch?.step === "done" && (
+                    <motion.div
+                      key="handoff-image-studio"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ duration: 0.3 }}
+                      className="absolute bottom-2 left-2 right-2 z-10"
+                    >
+                      <button
+                        type="button"
+                        onClick={handleContinueInImageStudio}
+                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10.5px] sm:text-[11.5px] font-medium backdrop-blur-md transition-transform hover:-translate-y-0.5"
+                        style={{
+                          background: isDark
+                            ? "rgba(8,12,30,0.65)"
+                            : "rgba(255,255,255,0.85)",
+                          border: `1px solid ${activeMode.tint}`,
+                          color: activeMode.tint,
+                          boxShadow: `0 6px 20px ${activeMode.glow}`,
+                        }}
+                        aria-label="把這張圖帶進影像創作室深度編輯"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        在影像創作室深度編輯
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </motion.div>
+                  )}
+              </AnimatePresence>
               <AnimatePresence>
                 {dispatch && (
                   <ToolDispatchTrace
