@@ -220,7 +220,10 @@ import {
   countPdfAttachments,
   extractPdfAttachmentsToText,
 } from "./services/orbAttachmentExtraction";
-import { runOrbWebResearch } from "./services/orbWebResearch";
+import {
+  runOrbWebResearch,
+  classifyOrbResearchIntent,
+} from "./services/orbWebResearch";
 import {
   doPostGenComplete,
   runPostGenForJob,
@@ -6719,10 +6722,17 @@ export const appRouter = router({
         const webResearchEnabled =
           serverEnv.ENABLE_ORB_WEB_RESEARCH !== "false" &&
           featureFlags.isEnabled("RESEARCH_MODE");
-        // 旗標關掉時 runOrbWebResearch 直接 short-circuit,不要發誤導使用者
-        // 的「搜尋網路中…」事件。
+        // 「搜尋網路中…」只在真的會搜尋時才發。flag 開但 intent classifier
+        // 判定 skipped (空 / 太長 / in-app 命令 / 不像查詢) 時不發,
+        // 否則使用者看到 emoji 但 server 其實沒搜,是誤導。
         if (webResearchEnabled) {
-          emitOrbChatProgress(idempKey, "researching_web", "搜尋網路中…");
+          const intent = classifyOrbResearchIntent(latestUserTextForRouting);
+          if (intent.shouldSearch) {
+            emitOrbChatProgress(idempKey, "researching_web", "搜尋網路中…", {
+              intent: intent.reason,
+              explicit: intent.isExplicitSearch,
+            });
+          }
         }
         const webResearchOutcome = await runOrbWebResearch(
           latestUserTextForRouting,
@@ -6865,7 +6875,7 @@ export const appRouter = router({
               preferredEngine: "gemini",
               warnings: [attachmentGuard.reason ?? "attachment blocked"],
             });
-            return {
+            return finalizeIdempotentResponse({
               reply:
                 attachmentGuard.message ??
                 "這個檔案太大，我目前無法直接處理。請壓縮後再上傳，或先轉成較短的 MP3 / MP4 / PDF 摘要。",
@@ -6889,7 +6899,7 @@ export const appRouter = router({
               },
               ...meta,
               taskDraft: null,
-            };
+            });
           }
 
           if (quotaGuardEnabled) {
@@ -6904,7 +6914,7 @@ export const appRouter = router({
                 preferredEngine: "auto",
                 warnings: [rapid.reason ?? "quota limited"],
               });
-              return {
+              return finalizeIdempotentResponse({
                 reply: "你操作得有點快，我先幫你保護額度。請稍等幾秒再試一次。",
                 actions: [],
                 intent: null,
@@ -6926,7 +6936,7 @@ export const appRouter = router({
                 },
                 ...meta,
                 taskDraft: null,
-              };
+              });
             }
             appendTelemetryEvent(telemetryEvents, "quota.allowed", {
               category: "rapid_click",
@@ -7077,7 +7087,7 @@ export const appRouter = router({
                   : routeIntent === "planner_multimodal"
                   ? ["改用文字描述內容", "稍後再試"]
                   : ["稍後再試"];
-              return {
+              return finalizeIdempotentResponse({
                 reply: attachmentReply,
                 actions: [],
                 intent: null,
@@ -7099,7 +7109,7 @@ export const appRouter = router({
                 },
                 ...meta,
                 taskDraft: null,
-              };
+              });
             }
             const providerHealth = getProviderHealth(selection.provider.id).status;
             appendTelemetryEvent(telemetryEvents, "provider.selected", {
