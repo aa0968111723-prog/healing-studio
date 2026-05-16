@@ -932,14 +932,15 @@ export async function getDigitalAsset(id: number) {
   return rows[0] || null;
 }
 
-export async function getDigitalAssetsByUser(userId: number) {
+export async function getDigitalAssetsByUser(userId: number, limit?: number) {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const q = db
     .select()
     .from(digitalAssetLibrary)
     .where(eq(digitalAssetLibrary.userId, userId))
     .orderBy(desc(digitalAssetLibrary.createdAt));
+  return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
 }
 
 export async function getTeamSharedAssets() {
@@ -990,14 +991,15 @@ export async function getProjectNote(id: number) {
   return rows[0] || null;
 }
 
-export async function getProjectNotesByUser(userId: number) {
+export async function getProjectNotesByUser(userId: number, limit?: number) {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const q = db
     .select()
     .from(projectNotesCalendar)
     .where(eq(projectNotesCalendar.userId, userId))
     .orderBy(desc(projectNotesCalendar.createdAt));
+  return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
 }
 
 export async function updateProjectNote(

@@ -13,10 +13,39 @@
  */
 
 import * as db from "../db";
+import { cache } from "../_core/cache";
+import { logger } from "../_core/logger";
 import { getLearnHubOrbIndex } from "./siteKnowledge";
 import type { UnifiedSearchKind } from "../../shared/orb-search-intent";
 
 export type { UnifiedSearchKind };
+
+/**
+ * Per-source soft budget. If any single source (assets / notes / history /
+ * tutorials) blows past this, we log it and treat that source as empty so
+ * the overall endpoint still returns within roughly this budget. Tutorials
+ * are pure in-memory so they almost never hit this; the bound is for DB-backed
+ * sources whose tail latency can spike on cold caches or table locks.
+ */
+const DEFAULT_SOURCE_BUDGET_MS = 4_000;
+
+/**
+ * Maximum rows we read from the per-user asset / note / history tables before
+ * scoring. Power users can have thousands of rows; loading all of them per
+ * search keystroke ballooned RAM + GC. We cap at a number that's comfortably
+ * larger than `perTypeLimit` so the per-source `byScoreDesc` sort still has
+ * room to pick the strongest hit.
+ */
+const SOURCE_FETCH_CAP = 200;
+
+/**
+ * TTL for the in-memory result cache. Short by design — its job is to absorb
+ * React strict-mode double-fires + back-to-back identical queries, NOT to
+ * mask DB write latency. Long enough that two requests within a panel render
+ * collapse to one; short enough that the user immediately sees newly-saved
+ * assets after a few seconds.
+ */
+const RESULT_CACHE_TTL_SECONDS = 10;
 
 export interface UnifiedSearchResultItem {
   kind: UnifiedSearchKind;
@@ -213,13 +242,29 @@ function toMs(v: Date | string | number | null | undefined): number | undefined 
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function logSourceFailure(
+  source: UnifiedSearchKind,
+  userId: number,
+  err: unknown
+): void {
+  // We swallow per-source errors so a single broken table doesn't crash the
+  // whole search, but we MUST log them — silent `catch { return [] }` was
+  // the source of multiple "search just shows nothing forever" bug reports.
+  const message = err instanceof Error ? err.message : String(err);
+  logger.warn("[orbUnifiedSearch] source failed; treating as empty", {
+    source,
+    userId,
+    error: message,
+  });
+}
+
 async function searchAssets(
   userId: number,
   query: string,
   perTypeLimit: number
 ): Promise<UnifiedSearchResultItem[]> {
   try {
-    const all = (await db.getDigitalAssetsByUser(userId)) as unknown as AssetRow[];
+    const all = (await db.getDigitalAssetsByUser(userId, SOURCE_FETCH_CAP)) as unknown as AssetRow[];
     const out: UnifiedSearchResultItem[] = [];
     for (const row of all) {
       const body = `${row.description ?? ""}\n${row.promptUsed ?? ""}`;
@@ -243,7 +288,8 @@ async function searchAssets(
       });
     }
     return out.sort(byScoreDesc).slice(0, perTypeLimit);
-  } catch {
+  } catch (err) {
+    logSourceFailure("asset", userId, err);
     return [];
   }
 }
@@ -254,7 +300,7 @@ async function searchNotes(
   perTypeLimit: number
 ): Promise<UnifiedSearchResultItem[]> {
   try {
-    const all = (await db.getProjectNotesByUser(userId)) as unknown as NoteRow[];
+    const all = (await db.getProjectNotesByUser(userId, SOURCE_FETCH_CAP)) as unknown as NoteRow[];
     const out: UnifiedSearchResultItem[] = [];
     for (const row of all) {
       const body = row.content ?? "";
@@ -272,7 +318,8 @@ async function searchNotes(
       });
     }
     return out.sort(byScoreDesc).slice(0, perTypeLimit);
-  } catch {
+  } catch (err) {
+    logSourceFailure("note", userId, err);
     return [];
   }
 }
@@ -283,7 +330,7 @@ async function searchHistory(
   perTypeLimit: number
 ): Promise<UnifiedSearchResultItem[]> {
   try {
-    const all = (await db.getHistoryByUser(userId, 200)) as unknown as HistoryRow[];
+    const all = (await db.getHistoryByUser(userId, SOURCE_FETCH_CAP)) as unknown as HistoryRow[];
     const out: UnifiedSearchResultItem[] = [];
     for (const row of all) {
       const promptText = row.prompt ?? "";
@@ -307,7 +354,8 @@ async function searchHistory(
       });
     }
     return out.sort(byScoreDesc).slice(0, perTypeLimit);
-  } catch {
+  } catch (err) {
+    logSourceFailure("history", userId, err);
     return [];
   }
 }
@@ -333,7 +381,8 @@ function searchTutorials(
       });
     }
     return out.sort(byScoreDesc).slice(0, perTypeLimit);
-  } catch {
+  } catch (err) {
+    logSourceFailure("tutorial", 0, err);
     return [];
   }
 }
@@ -397,6 +446,60 @@ export interface OrbUnifiedSearchOptions extends UnifiedSearchInput {
   recencyBoostFromMs?: number;
   /** Override "now" for deterministic tests. */
   now?: number;
+  /**
+   * Per-source soft budget (ms). When a single source (assets / notes /
+   * history / tutorials) blows past this, it's logged and treated as
+   * empty so a stuck table can't drag the whole search down. Default
+   * `DEFAULT_SOURCE_BUDGET_MS`.
+   */
+  sourceBudgetMs?: number;
+  /** When true, bypass the in-process result cache. Defaults to false. */
+  bypassCache?: boolean;
+}
+
+/**
+ * Race a per-source promise against a wall-clock budget. On timeout we log
+ * + resolve to `[]` rather than rejecting, so `Promise.allSettled` doesn't
+ * see a bogus "rejection" for a benignly-slow table; the slow source just
+ * shows up as missing this round.
+ */
+function withSourceTimeout<T>(
+  source: UnifiedSearchKind,
+  userId: number,
+  budgetMs: number,
+  inner: Promise<T[]>
+): Promise<T[]> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timedOut = new Promise<T[]>(resolve => {
+    timer = setTimeout(() => {
+      logger.warn("[orbUnifiedSearch] source timed out; treating as empty", {
+        source,
+        userId,
+        budgetMs,
+      });
+      resolve([] as T[]);
+    }, budgetMs);
+    if (timer.unref) timer.unref();
+  });
+  return Promise.race([inner, timedOut]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+/**
+ * Build a deterministic cache key for `(user, query, types, limits)`. Keep
+ * the kind set canonicalized (sorted) so `["note","asset"]` and
+ * `["asset","note"]` collapse to the same key.
+ */
+function buildResultCacheKey(input: OrbUnifiedSearchOptions): string {
+  const kinds = (input.types ?? ["asset", "note", "history", "tutorial"])
+    .slice()
+    .sort()
+    .join(",");
+  const perType = input.perTypeLimit ?? DEFAULT_PER_TYPE;
+  const total = input.totalLimit ?? DEFAULT_TOTAL;
+  const q = input.query.trim().toLowerCase();
+  return `search:orbUnified:u${input.userId}:k${kinds}:p${perType}:t${total}:${q}`;
 }
 
 export async function orbUnifiedSearch(
@@ -407,6 +510,7 @@ export async function orbUnifiedSearch(
   const perTypeLimit = input.perTypeLimit ?? DEFAULT_PER_TYPE;
   const totalLimit = input.totalLimit ?? DEFAULT_TOTAL;
   const now = input.now ?? Date.now();
+  const sourceBudgetMs = input.sourceBudgetMs ?? DEFAULT_SOURCE_BUDGET_MS;
   const enabled = new Set<UnifiedSearchKind>(input.types ?? [
     "asset",
     "note",
@@ -414,15 +518,63 @@ export async function orbUnifiedSearch(
     "tutorial",
   ]);
 
-  const tasks: Array<Promise<UnifiedSearchResultItem[]>> = [];
-  if (enabled.has("asset")) tasks.push(searchAssets(input.userId, query, perTypeLimit));
-  if (enabled.has("note")) tasks.push(searchNotes(input.userId, query, perTypeLimit));
-  if (enabled.has("history")) tasks.push(searchHistory(input.userId, query, perTypeLimit));
-  if (enabled.has("tutorial"))
-    tasks.push(Promise.resolve(searchTutorials(query, perTypeLimit)));
+  const cacheKey = buildResultCacheKey(input);
+  if (!input.bypassCache) {
+    const cached = await cache.get<UnifiedSearchResultItem[]>(cacheKey);
+    if (cached) return cached;
+  }
 
-  const groups = await Promise.all(tasks);
-  const merged = groups.flat();
+  const tasks: Array<Promise<UnifiedSearchResultItem[]>> = [];
+  if (enabled.has("asset")) {
+    tasks.push(
+      withSourceTimeout(
+        "asset",
+        input.userId,
+        sourceBudgetMs,
+        searchAssets(input.userId, query, perTypeLimit)
+      )
+    );
+  }
+  if (enabled.has("note")) {
+    tasks.push(
+      withSourceTimeout(
+        "note",
+        input.userId,
+        sourceBudgetMs,
+        searchNotes(input.userId, query, perTypeLimit)
+      )
+    );
+  }
+  if (enabled.has("history")) {
+    tasks.push(
+      withSourceTimeout(
+        "history",
+        input.userId,
+        sourceBudgetMs,
+        searchHistory(input.userId, query, perTypeLimit)
+      )
+    );
+  }
+  if (enabled.has("tutorial")) {
+    tasks.push(Promise.resolve(searchTutorials(query, perTypeLimit)));
+  }
+
+  // allSettled: a single source rejecting (somehow bypassing the inner
+  // try/catch) must not crash the orchestrator. Each fulfilled value is
+  // already an array; rejections become `[]` here so the merged shape stays
+  // homogeneous.
+  const settled = await Promise.allSettled(tasks);
+  const merged: UnifiedSearchResultItem[] = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      merged.push(...result.value);
+    } else {
+      logger.warn("[orbUnifiedSearch] source rejected at orchestrator", {
+        userId: input.userId,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      });
+    }
+  }
 
   // Apply recency boost. Tutorials don't have createdAt — they get neutral
   // multiplier (1.0). Assets / notes / history all have it.
@@ -432,5 +584,10 @@ export async function orbUnifiedSearch(
   }
 
   const sorted = merged.sort(byScoreDesc);
-  return diversifyByKind(sorted, totalLimit);
+  const final = diversifyByKind(sorted, totalLimit);
+
+  if (!input.bypassCache) {
+    await cache.set(cacheKey, final, { ttl: RESULT_CACHE_TTL_SECONDS });
+  }
+  return final;
 }
