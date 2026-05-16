@@ -1489,7 +1489,6 @@ export const proStudioRouter = router({
         source_language: z.string().optional().default("zh"),
         target_language: z.string().min(1),
         num_speakers: z.number().min(1).max(10).optional(),
-        watermark: z.boolean().optional().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1504,13 +1503,14 @@ export const proStudioRouter = router({
       // Dubbing 沒給時長提示，以 30 秒估
       const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec: 30 });
       try {
+        // fal-ai/elevenlabs/dubbing 的官方欄位是 target_lang / source_lang
+        // (非 *_language)，且不支援 watermark；watermark 由 ElevenLabs 帳號層級控管。
         const { request_id } = await falQueueSubmit(modelId, {
           video_url: input.video_url,
           audio_url: input.audio_url,
-          source_language: input.source_language,
-          target_language: input.target_language,
+          source_lang: input.source_language,
+          target_lang: input.target_language,
           num_speakers: input.num_speakers,
-          watermark: input.watermark,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
         return { request_id, model: modelId, estimated_credits: charged };
       } catch (err) {
