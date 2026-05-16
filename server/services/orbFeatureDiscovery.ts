@@ -84,6 +84,22 @@ export interface RecordDiscoveryInput {
   context?: string;
 }
 
+// M9: 把「TODO 沒實作」訊號從 source comment 拉到 runtime telemetry。
+// orbFeatureDiscovery 有 5 個 procedure 是空殼,只回 [] 不做事。原本只
+// 在 source 留 TODO 註解,呼叫端 / 監控完全不知道在踩空函式。改成 module
+// 載入時印一次 deprecation 警告,並在每個 procedure 首次被呼叫時 log
+// 一次(per-process,不洪水),這樣 staging / prod telemetry 看得到「光
+// 球在跑沒實作的功能」。
+const NOT_IMPLEMENTED_WARNED = new Set<string>();
+function warnNotImplemented(procedureName: string): void {
+  if (NOT_IMPLEMENTED_WARNED.has(procedureName)) return;
+  NOT_IMPLEMENTED_WARNED.add(procedureName);
+  logger.warn("orb_feature_discovery_not_implemented", {
+    procedure: procedureName,
+    note: "Returns empty result until algorithm is implemented",
+  });
+}
+
 export class OrbFeatureDiscovery {
   /**
    * Record feature usage
@@ -256,11 +272,16 @@ export class OrbFeatureDiscovery {
 
   /**
    * Generate personalized feature recommendations
+   *
+   * @deprecated Algorithm not yet implemented; always returns []. Callers
+   * should handle empty results gracefully. Once implemented, remove the
+   * @deprecated tag and the warnNotImplemented call.
    */
   async generateRecommendations(
     userId: number,
     limit = 5
   ): Promise<FeatureRecommendation[]> {
+    warnNotImplemented("generateRecommendations");
     try {
       // TODO: Implement recommendation algorithm:
       // 1. Analyze user's usage patterns
@@ -360,6 +381,9 @@ export class OrbFeatureDiscovery {
 
   /**
    * Find features similar to given feature (for "you might also like" suggestions)
+   *
+   * @deprecated Algorithm not yet implemented; always returns []. Same as
+   * generateRecommendations — see that JSDoc for removal instructions.
    */
   async findSimilarFeatures(
     featureId: string,
@@ -369,6 +393,7 @@ export class OrbFeatureDiscovery {
     similarityScore: number;
     reason: string;
   }>> {
+    warnNotImplemented("findSimilarFeatures");
     try {
       // TODO: Implement similarity algorithm:
       // - Features often used in sequence
@@ -398,6 +423,8 @@ export class OrbFeatureDiscovery {
 
   /**
    * Get proficiency progression for user
+   *
+   * @deprecated Algorithm not yet implemented; always returns empty buckets.
    */
   async getProficiencyProgression(userId: number): Promise<{
     beginner: string[];
@@ -405,6 +432,7 @@ export class OrbFeatureDiscovery {
     advanced: string[];
     mastered: string[];
   }> {
+    warnNotImplemented("getProficiencyProgression");
     try {
       // TODO: Categorize features by proficiency score
 
@@ -432,6 +460,8 @@ export class OrbFeatureDiscovery {
 
   /**
    * Search features by name, description, or tags
+   *
+   * @deprecated Algorithm not yet implemented; always returns [].
    */
   async searchFeatures(
     query: string,
@@ -445,6 +475,7 @@ export class OrbFeatureDiscovery {
     relevanceScore: number;
     userProficiency?: number;
   }>> {
+    warnNotImplemented("searchFeatures");
     try {
       // TODO: Implement feature search with:
       // - Text matching
@@ -478,6 +509,8 @@ export class OrbFeatureDiscovery {
 
   /**
    * Get feature usage leaderboard (gamification)
+   *
+   * @deprecated Algorithm not yet implemented; always returns [].
    */
   async getLeaderboard(
     featureId?: string,
@@ -490,6 +523,7 @@ export class OrbFeatureDiscovery {
     proficiencyScore: number;
     rank: number;
   }>> {
+    warnNotImplemented("getLeaderboard");
     try {
       // TODO: Query aggregated usage data
 

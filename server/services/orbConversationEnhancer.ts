@@ -113,21 +113,12 @@ export class OrbConversationEnhancer {
         await this.trackFeatureUsage(turn);
       }
 
-      // 5. Generate feature recommendations (periodically, not every turn)
-      if (Math.random() < 0.1) {
-        // 10% chance
-        const recommendations = await orbFeatureDiscovery.generateRecommendations(
-          turn.userId,
-          3
-        );
-        if (recommendations.length > 0) {
-          result.featureRecommendations = recommendations.map(r => ({
-            featureId: r.featureId,
-            reason: r.reason,
-            relevanceScore: r.relevanceScore,
-          }));
-        }
-      }
+      // 5. M9 修復:Feature recommendations 暫停。生產的 generateRecommendations
+      // 是 TODO 實作(只 return [] 不做事),原本 10% 機率呼叫只是花 CPU
+      // 跑空函式 + 製造 telemetry 雜訊。等推薦演算法真的實作後,移除這
+      // 個 @ts-expect 區塊把呼叫加回來。
+      // 之前的 call site 保留在 git history 內(orbConversationEnhancer.ts
+      // 第 116-130 行,7afaeb / fd68364 之前的 commit)方便日後對照。
 
       // 6. Record system health metrics
       const responseTime = Date.now() - startTime;
