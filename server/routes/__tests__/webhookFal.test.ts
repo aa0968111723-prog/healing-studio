@@ -257,4 +257,105 @@ describe("webhookFal /api/webhook/fal", () => {
     expect(updateBackgroundJobMock).not.toHaveBeenCalled();
     server.close();
   });
+
+  it("Kling 影片 webhook：nested payload.payload.video.url 也能萃取 videoUrl + resultUrl", async () => {
+    // 真實 fal.ai Kling Pro i2v webhook shape:
+    //   { request_id, status, payload: { video: { url, content_type, ... } } }
+    // 過去 extractResultData 只 cover 兩層,卻沒處理 nested payload.video.url
+    // 跟 root 兩種同時齊備的情況。改用 extractFalMediaUrl 後一律過。
+    getBackgroundJobMock.mockResolvedValue({
+      id: 99,
+      userId: 7,
+      status: "processing",
+      resultJson: {
+        studioType: "video",
+        modelId: "fal-ai/kling-video/v2.1/pro/image-to-video",
+        prompt: "a healing forest",
+        label: "Kling Pro 圖生影",
+        requestId: "fal-kling-uuid",
+      },
+    } as any);
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribe(99, e => events.push(e));
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/fal?jobId=99`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-kling-uuid",
+        status: "OK",
+        payload: {
+          video: {
+            url: "https://fal.media/files/abc/out.mp4",
+            content_type: "video/mp4",
+            file_size: 1234567,
+          },
+        },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+
+    const [, patch] = updateBackgroundJobMock.mock.calls[0] as [
+      number,
+      Record<string, unknown>,
+    ];
+    expect(patch.status).toBe("completed");
+    const resultJson = patch.resultJson as Record<string, unknown>;
+    expect(resultJson.videoUrl).toBe("https://fal.media/files/abc/out.mp4");
+    expect(resultJson.resultUrl).toBe("https://fal.media/files/abc/out.mp4");
+    // 既有 meta 必須保留
+    expect(resultJson.label).toBe("Kling Pro 圖生影");
+    expect(resultJson.modelId).toBe(
+      "fal-ai/kling-video/v2.1/pro/image-to-video"
+    );
+    // SSE complete 事件
+    expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    expect(runPostGenForJobMock).toHaveBeenCalledWith(99);
+    unsubscribe();
+    server.close();
+  });
+
+  it("OK 但完全沒任何 URL：改標 failed,讓 UI 顯示需重試而不是無預覽空卡", async () => {
+    // 回歸測試:過去這條路會把 job 標 completed 但 resultUrl 為 undefined,
+    // 使用者「成品輸出庫」就會看到一張無預覽無下載的空白卡片永遠卡著。
+    getBackgroundJobMock.mockResolvedValue({
+      id: 55,
+      userId: 7,
+      status: "processing",
+      resultJson: {
+        studioType: "video",
+        modelId: "fal-ai/some-video/model",
+        prompt: "test",
+        label: "Test",
+        requestId: "fal-malformed",
+      },
+    } as any);
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribe(55, e => events.push(e));
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/fal?jobId=55`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-malformed",
+        status: "OK",
+        payload: { something_unknown: true },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+
+    const [, patch] = updateBackgroundJobMock.mock.calls[0] as [
+      number,
+      Record<string, unknown>,
+    ];
+    expect(patch.status).toBe("failed");
+    expect(patch.errorMessage).toContain("無法解析結果連結");
+    // SSE 必須推 error 事件,前端才知道要顯示失敗
+    expect(events.length).toBe(1);
+    expect((events[0] as { type: string }).type).toBe("error");
+    // 沒 URL 時不應該觸發後置動作（資產庫/歷史/提示詞庫）
+    expect(runPostGenForJobMock).not.toHaveBeenCalled();
+    unsubscribe();
+    server.close();
+  });
 });

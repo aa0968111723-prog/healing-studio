@@ -113,6 +113,22 @@ export function extractFalMediaUrl(raw: unknown): {
       const first = images[0] as Record<string, unknown> | undefined;
       if (first && typeof first.url === "string") image_url = first.url;
     }
+    // videos: [{url}] — some fal video models return arrays even for a
+    // single output. videoStudio.extractVideoUrl handles this shape too;
+    // mirror it here so checkStudioJob / webhookFal don't misclassify a
+    // valid completion as "無法解析結果連結".
+    const videos = node.videos;
+    if (!video_url && Array.isArray(videos) && videos.length > 0) {
+      const first = videos[0] as Record<string, unknown> | undefined;
+      if (first && typeof first.url === "string") video_url = first.url;
+    }
+    // audios: [{url}] — defensive symmetry. Not all fal audio models do
+    // this but a few stem-separation / multi-clip endpoints do.
+    const audios = node.audios;
+    if (!audio_url && Array.isArray(audios) && audios.length > 0) {
+      const first = audios[0] as Record<string, unknown> | undefined;
+      if (first && typeof first.url === "string") audio_url = first.url;
+    }
   }
   const output_url = video_url ?? image_url ?? audio_url;
   return {

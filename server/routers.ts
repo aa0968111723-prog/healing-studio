@@ -3469,14 +3469,27 @@ export const appRouter = router({
         if (!requestId || !modelId) return job;
 
         // 向 fal.ai queue 查詢狀態
-        const FAL_QUEUE_BASE = "https://queue.fal.run";
         const falKey = process.env.FAL_API_KEY;
         if (!falKey) return job;
 
         try {
-          const statusRes = await fetch(
-            `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
-            { headers: { Authorization: `Key ${falKey}` } }
+          // ⚠️ 改用 falQueueFetchWithPrefixFallback:
+          //   有些 modelId（例如 fal-ai/kling-video/v2.1/pro/image-to-video）
+          //   submit 走完整路徑沒問題,但 queue tracking 端點是 fal-ai/kling-video,
+          //   裸 fetch 會 404 → 過去 checkStudioJob 拿到 404 直接 return job,
+          //   讓任務卡在 "processing" 直到 30 分鐘超時。
+          const { falQueueFetchWithPrefixFallback } = await import(
+            "./services/falQueueClient"
+          );
+          const { extractFalMediaUrl } = await import(
+            "./services/falQueueAwaiter"
+          );
+
+          const statusRes = await falQueueFetchWithPrefixFallback(
+            modelId,
+            requestId,
+            "/status",
+            falKey
           );
           if (!statusRes.ok) return job;
           const statusData = (await statusRes.json()) as Record<
@@ -3488,51 +3501,75 @@ export const appRouter = router({
             | undefined;
 
           if (s === "COMPLETED") {
-            const resultRes = await fetch(
-              `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
-              { headers: { Authorization: `Key ${falKey}` } }
+            const resultRes = await falQueueFetchWithPrefixFallback(
+              modelId,
+              requestId,
+              "",
+              falKey
             );
             const resultData = resultRes.ok ? await resultRes.json() : null;
 
-            // 從結果中提取 URL（嘗試所有已知路徑）
+            // 從結果中提取 URL（先用通用 extractor — 涵蓋 root / data / output /
+            // result 四種 envelope + video.url / video_url / images[0].url 等 shape）。
             const localizedResult = (await localizeResultUrls(
               resultData,
               `generated/studio/${ctx.user.id}/background/${modelId.replace(/[^\w/-]+/g, "_")}`
             )) as Record<string, unknown> | null;
             const r = localizedResult;
+            const extracted = extractFalMediaUrl(r);
             const resultUrl =
-              // 圖片
-              (r?.images as any)?.[0]?.url ??
-              (r?.image as any)?.url ??
-              (r as any)?.image_url ??
-              // 影片
-              (r?.video as any)?.url ??
-              (r as any)?.video_url ??
-              (r?.videos as any)?.[0]?.url ??
-              // 音訊
-              (r?.audio as any)?.url ??
-              (r as any)?.audio_url ??
-              // 音效（ElevenLabs sound-effects）
-              (r?.audio_file as any)?.url ??
-              // 音幹分離（demucs：取第一個 stem URL）
-              (r?.vocals as any)?.url ??
-              // 聲音克隆（speaker_embedding）
-              (r?.speaker_embedding as any)?.url ??
-              // 其他
-              (r?.output as any)?.url ??
-              (r?.model_glb as any)?.url ??
-              // dubbing 結果
-              (r?.dubbed_url as string) ??
-              // 語音轉文字（取文字結果）
-              (r as any)?.text ??
-              (r as any)?.transcript ??
+              extracted.output_url ??
+              // 通用 extractor 不認得的尾巴情境再 fallback（音效 / 拆幹 / 3D / dubbing / STT）
+              ((r?.audio_file as any)?.url as string | undefined) ??
+              ((r?.vocals as any)?.url as string | undefined) ??
+              ((r?.speaker_embedding as any)?.url as string | undefined) ??
+              ((r?.output as any)?.url as string | undefined) ??
+              ((r?.model_glb as any)?.url as string | undefined) ??
+              ((r?.dubbed_url as string | undefined)) ??
+              ((r as any)?.text as string | undefined) ??
+              ((r as any)?.transcript as string | undefined) ??
               null;
+
+            // ⚠️ 重要：若 fal 回 COMPLETED 但 URL 抽不到（fal 回了奇怪的 shape /
+            // 模型路徑 stripping 失敗 / localize 全部失敗），不要靜默標 completed
+            // 然後留一張無預覽無下載的卡片在使用者「成品輸出庫」裡 — 改成標 failed,
+            // 寫清楚 errorMessage,讓使用者能重試或聯絡支援。
+            if (!resultUrl) {
+              const errMsg =
+                "生成已完成但無法解析結果連結（fal 回傳格式異常），請重試或更換模型";
+              await db.updateBackgroundJob(job.id, {
+                status: "failed",
+                errorMessage: errMsg,
+                resultJson: {
+                  ...meta,
+                  result: localizedResult,
+                  rawCompletedAt: new Date().toISOString(),
+                },
+              });
+              return {
+                ...job,
+                status: "failed" as const,
+                errorMessage: errMsg,
+              };
+            }
+
+            // 把 resultUrl + 各模態 top-level URL 都寫進去 — 前端的
+            // mediaUrlFromResult 會優先讀 r.resultUrl,但歷史代碼 / 不同頁面
+            // 可能讀 r.videoUrl / r.imageUrl / r.audioUrl,一次寫齊。
+            const nextJson: Record<string, unknown> = {
+              ...meta,
+              resultUrl,
+              result: localizedResult,
+            };
+            if (extracted.video_url) nextJson.videoUrl = extracted.video_url;
+            if (extracted.image_url) nextJson.imageUrl = extracted.image_url;
+            if (extracted.audio_url) nextJson.audioUrl = extracted.audio_url;
 
             await db.updateBackgroundJob(job.id, {
               status: "completed",
               progress: 100,
               progressMessage: "生成完成",
-              resultJson: { ...meta, resultUrl, result: localizedResult },
+              resultJson: nextJson,
             });
 
             // 後置動作（idempotent，與 webhookFal 同時抵達也只跑一次）：
@@ -3544,7 +3581,7 @@ export const appRouter = router({
               status: "completed" as const,
               progress: 100,
               progressMessage: "生成完成",
-              resultJson: { ...meta, resultUrl, result: localizedResult },
+              resultJson: nextJson,
             };
           }
 
