@@ -1,3 +1,11 @@
+/**
+ * server/services/orbTaskMemory.ts
+ *
+ * MEMORY TIER: A — Ephemeral task scratchpad (in-RAM + optional DB persist).
+ * 單一 task / chain run 內的 step 結果穿針引線。詳見
+ * `server/services/memory/MEMORY_TIERS.md`。
+ */
+
 export interface OrbTaskMemoryEvent {
   taskId: string;
   planId: string;

@@ -1,6 +1,9 @@
 /**
  * server/services/specializedAgentMemoryStore.ts
  *
+ * MEMORY TIER: C — Persistent / cross-session memory (specialist event log).
+ * 詳見 `server/services/memory/MEMORY_TIERS.md`。
+ *
  * Read/write helpers for the `specialized_agent_interactions` and
  * `specialized_agent_memory` tables. These tables existed in schema since
  * migration 0025 but had **zero production writers** — the dead audit
