@@ -77,6 +77,43 @@ export interface InvokeSpiritModelInput
  *
  * 回傳的 FalDispatchResult 結構與既有 dispatch* 一致，呼叫端可直接拿 data。
  */
+/**
+ * M15:把「這個 category 需要什麼欄位」表格化。第一次缺欄位時 fail-fast
+ * 回友善訊息,而不是讓使用者花 30 秒等到不相干輸出。
+ *
+ * 沒列在 map 內的 category(如 text-to-image / text-to-video)只需要
+ * prompt,不需要額外輸入 — 回 null。
+ */
+type InvokeOtherFields = Omit<InvokeSpiritModelInput, "spirit" | "modelId">;
+
+function describeRequiredInputForCategory(
+  category: string
+): {
+  checkProvided: (rest: InvokeOtherFields) => boolean;
+  message: string;
+} | null {
+  if (category.startsWith("image-to-")) {
+    return {
+      checkProvided: (r) => typeof r.imageUrl === "string" && r.imageUrl.length > 0,
+      message: "這個任務需要一張參考圖片,請先上傳或附上圖片 URL 後再試。",
+    };
+  }
+  if (category.startsWith("video-to-")) {
+    return {
+      checkProvided: (r) => typeof r.videoUrl === "string" && r.videoUrl.length > 0,
+      message: "這個任務需要一段參考影片,請先上傳或附上影片 URL 後再試。",
+    };
+  }
+  if (category === "audio-to-text") {
+    return {
+      checkProvided: (r) => typeof r.audioUrl === "string" && r.audioUrl.length > 0,
+      message: "這個任務需要一段音檔(轉寫 / 分析),請先上傳音檔後再試。",
+    };
+  }
+  // training 與其他 *-to-* 都另有路徑,目前不在這個 dispatcher 走,先不加。
+  return null;
+}
+
 export async function invokeSpiritModel(
   input: InvokeSpiritModelInput,
 ): Promise<FalDispatchResult> {
@@ -118,6 +155,30 @@ export async function invokeSpiritModel(
       pointsBreakdown: "0 (未呼叫：模型不在 fal 目錄)",
       error: `模型 "${modelId}" 不在 fal 目錄中，無法分派`,
     };
+  }
+
+  // M15 修復:依 category 檢查必要輸入是否齊備。
+  // GlobalOrbChatContext 只送 { spirit, prompt },聲聲(voice-specialist)
+  // 被 @ 要做 voice cloning 時沒帶 audioUrl → 走 pickDefaultModelForSpirit
+  // 拿到 text-to-speech 模型,使用者本意被丟掉,得到不相干的旁白。
+  // 在 dispatcher 層 fail-fast 並回友善訊息「請先上傳音檔」比讓使用者
+  // 等 30 秒拿到錯誤輸出再重來好得多。
+  const inputRequirement = describeRequiredInputForCategory(modelConfig.category);
+  if (inputRequirement) {
+    const provided = inputRequirement.checkProvided(rest);
+    if (!provided) {
+      return {
+        success: false,
+        modelId,
+        modelLabel: modelConfig.label,
+        category: modelConfig.category,
+        data: {},
+        durationMs: 0,
+        pointsDeducted: 0,
+        pointsBreakdown: "0 (未呼叫:缺必要輸入)",
+        error: inputRequirement.message,
+      };
+    }
   }
 
   // Step 2: 授權檢查 —— 即使 dispatchFalTask 也會檢查，這裡先擋一輪可以

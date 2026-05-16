@@ -138,4 +138,53 @@ describe("invokeSpiritModel", () => {
     expect(dispatchFalTaskMock).toHaveBeenCalledTimes(1);
     expect(dispatchFalTaskMock.mock.calls[0][0].spirit).toBe("composer");
   });
+
+  // M15 修復:client 漂移防護。client 只送 { spirit, prompt },聲聲被
+  // 叫去做 voice-clone 時沒帶 audioUrl,原本會 fallback 到 TTS 模型生
+  // 不相關旁白;改成 fail-fast 並回友善訊息「請先上傳音檔」。
+  describe("M15: 缺必要輸入時 fail-fast", () => {
+    it("image-to-image 沒帶 imageUrl → 拒呼 fal,回友善中文訊息", async () => {
+      const result = await invokeSpiritModel({
+        spirit: "image-specialist",
+        modelId: "fal-ai/flux-pro/kontext",
+        prompt: "把背景換成森林",
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/參考圖片/);
+      expect(result.pointsBreakdown).toMatch(/未呼叫/);
+      expect(dispatchFalTaskMock).not.toHaveBeenCalled();
+    });
+
+    it("image-to-image 帶了 imageUrl → 通過,進 dispatchFalTask", async () => {
+      const result = await invokeSpiritModel({
+        spirit: "image-specialist",
+        modelId: "fal-ai/flux-pro/kontext",
+        prompt: "把背景換成森林",
+        imageUrl: "https://example.com/cat.png",
+      });
+      expect(result.success).toBe(true);
+      expect(dispatchFalTaskMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("audio-to-text(轉寫)沒帶 audioUrl → 拒呼 fal", async () => {
+      const result = await invokeSpiritModel({
+        spirit: "voice-specialist",
+        modelId: "fal-ai/whisper",
+        prompt: "幫我轉寫",
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/音檔/);
+      expect(dispatchFalTaskMock).not.toHaveBeenCalled();
+    });
+
+    it("text-to-image 不需要 imageUrl,只給 prompt 就應該通過", async () => {
+      const result = await invokeSpiritModel({
+        spirit: "image-specialist",
+        modelId: "fal-ai/flux-pro/v1.1",
+        prompt: "a cat",
+      });
+      expect(result.success).toBe(true);
+      expect(dispatchFalTaskMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

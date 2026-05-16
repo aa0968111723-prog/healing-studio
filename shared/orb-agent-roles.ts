@@ -144,10 +144,15 @@ const KEYWORD_RULES: Array<KeywordRule> = [
       "img2img",
       "inpainting",
     ],
-    // 「畫」是強訊號但會在 「畫面糊 / 畫面模糊 / 畫質很差」 等品質抱怨語境誤觸發
-    // （pre-existing global QUALITY_OVERRIDE_HINTS 已處理大部分，但 negative
-    // list 就近放在規則內，未來新增類似抱怨詞時不必再動 override hints）。
-    negativeKeywords: ["畫面糊", "畫面模糊", "畫質差", "畫質糊", "畫質很差"],
+    // M5 修復:「畫」是強訊號但會在「畫面糊 / 畫面模糊 / 畫質很差」「畫面
+    // 比例 / 畫風 / 畫質想調」「畫圖工具在哪」等語境誤觸發。原本只擋品質
+    // 抱怨類,擴充覆蓋 UI 詢問類(畫面比例 / 畫質想調)、學習類(畫圖工具
+    // 在哪)、純名詞(畫風)— 這些都不該搶走 image-specialist。
+    negativeKeywords: [
+      "畫面糊", "畫面模糊", "畫質差", "畫質糊", "畫質很差",
+      "畫面比例", "畫質想調", "畫質設定", "畫風",
+      "畫圖工具", "畫畫工具",
+    ],
     rationale: "user wants image generation or editing assistance",
   },
   // Video Specialist: video generation and editing tasks
@@ -200,6 +205,11 @@ const KEYWORD_RULES: Array<KeywordRule> = [
       "sound effect",
       "audio mix",
       "stems",
+    ],
+    // M5 修復:「音效」是強訊號但「提示音效 / 系統音效 / 音效設定 / 關掉
+    // 音效」都是 UI 詢問,不該搶走 music-specialist 去做生成。
+    negativeKeywords: [
+      "提示音效", "系統音效", "音效設定", "關掉音效", "關閉音效", "音效開關",
     ],
     rationale: "user wants music or audio generation assistance",
   },
@@ -961,12 +971,40 @@ const SPIRIT_NICKNAMES: ReadonlyArray<{ role: AgentRole; nicknames: readonly str
  * whether to auto-prepend a pinned spirit's @ tag (i.e. "is the user already
  * addressing a spirit?"); when null is returned, no spirit was named.
  */
+// 已知會撞普通詞的 bare nickname,叫名時必須後接空白 / 標點才算 mention。
+// 否則「總管理一下今天的點數」「編排一下流程」「學長告訴我怎麼用」這種
+// 句子會被誤判為 @chief-orchestrator / @composer / @learning,使用者實際
+// 想找的精靈被搶走。@-prefix 形式不受此影響(顯式 mention 永遠有效)。
+const AMBIGUOUS_BARE_NICKNAMES = new Set([
+  "總管", "總精靈",        // chief-orchestrator
+  "編排",                   // composer
+  "學長",                   // learning-specialist
+  "圖像精靈", "影像精靈",   // image / video specialist (full words 不歧義但
+                            // 短形「圖」「影」未列入 nicknames 已避免)
+]);
+
+/**
+ * M5 修復:Bare-nickname 必須有「結尾邊界」才算真的叫精靈,不能單純
+ * startsWith。否則使用者打「總管理一下今天的點數」會被當成 @總管(chief)。
+ * 邊界 = 字串結束 / 空白 / CJK / ASCII 標點。
+ */
+function isBareNicknameMention(text: string, name: string): boolean {
+  if (!text.startsWith(name)) return false;
+  if (!AMBIGUOUS_BARE_NICKNAMES.has(name)) return true; // 不歧義的 bare 直接過
+  const rest = text.slice(name.length);
+  if (rest.length === 0) return true; // 純 "總管" 一個字確實是 mention
+  const next = rest.charAt(0);
+  // 後接空白 / 換行 / 標點:確定是 mention
+  // 後接其他字:屬於組合詞(總管理 / 編排器 / 學長姊)— 不算 mention
+  return /[\s\p{P}]/u.test(next);
+}
+
 export function detectSpiritMention(text: string): AgentRole | null {
   for (const entry of SPIRIT_NICKNAMES) {
     for (const name of entry.nicknames) {
-      if (text.includes(`@${name}`) || text.startsWith(name)) {
-        return entry.role;
-      }
+      // @-prefix 是顯式 mention,永遠認可
+      if (text.includes(`@${name}`)) return entry.role;
+      if (isBareNicknameMention(text, name)) return entry.role;
     }
   }
   return null;

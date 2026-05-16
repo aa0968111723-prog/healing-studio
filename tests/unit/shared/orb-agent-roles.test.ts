@@ -557,6 +557,46 @@ describe("detectSpiritMention / hasSpiritMention", () => {
     // 一般句子裡偶然提到「圖圖」不應誤判為 @-mention
     expect(detectSpiritMention("我和朋友圖圖一起去")).toBeNull();
   });
+
+  // M5 修復:bare-nickname 不能單純 startsWith,必須在邊界結束(空白 /
+  // CJK 標點 / 字串結束)。否則 ambiguous bare 會被誤觸發。
+  describe("M5: bare-nickname 邊界檢查", () => {
+    it("「總管理」不會誤判成 @總管(chief-orchestrator)", () => {
+      // 「總管理一下今天的點數」是「(總)管理」,不是叫總管去做事
+      expect(detectSpiritMention("總管理一下今天的點數")).toBeNull();
+    });
+
+    it("「編排一下流程」不會誤判成 @編排(composer)", () => {
+      expect(detectSpiritMention("編排一下流程")).toBeNull();
+    });
+
+    it("「學長告訴我怎麼用」不會誤判成 @學長(learning-specialist)", () => {
+      expect(detectSpiritMention("學長告訴我怎麼用")).toBeNull();
+    });
+
+    it("但「總管 」(後接空白)還是會認可", () => {
+      expect(detectSpiritMention("總管 請幫我看一下")).toBe("chief-orchestrator");
+    });
+
+    it("純「總管」一個字也認可(完整 mention)", () => {
+      expect(detectSpiritMention("總管")).toBe("chief-orchestrator");
+    });
+
+    it("「總管,我有問題」(後接中文逗號)也認可", () => {
+      expect(detectSpiritMention("總管,我有問題")).toBe("chief-orchestrator");
+    });
+
+    it("「@總管理一下」(顯式 @-prefix)永遠認可,不受邊界檢查影響", () => {
+      // @ 是顯式叫人,不管後面接什麼都當 mention
+      expect(detectSpiritMention("@總管理一下我的點數")).toBe("chief-orchestrator");
+    });
+
+    it("不歧義的 bare(如「圖圖」)仍維持原行為", () => {
+      // 「圖圖管理...」極少見,且「圖圖」不在 AMBIGUOUS_BARE_NICKNAMES,
+      // 維持原 startsWith 行為(會 match)。
+      expect(detectSpiritMention("圖圖 幫我畫")).toBe("image-specialist");
+    });
+  });
 });
 
 describe("getPrimaryNicknameForRole", () => {
