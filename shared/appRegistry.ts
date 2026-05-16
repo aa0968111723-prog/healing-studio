@@ -1192,9 +1192,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
 ];
 
-const normalizePathname = (path: string) => {
-  if (!path) return "/";
-  const [pathname] = path.split(/[?#]/);
+const normalizePathname = (rawPath: string) => {
+  if (!rawPath) return "/";
+  const [pathname] = rawPath.split(/[?#]/);
   if (!pathname) return "/";
   if (pathname !== "/" && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
@@ -1202,10 +1202,10 @@ const normalizePathname = (path: string) => {
   return pathname;
 };
 
-const normalizeRoutePath = (path: string) => {
-  if (!path) return "/";
-  const [withoutHash] = path.split("#");
-  if (!withoutHash) return "/";
+const normalizeRoutePath = (rawPath: string) => {
+  if (!rawPath) return "/";
+  const [withoutHash = ""] = rawPath.split("#");
+  if (withoutHash === "") return "/";
   const [pathname, search = ""] = withoutHash.split("?");
   const normalizedPathname = normalizePathname(pathname);
   return search ? `${normalizedPathname}?${search}` : normalizedPathname;
