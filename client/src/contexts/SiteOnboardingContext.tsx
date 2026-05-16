@@ -881,11 +881,16 @@ export function useSiteOnboarding() {
  * Convenience hook: automatically triggers the tour for the current page
  * when the component mounts (only if not yet seen, and only if no other
  * onboarding surface is currently active).
+ *
+ * Pass `null` to opt out — useful when a page is embedded inside another
+ * page that already owns the tour (e.g. HistoryPage embedded inside
+ * AssetsLibrary should not trigger its own "history" tour).
  */
-export function usePageTour(pageId: PageId, delayMs = 800) {
+export function usePageTour(pageId: PageId | null, delayMs = 800) {
   const { startTour, hasSeen, isActive, activeSurface } = useSiteOnboarding();
 
   useEffect(() => {
+    if (pageId === null) return;
     if (hasSeen(pageId)) return;
     // If another tour is mid-flight or the Home flow is showing, skip; the
     // user can re-enter the page later or replay tours from Settings.

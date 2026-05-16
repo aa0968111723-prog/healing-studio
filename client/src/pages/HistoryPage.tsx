@@ -132,16 +132,28 @@ function StarRating({
 
 // ─── History Page ──────────────────────────────────────────────────────────
 
-export default function HistoryPage() {
+/**
+ * embedded:當 HistoryPage 被嵌入到「數位資產庫」的「歷史時間軸」viewMode
+ * 時為 true。此時:
+ *   - 不渲染內部 page-header(避免與父頁的「數位資產庫」標題重疊)
+ *   - 不註冊 page agent / setPageContext(父頁已有 assets agent;雙重註冊
+ *     會搶占光球路由)
+ *   - 不觸發 usePageTour("history")(父頁已用 "assets" 引導)
+ *   - 不顯示 AssetModelSubpageGuide(已由父頁顯示)
+ * 走 /history 直接路徑時(legacy URL → /assets?section=history)由 App.tsx
+ * redirect,但若有人直接 mount <HistoryPage /> 不帶 embedded,維持完整頁面。
+ */
+export default function HistoryPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { setPageContext } = useAIState();
 
-  // 全站新手引導
-  usePageTour("history");
+  // 全站新手引導(嵌入時跳過,父頁有自己的)
+  usePageTour(embedded ? null : "history");
 
   useEffect(() => {
+    if (embedded) return;
     setPageContext({ pageId: "history", pageLabel: "歷史記錄" });
     return () => setPageContext(null);
-  }, [setPageContext]);
+  }, [setPageContext, embedded]);
 
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
@@ -342,6 +354,7 @@ export default function HistoryPage() {
     pageLabel: "歷史記錄",
     pagePath: "/history",
     capabilities: agentCapabilities,
+    enabled: !embedded,
     state: {
       filter,
       searchQuery,
@@ -391,16 +404,25 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-5">
-      <header className="page-header">
-        <div className="flex items-center gap-3">
-          <Clock className="w-5 h-5 text-muted-foreground" />
-          <h1 className="page-title !mb-0">生成歷史</h1>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            共 {stats.total} 筆紀錄
-          </span>
-        </div>
-      </header>
-      <AssetModelSubpageGuide page="history" />
+      {!embedded && (
+        <>
+          <header className="page-header">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-muted-foreground" />
+              <h1 className="page-title !mb-0">生成歷史</h1>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                共 {stats.total} 筆紀錄
+              </span>
+            </div>
+          </header>
+          <AssetModelSubpageGuide page="history" />
+        </>
+      )}
+      {embedded && (
+        <p className="text-xs text-muted-foreground tabular-nums">
+          歷史時間軸 — 共 {stats.total} 筆紀錄
+        </p>
+      )}
 
       {/* Stats Bar — horizontal scroll on mobile */}
       <div className="-mx-4 sm:mx-0 px-4 sm:px-0">
