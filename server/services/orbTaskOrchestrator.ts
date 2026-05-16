@@ -571,11 +571,38 @@ export interface RunOrbTaskResult {
 const MAX_SAME_ERROR_STREAK = 3;
 const recoveryMetrics = new Map<string, { attempts: number; successes: number }>();
 
+// L8 修復:防禦性 counter cap。實務上 +1 per operation 超過 Number.
+// MAX_SAFE_INTEGER 需要 9 × 10^15 次 — 永遠不會到。但 Map.get / set 是
+// 永久的,長 uptime 服務不應依賴重啟才能讀統計。export read + reset。
+const COUNTER_CAP = Number.MAX_SAFE_INTEGER;
+
 function recordRecoveryMetric(action: OrbRecoveryAction, ok: boolean): void {
   const cur = recoveryMetrics.get(action) ?? { attempts: 0, successes: 0 };
-  cur.attempts += 1;
-  if (ok) cur.successes += 1;
+  // 用 Math.min 把 cap 寫進 increment,避免 floating-point 計數失真。
+  cur.attempts = Math.min(cur.attempts + 1, COUNTER_CAP);
+  if (ok) cur.successes = Math.min(cur.successes + 1, COUNTER_CAP);
   recoveryMetrics.set(action, cur);
+}
+
+/** 給監控 / dashboard / cron 讀目前 recovery 統計快照。 */
+export function getRecoveryMetricsSnapshot(): Record<
+  string,
+  { attempts: number; successes: number; successRate: number }
+> {
+  const out: Record<string, { attempts: number; successes: number; successRate: number }> = {};
+  for (const [action, stats] of recoveryMetrics.entries()) {
+    out[action] = {
+      attempts: stats.attempts,
+      successes: stats.successes,
+      successRate: stats.attempts > 0 ? stats.successes / stats.attempts : 0,
+    };
+  }
+  return out;
+}
+
+/** 給 daily cron / test cleanup 用,清空累計統計。 */
+export function resetRecoveryMetrics(): void {
+  recoveryMetrics.clear();
 }
 
 /**

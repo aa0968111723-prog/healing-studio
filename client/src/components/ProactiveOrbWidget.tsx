@@ -1801,11 +1801,18 @@ export default memo(function ProactiveOrbWidget({
   }, [arrivedMessage, clearArrivedMessage, showFeedback]);
 
   // 30 秒無操作時，給一個柔和提示
+  // L16 修復:原本 dep 是 [showFeedback],callback 每次 render 重新識別時
+  // 會 cleanup + 重綁 5 個 window listener,過渡期重複註冊。改用 ref 解
+  // 耦:listener 永遠讀 showFeedbackRef.current,effect 只跑一次。
+  const showFeedbackRef = useRef(showFeedback);
+  useEffect(() => {
+    showFeedbackRef.current = showFeedback;
+  }, [showFeedback]);
   useEffect(() => {
     const resetIdleTimer = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(() => {
-        showFeedback("要不要我幫你開始？");
+        showFeedbackRef.current("要不要我幫你開始？");
       }, 30_000);
     };
 
@@ -1827,7 +1834,7 @@ export default memo(function ProactiveOrbWidget({
         window.removeEventListener(event, resetIdleTimer)
       );
     };
-  }, [showFeedback]);
+  }, []);
 
   // ─── Random fly behavior (when orbRandomFly is enabled) ───────────────
 

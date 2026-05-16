@@ -6236,7 +6236,12 @@ export const appRouter = router({
               const summary = extractMessageText(summaryResult.choices[0]?.message?.content).trim();
               if (summary) await upsertOrbMemory(ctx.user.id, summary);
             } catch (error) {
+              // L7 修復:長期 memory summary 失敗只 console.warn,跨會話偷
+              // 偷壞掉很難察覺。發 telemetry 讓監控可以 alert。
               console.warn("[Orb] failed to update user memory summary:", error);
+              appendTelemetryEvent(telemetryEvents, "orb.memory.summary_failed", {
+                error: error instanceof Error ? error.message : String(error),
+              });
             }
           })();
           return enriched;
@@ -6550,16 +6555,27 @@ export const appRouter = router({
               ...(preferences.videoLengthHint ? [`length:${preferences.videoLengthHint}`] : []),
               ...(preferences.name ? [`name:${preferences.name}`] : []),
             ];
-            recordOrbMemory({
-              userId: ctx.user.id,
-              traceId: `chat_${Date.now()}`,
-              type: "user_preference",
-              summary: `Preference update: name=${preferences.name ?? "unknown"}, lang=${preferences.language ?? "unknown"}, length=${preferences.videoLengthHint ?? "unknown"}, styles=${preferences.styles.join(",") || "none"}, platforms=${preferences.platforms.join(",") || "none"}, outputs=${preferences.outputs.join(",") || "none"}`,
-              source: "ai.chat",
-              confidence: 0.72,
-              tags,
-              metadata: preferences as unknown as Record<string, unknown>,
-            });
+            // L7 修復:recordOrbMemory 內部會 OrbMemorySchema.parse,parse
+            // 失敗會 throw,沒 try/catch 會冒泡到外層 catch 讓整個聊天回應
+            // 退化為 fallback-error。包起來確保 schema 漂移不影響使用者
+            // 看到實際回覆。
+            try {
+              recordOrbMemory({
+                userId: ctx.user.id,
+                traceId: `chat_${Date.now()}`,
+                type: "user_preference",
+                summary: `Preference update: name=${preferences.name ?? "unknown"}, lang=${preferences.language ?? "unknown"}, length=${preferences.videoLengthHint ?? "unknown"}, styles=${preferences.styles.join(",") || "none"}, platforms=${preferences.platforms.join(",") || "none"}, outputs=${preferences.outputs.join(",") || "none"}`,
+                source: "ai.chat",
+                confidence: 0.72,
+                tags,
+                metadata: preferences as unknown as Record<string, unknown>,
+              });
+            } catch (error) {
+              console.warn("[Orb] recordOrbMemory failed:", error);
+              appendTelemetryEvent(telemetryEvents, "orb.memory.record_failed", {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
           }
         }
 
