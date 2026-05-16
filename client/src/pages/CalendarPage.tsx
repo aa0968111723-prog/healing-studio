@@ -911,16 +911,13 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="hs-h2 !mb-0">創作排程</h1>
-            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-              拖曳筆記到日曆上安排創作時程
-            </p>
-          </div>
-        </div>
+      <div className="flex items-end justify-between gap-4">
+        <header className="page-header !mb-0">
+          <h1 className="page-title !mb-0">創作排程</h1>
+          <p className="page-subtitle">
+            拖曳筆記到日曆上安排創作時程
+          </p>
+        </header>
         <div className="flex gap-2">
           <Button
             size="sm"

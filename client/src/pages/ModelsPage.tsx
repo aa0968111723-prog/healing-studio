@@ -932,12 +932,13 @@ export default function ModelsPage() {
       ) : (
         <>
           <AssetModelSubpageGuide page="models" />
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Cpu className="w-5 h-5 text-muted-foreground" />
-          <h1 className="hs-h2 !mb-0">角色鍛造所</h1>
-        </div>
+      <div className="flex items-end justify-between gap-4">
+        <header className="page-header !mb-0">
+          <div className="flex items-center gap-3">
+            <Cpu className="w-5 h-5 text-muted-foreground" />
+            <h1 className="page-title !mb-0">角色鍛造所</h1>
+          </div>
+        </header>
         <Dialog
           open={dialogOpen}
           onOpenChange={open => {

@@ -617,11 +617,11 @@ export default function NotesPage() {
         </Suspense>
       ) : (
         <>
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-2">
+      <header className="page-header">
+      <div className="flex items-center justify-between gap-2 !mb-0">
         <div className="flex items-center gap-3">
           <StickyNote className="w-5 h-5 text-muted-foreground" />
-          <h1 className="hs-h2 !mb-0">專案筆記</h1>
+          <h1 className="page-title !mb-0">專案筆記</h1>
           <Badge variant="secondary" className="rounded-lg text-xs">
             {allNotes.length} 篇
           </Badge>
@@ -785,9 +785,10 @@ export default function NotesPage() {
         </div>
       </div>
 
-      <p className="hs-small !mb-0 text-muted-foreground">
+      <p className="page-subtitle">
         記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤、狀態追蹤與全文搜尋。
       </p>
+      </header>
       <PlanningSubpageGuide page="notes" />
 
       {/* ── Planning pulse（今日 / 即將 / 逾期） ── */}

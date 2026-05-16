@@ -204,11 +204,13 @@ export default function FeedbackPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <MessageSquare className="w-5 h-5 text-muted-foreground" />
-          <h1 className="hs-h2 !mb-0">回饋中心</h1>
-        </div>
+      <div className="flex items-end justify-between gap-4">
+        <header className="page-header !mb-0">
+          <div className="flex items-center gap-3">
+            <MessageSquare className="w-5 h-5 text-muted-foreground" />
+            <h1 className="page-title !mb-0">回饋中心</h1>
+          </div>
+        </header>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogTrigger asChild>
             <Button className="rounded-xl gap-1.5 text-sm">
