@@ -9,6 +9,7 @@ import { getDb } from "../db";
 import { orbTaskStore } from "./orbTaskStore";
 import { SCHEDULER_TIMEZONE } from "./cronPreview";
 import { invokeLLM, extractMessageText, type InvokeParams, type InvokeResult } from "../_core/llm";
+import { warnIfMultiInstanceSingleton } from "./serverDeploymentMode";
 
 // All user-defined orb cron expressions are interpreted in this timezone so
 // they fire at the wall-clock time Taiwanese users expect (and the time the
@@ -532,6 +533,14 @@ async function loadPersistedJobs(): Promise<OrbScheduledJob[]> {
 }
 
 export async function startOrbScheduler(): Promise<void> {
+  // L4: 多 instance 部署偵測。jobRegistry 是 process-local Map,沒 leader
+  // election 的情況下每個 worker 都會 cron.schedule 同一條 job,同 tick
+  // 被觸發 N 次(N = worker 數)。如果 operator 真的 scale-out,至少在
+  // stdout 看得到一條警告知道踩了。
+  warnIfMultiInstanceSingleton(
+    "orbScheduler",
+    "in-memory jobRegistry → every worker fires cron jobs independently (double-trigger / N-trigger risk)"
+  );
   // 1) Rebuild the in-process cron registry from DB rows so user-defined
   //    schedules survive restarts and multi-instance deployments.
   const persisted = await loadPersistedJobs();

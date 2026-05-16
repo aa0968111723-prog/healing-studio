@@ -45,6 +45,16 @@ import {
   type AgentPlannerInput,
 } from "../agentPlanner";
 import type { AgentWorkflowStep, RunWorkflowAction } from "../../../shared/agent-actions";
+import { warnIfMultiInstanceSingleton } from "../serverDeploymentMode";
+
+// H6: 多 instance 部署偵測。PLAN_STORE 是 process-local Map,沒 sticky
+// session 的話 user A 在 worker 1 建的 plan,下一個請求被 route 到 worker
+// 2 會看到 404。在 module load 時(boot)發一次警告,operator 在 stdout
+// 就能看見部署模式不符限制。
+warnIfMultiInstanceSingleton(
+  "planExecutor",
+  "in-memory PLAN_STORE → plans created on one worker are invisible to other workers (cross-worker 404 risk; needs sticky session)"
+);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
