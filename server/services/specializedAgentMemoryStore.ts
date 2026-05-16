@@ -202,6 +202,10 @@ export async function getSpecialistMemoryHints(
         specializedAgentInteractions.agentId,
         specializedAgentInteractions.interactionType
       )
+      // L10:沒 ORDER BY 時 LIMIT 切到的是 SQL 引擎決定的「任意 60 列」,
+      // 真正常用的精靈統計可能被截走。按 count DESC 排序確保即使
+      // 觸發 LIMIT 也是保留最活躍的精靈。
+      .orderBy(desc(sql`cnt`))
       .limit(limit);
 
     if (rows.length === 0) return "";

@@ -4912,7 +4912,16 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           })),
         personality,
         context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}${parsedStructureHint}${selectedTextHint}`,
-        pageSnapshot: pageAgent.snapshot ?? undefined,
+        // L17 修復:路由切換(A→B)時,B 頁 mount 完成到 PageAgent register
+        // effect 跑之間有 >=1 frame 的空窗,期間 pageAgent.snapshot 仍指
+        // 向 A 頁。如果 sendMessage 剛好在這段空窗觸發,server 拿到「使用
+        // 者在 B 頁但 capability 是 A 頁的」,planner 路由錯。
+        // 比對 locationPath 與 snapshot.pagePath:不一致就傳 undefined,
+        // 讓 server 走 page-agnostic 路徑而不是錯頁 capability。
+        pageSnapshot:
+          pageAgent.snapshot && pageAgent.snapshot.pagePath === locationPath
+            ? pageAgent.snapshot
+            : undefined,
         recentFeedback: pageAgent.recentFeedback,
         preferences: preferencesForChat,
         requestId: progressRequestId,
