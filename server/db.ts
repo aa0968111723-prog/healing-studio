@@ -765,7 +765,27 @@ export async function updateFineTunedModel(
 ) {
   const db = await getDb();
   if (!db) return;
-  await db.update(fineTunedModels).set(data).where(eq(fineTunedModels.id, id));
+  // configJson is stored as a single JSON column; SQL UPDATE replaces it
+  // wholesale. Merge with the existing config so partial patches from the
+  // training pipeline (e.g. predictionId, completedAt) don't wipe out
+  // fields written at create time (datasetImages, batchSize, isStyle, …).
+  let payload = data;
+  if (data.configJson !== undefined && data.configJson !== null) {
+    const rows = await db
+      .select({ configJson: fineTunedModels.configJson })
+      .from(fineTunedModels)
+      .where(eq(fineTunedModels.id, id))
+      .limit(1);
+    const existing = (rows[0]?.configJson ?? {}) as Record<string, unknown>;
+    payload = {
+      ...data,
+      configJson: {
+        ...existing,
+        ...(data.configJson as Record<string, unknown>),
+      },
+    } as Partial<InsertFineTunedModel>;
+  }
+  await db.update(fineTunedModels).set(payload).where(eq(fineTunedModels.id, id));
 }
 
 export async function deleteFineTunedModel(id: number) {

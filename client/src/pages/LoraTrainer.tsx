@@ -200,7 +200,9 @@ function formatDuration(startMs: number | null, endMs: number | null): string {
 
 // ── Main Page Component ─────────────────────────────────────────────────────
 
-export default function LoraTrainer() {
+export default function LoraTrainer({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   usePageTour("lora-trainer");
   const [, navigate] = useLocation();
 
@@ -996,21 +998,9 @@ export default function LoraTrainer() {
   }
 
   return (
-    <div className="page-shell page-shell-narrow space-y-5 sm:space-y-6">
-      <div className="flex items-start justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-200/40 shrink-0">
-            <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
-          </div>
-          <div className="min-w-0">
-            <p className="page-eyebrow">LoRA Trainer</p>
-            <h1 className="page-title !mb-0">AI 模型訓練中心</h1>
-            <p className="page-subtitle mt-1">
-              多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className={embedded ? "space-y-5 sm:space-y-6" : "page-shell page-shell-narrow space-y-5 sm:space-y-6"}>
+      {embedded ? (
+        <div className="flex items-center justify-end gap-2">
           <Button
             className="rounded-xl gap-1.5 text-xs sm:text-sm shrink-0 min-h-[44px]"
             onClick={() => {
@@ -1023,9 +1013,37 @@ export default function LoraTrainer() {
             <span className="sm:hidden">新增</span>
           </Button>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-start justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-200/40 shrink-0">
+              <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="page-eyebrow">LoRA Trainer</p>
+              <h1 className="page-title !mb-0">AI 模型訓練中心</h1>
+              <p className="page-subtitle mt-1">
+                多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              className="rounded-xl gap-1.5 text-xs sm:text-sm shrink-0 min-h-[44px]"
+              onClick={() => {
+                resetForm();
+                setTab("train");
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">新增訓練</span>
+              <span className="sm:hidden">新增</span>
+            </Button>
+          </div>
+        </div>
+      )}
 
-      <AssetModelSubpageGuide page="lora-trainer" />
+      {!embedded && <AssetModelSubpageGuide page="lora-trainer" />}
 
       {/* Tabs */}
       <Tabs

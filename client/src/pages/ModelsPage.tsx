@@ -925,20 +925,17 @@ export default function ModelsPage() {
         </button>
       </div>
 
+      <AssetModelSubpageGuide
+        page={pageTab === "trainer" ? "lora-trainer" : "models"}
+      />
+
       {pageTab === "trainer" ? (
         <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
-          <LoraTrainer />
+          <LoraTrainer embedded />
         </Suspense>
       ) : (
         <>
-          <AssetModelSubpageGuide page="models" />
-      <div className="flex items-end justify-between gap-4">
-        <header className="page-header !mb-0">
-          <div className="flex items-center gap-3">
-            <Cpu className="w-5 h-5 text-muted-foreground" />
-            <h1 className="page-title !mb-0">角色鍛造所</h1>
-          </div>
-        </header>
+      <div className="flex items-center justify-end gap-4">
         <Dialog
           open={dialogOpen}
           onOpenChange={open => {
