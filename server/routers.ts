@@ -6957,7 +6957,7 @@ export const appRouter = router({
                 preferredEngine: "auto",
                 warnings: [plannerQuota.reason ?? "planner quota limited"],
               });
-              return {
+              return finalizeIdempotentResponse({
                 reply: "你今天的此類任務額度已用完，可以改成較小的任務，或明天再試。",
                 actions: [],
                 intent: null,
@@ -6979,7 +6979,7 @@ export const appRouter = router({
                 },
                 ...meta,
                 taskDraft: null,
-              };
+              });
             }
           }
 
@@ -7157,7 +7157,7 @@ export const appRouter = router({
               chatOnlyResult.choices[0]?.message?.content
             );
             const chatOnlyReply = chatOnlyText || "我在這裡，隨時可以聊天！";
-            return {
+            return finalizeIdempotentResponse({
               reply: chatOnlyReply,
               actions: [],
               intent: null,
@@ -7179,7 +7179,7 @@ export const appRouter = router({
               },
               ...meta,
               taskDraft: null,
-            };
+            });
           }
 
           // Track planner-level failures so the legacy fallback meta can surface
@@ -8028,8 +8028,18 @@ export const appRouter = router({
           // legacy.needsClarification was added by orbReplyParser; force askBeforeAct
           // when set so the front-end opens the ClarificationCard.
           const fallbackNeedsClarification = legacy.needsClarification === true;
+          // LLM 可能只回 marker(例:[ACTION:navigate:/x])沒有敘述,parseOrbReply
+          // strip 完 markers 後 reply 變空字串。直接 spread 會讓 UI 出現「空白氣泡
+          // + 自動跳頁」這種很驚悚的體驗,補一句中性回覆當保底。
+          const fallbackReply =
+            typeof legacy.reply === "string" && legacy.reply.trim()
+              ? legacy.reply
+              : legacyActions.length > 0
+                ? "好的,我來處理。"
+                : "我在這裡,隨時可以聊天!";
           return finalizeIdempotentResponse({
             ...legacy,
+            reply: fallbackReply,
             actions: fallbackNeedsClarification ? [] : legacyActions,
             askBeforeAct: fallbackNeedsClarification
               ? true

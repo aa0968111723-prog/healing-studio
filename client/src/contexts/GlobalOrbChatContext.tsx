@@ -2869,6 +2869,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     saveActiveConversationIdToStorage(activeConversationId);
   }, [activeConversationId]);
 
+  // 鏡像 state 到 ref。switchConversation 等 async 流程在 await 跨越中如果
+  // 使用者再切回原對話,closure 捕到的 activeConversationId 是 stale 的;
+  // ref 永遠拿得到「現在這顆使用者實際看到的對話」。
+  const activeConversationIdRef = useRef(activeConversationId);
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
   // ─── Push new turns to the server ──────────────────────────────────────
   // The watermark map (conversationId → newest persisted `at`) is the guard
   // that stops the same message getting POSTed twice when React re-renders
@@ -3551,6 +3559,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // resurrect a cleared history or overwrite a freshly-typed message).
   const sendRequestIdRef = useRef(0);
 
+  // 同步 in-flight 旗標。同 render tick 內快速雙擊送出時,closure 捕到的
+  // `isSending` 兩次都是 false → 會同時推兩條 user message + 發兩次 mutate。
+  // ref 在 callback 第一行同步翻 true,第二個 invoke 就直接 return。
+  // UI 端按鈕 disabled 還是讀 state(因為 ref 變動不會觸發 re-render),兩者並存。
+  const isSendingRef = useRef(false);
+
   // Both clarification branches (server-driven `needsClarification` and the
   // client-side fallback `intentDetection`) end up doing the same thing
   // when the round counter hits MAX_CLARIFICATION_ROUNDS: surface a
@@ -3586,7 +3600,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     options: SendMessageOptions = {}
   ) => {
     const trimmed = text.trim();
-    if ((!trimmed && attachments.length === 0) || isSending) return;
+    if ((!trimmed && attachments.length === 0) || isSendingRef.current) return;
+    isSendingRef.current = true;
     const requestedMode = options.requestedMode;
 
     // 15 精靈 / 巧巧 (quality-coach)：使用者送出的 prompt 過短且沒 @ 點名，
@@ -5500,13 +5515,18 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }]);
     } finally {
       setIsSending(false);
+      isSendingRef.current = false;
       // Drop the progress-timeline poll guard regardless of which exit
       // path fired. Without this the client keeps polling even after the
       // mutation has resolved or thrown.
       setActiveProgressRequestId(null);
     }
     } finally {
+      // 外層 finally 是「setup 階段(3811~4803)同步 throw」的安全網。
+      // 大部分情況不會 fire,但若 fire,內層 finally 不會跑到,所以這裡也
+      // 必須同步清掉 isSendingRef,否則送出鈕永久卡 disabled。
       setIsSending(false);
+      isSendingRef.current = false;
     }
   }, [
     // `messages` intentionally omitted — we read via messagesRef.current so
@@ -5942,6 +5962,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setPendingWorkflow(null);
     setPendingClarification(null);
     clarificationRoundsRef.current = 0;
+    // 沒這幾行的話:in-flight 期間清歷史 → mutation 不會 await 完所以 finally
+    // 不會 reset isSending → 送出鈕卡 disabled,使用者要重整才能再聊。同時
+    // 進度時間軸 polling 也要停,否則繼續向 server 拉一個被廢棄的 requestId。
+    // isSendingRef 也必須同步翻 false,否則下一個 sendMessage 在第一行就 return。
+    setIsSending(false);
+    isSendingRef.current = false;
+    setActiveProgressRequestId(null);
     clearMessagesFromStorage(activeConversationId);
     if (isAuthenticated) {
       clearConversationServer.mutate(
@@ -6094,6 +6121,21 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           const remote = await trpcUtils.orbConversations.getMessages.fetch({
             conversationId,
           });
+          // 跨對話污染保險:await 期間使用者可能又切走(A→B→A),這時把
+          // B 的訊息 merge 進 A 的 list 就是 bug。比對 ref 確認當前對話
+          // 還是這個 fetch 鎖定的目標,否則把結果存進 storage 但不動 UI。
+          if (activeConversationIdRef.current !== conversationId) {
+            if (remote?.messages?.length) {
+              const cached: ChatMessage[] = remote.messages.map(m => ({
+                role: m.role as ChatRole,
+                text: m.text,
+                at: Number(m.at),
+                ...((m.metadata ?? {}) as Partial<ChatMessage>),
+              }));
+              saveMessagesToStorage(conversationId, cached);
+            }
+            return;
+          }
           if (remote?.messages?.length) {
             const remoteMessages: ChatMessage[] = remote.messages.map(m => ({
               role: m.role as ChatRole,
