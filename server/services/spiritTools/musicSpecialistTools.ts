@@ -28,6 +28,7 @@
  */
 
 import { logger } from "../../_core/logger";
+import { humanizeToolError } from "./errorHumanizer";
 import {
   MODEL_PRICING_CATALOG,
   estimatePoints,
@@ -788,7 +789,7 @@ export async function generateMusic(input: GenerateMusicInput): Promise<Generate
     return {
       success: false,
       modelIdUsed,
-      message: `生成失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `生成失敗:${humanizeToolError(error, { context: "musicSpecialist.generateMusic" })}`,
     };
   }
 }
@@ -852,7 +853,7 @@ export async function generateSoundEffect(
     return {
       success: false,
       modelIdUsed,
-      message: `生成失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `生成失敗:${humanizeToolError(error, { context: "musicSpecialist.generateSoundEffect" })}`,
     };
   }
 }

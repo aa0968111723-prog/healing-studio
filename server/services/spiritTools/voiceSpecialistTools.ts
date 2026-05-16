@@ -26,6 +26,7 @@
  */
 
 import { logger } from "../../_core/logger";
+import { humanizeToolError } from "./errorHumanizer";
 import { ELEVENLABS_BUILTIN_VOICES } from "../elevenLabsExtended";
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -269,7 +270,7 @@ export async function generateSpeech(
     });
     return {
       success: false,
-      message: `合成失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `合成失敗:${humanizeToolError(error, { context: "voiceSpecialist.generateSpeech" })}`,
     };
   }
 }
@@ -312,7 +313,7 @@ export async function transcribeAudio(input: {
     });
     return {
       success: false,
-      message: `轉寫失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `轉寫失敗:${humanizeToolError(error, { context: "voiceSpecialist.transcribeAudio" })}`,
     };
   }
 }
@@ -369,7 +370,7 @@ export async function cloneVoice(input: {
     });
     return {
       success: false,
-      message: `克隆失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `克隆失敗:${humanizeToolError(error, { context: "voiceSpecialist.cloneVoice" })}`,
     };
   }
 }
@@ -418,7 +419,7 @@ export async function designVoice(input: {
     });
     return {
       success: false,
-      message: `設計失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `設計失敗:${humanizeToolError(error, { context: "voiceSpecialist.designVoice" })}`,
     };
   }
 }
@@ -465,7 +466,7 @@ export async function changeVoice(input: {
     });
     return {
       success: false,
-      message: `變聲失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `變聲失敗:${humanizeToolError(error, { context: "voiceSpecialist.changeVoice" })}`,
     };
   }
 }
@@ -505,7 +506,7 @@ export async function generateSfx(input: {
     });
     return {
       success: false,
-      message: `音效失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `音效失敗:${humanizeToolError(error, { context: "voiceSpecialist.generateSfx" })}`,
     };
   }
 }

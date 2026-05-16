@@ -58,6 +58,12 @@ const OrbScheduleInput = z.object({
   enabled: z.boolean().default(true),
 });
 
+// H3 修復:per-user job cap。沒有上限的話一個帳號可建上千條 1 分鐘 cron
+// 把 Node main thread 跑滿(每條 job 內含 LLM 呼叫 + DB 寫入)。
+// 50 條已足夠一般「每天提醒 / 每週整理」之類用途,異常多就是 DoS 嫌疑。
+// 數字對齊 orbConversationsRouter.ts:31 的 MAX_CONVERSATIONS_PER_USER。
+const MAX_JOBS_PER_USER = 50;
+
 export const orbSchedulerRouter = router({
   scheduleJob: protectedProcedure
     .input(OrbScheduleInput)
@@ -76,6 +82,20 @@ export const orbSchedulerRouter = router({
           code: "CONFLICT",
           message: "此 ID 已被其他使用者使用，請換一個",
         });
+      }
+      // Per-user 上限檢查。只在「新增」(existing 為 undefined)時擋,既有
+      // job 的 update 不擋 — 否則 disable→enable / 改 cron 都會卡住。
+      // 即使 existing 在 memory registry 沒有,DB 還是可能有(restart 後
+      // 還沒重灌記憶體),getOwnedJobs 走 in-memory list 是近似而非精確;
+      // 拒絕的代價只是「使用者要先刪一條再加」,寬鬆 1-2 條不致命。
+      if (!existing) {
+        const owned = listScheduledJobs(ctx.user.id);
+        if (owned.length >= MAX_JOBS_PER_USER) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `已達排程上限（${MAX_JOBS_PER_USER}），請先刪除或停用舊排程後再新增。`,
+          });
+        }
       }
       // After a server restart the in-memory registry hasn't been rebuilt
       // yet for jobs that won't fire soon, so `getScheduledJob` can return
