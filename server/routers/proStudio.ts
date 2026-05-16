@@ -1927,12 +1927,25 @@ export const proStudioRouter = router({
       const charged = await chargeForFalTask(ctx.user.id, pricingKey, { durationSec: 60 });
 
       // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
+      // resultJson 必須帶上 studioType / modelId / prompt / sourceStudio —
+      // runPostGenForJob 從這裡讀回識別資訊寫入提示詞庫 / 資產庫 / 生成歷史。
+      // 不寫的話 Suno 完成後使用者在「我的資產」永遠看不到產出。
+      const sunoModelId = pricingKey; // "suno-v3.5" / "suno-v4"
+      const sunoLabel = input.title?.trim() || `Suno ${input.modelVersion} 音樂`;
       const insertId = await createBackgroundJob({
         userId: ctx.user.id,
         jobType: "audio",
         status: "processing",
         progressMessage: `Suno ${input.modelVersion} 生成中…`,
-        resultJson: { estimate } as any,
+        resultJson: {
+          estimate,
+          studioType: "audio",
+          modelId: sunoModelId,
+          prompt: input.prompt,
+          label: sunoLabel,
+          sourceStudio: "music-studio",
+          modelVersion: input.modelVersion,
+        } as any,
       });
       // createBackgroundJob now returns the raw insertId (number) — older
       // code here typed `job` as an object with `.id` and the typeof-object
@@ -1955,15 +1968,19 @@ export const proStudioRouter = router({
       try {
         const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
 
-        // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查
+        // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查。
+        // 必須先 fetch 既有 meta 再 merge，否則會覆寫 studioType / modelId /
+        // prompt / sourceStudio，導致下游 runPostGenForJob 找不到識別資訊。
         if (jobId) {
-          const { updateBackgroundJob } = await import("../db");
+          const { updateBackgroundJob, getBackgroundJob } = await import("../db");
+          const existing = await getBackgroundJob(jobId);
+          const existingMeta =
+            (existing?.resultJson ?? {}) as Record<string, unknown>;
           await updateBackgroundJob(jobId, {
             resultJson: {
+              ...existingMeta,
               sunoTaskId: taskId,
-              estimate,
               userId: ctx.user.id,
-              modelVersion: input.modelVersion,
             } as any,
           });
         }
@@ -2016,12 +2033,31 @@ export const proStudioRouter = router({
         )) as { audioUrl: string; clips: typeof status.clips };
 
         if (input.jobId) {
-          const { updateBackgroundJob } = await import("../db");
+          const { updateBackgroundJob, getBackgroundJob } = await import("../db");
+          // Merge with existing meta so studioType / modelId / prompt /
+          // sourceStudio survive — otherwise runPostGenForJob can't persist
+          // the asset to digital_asset_library / generation_history and the
+          // user can't find the song they just generated.
+          const existing = await getBackgroundJob(input.jobId);
+          const existingMeta =
+            (existing?.resultJson ?? {}) as Record<string, unknown>;
           await updateBackgroundJob(input.jobId, {
             status: "completed",
             progress: 100,
-            resultJson: localized as any,
+            resultJson: {
+              ...existingMeta,
+              ...localized,
+              resultUrl: localized.audioUrl,
+              mediaType: "audio",
+            } as any,
           });
+          // Persist into asset library / history / prompt library /
+          // monitor. Idempotent via postGenComplete flag — if the webhook
+          // already ran this is a no-op.
+          const { runPostGenForJob } = await import(
+            "../services/postGenActions.js"
+          );
+          void runPostGenForJob(input.jobId);
         }
 
         return {
