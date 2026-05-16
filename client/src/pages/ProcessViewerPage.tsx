@@ -266,8 +266,8 @@ export default function ProcessViewerPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-cyan-50">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
+    <div className="min-h-screen w-full bg-gradient-to-br from-muted/40 via-background to-cyan-500/5">
+      <div className="page-shell page-shell-narrow !max-w-3xl page-shell-pad space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="gap-1">

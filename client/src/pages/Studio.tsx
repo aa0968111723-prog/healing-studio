@@ -2747,9 +2747,7 @@ export default function Studio() {
   });
 
   return (
-    <div className="space-y-4">
-
-
+    <div className="page-shell space-y-4">
       {/* ── Header with Creative Mode Selector + Toolbox ── */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">

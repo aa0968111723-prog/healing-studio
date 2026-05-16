@@ -693,19 +693,19 @@ export default function AiBrainSettings() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
+    <div className="page-shell space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <header className="page-header !mb-0">
+          <p className="page-eyebrow">AI Brain</p>
+          <h1 className="page-title flex items-center gap-2 !mb-0">
             <Brain className="w-6 h-6" />
             AI 大腦組態
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="page-subtitle">
             5種推理大腦 · 4種生成引擎 · 16大Fal.ai任務引擎 · Gemini / ElevenLabs
             / Vertex AI 自由切換
           </p>
-        </div>
+        </header>
 
         {/* Health Summary Pills */}
         <div className="flex items-center gap-2 flex-shrink-0">

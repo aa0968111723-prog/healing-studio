@@ -64,12 +64,11 @@ export default function MyBrainPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 h-[calc(100vh-4rem)] min-h-0">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold text-foreground">
-          🧠 我的腦組態狀態
-        </h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex-1 flex flex-col gap-4 h-[calc(100vh-4rem)] min-h-0 page-shell page-shell-pad">
+      <header className="page-header !mb-0">
+        <p className="page-eyebrow">My Brain</p>
+        <h1 className="page-title !mb-0">🧠 我的腦組態狀態</h1>
+        <p className="page-subtitle">
           看看你目前選用的 5 個推理大腦、4 個生成引擎，以及光球代理／導演 AI
           的即時運作狀況。點擊節點查看詳細說明與建議。
         </p>

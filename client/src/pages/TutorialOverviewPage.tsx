@@ -138,7 +138,7 @@ export default function TutorialOverviewPage() {
   });
 
   return (
-    <div className="w-full p-2.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-5">
+    <div className="page-shell space-y-3 sm:space-y-5">
       <Card>
         <CardHeader className="pb-2 px-3.5 sm:px-6 sm:pb-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">

@@ -282,12 +282,12 @@ export default function AccountSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 p-4 py-8">
-      <div className="container max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-purple-500/8 via-background to-blue-500/8">
+      <div className="page-shell page-shell-narrow !max-w-3xl page-shell-pad">
         <div className="mb-6">
           <a
             href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-healing"
           >
             <ArrowLeft className="h-4 w-4" />
             返回首頁

@@ -225,18 +225,17 @@ export default function Playground() {
   });
 
   return (
-    <div className="playground-shell space-y-5">
-      <header className="playground-hero relative overflow-hidden rounded-2xl border border-border/40 px-5 py-4 sm:px-6 sm:py-5">
+    <div className="playground-shell page-shell space-y-5">
+      <header className="playground-hero page-header relative overflow-hidden rounded-2xl border border-border/40 px-5 py-4 sm:px-6 sm:py-5 !gap-0">
         <div className="playground-hero-glow" aria-hidden />
         <div className="relative flex items-start gap-3">
           <div className="rounded-xl bg-primary/10 p-2 text-primary">
             <Sparkles className="size-5" />
           </div>
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              模型樂園
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-2xl">
+            <p className="page-eyebrow">Playground</p>
+            <h1 className="page-title !mb-0">模型樂園</h1>
+            <p className="page-subtitle">
               所有進階模型工具都在這裡：圖片、影片、音樂創作室、角色鍛造、模型訓練、數據儀表板與提示詞庫，可在頁籤間自由切換。
             </p>
           </div>

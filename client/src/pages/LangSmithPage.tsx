@@ -1487,22 +1487,23 @@ export default function LangSmithPage() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-muted-foreground" />
-          <h1 className="hs-h2 !mb-0">AI 監控中心</h1>
-        </div>
+    <div className="page-shell space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <header className="page-header !mb-0">
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-muted-foreground" />
+            <h1 className="page-title !mb-0">AI 監控中心</h1>
+          </div>
+          <p className="page-subtitle">
+            LangSmith 深度整合 —
+            全鏈路追蹤、生產監控、回饋收集、模型對比與微調數據導出。
+          </p>
+        </header>
         <ConnectionBadge
           connected={statusQuery.data?.connected ?? false}
           message={statusQuery.data?.message ?? "載入中..."}
         />
       </div>
-      <p className="text-xs text-muted-foreground -mt-4">
-        LangSmith 深度整合 —
-        全鏈路追蹤、生產監控、回饋收集、模型對比與微調數據導出。
-      </p>
 
       {/* Tabs */}
       <Tabs

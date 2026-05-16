@@ -456,19 +456,17 @@ export default function SharedSpace() {
 
   return (
     <SharedSpaceErrorBoundary>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
-              <Users className="w-6 h-6" />
-              共享空間
-            </h1>
-            <p className="hs-p !mb-0 text-muted-foreground mt-1">
-              探索社群創作、分享你的作品，獲得配額獎勵
-            </p>
-          </div>
-        </div>
+      <div className="page-shell space-y-6">
+        <header className="page-header">
+          <p className="page-eyebrow">Shared Space</p>
+          <h1 className="page-title flex items-center gap-2 !mb-0">
+            <Users className="w-6 h-6" />
+            共享空間
+          </h1>
+          <p className="page-subtitle">
+            探索社群創作、分享你的作品，獲得配額獎勵
+          </p>
+        </header>
 
         <AssetModelSubpageGuide page="shared" />
 

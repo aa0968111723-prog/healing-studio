@@ -224,9 +224,12 @@ export default function ComponentsShowcase() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className="container max-w-6xl mx-auto">
-        <div className="space-y-2 justify-between flex">
-          <h2 className="hs-h1 mb-6">Shadcn/ui Component Library</h2>
+      <main className="page-shell page-shell-pad">
+        <div className="flex items-end justify-between gap-4">
+          <header className="page-header !mb-0">
+            <p className="page-eyebrow">Component Library</p>
+            <h1 className="page-title">Shadcn/ui Component Library</h1>
+          </header>
           <Button variant="outline" size="icon" onClick={toggleTheme}>
             {theme === "light" ? (
               <Moon className="h-5 w-5" />

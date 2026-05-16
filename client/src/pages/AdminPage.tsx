@@ -437,26 +437,28 @@ export default function AdminPage() {
   }, [users, userSearch, autoCreditFilter]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Shield className="w-5 h-5 text-muted-foreground" />
-        <h1 className="hs-h2 !mb-0">管理後台</h1>
-        <Badge variant="outline" className="text-[10px]">
-          管理員
-        </Badge>
-        <div className="flex-1" />
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="gap-1.5"
-          data-testid="admin-brain-pipeline-link"
-        >
-          <Link href="/admin/brain-pipeline">
-            🧠 大腦管線可視化
-          </Link>
-        </Button>
-      </div>
+    <div className="page-shell space-y-6">
+      <header className="page-header !mb-0">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Shield className="w-5 h-5 text-muted-foreground" />
+          <h1 className="page-title !mb-0">管理後台</h1>
+          <Badge variant="outline" className="text-[10px]">
+            管理員
+          </Badge>
+          <div className="flex-1" />
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            data-testid="admin-brain-pipeline-link"
+          >
+            <Link href="/admin/brain-pipeline">
+              🧠 大腦管線可視化
+            </Link>
+          </Button>
+        </div>
+      </header>
 
       <p className="text-xs text-muted-foreground">
         管理使用者配額、角色權限、API 金鑰、系統監控、使用紀錄與回饋處理。
