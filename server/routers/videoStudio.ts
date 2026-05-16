@@ -28,7 +28,7 @@ import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
-import { getFalModelById } from "../services/falModels";
+import { getFalModelById, resolveActiveModelId } from "../services/falModels";
 import {
   getVideoCompiler,
   type CameraModeId,
@@ -207,24 +207,87 @@ function extractVideoUrl(result: any): string | null {
   );
 }
 
-// ─── Pre-flight model availability ────────────────────────────────────────
+// ─── Pre-flight model substitution ────────────────────────────────────────
 // Many fal-ai endpoints we expose were short-circuited or removed upstream
 // (cammaster / depthcrafter / topaz / rife / bytedance upscaler / kling
-// standard t2v / sora). The catalog tracks this via `disabled: true`.
-// We block the dispatch here so the user gets an immediate, descriptive
-// error instead of the long async wait + cryptic failure.
-function assertModelEnabled(modelId: string): void {
+// standard t2v / sora). The catalog tracks this via `disabled: true` plus
+// an explicit `replacement` working modelId. We transparently rewrite the
+// dispatch target here, so:
+//   - the user-facing dropdown / model selection keeps showing the
+//     historical label (no UI churn, no regressions in saved brain configs)
+//   - the actual fal queue submit goes to a working sibling endpoint, so
+//     generation completes and the result gets saved to R2 as normal
+//   - the response carries `model_requested` / `model_used` / `degraded` so
+//     the UI can surface "上游暫停，已使用 X 代替" without hiding the swap.
+//
+// If a disabled entry ever lacks a `replacement` (none currently — see
+// falModels.ts catalog), we fall back to the legacy throw with the same
+// PRECONDITION_FAILED code the UI already handles.
+function resolveModelOrThrow(modelId: string): {
+  modelId: string;
+  substituted: boolean;
+  original: string;
+  reason?: string;
+  replacementLabel?: string;
+} {
   const cfg = getFalModelById(modelId);
-  if (!cfg) return; // unknown id falls through to dispatcher (it has its own fallbacks)
-  if (cfg.disabled) {
+  if (!cfg) {
+    return { modelId, substituted: false, original: modelId };
+  }
+  if (cfg.disabled && !cfg.replacement) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message:
-        `模型 ${cfg.label}（${modelId}）目前在 fal.ai 上游不可用。` +
+        `模型 ${cfg.label}（${modelId}）目前在 fal.ai 上游不可用且無等效替代品。` +
         (cfg.disabledReason ? ` 原因：${cfg.disabledReason}` : "") +
         " 請改選同分頁中其他可用的模型。",
     });
   }
+  return resolveActiveModelId(modelId);
+}
+
+/**
+ * Backwards-compatible wrapper. Working models hit this and pass straight
+ * through. The 8 broken-upstream models all now carry a `replacement`
+ * field in the catalog, so they no longer throw here — the call sites
+ * for those 8 use `resolveModelOrThrow` directly to obtain the rewritten
+ * modelId. Kept so the 14 non-broken call sites elsewhere in this file
+ * continue to compile / read naturally.
+ */
+function assertModelEnabled(modelId: string): void {
+  resolveModelOrThrow(modelId);
+}
+
+/**
+ * Helper to merge substitution telemetry into a router response so every
+ * disabled-model path emits a consistent `{ model_requested, model_used,
+ * degraded, degraded_reason }` triplet. UI reads these to render the
+ * amber "上游暫停，已使用 X 代替" callout instead of a hard error toast.
+ */
+function withSubstitutionMeta<T extends Record<string, unknown>>(
+  body: T,
+  resolved: ReturnType<typeof resolveModelOrThrow>
+): T & {
+  model_used: string;
+  model_requested: string;
+  degraded?: boolean;
+  degraded_reason?: string;
+} {
+  if (!resolved.substituted) {
+    return { ...body, model_used: resolved.modelId, model_requested: resolved.original };
+  }
+  return {
+    ...body,
+    model_used: resolved.modelId,
+    model_requested: resolved.original,
+    degraded: true,
+    degraded_reason:
+      `所選模型 ${resolved.original} 目前在 fal.ai 上游不可用` +
+      (resolved.reason ? `（${resolved.reason}）` : "") +
+      (resolved.replacementLabel
+        ? `，已自動使用 ${resolved.replacementLabel}（${resolved.modelId}）代替`
+        : `，已自動使用 ${resolved.modelId} 代替`),
+  };
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -273,14 +336,25 @@ export const videoStudioRouter = router({
 
     const out: Record<
       string,
-      { disabled: boolean; reason?: string; label?: string }
+      {
+        disabled: boolean;
+        reason?: string;
+        label?: string;
+        replacement?: string;
+        replacementLabel?: string;
+      }
     > = {};
     for (const id of ROUTER_MODEL_IDS) {
       const cfg = getFalModelById(id);
+      const replacementCfg = cfg?.replacement
+        ? getFalModelById(cfg.replacement)
+        : undefined;
       out[id] = {
         disabled: !!cfg?.disabled,
         reason: cfg?.disabledReason,
         label: cfg?.label,
+        replacement: cfg?.replacement,
+        replacementLabel: replacementCfg?.label,
       };
     }
     return out;
@@ -411,17 +485,18 @@ export const videoStudioRouter = router({
       if (input.motionIntensity !== undefined)
         payload.motion_intensity = input.motionIntensity;
 
-      assertModelEnabled("fal-ai/kling-video/v2.1/standard/text-to-video");
-      const result = (await falQueueRun(
-        "fal-ai/kling-video/v2.1/standard/text-to-video",
-        payload,
-        300
-      )) as any;
-      return {
-        video_url: extractVideoUrl(result),
-        request_id: result?.request_id ?? null,
-        raw: result,
-      };
+      const resolved = resolveModelOrThrow(
+        "fal-ai/kling-video/v2.1/standard/text-to-video"
+      );
+      const result = (await falQueueRun(resolved.modelId, payload, 300)) as any;
+      return withSubstitutionMeta(
+        {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+        },
+        resolved
+      );
     }),
 
   /**
@@ -649,56 +724,23 @@ export const videoStudioRouter = router({
         resolution: input.resolution,
         aspect_ratio: input.aspectRatio,
       };
-      // 嘗試 Sora 端點如失效則降級到 LTX-Video
-      const SORA_MODEL = "fal-ai/sora";
-      const FALLBACK_MODEL = "fal-ai/ltx-video-13b-distilled";
-      try {
-        const result = (await falQueueRun(SORA_MODEL, payload, 480)) as any;
-        return {
+      // Catalog-driven substitution: fal-ai/sora is flagged disabled with
+      // replacement → fal-ai/veo3 (same ultra-tier text-to-video; harness
+      // round 5 confirmed veo3 works). Veo3 accepts the same prompt /
+      // duration / aspect_ratio fields as our payload, so no payload
+      // remapping is needed when substitution kicks in. If the user
+      // explicitly chose Sora and the catalog isn't substituting (e.g. we
+      // someday restore Sora upstream), the original payload still flows.
+      const resolved = resolveModelOrThrow("fal-ai/sora");
+      const result = (await falQueueRun(resolved.modelId, payload, 480)) as any;
+      return withSubstitutionMeta(
+        {
           video_url: extractVideoUrl(result),
           request_id: result?.request_id ?? null,
           raw: result,
-          model_used: SORA_MODEL,
-        };
-      } catch (e: any) {
-        const errMsg = e?.message ?? String(e);
-        if (errMsg.includes("404") || errMsg.includes("not found")) {
-          // Sora 端點不可用，降級到 LTX-Video-13B
-          // 盡量保留使用者意圖：duration 換算 numFrames、aspect_ratio 換算 height/width
-          const fps = 25;
-          const numFrames = Math.min(257, Math.max(25, input.duration * fps));
-          const [w, h] =
-            input.aspectRatio === "9:16"
-              ? [480, 848]
-              : input.aspectRatio === "1:1"
-                ? [704, 704]
-                : [848, 480];
-          const fallbackPayload: Record<string, unknown> = {
-            prompt: input.prompt,
-            num_frames: numFrames,
-            fps,
-            height: h,
-            width: w,
-            expand_prompt: true,
-          };
-          const result = (await falQueueRun(
-            FALLBACK_MODEL,
-            fallbackPayload,
-            300
-          )) as any;
-          return {
-            video_url: extractVideoUrl(result),
-            request_id: result?.request_id ?? null,
-            raw: result,
-            degraded: true,
-            degraded_reason:
-              "Sora 在 fal.ai 暫時不可用（404），已自動降級至 LTX-Video-13B（畫質與時長會降低，請於前端提示使用者）",
-            model_requested: SORA_MODEL,
-            model_used: FALLBACK_MODEL,
-          };
-        }
-        throw e;
-      }
+        },
+        resolved
+      );
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1110,21 +1152,30 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const payload: Record<string, unknown> = {
-        video_url: input.videoUrl,
-        upscale_factor: parseInt(input.upscaleFactor),
-      };
-      assertModelEnabled("fal-ai/bytedance/upscaler/video");
-      const result = (await falQueueRun(
-        "fal-ai/bytedance/upscaler/video",
-        payload,
-        300
-      )) as any;
-      return {
-        video_url: extractVideoUrl(result),
-        request_id: result?.request_id ?? null,
-        raw: result,
-      };
+      // Catalog substitution: bytedance/upscaler/video → wan/v2.1/video-to-video.
+      // Wan v2v has a different schema (needs prompt + strength), so we remap
+      // the upscaler intent into a v2v "enhance details" pass that preserves
+      // the user's video and yields a working artefact.
+      const resolved = resolveModelOrThrow("fal-ai/bytedance/upscaler/video");
+      const payload: Record<string, unknown> = resolved.substituted
+        ? {
+            prompt: `enhance and upscale, sharper details, ${input.upscaleFactor}x quality, photorealistic`,
+            video_url: input.videoUrl,
+            strength: 0.35,
+          }
+        : {
+            video_url: input.videoUrl,
+            upscale_factor: parseInt(input.upscaleFactor),
+          };
+      const result = (await falQueueRun(resolved.modelId, payload, 300)) as any;
+      return withSubstitutionMeta(
+        {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+        },
+        resolved
+      );
     }),
 
   /**
@@ -1141,22 +1192,32 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const payload: Record<string, unknown> = {
-        video_url: input.videoUrl,
-        multiplier: parseInt(input.multiplier),
-        output_fps: input.outputFps,
-      };
-      assertModelEnabled("fal-ai/rife-v4.6/video");
-      const result = (await falQueueRun(
-        "fal-ai/rife-v4.6/video",
-        payload,
-        240
-      )) as any;
-      return {
-        video_url: extractVideoUrl(result),
-        request_id: result?.request_id ?? null,
-        raw: result,
-      };
+      // Catalog substitution: rife-v4.6/video → wan/v2.1/video-to-video.
+      // Wan v2v doesn't do true frame interpolation (RIFE generates synthetic
+      // intermediate frames), but a low-strength v2v pass preserves the
+      // source motion and renders a smoothed result. The user gets a video
+      // artefact instead of a thrown error; UI surfaces the substitution.
+      const resolved = resolveModelOrThrow("fal-ai/rife-v4.6/video");
+      const payload: Record<string, unknown> = resolved.substituted
+        ? {
+            prompt: `smooth motion at ${input.outputFps}fps, fluid frame transitions, ${input.multiplier}x interpolated`,
+            video_url: input.videoUrl,
+            strength: 0.25,
+          }
+        : {
+            video_url: input.videoUrl,
+            multiplier: parseInt(input.multiplier),
+            output_fps: input.outputFps,
+          };
+      const result = (await falQueueRun(resolved.modelId, payload, 240)) as any;
+      return withSubstitutionMeta(
+        {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+        },
+        resolved
+      );
     }),
 
   /**
@@ -1176,22 +1237,38 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const payload: Record<string, unknown> = {
-        video_url: input.videoUrl,
-        model: input.model,
-        output_scale: input.outputScale,
+      // Catalog substitution: topaz/video-enhance → wan/v2.1/video-to-video.
+      // We translate Topaz's denoise/enhance model presets into a v2v prompt
+      // (iris=face, artemis=general, theia=detail, gaia=hi-res, nyx=low-light)
+      // so the rendered video carries the user's enhancement intent.
+      const TOPAZ_PROMPT_BY_MODEL: Record<string, string> = {
+        iris: "enhance facial details, smooth skin, sharper eyes, photorealistic portrait",
+        artemis: "general enhancement, denoise, sharper details, balanced quality",
+        theia: "preserve fine details, sharper edges, enhanced texture",
+        gaia: "high-resolution enhancement, crisp details, professional grade",
+        nyx: "denoise low-light footage, clean shadows, preserve dark detail",
       };
-      assertModelEnabled("fal-ai/topaz/video-enhance");
-      const result = (await falQueueRun(
-        "fal-ai/topaz/video-enhance",
-        payload,
-        600
-      )) as any;
-      return {
-        video_url: extractVideoUrl(result),
-        request_id: result?.request_id ?? null,
-        raw: result,
-      };
+      const resolved = resolveModelOrThrow("fal-ai/topaz/video-enhance");
+      const payload: Record<string, unknown> = resolved.substituted
+        ? {
+            prompt: `${TOPAZ_PROMPT_BY_MODEL[input.model] ?? TOPAZ_PROMPT_BY_MODEL.artemis}, ${input.outputScale}x quality`,
+            video_url: input.videoUrl,
+            strength: 0.3,
+          }
+        : {
+            video_url: input.videoUrl,
+            model: input.model,
+            output_scale: input.outputScale,
+          };
+      const result = (await falQueueRun(resolved.modelId, payload, 600)) as any;
+      return withSubstitutionMeta(
+        {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+        },
+        resolved
+      );
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1234,23 +1311,53 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const payload: Record<string, unknown> = {
-        prompt: input.prompt,
-        image_url: input.imageUrl,
-        camera_motion: input.cameraMotion,
-        duration: input.duration,
+      // Catalog substitution: cammaster → kling-video/v2.1/pro/image-to-video.
+      // Kling pro i2v doesn't have a `camera_motion` field, so we append the
+      // selected motion to the prompt in natural language; kling's prompt
+      // interpreter is strong enough to follow these cues.
+      const CAM_DESCRIPTIONS: Record<string, string> = {
+        static: "static camera, fixed shot",
+        move_left: "camera slowly moves left, lateral tracking shot",
+        move_right: "camera slowly moves right, lateral tracking shot",
+        move_up: "camera rises smoothly, upward dolly",
+        move_down: "camera descends smoothly, downward dolly",
+        push_in: "camera pushes in toward subject, dolly-in",
+        pull_out: "camera pulls back from subject, dolly-out",
+        pan_left: "camera pans left horizontally",
+        pan_right: "camera pans right horizontally",
+        tilt_up: "camera tilts upward",
+        tilt_down: "camera tilts downward",
+        roll_clockwise: "camera rolls clockwise",
+        roll_counterclockwise: "camera rolls counter-clockwise",
+        orbit_left: "camera orbits the subject from the left, circular arc",
+        orbit_right: "camera orbits the subject from the right, circular arc",
+        crane_up: "crane shot rising upward, elevated view",
+        crane_down: "crane shot descending, lowering view",
       };
-      assertModelEnabled("fal-ai/cammaster");
-      const result = (await falQueueRun(
-        "fal-ai/cammaster",
-        payload,
-        300
-      )) as any;
-      return {
-        video_url: extractVideoUrl(result),
-        request_id: result?.request_id ?? null,
-        raw: result,
-      };
+      const resolved = resolveModelOrThrow("fal-ai/cammaster");
+      const payload: Record<string, unknown> = resolved.substituted
+        ? {
+            prompt: `${input.prompt}. Camera motion: ${CAM_DESCRIPTIONS[input.cameraMotion] ?? input.cameraMotion}.`,
+            image_url: input.imageUrl,
+            duration: String(input.duration),
+            aspect_ratio: "16:9",
+            cfg_scale: 0.5,
+          }
+        : {
+            prompt: input.prompt,
+            image_url: input.imageUrl,
+            camera_motion: input.cameraMotion,
+            duration: input.duration,
+          };
+      const result = (await falQueueRun(resolved.modelId, payload, 300)) as any;
+      return withSubstitutionMeta(
+        {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+        },
+        resolved
+      );
     }),
 
   /**
@@ -1322,25 +1429,39 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const payload: Record<string, unknown> = {
-        video_url: input.videoUrl,
-        num_denoising_steps: input.numDenoising,
-        guidance_scale: input.guidance,
-        window_size: input.windowSize,
-        overlap: input.overlap,
-        max_res: input.maxRes,
-      };
-      assertModelEnabled("fal-ai/depthcrafter");
-      const result = (await falQueueRun(
-        "fal-ai/depthcrafter",
-        payload,
-        300
-      )) as any;
-      return {
-        video_url: extractVideoUrl(result),
-        request_id: result?.request_id ?? null,
-        raw: result,
-      };
+      // Catalog substitution: depthcrafter → animatediff-v2v.
+      // AnimateDiff supports a depth ControlNet which approximates the
+      // "depth-aware video" intent of DepthCrafter without producing an
+      // explicit depth time-series. We carry guidance_scale through and
+      // map num_denoising_steps → num_inference_steps (analogous).
+      const resolved = resolveModelOrThrow("fal-ai/depthcrafter");
+      const payload: Record<string, unknown> = resolved.substituted
+        ? {
+            prompt:
+              "depth-aware rendering, preserve spatial depth, accurate parallax, photorealistic",
+            video_url: input.videoUrl,
+            controlnet_type: "depth",
+            controlnet_conditioning_scale: 1.0,
+            guidance_scale: input.guidance,
+            num_inference_steps: Math.min(50, Math.max(10, input.numDenoising)),
+          }
+        : {
+            video_url: input.videoUrl,
+            num_denoising_steps: input.numDenoising,
+            guidance_scale: input.guidance,
+            window_size: input.windowSize,
+            overlap: input.overlap,
+            max_res: input.maxRes,
+          };
+      const result = (await falQueueRun(resolved.modelId, payload, 300)) as any;
+      return withSubstitutionMeta(
+        {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+        },
+        resolved
+      );
     }),
 
   /**

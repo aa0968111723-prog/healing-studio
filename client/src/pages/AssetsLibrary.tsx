@@ -56,7 +56,6 @@ import {
   Filter,
   BookMarked,
   Layers,
-  Users,
   ListChecks,
   Clock,
   Cloud,
@@ -69,7 +68,6 @@ import { shortErrorMsg } from "@/lib/upload";
 
 const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
 const VaultPage = lazy(() => import("./VaultPage"));
-const SharedSpace = lazy(() => import("./SharedSpace"));
 const BackgroundTasksPage = lazy(() => import("./BackgroundTasksPage"));
 
 const typeConfig: Record<
@@ -138,24 +136,37 @@ const ASSET_TYPES = [
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 
 // ─── Section Tabs (合併後的大分頁) ───────────────────────────────────────────
+// 2026-05 合併:原本有 7 個分頁,使用者抱怨「不知道怎麼看」。
+// - 共享空間 → 併入「數位資產庫」的「我的 / 團隊共享」內部分頁(已存在)
+// - 生成歷史 → 併入「數位資產庫」的 viewMode 切換(資產卡 / 歷史時間軸)
+// - 成品輸出庫(VaultPage 子分頁) → 在 VaultPage.tsx 中移除,改由 數位資產庫
+//   統一承接(資料層已由 postGenActions 寫進 digital_asset_library)
+// 結果:7 個分頁 → 5 個分頁,且功能未流失。
 type SectionId =
   | "assets"
   | "prompts"
   | "vault"
-  | "shared"
   | "tasks"
-  | "history"
   | "drive";
+
+type AssetsViewMode = "cards" | "history";
 
 const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
   { id: "drive", label: "Drive 素材庫", icon: <Cloud className="w-3.5 h-3.5" /> },
-  { id: "history", label: "生成歷史", icon: <Clock className="w-3.5 h-3.5" /> },
   { id: "prompts", label: "提示詞庫", icon: <BookMarked className="w-3.5 h-3.5" /> },
   { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
-  { id: "shared", label: "共享空間", icon: <Users className="w-3.5 h-3.5" /> },
   { id: "tasks", label: "背景任務中心", icon: <ListChecks className="w-3.5 h-3.5" /> },
 ];
+
+// 為了相容舊書籤、舊外鏈,?section=shared / ?section=history 仍然可用,
+// 但會自動 land 在 數位資產庫 + 預選相應的內部狀態(共享=team tab、
+// history=history viewMode)。
+type LegacySection = "shared" | "history";
+function parseLegacySection(raw: string | null): LegacySection | null {
+  if (raw === "shared" || raw === "history") return raw;
+  return null;
+}
 
 function SubPageSkeleton() {
   return (
@@ -176,7 +187,26 @@ function getInitialSection(): SectionId {
   const s = params.get("section");
   const valid = SECTION_TABS.map(t => t.id);
   if (s && valid.includes(s as SectionId)) return s as SectionId;
+  // 舊書籤 ?section=shared / history 仍然 land 在 數位資產庫
+  if (parseLegacySection(s)) return "assets";
   return "assets";
+}
+
+function getInitialViewMode(): AssetsViewMode {
+  const params = new URLSearchParams(window.location.search);
+  // 新版直接走 ?view=history;舊書籤 ?section=history 也仍然 land 在 history viewMode
+  const v = params.get("view");
+  if (v === "history" || v === "cards") return v;
+  if (params.get("section") === "history") return "history";
+  return "cards";
+}
+
+function getInitialTab(): "my" | "team" {
+  const params = new URLSearchParams(window.location.search);
+  const t = params.get("tab");
+  if (t === "team" || t === "my") return t;
+  if (params.get("section") === "shared") return "team";
+  return "my";
 }
 
 function parsePositiveAssetId(raw: unknown): number | null {
@@ -426,12 +456,38 @@ export default function AssetsLibrary() {
     setSection(id);
     const params = new URLSearchParams(window.location.search);
     params.set("section", id);
+    // 切到非 assets 分頁時清掉舊的 view / tab 參數(它們只屬於 assets 內部)
+    if (id !== "assets") {
+      params.delete("view");
+      params.delete("tab");
+    }
     window.history.replaceState(null, "", `?${params.toString()}`);
+  };
+
+  // 把 viewMode / tab 同步進 URL,讓使用者重新整理 / 分享連結時保留狀態
+  const updateAssetsUrlParam = (key: "view" | "tab", value: string, defaultValue: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (value === defaultValue) {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  };
+  const handleViewModeChange = (m: AssetsViewMode) => {
+    setViewMode(m);
+    updateAssetsUrlParam("view", m, "cards");
+  };
+  const handleAssetsTabChange = (t: "my" | "team") => {
+    setTab(t);
+    updateAssetsUrlParam("tab", t, "my");
   };
 
   // 全站新手引導
   usePageTour("assets");
-  const [tab, setTab] = useState("my");
+  const [tab, setTab] = useState<"my" | "team">(getInitialTab);
+  const [viewMode, setViewMode] = useState<AssetsViewMode>(getInitialViewMode);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<AssetTypeFilter>("all");
@@ -546,7 +602,7 @@ export default function AssetsLibrary() {
           if (action.tabId !== "my" && action.tabId !== "team") {
             return { ok: false, reason: `unknown tab: ${action.tabId}` };
           }
-          setTab(action.tabId);
+          handleAssetsTabChange(action.tabId);
           return { ok: true, message: `切到「${action.tabId}」` };
         }
         case "setParam": {
@@ -641,7 +697,7 @@ export default function AssetsLibrary() {
                 <h1 className="page-title !mb-0">數位資產庫</h1>
               </div>
               <p className="page-subtitle">
-                管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。
+                所有 AI 生成成品、手動上傳資產、團隊共享、歷史紀錄都在這裡。下方切換「資產卡 / 歷史時間軸」與「我的 / 團隊共享」。
               </p>
             </header>
             <div className="flex items-center gap-2">
@@ -658,6 +714,29 @@ export default function AssetsLibrary() {
 
           <AssetModelSubpageGuide page="assets" />
 
+          {/* viewMode 切換:資產卡 / 歷史時間軸(原「生成歷史」分頁併入) */}
+          <Tabs
+            value={viewMode}
+            onValueChange={v => handleViewModeChange(v as AssetsViewMode)}
+          >
+            <TabsList className="rounded-xl bg-muted/40 p-1">
+              <TabsTrigger value="cards" className="rounded-lg gap-1 text-xs">
+                <Package className="w-3 h-3" /> 資產卡
+              </TabsTrigger>
+              <TabsTrigger value="history" className="rounded-lg gap-1 text-xs">
+                <Clock className="w-3 h-3" /> 歷史時間軸
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {viewMode === "history" && (
+            <Suspense fallback={<SubPageSkeleton />}>
+              <HistoryPage embedded />
+            </Suspense>
+          )}
+
+          {viewMode === "cards" && (
+          <>
           {/* Search + Filter bar */}
           <div className="flex gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[180px]">
@@ -695,7 +774,7 @@ export default function AssetsLibrary() {
             </div>
           </div>
 
-          <Tabs value={tab} onValueChange={setTab}>
+          <Tabs value={tab} onValueChange={v => handleAssetsTabChange(v as "my" | "team")}>
             <TabsList className="rounded-xl bg-muted/40 p-1">
               <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
                 <Lock className="w-3 h-3" /> 我的資產
@@ -1033,14 +1112,9 @@ export default function AssetsLibrary() {
           </p>
         </div>
       )}
+          </>
+          )}
         </>
-      )}
-
-      {/* ─── 生成歷史 ─────────────────────────────────────────────────────── */}
-      {section === "history" && (
-        <Suspense fallback={<SubPageSkeleton />}>
-          <HistoryPage />
-        </Suspense>
       )}
 
       {/* ─── 提示詞庫 ─────────────────────────────────────────────────────── */}
@@ -1054,13 +1128,6 @@ export default function AssetsLibrary() {
       {section === "vault" && (
         <Suspense fallback={<SubPageSkeleton />}>
           <VaultPage />
-        </Suspense>
-      )}
-
-      {/* ─── 共享空間 ─────────────────────────────────────────────────────── */}
-      {section === "shared" && (
-        <Suspense fallback={<SubPageSkeleton />}>
-          <SharedSpace />
         </Suspense>
       )}
 

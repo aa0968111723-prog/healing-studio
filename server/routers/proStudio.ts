@@ -44,6 +44,7 @@ import { localizeResultUrls } from "../services/internalMedia";
 import { getAudioCompiler } from "../services/audioCompiler";
 import type { AudioBlock, AudioCompilerInput } from "../services/audioCompiler";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
+import { resolveActiveModelId } from "../services/falModels";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import { estimatePoints } from "../services/modelPricing";
 import { deductUserPoints, refundUserPoints } from "../db";
@@ -822,10 +823,22 @@ export const proStudioRouter = router({
         charCount: input.text.length,
       });
       try {
-        const { request_id } = await falQueueSubmit(route.falModelId, {
+        // Catalog-driven substitution: flash-v2.5 is broken upstream at fal
+        // (result endpoint returns "Path /tts/flash-v2.5 not found"), so the
+        // catalog redirects it to turbo-v2.5 (same fast tier, same voice
+        // library). Other engines flow through unchanged.
+        const resolved = resolveActiveModelId(route.falModelId);
+        const submitModelId = resolved.modelId;
+        // turbo-v2.5 expects its own native model_id; only override the
+        // nativeModelId when we substituted away from the user's explicit
+        // engine choice so the request body stays consistent.
+        const nativeModelId =
+          input.model_id ??
+          (resolved.substituted ? "eleven_turbo_v2_5" : route.nativeModelId);
+        const { request_id } = await falQueueSubmit(submitModelId, {
           text: input.text,
           voice_id: input.voice_id,
-          model_id: input.model_id ?? route.nativeModelId,
+          model_id: nativeModelId,
           voice_settings: {
             stability: input.stability,
             similarity_boost: input.similarity_boost,
@@ -833,7 +846,20 @@ export const proStudioRouter = router({
           },
           language_code: input.language_code,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-        return { request_id, model: route.falModelId, engine, is_async_polling: true, estimated_credits: charged };
+        return {
+          request_id,
+          model: submitModelId,
+          model_requested: route.falModelId,
+          engine,
+          is_async_polling: true,
+          estimated_credits: charged,
+          degraded: resolved.substituted || undefined,
+          degraded_reason: resolved.substituted
+            ? `所選 ${engine}（${route.falModelId}）在 fal.ai 上游不可用` +
+              (resolved.reason ? `（${resolved.reason}）` : "") +
+              `，已自動使用 turbo-v2.5（${submitModelId}）代替`
+            : undefined,
+        };
       } catch (err) {
         await refundUserPoints(ctx.user.id, charged);
         throw err;

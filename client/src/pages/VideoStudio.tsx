@@ -159,18 +159,24 @@ function useVideoAgentBus() {
 
 // ─── 上游可用性 context ─────────────────────────────────────────────────────
 // 從 trpc.videoStudio.modelAvailability 讀一次後共享給所有 ToolCard，避免每張
-// 卡都各自打一次 query。
-type ModelAvailabilityMap = Record<
-  string,
-  { disabled: boolean; reason?: string; label?: string }
->;
+// 卡都各自打一次 query。當模型有 `replacement` 時，UI 不再把按鈕鎖死 —
+// 改顯示「上游暫停，將自動使用 X 代替」，使用者按下按鈕後路由會把請求轉送
+// 到替代模型並在回應中回填 model_used / degraded_reason。
+type ModelAvailabilityEntry = {
+  disabled: boolean;
+  reason?: string;
+  label?: string;
+  replacement?: string;
+  replacementLabel?: string;
+};
+type ModelAvailabilityMap = Record<string, ModelAvailabilityEntry>;
 const ModelAvailabilityContext = createContext<ModelAvailabilityMap>({});
 function useModelAvailability(modelId?: string) {
   const map = useContext(ModelAvailabilityContext);
   if (!modelId) return null;
   const entry = map[modelId];
   if (!entry?.disabled) return null;
-  return entry.reason ?? "fal.ai 上游已停用";
+  return entry;
 }
 
 // ─── 子元件：影片播放器 ──────────────────────────────────────────────────────
@@ -466,11 +472,23 @@ function ToolCard({
   disabledReason?: string | null;
   children: React.ReactNode;
 }) {
-  const ctxReason = useModelAvailability(modelId);
+  const ctxEntry = useModelAvailability(modelId);
+  // Models with `replacement` are NOT hard-disabled in the UI — the router
+  // transparently routes their requests to the substitute, so we keep the
+  // button live and show an amber "上游暫停，將自動使用 X 代替" notice
+  // instead. Only the unavoidable disabled-no-replacement case (none today)
+  // would actually grey out the card.
+  const hasReplacement = !!ctxEntry?.replacement;
+  const ctxReason = ctxEntry?.reason ?? (ctxEntry ? "fal.ai 上游已停用" : null);
   const reason = disabledReason ?? ctxReason;
+  const replacementLabel = ctxEntry?.replacementLabel;
+  const replacementId = ctxEntry?.replacement;
   const [open, setOpen] = useState(defaultOpen && !reason);
   const c = CARD_COLORS[color];
-  const isDisabled = !!reason;
+  // Hard-disable only when there's a reason AND no replacement (legacy path).
+  const isDisabled = !!reason && !hasReplacement;
+  // Soft-substitute mode: card is fully usable, but we show a notice.
+  const isSubstituted = !!reason && hasReplacement;
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <motion.div
@@ -507,12 +525,12 @@ function ToolCard({
                     NEW
                   </Badge>
                 )}
-                {isDisabled && (
+                {(isDisabled || isSubstituted) && (
                   <Badge
                     variant="outline"
                     className="text-[10px] px-1.5 py-0 border-amber-300/60 text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-900/20"
                   >
-                    上游暫停
+                    {isSubstituted ? "自動替代" : "上游暫停"}
                   </Badge>
                 )}
               </div>
@@ -534,6 +552,19 @@ function ToolCard({
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>
                   此模型目前在 fal.ai 上游不可用，按鈕會立即回報錯誤。原因：{reason}
+                </span>
+              </div>
+            )}
+            {isSubstituted && (
+              <div className="mb-3 rounded-xl border border-amber-300/60 bg-amber-50/60 dark:bg-amber-900/20 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200 flex items-start gap-2 leading-relaxed">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  此模型目前在 fal.ai 上游暫停，按下按鈕後系統會自動使用
+                  <strong className="mx-1">
+                    {replacementLabel ?? replacementId ?? "替代模型"}
+                  </strong>
+                  代替，生成與下載仍可正常完成。
+                  {reason ? `（原因：${reason}）` : null}
                 </span>
               </div>
             )}
