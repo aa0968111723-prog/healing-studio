@@ -16,8 +16,8 @@ const SECTION_IDS: AssetsLibrarySectionId[] = [
   "drive",
 ];
 
-const LEGACY_HISTORY_SECTION = "history";
-const LEGACY_SHARED_SECTION = "shared";
+const LEGACY_HISTORY_SECTION_ID = "history";
+const LEGACY_SHARED_SECTION_ID = "shared";
 
 function isAssetsLibrarySectionId(
   value: string | null,
@@ -41,7 +41,7 @@ export function resolveAssetsLibraryRouteState(search: string) {
       ? rawView
       // Legacy /assets?section=history links stay on the assets section but
       // open the timeline view.
-      : rawSection === LEGACY_HISTORY_SECTION
+      : rawSection === LEGACY_HISTORY_SECTION_ID
         ? "history"
         : "cards";
 
@@ -50,7 +50,7 @@ export function resolveAssetsLibraryRouteState(search: string) {
       ? rawTab
       // Legacy /assets?section=shared links stay on the assets section but
       // open the team tab.
-      : rawSection === LEGACY_SHARED_SECTION
+      : rawSection === LEGACY_SHARED_SECTION_ID
         ? "team"
         : "my";
 

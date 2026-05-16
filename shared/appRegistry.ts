@@ -1195,8 +1195,6 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
 const normalizePathname = (rawPath: string) => {
   if (!rawPath) return "/";
   const [pathname] = rawPath.split(/[?#]/);
-  // query/hash-only inputs collapse to "/" so lookups stay stable even when a
-  // caller passes "?section=..." or "#fragment" without a leading pathname.
   if (pathname === "") return "/";
   if (pathname !== "/" && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
@@ -1208,7 +1206,7 @@ const normalizeRoutePath = (rawPath: string) => {
   if (!rawPath) return "/";
   const [pathBeforeHash] = rawPath.split("#");
   const [pathname, search = ""] = pathBeforeHash.split("?");
-  const normalizedPathname = normalizePathname(pathname);
+  const normalizedPathname = normalizePathname(pathname || "/");
   return search ? `${normalizedPathname}?${search}` : normalizedPathname;
 };
 
