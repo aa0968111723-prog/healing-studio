@@ -1971,6 +1971,10 @@ export const proStudioRouter = router({
           label: sunoLabel,
           sourceStudio: "music-studio",
           modelVersion: input.modelVersion,
+          // 寫入實扣點數,讓 webhookSuno 在失敗路徑（無 audio URL / 回呼錯誤）
+          // 能透過 refundJobIfBilled 退回,並由 runPostGenForJob 寫入
+          // generation_history.costCredits（取代寫死 1）。
+          costPoints: charged,
         } as any,
       });
       // createBackgroundJob now returns the raw insertId (number) — older

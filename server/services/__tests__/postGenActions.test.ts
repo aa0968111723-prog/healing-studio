@@ -12,6 +12,7 @@ const createDigitalAssetMock = vi.fn(async () => 1);
 const createHistoryEntryMock = vi.fn(async () => 1);
 const getBackgroundJobMock = vi.fn();
 const updateBackgroundJobMock = vi.fn(async () => undefined);
+const refundUserPointsMock = vi.fn(async () => undefined);
 const insertMock = vi.fn(async () => undefined);
 const getDbMock = vi.fn();
 const addGenerationLogMock = vi.fn();
@@ -25,6 +26,8 @@ vi.mock("../../db", () => ({
     getBackgroundJobMock(...(args as [number])),
   updateBackgroundJob: (...args: unknown[]) =>
     updateBackgroundJobMock(...(args as [number, unknown])),
+  refundUserPoints: (...args: unknown[]) =>
+    refundUserPointsMock(...(args as [number, number])),
   getDb: () => getDbMock(),
 }));
 
@@ -37,7 +40,11 @@ vi.mock("../brainAutoRepair", () => ({
     addGenerationLogMock(...(args as [unknown])),
 }));
 
-import { doPostGenComplete, runPostGenForJob } from "../postGenActions";
+import {
+  doPostGenComplete,
+  runPostGenForJob,
+  refundJobIfBilled,
+} from "../postGenActions";
 
 describe("doPostGenComplete", () => {
   beforeEach(() => {
@@ -113,6 +120,39 @@ describe("doPostGenComplete", () => {
     expect(log.success).toBe(false);
   });
 
+  it("records actual costCredits in history when provided", async () => {
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling-video/v2.1/pro",
+      prompt: "ocean waves at sunset",
+      resultUrl: "https://cdn.example.com/result.mp4",
+      costCredits: 42,
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(historyEntry.costCredits).toBe(42);
+  });
+
+  it("defaults costCredits to 1 when not provided (backward compat)", async () => {
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cat",
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(historyEntry.costCredits).toBe(1);
+  });
+
   it("swallows DB errors so generation flow is not blocked", async () => {
     createDigitalAssetMock.mockRejectedValueOnce(new Error("DB exploded"));
     createHistoryEntryMock.mockRejectedValueOnce(new Error("Also exploded"));
@@ -140,6 +180,8 @@ describe("runPostGenForJob", () => {
     getBackgroundJobMock.mockReset();
     updateBackgroundJobMock.mockReset();
     updateBackgroundJobMock.mockResolvedValue(undefined);
+    refundUserPointsMock.mockReset();
+    refundUserPointsMock.mockResolvedValue(undefined);
     getDbMock.mockReset();
     getDbMock.mockReturnValue({
       insert: () => ({ values: insertMock }),
@@ -231,5 +273,102 @@ describe("runPostGenForJob", () => {
     const ran = await runPostGenForJob(0);
     expect(ran).toBe(false);
     expect(createDigitalAssetMock).not.toHaveBeenCalled();
+  });
+
+  it("passes meta.costPoints through to history.costCredits", async () => {
+    getBackgroundJobMock.mockResolvedValueOnce({
+      id: 77,
+      userId: 7,
+      jobType: "video",
+      status: "completed",
+      resultJson: {
+        studioType: "video",
+        modelId: "fal-ai/kling-video/v2.1/pro",
+        prompt: "ocean waves",
+        resultUrl: "https://cdn.example.com/video.mp4",
+        costPoints: 35,
+      },
+    });
+
+    const ran = await runPostGenForJob(77);
+    expect(ran).toBe(true);
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(historyEntry.costCredits).toBe(35);
+  });
+});
+
+describe("refundJobIfBilled", () => {
+  beforeEach(() => {
+    refundUserPointsMock.mockReset();
+    refundUserPointsMock.mockResolvedValue(undefined);
+    getBackgroundJobMock.mockReset();
+    updateBackgroundJobMock.mockReset();
+    updateBackgroundJobMock.mockResolvedValue(undefined);
+  });
+
+  it("refunds the costPoints amount and sets refunded flag", async () => {
+    getBackgroundJobMock.mockResolvedValueOnce({
+      id: 42,
+      userId: 7,
+      resultJson: {
+        studioType: "image",
+        modelId: "fal-ai/flux-pro/v1.1",
+        costPoints: 12,
+      },
+    });
+
+    const refunded = await refundJobIfBilled(42);
+    expect(refunded).toBe(true);
+    expect(refundUserPointsMock).toHaveBeenCalledWith(7, 12);
+    expect(updateBackgroundJobMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        resultJson: expect.objectContaining({
+          refunded: true,
+          refundedPoints: 12,
+        }),
+      })
+    );
+  });
+
+  it("short-circuits when already refunded (idempotent across webhook + polling)", async () => {
+    getBackgroundJobMock.mockResolvedValueOnce({
+      id: 42,
+      userId: 7,
+      resultJson: {
+        costPoints: 12,
+        refunded: true,
+        refundedPoints: 12,
+      },
+    });
+
+    const refunded = await refundJobIfBilled(42);
+    expect(refunded).toBe(false);
+    expect(refundUserPointsMock).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when costPoints is missing (legacy jobs created before the fix)", async () => {
+    getBackgroundJobMock.mockResolvedValueOnce({
+      id: 42,
+      userId: 7,
+      resultJson: {
+        studioType: "image",
+        modelId: "fal-ai/flux-pro/v1.1",
+      },
+    });
+
+    const refunded = await refundJobIfBilled(42);
+    expect(refunded).toBe(false);
+    expect(refundUserPointsMock).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when job is missing", async () => {
+    getBackgroundJobMock.mockResolvedValueOnce(null);
+    const refunded = await refundJobIfBilled(0);
+    expect(refunded).toBe(false);
+    expect(refundUserPointsMock).not.toHaveBeenCalled();
   });
 });

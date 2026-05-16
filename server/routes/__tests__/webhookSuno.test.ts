@@ -19,6 +19,7 @@ const getBackgroundJobMock = vi.fn(async (id: number) => ({
   resultJson: {},
 }));
 const runPostGenForJobMock = vi.fn(async () => true);
+const refundJobIfBilledMock = vi.fn(async () => false);
 
 vi.mock("../../db.js", () => ({
   getBackgroundJob: (...args: unknown[]) =>
@@ -34,6 +35,8 @@ vi.mock("../../services/internalMedia.js", () => ({
 vi.mock("../../services/postGenActions.js", () => ({
   runPostGenForJob: (...args: unknown[]) =>
     runPostGenForJobMock(...(args as [number])),
+  refundJobIfBilled: (...args: unknown[]) =>
+    refundJobIfBilledMock(...(args as [number])),
 }));
 
 import { sunoWebhookRouter } from "../webhookSuno";
@@ -67,6 +70,8 @@ describe("webhookSuno /api/webhook/suno", () => {
     } as any);
     runPostGenForJobMock.mockReset();
     runPostGenForJobMock.mockResolvedValue(true);
+    refundJobIfBilledMock.mockReset();
+    refundJobIfBilledMock.mockResolvedValue(false);
   });
 
   it("complete 階段把 audio URL 寫回 backgroundJob 並推 SSE complete 事件", async () => {
@@ -196,6 +201,8 @@ describe("webhookSuno /api/webhook/suno", () => {
     expect(patch.errorMessage).toContain("credit insufficient");
     // 失敗不該觸發資產庫寫入
     expect(runPostGenForJobMock).not.toHaveBeenCalled();
+    // Suno 未回 audio URL → 必須退回 chargeForFalTask 預扣的點數
+    expect(refundJobIfBilledMock).toHaveBeenCalledWith(5);
     server.close();
   });
 

@@ -21,7 +21,7 @@ import {
 import { serverEnv } from "../_core/env.validated";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
-import { runPostGenForJob } from "../services/postGenActions.js";
+import { runPostGenForJob, refundJobIfBilled } from "../services/postGenActions.js";
 import { extractFalMediaUrl } from "../services/falQueueAwaiter.js";
 
 export const falWebhookRouter = Router();
@@ -151,6 +151,8 @@ falWebhookRouter.post(
               ...localizedData,
             } as any,
           });
+          // 拿不到結果 URL → 使用者沒成品,退回 submitMultimodalAsync 預扣的點數。
+          void refundJobIfBilled(jobId);
           generationBus.emit(jobId, { type: "error", message: errMsg });
           console.warn(
             `[WebhookFal] ⚠️  Job ${jobId} completed but no URL extracted. orbTraceId=${orbTraceId} rawPayload=${JSON.stringify(localizedData.rawPayload ?? {}).slice(0, 400)}`
@@ -197,6 +199,9 @@ falWebhookRouter.post(
           progressMessage: "生成失敗",
           errorMessage,
         });
+        // fal.ai 回 ERROR → 退回 submitMultimodalAsync 預扣的點數
+        // （與 checkStudioJob FAILED 路徑對稱,refunded 旗標確保只退一次）。
+        void refundJobIfBilled(jobId);
         generationBus.emit(jobId, { type: "error", message: errorMessage });
         console.error(
           `[WebhookFal] ❌ Job ${jobId} failed: ${payload.error} orbTraceId=${orbTraceId}`
