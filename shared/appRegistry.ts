@@ -1205,7 +1205,6 @@ const normalizePathname = (rawPath: string) => {
 const normalizeRoutePath = (rawPath: string) => {
   if (!rawPath) return "/";
   const [withoutHash] = rawPath.split("#");
-  if (withoutHash === "") return "/";
   const [pathname, search = ""] = withoutHash.split("?");
   const normalizedPathname = normalizePathname(pathname);
   return search ? `${normalizedPathname}?${search}` : normalizedPathname;

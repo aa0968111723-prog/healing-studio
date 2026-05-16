@@ -29,8 +29,8 @@ describe("appRegistry selectors", () => {
   });
 
   it("resolves /shared to the dedicated page and /assets?section=shared to assets", () => {
-    // /shared now opens the dedicated SharedSpace page, but old bookmarks using
-    // /assets?section=shared must still land on the asset library's team view.
+    // The registry should keep the dedicated SharedSpace route distinct from
+    // the legacy asset-library URL that still resolves through /assets.
     expect(getPageById("assets")?.path).toBe("/assets");
     expect(getPageByPath("/shared")?.id).toBe("shared");
     expect(getPageByPath("/assets?section=shared")?.id).toBe("assets");
