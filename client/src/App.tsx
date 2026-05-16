@@ -53,6 +53,7 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProStudio = lazy(() => import("./pages/ProStudio"));
 const ImageStudio = lazy(() => import("./pages/ImageStudio"));
 const VideoStudio = lazy(() => import("./pages/VideoStudio"));
+const LightOrbCreationStudio = lazy(() => import("./pages/LightOrbCreationStudio"));
 const LearnHub = lazy(() => import("./pages/LearnHub"));
 const AIModelsHub = lazy(() => import("./pages/AIModelsHub"));
 const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
@@ -264,6 +265,9 @@ function Router() {
       </Route>
       <Route path="/image-studio">
         <ProtectedDashboardRoute component={ImageStudio} />
+      </Route>
+      <Route path="/light-orb-studio">
+        <ProtectedDashboardRoute component={LightOrbCreationStudio} />
       </Route>
       <Route path="/video-studio">
         <ProtectedDashboardRoute component={VideoStudio} />
