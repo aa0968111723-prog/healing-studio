@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -72,6 +72,16 @@ export const orbConversationsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
       const limit = input?.limit ?? DEFAULT_LIST_LIMIT;
+      // M8 修復:archivedAt 必須在 SQL where 過濾,不能 LIMIT 後在 JS filter。
+      // 原本 includeArchived=false 時先 LIMIT 30 再 JS 過濾,使用者有 30+ 條
+      // 已封存對話時 LIMIT 取的全是 archived 列,JS 過濾完變空陣列,UI 看起
+      // 來像「所有對話被刪了」。
+      const whereClause = input?.includeArchived
+        ? eq(orbConversations.userId, ctx.user.id)
+        : and(
+            eq(orbConversations.userId, ctx.user.id),
+            isNull(orbConversations.archivedAt)
+          );
       const rows = await db
         .select({
           conversationId: orbConversations.conversationId,
@@ -84,17 +94,14 @@ export const orbConversationsRouter = router({
           updatedAt: orbConversations.updatedAt,
         })
         .from(orbConversations)
-        .where(eq(orbConversations.userId, ctx.user.id))
+        .where(whereClause)
         .orderBy(
           desc(orbConversations.pinned),
           desc(orbConversations.updatedAt)
         )
         .limit(limit);
 
-      const filtered = input?.includeArchived
-        ? rows
-        : rows.filter(r => !r.archivedAt);
-      return { conversations: filtered };
+      return { conversations: rows };
     }),
 
   /** Create a new (empty) conversation and return its summary row. */

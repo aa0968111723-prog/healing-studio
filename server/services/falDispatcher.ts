@@ -23,6 +23,7 @@ import {
 } from "./falModels";
 import { calculateActualCost, estimatePoints, getModelPricing } from "./modelPricing";
 import { deductCredits, reconcileCredits } from "./orbCostGuard";
+import { recordSpecialistInteraction } from "./specializedAgentMemoryStore";
 import { serverEnv } from "../_core/env.validated";
 import type { AgentRole } from "../../shared/orb-agent-roles";
 
@@ -65,6 +66,9 @@ async function trackFalLangSmith(opts: {
   pointsDeducted: number;
   degraded: boolean;
   originalModel?: string;
+  // H4 修復:把發起這次 fal call 的精靈寫進 LangSmith metadata。原本完
+  // 全沒記,「圖圖花了多少點」這種 attribution 永遠回 0(問就是不知道)。
+  spirit?: AgentRole;
 }): Promise<void> {
   const client = await getFalLangSmithClient();
   if (!client) return;
@@ -120,6 +124,9 @@ async function trackFalLangSmith(opts: {
           points_deducted: opts.pointsDeducted,
           degraded: opts.degraded,
           ...(opts.originalModel ? { original_model: opts.originalModel } : {}),
+          // H4: 精靈 attribution。LangSmith dashboard 直接可以 group by
+          // spirit 看「圖圖 / 影影 / 音音」各自燒了多少 token / point。
+          ...(opts.spirit ? { spirit: opts.spirit } : {}),
         },
       },
     });
@@ -351,6 +358,7 @@ export async function dispatchFalTask(
       pointsDeducted: estimate.totalPoints,
       degraded: !!degraded,
       originalModel,
+      spirit,
     }).catch(() => {});
     return failResult;
   }
@@ -447,6 +455,24 @@ export async function dispatchFalTask(
       } else {
         await deductCredits(input.userId, actualCost);
       }
+      // H4: 把扣點歸給對應精靈,讓財財「圖圖花了多少點」等問句拿得到答案。
+      // isSpecializedAgent guard 內建,spirit=undefined / role-only 時自動跳過。
+      if (spirit) {
+        recordSpecialistInteraction({
+          userId: input.userId,
+          agentId: spirit,
+          interactionType: "tool_used",
+          toolName: `fal:${modelConfig.category}:${targetModelId}`,
+          durationMs,
+          contextData: {
+            modelId: targetModelId,
+            category: modelConfig.category,
+            pointsDeducted: actualCost,
+            degraded: !!degraded,
+            ...(originalModel ? { originalModel } : {}),
+          },
+        }).catch(() => {});
+      }
     }
 
     // LangSmith 追蹤：成功
@@ -462,6 +488,7 @@ export async function dispatchFalTask(
       pointsDeducted: actualCost,
       degraded: !!degraded,
       originalModel,
+      spirit,
     }).catch(() => {});
 
     return {
@@ -514,6 +541,7 @@ export async function dispatchFalTask(
         pointsDeducted: estimate.totalPoints,
         degraded: !!degraded,
         originalModel,
+        spirit,
       }).catch(() => {});
       return errResult;
     }
@@ -568,6 +596,24 @@ export async function dispatchFalTask(
         }
         // LangSmith 追蹤：降級成功
         const retryDuration = Date.now() - startMs;
+        // H4: 同上,降級成功也要歸給精靈。originalModel 保留追蹤「原本想跑
+        // 哪顆,實際跑了 candidate」,財財有需要可看降級率。
+        if (typeof input.userId === "number" && spirit) {
+          recordSpecialistInteraction({
+            userId: input.userId,
+            agentId: spirit,
+            interactionType: "tool_used",
+            toolName: `fal:${category}:${candidate}`,
+            durationMs: retryDuration,
+            contextData: {
+              modelId: candidate,
+              category,
+              pointsDeducted: retryActualCost,
+              degraded: true,
+              originalModel: modelId,
+            },
+          }).catch(() => {});
+        }
         trackFalLangSmith({
           runId,
           modelId: candidate,
@@ -580,6 +626,7 @@ export async function dispatchFalTask(
           pointsDeducted: retryActualCost,
           degraded: true,
           originalModel: modelId,
+          spirit,
         }).catch(() => {});
         return {
           success: true,
@@ -624,6 +671,7 @@ export async function dispatchFalTask(
       pointsDeducted: estimate.totalPoints,
       degraded: !!degraded,
       originalModel,
+      spirit,
     }).catch(() => {});
     return {
       success: false,
