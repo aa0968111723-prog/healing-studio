@@ -32,6 +32,7 @@ import {
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
 import { verifyWebhookToken } from "../_core/webhookTokens";
+import { runPostGenForJob } from "../services/postGenActions.js";
 
 export const sunoWebhookRouter = Router();
 
@@ -208,18 +209,33 @@ sunoWebhookRouter.post(
         `generated/webhook/suno/${jobId}`
       )) as { clips: SunoWebhookClip[]; audioUrl?: string };
 
+      // Merge with existing meta (studioType/modelId/prompt/label/sunoTaskId/
+      // estimate/modelVersion written by proStudio.generateMusicSuno) instead
+      // of overwriting. Without the merge, runPostGenForJob can't tell which
+      // studio/model produced the audio, so the asset never lands in
+      // digital_asset_library or generation_history — i.e. the user generates
+      // music but can't find it anywhere afterwards ("生成後都找不到東西").
+      const existingMeta = (job.resultJson ?? {}) as Record<string, unknown>;
+      const resultUrl =
+        localized.audioUrl ?? localized.clips[0]?.audioUrl;
       await updateBackgroundJob(jobId, {
         status: "completed",
         progress: 100,
         progressMessage: "生成完成",
         resultJson: {
+          ...existingMeta,
           sunoTaskId: taskId,
           mediaType: "audio",
-          audioUrl: localized.audioUrl ?? localized.clips[0]?.audioUrl,
+          audioUrl: resultUrl,
+          resultUrl,
           clips: localized.clips,
           completedAt: new Date().toISOString(),
         } as any,
       });
+      // Persist to prompt_library / digital_asset_library / generation_history
+      // / AI monitor. Idempotent — both webhook and polling fallback may call
+      // this; the second one short-circuits on the postGenComplete flag.
+      void runPostGenForJob(jobId);
       generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
       console.log(
         `[WebhookSuno] ✅ Job ${jobId} completed (${localized.clips.length} clips)`

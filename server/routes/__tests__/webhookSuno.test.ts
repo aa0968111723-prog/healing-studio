@@ -18,6 +18,7 @@ const getBackgroundJobMock = vi.fn(async (id: number) => ({
   status: "processing",
   resultJson: {},
 }));
+const runPostGenForJobMock = vi.fn(async () => true);
 
 vi.mock("../../db.js", () => ({
   getBackgroundJob: (...args: unknown[]) =>
@@ -28,6 +29,11 @@ vi.mock("../../db.js", () => ({
 
 vi.mock("../../services/internalMedia.js", () => ({
   localizeResultUrls: async (raw: unknown) => raw,
+}));
+
+vi.mock("../../services/postGenActions.js", () => ({
+  runPostGenForJob: (...args: unknown[]) =>
+    runPostGenForJobMock(...(args as [number])),
 }));
 
 import { sunoWebhookRouter } from "../webhookSuno";
@@ -59,6 +65,8 @@ describe("webhookSuno /api/webhook/suno", () => {
       status: "processing",
       resultJson: {},
     } as any);
+    runPostGenForJobMock.mockReset();
+    runPostGenForJobMock.mockResolvedValue(true);
   });
 
   it("complete 階段把 audio URL 寫回 backgroundJob 並推 SSE complete 事件", async () => {
@@ -92,9 +100,58 @@ describe("webhookSuno /api/webhook/suno", () => {
     expect(jobId).toBe(5);
     expect(patch.status).toBe("completed");
     expect(patch.resultJson.audioUrl).toBe("https://suno/x.mp3");
+    // resultUrl 用統一鍵名供下游 runPostGenForJob 讀取
+    expect(patch.resultJson.resultUrl).toBe("https://suno/x.mp3");
     expect(patch.resultJson.clips).toHaveLength(2);
     expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
     unsubscribe();
+    server.close();
+  });
+
+  it("complete 階段保留既有 meta 並觸發 runPostGenForJob（資產庫/歷史持久化）", async () => {
+    // 模擬 proStudio.generateMusicSuno 寫入的識別資訊
+    getBackgroundJobMock.mockResolvedValue({
+      id: 5,
+      userId: 99,
+      status: "processing",
+      resultJson: {
+        studioType: "audio",
+        modelId: "suno-v3.5",
+        prompt: "lo-fi 治癒夜雨",
+        sourceStudio: "music-studio",
+        sunoTaskId: "suno-abc",
+      },
+    } as any);
+
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/suno?jobId=5`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code: 200,
+        msg: "success",
+        data: {
+          task_id: "suno-abc",
+          callbackType: "complete",
+          data: [
+            { id: "c1", audio_url: "https://suno/x.mp3", title: "T1", duration: 180 },
+          ],
+        },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+
+    const [, patch] = updateBackgroundJobMock.mock.calls[0] as [
+      number,
+      Record<string, any>,
+    ];
+    // 既有 meta 必須保留（不能被 webhook 覆寫掉）
+    expect(patch.resultJson.studioType).toBe("audio");
+    expect(patch.resultJson.modelId).toBe("suno-v3.5");
+    expect(patch.resultJson.prompt).toBe("lo-fi 治癒夜雨");
+    expect(patch.resultJson.sourceStudio).toBe("music-studio");
+    // 並且觸發資產庫/歷史持久化
+    expect(runPostGenForJobMock).toHaveBeenCalledWith(5);
     server.close();
   });
 
@@ -137,6 +194,8 @@ describe("webhookSuno /api/webhook/suno", () => {
     ];
     expect(patch.status).toBe("failed");
     expect(patch.errorMessage).toContain("credit insufficient");
+    // 失敗不該觸發資產庫寫入
+    expect(runPostGenForJobMock).not.toHaveBeenCalled();
     server.close();
   });
 
