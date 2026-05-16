@@ -26,6 +26,7 @@ export interface AppPageRegistryItem {
   id: string;
   label: string;
   path: string;
+  routeAliases?: string[];
   group: AppPageGroupId;
   description: string;
   aliases: string[];
@@ -459,6 +460,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "history",
     label: "生成歷史",
     path: "/assets?section=history",
+    routeAliases: ["/history"],
     group: "project",
     description: "所有生成紀錄時間線",
     aliases: ["history", "紀錄", "歷史"],
@@ -509,6 +511,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "langsmith",
     label: "AI 監控中心",
     path: "/dashboard?section=langsmith",
+    routeAliases: ["/langsmith"],
     group: "settings",
     description: "LangSmith 追蹤分析與模型監控儀表板（dashboard 分頁）",
     aliases: ["langsmith", "監控", "追蹤", "模型監控", "ai 監控中心"],
@@ -606,6 +609,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "credits",
     label: "積分說明",
     path: "/dashboard?section=credits",
+    routeAliases: ["/credits"],
     group: "project",
     description: "積分與方案說明",
     aliases: ["credits", "點數", "積分"],
@@ -677,6 +681,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "prompt-library",
     label: "提示詞庫",
     path: "/assets?section=prompts",
+    routeAliases: ["/prompt-library"],
     group: "assets",
     description: "提示詞模板與收藏",
     aliases: ["prompt", "提示詞", "library"],
@@ -740,6 +745,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "vault",
     label: "一致性保險庫",
     path: "/assets?section=vault",
+    routeAliases: ["/vault"],
     group: "assets",
     description: "角色與場景一致性素材管理",
     aliases: ["vault", "一致性", "保險庫"],
@@ -789,7 +795,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   {
     id: "shared",
     label: "共享空間",
-    path: "/assets?section=shared",
+    path: "/shared",
     group: "assets",
     description: "團隊共享與展示",
     aliases: ["shared", "共享", "團隊"],
@@ -798,12 +804,12 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     agentEntryPriority: 26,
     supportsPageAgent: true,
     quickActions: [
-      { id: "open-shared", label: "打開共享", description: "查看團隊共享作品", path: "/assets?section=shared" },
+      { id: "open-shared", label: "打開共享", description: "查看團隊共享作品", path: "/shared" },
       {
         id: "shared-model-deep-dive",
         label: "模型細膩導覽",
         description: "拆解團隊共享素材/模型如何復用與評分",
-        path: "/assets?section=shared",
+        path: "/shared",
         prompt:
           "請深度拆解共享空間的素材與模型復用流程，包含命名規範、評分維度、回饋迭代與團隊協作建議。",
       },
@@ -927,6 +933,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "background-tasks",
     label: "背景任務中心",
     path: "/assets?section=tasks",
+    routeAliases: ["/background-tasks"],
     group: "assets",
     description: "查看與管理背景任務",
     aliases: ["tasks", "背景任務", "queue"],
@@ -954,6 +961,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     // App.tsx 同時掛 /tutorial-overview 與 /learn/tutorial-overview 兩條別名，
     // 這裡選用較短的版本當主路徑。
     path: "/tutorial-overview",
+    routeAliases: ["/learn/tutorial-overview"],
     group: "learn",
     description: "教學入口總覽：快速導覽、分站教學、功能教學連結",
     aliases: ["tutorial", "教學", "overview", "入門", "learn/tutorial-overview"],
@@ -972,6 +980,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "brain-settings",
     label: "AI 大腦組態",
     path: "/admin?section=brain",
+    routeAliases: ["/settings/ai-brain"],
     group: "admin",
     description: "5 推理大腦 + 4 生成引擎插槽組態，含降級與健康狀態",
     aliases: ["brain", "AI 大腦", "推理大腦", "生成引擎", "brain settings"],
@@ -1018,6 +1027,28 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     orbHints: ["看推理鏈", "大腦動作流"],
     supportedActions: ["navigate"],
+  },
+  {
+    id: "light-orb-studio",
+    label: "光球創作場",
+    path: "/light-orb-studio",
+    group: "create",
+    description: "展示光球代理路由與多精靈協作的互動式創作 demo",
+    aliases: ["light orb", "light-orb-studio", "光球創作場", "demo"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 81,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-light-orb-studio",
+        label: "打開光球創作場",
+        description: "觀看光球代理如何把 prompt 路由成創作流程",
+        path: "/light-orb-studio",
+      },
+    ],
+    orbHints: ["帶我看光球怎麼協作創作", "我想看光球創作示範"],
+    supportedActions: [],
   },
   {
     id: "focus-flow",
@@ -1161,15 +1192,28 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
 ];
 
-const normalizePath = (path: string) => {
-  if (!path) return "/";
-  const [pathname] = path.split(/[?#]/);
-  if (!pathname) return "/";
+const normalizePathname = (rawPath: string) => {
+  if (!rawPath) return "/";
+  const [pathname] = rawPath.split(/[?#]/);
+  if (pathname === "") return "/";
   if (pathname !== "/" && pathname.endsWith("/")) {
     return pathname.slice(0, -1);
   }
   return pathname;
 };
+
+const normalizeRoutePath = (rawPath: string) => {
+  if (!rawPath) return "/";
+  const [pathBeforeHash] = rawPath.split("#");
+  const [pathname, search = ""] = pathBeforeHash.split("?");
+  const normalizedPathname = normalizePathname(pathname || "/");
+  return search ? `${normalizedPathname}?${search}` : normalizedPathname;
+};
+
+const getPageRoutes = (page: AppPageRegistryItem) => [
+  page.path,
+  ...(page.routeAliases ?? []),
+];
 
 export const getAllPages = () => [...APP_PAGE_REGISTRY];
 
@@ -1177,8 +1221,20 @@ export const getPageById = (id: string) =>
   APP_PAGE_REGISTRY.find(page => page.id === id);
 
 export const getPageByPath = (path: string) => {
-  const normalizedPath = normalizePath(path);
-  return APP_PAGE_REGISTRY.find(page => normalizePath(page.path) === normalizedPath);
+  const normalizedRoutePath = normalizeRoutePath(path);
+  const normalizedPathname = normalizePathname(path);
+  return (
+    APP_PAGE_REGISTRY.find(page =>
+      getPageRoutes(page).some(
+        candidate => normalizeRoutePath(candidate) === normalizedRoutePath
+      )
+    ) ??
+    APP_PAGE_REGISTRY.find(page =>
+      getPageRoutes(page).some(
+        candidate => normalizePathname(candidate) === normalizedPathname
+      )
+    )
+  );
 };
 
 export const getSidebarPages = () =>

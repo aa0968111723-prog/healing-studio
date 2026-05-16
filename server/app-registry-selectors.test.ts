@@ -18,6 +18,28 @@ describe("appRegistry selectors", () => {
     expect(page?.path).toBe("/video-studio");
   });
 
+  it("prefers exact query-string page matches before pathname fallback", () => {
+    const page = getPageByPath("/assets?section=history");
+    expect(page?.id).toBe("history");
+  });
+
+  it("resolves direct-route aliases to their canonical registry pages", () => {
+    expect(getPageByPath("/vault")?.id).toBe("vault");
+    expect(getPageByPath("/langsmith")?.id).toBe("langsmith");
+  });
+
+  it("resolves /shared to the dedicated page and /assets?section=shared to assets", () => {
+    // The registry should keep the dedicated SharedSpace route distinct from
+    // the legacy asset-library URL that still resolves through /assets.
+    expect(getPageByPath("/shared")?.id).toBe("shared");
+    expect(getPageByPath("/assets?section=shared")?.id).toBe("assets");
+  });
+
+  it('resolves page by path "/light-orb-studio"', () => {
+    const page = getPageByPath("/light-orb-studio");
+    expect(page?.id).toBe("light-orb-studio");
+  });
+
   it("returns grouped sidebar pages", () => {
     const groups = getSidebarGroups();
     const groupIds = groups.map(group => group.groupId);

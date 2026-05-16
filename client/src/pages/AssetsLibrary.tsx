@@ -65,6 +65,11 @@ import { DriveLibrarySection } from "@/components/DriveLibrarySection";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
 import { shortErrorMsg } from "@/lib/upload";
+import {
+  resolveAssetsLibraryRouteState,
+  type AssetsLibrarySectionId as SectionId,
+  type AssetsLibraryViewMode as AssetsViewMode,
+} from "./assetsLibraryRouteState";
 
 const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
 const VaultPage = lazy(() => import("./VaultPage"));
@@ -142,14 +147,6 @@ type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 // - 成品輸出庫(VaultPage 子分頁) → 在 VaultPage.tsx 中移除,改由 數位資產庫
 //   統一承接(資料層已由 postGenActions 寫進 digital_asset_library)
 // 結果:7 個分頁 → 5 個分頁,且功能未流失。
-type SectionId =
-  | "assets"
-  | "prompts"
-  | "vault"
-  | "tasks"
-  | "drive";
-
-type AssetsViewMode = "cards" | "history";
 
 const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
@@ -158,15 +155,6 @@ const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = 
   { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
   { id: "tasks", label: "背景任務中心", icon: <ListChecks className="w-3.5 h-3.5" /> },
 ];
-
-// 為了相容舊書籤、舊外鏈,?section=shared / ?section=history 仍然可用,
-// 但會自動 land 在 數位資產庫 + 預選相應的內部狀態(共享=team tab、
-// history=history viewMode)。
-type LegacySection = "shared" | "history";
-function parseLegacySection(raw: string | null): LegacySection | null {
-  if (raw === "shared" || raw === "history") return raw;
-  return null;
-}
 
 function SubPageSkeleton() {
   return (
@@ -183,30 +171,15 @@ function SubPageSkeleton() {
 }
 
 function getInitialSection(): SectionId {
-  const params = new URLSearchParams(window.location.search);
-  const s = params.get("section");
-  const valid = SECTION_TABS.map(t => t.id);
-  if (s && valid.includes(s as SectionId)) return s as SectionId;
-  // 舊書籤 ?section=shared / history 仍然 land 在 數位資產庫
-  if (parseLegacySection(s)) return "assets";
-  return "assets";
+  return resolveAssetsLibraryRouteState(window.location.search).section;
 }
 
 function getInitialViewMode(): AssetsViewMode {
-  const params = new URLSearchParams(window.location.search);
-  // 新版直接走 ?view=history;舊書籤 ?section=history 也仍然 land 在 history viewMode
-  const v = params.get("view");
-  if (v === "history" || v === "cards") return v;
-  if (params.get("section") === "history") return "history";
-  return "cards";
+  return resolveAssetsLibraryRouteState(window.location.search).viewMode;
 }
 
 function getInitialTab(): "my" | "team" {
-  const params = new URLSearchParams(window.location.search);
-  const t = params.get("tab");
-  if (t === "team" || t === "my") return t;
-  if (params.get("section") === "shared") return "team";
-  return "my";
+  return resolveAssetsLibraryRouteState(window.location.search).tab;
 }
 
 function parsePositiveAssetId(raw: unknown): number | null {
