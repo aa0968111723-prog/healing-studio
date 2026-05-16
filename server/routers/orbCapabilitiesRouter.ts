@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { router, publicProcedure } from "../_core/trpc";
+import { router, protectedProcedure } from "../_core/trpc";
 import {
   serializeRegistryForSiteKnowledge,
   type SerializableAppRegistryItem,
@@ -32,12 +32,17 @@ export interface OrbCapabilitiesPayload {
 export const orbCapabilitiesRouter = router({
   /**
    * GET /trpc/orbCapabilities.list
-   * 公開查詢：回傳全站可被光球代理操作的頁面清單。
+   * 登入查詢:回傳全站可被光球代理操作的頁面清單。
    *
-   * 不接收任何輸入，純讀 manifest。前端可長 cache，並在管理後台「掃描頁面」
+   * H1 修復:從 publicProcedure 改 protectedProcedure。原本未登入者也能拿到全站
+   * 頁面 manifest(path / aliases / orbHints / quickActions),等於把站內地圖
+   * 白送給爬蟲。確認過 client 與 server 都沒人呼叫(0 callers),改 protected
+   * 對既有功能零影響;若未來真有公開需求,移回 publicProcedure 即可。
+   *
+   * 不接收任何輸入,純讀 manifest。前端可長 cache,並在管理後台「掃描頁面」
    * 操作後重抓。
    */
-  list: publicProcedure.query((): OrbCapabilitiesPayload => {
+  list: protectedProcedure.query((): OrbCapabilitiesPayload => {
     const pages = serializeRegistryForSiteKnowledge();
     const imageEditModels = getImageEditModelCatalog();
     return {
@@ -50,8 +55,9 @@ export const orbCapabilitiesRouter = router({
 
   /**
    * 根據使用者提示詞推測「圖片編輯」模型建議順序。
+   * H1 同上,從 public 改 protected,避免未登入者用任意 prompt 燒 keyword 比對。
    */
-  suggestImageEditModels: publicProcedure
+  suggestImageEditModels: protectedProcedure
     .input(z.object({ prompt: z.string().min(1) }))
     .query(({ input }) => ({
       prompt: input.prompt,
