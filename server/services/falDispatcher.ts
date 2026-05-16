@@ -19,6 +19,7 @@ import {
   canSpiritCallFalModel,
   getFalModelById,
   getFalModelsByCategory,
+  resolveActiveModelId,
   type FalCallInput,
 } from "./falModels";
 import { calculateActualCost, estimatePoints, getModelPricing } from "./modelPricing";
@@ -966,6 +967,23 @@ export async function dispatchFalQueueTask(
   let targetModelId = normalizeEngineModelId(params.modelId);
   let degraded = false;
   let originalModel: string | undefined;
+
+  // F7 修復:disabled 模型優先用 catalog 內人工挑選的 replacement,而不是
+  // 直接跳到 FALLBACK_CHAINS[0]。原本 studio 走 router 用 resolveActiveModelId
+  // 拿到 veo3,光球走 dispatchFalQueueTask 卻拿到 FALLBACK_CHAINS 第一個
+  // 不一樣的模型 — UI 告訴使用者「用 veo3 代替」但實際生出另一個 fallback,
+  // attribution 跟結果不一致。把 resolveActiveModelId 拉進 dispatcher 統
+  // 一所有路徑。
+  const replacementResolved = resolveActiveModelId(targetModelId);
+  if (replacementResolved.substituted) {
+    console.warn(
+      `[FalDispatcher] Queue model ${targetModelId} → human-curated replacement ${replacementResolved.modelId}` +
+        (replacementResolved.reason ? ` (${replacementResolved.reason})` : "")
+    );
+    originalModel = targetModelId;
+    targetModelId = replacementResolved.modelId;
+    degraded = true;
+  }
 
   // ── Step 1: 模型存在性檢查 + fallback chain（需要能推論 category） ──
   const initialConfig = getFalModelById(targetModelId);

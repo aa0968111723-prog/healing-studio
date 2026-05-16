@@ -236,6 +236,40 @@ export class OrbTaskStore {
   }
 
   /**
+   * F4 修復:TTL-aware token-less approval check。orchestrator 內部要
+   * 判斷「這 step 之前是否被使用者同意過」時不應該繞過 expiresAt 直接
+   * 看 task.approvedStepIds 陣列 — 否則使用者 6 分鐘前同意後關掉視窗、
+   * 5 分鐘後重連時,過期 approval 仍然觸發昂貴的工具呼叫(刷信用 / 發
+   * webhook / 付外部 API 錢)。
+   *
+   * 跟 isStepApproved 的差異:不需要 token(orchestrator 自己 driver 沒
+   * 有 token,而 stepApprovals 陣列裡存的 token 是給外部 caller 用的)。
+   * 過期條目也會就地清除,避免無限累積。
+   */
+  hasUnexpiredStepApproval(
+    taskId: string,
+    userId: number,
+    stepId: string,
+    now: number = Date.now()
+  ): boolean {
+    const task = this.get(taskId, userId, now);
+    if (!task) return false;
+    const approval = task.stepApprovals.find(x => x.stepId === stepId);
+    if (!approval) return false;
+    if (approval.expiresAt < now) {
+      // 過期了 — 順便清掉,讓 approvedStepIds 也一致(get 已經 TTL-prune
+      // 過 stepApprovals,但 approvedStepIds 還是 legacy 陣列)。
+      task.stepApprovals = task.stepApprovals.filter(x => x.stepId !== stepId);
+      task.approvedStepIds = task.approvedStepIds.filter(x => x !== stepId);
+      task.updatedAt = now;
+      this.tasks.set(task.taskId, task);
+      this.persistToDisk();
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Replace the step at `atIndex` with `revisedSteps` and resume execution.
    *
    * Used by the replan integration when a step fails and either deterministic

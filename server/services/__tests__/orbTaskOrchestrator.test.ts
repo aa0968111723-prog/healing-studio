@@ -43,3 +43,64 @@ describe("orbTaskOrchestrator preferences", () => {
     expect(out.blockedByApproval).toBe(true);
   });
 });
+
+// F4 修復:approval TTL — 過期 approval 不能放行
+describe("orbTaskOrchestrator F4: approval TTL", () => {
+  it("approvedStepIds 內有 step.id 但 stepApprovals 已過期 → 視為未授權,blocked", async () => {
+    const now = Date.now();
+    const out = await executeCurrentStepTools({
+      ...baseInput,
+      task: {
+        ...baseInput.task,
+        approvedStepIds: ["s1"], // legacy 永久陣列(過去同意過)
+        stepApprovals: [
+          {
+            stepId: "s1",
+            token: "expired-token",
+            approvedAt: now - 10 * 60_000, // 10 分鐘前
+            expiresAt: now - 1_000, // 1 秒前已過期
+          },
+        ],
+      },
+      approved: false,
+    });
+    // 預期被擋:approvedStepIds 雖然有 s1,但 TTL 已過,不能走捷徑
+    expect(out.blockedByApproval).toBe(true);
+  });
+
+  it("stepApprovals 內 expiresAt 還沒到 → 視為授權,放行", async () => {
+    const now = Date.now();
+    const out = await executeCurrentStepTools({
+      ...baseInput,
+      task: {
+        ...baseInput.task,
+        approvedStepIds: ["s1"],
+        stepApprovals: [
+          {
+            stepId: "s1",
+            token: "live-token",
+            approvedAt: now,
+            expiresAt: now + 5 * 60_000, // 5 分鐘後才過期
+          },
+        ],
+      },
+      approved: false,
+    });
+    // approval 還有效 → 不該被 approval gate 擋
+    expect(out.blockedByApproval).not.toBe(true);
+  });
+
+  it("approvedStepIds 有 step.id 但 stepApprovals 完全空 → 視為未授權,blocked", async () => {
+    // legacy chunk 殘留(歷史 bug 或舊資料),不能因為 array 有就放行
+    const out = await executeCurrentStepTools({
+      ...baseInput,
+      task: {
+        ...baseInput.task,
+        approvedStepIds: ["s1"],
+        stepApprovals: [], // 沒有 TTL 記錄
+      },
+      approved: false,
+    });
+    expect(out.blockedByApproval).toBe(true);
+  });
+});
