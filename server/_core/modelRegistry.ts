@@ -46,6 +46,17 @@ export const REASONING_MODEL_CATALOG = {
         label: "MiniMax M2.7 (NVIDIA NIM) 🟠",
         tier: "premium",
       },
+      // ── NVIDIA Nemotron 推理系列(NIM 直連,thinking budget 可調) ──
+      {
+        value: "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        label: "Llama Nemotron Ultra 253B (NVIDIA NIM) 🟢 ✦ 推理旗艦",
+        tier: "ultra",
+      },
+      {
+        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        label: "Llama Nemotron Super 49B v1.5 (NVIDIA NIM) 🟢",
+        tier: "premium",
+      },
       // ── Perplexity Sonar（原生 API，內建 web grounding，AI 代理專用）──
       {
         value: "perplexity/sonar-reasoning-pro",
@@ -104,6 +115,12 @@ export const REASONING_MODEL_CATALOG = {
       {
         value: "vertex/llama-3.1-405b",
         label: "Vertex Llama 3.1 405B",
+        tier: "premium",
+      },
+      // ── NVIDIA Nemotron Super(單張 H100 即可跑的均衡推理) ──
+      {
+        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        label: "Llama Nemotron Super 49B v1.5 (NVIDIA NIM) 🟢",
         tier: "premium",
       },
       // ── Perplexity Sonar（原生 API，內建 web grounding） ──
@@ -744,6 +761,9 @@ const LEGACY_LLM_ALIASES = new Set([
   "azure-tts",
   // MiniMax via NVIDIA NIM(catalog 用 nvidia/...,brainContext 用 minimaxai/...)
   "minimaxai/minimax-m2.7",
+  // NVIDIA Nemotron 系列(NIM 直連;OpenRouter 同名 fallback)
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5",
   // OpenRouter Unified Gateway 路徑(provider/model 格式)
   "anthropic/claude-sonnet-4.6",
   "anthropic/claude-sonnet-4.5",

@@ -346,6 +346,9 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "perplexity/sonar-deep-research": "perplexity",
   // ── MiniMax M2.7 via NVIDIA NIM（代理人推理引擎）──
   "minimaxai/minimax-m2.7": "nvidia",
+  // ── NVIDIA Nemotron 推理系列（NIM 直連）──
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1": "nvidia",
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5": "nvidia",
   // ── 圖像生成（Fal.ai） ──
   "fal-ai/nano-banana-2": "fal",
   "fal-ai/nano-banana-pro": "fal",

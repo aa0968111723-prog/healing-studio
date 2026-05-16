@@ -822,6 +822,8 @@ const OPENROUTER_CATALOG_REMAP: Record<string, string> = {
   // NVIDIA NIM 路徑 → OpenRouter 上的 MiniMax
   "nvidia/minimax-m2.7": "minimax/minimax-m2",
   "minimaxai/minimax-m2.7": "minimax/minimax-m2",
+  // NVIDIA Nemotron 系列在 OpenRouter 上沿用同名 nvidia/* 路徑,
+  // normalizeModelForEngine 對含 "/" 的裸 ID 會原樣放行,不必額外列入。
   // Vertex 內部路徑 → OpenRouter 等效（OpenRouter 不接受 vertex/ 前綴）
   "vertex/gemini-2.5-pro": "google/gemini-2.5-pro",
   "vertex/gemini-2.5-flash": "google/gemini-2.5-flash",
@@ -890,7 +892,10 @@ function normalizeModelForEngine(model: string, engineName: string): string {
   const isNvidiaEndpoint = engineName.includes("NVIDIA NIM");
 
   if (isNvidiaEndpoint) {
-    // NVIDIA 端點只接受 minimaxai/minimax-m2.7；若帶 nvidia/ 前綴會 404。
+    // NVIDIA NIM 接受多種 model id；catalog 用的 nvidia/minimax-m2.7 與
+    // OpenRouter 用的 minimax/minimax-m2 都必須改寫成 NIM API 真實路徑
+    // minimaxai/minimax-m2.7（否則 404）。Nemotron 系列在 NIM 與 catalog
+    // 共用同樣的 nvidia/* 命名,原樣放行即可。
     if (model === "nvidia/minimax-m2.7") return "minimaxai/minimax-m2.7";
     if (model === "minimax/minimax-m2") return "minimaxai/minimax-m2.7";
     return model;

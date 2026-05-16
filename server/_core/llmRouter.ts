@@ -683,11 +683,14 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
       if (!nvidiaKey)
         throw new Error("Engine 'nvidia' 指定但 NVIDIA_API（或 NVIDA_API）未設定");
       return {
-        name: "NVIDIA NIM (MiniMax M2.7)",
+        name: "NVIDIA NIM (Nemotron / MiniMax)",
         engine: "nvidia",
         url: "https://integrate.api.nvidia.com/v1/chat/completions",
         apiKey: nvidiaKey,
-        model: "minimaxai/minimax-m2.7", // 修復：原為 minimax/minimax-m2.7 導致 NVIDIA NIM 404，正確路徑為 minimaxai/minimax-m2.7
+        // 預設 MiniMax M2.7（DEF-13 沿用）。呼叫端可透過 model 參數切到
+        // Llama Nemotron Ultra / Super 等其他 NIM；normalizeModelForEngine
+        // 會把 catalog 的 nvidia/* 別名映射成 NIM API 的 canonical id。
+        model: "minimaxai/minimax-m2.7",
         supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: true,

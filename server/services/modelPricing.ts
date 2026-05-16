@@ -3183,6 +3183,36 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "NVIDIA_API",
   },
+  // ── NVIDIA Nemotron Ultra 253B（推理旗艦,build.nvidia.com 免費試用 + NIM 自架）──
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1": {
+    modelId: "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    label: "Llama Nemotron Ultra 253B (NVIDIA NIM)",
+    provider: "nvidia",
+    category: "llm",
+    tier: "premium",
+    basePoints: 3,
+    baseCostUsd: 0.04,
+    unit: "每次呼叫",
+    minPoints: 2,
+    maxPoints: 30,
+    requiresKey: true,
+    keyEnvVar: "NVIDIA_API",
+  },
+  // ── NVIDIA Nemotron Super 49B v1.5（單張 H100 即可跑,thinking budget 可調）──
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
+    modelId: "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+    label: "Llama Nemotron Super 49B v1.5 (NVIDIA NIM)",
+    provider: "nvidia",
+    category: "llm",
+    tier: "standard",
+    basePoints: 1,
+    baseCostUsd: 0.015,
+    unit: "每次呼叫",
+    minPoints: 1,
+    maxPoints: 12,
+    requiresKey: true,
+    keyEnvVar: "NVIDIA_API",
+  },
 };
 
 // ─── Pricing Utilities ────────────────────────────────────────────────────────
