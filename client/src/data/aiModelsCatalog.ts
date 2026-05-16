@@ -23,6 +23,9 @@ export type {
   ModelAvailability,
   FactCheckMeta,
   LatencyClass,
+  SafetyTier,
+  ComplianceTag,
+  ModelCapabilities,
 } from "../../../shared/aiModelsCatalog";
 
 export {

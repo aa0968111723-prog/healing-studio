@@ -601,6 +601,206 @@ function AvailabilityBlock({ model }: { model: AIModelEntry }) {
   );
 }
 
+// ─── Capabilities block (能力矩陣) ─────────────────────────────────────────
+
+const CAPABILITY_ROWS: Array<{
+  key: keyof NonNullable<AIModelEntry["capabilities"]>;
+  label: string;
+  hint: string;
+}> = [
+  { key: "visionInput", label: "圖像輸入", hint: "可讀取圖片內容" },
+  { key: "audioInput", label: "音訊輸入", hint: "可讀取聲音輸入" },
+  { key: "videoInput", label: "影片輸入", hint: "可讀取影片內容" },
+  { key: "functionCalling", label: "Function Calling", hint: "支援工具呼叫" },
+  { key: "structuredOutput", label: "結構化輸出", hint: "JSON / schema 強制" },
+  { key: "streaming", label: "串流輸出", hint: "支援 SSE / streaming" },
+  { key: "fineTuning", label: "Fine-tuning", hint: "可自行微調" },
+  { key: "codeExecution", label: "程式碼執行", hint: "內建 sandbox 執行" },
+  { key: "webSearch", label: "網路搜尋", hint: "內建瀏覽 / 搜尋工具" },
+  { key: "promptCaching", label: "Prompt Caching", hint: "重複 input 折扣" },
+  { key: "batchApi", label: "Batch API", hint: "批次任務通常 50% 折扣" },
+];
+
+function CapabilityCell({
+  state,
+  label,
+  hint,
+}: {
+  state: boolean | undefined;
+  label: string;
+  hint: string;
+}) {
+  const color =
+    state === true
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : state === false
+        ? "bg-gray-50 text-gray-400 border-gray-200"
+        : "bg-amber-50 text-amber-700 border-amber-200 border-dashed";
+  const symbol = state === true ? "✓" : state === false ? "—" : "?";
+  return (
+    <div
+      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${color}`}
+      title={state === undefined ? `${hint}（尚未確認）` : hint}
+    >
+      <span className="font-mono w-3 text-center">{symbol}</span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function CapabilitiesBlock({ model }: { model: AIModelEntry }) {
+  if (!model.capabilities) return null;
+  const caps = model.capabilities;
+  return (
+    <section>
+      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-indigo-500" />
+        能力矩陣
+      </h3>
+      <div className="flex flex-wrap gap-1.5">
+        {CAPABILITY_ROWS.map(row => (
+          <CapabilityCell
+            key={row.key}
+            state={caps[row.key]}
+            label={row.label}
+            hint={row.hint}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Safety / compliance badges ─────────────────────────────────────────────
+
+const SAFETY_STYLE: Record<
+  NonNullable<AIModelEntry["safetyTier"]>,
+  { label: string; chipBg: string; chipText: string; hint: string }
+> = {
+  high: {
+    label: "高度對齊",
+    chipBg: "bg-emerald-50",
+    chipText: "text-emerald-700",
+    hint: "嚴格安全微調、企業級合規友善",
+  },
+  medium: {
+    label: "標準對齊",
+    chipBg: "bg-sky-50",
+    chipText: "text-sky-700",
+    hint: "業界一般水準的安全微調",
+  },
+  low: {
+    label: "輕度對齊",
+    chipBg: "bg-amber-50",
+    chipText: "text-amber-700",
+    hint: "創意空間較大，需自行加上 guardrails",
+  },
+  unrestricted: {
+    label: "無限制",
+    chipBg: "bg-rose-50",
+    chipText: "text-rose-700",
+    hint: "幾乎不做內容過濾，部署時請自帶安全層",
+  },
+};
+
+function SafetyComplianceBlock({ model }: { model: AIModelEntry }) {
+  if (!model.safetyTier && (!model.compliance || model.compliance.length === 0))
+    return null;
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+        <ShieldCheck className="w-4 h-4 text-blue-500" />
+        安全與合規
+      </h3>
+      <div className="flex flex-wrap items-center gap-2">
+        {model.safetyTier && (
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full font-medium ${SAFETY_STYLE[model.safetyTier].chipBg} ${SAFETY_STYLE[model.safetyTier].chipText}`}
+            title={SAFETY_STYLE[model.safetyTier].hint}
+          >
+            {SAFETY_STYLE[model.safetyTier].label}
+          </span>
+        )}
+        {model.compliance?.map(tag => (
+          <span
+            key={tag}
+            className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium font-mono"
+            title={`${tag} compliance`}
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Peers / similar models ────────────────────────────────────────────────
+
+function PeersBlock({
+  model,
+  allModels,
+  onOpen,
+}: {
+  model: AIModelEntry;
+  allModels: AIModelEntry[];
+  onOpen: (m: AIModelEntry) => void;
+}) {
+  const peers = useMemo(() => {
+    if (!model.peers || model.peers.length === 0) return [];
+    return model.peers
+      .map(id => allModels.find(m => m.id === id))
+      .filter((m): m is AIModelEntry => Boolean(m));
+  }, [model.peers, allModels]);
+
+  if (peers.length === 0) return null;
+
+  return (
+    <section>
+      <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 inline-flex items-center gap-2">
+        <Layers className="w-4 h-4 text-violet-500" />
+        相似模型
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {peers.map(p => {
+          const ps = PROVIDER_STYLE[p.provider];
+          const ts = TIER_STYLE[p.tier];
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onOpen(p)}
+              className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-primary/40 hover:shadow-sm transition-all text-left group"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ring-1 ${ps.bg} ${ps.accent} ${ps.ring}`}
+                  >
+                    {ps.label}
+                  </span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded ${ts.chipBg} ${ts.chipText}`}
+                  >
+                    {ts.label}
+                  </span>
+                </div>
+                <div className="text-sm font-medium text-gray-800 mt-1 truncate group-hover:text-primary">
+                  {p.name}
+                </div>
+                <div className="text-[11px] text-gray-500 truncate">
+                  {p.tagline}
+                </div>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ─── Fact-check sources block ──────────────────────────────────────────────
 
 function FactCheckBlock({ model }: { model: AIModelEntry }) {
@@ -723,9 +923,13 @@ function FactCheckBlock({ model }: { model: AIModelEntry }) {
 
 function ModelDetailModal({
   model,
+  allModels,
+  onOpen,
   onClose,
 }: {
   model: AIModelEntry;
+  allModels: AIModelEntry[];
+  onOpen: (m: AIModelEntry) => void;
   onClose: () => void;
 }) {
   const provider = PROVIDER_STYLE[model.provider];
@@ -893,11 +1097,17 @@ function ModelDetailModal({
             {/* Benchmarks — auto-researched */}
             <BenchmarkBlock model={model} />
 
+            {/* Capabilities matrix */}
+            <CapabilitiesBlock model={model} />
+
             {/* Latest updates — auto-researched */}
             <LatestUpdatesBlock model={model} />
 
             {/* Availability */}
             <AvailabilityBlock model={model} />
+
+            {/* Safety + compliance */}
+            <SafetyComplianceBlock model={model} />
 
             {/* Strengths */}
             <section>
@@ -959,6 +1169,13 @@ function ModelDetailModal({
 
             {/* Fact-check sources — the trust layer */}
             <FactCheckBlock model={model} />
+
+            {/* Peers / similar models */}
+            <PeersBlock
+              model={model}
+              allModels={allModels}
+              onOpen={onOpen}
+            />
 
             {/* Tags */}
             {model.tags.length > 0 && (
@@ -1877,6 +2094,8 @@ export default function AIModelsHub() {
       {openModel && (
         <ModelDetailModal
           model={openModel}
+          allModels={allModels}
+          onOpen={setOpenModel}
           onClose={() => setOpenModel(null)}
         />
       )}

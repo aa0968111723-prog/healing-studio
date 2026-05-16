@@ -56,9 +56,48 @@ export type ModelProvider =
   | "Moonshot"
   | "Zhipu"
   | "Tencent"
-  | "Kling AI";
+  | "Kling AI"
+  | "Cohere"
+  | "Voyage AI"
+  | "MiniMax"
+  | "Ideogram"
+  | "Recraft"
+  | "NVIDIA";
 
 export type LatencyClass = "realtime" | "fast" | "standard" | "slow";
+
+export type SafetyTier = "high" | "medium" | "low" | "unrestricted";
+
+export type ComplianceTag = "SOC2" | "HIPAA" | "GDPR" | "ISO27001" | "FedRAMP";
+
+/**
+ * 模型能力矩陣。所有欄位皆為可選（undefined 表示「未知 / 未確認」），
+ * 自動研究會嘗試填上明確的 true / false。
+ */
+export interface ModelCapabilities {
+  /** 是否支援讀取圖像輸入 */
+  visionInput?: boolean;
+  /** 是否支援讀取音訊輸入 */
+  audioInput?: boolean;
+  /** 是否支援讀取影片輸入 */
+  videoInput?: boolean;
+  /** 是否支援 function / tool calling */
+  functionCalling?: boolean;
+  /** 是否支援 JSON / 結構化輸出 */
+  structuredOutput?: boolean;
+  /** 是否支援串流（streaming）輸出 */
+  streaming?: boolean;
+  /** 是否支援 fine-tuning */
+  fineTuning?: boolean;
+  /** 是否內建程式碼執行（code interpreter） */
+  codeExecution?: boolean;
+  /** 是否內建瀏覽 / 網路搜尋工具 */
+  webSearch?: boolean;
+  /** 是否支援 prompt caching（顯著降低重複 input 成本） */
+  promptCaching?: boolean;
+  /** 是否支援批次（batch）API（通常 50% 折扣） */
+  batchApi?: boolean;
+}
 
 export type ModelTier = "frontier" | "balanced" | "lightweight" | "open-source";
 
@@ -206,6 +245,16 @@ export interface AIModelEntry {
   latencyClass?: LatencyClass;
   /** 地理可用性或主要可用區域備註，例如「中國大陸限定」、「歐洲未上線」。 */
   region?: string;
+  /** 結構化能力旗標（vision input、function calling、batch API 等） */
+  capabilities?: ModelCapabilities;
+  /** 內容安全 / 對齊分級 */
+  safetyTier?: SafetyTier;
+  /** 已取得的合規憑證 / 標籤（SOC2、HIPAA、GDPR…） */
+  compliance?: ComplianceTag[];
+  /** 相似 / 競品模型 ID 清單（顯示為「相似模型」推薦） */
+  peers?: string[];
+  /** 是否支援同廠商 API 即時轉換到其他版本（用於版本血緣展示） */
+  predecessorId?: string;
 }
 
 /** Server-side enriched entry — same shape, but factCheck is guaranteed to exist after auto-research. */
@@ -350,6 +399,42 @@ export const PROVIDER_STYLE: Record<
     bg: "bg-fuchsia-50",
     ring: "ring-fuchsia-200",
     label: "Kling AI",
+  },
+  Cohere: {
+    accent: "text-violet-700",
+    bg: "bg-violet-50",
+    ring: "ring-violet-200",
+    label: "Cohere",
+  },
+  "Voyage AI": {
+    accent: "text-cyan-700",
+    bg: "bg-cyan-50",
+    ring: "ring-cyan-200",
+    label: "Voyage AI",
+  },
+  MiniMax: {
+    accent: "text-rose-700",
+    bg: "bg-rose-50",
+    ring: "ring-rose-200",
+    label: "MiniMax",
+  },
+  Ideogram: {
+    accent: "text-pink-700",
+    bg: "bg-pink-50",
+    ring: "ring-pink-200",
+    label: "Ideogram",
+  },
+  Recraft: {
+    accent: "text-amber-700",
+    bg: "bg-amber-50",
+    ring: "ring-amber-200",
+    label: "Recraft",
+  },
+  NVIDIA: {
+    accent: "text-emerald-700",
+    bg: "bg-emerald-50",
+    ring: "ring-emerald-200",
+    label: "NVIDIA",
   },
 };
 
@@ -569,6 +654,18 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       status: "pending",
       sources: [],
     },
+    capabilities: {
+      visionInput: true,
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      promptCaching: true,
+      batchApi: true,
+      fineTuning: false,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
+    peers: ["gpt-5", "gemini-3-pro", "claude-sonnet-4-6"],
   },
   {
     id: "claude-sonnet-4-6",
@@ -621,6 +718,17 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       "Claude Sonnet 4.6 vs GPT-4o benchmarks",
     ],
     factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      promptCaching: true,
+      batchApi: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
+    peers: ["claude-opus-4-7", "gpt-4o", "gemini-3-pro", "mistral-medium-3"],
   },
   {
     id: "claude-haiku-4-5",
@@ -704,6 +812,21 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       "OpenAI gpt-4o benchmark",
     ],
     factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      audioInput: true,
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+      promptCaching: true,
+      batchApi: true,
+      webSearch: true,
+      codeExecution: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR"],
+    peers: ["claude-sonnet-4-6", "gemini-3-pro", "gpt-5"],
   },
   {
     id: "gpt-4o-mini",
@@ -867,6 +990,22 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       "Gemini 2 release",
     ],
     factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      audioInput: true,
+      videoInput: true,
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+      promptCaching: true,
+      batchApi: true,
+      webSearch: true,
+      codeExecution: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
+    peers: ["gemini-3-pro", "gpt-4o", "claude-sonnet-4-6"],
   },
   {
     id: "gemini-2-flash",
@@ -988,6 +1127,14 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     researchKeywords: ["Llama 3.3 70B benchmark community license"],
     factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+    },
+    safetyTier: "medium",
+    peers: ["mistral-large-2", "qwen-2-5-72b", "deepseek-v3"],
   },
   {
     id: "llama-3-2-vision",
@@ -2036,6 +2183,408 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: true },
     researchKeywords: ["Codestral 25.01 HumanEval RepoBench"],
     factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+      promptCaching: false,
+      visionInput: false,
+    },
+    safetyTier: "medium",
+    peers: ["deepseek-v3", "qwen-2-5-72b"],
+  },
+
+  // ── 第三波擴充：補齊嵌入向量、企業旗艦、亞洲影片新勢力 ──────────────
+  {
+    id: "cohere-command-a",
+    name: "Command A",
+    apiId: "command-a-03-2025",
+    provider: "Cohere",
+    modality: "text",
+    tier: "balanced",
+    releaseDate: "2025-03",
+    tagline: "Cohere 旗艦級企業模型，主打可自架的 RAG 與多語",
+    description:
+      "Command A 為 Cohere 2025 推出的旗艦，111B 參數、256K 上下文，主打企業可在 2 張 A100 / H100 上自架，內建 RAG 引用標註與工具呼叫。",
+    strengths: [
+      "原生 23 種語言支援",
+      "內建 RAG 引用標註（grounded generation）",
+      "2 張 GPU 即可自架，企業內網友善",
+      "工具呼叫與結構化輸出穩定",
+    ],
+    limitations: ["創意寫作弱於 Claude / GPT", "中文略遜 Qwen / GLM"],
+    useCases: ["企業 RAG", "多語客服", "On-prem 部署", "金融 / 法律檢索"],
+    contextWindow: "256K tokens",
+    openWeight: true,
+    tags: ["企業", "可自架", "多語 RAG"],
+    officialUrl: "https://cohere.com/command",
+    trainingCutoff: "2024-12",
+    languages: ["en", "fr", "es", "de", "ja", "ko", "zh", "ar", "pt"],
+    latencyClass: "fast",
+    pricing: {
+      inputPerMillion: "$2.5",
+      outputPerMillion: "$10",
+      unit: "USD / 1M tokens",
+      note: "Hugging Face 權重採非商用授權；商用需與 Cohere 簽約",
+      tier: "medium",
+    },
+    availability: {
+      api: true,
+      web: true,
+      selfHost: true,
+      notes: "AWS Bedrock / Azure / Sagemaker / Oracle 都有託管",
+    },
+    researchKeywords: ["Cohere Command A pricing RAG benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+      webSearch: true,
+      promptCaching: false,
+      batchApi: false,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "GDPR", "ISO27001"],
+    peers: ["claude-sonnet-4-6", "mistral-large-2", "llama-3-3-70b"],
+  },
+  {
+    id: "voyage-3-large",
+    name: "Voyage 3 Large",
+    apiId: "voyage-3-large",
+    provider: "Voyage AI",
+    modality: "embedding",
+    tier: "balanced",
+    releaseDate: "2025-01",
+    tagline: "Voyage（Anthropic 旗下）嵌入旗艦，檢索精度業界領先",
+    description:
+      "Voyage 3 Large 為 Voyage AI（已被 Anthropic 收購）的旗艦嵌入模型，預設 1024 維、可調至 2048 / 512 / 256；MTEB / MIRACL / 程式碼搜尋等基準上多項業界第一。",
+    strengths: [
+      "MTEB / 程式碼搜尋分數頂尖",
+      "可調維度兼顧成本與精度",
+      "領域版本（finance / legal / code）可選",
+    ],
+    limitations: ["僅供 API，無開源權重", "需要 Voyage / Anthropic 帳號"],
+    useCases: ["高精度 RAG", "程式碼搜尋", "金融 / 法律文件檢索", "Claude RAG 配套"],
+    contextWindow: "32K tokens / 輸入",
+    openWeight: false,
+    tags: ["嵌入向量", "RAG", "可調維度"],
+    officialUrl: "https://www.voyageai.com/",
+    languages: ["en", "zh", "ja", "ko", "es", "fr", "de"],
+    latencyClass: "realtime",
+    pricing: {
+      inputPerMillion: "$0.18",
+      unit: "USD / 1M tokens",
+      note: "voyage-3-lite 與領域版本另計價",
+      tier: "low",
+    },
+    benchmarks: [
+      { name: "MTEB（平均）", score: "66.3" },
+      { name: "程式碼檢索", score: "業界第一" },
+    ],
+    availability: { api: true, web: false, selfHost: false },
+    researchKeywords: ["Voyage 3 Large MTEB MIRACL"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      streaming: false,
+      fineTuning: false,
+      structuredOutput: false,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2"],
+    peers: ["openai-embedding-3-large"],
+  },
+  {
+    id: "hailuo-02",
+    name: "MiniMax Hailuo 02",
+    apiId: "hailuo-02",
+    provider: "MiniMax",
+    modality: "video",
+    tier: "balanced",
+    releaseDate: "2025-06",
+    tagline: "MiniMax 海螺，物理動作社群評分業界前段",
+    description:
+      "Hailuo 02 是 MiniMax 的影片旗艦，原生 1080p / 6-10s，主打物理擬真與 prompt 服從度，在 LMArena 影片排行榜上多次擠進前三。",
+    strengths: ["物理動作擬真度高", "prompt 服從度好", "首末幀控制完整"],
+    limitations: ["僅支援短秒數（10s 上限）", "API 文件英文版較少"],
+    useCases: ["廣告短片", "電商商品演示", "社群短片", "概念分鏡"],
+    openWeight: false,
+    tags: ["影片", "首末幀", "1080p"],
+    officialUrl: "https://hailuoai.video/",
+    trainingCutoff: "2025-04",
+    latencyClass: "slow",
+    region: "中國大陸 + 海外節點，需註冊 MiniMax",
+    pricing: {
+      unit: "USD / video credits",
+      note: "Standard / Pro 兩檔；包月可省",
+      tier: "medium",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Hailuo 02 MiniMax video benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      streaming: false,
+      fineTuning: false,
+    },
+    safetyTier: "medium",
+    peers: ["kling-2", "sora-2", "runway-gen-3", "veo-3"],
+  },
+  {
+    id: "minimax-m1",
+    name: "MiniMax M1",
+    apiId: "minimax-m1",
+    provider: "MiniMax",
+    modality: "text",
+    tier: "open-source",
+    releaseDate: "2025-06",
+    tagline: "MiniMax 開源 MoE 文字旗艦，1M 上下文且 thinking 模式",
+    description:
+      "M1 為 MiniMax 開源的 456B / 45.9B 啟用 MoE 文字模型，原生 1M 上下文，採用 Lightning Attention 架構，推論成本比同級 dense 模型低約 75%。",
+    strengths: ["1M 上下文 + 低成本", "thinking 模式可關閉", "Apache 2.0 商用可用"],
+    limitations: ["需要 H100 多卡才能跑 thinking 模式", "中文外語言略弱"],
+    useCases: ["長脈絡 RAG", "代理工作流", "fine-tune 起點", "可控自架旗艦"],
+    contextWindow: "1M tokens",
+    openWeight: true,
+    tags: ["開源", "1M 脈絡", "MoE", "thinking"],
+    officialUrl: "https://github.com/MiniMax-AI/MiniMax-M1",
+    trainingCutoff: "2025-02",
+    languages: ["zh", "en"],
+    latencyClass: "standard",
+    pricing: {
+      unit: "self-host 或第三方 API",
+      note: "MiniMax 官方 API 與 Together / Fireworks 提供",
+      tier: "self-host",
+    },
+    availability: { api: true, web: true, selfHost: true },
+    researchKeywords: ["MiniMax M1 open source thinking benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+      promptCaching: false,
+    },
+    safetyTier: "medium",
+    peers: ["kimi-k2", "deepseek-v3", "llama-4-maverick", "glm-4-6"],
+  },
+  {
+    id: "pika-2-2",
+    name: "Pika 2.2",
+    apiId: "pika-2-2",
+    provider: "Pika",
+    modality: "video",
+    tier: "balanced",
+    releaseDate: "2025-02",
+    tagline: "Pika 影片 2.2，主打 Pikaframes 過場與創意效果",
+    description:
+      "Pika 2.2 升級到 1080p / 10s，新增 Pikaframes（雙幀內插）與 Pikadditions（把物體合成進既有影片），主打容易上手與創意效果。",
+    strengths: [
+      "Pikaframes 雙幀內插效果佳",
+      "Pikadditions 物體合成自然",
+      "UI 對新手友善",
+    ],
+    limitations: ["寫實鏡頭略遜 Kling / Sora", "進階控制有限"],
+    useCases: ["社群短影音", "創意特效", "教育動畫", "電商素材"],
+    openWeight: false,
+    tags: ["影片", "Pikaframes", "1080p"],
+    officialUrl: "https://pika.art/",
+    trainingCutoff: "2024-12",
+    latencyClass: "slow",
+    pricing: {
+      unit: "USD / month subscription",
+      note: "Free / Standard $10 / Pro $35 / Fancy $95",
+      tier: "low",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Pika 2.2 Pikaframes pricing"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: { streaming: false, fineTuning: false },
+    safetyTier: "medium",
+    peers: ["runway-gen-3", "luma-dream-machine", "hailuo-02"],
+  },
+  {
+    id: "ideogram-3",
+    name: "Ideogram 3.0",
+    apiId: "ideogram-3-0",
+    provider: "Ideogram",
+    modality: "image",
+    tier: "balanced",
+    releaseDate: "2025-03",
+    tagline: "排版與文字渲染最強的圖像模型，海報設計首選",
+    description:
+      "Ideogram 3.0 在圖內文字、字型還原、排版規畫上業界領先，新增 Magic Fill / Magic Expand 編輯流程，並支援風格參考圖。",
+    strengths: ["圖內文字準確度業界第一", "排版設計感強", "風格參考圖控制細膩"],
+    limitations: ["寫實人物略遜 Midjourney", "影片 / 3D 不支援"],
+    useCases: ["海報 / 名片設計", "Logo 草稿", "社群圖文", "Banner 與廣告"],
+    openWeight: false,
+    tags: ["圖像", "文字渲染", "排版"],
+    officialUrl: "https://ideogram.ai/",
+    trainingCutoff: "2025-01",
+    latencyClass: "fast",
+    pricing: {
+      unit: "USD / month subscription",
+      note: "Free / Basic $7 / Plus $16 / Pro $48",
+      tier: "low",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Ideogram 3.0 typography benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: { streaming: false, fineTuning: false },
+    safetyTier: "high",
+    peers: ["midjourney-v7", "imagen-4", "flux-1-pro", "recraft-v3"],
+  },
+  {
+    id: "recraft-v3",
+    name: "Recraft V3",
+    apiId: "recraft-v3",
+    provider: "Recraft",
+    modality: "image",
+    tier: "balanced",
+    releaseDate: "2024-10",
+    tagline: "唯一同時輸出向量 + 點陣的圖像模型",
+    description:
+      "Recraft V3（紅熊貓代號 red_panda）2024 末登上 LMSYS 圖像排行第一，主打可同時輸出 SVG 向量與 PNG 點陣，並有完整的品牌一致性風格控制。",
+    strengths: ["SVG 向量輸出（業界唯一）", "品牌風格鎖定強", "圖內文字準確"],
+    limitations: ["寫實人物表現中等", "極複雜場景偶會崩"],
+    useCases: ["Logo / 圖標", "品牌素材", "印刷物排版", "UI 插畫"],
+    openWeight: false,
+    tags: ["向量輸出", "品牌設計", "Logo"],
+    officialUrl: "https://www.recraft.ai/",
+    trainingCutoff: "2024-08",
+    latencyClass: "fast",
+    pricing: {
+      unit: "USD / month subscription",
+      note: "Free / Basic $12 / Advanced $33 / Pro $60",
+      tier: "low",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Recraft V3 SVG vector pricing"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: { streaming: false, fineTuning: false },
+    safetyTier: "high",
+    peers: ["ideogram-3", "midjourney-v7", "imagen-4"],
+  },
+  {
+    id: "deepseek-v3-1",
+    name: "DeepSeek V3.1",
+    apiId: "deepseek-v3-1",
+    provider: "DeepSeek",
+    modality: "text",
+    tier: "open-source",
+    releaseDate: "2025-08",
+    tagline: "DeepSeek V3 系列 hybrid 推理版本，think / non-think 雙模式",
+    description:
+      "V3.1 整合 reasoning 與 chat 為同一個模型，可由 chat-template flag 切換 thinking / non-thinking 模式，並提供 128K 上下文與全開源權重。",
+    strengths: ["hybrid thinking / chat 雙模式", "權重 MIT 開源", "中英文程式表現均衡"],
+    limitations: ["thinking 模式 token 成本上升", "工具呼叫穩定度仍弱於 GPT-5"],
+    useCases: ["可控自架 RAG / 代理", "中英文程式助手", "fine-tune 起點"],
+    contextWindow: "128K tokens",
+    openWeight: true,
+    tags: ["開源", "hybrid 推理", "MIT"],
+    officialUrl: "https://github.com/deepseek-ai/DeepSeek-V3",
+    trainingCutoff: "2025-04",
+    languages: ["en", "zh"],
+    latencyClass: "fast",
+    pricing: {
+      inputPerMillion: "$0.27",
+      outputPerMillion: "$1.1",
+      unit: "USD / 1M tokens",
+      note: "cached input 折扣大，thinking 模式 output 另計",
+      tier: "low",
+    },
+    availability: { api: true, web: true, selfHost: true },
+    researchKeywords: ["DeepSeek V3.1 hybrid pricing benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+      promptCaching: true,
+    },
+    safetyTier: "medium",
+    peers: ["kimi-k2", "glm-4-6", "minimax-m1", "qwen3-max"],
+    predecessorId: "deepseek-v3",
+  },
+  {
+    id: "gpt-image-1",
+    name: "GPT Image 1",
+    apiId: "gpt-image-1",
+    provider: "OpenAI",
+    modality: "image",
+    tier: "frontier",
+    releaseDate: "2025-04",
+    tagline: "OpenAI 把 ChatGPT 的圖像生成抽出來，文字渲染與精細編輯",
+    description:
+      "GPT Image 1 為 OpenAI 把 ChatGPT 內建圖像生成抽出開放的 API，主打世界知識整合與圖內文字準確度，並支援帶遮罩編輯與多圖參考輸入。",
+    strengths: [
+      "圖內文字渲染準確",
+      "世界知識融入畫面（圖表 / 海報）",
+      "支援多參考圖 + 遮罩編輯",
+    ],
+    limitations: ["生成時間中等", "極端寫實角色仍偶有瑕疵"],
+    useCases: ["品牌素材", "PPT / 報告插圖", "圖表化說明", "圖像編輯"],
+    openWeight: false,
+    tags: ["圖像", "文字渲染", "編輯"],
+    officialUrl: "https://platform.openai.com/docs/guides/image-generation",
+    trainingCutoff: "2024-12",
+    latencyClass: "standard",
+    pricing: {
+      unit: "USD / image",
+      note: "Low / Medium / High 三檔解析度；高解析另計",
+      tier: "medium",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["GPT Image 1 pricing API"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: { streaming: false, fineTuning: false },
+    safetyTier: "high",
+    compliance: ["SOC2", "GDPR"],
+    peers: ["dall-e-3", "imagen-4", "midjourney-v7", "ideogram-3"],
+    predecessorId: "dall-e-3",
+  },
+  {
+    id: "nemotron-nano-9b",
+    name: "Nemotron Nano 9B v2",
+    apiId: "nemotron-nano-9b-v2",
+    provider: "NVIDIA",
+    modality: "text",
+    tier: "open-source",
+    releaseDate: "2025-08",
+    tagline: "NVIDIA 開源 9B 推理模型，可在單張 RTX 4090 上跑",
+    description:
+      "NVIDIA Nemotron Nano 9B v2 為 9B 蒸餾模型，主打單張消費級 GPU 即可跑高品質推理，並支援 thinking budget 控制（限制思考 tokens 數）。",
+    strengths: [
+      "9B 體型即達 30B 級表現",
+      "thinking budget 可顯式控制",
+      "NVIDIA Open Model License 商用可用",
+    ],
+    limitations: ["脈絡視窗 128K", "中文較弱"],
+    useCases: ["邊緣推理", "本地 fine-tune", "教育與研究", "成本敏感 SaaS"],
+    contextWindow: "128K tokens",
+    openWeight: true,
+    tags: ["小模型", "thinking budget", "本地推論"],
+    officialUrl: "https://huggingface.co/nvidia/Nemotron-Nano-9B-v2",
+    trainingCutoff: "2025-04",
+    latencyClass: "fast",
+    pricing: {
+      unit: "self-host or build.nvidia.com",
+      tier: "self-host",
+    },
+    availability: { api: true, web: true, selfHost: true },
+    researchKeywords: ["Nemotron Nano 9B v2 benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      fineTuning: true,
+    },
+    safetyTier: "medium",
+    peers: ["phi-4", "llama-3-3-70b", "deepseek-v3-1"],
   },
 ];
 
