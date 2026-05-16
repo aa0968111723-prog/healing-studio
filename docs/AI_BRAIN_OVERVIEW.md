@@ -137,7 +137,7 @@ UI:`client/src/pages/AiBrainSettings.tsx`(主檔)+ `client/src/pages/admin/brain
 
 ## 6. 一致性測試(`server/ai-brain-consistency.test.ts`)
 
-17 條規則,對應 `brain-config-gap-audit-2026-04-20.md` KPI:`設定一致性測試覆蓋:新增至少 8 條規則型測試` ✅(已超標)。
+17 條規則,對應 `audits/brain-config-gap-audit-2026-04-20.md` KPI:`設定一致性測試覆蓋:新增至少 8 條規則型測試` ✅(已超標)。
 
 | Rule | 內容 |
 |---|---|
@@ -161,7 +161,7 @@ UI:`client/src/pages/AiBrainSettings.tsx`(主檔)+ `client/src/pages/admin/brain
 
 ---
 
-## 7. 已完成 KPI(對照 brain-config-gap-audit-2026-04-20)
+## 7. 已完成 KPI(對照 audits/brain-config-gap-audit-2026-04-20)
 
 - [x] **無效 model/engine 寫入率 < 0.1%**:`brain.upsert` 對 25 個欄位都套 enum 白名單(per-category for Fal),非法值直接 422。
 - [x] **首次請求 fallback 觸發率下降**:健康狀態三態化,UI 顯示「未驗證」,使用者切到新模型時不會見到假的「Online」徽章誤導。

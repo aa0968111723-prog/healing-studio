@@ -1,7 +1,7 @@
 /**
  * videoCatalogConsistency.test.ts — SSOT 一致性守門
  *
- * 這層測試是 brain-config-gap-audit-2026-04-20.md 標的 P2 補位：
+ * 這層測試是 docs/audits/brain-config-gap-audit-2026-04-20.md 標的 P2 補位：
  *   - router 真的會呼叫的 modelId 必須有定價且在 falModels catalog
  *   - UI 顯示用的 modelId 必須有定價（pricing badge / cost guard 才不會 0 分）
  *   - dispatcher fallback 鏈裡的 modelId 必須有定價（fallback 觸發時不會崩）

@@ -1,7 +1,7 @@
 /**
  * AI 大腦組態一致性測試 — 防止 silent drift
  *
- * 來源:brain-config-gap-audit-2026-04-20.md 提出至少 8 條規則型測試。
+ * 來源:docs/audits/brain-config-gap-audit-2026-04-20.md 提出至少 8 條規則型測試。
  * 目標:每當 catalog / defaults / fallback / DB schema 任一被改動,
  * 若它們之間出現不一致,測試立即會紅。
  */

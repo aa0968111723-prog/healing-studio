@@ -173,7 +173,7 @@ This integration implements deep integration of Director AI from automatic scrip
 - `server/routers/director.ts` (+408 lines)
 - `client/src/pages/DirectorAI.tsx` (修改: 狀態、hooks、按鈕)
 - `client/src/pages/DirectorAI_batch_dialog.tsx` (新增: 對話框組件)
-- `INTEGRATION_NOTES.md` (本檔案)
+- `docs/guides/INTEGRATION_NOTES.md` (本檔案)
 
 ## 後續優化 Future Enhancements
 
