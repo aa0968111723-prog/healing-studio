@@ -166,6 +166,21 @@ export interface ResearchRunResult {
 
 const RECENT_SUCCESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** 檢查兩個搜尋提供者的 API key 是否至少有一個設定。 */
+function getConfiguredProviders(): { perplexity: boolean; openrouter: boolean } {
+  const perp = (
+    serverEnv.PERPLEXITY_API_KEY ??
+    process.env.PERPLEXITY_API_KEY ??
+    ""
+  ).trim();
+  const openrouter = (
+    (serverEnv as Record<string, string | undefined>).OPENROUTER_API_KEY ??
+    process.env.OPENROUTER_API_KEY ??
+    ""
+  ).trim();
+  return { perplexity: Boolean(perp), openrouter: Boolean(openrouter) };
+}
+
 /** 取得目前 in-memory store 中所有 enriched models（合併 baseline + enrichment）。 */
 export function getEnrichedCatalog(): EnrichedAIModelEntry[] {
   const now = new Date();
@@ -269,7 +284,7 @@ export async function researchAndFactCheckModel(
   // ── Try providers in order ──
   let payload: ResearchPayload | null = null;
   let providerUsed: string | null = null;
-  let lastError: string | null = null;
+  const providerErrors: string[] = [];
 
   try {
     const native = await callPerplexity(query);
@@ -278,10 +293,11 @@ export async function researchAndFactCheckModel(
       providerUsed = "perplexity-native";
     }
   } catch (err) {
-    lastError = `perplexity-native: ${(err as Error).message}`;
+    const msg = `perplexity-native: ${(err as Error).message}`;
+    providerErrors.push(msg);
     logger.warn("[modelResearcher] perplexity native failed", {
       modelId,
-      err: lastError,
+      err: msg,
     });
   }
 
@@ -293,20 +309,22 @@ export async function researchAndFactCheckModel(
         providerUsed = "openrouter-sonar";
       }
     } catch (err) {
-      lastError = `openrouter-sonar: ${(err as Error).message}`;
+      const msg = `openrouter-sonar: ${(err as Error).message}`;
+      providerErrors.push(msg);
       logger.warn("[modelResearcher] openrouter sonar failed", {
         modelId,
-        err: lastError,
+        err: msg,
       });
     }
   }
 
   if (!payload || !providerUsed) {
-    storeError(modelId, lastError ?? "All research providers failed");
-    return {
-      ok: false,
-      reason: lastError ?? "All research providers failed",
-    };
+    const reason =
+      providerErrors.length > 0
+        ? providerErrors.join(" | ")
+        : "All research providers failed";
+    storeError(modelId, reason);
+    return { ok: false, reason };
   }
 
   recordPerplexityCall({
@@ -358,6 +376,28 @@ export async function researchAndFactCheckAllModels(
   if (activeRunPromise) {
     logger.info("[modelResearcher] Run already active, awaiting it");
     return activeRunPromise;
+  }
+
+  const providers = getConfiguredProviders();
+  if (!providers.perplexity && !providers.openrouter) {
+    const reason =
+      "PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 都未設定，無法執行自動研究";
+    logger.warn("[modelResearcher] aborting bulk run", { reason });
+    const nowIso = new Date().toISOString();
+    stats.lastRunAt = nowIso;
+    stats.lastRunDurationMs = 0;
+    stats.lastRunErrors = [reason];
+    stats.lastRunModelsTried = 0;
+    stats.lastRunModelsSucceeded = 0;
+    stats.totalRunsCompleted += 1;
+    return {
+      modelsTried: 0,
+      modelsSucceeded: 0,
+      errors: [{ modelId: "*", reason }],
+      durationMs: 0,
+      startedAt: nowIso,
+      finishedAt: nowIso,
+    };
   }
 
   const concurrency = Math.max(1, Math.min(4, options.concurrency ?? 2));
@@ -443,6 +483,28 @@ export async function researchAndFactCheckStaleModels(
   if (activeRunPromise) {
     logger.info("[modelResearcher] Run already active, awaiting it");
     return activeRunPromise;
+  }
+
+  const providers = getConfiguredProviders();
+  if (!providers.perplexity && !providers.openrouter) {
+    const reason =
+      "PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 都未設定，無法執行自動研究";
+    logger.warn("[modelResearcher] aborting stale-only run", { reason });
+    const nowIso = new Date().toISOString();
+    stats.lastRunAt = nowIso;
+    stats.lastRunDurationMs = 0;
+    stats.lastRunErrors = [reason];
+    stats.lastRunModelsTried = 0;
+    stats.lastRunModelsSucceeded = 0;
+    stats.totalRunsCompleted += 1;
+    return {
+      modelsTried: 0,
+      modelsSucceeded: 0,
+      errors: [{ modelId: "*", reason }],
+      durationMs: 0,
+      startedAt: nowIso,
+      finishedAt: nowIso,
+    };
   }
 
   const concurrency = Math.max(1, Math.min(4, options.concurrency ?? 2));
@@ -603,8 +665,12 @@ function buildResearchPrompt(base: AIModelEntry): string {
 }
 
 async function callPerplexity(query: string): Promise<ResearchPayload | null> {
-  const apiKey = serverEnv.PERPLEXITY_API_KEY ?? process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) return null;
+  const apiKey = (
+    serverEnv.PERPLEXITY_API_KEY ??
+    process.env.PERPLEXITY_API_KEY ??
+    ""
+  ).trim();
+  if (!apiKey) throw new Error("PERPLEXITY_API_KEY 未設定");
 
   const res = await fetch(PERPLEXITY_API_URL, {
     method: "POST",
@@ -642,7 +708,6 @@ async function callPerplexity(query: string): Promise<ResearchPayload | null> {
 
   const content = data.choices?.[0]?.message?.content ?? "";
   const parsed = parseResearchPayload(content);
-  if (!parsed) return null;
 
   // 若 model 沒填 sources，補進 citations / search_results
   if (parsed.sources.length === 0) {
@@ -662,10 +727,12 @@ async function callPerplexity(query: string): Promise<ResearchPayload | null> {
 async function callOpenRouterSonar(
   query: string
 ): Promise<ResearchPayload | null> {
-  const apiKey =
+  const apiKey = (
     (serverEnv as Record<string, string | undefined>).OPENROUTER_API_KEY ??
-    process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return null;
+    process.env.OPENROUTER_API_KEY ??
+    ""
+  ).trim();
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY 未設定");
 
   const res = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -703,8 +770,9 @@ async function callOpenRouterSonar(
   return parseResearchPayload(content);
 }
 
-function parseResearchPayload(raw: string): ResearchPayload | null {
-  if (!raw) return null;
+
+function parseResearchPayload(raw: string): ResearchPayload {
+  if (!raw) throw new Error("empty response payload");
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -717,20 +785,22 @@ function parseResearchPayload(raw: string): ResearchPayload | null {
   } catch {
     // Try to extract the first {...} block — some models prepend prose
     const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) return null;
+    if (!match) throw new Error("response did not contain JSON");
     try {
       json = JSON.parse(match[0]);
-    } catch {
-      return null;
+    } catch (err) {
+      throw new Error(`JSON parse failed: ${(err as Error).message}`);
     }
   }
 
   const parsed = researchPayloadSchema.safeParse(json);
   if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const path = first?.path.join(".") || "(root)";
     logger.warn("[modelResearcher] payload failed schema validation", {
       issues: parsed.error.issues.slice(0, 4),
     });
-    return null;
+    throw new Error(`schema validation failed at ${path}: ${first?.message ?? "unknown"}`);
   }
 
   // Normalize benchmarks (cap counts)
