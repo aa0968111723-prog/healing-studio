@@ -8,6 +8,10 @@ dist/
 build/
 *.dist
 
+# Playwright artifacts
+test-results/
+playwright-report/
+
 # Environment variables
 .env
 .env.local
