@@ -22,6 +22,7 @@
  */
 
 import { logger } from "../../_core/logger";
+import { humanizeToolError } from "./errorHumanizer";
 import {
   MODEL_PRICING_CATALOG,
   estimatePoints,
@@ -98,7 +99,7 @@ export async function generateImage(input: {
 
     return {
       success: false,
-      message: `生成失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `生成失敗:${humanizeToolError(error, { context: "imageSpecialist.generateImage" })}`,
     };
   }
 }
@@ -161,7 +162,7 @@ export async function editImage(input: {
 
     return {
       success: false,
-      message: `編輯失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `編輯失敗:${humanizeToolError(error, { context: "imageSpecialist.editImage" })}`,
     };
   }
 }
@@ -221,7 +222,7 @@ export async function upscaleImage(input: {
 
     return {
       success: false,
-      message: `放大失敗：${error instanceof Error ? error.message : String(error)}`,
+      message: `放大失敗:${humanizeToolError(error, { context: "imageSpecialist.upscaleImage" })}`,
     };
   }
 }

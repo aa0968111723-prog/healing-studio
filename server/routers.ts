@@ -334,6 +334,15 @@ function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): bool
 const ORB_AUTO_DRIVER_STALE_MS = 10 * 60_000; // 10 minutes
 const orbAutoDriverInFlight = new Map<string, number>();
 
+// execute_task action 失敗時要顯示給使用者的中文 label。type 是英文 enum,
+// 直接把 "generate_image" 露出來不是給使用者看的。對應 fallDispatcher
+// 收的三個 task type。
+const TASK_TYPE_LABEL: Record<"generate_image" | "generate_music" | "generate_video", string> = {
+  generate_image: "圖像生成",
+  generate_music: "音樂生成",
+  generate_video: "影片生成",
+};
+
 function isOrbAutoDriverInFlight(taskId: string): boolean {
   const startedAt = orbAutoDriverInFlight.get(taskId);
   if (startedAt === undefined) return false;
@@ -7402,11 +7411,25 @@ export const appRouter = router({
               }
               for (const action of convertedActions) {
                 if ((action as { type?: string }).type !== "execute_task") continue;
+                const taskAction = action as { type: string; task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> }; resultUrl?: string; error?: string };
                 try {
-                  const taskAction = action as { type: string; task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> }; resultUrl?: string };
                   taskAction.resultUrl = await executeOrbTask(ctx.user.id, taskAction.task);
                 } catch (err) {
-                  console.warn("[Orb] execute_task failed:", err);
+                  // H5 修復:executeOrbTask 失敗時 resultUrl 仍是 undefined,
+                  // 原本只 console.warn,前端拿到 action 但沒 resultUrl,reply
+                  // 還是「✅ 已完成」— 對使用者是赤裸的謊。
+                  // 改成:1) 標記 action.error 讓前端知道這條失敗;2) 附帶
+                  // 使用者可讀的失敗訊息到 reply;3) 發 telemetry 給可觀測。
+                  const msg = err instanceof Error ? err.message : String(err);
+                  const label = TASK_TYPE_LABEL[taskAction.task.type] ?? "任務";
+                  taskAction.error = msg;
+                  convertedReply = `${convertedReply}
+
+⚠️ ${label}執行失敗:${msg}`.trim();
+                  appendTelemetryEvent(telemetryEvents, "execute_task.failed", {
+                    taskType: taskAction.task.type,
+                    error: msg,
+                  });
                 }
               }
               return finalizeIdempotentResponse({
@@ -7931,15 +7954,28 @@ export const appRouter = router({
           }
           for (const action of legacyActions) {
             if (!action || typeof action !== "object" || (action as { type?: string }).type !== "execute_task") continue;
+            const typed = action as {
+              type: "execute_task";
+              task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> };
+              resultUrl?: string;
+              error?: string;
+            };
             try {
-              const typed = action as {
-                type: "execute_task";
-                task: { type: "generate_image" | "generate_music" | "generate_video"; params: Record<string, unknown> };
-                resultUrl?: string;
-              };
               typed.resultUrl = await executeOrbTask(ctx.user.id, typed.task);
             } catch (err) {
-              console.warn("[Orb] execute_task failed:", err);
+              // H5 修復:同 planner 分支(7405-7427 行的 catch 區塊)。
+              // legacy fallback 也要誠實回報失敗,不能讓使用者看到「✅
+              // 已完成」但 action 沒 resultUrl 的詭異狀態。
+              const msg = err instanceof Error ? err.message : String(err);
+              const label = TASK_TYPE_LABEL[typed.task.type] ?? "任務";
+              typed.error = msg;
+              legacy.reply = `${legacy.reply ?? ""}
+
+⚠️ ${label}執行失敗:${msg}`.trim();
+              appendTelemetryEvent(telemetryEvents, "execute_task.failed", {
+                taskType: typed.task.type,
+                error: msg,
+              });
             }
           }
           // ── Fallback navigate synthesis ─────────────────────────────────

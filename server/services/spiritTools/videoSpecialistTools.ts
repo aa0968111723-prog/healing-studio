@@ -28,6 +28,7 @@
  */
 
 import { logger } from "../../_core/logger";
+import { humanizeToolError } from "./errorHumanizer";
 import { injectModelPrompt } from "../../../shared/modelPromptTemplates";
 
 /** 影影自動偵測到的意圖類別，對應 falModels.ts 的 category。 */
@@ -372,7 +373,7 @@ export async function generateVideo(
           ? `影片完成（${intent}，模型 ${awaited.modelId}）`
           : awaited.status === "pending"
             ? `影片仍在處理：${awaited.request_id}`
-            : `影片生成失敗：${awaited.error ?? "未知錯誤"}`,
+            : `影片生成失敗:${humanizeToolError(awaited.error ?? "未知錯誤", { context: "videoSpecialist.awaitVideoJob" })}`,
       error: awaited.error,
     };
   } catch (error) {
@@ -389,7 +390,7 @@ export async function generateVideo(
       jobId: "",
       intent,
       modelId,
-      message: `影片生成失敗：${message}`,
+      message: `影片生成失敗:${humanizeToolError(error, { context: "videoSpecialist.generateVideo" })}`,
       error: message,
     };
   }
