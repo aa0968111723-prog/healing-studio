@@ -263,6 +263,77 @@ export interface AIModelEntry {
   peers?: string[];
   /** 是否支援同廠商 API 即時轉換到其他版本（用於版本血緣展示） */
   predecessorId?: string;
+  /** 代理（agent）類模型的補充細節 — 只對 modality === "agent" 有意義 */
+  agentDetails?: AgentDetails;
+  /** 主要使用介面：CLI / IDE plugin / Web app / API / 桌面 / 行動 */
+  interfaces?: ModelInterface[];
+  /** 對應的 SDK / package 名稱（npm、pypi、GitHub repo 等） */
+  sdkPackages?: SdkPackage[];
+  /** 模型版本血緣（從最舊到最新）；若用 predecessorId 鏈推算困難，可直接列出 */
+  lineage?: ModelLineageStep[];
+  /** 模型卡片上要不要把第一個 benchmark 重點 highlight 出來 */
+  highlightBenchmark?: boolean;
+}
+
+export type ModelInterface =
+  | "api"
+  | "web-app"
+  | "cli"
+  | "ide-plugin"
+  | "desktop-app"
+  | "mobile-app"
+  | "browser-extension"
+  | "sdk"
+  | "github-action";
+
+export interface SdkPackage {
+  /** 顯示名稱，例如 "@anthropic-ai/claude-code" */
+  name: string;
+  /** 套件來源：npm / pypi / cargo / homebrew / github / docker */
+  source: "npm" | "pypi" | "cargo" | "homebrew" | "github" | "docker" | "other";
+  /** 套件首頁或文件連結 */
+  url?: string;
+  /** 一句話用途說明 */
+  note?: string;
+}
+
+export type AgentSandbox =
+  | "cloud-vm"
+  | "browser"
+  | "local-terminal"
+  | "ide"
+  | "github-actions"
+  | "self-hosted"
+  | "mixed";
+
+export interface ModelLineageStep {
+  /** 顯示用版號 / 名稱，例如 "Devin 1"、"Codex (2021)" */
+  label: string;
+  /** ISO 月份或日期 */
+  releaseDate: string;
+  /** 一句話差異或重點，例如「v2 加入多代理協作」 */
+  note?: string;
+  /** 是否為目前版本（true 時 UI 會把它 highlight） */
+  current?: boolean;
+}
+
+export interface AgentDetails {
+  /** Sandbox / 執行環境類型 */
+  sandbox?: AgentSandbox;
+  /** 主要工具集（如 "Bash", "Web 搜尋", "GitHub PR"） */
+  tools?: string[];
+  /** 可長程任務時長（分鐘上限）— 0 / 省略代表沒明確上限 */
+  maxTaskMinutes?: number;
+  /** 是否支援後台 / 非同步執行（派任務後可關掉視窗） */
+  asyncCapable?: boolean;
+  /** 是否需要使用者授權後才能執行敏感操作（操作 GUI、付款等） */
+  needsAuthorization?: boolean;
+  /** 整合面 — 與哪些平台 / 系統串接 */
+  integrations?: string[];
+  /** 內建的記憶 / 長期狀態（如 "Sessions"、"Skills"、"Memory") */
+  memory?: string;
+  /** 並行限制（同時可開幾個 task） */
+  concurrencyLimit?: number;
 }
 
 /** Server-side enriched entry — same shape, but factCheck is guaranteed to exist after auto-research. */
@@ -4159,6 +4230,44 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       "devin",
       "openai-codex-cli",
     ],
+    interfaces: [
+      "cli",
+      "ide-plugin",
+      "web-app",
+      "mobile-app",
+      "github-action",
+      "sdk",
+    ],
+    sdkPackages: [
+      {
+        name: "@anthropic-ai/claude-code",
+        source: "npm",
+        url: "https://www.npmjs.com/package/@anthropic-ai/claude-code",
+        note: "官方 CLI",
+      },
+      {
+        name: "@anthropic-ai/claude-agent-sdk",
+        source: "npm",
+        url: "https://docs.claude.com/en/api/agent-sdk",
+        note: "自訂代理用的 TypeScript / Python SDK",
+      },
+    ],
+    agentDetails: {
+      sandbox: "mixed",
+      tools: [
+        "Bash",
+        "檔案讀寫 (Read / Edit / Write)",
+        "Grep / Glob",
+        "Web 搜尋 / Fetch",
+        "Sub-agent (Agent SDK)",
+        "GitHub MCP / Slash commands",
+      ],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub", "VS Code", "JetBrains", "Slack", "Linear"],
+      memory: "Skills / Memory / CLAUDE.md",
+    },
+    highlightBenchmark: true,
   },
   {
     id: "claude-computer-use",
@@ -4208,6 +4317,14 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "high",
     peers: ["openai-operator", "manus-ai"],
+    interfaces: ["api", "sdk"],
+    agentDetails: {
+      sandbox: "self-hosted",
+      tools: ["截圖", "滑鼠 / 鍵盤", "Bash（搭配 anthropic-quickstarts demo）"],
+      asyncCapable: false,
+      needsAuthorization: true,
+      integrations: ["任意 Linux 桌面 / Docker container"],
+    },
   },
   {
     id: "openai-codex-cli",
@@ -4251,6 +4368,22 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "high",
     peers: ["claude-code", "cursor-composer-agent", "devin"],
+    interfaces: ["cli", "web-app", "sdk"],
+    sdkPackages: [
+      {
+        name: "openai/codex",
+        source: "github",
+        url: "https://github.com/openai/codex",
+        note: "Apache-2.0 開源 CLI",
+      },
+    ],
+    agentDetails: {
+      sandbox: "local-terminal",
+      tools: ["Bash", "檔案讀寫", "GitHub CLI"],
+      asyncCapable: false,
+      needsAuthorization: true,
+      integrations: ["ChatGPT Plus / Pro", "OpenAI API", "GitHub"],
+    },
   },
   {
     id: "openai-operator",
@@ -4301,6 +4434,16 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "high",
     peers: ["claude-computer-use", "manus-ai"],
+    interfaces: ["web-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["雲端瀏覽器", "OCR / Vision", "表單填寫"],
+      maxTaskMinutes: 60,
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["任意網站（OAuth 授權後）"],
+      memory: "ChatGPT 帳號級對話歷史",
+    },
   },
   {
     id: "github-copilot-agent",
@@ -4350,6 +4493,28 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "ISO27001"],
     peers: ["claude-code", "cursor-composer-agent", "devin", "google-jules"],
+    interfaces: ["ide-plugin", "web-app", "github-action", "cli"],
+    sdkPackages: [
+      {
+        name: "@github/copilot-cli",
+        source: "npm",
+        url: "https://github.com/github/copilot-cli",
+        note: "Copilot CLI",
+      },
+    ],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: [
+        "Git / GitHub PR",
+        "Actions runners",
+        "Bash / 檔案",
+        "依背後模型可呼叫 web 搜尋",
+      ],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub Issues / PR / Actions / Codespaces"],
+      memory: "PR 上下文 + repo 記憶",
+    },
   },
   {
     id: "cursor-composer-agent",
@@ -4390,6 +4555,15 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "medium",
     peers: ["claude-code", "github-copilot-agent", "devin"],
+    interfaces: ["ide-plugin", "desktop-app"],
+    agentDetails: {
+      sandbox: "ide",
+      tools: ["檔案讀寫", "Terminal", "Diff 預覽", "Repo 索引"],
+      asyncCapable: false,
+      needsAuthorization: true,
+      integrations: ["Cursor IDE（VS Code fork）"],
+      memory: "Project rules / Notepads",
+    },
   },
   {
     id: "devin",
@@ -4440,6 +4614,23 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2"],
     peers: ["claude-code", "github-copilot-agent", "google-jules"],
+    interfaces: ["web-app", "api"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["瀏覽器", "Terminal", "檔案讀寫", "GitHub PR", "長期記憶"],
+      maxTaskMinutes: 360,
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub", "Linear", "Slack", "Jira"],
+      memory: "Long-term memory + Sessions",
+      concurrencyLimit: 8,
+    },
+    lineage: [
+      { label: "Devin 1", releaseDate: "2024-03" },
+      { label: "Devin 2", releaseDate: "2024-12", note: "多代理協作 + 更高 SWE-bench" },
+      { label: "Devin (current)", releaseDate: "2025-08", note: "ACU 計費 + Enterprise", current: true },
+    ],
+    highlightBenchmark: true,
   },
   {
     id: "replit-agent",
@@ -4480,6 +4671,20 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "medium",
     peers: ["cursor-composer-agent", "claude-code", "github-copilot-agent"],
+    interfaces: ["web-app", "mobile-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["檔案 / Terminal", "資料庫 (Postgres)", "Replit Deploy", "Web 搜尋"],
+      asyncCapable: true,
+      needsAuthorization: false,
+      integrations: ["Replit Deployments", "GitHub", "Postgres", "Stripe"],
+      memory: "Checkpoint-based session memory",
+    },
+    lineage: [
+      { label: "Replit Agent v1", releaseDate: "2024-09" },
+      { label: "Replit Agent 2", releaseDate: "2025-04" },
+      { label: "Replit Agent 3 (current)", releaseDate: "2025-06", current: true },
+    ],
   },
   {
     id: "manus-ai",
@@ -4524,6 +4729,17 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "medium",
     peers: ["openai-operator", "claude-computer-use", "google-jules"],
+    interfaces: ["web-app", "mobile-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["瀏覽器", "Terminal", "檔案讀寫", "資料分析", "報告產生"],
+      maxTaskMinutes: 480,
+      asyncCapable: true,
+      needsAuthorization: false,
+      integrations: ["Google Drive", "Notion", "Email", "GitHub"],
+      memory: "Per-session（可匯出）",
+      concurrencyLimit: 10,
+    },
   },
   {
     id: "google-jules",
@@ -4564,6 +4780,15 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "ISO27001"],
     peers: ["github-copilot-agent", "devin", "claude-code"],
+    interfaces: ["web-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["Bash", "Git / GitHub", "Test runner", "Web 搜尋"],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub", "Gemini API"],
+      memory: "Gemini 長脈絡內建",
+    },
   },
   {
     id: "microsoft-copilot-studio",
@@ -4605,6 +4830,15 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001", "FedRAMP"],
     peers: ["github-copilot-agent", "openai-operator"],
+    interfaces: ["web-app", "api"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["Power Platform connectors", "Graph API", "Knowledge base", "Custom topics"],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["Teams", "Outlook", "SharePoint", "Dynamics 365"],
+      memory: "Dataverse / SharePoint",
+    },
   },
   {
     id: "perplexity-comet",
@@ -4644,6 +4878,14 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "high",
     peers: ["openai-operator", "manus-ai"],
+    interfaces: ["desktop-app"],
+    agentDetails: {
+      sandbox: "browser",
+      tools: ["搜尋 + 引用", "頁面操作", "Tabs / Profiles", "Pinned tasks"],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["任意網頁 (OAuth 後)", "Perplexity Pro / Max"],
+    },
   },
   {
     id: "langgraph-agents",
@@ -4688,6 +4930,31 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     safetyTier: "medium",
     peers: ["llamaindex", "autogen"],
+    interfaces: ["sdk", "api"],
+    sdkPackages: [
+      {
+        name: "@langchain/langgraph",
+        source: "npm",
+        url: "https://www.npmjs.com/package/@langchain/langgraph",
+      },
+      {
+        name: "langgraph",
+        source: "pypi",
+        url: "https://pypi.org/project/langgraph/",
+      },
+      {
+        name: "langchain-ai/langgraph",
+        source: "github",
+        url: "https://github.com/langchain-ai/langgraph",
+      },
+    ],
+    agentDetails: {
+      sandbox: "self-hosted",
+      tools: ["可自選；常見：Bash、搜尋、SQL、HTTP、Vector store"],
+      asyncCapable: true,
+      integrations: ["LangSmith（tracing / eval）", "LangGraph Cloud"],
+      memory: "Pluggable checkpoint store（Postgres / Redis / SQLite）",
+    },
   },
 ];
 

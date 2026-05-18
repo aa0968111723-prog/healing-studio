@@ -274,6 +274,54 @@ function FactCheckBadge({
 
 // ─── Model card ────────────────────────────────────────────────────────────
 
+// Card-level compact capability chips. Show only enabled ones to avoid clutter.
+// One emoji + a short Chinese label tooltip — keeps the card scannable at a glance.
+function CapabilityChipsRow({ model }: { model: AIModelEntry }) {
+  type Chip = { key: string; emoji: string; title: string; on: boolean };
+  const caps = model.capabilities ?? {};
+  const chips: Chip[] = [
+    { key: "vision", emoji: "👁", title: "視覺輸入", on: !!caps.visionInput },
+    { key: "tools", emoji: "🛠", title: "工具呼叫", on: !!caps.functionCalling },
+    { key: "code", emoji: "⚙️", title: "程式執行", on: !!caps.codeExecution },
+    { key: "web", emoji: "🌐", title: "網頁搜尋", on: !!caps.webSearch },
+    { key: "cache", emoji: "💾", title: "Prompt 快取", on: !!caps.promptCaching },
+    { key: "batch", emoji: "📦", title: "Batch API", on: !!caps.batchApi },
+  ];
+  const active = chips.filter(c => c.on);
+  if (active.length === 0 && !model.agentDetails && !model.lineage) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1 mb-3">
+      {active.map(c => (
+        <span
+          key={c.key}
+          title={c.title}
+          aria-label={c.title}
+          className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/70 border border-border/40 inline-flex items-center gap-0.5"
+        >
+          <span>{c.emoji}</span>
+          <span className="text-foreground/80">{c.title}</span>
+        </span>
+      ))}
+      {model.modality === "agent" && model.agentDetails?.asyncCapable && (
+        <span
+          title="支援背景非同步執行"
+          className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60"
+        >
+          ⏱ 背景跑
+        </span>
+      )}
+      {model.lineage && model.lineage.length > 1 && (
+        <span
+          title={`版本演進：${model.lineage.length} 個里程碑`}
+          className="text-[10px] px-1.5 py-0.5 rounded-md bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200/60"
+        >
+          v{model.lineage.length}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function ModelCard({
   model,
   onOpen,
@@ -400,6 +448,35 @@ function ModelCard({
             {formatReleaseDate(model.releaseDate)}
           </span>
         </div>
+
+        {/* Token pricing line + top benchmark — denser at-a-glance facts */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/90 mb-3">
+          {(model.pricing?.inputPerMillion || model.pricing?.outputPerMillion) && (
+            <span className="inline-flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-emerald-600" />
+              <span className="font-mono text-foreground/90">
+                {model.pricing.inputPerMillion ?? "—"}
+                {" / "}
+                {model.pricing.outputPerMillion ?? "—"}
+              </span>
+              <span className="text-muted-foreground/60">{model.pricing.unit}</span>
+            </span>
+          )}
+          {model.benchmarks && model.benchmarks.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <BarChart3 className="w-3 h-3 text-violet-500" />
+              <span className="text-foreground/90">
+                {model.benchmarks[0].name}
+              </span>
+              <span className="font-semibold text-foreground">
+                {model.benchmarks[0].score}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* Capability mini-icons — tools / vision / cache / batch / open */}
+        <CapabilityChipsRow model={model} />
 
         {/* Tags */}
         {model.tags.length > 0 && (
@@ -789,6 +866,267 @@ function SafetyComplianceBlock({ model }: { model: AIModelEntry }) {
   );
 }
 
+// ─── Agent-specific details block ─────────────────────────────────────────
+// 只對 modality === "agent" 顯示：sandbox、工具集、是否可背景跑、整合對象等
+
+const SANDBOX_LABELS: Record<
+  NonNullable<AIModelEntry["agentDetails"]>["sandbox"] & string,
+  string
+> = {
+  "cloud-vm": "雲端 VM",
+  browser: "瀏覽器",
+  "local-terminal": "本機終端",
+  ide: "IDE 內建",
+  "github-actions": "GitHub Actions",
+  "self-hosted": "自架部署",
+  mixed: "多種環境",
+};
+
+function formatTaskDuration(minutes?: number): string | null {
+  if (!minutes || minutes <= 0) return null;
+  if (minutes < 60) return `${minutes} 分鐘`;
+  const hours = minutes / 60;
+  if (hours < 24) {
+    return Number.isInteger(hours)
+      ? `${hours} 小時`
+      : `${hours.toFixed(1)} 小時`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days} 天`;
+}
+
+function AgentDetailsBlock({ model }: { model: AIModelEntry }) {
+  if (model.modality !== "agent") return null;
+  const d = model.agentDetails;
+  if (!d) return null;
+
+  const rows: Array<{ label: string; value: React.ReactNode }> = [];
+  if (d.sandbox) {
+    rows.push({
+      label: "執行環境",
+      value: SANDBOX_LABELS[d.sandbox] ?? d.sandbox,
+    });
+  }
+  if (d.maxTaskMinutes) {
+    rows.push({
+      label: "單次任務上限",
+      value: formatTaskDuration(d.maxTaskMinutes) ?? "—",
+    });
+  }
+  if (typeof d.concurrencyLimit === "number") {
+    rows.push({
+      label: "並行任務",
+      value: `${d.concurrencyLimit} session`,
+    });
+  }
+  if (d.memory) {
+    rows.push({ label: "記憶 / 狀態", value: d.memory });
+  }
+  rows.push({
+    label: "背景執行",
+    value: d.asyncCapable ? (
+      <span className="inline-flex items-center gap-1 text-emerald-700">
+        <CheckCircle2 className="w-3 h-3" /> 支援
+      </span>
+    ) : (
+      <span className="text-muted-foreground">需開著</span>
+    ),
+  });
+  if (d.needsAuthorization !== undefined) {
+    rows.push({
+      label: "需要授權",
+      value: d.needsAuthorization ? (
+        <span className="inline-flex items-center gap-1 text-amber-700">
+          <ShieldAlert className="w-3 h-3" /> 敏感操作要確認
+        </span>
+      ) : (
+        <span className="text-muted-foreground">不需</span>
+      ),
+    });
+  }
+
+  return (
+    <section className="rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-500/5 via-card to-violet-500/5 p-4">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-indigo-500" />
+        代理運作細節
+      </h3>
+
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              className="rounded-lg bg-card/80 border border-border/60 px-3 py-1.5"
+            >
+              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                {r.label}
+              </div>
+              <div className="text-xs font-medium text-foreground mt-0.5">
+                {r.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {d.tools && d.tools.length > 0 && (
+        <div className="mb-2">
+          <div className="text-[11px] text-muted-foreground/80 mb-1">
+            內建工具
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {d.tools.map(t => (
+              <span
+                key={t}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-card text-foreground/90 border border-border/60"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {d.integrations && d.integrations.length > 0 && (
+        <div>
+          <div className="text-[11px] text-muted-foreground/80 mb-1">
+            整合對象
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {d.integrations.map(t => (
+              <span
+                key={t}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─── Interfaces + SDK packages ─────────────────────────────────────────────
+
+const INTERFACE_LABELS: Record<NonNullable<AIModelEntry["interfaces"]>[number], string> = {
+  api: "API",
+  "web-app": "Web 應用",
+  cli: "CLI",
+  "ide-plugin": "IDE 套件",
+  "desktop-app": "桌面 App",
+  "mobile-app": "行動 App",
+  "browser-extension": "瀏覽器擴充",
+  sdk: "SDK",
+  "github-action": "GitHub Action",
+};
+
+function InterfacesBlock({ model }: { model: AIModelEntry }) {
+  const ifaces = model.interfaces ?? [];
+  const pkgs = model.sdkPackages ?? [];
+  if (ifaces.length === 0 && pkgs.length === 0) return null;
+  return (
+    <section className="rounded-xl border border-border bg-card p-4">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
+        <PackagePlus className="w-4 h-4 text-sky-500" />
+        使用介面 / SDK
+      </h3>
+      {ifaces.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {ifaces.map(i => (
+            <span
+              key={i}
+              className="text-[11px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 font-medium"
+            >
+              {INTERFACE_LABELS[i] ?? i}
+            </span>
+          ))}
+        </div>
+      )}
+      {pkgs.length > 0 && (
+        <ul className="space-y-1">
+          {pkgs.map(p => (
+            <li
+              key={p.name}
+              className="flex items-center gap-2 text-xs"
+            >
+              <span className="text-[10px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                {p.source}
+              </span>
+              {p.url ? (
+                <a
+                  href={p.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-foreground/90 hover:text-primary inline-flex items-center gap-1"
+                >
+                  {p.name}
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              ) : (
+                <span className="font-mono text-foreground/90">{p.name}</span>
+              )}
+              {p.note && (
+                <span className="text-muted-foreground/80">— {p.note}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// ─── Lineage / version history ────────────────────────────────────────────
+
+function LineageBlock({ model }: { model: AIModelEntry }) {
+  const steps = model.lineage ?? [];
+  if (steps.length === 0) return null;
+  return (
+    <section>
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
+        <Activity className="w-4 h-4 text-fuchsia-500" />
+        版本演進
+      </h3>
+      <ol className="relative border-l-2 border-border/60 pl-4 space-y-2">
+        {steps.map((s, i) => (
+          <li key={i} className="relative">
+            <span
+              className={`absolute -left-[1.4rem] top-1.5 w-3 h-3 rounded-full ring-2 ring-background ${
+                s.current ? "bg-fuchsia-500" : "bg-border"
+              }`}
+            />
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span
+                className={`text-sm font-medium ${
+                  s.current ? "text-fuchsia-700" : "text-foreground"
+                }`}
+              >
+                {s.label}
+              </span>
+              <span className="text-[11px] text-muted-foreground/70">
+                {formatReleaseDate(s.releaseDate)}
+              </span>
+              {s.current && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700 font-medium">
+                  目前版本
+                </span>
+              )}
+            </div>
+            {s.note && (
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {s.note}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 // ─── Peers / similar models ────────────────────────────────────────────────
 
 function PeersBlock({
@@ -1154,8 +1492,17 @@ function ModelDetailModal({
             {/* Capabilities matrix */}
             <CapabilitiesBlock model={model} />
 
+            {/* Agent-only: sandbox / tools / integrations */}
+            <AgentDetailsBlock model={model} />
+
             {/* Latest updates — auto-researched */}
             <LatestUpdatesBlock model={model} />
+
+            {/* Version lineage */}
+            <LineageBlock model={model} />
+
+            {/* Interfaces + SDK packages */}
+            <InterfacesBlock model={model} />
 
             {/* Availability */}
             <AvailabilityBlock model={model} />
