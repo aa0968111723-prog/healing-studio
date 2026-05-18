@@ -1783,6 +1783,287 @@ function DiscoveryCard({
 // 全量研究。同時把上次跑的 metadata（耗時、嘗試/成功數、錯誤明細）都攤開來
 // 讓策展者一眼能看到目前是不是健康。
 
+// 把人類友善的「每天 / 每週 X / 平日 + HH:MM」轉成 5 段 cron 字串
+function buildCronExpr(opts: {
+  preset: "daily" | "weekday" | "weekly";
+  weekday: number; // 0–6
+  hour: number; // 0–23
+  minute: number; // 0–59
+}): string {
+  const { preset, weekday, hour, minute } = opts;
+  const m = String(minute);
+  const h = String(hour);
+  if (preset === "daily") return `${m} ${h} * * *`;
+  if (preset === "weekday") return `${m} ${h} * * 1-5`;
+  return `${m} ${h} * * ${weekday}`;
+}
+
+// 反向：盡力把 cron 解析回 picker 狀態；解析不到就回 null（讓 UI 退到 raw 模式）
+function parseCronExpr(expr: string): {
+  preset: "daily" | "weekday" | "weekly";
+  weekday: number;
+  hour: number;
+  minute: number;
+} | null {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hour, dom, mon, dow] = parts;
+  if (dom !== "*" || mon !== "*") return null;
+  if (!/^\d+$/.test(min) || !/^\d+$/.test(hour)) return null;
+  const m = parseInt(min, 10);
+  const h = parseInt(hour, 10);
+  if (m < 0 || m > 59 || h < 0 || h > 23) return null;
+  if (dow === "*") {
+    return { preset: "daily", weekday: 0, hour: h, minute: m };
+  }
+  if (dow === "1-5") {
+    return { preset: "weekday", weekday: 0, hour: h, minute: m };
+  }
+  if (/^\d$/.test(dow)) {
+    return {
+      preset: "weekly",
+      weekday: parseInt(dow, 10),
+      hour: h,
+      minute: m,
+    };
+  }
+  return null;
+}
+
+function ScheduleEditorDialog({
+  open,
+  onOpenChange,
+  initialCron,
+  envOverride,
+}: {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  initialCron: string;
+  envOverride: boolean;
+}) {
+  const utils = trpc.useUtils();
+  const setSchedule = trpc.aiModels.setSchedule.useMutation({
+    onSuccess: data => {
+      toast.success(data.message ?? "排程已更新");
+      void utils.aiModels.researchStats.invalidate();
+      onOpenChange(false);
+    },
+    onError: err => {
+      toast.error(err.message ?? "更新排程失敗");
+    },
+  });
+
+  const parsed = parseCronExpr(initialCron);
+  const [mode, setMode] = useState<"picker" | "raw">(parsed ? "picker" : "raw");
+  const [preset, setPreset] = useState<"daily" | "weekday" | "weekly">(
+    parsed?.preset ?? "daily"
+  );
+  const [weekday, setWeekday] = useState<number>(parsed?.weekday ?? 0);
+  const [hour, setHour] = useState<number>(parsed?.hour ?? 3);
+  const [minute, setMinute] = useState<number>(parsed?.minute ?? 30);
+  const [rawCron, setRawCron] = useState<string>(initialCron);
+
+  useEffect(() => {
+    if (!open) return;
+    const p = parseCronExpr(initialCron);
+    setMode(p ? "picker" : "raw");
+    setPreset(p?.preset ?? "daily");
+    setWeekday(p?.weekday ?? 0);
+    setHour(p?.hour ?? 3);
+    setMinute(p?.minute ?? 30);
+    setRawCron(initialCron);
+  }, [open, initialCron]);
+
+  const computedCron =
+    mode === "picker"
+      ? buildCronExpr({ preset, weekday, hour, minute })
+      : rawCron.trim();
+  const preview = humanizeCron(computedCron);
+  const dirty = computedCron !== initialCron;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-sky-600" />
+            設定自動研究排程
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          {/* mode switch */}
+          <div className="inline-flex rounded-full bg-muted p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("picker")}
+              className={`px-3 py-1 rounded-full transition-all ${
+                mode === "picker"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              快速選擇
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("raw")}
+              className={`px-3 py-1 rounded-full transition-all ${
+                mode === "raw"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              自訂 cron
+            </button>
+          </div>
+
+          {mode === "picker" ? (
+            <div className="space-y-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                  頻率
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["daily", "weekday", "weekly"] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPreset(p)}
+                      className={`text-xs px-2.5 py-1 rounded-full transition-all ring-1 ${
+                        preset === p
+                          ? "bg-foreground text-background ring-foreground"
+                          : "bg-card text-muted-foreground ring-border hover:ring-border"
+                      }`}
+                    >
+                      {p === "daily"
+                        ? "每天"
+                        : p === "weekday"
+                          ? "週一到週五"
+                          : "每週指定日"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {preset === "weekly" && (
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                    星期
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAY_LABELS.map((label, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setWeekday(i)}
+                        className={`text-xs px-2.5 py-1 rounded-full transition-all ring-1 ${
+                          weekday === i
+                            ? "bg-foreground text-background ring-foreground"
+                            : "bg-card text-muted-foreground ring-border"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                    時
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={hour}
+                    onChange={e =>
+                      setHour(Math.max(0, Math.min(23, Number(e.target.value) || 0)))
+                    }
+                    className="w-full px-3 py-1.5 rounded-md bg-background border border-border text-sm"
+                  />
+                </div>
+                <div className="text-muted-foreground text-lg pt-5">：</div>
+                <div className="flex-1">
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                    分
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={minute}
+                    onChange={e =>
+                      setMinute(
+                        Math.max(0, Math.min(59, Number(e.target.value) || 0))
+                      )
+                    }
+                    className="w-full px-3 py-1.5 rounded-md bg-background border border-border text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                Cron 表達式（5 段：分 時 日 月 週）
+              </div>
+              <input
+                type="text"
+                value={rawCron}
+                onChange={e => setRawCron(e.target.value)}
+                placeholder="30 3 * * *"
+                className="w-full px-3 py-1.5 rounded-md bg-background border border-border text-sm font-mono"
+              />
+              <div className="text-[11px] text-muted-foreground/70 mt-1">
+                範例：<code>0 */6 * * *</code>（每 6 小時）、
+                <code>0 9 * * 1-5</code>（平日早上 9 點）
+              </div>
+            </div>
+          )}
+
+          {/* preview */}
+          <div className="rounded-lg bg-muted/40 border border-border/60 p-3 text-xs">
+            <div className="text-muted-foreground/70 mb-0.5">預覽</div>
+            <div className="font-medium text-foreground">{preview}</div>
+            <code className="text-[11px] text-muted-foreground/80 mt-0.5 block">
+              {computedCron || "—"}
+            </code>
+          </div>
+
+          {envOverride && (
+            <div className="text-[11px] text-amber-700 bg-amber-50/60 border border-amber-200/60 rounded-md p-2">
+              注意：目前由環境變數 <code>MODEL_RESEARCH_CRON_SCHEDULE</code> 設定。
+              這裡的變更即時生效，但 process 重啟後會被環境變數覆蓋。
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={setSchedule.isPending}
+          >
+            取消
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setSchedule.mutate({ schedule: computedCron })}
+            disabled={!dirty || !computedCron || setSchedule.isPending}
+          >
+            {setSchedule.isPending ? "儲存中…" : "儲存"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AutoResearchPanel({
   staleCount,
   verifiedCount,
@@ -1794,6 +2075,7 @@ function AutoResearchPanel({
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
   const [showErrors, setShowErrors] = useState(false);
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
 
   const { data } = trpc.aiModels.researchStats.useQuery(undefined, {
     staleTime: 30_000,
@@ -1872,13 +2154,33 @@ function AutoResearchPanel({
                     : "排程已停用"}
               </span>
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              {scheduleLabel}
-              <span className="text-muted-foreground/60 mx-1.5">·</span>
+            <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+              <span>{scheduleLabel}</span>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setScheduleEditorOpen(true)}
+                  className="inline-flex items-center justify-center w-4 h-4 rounded-full text-muted-foreground/70 hover:text-primary hover:bg-muted transition-healing"
+                  title="調整自動研究排程"
+                  aria-label="調整自動研究排程"
+                >
+                  <Clock className="w-3 h-3" />
+                </button>
+              )}
+              <span className="text-muted-foreground/60 mx-0.5">·</span>
               累積 {totalRuns} 輪
             </div>
           </div>
         </div>
+
+        {isAdmin && (
+          <ScheduleEditorDialog
+            open={scheduleEditorOpen}
+            onOpenChange={setScheduleEditorOpen}
+            initialCron={data.schedule}
+            envOverride={Boolean(data.envOverride)}
+          />
+        )}
 
         <div className="ml-auto inline-flex items-center gap-2 flex-wrap justify-end">
           {isAdmin ? (

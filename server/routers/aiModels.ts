@@ -34,6 +34,7 @@ import {
   triggerStaleRefreshNow,
   triggerDiscoveryNow,
   getCronStatus,
+  updateCronSchedule,
 } from "../jobs/modelCatalogResearchJob";
 
 export const aiModelsRouter = router({
@@ -213,4 +214,23 @@ export const aiModelsRouter = router({
     }
     return { message: result.message };
   }),
+
+  /**
+   * aiModels.setSchedule — admin 設定自動研究的 cron 排程
+   *
+   * 接受標準五段 cron 字串。變更會立刻熱重啟 cron task；只存在於記憶體，
+   * 要跨重啟持久化請額外設定 MODEL_RESEARCH_CRON_SCHEDULE 環境變數。
+   */
+  setSchedule: adminProcedure
+    .input(z.object({ schedule: z.string().min(1).max(120) }))
+    .mutation(({ input }) => {
+      const result = updateCronSchedule(input.schedule);
+      if (!result.ok) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.message,
+        });
+      }
+      return result;
+    }),
 });
