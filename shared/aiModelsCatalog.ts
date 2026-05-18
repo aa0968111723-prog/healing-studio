@@ -273,7 +273,33 @@ export interface AIModelEntry {
   lineage?: ModelLineageStep[];
   /** 模型卡片上要不要把第一個 benchmark 重點 highlight 出來 */
   highlightBenchmark?: boolean;
+  /** 第三方代管 / 部署平台清單（Fal、Replicate、Bedrock、Vertex 等） */
+  hostedOn?: HostingProvider[];
+  /** 模型分類（除了 modality 之外的「主題」標籤，例如「深度研究」、「代理」） */
+  category?: ModelCategory;
 }
+
+export type HostingProvider =
+  | "fal"
+  | "replicate"
+  | "openrouter"
+  | "bedrock"
+  | "vertex"
+  | "together"
+  | "huggingface"
+  | "groq"
+  | "azure-openai"
+  | "self";
+
+export type ModelCategory =
+  | "general"
+  | "agent"
+  | "deep-research"
+  | "reasoning"
+  | "coding"
+  | "creative"
+  | "voice"
+  | "embedding";
 
 export type ModelInterface =
   | "api"
@@ -793,6 +819,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
     peers: ["gpt-5", "gemini-3-pro", "claude-sonnet-4-6"],
+    hostedOn: ["bedrock", "vertex", "openrouter"],
   },
   {
     id: "claude-sonnet-4-6",
@@ -856,6 +883,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
     peers: ["claude-opus-4-7", "gpt-4o", "gemini-3-pro", "mistral-medium-3"],
+    hostedOn: ["bedrock", "vertex", "openrouter"],
   },
   {
     id: "claude-haiku-4-5",
@@ -1253,6 +1281,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       notes: "權重可在 HuggingFace 下載；商用需遵守 Llama Community License",
     },
     researchKeywords: ["Llama 3.3 70B benchmark community license"],
+    hostedOn: ["openrouter", "together", "replicate", "groq", "huggingface"],
     factCheck: { status: "pending", sources: [] },
     capabilities: {
       functionCalling: true,
@@ -1518,6 +1547,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: true },
     researchKeywords: ["FLUX 1 Pro pricing Black Forest Labs"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["fal", "replicate", "together", "huggingface"],
   },
   {
     id: "stable-diffusion-3-5",
@@ -1543,6 +1573,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: true },
     researchKeywords: ["Stable Diffusion 3.5 license community"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["fal", "replicate", "huggingface", "together"],
   },
 
   // ── Video specialists ──────────────────────────────────────────────────
@@ -1574,6 +1605,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Runway Gen-3 pricing credit cost"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["fal", "replicate"],
   },
   {
     id: "luma-dream-machine",
@@ -1898,6 +1930,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     researchKeywords: ["Veo 3 pricing audio video"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["vertex", "fal"],
   },
   {
     id: "imagen-4",
@@ -1926,6 +1959,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Imagen 4 Ultra pricing"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["vertex", "fal"],
   },
   {
     id: "llama-4-maverick",
@@ -1969,6 +2003,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       notes: "Hugging Face / Meta 官網下載；多家 API 託管",
     },
     researchKeywords: ["Llama 4 Maverick benchmarks", "Llama 4 MoE pricing"],
+    hostedOn: ["openrouter", "together", "replicate", "groq"],
     factCheck: { status: "pending", sources: [] },
   },
   {
@@ -2121,6 +2156,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Kling 2.0 pricing benchmark"],
+    hostedOn: ["fal", "replicate"],
     factCheck: { status: "pending", sources: [] },
   },
 
@@ -2589,6 +2625,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Recraft V3 SVG vector pricing"],
+    hostedOn: ["fal", "replicate"],
     factCheck: { status: "pending", sources: [] },
     capabilities: { streaming: false, fineTuning: false },
     safetyTier: "high",
@@ -4155,6 +4192,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     pricing: { unit: "USD / generation 或訂閱", tier: "high" },
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Luma Ray 2 release benchmark"],
+    hostedOn: ["fal", "replicate"],
     factCheck: { status: "pending", sources: [] },
     capabilities: { streaming: false },
     safetyTier: "medium",
@@ -4955,6 +4993,315 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       integrations: ["LangSmith（tracing / eval）", "LangGraph Cloud"],
       memory: "Pluggable checkpoint store（Postgres / Redis / SQLite）",
     },
+  },
+
+  // ── 深度研究 / Deep Research 模型 ───────────────────────────────────────
+  // 這些是「研究模式」產品 — 餵一個主題 → 跑 5–30 分鐘 → 產出附引用的長篇報告
+  // 與一般 chat 的差異在「自動化網頁瀏覽 + 多輪推理 + 報告生成」整合在單一介面
+  {
+    id: "openai-deep-research",
+    name: "ChatGPT Deep Research",
+    apiId: "deep-research",
+    provider: "OpenAI",
+    modality: "text",
+    tier: "frontier",
+    category: "deep-research",
+    releaseDate: "2025-02",
+    tagline: "OpenAI 旗艦深度研究，o3-based、含瀏覽 + 引用",
+    description:
+      "ChatGPT 內的 Deep Research 模式由 o3 系列驅動，會在背景跑 5–30 分鐘：自主決定要看哪些網頁、做哪些子查詢，最後輸出附完整引用的長篇報告。Pro / Plus 用戶皆有月配額。",
+    strengths: [
+      "o3 推理 + 自動瀏覽串接",
+      "報告長度可達 1 萬字、附逐項引用",
+      "Plus / Pro / Team 都有額度",
+      "支援檔案上傳作為背景資料",
+    ],
+    limitations: [
+      "單次耗時 5–30 分鐘，不適合即時問題",
+      "Plus 用量配額相對少",
+      "對非英語報告品質仍稍弱",
+    ],
+    useCases: [
+      "市場 / 競品研究",
+      "技術選型評估",
+      "投資前盡職調查",
+      "學術文獻回顧",
+    ],
+    contextWindow: "200K tokens",
+    openWeight: false,
+    tags: ["深度研究", "推理", "報告"],
+    featured: true,
+    officialUrl: "https://openai.com/index/introducing-deep-research/",
+    pricing: {
+      unit: "USD / 訂閱配額",
+      note: "Plus $20 含每月配額；Pro $200 配額更高",
+      tier: "premium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["ChatGPT Deep Research o3 benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2"],
+    peers: ["perplexity-deep-research", "gemini-deep-research", "claude-research"],
+    highlightBenchmark: true,
+  },
+  {
+    id: "perplexity-deep-research",
+    name: "Perplexity Deep Research",
+    apiId: "deep-research",
+    provider: "Perplexity",
+    modality: "text",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2025-02",
+    tagline: "Perplexity 開源風的深度研究，速度快、附引用",
+    description:
+      "Perplexity Deep Research 是 Perplexity Pro 內建的研究模式，主打「快速」— 多數任務 2–4 分鐘完成，並附原生引用。免費用戶有有限額度，Pro 用戶幾乎無限。",
+    strengths: [
+      "比 OpenAI 快 3–5 倍",
+      "免費版即可體驗",
+      "原生引用 + 來源摺疊",
+    ],
+    limitations: [
+      "報告深度不及 OpenAI / Gemini",
+      "對極專業領域偶爾來源品質不穩",
+    ],
+    useCases: ["快速主題掃描", "競品速覽", "投資前快速 due-diligence"],
+    contextWindow: "—",
+    openWeight: false,
+    tags: ["深度研究", "搜尋", "速度"],
+    featured: true,
+    officialUrl: "https://www.perplexity.ai/hub/blog/introducing-perplexity-deep-research",
+    pricing: {
+      unit: "USD / 訂閱（含每日配額）",
+      note: "免費 5 次/日；Pro 500 次/日",
+      tier: "low",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Perplexity Deep Research SimpleQA benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      webSearch: true,
+      structuredOutput: true,
+      streaming: true,
+    },
+    safetyTier: "medium",
+    peers: ["openai-deep-research", "gemini-deep-research", "perplexity-comet"],
+  },
+  {
+    id: "gemini-deep-research",
+    name: "Gemini Deep Research",
+    apiId: "gemini-deep-research",
+    provider: "Google",
+    modality: "multimodal",
+    tier: "frontier",
+    category: "deep-research",
+    releaseDate: "2024-12",
+    tagline: "Gemini Advanced 內建深度研究，長脈絡優勢明顯",
+    description:
+      "Gemini Deep Research 是 Gemini Advanced 內建的研究模式，先生成「研究計畫」讓使用者審核 → 跑 5–10 分鐘 → 輸出含引用的 Google Docs 風報告，可一鍵存到 Drive。",
+    strengths: [
+      "研究計畫可審核 / 修改",
+      "輸出可直接導入 Google Docs",
+      "Gemini 2M token 長脈絡",
+      "圖表 / 表格生成佳",
+    ],
+    limitations: [
+      "需 Gemini Advanced 訂閱",
+      "中文報告偏簡中口吻",
+    ],
+    useCases: ["策略簡報", "教學講義", "與 Workspace 整合的研究"],
+    contextWindow: "2M tokens",
+    openWeight: false,
+    tags: ["深度研究", "Google", "Docs"],
+    featured: true,
+    officialUrl: "https://blog.google/products/gemini/google-gemini-deep-research/",
+    pricing: {
+      unit: "USD / 訂閱（Gemini Advanced）",
+      note: "$20/月，含其他 Gemini 模型額度",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Gemini Deep Research review", "Gemini Advanced research"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "ISO27001"],
+    peers: ["openai-deep-research", "perplexity-deep-research", "claude-research"],
+  },
+  {
+    id: "claude-research",
+    name: "Claude Research",
+    apiId: "claude-research",
+    provider: "Anthropic",
+    modality: "text",
+    tier: "frontier",
+    category: "deep-research",
+    releaseDate: "2025-04",
+    tagline: "Claude.ai 內建研究模式，可掛載企業資料",
+    description:
+      "Claude.ai 推出的 Research 模式整合 web 搜尋 + 企業知識庫（Google Drive、SharePoint、Slack 等）— 模型同時調研網路與內部資料，附引用回覆。Enterprise 用戶可掛載自家資料來源。",
+    strengths: [
+      "可同時調研 web + 企業內部",
+      "Connectors（Drive / Slack / GitHub）原生整合",
+      "回覆品質與 Opus 一致",
+    ],
+    limitations: [
+      "Connectors 需 Team / Enterprise 訂閱",
+      "瀏覽速度比 Perplexity 慢",
+    ],
+    useCases: ["企業內部研究", "知識管理", "顧問報告"],
+    contextWindow: "200K tokens",
+    openWeight: false,
+    tags: ["深度研究", "企業", "連接器"],
+    featured: true,
+    officialUrl: "https://www.anthropic.com/news/research",
+    pricing: {
+      unit: "USD / 訂閱（Pro / Team / Enterprise）",
+      note: "Pro $20/月起；Connectors 需 Team / Enterprise",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Claude Research connectors enterprise"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
+    peers: ["openai-deep-research", "gemini-deep-research"],
+  },
+  {
+    id: "grok-deepsearch",
+    name: "Grok DeepSearch",
+    apiId: "grok-deepsearch",
+    provider: "xAI",
+    modality: "text",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2025-02",
+    tagline: "Grok 3 內建深度搜尋，特長即時 X / Twitter 取材",
+    description:
+      "DeepSearch 是 Grok 3 在 X 平台與 grok.com 上的研究模式，主打把 X 上的即時討論納入研究 — 適合科技 / 體育 / 政治等即時話題。對較專業學術內容偏弱。",
+    strengths: [
+      "X / Twitter 即時討論納入",
+      "科技 / 體育 / 政治話題反應快",
+      "Premium 用戶有充裕額度",
+    ],
+    limitations: [
+      "學術文獻來源偏少",
+      "對齊較寬鬆，事實仍需自行覆核",
+    ],
+    useCases: ["即時話題追蹤", "輿情分析", "科技新聞速覽"],
+    openWeight: false,
+    tags: ["深度研究", "即時", "X"],
+    officialUrl: "https://x.ai/news/grok-3",
+    pricing: {
+      unit: "USD / 訂閱（X Premium+ / SuperGrok）",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Grok DeepSearch benchmark X integration"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      webSearch: true,
+      streaming: true,
+    },
+    safetyTier: "low",
+    peers: ["openai-deep-research", "perplexity-deep-research"],
+  },
+  {
+    id: "manus-deep-research",
+    name: "Manus Deep Research",
+    apiId: "manus-research",
+    provider: "Manus",
+    modality: "agent",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2025-04",
+    tagline: "Manus 的長程研究代理，幾小時跑出深度報告",
+    description:
+      "Manus 在通用 agent 之上特化的研究模式 — 可跑數小時、爬遍上百個頁面、產出含圖表的長篇報告。介面與通用 Manus 一致，可同時開多 task。",
+    strengths: [
+      "可跑數小時，深度極高",
+      "圖表 + 文字混排輸出",
+      "可同時跑多個研究 task",
+    ],
+    limitations: [
+      "速度比 Perplexity 慢得多",
+      "資安規範相對新",
+    ],
+    useCases: ["深度產業研究", "投資 / 政策報告", "長篇文獻整合"],
+    openWeight: false,
+    tags: ["深度研究", "代理", "長程"],
+    officialUrl: "https://manus.im/",
+    pricing: { unit: "USD / 訂閱 + ACU", tier: "medium" },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Manus Deep Research benchmark GAIA"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      codeExecution: true,
+    },
+    safetyTier: "medium",
+    peers: ["openai-deep-research", "gemini-deep-research", "manus-ai"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["瀏覽器", "Web 搜尋", "資料分析", "報告生成"],
+      maxTaskMinutes: 480,
+      asyncCapable: true,
+      needsAuthorization: false,
+      integrations: ["Google Drive", "Email 寄送", "Notion"],
+      memory: "Task-scoped + 可匯出",
+    },
+  },
+  {
+    id: "you-research",
+    name: "You.com Research Agent",
+    apiId: "research-agent",
+    provider: "Perplexity", // 既有 provider 借用，You.com 比較像競品
+    modality: "text",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2024-10",
+    tagline: "You.com 研究代理，企業可掛 connectors",
+    description:
+      "You.com 的 Research Agent 從早期 YouChat 一路演進到 multi-agent 研究模式，企業版可串接內部資料庫。對開發者友善：API 直出含引用的 JSON。",
+    strengths: [
+      "API 直接回 JSON + 引用",
+      "企業 connectors（自架）",
+      "對開發整合友善",
+    ],
+    limitations: [
+      "C 端品牌力較低",
+      "中文搜尋表現偶有不穩",
+    ],
+    useCases: ["在自家 App 中嵌入研究功能", "後台批次研究 pipeline"],
+    openWeight: false,
+    tags: ["深度研究", "API", "企業"],
+    officialUrl: "https://you.com/",
+    pricing: { unit: "USD / API 呼叫 + 訂閱", tier: "medium" },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["You.com Research API benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "medium",
+    peers: ["perplexity-deep-research", "openai-deep-research"],
   },
 ];
 

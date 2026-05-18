@@ -10,7 +10,7 @@
  *   - Header 顯示自動研究覆蓋率、上次研究時間、stale 提醒。
  */
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -99,8 +99,11 @@ const LATENCY_LABELS: Record<LatencyClass, string> = {
 
 // ─── Modality tabs config ──────────────────────────────────────────────────
 
+// 「tabId」既支援 ModelModality，也支援 "deep-research"（用 category 過濾）
+type ModalityTabId = ModelModality | "all" | "deep-research";
+
 const MODALITY_TABS: Array<{
-  id: ModelModality | "all";
+  id: ModalityTabId;
   label: string;
   icon: typeof MessageSquare;
 }> = [
@@ -108,6 +111,7 @@ const MODALITY_TABS: Array<{
   { id: "text", label: "文字", icon: MessageSquare },
   { id: "multimodal", label: "多模態", icon: Sparkles },
   { id: "agent", label: "代理", icon: Bot },
+  { id: "deep-research", label: "深度研究", icon: Compass },
   { id: "image", label: "圖片", icon: ImageIcon },
   { id: "video", label: "影片", icon: Video },
   { id: "audio", label: "音訊", icon: Music },
@@ -325,9 +329,13 @@ function CapabilityChipsRow({ model }: { model: AIModelEntry }) {
 function ModelCard({
   model,
   onOpen,
+  inCompare,
+  onToggleCompare,
 }: {
   model: AIModelEntry;
   onOpen: () => void;
+  inCompare?: boolean;
+  onToggleCompare?: () => void;
 }) {
   const provider = PROVIDER_STYLE[model.provider];
   const modality = MODALITY_STYLE[model.modality];
@@ -478,6 +486,29 @@ function ModelCard({
         {/* Capability mini-icons — tools / vision / cache / batch / open */}
         <CapabilityChipsRow model={model} />
 
+        {/* Hosting platforms */}
+        {model.hostedOn && model.hostedOn.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 mb-3">
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+              代管
+            </span>
+            {model.hostedOn.slice(0, 5).map(h => (
+              <span
+                key={h}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-card border border-border/60 text-muted-foreground"
+                title={`此模型可在 ${HOSTING_LABELS[h] ?? h} 上呼叫`}
+              >
+                {HOSTING_LABELS[h] ?? h}
+              </span>
+            ))}
+            {model.hostedOn.length > 5 && (
+              <span className="text-[10px] text-muted-foreground/60">
+                +{model.hostedOn.length - 5}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Tags */}
         {model.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
@@ -499,6 +530,41 @@ function ModelCard({
             checkedAt={model.factCheck?.checkedAt}
           />
           <div className="inline-flex items-center gap-1.5">
+            {onToggleCompare && (
+              <span
+                role="checkbox"
+                aria-checked={!!inCompare}
+                tabIndex={0}
+                title={inCompare ? "已加入比較" : "加入比較"}
+                onClick={e => {
+                  e.stopPropagation();
+                  onToggleCompare();
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleCompare();
+                  }
+                }}
+                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md cursor-pointer transition-healing ${
+                  inCompare
+                    ? "bg-fuchsia-100 text-fuchsia-700 ring-1 ring-fuchsia-200"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <span
+                  className={`w-3 h-3 rounded-sm border flex items-center justify-center ${
+                    inCompare
+                      ? "border-fuchsia-500 bg-fuchsia-500 text-white"
+                      : "border-muted-foreground/40"
+                  }`}
+                >
+                  {inCompare && <CheckCircle2 className="w-2.5 h-2.5" />}
+                </span>
+                比較
+              </span>
+            )}
             {isAdmin && (
               <span
                 role="button"
@@ -2130,6 +2196,73 @@ function DiscoveryCard({
 // 全量研究。同時把上次跑的 metadata（耗時、嘗試/成功數、錯誤明細）都攤開來
 // 讓策展者一眼能看到目前是不是健康。
 
+// 數字會在值變化時平滑跳到新值（~600ms），讓 hero stats 有點生氣
+function useAnimatedCount(target: number, durationMs = 600): number {
+  const [value, setValue] = useState(target);
+  useEffect(() => {
+    if (value === target) return;
+    const start = value;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / durationMs);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(Math.round(start + (target - start) * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // value intentionally excluded — we only re-animate when target moves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, durationMs]);
+  return value;
+}
+
+function StatTile({
+  label,
+  value,
+  suffix,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  icon?: React.ReactNode;
+  tone?: "emerald" | "violet";
+}) {
+  const animated = useAnimatedCount(value);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.25 }}
+      className={`rounded-xl border border-border p-3 ${
+        tone === "emerald"
+          ? "bg-gradient-to-br from-emerald-500/8 to-card"
+          : tone === "violet"
+            ? "bg-gradient-to-br from-violet-500/8 to-card"
+            : "bg-card"
+      }`}
+    >
+      <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider inline-flex items-center gap-1">
+        {icon}
+        {label}
+      </div>
+      <div className="text-xl font-semibold text-foreground mt-0.5 tabular-nums">
+        {animated}
+        {suffix && (
+          <span className="text-xs text-muted-foreground/70 font-normal">
+            {suffix}
+          </span>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 // 把人類友善的「每天 / 每週 X / 平日 + HH:MM」轉成 5 段 cron 字串
 function buildCronExpr(opts: {
   preset: "daily" | "weekday" | "weekly";
@@ -2672,11 +2805,376 @@ function AutoResearchPanel({
   );
 }
 
+// ─── Compare bar (floating bottom) ────────────────────────────────────────
+
+function CompareBar({
+  ids,
+  allModels,
+  onClear,
+  onOpen,
+  onRemove,
+}: {
+  ids: string[];
+  allModels: AIModelEntry[];
+  onClear: () => void;
+  onOpen: () => void;
+  onRemove: (id: string) => void;
+}) {
+  const selected = useMemo(
+    () =>
+      ids
+        .map(id => allModels.find(m => m.id === id))
+        .filter((m): m is AIModelEntry => Boolean(m)),
+    [ids, allModels]
+  );
+
+  return (
+    <AnimatePresence>
+      {selected.length > 0 && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 280, damping: 28 }}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(640px,calc(100vw-2rem))]"
+        >
+          <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border shadow-xl shadow-fuchsia-500/10 px-3 py-2 flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground shrink-0">
+              已選 <span className="font-semibold text-foreground">{selected.length}</span> / 4
+            </span>
+            <div className="flex-1 flex items-center gap-1 overflow-x-auto">
+              {selected.map(m => {
+                const ps = PROVIDER_STYLE[m.provider];
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onRemove(m.id)}
+                    title="從比較中移除"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 shrink-0 ${ps.bg} ${ps.accent} ${ps.ring} hover:opacity-80`}
+                  >
+                    {m.name}
+                    <X className="w-2.5 h-2.5 opacity-70" />
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted shrink-0"
+            >
+              清除
+            </button>
+            <Button
+              size="sm"
+              onClick={onOpen}
+              disabled={selected.length < 2}
+              className="bg-gradient-to-r from-fuchsia-500 to-violet-500 text-white border-0 hover:opacity-90 shrink-0"
+            >
+              <Layers className="w-3.5 h-3.5 mr-1" />
+              比較
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Comparison view (full screen side-by-side) ──────────────────────────
+
+function ComparisonView({
+  ids,
+  allModels,
+  onClose,
+  onOpenModel,
+}: {
+  ids: string[];
+  allModels: AIModelEntry[];
+  onClose: () => void;
+  onOpenModel: (m: AIModelEntry) => void;
+}) {
+  const models = useMemo(
+    () =>
+      ids
+        .map(id => allModels.find(m => m.id === id))
+        .filter((m): m is AIModelEntry => Boolean(m)),
+    [ids, allModels]
+  );
+
+  if (models.length < 2) {
+    return (
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>比較需要至少 2 款模型</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const rows: Array<{
+    label: string;
+    render: (m: AIModelEntry) => React.ReactNode;
+  }> = [
+    {
+      label: "廠商",
+      render: m => PROVIDER_STYLE[m.provider]?.label ?? m.provider,
+    },
+    { label: "模態", render: m => MODALITY_STYLE[m.modality]?.label ?? m.modality },
+    { label: "層級", render: m => TIER_STYLE[m.tier]?.label ?? m.tier },
+    { label: "發佈", render: m => formatReleaseDate(m.releaseDate) },
+    { label: "上下文", render: m => m.contextWindow ?? "—" },
+    {
+      label: "Input",
+      render: m =>
+        m.pricing?.inputPerMillion ? (
+          <span className="font-mono">{m.pricing.inputPerMillion}</span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "Output",
+      render: m =>
+        m.pricing?.outputPerMillion ? (
+          <span className="font-mono">{m.pricing.outputPerMillion}</span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "計價單位",
+      render: m => (
+        <span className="text-[11px]">{m.pricing?.unit ?? "—"}</span>
+      ),
+    },
+    {
+      label: "Top benchmark",
+      render: m =>
+        m.benchmarks?.[0] ? (
+          <span>
+            <span className="text-muted-foreground/80">
+              {m.benchmarks[0].name}
+            </span>{" "}
+            <span className="font-semibold">{m.benchmarks[0].score}</span>
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "視覺輸入",
+      render: m => capYesNo(m.capabilities?.visionInput),
+    },
+    {
+      label: "工具呼叫",
+      render: m => capYesNo(m.capabilities?.functionCalling),
+    },
+    {
+      label: "程式執行",
+      render: m => capYesNo(m.capabilities?.codeExecution),
+    },
+    { label: "網頁搜尋", render: m => capYesNo(m.capabilities?.webSearch) },
+    {
+      label: "Prompt 快取",
+      render: m => capYesNo(m.capabilities?.promptCaching),
+    },
+    { label: "Batch API", render: m => capYesNo(m.capabilities?.batchApi) },
+    {
+      label: "開源權重",
+      render: m => (m.openWeight ? "✓" : "—"),
+    },
+    {
+      label: "安全分級",
+      render: m => m.safetyTier ?? "—",
+    },
+    {
+      label: "合規",
+      render: m =>
+        m.compliance && m.compliance.length > 0 ? (
+          <span className="font-mono text-[10px]">{m.compliance.join(" · ")}</span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "API / Web / 自架",
+      render: m => {
+        const a = m.availability;
+        if (!a) return "—";
+        const pick = (b: boolean) => (b ? "✓" : "—");
+        return (
+          <span className="font-mono text-[11px]">
+            {pick(a.api)} / {pick(a.web)} / {pick(a.selfHost)}
+          </span>
+        );
+      },
+    },
+    {
+      label: "代管平台",
+      render: m =>
+        m.hostedOn && m.hostedOn.length > 0 ? (
+          <span className="flex flex-wrap gap-0.5">
+            {m.hostedOn.map(h => (
+              <span
+                key={h}
+                className="text-[10px] px-1 rounded bg-muted text-muted-foreground"
+              >
+                {HOSTING_LABELS[h]}
+              </span>
+            ))}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "代理 sandbox",
+      render: m => {
+        if (m.modality !== "agent" || !m.agentDetails?.sandbox) return "—";
+        return SANDBOX_LABELS[m.agentDetails.sandbox] ?? m.agentDetails.sandbox;
+      },
+    },
+    {
+      label: "背景執行",
+      render: m =>
+        m.agentDetails?.asyncCapable === undefined
+          ? "—"
+          : m.agentDetails.asyncCapable
+            ? "✓"
+            : "需開著",
+    },
+    {
+      label: "標籤",
+      render: m =>
+        m.tags.length > 0 ? (
+          <span className="flex flex-wrap gap-0.5">
+            {m.tags.slice(0, 4).map(t => (
+              <span
+                key={t}
+                className="text-[10px] px-1 rounded bg-muted text-muted-foreground"
+              >
+                {t}
+              </span>
+            ))}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+  ];
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0 rounded-3xl"
+      >
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0 bg-gradient-to-r from-fuchsia-500/5 via-card to-violet-500/5">
+          <Layers className="w-5 h-5 text-fuchsia-600" />
+          <h2 className="hs-h2 !mb-0 text-foreground">並列比較 · {models.length} 款模型</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto p-2 rounded-xl hover:bg-muted text-muted-foreground/70 hover:text-foreground"
+            aria-label="關閉"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-5">
+            <div
+              className="grid gap-3"
+              style={{
+                gridTemplateColumns: `minmax(110px,140px) repeat(${models.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {/* header row */}
+              <div />
+              {models.map(m => {
+                const ps = PROVIDER_STYLE[m.provider];
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onOpenModel(m)}
+                    className={`text-left rounded-xl border border-border bg-card p-3 hover:border-primary/40 hover:shadow-md transition-all`}
+                  >
+                    <div
+                      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ring-1 mb-1 ${ps.bg} ${ps.accent} ${ps.ring}`}
+                    >
+                      {ps.label}
+                    </div>
+                    <div className="text-sm font-semibold text-foreground leading-tight">
+                      {m.name}
+                    </div>
+                    {m.apiId && (
+                      <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                        {m.apiId}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* rows */}
+              {rows.map((row, ri) => (
+                <React.Fragment key={ri}>
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 py-2 border-t border-border/40">
+                    {row.label}
+                  </div>
+                  {models.map(m => (
+                    <div
+                      key={m.id}
+                      className="text-sm text-foreground/90 py-2 border-t border-border/40 min-w-0 break-words"
+                    >
+                      {row.render(m)}
+                    </div>
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function capYesNo(v: boolean | undefined): React.ReactNode {
+  if (v === undefined) return "—";
+  return v ? (
+    <span className="text-emerald-600">✓</span>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  );
+}
+
+// ─── Hosting labels ───────────────────────────────────────────────────────
+
+const HOSTING_LABELS: Record<NonNullable<AIModelEntry["hostedOn"]>[number], string> = {
+  fal: "Fal.ai",
+  replicate: "Replicate",
+  openrouter: "OpenRouter",
+  bedrock: "AWS Bedrock",
+  vertex: "GCP Vertex",
+  together: "Together",
+  huggingface: "🤗 HF",
+  groq: "Groq",
+  "azure-openai": "Azure OpenAI",
+  self: "自架",
+};
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function AIModelsHub() {
   const [, navigate] = useLocation();
-  const [activeModality, setActiveModality] = useState<ModelModality | "all">(
+  const [activeModality, setActiveModality] = useState<ModalityTabId>(
     "all"
   );
   const [activeProvider, setActiveProvider] = useState<ModelProvider | "all">(
@@ -2685,6 +3183,20 @@ export default function AIModelsHub() {
   const [activeTier, setActiveTier] = useState<ModelTier | "all">("all");
   const [search, setSearch] = useState("");
   const [openModel, setOpenModel] = useState<AIModelEntry | null>(null);
+  // ── Comparison system ───────────────────────────────────────────────────
+  // 使用者可勾選最多 4 款模型，底部出現浮動 bar；按「比較」開全螢幕並列表
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const toggleCompare = (id: string) => {
+    setCompareIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 4) {
+        toast.warning("最多同時比較 4 款模型");
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
 
   const { data: catalogData } = trpc.aiModels.list.useQuery(undefined, {
     staleTime: 5 * 60_000,
@@ -2720,8 +3232,12 @@ export default function AIModelsHub() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allModels.filter(m => {
-      if (activeModality !== "all" && m.modality !== activeModality)
+      // 「深度研究」分頁用 category 過濾，其他用 modality
+      if (activeModality === "deep-research") {
+        if (m.category !== "deep-research") return false;
+      } else if (activeModality !== "all" && m.modality !== activeModality) {
         return false;
+      }
       if (activeProvider !== "all" && m.provider !== activeProvider)
         return false;
       if (activeTier !== "all" && m.tier !== activeTier) return false;
@@ -2750,8 +3266,8 @@ export default function AIModelsHub() {
     () => [
       {
         action: "setTab",
-        label: "模態切換",
-        hint: "支援 all / text / image / video / audio / multimodal / agent",
+        label: "分頁切換",
+        hint: "all / text / image / video / audio / multimodal / agent / deep-research",
         options: MODALITY_TABS.map(t => ({ id: t.id, label: t.label })),
       },
       {
@@ -2787,7 +3303,7 @@ export default function AIModelsHub() {
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
         case "setTab": {
-          const id = action.tabId as ModelModality | "all";
+          const id = action.tabId as ModalityTabId;
           if (
             [
               "all",
@@ -2797,12 +3313,13 @@ export default function AIModelsHub() {
               "audio",
               "multimodal",
               "agent",
+              "deep-research",
             ].includes(id)
           ) {
             setActiveModality(id);
-            return { ok: true, message: `已切換到「${id}」模態` };
+            return { ok: true, message: `已切換到「${id}」分頁` };
           }
-          return { ok: false, reason: `不認得的模態：${action.tabId}` };
+          return { ok: false, reason: `不認得的分頁：${action.tabId}` };
         }
         case "search": {
           setSearch(action.query);
@@ -2876,45 +3393,20 @@ export default function AIModelsHub() {
             。
           </p>
 
-          {/* Stats strip */}
+          {/* Stats strip — counters animate when value changes */}
           <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                模型總數
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {allModels.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                廠商
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {allProviders.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                精選
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {featured.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-gradient-to-br from-emerald-500/8 to-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider inline-flex items-center gap-1">
+            <StatTile label="模型總數" value={allModels.length} />
+            <StatTile label="廠商" value={allProviders.length} />
+            <StatTile label="精選" value={featured.length} />
+            <StatTile
+              label="已自動查核"
+              icon={
                 <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                已自動查核
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {verifiedCount}
-                <span className="text-xs text-muted-foreground/70 font-normal">
-                  {" "}
-                  / {allModels.length}
-                </span>
-              </div>
-            </div>
+              }
+              value={verifiedCount}
+              suffix={` / ${allModels.length}`}
+              tone="emerald"
+            />
           </div>
 
           {/* Auto-research panel: 自動排程 + 手動觸發 + 上次跑的細節 */}
@@ -3093,6 +3585,8 @@ export default function AIModelsHub() {
                   key={m.id}
                   model={m}
                   onOpen={() => setOpenModel(m)}
+                  inCompare={compareIds.includes(m.id)}
+                  onToggleCompare={() => toggleCompare(m.id)}
                 />
               ))}
             </motion.div>
@@ -3161,6 +3655,28 @@ export default function AIModelsHub() {
           allModels={allModels}
           onOpen={setOpenModel}
           onClose={() => setOpenModel(null)}
+        />
+      )}
+
+      {/* ── Floating compare bar ─────────────────────────────────────── */}
+      <CompareBar
+        ids={compareIds}
+        allModels={allModels}
+        onClear={() => setCompareIds([])}
+        onOpen={() => setCompareOpen(true)}
+        onRemove={id => setCompareIds(prev => prev.filter(x => x !== id))}
+      />
+
+      {/* ── Comparison view ─────────────────────────────────────────── */}
+      {compareOpen && (
+        <ComparisonView
+          ids={compareIds}
+          allModels={allModels}
+          onClose={() => setCompareOpen(false)}
+          onOpenModel={m => {
+            setCompareOpen(false);
+            setOpenModel(m);
+          }}
         />
       )}
     </div>
