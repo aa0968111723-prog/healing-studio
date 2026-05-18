@@ -3,6 +3,7 @@ import {
   mysqlEnum,
   mysqlTable,
   text,
+  mediumtext,
   timestamp,
   varchar,
   json,
@@ -289,6 +290,7 @@ export const backgroundJobs = mysqlTable(
       "zip_export",
       "multimodal",
       "model_training",
+      "teaching_archive_ingestion",
     ]).notNull(),
     status: mysqlEnum("status", [
       "queued",
@@ -3161,3 +3163,231 @@ export const modelWishVotes = mysqlTable(
 
 export type ModelWishVote = typeof modelWishVotes.$inferSelect;
 export type InsertModelWishVote = typeof modelWishVotes.$inferInsert;
+
+// ─── Teaching Materials（資料庫 — training-data feature）─────────────────────
+// Stores uploaded source files (text / PDF / document / image / video / audio /
+// presentation) with classification metadata. Text content (`textContent`) is
+// populated by a later RAG ingestion pipeline (Phase 2: chunking + embeddings);
+// Phase 1 keeps it nullable / not_applicable so authors can upload immediately.
+export const teachingMaterials = mysqlTable(
+  "teaching_materials",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /**
+     * 若不為 null：素材歸屬於某個團隊；visibility=team_shared 時，該 team 的
+     * memberships 全員可讀寫。為 null 時表示是上傳者個人的素材（即使設成
+     * team_shared 也只有自己看得到 — UI 會在切到 team_shared 時強制要求選 team）。
+     */
+    teamId: int("teamId"),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+
+    /** 媒體類型 — 決定前端如何渲染（播放器/縮圖/閱讀器） */
+    mediaType: mysqlEnum("mediaType", [
+      "text", // 純文字（textContent 為主，無檔案）
+      "pdf", // PDF 文件
+      "document", // Word / TXT / Markdown
+      "image", // 圖片
+      "video", // 影片
+      "audio", // 語音、錄音
+      "presentation", // PPT / PPTX
+    ]).notNull(),
+
+    // ── 檔案參照（純文字時皆可為 null）───────────────────────────────────
+    fileUrl: text("fileUrl"),
+    fileKey: text("fileKey"),
+    fileName: varchar("fileName", { length: 255 }),
+    mimeType: varchar("mimeType", { length: 128 }),
+    fileSizeBytes: int("fileSizeBytes"),
+    thumbnailUrl: text("thumbnailUrl"),
+    /** 音檔/影片時長（秒） */
+    durationSeconds: int("durationSeconds"),
+    /** PDF / PPT 頁數 */
+    pageCount: int("pageCount"),
+
+    // ── 抽文 / 轉文字（Phase 2 RAG 用）────────────────────────────────────
+    /**
+     * OCR / 語音轉文字 / PDF 抽文的結果，給未來的向量檢索使用。
+     * 用 MEDIUMTEXT（~16 MB）而不是 TEXT（64 KB）— 一個小時的逐字稿就會
+     * 超過 64 KB；TEXT 會在 MySQL strict mode 下噴 Data too long。
+     */
+    textContent: mediumtext("textContent"),
+    transcriptionStatus: mysqlEnum("transcriptionStatus", [
+      "not_applicable",
+      "pending",
+      "processing",
+      "completed",
+      "failed",
+    ])
+      .default("not_applicable")
+      .notNull(),
+
+    // ── 分類軸 ───────────────────────────────────────────────────────────
+    /** 自由分類字串（之前的 lineage 欄位 — 名稱保留避免動 schema） */
+    lineage: varchar("lineage", { length: 128 }),
+    /** 來源類型 */
+    sourceType: mysqlEnum("sourceType", [
+      "discourse",
+      "group_practice",
+      "class",
+      "ceremony",
+      "publication",
+      "interview",
+      "other",
+    ])
+      .default("discourse")
+      .notNull(),
+    /** 日期 */
+    sourceDate: date("sourceDate"),
+    /** 地點 */
+    sourceLocation: varchar("sourceLocation", { length: 255 }),
+    /** 主題 */
+    topic: varchar("topic", { length: 128 }),
+    /** 講者 */
+    speaker: varchar("speaker", { length: 128 }),
+    tags: json("tags").$type<string[]>(),
+
+    // ── 管理 ─────────────────────────────────────────────────────────────
+    visibility: mysqlEnum("visibility", [
+      "private",
+      "team_shared",
+      "public_disciples",
+    ])
+      .default("private")
+      .notNull(),
+    isFeatured: boolean("isFeatured").default(false).notNull(),
+    sortOrder: int("sortOrder").default(0).notNull(),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("tm_userId_idx").on(table.userId),
+    userIdMediaTypeIdx: index("tm_userId_mediaType_idx").on(
+      table.userId,
+      table.mediaType
+    ),
+    userIdSourceTypeIdx: index("tm_userId_sourceType_idx").on(
+      table.userId,
+      table.sourceType
+    ),
+    userIdLineageIdx: index("tm_userId_lineage_idx").on(
+      table.userId,
+      table.lineage
+    ),
+    userIdTopicIdx: index("tm_userId_topic_idx").on(table.userId, table.topic),
+    userIdCreatedAtIdx: index("tm_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    // ── 0053 新增：團隊池與 visibility 過濾用 ────────────────────────────
+    teamIdVisibilityIdx: index("tm_teamId_visibility_idx").on(
+      table.teamId,
+      table.visibility
+    ),
+    visibilityIdx: index("tm_visibility_idx").on(table.visibility),
+    teamIdCreatedAtIdx: index("tm_teamId_createdAt_idx").on(
+      table.teamId,
+      table.createdAt
+    ),
+  })
+);
+
+export type TeachingMaterial = typeof teachingMaterials.$inferSelect;
+export type InsertTeachingMaterial = typeof teachingMaterials.$inferInsert;
+
+// ─── Teams（0053 新增）────────────────────────────────────────────────────
+
+export const teams = mysqlTable(
+  "teams",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 128 }).notNull(),
+    description: text("description"),
+    /** 團隊建立者；轉移擁有權需另開 mutation，目前 hardcoded 建立者擁有。 */
+    ownerId: int("ownerId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    ownerIdIdx: index("teams_ownerId_idx").on(table.ownerId),
+  })
+);
+
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = typeof teams.$inferInsert;
+
+export const teamMemberships = mysqlTable(
+  "team_memberships",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamId: int("teamId").notNull(),
+    userId: int("userId").notNull(),
+    /**
+     * owner — 建立者；唯一能轉移擁有權 / 解散團隊
+     * admin — 可邀請 / 移除其他 member、可編輯團隊所有素材（含 public_disciples）
+     * member — 可讀寫團隊的 team_shared 素材；對 public_disciples 素材唯讀
+     */
+    role: mysqlEnum("role", ["owner", "admin", "member"])
+      .default("member")
+      .notNull(),
+    invitedBy: int("invitedBy"),
+    joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+  },
+  table => ({
+    // 一個使用者在同一個 team 只能有一筆會員紀錄；application 層也會 guard，
+    // DB 這層 UNIQUE 用來防 race condition（drizzle-kit push 也需要這個
+    // 才會生成 UNIQUE KEY，而非普通 index）。
+    teamUserUk: uniqueIndex("tm_teamId_userId_uk").on(
+      table.teamId,
+      table.userId
+    ),
+    userIdIdx: index("tm_userId_idx").on(table.userId),
+    teamIdIdx: index("tm_teamId_idx").on(table.teamId),
+  })
+);
+
+export type TeamMembership = typeof teamMemberships.$inferSelect;
+export type InsertTeamMembership = typeof teamMemberships.$inferInsert;
+
+// ─── Access audit log（0053 新增）─────────────────────────────────────────
+
+export const teachingMaterialAccessLog = mysqlTable(
+  "teaching_material_access_log",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    materialId: int("materialId").notNull(),
+    userId: int("userId").notNull(),
+    action: mysqlEnum("action", [
+      "view",
+      "download",
+      "search_hit",
+      "reingest",
+      "update",
+      "delete",
+    ]).notNull(),
+    /** 附加 context：search query、IP（之後加）、原本 visibility 等 */
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    materialIdCreatedAtIdx: index("tmal_materialId_createdAt_idx").on(
+      table.materialId,
+      table.createdAt
+    ),
+    userIdCreatedAtIdx: index("tmal_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    actionCreatedAtIdx: index("tmal_action_createdAt_idx").on(
+      table.action,
+      table.createdAt
+    ),
+  })
+);
+
+export type TeachingMaterialAccessLog =
+  typeof teachingMaterialAccessLog.$inferSelect;
+export type InsertTeachingMaterialAccessLog =
+  typeof teachingMaterialAccessLog.$inferInsert;

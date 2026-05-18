@@ -51,6 +51,8 @@ import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
+import { teachingArchiveRouter } from "./routers/teachingArchive";
+import { teamsRouter } from "./routers/teams";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
@@ -3942,6 +3944,16 @@ export const appRouter = router({
   // ─── Worldbuilding Framework（導演 AI 自訂世界觀架構器） ─────────────────
   // 多角色（主角/配角/反派）+ 多場景（環境、植被、物件）+ 連結 LoRA 訓練中心
   worldbuilding: worldbuildingRouter,
+
+  // ─── 資料庫（training-data 素材池） ──────────────────────────────────────
+  // 上傳純文字 / PDF / 文件 / 圖片 / 影片 / 語音 / 簡報，依分類、來源、主題分類。
+  // Phase 1 只做儲存與檢索；Phase 2 會把 textContent 切片做 RAG。
+  teachingArchive: teachingArchiveRouter,
+
+  // ─── Teams（Phase 2：多人協作、團隊池）────────────────────────────────────
+  // 資料庫的 team_shared 視野需要這層 membership；teams 與 teachingArchive
+  // 拆開以便其他功能（共筆、共享 prompts 等）日後復用。
+  teams: teamsRouter,
 
   // ─── Spirit invocation ───────────────────────────────────────────────────
   // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …
