@@ -1,6 +1,5 @@
--- 0047: digital_asset_library 來源追蹤欄位。
--- （此 PR 在 rebase 時與 main 上的 0046_agent_preferences_15_spirits_phase3
--- 撞號，移位到 0047。）
+-- 0057: digital_asset_library 來源追蹤欄位。
+-- （此 PR 在 rebase 時與 main 上已有的 migration 撞號，移位到 0057。）
 -- 補上 sourceStudio / modelId / backgroundJobId 讓「我的資產」可依工作室
 -- 與 AI 模型分類，並反向連回 backgroundJobs 取得原始任務細節（fal
 -- request_id、降級紀錄等）。
