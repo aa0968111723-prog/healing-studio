@@ -1005,6 +1005,33 @@ export async function getProjectNotesByUser(userId: number, limit?: number) {
   return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
 }
 
+/**
+ * List director-AI session snapshots for a user without loading the (often
+ * large) `content` blob. Filters by `noteType = "script"` at the DB layer
+ * using the `pnc_userId_noteType_idx` index, and projects only the columns
+ * the sessions list UI actually renders.
+ */
+export async function getDirectorSessionsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: projectNotesCalendar.id,
+      title: projectNotesCalendar.title,
+      tags: projectNotesCalendar.tags,
+      createdAt: projectNotesCalendar.createdAt,
+      updatedAt: projectNotesCalendar.updatedAt,
+    })
+    .from(projectNotesCalendar)
+    .where(
+      and(
+        eq(projectNotesCalendar.userId, userId),
+        eq(projectNotesCalendar.noteType, "script")
+      )
+    )
+    .orderBy(desc(projectNotesCalendar.updatedAt));
+}
+
 export async function updateProjectNote(
   id: number,
   data: Partial<InsertProjectNote>

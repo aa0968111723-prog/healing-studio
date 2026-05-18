@@ -67,6 +67,20 @@ import type {
 
 
 
+/**
+ * A director-AI session is stored as a `noteType="script"` row tagged
+ * `"director-session"`. Both the type and tag are required so other
+ * `noteType="script"` rows (long-form imports, generic scripts) can never
+ * be returned, updated, or deleted through the session endpoints.
+ */
+export function isDirectorSessionNote(note: {
+  noteType?: string | null;
+  tags?: string[] | null;
+}): boolean {
+  if (note.noteType !== "script") return false;
+  return Array.isArray(note.tags) && note.tags.includes("director-session");
+}
+
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 export const directorRouter = router({
@@ -203,33 +217,64 @@ export const directorRouter = router({
     return DIRECTOR_TEMPLATES;
   }),
 
-  /** Save a session snapshot to project notes */
+  /**
+   * Save a session snapshot to project notes. When `id` is provided and
+   * resolves to a session owned by the caller, the row is updated in place
+   * — re-saving an in-progress session no longer accumulates duplicate rows.
+   */
   saveSession: brainProcedure
     .input(
       z.object({
+        id: z.number().int().positive().optional(),
         title: z.string().min(1).max(255),
-        sessionData: z.string(), // JSON stringified session
+        // Cap at ~2 MB of stringified JSON. Larger payloads almost always
+        // indicate a runaway message log and would push the TEXT column past
+        // healthy limits; clients should trim or split.
+        sessionData: z.string().max(2_000_000),
         personality: z
           .enum(["calm", "creative", "technical"])
           .default("creative"),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const storedTitle = `[導演對話] ${input.title}`;
+      const tags = ["director-session", input.personality];
+
+      if (input.id !== undefined) {
+        const existing = await db.getProjectNote(input.id);
+        if (
+          !existing ||
+          existing.userId !== ctx.user.id ||
+          !isDirectorSessionNote(existing)
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "找不到要更新的對話",
+          });
+        }
+        await db.updateProjectNote(input.id, {
+          title: storedTitle,
+          content: input.sessionData,
+          tags,
+        });
+        return { id: input.id };
+      }
+
       const id = await db.createProjectNote({
         userId: ctx.user.id,
-        title: `[導演對話] ${input.title}`,
+        title: storedTitle,
         content: input.sessionData,
         noteType: "script",
-        tags: ["director-session", input.personality],
+        tags,
       });
       return { id };
     }),
 
   /** List saved director sessions */
   listSessions: brainProcedure.query(async ({ ctx }) => {
-    const notes = await db.getProjectNotesByUser(ctx.user.id);
-    return notes
-      .filter(n => n.noteType === "script" && n.title.startsWith("[導演對話]"))
+    const sessions = await db.getDirectorSessionsByUser(ctx.user.id);
+    return sessions
+      .filter(isDirectorSessionNote)
       .map(n => ({
         id: n.id,
         title: n.title.replace("[導演對話] ", ""),
@@ -243,7 +288,13 @@ export const directorRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       const note = await db.getProjectNote(input.id);
-      if (!note || note.userId !== ctx.user.id) return null;
+      if (
+        !note ||
+        note.userId !== ctx.user.id ||
+        !isDirectorSessionNote(note)
+      ) {
+        return null;
+      }
       return {
         id: note.id,
         title: note.title.replace("[導演對話] ", ""),
@@ -257,7 +308,13 @@ export const directorRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const note = await db.getProjectNote(input.id);
-      if (!note || note.userId !== ctx.user.id) return { success: false };
+      if (
+        !note ||
+        note.userId !== ctx.user.id ||
+        !isDirectorSessionNote(note)
+      ) {
+        return { success: false };
+      }
       await db.deleteProjectNote(input.id);
       return { success: true };
     }),
