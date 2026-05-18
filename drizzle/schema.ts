@@ -3098,6 +3098,12 @@ export const teachingMaterials = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("userId").notNull(),
+    /**
+     * 若不為 null：素材歸屬於某個團隊；visibility=team_shared 時，該 team 的
+     * memberships 全員可讀寫。為 null 時表示是上傳者個人的素材（即使設成
+     * team_shared 也只有自己看得到 — UI 會在切到 team_shared 時強制要求選 team）。
+     */
+    teamId: int("teamId"),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
 
@@ -3195,8 +3201,109 @@ export const teachingMaterials = mysqlTable(
       table.userId,
       table.createdAt
     ),
+    // ── 0051 新增：團隊池與 visibility 過濾用 ────────────────────────────
+    teamIdVisibilityIdx: index("tm_teamId_visibility_idx").on(
+      table.teamId,
+      table.visibility
+    ),
+    visibilityIdx: index("tm_visibility_idx").on(table.visibility),
+    teamIdCreatedAtIdx: index("tm_teamId_createdAt_idx").on(
+      table.teamId,
+      table.createdAt
+    ),
   })
 );
 
 export type TeachingMaterial = typeof teachingMaterials.$inferSelect;
 export type InsertTeachingMaterial = typeof teachingMaterials.$inferInsert;
+
+// ─── Teams（0051 新增）────────────────────────────────────────────────────
+
+export const teams = mysqlTable(
+  "teams",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 128 }).notNull(),
+    description: text("description"),
+    /** 團隊建立者；轉移擁有權需另開 mutation，目前 hardcoded 建立者擁有。 */
+    ownerId: int("ownerId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    ownerIdIdx: index("teams_ownerId_idx").on(table.ownerId),
+  })
+);
+
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = typeof teams.$inferInsert;
+
+export const teamMemberships = mysqlTable(
+  "team_memberships",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamId: int("teamId").notNull(),
+    userId: int("userId").notNull(),
+    /**
+     * owner — 建立者；唯一能轉移擁有權 / 解散團隊
+     * admin — 可邀請 / 移除其他 member、可編輯團隊所有素材
+     * member — 可讀寫團隊的 team_shared 素材
+     */
+    role: mysqlEnum("role", ["owner", "admin", "member"])
+      .default("member")
+      .notNull(),
+    invitedBy: int("invitedBy"),
+    joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+  },
+  table => ({
+    // 一個使用者在同一個 team 只能有一筆會員紀錄；application 層也會 guard，
+    // DB 這層 UNIQUE 用來防 race condition。
+    teamUserUk: index("tm_teamId_userId_uk").on(table.teamId, table.userId),
+    userIdIdx: index("tm_userId_idx").on(table.userId),
+    teamIdIdx: index("tm_teamId_idx").on(table.teamId),
+  })
+);
+
+export type TeamMembership = typeof teamMemberships.$inferSelect;
+export type InsertTeamMembership = typeof teamMemberships.$inferInsert;
+
+// ─── Access audit log（0051 新增）─────────────────────────────────────────
+
+export const teachingMaterialAccessLog = mysqlTable(
+  "teaching_material_access_log",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    materialId: int("materialId").notNull(),
+    userId: int("userId").notNull(),
+    action: mysqlEnum("action", [
+      "view",
+      "download",
+      "search_hit",
+      "reingest",
+      "update",
+      "delete",
+    ]).notNull(),
+    /** 附加 context：search query、IP（之後加）、原本 visibility 等 */
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    materialIdCreatedAtIdx: index("tmal_materialId_createdAt_idx").on(
+      table.materialId,
+      table.createdAt
+    ),
+    userIdCreatedAtIdx: index("tmal_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    actionCreatedAtIdx: index("tmal_action_createdAt_idx").on(
+      table.action,
+      table.createdAt
+    ),
+  })
+);
+
+export type TeachingMaterialAccessLog =
+  typeof teachingMaterialAccessLog.$inferSelect;
+export type InsertTeachingMaterialAccessLog =
+  typeof teachingMaterialAccessLog.$inferInsert;

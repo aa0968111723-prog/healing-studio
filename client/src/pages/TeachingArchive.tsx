@@ -70,6 +70,10 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  Users,
+  ShieldCheck,
+  Lock,
+  Globe2,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useLocation } from "wouter";
@@ -148,6 +152,7 @@ export default function TeachingArchive() {
     lineage?: string;
     topic?: string;
     search?: string;
+    scope?: "mine" | "team" | "public";
   }>({});
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -162,6 +167,7 @@ export default function TeachingArchive() {
       lineage: filters.lineage,
       topic: filters.topic,
       search: filters.search?.trim() || undefined,
+      scope: filters.scope,
     },
     {
       staleTime: 5_000,
@@ -182,8 +188,10 @@ export default function TeachingArchive() {
   );
   const lineagesQuery = trpc.teachingArchive.lineages.useQuery();
   const topicsQuery = trpc.teachingArchive.topics.useQuery();
+  const teamsQuery = trpc.teams.list.useQuery();
 
   const items = listQuery.data ?? [];
+  const teams = teamsQuery.data ?? [];
 
   const selectedImageItems = items.filter(
     i => selectedIds.has(i.id) && i.mediaType === "image" && i.fileUrl
@@ -223,6 +231,42 @@ export default function TeachingArchive() {
           PDF 開示自動抽文、語音/影片自動轉文字後，AI 助理就能引用師父原文回答。
         </p>
       </header>
+
+      {/* 視野切換 — 我的 / 團隊 / 全 workspace 公開 */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <ScopeChip
+          icon={Filter}
+          label="全部"
+          active={!filters.scope}
+          onClick={() => setFilters(f => ({ ...f, scope: undefined }))}
+        />
+        <ScopeChip
+          icon={Lock}
+          label="我的（私人）"
+          active={filters.scope === "mine"}
+          onClick={() => setFilters(f => ({ ...f, scope: "mine" }))}
+        />
+        <ScopeChip
+          icon={Users}
+          label="團隊共享"
+          active={filters.scope === "team"}
+          onClick={() => setFilters(f => ({ ...f, scope: "team" }))}
+          badge={teams.length > 0 ? `${teams.length}` : undefined}
+        />
+        <ScopeChip
+          icon={Globe2}
+          label="全 workspace 公開"
+          active={filters.scope === "public"}
+          onClick={() => setFilters(f => ({ ...f, scope: "public" }))}
+        />
+        <a
+          href="/teams"
+          className="ml-auto text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          <ShieldCheck className="w-3 h-3 inline mr-1" />
+          管理團隊
+        </a>
+      </div>
 
       {/* 過濾列 */}
       <div className="flex flex-wrap gap-3 items-end">
@@ -348,6 +392,7 @@ export default function TeachingArchive() {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onCreated={refetchAll}
+        teams={teams}
       />
 
       {detailId !== null && (
@@ -373,6 +418,73 @@ export default function TeachingArchive() {
 }
 
 // ─── 子元件：過濾下拉 ──────────────────────────────────────────────────────
+
+function ScopeChip({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  badge,
+}: {
+  icon: typeof Filter;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  badge?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition ${
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-card hover:bg-muted"
+      }`}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {label}
+      {badge && (
+        <span
+          className={`ml-0.5 rounded-full px-1.5 text-xs ${
+            active ? "bg-primary-foreground/20" : "bg-muted-foreground/20"
+          }`}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function VisibilityChip({
+  visibility,
+}: {
+  visibility: MaterialItem["visibility"];
+}) {
+  if (visibility === "private") {
+    return (
+      <Badge variant="outline" className="gap-1">
+        <Lock className="w-3 h-3" />
+        私人
+      </Badge>
+    );
+  }
+  if (visibility === "team_shared") {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <Users className="w-3 h-3" />
+        團隊
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="gap-1">
+      <Globe2 className="w-3 h-3" />
+      公開
+    </Badge>
+  );
+}
 
 function FilterSelect({
   label,
@@ -465,6 +577,7 @@ function MaterialCard({
         {item.lineage && <Badge variant="outline">{item.lineage}</Badge>}
         {item.topic && <Badge variant="outline">{item.topic}</Badge>}
         <TranscriptionBadge status={item.transcriptionStatus} />
+        <VisibilityChip visibility={item.visibility} />
       </div>
       {(item.speaker || item.sourceDate) && (
         <div className="text-xs text-muted-foreground">
@@ -538,10 +651,12 @@ function UploadDialog({
   open,
   onOpenChange,
   onCreated,
+  teams,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onCreated: () => void;
+  teams: Array<{ id: number; name: string; role: "owner" | "admin" | "member" }>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"file" | "text">("file");
@@ -560,6 +675,8 @@ function UploadDialog({
     speaker: DEFAULT_SPEAKER,
     tagsInput: "",
     visibility: "private" as Visibility,
+    /** null = 個人池；數字 = 該團隊 id */
+    teamId: null as number | null,
   });
 
   const [entries, setEntries] = useState<FileEntry[]>([]);
@@ -590,6 +707,7 @@ function UploadDialog({
       speaker: DEFAULT_SPEAKER,
       tagsInput: "",
       visibility: "private",
+      teamId: null,
     });
     resetEntriesOnly();
     resetTextOnly();
@@ -646,6 +764,7 @@ function UploadDialog({
       speaker: shared.speaker.trim() || undefined,
       tags: buildTags(),
       visibility: shared.visibility,
+      teamId: shared.teamId ?? undefined,
     };
   }
 
@@ -948,7 +1067,12 @@ function UploadDialog({
             <Select
               value={shared.visibility}
               onValueChange={v =>
-                setShared(s => ({ ...s, visibility: v as Visibility }))
+                setShared(s => ({
+                  ...s,
+                  visibility: v as Visibility,
+                  // 切到非 team_shared 時，把暫存的 teamId 清掉避免送出時 server reject
+                  teamId: v === "team_shared" ? s.teamId : null,
+                }))
               }
             >
               <SelectTrigger>
@@ -963,6 +1087,42 @@ function UploadDialog({
               </SelectContent>
             </Select>
           </Field>
+
+          {/* 只有 team_shared 才需要選 team；其他可見範圍隱藏 */}
+          {shared.visibility === "team_shared" && (
+            <Field label="共享給哪個團隊" required>
+              {teams.length === 0 ? (
+                <p className="text-xs text-muted-foreground border rounded-md p-2 bg-muted/30">
+                  你還沒有任何團隊。請先到{" "}
+                  <a
+                    href="/teams"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    團隊管理
+                  </a>{" "}
+                  建立或加入一個團隊。
+                </p>
+              ) : (
+                <Select
+                  value={shared.teamId ? String(shared.teamId) : ""}
+                  onValueChange={v =>
+                    setShared(s => ({ ...s, teamId: parseInt(v, 10) }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇團隊…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map(t => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}（{t.role}）
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+          )}
         </div>
 
         <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1412,6 +1572,10 @@ function DetailDialog({
                 </div>
               </section>
             )}
+
+            {/* 存取稽核 — 給 owner / team admin 看誰最近碰過這份素材。
+                錯誤情況（403）下 useQuery 會 fail，UI 就什麼都不顯示。 */}
+            <AccessLogSection materialId={id} />
           </div>
 
           <DialogFooter>
@@ -1499,6 +1663,66 @@ function FilePreview({
       <FileType2 className="w-4 h-4" />
       {fileName}（開新分頁檢視）
     </a>
+  );
+}
+
+function AccessLogSection({ materialId }: { materialId: number }) {
+  const [expanded, setExpanded] = useState(false);
+  // 用 enabled gating：使用者主動展開才打 endpoint，省 traffic 也避免每張卡都 403。
+  const logQuery = trpc.teachingArchive.accessLog.useQuery(
+    { id: materialId, limit: 20 },
+    { enabled: expanded, retry: false }
+  );
+
+  // 沒權限（403）就完全不顯示這個 section
+  if (
+    expanded &&
+    logQuery.error &&
+    logQuery.error.data?.code === "FORBIDDEN"
+  ) {
+    return null;
+  }
+
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ShieldCheck className="w-3 h-3" />
+        {expanded ? "隱藏" : "查看"}存取紀錄
+      </button>
+      {expanded && (
+        <div className="mt-2 rounded-lg border bg-muted/20 p-2 max-h-48 overflow-y-auto text-xs">
+          {logQuery.isLoading ? (
+            <p className="text-muted-foreground">載入中…</p>
+          ) : logQuery.error ? (
+            <p className="text-destructive">
+              {shortErrorMsg(logQuery.error, 120)}
+            </p>
+          ) : !logQuery.data || logQuery.data.length === 0 ? (
+            <p className="text-muted-foreground">尚無存取紀錄</p>
+          ) : (
+            <ul className="space-y-1">
+              {logQuery.data.map(log => (
+                <li
+                  key={log.id}
+                  className="flex justify-between gap-2 font-mono"
+                >
+                  <span>
+                    使用者 #{log.userId} · {log.action}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {new Date(log.createdAt).toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

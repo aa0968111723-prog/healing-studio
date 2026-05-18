@@ -128,6 +128,37 @@ describe("teachingArchive assertMediaPayload", () => {
     });
     expect(() => assertMediaPayload(parsed)).not.toThrow();
   });
+
+  it("rejects team_shared visibility without a teamId", () => {
+    const parsed = createInputSchema.parse({
+      title: "x",
+      mediaType: "text",
+      textContent: "x",
+      visibility: "team_shared",
+    });
+    expect(() => assertMediaPayload(parsed)).toThrowError(/teamId/);
+  });
+
+  it("accepts team_shared visibility when teamId is provided", () => {
+    const parsed = createInputSchema.parse({
+      title: "x",
+      mediaType: "text",
+      textContent: "x",
+      visibility: "team_shared",
+      teamId: 42,
+    });
+    expect(() => assertMediaPayload(parsed)).not.toThrow();
+  });
+
+  it("accepts public_disciples without requiring teamId", () => {
+    const parsed = createInputSchema.parse({
+      title: "x",
+      mediaType: "text",
+      textContent: "x",
+      visibility: "public_disciples",
+    });
+    expect(() => assertMediaPayload(parsed)).not.toThrow();
+  });
 });
 
 describe("teachingArchive auto-ingestion gate", () => {

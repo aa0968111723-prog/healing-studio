@@ -962,6 +962,28 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: [],
   },
   {
+    id: "teams",
+    label: "團隊管理",
+    path: "/teams",
+    group: "learn",
+    description: "建立 / 加入團隊，與同修共享教材庫的 team_shared 素材",
+    aliases: ["teams", "團隊", "成員", "membership"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 19,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-teams",
+        label: "管理團隊",
+        description: "建立團隊、邀請成員、設定角色",
+        path: "/teams",
+      },
+    ],
+    orbHints: ["建立團隊", "邀請成員", "管理我的團隊"],
+    supportedActions: [],
+  },
+  {
     id: "background-tasks",
     label: "背景任務中心",
     path: "/assets?section=tasks",

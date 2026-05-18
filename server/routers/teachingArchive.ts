@@ -16,6 +16,11 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { scheduleTeachingIngestion } from "../services/teachingArchiveIngest";
+import {
+  loadMaterialForRead,
+  loadMaterialForWrite,
+  logAccess,
+} from "../services/teachingArchiveAccess";
 
 export const TEACHING_MEDIA_TYPES = [
   "text",
@@ -74,6 +79,11 @@ const createInputSchema = z.object({
   speaker: z.string().max(128).optional(),
   tags: z.array(z.string().min(1).max(64)).max(32).optional(),
 
+  /**
+   * 把素材丟進哪個團隊的池子。null/undefined = 個人池。若 visibility=team_shared
+   * 但 teamId 為 null，server 會在 assertMediaPayload 那層擋下來。
+   */
+  teamId: z.number().int().positive().nullable().optional(),
   visibility: visibilitySchema.default("private"),
   isFeatured: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
@@ -87,6 +97,14 @@ const listFiltersSchema = z.object({
   lineage: z.string().max(128).optional(),
   topic: z.string().max(128).optional(),
   search: z.string().max(255).optional(),
+  /**
+   * 視圖切換：
+   *   mine    — 只看自己上傳的（私人池）
+   *   team    — 只看自己有 membership 的團隊共享池
+   *   public  — 只看 public_disciples 全 workspace 公開
+   *   undefined — 全部都看（預設）
+   */
+  scope: z.enum(["mine", "team", "public"]).optional(),
 });
 
 /**
@@ -103,33 +121,50 @@ function assertMediaPayload(
         message: "純文字教材必須提供 textContent",
       });
     }
-    return;
-  }
-  if (!input.fileUrl) {
+  } else if (!input.fileUrl) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: `${input.mediaType} 類型需要先上傳檔案並提供 fileUrl`,
     });
   }
+
+  // team_shared 必須掛在某個 team 上 — 否則建立後沒人看得到（包括上傳者自己以外）。
+  // server 層強制，避免使用者誤以為「設成 team_shared = 自動共享」。
+  if (input.visibility === "team_shared" && !input.teamId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "設定為「團隊共享」時必須指定 teamId",
+    });
+  }
 }
 
 export const teachingArchiveRouter = router({
-  /** 列出當前使用者的教材（支援多軸過濾） */
+  /**
+   * 列出當前使用者看得到的教材：自己上傳的 + 同團隊的 team_shared +
+   * 全 workspace 的 public_disciples。可用 scope 過濾「我的 / 團隊 / 公開」。
+   */
   list: protectedProcedure
     .input(listFiltersSchema.optional())
     .query(async ({ ctx, input }) => {
-      return db.listTeachingMaterialsByUser(ctx.user.id, input ?? {});
+      const teamIds = await db.listTeamIdsForUser(ctx.user.id);
+      return db.listTeachingMaterialsForUser(ctx.user.id, input ?? {}, {
+        teamIds,
+        only: input?.scope,
+      });
     }),
 
-  /** 取得單一教材 */
+  /** 取得單一教材 — 自動套用 visibility + team membership 規則 */
   get: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      const row = await db.getTeachingMaterial(input.id);
-      if (!row || row.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-      return row;
+      const { material, viaTeamId } = await loadMaterialForRead(input.id, {
+        userId: ctx.user.id,
+      });
+      logAccess(input.id, ctx.user.id, "view", {
+        viaTeamId,
+        visibility: material.visibility,
+      });
+      return material;
     }),
 
   /** 建立新教材；上傳完成後由前端呼叫 */
@@ -137,6 +172,22 @@ export const teachingArchiveRouter = router({
     .input(createInputSchema)
     .mutation(async ({ ctx, input }) => {
       assertMediaPayload(input);
+
+      // 把素材掛在某個 team 上，必須先驗證使用者真的在那個 team。否則
+      // 任何人都可以「假裝把素材塞進別人的團隊」。
+      if (input.teamId) {
+        const membership = await db.getTeamMembership(
+          input.teamId,
+          ctx.user.id
+        );
+        if (!membership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "你不是這個團隊的成員，不能在此團隊建立教材",
+          });
+        }
+      }
+
       const needsIngestion =
         !input.textContent &&
         (input.mediaType === "pdf" ||
@@ -144,6 +195,7 @@ export const teachingArchiveRouter = router({
           input.mediaType === "video");
       const id = await db.createTeachingMaterial({
         userId: ctx.user.id,
+        teamId: input.teamId ?? null,
         title: input.title,
         description: input.description,
         mediaType: input.mediaType,
@@ -198,10 +250,8 @@ export const teachingArchiveRouter = router({
   triggerIngestion: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await db.getTeachingMaterial(input.id);
-      if (!existing || existing.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
+      await loadMaterialForWrite(input.id, { userId: ctx.user.id });
+      logAccess(input.id, ctx.user.id, "reingest");
       setImmediate(() => {
         scheduleTeachingIngestion(input.id).catch(err => {
           console.error(
@@ -213,7 +263,7 @@ export const teachingArchiveRouter = router({
       return { ok: true };
     }),
 
-  /** 更新既有教材 */
+  /** 更新既有教材（owner 或團隊管理員可改） */
   update: protectedProcedure
     .input(
       z.object({
@@ -222,11 +272,24 @@ export const teachingArchiveRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await db.getTeachingMaterial(input.id);
-      if (!existing || existing.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
+      const { material } = await loadMaterialForWrite(input.id, {
+        userId: ctx.user.id,
+      });
+
+      // 想把素材搬到別的 team 上 — 同樣要驗證新 team 的 membership
+      if (input.patch.teamId && input.patch.teamId !== material.teamId) {
+        const membership = await db.getTeamMembership(
+          input.patch.teamId,
+          ctx.user.id
+        );
+        if (!membership) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "你不是目標團隊的成員，不能將教材轉移到此團隊",
+          });
+        }
       }
-      // 全 undefined 的 patch 沒意義；空 set 在 MySQL 會炸。
+
       const patch: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(input.patch)) {
         if (v !== undefined) patch[k] = v;
@@ -235,19 +298,36 @@ export const teachingArchiveRouter = router({
         return { ok: true, noop: true as const };
       }
       await db.updateTeachingMaterial(input.id, patch);
+      logAccess(input.id, ctx.user.id, "update", {
+        fields: Object.keys(patch),
+      });
       return { ok: true, noop: false as const };
     }),
 
-  /** 刪除教材（僅刪 metadata；S3 物件保留，避免誤刪共用檔案） */
+  /** 刪除教材（owner 或團隊管理員可刪；僅刪 metadata，S3 物件保留） */
   delete: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await db.getTeachingMaterial(input.id);
-      if (!existing || existing.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
+      await loadMaterialForWrite(input.id, { userId: ctx.user.id });
+      logAccess(input.id, ctx.user.id, "delete");
       await db.deleteTeachingMaterial(input.id);
       return { ok: true };
+    }),
+
+  /**
+   * 取得單一教材的存取稽核日誌（最近 N 筆）— 只有 owner 或團隊管理員看得到。
+   * 給敏感素材的擁有者用來追蹤「最近誰看過 / 下載過」。
+   */
+  accessLog: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        limit: z.number().int().min(1).max(200).default(50),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      await loadMaterialForWrite(input.id, { userId: ctx.user.id });
+      return db.listTeachingMaterialAccessLogs(input.id, input.limit);
     }),
 
   /** distinct lineage / topic 給前端做下拉選單 */
@@ -283,12 +363,24 @@ export const teachingArchiveRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const rows = await db.listTeachingMaterialsByUser(ctx.user.id, {
-        search: input.query,
-        mediaType: input.mediaType,
-        lineage: input.lineage,
-      });
+      const teamIds = await db.listTeamIdsForUser(ctx.user.id);
+      const rows = await db.listTeachingMaterialsForUser(
+        ctx.user.id,
+        {
+          search: input.query,
+          mediaType: input.mediaType,
+          lineage: input.lineage,
+        },
+        { teamIds }
+      );
       const top = rows.slice(0, input.limit);
+      // 寫 search_hit 稽核 — fire-and-forget，不卡回應。每筆命中各一行，
+      // 之後分析 access 統計時可以看「最常被光球引用的開示」等指標。
+      for (const row of top) {
+        logAccess(row.id, ctx.user.id, "search_hit", {
+          query: input.query,
+        });
+      }
       return top.map(row => ({
         id: row.id,
         title: row.title,

@@ -46,6 +46,7 @@ import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
+import { teamsRouter } from "./routers/teams";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
@@ -3940,6 +3941,11 @@ export const appRouter = router({
   // 上傳師父開示文字 / PDF / 圖片 / 影片 / 語音 / PPT，依法脈、來源、主題分類。
   // Phase 1 只做儲存與檢索；Phase 2 會把 textContent 切片做 RAG。
   teachingArchive: teachingArchiveRouter,
+
+  // ─── Teams（Phase 2：多人協作、團隊池）────────────────────────────────────
+  // 教材庫的 team_shared 視野需要這層 membership；teams 與 teachingArchive
+  // 拆開以便其他功能（共筆、共享 prompts 等）日後復用。
+  teams: teamsRouter,
 
   // ─── Spirit invocation ───────────────────────────────────────────────────
   // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …

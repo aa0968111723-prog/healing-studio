@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, lt } from "drizzle-orm";
+import { eq, desc, and, or, sql, lt, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
@@ -53,6 +53,15 @@ import {
   teachingMaterials,
   InsertTeachingMaterial,
   TeachingMaterial,
+  teams,
+  InsertTeam,
+  Team,
+  teamMemberships,
+  InsertTeamMembership,
+  TeamMembership,
+  teachingMaterialAccessLog,
+  InsertTeachingMaterialAccessLog,
+  TeachingMaterialAccessLog,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -362,6 +371,22 @@ export async function getUserByOpenId(openId: string) {
     .where(eq(users.openId, openId))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUsersByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      avatarUrl: users.avatarUrl,
+      role: users.role,
+    })
+    .from(users)
+    .where(inArray(users.id, ids));
 }
 
 export async function getAllUsers() {
@@ -2382,13 +2407,54 @@ export async function getTeachingMaterial(
   return rows[0] ?? null;
 }
 
-export async function listTeachingMaterialsByUser(
+/**
+ * 列出 user 看得到的所有教材，套上「擁有 / 團隊共享 / 全 workspace 公開」的
+ * 三層 visibility 規則：
+ *
+ *   1. 自己 (userId === currentUserId) — 不分 visibility 都看得到
+ *   2. team_shared 且 teamId 是自己有 membership 的團隊
+ *   3. public_disciples — 任何已登入使用者都看得到（admin 也走這條）
+ *
+ * filters.scope 可以選擇只看「我的 / 某團隊 / 全部」三種視圖，但 server 端
+ * 永遠不會放寬到沒有授權的素材；scope 只是 narrow，不能 widen。
+ */
+export async function listTeachingMaterialsForUser(
   userId: number,
-  filters: TeachingMaterialListFilters = {}
+  filters: TeachingMaterialListFilters = {},
+  scope: { teamIds?: number[]; only?: "mine" | "team" | "public" } = {}
 ): Promise<TeachingMaterial[]> {
   const db = await getDb();
   if (!db) return [];
-  const conditions = [eq(teachingMaterials.userId, userId)];
+
+  const myTeamIds = scope.teamIds ?? [];
+
+  // ── 組 visibility OR 子句 ────────────────────────────────────────────
+  const visibilityClauses = [];
+  if (scope.only === undefined || scope.only === "mine") {
+    visibilityClauses.push(eq(teachingMaterials.userId, userId));
+  }
+  if ((scope.only === undefined || scope.only === "team") && myTeamIds.length > 0) {
+    visibilityClauses.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, myTeamIds)
+      )!
+    );
+  }
+  if (scope.only === undefined || scope.only === "public") {
+    visibilityClauses.push(
+      eq(teachingMaterials.visibility, "public_disciples")
+    );
+  }
+  if (visibilityClauses.length === 0) {
+    // 例如 scope="team" 但 user 沒有任何 team membership — 一定空集合
+    return [];
+  }
+
+  const visibilityOr =
+    visibilityClauses.length === 1 ? visibilityClauses[0] : or(...visibilityClauses)!;
+
+  const conditions = [visibilityOr];
   if (filters.mediaType) {
     conditions.push(eq(teachingMaterials.mediaType, filters.mediaType));
   }
@@ -2416,6 +2482,18 @@ export async function listTeachingMaterialsByUser(
       desc(teachingMaterials.sortOrder),
       desc(teachingMaterials.createdAt)
     );
+}
+
+/**
+ * @deprecated 改用 `listTeachingMaterialsForUser`，會自動帶上團隊與
+ * public_disciples 的 visibility 規則。保留是因為現有測試還在引用，
+ * 行為等同於 only=mine。
+ */
+export async function listTeachingMaterialsByUser(
+  userId: number,
+  filters: TeachingMaterialListFilters = {}
+): Promise<TeachingMaterial[]> {
+  return listTeachingMaterialsForUser(userId, filters, { only: "mine" });
 }
 
 export async function updateTeachingMaterial(
@@ -2466,4 +2544,158 @@ export async function listTeachingMaterialTopics(
     .map(r => r.topic)
     .filter((v): v is string => typeof v === "string" && v.length > 0)
     .sort();
+}
+
+// ─── Teams（0051）─────────────────────────────────────────────────────────
+
+export async function createTeam(data: InsertTeam): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teams).values(data);
+  return result[0].insertId;
+}
+
+export async function getTeam(id: number): Promise<Team | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateTeam(id: number, data: Partial<InsertTeam>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(teams).set(data).where(eq(teams.id, id));
+}
+
+export async function deleteTeam(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  // 順序很重要：先把該團隊的素材 teamId 退回 null（轉成個人素材），再砍 membership，
+  // 最後刪 team row。沒有 FK CASCADE 因為素材要留下來。
+  await db
+    .update(teachingMaterials)
+    .set({ teamId: null, visibility: "private" })
+    .where(eq(teachingMaterials.teamId, id));
+  await db.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
+  await db.delete(teams).where(eq(teams.id, id));
+}
+
+/** 列出 user 加入的所有團隊（含 owner 自己建的）。 */
+export async function listTeamsForUser(
+  userId: number
+): Promise<Array<Team & { role: TeamMembership["role"] }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: teams.id,
+      name: teams.name,
+      description: teams.description,
+      ownerId: teams.ownerId,
+      createdAt: teams.createdAt,
+      updatedAt: teams.updatedAt,
+      role: teamMemberships.role,
+    })
+    .from(teamMemberships)
+    .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
+    .where(eq(teamMemberships.userId, userId))
+    .orderBy(desc(teams.createdAt));
+  return rows;
+}
+
+/** 列出 user 加入的所有 team IDs（給 listTeachingMaterialsForUser 用）。 */
+export async function listTeamIdsForUser(userId: number): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ teamId: teamMemberships.teamId })
+    .from(teamMemberships)
+    .where(eq(teamMemberships.userId, userId));
+  return rows.map(r => r.teamId);
+}
+
+export async function addTeamMember(
+  data: InsertTeamMembership
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teamMemberships).values(data);
+  return result[0].insertId;
+}
+
+export async function removeTeamMember(teamId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(teamMemberships)
+    .where(
+      and(
+        eq(teamMemberships.teamId, teamId),
+        eq(teamMemberships.userId, userId)
+      )
+    );
+}
+
+export async function getTeamMembership(
+  teamId: number,
+  userId: number
+): Promise<TeamMembership | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(teamMemberships)
+    .where(
+      and(
+        eq(teamMemberships.teamId, teamId),
+        eq(teamMemberships.userId, userId)
+      )
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listTeamMembers(
+  teamId: number
+): Promise<TeamMembership[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(teamMemberships)
+    .where(eq(teamMemberships.teamId, teamId))
+    .orderBy(teamMemberships.joinedAt);
+}
+
+// ─── Teaching material access — audit log ────────────────────────────────
+
+/**
+ * 寫一筆讀取 / 修改的稽核日誌。失敗不會 throw — log 寫不出來不應該擋
+ * 真正的業務邏輯。呼叫端用 `.catch(...)` 或 fire-and-forget 即可。
+ */
+export async function logTeachingMaterialAccess(
+  data: InsertTeachingMaterialAccessLog
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(teachingMaterialAccessLog).values(data);
+  } catch (err) {
+    console.error("[teachingMaterialAccessLog] insert failed:", err);
+  }
+}
+
+export async function listTeachingMaterialAccessLogs(
+  materialId: number,
+  limit = 50
+): Promise<TeachingMaterialAccessLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(teachingMaterialAccessLog)
+    .where(eq(teachingMaterialAccessLog.materialId, materialId))
+    .orderBy(desc(teachingMaterialAccessLog.createdAt))
+    .limit(limit);
 }
