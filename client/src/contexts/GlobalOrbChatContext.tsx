@@ -201,6 +201,7 @@ export interface OrbChatProgressEvent {
     | "guarding_attachments"
     | "extracting_pdf"
     | "selecting_provider"
+    | "analyzing_terms"
     | "researching_web"
     | "planning"
     | "calling_specialist"

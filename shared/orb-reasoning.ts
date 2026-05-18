@@ -31,6 +31,7 @@ export type OrbReasoningActionStage =
   | "guarding_attachments"
   | "extracting_pdf"
   | "selecting_provider"
+  | "analyzing_terms"
   | "researching_web"
   | "planning"
   | "calling_specialist"
@@ -93,13 +94,14 @@ const STAGE_ORDER: Record<OrbReasoningActionStage, number> = {
   guarding_attachments: 2,
   extracting_pdf: 3,
   selecting_provider: 4,
-  researching_web: 5,
-  planning: 6,
-  calling_specialist: 7,
-  materializing_task: 8,
-  executing_tool: 9,
-  finalizing: 10,
-  error: 11,
+  analyzing_terms: 5,
+  researching_web: 6,
+  planning: 7,
+  calling_specialist: 8,
+  materializing_task: 9,
+  executing_tool: 10,
+  finalizing: 11,
+  error: 12,
 };
 
 export function isOrbReasoningActionStage(

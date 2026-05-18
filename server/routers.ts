@@ -222,8 +222,10 @@ import {
 } from "./services/orbAttachmentExtraction";
 import {
   runOrbWebResearch,
+  runOrbDeepSearch,
   classifyOrbResearchIntent,
 } from "./services/orbWebResearch";
+import { analyzeOrbPromptForContextLookup } from "./services/orbContextLookup";
 import {
   doPostGenComplete,
   runPostGenForJob,
@@ -6783,7 +6785,22 @@ export const appRouter = router({
             });
           }
         }
-        const webResearchOutcome = await runOrbWebResearch(
+
+        // ── Proper-noun context lookup ────────────────────────────────────
+        // Before the classifier-based web research fires, ask a fast LLM
+        // whether the user message contains niche proper nouns (school
+        // clubs, local brands, niche events) that warrant a background
+        // lookup — covers the "淡大禪學社" case where the user wants help
+        // brainstorming a video for a subject the planner has no prior on.
+        // Runs in parallel with the existing research call so latency is
+        // bounded by the slower path, not the sum of both.
+        if (webResearchEnabled && latestUserTextForRouting?.trim()) {
+          emitOrbChatProgress(idempKey, "analyzing_terms", "辨識專有名詞中…");
+        }
+        const contextLookupAnalysisPromise = webResearchEnabled
+          ? analyzeOrbPromptForContextLookup(latestUserTextForRouting)
+          : Promise.resolve(null);
+        const webResearchOutcomePromise = runOrbWebResearch(
           latestUserTextForRouting,
           {
             enabled: webResearchEnabled,
@@ -6799,6 +6816,48 @@ export const appRouter = router({
             userId: ctx.user.id,
           }
         );
+        const [contextLookupAnalysis, webResearchOutcome] = await Promise.all([
+          contextLookupAnalysisPromise,
+          webResearchOutcomePromise,
+        ]);
+
+        // Fire a deep search using the detected proper nouns when the
+        // analysis matched. This is only used when the classifier-based
+        // research did NOT already pick up the topic — we treat it as a
+        // complementary background block (separate header), never as a
+        // replacement.
+        let contextLookupResearch: Awaited<ReturnType<typeof runOrbDeepSearch>> | null = null;
+        if (
+          contextLookupAnalysis?.shouldLookup &&
+          contextLookupAnalysis.terms.length > 0
+        ) {
+          appendTelemetryEvent(telemetryEvents, "orb.context_lookup.matched", {
+            terms: contextLookupAnalysis.terms,
+            rationale: contextLookupAnalysis.rationale,
+          });
+          emitOrbChatProgress(
+            idempKey,
+            "researching_web",
+            `搜尋背景：${contextLookupAnalysis.terms.join("、")}`,
+            {
+              intent: "context_lookup",
+              terms: contextLookupAnalysis.terms,
+            }
+          );
+          try {
+            contextLookupResearch = await runOrbDeepSearch(
+              contextLookupAnalysis.terms.join(" "),
+              {
+                userId: ctx.user.id,
+                maxResults: 5,
+                mode: "agent",
+              }
+            );
+          } catch (err) {
+            console.warn("[orb] context-lookup deep search failed:", err);
+            contextLookupResearch = null;
+          }
+        }
         if (webResearchOutcome.reason === "matched" || webResearchOutcome.reason === "matched:explicit_search" || webResearchOutcome.reason === "matched:deep_search") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.hit", {
             results: webResearchOutcome.results.length,
@@ -6808,7 +6867,23 @@ export const appRouter = router({
         } else if (webResearchOutcome.reason === "error") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.error", {});
         }
-        const webResearchPromptBlock = webResearchOutcome.promptBlock ?? "";
+        // Merge: context-lookup block goes FIRST (it primes the planner with
+        // "you saw 淡大禪學社, here's what it is"); classifier-based block
+        // follows. When neither produced a block, this stays empty.
+        const contextLookupPromptBlock =
+          contextLookupResearch?.promptBlock && contextLookupAnalysis
+            ? [
+                `【主題背景研究 / Context Lookup】偵測到使用者提到「${contextLookupAnalysis.terms.join("、")}」— ${contextLookupAnalysis.rationale || "已即時抓取背景"}。`,
+                "請在回覆開頭用 1-2 句中文確認你理解的主題（不要照抄事實/維基條目），再進入下一個澄清問題。",
+                contextLookupResearch.promptBlock,
+              ].join("\n")
+            : "";
+        const webResearchPromptBlock = [
+          contextLookupPromptBlock,
+          webResearchOutcome.promptBlock ?? "",
+        ]
+          .filter(s => s && s.trim().length > 0)
+          .join("\n\n");
         const siteModelUsageRows = await getSiteWideModelUsageSnapshot({
           days: 14,
           limit: 8,
@@ -6823,7 +6898,10 @@ export const appRouter = router({
               "若使用者要『全站哪些模型/功能最適合』，請優先參考以上活躍模型，再結合需求做分段建議。",
             ].join("\n")
           : "";
-        const webResearchSources = webResearchOutcome.results.map(r => ({
+        const webResearchSources = [
+          ...(contextLookupResearch?.results ?? []),
+          ...webResearchOutcome.results,
+        ].map(r => ({
           title: r.title,
           url: r.url,
           source: r.source,
