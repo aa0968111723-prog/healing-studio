@@ -40,6 +40,16 @@ vi.mock("../../services/postGenActions.js", () => ({
     runPostGenForJobMock(...(args as [number])),
   refundJobIfBilled: (...args: unknown[]) =>
     refundJobIfBilledMock(...(args as [number])),
+  // webhookFal 也用 unifiedAssetPrefix 組統一前綴
+  // （generated/studio/<userId>/webhook/<jobId>）。
+  unifiedAssetPrefix: (params: {
+    userId: number;
+    source: string;
+    modelId?: string;
+  }) =>
+    `generated/studio/${params.userId}/${params.source}${
+      params.modelId ? `/${params.modelId}` : ""
+    }`,
 }));
 
 import { falWebhookRouter } from "../webhookFal";

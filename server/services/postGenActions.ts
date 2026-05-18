@@ -32,6 +32,46 @@ export const MAX_LOG_FIELD_LENGTH = 200;
 
 export type PostGenModality = "image" | "video" | "audio" | "voice";
 
+/**
+ * 統一 AI 生成資產的 S3/儲存路徑前綴。
+ *
+ * 過去各工作室自行組路徑（generated/director/<model>、
+ * generated/image-studio/<model>、generated/pro-studio/<model>、
+ * generated/webhook/<jobId>…）導致同一個使用者的資產散落在不同 prefix，
+ * 也讓「我的資產」反向掃描變得不可能。
+ *
+ * 一律走 `generated/studio/<userId>/<source>[/<subfolder>][/<sanitized-model>]`，
+ * 來源欄位包含：creative / director / image / video / pro / background /
+ * webhook / suno / replicate。
+ */
+export type AssetStorageSource =
+  | "creative"
+  | "director"
+  | "image"
+  | "video"
+  | "pro"
+  | "background"
+  | "webhook"
+  | "suno"
+  | "replicate";
+
+export function unifiedAssetPrefix(params: {
+  userId: number;
+  source: AssetStorageSource;
+  modelId?: string;
+  subfolder?: string;
+}): string {
+  const sanitizedModel = params.modelId
+    ? params.modelId.replace(/[^\w/-]+/g, "_")
+    : null;
+  const parts = [
+    `generated/studio/${params.userId}/${params.source}`,
+    ...(params.subfolder ? [params.subfolder] : []),
+    ...(sanitizedModel ? [sanitizedModel] : []),
+  ];
+  return parts.join("/");
+}
+
 export interface PostGenParams {
   userId: number;
   modality: PostGenModality;
@@ -41,11 +81,34 @@ export interface PostGenParams {
   label?: string;
   sourceStudio?: string;
   /**
+   * 自訂歷史紀錄 compiledPrompt，用來支援呼叫端自己的 dedupe（例如
+   * imageStudio.checkImageStatus 一份請求會被輪詢多次，靠
+   * compiledPrompt === `[imageStudio:<model>:<request>]` 作唯一鍵）。
+   * 若不提供，會 fallback 到 promptText 作 compiledPrompt（既有行為）。
+   */
+  dedupeMarker?: string;
+  /**
+   * 直接指定 generation_history.compiledPrompt — 創意工作室會在這帶
+   * vibe-card / 安全審核後完整組合過的提示詞，與 dedupeMarker 互斥。
+   */
+  compiledPrompt?: string;
+  /** 額外塞進 generationHistory.parameterSnapshot 的欄位 */
+  parameterSnapshot?: Record<string, unknown>;
+  /** 縮圖 URL — 影片 / 圖片預覽 */
+  thumbnailUrl?: string;
+  /**
    * 實際扣款點數（由 submitMultimodalAsync 的 estimatePoints().totalPoints 算出，
    * 經 backgroundJob.resultJson.costPoints 透過 runPostGenForJob 帶入）。
    * 缺值時退回 1 以保留原行為 — 寫入 generation_history.costCredits 用以做帳。
    */
   costCredits?: number;
+  /**
+   * 對應的 backgroundJobs.id（若有）。寫入 digital_asset_library 與
+   * generation_history.parameterSnapshot 讓「我的資產」反向查得到原始
+   * 任務記錄（fal request_id、降級紀錄等）。Schema 欄位於 migration 0047
+   * 新增；舊 schema 下會被 ORM 忽略。
+   */
+  backgroundJobId?: number;
 }
 
 /**
@@ -61,13 +124,51 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
     resultUrl,
     label,
     sourceStudio,
+    dedupeMarker,
+    compiledPrompt: callerCompiledPrompt,
+    parameterSnapshot,
+    thumbnailUrl,
     costCredits,
+    backgroundJobId,
   } = params;
   const promptText = (prompt ?? "").trim();
   const historyCostCredits =
     typeof costCredits === "number" && Number.isFinite(costCredits) && costCredits > 0
       ? Math.round(costCredits)
       : 1;
+
+  // 1-0. dedupe 前檢 — checkImageStatus / checkVideoStatus / checkAudioStatus
+  // 都是輪詢端點，每 3 秒會打一次；命中 COMPLETED 就會呼叫到此處。沒有
+  // 前檢就會在 generation_history / digital_asset_library / promptLibrary /
+  // monitoring log 每輪都新增一筆。
+  // 所有 polling caller 都會帶 dedupeMarker（格式 [<source>:<modelId>:<requestId>]）—
+  // 在此用它做 generation_history.compiledPrompt 的存在檢查即可短路後續所有寫入。
+  if (dedupeMarker) {
+    try {
+      const dbConn = await getDb();
+      if (dbConn) {
+        const { generationHistory } = await import("../../drizzle/schema");
+        const { and, eq } = await import("drizzle-orm");
+        const existing = await dbConn
+          .select({ id: generationHistory.id })
+          .from(generationHistory)
+          .where(
+            and(
+              eq(generationHistory.userId, userId),
+              eq(generationHistory.compiledPrompt, dedupeMarker)
+            )
+          )
+          .limit(1);
+        if (existing.length > 0) {
+          // 同一個 fal request 已經寫過一次了 — 整個 post-gen 流程都跳過，
+          // 避免重複資產 / 歷史 / 監控紀錄。
+          return;
+        }
+      }
+    } catch {
+      // dedupe 查詢失敗時繼續執行（best-effort），可接受偶發重複。
+    }
+  }
 
   // 1-2. 提示詞庫
   if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
@@ -92,7 +193,9 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
     }
   }
 
-  // 1-3a. 數位資產庫
+  // 1-3a. 數位資產庫 — 補上 0047 migration 新增的來源追蹤欄位
+  // （sourceStudio / modelId / backgroundJobId），讓「我的資產」可依
+  // 工作室與 AI 模型分類，並反向連回 backgroundJobs。
   if (resultUrl) {
     try {
       await db.createDigitalAsset({
@@ -105,6 +208,11 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
         fileUrl: resultUrl,
         fileKey: resultUrl,
         promptUsed: promptText || undefined,
+        thumbnailUrl: thumbnailUrl ?? undefined,
+        sourceStudio: sourceStudio ?? null,
+        modelId: modelId ? modelId.slice(0, MAX_MODEL_HINT_LENGTH) : null,
+        backgroundJobId:
+          typeof backgroundJobId === "number" ? backgroundJobId : null,
       });
     } catch {
       // 靜默忽略
@@ -114,19 +222,29 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
   // 1-3b. 生成歷史
   if (resultUrl) {
     try {
+      // compiledPrompt 優先序：呼叫端傳入 → dedupeMarker → 原始 prompt。
+      // dedupeMarker 是 imageStudio / videoStudio / proStudio 等用來防
+      // 同一個 fal request 重複寫入的唯一鍵；creative sync 路徑則會直
+      // 接帶 compiledPrompt（含 vibe card 組合後的最終提示詞）。
+      const compiledPromptValue =
+        callerCompiledPrompt ?? dedupeMarker ?? (promptText || undefined);
       await db.createHistoryEntry({
         userId,
         modality,
         prompt: promptText || undefined,
-        compiledPrompt: promptText || undefined,
-        // 記下 modelId / sourceStudio 讓 ImageStudio 等頁面能反向 map 回模型
-        // 名稱、決定點選歷史項目要切到哪個 tab。
+        compiledPrompt: compiledPromptValue,
+        // 記下 modelId / sourceStudio / backgroundJobId 讓 ImageStudio 等
+        // 頁面能反向 map 回模型名稱、決定點選歷史項目要切到哪個 tab，並
+        // 串連回原始任務記錄。
         parameterSnapshot: {
           modelId,
           sourceStudio: sourceStudio ?? "unknown",
+          ...(typeof backgroundJobId === "number" ? { backgroundJobId } : {}),
           ...(label ? { label } : {}),
+          ...(parameterSnapshot ?? {}),
         },
         resultUrl,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
         costCredits: historyCostCredits,
       });
     } catch {
@@ -223,6 +341,7 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
     label,
     sourceStudio,
     costCredits,
+    backgroundJobId: jobId,
   });
 
   // 寫旗標。失敗時不重試 — 若 doPostGenComplete 已成功插入，重複呼叫的
