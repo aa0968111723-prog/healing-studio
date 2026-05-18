@@ -48,7 +48,7 @@ export const modelWishesRouter = router({
           modality: z.enum(["all", ...MODALITY]).optional(),
           status: z.enum(["all", ...STATUS]).optional(),
           sort: z.enum(["votes", "latest"]).optional(),
-          limit: z.number().min(1).max(500).optional(),
+          limit: z.number().int().min(1).max(500).optional(),
         })
         .optional()
     )
@@ -81,12 +81,22 @@ export const modelWishesRouter = router({
         provider: z.string().max(128).optional(),
         modality: z.enum(MODALITY).default("other"),
         reason: z.string().max(2000).optional(),
+        // referenceUrl 之後會被渲染成 <a href>,所以限制 protocol 為 http/https
+        // 才不會讓人塞 `javascript:` 之類的 scheme 給別的使用者按到。
         referenceUrl: z
           .string()
-          .url("請輸入有效的網址")
           .max(2048)
           .optional()
-          .or(z.literal("")),
+          .or(z.literal(""))
+          .refine(v => {
+            if (!v) return true;
+            try {
+              const u = new URL(v);
+              return u.protocol === "http:" || u.protocol === "https:";
+            } catch {
+              return false;
+            }
+          }, "請輸入有效的 http(s) 網址"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -98,8 +108,18 @@ export const modelWishesRouter = router({
         reason: input.reason?.trim() || null,
         referenceUrl: input.referenceUrl?.trim() || null,
       });
-      // 許願者自動為自己投一票
-      await db.voteModelWish(id, ctx.user.id);
+
+      // 許願者自動為自己投一票 — best-effort:這只是 UX 加分,不該因為投票
+      // 暫時失敗就回 error 讓使用者誤以為許願沒建立(然後 retry 建出重複的)。
+      // 投票失敗時還是回傳 id,使用者可以從列表上再手動按投票按鈕補上。
+      try {
+        await db.voteModelWish(id, ctx.user.id);
+      } catch (err) {
+        console.warn(
+          `[modelWishes.create] auto-self-vote failed for wish ${id}:`,
+          err
+        );
+      }
 
       // best-effort：通知站長有新許願
       try {
