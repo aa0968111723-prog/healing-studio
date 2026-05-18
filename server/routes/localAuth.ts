@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS, type UserRole } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { ENV } from "../_core/env";
 import { verifyToken } from "../middleware/verifyToken";
@@ -337,7 +337,7 @@ export function createLocalAuthRouter(
       user?: {
         id: number;
         openId: string;
-        role: "user" | "admin";
+        role: UserRole;
         email: string | null;
         name: string | null;
       };

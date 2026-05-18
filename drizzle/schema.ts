@@ -30,7 +30,9 @@ export const users = mysqlTable(
     twoFactorEnabled: boolean("twoFactorEnabled").default(false).notNull(),
     emailVerified: boolean("emailVerified").default(false).notNull(),
     emailVerifiedAt: timestamp("emailVerifiedAt"),
-    role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+    role: mysqlEnum("role", ["user", "leader", "admin"])
+      .default("user")
+      .notNull(),
     /** Per-modality quota JSON */
     quotaJson: json("quotaJson").$type<{
       image: number;

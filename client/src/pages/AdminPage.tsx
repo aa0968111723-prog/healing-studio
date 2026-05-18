@@ -47,6 +47,8 @@ import {
   CircleDot,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import { formatTwd } from "@shared/currency";
+import { isLeaderOrAdmin } from "@shared/const";
 import { motion } from "framer-motion";
 import { Link, useLocation, useSearch } from "wouter";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
@@ -166,8 +168,27 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  // 組長進站若 activeTab 落在 admin-only tab（含預設 overview），自動切到 costs
+  useEffect(() => {
+    if (
+      user?.role === "leader" &&
+      activeTab !== "users" &&
+      activeTab !== "costs"
+    ) {
+      setActiveTab("costs");
+    }
+  }, [user?.role, activeTab]);
+
+  const userRole = user?.role;
+  const isLeaderOnly = userRole === "leader";
+
   const handleTabChange = (next: string) => {
     if (!isAdminTabId(next) || next === activeTab) return;
+    // 組長落到 admin-only tab 時固定回 costs；admin 完全自由切換
+    if (isLeaderOnly && !(next === "users" || next === "costs")) {
+      if (activeTab !== "costs") setActiveTab("costs");
+      return;
+    }
     setActiveTab(next);
     try {
       const params = new URLSearchParams(window.location.search);
@@ -386,17 +407,26 @@ export default function AdminPage() {
     },
   });
 
-  // 僅限管理員存取此頁面
-  if (user?.role !== "admin") {
+  // 管理員（admin）/ 組長（leader）才能進。leader 只能看「使用者管理」與「成本金流」
+  // 兩個分頁；其他 tab 即使透過 URL ?section= 也不會顯示對應內容（後端 procedure
+  // 仍是真正的權限線）。
+  const isAdmin = user?.role === "admin";
+  const canEnter = isLeaderOrAdmin(user?.role);
+  if (!canEnter) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <h3 className="text-base font-medium mt-6">權限不足</h3>
         <p className="text-sm text-muted-foreground mt-2">
-          此頁面僅限管理員存取
+          此頁面僅限管理員或組長存取
         </p>
       </div>
     );
   }
+
+  /** 組長可見的 tab 子集 — 與 server 端 leaderOrAdminProcedure 對應 */
+  const LEADER_VISIBLE_TABS = new Set<AdminTabId>(["users", "costs"]);
+  const isTabVisible = (id: AdminTabId): boolean =>
+    isAdmin || LEADER_VISIBLE_TABS.has(id);
 
   const stats = statsQuery.data;
   const users = usersQuery.data ?? [];
@@ -443,7 +473,7 @@ export default function AdminPage() {
           <Shield className="w-5 h-5 text-muted-foreground" />
           <h1 className="page-title !mb-0">管理後台</h1>
           <Badge variant="outline" className="text-[10px]">
-            管理員
+            {isAdmin ? "管理員" : "組長"}
           </Badge>
           <div className="flex-1" />
           <Button
@@ -461,71 +491,93 @@ export default function AdminPage() {
       </header>
 
       <p className="text-xs text-muted-foreground">
-        管理使用者配額、角色權限、API 金鑰、系統監控、使用紀錄與回饋處理。
+        {isAdmin
+          ? "管理使用者配額、角色權限、API 金鑰、系統監控、使用紀錄與回饋處理。"
+          : "檢視團隊成本金流、調整成員自動給點設定。"}
       </p>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start md:flex-wrap md:justify-center">
-          <TabsTrigger
-            value="overview"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <TrendingUp className="w-3 h-3" /> 系統概覽
-          </TabsTrigger>
-          <TabsTrigger
-            value="users"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Users className="w-3 h-3" /> 使用者管理
-          </TabsTrigger>
-          <TabsTrigger
-            value="activity"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Eye className="w-3 h-3" /> 活動紀錄
-          </TabsTrigger>
-          <TabsTrigger
-            value="api"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Database className="w-3 h-3" /> API / 資料庫
-          </TabsTrigger>
-          <TabsTrigger
-            value="costs"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <BarChart3 className="w-3 h-3" /> 成本金流
-          </TabsTrigger>
-          <TabsTrigger
-            value="generations"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Image className="w-3 h-3" /> 生成歷史
-          </TabsTrigger>
-          <TabsTrigger
-            value="jobs"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Server className="w-3 h-3" /> 背景任務
-          </TabsTrigger>
-          <TabsTrigger
-            value="feedback"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <MessageSquare className="w-3 h-3" /> 回饋
-          </TabsTrigger>
-          <TabsTrigger
-            value="brain"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Brain className="w-3 h-3" /> 大腦組態
-          </TabsTrigger>
-          <TabsTrigger
-            value="ai-research"
-            className="rounded-lg gap-1 text-xs shrink-0"
-          >
-            <Search className="w-3 h-3" /> AI 全站研究
-          </TabsTrigger>
+          {isTabVisible("overview") && (
+            <TabsTrigger
+              value="overview"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <TrendingUp className="w-3 h-3" /> 系統概覽
+            </TabsTrigger>
+          )}
+          {isTabVisible("users") && (
+            <TabsTrigger
+              value="users"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Users className="w-3 h-3" /> 使用者管理
+            </TabsTrigger>
+          )}
+          {isTabVisible("activity") && (
+            <TabsTrigger
+              value="activity"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Eye className="w-3 h-3" /> 活動紀錄
+            </TabsTrigger>
+          )}
+          {isTabVisible("api") && (
+            <TabsTrigger
+              value="api"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Database className="w-3 h-3" /> API / 資料庫
+            </TabsTrigger>
+          )}
+          {isTabVisible("costs") && (
+            <TabsTrigger
+              value="costs"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <BarChart3 className="w-3 h-3" /> 成本金流
+            </TabsTrigger>
+          )}
+          {isTabVisible("generations") && (
+            <TabsTrigger
+              value="generations"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Image className="w-3 h-3" /> 生成歷史
+            </TabsTrigger>
+          )}
+          {isTabVisible("jobs") && (
+            <TabsTrigger
+              value="jobs"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Server className="w-3 h-3" /> 背景任務
+            </TabsTrigger>
+          )}
+          {isTabVisible("feedback") && (
+            <TabsTrigger
+              value="feedback"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <MessageSquare className="w-3 h-3" /> 回饋
+            </TabsTrigger>
+          )}
+          {isTabVisible("brain") && (
+            <TabsTrigger
+              value="brain"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Brain className="w-3 h-3" /> 大腦組態
+            </TabsTrigger>
+          )}
+          {isTabVisible("ai-research") && (
+            <TabsTrigger
+              value="ai-research"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Search className="w-3 h-3" /> AI 全站研究
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ═══ Tab 1: System Overview ═══ */}
@@ -711,7 +763,11 @@ export default function AdminPage() {
                           variant={u.role === "admin" ? "default" : "secondary"}
                           className="text-[10px] rounded-md"
                         >
-                          {u.role === "admin" ? "管理員" : "使用者"}
+                          {u.role === "admin"
+                            ? "管理員"
+                            : u.role === "leader"
+                              ? "組長"
+                              : "使用者"}
                         </Badge>
                       </div>
                       <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
@@ -734,13 +790,14 @@ export default function AdminPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Role Toggle */}
+                      {/* Role Toggle — admin 限定，leader 無權指派他人角色 */}
                       <Select
                         value={u.role}
+                        disabled={!isAdmin}
                         onValueChange={v =>
                           updateRole.mutate({
                             userId: u.id,
-                            role: v as "user" | "admin",
+                            role: v as "user" | "leader" | "admin",
                           })
                         }
                       >
@@ -749,6 +806,7 @@ export default function AdminPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="user">使用者</SelectItem>
+                          <SelectItem value="leader">組長</SelectItem>
                           <SelectItem value="admin">管理員</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1190,36 +1248,95 @@ export default function AdminPage() {
                 </GlassCard>
               ))}
             </div>
-          ) : !costQuery.data || costQuery.data.length === 0 ? (
+          ) : !costQuery.data || costQuery.data.rows.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">
               沒有成本資料
             </p>
           ) : (
-            costQuery.data.map(item => {
-              const u = usersQuery.data?.find(u => u.id === item.userId);
-              const displayName =
-                u?.name || u?.email || `使用者 #${item.userId}`;
-              const displaySub =
-                u?.email && u?.name ? u.email : `ID: ${item.userId}`;
-              return (
-                <GlassCard key={item.userId}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {displayName}
-                      </p>
-                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-                        {displaySub} | {item.totalRequests} 次請求 |{" "}
-                        {item.totalTokens} tokens
-                      </p>
-                    </div>
-                    <p className="hs-h3-lg !mb-0 shrink-0">
-                      ${parseFloat(String(item.totalCost)).toFixed(3)}
+            <>
+              {/* 團隊總額卡 — 三個尺度同時看到：積分、USD、TWD */}
+              <GlassCard hover={false}>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      團隊總積分
+                    </p>
+                    <p className="hs-h3-lg !mb-0 mt-0.5 tabular-nums">
+                      {costQuery.data.totals.credits.toLocaleString("zh-TW")}{" "}
+                      pts
                     </p>
                   </div>
-                </GlassCard>
-              );
-            })
+                  <div>
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      USD 成本
+                    </p>
+                    <p className="hs-h3-lg !mb-0 mt-0.5 tabular-nums">
+                      ${costQuery.data.totals.usd.toFixed(3)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      新台幣 (匯率 {costQuery.data.usdToTwdRate.toFixed(2)})
+                    </p>
+                    <p className="hs-h3-lg !mb-0 mt-0.5 tabular-nums">
+                      {formatTwd(costQuery.data.totals.twd)}
+                    </p>
+                  </div>
+                </div>
+                <p className="hs-small !mb-0 text-muted-foreground mt-2">
+                  {costQuery.data.totals.requests} 次請求 ·{" "}
+                  {costQuery.data.totals.tokens.toLocaleString("zh-TW")} tokens
+                </p>
+              </GlassCard>
+
+              {/* 每位成員的積分成本分配 */}
+              {costQuery.data.rows.map(item => {
+                const u = usersQuery.data?.find(u => u.id === item.userId);
+                const displayName =
+                  u?.name || u?.email || `使用者 #${item.userId}`;
+                const displaySub =
+                  u?.email && u?.name ? u.email : `ID: ${item.userId}`;
+                const sharePct = item.creditsSharePct;
+                return (
+                  <GlassCard key={item.userId}>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-sm font-medium truncate">
+                            {displayName}
+                          </p>
+                          <span className="hs-small !mb-0 text-muted-foreground tabular-nums">
+                            {sharePct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+                          {displaySub} | {item.totalRequests} 次請求 |{" "}
+                          {item.totalTokens} tokens
+                        </p>
+                        {/* 積分佔比視覺條 — 一眼看出誰最燒 */}
+                        <div className="w-full h-1 mt-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${Math.min(100, Math.max(0, sharePct))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 tabular-nums">
+                        <p className="hs-h3-lg !mb-0">
+                          {item.totalCredits.toLocaleString("zh-TW")} pts
+                        </p>
+                        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+                          ${item.usdCost.toFixed(3)} ·{" "}
+                          {formatTwd(item.twdCost)}
+                        </p>
+                      </div>
+                    </div>
+                  </GlassCard>
+                );
+              })}
+            </>
           )}
         </TabsContent>
 

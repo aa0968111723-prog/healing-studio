@@ -1,9 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import { verifyToken } from "../middleware/verifyToken";
 import { generationEventBus } from "../generationEvents";
+import type { UserRole } from "@shared/const";
 
 type AuthenticatedRequest = Request & {
-  user?: { role?: "user" | "admin" };
+  user?: { role?: UserRole };
 };
 
 export const adminEventsRouter = Router();

@@ -1,10 +1,16 @@
 import { COOKIE_NAME } from "@shared/const";
+import {
+  parseUsdToTwdRate,
+  safeSharePct,
+  usdToTwd,
+} from "@shared/currency";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
   publicProcedure,
   protectedProcedure,
   adminProcedure,
+  leaderOrAdminProcedure,
   brainProcedure,
   router,
 } from "./_core/trpc";
@@ -9106,7 +9112,9 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    updateAutoCreditPolicy: adminProcedure
+    // 自動給點調整 — 組長（leader）或管理員可動。「成本金流」分頁的積分分配
+    // 操作都走這條，admin.updateRole 仍然鎖死 admin（指派他人角色是 admin 專屬）。
+    updateAutoCreditPolicy: leaderOrAdminProcedure
       .input(
         z.object({
           userId: z.number(),
@@ -9127,7 +9135,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    runAutoCreditNow: adminProcedure.mutation(async () => {
+    runAutoCreditNow: leaderOrAdminProcedure.mutation(async () => {
       const result = await db.runDueAutoCreditGrant(500);
       return { success: true, ...result };
     }),
@@ -9138,8 +9146,49 @@ export const appRouter = router({
         return db.getAllUsageLogs(input.limit);
       }),
 
-    teamCostSummary: adminProcedure.query(async () => {
-      return db.getTeamCostSummary();
+    teamCostSummary: leaderOrAdminProcedure.query(async () => {
+      const rows = await db.getTeamCostSummary();
+      const rate = parseUsdToTwdRate(process.env.USD_TO_TWD_RATE);
+
+      // 把 SQL 字串欄位 → number，並計算每筆 TWD / 真實積分（保留原 totalCost
+      // 給既有讀取者繼續用）；總額 / 佔比在 server 算好，前端只負責顯示。
+      const enriched = rows.map(r => {
+        const usd = parseFloat(String(r.totalCost ?? "0")) || 0;
+        const credits = Number(r.totalCredits ?? 0) || 0;
+        return {
+          userId: r.userId,
+          totalCost: r.totalCost,
+          totalRequests: Number(r.totalRequests ?? 0) || 0,
+          totalTokens: Number(r.totalTokens ?? 0) || 0,
+          totalCredits: credits,
+          usdCost: usd,
+          twdCost: usdToTwd(usd, rate),
+        };
+      });
+
+      const totals = enriched.reduce(
+        (acc, r) => {
+          acc.usd += r.usdCost;
+          acc.twd += r.twdCost;
+          acc.credits += r.totalCredits;
+          acc.requests += r.totalRequests;
+          acc.tokens += r.totalTokens;
+          return acc;
+        },
+        { usd: 0, twd: 0, credits: 0, requests: 0, tokens: 0 }
+      );
+
+      const withShare = enriched.map(r => ({
+        ...r,
+        usdSharePct: safeSharePct(r.usdCost, totals.usd),
+        creditsSharePct: safeSharePct(r.totalCredits, totals.credits),
+      }));
+
+      return {
+        rows: withShare,
+        totals,
+        usdToTwdRate: rate,
+      };
     }),
 
     // ── New Admin Endpoints ──────────────────────────────────────────────────
@@ -9149,12 +9198,12 @@ export const appRouter = router({
       return db.getSystemStats();
     }),
 
-    /** Update user role (admin/user) */
+    /** Update user role — admin 專屬，leader 不能指派他人角色 */
     updateRole: adminProcedure
       .input(
         z.object({
           userId: z.number(),
-          role: z.enum(["user", "admin"]),
+          role: z.enum(["user", "leader", "admin"]),
         })
       )
       .mutation(async ({ input }) => {

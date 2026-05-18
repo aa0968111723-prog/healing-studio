@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { parse as parseCookie } from "cookie";
 import { verifySessionToken } from "../_core/googleAuth";
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, type UserRole } from "@shared/const";
 import { getUserByOpenId } from "../db";
 import { logger } from "../_core/logger";
 
@@ -14,7 +14,7 @@ type AuthenticatedRequest = Request & {
   user?: {
     id: number;
     openId: string;
-    role: "user" | "admin";
+    role: UserRole;
     email: string | null;
     name: string | null;
   };

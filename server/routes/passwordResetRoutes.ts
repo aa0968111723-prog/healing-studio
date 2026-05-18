@@ -6,6 +6,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import type { UserRole } from "@shared/const";
 import { authFacade } from "../services/auth/AuthFacade";
 import { passwordResetService } from "../services/auth/passwordResetService";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
@@ -163,7 +164,7 @@ export function createPasswordResetRouter() {
       user?: {
         id: number;
         openId: string;
-        role: "user" | "admin";
+        role: UserRole;
         email: string | null;
         name: string | null;
       };
@@ -220,7 +221,7 @@ export function createPasswordResetRouter() {
       user?: {
         id: number;
         openId: string;
-        role: "user" | "admin";
+        role: UserRole;
         email: string | null;
         name: string | null;
       };
@@ -269,7 +270,7 @@ export function createPasswordResetRouter() {
       user?: {
         id: number;
         openId: string;
-        role: "user" | "admin";
+        role: UserRole;
         email: string | null;
         name: string | null;
       };

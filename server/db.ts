@@ -55,6 +55,7 @@ import {
   modelWishVotes,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import type { UserRole } from "@shared/const";
 
 /**
  * 檢查 email 是否在管理員信箱清單中（ADMIN_EMAILS 環境變數，逗號分隔）
@@ -1456,6 +1457,9 @@ export async function getTeamCostSummary() {
       totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
       totalRequests: sql<number>`COUNT(*)`,
       totalTokens: sql<number>`COALESCE(SUM(${apiUsageLogs.tokensUsed}), 0)`,
+      // 站內公定積分 — 直接從寫帳時 deduct 的點數加總，比 USD × 100 推估更
+      // 貼近真實扣帳（因為 generationsDeducted 可能套過最低/封頂 clamp）。
+      totalCredits: sql<number>`COALESCE(SUM(${apiUsageLogs.generationsDeducted}), 0)`,
     })
     .from(apiUsageLogs)
     .groupBy(apiUsageLogs.userId);
@@ -1982,7 +1986,7 @@ export async function getStuckJobsByType(
 // ─── Admin: Extended Queries ────────────────────────────────────────────────
 
 /** Admin: Update a user's role (protects super-admin emails from demotion) */
-export async function updateUserRole(userId: number, role: "user" | "admin") {
+export async function updateUserRole(userId: number, role: UserRole) {
   const db = await getDb();
   if (!db) return;
   // Prevent demoting super-admin accounts
