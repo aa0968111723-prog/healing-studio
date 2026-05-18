@@ -1,6 +1,6 @@
--- 0054: Foreign-key constraints for teaching archive + teams tables
+-- 0055: Foreign-key constraints for teaching archive + teams tables
 --
--- 0052/0053 已建好 schema 但沒下 FK。這次把該補的 FK 全部補齊，並照當初
+-- 0053/0054 已建好 schema 但沒下 FK。這次把該補的 FK 全部補齊，並照當初
 -- migration 註解承諾的 ON DELETE 行為：
 --
 --   • teams.ownerId            → users.id      (RESTRICT — 先轉移擁有權再刪 user)

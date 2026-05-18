@@ -1,4 +1,4 @@
--- 0055: 擴充 background_jobs.jobType ENUM 加入 teaching_archive_ingestion
+-- 0056: 擴充 background_jobs.jobType ENUM 加入 teaching_archive_ingestion
 --
 -- teachingArchiveIngestionWorker 把 fire-and-forget setImmediate 改成
 -- backgroundJobs queue。新的 jobType 值要先進 enum 才能 INSERT，否則
