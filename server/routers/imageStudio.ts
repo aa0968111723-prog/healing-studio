@@ -46,10 +46,10 @@ import { traceToolRun } from "../services/langsmithTracer";
 import { estimatePoints } from "../services/modelPricing";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
-import * as db from "../db";
-import { getDb } from "../db";
-import { generationHistory } from "../../drizzle/schema";
-import { and, eq } from "drizzle-orm";
+import {
+  doPostGenComplete,
+  unifiedAssetPrefix,
+} from "../services/postGenActions";
 
 // ─── fal.ai 呼叫工具（透過 falDispatcher 統一派發，享有 fallback chain）────────
 
@@ -1333,11 +1333,15 @@ export const imageStudioRouter = router({
 
   jobResult: brainProcedure
     .input(z.object({ request_id: z.string(), model: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const raw = await falQueueResult(input.request_id, input.model);
       return localizeResultUrls(
         raw,
-        `generated/image-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+        unifiedAssetPrefix({
+          userId: ctx.user.id,
+          source: "image",
+          modelId: input.model,
+        })
       );
     }),
 
@@ -1364,9 +1368,14 @@ export const imageStudioRouter = router({
           input.requestId,
           input.modelId
         )) as any;
+        // 統一前綴：generated/studio/<userId>/image/<modelId>
         const localized = (await localizeResultUrls(
           result,
-          `generated/image-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`
+          unifiedAssetPrefix({
+            userId: ctx.user.id,
+            source: "image",
+            modelId: input.modelId,
+          })
         )) as any;
 
         const primaryUrl =
@@ -1374,52 +1383,33 @@ export const imageStudioRouter = router({
           localized?.model_glb?.url ||
           localized?.model_mesh?.url ||
           null;
+        // 統一儲存管線：走 doPostGenComplete 寫入提示詞庫 + 資產庫 + 歷史
+        // + AI 監控室。dedupeMarker 的存在檢查由 doPostGenComplete 自己做
+        // （依 generation_history.compiledPrompt），呼叫端不必再寫一遍。
         const dedupeMarker = `[imageStudio:${input.modelId}:${input.requestId}]`;
         if (primaryUrl) {
-          const database = await getDb();
-          const existed = database
-            ? await database
-                .select({ id: generationHistory.id })
-                .from(generationHistory)
-                .where(
-                  and(
-                    eq(generationHistory.userId, ctx.user.id),
-                    eq(generationHistory.compiledPrompt, dedupeMarker)
-                  )
-                )
-                .limit(1)
-            : [];
-          if (!existed.length) {
-            await db.createDigitalAsset({
-              userId: ctx.user.id,
-              title: `Image Studio - ${input.modelId}`.slice(0, 100),
-              assetType: "image",
-              fileUrl: primaryUrl,
-              thumbnailUrl: extractImageUrl(localized) || primaryUrl,
-              promptUsed:
-                typeof localized?.prompt === "string"
-                  ? localized.prompt
-                  : undefined,
-            });
-            const estimate = estimatePoints(input.modelId);
-            await db.createHistoryEntry({
-              userId: ctx.user.id,
-              modality: "image",
-              prompt:
-                typeof localized?.prompt === "string"
-                  ? localized.prompt
-                  : `Image Studio ${input.modelId}`,
-              compiledPrompt: dedupeMarker,
-              parameterSnapshot: {
-                source: "image_studio",
-                modelId: input.modelId,
-                requestId: input.requestId,
-              },
-              resultUrl: primaryUrl,
-              thumbnailUrl: extractImageUrl(localized) || primaryUrl,
-              costCredits: estimate.totalPoints,
-            });
-          }
+          const promptText =
+            typeof localized?.prompt === "string"
+              ? localized.prompt
+              : undefined;
+          const estimate = estimatePoints(input.modelId);
+          await doPostGenComplete({
+            userId: ctx.user.id,
+            modality: "image",
+            modelId: input.modelId,
+            prompt: promptText,
+            resultUrl: primaryUrl,
+            label: `Image Studio - ${input.modelId}`.slice(0, 100),
+            sourceStudio: "image",
+            dedupeMarker,
+            parameterSnapshot: {
+              sourceStudio: "image",
+              modelId: input.modelId,
+              requestId: input.requestId,
+            },
+            thumbnailUrl: extractImageUrl(localized) || primaryUrl,
+            costCredits: estimate.totalPoints,
+          });
         }
 
         return {

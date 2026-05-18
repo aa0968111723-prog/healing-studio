@@ -48,6 +48,10 @@ import { resolveActiveModelId } from "../services/falModels";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import { estimatePoints } from "../services/modelPricing";
 import { deductUserPoints, refundUserPoints } from "../db";
+import {
+  doPostGenComplete,
+  unifiedAssetPrefix,
+} from "../services/postGenActions";
 
 /**
  * 預扣積分：在送出 fal queue 任務前先估點＋扣款。
@@ -1610,11 +1614,15 @@ export const proStudioRouter = router({
         model: z.string().min(1),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const raw = await falQueueResult(input.request_id, input.model);
       return localizeResultUrls(
         raw,
-        `generated/pro-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+        unifiedAssetPrefix({
+          userId: ctx.user.id,
+          source: "pro",
+          modelId: input.model,
+        })
       );
     }),
 
@@ -1637,7 +1645,7 @@ export const proStudioRouter = router({
         submittedAt: z.number().optional(), // epoch ms — 用於超時偵測
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       // ── 超時偵測：若超過 10 分鐘仍在處理，視為失敗 ───────────
       if (input.submittedAt) {
         const elapsed = Date.now() - input.submittedAt;
@@ -1662,10 +1670,15 @@ export const proStudioRouter = router({
         )) as any;
         const rawData = result?.data ?? result;
 
-        // 持久化到 S3，防止 fal.ai CDN URL 過期；遞迴本地化整個 result 樹
+        // 持久化到 S3，防止 fal.ai CDN URL 過期；遞迴本地化整個 result 樹。
+        // 統一前綴：generated/studio/<userId>/pro/<modelId>。
         const localized = (await localizeResultUrls(
           rawData,
-          `generated/pro-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+          unifiedAssetPrefix({
+            userId: ctx.user.id,
+            source: "pro",
+            modelId: input.model,
+          })
         )) as any;
 
         // 通用提取 audio_url（支援各種模型的不同回傳格式）
@@ -1700,6 +1713,34 @@ export const proStudioRouter = router({
             .map((s: any) => s?.text ?? "")
             .filter(Boolean)
             .join(" ");
+
+        // 統一儲存管線：寫入提示詞庫 + 資產庫 + 歷史 + AI 監控室。
+        // ProStudio 過去從不寫資產，使用者的音訊/影片永遠不進「我的資產」。
+        // ASR 結果不寫（沒檔案），但音訊/影片產出統一灌入 postGenActions。
+        const primaryMedia = audioUrl ?? videoUrl;
+        if (primaryMedia) {
+          const dedupeMarker = `[proStudio:${input.model}:${input.requestId}]`;
+          const modality: "audio" | "video" = audioUrl ? "audio" : "video";
+          const promptText =
+            typeof localized?.prompt === "string"
+              ? localized.prompt
+              : undefined;
+          void doPostGenComplete({
+            userId: ctx.user.id,
+            modality,
+            modelId: input.model,
+            prompt: promptText,
+            resultUrl: primaryMedia,
+            label: `Pro Studio - ${input.model}`.slice(0, 100),
+            sourceStudio: "pro",
+            dedupeMarker,
+            parameterSnapshot: {
+              sourceStudio: "pro",
+              modelId: input.model,
+              requestId: input.requestId,
+            },
+          });
+        }
 
         return {
           status: "COMPLETED" as const,
@@ -2057,9 +2098,14 @@ export const proStudioRouter = router({
         c => typeof c.audioUrl === "string" && c.audioUrl.length > 0
       );
       if (isCompleted && firstUsableClip) {
+        // 統一前綴：generated/studio/<userId>/suno/<taskId>。
         const localized = (await localizeResultUrls(
           { audioUrl: firstUsableClip.audioUrl, clips: status.clips },
-          `generated/${ctx.user.id}/suno-${input.taskId}`
+          unifiedAssetPrefix({
+            userId: ctx.user.id,
+            source: "suno",
+            modelId: input.taskId,
+          })
         )) as { audioUrl: string; clips: typeof status.clips };
 
         if (input.jobId) {
@@ -2077,6 +2123,9 @@ export const proStudioRouter = router({
             resultJson: {
               ...existingMeta,
               ...localized,
+              studioType: "audio",
+              sourceStudio: "pro",
+              modelId: "suno",
               resultUrl: localized.audioUrl,
               mediaType: "audio",
             } as any,

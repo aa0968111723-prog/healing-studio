@@ -92,6 +92,48 @@ describe("director.pollGenerationTask backend wiring", () => {
     );
     expect(procSection).toContain('status: "IN_PROGRESS" as const');
   });
+
+  it("uses the unified asset prefix so 導演 AI 成品落在 generated/studio/<userId>/director/<model>", () => {
+    // 原本是 `generated/director/<model>` — 沒有 userId、跟 studio
+    // (`generated/studio/<userId>/...`) 不在同一個樹下，導致使用者的「我的
+    // 資產」反向掃描看不到導演 AI 的產出。
+    const procStart = source.indexOf("pollGenerationTask: brainProcedure");
+    const procSection = source.substring(
+      procStart,
+      source.indexOf("askForStudioPlan: brainProcedure", procStart)
+    );
+    expect(procSection).toContain("unifiedAssetPrefix");
+    expect(procSection).toContain('source: "director"');
+    expect(procSection).not.toContain("generated/director/");
+  });
+
+  it("calls runPostGenForJob when the fal task completes — same path as Studio / webhookFal", () => {
+    // 沒這個 call，導演 AI 自動生成的圖/影/音永遠不會進「我的資產 / 生成
+    // 歷史 / 提示詞庫 / AI 監控室」— 這是「導演 AI 不走同一條儲存路線」
+    // 的根因，使用者的核心抱怨。
+    const procStart = source.indexOf("pollGenerationTask: brainProcedure");
+    const procSection = source.substring(
+      procStart,
+      source.indexOf("askForStudioPlan: brainProcedure", procStart)
+    );
+    expect(procSection).toContain("runPostGenForJob");
+    expect(procSection).toMatch(/runPostGenForJob\s*\(\s*job\.id\s*\)/);
+  });
+
+  it("executeGenerationTask writes studioType + sourceStudio so postGenComplete can categorise the asset", () => {
+    // runPostGenForJob 從 resultJson.studioType 推 modality；沒這個欄位
+    // 它就 short-circuit 不寫資產（連帶不寫歷史 / 提示詞庫 / 監控）。
+    // executeGenerationTask 與後續的 updateBackgroundJob 都必須把這兩個
+    // 欄位帶上。
+    const procStart = source.indexOf("executeGenerationTask: brainProcedure");
+    const procEnd = source.indexOf(
+      "pollGenerationTask: brainProcedure",
+      procStart
+    );
+    const procSection = source.substring(procStart, procEnd);
+    expect(procSection).toContain("studioType");
+    expect(procSection).toContain('sourceStudio: "director"');
+  });
 });
 
 describe("DirectorAI auto-generation pipeline (frontend wiring)", () => {

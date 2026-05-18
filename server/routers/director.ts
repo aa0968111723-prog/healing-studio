@@ -1876,6 +1876,11 @@ ${segmentSummaries}
       const label = `${modalityLabel}生成 - 分鏡 #${input.segmentIndex + 1}`;
       // background_jobs.jobType 沒有 "sfx"；sfx 任務沿用 "audio" 儲存（內容是音檔）
       const persistedJobType = input.modality === "sfx" ? "audio" : input.modality;
+      // 寫入 studioType / sourceStudio 讓完成時的 runPostGenForJob 能把成品
+      // 統一灌進「我的資產 / 生成歷史 / 提示詞庫 / AI 監控室」— 沒有這兩個
+      // 欄位，導演 AI 自動生成的內容會繞過 postGenActions，使用者永遠看不
+      // 到自己的作品（這是「導演 AI 不走同一條儲存路線」的根因）。
+      const studioType = persistedJobType;
       const jobId = await db.createBackgroundJob({
         userId,
         jobType: persistedJobType as any,
@@ -1887,6 +1892,9 @@ ${segmentSummaries}
           segmentIndex: input.segmentIndex,
           prompt: input.prompt,
           modelId: input.modelId,
+          studioType,
+          sourceStudio: "director",
+          label,
           ...input.params,
           // Persist the exact charged amount so pollGenerationTask's failure
           // path can refund the same number of points instead of recomputing
@@ -1997,6 +2005,9 @@ ${segmentSummaries}
             segmentIndex: input.segmentIndex,
             prompt: input.prompt,
             modelId: submittedModelId,
+            studioType,
+            sourceStudio: "director",
+            label,
             request_id: queueResult.request_id,
             // Persist fal's own canonical tracking URLs so pollGenerationTask
             // can hit them directly and bypass the modelId-derived URL —
@@ -2211,9 +2222,20 @@ ${segmentSummaries}
           };
         }
 
+        // 統一前綴：generated/studio/<userId>/director/<modelId>。所有 AI
+        // 生成（包含導演 AI）走同一個 prefix 樹，使用者的資產才不會散落在
+        // generated/director / generated/image-studio / generated/pro-studio …
+        // 等不同分支。
+        const { unifiedAssetPrefix } = await import(
+          "../services/postGenActions"
+        );
         const localized = (await localizeResultUrls(
           resultData,
-          `generated/director/${modelId.replace(/[^\w/-]+/g, "_")}`
+          unifiedAssetPrefix({
+            userId: ctx.user.id,
+            source: "director",
+            modelId,
+          })
         )) as Record<string, unknown> | null;
         const r = localized;
 
@@ -2237,6 +2259,15 @@ ${segmentSummaries}
           progressMessage: "生成完成",
           resultJson: { ...meta, resultUrl, result: localized } as any,
         });
+
+        // 後置動作（與 webhookFal、checkStudioJob 共用）：寫入提示詞庫、
+        // 數位資產庫、生成歷史、AI 監控室。idempotent — webhook 與輪詢同時
+        // 抵達時靠 resultJson.postGenComplete 旗標短路。
+        // 沒這一段，導演 AI 生成的作品永遠不會進「我的資產」/「生成歷史」。
+        const { runPostGenForJob } = await import(
+          "../services/postGenActions"
+        );
+        void runPostGenForJob(job.id);
 
         return {
           status: "COMPLETED" as const,

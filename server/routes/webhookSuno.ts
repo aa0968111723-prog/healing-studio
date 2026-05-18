@@ -31,6 +31,10 @@ import {
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
+import {
+  runPostGenForJob,
+  unifiedAssetPrefix,
+} from "../services/postGenActions.js";
 import { verifyWebhookToken } from "../_core/webhookTokens";
 import { runPostGenForJob, refundJobIfBilled } from "../services/postGenActions.js";
 
@@ -207,9 +211,14 @@ sunoWebhookRouter.post(
         return;
       }
 
+      // 統一前綴：generated/studio/<userId>/suno/<taskId>。
       const localized = (await localizeResultUrls(
         { clips, audioUrl: clips[0]?.audioUrl },
-        `generated/webhook/suno/${jobId}`
+        unifiedAssetPrefix({
+          userId: job.userId,
+          source: "suno",
+          modelId: taskId || String(jobId),
+        })
       )) as { clips: SunoWebhookClip[]; audioUrl?: string };
 
       // Merge with existing meta (studioType/modelId/prompt/label/sunoTaskId/
@@ -231,6 +240,9 @@ sunoWebhookRouter.post(
           mediaType: "audio",
           audioUrl: resultUrl,
           resultUrl,
+          studioType: "audio",
+          modelId: "suno",
+          sourceStudio: "pro",
           clips: localized.clips,
           completedAt: new Date().toISOString(),
         } as any,

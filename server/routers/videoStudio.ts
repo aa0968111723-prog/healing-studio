@@ -30,6 +30,10 @@ import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import { getFalModelById, resolveActiveModelId } from "../services/falModels";
 import {
+  doPostGenComplete,
+  unifiedAssetPrefix,
+} from "../services/postGenActions";
+import {
   getVideoCompiler,
   type CameraModeId,
   type VideoBlock,
@@ -1548,12 +1552,44 @@ export const videoStudioRouter = router({
           input.requestId,
           input.modelId
         )) as any;
-        // 持久化到 S3，防止 fal.ai CDN URL 過期；遞迴本地化整個 result 樹
+        // 持久化到 S3，防止 fal.ai CDN URL 過期；遞迴本地化整個 result 樹。
+        // 統一前綴：generated/studio/<userId>/video/<modelId>。
         const localized = (await localizeResultUrls(
           result,
-          `generated/video-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`
+          unifiedAssetPrefix({
+            userId: ctx.user.id,
+            source: "video",
+            modelId: input.modelId,
+          })
         )) as any;
         const video_url = extractVideoUrl(localized);
+
+        // 統一儲存管線：寫入提示詞庫 + 資產庫 + 歷史 + AI 監控室。
+        // checkVideoStatus 過去只回 URL，使用者影片永遠不進「我的資產」。
+        // 同一個 requestId 會被輪詢多次，所以用 dedupeMarker 防重複插入。
+        if (video_url) {
+          const dedupeMarker = `[videoStudio:${input.modelId}:${input.requestId}]`;
+          const promptText =
+            typeof localized?.prompt === "string"
+              ? localized.prompt
+              : undefined;
+          void doPostGenComplete({
+            userId: ctx.user.id,
+            modality: "video",
+            modelId: input.modelId,
+            prompt: promptText,
+            resultUrl: video_url,
+            label: `Video Studio - ${input.modelId}`.slice(0, 100),
+            sourceStudio: "video",
+            dedupeMarker,
+            parameterSnapshot: {
+              sourceStudio: "video",
+              modelId: input.modelId,
+              requestId: input.requestId,
+            },
+          });
+        }
+
         return {
           status: "COMPLETED" as const,
           video_url,
