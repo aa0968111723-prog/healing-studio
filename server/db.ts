@@ -47,6 +47,9 @@ import {
   InsertModelTrainingConsent,
   fineTunedModelConsents,
   InsertFineTunedModelConsent,
+  worldbuildingFrameworks,
+  InsertWorldbuildingFramework,
+  WorldbuildingFramework,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2238,6 +2241,62 @@ export async function deleteOrbFeedbackEvent(userId: number, eventId: number) {
       and(eq(orbFeedbackEvents.userId, userId), eq(orbFeedbackEvents.id, eventId))
     );
   return Number(result[0].affectedRows ?? 0);
+}
+
+// ─── Worldbuilding Frameworks ───────────────────────────────────────────────
+
+export async function createWorldbuildingFramework(
+  data: InsertWorldbuildingFramework
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(worldbuildingFrameworks).values(data);
+  return result[0].insertId;
+}
+
+export async function getWorldbuildingFramework(
+  id: number
+): Promise<WorldbuildingFramework | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(worldbuildingFrameworks)
+    .where(eq(worldbuildingFrameworks.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getWorldbuildingFrameworksByUser(
+  userId: number
+): Promise<WorldbuildingFramework[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(worldbuildingFrameworks)
+    .where(eq(worldbuildingFrameworks.userId, userId))
+    .orderBy(desc(worldbuildingFrameworks.updatedAt));
+}
+
+export async function updateWorldbuildingFramework(
+  id: number,
+  data: Partial<InsertWorldbuildingFramework>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(worldbuildingFrameworks)
+    .set(data)
+    .where(eq(worldbuildingFrameworks.id, id));
+}
+
+export async function deleteWorldbuildingFramework(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(worldbuildingFrameworks)
+    .where(eq(worldbuildingFrameworks.id, id));
 }
 
 /** 依條件批次刪除光球記憶（支援 pageId/actionType/beforeAt 過濾） */
