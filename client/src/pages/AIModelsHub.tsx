@@ -66,6 +66,9 @@ import {
   Clock,
   Activity,
   ChevronDown,
+  Compass,
+  FileText,
+  PackagePlus,
 } from "lucide-react";
 import {
   AI_MODELS_CATALOG,
@@ -1597,6 +1600,181 @@ function NewsStrip() {
   );
 }
 
+// ─── Discoveries panel (new models / new papers / model updates) ──────────
+//
+// 「研究 = 發現」。Cron 每天會去 web search 找最新發表的模型 / 論文 / 既有模型
+// 的重大更新。這個 panel 是 discovery 的 UI 出口，admin 可以一鍵手動觸發。
+
+function DiscoveriesPanel() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const utils = trpc.useUtils();
+  const { data } = trpc.aiModels.discoveries.useQuery(
+    { limit: 12 },
+    { staleTime: 60_000, refetchInterval: 120_000 }
+  );
+
+  const runDiscovery = trpc.aiModels.runDiscovery.useMutation({
+    onSuccess: data => {
+      toast.success(data?.message ?? "已啟動發現");
+      void utils.aiModels.discoveries.invalidate();
+      void utils.aiModels.researchStats.invalidate();
+    },
+    onError: err => {
+      toast.error(err.message ?? "無法啟動發現");
+    },
+  });
+
+  const items = data?.items ?? [];
+  const stats = data?.stats;
+
+  return (
+    <section className="mb-10">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="hs-h2 !mb-0 text-foreground inline-flex items-center gap-2">
+          <Compass className="w-5 h-5 text-sky-500" />
+          本期新發現
+          {items.length > 0 && (
+            <span className="text-xs text-muted-foreground font-normal">
+              {items.length} 則
+            </span>
+          )}
+        </h2>
+        <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          {stats?.lastRunAt ? (
+            <span title={stats.lastRunAt}>
+              上次發現 · {relativeFromNow(stats.lastRunAt)}
+            </span>
+          ) : (
+            <span>研究尚未跑過</span>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => runDiscovery.mutate()}
+              disabled={runDiscovery.isPending}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-card border border-border hover:border-sky-300 hover:text-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-healing"
+              title="手動跑一次 discovery（找新模型 / 新論文）"
+            >
+              {runDiscovery.isPending ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : (
+                <Compass className="w-3 h-3" />
+              )}
+              立即發現
+            </button>
+          )}
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/40 p-5 text-sm text-muted-foreground">
+          {stats?.lastRunError ? (
+            <>
+              <div className="inline-flex items-center gap-2 text-amber-700">
+                <AlertCircle className="w-4 h-4" />
+                <span className="font-medium">上次發現失敗</span>
+              </div>
+              <div className="text-xs text-amber-700/80 mt-1 break-words">
+                {stats.lastRunError}
+              </div>
+            </>
+          ) : (
+            <span>
+              研究 cron 還沒找到新東西；下一輪每天 03:30 自動執行。
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {items.map(d => (
+            <DiscoveryCard key={d.id} d={d} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiscoveryCard({
+  d,
+}: {
+  d: {
+    id: string;
+    kind: "new-model" | "new-paper" | "model-update";
+    title: string;
+    summary: string;
+    url: string;
+    date: string;
+    discoveredAt: string;
+    provider?: string;
+    affectedModelId?: string;
+    suggestedId?: string;
+  };
+}) {
+  const tone =
+    d.kind === "new-model"
+      ? {
+          label: "新模型",
+          icon: PackagePlus,
+          chip: "bg-emerald-50 text-emerald-700",
+          ring: "hover:border-emerald-300",
+        }
+      : d.kind === "new-paper"
+        ? {
+            label: "新論文",
+            icon: FileText,
+            chip: "bg-violet-50 text-violet-700",
+            ring: "hover:border-violet-300",
+          }
+        : {
+            label: "模型更新",
+            icon: Sparkles,
+            chip: "bg-amber-50 text-amber-700",
+            ring: "hover:border-amber-300",
+          };
+  const Icon = tone.icon;
+  return (
+    <a
+      href={d.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`group block p-4 rounded-2xl border border-border bg-card transition-all hover:shadow-md ${tone.ring}`}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <span
+          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${tone.chip}`}
+        >
+          <Icon className="w-3 h-3" />
+          {tone.label}
+        </span>
+        {d.provider && (
+          <span className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground rounded-full font-medium">
+            {d.provider}
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground/70 ml-auto">
+          {d.date}
+        </span>
+      </div>
+      <h3 className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+        {d.title}
+      </h3>
+      <p className="text-xs text-muted-foreground line-clamp-3 mt-1">
+        {d.summary}
+      </p>
+      {(d.affectedModelId || d.suggestedId) && (
+        <div className="mt-2 text-[11px] text-muted-foreground/80 inline-flex items-center gap-1 font-mono">
+          <Link2 className="w-3 h-3" />
+          {d.affectedModelId
+            ? `對應 catalog：${d.affectedModelId}`
+            : `建議 id：${d.suggestedId}`}
+        </div>
+      )}
+    </a>
+  );
+}
+
 // ─── Auto-research status panel ────────────────────────────────────────────
 //
 // 提供「手動 + 自動」雙軌：cron 走每週固定排程，admin 也可以從這裡立即觸發
@@ -2093,6 +2271,9 @@ export default function AIModelsHub() {
         {!hasActiveFilters && (
           <FeaturedSpotlight models={featured} onOpen={setOpenModel} />
         )}
+
+        {/* ── Discoveries (new models / new papers / model updates) ──── */}
+        {!hasActiveFilters && <DiscoveriesPanel />}
 
         {/* ── Cross-model latest activity feed ─────────────────────────── */}
         {!hasActiveFilters && (

@@ -21,6 +21,7 @@ import {
   getEnrichedCatalog,
   getEnrichedModel,
   getResearchStats,
+  getDiscoveries,
   researchAndFactCheckModel,
 } from "../services/modelResearcher";
 import {
@@ -31,6 +32,7 @@ import {
 import {
   triggerModelResearchRunNow,
   triggerStaleRefreshNow,
+  triggerDiscoveryNow,
   getCronStatus,
 } from "../jobs/modelCatalogResearchJob";
 
@@ -169,6 +171,40 @@ export const aiModelsRouter = router({
    */
   refreshStale: adminProcedure.mutation(async () => {
     const result = await triggerStaleRefreshNow();
+    if (!result.ok) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: result.message,
+      });
+    }
+    return { message: result.message };
+  }),
+
+  /**
+   * aiModels.discoveries — 本期由 discovery cron 找到的新模型 / 新論文 /
+   * 既有模型更新；公開讀取。
+   */
+  discoveries: publicProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(40).optional(),
+        })
+        .optional()
+    )
+    .query(({ input }) => {
+      const { items, stats } = getDiscoveries(input?.limit ?? 20);
+      return {
+        items,
+        stats,
+      };
+    }),
+
+  /**
+   * aiModels.runDiscovery — admin 立即跑一次 discovery（找新模型 / 新論文）
+   */
+  runDiscovery: adminProcedure.mutation(async () => {
+    const result = await triggerDiscoveryNow();
     if (!result.ok) {
       throw new TRPCError({
         code: "BAD_REQUEST",

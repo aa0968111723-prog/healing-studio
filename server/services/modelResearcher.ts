@@ -21,11 +21,13 @@
 import { z } from "zod";
 import {
   AI_MODELS_CATALOG,
+  FACT_CHECK_STALE_DAYS,
   type AIModelEntry,
   type EnrichedAIModelEntry,
   type FactCheckMeta,
   type FactCheckSource,
   type ModelPricing,
+  type ModelProvider,
   type BenchmarkScore,
   type ModelUpdate,
   type ModelAvailability,
@@ -61,6 +63,49 @@ interface EnrichmentRecord {
 }
 
 const enrichmentStore = new Map<string, EnrichmentRecord>();
+
+// ─── Discovery store ───────────────────────────────────────────────────────
+// 「發現」是 cron 在每次研究循環中找到的：新模型、新論文、或既有模型的重大更新。
+// 政策：研究的主要任務是 *發現*，而非反覆 re-validate。
+
+export type DiscoveryKind = "new-model" | "new-paper" | "model-update";
+
+export interface ModelDiscovery {
+  /** Stable hash id so the UI can dedupe / track */
+  id: string;
+  kind: DiscoveryKind;
+  title: string;
+  summary: string;
+  url: string;
+  /** ISO date 或 YYYY-MM 字串（事件本身的發布日） */
+  date: string;
+  /** ISO timestamp — discovery 寫入 store 的時間 */
+  discoveredAt: string;
+  provider?: ModelProvider | string;
+  modality?: string;
+  /** 如果這個 discovery 對應到 catalog 中的既有模型，這裡是該 id */
+  affectedModelId?: string;
+  /** 給管理員的建議 catalog id（new-model 才有） */
+  suggestedId?: string;
+  /** 來源 LLM provider 標籤 */
+  source?: string;
+}
+
+const MAX_DISCOVERIES = 40;
+const discoveryStore: ModelDiscovery[] = [];
+
+interface DiscoveryRunStats {
+  lastRunAt?: string;
+  lastRunDurationMs?: number;
+  lastRunCount: number;
+  lastRunError?: string;
+  totalRunsCompleted: number;
+}
+
+const discoveryStats: DiscoveryRunStats = {
+  lastRunCount: 0,
+  totalRunsCompleted: 0,
+};
 
 interface ResearchRunStats {
   lastRunAt?: string;
@@ -164,7 +209,17 @@ export interface ResearchRunResult {
   finishedAt: string;
 }
 
-const RECENT_SUCCESS_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * 已成功驗證的模型在 30 天內不會重複呼叫 LLM。
+ *
+ * 政策變更（2026-05）：原本 24 小時就重抓，造成每天 64 個模型全部重跑 Perplexity，
+ * 一旦節流或 API key 暫時失效就會集體 fall through 成「驗證失敗」。新政策：
+ *   - 驗證成功 → 30 天內視為健康，不再呼叫 LLM
+ *   - 驗證失敗 → 7 天內也不再 retry（FAILURE_BACKOFF_MS）
+ *   - 真正觸發 re-validate 的訊號是 discovery 找到「該模型有更新」
+ */
+const RECENT_SUCCESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const FAILURE_BACKOFF_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** 檢查兩個搜尋提供者的 API key 是否至少有一個設定。 */
 function getConfiguredProviders(): { perplexity: boolean; openrouter: boolean } {
@@ -236,6 +291,210 @@ export function getResearchStats(): ResearchRunStats & { coverage: number } {
   return { ...stats, coverage };
 }
 
+// ─── Discovery: 找新模型 / 新論文 / 既有模型的更新 ─────────────────────────
+
+const discoveryItemSchema = z.object({
+  kind: z.enum(["new-model", "new-paper", "model-update"]),
+  title: z.string().min(2).max(180),
+  summary: z.string().min(8).max(360),
+  url: z.string().url(),
+  date: z.string().min(4).max(24),
+  provider: z.string().max(60).optional(),
+  modality: z.string().max(40).optional(),
+  /** 如果是 model-update 或對應到 catalog 內模型，這裡是該 id（候選）。 */
+  affectedModelId: z.string().max(120).optional(),
+  /** new-model 時，給 admin 的建議 catalog id。 */
+  suggestedId: z.string().max(120).optional(),
+});
+
+const discoveryPayloadSchema = z.object({
+  items: z.array(discoveryItemSchema).max(30),
+});
+
+type DiscoveryPayload = z.infer<typeof discoveryPayloadSchema>;
+type DiscoveryItem = z.infer<typeof discoveryItemSchema>;
+
+export interface DiscoveryRunResult {
+  found: number;
+  durationMs: number;
+  startedAt: string;
+  finishedAt: string;
+  error?: string;
+}
+
+export function getDiscoveries(limit = 20): {
+  items: ModelDiscovery[];
+  stats: DiscoveryRunStats;
+} {
+  const items = [...discoveryStore]
+    .sort((a, b) => b.discoveredAt.localeCompare(a.discoveredAt))
+    .slice(0, Math.max(1, Math.min(MAX_DISCOVERIES, limit)));
+  return { items, stats: { ...discoveryStats } };
+}
+
+/**
+ * 執行一次「研究 = 發現」。問 Perplexity 過去 7 天有什麼新模型 / 新論文 /
+ * 既有模型重大更新，回傳結構化清單並寫進 discoveryStore。
+ *
+ * 注意：本流程**不會**動 enrichmentStore — 它只負責「找到值得人類看的新東西」。
+ * 如果發現對應到 catalog 內的既有模型，會把那一筆 affectedModelId 帶上來，
+ * 由呼叫端（cron）決定要不要 trigger 該模型的 re-validate。
+ */
+export async function discoverNewAIReleases(
+  options: { userId?: number | null; days?: number; minItems?: number } = {}
+): Promise<DiscoveryRunResult> {
+  const providers = getConfiguredProviders();
+  const startedAt = new Date().toISOString();
+  const start = Date.now();
+
+  if (!providers.perplexity && !providers.openrouter) {
+    const reason =
+      "PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 都未設定，無法執行發現";
+    discoveryStats.lastRunAt = startedAt;
+    discoveryStats.lastRunDurationMs = 0;
+    discoveryStats.lastRunCount = 0;
+    discoveryStats.lastRunError = reason;
+    discoveryStats.totalRunsCompleted += 1;
+    return {
+      found: 0,
+      durationMs: 0,
+      startedAt,
+      finishedAt: startedAt,
+      error: reason,
+    };
+  }
+
+  const throttle = checkPerplexityThrottle({
+    feature: "web_search",
+    userId: options.userId ?? null,
+  });
+  if (!throttle.allowed) {
+    const reason = `Throttled: ${throttle.reason ?? "unknown"}`;
+    discoveryStats.lastRunAt = startedAt;
+    discoveryStats.lastRunDurationMs = 0;
+    discoveryStats.lastRunCount = 0;
+    discoveryStats.lastRunError = reason;
+    discoveryStats.totalRunsCompleted += 1;
+    return {
+      found: 0,
+      durationMs: 0,
+      startedAt,
+      finishedAt: startedAt,
+      error: reason,
+    };
+  }
+
+  const days = Math.max(1, Math.min(30, options.days ?? 7));
+  const query = buildDiscoveryPrompt(days);
+
+  let payload: DiscoveryPayload | null = null;
+  let providerUsed: string | null = null;
+  const errors: string[] = [];
+
+  try {
+    payload = await callPerplexityDiscovery(query);
+    if (payload) providerUsed = "perplexity-native";
+  } catch (err) {
+    errors.push(`perplexity-native: ${(err as Error).message}`);
+  }
+
+  if (!payload) {
+    try {
+      payload = await callOpenRouterDiscovery(query);
+      if (payload) providerUsed = "openrouter-sonar";
+    } catch (err) {
+      errors.push(`openrouter-sonar: ${(err as Error).message}`);
+    }
+  }
+
+  if (!payload || !providerUsed) {
+    const reason = errors.join(" | ") || "All discovery providers failed";
+    discoveryStats.lastRunAt = new Date().toISOString();
+    discoveryStats.lastRunDurationMs = Date.now() - start;
+    discoveryStats.lastRunCount = 0;
+    discoveryStats.lastRunError = reason;
+    discoveryStats.totalRunsCompleted += 1;
+    logger.warn("[modelResearcher] discovery failed", { reason });
+    return {
+      found: 0,
+      durationMs: Date.now() - start,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      error: reason,
+    };
+  }
+
+  recordPerplexityCall({
+    feature: "web_search",
+    userId: options.userId ?? null,
+  });
+
+  // Merge items into discoveryStore (dedupe by url)
+  const seenUrls = new Set(discoveryStore.map(d => d.url));
+  const knownIds = new Set(AI_MODELS_CATALOG.map(m => m.id));
+  const nowIso = new Date().toISOString();
+  let added = 0;
+
+  for (const item of payload.items) {
+    if (seenUrls.has(item.url)) continue;
+    // If LLM suggested an affectedModelId, ensure it matches the catalog
+    const affected =
+      item.affectedModelId && knownIds.has(item.affectedModelId)
+        ? item.affectedModelId
+        : matchCatalogModel(item.title, item.provider);
+    const discovery: ModelDiscovery = {
+      id: hashDiscoveryId(item),
+      kind: item.kind,
+      title: item.title,
+      summary: item.summary,
+      url: item.url,
+      date: item.date,
+      discoveredAt: nowIso,
+      provider: item.provider,
+      modality: item.modality,
+      affectedModelId: affected,
+      suggestedId:
+        item.kind === "new-model" ? sanitizeSuggestedId(item.suggestedId, item.title) : undefined,
+      source: providerUsed,
+    };
+    discoveryStore.unshift(discovery);
+    seenUrls.add(item.url);
+    added += 1;
+
+    // If this is a model-update for a known model, mark it stale so the next
+    // refresh-stale run picks it up. This is the *only* signal that should
+    // trigger re-validation of an already-verified model.
+    if (discovery.kind === "model-update" && discovery.affectedModelId) {
+      flagModelStale(discovery.affectedModelId, `discovery: ${item.title}`);
+    }
+  }
+
+  // Cap store size
+  if (discoveryStore.length > MAX_DISCOVERIES) {
+    discoveryStore.length = MAX_DISCOVERIES;
+  }
+
+  const durationMs = Date.now() - start;
+  discoveryStats.lastRunAt = new Date().toISOString();
+  discoveryStats.lastRunDurationMs = durationMs;
+  discoveryStats.lastRunCount = added;
+  discoveryStats.lastRunError = undefined;
+  discoveryStats.totalRunsCompleted += 1;
+
+  logger.info("[modelResearcher] discovery complete", {
+    found: added,
+    durationMs,
+    provider: providerUsed,
+  });
+
+  return {
+    found: added,
+    durationMs,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+  };
+}
+
 /** 針對單一模型執行自動研究（呼叫 Perplexity 取得最新事實 + 來源）。 */
 export async function researchAndFactCheckModel(
   modelId: string,
@@ -254,13 +513,19 @@ export async function researchAndFactCheckModel(
   if (!options.force) {
     const existing = enrichmentStore.get(modelId);
     const checkedAt = existing?.factCheck.checkedAt;
-    if (
-      existing &&
-      existing.factCheck.status !== "error" &&
-      checkedAt &&
-      Date.now() - new Date(checkedAt).getTime() < RECENT_SUCCESS_WINDOW_MS
-    ) {
-      return { ok: true, model: getEnrichedModel(modelId) ?? undefined };
+    if (existing && checkedAt) {
+      const ageMs = Date.now() - new Date(checkedAt).getTime();
+      // Verified models: 30-day cache window
+      if (existing.factCheck.status !== "error" && ageMs < RECENT_SUCCESS_WINDOW_MS) {
+        return { ok: true, model: getEnrichedModel(modelId) ?? undefined };
+      }
+      // Failed models: 7-day backoff so we don't retry every cron tick
+      if (existing.factCheck.status === "error" && ageMs < FAILURE_BACKOFF_MS) {
+        return {
+          ok: false,
+          reason: `Recent failure within backoff window (${Math.round(ageMs / 86_400_000)}d)`,
+        };
+      }
     }
   }
 
@@ -595,6 +860,241 @@ export async function researchAndFactCheckStaleModels(
 
 // ─── Internals ─────────────────────────────────────────────────────────────
 
+/**
+ * 把模型標記為 stale，讓下一次 refresh-stale 重新查證。
+ * 用於 discovery 找到「該模型有更新」時 — 這是少數會主動讓既有驗證失效的情境。
+ */
+function flagModelStale(modelId: string, reason: string): void {
+  const base = AI_MODELS_CATALOG.find(m => m.id === modelId);
+  if (!base) return;
+  const existing = enrichmentStore.get(modelId);
+  const previousFactCheck = existing?.factCheck ?? base.factCheck;
+  // 把 checkedAt 推到很久以前 → computeFactCheckStatus 會視為 stale，
+  // 既不擦掉現有來源，也讓下一次 refresh-stale 自動納入。
+  const stalePast = new Date(
+    Date.now() - (FACT_CHECK_STALE_DAYS + 1) * 24 * 60 * 60 * 1000
+  ).toISOString();
+  enrichmentStore.set(modelId, {
+    modelId,
+    pricing: existing?.pricing ?? base.pricing,
+    benchmarks: existing?.benchmarks ?? base.benchmarks,
+    latestUpdates: existing?.latestUpdates ?? base.latestUpdates,
+    availability: existing?.availability ?? base.availability,
+    factCheck: {
+      ...previousFactCheck,
+      status: previousFactCheck?.status ?? "pending",
+      checkedAt: stalePast,
+      sources: previousFactCheck?.sources ?? [],
+      notes: `${previousFactCheck?.notes ? previousFactCheck.notes + " | " : ""}${reason}`,
+    },
+  });
+  logger.info("[modelResearcher] flagged stale via discovery", {
+    modelId,
+    reason,
+  });
+}
+
+function buildDiscoveryPrompt(days: number): string {
+  const knownProviders = Array.from(
+    new Set(AI_MODELS_CATALOG.map(m => m.provider))
+  ).join(", ");
+  const knownModelLines = AI_MODELS_CATALOG.slice(0, 80)
+    .map(m => `${m.id} (${m.name})`)
+    .join("; ");
+  return [
+    `你是 AI 模型情報分析師。請使用 web search 找出過去 ${days} 天內：`,
+    `  (a) 新發表 / 新公開可用的 AI 模型（任何模態：文字、圖像、影片、音訊、嵌入向量、多模態）`,
+    `  (b) 重要的 AI 研究論文（arXiv / NeurIPS / ICLR / ICML / OpenReview）— 著重影響業界產品的`,
+    `  (c) catalog 中既有模型的重大更新（價格變動、新版本、停用、功能升級）`,
+    "",
+    `已知 catalog 廠商：${knownProviders}`,
+    `已知 catalog 模型（節錄）：${knownModelLines}`,
+    "",
+    "回傳「**只有一個合法 JSON 物件**」，schema 如下：",
+    `{
+  "items": [
+    {
+      "kind": "new-model" | "new-paper" | "model-update",
+      "title": string,            // 模型名 / 論文標題 / 更新標題
+      "summary": string,          // 1-3 句中文摘要，說明意義
+      "url": string,              // 真實官方 / arXiv / 部落格連結
+      "date": "YYYY-MM-DD" | "YYYY-MM",  // 事件發生日
+      "provider": string?,        // 廠商或機構（new-model / model-update 必填）
+      "modality": string?,        // 模態，如 text / image / video / audio / multimodal
+      "affectedModelId": string?, // model-update 時填上面 catalog 中對應的 id
+      "suggestedId": string?      // new-model 時，建議的 catalog id（小寫連字號）
+    }
+  ]
+}`,
+    "",
+    "硬性規則：",
+    "1. 至少回 3 項、最多 20 項。寧缺勿濫，不要硬塞陳年舊聞。",
+    `2. date 必須在過去 ${days} 天內或剛好過期一兩天可接受；超過的請略過。`,
+    "3. 不要編造 URL — 全部要是搜尋過程中實際看到的。",
+    "4. summary 用繁體中文，控制在 360 字內。",
+    "5. 不要包 markdown code fence。",
+    "6. kind=model-update 時，affectedModelId 必須是上面 catalog 列表裡的 id。",
+  ].join("\n");
+}
+
+async function callPerplexityDiscovery(
+  query: string
+): Promise<DiscoveryPayload | null> {
+  const apiKey = (
+    serverEnv.PERPLEXITY_API_KEY ??
+    process.env.PERPLEXITY_API_KEY ??
+    ""
+  ).trim();
+  if (!apiKey) throw new Error("PERPLEXITY_API_KEY 未設定");
+
+  const res = await fetch(PERPLEXITY_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "sonar-pro",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an AI industry intelligence analyst. Reply ONLY with the requested JSON object. Use Traditional Chinese summaries. Cite real URLs only.",
+        },
+        { role: "user", content: query },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 2600,
+      temperature: 0.25,
+      search_recency_filter: "week",
+    }),
+    signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+  });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = data.choices?.[0]?.message?.content ?? "";
+  return parseDiscoveryPayload(content);
+}
+
+async function callOpenRouterDiscovery(
+  query: string
+): Promise<DiscoveryPayload | null> {
+  const apiKey = (
+    (serverEnv as Record<string, string | undefined>).OPENROUTER_API_KEY ??
+    process.env.OPENROUTER_API_KEY ??
+    ""
+  ).trim();
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY 未設定");
+
+  const res = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://director.today",
+      "X-Title": "AI Director Model Discoverer",
+    },
+    body: JSON.stringify({
+      model: "perplexity/sonar",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an AI industry intelligence analyst. Reply ONLY with the JSON object the user describes.",
+        },
+        { role: "user", content: query },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 2600,
+      temperature: 0.25,
+    }),
+    signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+  });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = data.choices?.[0]?.message?.content ?? "";
+  return parseDiscoveryPayload(content);
+}
+
+function parseDiscoveryPayload(raw: string): DiscoveryPayload {
+  if (!raw) throw new Error("empty discovery payload");
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+  let json: unknown;
+  try {
+    json = JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("discovery response did not contain JSON");
+    json = JSON.parse(match[0]);
+  }
+  // Some models return a bare array — tolerate that
+  if (Array.isArray(json)) json = { items: json };
+  const parsed = discoveryPayloadSchema.safeParse(json);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const path = first?.path.join(".") || "(root)";
+    throw new Error(
+      `discovery schema failed at ${path}: ${first?.message ?? "unknown"}`
+    );
+  }
+  return parsed.data;
+}
+
+function matchCatalogModel(
+  title: string,
+  provider?: string
+): string | undefined {
+  const t = title.toLowerCase();
+  const p = provider?.toLowerCase();
+  for (const m of AI_MODELS_CATALOG) {
+    const name = m.name.toLowerCase();
+    const id = m.id.toLowerCase();
+    const prov = m.provider.toLowerCase();
+    // Title must contain the model's name OR id; if provider was given, it must match too.
+    if (t.includes(name) || t.includes(id)) {
+      if (!p || prov.includes(p) || p.includes(prov)) return m.id;
+    }
+  }
+  return undefined;
+}
+
+function sanitizeSuggestedId(
+  suggested: string | undefined,
+  title: string
+): string {
+  const candidate = (suggested && suggested.trim().length > 0
+    ? suggested
+    : title
+  )
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return candidate || "candidate";
+}
+
+function hashDiscoveryId(item: DiscoveryItem): string {
+  // Stable, short, deterministic id from kind + url + date
+  const raw = `${item.kind}|${item.url}|${item.date}`;
+  let h = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    h = (h * 31 + raw.charCodeAt(i)) | 0;
+  }
+  return `disc_${Math.abs(h).toString(36)}`;
+}
+
 function storeError(modelId: string, reason: string): void {
   const base = AI_MODELS_CATALOG.find(m => m.id === modelId);
   if (!base) return;
@@ -824,6 +1324,20 @@ export function __resetEnrichmentStore(): void {
   stats.lastRunErrors = [];
   stats.totalRunsCompleted = 0;
   stats.currentRunStartedAt = undefined;
+  discoveryStore.length = 0;
+  discoveryStats.lastRunAt = undefined;
+  discoveryStats.lastRunDurationMs = undefined;
+  discoveryStats.lastRunCount = 0;
+  discoveryStats.lastRunError = undefined;
+  discoveryStats.totalRunsCompleted = 0;
+}
+
+/** Seed a discovery directly (used by tests + admin curation). */
+export function __seedDiscovery(d: ModelDiscovery): void {
+  discoveryStore.unshift(d);
+  if (discoveryStore.length > MAX_DISCOVERIES) {
+    discoveryStore.length = MAX_DISCOVERIES;
+  }
 }
 
 /** Seed the store with a synthetic enrichment record (used by tests). */
@@ -864,4 +1378,6 @@ export type {
   ResearchPayload,
   ResearchRunStats,
   PricingTier,
+  DiscoveryPayload,
+  DiscoveryRunStats,
 };

@@ -13,7 +13,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   researchAndFactCheckAllModels,
   researchAndFactCheckModel,
+  discoverNewAIReleases,
+  getDiscoveries,
   __resetEnrichmentStore,
+  __seedDiscovery,
 } from "../../../server/services/modelResearcher";
 
 const ORIGINAL_PERPLEXITY = process.env.PERPLEXITY_API_KEY;
@@ -60,5 +63,57 @@ describe("researchAndFactCheckModel — provider failure surfacing", () => {
     expect(result.reason).not.toBe("All research providers failed");
     expect(result.reason).toMatch(/PERPLEXITY_API_KEY/);
     expect(result.reason).toMatch(/OPENROUTER_API_KEY/);
+  });
+
+  it("respects the 7-day failure backoff — does not retry a recently-failed model", async () => {
+    // First call: fails because no keys
+    const first = await researchAndFactCheckModel("gpt-4o", {
+      userId: null,
+    });
+    expect(first.ok).toBe(false);
+
+    // Second call (no force): should be skipped due to backoff
+    const second = await researchAndFactCheckModel("gpt-4o", {
+      userId: null,
+    });
+    expect(second.ok).toBe(false);
+    expect(second.reason).toMatch(/backoff/);
+  });
+});
+
+describe("discoverNewAIReleases", () => {
+  it("returns a clear error when neither provider key is set", async () => {
+    const result = await discoverNewAIReleases({ userId: null, days: 7 });
+    expect(result.found).toBe(0);
+    expect(result.error).toBeDefined();
+    expect(result.error).toMatch(/PERPLEXITY_API_KEY/);
+    expect(result.error).toMatch(/OPENROUTER_API_KEY/);
+  });
+});
+
+describe("getDiscoveries", () => {
+  it("returns seeded discoveries sorted by discoveredAt desc", () => {
+    __seedDiscovery({
+      id: "disc_a",
+      kind: "new-model",
+      title: "Test Model A",
+      summary: "synthetic",
+      url: "https://example.com/a",
+      date: "2026-05-01",
+      discoveredAt: "2026-05-01T00:00:00.000Z",
+      provider: "TestLab",
+    });
+    __seedDiscovery({
+      id: "disc_b",
+      kind: "new-paper",
+      title: "Test Paper B",
+      summary: "synthetic",
+      url: "https://example.com/b",
+      date: "2026-05-15",
+      discoveredAt: "2026-05-15T00:00:00.000Z",
+    });
+    const { items, stats } = getDiscoveries(10);
+    expect(items.map(i => i.id)).toEqual(["disc_b", "disc_a"]);
+    expect(stats.totalRunsCompleted).toBe(0);
   });
 });
