@@ -34,6 +34,7 @@ export type ClarificationDimension =
   | "platform"
   | "usecase"
   | "purpose"
+  | "modalityBundle"
   | "open";
 
 export interface ClarificationOptionContext {
@@ -177,6 +178,12 @@ export function buildContextualClarificationOptions(
         `${tPrefix}微電影／長片（>3 分鐘）`,
       ],
       purpose: PURPOSE_GENERIC,
+      modalityBundle: [
+        "只要影片",
+        "影片＋海報",
+        "影片＋海報＋配樂",
+        "影片＋配音",
+      ],
       duration: [
         "15 秒之內（社群快剪）",
         "30 秒（廣告／預告）",
@@ -339,6 +346,12 @@ export function buildContextualClarificationOptions(
         `${tPrefix}紀錄／教學腳本（1–3 分鐘）`,
         `${tPrefix}廣告腳本（30–60 秒）`,
         `${tPrefix}文案／貼文文字`,
+      ],
+      modalityBundle: [
+        "只要腳本",
+        "腳本＋分鏡海報",
+        "腳本＋分鏡＋配樂提案",
+        "腳本＋配音稿",
       ],
       duration: [
         "100 字以內（社群貼文）",
@@ -505,6 +518,13 @@ export interface ConversationDimensionSignals {
   hasSource?: boolean;
   /** The user mentioned a purpose / use case (brand / personal / teaching). */
   hasPurpose?: boolean;
+  /**
+   * The user named which output bundle they want — e.g. 「只要影片」/
+   * 「影片+海報」/「影片+海報+配樂」/「影片+配音」. Detected from explicit
+   * mentions of additional artefacts (海報、配樂、配音 etc) alongside the
+   * primary modality. Falsy ≠ no bundle — it just means "not yet confirmed".
+   */
+  hasModalityBundle?: boolean;
 }
 
 /**
@@ -529,6 +549,15 @@ const SOURCE_HINT_RE =
   /上傳|手邊|自己拍|現有素材|有素材|沒素材|純AI|全AI|AI\s*生成|無素材|reference|參考圖|參考影片/i;
 const PURPOSE_HINT_RE =
   /用來|做給|要拿來|目的|用途|行銷|宣傳|品牌|曝光|轉換|教學|分享|個人|收藏|珍藏|社群成長|追蹤|粉絲|商業|業績|profit|marketing|promote|teach|tutorial|personal|hobby/i;
+/**
+ * Modality-bundle hints: the user signalled which OUTPUT BUNDLE they need
+ * (just video, or also poster/BGM/voice). Match both explicit additive
+ * phrasing ("影片+海報", "也要配樂") and exclusive phrasing ("只要影片",
+ * "純影片就好"). The 6-step brainstorming arc uses this to skip the
+ * dedicated modalityBundle ask when the user already named their bundle.
+ */
+const MODALITY_BUNDLE_HINT_RE =
+  /(?:影片|短片|video|reel).{0,4}[+＋、和與]\s*(?:海報|封面|poster|配樂|bgm|music|配音|旁白|voice)|(?:海報|配樂|bgm|配音|旁白).{0,4}[+＋、和與]\s*(?:影片|短片|video)|只要影片|純影片|只做影片|video\s*only|還要(?:海報|配樂|配音|旁白)|順便(?:加|做)?(?:海報|配樂|配音|旁白)|加上?(?:海報|配樂|配音|旁白)|包含(?:海報|配樂|配音|旁白)|要(?:海報|配樂|配音|旁白)|need (?:poster|bgm|music|voice|narration)/i;
 
 export function inferConversationDimensions(
   text: string,
@@ -583,6 +612,7 @@ export function inferConversationDimensions(
       Boolean(remembered?.hasPlatform),
     hasSource: SOURCE_HINT_RE.test(trimmed),
     hasPurpose: PURPOSE_HINT_RE.test(trimmed) || Boolean(remembered?.hasPurpose),
+    hasModalityBundle: MODALITY_BUNDLE_HINT_RE.test(trimmed),
   };
   return mergeSignals(baseline, prefilled);
 }
@@ -605,6 +635,7 @@ function mergeSignals(
     hasPlatform: base.hasPlatform || extra.hasPlatform,
     hasSource: base.hasSource || extra.hasSource,
     hasPurpose: base.hasPurpose || extra.hasPurpose,
+    hasModalityBundle: base.hasModalityBundle || extra.hasModalityBundle,
   };
 }
 
@@ -800,6 +831,10 @@ function wizardQuestionFor(
       return `主要觀眾是誰？影響文案語氣、節奏與梗的選擇──對品牌客戶要穩、對社群粉絲要快、對員工要實。`;
     case "purpose":
       return `做這個是為了什麼？用途決定整支作品的取捨──個人珍藏可任性、品牌行銷要精準、社群成長要鉤點、教學要清楚。`;
+    case "modalityBundle":
+      if (modality === "script")
+        return `要做的不只腳本嗎？我可以同時準備分鏡海報、配樂提案或配音稿——先確認你要拿到哪幾件，等等下游精靈就能同步接手。`;
+      return `這次需要哪些產出？只要影片，還是順便要海報／配樂／配音？確認後我會把對應的精靈一起排進工作流程。`;
     case "format":
     case "open":
     default:

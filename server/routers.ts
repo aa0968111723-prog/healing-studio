@@ -226,6 +226,12 @@ import {
   classifyOrbResearchIntent,
 } from "./services/orbWebResearch";
 import { analyzeOrbPromptForContextLookup } from "./services/orbContextLookup";
+import { buildCreativeModelHintsBlock } from "./services/orbCreativeModelHints";
+import {
+  deriveOrbArcState,
+  serializeArcStateForPrompt,
+} from "../shared/orb-arc-state";
+import { inferModalityFromText } from "../shared/orb-clarification-options";
 import {
   doPostGenComplete,
   runPostGenForJob,
@@ -6794,11 +6800,27 @@ export const appRouter = router({
         // brainstorming a video for a subject the planner has no prior on.
         // Runs in parallel with the existing research call so latency is
         // bounded by the slower path, not the sum of both.
-        if (webResearchEnabled && latestUserTextForRouting?.trim()) {
+        //
+        // Skip when the latest user text is a wizard answer ([使用者澄清/X]:
+        // markers): the analysis re-detects the original proper noun anyway
+        // (which we already searched on turn 1) and the in-memory cache
+        // would dedupe but only when the exact prompt repeats — wizard
+        // answers are different strings, so the cache misses. Cheap regex
+        // guard saves the 4s LLM call on every clarification round.
+        const isFollowupClarificationAnswer = /\[使用者澄清/.test(
+          latestUserTextForRouting
+        );
+        const shouldRunContextLookup =
+          webResearchEnabled &&
+          Boolean(latestUserTextForRouting?.trim()) &&
+          !isFollowupClarificationAnswer;
+        if (shouldRunContextLookup) {
           emitOrbChatProgress(idempKey, "analyzing_terms", "辨識專有名詞中…");
         }
-        const contextLookupAnalysisPromise = webResearchEnabled
-          ? analyzeOrbPromptForContextLookup(latestUserTextForRouting)
+        const contextLookupAnalysisPromise = shouldRunContextLookup
+          ? analyzeOrbPromptForContextLookup(latestUserTextForRouting, {
+              userId: ctx.user.id,
+            })
           : Promise.resolve(null);
         const webResearchOutcomePromise = runOrbWebResearch(
           latestUserTextForRouting,
@@ -6826,6 +6848,21 @@ export const appRouter = router({
         // research did NOT already pick up the topic — we treat it as a
         // complementary background block (separate header), never as a
         // replacement.
+        // Telemetry every outcome so we can dashboard hit / miss / cache /
+        // error rates instead of inferring from request volume.
+        if (contextLookupAnalysis) {
+          appendTelemetryEvent(telemetryEvents, "orb.context_lookup.outcome", {
+            reason: contextLookupAnalysis.reason,
+            terms: contextLookupAnalysis.terms,
+            shouldLookup: contextLookupAnalysis.shouldLookup,
+          });
+        } else if (isFollowupClarificationAnswer) {
+          appendTelemetryEvent(telemetryEvents, "orb.context_lookup.outcome", {
+            reason: "skipped:followup_clarification",
+            terms: [],
+            shouldLookup: false,
+          });
+        }
         let contextLookupResearch: Awaited<ReturnType<typeof runOrbDeepSearch>> | null = null;
         if (
           contextLookupAnalysis?.shouldLookup &&
@@ -7332,13 +7369,49 @@ export const appRouter = router({
             });
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {
+              // ── Brainstorming arc state ────────────────────────────────
+              // For creative projects (video / script), derive which of the
+              // 6 arc steps we're at from the conversation so far, and
+              // serialize it into a short prompt block. This gives the
+              // planner a deterministic "you're at step 3, ask modality
+              // bundle next" anchor — the LLM otherwise tends to skip
+              // ahead or re-ask dimensions on every turn.
+              // Image / audio / lora / research / unknown skip the block;
+              // their flows don't benefit from the arc.
+              const arcModality = inferModalityFromText(latestUserTextForRouting);
+              const arcStateBlock =
+                arcModality === "video" || arcModality === "script"
+                  ? serializeArcStateForPrompt(
+                      deriveOrbArcState({
+                        messages: input.messages.map(m => ({
+                          role: m.role as "user" | "assistant" | "system",
+                          content: m.content,
+                        })),
+                        modality: arcModality,
+                        hasContextBlock: Boolean(contextLookupResearch?.promptBlock),
+                      })
+                    )
+                  : "";
+              // ── Creative model hints ───────────────────────────────────
+              // Pin the planner's step-6 recommendation to real catalog
+              // entries (no Veo 17 hallucinations). Static block; could be
+              // cached at module init but it's cheap to rebuild and lets
+              // us evolve the catalog without restart.
+              const creativeModelHintsBlock = buildCreativeModelHintsBlock();
               const plannerContextWithResearch = [
                 input.context,
                 webResearchPromptBlock || undefined,
                 siteModelUsagePromptBlock || undefined,
+                arcStateBlock || undefined,
+                creativeModelHintsBlock || undefined,
               ]
                 .filter((s): s is string => Boolean(s && s.trim()))
                 .join("\n\n");
+              if (arcStateBlock) {
+                appendTelemetryEvent(telemetryEvents, "orb.arc_state.injected", {
+                  modality: arcModality,
+                });
+              }
               // Honour the user's saved `criticEnabled` / `criticRefineBelow`
               // preferences. When critic is enabled, we switch to the
               // critique-aware planner — it runs the regular planner first,

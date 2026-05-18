@@ -30,6 +30,51 @@ const MAX_TEXT_LEN = 600;
 const MAX_TERMS = 3;
 const MAX_TERM_LEN = 24;
 
+// Per-conversation cache so a back-and-forth like "可以帶著我發想淡大禪學社…"
+// → "想做招生宣傳" → "30 秒" doesn't re-run the LLM analysis (4s + JSON parse)
+// AND the deep search (3-5s) on every follow-up. Keyed by userId + a stable
+// hash of the latest user text; TTL kept short so a topic switch later in the
+// same session re-triggers the analysis fresh.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 256;
+
+interface CacheEntry {
+  value: OrbContextLookupResult;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+
+function djb2(input: string): string {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = ((hash << 5) + hash + input.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function cacheKey(userId: number | null | undefined, text: string): string {
+  const userPart = userId == null ? "anon" : String(userId);
+  return `${userPart}:${djb2(text.trim().slice(0, MAX_TEXT_LEN))}`;
+}
+
+function pruneCache(now = Date.now()): void {
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+  // Hard cap (defensive): drop the oldest entries when the LRU-less map grows
+  // past CACHE_MAX_ENTRIES — Map iteration order is insertion order.
+  if (cache.size > CACHE_MAX_ENTRIES) {
+    const overflow = cache.size - CACHE_MAX_ENTRIES;
+    let dropped = 0;
+    for (const key of cache.keys()) {
+      if (dropped >= overflow) break;
+      cache.delete(key);
+      dropped += 1;
+    }
+  }
+}
+
 export interface OrbContextLookupResult {
   shouldLookup: boolean;
   terms: string[];
@@ -39,7 +84,8 @@ export interface OrbContextLookupResult {
     | "skipped:empty"
     | "skipped:too_long"
     | "skipped:no_terms"
-    | "error";
+    | "error"
+    | "cache_hit";
 }
 
 const SYSTEM_PROMPT = [
@@ -61,8 +107,20 @@ const SYSTEM_PROMPT = [
   "- rationale 簡述為什麼這幾個詞需要查（≤40 字），給下游 planner 看的。",
 ].join("\n");
 
+export interface AnalyzeOrbPromptOptions {
+  /** When set, the analysis result is cached per (userId, prompt hash). */
+  userId?: number | null;
+  /**
+   * Bypass the cache when true (used by tests). Production callers should
+   * leave it false so the 5-min TTL kicks in for repeat asks on the same
+   * topic in the same session.
+   */
+  bypassCache?: boolean;
+}
+
 export async function analyzeOrbPromptForContextLookup(
-  userText: string
+  userText: string,
+  options: AnalyzeOrbPromptOptions = {}
 ): Promise<OrbContextLookupResult> {
   const trimmed = (userText ?? "").trim();
   if (!trimmed) {
@@ -75,6 +133,15 @@ export async function analyzeOrbPromptForContextLookup(
       rationale: "",
       reason: "skipped:too_long",
     };
+  }
+
+  const key = cacheKey(options.userId, trimmed);
+  if (!options.bypassCache) {
+    pruneCache();
+    const hit = cache.get(key);
+    if (hit && hit.expiresAt > Date.now()) {
+      return { ...hit.value, reason: "cache_hit" };
+    }
   }
 
   try {
@@ -113,22 +180,32 @@ export async function analyzeOrbPromptForContextLookup(
       .slice(0, MAX_TERMS);
     const rationale =
       typeof p.rationale === "string" ? p.rationale.trim().slice(0, 80) : "";
-    if (!shouldLookupRaw || terms.length === 0) {
-      return {
-        shouldLookup: false,
-        terms: [],
-        rationale,
-        reason: "skipped:no_terms",
-      };
-    }
-    return {
-      shouldLookup: true,
-      terms,
-      rationale,
-      reason: "matched",
-    };
+    const finalResult: OrbContextLookupResult =
+      !shouldLookupRaw || terms.length === 0
+        ? {
+            shouldLookup: false,
+            terms: [],
+            rationale,
+            reason: "skipped:no_terms",
+          }
+        : {
+            shouldLookup: true,
+            terms,
+            rationale,
+            reason: "matched",
+          };
+    cache.set(key, {
+      value: finalResult,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    });
+    return finalResult;
   } catch (err) {
     console.warn("[orbContextLookup] analysis failed:", err);
     return { shouldLookup: false, terms: [], rationale: "", reason: "error" };
   }
+}
+
+/** Test-only: clear the in-memory cache between runs. */
+export function __unsafe_resetOrbContextLookupCache(): void {
+  cache.clear();
 }
