@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CHARACTER_ROLE_LABELS,
+  ENVIRONMENT_CHANGE_PRESETS,
+  ERA_PRESETS,
+  GENRE_PRESETS,
+  PERSONALITY_TRAIT_PRESETS,
+  SCENE_LIGHTING_PRESETS,
+  SCENE_MOOD_PRESETS,
   characterRoleSchema,
   summarizeFrameworkForPrompt,
   worldbuildingFrameworkInputSchema,
@@ -14,6 +20,7 @@ describe("worldbuilding-types", () => {
       name: "苔森紀年",
       description: "潮濕森林裡的療癒故事",
       genre: "療癒奇幻",
+      era: "架空中世紀",
       characters: [
         {
           id: "c1",
@@ -54,6 +61,7 @@ describe("worldbuilding-types", () => {
 
     expect(parsed.characters).toHaveLength(2);
     expect(parsed.scenes[0].flora).toContain("苔蘚");
+    expect(parsed.era).toBe("架空中世紀");
   });
 
   it("rejects invalid role", () => {
@@ -95,6 +103,7 @@ describe("worldbuilding-types", () => {
     const summary = summarizeFrameworkForPrompt({
       name: "苔森紀年",
       genre: "療癒奇幻",
+      era: "架空中世紀",
       characters: [
         {
           id: "c1",
@@ -127,6 +136,7 @@ describe("worldbuilding-types", () => {
 
     expect(summary).toContain("# 世界觀：苔森紀年");
     expect(summary).toContain("療癒奇幻");
+    expect(summary).toContain("時代背景：架空中世紀");
     expect(summary).toContain("[主角] 艾莉");
     expect(summary).toContain("樣貌：深綠瞳");
     expect(summary).toContain("LoRA trigger：sks_eli");
@@ -140,5 +150,25 @@ describe("worldbuilding-types", () => {
     expect(CHARACTER_ROLE_LABELS.supporting).toBe("配角");
     expect(CHARACTER_ROLE_LABELS.antagonist).toBe("反派");
     expect(CHARACTER_ROLE_LABELS.npc).toBe("路人 / NPC");
+  });
+
+  it("exposes quick-pick presets for genre / era / mood / lighting", () => {
+    expect(GENRE_PRESETS).toContain("賽博龐克");
+    expect(ERA_PRESETS).toContain("中世紀");
+    expect(ERA_PRESETS).toContain("近未來");
+    expect(PERSONALITY_TRAIT_PRESETS).toContain("傲嬌");
+    expect(SCENE_MOOD_PRESETS).toContain("靜謐");
+    expect(SCENE_LIGHTING_PRESETS).toContain("月光");
+    expect(ENVIRONMENT_CHANGE_PRESETS).toContain("下雨");
+  });
+
+  it("accepts era field on framework input", () => {
+    const result = worldbuildingFrameworkInputSchema.safeParse({
+      name: "測試世界",
+      era: "蒸汽時代",
+      characters: [],
+      scenes: [],
+    });
+    expect(result.success).toBe(true);
   });
 });
