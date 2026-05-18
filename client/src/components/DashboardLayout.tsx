@@ -709,7 +709,8 @@ function DashboardLayoutContent({
     );
   }, [location]);
 
-  const isAdmin = user?.role === "admin";
+  // 「能進管理後台」= admin 或 leader；leader 進去只看得到 costs / users 兩個分頁
+  const isAdmin = user?.role === "admin" || user?.role === "leader";
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 

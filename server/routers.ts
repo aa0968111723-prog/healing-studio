@@ -10,6 +10,7 @@ import {
   publicProcedure,
   protectedProcedure,
   adminProcedure,
+  leaderOrAdminProcedure,
   brainProcedure,
   router,
 } from "./_core/trpc";
@@ -9111,7 +9112,9 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    updateAutoCreditPolicy: adminProcedure
+    // 自動給點調整 — 組長（leader）或管理員可動。「成本金流」分頁的積分分配
+    // 操作都走這條，admin.updateRole 仍然鎖死 admin（指派他人角色是 admin 專屬）。
+    updateAutoCreditPolicy: leaderOrAdminProcedure
       .input(
         z.object({
           userId: z.number(),
@@ -9132,7 +9135,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    runAutoCreditNow: adminProcedure.mutation(async () => {
+    runAutoCreditNow: leaderOrAdminProcedure.mutation(async () => {
       const result = await db.runDueAutoCreditGrant(500);
       return { success: true, ...result };
     }),
@@ -9143,7 +9146,7 @@ export const appRouter = router({
         return db.getAllUsageLogs(input.limit);
       }),
 
-    teamCostSummary: adminProcedure.query(async () => {
+    teamCostSummary: leaderOrAdminProcedure.query(async () => {
       const rows = await db.getTeamCostSummary();
       const rate = parseUsdToTwdRate(process.env.USD_TO_TWD_RATE);
 
@@ -9195,12 +9198,12 @@ export const appRouter = router({
       return db.getSystemStats();
     }),
 
-    /** Update user role (admin/user) */
+    /** Update user role — admin 專屬，leader 不能指派他人角色 */
     updateRole: adminProcedure
       .input(
         z.object({
           userId: z.number(),
-          role: z.enum(["user", "admin"]),
+          role: z.enum(["user", "leader", "admin"]),
         })
       )
       .mutation(async ({ input }) => {

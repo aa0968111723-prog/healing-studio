@@ -1,4 +1,5 @@
 import type { RowDataPacket } from "mysql2/promise";
+import type { UserRole } from "@shared/const";
 import { BaseRepository } from "../base/BaseRepository";
 
 export type LocalAuthUser = {
@@ -6,7 +7,7 @@ export type LocalAuthUser = {
   openId: string;
   name: string | null;
   email: string | null;
-  role: "user" | "admin";
+  role: UserRole;
   loginMethod: string | null;
   passwordHash: string | null;
   remainingGenerations: number;
@@ -34,7 +35,7 @@ export class UserAuthRepository extends BaseRepository {
     name?: string | null;
     email: string;
     passwordHash: string;
-    role?: "user" | "admin";
+    role?: UserRole;
   }): Promise<number> {
     const result = await this.db.execute(
       `INSERT INTO users (openId, name, email, loginMethod, passwordHash, role, remainingGenerations, onboardingDone, lastSignedIn)

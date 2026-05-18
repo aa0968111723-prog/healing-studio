@@ -7,8 +7,9 @@ describe("auto credit policy wiring", () => {
     const routersPath = path.resolve(process.cwd(), "server/routers.ts");
     const source = await fs.readFile(routersPath, "utf8");
 
-    expect(source).toContain("updateAutoCreditPolicy: adminProcedure");
-    expect(source).toContain("runAutoCreditNow: adminProcedure.mutation");
+    // 自動給點調整由「組長以上」可動（leaderOrAdminProcedure），admin 仍涵蓋
+    expect(source).toContain("updateAutoCreditPolicy: leaderOrAdminProcedure");
+    expect(source).toContain("runAutoCreditNow: leaderOrAdminProcedure.mutation");
   });
 
   it("server boot registers user auto credit cron job", async () => {

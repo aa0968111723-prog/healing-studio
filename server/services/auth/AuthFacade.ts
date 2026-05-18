@@ -1,4 +1,4 @@
-import { ONE_YEAR_MS } from "@shared/const";
+import { ONE_YEAR_MS, type UserRole } from "@shared/const";
 import { ENV } from "../../_core/env";
 import { getPasswordHasher, verifyPassword } from "./passwordHasher";
 import { userAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
@@ -56,7 +56,7 @@ export class AuthFacade {
     email: string;
     password: string;
     name?: string;
-    role?: "user" | "admin";
+    role?: UserRole;
   }): Promise<AuthResult> {
     const email = input.email.trim().toLowerCase();
     const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);

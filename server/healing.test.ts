@@ -153,6 +153,41 @@ describe("admin route access control", () => {
     await expect(caller.admin.teamCostSummary()).rejects.toThrow();
   });
 
+  // leader 是中階管理者：可動成本檢視 / 自動給點，但不可改他人角色
+  it("allows leader access to admin.teamCostSummary", async () => {
+    const user = createMockUser({ role: "leader" });
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.admin.teamCostSummary();
+    expect(result).toHaveProperty("rows");
+    expect(result).toHaveProperty("totals");
+    expect(result).toHaveProperty("usdToTwdRate");
+  });
+
+  it("allows leader access to admin.updateAutoCreditPolicy", async () => {
+    const user = createMockUser({ role: "leader" });
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    // DB mocked to no-op; only checking the procedure middleware accepts leader
+    await expect(
+      caller.admin.updateAutoCreditPolicy({
+        userId: 2,
+        enabled: true,
+        amount: 100,
+        intervalDays: 7,
+      })
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects leader access to admin.updateRole (admin-only)", async () => {
+    const user = createMockUser({ role: "leader" });
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.admin.updateRole({ userId: 2, role: "leader" })
+    ).rejects.toThrow();
+  });
+
   it("rejects non-admin access to feedback.all", async () => {
     const user = createMockUser({ role: "user" });
     const ctx = createMockContext(user);
