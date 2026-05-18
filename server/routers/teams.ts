@@ -132,6 +132,16 @@ export const teamsRouter = router({
         });
       }
 
+      // 防止 phantom membership — DB 沒掛 FK 約束（待 0054 migration），
+      // 應用層必須先確認 userId 真的存在於 users 表。
+      const targetUsers = await db.getUsersByIds([input.userId]);
+      if (targetUsers.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `找不到 userId=${input.userId} 的使用者`,
+        });
+      }
+
       await db.addTeamMember({
         teamId: input.teamId,
         userId: input.userId,

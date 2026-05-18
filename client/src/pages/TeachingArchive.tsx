@@ -5,7 +5,7 @@
  * 未來會接 Phase 2 的 RAG ingestion 切片並做向量檢索。
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
@@ -1448,11 +1448,24 @@ function DetailDialog({
   );
   const deleteMut = trpc.teachingArchive.delete.useMutation();
   const reingestMut = trpc.teachingArchive.triggerIngestion.useMutation();
+  const logViewMut = trpc.teachingArchive.logView.useMutation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [hasLoggedView, setHasLoggedView] = useState(false);
+
+  // 開啟詳情時記一筆 view 稽核 — 故意做在 useEffect 而非 query callback，
+  // 避免 refetchInterval 的輪詢每 3 秒都灌一筆假性瀏覽。
+  useEffect(() => {
+    if (itemQuery.data && !hasLoggedView) {
+      logViewMut.mutate({ id });
+      setHasLoggedView(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemQuery.data, hasLoggedView, id]);
 
   if (!itemQuery.data) return null;
   const item = itemQuery.data;
   const Icon = getMediaIcon(item.mediaType);
+  const canWrite = (item as { canWrite?: boolean }).canWrite === true;
 
   return (
     <>
@@ -1506,8 +1519,9 @@ function DetailDialog({
                   <h4 className="text-muted-foreground text-xs">
                     抽文 / 轉文字
                   </h4>
-                  {(item.transcriptionStatus === "failed" ||
-                    item.transcriptionStatus === "completed") &&
+                  {canWrite &&
+                    (item.transcriptionStatus === "failed" ||
+                      item.transcriptionStatus === "completed") &&
                     (item.mediaType === "pdf" ||
                       item.mediaType === "audio" ||
                       item.mediaType === "video") && (
@@ -1579,13 +1593,15 @@ function DetailDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              刪除
-            </Button>
+            {canWrite && (
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                刪除
+              </Button>
+            )}
             <Button variant="outline" onClick={onClose}>
               關閉
             </Button>

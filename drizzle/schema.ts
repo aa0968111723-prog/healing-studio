@@ -288,6 +288,7 @@ export const backgroundJobs = mysqlTable(
       "zip_export",
       "multimodal",
       "model_training",
+      "teaching_archive_ingestion",
     ]).notNull(),
     status: mysqlEnum("status", [
       "queued",
@@ -3323,8 +3324,8 @@ export const teamMemberships = mysqlTable(
     userId: int("userId").notNull(),
     /**
      * owner — 建立者；唯一能轉移擁有權 / 解散團隊
-     * admin — 可邀請 / 移除其他 member、可編輯團隊所有素材
-     * member — 可讀寫團隊的 team_shared 素材
+     * admin — 可邀請 / 移除其他 member、可編輯團隊所有素材（含 public_disciples）
+     * member — 可讀寫團隊的 team_shared 素材；對 public_disciples 素材唯讀
      */
     role: mysqlEnum("role", ["owner", "admin", "member"])
       .default("member")

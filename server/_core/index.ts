@@ -20,6 +20,10 @@ import {
   stopModelTrainingWorkerCron,
 } from "../jobs/modelTrainingWorker";
 import {
+  initTeachingArchiveIngestionWorkerCron,
+  stopTeachingArchiveIngestionWorkerCron,
+} from "../jobs/teachingArchiveIngestionWorker";
+import {
   initLearnDocSyncerCron,
   stopLearnDocSyncerCron,
 } from "../jobs/learnDocSyncer";
@@ -101,6 +105,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "modelTrainingWorker",
     start: initModelTrainingWorkerCron,
     stop: stopModelTrainingWorkerCron,
+  },
+  {
+    name: "teachingArchiveIngestionWorker",
+    start: initTeachingArchiveIngestionWorkerCron,
+    stop: stopTeachingArchiveIngestionWorkerCron,
   },
   {
     name: "learnDocSyncer",

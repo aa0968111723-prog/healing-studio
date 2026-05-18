@@ -2675,11 +2675,56 @@ export async function getTeachingMaterial(
  * filters.scope 可以選擇只看「我的 / 某團隊 / 全部」三種視圖，但 server 端
  * 永遠不會放寬到沒有授權的素材；scope 只是 narrow，不能 widen。
  */
+/**
+ * 給卡片列表 / 搜尋用的精簡欄位 — 不含 textContent（可能是 MB 等級的長字串），
+ * 不含描述全文（前端只顯示前兩行 line-clamp，不需要完整 description 送過來
+ * 也行，但這裡保留方便細項過濾顯示）。
+ *
+ * 跟 TeachingMaterial 主型別保持結構相容，避免前端兩套 type 並存。
+ */
+export type TeachingMaterialSummary = Omit<
+  TeachingMaterial,
+  "textContent" | "fileKey"
+>;
+
+const TEACHING_MATERIAL_SUMMARY_COLUMNS = {
+  id: teachingMaterials.id,
+  userId: teachingMaterials.userId,
+  teamId: teachingMaterials.teamId,
+  title: teachingMaterials.title,
+  description: teachingMaterials.description,
+  mediaType: teachingMaterials.mediaType,
+  fileUrl: teachingMaterials.fileUrl,
+  fileName: teachingMaterials.fileName,
+  mimeType: teachingMaterials.mimeType,
+  fileSizeBytes: teachingMaterials.fileSizeBytes,
+  thumbnailUrl: teachingMaterials.thumbnailUrl,
+  durationSeconds: teachingMaterials.durationSeconds,
+  pageCount: teachingMaterials.pageCount,
+  transcriptionStatus: teachingMaterials.transcriptionStatus,
+  lineage: teachingMaterials.lineage,
+  sourceType: teachingMaterials.sourceType,
+  sourceDate: teachingMaterials.sourceDate,
+  sourceLocation: teachingMaterials.sourceLocation,
+  topic: teachingMaterials.topic,
+  speaker: teachingMaterials.speaker,
+  tags: teachingMaterials.tags,
+  visibility: teachingMaterials.visibility,
+  isFeatured: teachingMaterials.isFeatured,
+  sortOrder: teachingMaterials.sortOrder,
+  createdAt: teachingMaterials.createdAt,
+  updatedAt: teachingMaterials.updatedAt,
+} as const;
+
 export async function listTeachingMaterialsForUser(
   userId: number,
   filters: TeachingMaterialListFilters = {},
-  scope: { teamIds?: number[]; only?: "mine" | "team" | "public" } = {}
-): Promise<TeachingMaterial[]> {
+  scope: {
+    teamIds?: number[];
+    only?: "mine" | "team" | "public";
+    limit?: number;
+  } = {}
+): Promise<TeachingMaterialSummary[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -2730,6 +2775,70 @@ export async function listTeachingMaterialsForUser(
       sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
     );
   }
+  // Projection：明確列欄位、不抓 textContent / fileKey，避免把整篇逐字稿
+  // 透過 list / search 拉回前端（卡片 UI 用不到，且檔案路徑屬內部 metadata）。
+  const baseQuery = db
+    .select(TEACHING_MATERIAL_SUMMARY_COLUMNS)
+    .from(teachingMaterials)
+    .where(and(...conditions))
+    .orderBy(
+      desc(teachingMaterials.isFeatured),
+      desc(teachingMaterials.sortOrder),
+      desc(teachingMaterials.createdAt)
+    );
+  if (scope.limit !== undefined) {
+    return baseQuery.limit(scope.limit);
+  }
+  return baseQuery;
+}
+
+/**
+ * 給 AI 助理 / search 端點用的「完整 row + 限筆數」版本。跟
+ * listTeachingMaterialsForUser 同樣的 visibility 規則，但保留 textContent
+ * 讓 buildSnippet 能截出引言句。LIMIT 一定要下，否則命中常見字串時可能
+ * 把整個資料庫的逐字稿都拉回來。
+ */
+export async function searchTeachingMaterialsForUser(
+  userId: number,
+  filters: TeachingMaterialListFilters,
+  scope: { teamIds?: number[]; limit: number }
+): Promise<TeachingMaterial[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const myTeamIds = scope.teamIds ?? [];
+  const visibilityClauses = [eq(teachingMaterials.userId, userId)];
+  if (myTeamIds.length > 0) {
+    visibilityClauses.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, myTeamIds)
+      )!
+    );
+  }
+  visibilityClauses.push(eq(teachingMaterials.visibility, "public_disciples"));
+  const visibilityOr = or(...visibilityClauses)!;
+
+  const conditions = [visibilityOr];
+  if (filters.mediaType) {
+    conditions.push(eq(teachingMaterials.mediaType, filters.mediaType));
+  }
+  if (filters.sourceType) {
+    conditions.push(eq(teachingMaterials.sourceType, filters.sourceType));
+  }
+  if (filters.lineage) {
+    conditions.push(eq(teachingMaterials.lineage, filters.lineage));
+  }
+  if (filters.topic) {
+    conditions.push(eq(teachingMaterials.topic, filters.topic));
+  }
+  if (filters.search) {
+    const like = `%${filters.search}%`;
+    conditions.push(
+      sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
+    );
+  }
+
   return db
     .select()
     .from(teachingMaterials)
@@ -2738,7 +2847,8 @@ export async function listTeachingMaterialsForUser(
       desc(teachingMaterials.isFeatured),
       desc(teachingMaterials.sortOrder),
       desc(teachingMaterials.createdAt)
-    );
+    )
+    .limit(scope.limit);
 }
 
 /**
@@ -2749,7 +2859,7 @@ export async function listTeachingMaterialsForUser(
 export async function listTeachingMaterialsByUser(
   userId: number,
   filters: TeachingMaterialListFilters = {}
-): Promise<TeachingMaterial[]> {
+): Promise<TeachingMaterialSummary[]> {
   return listTeachingMaterialsForUser(userId, filters, { only: "mine" });
 }
 
@@ -2772,31 +2882,54 @@ export async function deleteTeachingMaterial(id: number) {
 }
 
 /** 取得使用者所有教材中出現過的 distinct lineage 值，給前端下拉選單使用。 */
+/**
+ * 共用的 visibility 限制：跟 listTeachingMaterialsForUser 用一樣的條件，
+ * 讓 distinct facets（lineages / topics）跟列表結果集對齊。
+ */
+function visibilityScopedTeachingMaterialsClause(
+  userId: number,
+  teamIds: number[]
+) {
+  const ors = [eq(teachingMaterials.userId, userId)];
+  if (teamIds.length > 0) {
+    ors.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, teamIds)
+      )!
+    );
+  }
+  ors.push(eq(teachingMaterials.visibility, "public_disciples"));
+  return ors.length === 1 ? ors[0] : or(...ors)!;
+}
+
 export async function listTeachingMaterialLineages(
-  userId: number
+  userId: number,
+  teamIds: number[] = []
 ): Promise<string[]> {
   const db = await getDb();
   if (!db) return [];
   const rows = await db
     .selectDistinct({ lineage: teachingMaterials.lineage })
     .from(teachingMaterials)
-    .where(eq(teachingMaterials.userId, userId));
+    .where(visibilityScopedTeachingMaterialsClause(userId, teamIds));
   return rows
     .map(r => r.lineage)
     .filter((v): v is string => typeof v === "string" && v.length > 0)
     .sort();
 }
 
-/** 取得使用者所有教材中出現過的 distinct topic 值，給前端下拉選單使用。 */
+/** 取得使用者可見的所有教材中出現過的 distinct topic 值，給前端下拉選單使用。 */
 export async function listTeachingMaterialTopics(
-  userId: number
+  userId: number,
+  teamIds: number[] = []
 ): Promise<string[]> {
   const db = await getDb();
   if (!db) return [];
   const rows = await db
     .selectDistinct({ topic: teachingMaterials.topic })
     .from(teachingMaterials)
-    .where(eq(teachingMaterials.userId, userId));
+    .where(visibilityScopedTeachingMaterialsClause(userId, teamIds));
   return rows
     .map(r => r.topic)
     .filter((v): v is string => typeof v === "string" && v.length > 0)

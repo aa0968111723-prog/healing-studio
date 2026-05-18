@@ -11,7 +11,9 @@
  *
  *   write  (update/delete/reingest):
  *     - owner
- *     - 是 teamId 的 admin 或 owner（一般 member 不可改別人的素材）
+ *     - visibility = team_shared 且 user ∈ memberships(teamId)，任何角色皆可
+ *       （這是設計選擇 — 團隊池內所有成員都能編輯彼此的素材；UI 仍有刪除確認）
+ *     - public_disciples 由 teamId 託管時，須是該 team 的 owner / admin
  *
  * `assertCanRead` / `assertCanWrite` 直接 throw TRPCError，呼叫端 try 不到
  * 也沒關係 — tRPC 會把錯誤序列化回前端。
@@ -92,7 +94,7 @@ export async function loadMaterialForWrite(
 }> {
   const material = await db.getTeachingMaterial(materialId);
   if (!material) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在" });
+    throw new TRPCError({ code: "NOT_FOUND", message: "資料不存在" });
   }
 
   // Owner — 永遠可改
@@ -100,10 +102,22 @@ export async function loadMaterialForWrite(
     return { material, viaTeamId: null, membership: null };
   }
 
-  // public_disciples 不能被別人改 — 必須是 owner（這 row 沒掛在 team 上時）
-  // 如果 owner 把素材丟進某個 team 但 visibility=public_disciples，那
-  // team 的 admin 還是可以改（因為他們是 teamId 的管理者）。
-  if (material.teamId !== null) {
+  // team_shared — 同隊任何成員都可改（含 member）
+  if (material.visibility === "team_shared" && material.teamId !== null) {
+    const membership = await db.getTeamMembership(
+      material.teamId,
+      ctx.userId
+    );
+    if (membership) {
+      return { material, viaTeamId: material.teamId, membership };
+    }
+  }
+
+  // public_disciples — 不是 owner 的話，要是 team admin / owner 才可改
+  if (
+    material.visibility === "public_disciples" &&
+    material.teamId !== null
+  ) {
     const membership = await db.getTeamMembership(
       material.teamId,
       ctx.userId
@@ -118,7 +132,7 @@ export async function loadMaterialForWrite(
 
   throw new TRPCError({
     code: "FORBIDDEN",
-    message: "你沒有權限修改這份教材（需要 owner 或團隊管理員）",
+    message: "你沒有權限修改這份資料",
   });
 }
 

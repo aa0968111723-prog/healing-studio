@@ -1174,6 +1174,15 @@ const CRON_JOBS: CronJobMeta[] = [
     downstream: ["provider:replicate", "provider:fal", "db:main"],
   },
   {
+    id: "cron:teaching-archive-ingestion-worker",
+    label: "資料庫抽文 / 轉文字 Worker（每 60 秒）",
+    schedule: "*/1 * * * *",
+    description:
+      "消費 background_jobs.teaching_archive_ingestion queue：PDF 抽文 + 語音/影片轉文字，並回寫 teaching_materials.textContent",
+    files: ["server/jobs/teachingArchiveIngestionWorker.ts"],
+    downstream: ["provider:elevenlabs", "db:main"],
+  },
+  {
     id: "cron:api-health-monitor",
     label: "API 健康巡檢（依 ENV 設定週期）",
     schedule: "API_HEALTH_MONITOR_SCHEDULE",

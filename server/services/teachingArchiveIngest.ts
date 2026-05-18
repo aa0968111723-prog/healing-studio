@@ -1,18 +1,21 @@
 /**
  * teachingArchiveIngest.ts
  *
- * Background ingestion for newly-uploaded teaching materials. Fills the
- * `textContent` + `transcriptionStatus` columns so Phase 2 RAG retrieval can
- * search by content, not just title/description.
+ * 資料庫上傳後的內容抽取：填 `textContent` + `transcriptionStatus`，
+ * 讓 Phase 2 RAG 檢索能依內容搜尋，而非只看 title/description。
  *
  * Strategy:
- *   - PDF        → `extractTextFromPdf` (unpdf, fast, sync-able)
+ *   - PDF        → `extractPdfTextFromUrl` (unpdf, fast)
  *   - audio/video → `transcribeMedia` (ElevenLabs Scribe — minutes for long files)
- *   - text/document/image/presentation → 不處理（image/PPT/Word 需要其他抽取器，先留空，狀態維持 not_applicable）
+ *   - text/document/image/presentation → 不處理（image/PPT/Word 需要其他抽取器，先留空）
  *
- * Called fire-and-forget from the `teachingArchive.create` mutation. The
- * Express request returns immediately; the row's `transcriptionStatus`
- * updates asynchronously and the client polls `get` to see when it lands.
+ * 兩個入口：
+ *   - `enqueueTeachingIngestion(materialId)` — 給 router 用，建一筆 background
+ *     job 入 queue；worker (teachingArchiveIngestionWorker) 會撿起來跑。
+ *   - `runTeachingIngestion(material)` — 真正執行抽取的同步函式，worker 內呼叫。
+ *
+ * 之前的 `scheduleTeachingIngestion` 用 setImmediate fire-and-forget，process
+ * 重啟會丟任務；改成 backgroundJobs queue 後重啟可恢復。
  */
 
 import * as db from "../db";
@@ -31,51 +34,59 @@ function isIngestable(
 }
 
 /**
- * 啟動指定教材的內容抽取流程（PDF 抽文 / 語音轉文字）。
- *
- * - 同步把狀態改成 `processing` 後立即 return；
- * - 真正的抽取工作在 background promise 裡跑，完成後寫回 textContent + status；
- * - 失敗時把 status 標 `failed`，錯誤訊息寫進 transcript 欄位前綴方便除錯。
- *
- * 呼叫端用 `.catch(() => {})` 包起來避免 unhandled rejection。
+ * 把 ingestion 任務排進 backgroundJobs queue。回傳 jobId（給上層測試 / debug 用）。
+ * 真正的執行由 teachingArchiveIngestionWorker cron 撿起來；process 重啟也不會丟。
  */
-export async function scheduleTeachingIngestion(
-  materialId: number
-): Promise<void> {
+export async function enqueueTeachingIngestion(
+  materialId: number,
+  userId: number
+): Promise<number | null> {
   const row = await db.getTeachingMaterial(materialId);
-  if (!row) return;
-  if (!isIngestable(row.mediaType)) return;
-  if (!row.fileUrl) return;
-  // 已經有 textContent 的情況：使用者手動貼上文字稿，不需要再跑抽取。
+  if (!row) return null;
+  if (!isIngestable(row.mediaType)) return null;
+  if (!row.fileUrl) return null;
+  // 已有手填文字稿就不再排隊，直接標 completed。
   if (row.textContent && row.textContent.trim().length > 0) {
     if (row.transcriptionStatus !== "completed") {
       await db.updateTeachingMaterial(materialId, {
         transcriptionStatus: "completed",
       });
     }
-    return;
+    return null;
   }
 
   await db.updateTeachingMaterial(materialId, {
-    transcriptionStatus: "processing",
+    transcriptionStatus: "pending",
   });
 
-  // Fire-and-forget — caller doesn't await.
-  void runIngestion(row).catch(async err => {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[teachingArchiveIngest] material=${materialId} failed:`,
-      message
-    );
-    await db
-      .updateTeachingMaterial(materialId, {
-        transcriptionStatus: "failed",
-      })
-      .catch(() => {});
+  const jobId = await db.createBackgroundJob({
+    jobType: "teaching_archive_ingestion",
+    status: "queued",
+    userId,
+    resultJson: { materialId },
   });
+  return jobId;
 }
 
-async function runIngestion(row: TeachingMaterial): Promise<void> {
+/**
+ * 同步執行單一素材的抽取流程；worker 內呼叫。把 row 標 processing → 跑抽取
+ * → 完成後寫回 textContent + status；失敗則標 failed 並 throw 讓 worker 紀錄。
+ */
+export async function runTeachingIngestion(
+  row: TeachingMaterial
+): Promise<void> {
+  if (!row.fileUrl || !isIngestable(row.mediaType)) return;
+
+  // 標 processing — worker 也會在外層標一次，這裡再保險（萬一是直接被呼叫）。
+  if (row.transcriptionStatus !== "processing") {
+    await db.updateTeachingMaterial(row.id, {
+      transcriptionStatus: "processing",
+    });
+  }
+  await doExtraction(row);
+}
+
+async function doExtraction(row: TeachingMaterial): Promise<void> {
   if (!row.fileUrl || !isIngestable(row.mediaType)) return;
 
   let text: string;

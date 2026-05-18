@@ -15,7 +15,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import { scheduleTeachingIngestion } from "../services/teachingArchiveIngest";
+import { enqueueTeachingIngestion } from "../services/teachingArchiveIngest";
 import {
   loadMaterialForRead,
   loadMaterialForWrite,
@@ -57,12 +57,23 @@ const createInputSchema = z.object({
   description: z.string().max(10_000).optional(),
 
   mediaType: mediaTypeSchema,
-  fileUrl: z.string().url().optional(),
+  // 限定 http(s) — 防 javascript:/data:/file: URI 被當 href / src 渲染造成 XSS
+  // 與 SSRF。fileUrl 由我們的 /api/upload 簽出來，理論上只會是 storage 的
+  // https URL；額外加 client 端強驗證可擋下任何繞過後端上傳流程的塞值。
+  fileUrl: z
+    .string()
+    .url()
+    .refine(u => /^https?:\/\//i.test(u), "fileUrl 必須是 http(s) URL")
+    .optional(),
   fileKey: z.string().max(1024).optional(),
   fileName: z.string().max(255).optional(),
   mimeType: z.string().max(128).optional(),
   fileSizeBytes: z.number().int().nonnegative().optional(),
-  thumbnailUrl: z.string().url().optional(),
+  thumbnailUrl: z
+    .string()
+    .url()
+    .refine(u => /^https?:\/\//i.test(u), "thumbnailUrl 必須是 http(s) URL")
+    .optional(),
   durationSeconds: z.number().int().nonnegative().optional(),
   pageCount: z.number().int().nonnegative().optional(),
 
@@ -153,10 +164,46 @@ export const teachingArchiveRouter = router({
       });
     }),
 
-  /** 取得單一教材 — 自動套用 visibility + team membership 規則 */
+  /**
+   * 取得單一教材 — 自動套用 visibility + team membership 規則。
+   * 同時順帶回 `canWrite` 旗標讓前端能 gate 刪除 / 重跑按鈕。
+   *
+   * 不在這裡寫 view audit：前端 detail dialog 為了輪詢 transcriptionStatus
+   * 會每 3 秒打一次 get，會灌爆 audit log。改由前端在使用者真的「打開
+   * 詳情」當下呼叫 `logView` 一次，便能準確反映人工瀏覽事件。
+   */
   get: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
+      const { material } = await loadMaterialForRead(input.id, {
+        userId: ctx.user.id,
+      });
+      // 計算 canWrite：跟 loadMaterialForWrite 同邏輯但不 throw
+      let canWrite = material.userId === ctx.user.id;
+      if (!canWrite && material.teamId !== null) {
+        const m = await db.getTeamMembership(material.teamId, ctx.user.id);
+        if (m) {
+          if (material.visibility === "team_shared") {
+            canWrite = true;
+          } else if (
+            material.visibility === "public_disciples" &&
+            (m.role === "owner" || m.role === "admin")
+          ) {
+            canWrite = true;
+          }
+        }
+      }
+      return { ...material, canWrite };
+    }),
+
+  /**
+   * logView — 給前端在「打開詳情」時呼叫一次，記一筆 view 稽核。
+   * 故意做成 mutation（而不是在 get query 自動寫）— 避免輪詢造成
+   * 假性瀏覽事件灌爆 access log。
+   */
+  logView: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
       const { material, viaTeamId } = await loadMaterialForRead(input.id, {
         userId: ctx.user.id,
       });
@@ -164,7 +211,7 @@ export const teachingArchiveRouter = router({
         viaTeamId,
         visibility: material.visibility,
       });
-      return material;
+      return { ok: true };
     }),
 
   /** 建立新教材；上傳完成後由前端呼叫 */
@@ -227,16 +274,14 @@ export const teachingArchiveRouter = router({
         sortOrder: input.sortOrder,
       });
 
-      // 自動抽文 / 轉文字 — fire-and-forget，請求立刻 return 給前端。
-      // 前端透過 `get` 輪詢 transcriptionStatus 看完成沒有。
+      // 自動抽文 / 轉文字 — 排進 backgroundJobs queue，由 worker 撿起來跑。
+      // process 重啟也不會丟（不像原本 setImmediate fire-and-forget）。
       if (needsIngestion) {
-        setImmediate(() => {
-          scheduleTeachingIngestion(id).catch(err => {
-            console.error(
-              `[teachingArchive] auto-ingest failed for ${id}:`,
-              err
-            );
-          });
+        enqueueTeachingIngestion(id, ctx.user.id).catch(err => {
+          console.error(
+            `[teachingArchive] enqueue ingestion failed for ${id}:`,
+            err
+          );
         });
       }
 
@@ -252,18 +297,11 @@ export const teachingArchiveRouter = router({
     .mutation(async ({ ctx, input }) => {
       await loadMaterialForWrite(input.id, { userId: ctx.user.id });
       logAccess(input.id, ctx.user.id, "reingest");
-      setImmediate(() => {
-        scheduleTeachingIngestion(input.id).catch(err => {
-          console.error(
-            `[teachingArchive] manual ingest failed for ${input.id}:`,
-            err
-          );
-        });
-      });
-      return { ok: true };
+      const jobId = await enqueueTeachingIngestion(input.id, ctx.user.id);
+      return { ok: true, jobId };
     }),
 
-  /** 更新既有教材（owner 或團隊管理員可改） */
+  /** 更新既有教材（owner / 同隊成員 / 團隊管理員可改） */
   update: protectedProcedure
     .input(
       z.object({
@@ -285,9 +323,25 @@ export const teachingArchiveRouter = router({
         if (!membership) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "你不是目標團隊的成員，不能將教材轉移到此團隊",
+            message: "你不是目標團隊的成員，不能將資料轉移到此團隊",
           });
         }
+      }
+
+      // 跨欄位驗證：visibility 改成 team_shared 卻沒有 teamId（不論 patch
+      // 帶的還是 row 既有的）會建立沒人看得到的記錄。create 那邊已 guard
+      // 過一次，update 因為 patch 是 partial 需要重算最終值。
+      const finalVisibility =
+        input.patch.visibility ?? material.visibility;
+      const finalTeamId =
+        input.patch.teamId !== undefined
+          ? input.patch.teamId
+          : material.teamId;
+      if (finalVisibility === "team_shared" && !finalTeamId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "設定為「團隊共享」時必須指定 teamId",
+        });
       }
 
       const patch: Record<string, unknown> = {};
@@ -330,13 +384,19 @@ export const teachingArchiveRouter = router({
       return db.listTeachingMaterialAccessLogs(input.id, input.limit);
     }),
 
-  /** distinct lineage / topic 給前端做下拉選單 */
+  /**
+   * distinct lineage / topic 給前端做下拉選單。
+   * 跟 list 一樣套 visibility — 否則使用者在「團隊／公開」視野下會看到
+   * 沒辦法被過濾下拉裡的值。
+   */
   lineages: protectedProcedure.query(async ({ ctx }) => {
-    return db.listTeachingMaterialLineages(ctx.user.id);
+    const teamIds = await db.listTeamIdsForUser(ctx.user.id);
+    return db.listTeachingMaterialLineages(ctx.user.id, teamIds);
   }),
 
   topics: protectedProcedure.query(async ({ ctx }) => {
-    return db.listTeachingMaterialTopics(ctx.user.id);
+    const teamIds = await db.listTeamIdsForUser(ctx.user.id);
+    return db.listTeachingMaterialTopics(ctx.user.id, teamIds);
   }),
 
   /**
@@ -364,24 +424,24 @@ export const teachingArchiveRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const teamIds = await db.listTeamIdsForUser(ctx.user.id);
-      const rows = await db.listTeachingMaterialsForUser(
+      // LIMIT 一定要在 SQL 端，否則 search "禪" 之類常見字會把整資料庫的
+      // 逐字稿都拉回來再 slice，浪費頻寬也吃光記憶體。
+      const rows = await db.searchTeachingMaterialsForUser(
         ctx.user.id,
         {
           search: input.query,
           mediaType: input.mediaType,
           lineage: input.lineage,
         },
-        { teamIds }
+        { teamIds, limit: input.limit }
       );
-      const top = rows.slice(0, input.limit);
-      // 寫 search_hit 稽核 — fire-and-forget，不卡回應。每筆命中各一行，
-      // 之後分析 access 統計時可以看「最常被光球引用的開示」等指標。
-      for (const row of top) {
+      // 寫 search_hit 稽核 — fire-and-forget，不卡回應。
+      for (const row of rows) {
         logAccess(row.id, ctx.user.id, "search_hit", {
           query: input.query,
         });
       }
-      return top.map(row => ({
+      return rows.map(row => ({
         id: row.id,
         title: row.title,
         mediaType: row.mediaType,
@@ -404,6 +464,8 @@ export const teachingArchiveRouter = router({
 /**
  * 抓出 query 在 title / description / textContent 命中位置前後的小段，給
  * AI 助理一個可以直接引用的句子。沒命中就回 textContent 開頭。
+ * Title 也納入 haystack — SQL 已用 title LIKE 過濾，命中標題的 row
+ * 之前會掉到 description fallback 拿不到的雜訊；先掃 title 讓引言準確。
  */
 function buildSnippet(
   query: string,
@@ -412,7 +474,7 @@ function buildSnippet(
   textContent: string | null
 ): string {
   const SNIPPET_RADIUS = 80;
-  const haystacks: string[] = [];
+  const haystacks: string[] = [title];
   if (description) haystacks.push(description);
   if (textContent) haystacks.push(textContent);
   const lowerQuery = query.toLowerCase();

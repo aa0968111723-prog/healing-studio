@@ -12,10 +12,10 @@
 --   • extra indexes on `(teamId, visibility)` and `visibility` to keep the
 --     read-path queries fast as the team pool grows.
 --
--- All FK relations are `ON DELETE CASCADE` for memberships+logs (team gone
--- ⇒ its memberships + audit entries gone) but `ON DELETE SET NULL` for
--- materials — deleting a team should NOT delete the underlying materials;
--- they fall back to the uploader's personal pool.
+-- FK constraints 留到 0054 一次處理（避免 ALTER TABLE ADD FK 在同一個
+-- migration 內 reference 還沒被 INSERT 過的列；CI 跑 fresh migrate 順序
+-- 比較好顧）。0054 會補上 ownerId / userId / teamId / materialId 的 FK
+-- 與 ON DELETE 行為（CASCADE / RESTRICT / SET NULL）。
 
 CREATE TABLE IF NOT EXISTS `teams` (
   `id` int NOT NULL AUTO_INCREMENT,

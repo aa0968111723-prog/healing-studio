@@ -144,7 +144,7 @@ describe("loadMaterialForWrite", () => {
     expect(result.material.userId).toBe(100);
   });
 
-  it("forbids regular team member from writing team_shared material", async () => {
+  it("allows regular team member to write team_shared material (design choice)", async () => {
     db.__setMaterial(
       makeMaterial({
         id: 1,
@@ -154,9 +154,9 @@ describe("loadMaterialForWrite", () => {
       })
     );
     db.__setMembership(7, 200, "member");
-    await expect(
-      loadMaterialForWrite(1, { userId: 200 })
-    ).rejects.toThrow(/權限/);
+    const result = await loadMaterialForWrite(1, { userId: 200 });
+    expect(result.viaTeamId).toBe(7);
+    expect(result.membership?.role).toBe("member");
   });
 
   it("allows team admin to write team_shared material", async () => {
@@ -173,12 +173,42 @@ describe("loadMaterialForWrite", () => {
     expect(result.viaTeamId).toBe(7);
   });
 
+  it("forbids non-member from writing team_shared material", async () => {
+    db.__setMaterial(
+      makeMaterial({
+        id: 1,
+        userId: 100,
+        teamId: 7,
+        visibility: "team_shared",
+      })
+    );
+    // no membership for user 999
+    await expect(
+      loadMaterialForWrite(1, { userId: 999 })
+    ).rejects.toThrow(/權限/);
+  });
+
   it("forbids public_disciples write by stranger (only owner / team admins can)", async () => {
     db.__setMaterial(
       makeMaterial({ id: 1, userId: 100, visibility: "public_disciples" })
     );
     await expect(
       loadMaterialForWrite(1, { userId: 999 })
+    ).rejects.toThrow(/權限/);
+  });
+
+  it("forbids member from writing public_disciples material even if in team (only admins can)", async () => {
+    db.__setMaterial(
+      makeMaterial({
+        id: 1,
+        userId: 100,
+        teamId: 7,
+        visibility: "public_disciples",
+      })
+    );
+    db.__setMembership(7, 200, "member");
+    await expect(
+      loadMaterialForWrite(1, { userId: 200 })
     ).rejects.toThrow(/權限/);
   });
 });
