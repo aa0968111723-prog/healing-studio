@@ -74,8 +74,13 @@ export interface OrbArcStateInput {
   prefilled?: ConversationDimensionSignals;
 }
 
+// Match an acknowledgement verb anywhere in the opening of the assistant
+// reply. Sentence-anchored variants ("了解，這是…", "我聽到這是…") all collapse
+// to the same set of verbs. We slice the reply to the first 120 chars at
+// the call site so a verb later in the body (e.g. "你說的我了解了") doesn't
+// fire a false-positive ack.
 const TOPIC_ACK_HINTS_RE =
-  /我理解(?:這|你想|你說|的是)|聽起來(?:你想|是要|這是)|看起來(?:是|你想|這是)|i\s+(?:understand|see|hear)\b/i;
+  /(?:我)?(?:理解|聽到|聽起來|聽得出|看起來|看得出|了解|明白|懂了)|got\s+it|i\s+(?:understand|see|hear)\b/i;
 
 function extractText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -114,8 +119,12 @@ export function deriveOrbArcState(input: OrbArcStateInput): OrbArcState {
     input.remembered,
     input.prefilled
   );
+  // Restrict the ack scan to the opening of the assistant reply so a verb
+  // that legitimately appears later in the body ("你說的部分我都了解了")
+  // doesn't masquerade as a topic acknowledgement.
   const topicAcknowledged =
-    input.hasContextBlock && TOPIC_ACK_HINTS_RE.test(latestAssistantBody);
+    input.hasContextBlock &&
+    TOPIC_ACK_HINTS_RE.test(latestAssistantBody.slice(0, 120));
   const purposeAnswered = Boolean(sig.hasPurpose);
   const modalityBundleAnswered = Boolean(sig.hasModalityBundle);
   const dimensions = {

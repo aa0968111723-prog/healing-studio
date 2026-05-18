@@ -7378,15 +7378,45 @@ export const appRouter = router({
               // ahead or re-ask dimensions on every turn.
               // Image / audio / lora / research / unknown skip the block;
               // their flows don't benefit from the arc.
-              const arcModality = inferModalityFromText(latestUserTextForRouting);
+              // Infer modality from the WHOLE conversation, not just the
+              // latest message. A wizard answer like "30 秒" or "招生宣傳"
+              // doesn't carry modality keywords on its own, so reading only
+              // the latest message would flip arcModality to "unknown" and
+              // silently drop the arc mid-conversation. Concatenating all
+              // user turns preserves the original "影片 / video / 短片"
+              // signal until the user explicitly switches topic.
+              const aggregatedUserTextForArc = input.messages
+                .filter(m => m.role === "user")
+                .map(m => {
+                  if (typeof m.content === "string") return m.content;
+                  if (!Array.isArray(m.content)) return "";
+                  return m.content
+                    .filter((part): part is { type: "text"; text: string } =>
+                      part.type === "text"
+                    )
+                    .map(part => part.text)
+                    .join(" ");
+                })
+                .filter(Boolean)
+                .join(" ");
+              const arcModality = inferModalityFromText(
+                aggregatedUserTextForArc || latestUserTextForRouting
+              );
+              // Filter to the three roles deriveOrbArcState understands.
+              // The orb chat schema also carries tool / function frames
+              // in advanced cases; without the filter their content shape
+              // would leak into extractText and corrupt gate detection.
+              const arcMessages = input.messages
+                .filter(m => m.role === "user" || m.role === "assistant" || m.role === "system")
+                .map(m => ({
+                  role: m.role as "user" | "assistant" | "system",
+                  content: m.content,
+                }));
               const arcStateBlock =
                 arcModality === "video" || arcModality === "script"
                   ? serializeArcStateForPrompt(
                       deriveOrbArcState({
-                        messages: input.messages.map(m => ({
-                          role: m.role as "user" | "assistant" | "system",
-                          content: m.content,
-                        })),
+                        messages: arcMessages,
                         modality: arcModality,
                         hasContextBlock: Boolean(contextLookupResearch?.promptBlock),
                       })

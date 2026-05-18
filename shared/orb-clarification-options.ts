@@ -552,12 +552,18 @@ const PURPOSE_HINT_RE =
 /**
  * Modality-bundle hints: the user signalled which OUTPUT BUNDLE they need
  * (just video, or also poster/BGM/voice). Match both explicit additive
- * phrasing ("影片+海報", "也要配樂") and exclusive phrasing ("只要影片",
- * "純影片就好"). The 6-step brainstorming arc uses this to skip the
- * dedicated modalityBundle ask when the user already named their bundle.
+ * phrasing ("影片+海報", "影片跟海報", "影片加配樂", "也要配樂") and
+ * exclusive phrasing ("只要影片", "純影片就好"). The 6-step brainstorming
+ * arc uses this to skip the dedicated modalityBundle ask when the user
+ * already named their bundle.
+ *
+ * Connector set covers both punctuation (+ ＋ 、) and CJK conjunctions
+ * (和 與 跟 加 以及). Bare 「跟」 alone is too noisy ("影片跟我說")
+ * so we anchor it via the next-clause requirement on a real bundle noun
+ * within 4 chars — keeps recall up without flooding false positives.
  */
 const MODALITY_BUNDLE_HINT_RE =
-  /(?:影片|短片|video|reel).{0,4}[+＋、和與]\s*(?:海報|封面|poster|配樂|bgm|music|配音|旁白|voice)|(?:海報|配樂|bgm|配音|旁白).{0,4}[+＋、和與]\s*(?:影片|短片|video)|只要影片|純影片|只做影片|video\s*only|還要(?:海報|配樂|配音|旁白)|順便(?:加|做)?(?:海報|配樂|配音|旁白)|加上?(?:海報|配樂|配音|旁白)|包含(?:海報|配樂|配音|旁白)|要(?:海報|配樂|配音|旁白)|need (?:poster|bgm|music|voice|narration)/i;
+  /(?:影片|短片|video|reel).{0,4}(?:[+＋、]|和|與|跟|加上?|以及)\s*(?:海報|封面|poster|配樂|bgm|music|配音|旁白|voice)|(?:海報|封面|配樂|bgm|配音|旁白).{0,4}(?:[+＋、]|和|與|跟|加上?|以及)\s*(?:影片|短片|video)|只要(?:影片|腳本)|純(?:影片|腳本)|只做(?:影片|腳本)|(?:video|script)\s*only|還要(?:海報|封面|配樂|配音|旁白)|順便(?:加|做)?(?:海報|封面|配樂|配音|旁白)|加上?(?:海報|封面|配樂|配音|旁白)|包含(?:海報|封面|配樂|配音|旁白)|需要(?:海報|封面|配樂|配音|旁白)|need (?:poster|bgm|music|voice|narration)/i;
 
 export function inferConversationDimensions(
   text: string,
