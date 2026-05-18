@@ -29,6 +29,26 @@ const ALLOWED_MIME_TYPES = new Set([
   "video/quicktime",
   // Documents
   "application/pdf",
+  // Office / text documents — used by the teaching-archive feature for
+  // class slides and discourse transcripts. Treated as the `document`
+  // kind below; storage-backed like every other upload.
+  "application/msword", // .doc
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.ms-powerpoint", // .ppt
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+  "text/plain", // .txt
+  "text/markdown", // .md
+  "application/rtf", // .rtf
+]);
+
+const DOCUMENT_MIME_TYPES = new Set([
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/markdown",
+  "application/rtf",
 ]);
 
 // ── Size policy (Issue #178) ───────────────────────────────────────────────
@@ -39,6 +59,7 @@ const PER_KIND_MAX_BYTES = {
   audio: 20 * 1024 * 1024, // 20 MB
   video: 40 * 1024 * 1024, // 40 MB
   pdf: 12 * 1024 * 1024, // 12 MB
+  document: 25 * 1024 * 1024, // 25 MB — PPT/DOC/TXT/MD for teaching archive
 } as const;
 
 const ABSOLUTE_MAX_BYTES = 40 * 1024 * 1024; // hard ceiling for any kind
@@ -55,14 +76,16 @@ const INLINE_BASE64_THRESHOLD = 1 * 1024 * 1024; // 1 MB
 // 1.33× JSON inflation hurts request latency for no benefit.
 const STORAGE_ONLY_KIND_PREFIXES = ["video/", "audio/"];
 
-type FileKind = "image" | "audio" | "video" | "pdf";
+type FileKind = "image" | "audio" | "video" | "pdf" | "document";
 
 function inferKind(mimeType: string): FileKind {
   const lower = mimeType.toLowerCase();
   if (lower.startsWith("image/")) return "image";
   if (lower.startsWith("audio/")) return "audio";
   if (lower.startsWith("video/")) return "video";
-  return "pdf"; // application/pdf is the only remaining allowed family
+  if (lower === "application/pdf") return "pdf";
+  if (DOCUMENT_MIME_TYPES.has(lower)) return "document";
+  return "pdf"; // legacy fallback — preserves existing behaviour for anything that slipped past the allowlist
 }
 
 export interface UploadResponseBody {

@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, lt } from "drizzle-orm";
+import { eq, desc, and, or, sql, lt, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
@@ -50,6 +50,18 @@ import {
   worldbuildingFrameworks,
   InsertWorldbuildingFramework,
   WorldbuildingFramework,
+  teachingMaterials,
+  InsertTeachingMaterial,
+  TeachingMaterial,
+  teams,
+  InsertTeam,
+  Team,
+  teamMemberships,
+  InsertTeamMembership,
+  TeamMembership,
+  teachingMaterialAccessLog,
+  InsertTeachingMaterialAccessLog,
+  TeachingMaterialAccessLog,
   modelWishes,
   InsertModelWish,
   modelWishVotes,
@@ -363,6 +375,22 @@ export async function getUserByOpenId(openId: string) {
     .where(eq(users.openId, openId))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUsersByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      avatarUrl: users.avatarUrl,
+      role: users.role,
+    })
+    .from(users)
+    .where(inArray(users.id, ids));
 }
 
 export async function getAllUsers() {
@@ -2606,4 +2634,462 @@ export async function clearOrbFeedbackEvents(
   if (filters?.beforeAt) conditions.push(lt(orbFeedbackEvents.createdAt, filters.beforeAt));
   const result = await db.delete(orbFeedbackEvents).where(and(...conditions));
   return Number(result[0].affectedRows ?? 0);
+}
+
+// ─── Teaching Materials (法脈傳承教材庫) ─────────────────────────────────────
+
+export type TeachingMaterialListFilters = {
+  mediaType?: TeachingMaterial["mediaType"];
+  sourceType?: TeachingMaterial["sourceType"];
+  lineage?: string;
+  topic?: string;
+  search?: string;
+};
+
+export async function createTeachingMaterial(
+  data: InsertTeachingMaterial
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teachingMaterials).values(data);
+  return result[0].insertId;
+}
+
+export async function getTeachingMaterial(
+  id: number
+): Promise<TeachingMaterial | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(teachingMaterials)
+    .where(eq(teachingMaterials.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * 列出 user 看得到的所有教材，套上「擁有 / 團隊共享 / 全 workspace 公開」的
+ * 三層 visibility 規則：
+ *
+ *   1. 自己 (userId === currentUserId) — 不分 visibility 都看得到
+ *   2. team_shared 且 teamId 是自己有 membership 的團隊
+ *   3. public_disciples — 任何已登入使用者都看得到（admin 也走這條）
+ *
+ * filters.scope 可以選擇只看「我的 / 某團隊 / 全部」三種視圖，但 server 端
+ * 永遠不會放寬到沒有授權的素材；scope 只是 narrow，不能 widen。
+ */
+/**
+ * 給卡片列表 / 搜尋用的精簡欄位 — 不含 textContent（可能是 MB 等級的長字串），
+ * 不含描述全文（前端只顯示前兩行 line-clamp，不需要完整 description 送過來
+ * 也行，但這裡保留方便細項過濾顯示）。
+ *
+ * 跟 TeachingMaterial 主型別保持結構相容，避免前端兩套 type 並存。
+ */
+export type TeachingMaterialSummary = Omit<
+  TeachingMaterial,
+  "textContent" | "fileKey"
+>;
+
+const TEACHING_MATERIAL_SUMMARY_COLUMNS = {
+  id: teachingMaterials.id,
+  userId: teachingMaterials.userId,
+  teamId: teachingMaterials.teamId,
+  title: teachingMaterials.title,
+  description: teachingMaterials.description,
+  mediaType: teachingMaterials.mediaType,
+  fileUrl: teachingMaterials.fileUrl,
+  fileName: teachingMaterials.fileName,
+  mimeType: teachingMaterials.mimeType,
+  fileSizeBytes: teachingMaterials.fileSizeBytes,
+  thumbnailUrl: teachingMaterials.thumbnailUrl,
+  durationSeconds: teachingMaterials.durationSeconds,
+  pageCount: teachingMaterials.pageCount,
+  transcriptionStatus: teachingMaterials.transcriptionStatus,
+  lineage: teachingMaterials.lineage,
+  sourceType: teachingMaterials.sourceType,
+  sourceDate: teachingMaterials.sourceDate,
+  sourceLocation: teachingMaterials.sourceLocation,
+  topic: teachingMaterials.topic,
+  speaker: teachingMaterials.speaker,
+  tags: teachingMaterials.tags,
+  visibility: teachingMaterials.visibility,
+  isFeatured: teachingMaterials.isFeatured,
+  sortOrder: teachingMaterials.sortOrder,
+  createdAt: teachingMaterials.createdAt,
+  updatedAt: teachingMaterials.updatedAt,
+} as const;
+
+export async function listTeachingMaterialsForUser(
+  userId: number,
+  filters: TeachingMaterialListFilters = {},
+  scope: {
+    teamIds?: number[];
+    only?: "mine" | "team" | "public";
+    limit?: number;
+  } = {}
+): Promise<TeachingMaterialSummary[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const myTeamIds = scope.teamIds ?? [];
+
+  // ── 組 visibility OR 子句 ────────────────────────────────────────────
+  const visibilityClauses = [];
+  if (scope.only === undefined || scope.only === "mine") {
+    visibilityClauses.push(eq(teachingMaterials.userId, userId));
+  }
+  if ((scope.only === undefined || scope.only === "team") && myTeamIds.length > 0) {
+    visibilityClauses.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, myTeamIds)
+      )!
+    );
+  }
+  if (scope.only === undefined || scope.only === "public") {
+    visibilityClauses.push(
+      eq(teachingMaterials.visibility, "public_disciples")
+    );
+  }
+  if (visibilityClauses.length === 0) {
+    // 例如 scope="team" 但 user 沒有任何 team membership — 一定空集合
+    return [];
+  }
+
+  const visibilityOr =
+    visibilityClauses.length === 1 ? visibilityClauses[0] : or(...visibilityClauses)!;
+
+  const conditions = [visibilityOr];
+  if (filters.mediaType) {
+    conditions.push(eq(teachingMaterials.mediaType, filters.mediaType));
+  }
+  if (filters.sourceType) {
+    conditions.push(eq(teachingMaterials.sourceType, filters.sourceType));
+  }
+  if (filters.lineage) {
+    conditions.push(eq(teachingMaterials.lineage, filters.lineage));
+  }
+  if (filters.topic) {
+    conditions.push(eq(teachingMaterials.topic, filters.topic));
+  }
+  if (filters.search) {
+    const like = `%${filters.search}%`;
+    conditions.push(
+      sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
+    );
+  }
+  // Projection：明確列欄位、不抓 textContent / fileKey，避免把整篇逐字稿
+  // 透過 list / search 拉回前端（卡片 UI 用不到，且檔案路徑屬內部 metadata）。
+  const baseQuery = db
+    .select(TEACHING_MATERIAL_SUMMARY_COLUMNS)
+    .from(teachingMaterials)
+    .where(and(...conditions))
+    .orderBy(
+      desc(teachingMaterials.isFeatured),
+      desc(teachingMaterials.sortOrder),
+      desc(teachingMaterials.createdAt)
+    );
+  if (scope.limit !== undefined) {
+    return baseQuery.limit(scope.limit);
+  }
+  return baseQuery;
+}
+
+/**
+ * 給 AI 助理 / search 端點用的「完整 row + 限筆數」版本。跟
+ * listTeachingMaterialsForUser 同樣的 visibility 規則，但保留 textContent
+ * 讓 buildSnippet 能截出引言句。LIMIT 一定要下，否則命中常見字串時可能
+ * 把整個資料庫的逐字稿都拉回來。
+ */
+export async function searchTeachingMaterialsForUser(
+  userId: number,
+  filters: TeachingMaterialListFilters,
+  scope: { teamIds?: number[]; limit: number }
+): Promise<TeachingMaterial[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const myTeamIds = scope.teamIds ?? [];
+  const visibilityClauses = [eq(teachingMaterials.userId, userId)];
+  if (myTeamIds.length > 0) {
+    visibilityClauses.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, myTeamIds)
+      )!
+    );
+  }
+  visibilityClauses.push(eq(teachingMaterials.visibility, "public_disciples"));
+  const visibilityOr = or(...visibilityClauses)!;
+
+  const conditions = [visibilityOr];
+  if (filters.mediaType) {
+    conditions.push(eq(teachingMaterials.mediaType, filters.mediaType));
+  }
+  if (filters.sourceType) {
+    conditions.push(eq(teachingMaterials.sourceType, filters.sourceType));
+  }
+  if (filters.lineage) {
+    conditions.push(eq(teachingMaterials.lineage, filters.lineage));
+  }
+  if (filters.topic) {
+    conditions.push(eq(teachingMaterials.topic, filters.topic));
+  }
+  if (filters.search) {
+    const like = `%${filters.search}%`;
+    conditions.push(
+      sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
+    );
+  }
+
+  return db
+    .select()
+    .from(teachingMaterials)
+    .where(and(...conditions))
+    .orderBy(
+      desc(teachingMaterials.isFeatured),
+      desc(teachingMaterials.sortOrder),
+      desc(teachingMaterials.createdAt)
+    )
+    .limit(scope.limit);
+}
+
+/**
+ * @deprecated 改用 `listTeachingMaterialsForUser`，會自動帶上團隊與
+ * public_disciples 的 visibility 規則。保留是因為現有測試還在引用，
+ * 行為等同於 only=mine。
+ */
+export async function listTeachingMaterialsByUser(
+  userId: number,
+  filters: TeachingMaterialListFilters = {}
+): Promise<TeachingMaterialSummary[]> {
+  return listTeachingMaterialsForUser(userId, filters, { only: "mine" });
+}
+
+export async function updateTeachingMaterial(
+  id: number,
+  data: Partial<InsertTeachingMaterial>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(teachingMaterials)
+    .set(data)
+    .where(eq(teachingMaterials.id, id));
+}
+
+export async function deleteTeachingMaterial(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(teachingMaterials).where(eq(teachingMaterials.id, id));
+}
+
+/** 取得使用者所有教材中出現過的 distinct lineage 值，給前端下拉選單使用。 */
+/**
+ * 共用的 visibility 限制：跟 listTeachingMaterialsForUser 用一樣的條件，
+ * 讓 distinct facets（lineages / topics）跟列表結果集對齊。
+ */
+function visibilityScopedTeachingMaterialsClause(
+  userId: number,
+  teamIds: number[]
+) {
+  const ors = [eq(teachingMaterials.userId, userId)];
+  if (teamIds.length > 0) {
+    ors.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, teamIds)
+      )!
+    );
+  }
+  ors.push(eq(teachingMaterials.visibility, "public_disciples"));
+  return ors.length === 1 ? ors[0] : or(...ors)!;
+}
+
+export async function listTeachingMaterialLineages(
+  userId: number,
+  teamIds: number[] = []
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .selectDistinct({ lineage: teachingMaterials.lineage })
+    .from(teachingMaterials)
+    .where(visibilityScopedTeachingMaterialsClause(userId, teamIds));
+  return rows
+    .map(r => r.lineage)
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .sort();
+}
+
+/** 取得使用者可見的所有教材中出現過的 distinct topic 值，給前端下拉選單使用。 */
+export async function listTeachingMaterialTopics(
+  userId: number,
+  teamIds: number[] = []
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .selectDistinct({ topic: teachingMaterials.topic })
+    .from(teachingMaterials)
+    .where(visibilityScopedTeachingMaterialsClause(userId, teamIds));
+  return rows
+    .map(r => r.topic)
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .sort();
+}
+
+// ─── Teams（0051）─────────────────────────────────────────────────────────
+
+export async function createTeam(data: InsertTeam): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teams).values(data);
+  return result[0].insertId;
+}
+
+export async function getTeam(id: number): Promise<Team | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateTeam(id: number, data: Partial<InsertTeam>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(teams).set(data).where(eq(teams.id, id));
+}
+
+export async function deleteTeam(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  // 順序很重要：先把該團隊的素材 teamId 退回 null（轉成個人素材），再砍 membership，
+  // 最後刪 team row。沒有 FK CASCADE 因為素材要留下來。
+  await db
+    .update(teachingMaterials)
+    .set({ teamId: null, visibility: "private" })
+    .where(eq(teachingMaterials.teamId, id));
+  await db.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
+  await db.delete(teams).where(eq(teams.id, id));
+}
+
+/** 列出 user 加入的所有團隊（含 owner 自己建的）。 */
+export async function listTeamsForUser(
+  userId: number
+): Promise<Array<Team & { role: TeamMembership["role"] }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: teams.id,
+      name: teams.name,
+      description: teams.description,
+      ownerId: teams.ownerId,
+      createdAt: teams.createdAt,
+      updatedAt: teams.updatedAt,
+      role: teamMemberships.role,
+    })
+    .from(teamMemberships)
+    .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
+    .where(eq(teamMemberships.userId, userId))
+    .orderBy(desc(teams.createdAt));
+  return rows;
+}
+
+/** 列出 user 加入的所有 team IDs（給 listTeachingMaterialsForUser 用）。 */
+export async function listTeamIdsForUser(userId: number): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({ teamId: teamMemberships.teamId })
+    .from(teamMemberships)
+    .where(eq(teamMemberships.userId, userId));
+  return rows.map(r => r.teamId);
+}
+
+export async function addTeamMember(
+  data: InsertTeamMembership
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teamMemberships).values(data);
+  return result[0].insertId;
+}
+
+export async function removeTeamMember(teamId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(teamMemberships)
+    .where(
+      and(
+        eq(teamMemberships.teamId, teamId),
+        eq(teamMemberships.userId, userId)
+      )
+    );
+}
+
+export async function getTeamMembership(
+  teamId: number,
+  userId: number
+): Promise<TeamMembership | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(teamMemberships)
+    .where(
+      and(
+        eq(teamMemberships.teamId, teamId),
+        eq(teamMemberships.userId, userId)
+      )
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listTeamMembers(
+  teamId: number
+): Promise<TeamMembership[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(teamMemberships)
+    .where(eq(teamMemberships.teamId, teamId))
+    .orderBy(teamMemberships.joinedAt);
+}
+
+// ─── Teaching material access — audit log ────────────────────────────────
+
+/**
+ * 寫一筆讀取 / 修改的稽核日誌。失敗不會 throw — log 寫不出來不應該擋
+ * 真正的業務邏輯。呼叫端用 `.catch(...)` 或 fire-and-forget 即可。
+ */
+export async function logTeachingMaterialAccess(
+  data: InsertTeachingMaterialAccessLog
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(teachingMaterialAccessLog).values(data);
+  } catch (err) {
+    console.error("[teachingMaterialAccessLog] insert failed:", err);
+  }
+}
+
+export async function listTeachingMaterialAccessLogs(
+  materialId: number,
+  limit = 50
+): Promise<TeachingMaterialAccessLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(teachingMaterialAccessLog)
+    .where(eq(teachingMaterialAccessLog.materialId, materialId))
+    .orderBy(desc(teachingMaterialAccessLog.createdAt))
+    .limit(limit);
 }
