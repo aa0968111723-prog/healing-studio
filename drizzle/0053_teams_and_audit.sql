@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS `teams` (
   PRIMARY KEY (`id`),
   KEY `teams_ownerId_idx` (`ownerId`)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `team_memberships` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -43,12 +44,14 @@ CREATE TABLE IF NOT EXISTS `team_memberships` (
   KEY `tm_userId_idx` (`userId`),
   KEY `tm_teamId_idx` (`teamId`)
 );
+--> statement-breakpoint
 
 ALTER TABLE `teaching_materials`
   ADD COLUMN `teamId` int DEFAULT NULL AFTER `userId`,
   ADD KEY `tm_teamId_visibility_idx` (`teamId`,`visibility`),
   ADD KEY `tm_visibility_idx` (`visibility`),
   ADD KEY `tm_teamId_createdAt_idx` (`teamId`,`createdAt`);
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS `teaching_material_access_log` (
   `id` bigint NOT NULL AUTO_INCREMENT,

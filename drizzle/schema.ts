@@ -3,6 +3,7 @@ import {
   mysqlEnum,
   mysqlTable,
   text,
+  mediumtext,
   timestamp,
   varchar,
   json,
@@ -3203,8 +3204,12 @@ export const teachingMaterials = mysqlTable(
     pageCount: int("pageCount"),
 
     // ── 抽文 / 轉文字（Phase 2 RAG 用）────────────────────────────────────
-    /** OCR / 語音轉文字 / PDF 抽文的結果，給未來的向量檢索使用 */
-    textContent: text("textContent"),
+    /**
+     * OCR / 語音轉文字 / PDF 抽文的結果，給未來的向量檢索使用。
+     * 用 MEDIUMTEXT（~16 MB）而不是 TEXT（64 KB）— 一個小時的逐字稿就會
+     * 超過 64 KB；TEXT 會在 MySQL strict mode 下噴 Data too long。
+     */
+    textContent: mediumtext("textContent"),
     transcriptionStatus: mysqlEnum("transcriptionStatus", [
       "not_applicable",
       "pending",
@@ -3329,8 +3334,12 @@ export const teamMemberships = mysqlTable(
   },
   table => ({
     // 一個使用者在同一個 team 只能有一筆會員紀錄；application 層也會 guard，
-    // DB 這層 UNIQUE 用來防 race condition。
-    teamUserUk: index("tm_teamId_userId_uk").on(table.teamId, table.userId),
+    // DB 這層 UNIQUE 用來防 race condition（drizzle-kit push 也需要這個
+    // 才會生成 UNIQUE KEY，而非普通 index）。
+    teamUserUk: uniqueIndex("tm_teamId_userId_uk").on(
+      table.teamId,
+      table.userId
+    ),
     userIdIdx: index("tm_userId_idx").on(table.userId),
     teamIdIdx: index("tm_teamId_idx").on(table.teamId),
   })

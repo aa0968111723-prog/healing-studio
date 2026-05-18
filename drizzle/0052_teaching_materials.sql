@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `teaching_materials` (
   `durationSeconds` int DEFAULT NULL,
   `pageCount` int DEFAULT NULL,
 
-  `textContent` text DEFAULT NULL,
+  `textContent` mediumtext DEFAULT NULL,
   `transcriptionStatus` enum(
     'not_applicable',
     'pending',
