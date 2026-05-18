@@ -66,6 +66,7 @@ import {
   Milestone,
   Search,
   Package,
+  Globe2,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
@@ -76,6 +77,7 @@ import {
 } from "@/components/ui/collapsible";
 import VisualSoul from "@/components/VisualSoul";
 import { BatchGenerationDialog } from "@/components/director/BatchGenerationDialog";
+import WorldbuildingPanel from "@/components/director/WorldbuildingPanel";
 import {
   PLANNING_DRAFT_KEY,
   PERSONALITIES,
@@ -3942,7 +3944,8 @@ export default function DirectorAI() {
   ): Promise<AgentActionResult> {
       switch (action.type) {
         case "setTab": {
-          if (action.tabId !== "chat" && action.tabId !== "script") {
+          const validTabs = ["chat", "script", "planning", "worldbuilding"];
+          if (!validTabs.includes(action.tabId)) {
             return { ok: false, reason: `unknown tabId: ${action.tabId}` };
           }
           setActiveTab(action.tabId);
@@ -4469,6 +4472,13 @@ export default function DirectorAI() {
                 {planningSession.phases.filter(p => p.status === "completed").length}/{planningSession.phases.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="worldbuilding"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm"
+          >
+            <Globe2 className="w-3.5 h-3.5" />
+            世界觀
           </TabsTrigger>
         </TabsList>
 
@@ -5815,6 +5825,11 @@ export default function DirectorAI() {
               )}
             </div>
           )}
+        </TabsContent>
+
+        {/* ═══ Tab 4: Worldbuilding Mode ═══ */}
+        <TabsContent value="worldbuilding" className="space-y-4 mt-0">
+          <WorldbuildingPanel />
         </TabsContent>
       </Tabs>
 

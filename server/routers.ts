@@ -44,6 +44,7 @@ import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
+import { worldbuildingRouter } from "./routers/worldbuilding";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
@@ -3921,6 +3922,10 @@ export const appRouter = router({
   // ─── Director AI ─────────────────────────────────────────────────────────
 
   director: directorRouter,
+
+  // ─── Worldbuilding Framework（導演 AI 自訂世界觀架構器） ─────────────────
+  // 多角色（主角/配角/反派）+ 多場景（環境、植被、物件）+ 連結 LoRA 訓練中心
+  worldbuilding: worldbuildingRouter,
 
   // ─── Spirit invocation ───────────────────────────────────────────────────
   // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …

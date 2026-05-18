@@ -3037,3 +3037,51 @@ export const orbSystemAlerts = mysqlTable(
 
 export type OrbSystemAlert = typeof orbSystemAlerts.$inferSelect;
 export type InsertOrbSystemAlert = typeof orbSystemAlerts.$inferInsert;
+
+// ─── Worldbuilding Frameworks ─────────────────────────────────────────────
+// 導演 AI 的自訂世界觀架構器：
+//   - 一個 framework 代表一個「世界」，可有多角色（主角/配角/反派）
+//     與多場景（環境、植被、物件、氛圍變化）
+//   - 角色與場景可選擇性 linkedModelIds 對應到 fine_tuned_models（LoRA），
+//     讓導演 AI 在生成圖像/影片時知道要套用哪個訓練模型
+//   - 角色與場景內容以 JSON 儲存，schema 由 shared/worldbuilding-types.ts
+//     定義，避免反覆 ALTER TABLE
+export const worldbuildingFrameworks = mysqlTable(
+  "worldbuilding_frameworks",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    /** 整體世界觀基調（例如：賽博龐克、奇幻、療癒小品） */
+    genre: varchar("genre", { length: 128 }),
+    /** 角色卡陣列 — 結構見 shared/worldbuilding-types WorldCharacter */
+    charactersJson: json("charactersJson")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull(),
+    /** 場景卡陣列 — 結構見 shared/worldbuilding-types WorldScene */
+    scenesJson: json("scenesJson")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull(),
+    /** 全域物件清單（可被多個場景引用） */
+    objectsJson: json("objectsJson").$type<Array<Record<string, unknown>>>(),
+    /** 連結到模型訓練中心的 fine_tuned_models.id 陣列 */
+    linkedModelIds: json("linkedModelIds").$type<number[]>(),
+    tags: json("tags").$type<string[]>(),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("wf_userId_idx").on(table.userId),
+    userIdCreatedAtIdx: index("wf_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+  })
+);
+
+export type WorldbuildingFramework =
+  typeof worldbuildingFrameworks.$inferSelect;
+export type InsertWorldbuildingFramework =
+  typeof worldbuildingFrameworks.$inferInsert;
