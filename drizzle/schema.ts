@@ -3087,3 +3087,74 @@ export type WorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferSelect;
 export type InsertWorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferInsert;
+
+// ─── Model Wishlist（模型許願池）─────────────────────────────────────────
+// 使用者許願希望平台支援的 AI 模型；其他人可投票表示需求。
+//   * modelWishes：許願主體
+//   * modelWishVotes：去重投票，(wishId, userId) 唯一
+export const modelWishes = mysqlTable(
+  "model_wishes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    modelName: varchar("modelName", { length: 191 }).notNull(),
+    provider: varchar("provider", { length: 128 }),
+    modality: mysqlEnum("modality", [
+      "text",
+      "image",
+      "video",
+      "audio",
+      "voice",
+      "3d",
+      "multimodal",
+      "embedding",
+      "other",
+    ])
+      .default("other")
+      .notNull(),
+    reason: text("reason"),
+    referenceUrl: text("referenceUrl"),
+    /** 去正規化的票數計數（同步自 modelWishVotes，避免每次列表 COUNT） */
+    voteCount: int("voteCount").default(0).notNull(),
+    status: mysqlEnum("status", [
+      "pending",
+      "under_review",
+      "planned",
+      "added",
+      "rejected",
+    ])
+      .default("pending")
+      .notNull(),
+    adminNote: text("adminNote"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    statusIdx: index("mw_status_idx").on(table.status),
+    voteCountIdx: index("mw_vote_count_idx").on(table.voteCount),
+    userIdIdx: index("mw_user_idx").on(table.userId),
+  })
+);
+
+export type ModelWish = typeof modelWishes.$inferSelect;
+export type InsertModelWish = typeof modelWishes.$inferInsert;
+
+export const modelWishVotes = mysqlTable(
+  "model_wish_votes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    wishId: int("wishId").notNull(),
+    userId: int("userId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    wishUserUk: uniqueIndex("mw_votes_wish_user_uk").on(
+      table.wishId,
+      table.userId
+    ),
+    userIdx: index("mw_votes_user_idx").on(table.userId),
+  })
+);
+
+export type ModelWishVote = typeof modelWishVotes.$inferSelect;
+export type InsertModelWishVote = typeof modelWishVotes.$inferInsert;

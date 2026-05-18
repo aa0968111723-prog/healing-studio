@@ -50,6 +50,9 @@ import {
   worldbuildingFrameworks,
   InsertWorldbuildingFramework,
   WorldbuildingFramework,
+  modelWishes,
+  InsertModelWish,
+  modelWishVotes,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2324,6 +2327,218 @@ export async function deleteWorldbuildingFramework(id: number) {
   await db
     .delete(worldbuildingFrameworks)
     .where(eq(worldbuildingFrameworks.id, id));
+}
+
+// ─── Model Wishlist（模型許願池）──────────────────────────────────────────
+
+export interface ModelWishListItem {
+  id: number;
+  userId: number;
+  modelName: string;
+  provider: string | null;
+  modality:
+    | "text"
+    | "image"
+    | "video"
+    | "audio"
+    | "voice"
+    | "3d"
+    | "multimodal"
+    | "embedding"
+    | "other";
+  reason: string | null;
+  referenceUrl: string | null;
+  voteCount: number;
+  status: "pending" | "under_review" | "planned" | "added" | "rejected";
+  adminNote: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  /** 顯示用：許願者名稱（從 users 表 join） */
+  userName: string | null;
+  /** 目前查詢使用者是否已投票 */
+  hasVoted: boolean;
+}
+
+export interface ModelWishListOptions {
+  /** 目前查詢者 userId — 用來計算 hasVoted；未登入時傳 null */
+  viewerId: number | null;
+  modality?: string;
+  status?: string;
+  /** 排序：votes（依票數，預設）｜ latest（依建立時間） */
+  sort?: "votes" | "latest";
+  limit?: number;
+}
+
+export async function listModelWishes(
+  options: ModelWishListOptions
+): Promise<ModelWishListItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [] as any[];
+  if (
+    options.modality &&
+    options.modality !== "all" &&
+    options.modality.length > 0
+  ) {
+    conditions.push(eq(modelWishes.modality, options.modality as any));
+  }
+  if (
+    options.status &&
+    options.status !== "all" &&
+    options.status.length > 0
+  ) {
+    conditions.push(eq(modelWishes.status, options.status as any));
+  }
+  const orderClause =
+    options.sort === "latest"
+      ? [desc(modelWishes.createdAt)]
+      : [desc(modelWishes.voteCount), desc(modelWishes.createdAt)];
+
+  const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+
+  const rows = await db
+    .select({
+      id: modelWishes.id,
+      userId: modelWishes.userId,
+      modelName: modelWishes.modelName,
+      provider: modelWishes.provider,
+      modality: modelWishes.modality,
+      reason: modelWishes.reason,
+      referenceUrl: modelWishes.referenceUrl,
+      voteCount: modelWishes.voteCount,
+      status: modelWishes.status,
+      adminNote: modelWishes.adminNote,
+      createdAt: modelWishes.createdAt,
+      updatedAt: modelWishes.updatedAt,
+      userName: users.name,
+    })
+    .from(modelWishes)
+    .leftJoin(users, eq(modelWishes.userId, users.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(...orderClause)
+    .limit(limit);
+
+  if (rows.length === 0) return [];
+
+  // 計算 hasVoted —— 一次查詢取所有當前使用者的投票，不要 N+1
+  let votedSet = new Set<number>();
+  if (options.viewerId != null) {
+    const wishIds = rows.map(r => r.id);
+    const voteRows = await db
+      .select({ wishId: modelWishVotes.wishId })
+      .from(modelWishVotes)
+      .where(
+        and(
+          eq(modelWishVotes.userId, options.viewerId),
+          sql`${modelWishVotes.wishId} IN (${sql.join(
+            wishIds.map(id => sql`${id}`),
+            sql`, `
+          )})`
+        )
+      );
+    votedSet = new Set(voteRows.map(v => v.wishId));
+  }
+
+  return rows.map(r => ({
+    ...r,
+    hasVoted: votedSet.has(r.id),
+  })) as ModelWishListItem[];
+}
+
+export async function createModelWish(data: InsertModelWish): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(modelWishes).values(data);
+  return result[0].insertId;
+}
+
+export async function getModelWishById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(modelWishes)
+    .where(eq(modelWishes.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function deleteModelWish(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(modelWishVotes).where(eq(modelWishVotes.wishId, id));
+  await db.delete(modelWishes).where(eq(modelWishes.id, id));
+}
+
+export async function updateModelWishStatus(
+  id: number,
+  status: "pending" | "under_review" | "planned" | "added" | "rejected",
+  adminNote?: string | null
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(modelWishes)
+    .set({
+      status,
+      ...(adminNote !== undefined ? { adminNote } : {}),
+    })
+    .where(eq(modelWishes.id, id));
+}
+
+/**
+ * 投票（idempotent）：若使用者已投過票則不變；同時同步更新 voteCount。
+ * 回傳 { voted: true, voteCount } 表示動作後狀態。
+ */
+export async function voteModelWish(
+  wishId: number,
+  userId: number
+): Promise<{ voted: boolean; voteCount: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    await db.insert(modelWishVotes).values({ wishId, userId });
+    // 票數 +1
+    await db
+      .update(modelWishes)
+      .set({ voteCount: sql`${modelWishes.voteCount} + 1` })
+      .where(eq(modelWishes.id, wishId));
+  } catch (e: any) {
+    // ER_DUP_ENTRY — 已投過票，視為成功（idempotent）
+    if (!String(e?.code ?? "").includes("ER_DUP_ENTRY")) {
+      throw e;
+    }
+  }
+  const refreshed = await getModelWishById(wishId);
+  return { voted: true, voteCount: refreshed?.voteCount ?? 0 };
+}
+
+export async function unvoteModelWish(
+  wishId: number,
+  userId: number
+): Promise<{ voted: boolean; voteCount: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .delete(modelWishVotes)
+    .where(
+      and(
+        eq(modelWishVotes.wishId, wishId),
+        eq(modelWishVotes.userId, userId)
+      )
+    );
+  const removed = Number(result[0]?.affectedRows ?? 0);
+  if (removed > 0) {
+    // voteCount - 1，但不允許掉到負數
+    await db
+      .update(modelWishes)
+      .set({
+        voteCount: sql`GREATEST(${modelWishes.voteCount} - 1, 0)`,
+      })
+      .where(eq(modelWishes.id, wishId));
+  }
+  const refreshed = await getModelWishById(wishId);
+  return { voted: false, voteCount: refreshed?.voteCount ?? 0 };
 }
 
 /** 依條件批次刪除光球記憶（支援 pageId/actionType/beforeAt 過濾） */
