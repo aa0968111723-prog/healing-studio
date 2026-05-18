@@ -47,6 +47,7 @@ import {
   CircleDot,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import { formatTwd } from "@shared/currency";
 import { motion } from "framer-motion";
 import { Link, useLocation, useSearch } from "wouter";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
@@ -1190,36 +1191,95 @@ export default function AdminPage() {
                 </GlassCard>
               ))}
             </div>
-          ) : !costQuery.data || costQuery.data.length === 0 ? (
+          ) : !costQuery.data || costQuery.data.rows.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">
               沒有成本資料
             </p>
           ) : (
-            costQuery.data.map(item => {
-              const u = usersQuery.data?.find(u => u.id === item.userId);
-              const displayName =
-                u?.name || u?.email || `使用者 #${item.userId}`;
-              const displaySub =
-                u?.email && u?.name ? u.email : `ID: ${item.userId}`;
-              return (
-                <GlassCard key={item.userId}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {displayName}
-                      </p>
-                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-                        {displaySub} | {item.totalRequests} 次請求 |{" "}
-                        {item.totalTokens} tokens
-                      </p>
-                    </div>
-                    <p className="hs-h3-lg !mb-0 shrink-0">
-                      ${parseFloat(String(item.totalCost)).toFixed(3)}
+            <>
+              {/* 團隊總額卡 — 三個尺度同時看到：積分、USD、TWD */}
+              <GlassCard hover={false}>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      團隊總積分
+                    </p>
+                    <p className="hs-h3-lg !mb-0 mt-0.5 tabular-nums">
+                      {costQuery.data.totals.credits.toLocaleString("zh-TW")}{" "}
+                      pts
                     </p>
                   </div>
-                </GlassCard>
-              );
-            })
+                  <div>
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      USD 成本
+                    </p>
+                    <p className="hs-h3-lg !mb-0 mt-0.5 tabular-nums">
+                      ${costQuery.data.totals.usd.toFixed(3)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      新台幣 (匯率 {costQuery.data.usdToTwdRate.toFixed(2)})
+                    </p>
+                    <p className="hs-h3-lg !mb-0 mt-0.5 tabular-nums">
+                      {formatTwd(costQuery.data.totals.twd)}
+                    </p>
+                  </div>
+                </div>
+                <p className="hs-small !mb-0 text-muted-foreground mt-2">
+                  {costQuery.data.totals.requests} 次請求 ·{" "}
+                  {costQuery.data.totals.tokens.toLocaleString("zh-TW")} tokens
+                </p>
+              </GlassCard>
+
+              {/* 每位成員的積分成本分配 */}
+              {costQuery.data.rows.map(item => {
+                const u = usersQuery.data?.find(u => u.id === item.userId);
+                const displayName =
+                  u?.name || u?.email || `使用者 #${item.userId}`;
+                const displaySub =
+                  u?.email && u?.name ? u.email : `ID: ${item.userId}`;
+                const sharePct = item.creditsSharePct;
+                return (
+                  <GlassCard key={item.userId}>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-sm font-medium truncate">
+                            {displayName}
+                          </p>
+                          <span className="hs-small !mb-0 text-muted-foreground tabular-nums">
+                            {sharePct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+                          {displaySub} | {item.totalRequests} 次請求 |{" "}
+                          {item.totalTokens} tokens
+                        </p>
+                        {/* 積分佔比視覺條 — 一眼看出誰最燒 */}
+                        <div className="w-full h-1 mt-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{
+                              width: `${Math.min(100, Math.max(0, sharePct))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 tabular-nums">
+                        <p className="hs-h3-lg !mb-0">
+                          {item.totalCredits.toLocaleString("zh-TW")} pts
+                        </p>
+                        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+                          ${item.usdCost.toFixed(3)} ·{" "}
+                          {formatTwd(item.twdCost)}
+                        </p>
+                      </div>
+                    </div>
+                  </GlassCard>
+                );
+              })}
+            </>
           )}
         </TabsContent>
 

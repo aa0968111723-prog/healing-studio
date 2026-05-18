@@ -1456,6 +1456,9 @@ export async function getTeamCostSummary() {
       totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
       totalRequests: sql<number>`COUNT(*)`,
       totalTokens: sql<number>`COALESCE(SUM(${apiUsageLogs.tokensUsed}), 0)`,
+      // 站內公定積分 — 直接從寫帳時 deduct 的點數加總，比 USD × 100 推估更
+      // 貼近真實扣帳（因為 generationsDeducted 可能套過最低/封頂 clamp）。
+      totalCredits: sql<number>`COALESCE(SUM(${apiUsageLogs.generationsDeducted}), 0)`,
     })
     .from(apiUsageLogs)
     .groupBy(apiUsageLogs.userId);

@@ -1,4 +1,9 @@
 import { COOKIE_NAME } from "@shared/const";
+import {
+  parseUsdToTwdRate,
+  safeSharePct,
+  usdToTwd,
+} from "@shared/currency";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
@@ -9139,7 +9144,48 @@ export const appRouter = router({
       }),
 
     teamCostSummary: adminProcedure.query(async () => {
-      return db.getTeamCostSummary();
+      const rows = await db.getTeamCostSummary();
+      const rate = parseUsdToTwdRate(process.env.USD_TO_TWD_RATE);
+
+      // 把 SQL 字串欄位 → number，並計算每筆 TWD / 真實積分（保留原 totalCost
+      // 給既有讀取者繼續用）；總額 / 佔比在 server 算好，前端只負責顯示。
+      const enriched = rows.map(r => {
+        const usd = parseFloat(String(r.totalCost ?? "0")) || 0;
+        const credits = Number(r.totalCredits ?? 0) || 0;
+        return {
+          userId: r.userId,
+          totalCost: r.totalCost,
+          totalRequests: Number(r.totalRequests ?? 0) || 0,
+          totalTokens: Number(r.totalTokens ?? 0) || 0,
+          totalCredits: credits,
+          usdCost: usd,
+          twdCost: usdToTwd(usd, rate),
+        };
+      });
+
+      const totals = enriched.reduce(
+        (acc, r) => {
+          acc.usd += r.usdCost;
+          acc.twd += r.twdCost;
+          acc.credits += r.totalCredits;
+          acc.requests += r.totalRequests;
+          acc.tokens += r.totalTokens;
+          return acc;
+        },
+        { usd: 0, twd: 0, credits: 0, requests: 0, tokens: 0 }
+      );
+
+      const withShare = enriched.map(r => ({
+        ...r,
+        usdSharePct: safeSharePct(r.usdCost, totals.usd),
+        creditsSharePct: safeSharePct(r.totalCredits, totals.credits),
+      }));
+
+      return {
+        rows: withShare,
+        totals,
+        usdToTwdRate: rate,
+      };
     }),
 
     // ── New Admin Endpoints ──────────────────────────────────────────────────
