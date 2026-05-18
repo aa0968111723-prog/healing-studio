@@ -223,8 +223,16 @@ import {
 } from "./services/orbAttachmentExtraction";
 import {
   runOrbWebResearch,
+  runOrbDeepSearch,
   classifyOrbResearchIntent,
 } from "./services/orbWebResearch";
+import { analyzeOrbPromptForContextLookup } from "./services/orbContextLookup";
+import { buildCreativeModelHintsBlock } from "./services/orbCreativeModelHints";
+import {
+  deriveOrbArcState,
+  serializeArcStateForPrompt,
+} from "../shared/orb-arc-state";
+import { inferModalityFromText } from "../shared/orb-clarification-options";
 import {
   doPostGenComplete,
   runPostGenForJob,
@@ -6788,7 +6796,38 @@ export const appRouter = router({
             });
           }
         }
-        const webResearchOutcome = await runOrbWebResearch(
+
+        // ── Proper-noun context lookup ────────────────────────────────────
+        // Before the classifier-based web research fires, ask a fast LLM
+        // whether the user message contains niche proper nouns (school
+        // clubs, local brands, niche events) that warrant a background
+        // lookup — covers the "淡大禪學社" case where the user wants help
+        // brainstorming a video for a subject the planner has no prior on.
+        // Runs in parallel with the existing research call so latency is
+        // bounded by the slower path, not the sum of both.
+        //
+        // Skip when the latest user text is a wizard answer ([使用者澄清/X]:
+        // markers): the analysis re-detects the original proper noun anyway
+        // (which we already searched on turn 1) and the in-memory cache
+        // would dedupe but only when the exact prompt repeats — wizard
+        // answers are different strings, so the cache misses. Cheap regex
+        // guard saves the 4s LLM call on every clarification round.
+        const isFollowupClarificationAnswer = /\[使用者澄清/.test(
+          latestUserTextForRouting
+        );
+        const shouldRunContextLookup =
+          webResearchEnabled &&
+          Boolean(latestUserTextForRouting?.trim()) &&
+          !isFollowupClarificationAnswer;
+        if (shouldRunContextLookup) {
+          emitOrbChatProgress(idempKey, "analyzing_terms", "辨識專有名詞中…");
+        }
+        const contextLookupAnalysisPromise = shouldRunContextLookup
+          ? analyzeOrbPromptForContextLookup(latestUserTextForRouting, {
+              userId: ctx.user.id,
+            })
+          : Promise.resolve(null);
+        const webResearchOutcomePromise = runOrbWebResearch(
           latestUserTextForRouting,
           {
             enabled: webResearchEnabled,
@@ -6804,6 +6843,63 @@ export const appRouter = router({
             userId: ctx.user.id,
           }
         );
+        const [contextLookupAnalysis, webResearchOutcome] = await Promise.all([
+          contextLookupAnalysisPromise,
+          webResearchOutcomePromise,
+        ]);
+
+        // Fire a deep search using the detected proper nouns when the
+        // analysis matched. This is only used when the classifier-based
+        // research did NOT already pick up the topic — we treat it as a
+        // complementary background block (separate header), never as a
+        // replacement.
+        // Telemetry every outcome so we can dashboard hit / miss / cache /
+        // error rates instead of inferring from request volume.
+        if (contextLookupAnalysis) {
+          appendTelemetryEvent(telemetryEvents, "orb.context_lookup.outcome", {
+            reason: contextLookupAnalysis.reason,
+            terms: contextLookupAnalysis.terms,
+            shouldLookup: contextLookupAnalysis.shouldLookup,
+          });
+        } else if (isFollowupClarificationAnswer) {
+          appendTelemetryEvent(telemetryEvents, "orb.context_lookup.outcome", {
+            reason: "skipped:followup_clarification",
+            terms: [],
+            shouldLookup: false,
+          });
+        }
+        let contextLookupResearch: Awaited<ReturnType<typeof runOrbDeepSearch>> | null = null;
+        if (
+          contextLookupAnalysis?.shouldLookup &&
+          contextLookupAnalysis.terms.length > 0
+        ) {
+          appendTelemetryEvent(telemetryEvents, "orb.context_lookup.matched", {
+            terms: contextLookupAnalysis.terms,
+            rationale: contextLookupAnalysis.rationale,
+          });
+          emitOrbChatProgress(
+            idempKey,
+            "researching_web",
+            `搜尋背景：${contextLookupAnalysis.terms.join("、")}`,
+            {
+              intent: "context_lookup",
+              terms: contextLookupAnalysis.terms,
+            }
+          );
+          try {
+            contextLookupResearch = await runOrbDeepSearch(
+              contextLookupAnalysis.terms.join(" "),
+              {
+                userId: ctx.user.id,
+                maxResults: 5,
+                mode: "agent",
+              }
+            );
+          } catch (err) {
+            console.warn("[orb] context-lookup deep search failed:", err);
+            contextLookupResearch = null;
+          }
+        }
         if (webResearchOutcome.reason === "matched" || webResearchOutcome.reason === "matched:explicit_search" || webResearchOutcome.reason === "matched:deep_search") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.hit", {
             results: webResearchOutcome.results.length,
@@ -6813,7 +6909,23 @@ export const appRouter = router({
         } else if (webResearchOutcome.reason === "error") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.error", {});
         }
-        const webResearchPromptBlock = webResearchOutcome.promptBlock ?? "";
+        // Merge: context-lookup block goes FIRST (it primes the planner with
+        // "you saw 淡大禪學社, here's what it is"); classifier-based block
+        // follows. When neither produced a block, this stays empty.
+        const contextLookupPromptBlock =
+          contextLookupResearch?.promptBlock && contextLookupAnalysis
+            ? [
+                `【主題背景研究 / Context Lookup】偵測到使用者提到「${contextLookupAnalysis.terms.join("、")}」— ${contextLookupAnalysis.rationale || "已即時抓取背景"}。`,
+                "請在回覆開頭用 1-2 句中文確認你理解的主題（不要照抄事實/維基條目），再進入下一個澄清問題。",
+                contextLookupResearch.promptBlock,
+              ].join("\n")
+            : "";
+        const webResearchPromptBlock = [
+          contextLookupPromptBlock,
+          webResearchOutcome.promptBlock ?? "",
+        ]
+          .filter(s => s && s.trim().length > 0)
+          .join("\n\n");
         const siteModelUsageRows = await getSiteWideModelUsageSnapshot({
           days: 14,
           limit: 8,
@@ -6828,7 +6940,10 @@ export const appRouter = router({
               "若使用者要『全站哪些模型/功能最適合』，請優先參考以上活躍模型，再結合需求做分段建議。",
             ].join("\n")
           : "";
-        const webResearchSources = webResearchOutcome.results.map(r => ({
+        const webResearchSources = [
+          ...(contextLookupResearch?.results ?? []),
+          ...webResearchOutcome.results,
+        ].map(r => ({
           title: r.title,
           url: r.url,
           source: r.source,
@@ -7259,13 +7374,79 @@ export const appRouter = router({
             });
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {
+              // ── Brainstorming arc state ────────────────────────────────
+              // For creative projects (video / script), derive which of the
+              // 6 arc steps we're at from the conversation so far, and
+              // serialize it into a short prompt block. This gives the
+              // planner a deterministic "you're at step 3, ask modality
+              // bundle next" anchor — the LLM otherwise tends to skip
+              // ahead or re-ask dimensions on every turn.
+              // Image / audio / lora / research / unknown skip the block;
+              // their flows don't benefit from the arc.
+              // Infer modality from the WHOLE conversation, not just the
+              // latest message. A wizard answer like "30 秒" or "招生宣傳"
+              // doesn't carry modality keywords on its own, so reading only
+              // the latest message would flip arcModality to "unknown" and
+              // silently drop the arc mid-conversation. Concatenating all
+              // user turns preserves the original "影片 / video / 短片"
+              // signal until the user explicitly switches topic.
+              const aggregatedUserTextForArc = input.messages
+                .filter(m => m.role === "user")
+                .map(m => {
+                  if (typeof m.content === "string") return m.content;
+                  if (!Array.isArray(m.content)) return "";
+                  return m.content
+                    .filter((part): part is { type: "text"; text: string } =>
+                      part.type === "text"
+                    )
+                    .map(part => part.text)
+                    .join(" ");
+                })
+                .filter(Boolean)
+                .join(" ");
+              const arcModality = inferModalityFromText(
+                aggregatedUserTextForArc || latestUserTextForRouting
+              );
+              // Filter to the three roles deriveOrbArcState understands.
+              // The orb chat schema also carries tool / function frames
+              // in advanced cases; without the filter their content shape
+              // would leak into extractText and corrupt gate detection.
+              const arcMessages = input.messages
+                .filter(m => m.role === "user" || m.role === "assistant" || m.role === "system")
+                .map(m => ({
+                  role: m.role as "user" | "assistant" | "system",
+                  content: m.content,
+                }));
+              const arcStateBlock =
+                arcModality === "video" || arcModality === "script"
+                  ? serializeArcStateForPrompt(
+                      deriveOrbArcState({
+                        messages: arcMessages,
+                        modality: arcModality,
+                        hasContextBlock: Boolean(contextLookupResearch?.promptBlock),
+                      })
+                    )
+                  : "";
+              // ── Creative model hints ───────────────────────────────────
+              // Pin the planner's step-6 recommendation to real catalog
+              // entries (no Veo 17 hallucinations). Static block; could be
+              // cached at module init but it's cheap to rebuild and lets
+              // us evolve the catalog without restart.
+              const creativeModelHintsBlock = buildCreativeModelHintsBlock();
               const plannerContextWithResearch = [
                 input.context,
                 webResearchPromptBlock || undefined,
                 siteModelUsagePromptBlock || undefined,
+                arcStateBlock || undefined,
+                creativeModelHintsBlock || undefined,
               ]
                 .filter((s): s is string => Boolean(s && s.trim()))
                 .join("\n\n");
+              if (arcStateBlock) {
+                appendTelemetryEvent(telemetryEvents, "orb.arc_state.injected", {
+                  modality: arcModality,
+                });
+              }
               // Honour the user's saved `criticEnabled` / `criticRefineBelow`
               // preferences. When critic is enabled, we switch to the
               // critique-aware planner — it runs the regular planner first,

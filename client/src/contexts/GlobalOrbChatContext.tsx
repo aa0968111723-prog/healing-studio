@@ -201,6 +201,7 @@ export interface OrbChatProgressEvent {
     | "guarding_attachments"
     | "extracting_pdf"
     | "selecting_provider"
+    | "analyzing_terms"
     | "researching_web"
     | "planning"
     | "calling_specialist"
@@ -1136,6 +1137,7 @@ const DIMENSION_LABEL: Record<ClarificationDimension, string> = {
   platform: "投放",
   usecase: "用途",
   purpose: "目的",
+  modalityBundle: "產出組合",
   open: "其他",
 };
 

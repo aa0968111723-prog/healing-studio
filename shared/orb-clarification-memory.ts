@@ -25,6 +25,7 @@ export const CLARIFICATION_DIMENSION_SCHEMA = z.enum([
   "platform",
   "usecase",
   "purpose",
+  "modalityBundle",
   "open",
 ]);
 export type ClarificationDimension = z.infer<typeof CLARIFICATION_DIMENSION_SCHEMA>;
@@ -64,6 +65,7 @@ export function dimensionToMetadataKey(
       return "platforms";
     case "purpose":
     case "usecase":
+    case "modalityBundle":
       return "outputs";
     default:
       return null;
