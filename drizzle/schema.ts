@@ -14,6 +14,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 // ─── Users ─────────────────────────────────────────────────────────────────
 export const users = mysqlTable(
@@ -358,6 +359,15 @@ export const digitalAssetLibrary = mysqlTable(
     sourceStudio: varchar("sourceStudio", { length: 32 }),
     modelId: varchar("modelId", { length: 128 }),
     backgroundJobId: int("backgroundJobId"),
+    // 0058: archival / source provenance tracking — sourceUrl 保留原始外部
+    // URL（從第三方匯入時用）、provider 標註資產實際儲存供應商（s3 / r2
+    // / gcs 等），archivedAt / expiresAt 支援冷儲存與保留期管理，
+    // archivalChecksum 存歸檔當下的 sha256 hash，回溯校驗用。
+    sourceUrl: text("sourceUrl"),
+    provider: varchar("provider", { length: 32 }),
+    archivedAt: timestamp("archivedAt"),
+    expiresAt: timestamp("expiresAt"),
+    archivalChecksum: varchar("archivalChecksum", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -378,6 +388,12 @@ export const digitalAssetLibrary = mysqlTable(
     userIdSourceStudioIdx: index("dal_userId_sourceStudio_idx").on(
       table.userId,
       table.sourceStudio
+    ),
+    // 0058: functional index on (archivedAt IS NULL, createdAt) —
+    // 加速「未歸檔資產依建立時間排序」這個熱路徑（資產庫預設視圖）。
+    archivedNullCreatedAtIdx: index("dal_archivedNull_createdAt_idx").on(
+      sql`(\`archivedAt\` IS NULL)`,
+      table.createdAt
     ),
   })
 );
@@ -913,6 +929,15 @@ export const generationHistory = mysqlTable(
     isBookmarked: boolean("isBookmarked").default(false).notNull(),
     costCredits: int("costCredits").default(1).notNull(),
     durationMs: int("durationMs"),
+    // 0058: archival / source provenance tracking — 同 digital_asset_library
+    // 的設計：sourceUrl 紀錄原始外部來源、provider 為實際儲存供應商、
+    // archivedAt / expiresAt 支援冷儲存與保留期、archivalChecksum 為歸檔
+    // 當下的 sha256 hash。
+    sourceUrl: text("sourceUrl"),
+    provider: varchar("provider", { length: 32 }),
+    archivedAt: timestamp("archivedAt"),
+    expiresAt: timestamp("expiresAt"),
+    archivalChecksum: varchar("archivalChecksum", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
@@ -929,6 +954,12 @@ export const generationHistory = mysqlTable(
     userIdBookmarkedIdx: index("gh_userId_isBookmarked_idx").on(
       table.userId,
       table.isBookmarked
+    ),
+    // 0058: functional index on (archivedAt IS NULL, createdAt) —
+    // 加速「未歸檔生成紀錄依建立時間排序」的列表 query。
+    archivedNullCreatedAtIdx: index("gh_archivedNull_createdAt_idx").on(
+      sql`(\`archivedAt\` IS NULL)`,
+      table.createdAt
     ),
   })
 );
