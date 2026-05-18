@@ -50,6 +50,9 @@ import {
   worldbuildingFrameworks,
   InsertWorldbuildingFramework,
   WorldbuildingFramework,
+  teachingMaterials,
+  InsertTeachingMaterial,
+  TeachingMaterial,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -2345,4 +2348,122 @@ export async function clearOrbFeedbackEvents(
   if (filters?.beforeAt) conditions.push(lt(orbFeedbackEvents.createdAt, filters.beforeAt));
   const result = await db.delete(orbFeedbackEvents).where(and(...conditions));
   return Number(result[0].affectedRows ?? 0);
+}
+
+// ─── Teaching Materials (法脈傳承教材庫) ─────────────────────────────────────
+
+export type TeachingMaterialListFilters = {
+  mediaType?: TeachingMaterial["mediaType"];
+  sourceType?: TeachingMaterial["sourceType"];
+  lineage?: string;
+  topic?: string;
+  search?: string;
+};
+
+export async function createTeachingMaterial(
+  data: InsertTeachingMaterial
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teachingMaterials).values(data);
+  return result[0].insertId;
+}
+
+export async function getTeachingMaterial(
+  id: number
+): Promise<TeachingMaterial | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(teachingMaterials)
+    .where(eq(teachingMaterials.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listTeachingMaterialsByUser(
+  userId: number,
+  filters: TeachingMaterialListFilters = {}
+): Promise<TeachingMaterial[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [eq(teachingMaterials.userId, userId)];
+  if (filters.mediaType) {
+    conditions.push(eq(teachingMaterials.mediaType, filters.mediaType));
+  }
+  if (filters.sourceType) {
+    conditions.push(eq(teachingMaterials.sourceType, filters.sourceType));
+  }
+  if (filters.lineage) {
+    conditions.push(eq(teachingMaterials.lineage, filters.lineage));
+  }
+  if (filters.topic) {
+    conditions.push(eq(teachingMaterials.topic, filters.topic));
+  }
+  if (filters.search) {
+    const like = `%${filters.search}%`;
+    conditions.push(
+      sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
+    );
+  }
+  return db
+    .select()
+    .from(teachingMaterials)
+    .where(and(...conditions))
+    .orderBy(
+      desc(teachingMaterials.isFeatured),
+      desc(teachingMaterials.sortOrder),
+      desc(teachingMaterials.createdAt)
+    );
+}
+
+export async function updateTeachingMaterial(
+  id: number,
+  data: Partial<InsertTeachingMaterial>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(teachingMaterials)
+    .set(data)
+    .where(eq(teachingMaterials.id, id));
+}
+
+export async function deleteTeachingMaterial(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(teachingMaterials).where(eq(teachingMaterials.id, id));
+}
+
+/** 取得使用者所有教材中出現過的 distinct lineage 值，給前端下拉選單使用。 */
+export async function listTeachingMaterialLineages(
+  userId: number
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .selectDistinct({ lineage: teachingMaterials.lineage })
+    .from(teachingMaterials)
+    .where(eq(teachingMaterials.userId, userId));
+  return rows
+    .map(r => r.lineage)
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .sort();
+}
+
+/** 取得使用者所有教材中出現過的 distinct topic 值，給前端下拉選單使用。 */
+export async function listTeachingMaterialTopics(
+  userId: number
+): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .selectDistinct({ topic: teachingMaterials.topic })
+    .from(teachingMaterials)
+    .where(eq(teachingMaterials.userId, userId));
+  return rows
+    .map(r => r.topic)
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .sort();
 }

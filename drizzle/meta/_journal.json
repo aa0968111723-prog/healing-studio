@@ -302,6 +302,13 @@
       "when": 1779050000049,
       "tag": "0049_worldbuilding_era",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1779050000050,
+      "tag": "0050_teaching_materials",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,9 @@ describe("uploadRoute size + inline policy (Issue #178)", () => {
       expect(PER_KIND_MAX_BYTES.audio).toBe(20 * 1024 * 1024);
       expect(PER_KIND_MAX_BYTES.video).toBe(40 * 1024 * 1024);
       expect(PER_KIND_MAX_BYTES.pdf).toBe(12 * 1024 * 1024);
+      // Office docs / plain text / markdown — teaching archive PPT slides
+      // can be a few MB plus images, so the ceiling is higher than PDF.
+      expect(PER_KIND_MAX_BYTES.document).toBe(25 * 1024 * 1024);
     });
 
     it("ABSOLUTE_MAX_BYTES is 40 MB", () => {
@@ -73,6 +76,23 @@ describe("uploadRoute size + inline policy (Issue #178)", () => {
 
     it("classifies application/pdf as pdf", () => {
       expect(inferKind("application/pdf")).toBe("pdf");
+    });
+
+    it("classifies office docs / text / markdown as document", () => {
+      expect(inferKind("application/msword")).toBe("document");
+      expect(
+        inferKind(
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+      ).toBe("document");
+      expect(inferKind("application/vnd.ms-powerpoint")).toBe("document");
+      expect(
+        inferKind(
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+      ).toBe("document");
+      expect(inferKind("text/plain")).toBe("document");
+      expect(inferKind("text/markdown")).toBe("document");
     });
   });
 

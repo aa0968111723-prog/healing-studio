@@ -69,6 +69,7 @@ const AccountSettingsPage = lazy(() => import("./pages/AccountSettingsPage"));
 const ProcessViewerPage = lazy(() => import("./pages/ProcessViewerPage"));
 const AgentCodexPage = lazy(() => import("./pages/AgentCodexPage"));
 const SharedSpace = lazy(() => import("./pages/SharedSpace"));
+const TeachingArchive = lazy(() => import("./pages/TeachingArchive"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -307,6 +308,9 @@ function Router() {
       </Route>
       <Route path="/codex">
         <DashboardRoute component={AgentCodexPage} />
+      </Route>
+      <Route path="/teaching-archive">
+        <ProtectedDashboardRoute component={TeachingArchive} />
       </Route>
       <Route path="/forgot-password">
         <Suspense fallback={<PageSkeleton />}>

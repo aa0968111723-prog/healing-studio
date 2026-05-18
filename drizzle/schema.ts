@@ -3087,3 +3087,116 @@ export type WorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferSelect;
 export type InsertWorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferInsert;
+
+// ─── Teaching Materials (法脈傳承教材庫) ─────────────────────────────────────
+// Phase 1 of the training-data feature: stores teacher discourses, lineage
+// materials, group-practice recordings, class slides, photos, etc. Text/audio
+// transcripts populate `textContent` so a later RAG layer (Phase 2) can chunk
+// + embed without reshaping the schema.
+export const teachingMaterials = mysqlTable(
+  "teaching_materials",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+
+    /** 媒體類型 — 決定前端如何渲染（播放器/縮圖/閱讀器） */
+    mediaType: mysqlEnum("mediaType", [
+      "text", // 純文字開示（textContent 為主，無檔案）
+      "pdf", // PDF 開示稿
+      "document", // Word / TXT / Markdown
+      "image", // 法相、活動照片
+      "video", // 開示影片
+      "audio", // 語音、錄音
+      "presentation", // PPT / PPTX
+    ]).notNull(),
+
+    // ── 檔案參照（純文字開示時皆可為 null）───────────────────────────────
+    fileUrl: text("fileUrl"),
+    fileKey: text("fileKey"),
+    fileName: varchar("fileName", { length: 255 }),
+    mimeType: varchar("mimeType", { length: 128 }),
+    fileSizeBytes: int("fileSizeBytes"),
+    thumbnailUrl: text("thumbnailUrl"),
+    /** 音檔/影片時長（秒） */
+    durationSeconds: int("durationSeconds"),
+    /** PDF / PPT 頁數 */
+    pageCount: int("pageCount"),
+
+    // ── 抽文 / 轉文字（Phase 2 RAG 用）────────────────────────────────────
+    /** OCR / 語音轉文字 / PDF 抽文的結果，給未來的向量檢索使用 */
+    textContent: text("textContent"),
+    transcriptionStatus: mysqlEnum("transcriptionStatus", [
+      "not_applicable",
+      "pending",
+      "processing",
+      "completed",
+      "failed",
+    ])
+      .default("not_applicable")
+      .notNull(),
+
+    // ── 法脈分類軸 ───────────────────────────────────────────────────────
+    /** 法脈傳承，例：「悟覺妙天禪師」「印心禪法」 */
+    lineage: varchar("lineage", { length: 128 }),
+    /** 來源類型：開示 / 共修 / 社課 / 法會 / 出版品 / 訪談 / 其他 */
+    sourceType: mysqlEnum("sourceType", [
+      "discourse",
+      "group_practice",
+      "class",
+      "ceremony",
+      "publication",
+      "interview",
+      "other",
+    ])
+      .default("discourse")
+      .notNull(),
+    /** 開示 / 活動日期 */
+    sourceDate: date("sourceDate"),
+    /** 講授地點 */
+    sourceLocation: varchar("sourceLocation", { length: 255 }),
+    /** 主題：禪修方法 / 生活禪 / 企業禪 / 心法 等 */
+    topic: varchar("topic", { length: 128 }),
+    /** 講者 — 預設由前端填入「悟覺妙天禪師」 */
+    speaker: varchar("speaker", { length: 128 }),
+    tags: json("tags").$type<string[]>(),
+
+    // ── 管理 ─────────────────────────────────────────────────────────────
+    visibility: mysqlEnum("visibility", [
+      "private",
+      "team_shared",
+      "public_disciples",
+    ])
+      .default("private")
+      .notNull(),
+    isFeatured: boolean("isFeatured").default(false).notNull(),
+    sortOrder: int("sortOrder").default(0).notNull(),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("tm_userId_idx").on(table.userId),
+    userIdMediaTypeIdx: index("tm_userId_mediaType_idx").on(
+      table.userId,
+      table.mediaType
+    ),
+    userIdSourceTypeIdx: index("tm_userId_sourceType_idx").on(
+      table.userId,
+      table.sourceType
+    ),
+    userIdLineageIdx: index("tm_userId_lineage_idx").on(
+      table.userId,
+      table.lineage
+    ),
+    userIdTopicIdx: index("tm_userId_topic_idx").on(table.userId, table.topic),
+    userIdCreatedAtIdx: index("tm_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+  })
+);
+
+export type TeachingMaterial = typeof teachingMaterials.$inferSelect;
+export type InsertTeachingMaterial = typeof teachingMaterials.$inferInsert;

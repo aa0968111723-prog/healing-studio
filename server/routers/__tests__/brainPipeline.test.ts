@@ -282,6 +282,7 @@ describe("brainPipeline graph builder", () => {
       "orbCapabilities", // 純 capability registry 查詢，不觸發 AI
       "orbConversations", // 對話分頁 CRUD，純資料持久化，不觸發 AI
       "agentModelPicks", // 共用模型選擇紀錄表（director + 光球共寫），純資料持久化，不觸發 AI
+      "teachingArchive", // 法脈傳承教材庫 — Phase 1 純 CRUD（檔案上傳 + 元資料）；Phase 2 才會接 RAG → 屆時再加入 graph
     ]);
 
     const inGraph = new Set(
