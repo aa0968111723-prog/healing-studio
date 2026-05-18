@@ -15,6 +15,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
+import { scheduleTeachingIngestion } from "../services/teachingArchiveIngest";
 
 export const TEACHING_MEDIA_TYPES = [
   "text",
@@ -136,6 +137,11 @@ export const teachingArchiveRouter = router({
     .input(createInputSchema)
     .mutation(async ({ ctx, input }) => {
       assertMediaPayload(input);
+      const needsIngestion =
+        !input.textContent &&
+        (input.mediaType === "pdf" ||
+          input.mediaType === "audio" ||
+          input.mediaType === "video");
       const id = await db.createTeachingMaterial({
         userId: ctx.user.id,
         title: input.title,
@@ -150,9 +156,11 @@ export const teachingArchiveRouter = router({
         durationSeconds: input.durationSeconds,
         pageCount: input.pageCount,
         textContent: input.textContent,
-        // textContent 已存進 DB，等 Phase 2 RAG 才會切片 + embedding；
-        // 上傳當下沒有需要轉文字的工作，標 not_applicable。
-        transcriptionStatus: input.textContent ? "completed" : "not_applicable",
+        transcriptionStatus: input.textContent
+          ? "completed"
+          : needsIngestion
+            ? "pending"
+            : "not_applicable",
         lineage: input.lineage,
         sourceType: input.sourceType,
         // Drizzle MySQL `date()` 欄位要 Date 物件；YYYY-MM-DD 直接 new Date()
@@ -166,7 +174,43 @@ export const teachingArchiveRouter = router({
         isFeatured: input.isFeatured,
         sortOrder: input.sortOrder,
       });
+
+      // 自動抽文 / 轉文字 — fire-and-forget，請求立刻 return 給前端。
+      // 前端透過 `get` 輪詢 transcriptionStatus 看完成沒有。
+      if (needsIngestion) {
+        setImmediate(() => {
+          scheduleTeachingIngestion(id).catch(err => {
+            console.error(
+              `[teachingArchive] auto-ingest failed for ${id}:`,
+              err
+            );
+          });
+        });
+      }
+
       return { id };
+    }),
+
+  /**
+   * 手動重跑內容抽取（PDF 抽文 / 語音轉文字）。
+   * 自動流程失敗時、或之後想重抓更高品質的轉錄時可以呼叫。
+   */
+  triggerIngestion: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await db.getTeachingMaterial(input.id);
+      if (!existing || existing.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      setImmediate(() => {
+        scheduleTeachingIngestion(input.id).catch(err => {
+          console.error(
+            `[teachingArchive] manual ingest failed for ${input.id}:`,
+            err
+          );
+        });
+      });
+      return { ok: true };
     }),
 
   /** 更新既有教材 */
@@ -214,7 +258,86 @@ export const teachingArchiveRouter = router({
   topics: protectedProcedure.query(async ({ ctx }) => {
     return db.listTeachingMaterialTopics(ctx.user.id);
   }),
+
+  /**
+   * search — 給光球 / AI 助理檢索教材庫用。
+   *
+   * Phase 1 是「LIKE 全文搜尋 + 摘要片段」；Phase 2 會升級成向量檢索，介面
+   * 保持不變。回傳挑選過的欄位 + 命中片段（snippet），讓助理可以直接引用：
+   *   ─「依師父在《XX 開示》中的說法：『……』」
+   *
+   * 要讓光球能呼叫，需在 `ORB_TOOL_REGISTRY_JSON` 環境變數加一條：
+   *   { "name": "teachingArchive.search", "description": "搜尋師父開示教材庫",
+   *     "method": "POST", "endpoint": "...", "riskLevel": "low" }
+   * 並把 endpoint 包成 HTTP wrapper（見 server/routers.ts orb proxy）。
+   */
+  search: protectedProcedure
+    .input(
+      z.object({
+        query: z.string().trim().min(1).max(255),
+        limit: z.number().int().min(1).max(20).default(5),
+        mediaType: z
+          .enum(TEACHING_MEDIA_TYPES)
+          .optional(),
+        lineage: z.string().max(128).optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = await db.listTeachingMaterialsByUser(ctx.user.id, {
+        search: input.query,
+        mediaType: input.mediaType,
+        lineage: input.lineage,
+      });
+      const top = rows.slice(0, input.limit);
+      return top.map(row => ({
+        id: row.id,
+        title: row.title,
+        mediaType: row.mediaType,
+        sourceType: row.sourceType,
+        lineage: row.lineage,
+        topic: row.topic,
+        speaker: row.speaker,
+        sourceDate: row.sourceDate,
+        fileUrl: row.fileUrl,
+        snippet: buildSnippet(
+          input.query,
+          row.title,
+          row.description,
+          row.textContent
+        ),
+      }));
+    }),
 });
+
+/**
+ * 抓出 query 在 title / description / textContent 命中位置前後的小段，給
+ * AI 助理一個可以直接引用的句子。沒命中就回 textContent 開頭。
+ */
+function buildSnippet(
+  query: string,
+  title: string,
+  description: string | null,
+  textContent: string | null
+): string {
+  const SNIPPET_RADIUS = 80;
+  const haystacks: string[] = [];
+  if (description) haystacks.push(description);
+  if (textContent) haystacks.push(textContent);
+  const lowerQuery = query.toLowerCase();
+  for (const h of haystacks) {
+    const idx = h.toLowerCase().indexOf(lowerQuery);
+    if (idx >= 0) {
+      const start = Math.max(0, idx - SNIPPET_RADIUS);
+      const end = Math.min(h.length, idx + query.length + SNIPPET_RADIUS);
+      const prefix = start > 0 ? "…" : "";
+      const suffix = end < h.length ? "…" : "";
+      return prefix + h.slice(start, end).replace(/\s+/g, " ").trim() + suffix;
+    }
+  }
+  // 沒命中就回標題；前端可以決定要不要顯示。
+  if (textContent) return textContent.slice(0, 160).replace(/\s+/g, " ") + "…";
+  return title;
+}
 
 export type TeachingArchiveRouter = typeof teachingArchiveRouter;
 

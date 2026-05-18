@@ -10,8 +10,10 @@
 import { describe, expect, it } from "vitest";
 import { TRPCError } from "@trpc/server";
 import { __teachingArchiveInternals } from "../teachingArchive";
+import { __teachingArchiveIngestInternals } from "../../services/teachingArchiveIngest";
 
 const { createInputSchema, assertMediaPayload } = __teachingArchiveInternals;
+const { isIngestable } = __teachingArchiveIngestInternals;
 
 describe("teachingArchive createInputSchema", () => {
   it("accepts a minimal text discourse", () => {
@@ -125,5 +127,20 @@ describe("teachingArchive assertMediaPayload", () => {
       fileUrl: "https://example.com/v.mp4",
     });
     expect(() => assertMediaPayload(parsed)).not.toThrow();
+  });
+});
+
+describe("teachingArchive auto-ingestion gate", () => {
+  it("marks pdf / audio / video as ingestable", () => {
+    expect(isIngestable("pdf")).toBe(true);
+    expect(isIngestable("audio")).toBe(true);
+    expect(isIngestable("video")).toBe(true);
+  });
+
+  it("skips text / image / presentation / document", () => {
+    expect(isIngestable("text")).toBe(false);
+    expect(isIngestable("image")).toBe(false);
+    expect(isIngestable("presentation")).toBe(false);
+    expect(isIngestable("document")).toBe(false);
   });
 });

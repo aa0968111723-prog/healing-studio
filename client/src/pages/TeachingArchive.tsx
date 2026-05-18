@@ -5,17 +5,27 @@
  * 主題」分類，未來會被 Phase 2 的 RAG ingestion 切片並做向量檢索。
  */
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
-import { uploadFileToS3, shortErrorMsg } from "@/lib/upload";
+import {
+  shortErrorMsg,
+  uploadFileToS3WithProgress,
+  detectMediaTypeFromFile,
+  deriveTitleFromFileName,
+  type DetectedMediaType,
+} from "@/lib/upload";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -55,7 +65,14 @@ import {
   Loader2,
   Search,
   Filter,
+  X,
+  GraduationCap,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { nanoid } from "nanoid";
+import { useLocation } from "wouter";
 
 // ─── 常數 — 與 server/routers/teachingArchive.ts 保持同步 ────────────────────
 
@@ -134,6 +151,9 @@ export default function TeachingArchive() {
   }>({});
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [trainOpen, setTrainOpen] = useState(false);
 
   const listQuery = trpc.teachingArchive.list.useQuery(
     {
@@ -143,12 +163,52 @@ export default function TeachingArchive() {
       topic: filters.topic,
       search: filters.search?.trim() || undefined,
     },
-    { staleTime: 5_000 }
+    {
+      staleTime: 5_000,
+      // 有 pending / processing 的列就快速輪詢 — 自動抽文 / 轉文字完成
+      // 後狀態會自動翻新，不用使用者按重新整理。React Query v5 把 Query
+      // 物件傳進來，需要從 .state.data 取資料而不是 callback 的第一個參數。
+      refetchInterval: query => {
+        const list = query.state.data as MaterialItem[] | undefined;
+        if (!list) return false;
+        const hasPending = list.some(
+          row =>
+            row.transcriptionStatus === "pending" ||
+            row.transcriptionStatus === "processing"
+        );
+        return hasPending ? 3_000 : false;
+      },
+    }
   );
   const lineagesQuery = trpc.teachingArchive.lineages.useQuery();
   const topicsQuery = trpc.teachingArchive.topics.useQuery();
 
   const items = listQuery.data ?? [];
+
+  const selectedImageItems = items.filter(
+    i => selectedIds.has(i.id) && i.mediaType === "image" && i.fileUrl
+  );
+
+  const refetchAll = useCallback(() => {
+    listQuery.refetch();
+    lineagesQuery.refetch();
+    topicsQuery.refetch();
+  }, [listQuery, lineagesQuery, topicsQuery]);
+
+  function toggleSelected(id: number, isImage: boolean) {
+    if (!isImage) return; // 訓練只看圖片，非圖片卡片不可選
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }
 
   return (
     <div className="page-shell space-y-6">
@@ -160,7 +220,7 @@ export default function TeachingArchive() {
         </h1>
         <p className="page-subtitle">
           上傳師父開示、共修錄音、社課 PPT、法相照片等素材，依法脈與主題分類保存。
-          未來會接上 RAG 檢索，讓 AI 助理直接引用師父的話回答。
+          PDF 開示自動抽文、語音/影片自動轉文字後，AI 助理就能引用師父原文回答。
         </p>
       </header>
 
@@ -210,10 +270,22 @@ export default function TeachingArchive() {
             清除
           </Button>
         )}
-        <Button onClick={() => setUploadOpen(true)} className="ml-auto">
-          <Plus className="w-4 h-4 mr-1" />
-          新增教材
-        </Button>
+        <div className="flex gap-2 ml-auto">
+          <Button
+            variant={selectionMode ? "default" : "outline"}
+            onClick={() => {
+              if (selectionMode) exitSelectionMode();
+              else setSelectionMode(true);
+            }}
+          >
+            <GraduationCap className="w-4 h-4 mr-1" />
+            {selectionMode ? "結束選取" : "選圖訓練 LoRA"}
+          </Button>
+          <Button onClick={() => setUploadOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" />
+            新增教材
+          </Button>
+        </div>
       </div>
 
       {/* 清單 */}
@@ -230,30 +302,69 @@ export default function TeachingArchive() {
             <MaterialCard
               key={item.id}
               item={item}
-              onClick={() => setDetailId(item.id)}
+              selectionMode={selectionMode}
+              selected={selectedIds.has(item.id)}
+              onToggleSelect={() =>
+                toggleSelected(item.id, item.mediaType === "image")
+              }
+              onClick={() => {
+                if (selectionMode) {
+                  toggleSelected(item.id, item.mediaType === "image");
+                } else {
+                  setDetailId(item.id);
+                }
+              }}
             />
           ))}
+        </div>
+      )}
+
+      {/* 多選浮動 footer：選了圖片就出現 */}
+      {selectionMode && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 rounded-full border bg-card shadow-lg px-5 py-3 flex items-center gap-4">
+          <span className="text-sm">
+            已選 <strong>{selectedImageItems.length}</strong> 張圖片
+            {selectedIds.size > selectedImageItems.length && (
+              <span className="text-muted-foreground">
+                （非圖片素材已忽略）
+              </span>
+            )}
+          </span>
+          <Button
+            size="sm"
+            disabled={selectedImageItems.length < 4}
+            onClick={() => setTrainOpen(true)}
+          >
+            <GraduationCap className="w-4 h-4 mr-1" />
+            訓練 LoRA（需 4 張以上）
+          </Button>
+          <Button size="sm" variant="ghost" onClick={exitSelectionMode}>
+            <X className="w-4 h-4" />
+          </Button>
         </div>
       )}
 
       <UploadDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        onCreated={() => {
-          listQuery.refetch();
-          lineagesQuery.refetch();
-          topicsQuery.refetch();
-        }}
+        onCreated={refetchAll}
       />
 
       {detailId !== null && (
         <DetailDialog
           id={detailId}
           onClose={() => setDetailId(null)}
-          onMutated={() => {
-            listQuery.refetch();
-            lineagesQuery.refetch();
-            topicsQuery.refetch();
+          onMutated={refetchAll}
+        />
+      )}
+
+      {trainOpen && (
+        <TrainLoraDialog
+          imageItems={selectedImageItems}
+          onClose={() => setTrainOpen(false)}
+          onStarted={() => {
+            setTrainOpen(false);
+            exitSelectionMode();
           }}
         />
       )}
@@ -305,17 +416,38 @@ type MaterialItem = inferRouterOutputs<AppRouter>["teachingArchive"]["list"][num
 
 function MaterialCard({
   item,
+  selectionMode,
+  selected,
+  onToggleSelect,
   onClick,
 }: {
   item: MaterialItem;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onClick: () => void;
 }) {
   const Icon = getMediaIcon(item.mediaType);
+  const isImage = item.mediaType === "image";
+  const selectable = selectionMode && isImage;
   return (
     <button
       onClick={onClick}
-      className="text-left rounded-xl border bg-card hover:shadow-md transition-shadow p-4 space-y-2"
+      className={`text-left rounded-xl border bg-card hover:shadow-md transition-shadow p-4 space-y-2 relative ${
+        selected ? "ring-2 ring-primary" : ""
+      } ${selectionMode && !isImage ? "opacity-50" : ""}`}
     >
+      {selectable && (
+        <div
+          className="absolute top-3 right-3 z-10"
+          onClick={e => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+        >
+          <Checkbox checked={selected} />
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <Icon className="w-5 h-5 text-primary shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
@@ -332,6 +464,7 @@ function MaterialCard({
         <Badge variant="outline">{getSourceLabel(item.sourceType)}</Badge>
         {item.lineage && <Badge variant="outline">{item.lineage}</Badge>}
         {item.topic && <Badge variant="outline">{item.topic}</Badge>}
+        <TranscriptionBadge status={item.transcriptionStatus} />
       </div>
       {(item.speaker || item.sourceDate) && (
         <div className="text-xs text-muted-foreground">
@@ -344,7 +477,62 @@ function MaterialCard({
   );
 }
 
-// ─── 子元件：上傳 / 新增 Dialog ────────────────────────────────────────────
+function TranscriptionBadge({
+  status,
+}: {
+  status: MaterialItem["transcriptionStatus"];
+}) {
+  if (status === "not_applicable") return null;
+  if (status === "completed") {
+    return (
+      <Badge variant="outline" className="gap-1">
+        <CheckCircle2 className="w-3 h-3 text-green-600" />
+        已抽文
+      </Badge>
+    );
+  }
+  if (status === "pending" || status === "processing") {
+    return (
+      <Badge variant="outline" className="gap-1">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        {status === "pending" ? "排隊中" : "抽文中"}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="gap-1 text-destructive">
+      <AlertCircle className="w-3 h-3" />
+      抽文失敗
+    </Badge>
+  );
+}
+
+
+// ─── 子元件：上傳 / 新增 Dialog（支援批次 + 拖拉 + 進度 + 連續新增） ────────
+
+type FileEntryStatus =
+  | "queued"
+  | "uploading"
+  | "saving"
+  | "done"
+  | "error";
+
+type FileEntry = {
+  /** 純前端用的本地 id，避免 React 鍵衝突 */
+  uid: string;
+  file: File;
+  detectedMediaType: DetectedMediaType;
+  title: string;
+  progress: number;
+  status: FileEntryStatus;
+  errorMessage?: string;
+  createdRowId?: number;
+};
+
+function isAllSettled(entries: FileEntry[]): boolean {
+  if (entries.length === 0) return false;
+  return entries.every(e => e.status === "done" || e.status === "error");
+}
 
 function UploadDialog({
   open,
@@ -356,12 +544,14 @@ function UploadDialog({
   onCreated: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<"file" | "text">("file");
+  const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
+  const [continuousMode, setContinuousMode] = useState(false);
+
+  // 共用分類欄位（兩種模式共用）
+  const [shared, setShared] = useState({
     description: "",
-    mediaType: "text" as MediaType,
-    textContent: "",
     lineage: "",
     sourceType: "discourse" as SourceType,
     sourceDate: "",
@@ -371,16 +561,27 @@ function UploadDialog({
     tagsInput: "",
     visibility: "private" as Visibility,
   });
-  const [pickedFile, setPickedFile] = useState<File | null>(null);
+
+  const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [textForm, setTextForm] = useState({
+    title: "",
+    textContent: "",
+  });
 
   const createMut = trpc.teachingArchive.create.useMutation();
 
-  function reset() {
-    setForm({
-      title: "",
+  function resetEntriesOnly() {
+    setEntries([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function resetTextOnly() {
+    setTextForm({ title: "", textContent: "" });
+  }
+
+  function resetAll() {
+    setShared({
       description: "",
-      mediaType: "text",
-      textContent: "",
       lineage: "",
       sourceType: "discourse",
       sourceDate: "",
@@ -390,178 +591,298 @@ function UploadDialog({
       tagsInput: "",
       visibility: "private",
     });
-    setPickedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    resetEntriesOnly();
+    resetTextOnly();
+    setMode("file");
+  }
+
+  function addFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    const newEntries: FileEntry[] = list.map(f => ({
+      uid: nanoid(8),
+      file: f,
+      detectedMediaType: detectMediaTypeFromFile(f),
+      title: deriveTitleFromFileName(f.name),
+      progress: 0,
+      status: "queued",
+    }));
+    setEntries(prev => [...prev, ...newEntries]);
+  }
+
+  function removeEntry(uid: string) {
+    setEntries(prev => prev.filter(e => e.uid !== uid));
+  }
+
+  function patchEntry(uid: string, patch: Partial<FileEntry>) {
+    setEntries(prev =>
+      prev.map(e => (e.uid === uid ? { ...e, ...patch } : e))
+    );
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
+    }
+  }
+
+  function buildTags(): string[] | undefined {
+    const tags = shared.tagsInput
+      .split(/[,，、\s]+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+    return tags.length > 0 ? tags : undefined;
+  }
+
+  function buildSharedClassification() {
+    return {
+      description: shared.description.trim() || undefined,
+      lineage: shared.lineage.trim() || undefined,
+      sourceType: shared.sourceType,
+      sourceDate: shared.sourceDate || undefined,
+      sourceLocation: shared.sourceLocation.trim() || undefined,
+      topic: shared.topic.trim() || undefined,
+      speaker: shared.speaker.trim() || undefined,
+      tags: buildTags(),
+      visibility: shared.visibility,
+    };
   }
 
   async function handleSubmit() {
-    if (!form.title.trim()) {
-      toast.error("請輸入標題");
-      return;
-    }
-    if (form.mediaType === "text") {
-      if (!form.textContent.trim()) {
+    if (mode === "text") {
+      if (!textForm.title.trim()) {
+        toast.error("請輸入標題");
+        return;
+      }
+      if (!textForm.textContent.trim()) {
         toast.error("文字開示需要填寫內文");
         return;
       }
-    } else if (!pickedFile) {
-      toast.error("請選擇要上傳的檔案");
+      setSubmitting(true);
+      try {
+        await createMut.mutateAsync({
+          title: textForm.title.trim(),
+          mediaType: "text",
+          textContent: textForm.textContent.trim(),
+          ...buildSharedClassification(),
+        });
+        toast.success("文字開示已儲存");
+        onCreated();
+        if (continuousMode) {
+          resetTextOnly();
+        } else {
+          resetAll();
+          onOpenChange(false);
+        }
+      } catch (err) {
+        toast.error(shortErrorMsg(err, 120));
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
+    // ── 檔案模式：逐個上傳 + 建立紀錄 ────────────────────────────────────
+    if (entries.length === 0) {
+      toast.error("請選擇要上傳的檔案，或拖拉到下方框內");
+      return;
+    }
     setSubmitting(true);
-    try {
-      let fileMeta:
-        | {
-            fileUrl: string;
-            fileKey: string;
-            fileName: string;
-            mimeType: string;
-            fileSizeBytes: number;
-          }
-        | undefined;
-      if (pickedFile) {
-        const { url, fileKey } = await uploadFileToS3(pickedFile);
-        fileMeta = {
+    const sharedClassification = buildSharedClassification();
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const entry of entries) {
+      if (entry.status === "done") continue;
+      try {
+        patchEntry(entry.uid, { status: "uploading", progress: 0 });
+        const { url, fileKey } = await uploadFileToS3WithProgress(
+          entry.file,
+          pct => patchEntry(entry.uid, { progress: pct })
+        );
+        patchEntry(entry.uid, { status: "saving" });
+        const created = await createMut.mutateAsync({
+          title: entry.title.trim() || entry.file.name,
+          mediaType: entry.detectedMediaType,
           fileUrl: url,
           fileKey,
-          fileName: pickedFile.name,
-          mimeType: pickedFile.type,
-          fileSizeBytes: pickedFile.size,
-        };
+          fileName: entry.file.name,
+          mimeType: entry.file.type,
+          fileSizeBytes: entry.file.size,
+          ...sharedClassification,
+        });
+        patchEntry(entry.uid, {
+          status: "done",
+          progress: 100,
+          createdRowId: created.id,
+        });
+        successCount++;
+      } catch (err) {
+        errorCount++;
+        patchEntry(entry.uid, {
+          status: "error",
+          errorMessage: shortErrorMsg(err, 80),
+        });
       }
-
-      const tags = form.tagsInput
-        .split(/[,，、\s]+/)
-        .map(t => t.trim())
-        .filter(Boolean);
-
-      await createMut.mutateAsync({
-        title: form.title.trim(),
-        description: form.description.trim() || undefined,
-        mediaType: form.mediaType,
-        textContent:
-          form.textContent.trim() || undefined,
-        lineage: form.lineage.trim() || undefined,
-        sourceType: form.sourceType,
-        sourceDate: form.sourceDate || undefined,
-        sourceLocation: form.sourceLocation.trim() || undefined,
-        topic: form.topic.trim() || undefined,
-        speaker: form.speaker.trim() || undefined,
-        tags: tags.length > 0 ? tags : undefined,
-        visibility: form.visibility,
-        ...(fileMeta ?? {}),
-      });
-
-      toast.success("教材已新增");
-      reset();
-      onOpenChange(false);
-      onCreated();
-    } catch (err) {
-      toast.error(shortErrorMsg(err, 120));
-    } finally {
-      setSubmitting(false);
     }
+
+    setSubmitting(false);
+    if (successCount > 0) {
+      toast.success(`已新增 ${successCount} 筆教材`);
+      onCreated();
+    }
+    if (errorCount === 0) {
+      if (continuousMode) {
+        resetEntriesOnly();
+      } else {
+        resetAll();
+        onOpenChange(false);
+      }
+    }
+    // 有錯誤就保留 entries 在畫面上，使用者可以看哪幾筆失敗、移除後再試。
   }
 
-  const accept = ACCEPT_BY_MEDIA[form.mediaType];
+  function handleDialogChange(v: boolean) {
+    if (submitting) return;
+    if (!v) {
+      resetAll();
+    }
+    onOpenChange(v);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新增教材</DialogTitle>
           <DialogDescription>
-            純文字開示可直接輸入內容；其他類型需先上傳檔案。
+            拖拉檔案到下方一次上傳多份；或切到「純文字」直接貼上開示內容。
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <Field label="標題" required>
-            <Input
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="例：印心禪法初階開示"
-            />
-          </Field>
+        <Tabs
+          value={mode}
+          onValueChange={v => setMode(v as "file" | "text")}
+          className="mt-2"
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="file">
+              <Upload className="w-4 h-4 mr-1" />
+              上傳檔案（支援批次）
+            </TabsTrigger>
+            <TabsTrigger value="text">
+              <FileText className="w-4 h-4 mr-1" />
+              純文字輸入
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="file" className="space-y-4 mt-4">
+            <div
+              onDragOver={e => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${
+                dragOver
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/30 hover:border-primary/60"
+              }`}
+            >
+              <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium">
+                把檔案拖到這裡，或點擊選擇
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                支援圖片 / 影片 / 語音 / PDF / Word / PPT — 可一次選多個
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={e => {
+                  if (e.target.files) addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+
+            {entries.length > 0 && (
+              <div className="space-y-2">
+                {entries.map(entry => (
+                  <FileEntryRow
+                    key={entry.uid}
+                    entry={entry}
+                    disabled={submitting}
+                    onTitleChange={t => patchEntry(entry.uid, { title: t })}
+                    onMediaTypeChange={m =>
+                      patchEntry(entry.uid, { detectedMediaType: m })
+                    }
+                    onRemove={() => removeEntry(entry.uid)}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="text" className="space-y-4 mt-4">
+            <Field label="標題" required>
+              <Input
+                value={textForm.title}
+                onChange={e =>
+                  setTextForm(f => ({ ...f, title: e.target.value }))
+                }
+                placeholder="例：印心禪法初階開示"
+              />
+            </Field>
+            <Field label="開示內文" required>
+              <Textarea
+                value={textForm.textContent}
+                onChange={e =>
+                  setTextForm(f => ({ ...f, textContent: e.target.value }))
+                }
+                placeholder="直接貼上師父的開示文字……"
+                rows={10}
+              />
+            </Field>
+          </TabsContent>
+        </Tabs>
+
+        <div className="border-t pt-4 mt-4 space-y-4">
+          <p className="text-sm font-medium text-muted-foreground">
+            分類資訊（本批次 / 本筆共用）
+          </p>
 
           <Field label="描述">
             <Textarea
-              value={form.description}
+              value={shared.description}
               onChange={e =>
-                setForm(f => ({ ...f, description: e.target.value }))
+                setShared(s => ({ ...s, description: e.target.value }))
               }
-              placeholder="簡短描述這份教材的內容、緣起或重點"
+              placeholder="這批教材的緣起、背景或重點"
               rows={2}
             />
           </Field>
 
-          <Field label="檔案類型" required>
-            <Select
-              value={form.mediaType}
-              onValueChange={v => {
-                setForm(f => ({ ...f, mediaType: v as MediaType }));
-                setPickedFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MEDIA_TYPES.map(m => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label} — <span className="text-muted-foreground">{m.hint}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          {form.mediaType === "text" ? (
-            <Field label="開示內文" required>
-              <Textarea
-                value={form.textContent}
-                onChange={e =>
-                  setForm(f => ({ ...f, textContent: e.target.value }))
-                }
-                placeholder="直接貼上師父的開示文字……"
-                rows={8}
-              />
-            </Field>
-          ) : (
-            <Field label="檔案" required>
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept={accept}
-                onChange={e => setPickedFile(e.target.files?.[0] ?? null)}
-              />
-              {pickedFile && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  已選：{pickedFile.name} ·{" "}
-                  {(pickedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                上限：圖片 10MB、語音 20MB、影片 40MB、PDF 12MB、簡報/Word 25MB
-              </p>
-            </Field>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="法脈">
               <Input
-                value={form.lineage}
-                onChange={e => setForm(f => ({ ...f, lineage: e.target.value }))}
+                value={shared.lineage}
+                onChange={e =>
+                  setShared(s => ({ ...s, lineage: e.target.value }))
+                }
                 placeholder="例：悟覺妙天禪師、印心禪法"
               />
             </Field>
             <Field label="來源類型">
               <Select
-                value={form.sourceType}
+                value={shared.sourceType}
                 onValueChange={v =>
-                  setForm(f => ({ ...f, sourceType: v as SourceType }))
+                  setShared(s => ({ ...s, sourceType: v as SourceType }))
                 }
               >
                 <SelectTrigger>
@@ -579,41 +900,45 @@ function UploadDialog({
             <Field label="開示日期">
               <Input
                 type="date"
-                value={form.sourceDate}
+                value={shared.sourceDate}
                 onChange={e =>
-                  setForm(f => ({ ...f, sourceDate: e.target.value }))
+                  setShared(s => ({ ...s, sourceDate: e.target.value }))
                 }
               />
             </Field>
             <Field label="講授地點">
               <Input
-                value={form.sourceLocation}
+                value={shared.sourceLocation}
                 onChange={e =>
-                  setForm(f => ({ ...f, sourceLocation: e.target.value }))
+                  setShared(s => ({ ...s, sourceLocation: e.target.value }))
                 }
                 placeholder="例：台北道場"
               />
             </Field>
             <Field label="主題">
               <Input
-                value={form.topic}
-                onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
+                value={shared.topic}
+                onChange={e =>
+                  setShared(s => ({ ...s, topic: e.target.value }))
+                }
                 placeholder="例：禪修方法、生活禪"
               />
             </Field>
             <Field label="講者">
               <Input
-                value={form.speaker}
-                onChange={e => setForm(f => ({ ...f, speaker: e.target.value }))}
+                value={shared.speaker}
+                onChange={e =>
+                  setShared(s => ({ ...s, speaker: e.target.value }))
+                }
               />
             </Field>
           </div>
 
           <Field label="標籤（以逗號、頓號或空白分隔）">
             <Input
-              value={form.tagsInput}
+              value={shared.tagsInput}
               onChange={e =>
-                setForm(f => ({ ...f, tagsInput: e.target.value }))
+                setShared(s => ({ ...s, tagsInput: e.target.value }))
               }
               placeholder="入門, 心法, 共修"
             />
@@ -621,9 +946,9 @@ function UploadDialog({
 
           <Field label="可見範圍">
             <Select
-              value={form.visibility}
+              value={shared.visibility}
               onValueChange={v =>
-                setForm(f => ({ ...f, visibility: v as Visibility }))
+                setShared(s => ({ ...s, visibility: v as Visibility }))
               }
             >
               <SelectTrigger>
@@ -640,27 +965,294 @@ function UploadDialog({
           </Field>
         </div>
 
+        <DialogFooter className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Switch
+              checked={continuousMode}
+              onCheckedChange={setContinuousMode}
+            />
+            <span>連續新增（保留分類欄位、不關閉視窗）</span>
+          </label>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetAll();
+                onOpenChange(false);
+              }}
+              disabled={submitting}
+            >
+              取消
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  處理中…
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {mode === "file" && entries.length > 1
+                    ? `儲存 ${entries.length} 筆`
+                    : "儲存"}
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FileEntryRow({
+  entry,
+  disabled,
+  onTitleChange,
+  onMediaTypeChange,
+  onRemove,
+}: {
+  entry: FileEntry;
+  disabled: boolean;
+  onTitleChange: (t: string) => void;
+  onMediaTypeChange: (m: DetectedMediaType) => void;
+  onRemove: () => void;
+}) {
+  const Icon = getMediaIcon(entry.detectedMediaType);
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-2">
+      <div className="flex items-start gap-3">
+        <Icon className="w-5 h-5 mt-1 text-primary shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <Input
+            value={entry.title}
+            onChange={e => onTitleChange(e.target.value)}
+            placeholder="標題"
+            disabled={disabled || entry.status === "done"}
+          />
+          <div className="flex gap-2 items-center text-xs text-muted-foreground">
+            <span className="truncate flex-1">
+              {entry.file.name} · {(entry.file.size / 1024 / 1024).toFixed(2)}{" "}
+              MB
+            </span>
+            <Select
+              value={entry.detectedMediaType}
+              onValueChange={v => onMediaTypeChange(v as DetectedMediaType)}
+              disabled={disabled || entry.status === "done"}
+            >
+              <SelectTrigger className="w-[130px] h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MEDIA_TYPES.filter(m => m.value !== "text").map(m => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {entry.status !== "done" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            disabled={disabled && entry.status !== "queued"}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+      {entry.status !== "queued" && (
+        <div className="space-y-1">
+          <Progress value={entry.progress} className="h-1.5" />
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            {entry.status === "uploading" && (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                上傳中 {entry.progress}%
+              </>
+            )}
+            {entry.status === "saving" && (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                儲存中…
+              </>
+            )}
+            {entry.status === "done" && (
+              <>
+                <CheckCircle2 className="w-3 h-3 text-green-600" />
+                完成（自動抽文 / 轉文字會在背景進行）
+              </>
+            )}
+            {entry.status === "error" && (
+              <>
+                <AlertCircle className="w-3 h-3 text-destructive" />
+                {entry.errorMessage ?? "上傳失敗"}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 子元件：訓練 LoRA Dialog（B4 — 把選取的圖片送進 loraTrainer） ─────────
+
+function TrainLoraDialog({
+  imageItems,
+  onClose,
+  onStarted,
+}: {
+  imageItems: Array<{ id: number; fileUrl: string | null; title: string }>;
+  onClose: () => void;
+  onStarted: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const [modelName, setModelName] = useState("師父法相 LoRA");
+  const [triggerWord, setTriggerWord] = useState("MTR_MASTER");
+  const [modelType, setModelType] = useState<
+    "image_subject" | "style_lora" | "scene_lora" | "portrait_lora"
+  >("portrait_lora");
+  const [steps, setSteps] = useState(1000);
+
+  const trainMut = trpc.loraTrainer.trainWithReplicate.useMutation();
+
+  const validImageUrls = imageItems
+    .map(i => i.fileUrl)
+    .filter((u): u is string => typeof u === "string" && u.length > 0);
+
+  async function handleStart() {
+    if (validImageUrls.length < 4) {
+      toast.error("至少需要 4 張圖片");
+      return;
+    }
+    if (!modelName.trim()) {
+      toast.error("請輸入模型名稱");
+      return;
+    }
+    if (!triggerWord.trim()) {
+      toast.error("請輸入觸發詞");
+      return;
+    }
+    try {
+      const result = await trainMut.mutateAsync({
+        modelName: modelName.trim(),
+        modelType,
+        triggerWord: triggerWord.trim(),
+        steps,
+        imageUrls: validImageUrls,
+      });
+      toast.success(
+        `已送出訓練（trainingId: ${result.trainingId.slice(0, 8)}…）`
+      );
+      onStarted();
+      navigate(`/models`);
+    } catch (err) {
+      toast.error(shortErrorMsg(err, 160));
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GraduationCap className="w-5 h-5" />
+            用選取的圖片訓練 LoRA
+          </DialogTitle>
+          <DialogDescription>
+            從教材庫挑出的 <strong>{validImageUrls.length}</strong> 張圖片會打包成
+            訓練資料集，送進 Replicate 的 flux-dev-lora-trainer。完成後可在
+            「角色鍛造所」使用這個 LoRA。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <Field label="模型名稱" required>
+            <Input
+              value={modelName}
+              onChange={e => setModelName(e.target.value)}
+              placeholder="例：師父法相 LoRA"
+            />
+          </Field>
+          <Field label="觸發詞（trigger word）" required>
+            <Input
+              value={triggerWord}
+              onChange={e => setTriggerWord(e.target.value)}
+              placeholder="只允許英數，建議大寫便於辨識"
+            />
+          </Field>
+          <Field label="模型類型">
+            <Select
+              value={modelType}
+              onValueChange={v =>
+                setModelType(
+                  v as
+                    | "image_subject"
+                    | "style_lora"
+                    | "scene_lora"
+                    | "portrait_lora"
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="portrait_lora">
+                  肖像（portrait_lora） — 適合師父法相
+                </SelectItem>
+                <SelectItem value="image_subject">
+                  主題（image_subject）
+                </SelectItem>
+                <SelectItem value="style_lora">
+                  風格（style_lora）
+                </SelectItem>
+                <SelectItem value="scene_lora">
+                  場景（scene_lora）
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="訓練步數">
+            <Input
+              type="number"
+              min={100}
+              max={10_000}
+              value={steps}
+              onChange={e => setSteps(parseInt(e.target.value, 10) || 1000)}
+            />
+          </Field>
+          <p className="text-xs text-muted-foreground">
+            訓練要花 15~40 分鐘，期間可關掉這頁。狀態到「角色鍛造所」看。
+          </p>
+        </div>
+
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
-            disabled={submitting}
+            onClick={onClose}
+            disabled={trainMut.isPending}
           >
             取消
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? (
+          <Button
+            onClick={handleStart}
+            disabled={trainMut.isPending || validImageUrls.length < 4}
+          >
+            {trainMut.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                上傳中…
+                送出中…
               </>
             ) : (
               <>
-                <Upload className="w-4 h-4 mr-2" />
-                儲存
+                <GraduationCap className="w-4 h-4 mr-2" />
+                開始訓練
               </>
             )}
           </Button>
@@ -681,8 +1273,21 @@ function DetailDialog({
   onClose: () => void;
   onMutated: () => void;
 }) {
-  const itemQuery = trpc.teachingArchive.get.useQuery({ id });
+  const itemQuery = trpc.teachingArchive.get.useQuery(
+    { id },
+    {
+      // 自動抽文 / 轉文字進行中時，每 3 秒回拉一次狀態
+      refetchInterval: query => {
+        const row = query.state.data as
+          | { transcriptionStatus?: string }
+          | undefined;
+        const s = row?.transcriptionStatus;
+        return s === "pending" || s === "processing" ? 3_000 : false;
+      },
+    }
+  );
   const deleteMut = trpc.teachingArchive.delete.useMutation();
+  const reingestMut = trpc.teachingArchive.triggerIngestion.useMutation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!itemQuery.data) return null;
@@ -730,6 +1335,44 @@ function DetailDialog({
                   url={item.fileUrl}
                   mediaType={item.mediaType}
                   fileName={item.fileName ?? "檔案"}
+                />
+              </section>
+            )}
+
+            {/* 自動抽文 / 轉文字結果 — 給 PDF / 音檔 / 影片 */}
+            {item.mediaType !== "text" && (
+              <section>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-muted-foreground text-xs">
+                    抽文 / 轉文字
+                  </h4>
+                  {(item.transcriptionStatus === "failed" ||
+                    item.transcriptionStatus === "completed") &&
+                    (item.mediaType === "pdf" ||
+                      item.mediaType === "audio" ||
+                      item.mediaType === "video") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={reingestMut.isPending}
+                        onClick={async () => {
+                          try {
+                            await reingestMut.mutateAsync({ id });
+                            toast.success("已重新排程抽文");
+                            itemQuery.refetch();
+                          } catch (err) {
+                            toast.error(shortErrorMsg(err, 120));
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        重跑
+                      </Button>
+                    )}
+                </div>
+                <TranscriptionSection
+                  status={item.transcriptionStatus}
+                  textContent={item.textContent}
                 />
               </section>
             )}
@@ -856,6 +1499,50 @@ function FilePreview({
       <FileType2 className="w-4 h-4" />
       {fileName}（開新分頁檢視）
     </a>
+  );
+}
+
+function TranscriptionSection({
+  status,
+  textContent,
+}: {
+  status: MaterialItem["transcriptionStatus"];
+  textContent: string | null;
+}) {
+  if (status === "not_applicable") {
+    return (
+      <p className="text-xs text-muted-foreground italic">
+        此類型不會自動抽文。
+      </p>
+    );
+  }
+  if (status === "pending" || status === "processing") {
+    return (
+      <p className="text-xs text-muted-foreground flex items-center gap-1">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        {status === "pending" ? "排隊中…" : "正在抽取，可能需要 1–3 分鐘…"}
+      </p>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <p className="text-xs text-destructive">
+        抽取失敗。可以點右上「重跑」再試。
+      </p>
+    );
+  }
+  if (!textContent || textContent.trim().length === 0) {
+    return <p className="text-xs text-muted-foreground italic">（無內容）</p>;
+  }
+  return (
+    <details className="text-sm">
+      <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+        展開全文（{textContent.length.toLocaleString()} 字）
+      </summary>
+      <p className="whitespace-pre-wrap leading-relaxed mt-2 max-h-80 overflow-y-auto p-2 rounded bg-muted/30">
+        {textContent}
+      </p>
+    </details>
   );
 }
 
