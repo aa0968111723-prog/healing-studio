@@ -42,6 +42,12 @@ import {
 } from "lucide-react";
 import {
   CHARACTER_ROLE_LABELS,
+  ENVIRONMENT_CHANGE_PRESETS,
+  ERA_PRESETS,
+  GENRE_PRESETS,
+  PERSONALITY_TRAIT_PRESETS,
+  SCENE_LIGHTING_PRESETS,
+  SCENE_MOOD_PRESETS,
   type CharacterRole,
   type WorldCharacter,
   type WorldScene,
@@ -49,6 +55,91 @@ import {
 } from "../../../../shared/worldbuilding-types";
 
 const DRAFT_KEY = "hs.director.worldbuildingDraft.v1";
+
+// ─── Quick-pick chip rows ───────────────────────────────────────────────────
+
+/** 單選：點擊填入單一文字欄位（覆蓋現值或保留） */
+function QuickPickRow({
+  presets,
+  active,
+  onPick,
+  ariaLabel,
+}: {
+  presets: readonly string[];
+  active?: string;
+  onPick: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      role="listbox"
+      aria-label={ariaLabel}
+      className="flex flex-wrap gap-1"
+    >
+      {presets.map(p => {
+        const isActive = active === p;
+        return (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPick(p)}
+            className={`px-2 py-0.5 rounded-full text-[10.5px] border transition ${
+              isActive
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 hover:text-foreground"
+            }`}
+          >
+            {p}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 多選：點擊追加到 string[]（chip 集合） */
+function QuickAppendRow({
+  presets,
+  values,
+  onAppend,
+  ariaLabel,
+}: {
+  presets: readonly string[];
+  values: string[];
+  onAppend: (next: string[]) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      role="listbox"
+      aria-label={ariaLabel}
+      className="flex flex-wrap gap-1"
+    >
+      {presets.map(p => {
+        const isActive = values.includes(p);
+        return (
+          <button
+            key={p}
+            type="button"
+            onClick={() =>
+              onAppend(
+                isActive ? values.filter(v => v !== p) : [...values, p]
+              )
+            }
+            className={`px-2 py-0.5 rounded-full text-[10.5px] border transition ${
+              isActive
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 hover:text-foreground"
+            }`}
+          >
+            {isActive ? "✓ " : "+ "}
+            {p}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 type LinkableModel = {
   id: number;
@@ -106,6 +197,7 @@ function emptyDraft(): WorldbuildingFrameworkData {
     name: "",
     description: "",
     genre: "",
+    era: "",
     characters: [emptyCharacter("protagonist")],
     scenes: [emptyScene()],
     objects: [],
@@ -270,6 +362,19 @@ const CharacterCard = memo(function CharacterCard({
             onChange={e => patch({ personality: e.target.value })}
             placeholder="性格、行為模式、口頭禪…"
             className="min-h-[60px] text-xs"
+          />
+          <QuickPickRow
+            presets={PERSONALITY_TRAIT_PRESETS}
+            onPick={v => {
+              const current = (character.personality ?? "").trim();
+              const next = current.includes(v)
+                ? current
+                : current
+                  ? `${current}、${v}`
+                  : v;
+              patch({ personality: next });
+            }}
+            ariaLabel="快選 個性特質"
           />
         </div>
         <div className="space-y-1">
@@ -442,6 +547,19 @@ const SceneCard = memo(function SceneCard({
             placeholder="光源方向、色溫、明暗對比…"
             className="min-h-[60px] text-xs"
           />
+          <QuickPickRow
+            presets={SCENE_LIGHTING_PRESETS}
+            onPick={v => {
+              const current = (scene.lighting ?? "").trim();
+              const next = current.includes(v)
+                ? current
+                : current
+                  ? `${current}、${v}`
+                  : v;
+              patch({ lighting: next });
+            }}
+            ariaLabel="快選 光線"
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground">氛圍</Label>
@@ -450,6 +568,19 @@ const SceneCard = memo(function SceneCard({
             onChange={e => patch({ mood: e.target.value })}
             placeholder="情緒、節奏、聲音…"
             className="min-h-[60px] text-xs"
+          />
+          <QuickPickRow
+            presets={SCENE_MOOD_PRESETS}
+            onPick={v => {
+              const current = (scene.mood ?? "").trim();
+              const next = current.includes(v)
+                ? current
+                : current
+                  ? `${current}、${v}`
+                  : v;
+              patch({ mood: next });
+            }}
+            ariaLabel="快選 氛圍"
           />
         </div>
         <div className="space-y-1">
@@ -506,6 +637,12 @@ const SceneCard = memo(function SceneCard({
           onChange={v => patch({ environmentChanges: v })}
           placeholder="例如：黃昏時起霧"
           ariaLabel="新增環境變化"
+        />
+        <QuickAppendRow
+          presets={ENVIRONMENT_CHANGE_PRESETS}
+          values={scene.environmentChanges ?? []}
+          onAppend={v => patch({ environmentChanges: v })}
+          ariaLabel="快選 環境變化"
         />
       </div>
 
@@ -643,6 +780,7 @@ export default function WorldbuildingPanel() {
       name: fw.name,
       description: fw.description ?? "",
       genre: fw.genre ?? "",
+      era: fw.era ?? "",
       characters: fw.characters ?? [],
       scenes: fw.scenes ?? [],
       objects: fw.objects ?? [],
@@ -709,6 +847,7 @@ export default function WorldbuildingPanel() {
       name: draft.name.trim(),
       description: draft.description?.trim() || undefined,
       genre: draft.genre?.trim() || undefined,
+      era: draft.era?.trim() || undefined,
       characters: draft.characters,
       scenes: draft.scenes,
       objects: draft.objects ?? [],
@@ -800,6 +939,29 @@ export default function WorldbuildingPanel() {
                 onChange={e => setDraft(d => ({ ...d, genre: e.target.value }))}
                 placeholder="療癒奇幻、賽博龐克、日常…"
                 className="h-9"
+              />
+              <QuickPickRow
+                presets={GENRE_PRESETS}
+                active={draft.genre ?? ""}
+                onPick={v => setDraft(d => ({ ...d, genre: v }))}
+                ariaLabel="快選 風格類型"
+              />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-[11px] text-muted-foreground">
+                時代背景
+              </Label>
+              <Input
+                value={draft.era ?? ""}
+                onChange={e => setDraft(d => ({ ...d, era: e.target.value }))}
+                placeholder="例如：中世紀、近未來、架空…"
+                className="h-9"
+              />
+              <QuickPickRow
+                presets={ERA_PRESETS}
+                active={draft.era ?? ""}
+                onPick={v => setDraft(d => ({ ...d, era: v }))}
+                ariaLabel="快選 時代背景"
               />
             </div>
             <div className="space-y-1 md:col-span-2">

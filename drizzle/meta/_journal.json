@@ -295,6 +295,13 @@
       "when": 1779050000048,
       "tag": "0048_worldbuilding_frameworks",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1779050000049,
+      "tag": "0049_worldbuilding_era",
+      "breakpoints": true
     }
   ]
 }

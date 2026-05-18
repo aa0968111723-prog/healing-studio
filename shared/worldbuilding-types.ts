@@ -99,6 +99,8 @@ export type WorldbuildingFrameworkData = {
   name: string;
   description?: string;
   genre?: string;
+  /** 時代背景：古代 / 中世紀 / 近代 / 現代 / 未來 / 架空 … */
+  era?: string;
   characters: WorldCharacter[];
   scenes: WorldScene[];
   objects?: WorldObject[];
@@ -106,6 +108,117 @@ export type WorldbuildingFrameworkData = {
   tags?: string[];
   isActive?: boolean;
 };
+
+// ─── Quick-pick presets（前端快選 chip 用） ─────────────────────────────────
+
+export const GENRE_PRESETS = [
+  "療癒",
+  "奇幻",
+  "科幻",
+  "賽博龐克",
+  "蒸汽朋克",
+  "武俠",
+  "仙俠",
+  "日常",
+  "校園",
+  "懸疑",
+  "推理",
+  "戀愛",
+  "恐怖",
+  "冒險",
+  "歷史",
+  "戰爭",
+  "黑色幽默",
+] as const;
+
+export const ERA_PRESETS = [
+  "史前",
+  "古代",
+  "中世紀",
+  "近代",
+  "民國",
+  "現代",
+  "近未來",
+  "遠未來",
+  "後末日",
+  "蒸汽時代",
+  "架空",
+  "平行世界",
+] as const;
+
+export const PERSONALITY_TRAIT_PRESETS = [
+  "溫柔",
+  "果斷",
+  "害羞",
+  "傲嬌",
+  "神秘",
+  "開朗",
+  "冷酷",
+  "體貼",
+  "調皮",
+  "嚴肅",
+  "天真",
+  "腹黑",
+  "理性",
+  "感性",
+  "正義感強",
+  "懶散",
+  "好奇",
+  "完美主義",
+  "悲觀",
+  "樂觀",
+] as const;
+
+export const SCENE_MOOD_PRESETS = [
+  "靜謐",
+  "緊張",
+  "神秘",
+  "溫馨",
+  "悲傷",
+  "歡樂",
+  "壓抑",
+  "奇幻",
+  "詭異",
+  "莊嚴",
+  "夢幻",
+  "孤寂",
+  "希望",
+  "懷舊",
+  "刺激",
+] as const;
+
+export const SCENE_LIGHTING_PRESETS = [
+  "晨光",
+  "正午烈日",
+  "夕陽",
+  "黃昏",
+  "夜晚",
+  "月光",
+  "霓虹",
+  "燭光",
+  "陰天",
+  "雷雨",
+  "雪光",
+  "火光",
+  "螢光",
+  "晨霧",
+  "聚光燈",
+] as const;
+
+export const ENVIRONMENT_CHANGE_PRESETS = [
+  "黃昏起霧",
+  "夜晚螢火蟲飛舞",
+  "下雨",
+  "下雪",
+  "雷暴",
+  "日蝕",
+  "極光",
+  "落葉",
+  "花開",
+  "潮汐漲落",
+  "突發地震",
+  "戰火蔓延",
+] as const;
 
 // ─── Zod schemas（router 用） ───────────────────────────────────────────────
 
@@ -163,6 +276,7 @@ export const worldbuildingFrameworkInputSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(5000).optional(),
   genre: z.string().max(128).optional(),
+  era: z.string().max(128).optional(),
   characters: z.array(worldCharacterSchema).max(100),
   scenes: z.array(worldSceneSchema).max(100),
   objects: z.array(worldObjectSchema).max(200).optional(),
@@ -187,6 +301,7 @@ export function summarizeFrameworkForPrompt(
   const lines: string[] = [];
   lines.push(`# 世界觀：${framework.name}`);
   if (framework.genre) lines.push(`風格：${framework.genre}`);
+  if (framework.era) lines.push(`時代背景：${framework.era}`);
   if (framework.description) lines.push(framework.description);
 
   if (framework.characters.length > 0) {

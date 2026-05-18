@@ -25,6 +25,7 @@ function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildin
     name: row.name,
     description: row.description ?? undefined,
     genre: row.genre ?? undefined,
+    era: row.era ?? undefined,
     characters: (row.charactersJson ?? []) as WorldbuildingFrameworkData["characters"],
     scenes: (row.scenesJson ?? []) as WorldbuildingFrameworkData["scenes"],
     objects: (row.objectsJson ?? undefined) as
@@ -65,6 +66,7 @@ export const worldbuildingRouter = router({
         name: input.name,
         description: input.description,
         genre: input.genre,
+        era: input.era,
         charactersJson: input.characters,
         scenesJson: input.scenes,
         objectsJson: input.objects ?? [],
@@ -93,6 +95,7 @@ export const worldbuildingRouter = router({
         ...(p.name !== undefined ? { name: p.name } : {}),
         ...(p.description !== undefined ? { description: p.description } : {}),
         ...(p.genre !== undefined ? { genre: p.genre } : {}),
+        ...(p.era !== undefined ? { era: p.era } : {}),
         ...(p.characters !== undefined
           ? { charactersJson: p.characters }
           : {}),

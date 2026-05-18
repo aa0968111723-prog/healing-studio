@@ -3055,6 +3055,8 @@ export const worldbuildingFrameworks = mysqlTable(
     description: text("description"),
     /** 整體世界觀基調（例如：賽博龐克、奇幻、療癒小品） */
     genre: varchar("genre", { length: 128 }),
+    /** 時代背景（例如：中世紀、近代、未來、架空） — 與 genre 正交 */
+    era: varchar("era", { length: 128 }),
     /** 角色卡陣列 — 結構見 shared/worldbuilding-types WorldCharacter */
     charactersJson: json("charactersJson")
       .$type<Array<Record<string, unknown>>>()
