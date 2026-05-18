@@ -1272,13 +1272,13 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 導演大腦 — 統籌創作流程、分鏡、敘事結構 */
   directorModel: varchar("directorModel", { length: 128 })
-    .default("google/gemini-2.5-pro")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   directorTemperature: decimal("directorTemperature", {
     precision: 3,
     scale: 2,
   })
-    .default("0.7")
+    .default("0.4")
     .notNull(),
   directorTopP: decimal("directorTopP", { precision: 3, scale: 2 })
     .default("0.9")
@@ -1288,7 +1288,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 分析師大腦 — 數據分析、趨勢洞察、品質評估 */
   analystModel: varchar("analystModel", { length: 128 })
-    .default("google/gemini-2.5-flash")
+    .default("perplexity/sonar-pro")
     .notNull(),
   analystTemperature: decimal("analystTemperature", { precision: 3, scale: 2 })
     .default("0.3")
@@ -1301,7 +1301,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 說書人大腦 — 文案撰寫、故事展開、情感渲染 */
   storytellerModel: varchar("storytellerModel", { length: 128 })
-    .default("google/gemini-2.5-pro")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   storytellerTemperature: decimal("storytellerTemperature", {
     precision: 3,
@@ -1317,7 +1317,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 技師大腦 — 提示詞工程、參數優化、技術翻譯 */
   technicianModel: varchar("technicianModel", { length: 128 })
-    .default("google/gemini-2.5-flash")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   technicianTemperature: decimal("technicianTemperature", {
     precision: 3,
@@ -1333,7 +1333,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 策展人大腦 — 風格推薦、美學判斷、靈感策展 */
   curatorModel: varchar("curatorModel", { length: 128 })
-    .default("google/gemini-2.5-flash")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   curatorTemperature: decimal("curatorTemperature", { precision: 3, scale: 2 })
     .default("0.8")
@@ -1361,9 +1361,10 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   }>(),
   imageEngineEnabled: boolean("imageEngineEnabled").default(true).notNull(),
 
-  /** 影片生成引擎 */
+  /** 影片生成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.videoEngine
+   * (Kling t2v 上游壞掉，middleware 改用 fal-ai/wan-t2v) */
   videoEngine: varchar("videoEngine", { length: 128 })
-    .default("fal-ai/kling-video/v2.1/pro/text-to-video")
+    .default("fal-ai/wan-t2v")
     .notNull(),
   videoEngineParams: json("videoEngineParams").$type<{
     duration?: number;
@@ -1374,9 +1375,9 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   }>(),
   videoEngineEnabled: boolean("videoEngineEnabled").default(true).notNull(),
 
-  /** 音樂/音效生成引擎 */
+  /** 音樂/音效生成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.audioEngine */
   audioEngine: varchar("audioEngine", { length: 128 })
-    .default("fal-ai/stable-audio")
+    .default("fal-ai/ace-step")
     .notNull(),
   audioEngineParams: json("audioEngineParams").$type<{
     duration?: number;
