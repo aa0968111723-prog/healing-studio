@@ -32,7 +32,8 @@ export type ModelModality =
   | "video"
   | "audio"
   | "multimodal"
-  | "embedding";
+  | "embedding"
+  | "agent";
 
 export type ModelProvider =
   | "Anthropic"
@@ -62,7 +63,14 @@ export type ModelProvider =
   | "MiniMax"
   | "Ideogram"
   | "Recraft"
-  | "NVIDIA";
+  | "NVIDIA"
+  | "GitHub"
+  | "Cognition"
+  | "Replit"
+  | "Cursor"
+  | "Manus"
+  | "Perplexity"
+  | "LangChain";
 
 export type LatencyClass = "realtime" | "fast" | "standard" | "slow";
 
@@ -255,6 +263,103 @@ export interface AIModelEntry {
   peers?: string[];
   /** 是否支援同廠商 API 即時轉換到其他版本（用於版本血緣展示） */
   predecessorId?: string;
+  /** 代理（agent）類模型的補充細節 — 只對 modality === "agent" 有意義 */
+  agentDetails?: AgentDetails;
+  /** 主要使用介面：CLI / IDE plugin / Web app / API / 桌面 / 行動 */
+  interfaces?: ModelInterface[];
+  /** 對應的 SDK / package 名稱（npm、pypi、GitHub repo 等） */
+  sdkPackages?: SdkPackage[];
+  /** 模型版本血緣（從最舊到最新）；若用 predecessorId 鏈推算困難，可直接列出 */
+  lineage?: ModelLineageStep[];
+  /** 模型卡片上要不要把第一個 benchmark 重點 highlight 出來 */
+  highlightBenchmark?: boolean;
+  /** 第三方代管 / 部署平台清單（Fal、Replicate、Bedrock、Vertex 等） */
+  hostedOn?: HostingProvider[];
+  /** 模型分類（除了 modality 之外的「主題」標籤，例如「深度研究」、「代理」） */
+  category?: ModelCategory;
+}
+
+export type HostingProvider =
+  | "fal"
+  | "replicate"
+  | "openrouter"
+  | "bedrock"
+  | "vertex"
+  | "together"
+  | "huggingface"
+  | "groq"
+  | "azure-openai"
+  | "self";
+
+export type ModelCategory =
+  | "general"
+  | "agent"
+  | "deep-research"
+  | "reasoning"
+  | "coding"
+  | "creative"
+  | "voice"
+  | "embedding";
+
+export type ModelInterface =
+  | "api"
+  | "web-app"
+  | "cli"
+  | "ide-plugin"
+  | "desktop-app"
+  | "mobile-app"
+  | "browser-extension"
+  | "sdk"
+  | "github-action";
+
+export interface SdkPackage {
+  /** 顯示名稱，例如 "@anthropic-ai/claude-code" */
+  name: string;
+  /** 套件來源：npm / pypi / cargo / homebrew / github / docker */
+  source: "npm" | "pypi" | "cargo" | "homebrew" | "github" | "docker" | "other";
+  /** 套件首頁或文件連結 */
+  url?: string;
+  /** 一句話用途說明 */
+  note?: string;
+}
+
+export type AgentSandbox =
+  | "cloud-vm"
+  | "browser"
+  | "local-terminal"
+  | "ide"
+  | "github-actions"
+  | "self-hosted"
+  | "mixed";
+
+export interface ModelLineageStep {
+  /** 顯示用版號 / 名稱，例如 "Devin 1"、"Codex (2021)" */
+  label: string;
+  /** ISO 月份或日期 */
+  releaseDate: string;
+  /** 一句話差異或重點，例如「v2 加入多代理協作」 */
+  note?: string;
+  /** 是否為目前版本（true 時 UI 會把它 highlight） */
+  current?: boolean;
+}
+
+export interface AgentDetails {
+  /** Sandbox / 執行環境類型 */
+  sandbox?: AgentSandbox;
+  /** 主要工具集（如 "Bash", "Web 搜尋", "GitHub PR"） */
+  tools?: string[];
+  /** 可長程任務時長（分鐘上限）— 0 / 省略代表沒明確上限 */
+  maxTaskMinutes?: number;
+  /** 是否支援後台 / 非同步執行（派任務後可關掉視窗） */
+  asyncCapable?: boolean;
+  /** 是否需要使用者授權後才能執行敏感操作（操作 GUI、付款等） */
+  needsAuthorization?: boolean;
+  /** 整合面 — 與哪些平台 / 系統串接 */
+  integrations?: string[];
+  /** 內建的記憶 / 長期狀態（如 "Sessions"、"Skills"、"Memory") */
+  memory?: string;
+  /** 並行限制（同時可開幾個 task） */
+  concurrencyLimit?: number;
 }
 
 /** Server-side enriched entry — same shape, but factCheck is guaranteed to exist after auto-research. */
@@ -436,6 +541,48 @@ export const PROVIDER_STYLE: Record<
     ring: "ring-emerald-200",
     label: "NVIDIA",
   },
+  GitHub: {
+    accent: "text-slate-800",
+    bg: "bg-slate-100",
+    ring: "ring-slate-300",
+    label: "GitHub",
+  },
+  Cognition: {
+    accent: "text-zinc-800",
+    bg: "bg-zinc-100",
+    ring: "ring-zinc-300",
+    label: "Cognition",
+  },
+  Replit: {
+    accent: "text-orange-700",
+    bg: "bg-orange-50",
+    ring: "ring-orange-200",
+    label: "Replit",
+  },
+  Cursor: {
+    accent: "text-neutral-800",
+    bg: "bg-neutral-100",
+    ring: "ring-neutral-300",
+    label: "Cursor",
+  },
+  Manus: {
+    accent: "text-amber-700",
+    bg: "bg-amber-50",
+    ring: "ring-amber-200",
+    label: "Manus AI",
+  },
+  Perplexity: {
+    accent: "text-teal-700",
+    bg: "bg-teal-50",
+    ring: "ring-teal-200",
+    label: "Perplexity",
+  },
+  LangChain: {
+    accent: "text-emerald-800",
+    bg: "bg-emerald-50",
+    ring: "ring-emerald-200",
+    label: "LangChain",
+  },
 };
 
 export const MODALITY_STYLE: Record<
@@ -477,6 +624,12 @@ export const MODALITY_STYLE: Record<
     emoji: "🔗",
     chipBg: "bg-slate-50",
     chipText: "text-slate-700",
+  },
+  agent: {
+    label: "代理",
+    emoji: "🤖",
+    chipBg: "bg-indigo-50",
+    chipText: "text-indigo-700",
   },
 };
 
@@ -666,6 +819,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
     peers: ["gpt-5", "gemini-3-pro", "claude-sonnet-4-6"],
+    hostedOn: ["bedrock", "vertex", "openrouter"],
   },
   {
     id: "claude-sonnet-4-6",
@@ -729,6 +883,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     safetyTier: "high",
     compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
     peers: ["claude-opus-4-7", "gpt-4o", "gemini-3-pro", "mistral-medium-3"],
+    hostedOn: ["bedrock", "vertex", "openrouter"],
   },
   {
     id: "claude-haiku-4-5",
@@ -1126,6 +1281,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       notes: "權重可在 HuggingFace 下載；商用需遵守 Llama Community License",
     },
     researchKeywords: ["Llama 3.3 70B benchmark community license"],
+    hostedOn: ["openrouter", "together", "replicate", "groq", "huggingface"],
     factCheck: { status: "pending", sources: [] },
     capabilities: {
       functionCalling: true,
@@ -1391,6 +1547,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: true },
     researchKeywords: ["FLUX 1 Pro pricing Black Forest Labs"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["fal", "replicate", "together", "huggingface"],
   },
   {
     id: "stable-diffusion-3-5",
@@ -1416,6 +1573,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: true },
     researchKeywords: ["Stable Diffusion 3.5 license community"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["fal", "replicate", "huggingface", "together"],
   },
 
   // ── Video specialists ──────────────────────────────────────────────────
@@ -1447,6 +1605,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Runway Gen-3 pricing credit cost"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["fal", "replicate"],
   },
   {
     id: "luma-dream-machine",
@@ -1771,6 +1930,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     researchKeywords: ["Veo 3 pricing audio video"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["vertex", "fal"],
   },
   {
     id: "imagen-4",
@@ -1799,6 +1959,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Imagen 4 Ultra pricing"],
     factCheck: { status: "pending", sources: [] },
+    hostedOn: ["vertex", "fal"],
   },
   {
     id: "llama-4-maverick",
@@ -1842,6 +2003,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
       notes: "Hugging Face / Meta 官網下載；多家 API 託管",
     },
     researchKeywords: ["Llama 4 Maverick benchmarks", "Llama 4 MoE pricing"],
+    hostedOn: ["openrouter", "together", "replicate", "groq"],
     factCheck: { status: "pending", sources: [] },
   },
   {
@@ -1994,6 +2156,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Kling 2.0 pricing benchmark"],
+    hostedOn: ["fal", "replicate"],
     factCheck: { status: "pending", sources: [] },
   },
 
@@ -2462,6 +2625,7 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     },
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Recraft V3 SVG vector pricing"],
+    hostedOn: ["fal", "replicate"],
     factCheck: { status: "pending", sources: [] },
     capabilities: { streaming: false, fineTuning: false },
     safetyTier: "high",
@@ -4028,10 +4192,1116 @@ export const AI_MODELS_CATALOG: AIModelEntry[] = [
     pricing: { unit: "USD / generation 或訂閱", tier: "high" },
     availability: { api: true, web: true, selfHost: false },
     researchKeywords: ["Luma Ray 2 release benchmark"],
+    hostedOn: ["fal", "replicate"],
     factCheck: { status: "pending", sources: [] },
     capabilities: { streaming: false },
     safetyTier: "medium",
     peers: ["luma-dream-machine", "sora-2", "veo-3", "runway-gen-4"],
+  },
+
+  // ── AI Agent 代理模型 ───────────────────────────────────────────────────
+  // 這個區塊收錄「以代理（agent）為產品主體」的模型，與傳統「文字模型」分開
+  // 排序：代理產品的賣點是「自主完成多步驟任務」而非單次 token 輸出，定價、
+  // benchmark 與評測方式都有別。
+  {
+    id: "claude-code",
+    name: "Claude Code",
+    apiId: "claude-code",
+    provider: "Anthropic",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2025-02",
+    tagline: "Anthropic 官方終端代理，跑在 CLI / IDE / Web / 雲端",
+    description:
+      "Claude Code 是 Anthropic 的官方代理產品，底層由 Claude 4.x 系列驅動，可在終端、VS Code、JetBrains、Web、行動裝置與雲端 GitHub Actions 中執行多步驟程式碼任務（讀檔、編輯、跑測試、開 PR）。內建 Hooks / Skills / SDK 擴充機制。",
+    strengths: [
+      "深度整合 Git 與 GitHub（自動 commit / push / PR）",
+      "可呼叫工具、執行 Bash、讀寫檔案，亦支援 MCP server",
+      "Hooks / Skills 自訂自動化",
+      "支援 Web / 行動裝置 / GitHub Actions 等遠端執行",
+    ],
+    limitations: [
+      "需綁定 Anthropic API 額度，連續長任務可能高成本",
+      "對非程式類任務支援有限",
+    ],
+    useCases: [
+      "程式碼重構與功能開發",
+      "PR 自動審查與修補",
+      "CI / CD 故障診斷",
+      "技術文件補齊",
+    ],
+    contextWindow: "200K tokens（背後模型決定）",
+    openWeight: false,
+    tags: ["代理任務", "程式設計", "終端", "Web"],
+    featured: true,
+    officialUrl: "https://www.anthropic.com/claude-code",
+    pricing: {
+      unit: "USD / API 用量 + 訂閱",
+      note: "依背後 Claude 模型計費（Opus / Sonnet / Haiku 任選）",
+      tier: "high",
+    },
+    availability: {
+      api: true,
+      web: true,
+      selfHost: false,
+      notes: "CLI / VS Code / JetBrains / Web / iOS / Android / GitHub Actions",
+    },
+    researchKeywords: [
+      "Claude Code release notes 2026",
+      "Claude Code SDK skills hooks",
+      "Anthropic agent CLI pricing",
+    ],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      codeExecution: true,
+      webSearch: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
+    peers: [
+      "cursor-composer-agent",
+      "github-copilot-agent",
+      "devin",
+      "openai-codex-cli",
+    ],
+    interfaces: [
+      "cli",
+      "ide-plugin",
+      "web-app",
+      "mobile-app",
+      "github-action",
+      "sdk",
+    ],
+    sdkPackages: [
+      {
+        name: "@anthropic-ai/claude-code",
+        source: "npm",
+        url: "https://www.npmjs.com/package/@anthropic-ai/claude-code",
+        note: "官方 CLI",
+      },
+      {
+        name: "@anthropic-ai/claude-agent-sdk",
+        source: "npm",
+        url: "https://docs.claude.com/en/api/agent-sdk",
+        note: "自訂代理用的 TypeScript / Python SDK",
+      },
+    ],
+    agentDetails: {
+      sandbox: "mixed",
+      tools: [
+        "Bash",
+        "檔案讀寫 (Read / Edit / Write)",
+        "Grep / Glob",
+        "Web 搜尋 / Fetch",
+        "Sub-agent (Agent SDK)",
+        "GitHub MCP / Slash commands",
+      ],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub", "VS Code", "JetBrains", "Slack", "Linear"],
+      memory: "Skills / Memory / CLAUDE.md",
+    },
+    highlightBenchmark: true,
+  },
+  {
+    id: "claude-computer-use",
+    name: "Claude Computer Use",
+    apiId: "claude-computer-use",
+    provider: "Anthropic",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2024-10",
+    tagline: "讓 Claude 直接操作滑鼠 / 鍵盤的桌面代理",
+    description:
+      "Claude Computer Use 是 Anthropic 推出的桌面操作能力，模型可看截圖、移動滑鼠、輸入鍵盤指令，跨任意 GUI 軟體完成任務。屬於 beta，需自行架設 sandbox 環境。",
+    strengths: [
+      "原生螢幕視覺 + GUI 控制",
+      "可在沒有 API 的軟體中執行",
+      "與 Claude tool use 一致的開發體驗",
+    ],
+    limitations: [
+      "Beta 階段，可靠度仍在演進",
+      "需自行隔離環境，避免誤操作",
+      "延遲較高、單次任務成本不低",
+    ],
+    useCases: [
+      "桌面 RPA",
+      "舊系統自動化",
+      "QA 截圖 / 操作回放",
+    ],
+    openWeight: false,
+    tags: ["桌面代理", "GUI", "RPA", "Beta"],
+    featured: true,
+    officialUrl: "https://docs.anthropic.com/en/docs/build-with-claude/computer-use",
+    pricing: {
+      unit: "USD / token（含影像）",
+      note: "影像 token 比文字成本高，連續操作可能快速累積",
+      tier: "high",
+    },
+    availability: { api: true, web: false, selfHost: false },
+    researchKeywords: [
+      "Claude Computer Use beta benchmark",
+      "Anthropic computer use OSWorld",
+    ],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      functionCalling: true,
+      streaming: true,
+    },
+    safetyTier: "high",
+    peers: ["openai-operator", "manus-ai"],
+    interfaces: ["api", "sdk"],
+    agentDetails: {
+      sandbox: "self-hosted",
+      tools: ["截圖", "滑鼠 / 鍵盤", "Bash（搭配 anthropic-quickstarts demo）"],
+      asyncCapable: false,
+      needsAuthorization: true,
+      integrations: ["任意 Linux 桌面 / Docker container"],
+    },
+  },
+  {
+    id: "openai-codex-cli",
+    name: "OpenAI Codex CLI",
+    apiId: "codex-cli",
+    provider: "OpenAI",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2025-04",
+    tagline: "OpenAI 官方終端編程代理，底層走 o-系列推理",
+    description:
+      "Codex CLI 是 OpenAI 2025 推出的開源終端代理（與 ChatGPT 內建 Codex 共用模型），可在本機 sandbox 中讀寫檔案、執行命令並串接 GitHub。預設使用 o-mini / o-series 推理模型。",
+    strengths: [
+      "開源 (Apache-2.0)",
+      "推理模型驅動，可長程規劃",
+      "可串接 GitHub PR / Issue",
+    ],
+    limitations: [
+      "需要 ChatGPT Plus / Pro 或 API key",
+      "對非 OpenAI 模型支援有限",
+    ],
+    useCases: ["終端編程代理", "PR 自動化", "腳本 / DevOps 任務"],
+    openWeight: true,
+    tags: ["代理", "終端", "開源"],
+    officialUrl: "https://github.com/openai/codex",
+    pricing: {
+      unit: "依背後模型 token 計費",
+      note: "免費版受限；Plus / Pro 訂閱可享較高用量",
+      tier: "medium",
+    },
+    availability: { api: true, web: true, selfHost: true },
+    researchKeywords: [
+      "OpenAI Codex CLI release",
+      "ChatGPT Codex agent benchmark",
+    ],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      codeExecution: true,
+      streaming: true,
+    },
+    safetyTier: "high",
+    peers: ["claude-code", "cursor-composer-agent", "devin"],
+    interfaces: ["cli", "web-app", "sdk"],
+    sdkPackages: [
+      {
+        name: "openai/codex",
+        source: "github",
+        url: "https://github.com/openai/codex",
+        note: "Apache-2.0 開源 CLI",
+      },
+    ],
+    agentDetails: {
+      sandbox: "local-terminal",
+      tools: ["Bash", "檔案讀寫", "GitHub CLI"],
+      asyncCapable: false,
+      needsAuthorization: true,
+      integrations: ["ChatGPT Plus / Pro", "OpenAI API", "GitHub"],
+    },
+  },
+  {
+    id: "openai-operator",
+    name: "OpenAI Operator",
+    apiId: "operator",
+    provider: "OpenAI",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2025-01",
+    tagline: "OpenAI 的瀏覽器代理，可自主完成網頁任務",
+    description:
+      "Operator 是 OpenAI 推出的瀏覽器代理產品，模型在雲端虛擬瀏覽器中操作網頁 — 訂位、購物、表單填寫、資料收集等。背後模型為 CUA（Computer-Using Agent）。",
+    strengths: [
+      "雲端瀏覽器 sandbox，安全隔離",
+      "原生網頁操作，相容大多數 SaaS",
+      "需要授權時自動暫停請使用者確認",
+    ],
+    limitations: [
+      "需 ChatGPT Pro 訂閱",
+      "對驗證碼 / 嚴格反爬蟲網站失敗率高",
+      "區域限制（部分國家未開放）",
+    ],
+    useCases: ["購物 / 訂位代辦", "資料抓取", "重複網頁流程自動化"],
+    openWeight: false,
+    tags: ["瀏覽器代理", "雲端 sandbox"],
+    featured: true,
+    officialUrl: "https://operator.chatgpt.com/",
+    pricing: {
+      unit: "USD / 訂閱（ChatGPT Pro）",
+      note: "目前綁定 ChatGPT Pro $200/月，後續可能擴張至 API",
+      tier: "premium",
+    },
+    availability: {
+      api: false,
+      web: true,
+      selfHost: false,
+      notes: "美國等部分地區優先",
+    },
+    researchKeywords: [
+      "OpenAI Operator benchmark WebArena",
+      "ChatGPT Operator pricing",
+    ],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      functionCalling: true,
+      webSearch: true,
+    },
+    safetyTier: "high",
+    peers: ["claude-computer-use", "manus-ai"],
+    interfaces: ["web-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["雲端瀏覽器", "OCR / Vision", "表單填寫"],
+      maxTaskMinutes: 60,
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["任意網站（OAuth 授權後）"],
+      memory: "ChatGPT 帳號級對話歷史",
+    },
+  },
+  {
+    id: "github-copilot-agent",
+    name: "GitHub Copilot Agent",
+    apiId: "copilot-agent",
+    provider: "GitHub",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2025-05",
+    tagline: "GitHub 原生代理，從 issue 直接交付 PR",
+    description:
+      "Copilot Agent（Workspace + Agent Mode）讓開發者把 issue 派給 Copilot，代理會自行讀懂專案、寫程式、跑測試、開 PR。背後可選 GPT、Claude、Gemini 等多家模型。",
+    strengths: [
+      "深度整合 GitHub Issues / PR / Actions",
+      "多家模型可選（GPT / Claude / Gemini）",
+      "企業 SSO / 稽核完備",
+    ],
+    limitations: [
+      "需要 Copilot 訂閱（個人 / Enterprise）",
+      "長程任務仍依賴人類審 PR",
+    ],
+    useCases: [
+      "Issue → PR 自動化",
+      "PR 審查與修補",
+      "技術債清理",
+    ],
+    openWeight: false,
+    tags: ["代理", "PR 自動化", "GitHub"],
+    featured: true,
+    officialUrl: "https://github.com/features/copilot",
+    pricing: {
+      unit: "USD / 訂閱（含代理用量配額）",
+      note: "Copilot Pro / Business / Enterprise 等多層級",
+      tier: "medium",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: [
+      "GitHub Copilot Agent release",
+      "Copilot Workspace Coding Agent SWE-bench",
+    ],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      codeExecution: true,
+      streaming: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "ISO27001"],
+    peers: ["claude-code", "cursor-composer-agent", "devin", "google-jules"],
+    interfaces: ["ide-plugin", "web-app", "github-action", "cli"],
+    sdkPackages: [
+      {
+        name: "@github/copilot-cli",
+        source: "npm",
+        url: "https://github.com/github/copilot-cli",
+        note: "Copilot CLI",
+      },
+    ],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: [
+        "Git / GitHub PR",
+        "Actions runners",
+        "Bash / 檔案",
+        "依背後模型可呼叫 web 搜尋",
+      ],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub Issues / PR / Actions / Codespaces"],
+      memory: "PR 上下文 + repo 記憶",
+    },
+  },
+  {
+    id: "cursor-composer-agent",
+    name: "Cursor Composer Agent",
+    apiId: "cursor-agent",
+    provider: "Cursor",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2025-03",
+    tagline: "Cursor IDE 內建代理，整個 repo 級別重構",
+    description:
+      "Cursor Composer 的 Agent Mode 是 IDE 內建的多檔代理 — 在開發者監督下執行跨檔案重構、新功能落地、bug 修補。預設整合 Claude / GPT / Gemini 任選。",
+    strengths: [
+      "IDE 內即時 diff 預覽",
+      "可任意切換背後模型",
+      "對大型 repo 索引快、能聚焦相關檔案",
+    ],
+    limitations: [
+      "Cursor 訂閱才有完整 Agent",
+      "Token 用量大，重度使用可能撞月配額",
+    ],
+    useCases: ["跨檔重構", "新功能撰寫", "Bug 修補"],
+    openWeight: false,
+    tags: ["IDE 代理", "重構", "多模型"],
+    officialUrl: "https://www.cursor.com/",
+    pricing: {
+      unit: "USD / 訂閱（含模型用量）",
+      note: "Pro $20、Business 等",
+      tier: "medium",
+    },
+    availability: { api: false, web: false, selfHost: false, notes: "桌面 IDE" },
+    researchKeywords: ["Cursor Composer Agent SWE-bench", "Cursor agent pricing"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      codeExecution: true,
+      streaming: true,
+    },
+    safetyTier: "medium",
+    peers: ["claude-code", "github-copilot-agent", "devin"],
+    interfaces: ["ide-plugin", "desktop-app"],
+    agentDetails: {
+      sandbox: "ide",
+      tools: ["檔案讀寫", "Terminal", "Diff 預覽", "Repo 索引"],
+      asyncCapable: false,
+      needsAuthorization: true,
+      integrations: ["Cursor IDE（VS Code fork）"],
+      memory: "Project rules / Notepads",
+    },
+  },
+  {
+    id: "devin",
+    name: "Devin",
+    apiId: "devin-2",
+    provider: "Cognition",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2024-03",
+    tagline: "Cognition 的自主軟體工程師代理",
+    description:
+      "Devin 是 Cognition 推出的全自動軟體工程代理，預設提供瀏覽器、終端與長期記憶；可在背景跑數小時的任務、自行除錯、開 PR。Devin 2 起加入多代理協作與更佳的 SWE-bench 表現。",
+    strengths: [
+      "原生長程任務（hours-scale）",
+      "獨立 sandbox + 工具集",
+      "Slack / Linear / GitHub 整合",
+    ],
+    limitations: [
+      "企業訂閱定價偏高",
+      "對小型 / 新 repo 仍偶有迷路",
+    ],
+    useCases: [
+      "背景跑長任務（migration / 升版）",
+      "Bug triage + 修補",
+      "技術債清理",
+    ],
+    openWeight: false,
+    tags: ["代理", "SWE", "長程任務"],
+    featured: true,
+    officialUrl: "https://devin.ai/",
+    pricing: {
+      unit: "USD / ACU（agent-compute unit）",
+      note: "Team $500/月 起，依 ACU 計費",
+      tier: "premium",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: [
+      "Cognition Devin 2 release",
+      "Devin SWE-bench Verified score",
+    ],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      codeExecution: true,
+      webSearch: true,
+      streaming: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2"],
+    peers: ["claude-code", "github-copilot-agent", "google-jules"],
+    interfaces: ["web-app", "api"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["瀏覽器", "Terminal", "檔案讀寫", "GitHub PR", "長期記憶"],
+      maxTaskMinutes: 360,
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub", "Linear", "Slack", "Jira"],
+      memory: "Long-term memory + Sessions",
+      concurrencyLimit: 8,
+    },
+    lineage: [
+      { label: "Devin 1", releaseDate: "2024-03" },
+      { label: "Devin 2", releaseDate: "2024-12", note: "多代理協作 + 更高 SWE-bench" },
+      { label: "Devin (current)", releaseDate: "2025-08", note: "ACU 計費 + Enterprise", current: true },
+    ],
+    highlightBenchmark: true,
+  },
+  {
+    id: "replit-agent",
+    name: "Replit Agent",
+    apiId: "replit-agent-3",
+    provider: "Replit",
+    modality: "agent",
+    tier: "balanced",
+    releaseDate: "2024-09",
+    tagline: "Replit 內建代理，從零打造可部署的 App",
+    description:
+      "Replit Agent 把「Idea → Prototype → 可部署 App」打通成單一對話流程：建立專案結構、撰寫程式、設置資料庫、部署到 Replit 雲端。Agent 3 起支援更長的自主執行與多檔協作。",
+    strengths: [
+      "Prototype → Deploy 一條龍",
+      "內建雲端執行環境（無需自架）",
+      "對非工程背景使用者特別友善",
+    ],
+    limitations: [
+      "受限於 Replit 平台架構",
+      "對 production 級別系統仍需人類審閱",
+    ],
+    useCases: ["MVP / Prototype 快速生成", "教學 / 學生專題", "內部小工具"],
+    openWeight: false,
+    tags: ["代理", "全端", "Prototype"],
+    officialUrl: "https://replit.com/agent",
+    pricing: {
+      unit: "USD / Replit 訂閱 + agent checkpoints",
+      note: "Core $20/月 含一定 agent 額度",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Replit Agent 3 release pricing"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      codeExecution: true,
+      streaming: true,
+    },
+    safetyTier: "medium",
+    peers: ["cursor-composer-agent", "claude-code", "github-copilot-agent"],
+    interfaces: ["web-app", "mobile-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["檔案 / Terminal", "資料庫 (Postgres)", "Replit Deploy", "Web 搜尋"],
+      asyncCapable: true,
+      needsAuthorization: false,
+      integrations: ["Replit Deployments", "GitHub", "Postgres", "Stripe"],
+      memory: "Checkpoint-based session memory",
+    },
+    lineage: [
+      { label: "Replit Agent v1", releaseDate: "2024-09" },
+      { label: "Replit Agent 2", releaseDate: "2025-04" },
+      { label: "Replit Agent 3 (current)", releaseDate: "2025-06", current: true },
+    ],
+  },
+  {
+    id: "manus-ai",
+    name: "Manus AI",
+    apiId: "manus",
+    provider: "Manus",
+    modality: "agent",
+    tier: "frontier",
+    releaseDate: "2025-03",
+    tagline: "通用任務型代理，雲端虛擬機跑數小時",
+    description:
+      "Manus 是來自中國團隊的通用型代理產品，可在雲端虛擬機中跑數小時任務 — 從研究、寫報告、做網站到資料分析。主打跨模態工具整合與「主動回報」式介面。",
+    strengths: [
+      "通用任務廣度（非僅程式碼）",
+      "雲端執行，閉手機後仍會持續",
+      "可同時開多 session 並行",
+    ],
+    limitations: [
+      "繁中介面但偏簡中思維",
+      "資安 / 合規規範相對較新",
+    ],
+    useCases: [
+      "深度研究報告",
+      "資料收集 + 圖表",
+      "個人助理 / 行程規劃",
+    ],
+    openWeight: false,
+    tags: ["通用代理", "雲端", "多任務"],
+    officialUrl: "https://manus.im/",
+    pricing: {
+      unit: "USD / 訂閱（含 task credits）",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Manus AI agent benchmark GAIA"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      functionCalling: true,
+      webSearch: true,
+      codeExecution: true,
+    },
+    safetyTier: "medium",
+    peers: ["openai-operator", "claude-computer-use", "google-jules"],
+    interfaces: ["web-app", "mobile-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["瀏覽器", "Terminal", "檔案讀寫", "資料分析", "報告產生"],
+      maxTaskMinutes: 480,
+      asyncCapable: true,
+      needsAuthorization: false,
+      integrations: ["Google Drive", "Notion", "Email", "GitHub"],
+      memory: "Per-session（可匯出）",
+      concurrencyLimit: 10,
+    },
+  },
+  {
+    id: "google-jules",
+    name: "Google Jules",
+    apiId: "jules",
+    provider: "Google",
+    modality: "agent",
+    tier: "balanced",
+    releaseDate: "2025-05",
+    tagline: "Google 的非同步編程代理，與 GitHub 深度整合",
+    description:
+      "Jules 是 Google 在 I/O 2025 推出的編程代理，採非同步模式：派任務 → 雲端 sandbox 執行 → 開 PR。底層由 Gemini 系列驅動，主打對既有 repo 的低摩擦接入。",
+    strengths: [
+      "非同步背景執行，不需開著 IDE",
+      "與 GitHub PR 流程零摩擦",
+      "Gemini 長脈絡優勢",
+    ],
+    limitations: [
+      "目前 beta，免費額度有限",
+      "對非 Google Cloud 部署的 repo 限制較多",
+    ],
+    useCases: ["背景修 bug", "升版 / 依賴遷移", "測試補齊"],
+    openWeight: false,
+    tags: ["代理", "非同步", "GitHub"],
+    officialUrl: "https://jules.google/",
+    pricing: {
+      unit: "USD / 月（beta 期間有免費額度）",
+      tier: "low",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Google Jules agent SWE-bench", "Google Jules release"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      codeExecution: true,
+      streaming: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "ISO27001"],
+    peers: ["github-copilot-agent", "devin", "claude-code"],
+    interfaces: ["web-app"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["Bash", "Git / GitHub", "Test runner", "Web 搜尋"],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["GitHub", "Gemini API"],
+      memory: "Gemini 長脈絡內建",
+    },
+  },
+  {
+    id: "microsoft-copilot-studio",
+    name: "Microsoft Copilot Studio",
+    apiId: "copilot-studio",
+    provider: "Microsoft",
+    modality: "agent",
+    tier: "balanced",
+    releaseDate: "2024-11",
+    tagline: "企業端的低程式代理建構器，整合 Microsoft 365",
+    description:
+      "Copilot Studio 讓企業以低程式方式建構代理：定義工具、知識庫、流程，並佈署到 Teams / Outlook / SharePoint。底層可選 GPT / Phi 等模型。",
+    strengths: [
+      "與 Microsoft 365 / Power Platform 深度整合",
+      "可視化編排 + 角色權限",
+      "企業合規完整",
+    ],
+    limitations: [
+      "對非 Microsoft 生態整合較弱",
+      "進階用法仍需熟悉 Power Platform",
+    ],
+    useCases: ["企業內部代理", "客服 / HR 自動化", "知識庫問答"],
+    openWeight: false,
+    tags: ["低程式", "企業代理", "M365"],
+    officialUrl: "https://copilotstudio.microsoft.com/",
+    pricing: {
+      unit: "USD / 訊息或訂閱",
+      note: "依 message-pack 或 M365 套餐定價",
+      tier: "medium",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Microsoft Copilot Studio pricing 2026"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      webSearch: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001", "FedRAMP"],
+    peers: ["github-copilot-agent", "openai-operator"],
+    interfaces: ["web-app", "api"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["Power Platform connectors", "Graph API", "Knowledge base", "Custom topics"],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["Teams", "Outlook", "SharePoint", "Dynamics 365"],
+      memory: "Dataverse / SharePoint",
+    },
+  },
+  {
+    id: "perplexity-comet",
+    name: "Perplexity Comet",
+    apiId: "comet",
+    provider: "Perplexity",
+    modality: "agent",
+    tier: "balanced",
+    releaseDate: "2025-07",
+    tagline: "Perplexity 的 agentic 瀏覽器，搜尋即操作",
+    description:
+      "Comet 是 Perplexity 推出的 agentic 瀏覽器，把搜尋、研究與網頁操作合而為一。模型可代為比價、整理資料、跨網站填表，並把結果一鍵彙整成報告。",
+    strengths: [
+      "搜尋 + 操作一體",
+      "研究流程加速顯著",
+      "與 Perplexity 引用機制原生整合",
+    ],
+    limitations: [
+      "瀏覽器尚未全面開放",
+      "對需登入的網站要授權",
+    ],
+    useCases: ["市場研究", "比價 / 採購", "資料蒐集 + 報告"],
+    openWeight: false,
+    tags: ["瀏覽器代理", "研究", "搜尋"],
+    officialUrl: "https://www.perplexity.ai/comet",
+    pricing: {
+      unit: "USD / 訂閱（Pro / Max）",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Perplexity Comet browser launch", "Comet agent benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      functionCalling: true,
+    },
+    safetyTier: "high",
+    peers: ["openai-operator", "manus-ai"],
+    interfaces: ["desktop-app"],
+    agentDetails: {
+      sandbox: "browser",
+      tools: ["搜尋 + 引用", "頁面操作", "Tabs / Profiles", "Pinned tasks"],
+      asyncCapable: true,
+      needsAuthorization: true,
+      integrations: ["任意網頁 (OAuth 後)", "Perplexity Pro / Max"],
+    },
+  },
+  {
+    id: "langgraph-agents",
+    name: "LangGraph Agents",
+    apiId: "langgraph",
+    provider: "LangChain",
+    modality: "agent",
+    tier: "open-source",
+    releaseDate: "2024-06",
+    tagline: "建構代理用的開源圖式框架（含託管平台）",
+    description:
+      "LangGraph 是 LangChain 推出的代理框架，採有向圖 + 狀態機建構多步驟代理工作流；可自架或使用 LangGraph Cloud 託管。生態系成熟，模板與評測工具豐富。",
+    strengths: [
+      "開源（MIT），自由部署",
+      "圖式 + 狀態機，可控且可觀察",
+      "LangSmith 配套 tracing / eval",
+    ],
+    limitations: [
+      "需要工程能力，非「即裝即用」產品",
+      "效能取決於底層 LLM 選擇",
+    ],
+    useCases: [
+      "自家代理基礎建設",
+      "可審計的代理流程",
+      "客製化多代理協作",
+    ],
+    openWeight: true,
+    tags: ["框架", "開源", "多代理"],
+    officialUrl: "https://www.langchain.com/langgraph",
+    pricing: {
+      unit: "免費（自架）/ LangGraph Cloud 訂閱",
+      note: "自架免費；雲端依執行時數計費",
+      tier: "self-host",
+    },
+    availability: { api: true, web: true, selfHost: true },
+    researchKeywords: ["LangGraph release notes", "LangChain agent benchmarks"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      functionCalling: true,
+      structuredOutput: true,
+      streaming: true,
+    },
+    safetyTier: "medium",
+    peers: ["llamaindex", "autogen"],
+    interfaces: ["sdk", "api"],
+    sdkPackages: [
+      {
+        name: "@langchain/langgraph",
+        source: "npm",
+        url: "https://www.npmjs.com/package/@langchain/langgraph",
+      },
+      {
+        name: "langgraph",
+        source: "pypi",
+        url: "https://pypi.org/project/langgraph/",
+      },
+      {
+        name: "langchain-ai/langgraph",
+        source: "github",
+        url: "https://github.com/langchain-ai/langgraph",
+      },
+    ],
+    agentDetails: {
+      sandbox: "self-hosted",
+      tools: ["可自選；常見：Bash、搜尋、SQL、HTTP、Vector store"],
+      asyncCapable: true,
+      integrations: ["LangSmith（tracing / eval）", "LangGraph Cloud"],
+      memory: "Pluggable checkpoint store（Postgres / Redis / SQLite）",
+    },
+  },
+
+  // ── 深度研究 / Deep Research 模型 ───────────────────────────────────────
+  // 這些是「研究模式」產品 — 餵一個主題 → 跑 5–30 分鐘 → 產出附引用的長篇報告
+  // 與一般 chat 的差異在「自動化網頁瀏覽 + 多輪推理 + 報告生成」整合在單一介面
+  {
+    id: "openai-deep-research",
+    name: "ChatGPT Deep Research",
+    apiId: "deep-research",
+    provider: "OpenAI",
+    modality: "text",
+    tier: "frontier",
+    category: "deep-research",
+    releaseDate: "2025-02",
+    tagline: "OpenAI 旗艦深度研究，o3-based、含瀏覽 + 引用",
+    description:
+      "ChatGPT 內的 Deep Research 模式由 o3 系列驅動，會在背景跑 5–30 分鐘：自主決定要看哪些網頁、做哪些子查詢，最後輸出附完整引用的長篇報告。Pro / Plus 用戶皆有月配額。",
+    strengths: [
+      "o3 推理 + 自動瀏覽串接",
+      "報告長度可達 1 萬字、附逐項引用",
+      "Plus / Pro / Team 都有額度",
+      "支援檔案上傳作為背景資料",
+    ],
+    limitations: [
+      "單次耗時 5–30 分鐘，不適合即時問題",
+      "Plus 用量配額相對少",
+      "對非英語報告品質仍稍弱",
+    ],
+    useCases: [
+      "市場 / 競品研究",
+      "技術選型評估",
+      "投資前盡職調查",
+      "學術文獻回顧",
+    ],
+    contextWindow: "200K tokens",
+    openWeight: false,
+    tags: ["深度研究", "推理", "報告"],
+    featured: true,
+    officialUrl: "https://openai.com/index/introducing-deep-research/",
+    pricing: {
+      unit: "USD / 訂閱配額",
+      note: "Plus $20 含每月配額；Pro $200 配額更高",
+      tier: "premium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["ChatGPT Deep Research o3 benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2"],
+    peers: ["perplexity-deep-research", "gemini-deep-research", "claude-research"],
+    highlightBenchmark: true,
+  },
+  {
+    id: "perplexity-deep-research",
+    name: "Perplexity Deep Research",
+    apiId: "deep-research",
+    provider: "Perplexity",
+    modality: "text",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2025-02",
+    tagline: "Perplexity 開源風的深度研究，速度快、附引用",
+    description:
+      "Perplexity Deep Research 是 Perplexity Pro 內建的研究模式，主打「快速」— 多數任務 2–4 分鐘完成，並附原生引用。免費用戶有有限額度，Pro 用戶幾乎無限。",
+    strengths: [
+      "比 OpenAI 快 3–5 倍",
+      "免費版即可體驗",
+      "原生引用 + 來源摺疊",
+    ],
+    limitations: [
+      "報告深度不及 OpenAI / Gemini",
+      "對極專業領域偶爾來源品質不穩",
+    ],
+    useCases: ["快速主題掃描", "競品速覽", "投資前快速 due-diligence"],
+    contextWindow: "—",
+    openWeight: false,
+    tags: ["深度研究", "搜尋", "速度"],
+    featured: true,
+    officialUrl: "https://www.perplexity.ai/hub/blog/introducing-perplexity-deep-research",
+    pricing: {
+      unit: "USD / 訂閱（含每日配額）",
+      note: "免費 5 次/日；Pro 500 次/日",
+      tier: "low",
+    },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["Perplexity Deep Research SimpleQA benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      webSearch: true,
+      structuredOutput: true,
+      streaming: true,
+    },
+    safetyTier: "medium",
+    peers: ["openai-deep-research", "gemini-deep-research", "perplexity-comet"],
+  },
+  {
+    id: "gemini-deep-research",
+    name: "Gemini Deep Research",
+    apiId: "gemini-deep-research",
+    provider: "Google",
+    modality: "multimodal",
+    tier: "frontier",
+    category: "deep-research",
+    releaseDate: "2024-12",
+    tagline: "Gemini Advanced 內建深度研究，長脈絡優勢明顯",
+    description:
+      "Gemini Deep Research 是 Gemini Advanced 內建的研究模式，先生成「研究計畫」讓使用者審核 → 跑 5–10 分鐘 → 輸出含引用的 Google Docs 風報告，可一鍵存到 Drive。",
+    strengths: [
+      "研究計畫可審核 / 修改",
+      "輸出可直接導入 Google Docs",
+      "Gemini 2M token 長脈絡",
+      "圖表 / 表格生成佳",
+    ],
+    limitations: [
+      "需 Gemini Advanced 訂閱",
+      "中文報告偏簡中口吻",
+    ],
+    useCases: ["策略簡報", "教學講義", "與 Workspace 整合的研究"],
+    contextWindow: "2M tokens",
+    openWeight: false,
+    tags: ["深度研究", "Google", "Docs"],
+    featured: true,
+    officialUrl: "https://blog.google/products/gemini/google-gemini-deep-research/",
+    pricing: {
+      unit: "USD / 訂閱（Gemini Advanced）",
+      note: "$20/月，含其他 Gemini 模型額度",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Gemini Deep Research review", "Gemini Advanced research"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "ISO27001"],
+    peers: ["openai-deep-research", "perplexity-deep-research", "claude-research"],
+  },
+  {
+    id: "claude-research",
+    name: "Claude Research",
+    apiId: "claude-research",
+    provider: "Anthropic",
+    modality: "text",
+    tier: "frontier",
+    category: "deep-research",
+    releaseDate: "2025-04",
+    tagline: "Claude.ai 內建研究模式，可掛載企業資料",
+    description:
+      "Claude.ai 推出的 Research 模式整合 web 搜尋 + 企業知識庫（Google Drive、SharePoint、Slack 等）— 模型同時調研網路與內部資料，附引用回覆。Enterprise 用戶可掛載自家資料來源。",
+    strengths: [
+      "可同時調研 web + 企業內部",
+      "Connectors（Drive / Slack / GitHub）原生整合",
+      "回覆品質與 Opus 一致",
+    ],
+    limitations: [
+      "Connectors 需 Team / Enterprise 訂閱",
+      "瀏覽速度比 Perplexity 慢",
+    ],
+    useCases: ["企業內部研究", "知識管理", "顧問報告"],
+    contextWindow: "200K tokens",
+    openWeight: false,
+    tags: ["深度研究", "企業", "連接器"],
+    featured: true,
+    officialUrl: "https://www.anthropic.com/news/research",
+    pricing: {
+      unit: "USD / 訂閱（Pro / Team / Enterprise）",
+      note: "Pro $20/月起；Connectors 需 Team / Enterprise",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Claude Research connectors enterprise"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "high",
+    compliance: ["SOC2", "HIPAA", "GDPR", "ISO27001"],
+    peers: ["openai-deep-research", "gemini-deep-research"],
+  },
+  {
+    id: "grok-deepsearch",
+    name: "Grok DeepSearch",
+    apiId: "grok-deepsearch",
+    provider: "xAI",
+    modality: "text",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2025-02",
+    tagline: "Grok 3 內建深度搜尋，特長即時 X / Twitter 取材",
+    description:
+      "DeepSearch 是 Grok 3 在 X 平台與 grok.com 上的研究模式，主打把 X 上的即時討論納入研究 — 適合科技 / 體育 / 政治等即時話題。對較專業學術內容偏弱。",
+    strengths: [
+      "X / Twitter 即時討論納入",
+      "科技 / 體育 / 政治話題反應快",
+      "Premium 用戶有充裕額度",
+    ],
+    limitations: [
+      "學術文獻來源偏少",
+      "對齊較寬鬆，事實仍需自行覆核",
+    ],
+    useCases: ["即時話題追蹤", "輿情分析", "科技新聞速覽"],
+    openWeight: false,
+    tags: ["深度研究", "即時", "X"],
+    officialUrl: "https://x.ai/news/grok-3",
+    pricing: {
+      unit: "USD / 訂閱（X Premium+ / SuperGrok）",
+      tier: "medium",
+    },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Grok DeepSearch benchmark X integration"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      webSearch: true,
+      streaming: true,
+    },
+    safetyTier: "low",
+    peers: ["openai-deep-research", "perplexity-deep-research"],
+  },
+  {
+    id: "manus-deep-research",
+    name: "Manus Deep Research",
+    apiId: "manus-research",
+    provider: "Manus",
+    modality: "agent",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2025-04",
+    tagline: "Manus 的長程研究代理，幾小時跑出深度報告",
+    description:
+      "Manus 在通用 agent 之上特化的研究模式 — 可跑數小時、爬遍上百個頁面、產出含圖表的長篇報告。介面與通用 Manus 一致，可同時開多 task。",
+    strengths: [
+      "可跑數小時，深度極高",
+      "圖表 + 文字混排輸出",
+      "可同時跑多個研究 task",
+    ],
+    limitations: [
+      "速度比 Perplexity 慢得多",
+      "資安規範相對新",
+    ],
+    useCases: ["深度產業研究", "投資 / 政策報告", "長篇文獻整合"],
+    openWeight: false,
+    tags: ["深度研究", "代理", "長程"],
+    officialUrl: "https://manus.im/",
+    pricing: { unit: "USD / 訂閱 + ACU", tier: "medium" },
+    availability: { api: false, web: true, selfHost: false },
+    researchKeywords: ["Manus Deep Research benchmark GAIA"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      visionInput: true,
+      webSearch: true,
+      codeExecution: true,
+    },
+    safetyTier: "medium",
+    peers: ["openai-deep-research", "gemini-deep-research", "manus-ai"],
+    agentDetails: {
+      sandbox: "cloud-vm",
+      tools: ["瀏覽器", "Web 搜尋", "資料分析", "報告生成"],
+      maxTaskMinutes: 480,
+      asyncCapable: true,
+      needsAuthorization: false,
+      integrations: ["Google Drive", "Email 寄送", "Notion"],
+      memory: "Task-scoped + 可匯出",
+    },
+  },
+  {
+    id: "you-research",
+    name: "You.com Research Agent",
+    apiId: "research-agent",
+    provider: "Perplexity", // 既有 provider 借用，You.com 比較像競品
+    modality: "text",
+    tier: "balanced",
+    category: "deep-research",
+    releaseDate: "2024-10",
+    tagline: "You.com 研究代理，企業可掛 connectors",
+    description:
+      "You.com 的 Research Agent 從早期 YouChat 一路演進到 multi-agent 研究模式，企業版可串接內部資料庫。對開發者友善：API 直出含引用的 JSON。",
+    strengths: [
+      "API 直接回 JSON + 引用",
+      "企業 connectors（自架）",
+      "對開發整合友善",
+    ],
+    limitations: [
+      "C 端品牌力較低",
+      "中文搜尋表現偶有不穩",
+    ],
+    useCases: ["在自家 App 中嵌入研究功能", "後台批次研究 pipeline"],
+    openWeight: false,
+    tags: ["深度研究", "API", "企業"],
+    officialUrl: "https://you.com/",
+    pricing: { unit: "USD / API 呼叫 + 訂閱", tier: "medium" },
+    availability: { api: true, web: true, selfHost: false },
+    researchKeywords: ["You.com Research API benchmark"],
+    factCheck: { status: "pending", sources: [] },
+    capabilities: {
+      webSearch: true,
+      structuredOutput: true,
+    },
+    safetyTier: "medium",
+    peers: ["perplexity-deep-research", "openai-deep-research"],
   },
 ];
 
@@ -4051,6 +5321,7 @@ export function getModelCountByModality(): Record<ModelModality, number> {
     audio: 0,
     multimodal: 0,
     embedding: 0,
+    agent: 0,
   };
   for (const m of AI_MODELS_CATALOG) counts[m.modality]++;
   return counts;

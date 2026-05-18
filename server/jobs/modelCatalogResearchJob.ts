@@ -32,12 +32,37 @@ import {
   getResearchStats,
 } from "../services/modelResearcher";
 
-const CRON_SCHEDULE = "30 3 * * *"; // 每天 03:30：先 discovery，再 stale-only 補抓
+const DEFAULT_CRON_SCHEDULE = "30 3 * * *"; // 每天 03:30：先 discovery，再 stale-only 補抓
 const WARMUP_DELAY_MS = 90_000; // 啟動 90 秒後跑首輪（避開 server 啟動高峰）
 
 let cronTask: cron.ScheduledTask | null = null;
 let warmupTimer: NodeJS.Timeout | null = null;
 let isRunning = false;
+
+/**
+ * 目前有效的排程。優先序：
+ *   1. runtime 透過 admin tRPC 設定的覆寫值（in-memory，process 重啟會失效）
+ *   2. 環境變數 MODEL_RESEARCH_CRON_SCHEDULE
+ *   3. 內建預設 "30 3 * * *"
+ *
+ * 想跨重啟持久化請設環境變數。
+ */
+let currentSchedule: string = readEnvSchedule() ?? DEFAULT_CRON_SCHEDULE;
+
+function readEnvSchedule(): string | null {
+  const raw = process.env.MODEL_RESEARCH_CRON_SCHEDULE;
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (!cron.validate(trimmed)) {
+    logger.warn(
+      "[ModelResearchCron] MODEL_RESEARCH_CRON_SCHEDULE 無效，改用預設值",
+      { raw: trimmed }
+    );
+    return null;
+  }
+  return trimmed;
+}
 
 function isDisabled(): boolean {
   const flag = process.env.DISABLE_MODEL_RESEARCH_CRON;
@@ -102,7 +127,7 @@ export function initModelCatalogResearchCron(): void {
     return;
   }
 
-  cronTask = cron.schedule(CRON_SCHEDULE, () => {
+  cronTask = cron.schedule(currentSchedule, () => {
     void runOnce("cron");
   });
 
@@ -111,7 +136,7 @@ export function initModelCatalogResearchCron(): void {
   }, WARMUP_DELAY_MS);
 
   logger.info("[ModelResearchCron] initialized", {
-    schedule: CRON_SCHEDULE,
+    schedule: currentSchedule,
     warmupDelayMs: WARMUP_DELAY_MS,
   });
 }
@@ -126,6 +151,63 @@ export function stopModelCatalogResearchCron(): void {
     warmupTimer = null;
   }
   logger.info("[ModelResearchCron] stopped");
+}
+
+/**
+ * 取得目前有效的排程字串（runtime override / env / 預設）。
+ */
+export function getActiveCronSchedule(): string {
+  return currentSchedule;
+}
+
+/**
+ * 由 admin tRPC 呼叫：更新自動研究的排程字串並（若已初始化）熱重啟 cron。
+ * 變更只存在於記憶體 — 要跨 process 重啟，請額外把 MODEL_RESEARCH_CRON_SCHEDULE
+ * 環境變數設成同樣的值。
+ */
+export function updateCronSchedule(nextSchedule: string): {
+  ok: boolean;
+  schedule: string;
+  message: string;
+} {
+  const trimmed = nextSchedule.trim();
+  if (!cron.validate(trimmed)) {
+    return {
+      ok: false,
+      schedule: currentSchedule,
+      message: `無效的 cron 字串：${nextSchedule}`,
+    };
+  }
+  if (trimmed === currentSchedule) {
+    return {
+      ok: true,
+      schedule: currentSchedule,
+      message: "排程未變更",
+    };
+  }
+
+  const previous = currentSchedule;
+  currentSchedule = trimmed;
+
+  // 若 cron 已在跑，熱重啟以套用新排程
+  if (cronTask) {
+    cronTask.stop();
+    cronTask = cron.schedule(currentSchedule, () => {
+      void runOnce("cron");
+    });
+  }
+
+  logger.info("[ModelResearchCron] schedule updated", {
+    previous,
+    next: currentSchedule,
+    active: Boolean(cronTask),
+  });
+
+  return {
+    ok: true,
+    schedule: currentSchedule,
+    message: `排程已更新為「${currentSchedule}」`,
+  };
 }
 
 /**
@@ -256,12 +338,16 @@ export function getCronStatus(): {
   scheduled: boolean;
   isRunning: boolean;
   schedule: string;
+  defaultSchedule: string;
+  envOverride: boolean;
   stats: ReturnType<typeof getResearchStats>;
 } {
   return {
     scheduled: cronTask !== null,
     isRunning,
-    schedule: CRON_SCHEDULE,
+    schedule: currentSchedule,
+    defaultSchedule: DEFAULT_CRON_SCHEDULE,
+    envOverride: Boolean(readEnvSchedule()),
     stats: getResearchStats(),
   };
 }

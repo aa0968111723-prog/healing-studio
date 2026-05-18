@@ -10,7 +10,7 @@
  *   - Header 顯示自動研究覆蓋率、上次研究時間、stale 提醒。
  */
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -69,6 +69,7 @@ import {
   Compass,
   FileText,
   PackagePlus,
+  Bot,
 } from "lucide-react";
 import {
   AI_MODELS_CATALOG,
@@ -98,14 +99,19 @@ const LATENCY_LABELS: Record<LatencyClass, string> = {
 
 // ─── Modality tabs config ──────────────────────────────────────────────────
 
+// 「tabId」既支援 ModelModality，也支援 "deep-research"（用 category 過濾）
+type ModalityTabId = ModelModality | "all" | "deep-research";
+
 const MODALITY_TABS: Array<{
-  id: ModelModality | "all";
+  id: ModalityTabId;
   label: string;
   icon: typeof MessageSquare;
 }> = [
   { id: "all", label: "全部", icon: Layers },
   { id: "text", label: "文字", icon: MessageSquare },
   { id: "multimodal", label: "多模態", icon: Sparkles },
+  { id: "agent", label: "代理", icon: Bot },
+  { id: "deep-research", label: "深度研究", icon: Compass },
   { id: "image", label: "圖片", icon: ImageIcon },
   { id: "video", label: "影片", icon: Video },
   { id: "audio", label: "音訊", icon: Music },
@@ -272,12 +278,64 @@ function FactCheckBadge({
 
 // ─── Model card ────────────────────────────────────────────────────────────
 
+// Card-level compact capability chips. Show only enabled ones to avoid clutter.
+// One emoji + a short Chinese label tooltip — keeps the card scannable at a glance.
+function CapabilityChipsRow({ model }: { model: AIModelEntry }) {
+  type Chip = { key: string; emoji: string; title: string; on: boolean };
+  const caps = model.capabilities ?? {};
+  const chips: Chip[] = [
+    { key: "vision", emoji: "👁", title: "視覺輸入", on: !!caps.visionInput },
+    { key: "tools", emoji: "🛠", title: "工具呼叫", on: !!caps.functionCalling },
+    { key: "code", emoji: "⚙️", title: "程式執行", on: !!caps.codeExecution },
+    { key: "web", emoji: "🌐", title: "網頁搜尋", on: !!caps.webSearch },
+    { key: "cache", emoji: "💾", title: "Prompt 快取", on: !!caps.promptCaching },
+    { key: "batch", emoji: "📦", title: "Batch API", on: !!caps.batchApi },
+  ];
+  const active = chips.filter(c => c.on);
+  if (active.length === 0 && !model.agentDetails && !model.lineage) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1 mb-3">
+      {active.map(c => (
+        <span
+          key={c.key}
+          title={c.title}
+          aria-label={c.title}
+          className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/70 border border-border/40 inline-flex items-center gap-0.5"
+        >
+          <span>{c.emoji}</span>
+          <span className="text-foreground/80">{c.title}</span>
+        </span>
+      ))}
+      {model.modality === "agent" && model.agentDetails?.asyncCapable && (
+        <span
+          title="支援背景非同步執行"
+          className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60"
+        >
+          ⏱ 背景跑
+        </span>
+      )}
+      {model.lineage && model.lineage.length > 1 && (
+        <span
+          title={`版本演進：${model.lineage.length} 個里程碑`}
+          className="text-[10px] px-1.5 py-0.5 rounded-md bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200/60"
+        >
+          v{model.lineage.length}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function ModelCard({
   model,
   onOpen,
+  inCompare,
+  onToggleCompare,
 }: {
   model: AIModelEntry;
   onOpen: () => void;
+  inCompare?: boolean;
+  onToggleCompare?: () => void;
 }) {
   const provider = PROVIDER_STYLE[model.provider];
   const modality = MODALITY_STYLE[model.modality];
@@ -399,6 +457,58 @@ function ModelCard({
           </span>
         </div>
 
+        {/* Token pricing line + top benchmark — denser at-a-glance facts */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/90 mb-3">
+          {(model.pricing?.inputPerMillion || model.pricing?.outputPerMillion) && (
+            <span className="inline-flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-emerald-600" />
+              <span className="font-mono text-foreground/90">
+                {model.pricing.inputPerMillion ?? "—"}
+                {" / "}
+                {model.pricing.outputPerMillion ?? "—"}
+              </span>
+              <span className="text-muted-foreground/60">{model.pricing.unit}</span>
+            </span>
+          )}
+          {model.benchmarks && model.benchmarks.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <BarChart3 className="w-3 h-3 text-violet-500" />
+              <span className="text-foreground/90">
+                {model.benchmarks[0].name}
+              </span>
+              <span className="font-semibold text-foreground">
+                {model.benchmarks[0].score}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* Capability mini-icons — tools / vision / cache / batch / open */}
+        <CapabilityChipsRow model={model} />
+
+        {/* Hosting platforms */}
+        {model.hostedOn && model.hostedOn.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 mb-3">
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+              代管
+            </span>
+            {model.hostedOn.slice(0, 5).map(h => (
+              <span
+                key={h}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-card border border-border/60 text-muted-foreground"
+                title={`此模型可在 ${HOSTING_LABELS[h] ?? h} 上呼叫`}
+              >
+                {HOSTING_LABELS[h] ?? h}
+              </span>
+            ))}
+            {model.hostedOn.length > 5 && (
+              <span className="text-[10px] text-muted-foreground/60">
+                +{model.hostedOn.length - 5}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Tags */}
         {model.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
@@ -420,6 +530,41 @@ function ModelCard({
             checkedAt={model.factCheck?.checkedAt}
           />
           <div className="inline-flex items-center gap-1.5">
+            {onToggleCompare && (
+              <span
+                role="checkbox"
+                aria-checked={!!inCompare}
+                tabIndex={0}
+                title={inCompare ? "已加入比較" : "加入比較"}
+                onClick={e => {
+                  e.stopPropagation();
+                  onToggleCompare();
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleCompare();
+                  }
+                }}
+                className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md cursor-pointer transition-healing ${
+                  inCompare
+                    ? "bg-fuchsia-100 text-fuchsia-700 ring-1 ring-fuchsia-200"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <span
+                  className={`w-3 h-3 rounded-sm border flex items-center justify-center ${
+                    inCompare
+                      ? "border-fuchsia-500 bg-fuchsia-500 text-white"
+                      : "border-muted-foreground/40"
+                  }`}
+                >
+                  {inCompare && <CheckCircle2 className="w-2.5 h-2.5" />}
+                </span>
+                比較
+              </span>
+            )}
             {isAdmin && (
               <span
                 role="button"
@@ -783,6 +928,267 @@ function SafetyComplianceBlock({ model }: { model: AIModelEntry }) {
           </span>
         ))}
       </div>
+    </section>
+  );
+}
+
+// ─── Agent-specific details block ─────────────────────────────────────────
+// 只對 modality === "agent" 顯示：sandbox、工具集、是否可背景跑、整合對象等
+
+const SANDBOX_LABELS: Record<
+  NonNullable<AIModelEntry["agentDetails"]>["sandbox"] & string,
+  string
+> = {
+  "cloud-vm": "雲端 VM",
+  browser: "瀏覽器",
+  "local-terminal": "本機終端",
+  ide: "IDE 內建",
+  "github-actions": "GitHub Actions",
+  "self-hosted": "自架部署",
+  mixed: "多種環境",
+};
+
+function formatTaskDuration(minutes?: number): string | null {
+  if (!minutes || minutes <= 0) return null;
+  if (minutes < 60) return `${minutes} 分鐘`;
+  const hours = minutes / 60;
+  if (hours < 24) {
+    return Number.isInteger(hours)
+      ? `${hours} 小時`
+      : `${hours.toFixed(1)} 小時`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days} 天`;
+}
+
+function AgentDetailsBlock({ model }: { model: AIModelEntry }) {
+  if (model.modality !== "agent") return null;
+  const d = model.agentDetails;
+  if (!d) return null;
+
+  const rows: Array<{ label: string; value: React.ReactNode }> = [];
+  if (d.sandbox) {
+    rows.push({
+      label: "執行環境",
+      value: SANDBOX_LABELS[d.sandbox] ?? d.sandbox,
+    });
+  }
+  if (d.maxTaskMinutes) {
+    rows.push({
+      label: "單次任務上限",
+      value: formatTaskDuration(d.maxTaskMinutes) ?? "—",
+    });
+  }
+  if (typeof d.concurrencyLimit === "number") {
+    rows.push({
+      label: "並行任務",
+      value: `${d.concurrencyLimit} session`,
+    });
+  }
+  if (d.memory) {
+    rows.push({ label: "記憶 / 狀態", value: d.memory });
+  }
+  rows.push({
+    label: "背景執行",
+    value: d.asyncCapable ? (
+      <span className="inline-flex items-center gap-1 text-emerald-700">
+        <CheckCircle2 className="w-3 h-3" /> 支援
+      </span>
+    ) : (
+      <span className="text-muted-foreground">需開著</span>
+    ),
+  });
+  if (d.needsAuthorization !== undefined) {
+    rows.push({
+      label: "需要授權",
+      value: d.needsAuthorization ? (
+        <span className="inline-flex items-center gap-1 text-amber-700">
+          <ShieldAlert className="w-3 h-3" /> 敏感操作要確認
+        </span>
+      ) : (
+        <span className="text-muted-foreground">不需</span>
+      ),
+    });
+  }
+
+  return (
+    <section className="rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-500/5 via-card to-violet-500/5 p-4">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-indigo-500" />
+        代理運作細節
+      </h3>
+
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              className="rounded-lg bg-card/80 border border-border/60 px-3 py-1.5"
+            >
+              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                {r.label}
+              </div>
+              <div className="text-xs font-medium text-foreground mt-0.5">
+                {r.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {d.tools && d.tools.length > 0 && (
+        <div className="mb-2">
+          <div className="text-[11px] text-muted-foreground/80 mb-1">
+            內建工具
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {d.tools.map(t => (
+              <span
+                key={t}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-card text-foreground/90 border border-border/60"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {d.integrations && d.integrations.length > 0 && (
+        <div>
+          <div className="text-[11px] text-muted-foreground/80 mb-1">
+            整合對象
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {d.integrations.map(t => (
+              <span
+                key={t}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─── Interfaces + SDK packages ─────────────────────────────────────────────
+
+const INTERFACE_LABELS: Record<NonNullable<AIModelEntry["interfaces"]>[number], string> = {
+  api: "API",
+  "web-app": "Web 應用",
+  cli: "CLI",
+  "ide-plugin": "IDE 套件",
+  "desktop-app": "桌面 App",
+  "mobile-app": "行動 App",
+  "browser-extension": "瀏覽器擴充",
+  sdk: "SDK",
+  "github-action": "GitHub Action",
+};
+
+function InterfacesBlock({ model }: { model: AIModelEntry }) {
+  const ifaces = model.interfaces ?? [];
+  const pkgs = model.sdkPackages ?? [];
+  if (ifaces.length === 0 && pkgs.length === 0) return null;
+  return (
+    <section className="rounded-xl border border-border bg-card p-4">
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
+        <PackagePlus className="w-4 h-4 text-sky-500" />
+        使用介面 / SDK
+      </h3>
+      {ifaces.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {ifaces.map(i => (
+            <span
+              key={i}
+              className="text-[11px] px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 font-medium"
+            >
+              {INTERFACE_LABELS[i] ?? i}
+            </span>
+          ))}
+        </div>
+      )}
+      {pkgs.length > 0 && (
+        <ul className="space-y-1">
+          {pkgs.map(p => (
+            <li
+              key={p.name}
+              className="flex items-center gap-2 text-xs"
+            >
+              <span className="text-[10px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                {p.source}
+              </span>
+              {p.url ? (
+                <a
+                  href={p.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-foreground/90 hover:text-primary inline-flex items-center gap-1"
+                >
+                  {p.name}
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              ) : (
+                <span className="font-mono text-foreground/90">{p.name}</span>
+              )}
+              {p.note && (
+                <span className="text-muted-foreground/80">— {p.note}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// ─── Lineage / version history ────────────────────────────────────────────
+
+function LineageBlock({ model }: { model: AIModelEntry }) {
+  const steps = model.lineage ?? [];
+  if (steps.length === 0) return null;
+  return (
+    <section>
+      <h3 className="hs-h3 !mb-0 text-foreground mb-2 inline-flex items-center gap-2">
+        <Activity className="w-4 h-4 text-fuchsia-500" />
+        版本演進
+      </h3>
+      <ol className="relative border-l-2 border-border/60 pl-4 space-y-2">
+        {steps.map((s, i) => (
+          <li key={i} className="relative">
+            <span
+              className={`absolute -left-[1.4rem] top-1.5 w-3 h-3 rounded-full ring-2 ring-background ${
+                s.current ? "bg-fuchsia-500" : "bg-border"
+              }`}
+            />
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span
+                className={`text-sm font-medium ${
+                  s.current ? "text-fuchsia-700" : "text-foreground"
+                }`}
+              >
+                {s.label}
+              </span>
+              <span className="text-[11px] text-muted-foreground/70">
+                {formatReleaseDate(s.releaseDate)}
+              </span>
+              {s.current && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700 font-medium">
+                  目前版本
+                </span>
+              )}
+            </div>
+            {s.note && (
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {s.note}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -1152,8 +1558,17 @@ function ModelDetailModal({
             {/* Capabilities matrix */}
             <CapabilitiesBlock model={model} />
 
+            {/* Agent-only: sandbox / tools / integrations */}
+            <AgentDetailsBlock model={model} />
+
             {/* Latest updates — auto-researched */}
             <LatestUpdatesBlock model={model} />
+
+            {/* Version lineage */}
+            <LineageBlock model={model} />
+
+            {/* Interfaces + SDK packages */}
+            <InterfacesBlock model={model} />
 
             {/* Availability */}
             <AvailabilityBlock model={model} />
@@ -1781,6 +2196,354 @@ function DiscoveryCard({
 // 全量研究。同時把上次跑的 metadata（耗時、嘗試/成功數、錯誤明細）都攤開來
 // 讓策展者一眼能看到目前是不是健康。
 
+// 數字會在值變化時平滑跳到新值（~600ms），讓 hero stats 有點生氣
+function useAnimatedCount(target: number, durationMs = 600): number {
+  const [value, setValue] = useState(target);
+  useEffect(() => {
+    if (value === target) return;
+    const start = value;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / durationMs);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(Math.round(start + (target - start) * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // value intentionally excluded — we only re-animate when target moves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, durationMs]);
+  return value;
+}
+
+function StatTile({
+  label,
+  value,
+  suffix,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  icon?: React.ReactNode;
+  tone?: "emerald" | "violet";
+}) {
+  const animated = useAnimatedCount(value);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.25 }}
+      className={`rounded-xl border border-border p-3 ${
+        tone === "emerald"
+          ? "bg-gradient-to-br from-emerald-500/8 to-card"
+          : tone === "violet"
+            ? "bg-gradient-to-br from-violet-500/8 to-card"
+            : "bg-card"
+      }`}
+    >
+      <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider inline-flex items-center gap-1">
+        {icon}
+        {label}
+      </div>
+      <div className="text-xl font-semibold text-foreground mt-0.5 tabular-nums">
+        {animated}
+        {suffix && (
+          <span className="text-xs text-muted-foreground/70 font-normal">
+            {suffix}
+          </span>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// 把人類友善的「每天 / 每週 X / 平日 + HH:MM」轉成 5 段 cron 字串
+function buildCronExpr(opts: {
+  preset: "daily" | "weekday" | "weekly";
+  weekday: number; // 0–6
+  hour: number; // 0–23
+  minute: number; // 0–59
+}): string {
+  const { preset, weekday, hour, minute } = opts;
+  const m = String(minute);
+  const h = String(hour);
+  if (preset === "daily") return `${m} ${h} * * *`;
+  if (preset === "weekday") return `${m} ${h} * * 1-5`;
+  return `${m} ${h} * * ${weekday}`;
+}
+
+// 反向：盡力把 cron 解析回 picker 狀態；解析不到就回 null（讓 UI 退到 raw 模式）
+function parseCronExpr(expr: string): {
+  preset: "daily" | "weekday" | "weekly";
+  weekday: number;
+  hour: number;
+  minute: number;
+} | null {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [min, hour, dom, mon, dow] = parts;
+  if (dom !== "*" || mon !== "*") return null;
+  if (!/^\d+$/.test(min) || !/^\d+$/.test(hour)) return null;
+  const m = parseInt(min, 10);
+  const h = parseInt(hour, 10);
+  if (m < 0 || m > 59 || h < 0 || h > 23) return null;
+  if (dow === "*") {
+    return { preset: "daily", weekday: 0, hour: h, minute: m };
+  }
+  if (dow === "1-5") {
+    return { preset: "weekday", weekday: 0, hour: h, minute: m };
+  }
+  if (/^\d$/.test(dow)) {
+    return {
+      preset: "weekly",
+      weekday: parseInt(dow, 10),
+      hour: h,
+      minute: m,
+    };
+  }
+  return null;
+}
+
+function ScheduleEditorDialog({
+  open,
+  onOpenChange,
+  initialCron,
+  envOverride,
+}: {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  initialCron: string;
+  envOverride: boolean;
+}) {
+  const utils = trpc.useUtils();
+  const setSchedule = trpc.aiModels.setSchedule.useMutation({
+    onSuccess: data => {
+      toast.success(data.message ?? "排程已更新");
+      void utils.aiModels.researchStats.invalidate();
+      onOpenChange(false);
+    },
+    onError: err => {
+      toast.error(err.message ?? "更新排程失敗");
+    },
+  });
+
+  const parsed = parseCronExpr(initialCron);
+  const [mode, setMode] = useState<"picker" | "raw">(parsed ? "picker" : "raw");
+  const [preset, setPreset] = useState<"daily" | "weekday" | "weekly">(
+    parsed?.preset ?? "daily"
+  );
+  const [weekday, setWeekday] = useState<number>(parsed?.weekday ?? 0);
+  const [hour, setHour] = useState<number>(parsed?.hour ?? 3);
+  const [minute, setMinute] = useState<number>(parsed?.minute ?? 30);
+  const [rawCron, setRawCron] = useState<string>(initialCron);
+
+  useEffect(() => {
+    if (!open) return;
+    const p = parseCronExpr(initialCron);
+    setMode(p ? "picker" : "raw");
+    setPreset(p?.preset ?? "daily");
+    setWeekday(p?.weekday ?? 0);
+    setHour(p?.hour ?? 3);
+    setMinute(p?.minute ?? 30);
+    setRawCron(initialCron);
+  }, [open, initialCron]);
+
+  const computedCron =
+    mode === "picker"
+      ? buildCronExpr({ preset, weekday, hour, minute })
+      : rawCron.trim();
+  const preview = humanizeCron(computedCron);
+  const dirty = computedCron !== initialCron;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-sky-600" />
+            設定自動研究排程
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          {/* mode switch */}
+          <div className="inline-flex rounded-full bg-muted p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("picker")}
+              className={`px-3 py-1 rounded-full transition-all ${
+                mode === "picker"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              快速選擇
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("raw")}
+              className={`px-3 py-1 rounded-full transition-all ${
+                mode === "raw"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              自訂 cron
+            </button>
+          </div>
+
+          {mode === "picker" ? (
+            <div className="space-y-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                  頻率
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["daily", "weekday", "weekly"] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPreset(p)}
+                      className={`text-xs px-2.5 py-1 rounded-full transition-all ring-1 ${
+                        preset === p
+                          ? "bg-foreground text-background ring-foreground"
+                          : "bg-card text-muted-foreground ring-border hover:ring-border"
+                      }`}
+                    >
+                      {p === "daily"
+                        ? "每天"
+                        : p === "weekday"
+                          ? "週一到週五"
+                          : "每週指定日"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {preset === "weekly" && (
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                    星期
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAY_LABELS.map((label, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setWeekday(i)}
+                        className={`text-xs px-2.5 py-1 rounded-full transition-all ring-1 ${
+                          weekday === i
+                            ? "bg-foreground text-background ring-foreground"
+                            : "bg-card text-muted-foreground ring-border"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                    時
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={hour}
+                    onChange={e =>
+                      setHour(Math.max(0, Math.min(23, Number(e.target.value) || 0)))
+                    }
+                    className="w-full px-3 py-1.5 rounded-md bg-background border border-border text-sm"
+                  />
+                </div>
+                <div className="text-muted-foreground text-lg pt-5">：</div>
+                <div className="flex-1">
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                    分
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={minute}
+                    onChange={e =>
+                      setMinute(
+                        Math.max(0, Math.min(59, Number(e.target.value) || 0))
+                      )
+                    }
+                    className="w-full px-3 py-1.5 rounded-md bg-background border border-border text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                Cron 表達式（5 段：分 時 日 月 週）
+              </div>
+              <input
+                type="text"
+                value={rawCron}
+                onChange={e => setRawCron(e.target.value)}
+                placeholder="30 3 * * *"
+                className="w-full px-3 py-1.5 rounded-md bg-background border border-border text-sm font-mono"
+              />
+              <div className="text-[11px] text-muted-foreground/70 mt-1">
+                範例：<code>0 */6 * * *</code>（每 6 小時）、
+                <code>0 9 * * 1-5</code>（平日早上 9 點）
+              </div>
+            </div>
+          )}
+
+          {/* preview */}
+          <div className="rounded-lg bg-muted/40 border border-border/60 p-3 text-xs">
+            <div className="text-muted-foreground/70 mb-0.5">預覽</div>
+            <div className="font-medium text-foreground">{preview}</div>
+            <code className="text-[11px] text-muted-foreground/80 mt-0.5 block">
+              {computedCron || "—"}
+            </code>
+          </div>
+
+          {envOverride && (
+            <div className="text-[11px] text-amber-700 bg-amber-50/60 border border-amber-200/60 rounded-md p-2">
+              注意：目前由環境變數 <code>MODEL_RESEARCH_CRON_SCHEDULE</code> 設定。
+              這裡的變更即時生效，但 process 重啟後會被環境變數覆蓋。
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={setSchedule.isPending}
+          >
+            取消
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setSchedule.mutate({ schedule: computedCron })}
+            disabled={!dirty || !computedCron || setSchedule.isPending}
+          >
+            {setSchedule.isPending ? "儲存中…" : "儲存"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AutoResearchPanel({
   staleCount,
   verifiedCount,
@@ -1792,6 +2555,7 @@ function AutoResearchPanel({
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
   const [showErrors, setShowErrors] = useState(false);
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
 
   const { data } = trpc.aiModels.researchStats.useQuery(undefined, {
     staleTime: 30_000,
@@ -1870,13 +2634,33 @@ function AutoResearchPanel({
                     : "排程已停用"}
               </span>
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              {scheduleLabel}
-              <span className="text-muted-foreground/60 mx-1.5">·</span>
+            <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+              <span>{scheduleLabel}</span>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setScheduleEditorOpen(true)}
+                  className="inline-flex items-center justify-center w-4 h-4 rounded-full text-muted-foreground/70 hover:text-primary hover:bg-muted transition-healing"
+                  title="調整自動研究排程"
+                  aria-label="調整自動研究排程"
+                >
+                  <Clock className="w-3 h-3" />
+                </button>
+              )}
+              <span className="text-muted-foreground/60 mx-0.5">·</span>
               累積 {totalRuns} 輪
             </div>
           </div>
         </div>
+
+        {isAdmin && (
+          <ScheduleEditorDialog
+            open={scheduleEditorOpen}
+            onOpenChange={setScheduleEditorOpen}
+            initialCron={data.schedule}
+            envOverride={Boolean(data.envOverride)}
+          />
+        )}
 
         <div className="ml-auto inline-flex items-center gap-2 flex-wrap justify-end">
           {isAdmin ? (
@@ -2021,11 +2805,376 @@ function AutoResearchPanel({
   );
 }
 
+// ─── Compare bar (floating bottom) ────────────────────────────────────────
+
+function CompareBar({
+  ids,
+  allModels,
+  onClear,
+  onOpen,
+  onRemove,
+}: {
+  ids: string[];
+  allModels: AIModelEntry[];
+  onClear: () => void;
+  onOpen: () => void;
+  onRemove: (id: string) => void;
+}) {
+  const selected = useMemo(
+    () =>
+      ids
+        .map(id => allModels.find(m => m.id === id))
+        .filter((m): m is AIModelEntry => Boolean(m)),
+    [ids, allModels]
+  );
+
+  return (
+    <AnimatePresence>
+      {selected.length > 0 && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 280, damping: 28 }}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(640px,calc(100vw-2rem))]"
+        >
+          <div className="rounded-2xl bg-card/95 backdrop-blur-md border border-border shadow-xl shadow-fuchsia-500/10 px-3 py-2 flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground shrink-0">
+              已選 <span className="font-semibold text-foreground">{selected.length}</span> / 4
+            </span>
+            <div className="flex-1 flex items-center gap-1 overflow-x-auto">
+              {selected.map(m => {
+                const ps = PROVIDER_STYLE[m.provider];
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onRemove(m.id)}
+                    title="從比較中移除"
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ring-1 shrink-0 ${ps.bg} ${ps.accent} ${ps.ring} hover:opacity-80`}
+                  >
+                    {m.name}
+                    <X className="w-2.5 h-2.5 opacity-70" />
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted shrink-0"
+            >
+              清除
+            </button>
+            <Button
+              size="sm"
+              onClick={onOpen}
+              disabled={selected.length < 2}
+              className="bg-gradient-to-r from-fuchsia-500 to-violet-500 text-white border-0 hover:opacity-90 shrink-0"
+            >
+              <Layers className="w-3.5 h-3.5 mr-1" />
+              比較
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Comparison view (full screen side-by-side) ──────────────────────────
+
+function ComparisonView({
+  ids,
+  allModels,
+  onClose,
+  onOpenModel,
+}: {
+  ids: string[];
+  allModels: AIModelEntry[];
+  onClose: () => void;
+  onOpenModel: (m: AIModelEntry) => void;
+}) {
+  const models = useMemo(
+    () =>
+      ids
+        .map(id => allModels.find(m => m.id === id))
+        .filter((m): m is AIModelEntry => Boolean(m)),
+    [ids, allModels]
+  );
+
+  if (models.length < 2) {
+    return (
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>比較需要至少 2 款模型</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const rows: Array<{
+    label: string;
+    render: (m: AIModelEntry) => React.ReactNode;
+  }> = [
+    {
+      label: "廠商",
+      render: m => PROVIDER_STYLE[m.provider]?.label ?? m.provider,
+    },
+    { label: "模態", render: m => MODALITY_STYLE[m.modality]?.label ?? m.modality },
+    { label: "層級", render: m => TIER_STYLE[m.tier]?.label ?? m.tier },
+    { label: "發佈", render: m => formatReleaseDate(m.releaseDate) },
+    { label: "上下文", render: m => m.contextWindow ?? "—" },
+    {
+      label: "Input",
+      render: m =>
+        m.pricing?.inputPerMillion ? (
+          <span className="font-mono">{m.pricing.inputPerMillion}</span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "Output",
+      render: m =>
+        m.pricing?.outputPerMillion ? (
+          <span className="font-mono">{m.pricing.outputPerMillion}</span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "計價單位",
+      render: m => (
+        <span className="text-[11px]">{m.pricing?.unit ?? "—"}</span>
+      ),
+    },
+    {
+      label: "Top benchmark",
+      render: m =>
+        m.benchmarks?.[0] ? (
+          <span>
+            <span className="text-muted-foreground/80">
+              {m.benchmarks[0].name}
+            </span>{" "}
+            <span className="font-semibold">{m.benchmarks[0].score}</span>
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "視覺輸入",
+      render: m => capYesNo(m.capabilities?.visionInput),
+    },
+    {
+      label: "工具呼叫",
+      render: m => capYesNo(m.capabilities?.functionCalling),
+    },
+    {
+      label: "程式執行",
+      render: m => capYesNo(m.capabilities?.codeExecution),
+    },
+    { label: "網頁搜尋", render: m => capYesNo(m.capabilities?.webSearch) },
+    {
+      label: "Prompt 快取",
+      render: m => capYesNo(m.capabilities?.promptCaching),
+    },
+    { label: "Batch API", render: m => capYesNo(m.capabilities?.batchApi) },
+    {
+      label: "開源權重",
+      render: m => (m.openWeight ? "✓" : "—"),
+    },
+    {
+      label: "安全分級",
+      render: m => m.safetyTier ?? "—",
+    },
+    {
+      label: "合規",
+      render: m =>
+        m.compliance && m.compliance.length > 0 ? (
+          <span className="font-mono text-[10px]">{m.compliance.join(" · ")}</span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "API / Web / 自架",
+      render: m => {
+        const a = m.availability;
+        if (!a) return "—";
+        const pick = (b: boolean) => (b ? "✓" : "—");
+        return (
+          <span className="font-mono text-[11px]">
+            {pick(a.api)} / {pick(a.web)} / {pick(a.selfHost)}
+          </span>
+        );
+      },
+    },
+    {
+      label: "代管平台",
+      render: m =>
+        m.hostedOn && m.hostedOn.length > 0 ? (
+          <span className="flex flex-wrap gap-0.5">
+            {m.hostedOn.map(h => (
+              <span
+                key={h}
+                className="text-[10px] px-1 rounded bg-muted text-muted-foreground"
+              >
+                {HOSTING_LABELS[h]}
+              </span>
+            ))}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      label: "代理 sandbox",
+      render: m => {
+        if (m.modality !== "agent" || !m.agentDetails?.sandbox) return "—";
+        return SANDBOX_LABELS[m.agentDetails.sandbox] ?? m.agentDetails.sandbox;
+      },
+    },
+    {
+      label: "背景執行",
+      render: m =>
+        m.agentDetails?.asyncCapable === undefined
+          ? "—"
+          : m.agentDetails.asyncCapable
+            ? "✓"
+            : "需開著",
+    },
+    {
+      label: "標籤",
+      render: m =>
+        m.tags.length > 0 ? (
+          <span className="flex flex-wrap gap-0.5">
+            {m.tags.slice(0, 4).map(t => (
+              <span
+                key={t}
+                className="text-[10px] px-1 rounded bg-muted text-muted-foreground"
+              >
+                {t}
+              </span>
+            ))}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+  ];
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0 rounded-3xl"
+      >
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0 bg-gradient-to-r from-fuchsia-500/5 via-card to-violet-500/5">
+          <Layers className="w-5 h-5 text-fuchsia-600" />
+          <h2 className="hs-h2 !mb-0 text-foreground">並列比較 · {models.length} 款模型</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto p-2 rounded-xl hover:bg-muted text-muted-foreground/70 hover:text-foreground"
+            aria-label="關閉"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-5">
+            <div
+              className="grid gap-3"
+              style={{
+                gridTemplateColumns: `minmax(110px,140px) repeat(${models.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {/* header row */}
+              <div />
+              {models.map(m => {
+                const ps = PROVIDER_STYLE[m.provider];
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onOpenModel(m)}
+                    className={`text-left rounded-xl border border-border bg-card p-3 hover:border-primary/40 hover:shadow-md transition-all`}
+                  >
+                    <div
+                      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ring-1 mb-1 ${ps.bg} ${ps.accent} ${ps.ring}`}
+                    >
+                      {ps.label}
+                    </div>
+                    <div className="text-sm font-semibold text-foreground leading-tight">
+                      {m.name}
+                    </div>
+                    {m.apiId && (
+                      <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                        {m.apiId}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* rows */}
+              {rows.map((row, ri) => (
+                <React.Fragment key={ri}>
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 py-2 border-t border-border/40">
+                    {row.label}
+                  </div>
+                  {models.map(m => (
+                    <div
+                      key={m.id}
+                      className="text-sm text-foreground/90 py-2 border-t border-border/40 min-w-0 break-words"
+                    >
+                      {row.render(m)}
+                    </div>
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function capYesNo(v: boolean | undefined): React.ReactNode {
+  if (v === undefined) return "—";
+  return v ? (
+    <span className="text-emerald-600">✓</span>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  );
+}
+
+// ─── Hosting labels ───────────────────────────────────────────────────────
+
+const HOSTING_LABELS: Record<NonNullable<AIModelEntry["hostedOn"]>[number], string> = {
+  fal: "Fal.ai",
+  replicate: "Replicate",
+  openrouter: "OpenRouter",
+  bedrock: "AWS Bedrock",
+  vertex: "GCP Vertex",
+  together: "Together",
+  huggingface: "🤗 HF",
+  groq: "Groq",
+  "azure-openai": "Azure OpenAI",
+  self: "自架",
+};
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function AIModelsHub() {
   const [, navigate] = useLocation();
-  const [activeModality, setActiveModality] = useState<ModelModality | "all">(
+  const [activeModality, setActiveModality] = useState<ModalityTabId>(
     "all"
   );
   const [activeProvider, setActiveProvider] = useState<ModelProvider | "all">(
@@ -2034,6 +3183,20 @@ export default function AIModelsHub() {
   const [activeTier, setActiveTier] = useState<ModelTier | "all">("all");
   const [search, setSearch] = useState("");
   const [openModel, setOpenModel] = useState<AIModelEntry | null>(null);
+  // ── Comparison system ───────────────────────────────────────────────────
+  // 使用者可勾選最多 4 款模型，底部出現浮動 bar；按「比較」開全螢幕並列表
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const toggleCompare = (id: string) => {
+    setCompareIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 4) {
+        toast.warning("最多同時比較 4 款模型");
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
 
   const { data: catalogData } = trpc.aiModels.list.useQuery(undefined, {
     staleTime: 5 * 60_000,
@@ -2069,8 +3232,12 @@ export default function AIModelsHub() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allModels.filter(m => {
-      if (activeModality !== "all" && m.modality !== activeModality)
+      // 「深度研究」分頁用 category 過濾，其他用 modality
+      if (activeModality === "deep-research") {
+        if (m.category !== "deep-research") return false;
+      } else if (activeModality !== "all" && m.modality !== activeModality) {
         return false;
+      }
       if (activeProvider !== "all" && m.provider !== activeProvider)
         return false;
       if (activeTier !== "all" && m.tier !== activeTier) return false;
@@ -2099,8 +3266,8 @@ export default function AIModelsHub() {
     () => [
       {
         action: "setTab",
-        label: "模態切換",
-        hint: "支援 all / text / image / video / audio / multimodal",
+        label: "分頁切換",
+        hint: "all / text / image / video / audio / multimodal / agent / deep-research",
         options: MODALITY_TABS.map(t => ({ id: t.id, label: t.label })),
       },
       {
@@ -2136,16 +3303,23 @@ export default function AIModelsHub() {
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
         case "setTab": {
-          const id = action.tabId as ModelModality | "all";
+          const id = action.tabId as ModalityTabId;
           if (
-            ["all", "text", "image", "video", "audio", "multimodal"].includes(
-              id
-            )
+            [
+              "all",
+              "text",
+              "image",
+              "video",
+              "audio",
+              "multimodal",
+              "agent",
+              "deep-research",
+            ].includes(id)
           ) {
             setActiveModality(id);
-            return { ok: true, message: `已切換到「${id}」模態` };
+            return { ok: true, message: `已切換到「${id}」分頁` };
           }
-          return { ok: false, reason: `不認得的模態：${action.tabId}` };
+          return { ok: false, reason: `不認得的分頁：${action.tabId}` };
         }
         case "search": {
           setSearch(action.query);
@@ -2219,45 +3393,20 @@ export default function AIModelsHub() {
             。
           </p>
 
-          {/* Stats strip */}
+          {/* Stats strip — counters animate when value changes */}
           <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                模型總數
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {allModels.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                廠商
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {allProviders.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-                精選
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {featured.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-border bg-gradient-to-br from-emerald-500/8 to-card p-3">
-              <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider inline-flex items-center gap-1">
+            <StatTile label="模型總數" value={allModels.length} />
+            <StatTile label="廠商" value={allProviders.length} />
+            <StatTile label="精選" value={featured.length} />
+            <StatTile
+              label="已自動查核"
+              icon={
                 <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                已自動查核
-              </div>
-              <div className="text-xl font-semibold text-foreground mt-0.5">
-                {verifiedCount}
-                <span className="text-xs text-muted-foreground/70 font-normal">
-                  {" "}
-                  / {allModels.length}
-                </span>
-              </div>
-            </div>
+              }
+              value={verifiedCount}
+              suffix={` / ${allModels.length}`}
+              tone="emerald"
+            />
           </div>
 
           {/* Auto-research panel: 自動排程 + 手動觸發 + 上次跑的細節 */}
@@ -2436,6 +3585,8 @@ export default function AIModelsHub() {
                   key={m.id}
                   model={m}
                   onOpen={() => setOpenModel(m)}
+                  inCompare={compareIds.includes(m.id)}
+                  onToggleCompare={() => toggleCompare(m.id)}
                 />
               ))}
             </motion.div>
@@ -2504,6 +3655,28 @@ export default function AIModelsHub() {
           allModels={allModels}
           onOpen={setOpenModel}
           onClose={() => setOpenModel(null)}
+        />
+      )}
+
+      {/* ── Floating compare bar ─────────────────────────────────────── */}
+      <CompareBar
+        ids={compareIds}
+        allModels={allModels}
+        onClear={() => setCompareIds([])}
+        onOpen={() => setCompareOpen(true)}
+        onRemove={id => setCompareIds(prev => prev.filter(x => x !== id))}
+      />
+
+      {/* ── Comparison view ─────────────────────────────────────────── */}
+      {compareOpen && (
+        <ComparisonView
+          ids={compareIds}
+          allModels={allModels}
+          onClose={() => setCompareOpen(false)}
+          onOpenModel={m => {
+            setCompareOpen(false);
+            setOpenModel(m);
+          }}
         />
       )}
     </div>

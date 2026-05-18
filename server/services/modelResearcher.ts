@@ -347,43 +347,6 @@ export async function discoverNewAIReleases(
   const startedAt = new Date().toISOString();
   const start = Date.now();
 
-  if (!providers.perplexity && !providers.openrouter) {
-    const reason =
-      "PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 都未設定，無法執行發現";
-    discoveryStats.lastRunAt = startedAt;
-    discoveryStats.lastRunDurationMs = 0;
-    discoveryStats.lastRunCount = 0;
-    discoveryStats.lastRunError = reason;
-    discoveryStats.totalRunsCompleted += 1;
-    return {
-      found: 0,
-      durationMs: 0,
-      startedAt,
-      finishedAt: startedAt,
-      error: reason,
-    };
-  }
-
-  const throttle = checkPerplexityThrottle({
-    feature: "web_search",
-    userId: options.userId ?? null,
-  });
-  if (!throttle.allowed) {
-    const reason = `Throttled: ${throttle.reason ?? "unknown"}`;
-    discoveryStats.lastRunAt = startedAt;
-    discoveryStats.lastRunDurationMs = 0;
-    discoveryStats.lastRunCount = 0;
-    discoveryStats.lastRunError = reason;
-    discoveryStats.totalRunsCompleted += 1;
-    return {
-      found: 0,
-      durationMs: 0,
-      startedAt,
-      finishedAt: startedAt,
-      error: reason,
-    };
-  }
-
   const days = Math.max(1, Math.min(30, options.days ?? 7));
   const query = buildDiscoveryPrompt(days);
 
@@ -391,19 +354,48 @@ export async function discoverNewAIReleases(
   let providerUsed: string | null = null;
   const errors: string[] = [];
 
-  try {
-    payload = await callPerplexityDiscovery(query);
-    if (payload) providerUsed = "perplexity-native";
-  } catch (err) {
-    errors.push(`perplexity-native: ${(err as Error).message}`);
+  // ── 主 provider：Perplexity / OpenRouter（需 API key）─────────────────
+  if (providers.perplexity || providers.openrouter) {
+    const throttle = checkPerplexityThrottle({
+      feature: "web_search",
+      userId: options.userId ?? null,
+    });
+    if (!throttle.allowed) {
+      errors.push(`Throttled: ${throttle.reason ?? "unknown"}`);
+    } else {
+      try {
+        payload = await callPerplexityDiscovery(query);
+        if (payload) providerUsed = "perplexity-native";
+      } catch (err) {
+        errors.push(`perplexity-native: ${(err as Error).message}`);
+      }
+
+      if (!payload) {
+        try {
+          payload = await callOpenRouterDiscovery(query);
+          if (payload) providerUsed = "openrouter-sonar";
+        } catch (err) {
+          errors.push(`openrouter-sonar: ${(err as Error).message}`);
+        }
+      }
+
+      if (payload && providerUsed) {
+        recordPerplexityCall({
+          feature: "web_search",
+          userId: options.userId ?? null,
+        });
+      }
+    }
   }
 
+  // ── Fallback：Hacker News + Reddit（不需 API key）─────────────────────
+  // 即使主 provider 沒設定，也能持續刷新「市面與討論區上的模型動態」
   if (!payload) {
     try {
-      payload = await callOpenRouterDiscovery(query);
-      if (payload) providerUsed = "openrouter-sonar";
+      payload = await callPublicDiscovery(days);
+      if (payload) providerUsed = "public-feeds";
     } catch (err) {
-      errors.push(`openrouter-sonar: ${(err as Error).message}`);
+      errors.push(`public-feeds: ${(err as Error).message}`);
     }
   }
 
@@ -423,11 +415,6 @@ export async function discoverNewAIReleases(
       error: reason,
     };
   }
-
-  recordPerplexityCall({
-    feature: "web_search",
-    userId: options.userId ?? null,
-  });
 
   // Merge items into discoveryStore (dedupe by url)
   const seenUrls = new Set(discoveryStore.map(d => d.url));
@@ -507,6 +494,16 @@ export async function researchAndFactCheckModel(
   const base = AI_MODELS_CATALOG.find(m => m.id === modelId);
   if (!base) {
     return { ok: false, reason: `Unknown model id: ${modelId}` };
+  }
+
+  // ── Fast-fail：沒有任何 API key 時直接回傳 transient error，避免讓
+  // 整個 catalog 一個個跑進去然後爆 95 個「PERPLEXITY_API_KEY 未設定」。
+  const providers = getConfiguredProviders();
+  if (!providers.perplexity && !providers.openrouter) {
+    const reason =
+      "PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 都未設定，跳過自動研究";
+    storeError(modelId, reason);
+    return { ok: false, reason };
   }
 
   // ── Skip if recently checked & not forced ──
@@ -707,7 +704,7 @@ export async function researchAndFactCheckAllModels(
     const finished = Date.now();
     stats.lastRunAt = new Date(finished).toISOString();
     stats.lastRunDurationMs = finished - started;
-    stats.lastRunErrors = errors.map(e => `${e.modelId}: ${e.reason}`);
+    stats.lastRunErrors = summarizeRunErrors(errors);
     stats.totalRunsCompleted += 1;
     stats.currentRunStartedAt = undefined;
 
@@ -733,6 +730,25 @@ export async function researchAndFactCheckAllModels(
   } finally {
     activeRunPromise = null;
   }
+}
+
+/**
+ * 把整輪錯誤摘要成 UI 友善的訊息。若所有錯誤都屬於暫時性 / 配置錯誤，回傳
+ * 一行摘要而不是 95 行明細，避免「95 個錯誤」的紅字嚇人；若有混合錯誤，仍
+ * 保留明細供管理員除錯。
+ */
+function summarizeRunErrors(
+  errors: Array<{ modelId: string; reason: string }>
+): string[] {
+  if (errors.length === 0) return [];
+  const transient = errors.filter(e => isTransientResearchError(e.reason));
+  if (transient.length === errors.length) {
+    const sample = errors[0]?.reason ?? "unknown";
+    return [
+      `${errors.length} 個模型暫時無法查證（API 設定 / 節流 / 網路），既有資料維持不變。範例：${sample}`,
+    ];
+  }
+  return errors.map(e => `${e.modelId}: ${e.reason}`);
 }
 
 /**
@@ -830,7 +846,7 @@ export async function researchAndFactCheckStaleModels(
     const finished = Date.now();
     stats.lastRunAt = new Date(finished).toISOString();
     stats.lastRunDurationMs = finished - started;
-    stats.lastRunErrors = errors.map(e => `${e.modelId}: ${e.reason}`);
+    stats.lastRunErrors = summarizeRunErrors(errors);
     stats.totalRunsCompleted += 1;
     stats.currentRunStartedAt = undefined;
 
@@ -935,6 +951,202 @@ function buildDiscoveryPrompt(days: number): string {
     "5. 不要包 markdown code fence。",
     "6. kind=model-update 時，affectedModelId 必須是上面 catalog 列表裡的 id。",
   ].join("\n");
+}
+
+/**
+ * 公共來源 discovery（不需 API key）：抓 Hacker News + Reddit 上最近 N 天提到
+ * 「new model / model release」的條目，由關鍵字啟發式分類成 new-model /
+ * new-paper / model-update。資料品質遠遜 Perplexity，但永遠在線。
+ */
+async function callPublicDiscovery(days: number): Promise<DiscoveryPayload | null> {
+  const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
+  const items: DiscoveryItem[] = [];
+
+  // Hacker News (Algolia search API — 公開、不需 key)
+  try {
+    const hnUrl =
+      `https://hn.algolia.com/api/v1/search_by_date?` +
+      `tags=story&query=` +
+      encodeURIComponent("model launch OR introducing AI OR releases") +
+      `&numericFilters=created_at_i>${Math.floor(sinceMs / 1000)}` +
+      `&hitsPerPage=20`;
+    const res = await fetchWithTimeout(hnUrl, {}, 12_000);
+    if (res.ok) {
+      const data = (await res.json()) as {
+        hits: Array<{
+          objectID: string;
+          title?: string;
+          url?: string;
+          story_text?: string;
+          created_at: string;
+          author?: string;
+          points?: number;
+        }>;
+      };
+      for (const h of data.hits ?? []) {
+        if (!h.title || !h.url) continue;
+        const kind = inferDiscoveryKind(h.title);
+        if (!kind) continue;
+        const provider = guessProviderFromText(h.title);
+        items.push({
+          kind,
+          title: h.title.slice(0, 180),
+          summary:
+            (h.story_text ?? "").slice(0, 280) ||
+            `來自 Hacker News（${h.points ?? 0} 點）`,
+          url: h.url,
+          date: h.created_at.slice(0, 10),
+          provider,
+        });
+      }
+    }
+  } catch (err) {
+    logger.warn("[modelResearcher] HN discovery failed", {
+      err: (err as Error).message,
+    });
+  }
+
+  // Reddit r/LocalLLaMA + r/singularity — 最近 50 篇
+  for (const sub of ["LocalLLaMA", "singularity"]) {
+    try {
+      const url = `https://www.reddit.com/r/${sub}/new.json?limit=50`;
+      const res = await fetchWithTimeout(
+        url,
+        { headers: { "User-Agent": "healing-studio-discovery/1.0" } },
+        12_000
+      );
+      if (!res.ok) continue;
+      const data = (await res.json()) as {
+        data?: {
+          children?: Array<{
+            data?: {
+              id: string;
+              title: string;
+              url: string;
+              permalink?: string;
+              selftext?: string;
+              created_utc: number;
+              ups?: number;
+            };
+          }>;
+        };
+      };
+      for (const child of data.data?.children ?? []) {
+        const d = child.data;
+        if (!d || !d.title) continue;
+        if (d.created_utc * 1000 < sinceMs) continue;
+        const kind = inferDiscoveryKind(d.title);
+        if (!kind) continue;
+        const provider = guessProviderFromText(d.title);
+        items.push({
+          kind,
+          title: d.title.slice(0, 180),
+          summary:
+            (d.selftext ?? "").slice(0, 280) ||
+            `來自 r/${sub}（${d.ups ?? 0} ups）`,
+          url: d.url.startsWith("http")
+            ? d.url
+            : `https://www.reddit.com${d.permalink ?? ""}`,
+          date: new Date(d.created_utc * 1000).toISOString().slice(0, 10),
+          provider,
+        });
+      }
+    } catch (err) {
+      logger.warn("[modelResearcher] Reddit discovery failed", {
+        sub,
+        err: (err as Error).message,
+      });
+    }
+  }
+
+  if (items.length === 0) return null;
+
+  // Dedupe by URL
+  const seen = new Set<string>();
+  const deduped = items.filter(it => {
+    if (seen.has(it.url)) return false;
+    seen.add(it.url);
+    return true;
+  });
+
+  return {
+    items: deduped.slice(0, 30),
+  };
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+const DISCOVERY_KEYWORDS = {
+  release: [
+    "release",
+    "released",
+    "launch",
+    "launched",
+    "announcing",
+    "introducing",
+    "new model",
+    "available now",
+    "now generally available",
+    "公開",
+    "上架",
+    "釋出",
+    "發佈",
+  ],
+  paper: ["paper", "arxiv", "preprint", "we present", "we propose"],
+  update: ["update", "improved", "v2", "v3", "v4", "更新", "升級"],
+};
+
+function inferDiscoveryKind(text: string): DiscoveryKind | null {
+  const lower = text.toLowerCase();
+  if (DISCOVERY_KEYWORDS.paper.some(k => lower.includes(k))) return "new-paper";
+  if (DISCOVERY_KEYWORDS.release.some(k => lower.includes(k)))
+    return "new-model";
+  if (DISCOVERY_KEYWORDS.update.some(k => lower.includes(k)))
+    return "model-update";
+  return null;
+}
+
+const PROVIDER_HINTS: Array<{ re: RegExp; provider: string }> = [
+  { re: /\bclaude\b|anthropic/i, provider: "Anthropic" },
+  { re: /\bgpt-?\d|openai|chatgpt\b/i, provider: "OpenAI" },
+  { re: /\bgemini\b|deepmind|google/i, provider: "Google" },
+  { re: /\bllama\b|\bmeta\b/i, provider: "Meta" },
+  { re: /\bdeepseek\b/i, provider: "DeepSeek" },
+  { re: /\bqwen\b|alibaba/i, provider: "Alibaba" },
+  { re: /\bmistral\b/i, provider: "Mistral" },
+  { re: /\bgrok\b|\bxai\b/i, provider: "xAI" },
+  { re: /\bflux\b|black forest/i, provider: "Black Forest Labs" },
+  { re: /\bstability\b|stable diffusion/i, provider: "Stability AI" },
+  { re: /\brunway\b|gen-?\d/i, provider: "Runway" },
+  { re: /\bkling\b/i, provider: "Kling AI" },
+  { re: /\bluma\b|dream machine/i, provider: "Luma" },
+  { re: /\bsuno\b/i, provider: "Suno" },
+  { re: /\budio\b/i, provider: "Udio" },
+  { re: /\belevenlabs\b/i, provider: "ElevenLabs" },
+  { re: /\bmidjourney\b/i, provider: "Midjourney" },
+  { re: /\bperplexity\b/i, provider: "Perplexity" },
+  { re: /\bcursor\b/i, provider: "Cursor" },
+  { re: /\bdevin\b|cognition/i, provider: "Cognition" },
+  { re: /\bgithub copilot\b|\bcopilot\b/i, provider: "GitHub" },
+];
+
+function guessProviderFromText(text: string): string | undefined {
+  for (const { re, provider } of PROVIDER_HINTS) {
+    if (re.test(text)) return provider;
+  }
+  return undefined;
 }
 
 async function callPerplexityDiscovery(
@@ -1095,10 +1307,94 @@ function hashDiscoveryId(item: DiscoveryItem): string {
   return `disc_${Math.abs(h).toString(36)}`;
 }
 
+/**
+ * 判斷一個失敗原因是否屬於「配置 / 暫時性」錯誤（API key 缺失、節流、HTTP 4xx/5xx、
+ * 網路 timeout）。這類錯誤不代表模型本身有問題，因此不應把模型 factCheck.status
+ * 降級為 "error"，否則整個 catalog 會被同一個基礎建設問題拖成 95/95 紅燈。
+ *
+ * 對於這類錯誤，我們：
+ *   - 保留既有的 factCheck.status（曾驗證的維持 verified / auto-checked）
+ *   - 不更新 checkedAt（避免重置 stale 計算）
+ *   - 把錯誤訊息寫入 notes，並把推算的 status 設為 "pending"（若先前無紀錄）
+ */
+function isTransientResearchError(reason: string): boolean {
+  const r = reason.toLowerCase();
+  // 設定問題 — 沒有 API key
+  if (r.includes("api_key") || r.includes("api key")) return true;
+  if (r.includes("未設定")) return true;
+  // 節流 / rate limit
+  if (r.includes("throttle") || r.includes("rate limit")) return true;
+  if (r.includes("http 429") || r.includes("status 429")) return true;
+  // HTTP 認證 / 伺服器錯誤
+  if (
+    r.includes("http 401") ||
+    r.includes("http 403") ||
+    r.includes("http 408") ||
+    r.includes("http 5")
+  ) {
+    return true;
+  }
+  // 網路層
+  if (
+    r.includes("timeout") ||
+    r.includes("etimedout") ||
+    r.includes("econnreset") ||
+    r.includes("econnrefused") ||
+    r.includes("enotfound") ||
+    r.includes("fetch failed") ||
+    r.includes("network")
+  ) {
+    return true;
+  }
+  // 全部 provider 都失敗（通常是組合上述的情況）
+  if (r.includes("all research providers failed")) return true;
+  if (r.includes("all discovery providers failed")) return true;
+  return false;
+}
+
 function storeError(modelId: string, reason: string): void {
   const base = AI_MODELS_CATALOG.find(m => m.id === modelId);
   if (!base) return;
   const existing = enrichmentStore.get(modelId);
+  const transient = isTransientResearchError(reason);
+
+  if (transient) {
+    // 配置 / 暫時性錯誤 — 不要把模型降級成「驗證失敗」。
+    // 對於先前已成功驗證者：完整保留原狀態與 checkedAt，只把錯誤訊息附在 notes。
+    // 對於首次失敗者：維持 pending 狀態（不留 checkedAt），避免 UI 顯示成紅燈。
+    if (existing) {
+      const prevNotes = existing.factCheck.notes;
+      enrichmentStore.set(modelId, {
+        ...existing,
+        factCheck: {
+          ...existing.factCheck,
+          notes: `${prevNotes ? prevNotes + " | " : ""}研究暫時失敗：${reason}`,
+        },
+      });
+    } else {
+      enrichmentStore.set(modelId, {
+        modelId,
+        pricing: base.pricing,
+        benchmarks: base.benchmarks,
+        latestUpdates: base.latestUpdates,
+        availability: base.availability,
+        factCheck: {
+          status: "pending",
+          // 注意：不設 checkedAt — 避免「剛剛驗證過」的假象，讓下一次 stale-only 可重試
+          sources: base.factCheck?.sources ?? [],
+          notes: `研究暫時失敗：${reason}`,
+        },
+      });
+    }
+    logger.warn("[modelResearcher] transient error — preserving prior status", {
+      modelId,
+      reason,
+    });
+    return;
+  }
+
+  // 真正的研究失敗（例如 LLM 回了 schema 不合的 JSON、找不到任何來源）—
+  // 這時才把 status 設為 "error" 提示管理員手動覆核。
   enrichmentStore.set(modelId, {
     modelId,
     pricing: existing?.pricing ?? base.pricing,
