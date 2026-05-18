@@ -6,7 +6,7 @@ type PersistOptions = {
   prefix?: string;
 };
 
-function isInternalUrl(url: string): boolean {
+export function isInternalUrl(url: string): boolean {
   if (!/^https?:\/\//i.test(url)) return true;
   const s3Public = serverEnv.S3_PUBLIC_URL || serverEnv.S3_PUBLIC_DOMAIN;
   if (s3Public && url.startsWith(s3Public.replace(/\/+$/, ""))) return true;
