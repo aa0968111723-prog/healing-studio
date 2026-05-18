@@ -17,6 +17,7 @@ import {
   BookOpen,
   CalendarRange,
   Clock,
+  Database,
   FileText,
   ImageIcon,
   Mic,
@@ -55,6 +56,7 @@ const KIND_META: Record<
   note: { label: "筆記", icon: Notebook, tone: "text-emerald-700 bg-emerald-100/70 border-emerald-200" },
   history: { label: "生成記錄", icon: Clock, tone: "text-amber-700 bg-amber-100/70 border-amber-200" },
   tutorial: { label: "教學", icon: BookOpen, tone: "text-violet-700 bg-violet-100/70 border-violet-200" },
+  teaching: { label: "資料庫", icon: Database, tone: "text-indigo-700 bg-indigo-100/70 border-indigo-200" },
 };
 
 const MODALITY_ICON: Partial<Record<NonNullable<ChatSearchResultItem["modality"]>, typeof ImageIcon>> = {

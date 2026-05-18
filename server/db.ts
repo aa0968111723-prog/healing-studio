@@ -2863,6 +2863,37 @@ export async function listTeachingMaterialsByUser(
   return listTeachingMaterialsForUser(userId, filters, { only: "mine" });
 }
 
+/**
+ * 給「向量搜尋拿到 ids 後回查」用的批次取得。同樣套 visibility 規則，
+ * 確保 RAG 結果不會洩漏使用者本來看不到的素材。
+ */
+export async function getVisibleTeachingMaterialsByIds(
+  userId: number,
+  ids: number[],
+  teamIds: number[] = []
+): Promise<TeachingMaterial[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+
+  const visibilityClauses = [eq(teachingMaterials.userId, userId)];
+  if (teamIds.length > 0) {
+    visibilityClauses.push(
+      and(
+        eq(teachingMaterials.visibility, "team_shared"),
+        inArray(teachingMaterials.teamId, teamIds)
+      )!
+    );
+  }
+  visibilityClauses.push(eq(teachingMaterials.visibility, "public_disciples"));
+  const visibilityOr = or(...visibilityClauses)!;
+
+  return db
+    .select()
+    .from(teachingMaterials)
+    .where(and(inArray(teachingMaterials.id, ids), visibilityOr));
+}
+
 export async function updateTeachingMaterial(
   id: number,
   data: Partial<InsertTeachingMaterial>

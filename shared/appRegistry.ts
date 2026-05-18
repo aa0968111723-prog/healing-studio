@@ -987,7 +987,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: false,
     agentEntryPriority: 18,
-    supportsPageAgent: false,
+    // 光球可在此頁直接呼叫 search / setScope / openUpload / openDetail —
+    // 見 client/src/pages/TeachingArchive.tsx 的 useRegisterPageAgent。
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-teaching-archive",
@@ -996,8 +998,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         path: "/teaching-archive",
       },
     ],
-    orbHints: ["上傳資料", "新增素材", "建立資料庫"],
-    supportedActions: [],
+    orbHints: [
+      "上傳資料",
+      "新增素材",
+      "建立資料庫",
+      "幫我從資料庫找 XX",
+      "資料庫裡有沒有提到 XX 的內容",
+    ],
+    supportedActions: ["search", "setTab", "openDialog", "reset"],
   },
   {
     id: "teams",

@@ -22,9 +22,9 @@ const INDEX_NAME = serverEnv.PINECONE_INDEX_NAME || "ai-director-memories";
 // ⚠️ 重要：dimension 必須與 Pinecone index 建立時的設定一致
 // 使用 Gemini gemini-embedding-001（正式版），原生輸出 3072 維
 // Pinecone index `ai-director-memories` 必須建立為 dimension=3072, metric=cosine
-const EMBEDDING_DIM = 3072; // gemini-embedding-001 維度（Pinecone index: ai-director-memories）
+export const EMBEDDING_DIM = 3072; // gemini-embedding-001 維度（Pinecone index: ai-director-memories）
 
-function getPineconeHeaders() {
+export function getPineconeHeaders() {
   const apiKey = serverEnv.PINECONE_API_KEY;
   if (!apiKey) throw new Error("PINECONE_API_KEY 未設定，RAG 記憶系統無法運作");
   return {
@@ -35,7 +35,7 @@ function getPineconeHeaders() {
 
 // ─── Gemini Embedding（文字轉向量）────────────────────────────────────────
 
-async function getEmbedding(text: string): Promise<number[]> {
+export async function getEmbedding(text: string): Promise<number[]> {
   const apiKey = serverEnv.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY 未設定，無法生成向量");
 
@@ -115,6 +115,9 @@ async function getIndexHost(): Promise<string> {
   const data = (await resp.json()) as { host: string };
   return `https://${data.host}`;
 }
+
+/** Re-export 給 teachingArchiveRag 等 module 共用 host URL，省一次 round-trip。 */
+export { getIndexHost };
 
 // ─── 記憶存入（Upsert）────────────────────────────────────────────────────
 

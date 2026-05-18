@@ -21,6 +21,7 @@
 import * as db from "../db";
 import { extractPdfTextFromUrl } from "./pdfTextExtractor";
 import { transcribeMedia } from "./mediaTranscriber";
+import { upsertTeachingMaterialVectors } from "./teachingArchiveRag";
 import type { TeachingMaterial } from "../../drizzle/schema";
 
 const MAX_TEXT_CHARS = 200_000; // 跟 schema 上的 textContent TEXT 欄位上限差一截，留 buffer
@@ -121,6 +122,19 @@ async function doExtraction(row: TeachingMaterial): Promise<void> {
     transcriptionStatus: "completed",
     ...(pageCount !== undefined ? { pageCount } : {}),
   });
+
+  // ── 向量索引（Pinecone）— 失敗不擋主流程 ────────────────────────────
+  // 重抓 row 以便用最新的 textContent / pageCount 餵 embedding。
+  // 不 await — 但要捕捉錯誤避免 unhandled rejection。
+  const fresh = await db.getTeachingMaterial(row.id);
+  if (fresh) {
+    upsertTeachingMaterialVectors(fresh).catch(err => {
+      console.warn(
+        `[teachingArchiveIngest] vector upsert non-fatal failure for material=${row.id}:`,
+        err
+      );
+    });
+  }
 }
 
 /** 給測試用：對外露出 isIngestable 純函式 */
