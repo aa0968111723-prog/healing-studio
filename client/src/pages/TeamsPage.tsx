@@ -1,7 +1,7 @@
 /**
  * TeamsPage.tsx — 多人協作的團隊管理頁
  *
- * 給教材庫 team_shared 視野背後的角色關係做 UI：建立團隊、邀請成員、
+ * 給資料庫 team_shared 視野背後的角色關係做 UI：建立團隊、邀請成員、
  * 管理角色、退出 / 解散團隊。
  *
  * 邀請流程刻意簡化：直接輸入「workspace 內」其他使用者的 userId 即可。
@@ -71,7 +71,7 @@ export default function TeamsPage() {
             團隊管理
           </h1>
           <p className="page-subtitle">
-            建立團隊把同修加進來，就可以共享教材庫裡的 team_shared 素材。
+            建立團隊把成員加進來，就可以共享資料庫裡的 team_shared 素材。
             owner 與 admin 可以管理成員；member 可以讀寫團隊的素材。
           </p>
         </div>
@@ -191,7 +191,7 @@ function CreateTeamDialog({
         <DialogHeader>
           <DialogTitle>建立新團隊</DialogTitle>
           <DialogDescription>
-            建立者自動成為 owner，可以邀請其他人加入並共享教材。
+            建立者自動成為 owner，可以邀請其他人加入並共享資料。
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -201,7 +201,7 @@ function CreateTeamDialog({
               id="team-name"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="例：禪修共修小組"
+              placeholder="例：行銷團隊"
             />
           </div>
           <div>

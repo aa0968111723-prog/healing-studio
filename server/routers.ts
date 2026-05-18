@@ -3937,13 +3937,13 @@ export const appRouter = router({
   // 多角色（主角/配角/反派）+ 多場景（環境、植被、物件）+ 連結 LoRA 訓練中心
   worldbuilding: worldbuildingRouter,
 
-  // ─── Teaching Archive（法脈傳承教材庫） ──────────────────────────────────
-  // 上傳師父開示文字 / PDF / 圖片 / 影片 / 語音 / PPT，依法脈、來源、主題分類。
+  // ─── 資料庫（training-data 素材池） ──────────────────────────────────────
+  // 上傳純文字 / PDF / 文件 / 圖片 / 影片 / 語音 / 簡報，依分類、來源、主題分類。
   // Phase 1 只做儲存與檢索；Phase 2 會把 textContent 切片做 RAG。
   teachingArchive: teachingArchiveRouter,
 
   // ─── Teams（Phase 2：多人協作、團隊池）────────────────────────────────────
-  // 教材庫的 team_shared 視野需要這層 membership；teams 與 teachingArchive
+  // 資料庫的 team_shared 視野需要這層 membership；teams 與 teachingArchive
   // 拆開以便其他功能（共筆、共享 prompts 等）日後復用。
   teams: teamsRouter,
 

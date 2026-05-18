@@ -1,8 +1,8 @@
 /**
- * TeachingArchive.tsx — 法脈傳承教材庫（Phase 1 of training-data feature）
+ * TeachingArchive.tsx — 資料庫（training-data feature）
  *
- * 讓使用者上傳師父開示、共修錄音、社課 PPT、法相照片等素材，依「法脈 / 來源 /
- * 主題」分類，未來會被 Phase 2 的 RAG ingestion 切片並做向量檢索。
+ * 讓使用者上傳 PDF、文件、圖片、影片、語音、簡報等素材並做分類保存。
+ * 未來會接 Phase 2 的 RAG ingestion 切片並做向量檢索。
  */
 
 import { useCallback, useRef, useState } from "react";
@@ -81,22 +81,22 @@ import { useLocation } from "wouter";
 // ─── 常數 — 與 server/routers/teachingArchive.ts 保持同步 ────────────────────
 
 const MEDIA_TYPES = [
-  { value: "text", label: "文字開示", icon: FileText, hint: "直接輸入文字，不需上傳" },
-  { value: "pdf", label: "PDF", icon: FileType2, hint: "開示稿、講義" },
+  { value: "text", label: "純文字", icon: FileText, hint: "直接輸入文字，不需上傳" },
+  { value: "pdf", label: "PDF", icon: FileType2, hint: "文件、講義、稿件" },
   { value: "document", label: "Word / TXT", icon: FileText, hint: "Word/純文字/Markdown" },
-  { value: "image", label: "圖片", icon: ImageIcon, hint: "法相、活動照片" },
-  { value: "video", label: "影片", icon: Film, hint: "開示影片" },
-  { value: "audio", label: "語音 / 錄音", icon: Music, hint: "共修錄音、講座音檔" },
+  { value: "image", label: "圖片", icon: ImageIcon, hint: "照片、圖像" },
+  { value: "video", label: "影片", icon: Film, hint: "影片檔案" },
+  { value: "audio", label: "語音 / 錄音", icon: Music, hint: "錄音檔、講座音檔" },
   { value: "presentation", label: "簡報", icon: Presentation, hint: "PPT / PPTX" },
 ] as const;
 
 type MediaType = (typeof MEDIA_TYPES)[number]["value"];
 
 const SOURCE_TYPES: Array<{ value: SourceType; label: string }> = [
-  { value: "discourse", label: "開示" },
-  { value: "group_practice", label: "共修" },
-  { value: "class", label: "社課" },
-  { value: "ceremony", label: "法會" },
+  { value: "discourse", label: "講述" },
+  { value: "group_practice", label: "團體練習" },
+  { value: "class", label: "課程" },
+  { value: "ceremony", label: "活動" },
   { value: "publication", label: "出版品" },
   { value: "interview", label: "訪談" },
   { value: "other", label: "其他" },
@@ -114,12 +114,12 @@ type SourceType =
 const VISIBILITY_OPTIONS: Array<{ value: Visibility; label: string }> = [
   { value: "private", label: "僅自己" },
   { value: "team_shared", label: "團隊共享" },
-  { value: "public_disciples", label: "弟子可見" },
+  { value: "public_disciples", label: "全 workspace 可見" },
 ];
 
 type Visibility = "private" | "team_shared" | "public_disciples";
 
-const DEFAULT_SPEAKER = "悟覺妙天禪師";
+const DEFAULT_SPEAKER = "";
 
 // ─── 媒體類型對應的可接受 MIME 與檔案 input accept ──────────────────────────
 const ACCEPT_BY_MEDIA: Partial<Record<MediaType, string>> = {
@@ -221,14 +221,14 @@ export default function TeachingArchive() {
   return (
     <div className="page-shell space-y-6">
       <header className="page-header">
-        <p className="page-eyebrow">Teaching Archive</p>
+        <p className="page-eyebrow">Database</p>
         <h1 className="page-title flex items-center gap-2">
           <BookOpen className="w-6 h-6" />
-          法脈傳承教材庫
+          資料庫
         </h1>
         <p className="page-subtitle">
-          上傳師父開示、共修錄音、社課 PPT、法相照片等素材，依法脈與主題分類保存。
-          PDF 開示自動抽文、語音/影片自動轉文字後，AI 助理就能引用師父原文回答。
+          上傳 PDF、文件、圖片、影片、語音、簡報等素材並分類保存。
+          PDF 自動抽文、語音／影片自動轉文字後，AI 助理就能引用內容回答。
         </p>
       </header>
 
@@ -279,7 +279,7 @@ export default function TeachingArchive() {
             id="search"
             value={filters.search ?? ""}
             onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-            placeholder="例：印心禪法、生活禪"
+            placeholder="例：關鍵字"
           />
         </div>
         <FilterSelect
@@ -297,7 +297,7 @@ export default function TeachingArchive() {
           options={SOURCE_TYPES.map(s => ({ value: s.value, label: s.label }))}
         />
         <FilterSelect
-          label="法脈"
+          label="分類"
           value={filters.lineage}
           onChange={v => setFilters(f => ({ ...f, lineage: v }))}
           options={(lineagesQuery.data ?? []).map(l => ({ value: l, label: l }))}
@@ -327,7 +327,7 @@ export default function TeachingArchive() {
           </Button>
           <Button onClick={() => setUploadOpen(true)}>
             <Plus className="w-4 h-4 mr-1" />
-            新增教材
+            新增資料
           </Button>
         </div>
       </div>
@@ -338,7 +338,7 @@ export default function TeachingArchive() {
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed py-16 text-center text-muted-foreground">
           <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p>還沒有任何教材。點右上「新增教材」開始建立法脈典藏。</p>
+          <p>還沒有任何資料。點右上「新增資料」開始建立你的素材庫。</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -775,7 +775,7 @@ function UploadDialog({
         return;
       }
       if (!textForm.textContent.trim()) {
-        toast.error("文字開示需要填寫內文");
+        toast.error("純文字資料需要填寫內文");
         return;
       }
       setSubmitting(true);
@@ -786,7 +786,7 @@ function UploadDialog({
           textContent: textForm.textContent.trim(),
           ...buildSharedClassification(),
         });
-        toast.success("文字開示已儲存");
+        toast.success("已儲存");
         onCreated();
         if (continuousMode) {
           resetTextOnly();
@@ -848,7 +848,7 @@ function UploadDialog({
 
     setSubmitting(false);
     if (successCount > 0) {
-      toast.success(`已新增 ${successCount} 筆教材`);
+      toast.success(`已新增 ${successCount} 筆資料`);
       onCreated();
     }
     if (errorCount === 0) {
@@ -874,9 +874,9 @@ function UploadDialog({
     <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>新增教材</DialogTitle>
+          <DialogTitle>新增資料</DialogTitle>
           <DialogDescription>
-            拖拉檔案到下方一次上傳多份；或切到「純文字」直接貼上開示內容。
+            拖拉檔案到下方一次上傳多份；或切到「純文字」直接貼上內文。
           </DialogDescription>
         </DialogHeader>
 
@@ -955,16 +955,16 @@ function UploadDialog({
                 onChange={e =>
                   setTextForm(f => ({ ...f, title: e.target.value }))
                 }
-                placeholder="例：印心禪法初階開示"
+                placeholder="例：簡介文件"
               />
             </Field>
-            <Field label="開示內文" required>
+            <Field label="內文" required>
               <Textarea
                 value={textForm.textContent}
                 onChange={e =>
                   setTextForm(f => ({ ...f, textContent: e.target.value }))
                 }
-                placeholder="直接貼上師父的開示文字……"
+                placeholder="直接貼上內文……"
                 rows={10}
               />
             </Field>
@@ -982,19 +982,19 @@ function UploadDialog({
               onChange={e =>
                 setShared(s => ({ ...s, description: e.target.value }))
               }
-              placeholder="這批教材的緣起、背景或重點"
+              placeholder="這批資料的背景或重點"
               rows={2}
             />
           </Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="法脈">
+            <Field label="分類">
               <Input
                 value={shared.lineage}
                 onChange={e =>
                   setShared(s => ({ ...s, lineage: e.target.value }))
                 }
-                placeholder="例：悟覺妙天禪師、印心禪法"
+                placeholder="例：分類名稱"
               />
             </Field>
             <Field label="來源類型">
@@ -1016,7 +1016,7 @@ function UploadDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="開示日期">
+            <Field label="日期">
               <Input
                 type="date"
                 value={shared.sourceDate}
@@ -1031,7 +1031,7 @@ function UploadDialog({
                 onChange={e =>
                   setShared(s => ({ ...s, sourceLocation: e.target.value }))
                 }
-                placeholder="例：台北道場"
+                placeholder="例：地點名稱"
               />
             </Field>
             <Field label="主題">
@@ -1040,7 +1040,7 @@ function UploadDialog({
                 onChange={e =>
                   setShared(s => ({ ...s, topic: e.target.value }))
                 }
-                placeholder="例：禪修方法、生活禪"
+                placeholder="例：主題"
               />
             </Field>
             <Field label="講者">
@@ -1059,7 +1059,7 @@ function UploadDialog({
               onChange={e =>
                 setShared(s => ({ ...s, tagsInput: e.target.value }))
               }
-              placeholder="入門, 心法, 共修"
+              placeholder="標籤A, 標籤B"
             />
           </Field>
 
@@ -1272,8 +1272,8 @@ function TrainLoraDialog({
   onStarted: () => void;
 }) {
   const [, navigate] = useLocation();
-  const [modelName, setModelName] = useState("師父法相 LoRA");
-  const [triggerWord, setTriggerWord] = useState("MTR_MASTER");
+  const [modelName, setModelName] = useState("圖片 LoRA");
+  const [triggerWord, setTriggerWord] = useState("STYLE");
   const [modelType, setModelType] = useState<
     "image_subject" | "style_lora" | "scene_lora" | "portrait_lora"
   >("portrait_lora");
@@ -1325,7 +1325,7 @@ function TrainLoraDialog({
             用選取的圖片訓練 LoRA
           </DialogTitle>
           <DialogDescription>
-            從教材庫挑出的 <strong>{validImageUrls.length}</strong> 張圖片會打包成
+            從資料庫挑出的 <strong>{validImageUrls.length}</strong> 張圖片會打包成
             訓練資料集，送進 Replicate 的 flux-dev-lora-trainer。完成後可在
             「角色鍛造所」使用這個 LoRA。
           </DialogDescription>
@@ -1336,7 +1336,7 @@ function TrainLoraDialog({
             <Input
               value={modelName}
               onChange={e => setModelName(e.target.value)}
-              placeholder="例：師父法相 LoRA"
+              placeholder="例：圖片 LoRA"
             />
           </Field>
           <Field label="觸發詞（trigger word）" required>
@@ -1364,7 +1364,7 @@ function TrainLoraDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="portrait_lora">
-                  肖像（portrait_lora） — 適合師父法相
+                  肖像（portrait_lora） — 適合人像
                 </SelectItem>
                 <SelectItem value="image_subject">
                   主題（image_subject）
@@ -1599,7 +1599,7 @@ function DetailDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確定要刪除這份教材嗎？</AlertDialogTitle>
+            <AlertDialogTitle>確定要刪除這份資料嗎？</AlertDialogTitle>
             <AlertDialogDescription>
               這個動作無法復原。檔案本體仍會保留在儲存空間，只會移除 metadata
               紀錄。
