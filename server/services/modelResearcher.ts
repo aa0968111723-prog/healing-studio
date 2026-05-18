@@ -509,6 +509,16 @@ export async function researchAndFactCheckModel(
     return { ok: false, reason: `Unknown model id: ${modelId}` };
   }
 
+  // ── Fast-fail：沒有任何 API key 時直接回傳 transient error，避免讓
+  // 整個 catalog 一個個跑進去然後爆 95 個「PERPLEXITY_API_KEY 未設定」。
+  const providers = getConfiguredProviders();
+  if (!providers.perplexity && !providers.openrouter) {
+    const reason =
+      "PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 都未設定，跳過自動研究";
+    storeError(modelId, reason);
+    return { ok: false, reason };
+  }
+
   // ── Skip if recently checked & not forced ──
   if (!options.force) {
     const existing = enrichmentStore.get(modelId);
@@ -707,7 +717,7 @@ export async function researchAndFactCheckAllModels(
     const finished = Date.now();
     stats.lastRunAt = new Date(finished).toISOString();
     stats.lastRunDurationMs = finished - started;
-    stats.lastRunErrors = errors.map(e => `${e.modelId}: ${e.reason}`);
+    stats.lastRunErrors = summarizeRunErrors(errors);
     stats.totalRunsCompleted += 1;
     stats.currentRunStartedAt = undefined;
 
@@ -733,6 +743,25 @@ export async function researchAndFactCheckAllModels(
   } finally {
     activeRunPromise = null;
   }
+}
+
+/**
+ * 把整輪錯誤摘要成 UI 友善的訊息。若所有錯誤都屬於暫時性 / 配置錯誤，回傳
+ * 一行摘要而不是 95 行明細，避免「95 個錯誤」的紅字嚇人；若有混合錯誤，仍
+ * 保留明細供管理員除錯。
+ */
+function summarizeRunErrors(
+  errors: Array<{ modelId: string; reason: string }>
+): string[] {
+  if (errors.length === 0) return [];
+  const transient = errors.filter(e => isTransientResearchError(e.reason));
+  if (transient.length === errors.length) {
+    const sample = errors[0]?.reason ?? "unknown";
+    return [
+      `${errors.length} 個模型暫時無法查證（API 設定 / 節流 / 網路），既有資料維持不變。範例：${sample}`,
+    ];
+  }
+  return errors.map(e => `${e.modelId}: ${e.reason}`);
 }
 
 /**
@@ -830,7 +859,7 @@ export async function researchAndFactCheckStaleModels(
     const finished = Date.now();
     stats.lastRunAt = new Date(finished).toISOString();
     stats.lastRunDurationMs = finished - started;
-    stats.lastRunErrors = errors.map(e => `${e.modelId}: ${e.reason}`);
+    stats.lastRunErrors = summarizeRunErrors(errors);
     stats.totalRunsCompleted += 1;
     stats.currentRunStartedAt = undefined;
 
@@ -1095,10 +1124,94 @@ function hashDiscoveryId(item: DiscoveryItem): string {
   return `disc_${Math.abs(h).toString(36)}`;
 }
 
+/**
+ * 判斷一個失敗原因是否屬於「配置 / 暫時性」錯誤（API key 缺失、節流、HTTP 4xx/5xx、
+ * 網路 timeout）。這類錯誤不代表模型本身有問題，因此不應把模型 factCheck.status
+ * 降級為 "error"，否則整個 catalog 會被同一個基礎建設問題拖成 95/95 紅燈。
+ *
+ * 對於這類錯誤，我們：
+ *   - 保留既有的 factCheck.status（曾驗證的維持 verified / auto-checked）
+ *   - 不更新 checkedAt（避免重置 stale 計算）
+ *   - 把錯誤訊息寫入 notes，並把推算的 status 設為 "pending"（若先前無紀錄）
+ */
+function isTransientResearchError(reason: string): boolean {
+  const r = reason.toLowerCase();
+  // 設定問題 — 沒有 API key
+  if (r.includes("api_key") || r.includes("api key")) return true;
+  if (r.includes("未設定")) return true;
+  // 節流 / rate limit
+  if (r.includes("throttle") || r.includes("rate limit")) return true;
+  if (r.includes("http 429") || r.includes("status 429")) return true;
+  // HTTP 認證 / 伺服器錯誤
+  if (
+    r.includes("http 401") ||
+    r.includes("http 403") ||
+    r.includes("http 408") ||
+    r.includes("http 5")
+  ) {
+    return true;
+  }
+  // 網路層
+  if (
+    r.includes("timeout") ||
+    r.includes("etimedout") ||
+    r.includes("econnreset") ||
+    r.includes("econnrefused") ||
+    r.includes("enotfound") ||
+    r.includes("fetch failed") ||
+    r.includes("network")
+  ) {
+    return true;
+  }
+  // 全部 provider 都失敗（通常是組合上述的情況）
+  if (r.includes("all research providers failed")) return true;
+  if (r.includes("all discovery providers failed")) return true;
+  return false;
+}
+
 function storeError(modelId: string, reason: string): void {
   const base = AI_MODELS_CATALOG.find(m => m.id === modelId);
   if (!base) return;
   const existing = enrichmentStore.get(modelId);
+  const transient = isTransientResearchError(reason);
+
+  if (transient) {
+    // 配置 / 暫時性錯誤 — 不要把模型降級成「驗證失敗」。
+    // 對於先前已成功驗證者：完整保留原狀態與 checkedAt，只把錯誤訊息附在 notes。
+    // 對於首次失敗者：維持 pending 狀態（不留 checkedAt），避免 UI 顯示成紅燈。
+    if (existing) {
+      const prevNotes = existing.factCheck.notes;
+      enrichmentStore.set(modelId, {
+        ...existing,
+        factCheck: {
+          ...existing.factCheck,
+          notes: `${prevNotes ? prevNotes + " | " : ""}研究暫時失敗：${reason}`,
+        },
+      });
+    } else {
+      enrichmentStore.set(modelId, {
+        modelId,
+        pricing: base.pricing,
+        benchmarks: base.benchmarks,
+        latestUpdates: base.latestUpdates,
+        availability: base.availability,
+        factCheck: {
+          status: "pending",
+          // 注意：不設 checkedAt — 避免「剛剛驗證過」的假象，讓下一次 stale-only 可重試
+          sources: base.factCheck?.sources ?? [],
+          notes: `研究暫時失敗：${reason}`,
+        },
+      });
+    }
+    logger.warn("[modelResearcher] transient error — preserving prior status", {
+      modelId,
+      reason,
+    });
+    return;
+  }
+
+  // 真正的研究失敗（例如 LLM 回了 schema 不合的 JSON、找不到任何來源）—
+  // 這時才把 status 設為 "error" 提示管理員手動覆核。
   enrichmentStore.set(modelId, {
     modelId,
     pricing: existing?.pricing ?? base.pricing,

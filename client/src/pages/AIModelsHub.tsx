@@ -69,6 +69,7 @@ import {
   Compass,
   FileText,
   PackagePlus,
+  Bot,
 } from "lucide-react";
 import {
   AI_MODELS_CATALOG,
@@ -106,6 +107,7 @@ const MODALITY_TABS: Array<{
   { id: "all", label: "全部", icon: Layers },
   { id: "text", label: "文字", icon: MessageSquare },
   { id: "multimodal", label: "多模態", icon: Sparkles },
+  { id: "agent", label: "代理", icon: Bot },
   { id: "image", label: "圖片", icon: ImageIcon },
   { id: "video", label: "影片", icon: Video },
   { id: "audio", label: "音訊", icon: Music },
@@ -2100,7 +2102,7 @@ export default function AIModelsHub() {
       {
         action: "setTab",
         label: "模態切換",
-        hint: "支援 all / text / image / video / audio / multimodal",
+        hint: "支援 all / text / image / video / audio / multimodal / agent",
         options: MODALITY_TABS.map(t => ({ id: t.id, label: t.label })),
       },
       {
@@ -2138,9 +2140,15 @@ export default function AIModelsHub() {
         case "setTab": {
           const id = action.tabId as ModelModality | "all";
           if (
-            ["all", "text", "image", "video", "audio", "multimodal"].includes(
-              id
-            )
+            [
+              "all",
+              "text",
+              "image",
+              "video",
+              "audio",
+              "multimodal",
+              "agent",
+            ].includes(id)
           ) {
             setActiveModality(id);
             return { ok: true, message: `已切換到「${id}」模態` };
