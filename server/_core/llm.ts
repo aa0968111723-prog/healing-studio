@@ -602,13 +602,17 @@ function estimateTokenCostUsd(
     // Native Gemini API IDs
     "gemini-2.5-pro": { input: 1.25, output: 5.0 },
     "gemini-2.5-flash": { input: 0.075, output: 0.3 },
+    "gemini-3-pro": { input: 2.5, output: 15.0 },
     // OpenRouter canonical IDs
     "google/gemini-2.5-pro": { input: 1.25, output: 5.0 },
     "google/gemini-2.5-flash": { input: 0.075, output: 0.3 },
+    "google/gemini-3-pro": { input: 2.5, output: 15.0 },
     "anthropic/claude-opus-4.7": { input: 15.0, output: 75.0 },
     "anthropic/claude-sonnet-4.6": { input: 3.0, output: 15.0 },
     "anthropic/claude-sonnet-4.5": { input: 3.0, output: 15.0 },
     "anthropic/claude-haiku-4.5": { input: 0.8, output: 4.0 },
+    "openai/gpt-5": { input: 10.0, output: 30.0 },
+    "openai/gpt-4o": { input: 2.5, output: 10.0 },
     "minimax/minimax-m2": { input: 0.3, output: 1.2 },
     "mistralai/mistral-nemo": { input: 0.15, output: 0.15 },
     "meta-llama/llama-3.1-405b-instruct": { input: 2.7, output: 2.7 },
@@ -619,6 +623,9 @@ function estimateTokenCostUsd(
     "claude-opus-4-7": { input: 15.0, output: 75.0 },
     "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
     "claude-haiku-4-5": { input: 0.8, output: 4.0 },
+    // Native OpenAI API IDs
+    "gpt-5": { input: 10.0, output: 30.0 },
+    "gpt-4o": { input: 2.5, output: 10.0 },
   };
   const key =
     Object.keys(PRICING).find(k => model.includes(k)) ?? "gemini-2.5-flash";
@@ -751,6 +758,7 @@ async function trackLangSmithSDK(
  */
 const GEMINI_MODEL_REMAP: Record<string, string> = {
   // OpenAI → Gemini 等效對應
+  "gpt-5": "gemini-2.5-pro",
   "gpt-4o": "gemini-2.5-pro",
   "gpt-4o-mini": "gemini-2.5-flash",
   "gpt-4-turbo": "gemini-2.5-pro",
@@ -786,11 +794,13 @@ const GEMINI_MODEL_REMAP: Record<string, string> = {
  */
 const ANTHROPIC_MODEL_REMAP: Record<string, string> = {
   // Gemini → Claude 等效對應
+  "gemini-3-pro": "claude-opus-4-7",
   "gemini-2.5-pro": "claude-sonnet-4-6",
   "gemini-2.5-flash": "claude-haiku-4-5-20251001",
   "gemini-1.5-pro": "claude-sonnet-4-6",
   "gemini-1.5-flash": "claude-haiku-4-5-20251001",
   // OpenAI → Claude 等效對應
+  "gpt-5": "claude-opus-4-7",
   "gpt-4o": "claude-sonnet-4-6",
   "gpt-4o-mini": "claude-haiku-4-5-20251001",
   "gpt-4-turbo": "claude-sonnet-4-6",
@@ -833,6 +843,10 @@ const OPENROUTER_CATALOG_REMAP: Record<string, string> = {
   "gemini-1.5-pro": "google/gemini-2.5-pro",
   "gemini-1.5-flash": "google/gemini-2.5-flash",
   "gemini-pro": "google/gemini-2.5-pro",
+  // 2025-2026 新旗艦：裸 ID → OpenRouter canonical
+  "gemini-3-pro": "google/gemini-3-pro",
+  "vertex/gemini-3-pro": "google/gemini-3-pro",
+  "gpt-5": "openai/gpt-5",
   "vertex/llama-3.2-90b": "meta-llama/llama-3.2-90b-vision-instruct",
   "vertex/llama-3.1-405b": "meta-llama/llama-3.1-405b-instruct",
   "vertex/mistral-nemo": "mistralai/mistral-nemo",

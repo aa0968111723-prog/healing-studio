@@ -50,8 +50,25 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   "anthropic/claude-opus-4.7": [
     "anthropic/claude-sonnet-4.6",
     "anthropic/claude-sonnet-4.5",
+    "google/gemini-3-pro",
     "google/gemini-2.5-pro",
     "gemini-2.5-pro",
+  ],
+  // ── 2025-2026 旗艦：Gemini 3 Pro / GPT-5 ──
+  "gemini-3-pro": [
+    "google/gemini-3-pro",
+    "gemini-2.5-pro",
+    "anthropic/claude-opus-4.7",
+  ],
+  "google/gemini-3-pro": [
+    "anthropic/claude-opus-4.7",
+    "google/gemini-2.5-pro",
+    "gemini-3-pro",
+  ],
+  "openai/gpt-5": [
+    "anthropic/claude-opus-4.7",
+    "google/gemini-3-pro",
+    "anthropic/claude-sonnet-4.6",
   ],
   // Perplexity Sonar(PERPLEXITY_API_KEY 直連;失敗時 invokeLLM 會走
   // OpenRouter perplexity/sonar-* 同名 ID;再失敗才降級到 Claude / Gemini)
