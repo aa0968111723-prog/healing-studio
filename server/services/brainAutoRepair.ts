@@ -324,15 +324,20 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   // ── Gemini / Vertex AI 推理大腦 ──
   "gemini-2.5-pro": "gemini",
   "gemini-2.5-flash": "gemini",
+  "gemini-3-pro": "gemini",
   "vertex/gemini-2.5-pro": "gemini",
   "vertex/gemini-2.5-flash": "gemini",
+  "vertex/gemini-3-pro": "gemini",
   // ── OpenRouter Unified Gateway 推理大腦 ──
   "google/gemini-2.5-pro": "openrouter",
   "google/gemini-2.5-flash": "openrouter",
+  "google/gemini-3-pro": "openrouter",
   "anthropic/claude-sonnet-4.6": "openrouter",
   "anthropic/claude-sonnet-4.5": "openrouter",
   "anthropic/claude-opus-4.7": "openrouter",
   "anthropic/claude-haiku-4.5": "openrouter",
+  "openai/gpt-5": "openrouter",
+  "openai/gpt-4o": "openrouter",
   "minimax/minimax-m2": "openrouter",
   "mistralai/mistral-nemo": "openrouter",
   "meta-llama/llama-3.1-405b-instruct": "openrouter",
@@ -485,7 +490,24 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "anthropic/claude-opus-4.7": [
     "anthropic/claude-sonnet-4.6",
     "anthropic/claude-sonnet-4.5",
+    "google/gemini-3-pro",
     "google/gemini-2.5-pro",
+  ],
+  // ── 2025-2026 旗艦：Gemini 3 Pro / GPT-5 ──
+  "gemini-3-pro": [
+    "google/gemini-3-pro",
+    "gemini-2.5-pro",
+    "anthropic/claude-opus-4.7",
+  ],
+  "google/gemini-3-pro": [
+    "anthropic/claude-opus-4.7",
+    "google/gemini-2.5-pro",
+    "gemini-3-pro",
+  ],
+  "openai/gpt-5": [
+    "anthropic/claude-opus-4.7",
+    "google/gemini-3-pro",
+    "anthropic/claude-sonnet-4.6",
   ],
   // Perplexity Sonar：PERPLEXITY_API_KEY 不可用時降級到 Claude / Gemini。
   "perplexity/sonar-pro": [
