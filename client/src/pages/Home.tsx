@@ -529,6 +529,13 @@ const ALL_SUBPAGE_TUTORIALS = [
     category: "Ops",
   },
   {
+    id: "teaching-archive",
+    title: "資料庫",
+    path: "/teaching-archive",
+    prompt: "請教我資料庫怎麼上傳 PDF、文件、圖片、影片、語音，並用光球搜尋既有內容。",
+    category: "Ops",
+  },
+  {
     id: "shared-all",
     title: "共享素材",
     path: "/shared",
@@ -1053,7 +1060,7 @@ ${profileSnippet}`;
       {
         action: "navigate",
         label: "跳到主要分站",
-        hint: "navigate path='/studio' | '/director' | '/image-studio' | '/video-studio' | '/pro-studio' | '/lora-trainer' | '/learn' | '/dashboard' | '/history' | '/notes' | '/prompt-library' | '/assets' | '/shared'",
+        hint: "navigate path='/studio' | '/director' | '/image-studio' | '/video-studio' | '/pro-studio' | '/lora-trainer' | '/learn' | '/dashboard' | '/history' | '/notes' | '/prompt-library' | '/assets' | '/shared' | '/teaching-archive' | '/teams'",
       },
     ],
     []
