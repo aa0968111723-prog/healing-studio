@@ -175,7 +175,7 @@ export interface ChatWebSource {
  * addition to) the message's prose body.
  */
 export interface ChatSearchResultItem {
-  kind: "asset" | "note" | "history" | "tutorial";
+  kind: "asset" | "note" | "history" | "tutorial" | "teaching";
   id: string;
   title: string;
   snippet: string;
@@ -185,6 +185,11 @@ export interface ChatSearchResultItem {
   score?: number;
   thumbnailUrl?: string;
   modality?: "image" | "video" | "audio" | "voice" | "script" | "zip_bundle";
+  /**
+   * Only set when `kind === "teaching"` — 顯示「向量檢索」或「全文搜尋」徽章，
+   * 讓使用者知道這條引言是怎麼被找到的（語意相似 vs 關鍵字命中）。
+   */
+  matchedBy?: "vector" | "fts";
 }
 
 /**

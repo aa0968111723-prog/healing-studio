@@ -103,10 +103,14 @@ export interface OpenDialogAction {
   params?: Record<string, unknown>;
 }
 
-/** 在頁面內觸發搜尋（例如資產庫、歷史、提示詞庫的搜尋框） */
+/** 在頁面內觸發搜尋（例如資產庫、歷史、提示詞庫、資料庫的搜尋框） */
 export interface SearchAction {
   type: "search";
   query: string;
+  /** 可選的二級過濾：給支援 mediaType 過濾的頁面用（例如資料庫） */
+  mediaType?: string;
+  /** 可選的二級過濾：分類字串 */
+  lineage?: string;
 }
 
 /** 切換二元設定（例如深色模式、自動儲存、靜音） */

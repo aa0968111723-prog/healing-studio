@@ -181,12 +181,31 @@ const GENERIC_SKILLS: Array<Pick<
   {
     id: "researcher",
     displayName: "研究員",
-    description: "比較模型 / 查資料 / 列選項，先研究再行動",
+    description: "比較模型 / 查資料 / 列選項，先研究再行動。也能搜尋使用者上傳到資料庫的素材，把找到的段落直接引用回答。",
     modality: "general",
-    recommendedPages: ["/agent", "/learn", "/models"],
-    tools: ["research.deepSearch", "inspiration.fetch"],
-    knowledgeDomains: ["model comparison", "documentation lookup", "platform features"],
-    useCases: ["比較模型差異", "查找教學文件", "蒐集靈感參考"],
+    recommendedPages: ["/agent", "/learn", "/models", "/teaching-archive"],
+    tools: [
+      "research.deepSearch",
+      "inspiration.fetch",
+      // teachingArchive.search 走 Pinecone 向量搜尋 + LIKE fallback —
+      // 看到「我之前上傳的 / 資料庫裡有沒有 / 引用我的素材」這類請求
+      // 都要先打這支再 reply。
+      "teachingArchive.search",
+    ],
+    knowledgeDomains: [
+      "model comparison",
+      "documentation lookup",
+      "platform features",
+      "user-uploaded knowledge base",
+      "semantic content search",
+    ],
+    useCases: [
+      "比較模型差異",
+      "查找教學文件",
+      "蒐集靈感參考",
+      "搜尋使用者上傳的資料庫內容",
+      "從資料庫找引言來回答問題",
+    ],
     chain: ["researcher", "director", "composer"],
     requiresPage: false,
   },
@@ -367,14 +386,30 @@ const GENERIC_SKILLS: Array<Pick<
   {
     id: "notes-curator",
     displayName: "記記",
-    description: "筆記、素材庫、排程的管理員：存、找、排一次完成",
+    description: "筆記、素材庫、排程、資料庫的管理員：存、找、排一次完成",
     modality: "general",
-    // /schedule /calendar 專屬頁尚未實裝，先以 /notes / /assets 為主，PATH_SPIRIT_MAP
-    // 仍預留所有路徑等待頁面實作時自動接上。
-    recommendedPages: ["/notes", "/assets", "/agent"],
-    tools: [],
-    knowledgeDomains: ["notes", "calendar", "asset library", "tagging", "scheduling"],
-    useCases: ["記下重點", "翻舊素材", "排程貼文", "整理待辦"],
+    // /schedule /calendar 專屬頁尚未實裝，先以 /notes / /assets / /teaching-archive 為主，
+    // PATH_SPIRIT_MAP 仍預留所有路徑等待頁面實作時自動接上。
+    recommendedPages: ["/notes", "/assets", "/teaching-archive", "/agent"],
+    // 記記管整理 + 查找；teachingArchive.search 同時走 vector + FTS，比筆記
+    // 本身的關鍵字搜尋強，遇到「找之前上傳的 XX」就先打這支。
+    tools: ["teachingArchive.search"],
+    knowledgeDomains: [
+      "notes",
+      "calendar",
+      "asset library",
+      "tagging",
+      "scheduling",
+      "teaching database",
+      "uploaded materials retrieval",
+    ],
+    useCases: [
+      "記下重點",
+      "翻舊素材",
+      "排程貼文",
+      "整理待辦",
+      "從資料庫找之前上傳的 PDF / 影音內容",
+    ],
     chain: ["notes-curator", "composer"],
     requiresPage: false,
   },

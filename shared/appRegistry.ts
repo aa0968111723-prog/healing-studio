@@ -984,10 +984,13 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "上傳",
       "檔案",
     ],
-    showInSidebar: false,
-    showInAgentHome: false,
+    // 讓側邊欄露出入口 — 之前藏起來導致使用者找不到上傳頁。
+    showInSidebar: true,
+    showInAgentHome: true,
     agentEntryPriority: 18,
-    supportsPageAgent: false,
+    // 光球可在此頁直接呼叫 search / setScope / openUpload / openDetail —
+    // 見 client/src/pages/TeachingArchive.tsx 的 useRegisterPageAgent。
+    supportsPageAgent: true,
     quickActions: [
       {
         id: "open-teaching-archive",
@@ -996,8 +999,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         path: "/teaching-archive",
       },
     ],
-    orbHints: ["上傳資料", "新增素材", "建立資料庫"],
-    supportedActions: [],
+    orbHints: [
+      "上傳資料",
+      "新增素材",
+      "建立資料庫",
+      "幫我從資料庫找 XX",
+      "資料庫裡有沒有提到 XX 的內容",
+    ],
+    supportedActions: ["search", "setTab", "openDialog", "reset"],
   },
   {
     id: "teams",
@@ -1006,8 +1015,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     group: "learn",
     description: "建立 / 加入團隊，與成員共享資料庫的 team_shared 素材",
     aliases: ["teams", "團隊", "成員", "membership"],
-    showInSidebar: false,
-    showInAgentHome: false,
+    // 跟資料庫一組，sidebar 一起露出
+    showInSidebar: true,
+    showInAgentHome: true,
     agentEntryPriority: 19,
     supportsPageAgent: false,
     quickActions: [

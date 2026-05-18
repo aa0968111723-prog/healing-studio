@@ -5,10 +5,16 @@
  * 未來會接 Phase 2 的 RAG ingestion 切片並做向量檢索。
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 import {
   shortErrorMsg,
   uploadFileToS3WithProgress,
@@ -217,6 +223,119 @@ export default function TeachingArchive() {
     setSelectionMode(false);
     setSelectedIds(new Set());
   }
+
+  // ── PageAgent capabilities — 讓光球在這頁能下指令。重用既有的 action
+  // type union（search / setTab / openDialog / reset），避免 shared 型別膨脹：
+  //   - search       → 搜尋資料庫（SearchAction 已支援 mediaType/lineage）
+  //   - setTab       → 切視野；tabId 用 'scope:mine|team|public|all'
+  //   - openDialog   → 打開上傳對話框 / 打開素材詳情
+  //   - reset        → 清除過濾條件
+  const pageAgentCapabilities = useMemo<AgentCapability[]>(
+    () => [
+      {
+        action: "search",
+        label: "搜尋資料庫",
+        hint: "search query='關鍵字' [mediaType=pdf|video|audio|...] [lineage='分類']",
+      },
+      {
+        action: "setTab",
+        label: "切換視野（我的 / 團隊 / 公開 / 全部）",
+        options: [
+          { id: "scope:mine", label: "我的（私人）" },
+          { id: "scope:team", label: "團隊共享" },
+          { id: "scope:public", label: "全 workspace 公開" },
+          { id: "scope:all", label: "全部" },
+        ],
+        currentId: `scope:${filters.scope ?? "all"}`,
+        hint: "setTab tabId='scope:mine'|'scope:team'|'scope:public'|'scope:all'",
+      },
+      {
+        action: "openDialog",
+        label: "打開對話框（上傳 / 某筆素材詳情）",
+        hint: "openDialog dialogId='upload' | dialogId='detail' params={ id: <materialId> }",
+      },
+      {
+        action: "reset",
+        label: "清除所有過濾條件",
+        hint: "reset",
+      },
+    ],
+    [filters.scope]
+  );
+
+  useRegisterPageAgent({
+    pageId: "teaching-archive",
+    pageLabel: "資料庫",
+    pagePath: "/teaching-archive",
+    capabilities: pageAgentCapabilities,
+    state: {
+      itemCount: items.length,
+      scope: filters.scope ?? "all",
+      hasSearch: Boolean(filters.search?.trim()),
+      teamCount: teams.length,
+      selectionMode,
+      selectedCount: selectedIds.size,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "search": {
+          const q = action.query.trim();
+          if (!q) return { ok: false, reason: "missing query" };
+          setFilters(f => ({
+            ...f,
+            search: q,
+            mediaType:
+              typeof action.mediaType === "string"
+                ? (action.mediaType as MediaType)
+                : f.mediaType,
+            lineage:
+              typeof action.lineage === "string"
+                ? action.lineage
+                : f.lineage,
+          }));
+          return { ok: true, message: `已設定搜尋：${q}` };
+        }
+        case "setTab": {
+          const raw = String(action.tabId ?? "");
+          if (!raw.startsWith("scope:")) {
+            return {
+              ok: false,
+              reason: `setTab 只支援 scope:* tabId，拿到 ${raw}`,
+            };
+          }
+          const value = raw.slice("scope:".length);
+          const scope =
+            value === "mine" || value === "team" || value === "public"
+              ? value
+              : undefined;
+          setFilters(f => ({ ...f, scope }));
+          return { ok: true, message: `切到「${value || "all"}」視野` };
+        }
+        case "openDialog": {
+          const dialogId = String(action.dialogId ?? "");
+          if (dialogId === "upload") {
+            setUploadOpen(true);
+            return { ok: true, message: "已打開上傳對話框" };
+          }
+          if (dialogId === "detail") {
+            const id = Number(action.params?.id);
+            if (!Number.isFinite(id) || id <= 0) {
+              return { ok: false, reason: `detail 需要 params.id 數字` };
+            }
+            setDetailId(id);
+            return { ok: true, message: `已打開素材 #${id}` };
+          }
+          return { ok: false, reason: `unsupported dialogId: ${dialogId}` };
+        }
+        case "reset": {
+          setFilters({});
+          return { ok: true, message: "已清除過濾條件" };
+        }
+        default:
+          return { ok: false, reason: `unsupported action: ${action.type}` };
+      }
+    },
+  });
 
   return (
     <div className="page-shell space-y-6">

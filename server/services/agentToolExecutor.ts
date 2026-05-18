@@ -2832,6 +2832,86 @@ async function dispatchAccountantTool(
         return { name: call.name, ok: true, data: result, usedTool: call.name };
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // teachingArchive.* — 資料庫語意檢索（給光球引用使用者上傳的素材）
+      // 同時跑 vector + LIKE fallback；回 ChatSearchResultItem 相容的 shape
+      // 給前端的 OrbSearchCard 直接渲染。
+      // ════════════════════════════════════════════════════════════════════
+
+      case "teachingArchive.search": {
+        const { searchTeachingArchive } = await import(
+          "./teachingArchiveSearch"
+        );
+        const query = String(args.query ?? "").trim();
+        if (!query) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "missing required arg: query",
+          };
+        }
+        const limit = Math.max(
+          1,
+          Math.min(Number(args.limit ?? 5) || 5, 20)
+        );
+        const mediaType =
+          typeof args.mediaType === "string" ? args.mediaType : undefined;
+        const lineage =
+          typeof args.lineage === "string" ? args.lineage : undefined;
+
+        const hits = await searchTeachingArchive({
+          userId: opts.userId,
+          query,
+          limit,
+          mediaType: mediaType as
+            | "text"
+            | "pdf"
+            | "document"
+            | "image"
+            | "video"
+            | "audio"
+            | "presentation"
+            | undefined,
+          lineage,
+        });
+
+        // 寫 search_hit audit — 光球查也算 hit；管理員之後可以區分人工 vs 光球
+        const { logTeachingMaterialAccess } = await import("../db");
+        for (const h of hits) {
+          logTeachingMaterialAccess({
+            materialId: h.id,
+            userId: opts.userId,
+            action: "search_hit",
+            metadata: {
+              query,
+              matchedBy: h.matchedBy,
+              via: "orb",
+            },
+          }).catch(() => {});
+        }
+
+        // ChatSearchResultItem 相容 shape — 前端的 OrbSearchCard renderer
+        // 直接 map kind/title/snippet/path/badge/thumbnailUrl
+        const items = hits.map(h => ({
+          kind: "teaching" as const,
+          id: String(h.id),
+          title: h.title,
+          snippet: h.snippet,
+          path: `/teaching-archive?focus=${h.id}`,
+          badge: h.lineage || h.topic || h.mediaType,
+          thumbnailUrl: undefined as string | undefined,
+          matchedBy: h.matchedBy,
+          score: h.score,
+        }));
+
+        return {
+          name: call.name,
+          ok: true,
+          data: { items, totalReturned: items.length },
+          usedTool: call.name,
+        };
+      }
+
       case "accountant.trend": {
         const result = await getDailyTrend(opts.userId, {
           days: typeof args.days === "number" ? args.days : undefined,

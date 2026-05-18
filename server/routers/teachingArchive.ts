@@ -16,6 +16,8 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { enqueueTeachingIngestion } from "../services/teachingArchiveIngest";
+import { deleteTeachingVectorsByMaterial } from "../services/teachingArchiveRag";
+import { searchTeachingArchive } from "../services/teachingArchiveSearch";
 import {
   loadMaterialForRead,
   loadMaterialForWrite,
@@ -358,13 +360,22 @@ export const teachingArchiveRouter = router({
       return { ok: true, noop: false as const };
     }),
 
-  /** 刪除教材（owner 或團隊管理員可刪；僅刪 metadata，S3 物件保留） */
+  /** 刪除資料（owner 或團隊管理員可刪；僅刪 metadata，S3 物件保留） */
   delete: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      await loadMaterialForWrite(input.id, { userId: ctx.user.id });
+      const { material } = await loadMaterialForWrite(input.id, {
+        userId: ctx.user.id,
+      });
       logAccess(input.id, ctx.user.id, "delete");
       await db.deleteTeachingMaterial(input.id);
+      // 清掉 Pinecone 上的向量 — 失敗就 log 不擋（reconciler cron 之後可再清）
+      deleteTeachingVectorsByMaterial(material.userId, input.id).catch(err => {
+        console.warn(
+          `[teachingArchive] vector cleanup non-fatal failure id=${input.id}:`,
+          err
+        );
+      });
       return { ok: true };
     }),
 
@@ -423,75 +434,23 @@ export const teachingArchiveRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const teamIds = await db.listTeamIdsForUser(ctx.user.id);
-      // LIMIT 一定要在 SQL 端，否則 search "禪" 之類常見字會把整資料庫的
-      // 逐字稿都拉回來再 slice，浪費頻寬也吃光記憶體。
-      const rows = await db.searchTeachingMaterialsForUser(
-        ctx.user.id,
-        {
-          search: input.query,
-          mediaType: input.mediaType,
-          lineage: input.lineage,
-        },
-        { teamIds, limit: input.limit }
-      );
-      // 寫 search_hit 稽核 — fire-and-forget，不卡回應。
-      for (const row of rows) {
-        logAccess(row.id, ctx.user.id, "search_hit", {
+      // 統一走 searchTeachingArchive：vector 優先、LIKE fallback。
+      const hits = await searchTeachingArchive({
+        userId: ctx.user.id,
+        query: input.query,
+        limit: input.limit,
+        mediaType: input.mediaType,
+        lineage: input.lineage,
+      });
+      for (const h of hits) {
+        logAccess(h.id, ctx.user.id, "search_hit", {
           query: input.query,
+          matchedBy: h.matchedBy,
         });
       }
-      return rows.map(row => ({
-        id: row.id,
-        title: row.title,
-        mediaType: row.mediaType,
-        sourceType: row.sourceType,
-        lineage: row.lineage,
-        topic: row.topic,
-        speaker: row.speaker,
-        sourceDate: row.sourceDate,
-        fileUrl: row.fileUrl,
-        snippet: buildSnippet(
-          input.query,
-          row.title,
-          row.description,
-          row.textContent
-        ),
-      }));
+      return hits;
     }),
 });
-
-/**
- * 抓出 query 在 title / description / textContent 命中位置前後的小段，給
- * AI 助理一個可以直接引用的句子。沒命中就回 textContent 開頭。
- * Title 也納入 haystack — SQL 已用 title LIKE 過濾，命中標題的 row
- * 之前會掉到 description fallback 拿不到的雜訊；先掃 title 讓引言準確。
- */
-function buildSnippet(
-  query: string,
-  title: string,
-  description: string | null,
-  textContent: string | null
-): string {
-  const SNIPPET_RADIUS = 80;
-  const haystacks: string[] = [title];
-  if (description) haystacks.push(description);
-  if (textContent) haystacks.push(textContent);
-  const lowerQuery = query.toLowerCase();
-  for (const h of haystacks) {
-    const idx = h.toLowerCase().indexOf(lowerQuery);
-    if (idx >= 0) {
-      const start = Math.max(0, idx - SNIPPET_RADIUS);
-      const end = Math.min(h.length, idx + query.length + SNIPPET_RADIUS);
-      const prefix = start > 0 ? "…" : "";
-      const suffix = end < h.length ? "…" : "";
-      return prefix + h.slice(start, end).replace(/\s+/g, " ").trim() + suffix;
-    }
-  }
-  // 沒命中就回標題；前端可以決定要不要顯示。
-  if (textContent) return textContent.slice(0, 160).replace(/\s+/g, " ") + "…";
-  return title;
-}
 
 export type TeachingArchiveRouter = typeof teachingArchiveRouter;
 
