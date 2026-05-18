@@ -471,9 +471,10 @@ export default function ModelWishlistPage() {
                           <AdminNoteEditor
                             current={wish.adminNote}
                             onSave={note =>
+                              // 只送 adminNote, 不送 status — 避免用陳舊狀態
+                              // 覆蓋其他管理員剛剛改的狀態
                               updateStatusMutation.mutate({
                                 id: wish.id,
-                                status: wish.status as StatusValue,
                                 adminNote: note,
                               })
                             }

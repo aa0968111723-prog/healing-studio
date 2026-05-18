@@ -75,8 +75,9 @@ export const modelWishesRouter = router({
       z.object({
         modelName: z
           .string()
-          .min(1, "請輸入模型名稱")
-          .max(191, "模型名稱過長"),
+          .max(191, "模型名稱過長")
+          .transform(s => s.trim())
+          .refine(s => s.length > 0, "請輸入模型名稱"),
         provider: z.string().max(128).optional(),
         modality: z.enum(MODALITY).default("other"),
         reason: z.string().max(2000).optional(),
@@ -91,7 +92,7 @@ export const modelWishesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const id = await db.createModelWish({
         userId: ctx.user.id,
-        modelName: input.modelName.trim(),
+        modelName: input.modelName,
         provider: input.provider?.trim() || null,
         modality: input.modality,
         reason: input.reason?.trim() || null,
@@ -141,43 +142,53 @@ export const modelWishesRouter = router({
   vote: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const wish = await db.getModelWishById(input.id);
-      if (!wish) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "許願不存在" });
+      try {
+        return await db.voteModelWish(input.id, ctx.user.id);
+      } catch (e) {
+        if (e instanceof Error && e.message === "WISH_NOT_FOUND") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "許願不存在" });
+        }
+        throw e;
       }
-      const result = await db.voteModelWish(input.id, ctx.user.id);
-      return result;
     }),
 
   unvote: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const wish = await db.getModelWishById(input.id);
-      if (!wish) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "許願不存在" });
+      try {
+        return await db.unvoteModelWish(input.id, ctx.user.id);
+      } catch (e) {
+        if (e instanceof Error && e.message === "WISH_NOT_FOUND") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "許願不存在" });
+        }
+        throw e;
       }
-      const result = await db.unvoteModelWish(input.id, ctx.user.id);
-      return result;
     }),
 
   updateStatus: adminProcedure
     .input(
-      z.object({
-        id: z.number().int().positive(),
-        status: z.enum(STATUS),
-        adminNote: z.string().max(2000).optional().nullable(),
-      })
+      z
+        .object({
+          id: z.number().int().positive(),
+          // 兩個欄位都改成 optional：呼叫端只傳實際要動的欄位，
+          // 才不會在「只改備註」時拿陳舊的 status 把別人剛剛改的狀態蓋掉。
+          status: z.enum(STATUS).optional(),
+          adminNote: z.string().max(2000).nullable().optional(),
+        })
+        .refine(v => v.status !== undefined || v.adminNote !== undefined, {
+          message: "至少要更新 status 或 adminNote 其中一項",
+        })
     )
     .mutation(async ({ input }) => {
       const wish = await db.getModelWishById(input.id);
       if (!wish) {
         throw new TRPCError({ code: "NOT_FOUND", message: "許願不存在" });
       }
-      await db.updateModelWishStatus(
-        input.id,
-        input.status,
-        input.adminNote ?? undefined
-      );
+      await db.updateModelWishStatus(input.id, {
+        status: input.status,
+        // 明確區分 undefined（不動）vs null（清除）
+        adminNote: input.adminNote,
+      });
       return { success: true };
     }),
 });

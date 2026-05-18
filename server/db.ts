@@ -2466,29 +2466,38 @@ export async function getModelWishById(id: number) {
 export async function deleteModelWish(id: number) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(modelWishVotes).where(eq(modelWishVotes.wishId, id));
-  await db.delete(modelWishes).where(eq(modelWishes.id, id));
+  // 包在 transaction 裡，搭配 voteModelWish 內部的 wish 鎖定，避免投票與
+  // 刪除互相穿插造成孤兒票。
+  await db.transaction(async tx => {
+    await tx.delete(modelWishVotes).where(eq(modelWishVotes.wishId, id));
+    await tx.delete(modelWishes).where(eq(modelWishes.id, id));
+  });
 }
 
 export async function updateModelWishStatus(
   id: number,
-  status: "pending" | "under_review" | "planned" | "added" | "rejected",
-  adminNote?: string | null
+  patch: {
+    status?: "pending" | "under_review" | "planned" | "added" | "rejected";
+    /** undefined = 保持原值；null = 清除站方回覆；string = 設定回覆 */
+    adminNote?: string | null;
+  }
 ) {
   const db = await getDb();
   if (!db) return;
-  await db
-    .update(modelWishes)
-    .set({
-      status,
-      ...(adminNote !== undefined ? { adminNote } : {}),
-    })
-    .where(eq(modelWishes.id, id));
+  const update: Record<string, unknown> = {};
+  if (patch.status !== undefined) update.status = patch.status;
+  if (patch.adminNote !== undefined) update.adminNote = patch.adminNote;
+  if (Object.keys(update).length === 0) return;
+  await db.update(modelWishes).set(update).where(eq(modelWishes.id, id));
 }
 
 /**
  * 投票（idempotent）：若使用者已投過票則不變；同時同步更新 voteCount。
- * 回傳 { voted: true, voteCount } 表示動作後狀態。
+ * 整段包在 transaction 裡並對許願列 `SELECT ... FOR UPDATE`，這樣即使
+ * 跟刪除許願同時發生，也不會留下孤兒票（要嘛投票先成立、刪除等到能刪
+ * 投票；要嘛刪除先進行、投票看到許願不存在直接 NOT_FOUND）。
+ * 回傳 { voted: true, voteCount } 表示動作後狀態；
+ * 若許願已被刪除則丟出 Error("WISH_NOT_FOUND")。
  */
 export async function voteModelWish(
   wishId: number,
@@ -2496,21 +2505,37 @@ export async function voteModelWish(
 ): Promise<{ voted: boolean; voteCount: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  try {
-    await db.insert(modelWishVotes).values({ wishId, userId });
-    // 票數 +1
-    await db
-      .update(modelWishes)
-      .set({ voteCount: sql`${modelWishes.voteCount} + 1` })
-      .where(eq(modelWishes.id, wishId));
-  } catch (e: any) {
-    // ER_DUP_ENTRY — 已投過票，視為成功（idempotent）
-    if (!String(e?.code ?? "").includes("ER_DUP_ENTRY")) {
-      throw e;
+  return db.transaction(async tx => {
+    const locked = (await tx.execute(
+      sql`SELECT id, voteCount FROM model_wishes WHERE id = ${wishId} FOR UPDATE`
+    )) as any[];
+    const rows = Array.isArray(locked?.[0]) ? locked[0] : locked;
+    if (!rows?.length) {
+      throw new Error("WISH_NOT_FOUND");
     }
-  }
-  const refreshed = await getModelWishById(wishId);
-  return { voted: true, voteCount: refreshed?.voteCount ?? 0 };
+    try {
+      await tx.insert(modelWishVotes).values({ wishId, userId });
+      await tx
+        .update(modelWishes)
+        .set({ voteCount: sql`${modelWishes.voteCount} + 1` })
+        .where(eq(modelWishes.id, wishId));
+    } catch (e: any) {
+      // ER_DUP_ENTRY — 已投過票，視為成功（idempotent）
+      if (!String(e?.code ?? "").includes("ER_DUP_ENTRY")) {
+        throw e;
+      }
+    }
+    const refreshed = (await tx.execute(
+      sql`SELECT voteCount FROM model_wishes WHERE id = ${wishId}`
+    )) as any[];
+    const refreshedRows = Array.isArray(refreshed?.[0])
+      ? refreshed[0]
+      : refreshed;
+    return {
+      voted: true,
+      voteCount: Number(refreshedRows?.[0]?.voteCount ?? 0),
+    };
+  });
 }
 
 export async function unvoteModelWish(
@@ -2519,26 +2544,43 @@ export async function unvoteModelWish(
 ): Promise<{ voted: boolean; voteCount: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db
-    .delete(modelWishVotes)
-    .where(
-      and(
-        eq(modelWishVotes.wishId, wishId),
-        eq(modelWishVotes.userId, userId)
-      )
-    );
-  const removed = Number(result[0]?.affectedRows ?? 0);
-  if (removed > 0) {
-    // voteCount - 1，但不允許掉到負數
-    await db
-      .update(modelWishes)
-      .set({
-        voteCount: sql`GREATEST(${modelWishes.voteCount} - 1, 0)`,
-      })
-      .where(eq(modelWishes.id, wishId));
-  }
-  const refreshed = await getModelWishById(wishId);
-  return { voted: false, voteCount: refreshed?.voteCount ?? 0 };
+  return db.transaction(async tx => {
+    const locked = (await tx.execute(
+      sql`SELECT id FROM model_wishes WHERE id = ${wishId} FOR UPDATE`
+    )) as any[];
+    const rows = Array.isArray(locked?.[0]) ? locked[0] : locked;
+    if (!rows?.length) {
+      throw new Error("WISH_NOT_FOUND");
+    }
+    const result = await tx
+      .delete(modelWishVotes)
+      .where(
+        and(
+          eq(modelWishVotes.wishId, wishId),
+          eq(modelWishVotes.userId, userId)
+        )
+      );
+    const removed = Number(result[0]?.affectedRows ?? 0);
+    if (removed > 0) {
+      // voteCount - 1，但不允許掉到負數
+      await tx
+        .update(modelWishes)
+        .set({
+          voteCount: sql`GREATEST(${modelWishes.voteCount} - 1, 0)`,
+        })
+        .where(eq(modelWishes.id, wishId));
+    }
+    const refreshed = (await tx.execute(
+      sql`SELECT voteCount FROM model_wishes WHERE id = ${wishId}`
+    )) as any[];
+    const refreshedRows = Array.isArray(refreshed?.[0])
+      ? refreshed[0]
+      : refreshed;
+    return {
+      voted: false,
+      voteCount: Number(refreshedRows?.[0]?.voteCount ?? 0),
+    };
+  });
 }
 
 /** 依條件批次刪除光球記憶（支援 pageId/actionType/beforeAt 過濾） */
