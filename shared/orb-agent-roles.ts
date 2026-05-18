@@ -201,6 +201,7 @@ const KEYWORD_RULES: Array<KeywordRule> = [
       "song",
       "soundtrack",
       "background music",
+      "bgm",
       "compose",
       "sound effect",
       "audio mix",
@@ -766,6 +767,24 @@ const COMPOSER_ON_STUDIO_HINTS = [
   "再來一張",
   "下一張",
   "再生成",
+  // 音樂/配音工作室：使用者習慣講「段 / 首 / 句」而不是「張」。
+  // 沒這幾條時，「再來一段，慢一點」會掉到 companion，編編不動手。
+  "再來一段",
+  "再來一首",
+  "再來一句",
+  "下一段",
+  "下一首",
+  "下一句",
+  "再做一段",
+  "再做一首",
+  // 工作室「換引擎 / 換模型」就是 setEngine／setModel 的口語版，
+  // 屬於頁面執行類，應該由編編接住而不是掉到 companion。
+  "把引擎",
+  "把模型",
+  "換引擎",
+  "換模型",
+  "改引擎",
+  "改模型",
   "submit",
   "generate",
   "render",
@@ -870,6 +889,7 @@ const LEARNING_OVERRIDE_HINTS: readonly string[] = [
 // quality-coach 該接的回合。只列強訊號詞避免誤判 「我畫不好」 這種
 // 想學圖法的用戶（那是 learning）。
 const QUALITY_OVERRIDE_HINTS: readonly string[] = [
+  // 影像品質投訴
   "畫面糊",
   "畫面模糊",
   "細節差",
@@ -884,6 +904,22 @@ const QUALITY_OVERRIDE_HINTS: readonly string[] = [
   "blurry",
   "low quality",
   "looks weird",
+  // 音訊品質投訴 — 沒這幾條時「配音咬字糊糊的」會被 voice-specialist
+  // 的「配音」搶走當成新一輪生成，使用者其實是想要改進建議。
+  // 注意：所有 hint 必須是「明確的抱怨片語」，不能是中性名詞。例如
+  // 單獨的「雜訊」會搶走「做一段雜訊音效」這類正常 SFX 生成請求；改用
+  // 「有雜訊 / 太多雜訊 / 雜訊很多」等只在投訴語境出現的組合。
+  "咬字糊",
+  "咬字不清",
+  "音質差",
+  "有雜訊",
+  "太多雜訊",
+  "雜訊很多",
+  "破音",
+  "聲音糊",
+  "聲音模糊",
+  "muffled audio",
+  "noisy audio",
 ];
 
 // 被 muted 的角色該怎麼降級：使用者把某位精靈靜音時，原本掉到 companion
