@@ -1,4 +1,4 @@
--- 0050: 法脈傳承教材庫（Teaching Materials）
+-- 0052: 資料庫（Teaching Materials）
 --
 -- Phase 1 of the training-data feature. Stores teacher discourses, lineage
 -- materials, group-practice recordings, class slides, photos, etc. The

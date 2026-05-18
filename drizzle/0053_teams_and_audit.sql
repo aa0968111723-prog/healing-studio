@@ -1,6 +1,6 @@
--- 0051: Teams + memberships + access audit log for teaching-archive
+-- 0053: Teams + memberships + access audit log for teaching-archive
 --
--- Phase 2 of the training-data feature. The Phase 1 schema (0050) stores
+-- Phase 2 of the training-data feature. The Phase 1 schema (0052) stores
 -- teaching materials per individual user; this migration adds:
 --   • `teams` + `team_memberships` so a workspace can have isolated teams,
 --     each with owner/admin/member roles

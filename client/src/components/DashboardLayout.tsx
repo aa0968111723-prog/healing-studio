@@ -35,6 +35,7 @@ import {
   FolderOpen,
   GraduationCap,
   Users,
+  Gift,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import type { LucideIcon } from "lucide-react";
@@ -131,6 +132,7 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   credits: Coins,
   learn: BookOpen,
   "ai-models-hub": Sparkles,
+  "model-wishlist": Gift,
   feedback: MessageSquare,
   langsmith: Monitor,
   settings: Settings,
@@ -183,7 +185,14 @@ const sidebarStructure: SidebarEntry[] = (() => {
     ])
   );
   push(buildGroup("資源庫", FolderOpen, ["models", "assets"]));
-  push(buildGroup("知識中心", GraduationCap, ["notes", "learn", "ai-models-hub"]));
+  push(
+    buildGroup("知識中心", GraduationCap, [
+      "notes",
+      "learn",
+      "ai-models-hub",
+      "model-wishlist",
+    ])
+  );
   return entries;
 })();
 

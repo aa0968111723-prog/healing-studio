@@ -56,6 +56,7 @@ const VideoStudio = lazy(() => import("./pages/VideoStudio"));
 const LightOrbCreationStudio = lazy(() => import("./pages/LightOrbCreationStudio"));
 const LearnHub = lazy(() => import("./pages/LearnHub"));
 const AIModelsHub = lazy(() => import("./pages/AIModelsHub"));
+const ModelWishlistPage = lazy(() => import("./pages/ModelWishlistPage"));
 const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
 const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
@@ -279,6 +280,9 @@ function Router() {
       </Route>
       <Route path="/ai-models-hub">
         <DashboardRoute component={AIModelsHub} />
+      </Route>
+      <Route path="/model-wishlist">
+        <DashboardRoute component={ModelWishlistPage} />
       </Route>
       <Route path="/learn/tutorial-overview">
         <NavigateRedirect to="/tutorial-overview" />

@@ -27,7 +27,8 @@ export const REASONING_MODEL_CATALOG = {
     targetPath: "/director",
     options: [
       // ── Gemini / Vertex AI ──
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
+      { value: "gemini-3-pro", label: "Gemini 3 Pro 🔵 ✦ 最新旗艦", tier: "ultra" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       // ── Vertex AI 模型 ──
       {
@@ -75,8 +76,13 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── OpenRouter Unified Gateway ──
       {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ 最新旗艦",
+        tier: "ultra",
+      },
+      {
         value: "anthropic/claude-sonnet-4.6",
-        label: "Claude Sonnet 4.6 (OpenRouter) 🟣 ✦ 最新",
+        label: "Claude Sonnet 4.6 (OpenRouter) 🟣",
         tier: "premium",
       },
       {
@@ -85,8 +91,13 @@ export const REASONING_MODEL_CATALOG = {
         tier: "premium",
       },
       {
-        value: "anthropic/claude-opus-4.7",
-        label: "Claude Opus 4.7 (OpenRouter) 🟣",
+        value: "openai/gpt-5",
+        label: "GPT-5 (OpenRouter) 🟢 ✦ 最新旗艦",
+        tier: "ultra",
+      },
+      {
+        value: "google/gemini-3-pro",
+        label: "Gemini 3 Pro (OpenRouter) 🟣 ✦ 最新旗艦",
         tier: "ultra",
       },
       {

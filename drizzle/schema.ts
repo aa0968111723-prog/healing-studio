@@ -1272,13 +1272,13 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 導演大腦 — 統籌創作流程、分鏡、敘事結構 */
   directorModel: varchar("directorModel", { length: 128 })
-    .default("google/gemini-2.5-pro")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   directorTemperature: decimal("directorTemperature", {
     precision: 3,
     scale: 2,
   })
-    .default("0.7")
+    .default("0.4")
     .notNull(),
   directorTopP: decimal("directorTopP", { precision: 3, scale: 2 })
     .default("0.9")
@@ -1288,7 +1288,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 分析師大腦 — 數據分析、趨勢洞察、品質評估 */
   analystModel: varchar("analystModel", { length: 128 })
-    .default("google/gemini-2.5-flash")
+    .default("perplexity/sonar-pro")
     .notNull(),
   analystTemperature: decimal("analystTemperature", { precision: 3, scale: 2 })
     .default("0.3")
@@ -1301,7 +1301,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 說書人大腦 — 文案撰寫、故事展開、情感渲染 */
   storytellerModel: varchar("storytellerModel", { length: 128 })
-    .default("google/gemini-2.5-pro")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   storytellerTemperature: decimal("storytellerTemperature", {
     precision: 3,
@@ -1317,7 +1317,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 技師大腦 — 提示詞工程、參數優化、技術翻譯 */
   technicianModel: varchar("technicianModel", { length: 128 })
-    .default("google/gemini-2.5-flash")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   technicianTemperature: decimal("technicianTemperature", {
     precision: 3,
@@ -1333,7 +1333,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 策展人大腦 — 風格推薦、美學判斷、靈感策展 */
   curatorModel: varchar("curatorModel", { length: 128 })
-    .default("google/gemini-2.5-flash")
+    .default("anthropic/claude-opus-4.7")
     .notNull(),
   curatorTemperature: decimal("curatorTemperature", { precision: 3, scale: 2 })
     .default("0.8")
@@ -1361,9 +1361,10 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   }>(),
   imageEngineEnabled: boolean("imageEngineEnabled").default(true).notNull(),
 
-  /** 影片生成引擎 */
+  /** 影片生成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.videoEngine
+   * (Kling t2v 上游壞掉，middleware 改用 fal-ai/wan-t2v) */
   videoEngine: varchar("videoEngine", { length: 128 })
-    .default("fal-ai/kling-video/v2.1/pro/text-to-video")
+    .default("fal-ai/wan-t2v")
     .notNull(),
   videoEngineParams: json("videoEngineParams").$type<{
     duration?: number;
@@ -1374,9 +1375,9 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   }>(),
   videoEngineEnabled: boolean("videoEngineEnabled").default(true).notNull(),
 
-  /** 音樂/音效生成引擎 */
+  /** 音樂/音效生成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.audioEngine */
   audioEngine: varchar("audioEngine", { length: 128 })
-    .default("fal-ai/stable-audio")
+    .default("fal-ai/ace-step")
     .notNull(),
   audioEngineParams: json("audioEngineParams").$type<{
     duration?: number;
@@ -3088,11 +3089,82 @@ export type WorldbuildingFramework =
 export type InsertWorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferInsert;
 
-// ─── Teaching Materials (法脈傳承教材庫) ─────────────────────────────────────
-// Phase 1 of the training-data feature: stores teacher discourses, lineage
-// materials, group-practice recordings, class slides, photos, etc. Text/audio
-// transcripts populate `textContent` so a later RAG layer (Phase 2) can chunk
-// + embed without reshaping the schema.
+// ─── Model Wishlist（模型許願池）─────────────────────────────────────────
+// 使用者許願希望平台支援的 AI 模型；其他人可投票表示需求。
+//   * modelWishes：許願主體
+//   * modelWishVotes：去重投票，(wishId, userId) 唯一
+export const modelWishes = mysqlTable(
+  "model_wishes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    modelName: varchar("modelName", { length: 191 }).notNull(),
+    provider: varchar("provider", { length: 128 }),
+    modality: mysqlEnum("modality", [
+      "text",
+      "image",
+      "video",
+      "audio",
+      "voice",
+      "3d",
+      "multimodal",
+      "embedding",
+      "other",
+    ])
+      .default("other")
+      .notNull(),
+    reason: text("reason"),
+    referenceUrl: text("referenceUrl"),
+    /** 去正規化的票數計數（同步自 modelWishVotes，避免每次列表 COUNT） */
+    voteCount: int("voteCount").default(0).notNull(),
+    status: mysqlEnum("status", [
+      "pending",
+      "under_review",
+      "planned",
+      "added",
+      "rejected",
+    ])
+      .default("pending")
+      .notNull(),
+    adminNote: text("adminNote"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    statusIdx: index("mw_status_idx").on(table.status),
+    voteCountIdx: index("mw_vote_count_idx").on(table.voteCount),
+    userIdIdx: index("mw_user_idx").on(table.userId),
+  })
+);
+
+export type ModelWish = typeof modelWishes.$inferSelect;
+export type InsertModelWish = typeof modelWishes.$inferInsert;
+
+export const modelWishVotes = mysqlTable(
+  "model_wish_votes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    wishId: int("wishId").notNull(),
+    userId: int("userId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    wishUserUk: uniqueIndex("mw_votes_wish_user_uk").on(
+      table.wishId,
+      table.userId
+    ),
+    userIdx: index("mw_votes_user_idx").on(table.userId),
+  })
+);
+
+export type ModelWishVote = typeof modelWishVotes.$inferSelect;
+export type InsertModelWishVote = typeof modelWishVotes.$inferInsert;
+
+// ─── Teaching Materials（資料庫 — training-data feature）─────────────────────
+// Stores uploaded source files (text / PDF / document / image / video / audio /
+// presentation) with classification metadata. Text content (`textContent`) is
+// populated by a later RAG ingestion pipeline (Phase 2: chunking + embeddings);
+// Phase 1 keeps it nullable / not_applicable so authors can upload immediately.
 export const teachingMaterials = mysqlTable(
   "teaching_materials",
   {
@@ -3109,16 +3181,16 @@ export const teachingMaterials = mysqlTable(
 
     /** 媒體類型 — 決定前端如何渲染（播放器/縮圖/閱讀器） */
     mediaType: mysqlEnum("mediaType", [
-      "text", // 純文字開示（textContent 為主，無檔案）
-      "pdf", // PDF 開示稿
+      "text", // 純文字（textContent 為主，無檔案）
+      "pdf", // PDF 文件
       "document", // Word / TXT / Markdown
-      "image", // 法相、活動照片
-      "video", // 開示影片
+      "image", // 圖片
+      "video", // 影片
       "audio", // 語音、錄音
       "presentation", // PPT / PPTX
     ]).notNull(),
 
-    // ── 檔案參照（純文字開示時皆可為 null）───────────────────────────────
+    // ── 檔案參照（純文字時皆可為 null）───────────────────────────────────
     fileUrl: text("fileUrl"),
     fileKey: text("fileKey"),
     fileName: varchar("fileName", { length: 255 }),
@@ -3143,10 +3215,10 @@ export const teachingMaterials = mysqlTable(
       .default("not_applicable")
       .notNull(),
 
-    // ── 法脈分類軸 ───────────────────────────────────────────────────────
-    /** 法脈傳承，例：「悟覺妙天禪師」「印心禪法」 */
+    // ── 分類軸 ───────────────────────────────────────────────────────────
+    /** 自由分類字串（之前的 lineage 欄位 — 名稱保留避免動 schema） */
     lineage: varchar("lineage", { length: 128 }),
-    /** 來源類型：開示 / 共修 / 社課 / 法會 / 出版品 / 訪談 / 其他 */
+    /** 來源類型 */
     sourceType: mysqlEnum("sourceType", [
       "discourse",
       "group_practice",
@@ -3158,13 +3230,13 @@ export const teachingMaterials = mysqlTable(
     ])
       .default("discourse")
       .notNull(),
-    /** 開示 / 活動日期 */
+    /** 日期 */
     sourceDate: date("sourceDate"),
-    /** 講授地點 */
+    /** 地點 */
     sourceLocation: varchar("sourceLocation", { length: 255 }),
-    /** 主題：禪修方法 / 生活禪 / 企業禪 / 心法 等 */
+    /** 主題 */
     topic: varchar("topic", { length: 128 }),
-    /** 講者 — 預設由前端填入「悟覺妙天禪師」 */
+    /** 講者 */
     speaker: varchar("speaker", { length: 128 }),
     tags: json("tags").$type<string[]>(),
 
@@ -3201,7 +3273,7 @@ export const teachingMaterials = mysqlTable(
       table.userId,
       table.createdAt
     ),
-    // ── 0051 新增：團隊池與 visibility 過濾用 ────────────────────────────
+    // ── 0053 新增：團隊池與 visibility 過濾用 ────────────────────────────
     teamIdVisibilityIdx: index("tm_teamId_visibility_idx").on(
       table.teamId,
       table.visibility
@@ -3217,7 +3289,7 @@ export const teachingMaterials = mysqlTable(
 export type TeachingMaterial = typeof teachingMaterials.$inferSelect;
 export type InsertTeachingMaterial = typeof teachingMaterials.$inferInsert;
 
-// ─── Teams（0051 新增）────────────────────────────────────────────────────
+// ─── Teams（0053 新增）────────────────────────────────────────────────────
 
 export const teams = mysqlTable(
   "teams",
@@ -3267,7 +3339,7 @@ export const teamMemberships = mysqlTable(
 export type TeamMembership = typeof teamMemberships.$inferSelect;
 export type InsertTeamMembership = typeof teamMemberships.$inferInsert;
 
-// ─── Access audit log（0051 新增）─────────────────────────────────────────
+// ─── Access audit log（0053 新增）─────────────────────────────────────────
 
 export const teachingMaterialAccessLog = mysqlTable(
   "teaching_material_access_log",

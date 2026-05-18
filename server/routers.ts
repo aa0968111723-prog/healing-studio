@@ -60,6 +60,7 @@ import { orbProxyRouter } from "./routers/orbProxyRouter";
 import { orbConversationsRouter } from "./routers/orbConversationsRouter";
 import { adminRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
+import { modelWishesRouter } from "./routers/modelWishesRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -1072,6 +1073,7 @@ export const appRouter = router({
   orbProxy: orbProxyRouter,
   orbConversations: orbConversationsRouter,
   agentCollaboration: agentCollaborationRouter,
+  modelWishes: modelWishesRouter,
   adminEval: adminRouter,
 
   // ─── Orb Agent Observability ─────────────────────────────────────────────
