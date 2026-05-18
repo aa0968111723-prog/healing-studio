@@ -1381,8 +1381,6 @@ export default function AssetsLibrary() {
           )}
         </div>
       )}
-          </div>
-          )}
         </>
       )}
 
