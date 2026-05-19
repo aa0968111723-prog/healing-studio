@@ -3844,6 +3844,7 @@ export default function Studio() {
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
                 seedOnly={isStandard}
+                selectedModelId={selectedFalModelId}
               />
             </GlassCard>
           </div>
@@ -4007,6 +4008,7 @@ export default function Studio() {
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
+                selectedModelId={selectedFalModelId}
               />
             )}
             {toolboxTab === "history" && (
