@@ -97,6 +97,15 @@ async function loadFramework(
     productionTargets: (w.productionTargetsJson ?? undefined) as
       | WorldbuildingFrameworkData["productionTargets"]
       | undefined,
+    researchEntries: (w.researchEntriesJson ?? undefined) as
+      | WorldbuildingFrameworkData["researchEntries"]
+      | undefined,
+    soundLibrary: (w.soundLibraryJson ?? undefined) as
+      | WorldbuildingFrameworkData["soundLibrary"]
+      | undefined,
+    uploadedAssets: (w.uploadedAssetsJson ?? undefined) as
+      | WorldbuildingFrameworkData["uploadedAssets"]
+      | undefined,
   };
 }
 
