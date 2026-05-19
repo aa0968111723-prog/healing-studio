@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { parseDurationToSeconds } from "../../../../shared/orb-script-structure";
 import type { ScriptSegment } from "../../../../shared/types";
+import { SourcePicker } from "./SourcePicker";
 
 const FORMAT_OPTIONS = [
   { value: "plaintext", label: "純文字" },
@@ -355,6 +356,29 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
                 <Upload className="w-3 h-3" />
                 上傳檔案
               </Button>
+              <SourcePicker
+                label="從來源引用"
+                accept=".txt,.srt,.fdx,.fountain,.md,.csv,.json,text/*"
+                assetKind="any"
+                onPick={async r => {
+                  // Fetch remote script text and pipe into the textarea.
+                  try {
+                    const resp = await fetch(r.url);
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const text = await resp.text();
+                    setDraft(d => ({
+                      ...d,
+                      content: text,
+                      title: d.title || r.label || "匯入腳本",
+                    }));
+                    toast.success(`已引用「${r.label ?? "腳本"}」`);
+                  } catch (e) {
+                    toast.error(
+                      `讀取失敗：${e instanceof Error ? e.message : "未知錯誤"}（請改用直接貼上或本機上傳）`
+                    );
+                  }
+                }}
+              />
             </div>
           </div>
           <Textarea

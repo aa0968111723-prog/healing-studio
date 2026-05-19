@@ -76,6 +76,7 @@ import {
   inferAssetType,
 } from "@/components/animation/AssetUploader";
 import { ScriptEditorTab } from "@/components/animation/ScriptEditorTab";
+import { SourcePicker } from "@/components/animation/SourcePicker";
 import {
   GenerateImageButton,
   GenerateMusicButton,
@@ -254,6 +255,12 @@ const ExpressionEditor = memo(function ExpressionEditor({
                 label="上傳"
                 onUploaded={r => patch(idx, { imageUrl: r.url })}
               />
+              <SourcePicker
+                accept="image/*"
+                assetKind="image"
+                vaultItemType="character"
+                onPick={r => patch(idx, { imageUrl: r.url })}
+              />
             </div>
           </div>
         ))
@@ -365,6 +372,12 @@ const OutfitEditor = memo(function OutfitEditor({
                 label="上傳"
                 onUploaded={r => patch(idx, { imageUrl: r.url })}
               />
+              <SourcePicker
+                accept="image/*"
+                assetKind="image"
+                vaultItemType="character"
+                onPick={r => patch(idx, { imageUrl: r.url })}
+              />
             </div>
             <Input
               value={it.triggerWord ?? ""}
@@ -445,7 +458,7 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
                 placeholder={`${v.label} URL`}
                 className="h-6 text-[10px]"
               />
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
                 <GenerateImageButton
                   prompt={compiledPrompt}
                   aspectRatio="3:4"
@@ -459,6 +472,14 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
                   accept="image/*"
                   label="上傳"
                   onUploaded={r =>
+                    patch({ [v.key]: r.url } as Partial<typeof sheet>)
+                  }
+                />
+                <SourcePicker
+                  accept="image/*"
+                  assetKind="image"
+                  vaultItemType="character"
+                  onPick={r =>
                     patch({ [v.key]: r.url } as Partial<typeof sheet>)
                   }
                 />
@@ -1867,6 +1888,18 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
                         })
                       }
                     />
+                    <SourcePicker
+                      accept="audio/*"
+                      assetKind="audio"
+                      onPick={r =>
+                        patch({
+                          soundProfile: {
+                            ...character.soundProfile,
+                            [o.key]: r.url,
+                          } as WorldCharacter["soundProfile"],
+                        })
+                      }
+                    />
                   </div>
                 </div>
               );
@@ -1938,6 +1971,18 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
                     accept="image/*"
                     label="上傳"
                     onUploaded={asset =>
+                      patch({
+                        referenceLibrary: (character.referenceLibrary ?? []).map(
+                          (x, i) => (i === idx ? { ...x, imageUrl: asset.url } : x)
+                        ),
+                      })
+                    }
+                  />
+                  <SourcePicker
+                    accept="image/*"
+                    assetKind="image"
+                    vaultItemType="character"
+                    onPick={asset =>
                       patch({
                         referenceLibrary: (character.referenceLibrary ?? []).map(
                           (x, i) => (i === idx ? { ...x, imageUrl: asset.url } : x)
@@ -2174,29 +2219,58 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
             <p className="text-[10px] text-muted-foreground">
               直接上傳檔案到資產庫（圖、音、影、PDF、文件）。
             </p>
-            <AssetUploader
-              accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
-              label="上傳"
-              onUploaded={r => {
-                patch({
-                  uploadedAssets: [
-                    ...(character.uploadedAssets ?? []),
-                    {
-                      id: uid(),
-                      label: r.fileName,
-                      assetType: inferAssetType(r.mimeType),
-                      url: r.url,
-                      fileKey: r.fileKey,
-                      mimeType: r.mimeType,
-                      sizeBytes: r.sizeBytes,
-                      purpose: "reference 參考",
-                      uploadedAt: new Date().toISOString(),
-                    } as WorldAssetRef,
-                  ],
-                });
-                toast.success(`${r.fileName} 已加入資產庫`);
-              }}
-            />
+            <div className="flex gap-1">
+              <AssetUploader
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+                label="上傳"
+                onUploaded={r => {
+                  patch({
+                    uploadedAssets: [
+                      ...(character.uploadedAssets ?? []),
+                      {
+                        id: uid(),
+                        label: r.fileName,
+                        assetType: inferAssetType(r.mimeType),
+                        url: r.url,
+                        fileKey: r.fileKey,
+                        mimeType: r.mimeType,
+                        sizeBytes: r.sizeBytes,
+                        purpose: "reference 參考",
+                        uploadedAt: new Date().toISOString(),
+                      } as WorldAssetRef,
+                    ],
+                  });
+                  toast.success(`${r.fileName} 已加入資產庫`);
+                }}
+              />
+              <SourcePicker
+                label="從來源引用"
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+                assetKind="any"
+                vaultItemType="character"
+                onPick={r => {
+                  patch({
+                    uploadedAssets: [
+                      ...(character.uploadedAssets ?? []),
+                      {
+                        id: uid(),
+                        label: r.label ?? "資產",
+                        assetType: r.mimeType
+                          ? inferAssetType(r.mimeType)
+                          : "other",
+                        url: r.url,
+                        fileKey: r.fileKey,
+                        mimeType: r.mimeType,
+                        sizeBytes: r.sizeBytes,
+                        purpose: "reference 參考",
+                        uploadedAt: new Date().toISOString(),
+                      } as WorldAssetRef,
+                    ],
+                  });
+                  toast.success(`${r.label ?? "資產"} 已加入資產庫`);
+                }}
+              />
+            </div>
           </div>
           {(character.uploadedAssets ?? []).map((a, idx) => (
             <div
@@ -3002,6 +3076,17 @@ const MusicThemeCard = memo(function MusicThemeCard({
                     accept="audio/*"
                     label="上傳"
                     onUploaded={r =>
+                      patch({
+                        cueVariants: (theme.cueVariants ?? []).map((x, i) =>
+                          i === idx ? { ...x, audioUrl: r.url } : x
+                        ),
+                      })
+                    }
+                  />
+                  <SourcePicker
+                    accept="audio/*"
+                    assetKind="audio"
+                    onPick={r =>
                       patch({
                         cueVariants: (theme.cueVariants ?? []).map((x, i) =>
                           i === idx ? { ...x, audioUrl: r.url } : x
@@ -4452,6 +4537,18 @@ const SceneCard = memo(function SceneCard({
                     })
                   }
                 />
+                <SourcePicker
+                  accept="audio/*"
+                  assetKind="audio"
+                  onPick={r =>
+                    patch({
+                      soundDesign: {
+                        ...scene.soundDesign,
+                        ambientBedUrl: r.url,
+                      },
+                    })
+                  }
+                />
               </div>
               <div className="flex gap-1">
                 <Input
@@ -4471,6 +4568,18 @@ const SceneCard = memo(function SceneCard({
                   accept="audio/*"
                   label="上傳"
                   onUploaded={r =>
+                    patch({
+                      soundDesign: {
+                        ...scene.soundDesign,
+                        roomToneUrl: r.url,
+                      },
+                    })
+                  }
+                />
+                <SourcePicker
+                  accept="audio/*"
+                  assetKind="audio"
+                  onPick={r =>
                     patch({
                       soundDesign: {
                         ...scene.soundDesign,
@@ -4781,28 +4890,54 @@ const ResearchDatabaseEditor = memo(function ResearchDatabaseEditor({
                   placeholder="引用格式（作者, 年, 來源, 頁碼）"
                   className="h-7 text-[10px] font-mono"
                 />
-                <div className="flex items-center justify-between">
-                  <AssetUploader
-                    accept="image/*,application/pdf,.doc,.docx,.txt"
-                    label="加附件"
-                    onUploaded={r => {
-                      patch(idx, {
-                        attachments: [
-                          ...(e.attachments ?? []),
-                          {
-                            id: uid(),
-                            label: r.fileName,
-                            assetType: inferAssetType(r.mimeType),
-                            url: r.url,
-                            fileKey: r.fileKey,
-                            mimeType: r.mimeType,
-                            sizeBytes: r.sizeBytes,
-                            uploadedAt: new Date().toISOString(),
-                          },
-                        ],
-                      });
-                    }}
-                  />
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex gap-1">
+                    <AssetUploader
+                      accept="image/*,application/pdf,.doc,.docx,.txt"
+                      label="加附件"
+                      onUploaded={r => {
+                        patch(idx, {
+                          attachments: [
+                            ...(e.attachments ?? []),
+                            {
+                              id: uid(),
+                              label: r.fileName,
+                              assetType: inferAssetType(r.mimeType),
+                              url: r.url,
+                              fileKey: r.fileKey,
+                              mimeType: r.mimeType,
+                              sizeBytes: r.sizeBytes,
+                              uploadedAt: new Date().toISOString(),
+                            },
+                          ],
+                        });
+                      }}
+                    />
+                    <SourcePicker
+                      label="從來源引用"
+                      accept="image/*,application/pdf,.doc,.docx,.txt"
+                      assetKind="any"
+                      onPick={r => {
+                        patch(idx, {
+                          attachments: [
+                            ...(e.attachments ?? []),
+                            {
+                              id: uid(),
+                              label: r.label ?? "附件",
+                              assetType: r.mimeType
+                                ? inferAssetType(r.mimeType)
+                                : "other",
+                              url: r.url,
+                              fileKey: r.fileKey,
+                              mimeType: r.mimeType,
+                              sizeBytes: r.sizeBytes,
+                              uploadedAt: new Date().toISOString(),
+                            },
+                          ],
+                        });
+                      }}
+                    />
+                  </div>
                   {(e.attachments?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {(e.attachments ?? []).map((a, ai) => (
@@ -4900,6 +5035,26 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
                 },
               ]);
               toast.success(`${r.fileName} 已加入音效庫`);
+            }}
+          />
+          <SourcePicker
+            label="從來源引用"
+            accept="audio/*"
+            assetKind="audio"
+            onPick={r => {
+              onChange([
+                ...items,
+                {
+                  id: uid(),
+                  label: r.label ?? "音效",
+                  category: "ambient",
+                  audioUrl: r.url,
+                  fileKey: r.fileKey,
+                  loopable: true,
+                  volumeDefault: 0.7,
+                },
+              ]);
+              toast.success(`${r.label ?? "音效"} 已加入音效庫`);
             }}
           />
           <Button
@@ -5028,6 +5183,17 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
                         audioUrl: r.url,
                         fileKey: r.fileKey,
                         label: s.label || r.fileName,
+                      })
+                    }
+                  />
+                  <SourcePicker
+                    accept="audio/*"
+                    assetKind="audio"
+                    onPick={r =>
+                      patch(idx, {
+                        audioUrl: r.url,
+                        fileKey: r.fileKey,
+                        label: s.label || r.label || "音效",
                       })
                     }
                   />
