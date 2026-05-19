@@ -736,10 +736,20 @@ export default function AgentChat() {
   const [modeBarOpen, setModeBarOpen] = useState(false);
   const [modeCatalogOpen, setModeCatalogOpen] = useState(false);
   // 極簡風預設展開精靈名片簿（呼吸感、留白為主，但主要互動不該藏起來）。
-  // Classic 維持原本預設摺起。
+  // Classic 維持原本預設摺起。useState 只在首次 render 跑一次，所以另用
+  // useEffect 監聽 designMode 即時切換時也跟著動 — 不然「從 classic 切到
+  // minimalist」回來時精靈簿仍是收合的（這是首次回報的 bug）。
   const [spiritDeckOpen, setSpiritDeckOpen] = useState(
     personalSettings.designMode === "minimalist"
   );
+  // 追蹤上一輪的 designMode，避免每次 settings 變動都強制覆寫使用者手動
+  // 收合的狀態 — 只在「真的切換版型」這一刻同步一次。
+  const prevDesignModeRef = useRef<typeof designMode>(designMode);
+  useEffect(() => {
+    if (prevDesignModeRef.current === designMode) return;
+    prevDesignModeRef.current = designMode;
+    setSpiritDeckOpen(designMode === "minimalist");
+  }, [designMode]);
   /**
    * 跨模態建議卡：使用者送出的訊息同時提到多種模態（影片＋音樂…）
    * 而當下不是「多步驟代理」模式時，先掛起卡片詢問是否轉模式，避免單
@@ -1286,17 +1296,26 @@ export default function AgentChat() {
       className="flex-1 flex flex-col items-center w-full min-h-full agent-chat-shell"
       data-design-mode={designMode}
     >
-      {/* 療癒環境光 — 與側邊欄、首頁同一套薰衣草/桃霧調性 */}
+      {/* 療癒環境光 — 與側邊欄、首頁同一套薰衣草/桃霧調性。
+          極簡風換成單一柔光，去掉三色徑向疊加，背景更靜。 */}
       <div
         aria-hidden
         className="fixed inset-0 pointer-events-none -z-10"
         style={{
           background:
-            "radial-gradient(70% 45% at 50% 0%, oklch(0.94 0.06 320 / 0.22) 0%, transparent 65%), radial-gradient(55% 50% at 85% 95%, oklch(0.92 0.06 230 / 0.18) 0%, transparent 65%), radial-gradient(45% 40% at 10% 80%, oklch(0.94 0.05 75 / 0.16) 0%, transparent 65%)",
+            designMode === "minimalist"
+              ? "radial-gradient(80% 50% at 50% 0%, oklch(0.96 0.03 290 / 0.18) 0%, transparent 70%)"
+              : "radial-gradient(70% 45% at 50% 0%, oklch(0.94 0.06 320 / 0.22) 0%, transparent 65%), radial-gradient(55% 50% at 85% 95%, oklch(0.92 0.06 230 / 0.18) 0%, transparent 65%), radial-gradient(45% 40% at 10% 80%, oklch(0.94 0.05 75 / 0.16) 0%, transparent 65%)",
         }}
       />
 
-      <div className="w-full max-w-3xl flex-1 flex flex-col pl-12 pr-4 sm:px-6 py-4 sm:py-8 gap-4 sm:gap-5 relative">
+      <div
+        className={
+          designMode === "minimalist"
+            ? "w-full max-w-2xl flex-1 flex flex-col pl-12 pr-4 sm:px-8 py-6 sm:py-12 gap-6 sm:gap-8 relative"
+            : "w-full max-w-3xl flex-1 flex flex-col pl-12 pr-4 sm:px-6 py-4 sm:py-8 gap-4 sm:gap-5 relative"
+        }
+      >
         {/* 右上角：低頻工具（清除對話 / 代理設定）做成圖示，不搶版面 */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 z-10">
           <button
@@ -1352,13 +1371,47 @@ export default function AgentChat() {
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: 0.1 }}
-                className="text-xl sm:text-2xl font-medium text-foreground"
+                className={
+                  designMode === "minimalist"
+                    ? "text-2xl sm:text-3xl font-light tracking-wide text-foreground mt-2"
+                    : "text-xl sm:text-2xl font-medium text-foreground"
+                }
               >
                 先聊聊看就好 🌿
               </motion.h1>
-              <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
-                我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
+              <p
+                className={
+                  designMode === "minimalist"
+                    ? "text-[13px] text-muted-foreground/80 max-w-sm leading-loose"
+                    : "text-sm text-muted-foreground max-w-md leading-relaxed"
+                }
+              >
+                {designMode === "minimalist"
+                  ? "想做什麼？直接打字，或點下方任一精靈看他能幫你什麼。"
+                  : "我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。"}
               </p>
+              {/* 極簡風 visual cue — 確認當前版型 + 一鍵切回原本設計。
+                  classic 完全不顯示，避免污染舊使用者熟悉的畫面。 */}
+              {designMode === "minimalist" && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.4, delay: 0.2 }}
+                  className="flex items-center gap-2 text-[10.5px] text-muted-foreground/70"
+                >
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-violet-200/60 dark:border-violet-700/40 bg-violet-50/40 dark:bg-violet-900/15 text-violet-700/90 dark:text-violet-300/90">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    極簡風
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/settings#appearance")}
+                    className="underline-offset-2 hover:underline hover:text-foreground/80 transition-colors"
+                  >
+                    切回原本設計
+                  </button>
+                </motion.div>
+              )}
             </>
           ) : (
             <motion.div
@@ -1382,7 +1435,9 @@ export default function AgentChat() {
             </motion.div>
           )}
 
-          {/* 主要輔助按鈕：如何使用光球（單一）— 只在初始狀態顯示 */}
+          {/* 主要輔助按鈕：如何使用光球（單一）— 只在初始狀態顯示。
+              極簡風隱藏：留白優先，不放 outline 按鈕；想看教學的人可開
+              hero 下方的「如何使用」連結（在精靈簿之後）或走 /learn。 */}
           {isFirstTurn && (
             <Button
               type="button"
@@ -1391,6 +1446,7 @@ export default function AgentChat() {
               onClick={() => setHowToOpen(prev => !prev)}
               className="h-8 px-3 text-xs gap-1.5 border-border text-foreground/90"
               aria-expanded={howToOpen}
+              data-minimalist-hide
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
               如何使用光球
@@ -1679,8 +1735,9 @@ export default function AgentChat() {
                 })()}
               </AnimatePresence>
 
-              {/* 三個極簡示範 prompt — 取代原本長段「示範 1/2/3」按鈕 */}
-              <div className="flex flex-wrap gap-1.5 px-1">
+              {/* 三個極簡示範 prompt — 取代原本長段「示範 1/2/3」按鈕。
+                  極簡風隱藏：跟「如何使用光球」一樣屬於熟手不需要的腳手架。 */}
+              <div className="flex flex-wrap gap-1.5 px-1" data-minimalist-hide>
                 <span className="text-[11px] text-muted-foreground">試試：</span>
                 {[
                   "做支 30 秒 IG 預告",
