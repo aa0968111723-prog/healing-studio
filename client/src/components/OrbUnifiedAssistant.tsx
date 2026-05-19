@@ -220,24 +220,17 @@ function usePageCapability(actionType: AgentActionType) {
 
 function PageInfoPanel({ fullscreen }: { fullscreen: boolean }) {
   const [locationPath] = useLocation();
-  const globalChat = useGlobalOrbChat();
   const pageAgent = usePageAgent();
   const page = useMemo(() => getPageByPath(locationPath), [locationPath]);
   const snapshot = pageAgent.snapshot;
+  const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
+  const [showPageDetails, setShowPageDetails] = useState(false);
 
   const baseTextSize = fullscreen ? "text-sm" : "text-xs";
 
-  const handleAsk = useCallback(
-    (prompt: string) => {
-      globalChat.open();
-      void globalChat.sendMessage(prompt);
-      toast.success("已送進對話，切到「對話」分頁看光球回覆 ✨");
-    },
-    [globalChat]
-  );
-
-  // Capabilities don't carry stable elementIds — for "show me where X is",
-  // we ask the orb instead, which can dispatch focusElement with a proper id.
+  // 本頁面板已改成「直接抓取資料」模式：所有按鈕都從 appRegistry / PageAgent
+  // snapshot 直接顯示資料或 dispatch 結構化 action，不再透過 globalChat
+  // 送訊息給光球代理。
 
   return (
     <div className={cn("space-y-2.5", baseTextSize, "text-white/85")}>
@@ -316,130 +309,210 @@ function PageInfoPanel({ fullscreen }: { fullscreen: boolean }) {
         </div>
       )}
 
-      {/* 學習提示 / orbHints */}
+      {/* 學習提示 / orbHints — 直接顯示，不再送進光球對話 */}
       {page?.orbHints?.length ? (
         <div className="rounded-2xl border border-amber-300/20 bg-amber-300/8 p-3">
           <p className="text-[11px] font-medium text-amber-100/90 mb-1.5 flex items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5" />
-            這頁可以這樣問光球
+            這頁常見的問題
           </p>
-          <div className="space-y-1.5">
+          <ul className="space-y-1 list-none">
             {page.orbHints.map((hint, i) => (
-              <button
+              <li
                 key={i}
-                type="button"
-                onClick={() => handleAsk(hint)}
-                className="w-full text-left rounded-lg border border-white/8 bg-white/5 hover:bg-white/12 px-2.5 py-2 text-[12px] text-white/85 leading-snug transition-colors"
+                className="rounded-lg border border-white/8 bg-white/5 px-2.5 py-1.5 text-[12px] text-white/85 leading-snug"
               >
                 <span className="text-amber-200/70 mr-1">💬</span>
                 {hint}
-              </button>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       ) : null}
 
-      {/* 快速動作 / quickActions — prompt 直接走對話、action 直接 dispatch */}
+      {/* 快速動作 / quickActions — 只有結構化 action 會 dispatch，
+          純對話 prompt 改成直接顯示資料卡，不再呼叫光球代理 */}
       {page?.quickActions?.length ? (
         <div className="space-y-1.5">
           <p className="text-[11px] text-white/45 px-1">這頁可以這樣開始</p>
-          {page.quickActions.map(qa => (
-            <button
-              key={qa.id}
-              type="button"
-              onClick={() => {
-                if (qa.action) {
-                  // 結構化 action — 直接 dispatch，不跳頁
+          {page.quickActions.map(qa => {
+            const dispatchable = !!qa.action;
+            return (
+              <button
+                key={qa.id}
+                type="button"
+                disabled={!dispatchable}
+                onClick={() => {
+                  if (!qa.action) return;
                   void pageAgent
                     .dispatch(qa.action, { source: "manual" })
                     .then(r => {
                       if (r.ok) toast.success(`已執行：${qa.label}`);
                       else toast.error(r.reason || "這個動作這頁不支援");
                     });
-                } else if (qa.prompt) {
-                  handleAsk(qa.prompt);
-                } else {
-                  handleAsk(`告訴我${qa.label}怎麼用，並列出步驟。`);
-                }
-              }}
-              className="w-full flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/12 px-3 py-2 text-left transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 mt-0.5 text-violet-200/80 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-medium text-white truncate">
-                  {qa.label}
-                </p>
-                {qa.description && (
-                  <p className="text-[10px] text-white/55 truncate">
-                    {qa.description}
-                  </p>
+                }}
+                className={cn(
+                  "w-full flex items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                  dispatchable
+                    ? "border-white/10 bg-white/5 hover:bg-white/12 cursor-pointer"
+                    : "border-white/8 bg-white/3 cursor-default"
                 )}
-              </div>
-              {qa.action && (
-                <span className="shrink-0 rounded-full bg-emerald-400/15 border border-emerald-300/30 px-1.5 py-0.5 text-[9px] text-emerald-100">
-                  一鍵
-                </span>
-              )}
-            </button>
-          ))}
+                title={dispatchable ? undefined : "這個項目只有說明，沒有可直接執行的動作"}
+              >
+                <Sparkles className="w-3.5 h-3.5 mt-0.5 text-violet-200/80 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-medium text-white truncate">
+                    {qa.label}
+                  </p>
+                  {qa.description && (
+                    <p className="text-[10px] text-white/55 truncate">
+                      {qa.description}
+                    </p>
+                  )}
+                </div>
+                {dispatchable && (
+                  <span className="shrink-0 rounded-full bg-emerald-400/15 border border-emerald-300/30 px-1.5 py-0.5 text-[9px] text-emerald-100">
+                    一鍵
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       ) : null}
 
-      {/* 頁面能力 — 點一下叫光球指出這個控件在哪 */}
+      {/* 頁面能力 — 點一下直接展開該能力的說明，不再呼叫光球代理 */}
       {snapshot?.capabilities && snapshot.capabilities.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-[11px] text-white/45 px-1 flex items-center gap-1">
             <Wand2 className="w-3 h-3" />
-            這頁能調整的東西（點一下叫光球教你）
+            這頁能調整的東西（點一下看說明）
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {snapshot.capabilities.slice(0, 8).map(cap => (
-              <button
-                key={cap.action}
-                type="button"
-                onClick={() =>
-                  handleAsk(
-                    `在「${page?.label ?? snapshot.pageLabel}」(${locationPath}) 上，我想調整「${cap.label}」(${cap.action})。${cap.hint ? `補充：${cap.hint}。` : ""}請告訴我在頁面哪裡操作，或直接幫我設好。`
-                  )
-                }
-                className="rounded-full border border-cyan-300/25 bg-cyan-300/10 hover:bg-cyan-300/20 text-cyan-100 px-2 py-1 text-[10px] transition-colors"
-                title={cap.hint || `dispatch ${cap.action}`}
-              >
-                {cap.label}
-              </button>
-            ))}
+            {snapshot.capabilities.slice(0, 8).map(cap => {
+              const active = expandedCapability === cap.action;
+              return (
+                <button
+                  key={cap.action}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    setExpandedCapability(active ? null : cap.action)
+                  }
+                  className={cn(
+                    "rounded-full border px-2 py-1 text-[10px] transition-colors",
+                    active
+                      ? "border-cyan-300/45 bg-cyan-300/25 text-cyan-50"
+                      : "border-cyan-300/25 bg-cyan-300/10 hover:bg-cyan-300/20 text-cyan-100"
+                  )}
+                  title={cap.hint || cap.action}
+                >
+                  {cap.label}
+                </button>
+              );
+            })}
           </div>
+          {expandedCapability && (() => {
+            const cap = snapshot.capabilities.find(
+              c => c.action === expandedCapability
+            );
+            if (!cap) return null;
+            return (
+              <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/8 p-2.5 text-[11px] text-white/85 leading-relaxed space-y-1">
+                <p className="font-medium text-cyan-100">{cap.label}</p>
+                <p className="text-white/75">
+                  {cap.hint || "這個調整在這頁可以使用，但沒有提供額外說明。"}
+                </p>
+                <p className="text-[10px] text-white/45 font-mono">
+                  動作代號：{cap.action}
+                  {cap.currentId ? ` · 目前：${cap.currentId}` : ""}
+                </p>
+                {cap.options && cap.options.length > 0 && (
+                  <div className="pt-1">
+                    <p className="text-[10px] text-white/45 mb-0.5">可選值</p>
+                    <div className="flex flex-wrap gap-1">
+                      {cap.options.slice(0, 12).map(opt => (
+                        <span
+                          key={opt.id}
+                          className={cn(
+                            "rounded-full border px-1.5 py-0.5 text-[9px]",
+                            opt.id === cap.currentId
+                              ? "border-emerald-300/40 bg-emerald-300/15 text-emerald-100"
+                              : "border-white/12 bg-white/4 text-white/65"
+                          )}
+                          title={opt.description || opt.label}
+                        >
+                          {opt.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* 通用學習問題 — 永遠都有 */}
-      <div className="space-y-1.5 pt-1">
-        <p className="text-[11px] text-white/45 px-1">學習這頁</p>
-        {[
-          { label: "這頁有什麼功能？", emoji: "📖" },
-          { label: "用一個小例子教我", emoji: "🎓" },
-          { label: "我可能會踩到什麼雷？", emoji: "⚠️" },
-          { label: "這頁適合什麼情境？", emoji: "🎯" },
-        ].map(item => (
+      {/* 這頁有什麼功能 — 直接展開 appRegistry 裡的頁面說明，不送光球 */}
+      {(page || snapshot) && (
+        <div className="space-y-1.5 pt-1">
           <button
-            key={item.label}
             type="button"
-            onClick={() =>
-              handleAsk(
-                `關於「${page?.label ?? snapshot?.pageLabel ?? "目前頁面"}」(${locationPath})：${item.label}`
-              )
-            }
-            className="w-full flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/12 px-3 py-2 text-left transition-colors"
+            aria-expanded={showPageDetails}
+            onClick={() => setShowPageDetails(v => !v)}
+            className="w-full flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/12 px-3 py-2 text-left transition-colors"
           >
-            <span aria-hidden>{item.emoji}</span>
-            <span className="text-[12px] text-white/85">{item.label}</span>
+            <span className="text-[12px] text-white/85 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-amber-200/80" />
+              這頁有什麼功能
+            </span>
+            {showPageDetails ? (
+              <ChevronDown className="w-3.5 h-3.5 text-white/40" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+            )}
           </button>
-        ))}
-      </div>
+          {showPageDetails && (
+            <div className="rounded-xl border border-white/8 bg-white/4 p-3 space-y-2 text-[11px] text-white/80">
+              {page?.description && (
+                <div>
+                  <p className="text-white/45 text-[10px] mb-0.5">頁面用途</p>
+                  <p className="text-white/85 leading-relaxed">
+                    {page.description}
+                  </p>
+                </div>
+              )}
+              {page?.aliases && page.aliases.length > 0 && (
+                <div>
+                  <p className="text-white/45 text-[10px] mb-0.5">別稱</p>
+                  <p className="text-white/70">{page.aliases.join("、")}</p>
+                </div>
+              )}
+              {snapshot?.capabilities && snapshot.capabilities.length > 0 && (
+                <div>
+                  <p className="text-white/45 text-[10px] mb-0.5">可操作項目</p>
+                  <p className="text-white/70">
+                    {snapshot.capabilities.map(c => c.label).join(" · ")}
+                  </p>
+                </div>
+              )}
+              {page?.supportedActions && page.supportedActions.length > 0 && (
+                <div>
+                  <p className="text-white/45 text-[10px] mb-0.5">支援的結構化動作</p>
+                  <p className="text-white/65 font-mono text-[10px] break-all">
+                    {page.supportedActions.join(" · ")}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {!page && !snapshot && (
         <p className="text-[11px] text-white/50 text-center py-4">
-          這個頁面還沒登錄到 appRegistry / PageAgent，光球只能用通用問題協助你 ✨
+          這個頁面還沒登錄到 appRegistry / PageAgent，沒有可顯示的本頁資料 ✨
         </p>
       )}
     </div>
