@@ -16,7 +16,7 @@
  * 直接 skip，所以重複呼叫（例如 webhook + polling 都觸發）不會重複下載。
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import {
   digitalAssetLibrary,
@@ -146,4 +146,48 @@ export async function archiveBackgroundJobMedia(
   }
 
   return { jobId, total: assets.length, archived, skipped, failed };
+}
+
+export interface EnqueueMediaArchivalTaskInput {
+  userId: number;
+  backgroundJobId?: number | null;
+  resultUrl: string;
+  modality: "image" | "video" | "audio" | "voice";
+}
+
+/**
+ * 保底入庫任務：把 doPostGenComplete 寫進資產庫的外部 URL 拉回自家儲存。
+ *
+ * 目前是同進程版本 —— 回傳的 Promise 真正執行歸檔（呼叫方用 .catch 吞錯，
+ * 不 await 也不阻塞主流程）。優先用 backgroundJobId 走 archiveBackgroundJobMedia,
+ * 沒有就以 (userId, fileUrl) 反查 digital_asset_library 找到剛寫入的 row。
+ *
+ * 若哪天要改成真正持久化的 queue（process 重啟可恢復），把 body 換成
+ * createBackgroundJob({ jobType: "media_archival", ... }) 即可，呼叫端不必動。
+ */
+export async function enqueueMediaArchivalTask(
+  input: EnqueueMediaArchivalTaskInput
+): Promise<void> {
+  const { userId, backgroundJobId, resultUrl, modality: _modality } = input;
+  if (!resultUrl || isInternalUrl(resultUrl)) return;
+
+  if (typeof backgroundJobId === "number") {
+    await archiveBackgroundJobMedia(backgroundJobId);
+    return;
+  }
+
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        eq(digitalAssetLibrary.fileUrl, resultUrl)
+      )
+    )
+    .limit(1);
+  const asset = rows[0];
+  if (asset) await archiveAsset(asset);
 }

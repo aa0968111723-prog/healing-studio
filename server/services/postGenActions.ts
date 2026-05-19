@@ -23,6 +23,8 @@ import { getDb } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { addGenerationLog } from "./brainAutoRepair";
 import { updateLatestPickAcceptance } from "./agentModelPicks";
+import { isInternalUrl } from "./internalMedia";
+import { enqueueMediaArchivalTask } from "./mediaArchivalService";
 
 export const MIN_PROMPT_LENGTH_FOR_LIBRARY = 4;
 export const MAX_PROMPT_TITLE_LENGTH = 80;
@@ -285,6 +287,24 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
       // updateLatestPickAcceptance is itself best-effort, but be doubly
       // defensive so a slow / failed write never breaks the success path.
     }
+  }
+
+  // 1-6. 保底入庫 — AI 提供商回傳的 URL 多半是 24h~7d 就過期的 presigned link,
+  // 資產庫直接存它過了保存期就壞圖。這裡 fire-and-forget enqueue 一個歸檔任務,
+  // 把檔案搬到自家儲存並回填 sourceUrl / archivedAt（idempotent，重複呼叫不會
+  // 重複下載）。失敗只記 log，不能讓歸檔錯誤倒灌回主流程。
+  if (resultUrl && !isInternalUrl(resultUrl)) {
+    enqueueMediaArchivalTask({
+      userId,
+      backgroundJobId,
+      resultUrl,
+      modality,
+    }).catch(err => {
+      console.warn(
+        `[postGenActions] enqueueMediaArchivalTask failed user=${userId} job=${backgroundJobId ?? "-"}:`,
+        err
+      );
+    });
   }
 }
 
