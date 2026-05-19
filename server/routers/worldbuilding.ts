@@ -12,8 +12,13 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import {
   worldbuildingFrameworkInputSchema,
+  summarizeFrameworkForPrompt,
+  buildCharacterConsistencyPrompt,
+  buildSceneConsistencyPrompt,
+  buildGlobalNegativePrompt,
   type WorldbuildingFrameworkData,
 } from "../../shared/worldbuilding-types";
+import { VOICE_MODEL_REGISTRY } from "../../shared/voiceModelRegistry";
 
 function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildingFramework>>>): WorldbuildingFrameworkData & {
   id: number;
@@ -32,6 +37,20 @@ function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildin
       | WorldbuildingFrameworkData["objects"]
       | undefined,
     linkedModelIds: (row.linkedModelIds ?? undefined) as number[] | undefined,
+    styleProfiles:
+      (row.styleProfilesJson ?? undefined) as
+        | WorldbuildingFrameworkData["styleProfiles"]
+        | undefined,
+    musicThemes:
+      (row.musicThemesJson ?? undefined) as
+        | WorldbuildingFrameworkData["musicThemes"]
+        | undefined,
+    defaultStyleProfileId: row.defaultStyleProfileId ?? null,
+    globalNegativePrompt: row.globalNegativePrompt ?? undefined,
+    productionTargets:
+      (row.productionTargetsJson ?? undefined) as
+        | WorldbuildingFrameworkData["productionTargets"]
+        | undefined,
     tags: (row.tags ?? undefined) as string[] | undefined,
     isActive: row.isActive,
     createdAt: row.createdAt,
@@ -71,6 +90,11 @@ export const worldbuildingRouter = router({
         scenesJson: input.scenes,
         objectsJson: input.objects ?? [],
         linkedModelIds: input.linkedModelIds ?? [],
+        styleProfilesJson: input.styleProfiles ?? [],
+        musicThemesJson: input.musicThemes ?? [],
+        defaultStyleProfileId: input.defaultStyleProfileId ?? null,
+        globalNegativePrompt: input.globalNegativePrompt,
+        productionTargetsJson: input.productionTargets ?? null,
         tags: input.tags ?? [],
         isActive: input.isActive ?? true,
       });
@@ -103,6 +127,21 @@ export const worldbuildingRouter = router({
         ...(p.objects !== undefined ? { objectsJson: p.objects } : {}),
         ...(p.linkedModelIds !== undefined
           ? { linkedModelIds: p.linkedModelIds }
+          : {}),
+        ...(p.styleProfiles !== undefined
+          ? { styleProfilesJson: p.styleProfiles }
+          : {}),
+        ...(p.musicThemes !== undefined
+          ? { musicThemesJson: p.musicThemes }
+          : {}),
+        ...(p.defaultStyleProfileId !== undefined
+          ? { defaultStyleProfileId: p.defaultStyleProfileId }
+          : {}),
+        ...(p.globalNegativePrompt !== undefined
+          ? { globalNegativePrompt: p.globalNegativePrompt }
+          : {}),
+        ...(p.productionTargets !== undefined
+          ? { productionTargetsJson: p.productionTargets }
           : {}),
         ...(p.tags !== undefined ? { tags: p.tags } : {}),
         ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
@@ -141,4 +180,48 @@ export const worldbuildingRouter = router({
         };
       });
   }),
+
+  /** 列出可繫結到角色 voiceProfile 的語音模型（給 select 用） */
+  linkableVoices: protectedProcedure.query(() => {
+    return VOICE_MODEL_REGISTRY.map(v => ({
+      modelId: v.modelId,
+      label: v.label,
+      provider: v.provider,
+      category: v.category ?? null,
+      strengths: v.strengths,
+    }));
+  }),
+
+  /**
+   * 將一個世界觀壓縮成 LLM-friendly 純文字 —
+   * 給導演 AI / Studio / 動畫管線在生成前注入 system prompt 用。
+   * 同時回傳角色 / 場景的 consistency prefix 字典與全域 negative prompt。
+   */
+  summarizeForPrompt: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const row = await db.getWorldbuildingFramework(input.id);
+      if (!row || row.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const data = rowToData(row);
+      const characterPrefixes: Record<string, string> = {};
+      for (const c of data.characters) {
+        characterPrefixes[c.id] = buildCharacterConsistencyPrompt(c);
+      }
+      const scenePrefixes: Record<string, string> = {};
+      for (const s of data.scenes) {
+        const sp = data.styleProfiles?.find(
+          p =>
+            p.id === (s.styleProfileId ?? data.defaultStyleProfileId)
+        );
+        scenePrefixes[s.id] = buildSceneConsistencyPrompt(s, sp);
+      }
+      return {
+        summary: summarizeFrameworkForPrompt(data),
+        characterPrefixes,
+        scenePrefixes,
+        globalNegativePrompt: buildGlobalNegativePrompt(data),
+      };
+    }),
 });

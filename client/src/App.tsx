@@ -41,6 +41,7 @@ const CreationHub = lazy(() => import("./pages/CreationHub"));
 const Playground = lazy(() => import("./pages/Playground"));
 const Studio = lazy(() => import("./pages/Studio"));
 const DirectorAI = lazy(() => import("./pages/DirectorAI"));
+const AnimationStudio = lazy(() => import("./pages/AnimationStudio"));
 const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
 const ModelsPage = lazy(() => import("./pages/ModelsPage"));
 const NotesPage = lazy(() => import("./pages/NotesPage"));
@@ -212,6 +213,12 @@ function Router() {
       </Route>
       <Route path="/director">
         <ProtectedDashboardRoute component={DirectorAI} />
+      </Route>
+      <Route path="/animation">
+        <ProtectedDashboardRoute component={AnimationStudio} />
+      </Route>
+      <Route path="/animation/:storyboardId">
+        <ProtectedDashboardRoute component={AnimationStudio} />
       </Route>
       <Route path="/assets">
         <DashboardRoute component={AssetsLibrary} />

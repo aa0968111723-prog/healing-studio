@@ -3115,6 +3115,23 @@ export const worldbuildingFrameworks = mysqlTable(
     objectsJson: json("objectsJson").$type<Array<Record<string, unknown>>>(),
     /** 連結到模型訓練中心的 fine_tuned_models.id 陣列 */
     linkedModelIds: json("linkedModelIds").$type<number[]>(),
+    /** 動畫擴充：畫面風格設定陣列 — 結構見 WorldStyleProfile */
+    styleProfilesJson: json("styleProfilesJson").$type<
+      Array<Record<string, unknown>>
+    >(),
+    /** 動畫擴充：配樂主題陣列 — 結構見 WorldMusicTheme */
+    musicThemesJson: json("musicThemesJson").$type<
+      Array<Record<string, unknown>>
+    >(),
+    /** 動畫擴充：預設使用的 styleProfile id */
+    defaultStyleProfileId: varchar("defaultStyleProfileId", { length: 64 }),
+    /** 動畫擴充：全域 negative prompt */
+    globalNegativePrompt: text("globalNegativePrompt"),
+    /** 動畫擴充：製作目標（格式、目標時長、受眾、平台） */
+    productionTargetsJson: json("productionTargetsJson").$type<Record<
+      string,
+      unknown
+    >>(),
     tags: json("tags").$type<string[]>(),
     isActive: boolean("isActive").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -3133,6 +3150,58 @@ export type WorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferSelect;
 export type InsertWorldbuildingFramework =
   typeof worldbuildingFrameworks.$inferInsert;
+
+// ─── World Storyboards（動畫分鏡時間軸） ──────────────────────────────────
+// 一個世界觀可有多個動畫分鏡（短片 / 預告 / MV），每個分鏡是一條時間軸：
+//   - scenesJson：每場 sequence、起訖秒數、登場角色 beats、圖楨陣列、音軌片段
+//   - 與 worldbuilding_frameworks 多對一：刪除 framework 時級聯刪除
+//   - 動畫管線 plan 步驟存 jobsJson；最終影片 URL 存 finalVideoUrl
+//
+// 結構詳見 shared/worldbuilding-animation.ts WorldStoryboard。
+export const worldStoryboards = mysqlTable(
+  "world_storyboards",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** 關聯 worldbuilding_frameworks.id */
+    worldId: int("worldId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    totalDurationSec: int("totalDurationSec").notNull(),
+    fps: int("fps").notNull().default(24),
+    aspectRatio: varchar("aspectRatio", { length: 16 })
+      .notNull()
+      .default("16:9"),
+    /** 整個 storyboard.scenes 陣列 — 結構見 WorldStoryboard.scenes */
+    scenesJson: json("scenesJson")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull(),
+    /** 與原始長腳本的關聯（如有） */
+    sourceScriptId: varchar("sourceScriptId", { length: 64 }),
+    narration: text("narration"),
+    productionStatus: varchar("productionStatus", { length: 32 })
+      .notNull()
+      .default("planning"),
+    finalVideoUrl: varchar("finalVideoUrl", { length: 2048 }),
+    estimatedCostUsd: varchar("estimatedCostUsd", { length: 32 }),
+    /** 動畫管線執行計畫快照（最近一次 planAnimationPipeline 的輸出） */
+    pipelinePlanJson: json("pipelinePlanJson").$type<Record<string, unknown>>(),
+    /** 各 step 的執行狀態（stepId → { status, output, error, ... }） */
+    jobsJson: json("jobsJson").$type<Record<string, Record<string, unknown>>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("ws_userId_idx").on(table.userId),
+    worldIdIdx: index("ws_worldId_idx").on(table.worldId),
+    userIdCreatedAtIdx: index("ws_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+  })
+);
+
+export type WorldStoryboard = typeof worldStoryboards.$inferSelect;
+export type InsertWorldStoryboard = typeof worldStoryboards.$inferInsert;
 
 // ─── Model Wishlist（模型許願池）─────────────────────────────────────────
 // 使用者許願希望平台支援的 AI 模型；其他人可投票表示需求。

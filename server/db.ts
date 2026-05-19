@@ -50,6 +50,9 @@ import {
   worldbuildingFrameworks,
   InsertWorldbuildingFramework,
   WorldbuildingFramework,
+  worldStoryboards,
+  InsertWorldStoryboard,
+  WorldStoryboard as WorldStoryboardRow,
   teachingMaterials,
   InsertTeachingMaterial,
   TeachingMaterial,
@@ -2359,6 +2362,72 @@ export async function deleteWorldbuildingFramework(id: number) {
   await db
     .delete(worldbuildingFrameworks)
     .where(eq(worldbuildingFrameworks.id, id));
+}
+
+// ─── World Storyboards（動畫分鏡時間軸） ───────────────────────────────────
+
+export async function createWorldStoryboard(
+  data: InsertWorldStoryboard
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(worldStoryboards).values(data);
+  return result[0].insertId;
+}
+
+export async function getWorldStoryboard(
+  id: number
+): Promise<WorldStoryboardRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(worldStoryboards)
+    .where(eq(worldStoryboards.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getWorldStoryboardsByUser(
+  userId: number
+): Promise<WorldStoryboardRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(worldStoryboards)
+    .where(eq(worldStoryboards.userId, userId))
+    .orderBy(desc(worldStoryboards.updatedAt));
+}
+
+export async function getWorldStoryboardsByWorld(
+  worldId: number
+): Promise<WorldStoryboardRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(worldStoryboards)
+    .where(eq(worldStoryboards.worldId, worldId))
+    .orderBy(desc(worldStoryboards.updatedAt));
+}
+
+export async function updateWorldStoryboard(
+  id: number,
+  data: Partial<InsertWorldStoryboard>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(worldStoryboards)
+    .set(data)
+    .where(eq(worldStoryboards.id, id));
+}
+
+export async function deleteWorldStoryboard(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(worldStoryboards).where(eq(worldStoryboards.id, id));
 }
 
 // ─── Model Wishlist（模型許願池）──────────────────────────────────────────

@@ -286,6 +286,7 @@ describe("brainPipeline graph builder", () => {
       "teams", // 團隊 / 成員 CRUD — 純資料持久化，不觸發 AI
       "modelWishes", // 模型許願池 — 純 CRUD + 投票，不觸發 AI 推理
       "worldbuilding", // 世界觀架構器資料 CRUD，不觸發 AI 推理
+      "worldStoryboard", // 動畫分鏡時間軸 CRUD + 純函式管線編排，不直接觸發 AI（plan 僅返回步驟描述）
     ]);
 
     const inGraph = new Set(
@@ -349,6 +350,7 @@ describe("brainPipeline graph builder", () => {
       // registry 用 /models 但 App.tsx 也給 /lora-trainer 作 alias
       "/lora-trainer", // registry: /models
       "/calendar", // 行事曆功能尚未在 registry 中（可未來補上）
+      "/animation/:storyboardId", // registry: /animation （動畫分鏡細節頁 — 動態路由，靠 base /animation 進入）
     ]);
 
     const registryPaths = new Set(APP_PAGE_REGISTRY.map(p => p.path));

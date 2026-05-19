@@ -51,6 +51,7 @@ import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
+import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
 import { spiritRouter } from "./routers/spiritRouter";
@@ -3948,7 +3949,13 @@ export const appRouter = router({
 
   // ─── Worldbuilding Framework（導演 AI 自訂世界觀架構器） ─────────────────
   // 多角色（主角/配角/反派）+ 多場景（環境、植被、物件）+ 連結 LoRA 訓練中心
+  // v2 動畫擴充：三視圖、表情、穿衣、口氣、語音、腳本定位、風格 profile、配樂主題
   worldbuilding: worldbuildingRouter,
+
+  // ─── World Storyboard（動畫分鏡時間軸） ──────────────────────────────────
+  // 「幾分幾秒」級的分鏡：角色 beats、圖楨、音軌（music/voice/sfx）、
+  //   管線編排（t2i → refine → i2v → music → voice → final compose）
+  worldStoryboard: worldStoryboardRouter,
 
   // ─── 資料庫（training-data 素材池） ──────────────────────────────────────
   // 上傳純文字 / PDF / 文件 / 圖片 / 影片 / 語音 / 簡報，依分類、來源、主題分類。
