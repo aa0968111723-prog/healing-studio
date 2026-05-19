@@ -4143,7 +4143,12 @@ export default function ProStudio() {
   // ── AI Agent Integration ──
   const { setPageContext } = useAIState();
 
-  const [tab, setTab] = useState("music");
+  const [tab, setTab] = useState(() => {
+    // 容許從 URL ?tab= 帶入初始分頁，例如 Studio 進階按鈕跳轉時帶 ?tab=tts。
+    if (typeof window === "undefined") return "music";
+    const initial = new URLSearchParams(window.location.search).get("tab");
+    return initial && TABS.some(t => t.id === initial) ? initial : "music";
+  });
   const apiKeyQuery = trpc.proStudio.checkApiKey.useQuery();
   const hasKey = apiKeyQuery.data?.configured;
 
