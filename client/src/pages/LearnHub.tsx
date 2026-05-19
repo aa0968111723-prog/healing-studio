@@ -78,9 +78,13 @@ import {
   FileVideo,
   File,
   Sparkles,
+  Database,
+  Wand2,
+  Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import PromptReferenceTab from "@/components/learn-hub/PromptReferenceTab";
 
 // ─── Category Config ──────────────────────────────────────────────────────────
 
@@ -2244,6 +2248,7 @@ export default function LearnHub() {
   const LEARN_TAB_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
       { id: "docs", label: "文件中心", meta: { bestFor: "系統化學習", tip: "先讀核心概念再實作" } },
+      { id: "prompts", label: "提示詞庫", meta: { bestFor: "找參考提示詞", tip: "多模態與代理人呼叫精選" } },
       { id: "videos", label: "影片學習區", meta: { bestFor: "快速上手", tip: "搭配筆記同步整理重點" } },
       { id: "quizzes", label: "學習測驗區", meta: { bestFor: "檢核理解", tip: "每學完一章就做測驗" } },
     ],
@@ -2312,7 +2317,7 @@ export default function LearnHub() {
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
         case "setTab": {
-          const allowed = ["docs", "videos", "quizzes"];
+          const allowed = ["docs", "prompts", "videos", "quizzes"];
           if (!allowed.includes(action.tabId)) {
             return { ok: false, reason: `unknown tab: ${action.tabId}` };
           }
@@ -2362,21 +2367,21 @@ export default function LearnHub() {
   return (
     <div className="page-shell space-y-6">
       {/* ── 頁面標題 ────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-200/40">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-200/40 shrink-0">
             <BookOpen className="w-7 h-7 text-emerald-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="page-eyebrow">Learning Hub</p>
             <h1 className="page-title !mb-0">學習文件中心</h1>
             <p className="page-subtitle mt-1">
-              文件教學、影片學習、互動測驗 — 全站知識補充都在學習文件中心
+              文件教學、影片學習、互動測驗、提示詞庫 — 全站知識中樞與個人資料庫入口
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -2389,6 +2394,57 @@ export default function LearnHub() {
         </div>
       </div>
 
+      {/* ── 快速入口（個人資料庫 + 我的提示詞 + 教學總覽） ──────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          onClick={() => navigate("/teaching-archive")}
+          className="group text-left rounded-2xl border border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 p-4 hover:shadow-md transition-all hover:-translate-y-0.5"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 group-hover:scale-110 transition-transform">
+              <Database className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+            </div>
+            <h3 className="hs-h3 !mb-0 text-foreground text-sm">個人資料庫</h3>
+            <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
+            上傳 PDF / 文件 / 圖片 / 影片 / 語音 / 簡報，AI 助理可引用內容
+          </p>
+        </button>
+
+        <button
+          onClick={() => navigate("/prompt-library")}
+          className="group text-left rounded-2xl border border-fuchsia-200/60 dark:border-fuchsia-900/40 bg-gradient-to-br from-fuchsia-50 to-purple-50 dark:from-fuchsia-950/30 dark:to-purple-950/20 p-4 hover:shadow-md transition-all hover:-translate-y-0.5"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded-xl bg-fuchsia-100 dark:bg-fuchsia-900/60 group-hover:scale-110 transition-transform">
+              <Wand2 className="w-4 h-4 text-fuchsia-700 dark:text-fuchsia-300" />
+            </div>
+            <h3 className="hs-h3 !mb-0 text-foreground text-sm">我的提示詞庫</h3>
+            <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
+            管理收藏的提示詞、設定公開分享、串接創作工作室
+          </p>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("prompts")}
+          className="group text-left rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/20 p-4 hover:shadow-md transition-all hover:-translate-y-0.5"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 group-hover:scale-110 transition-transform">
+              <Layers className="w-4 h-4 text-indigo-700 dark:text-indigo-300" />
+            </div>
+            <h3 className="hs-h3 !mb-0 text-foreground text-sm">提示詞參考庫</h3>
+            <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
+            多模態 / 代理人呼叫 / 系統提示詞精選，一鍵複製或存入個人詞庫
+          </p>
+        </button>
+      </div>
+
       {/* ── 子頁面 Tabs ────────────────────────────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start">
@@ -2398,6 +2454,13 @@ export default function LearnHub() {
           >
             <FileText className="w-3.5 h-3.5" />
             文件中心
+          </TabsTrigger>
+          <TabsTrigger
+            value="prompts"
+            className="rounded-lg gap-1.5 text-xs shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            提示詞庫
           </TabsTrigger>
           <TabsTrigger
             value="videos"
@@ -2653,12 +2716,17 @@ export default function LearnHub() {
           </div>
         </TabsContent>
 
-        {/* ═══ Tab 2: 影片學習區 ═══ */}
+        {/* ═══ Tab 2: 提示詞庫 ═══ */}
+        <TabsContent value="prompts" className="mt-4">
+          <PromptReferenceTab />
+        </TabsContent>
+
+        {/* ═══ Tab 3: 影片學習區 ═══ */}
         <TabsContent value="videos" className="mt-4">
           <VideoLearningTab isAdmin={isAdmin} />
         </TabsContent>
 
-        {/* ═══ Tab 3: 學習測驗區 ═══ */}
+        {/* ═══ Tab 4: 學習測驗區 ═══ */}
         <TabsContent value="quizzes" className="mt-4">
           <QuizLearningTab isAdmin={isAdmin} />
         </TabsContent>
