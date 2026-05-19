@@ -63,6 +63,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -557,15 +558,13 @@ export default function Studio() {
     useState<CreativeMode>(loadCreativeMode);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [leftDrawerTab, setLeftDrawerTab] = useState<
-    "vault" | "assets" | "models" | "recipes" | "versions"
+    "vault" | "assets" | "models" | "controls" | "recipes" | "versions"
   >("vault");
-  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
   const [toolboxTab, setToolboxTab] = useState<
     | "vault"
     | "assets"
     | "models"
-    | "history"
     | "controls"
     | "recipes"
     | "versions"
@@ -2055,7 +2054,6 @@ export default function Studio() {
           }));
         }
       }
-      setRightDrawerOpen(false);
       toast.success("已 100% 還原歷史參數與提示詞");
     },
     []
@@ -2428,9 +2426,8 @@ export default function Studio() {
         { id: "toolbox?tab=controls", label: "進階控制", description: "溫度 / 種子 / LoRA 權重 / 模式" },
         { id: "toolbox?tab=vault", label: "一致性保險庫", description: "角色 / 場景一致性綁定" },
         { id: "toolbox?tab=assets", label: "數位資產", description: "翻過去用過的素材" },
-        { id: "toolbox?tab=history", label: "歷史紀錄", description: "重組 / fork 過去作品" },
       ],
-      hint: "使用 dialogId='toolbox'，params.tab 可填 models / controls / vault / assets / history",
+      hint: "使用 dialogId='toolbox'，params.tab 可填 models / controls / vault / assets",
     });
 
     return caps;
@@ -2673,11 +2670,10 @@ export default function Studio() {
           return { ok: true };
         }
         case "openDialog": {
-          const openToolbox = (tab: "vault" | "assets" | "models" | "history" | "controls") => {
+          const openToolbox = (tab: "vault" | "assets" | "models" | "controls") => {
             setToolboxTab(tab);
             setToolboxSheetOpen(true);
             setLeftDrawerOpen(false);
-            setRightDrawerOpen(false);
           };
           if (action.dialogId === "toolbox") {
             const tab =
@@ -2688,7 +2684,6 @@ export default function Studio() {
               tab === "vault" ||
               tab === "assets" ||
               tab === "models" ||
-              tab === "history" ||
               tab === "controls"
                 ? tab
                 : "assets";
@@ -2778,18 +2773,27 @@ export default function Studio() {
             <span className="hidden sm:inline">工具箱</span>
           </Button>
 
-          {/* History drawer toggle (desktop only, not in simple mode) */}
-          {!isMobile && !isSimple && (
-            <Button
-              variant={rightDrawerOpen ? "default" : "outline"}
-              size="sm"
-              className="rounded-xl gap-1.5 text-xs h-8"
-              onClick={() => setRightDrawerOpen(!rightDrawerOpen)}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">歷史</span>
-            </Button>
-          )}
+          {/* Advanced studio entry — routes to ImageStudio / VideoStudio / ProStudio by modality */}
+          {(() => {
+            const advanced =
+              activeModality === "image"
+                ? { path: "/image-studio", label: "進階圖像創作" }
+                : activeModality === "video"
+                  ? { path: "/video-studio", label: "進階影片創作" }
+                  : { path: "/pro-studio", label: "進階配音音樂" };
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 text-xs h-8 border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => navigate(advanced.path)}
+                title={advanced.label}
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{advanced.label}</span>
+              </Button>
+            );
+          })()}
         </div>
       </div>
 
@@ -2805,17 +2809,21 @@ export default function Studio() {
                 ? "一致性保險庫"
                 : leftDrawerTab === "models"
                   ? "角色鍛造所"
-                  : leftDrawerTab === "recipes"
-                    ? "配方庫"
-                    : leftDrawerTab === "versions"
-                      ? "版本歷史"
-                      : "數位資產"
+                  : leftDrawerTab === "controls"
+                    ? "進階控制（種子碼）"
+                    : leftDrawerTab === "recipes"
+                      ? "配方庫"
+                      : leftDrawerTab === "versions"
+                        ? "版本歷史"
+                        : "數位資產"
             }
             icon={
               leftDrawerTab === "vault" ? (
                 <Layers className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "models" ? (
                 <Cpu className="w-4 h-4 text-primary" />
+              ) : leftDrawerTab === "controls" ? (
+                <SlidersHorizontal className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "recipes" ? (
                 <Bookmark className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "versions" ? (
@@ -2861,6 +2869,17 @@ export default function Studio() {
                 >
                   <Cpu className="w-3 h-3 inline mr-1" />
                   模型
+                </button>
+                <button
+                  onClick={() => setLeftDrawerTab("controls")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "controls"
+                      ? "bg-card shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3 h-3 inline mr-1" />
+                  參數
                 </button>
                 <button
                   onClick={() => setLeftDrawerTab("recipes")}
@@ -2948,6 +2967,30 @@ export default function Studio() {
                   toast.info("已移除微調模型");
                 }}
               />
+            ) : leftDrawerTab === "controls" ? (
+              <div className="px-3 pb-3 pt-2">
+                <GenerationControls
+                  temperature={temperature}
+                  onTemperatureChange={v => {
+                    setTemperature(v);
+                    notifyAdvancedParams();
+                  }}
+                  seed={seed}
+                  onSeedChange={v => {
+                    setSeed(v);
+                    notifyAdvancedParams();
+                  }}
+                  mode={mode}
+                  onModeChange={v => {
+                    setMode(v);
+                    notifyAdvancedParams();
+                  }}
+                  loraWeight={loraWeight}
+                  onLoraWeightChange={setLoraWeight}
+                  showLoraWeight={showLoraWeight}
+                  seedOnly={isStandard}
+                />
+              </div>
             ) : leftDrawerTab === "recipes" ? (
               <div className="px-2 pb-3">
                 <RecipeLibraryPanel
@@ -3819,47 +3862,6 @@ export default function Studio() {
           </AnimatePresence>
         </div>
 
-        {/* ── Right Panel: Controls + Version History + Recipes (desktop, hidden in simple mode) ── */}
-        {!isMobile && !isSimple && (
-          <div className="hidden lg:block w-72 shrink-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <GlassCard hover={false}>
-              <GenerationControls
-                temperature={temperature}
-                onTemperatureChange={v => {
-                  setTemperature(v);
-                  notifyAdvancedParams();
-                }}
-                seed={seed}
-                onSeedChange={v => {
-                  setSeed(v);
-                  notifyAdvancedParams();
-                }}
-                mode={mode}
-                onModeChange={v => {
-                  setMode(v);
-                  notifyAdvancedParams();
-                }}
-                loraWeight={loraWeight}
-                onLoraWeightChange={setLoraWeight}
-                showLoraWeight={showLoraWeight}
-                seedOnly={isStandard}
-              />
-            </GlassCard>
-          </div>
-        )}
-
-        {/* ── Right Drawer: History ── */}
-        {!isMobile && (
-          <DrawerPanel
-            open={rightDrawerOpen}
-            side="right"
-            title="生成歷史"
-            icon={<Clock className="w-4 h-4 text-primary" />}
-            onClose={() => setRightDrawerOpen(false)}
-          >
-            <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
-          </DrawerPanel>
-        )}
       </div>
 
       {/* ── Mobile Bottom Sheets ── */}
@@ -3930,7 +3932,7 @@ export default function Studio() {
                 </div>
                 <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground leading-relaxed">
                   <li>• 先在「保險庫」選角色/場景，拖放到工作區保持一致性。</li>
-                  <li>• 到「參數」鎖定 seed 與模式，再切「歷史」比較最佳版本。</li>
+                  <li>• 到「參數」鎖定 seed 與模式，再切換到對應的進階創作室。</li>
                   <li>• 若要跨模態延伸，先從上方切換圖片/影片/音樂/語音再生成。</li>
                 </ul>
               </div>
@@ -3942,7 +3944,6 @@ export default function Studio() {
                   "assets",
                   "models",
                   "controls",
-                  "history",
                   "recipes",
                   "versions",
                 ] as const
@@ -3952,7 +3953,6 @@ export default function Studio() {
                   assets: "資產",
                   models: "模型",
                   controls: "參數",
-                  history: "歷史",
                   recipes: "配方",
                   versions: "版本",
                 };
@@ -3998,18 +3998,24 @@ export default function Studio() {
             {toolboxTab === "controls" && (
               <GenerationControls
                 temperature={temperature}
-                onTemperatureChange={setTemperature}
+                onTemperatureChange={v => {
+                  setTemperature(v);
+                  notifyAdvancedParams();
+                }}
                 seed={seed}
-                onSeedChange={setSeed}
+                onSeedChange={v => {
+                  setSeed(v);
+                  notifyAdvancedParams();
+                }}
                 mode={mode}
-                onModeChange={setMode}
+                onModeChange={v => {
+                  setMode(v);
+                  notifyAdvancedParams();
+                }}
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
               />
-            )}
-            {toolboxTab === "history" && (
-              <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
             )}
             {toolboxTab === "recipes" && (
               <div className="px-2 pb-3">
