@@ -65,6 +65,7 @@ import {
   Globe,
   Database,
   FileAudio,
+  FileText,
   GraduationCap,
   Search,
   X,
@@ -74,6 +75,7 @@ import {
   AssetUploader,
   inferAssetType,
 } from "@/components/animation/AssetUploader";
+import { ScriptEditorTab } from "@/components/animation/ScriptEditorTab";
 import {
   GenerateImageButton,
   GenerateMusicButton,
@@ -5154,6 +5156,7 @@ export default function AnimationStudio() {
     | "production"
     | "research"
     | "sounds"
+    | "script"
     | "storyboards"
   >("characters");
 
@@ -5553,6 +5556,10 @@ export default function AnimationStudio() {
             <FileAudio className="w-3.5 h-3.5 mr-1" />
             音效庫（{effectiveWorld.soundLibrary?.length ?? 0}）
           </TabsTrigger>
+          <TabsTrigger value="script" className="text-xs">
+            <FileText className="w-3.5 h-3.5 mr-1" />
+            腳本
+          </TabsTrigger>
           <TabsTrigger value="storyboards" className="text-xs">
             <Camera className="w-3.5 h-3.5 mr-1" />
             分鏡（{storyboardsQuery.data?.length ?? 0}）
@@ -5775,6 +5782,13 @@ export default function AnimationStudio() {
           <SoundLibraryEditor
             items={effectiveWorld.soundLibrary ?? []}
             onChange={next => handlePatchWorld({ soundLibrary: next })}
+          />
+        </TabsContent>
+
+        <TabsContent value="script">
+          <ScriptEditorTab
+            worldId={selectedWorld.id!}
+            worldName={effectiveWorld.name}
           />
         </TabsContent>
 
