@@ -264,6 +264,54 @@ export default function LoraTrainer({
   const [selectedConsentIds, setSelectedConsentIds] = useState<number[]>([]);
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
 
+  // ── 從 URL query 預填（給動畫工作室 / 其他頁面快速跳轉用） ──
+  // 支援的參數：
+  //   ?modelName=艾莉雅
+  //   ?triggerWord=sks_aria
+  //   ?description=...
+  //   ?trainingType=image_subject
+  //   ?seedImages=url1,url2,url3 （逗號分隔，從 referenceLibrary 帶入）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const _modelName = params.get("modelName");
+    const _trigger = params.get("triggerWord");
+    const _desc = params.get("description");
+    const _type = params.get("trainingType");
+    const _seedImages = params.get("seedImages");
+    if (_modelName) setModelName(_modelName);
+    if (_trigger) setTriggerWord(_trigger);
+    if (_desc) setDescription(_desc);
+    if (
+      _type &&
+      ["image_subject", "image_style", "video_subject", "video_style"].includes(
+        _type
+      )
+    ) {
+      setSelectedTrainingType(_type as TrainingModelType);
+    }
+    if (_seedImages) {
+      const urls = _seedImages
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (urls.length > 0 && datasetImages.length === 0) {
+        const seedImages: DatasetImageWithUpload[] = urls.map((u, idx) => ({
+          id: `seed-${idx}`,
+          url: u,
+          angle: "front",
+          caption: "",
+          uploadedUrl: u,
+          uploaded: true,
+        }));
+        setDatasetImages(seedImages);
+      }
+    }
+    // 開啟訓練 tab
+    if (_modelName || _trigger || _seedImages) setTab("train");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── tRPC queries ──
   const statsQuery = trpc.loraTrainer.stats.useQuery(undefined, {
     retry: false,

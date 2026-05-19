@@ -576,6 +576,152 @@ describe("worldbuildingFrameworkInputSchema v3 professional fields", () => {
     expect(parsed.productionTargets?.masterSpec?.audioChannels).toBe("5.1");
   });
 
+  // ─── v4 真實參考 + 研究 + 音效庫 + 上傳資產 ─────────────────────────
+
+  it("accepts realWorldRefs and uploadedAssets on character", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [
+        {
+          id: "c1",
+          name: "艾莉雅",
+          role: "protagonist",
+          realWorldRefs: [
+            {
+              id: "rwr1",
+              label: "歷史上的奧黛麗·赫本",
+              refType: "celebrity",
+              personName: "Audrey Hepburn",
+              externalUrl: "https://en.wikipedia.org/wiki/Audrey_Hepburn",
+              description: "優雅氣質參考",
+              citation: "IMDB nm0000027",
+            },
+          ],
+          uploadedAssets: [
+            {
+              id: "a1",
+              label: "concept.png",
+              assetType: "image",
+              url: "https://cdn.example.com/concept.png",
+              fileKey: "user-1/concept.png",
+              mimeType: "image/png",
+              sizeBytes: 102400,
+              purpose: "reference 參考",
+              uploadedAt: "2026-05-19T00:00:00Z",
+            },
+          ],
+        },
+      ],
+      scenes: [],
+    });
+    expect(parsed.characters[0].realWorldRefs).toHaveLength(1);
+    expect(parsed.characters[0].uploadedAssets).toHaveLength(1);
+    expect(parsed.characters[0].realWorldRefs?.[0].refType).toBe("celebrity");
+  });
+
+  it("accepts realWorldRefs with GPS coords and yearOfReference on scene", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [
+        {
+          id: "s1",
+          name: "圖書館",
+          realWorldRefs: [
+            {
+              id: "rwr1",
+              label: "Trinity College Library",
+              refType: "building",
+              gpsCoords: { lat: 53.3441, lon: -6.2575 },
+              externalUrl: "https://www.tcd.ie/library/",
+              yearOfReference: "1592",
+              description: "Long Room 為主要靈感",
+            },
+          ],
+          uploadedAssets: [
+            {
+              id: "a1",
+              label: "trinity.jpg",
+              assetType: "image",
+              url: "https://cdn.example.com/trinity.jpg",
+            },
+          ],
+          soundLibraryRefs: ["sl-rain", "sl-pages"],
+        },
+      ],
+    });
+    expect(parsed.scenes[0].realWorldRefs?.[0].gpsCoords?.lat).toBeCloseTo(
+      53.3441
+    );
+    expect(parsed.scenes[0].soundLibraryRefs).toEqual(["sl-rain", "sl-pages"]);
+  });
+
+  it("accepts researchEntries with attachments and isCanon flag", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [],
+      researchEntries: [
+        {
+          id: "re1",
+          title: "苔森紀年中的星象學",
+          category: "culture",
+          content: "# 星象\n\n本世界以三顆月亮為時令…",
+          sourceUrls: ["https://example.com/ref"],
+          attachments: [
+            {
+              id: "at1",
+              label: "constellation.pdf",
+              assetType: "pdf",
+              url: "https://cdn.example.com/constellation.pdf",
+            },
+          ],
+          citation: "作者 (2026)",
+          tags: ["天文", "曆法"],
+          isCanon: true,
+        },
+      ],
+    });
+    expect(parsed.researchEntries).toHaveLength(1);
+    expect(parsed.researchEntries?.[0].isCanon).toBe(true);
+    expect(parsed.researchEntries?.[0].attachments).toHaveLength(1);
+  });
+
+  it("accepts soundLibrary with category, triggers, license, loopable", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [],
+      soundLibrary: [
+        {
+          id: "sl1",
+          label: "森林晨間",
+          category: "ambient",
+          audioUrl: "https://cdn.example.com/forest.mp3",
+          durationSec: 120,
+          tags: ["森林", "鳥鳴"],
+          triggers: ["scene_morning", "forest_enter"],
+          loopable: true,
+          volumeDefault: 0.6,
+          license: "CC0 公眾領域",
+          source: "Freesound",
+        },
+        {
+          id: "sl2",
+          label: "玻璃碎裂",
+          category: "sfx",
+          audioUrl: "https://cdn.example.com/glass.wav",
+          durationSec: 1.2,
+          loopable: false,
+          license: "AI 生成（站內）",
+        },
+      ],
+    });
+    expect(parsed.soundLibrary).toHaveLength(2);
+    expect(parsed.soundLibrary?.[0].triggers).toContain("forest_enter");
+    expect(parsed.soundLibrary?.[1].loopable).toBe(false);
+  });
+
   it("summarizeFrameworkForPrompt includes v3 professional fields", () => {
     const fw: WorldbuildingFrameworkData = {
       name: "範例",

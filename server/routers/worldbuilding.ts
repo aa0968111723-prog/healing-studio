@@ -51,6 +51,18 @@ function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildin
       (row.productionTargetsJson ?? undefined) as
         | WorldbuildingFrameworkData["productionTargets"]
         | undefined,
+    researchEntries:
+      (row.researchEntriesJson ?? undefined) as
+        | WorldbuildingFrameworkData["researchEntries"]
+        | undefined,
+    soundLibrary:
+      (row.soundLibraryJson ?? undefined) as
+        | WorldbuildingFrameworkData["soundLibrary"]
+        | undefined,
+    uploadedAssets:
+      (row.uploadedAssetsJson ?? undefined) as
+        | WorldbuildingFrameworkData["uploadedAssets"]
+        | undefined,
     tags: (row.tags ?? undefined) as string[] | undefined,
     isActive: row.isActive,
     createdAt: row.createdAt,
@@ -95,6 +107,9 @@ export const worldbuildingRouter = router({
         defaultStyleProfileId: input.defaultStyleProfileId ?? null,
         globalNegativePrompt: input.globalNegativePrompt,
         productionTargetsJson: input.productionTargets ?? null,
+        researchEntriesJson: input.researchEntries ?? [],
+        soundLibraryJson: input.soundLibrary ?? [],
+        uploadedAssetsJson: input.uploadedAssets ?? [],
         tags: input.tags ?? [],
         isActive: input.isActive ?? true,
       });
@@ -142,6 +157,15 @@ export const worldbuildingRouter = router({
           : {}),
         ...(p.productionTargets !== undefined
           ? { productionTargetsJson: p.productionTargets }
+          : {}),
+        ...(p.researchEntries !== undefined
+          ? { researchEntriesJson: p.researchEntries }
+          : {}),
+        ...(p.soundLibrary !== undefined
+          ? { soundLibraryJson: p.soundLibrary }
+          : {}),
+        ...(p.uploadedAssets !== undefined
+          ? { uploadedAssetsJson: p.uploadedAssets }
           : {}),
         ...(p.tags !== undefined ? { tags: p.tags } : {}),
         ...(p.isActive !== undefined ? { isActive: p.isActive } : {}),
@@ -223,5 +247,329 @@ export const worldbuildingRouter = router({
         scenePrefixes,
         globalNegativePrompt: buildGlobalNegativePrompt(data),
       };
+    }),
+
+  /**
+   * AI 代理可呼叫的「資料庫查詢」端點 ——
+   * 跨角色 / 場景 / 物件 / 研究資料庫 / 真實參考做文字相似度比對，
+   * 回傳 top-K 結果。
+   *
+   * 應用：光球代理（director / image-specialist / voice-specialist）在
+   * 聊天時可問「主角的劍叫什麼？」「這場有哪些歷史參考？」直接查得到。
+   */
+  queryEntities: protectedProcedure
+    .input(
+      z.object({
+        worldId: z.number().int().positive().optional(),
+        query: z.string().min(1).max(500),
+        entityTypes: z
+          .array(
+            z.enum([
+              "character",
+              "scene",
+              "object",
+              "research",
+              "real_world_ref",
+              "sound",
+            ])
+          )
+          .optional(),
+        limit: z.number().int().min(1).max(50).default(10),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = input.worldId
+        ? [await db.getWorldbuildingFramework(input.worldId)].filter(
+            (r): r is NonNullable<typeof r> => !!r && r.userId === ctx.user.id
+          )
+        : await db.getWorldbuildingFrameworksByUser(ctx.user.id);
+
+      const wantedTypes = new Set(
+        input.entityTypes ?? [
+          "character",
+          "scene",
+          "object",
+          "research",
+          "real_world_ref",
+          "sound",
+        ]
+      );
+      const q = input.query.toLowerCase();
+
+      type Hit = {
+        type: string;
+        worldId: number;
+        worldName: string;
+        entityId: string;
+        title: string;
+        snippet: string;
+        score: number;
+        raw: Record<string, unknown>;
+      };
+      const hits: Hit[] = [];
+
+      function score(haystack: string): number {
+        const h = haystack.toLowerCase();
+        if (h.includes(q)) return 1 + Math.min(1, q.length / 30);
+        // token overlap
+        const tokens = q.split(/\s+/).filter(Boolean);
+        let s = 0;
+        for (const t of tokens) if (t && h.includes(t)) s += 0.4;
+        return s;
+      }
+
+      function push(
+        hit: Omit<Hit, "score">,
+        haystack: string
+      ) {
+        const s = score(haystack);
+        if (s > 0) hits.push({ ...hit, score: s });
+      }
+
+      for (const w of rows) {
+        const data = rowToData(w);
+        if (wantedTypes.has("character"))
+          for (const c of data.characters) {
+            const hay = [
+              c.name,
+              c.tagline,
+              c.appearance,
+              c.personality,
+              c.backstory,
+              c.outfit,
+              ...(c.likes ?? []),
+              ...(c.interests ?? []),
+              c.notes,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            push(
+              {
+                type: "character",
+                worldId: w.id,
+                worldName: w.name,
+                entityId: c.id,
+                title: c.name,
+                snippet:
+                  c.tagline ?? c.personality ?? c.appearance ?? "(未填)",
+                raw: c as unknown as Record<string, unknown>,
+              },
+              hay
+            );
+
+            // 也搜尋角色內的 realWorldRefs
+            if (wantedTypes.has("real_world_ref"))
+              for (const r of c.realWorldRefs ?? []) {
+                const refHay = [
+                  r.label,
+                  r.personName,
+                  r.description,
+                  r.citation,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                push(
+                  {
+                    type: "real_world_ref",
+                    worldId: w.id,
+                    worldName: w.name,
+                    entityId: `${c.id}:${r.id}`,
+                    title: `${c.name} → ${r.label}`,
+                    snippet: r.description ?? r.personName ?? "(未填)",
+                    raw: r as unknown as Record<string, unknown>,
+                  },
+                  refHay
+                );
+              }
+          }
+
+        if (wantedTypes.has("scene"))
+          for (const s of data.scenes) {
+            const hay = [
+              s.name,
+              s.tagline,
+              s.environment,
+              s.mood,
+              s.lighting,
+              ...(s.flora ?? []),
+              ...(s.fauna ?? []),
+              ...(s.props ?? []),
+              s.notes,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            push(
+              {
+                type: "scene",
+                worldId: w.id,
+                worldName: w.name,
+                entityId: s.id,
+                title: s.name,
+                snippet: s.tagline ?? s.environment ?? "(未填)",
+                raw: s as unknown as Record<string, unknown>,
+              },
+              hay
+            );
+
+            // 場景內的 realWorldRefs
+            if (wantedTypes.has("real_world_ref"))
+              for (const r of s.realWorldRefs ?? []) {
+                const refHay = [
+                  r.label,
+                  r.description,
+                  r.citation,
+                  r.yearOfReference,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                push(
+                  {
+                    type: "real_world_ref",
+                    worldId: w.id,
+                    worldName: w.name,
+                    entityId: `${s.id}:${r.id}`,
+                    title: `${s.name} → ${r.label}`,
+                    snippet: r.description ?? "(未填)",
+                    raw: r as unknown as Record<string, unknown>,
+                  },
+                  refHay
+                );
+              }
+          }
+
+        if (wantedTypes.has("object"))
+          for (const o of data.objects ?? []) {
+            const hay = [
+              o.name,
+              o.category,
+              o.description,
+              o.visualTraits,
+              o.notes,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            push(
+              {
+                type: "object",
+                worldId: w.id,
+                worldName: w.name,
+                entityId: o.id,
+                title: o.name,
+                snippet: o.description ?? o.category ?? "(未填)",
+                raw: o as unknown as Record<string, unknown>,
+              },
+              hay
+            );
+          }
+
+        if (wantedTypes.has("research"))
+          for (const r of data.researchEntries ?? []) {
+            const hay = [
+              r.title,
+              r.category,
+              r.content,
+              r.citation,
+              ...(r.tags ?? []),
+            ]
+              .filter(Boolean)
+              .join(" ");
+            push(
+              {
+                type: "research",
+                worldId: w.id,
+                worldName: w.name,
+                entityId: r.id,
+                title: r.title,
+                snippet: (r.content ?? "").slice(0, 200),
+                raw: r as unknown as Record<string, unknown>,
+              },
+              hay
+            );
+          }
+
+        if (wantedTypes.has("sound"))
+          for (const sd of data.soundLibrary ?? []) {
+            const hay = [
+              sd.label,
+              sd.category,
+              sd.description,
+              ...(sd.tags ?? []),
+              ...(sd.triggers ?? []),
+            ]
+              .filter(Boolean)
+              .join(" ");
+            push(
+              {
+                type: "sound",
+                worldId: w.id,
+                worldName: w.name,
+                entityId: sd.id,
+                title: sd.label,
+                snippet: `${sd.category ?? "—"} · ${sd.description ?? ""}`,
+                raw: sd as unknown as Record<string, unknown>,
+              },
+              hay
+            );
+          }
+      }
+
+      hits.sort((a, b) => b.score - a.score);
+      return hits.slice(0, input.limit);
+    }),
+
+  /**
+   * 把世界觀完整匯出成 JSON —— 給離線備份、跨環境遷移、版本控管用。
+   * 含所有 v2/v3/v4 欄位，但不含資產的實際檔案（只含 URL 引用）。
+   */
+  exportFull: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const row = await db.getWorldbuildingFramework(input.id);
+      if (!row || row.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const data = rowToData(row);
+      return {
+        exportFormat: "worldbuilding/v4",
+        exportedAt: new Date().toISOString(),
+        framework: data,
+      };
+    }),
+
+  /**
+   * 匯入世界觀 JSON —— 從備份或他人分享的 JSON 還原為新的世界觀。
+   * 不覆蓋既有世界，總是建立新的（id 由 DB 重新分配）。
+   */
+  importFull: protectedProcedure
+    .input(
+      z.object({
+        framework: worldbuildingFrameworkInputSchema,
+        renameSuffix: z.string().max(64).optional().default("（匯入）"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const fw = input.framework;
+      const id = await db.createWorldbuildingFramework({
+        userId: ctx.user.id,
+        name: `${fw.name}${input.renameSuffix ?? ""}`,
+        description: fw.description,
+        genre: fw.genre,
+        era: fw.era,
+        charactersJson: fw.characters,
+        scenesJson: fw.scenes,
+        objectsJson: fw.objects ?? [],
+        linkedModelIds: fw.linkedModelIds ?? [],
+        styleProfilesJson: fw.styleProfiles ?? [],
+        musicThemesJson: fw.musicThemes ?? [],
+        defaultStyleProfileId: fw.defaultStyleProfileId ?? null,
+        globalNegativePrompt: fw.globalNegativePrompt,
+        productionTargetsJson: fw.productionTargets ?? null,
+        researchEntriesJson: fw.researchEntries ?? [],
+        soundLibraryJson: fw.soundLibrary ?? [],
+        uploadedAssetsJson: fw.uploadedAssets ?? [],
+        tags: fw.tags ?? [],
+        isActive: fw.isActive ?? true,
+      });
+      return { id };
     }),
 });

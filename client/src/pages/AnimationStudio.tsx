@@ -62,7 +62,28 @@ import {
   Link2,
   Save,
   Palette,
+  Globe,
+  Database,
+  FileAudio,
+  Bot,
+  GraduationCap,
+  Search,
+  X,
+  Upload as UploadIcon,
 } from "lucide-react";
+import {
+  AssetUploader,
+  inferAssetType,
+} from "@/components/animation/AssetUploader";
+import {
+  GenerateImageButton,
+  GenerateMusicButton,
+  GenerateVoiceButton,
+} from "@/components/animation/QuickGenerateButtons";
+import {
+  buildCharacterConsistencyPrompt,
+  buildSceneConsistencyPrompt,
+} from "../../../shared/worldbuilding-types";
 import {
   ART_STYLE_PRESETS,
   CAMERA_MOVEMENT_PRESETS,
@@ -92,6 +113,18 @@ import {
   MASTER_RESOLUTION_PRESETS,
   MASTER_CODEC_PRESETS,
   LUFS_TARGET_PRESETS,
+  // v4 真實參考 / 研究 / 音效庫
+  CHARACTER_REF_TYPE_PRESETS,
+  SCENE_REF_TYPE_PRESETS,
+  RESEARCH_CATEGORY_PRESETS,
+  SOUND_LIBRARY_CATEGORY_PRESETS,
+  SOUND_LICENSE_PRESETS,
+  ASSET_PURPOSE_PRESETS,
+  type CharacterRealWorldRef,
+  type SceneRealWorldRef,
+  type WorldAssetRef,
+  type WorldResearchEntry,
+  type WorldSoundLibraryItem,
   type WorldScene,
   EXPRESSION_PRESETS,
   MUSIC_INSTRUMENT_PRESETS,
@@ -355,42 +388,70 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
       ...character,
       threeViewSheet: { ...sheet, ...p },
     });
+  const basePrompt = buildCharacterConsistencyPrompt(character);
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      {[
-        { key: "frontImageUrl", label: "正面" },
-        { key: "sideImageUrl", label: "側面" },
-        { key: "backImageUrl", label: "背面" },
-        { key: "threeQuarterImageUrl", label: "3/4 視角" },
-      ].map(v => {
-        const url = (sheet as Record<string, string | undefined>)[v.key];
-        return (
-          <div key={v.key} className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">{v.label}</Label>
-            <div className="aspect-[3/4] rounded-md border border-dashed border-border/40 bg-card/20 flex items-center justify-center overflow-hidden">
-              {url ? (
-                <img
-                  src={url}
-                  alt={`${character.name} ${v.label}`}
-                  className="w-full h-full object-cover"
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {[
+          { key: "frontImageUrl", label: "正面", anglePrompt: "正面角度, full body front view" },
+          { key: "sideImageUrl", label: "側面", anglePrompt: "側面角度, full body side view" },
+          { key: "backImageUrl", label: "背面", anglePrompt: "背面角度, full body back view" },
+          {
+            key: "threeQuarterImageUrl",
+            label: "3/4 視角",
+            anglePrompt: "3/4 視角, full body 3/4 view",
+          },
+        ].map(v => {
+          const url = (sheet as Record<string, string | undefined>)[v.key];
+          const compiledPrompt = [basePrompt, v.anglePrompt, "character turnaround sheet, white background, A-pose"]
+            .filter(Boolean)
+            .join(", ");
+          return (
+            <div key={v.key} className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">{v.label}</Label>
+              <div className="aspect-[3/4] rounded-md border border-dashed border-border/40 bg-card/20 flex items-center justify-center overflow-hidden">
+                {url ? (
+                  <img
+                    src={url}
+                    alt={`${character.name} ${v.label}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+                )}
+              </div>
+              <Input
+                value={url ?? ""}
+                onChange={e =>
+                  patch({ [v.key]: e.target.value || undefined } as Partial<
+                    typeof sheet
+                  >)
+                }
+                placeholder={`${v.label} URL`}
+                className="h-6 text-[10px]"
+              />
+              <div className="flex gap-1">
+                <GenerateImageButton
+                  prompt={compiledPrompt}
+                  aspectRatio="3:4"
+                  label="AI 生成"
+                  onSuccess={imgUrl =>
+                    patch({ [v.key]: imgUrl } as Partial<typeof sheet>)
+                  }
+                  disabled={!character.name}
                 />
-              ) : (
-                <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
-              )}
+                <AssetUploader
+                  accept="image/*"
+                  label="上傳"
+                  onUploaded={r =>
+                    patch({ [v.key]: r.url } as Partial<typeof sheet>)
+                  }
+                />
+              </div>
             </div>
-            <Input
-              value={url ?? ""}
-              onChange={e =>
-                patch({ [v.key]: e.target.value || undefined } as Partial<
-                  typeof sheet
-                >)
-              }
-              placeholder={`${v.label} URL`}
-              className="h-6 text-[10px]"
-            />
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 });
@@ -441,6 +502,10 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
     { id: "ageVariants", label: "年齡變體", icon: Users },
     { id: "sounds", label: "聲音檔", icon: Volume2 },
     { id: "refLib", label: "參考圖庫", icon: ImageIcon },
+    // ─── v4 真實參考 / 上傳資產 / 訓練 ─────────────────────────────────
+    { id: "realRefs", label: "真實參考", icon: Globe },
+    { id: "uploads", label: "上傳資產", icon: UploadIcon },
+    { id: "train", label: "訓練 LoRA", icon: GraduationCap },
   ];
 
   return (
@@ -938,6 +1003,37 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
             placeholder="試聽 mp3 / wav URL"
             className="h-7 text-xs"
           />
+          {/* 一鍵 TTS 試聽（直連 ProStudio elevenLabsTTS） */}
+          <div className="flex items-center gap-2">
+            <GenerateVoiceButton
+              text={
+                character.scriptRole?.signatureLines?.[0] ||
+                `你好，我是${character.name || "這個角色"}。`
+              }
+              voiceId={character.voiceProfile?.voiceId}
+              label="一鍵試聽（說招牌台詞）"
+              onJobStarted={reqId =>
+                toast.info(`TTS 任務 ${reqId.slice(0, 8)}… 已送出，請至背景任務查看結果`)
+              }
+            />
+            <AssetUploader
+              accept="audio/*"
+              label="上傳語音樣本"
+              onUploaded={r => {
+                patch({
+                  voiceProfile: {
+                    ...character.voiceProfile,
+                    sampleAudioUrl: r.url,
+                    useClone: true,
+                    cloneSampleUrls: [
+                      ...(character.voiceProfile?.cloneSampleUrls ?? []),
+                      r.url,
+                    ],
+                  },
+                });
+              }}
+            />
+          </div>
           {voices.length > 0 && (
             <div className="text-[10px] text-muted-foreground">
               <span>建議引擎：</span>
@@ -1863,9 +1959,341 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
           </Button>
         </div>
       )}
+
+      {/* ─── v4: 真實參考 ───────────────────────────────────────────────── */}
+      {openSection === "realRefs" && (
+        <div className="pt-1 space-y-2">
+          <p className="text-[10px] text-muted-foreground">
+            真實人物 / 原型 / 聲優 / 學術參考 —— 給編劇 / 美術 / AI 代理交叉引用。
+          </p>
+          {(character.realWorldRefs ?? []).map((r, idx) => (
+            <div
+              key={r.id}
+              className="rounded-lg border border-border/30 bg-card/30 p-2 space-y-1.5"
+            >
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={r.label}
+                  onChange={e =>
+                    patch({
+                      realWorldRefs: (character.realWorldRefs ?? []).map(
+                        (x, i) => (i === idx ? { ...x, label: e.target.value } : x)
+                      ),
+                    })
+                  }
+                  placeholder="參考標題（例：歷史上的奧黛麗·赫本）"
+                  className="h-7 text-xs flex-1"
+                />
+                <Select
+                  value={r.refType ?? ""}
+                  onValueChange={v =>
+                    patch({
+                      realWorldRefs: (character.realWorldRefs ?? []).map(
+                        (x, i) =>
+                          i === idx
+                            ? {
+                                ...x,
+                                refType: v as CharacterRealWorldRef["refType"],
+                              }
+                            : x
+                      ),
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-7 w-[100px] text-xs">
+                    <SelectValue placeholder="類型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHARACTER_REF_TYPE_PRESETS.map(o => (
+                      <SelectItem key={o.value} value={o.value} className="text-xs">
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    patch({
+                      realWorldRefs: (character.realWorldRefs ?? []).filter(
+                        (_, i) => i !== idx
+                      ),
+                    })
+                  }
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+              <Input
+                value={r.personName ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, personName: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="真實人物姓名"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={r.externalUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, externalUrl: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="外部連結（Wikipedia / IMDB）"
+                className="h-7 text-[11px]"
+              />
+              <Textarea
+                value={r.description ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, description: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="參考點（哪裡像、靈感來源說明）"
+                className="min-h-[40px] text-[11px]"
+              />
+              <Input
+                value={r.citation ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, citation: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="學術引用格式（作者, 年, 來源）"
+                className="h-7 text-[10px] font-mono"
+              />
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              patch({
+                realWorldRefs: [
+                  ...(character.realWorldRefs ?? []),
+                  { id: uid(), label: "", refType: "historical_figure" },
+                ],
+              })
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" /> 新增真實參考
+          </Button>
+        </div>
+      )}
+
+      {/* ─── v4: 上傳資產 ───────────────────────────────────────────────── */}
+      {openSection === "uploads" && (
+        <div className="pt-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">
+              直接上傳檔案到資產庫（圖、音、影、PDF、文件）。
+            </p>
+            <AssetUploader
+              accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+              label="上傳"
+              onUploaded={r => {
+                patch({
+                  uploadedAssets: [
+                    ...(character.uploadedAssets ?? []),
+                    {
+                      id: uid(),
+                      label: r.fileName,
+                      assetType: inferAssetType(r.mimeType),
+                      url: r.url,
+                      fileKey: r.fileKey,
+                      mimeType: r.mimeType,
+                      sizeBytes: r.sizeBytes,
+                      purpose: "reference 參考",
+                      uploadedAt: new Date().toISOString(),
+                    } as WorldAssetRef,
+                  ],
+                });
+                toast.success(`${r.fileName} 已加入資產庫`);
+              }}
+            />
+          </div>
+          {(character.uploadedAssets ?? []).map((a, idx) => (
+            <div
+              key={a.id}
+              className="flex items-center gap-2 rounded-md border border-border/30 bg-card/30 p-1.5"
+            >
+              {a.assetType === "image" ? (
+                <img
+                  src={a.url}
+                  alt={a.label}
+                  className="w-10 h-10 object-cover rounded"
+                />
+              ) : a.assetType === "audio" ? (
+                <FileAudio className="w-8 h-8 text-muted-foreground" />
+              ) : (
+                <Badge variant="outline" className="text-[9px]">
+                  {a.assetType}
+                </Badge>
+              )}
+              <div className="flex-1 min-w-0">
+                <Input
+                  value={a.label}
+                  onChange={e =>
+                    patch({
+                      uploadedAssets: (character.uploadedAssets ?? []).map(
+                        (x, i) => (i === idx ? { ...x, label: e.target.value } : x)
+                      ),
+                    })
+                  }
+                  className="h-6 text-[10px]"
+                />
+                <div className="flex items-center gap-1 mt-0.5">
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    下載
+                  </a>
+                  <span className="text-[9px] text-muted-foreground">
+                    {a.sizeBytes
+                      ? `${(a.sizeBytes / 1024).toFixed(1)} KB`
+                      : "—"}{" "}
+                    · {a.mimeType ?? a.assetType}
+                  </span>
+                </div>
+              </div>
+              <Select
+                value={a.purpose ?? ""}
+                onValueChange={v =>
+                  patch({
+                    uploadedAssets: (character.uploadedAssets ?? []).map(
+                      (x, i) => (i === idx ? { ...x, purpose: v } : x)
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="h-6 w-[80px] text-[10px]">
+                  <SelectValue placeholder="用途" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSET_PURPOSE_PRESETS.map(p => (
+                    <SelectItem key={p} value={p} className="text-[10px]">
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  patch({
+                    uploadedAssets: (character.uploadedAssets ?? []).filter(
+                      (_, i) => i !== idx
+                    ),
+                  })
+                }
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── v4: 訓練 LoRA 快速連結 ─────────────────────────────────────── */}
+      {openSection === "train" && (
+        <TrainCharacterLoraSection character={character} />
+      )}
     </div>
   );
 });
+
+// ─── 訓練 LoRA 子元件（v4） ────────────────────────────────────────────────
+
+function TrainCharacterLoraSection({
+  character,
+}: {
+  character: WorldCharacter;
+}) {
+  const [, navigate] = useLocation();
+  // 蒐集所有可用於訓練的圖像 URL：三視圖 + 表情 + 穿衣 + 參考圖庫
+  const seedImages: string[] = [];
+  const tv = character.threeViewSheet;
+  if (tv?.frontImageUrl) seedImages.push(tv.frontImageUrl);
+  if (tv?.sideImageUrl) seedImages.push(tv.sideImageUrl);
+  if (tv?.backImageUrl) seedImages.push(tv.backImageUrl);
+  if (tv?.threeQuarterImageUrl) seedImages.push(tv.threeQuarterImageUrl);
+  for (const e of character.expressions ?? [])
+    if (e.imageUrl) seedImages.push(e.imageUrl);
+  for (const o of character.outfits ?? [])
+    if (o.imageUrl) seedImages.push(o.imageUrl);
+  for (const r of character.referenceLibrary ?? [])
+    if (r.imageUrl) seedImages.push(r.imageUrl);
+  for (const a of character.uploadedAssets ?? [])
+    if (a.assetType === "image") seedImages.push(a.url);
+  const uniqueSeed = Array.from(new Set(seedImages));
+
+  const handleTrain = () => {
+    const params = new URLSearchParams();
+    if (character.name) params.set("modelName", `${character.name}_lora`);
+    if (character.triggerWord)
+      params.set(
+        "triggerWord",
+        character.triggerWord || `sks_${character.name.toLowerCase()}`
+      );
+    params.set(
+      "description",
+      [character.tagline, character.appearance].filter(Boolean).join("，")
+    );
+    params.set("trainingType", "image_subject");
+    if (uniqueSeed.length > 0)
+      params.set("seedImages", uniqueSeed.slice(0, 30).join(","));
+    navigate(`/lora-trainer?${params.toString()}`);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-muted-foreground">
+        以此角色現有的{" "}
+        <span className="font-mono text-primary">{uniqueSeed.length}</span>{" "}
+        張圖（三視圖 + 表情 + 穿衣 + 參考圖庫 + 上傳資產）為素材，
+        跳轉到模型訓練中心開始訓練專屬 LoRA。完成後角色 ID 會自動連結回來。
+      </p>
+      <Button
+        size="sm"
+        onClick={handleTrain}
+        disabled={uniqueSeed.length === 0}
+        className="h-8 text-xs"
+      >
+        <GraduationCap className="w-3.5 h-3.5 mr-1" />
+        在訓練中心訓練此角色（{uniqueSeed.length} 張素材）
+      </Button>
+      {uniqueSeed.length === 0 && (
+        <p className="text-[10px] text-muted-foreground italic">
+          先到「三視圖」「表情包」「參考圖庫」「上傳資產」加圖。
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ─── 風格 profile 編輯 ─────────────────────────────────────────────────────
 
@@ -3425,6 +3853,25 @@ const SceneCard = memo(function SceneCard({
               placeholder="場景全景圖 URL"
               className="h-7 text-[11px]"
             />
+            <div className="flex gap-1 mt-1">
+              <GenerateImageButton
+                prompt={[
+                  buildSceneConsistencyPrompt(scene),
+                  "establishing shot, wide angle, no characters",
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+                aspectRatio={scene.preferredAspectRatio || "16:9"}
+                label="AI 生成"
+                onSuccess={url => patch({ establishingShotUrl: url })}
+                disabled={!scene.name}
+              />
+              <AssetUploader
+                accept="image/*"
+                label="上傳"
+                onUploaded={r => patch({ establishingShotUrl: r.url })}
+              />
+            </div>
           </div>
           <div>
             <Label className="text-[10px] text-muted-foreground">偏好構圖比例</Label>
@@ -3970,6 +4417,603 @@ const SceneCard = memo(function SceneCard({
   );
 });
 
+// ─── v4: 匯出 / 匯入按鈕 ───────────────────────────────────────────────────
+
+function ImportExportButtons({
+  worldId,
+  worldName,
+}: {
+  worldId: number;
+  worldName: string;
+}) {
+  const utils = trpc.useUtils();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const exportQuery = trpc.worldbuilding.exportFull.useQuery(
+    { id: worldId },
+    { enabled: false }
+  );
+  const importMut = trpc.worldbuilding.importFull.useMutation({
+    onSuccess: data => {
+      toast.success(`已匯入為新世界觀（id=${data.id}）`);
+      utils.worldbuilding.list.invalidate();
+    },
+    onError: e => toast.error(`匯入失敗：${e.message}`),
+  });
+
+  const handleExport = async () => {
+    const result = await exportQuery.refetch();
+    if (!result.data) {
+      toast.error("匯出失敗");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(result.data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${worldName.replace(/[^\w一-龥-]/g, "_")}.worldbuilding.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("已匯出 JSON");
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const fw =
+        parsed.framework ?? parsed; // 容忍直接是 framework 物件
+      // 移除 id / 時間戳，避免 schema 驗證錯誤
+      delete fw.id;
+      delete fw.createdAt;
+      delete fw.updatedAt;
+      importMut.mutate({ framework: fw });
+    } catch (e) {
+      toast.error(
+        `匯入失敗：${e instanceof Error ? e.message : "無法解析 JSON"}`
+      );
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleExport}
+        disabled={exportQuery.isFetching}
+        className="h-8 text-xs"
+      >
+        <Download className="w-3.5 h-3.5 mr-1" />
+        匯出
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => inputRef.current?.click()}
+        disabled={importMut.isPending}
+        className="h-8 text-xs"
+      >
+        <UploadIcon className="w-3.5 h-3.5 mr-1" />
+        匯入
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0];
+          if (f) handleImport(f);
+        }}
+      />
+    </>
+  );
+}
+
+// ─── v4: 研究資料庫編輯器 ──────────────────────────────────────────────────
+
+const ResearchDatabaseEditor = memo(function ResearchDatabaseEditor({
+  entries,
+  onChange,
+}: {
+  entries: WorldResearchEntry[];
+  onChange: (next: WorldResearchEntry[]) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const filtered = entries.filter(
+    e =>
+      !filter ||
+      e.title.toLowerCase().includes(filter.toLowerCase()) ||
+      (e.content ?? "").toLowerCase().includes(filter.toLowerCase()) ||
+      (e.tags ?? []).some(t => t.toLowerCase().includes(filter.toLowerCase()))
+  );
+
+  const patch = (idx: number, p: Partial<WorldResearchEntry>) =>
+    onChange(entries.map((it, i) => (i === idx ? { ...it, ...p } : it)));
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold flex-1">
+            研究資料庫（歷史、地理、文化、生物、技術、政治、宗教、語言、經濟）
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange([
+                ...entries,
+                {
+                  id: uid(),
+                  title: "",
+                  category: "history",
+                  content: "",
+                  isCanon: false,
+                },
+              ])
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            新增條目
+          </Button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="搜尋標題 / 內容 / 標籤"
+            className="h-7 text-xs pl-7"
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          光球代理會自動讀取此資料庫做交叉引用。標記為「核心設定」(Canon) 的條目會在生成時優先注入 prompt。
+        </p>
+      </div>
+
+      <ScrollArea className="max-h-[55vh] pr-2">
+        <div className="space-y-2">
+          {filtered.map(e => {
+            const idx = entries.findIndex(x => x.id === e.id);
+            return (
+              <div
+                key={e.id}
+                className="rounded-lg border border-border/30 bg-card/30 p-3 space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={e.title}
+                    onChange={ev =>
+                      patch(idx, { title: ev.target.value })
+                    }
+                    placeholder="標題（例：苔森紀年中的星象學）"
+                    className="h-7 text-sm font-medium flex-1"
+                  />
+                  <Select
+                    value={e.category ?? ""}
+                    onValueChange={v => patch(idx, { category: v })}
+                  >
+                    <SelectTrigger className="h-7 w-[100px] text-xs">
+                      <SelectValue placeholder="分類" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RESEARCH_CATEGORY_PRESETS.map(c => (
+                        <SelectItem key={c.value} value={c.value} className="text-xs">
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => patch(idx, { isCanon: !e.isCanon })}
+                    className={`px-2 py-1 rounded-md text-[10px] border transition ${
+                      e.isCanon
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground"
+                    }`}
+                    title="標記為核心設定 — AI 生成時優先注入"
+                  >
+                    {e.isCanon ? "✓ Canon" : "Canon"}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      onChange(entries.filter(x => x.id !== e.id))
+                    }
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+                <Textarea
+                  value={e.content ?? ""}
+                  onChange={ev => patch(idx, { content: ev.target.value })}
+                  placeholder="主要內容（支援 Markdown）"
+                  className="min-h-[100px] text-[11px]"
+                />
+                <Input
+                  value={(e.tags ?? []).join("、")}
+                  onChange={ev =>
+                    patch(idx, {
+                      tags: ev.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="標籤（逗號分隔）"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  value={(e.sourceUrls ?? []).join("、")}
+                  onChange={ev =>
+                    patch(idx, {
+                      sourceUrls: ev.target.value
+                        .split(/[、,，\s]+/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="來源連結（多個用逗號或空白分隔）"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  value={e.citation ?? ""}
+                  onChange={ev => patch(idx, { citation: ev.target.value })}
+                  placeholder="引用格式（作者, 年, 來源, 頁碼）"
+                  className="h-7 text-[10px] font-mono"
+                />
+                <div className="flex items-center justify-between">
+                  <AssetUploader
+                    accept="image/*,application/pdf,.doc,.docx,.txt"
+                    label="加附件"
+                    onUploaded={r => {
+                      patch(idx, {
+                        attachments: [
+                          ...(e.attachments ?? []),
+                          {
+                            id: uid(),
+                            label: r.fileName,
+                            assetType: inferAssetType(r.mimeType),
+                            url: r.url,
+                            fileKey: r.fileKey,
+                            mimeType: r.mimeType,
+                            sizeBytes: r.sizeBytes,
+                            uploadedAt: new Date().toISOString(),
+                          },
+                        ],
+                      });
+                    }}
+                  />
+                  {(e.attachments?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(e.attachments ?? []).map((a, ai) => (
+                        <a
+                          key={a.id}
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                        >
+                          {a.label}
+                          <button
+                            type="button"
+                            onClick={ev => {
+                              ev.preventDefault();
+                              patch(idx, {
+                                attachments: (e.attachments ?? []).filter(
+                                  (_, i) => i !== ai
+                                ),
+                              });
+                            }}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && entries.length > 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              沒有符合「{filter}」的條目。
+            </p>
+          )}
+          {entries.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              尚無研究條目。點上方「新增條目」開始。
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+});
+
+// ─── v4: 音效 / 環境音庫 ───────────────────────────────────────────────────
+
+const SoundLibraryEditor = memo(function SoundLibraryEditor({
+  items,
+  onChange,
+}: {
+  items: WorldSoundLibraryItem[];
+  onChange: (next: WorldSoundLibraryItem[]) => void;
+}) {
+  const [filter, setFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const filtered = items.filter(
+    s =>
+      (!categoryFilter || s.category === categoryFilter) &&
+      (!filter ||
+        s.label.toLowerCase().includes(filter.toLowerCase()) ||
+        (s.tags ?? []).some(t =>
+          t.toLowerCase().includes(filter.toLowerCase())
+        ))
+  );
+
+  const patch = (idx: number, p: Partial<WorldSoundLibraryItem>) =>
+    onChange(items.map((it, i) => (i === idx ? { ...it, ...p } : it)));
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <FileAudio className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold flex-1">
+            音效 / 環境音庫
+          </h3>
+          <AssetUploader
+            accept="audio/*"
+            label="上傳音檔"
+            onUploaded={r => {
+              onChange([
+                ...items,
+                {
+                  id: uid(),
+                  label: r.fileName,
+                  category: "ambient",
+                  audioUrl: r.url,
+                  fileKey: r.fileKey,
+                  loopable: true,
+                  volumeDefault: 0.7,
+                },
+              ]);
+              toast.success(`${r.fileName} 已加入音效庫`);
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange([
+                ...items,
+                {
+                  id: uid(),
+                  label: "",
+                  category: "ambient",
+                  audioUrl: "",
+                  loopable: false,
+                  volumeDefault: 0.7,
+                },
+              ])
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            手動加入
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder="搜尋音檔名稱 / 標籤"
+              className="h-7 text-xs pl-7"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue placeholder="全部分類" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">
+                全部分類
+              </SelectItem>
+              {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (
+                <SelectItem key={c.value} value={c.value} className="text-xs">
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          場景的「Sound Design」可以引用此庫的 id，避免重複上傳。AI 代理也可查詢此庫挑選合適音效。
+        </p>
+      </div>
+
+      <ScrollArea className="max-h-[55vh] pr-2">
+        <div className="space-y-2">
+          {filtered.map(s => {
+            const idx = items.findIndex(x => x.id === s.id);
+            return (
+              <div
+                key={s.id}
+                className="rounded-lg border border-border/30 bg-card/30 p-2 space-y-1.5"
+              >
+                <div className="flex items-center gap-2">
+                  <FileAudio className="w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    value={s.label}
+                    onChange={e => patch(idx, { label: e.target.value })}
+                    placeholder="名稱"
+                    className="h-7 text-xs flex-1"
+                  />
+                  <Select
+                    value={s.category ?? ""}
+                    onValueChange={v =>
+                      patch(idx, {
+                        category: v as WorldSoundLibraryItem["category"],
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-[120px] text-xs">
+                      <SelectValue placeholder="分類" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (
+                        <SelectItem key={c.value} value={c.value} className="text-xs">
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => patch(idx, { loopable: !s.loopable })}
+                    className={`px-2 py-1 rounded text-[10px] border ${
+                      s.loopable
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground"
+                    }`}
+                  >
+                    {s.loopable ? "✓ Loop" : "Loop"}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      onChange(items.filter(x => x.id !== s.id))
+                    }
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+                <Input
+                  value={s.audioUrl}
+                  onChange={e => patch(idx, { audioUrl: e.target.value })}
+                  placeholder="音檔 URL"
+                  className="h-7 text-[11px]"
+                />
+                {s.audioUrl && (
+                  <audio
+                    src={s.audioUrl}
+                    controls
+                    preload="none"
+                    className="w-full h-8"
+                  />
+                )}
+                <Input
+                  value={(s.tags ?? []).join("、")}
+                  onChange={e =>
+                    patch(idx, {
+                      tags: e.target.value
+                        .split(/[、,，]/)
+                        .map(t => t.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="標籤（雨、戰鬥、勝利、夜晚…）"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  value={(s.triggers ?? []).join("、")}
+                  onChange={e =>
+                    patch(idx, {
+                      triggers: e.target.value
+                        .split(/[、,，]/)
+                        .map(t => t.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="觸發情境（rain_start / battle_begin / victory）"
+                  className="h-7 text-[10px] font-mono"
+                />
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">時長 (秒)</Label>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      value={s.durationSec ?? 0}
+                      onChange={e =>
+                        patch(idx, { durationSec: Number(e.target.value) })
+                      }
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">預設音量</Label>
+                    <Input
+                      type="number"
+                      step={0.05}
+                      min={0}
+                      max={1}
+                      value={s.volumeDefault ?? 0.7}
+                      onChange={e =>
+                        patch(idx, {
+                          volumeDefault: Math.max(
+                            0,
+                            Math.min(1, Number(e.target.value))
+                          ),
+                        })
+                      }
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">授權</Label>
+                    <Select
+                      value={s.license ?? ""}
+                      onValueChange={v => patch(idx, { license: v })}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="選擇" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SOUND_LICENSE_PRESETS.map(l => (
+                          <SelectItem key={l} value={l} className="text-xs">
+                            {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && items.length > 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              沒有符合條件的音效。
+            </p>
+          )}
+          {items.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              尚無音效。上傳音檔或手動加入開始建立音效庫。
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+});
+
 // ─── 主頁面 ────────────────────────────────────────────────────────────────
 
 export default function AnimationStudio() {
@@ -3983,7 +5027,14 @@ export default function AnimationStudio() {
 
   const [selectedWorldId, setSelectedWorldId] = useState<number | null>(null);
   const [selectedTab, setSelectedTab] = useState<
-    "characters" | "scenes" | "style" | "music" | "production" | "storyboards"
+    | "characters"
+    | "scenes"
+    | "style"
+    | "music"
+    | "production"
+    | "research"
+    | "sounds"
+    | "storyboards"
   >("characters");
 
   // 自動選第一個世界
@@ -4235,6 +5286,20 @@ export default function AnimationStudio() {
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
+        <ImportExportButtons
+          worldId={selectedWorld.id!}
+          worldName={selectedWorld.name}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/agent?focus=worldbuilding")}
+          className="h-8 text-xs"
+          title="請光球代理（導演 / 美術 / 配音 / 編劇）查詢此世界觀資料庫並協助製作"
+        >
+          <Bot className="w-3.5 h-3.5 mr-1" />
+          請光球幫忙
+        </Button>
       </div>
 
       {/* 世界觀基本資料（從導演 AI 融合進來，一處編完） */}
@@ -4353,6 +5418,14 @@ export default function AnimationStudio() {
           <TabsTrigger value="production" className="text-xs">
             <Theater className="w-3.5 h-3.5 mr-1" />
             製作管線
+          </TabsTrigger>
+          <TabsTrigger value="research" className="text-xs">
+            <Database className="w-3.5 h-3.5 mr-1" />
+            研究資料庫（{effectiveWorld.researchEntries?.length ?? 0}）
+          </TabsTrigger>
+          <TabsTrigger value="sounds" className="text-xs">
+            <FileAudio className="w-3.5 h-3.5 mr-1" />
+            音效庫（{effectiveWorld.soundLibrary?.length ?? 0}）
           </TabsTrigger>
           <TabsTrigger value="storyboards" className="text-xs">
             <Camera className="w-3.5 h-3.5 mr-1" />
@@ -4560,6 +5633,22 @@ export default function AnimationStudio() {
           <ProductionManifestEditor
             world={effectiveWorld}
             onPatch={handlePatchWorld}
+          />
+        </TabsContent>
+
+        <TabsContent value="research">
+          <ResearchDatabaseEditor
+            entries={effectiveWorld.researchEntries ?? []}
+            onChange={next =>
+              handlePatchWorld({ researchEntries: next })
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="sounds">
+          <SoundLibraryEditor
+            items={effectiveWorld.soundLibrary ?? []}
+            onChange={next => handlePatchWorld({ soundLibrary: next })}
           />
         </TabsContent>
 

@@ -231,6 +231,12 @@ export type WorldCharacter = {
   soundProfile?: CharacterSoundProfile;
   /** 姿勢 / 動作參考圖庫（站姿、坐姿、跑、戰鬥、手部、面部特寫） */
   referenceLibrary?: CharacterReferenceItem[];
+
+  // ─── 動畫製作專業擴充 v4：真實參考、上傳資產 ─────────────────────────
+  /** 真實參考（歷史人物、原型、聲優、時尚參考、學術資料……） */
+  realWorldRefs?: CharacterRealWorldRef[];
+  /** 上傳到資產庫的素材清單（reference photos、聲音樣本、文件 PDF） */
+  uploadedAssets?: WorldAssetRef[];
 };
 
 // ─── 角色：動畫製作專業欄位 v3 ─────────────────────────────────────────────
@@ -343,6 +349,163 @@ export type CharacterReferenceItem = {
   description?: string;
 };
 
+// ─── v4：真實參考 + 上傳資產 + 研究資料庫 + 音效庫 ──────────────────────────
+
+/**
+ * 角色真實參考 —— 歷史人物、原型、聲優、時尚參考、學術資料。
+ * 給編劇 / 美術 / 配音導向使用，AI 代理可查詢此庫做交叉引用。
+ */
+export type CharacterRealWorldRef = {
+  id: string;
+  /** 顯示用標籤 */
+  label: string;
+  /** 類型：歷史人物 / 原型 / 聲優 / 時尚 / 名人 / 文學 / 運動員 / 其他 */
+  refType?:
+    | "historical_figure"
+    | "archetype"
+    | "voice_actor"
+    | "fashion"
+    | "athlete"
+    | "celebrity"
+    | "literature"
+    | "other";
+  /** 真實人物姓名 */
+  personName?: string;
+  /** 外部連結（Wikipedia、IMDB、社群） */
+  externalUrl?: string;
+  /** 參考圖 URL */
+  imageUrls?: string[];
+  /** 描述、與此角色的對應點 */
+  description?: string;
+  /** 學術引用格式：作者, 年, 來源 */
+  citation?: string;
+};
+
+/**
+ * 場景真實參考 —— 真實地點、地圖位置、建築、博物館館藏、檔案照片。
+ * 給美術指導 / 製作管理 / AI 代理查詢使用。
+ */
+export type SceneRealWorldRef = {
+  id: string;
+  label: string;
+  /** 類型：location 地點 / building 建築 / landmark 地標 / museum 博物館 /
+   *   photo 檔案照片 / video 紀錄片 / wikipedia 百科 / archive 檔案 /
+   *   academic 學術文獻 / other */
+  refType?:
+    | "location"
+    | "building"
+    | "landmark"
+    | "museum_collection"
+    | "photo"
+    | "video"
+    | "wikipedia"
+    | "archive"
+    | "academic"
+    | "other";
+  /** GPS 座標（lat, lon） */
+  gpsCoords?: { lat: number; lon: number };
+  /** 地圖預覽圖 URL */
+  mapImageUrl?: string;
+  /** 外部連結 */
+  externalUrl?: string;
+  /** 參考圖 URL */
+  imageUrls?: string[];
+  /** 描述 */
+  description?: string;
+  /** 引用格式 */
+  citation?: string;
+  /** 參考年份（古蹟、檔案資料） */
+  yearOfReference?: string;
+};
+
+/** 通用：上傳到資產庫的素材引用 */
+export type WorldAssetRef = {
+  id: string;
+  /** 顯示名稱（檔名或自訂） */
+  label: string;
+  /** 資產類型：image / audio / video / pdf / document / other */
+  assetType?: "image" | "audio" | "video" | "pdf" | "document" | "other";
+  /** 從 uploadFileToS3 拿到的 URL（CDN / S3） */
+  url: string;
+  /** 從 uploadFileToS3 拿到的 fileKey（給刪除用） */
+  fileKey?: string;
+  /** MIME type */
+  mimeType?: string;
+  /** 大小（位元組） */
+  sizeBytes?: number;
+  /** 用途 tag：reference / training / output / archive */
+  purpose?: string;
+  /** 描述 */
+  description?: string;
+  /** 上傳時間（ISO） */
+  uploadedAt?: string;
+};
+
+/**
+ * 世界研究資料庫條目 —— 寫世界設定的詳細研究筆記。
+ * 適用：歷史、地理、文化、生物、技術、政治、宗教、語言、經濟。
+ * AI 代理可查詢此庫獲取世界深度設定。
+ */
+export type WorldResearchEntry = {
+  id: string;
+  title: string;
+  /** 分類：history / geography / culture / biology / technology /
+   *      politics / religion / language / economy / other */
+  category?: string;
+  /** 主要內容（markdown 支援） */
+  content?: string;
+  /** 來源連結 */
+  sourceUrls?: string[];
+  /** 附件（PDF / 圖 / 影音） */
+  attachments?: WorldAssetRef[];
+  /** 引用格式 */
+  citation?: string;
+  /** 自由標籤 */
+  tags?: string[];
+  /** 是否標記為核心設定（AI 注入 prompt 時優先） */
+  isCanon?: boolean;
+};
+
+/**
+ * 世界音效 / 環境音庫 —— 全世界共用的音效資源池。
+ * 場景的 soundDesign 可以引用這裡的 id，避免重複上傳。
+ */
+export type WorldSoundLibraryItem = {
+  id: string;
+  label: string;
+  /** 分類：ambient 環境音 / sfx 音效 / ui 界面音 / music_stinger 音樂節拍 /
+   *      footsteps 腳步 / voice_clip 語音片段 / weather 天氣 / nature 自然 */
+  category?:
+    | "ambient"
+    | "sfx"
+    | "ui"
+    | "music_stinger"
+    | "footsteps"
+    | "voice_clip"
+    | "weather"
+    | "nature"
+    | "other";
+  /** 音檔 URL（CDN / S3 / 外部） */
+  audioUrl: string;
+  fileKey?: string;
+  /** 時長（秒） */
+  durationSec?: number;
+  /** 自由標籤（雨、戰鬥、勝利、夜晚……） */
+  tags?: string[];
+  /** 描述 */
+  description?: string;
+  /** 觸發條件：什麼情境下適用 */
+  triggers?: string[];
+  /** 是否可無縫循環 */
+  loopable?: boolean;
+  /** 預設音量 0–1 */
+  volumeDefault?: number;
+  /** 來源（自製 / Freesound / 商業庫） */
+  source?: string;
+  /** 授權（CC0 / CC-BY / 自有版權 / 商業授權） */
+  license?: string;
+};
+
 // ─── Scene ──────────────────────────────────────────────────────────────────
 
 /** 場景時段表 —— 同一場景在不同時間的視覺狀態。 */
@@ -404,6 +567,14 @@ export type WorldScene = {
   atmospherics?: SceneAtmospherics;
   /** Sound design（環境音床、room tone、reverb、signature sfx） */
   soundDesign?: SceneSoundDesign;
+
+  // ─── v4：真實參考 + 上傳資產 ─────────────────────────────────────────
+  /** 真實世界參考（地圖位置、地標、博物館館藏、檔案照片） */
+  realWorldRefs?: SceneRealWorldRef[];
+  /** 上傳到資產庫的素材 */
+  uploadedAssets?: WorldAssetRef[];
+  /** 此場景引用的全世界音效庫項目 id 陣列 */
+  soundLibraryRefs?: string[];
 };
 
 /** 場景 Layout / Blocking —— 動畫師用來規劃角色站位與鏡頭走位。 */
@@ -644,6 +815,14 @@ export type WorldbuildingFrameworkData = {
   defaultStyleProfileId?: string | null;
   /** 全世界共用的負面提示詞（套用於所有 AI 生成） */
   globalNegativePrompt?: string;
+
+  // ─── v4：研究資料庫 + 音效庫 + 全世界上傳資產 ─────────────────────────
+  /** 世界研究資料庫（歷史、地理、文化、生物、技術、政治、宗教、語言、經濟） */
+  researchEntries?: WorldResearchEntry[];
+  /** 世界共用的音效 / 環境音庫 */
+  soundLibrary?: WorldSoundLibraryItem[];
+  /** 世界共用的上傳資產（給角色 / 場景參考用） */
+  uploadedAssets?: WorldAssetRef[];
   /** 製作目標：動畫類型 / 預期長度 / 受眾 / 製作管線 */
   productionTargets?: {
     /** 動畫類型：短片 / 番劇 / MV / 廣告 / 教學 / 純插畫集 */
@@ -1216,6 +1395,78 @@ export const LUFS_TARGET_PRESETS = [
   { value: -10, label: "-10 LUFS（高動態廣告）" },
 ] as const;
 
+// ─── v4 真實參考 / 研究資料庫 / 音效庫 presets ─────────────────────────────
+
+export const CHARACTER_REF_TYPE_PRESETS = [
+  { value: "historical_figure", label: "歷史人物" },
+  { value: "archetype", label: "故事原型" },
+  { value: "voice_actor", label: "聲優 / 配音員" },
+  { value: "fashion", label: "時尚 / 服裝參考" },
+  { value: "athlete", label: "運動員" },
+  { value: "celebrity", label: "名人" },
+  { value: "literature", label: "文學角色" },
+  { value: "other", label: "其他" },
+] as const;
+
+export const SCENE_REF_TYPE_PRESETS = [
+  { value: "location", label: "真實地點" },
+  { value: "building", label: "建築" },
+  { value: "landmark", label: "地標" },
+  { value: "museum_collection", label: "博物館館藏" },
+  { value: "photo", label: "檔案照片" },
+  { value: "video", label: "紀錄片 / 影像" },
+  { value: "wikipedia", label: "Wikipedia" },
+  { value: "archive", label: "檔案 / 古地圖" },
+  { value: "academic", label: "學術文獻" },
+  { value: "other", label: "其他" },
+] as const;
+
+export const RESEARCH_CATEGORY_PRESETS = [
+  { value: "history", label: "歷史" },
+  { value: "geography", label: "地理" },
+  { value: "culture", label: "文化" },
+  { value: "biology", label: "生物" },
+  { value: "technology", label: "技術" },
+  { value: "politics", label: "政治" },
+  { value: "religion", label: "宗教" },
+  { value: "language", label: "語言" },
+  { value: "economy", label: "經濟" },
+  { value: "magic", label: "魔法 / 異能" },
+  { value: "society", label: "社會結構" },
+  { value: "other", label: "其他" },
+] as const;
+
+export const SOUND_LIBRARY_CATEGORY_PRESETS = [
+  { value: "ambient", label: "環境音 Ambient（風、雨、市場、森林…）" },
+  { value: "sfx", label: "音效 SFX（碰撞、爆炸、魔法…）" },
+  { value: "ui", label: "界面音 UI（提示、選單、回饋）" },
+  { value: "music_stinger", label: "音樂節拍 Stinger" },
+  { value: "footsteps", label: "腳步聲" },
+  { value: "voice_clip", label: "語音片段" },
+  { value: "weather", label: "天氣音（雷、雨、雪、風暴）" },
+  { value: "nature", label: "自然音（鳥、蟲、水）" },
+  { value: "other", label: "其他" },
+] as const;
+
+export const SOUND_LICENSE_PRESETS = [
+  "CC0 公眾領域",
+  "CC-BY 標示",
+  "CC-BY-SA 標示-相同方式分享",
+  "自有版權",
+  "商業授權（Pond5 / Epidemic Sound）",
+  "免費庫（Freesound）",
+  "AI 生成（站內）",
+] as const;
+
+export const ASSET_PURPOSE_PRESETS = [
+  "reference 參考",
+  "training 訓練資料",
+  "output 產出物",
+  "archive 存檔",
+  "concept 概念稿",
+  "final 成品",
+] as const;
+
 // ─── Zod schemas（router 用） ───────────────────────────────────────────────
 
 export const characterRoleSchema = z.enum([
@@ -1428,6 +1679,52 @@ export const worldCharacterSchema = z.object({
     )
     .max(200)
     .optional(),
+  // v4 真實參考 + 上傳資產
+  realWorldRefs: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(255),
+        refType: z
+          .enum([
+            "historical_figure",
+            "archetype",
+            "voice_actor",
+            "fashion",
+            "athlete",
+            "celebrity",
+            "literature",
+            "other",
+          ])
+          .optional(),
+        personName: z.string().max(128).optional(),
+        externalUrl: z.string().url().max(2048).optional(),
+        imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+        description: z.string().max(2000).optional(),
+        citation: z.string().max(500).optional(),
+      })
+    )
+    .max(50)
+    .optional(),
+  uploadedAssets: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(255),
+        assetType: z
+          .enum(["image", "audio", "video", "pdf", "document", "other"])
+          .optional(),
+        url: z.string().url().max(2048),
+        fileKey: z.string().max(255).optional(),
+        mimeType: z.string().max(128).optional(),
+        sizeBytes: z.number().int().min(0).optional(),
+        purpose: z.string().max(64).optional(),
+        description: z.string().max(500).optional(),
+        uploadedAt: z.string().max(32).optional(),
+      })
+    )
+    .max(100)
+    .optional(),
 });
 
 export const sceneTimeOfDaySchema = z.object({
@@ -1524,6 +1821,62 @@ export const worldSceneSchema = z.object({
       diegeticSources: z.array(z.string().max(128)).max(20).optional(),
     })
     .optional(),
+  // v4 真實參考 + 上傳資產
+  realWorldRefs: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(255),
+        refType: z
+          .enum([
+            "location",
+            "building",
+            "landmark",
+            "museum_collection",
+            "photo",
+            "video",
+            "wikipedia",
+            "archive",
+            "academic",
+            "other",
+          ])
+          .optional(),
+        gpsCoords: z
+          .object({
+            lat: z.number().min(-90).max(90),
+            lon: z.number().min(-180).max(180),
+          })
+          .optional(),
+        mapImageUrl: z.string().url().max(2048).optional(),
+        externalUrl: z.string().url().max(2048).optional(),
+        imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+        description: z.string().max(2000).optional(),
+        citation: z.string().max(500).optional(),
+        yearOfReference: z.string().max(32).optional(),
+      })
+    )
+    .max(50)
+    .optional(),
+  uploadedAssets: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(255),
+        assetType: z
+          .enum(["image", "audio", "video", "pdf", "document", "other"])
+          .optional(),
+        url: z.string().url().max(2048),
+        fileKey: z.string().max(255).optional(),
+        mimeType: z.string().max(128).optional(),
+        sizeBytes: z.number().int().min(0).optional(),
+        purpose: z.string().max(64).optional(),
+        description: z.string().max(500).optional(),
+        uploadedAt: z.string().max(32).optional(),
+      })
+    )
+    .max(100)
+    .optional(),
+  soundLibraryRefs: z.array(z.string().max(64)).max(100).optional(),
 });
 
 export const worldStyleProfileSchema = z.object({
@@ -1659,6 +2012,92 @@ export const worldbuildingFrameworkInputSchema = z.object({
   musicThemes: z.array(worldMusicThemeSchema).max(30).optional(),
   defaultStyleProfileId: z.string().max(64).nullable().optional(),
   globalNegativePrompt: z.string().max(2000).optional(),
+  // v4
+  researchEntries: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        title: z.string().min(1).max(255),
+        category: z.string().max(32).optional(),
+        content: z.string().max(50000).optional(),
+        sourceUrls: z.array(z.string().url().max(2048)).max(30).optional(),
+        attachments: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              label: z.string().min(1).max(255),
+              assetType: z
+                .enum(["image", "audio", "video", "pdf", "document", "other"])
+                .optional(),
+              url: z.string().url().max(2048),
+              fileKey: z.string().max(255).optional(),
+              mimeType: z.string().max(128).optional(),
+              sizeBytes: z.number().int().min(0).optional(),
+              purpose: z.string().max(64).optional(),
+              description: z.string().max(500).optional(),
+              uploadedAt: z.string().max(32).optional(),
+            })
+          )
+          .max(50)
+          .optional(),
+        citation: z.string().max(500).optional(),
+        tags: z.array(z.string().max(32)).max(20).optional(),
+        isCanon: z.boolean().optional(),
+      })
+    )
+    .max(200)
+    .optional(),
+  soundLibrary: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(255),
+        category: z
+          .enum([
+            "ambient",
+            "sfx",
+            "ui",
+            "music_stinger",
+            "footsteps",
+            "voice_clip",
+            "weather",
+            "nature",
+            "other",
+          ])
+          .optional(),
+        audioUrl: z.string().url().max(2048),
+        fileKey: z.string().max(255).optional(),
+        durationSec: z.number().min(0).max(60 * 60).optional(),
+        tags: z.array(z.string().max(32)).max(20).optional(),
+        description: z.string().max(500).optional(),
+        triggers: z.array(z.string().max(64)).max(20).optional(),
+        loopable: z.boolean().optional(),
+        volumeDefault: z.number().min(0).max(1).optional(),
+        source: z.string().max(128).optional(),
+        license: z.string().max(128).optional(),
+      })
+    )
+    .max(300)
+    .optional(),
+  uploadedAssets: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(255),
+        assetType: z
+          .enum(["image", "audio", "video", "pdf", "document", "other"])
+          .optional(),
+        url: z.string().url().max(2048),
+        fileKey: z.string().max(255).optional(),
+        mimeType: z.string().max(128).optional(),
+        sizeBytes: z.number().int().min(0).optional(),
+        purpose: z.string().max(64).optional(),
+        description: z.string().max(500).optional(),
+        uploadedAt: z.string().max(32).optional(),
+      })
+    )
+    .max(500)
+    .optional(),
   productionTargets: z
     .object({
       format: z.string().max(64).optional(),
