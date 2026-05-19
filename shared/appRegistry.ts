@@ -777,7 +777,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "models",
-    label: "角色鍛造所",
+    label: "模型訓練中心",
     path: "/models",
     group: "assets",
     description: "模型管理與版本檢視",
