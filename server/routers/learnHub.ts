@@ -63,8 +63,8 @@ const SEED_DOCS: LearnDoc[] = [
   {
     id: "gs-001",
     category: "getting-started",
-    title: "Healing Studio 完整入門指南",
-    summary: "5 分鐘快速了解平台所有功能，從創作工作室到影片工作室的完整介紹。",
+    title: "Healing Studio 完整入門指南（2026-05 最新版）",
+    summary: "5 分鐘快速了解平台所有功能：創作工作室、統一資產庫、個人資料庫、提示詞庫、學習中心。",
     content: `# Healing Studio 完整入門指南
 
 ## 🌟 什麼是 Healing Studio？
@@ -130,30 +130,24 @@ LoRA 微調模型管理中心：
 - 刪除紀錄
 - 加入首頁精選（showcase.promote，每天最多 5 件）
 
-### 📦 數位資產庫（/assets）
-個人 + 團隊共享的媒體資產管理：
-- 上傳並儲存任意媒體檔案
-- 切換 private / team_shared 可見性
-- 刪除資產
+### 📦 統一資產庫（/assets，含 6 個子分頁）
+個人 + 團隊共享的媒體資產管理中樞：
+- \`assets\` 我的素材：上傳並儲存任意媒體檔案，切換 private / team_shared 可見性
+- \`prompts\` 提示詞庫（舊 /prompt-library）：管理收藏提示詞、公開廣場
+- \`vault\` 一致性保險庫（舊 /vault）：儲存角色 / 場景參考圖，生成時可注入
+- \`tasks\` 背景任務（舊 /background-tasks）：查看訓練 / 長時生成佇列
+- \`shared\` 共享素材（舊 /shared）：團隊協作工作空間
+- \`drive\` 雲端硬碟：第三方雲端連動
 
-### 🗄️ 一致性保險庫（/vault）
-角色和場景視覺一致性的核心系統：
-- 儲存角色參考圖（character type）
-- 儲存場景參考圖（scene type）
-- 在創作工作室生成時直接注入角色/場景 URL
-- 支援標籤和元資料管理
+### 📚 個人資料庫（/teaching-archive）
+RAG 訓練素材庫：上傳 PDF、文件、圖片、影片、語音、簡報。
+PDF 自動抽文、語音 / 影片自動轉字，AI 助理可引用內容回答。
 
-### 📝 專案筆記（/notes）
+### 📝 專案筆記與排程（/notes，含日曆檢視）
 整合 Markdown + 腳本的筆記系統：
 - 支援 note / script / calendar_event 三種類型
-- 可設定排程日期
+- 可設定排程日期，列表內含日曆檢視（舊 /calendar 已合併進此頁）
 - 腳本格式（scriptJson）支援結構化內容
-
-### 📅 創作排程（/calendar）
-創作日曆系統，整合專案筆記的排程功能。
-
-### 👥 共享空間（/shared）
-團隊共享的協作工作空間。
 
 ### 📊 儀表板（/dashboard）
 個人使用統計中心：
@@ -168,8 +162,14 @@ LoRA 微調模型管理中心：
 - 優先級：low / medium / high / critical
 - 回饋通知自動推送給管理員
 
-### 📚 學習文件（/learn）
-本文件所在的知識庫中心，整合所有教學文章。
+### 📚 學習文件中心（/learn）
+本文件所在的知識中樞，現包含四大子分頁：
+- **文件中心**：所有教學文章（含本篇）
+- **提示詞庫**：多模態 / 代理人呼叫 / 系統提示詞參考範例，一鍵存到個人詞庫
+- **影片學習區**：教學影片
+- **學習測驗區**：互動測驗檢核學習成果
+
+頂部快速入口卡片直通：個人資料庫（/teaching-archive）、我的提示詞庫（/assets?section=prompts）、提示詞參考庫（本頁 prompts tab）。
 
 ### ⚙️ 個人設定（/settings + /settings/ai-brain）
 - 主題/字型/動畫偏好設定
@@ -204,7 +204,7 @@ LoRA 微調模型管理中心：
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-01T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -279,7 +279,7 @@ LoRA 微調模型管理中心：
     difficulty: "beginner",
     readingMinutes: 6,
     publishedAt: "2026-04-01T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -369,7 +369,7 @@ cp .env.example .env
     difficulty: "intermediate",
     readingMinutes: 8,
     publishedAt: "2026-04-01T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -446,7 +446,7 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     difficulty: "intermediate",
     readingMinutes: 7,
     publishedAt: "2026-04-02T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -621,7 +621,7 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-05T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -813,7 +813,7 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-06T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -952,7 +952,7 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     difficulty: "intermediate",
     readingMinutes: 14,
     publishedAt: "2026-04-07T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -1043,7 +1043,7 @@ AI Brain 是 Healing Studio 的智能核心配置，讓你為平台的不同 AI 
     difficulty: "intermediate",
     readingMinutes: 8,
     publishedAt: "2026-04-08T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -1266,7 +1266,7 @@ Healing Studio 使用 **tRPC v10** 作為 API 層，前後端共享型別，無�
     difficulty: "advanced",
     readingMinutes: 20,
     publishedAt: "2026-04-07T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -1512,7 +1512,7 @@ npx drizzle-kit introspect:mysql
     difficulty: "advanced",
     readingMinutes: 18,
     publishedAt: "2026-04-08T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -1637,7 +1637,7 @@ NOT_FOUND             // 找不到資源
     difficulty: "advanced",
     readingMinutes: 10,
     publishedAt: "2026-04-09T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -1740,7 +1740,7 @@ Healing Studio 使用 Gemini 自動將你的積木組合編譯成高品質英文
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-08T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -1852,7 +1852,7 @@ trpc.generate.multimodal.mutate({
     difficulty: "intermediate",
     readingMinutes: 10,
     publishedAt: "2026-04-10T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -1942,7 +1942,7 @@ ControlNet 是一種讓你精確控制 AI 生成結果的技術。透過提供�
     difficulty: "advanced",
     readingMinutes: 10,
     publishedAt: "2026-04-10T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2068,7 +2068,7 @@ REPLICATE_API_TOKEN=r8_your_token_here
     difficulty: "advanced",
     readingMinutes: 14,
     publishedAt: "2026-04-11T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2206,7 +2206,7 @@ REPLICATE_API_TOKEN=r8_your_token_here
     difficulty: "intermediate",
     readingMinutes: 15,
     publishedAt: "2026-04-09T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -2314,7 +2314,7 @@ trpc.imageStudio.nanoBananaPro.mutate({
     difficulty: "advanced",
     readingMinutes: 12,
     publishedAt: "2026-04-11T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2370,7 +2370,7 @@ trpc.imageStudio.nanoBananaPro.mutate({
     difficulty: "beginner",
     readingMinutes: 4,
     publishedAt: "2026-04-11T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -2416,7 +2416,7 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     difficulty: "beginner",
     readingMinutes: 3,
     publishedAt: "2026-04-12T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2484,7 +2484,7 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     difficulty: "intermediate",
     readingMinutes: 6,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2606,7 +2606,7 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2727,7 +2727,7 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     difficulty: "beginner",
     readingMinutes: 9,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -2876,7 +2876,7 @@ http://localhost:3000/api/oauth/callback  (開發用)
     difficulty: "advanced",
     readingMinutes: 15,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -3046,7 +3046,7 @@ http://localhost:3000/api/oauth/callback  (開發用)
     difficulty: "beginner",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -3238,7 +3238,7 @@ http://localhost:3000/api/oauth/callback  (開發用)
     difficulty: "intermediate",
     readingMinutes: 15,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -3326,7 +3326,7 @@ AI 創作夥伴，在每個頁面都能開啟。
 ### 7. 角色鍛造所（/models）
 LoRA 微調模型管理。
 
-### 8. LoRA 訓練工坊（/lora-trainer）
+### 8. 角色鍛造所（/models）
 四步驟微調訓練流程。
 
 ### 9. 一致性保險庫（/vault）
@@ -3412,7 +3412,7 @@ Bug 回報、功能建議。
     difficulty: "beginner",
     readingMinutes: 10,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -3555,7 +3555,7 @@ Bug 回報、功能建議。
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -3729,7 +3729,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "intermediate",
     readingMinutes: 15,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -3833,7 +3833,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -3970,7 +3970,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "beginner",
     readingMinutes: 10,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -3984,12 +3984,22 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     category: "getting-started",
     title: "數位資產庫完整教學：上傳、管理與分享你的創作素材",
     summary:
-      "學會使用數位資產庫統一管理所有圖片、影片、音訊、語音和腳本檔案，支援團隊共享和批量管理。",
+      "用統一資產庫管理所有圖片、影片、音訊、語音和腳本，內含提示詞庫、一致性保險庫、雲端硬碟與背景任務子頁。",
     content: `# 數位資產庫完整教學
+
+> 📌 **2026-05 統合**：所有素材相關頁面（/prompt-library / /vault / /background-tasks / /shared）已統一在 \`/assets\` 之下以子分頁形式呈現，舊網址會自動轉址至對應的 \`?section=...\`。
 
 ## 什麼是數位資產庫？
 
 數位資產庫（/assets）是你的私人媒體管理中心，統一儲存和管理所有創作素材。所有上傳的檔案都通過 S3 兼容的雲端儲存安全保管。
+
+子分頁總覽：
+- \`section=assets\` 我的素材（預設）
+- \`section=prompts\` 提示詞庫（舊 /prompt-library）
+- \`section=vault\` 一致性保險庫（舊 /vault）
+- \`section=tasks\` 背景任務（舊 /background-tasks）
+- \`section=shared\` 共享素材（舊 /shared）
+- \`section=drive\` 雲端硬碟連動
 
 ---
 
@@ -4089,7 +4099,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -4206,7 +4216,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "beginner",
     readingMinutes: 10,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -4220,8 +4230,11 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     category: "getting-started",
     title: "專案筆記與創作排程完整教學",
     summary:
-      "使用專案筆記記錄創作靈感和腳本，搭配創作排程日曆管理專案時程，支援 Google Calendar 整合。",
+      "使用專案筆記記錄創作靈感、腳本，並用日曆事件管理時程。2026-05 起 /calendar 已合併進 /notes，原入口自動轉址。",
     content: `# 專案筆記與創作排程完整教學
+
+> 📌 **2026-05 更新**：原本獨立的「創作排程 /calendar」頁已合併進「專案筆記 /notes」。
+> 在筆記中將類型設為「日曆事件（calendar_event）」並指定日期，即可在筆記列表用日曆檢視。
 
 ## 專案筆記（/notes）
 
@@ -4317,7 +4330,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -4449,7 +4462,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     difficulty: "advanced",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -4468,7 +4481,7 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
 
 ## 概覽
 
-LoRA 訓練中心（/lora-trainer）是 Healing Studio 的進階模型微調系統，提供比角色鍛造所更精細的控制。支援六種訓練類型和雙引擎架構。
+角色鍛造所（/models）是 Healing Studio 的進階模型微調系統，提供比角色鍛造所更精細的控制。支援六種訓練類型和雙引擎架構。
 
 ---
 
@@ -4601,7 +4614,7 @@ LoRA 訓練中心（/lora-trainer）是 Healing Studio 的進階模型微調系�
     difficulty: "advanced",
     readingMinutes: 14,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -4728,7 +4741,7 @@ LoRA 訓練中心（/lora-trainer）是 Healing Studio 的進階模型微調系�
     difficulty: "intermediate",
     readingMinutes: 14,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -4917,7 +4930,7 @@ Healing Studio 圖片創作室整合了 5 種最先進的 3D 建模 AI 模型，
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -5073,7 +5086,7 @@ Healing Studio 的四大工作室（創作、圖片、影片、音樂配音）�
     difficulty: "advanced",
     readingMinutes: 15,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -5200,7 +5213,7 @@ AI 監控中心（/langsmith）是 Healing Studio 整合 LangSmith 的進階 AI 
     difficulty: "advanced",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -5352,7 +5365,7 @@ AI 監控中心（/langsmith）是 Healing Studio 整合 LangSmith 的進階 AI 
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -5503,7 +5516,7 @@ AI 監控中心（/langsmith）是 Healing Studio 整合 LangSmith 的進階 AI 
     difficulty: "beginner",
     readingMinutes: 15,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -5648,7 +5661,7 @@ www.soundhelix.com (Demo)
     difficulty: "advanced",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -5776,7 +5789,7 @@ AI 大腦是 Healing Studio 的智能核心，讓你為不同功能指定最適�
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -6000,7 +6013,7 @@ A: 側邊欄下方的「剩餘配額」卡片即可即時查看，也可前往�
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-14T00:00:00Z",
-    updatedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -6008,12 +6021,15 @@ A: 側邊欄下方的「剩餘配額」卡片即可即時查看，也可前往�
     id: "api-prompt-library",
     category: "api-docs",
     title: "提示詞庫系統完整說明",
-    summary: "提示詞庫（Prompt Library）的 DB schema、tRPC API、前端使用方式完整指南。",
+    summary: "提示詞庫（Prompt Library）的 DB schema、tRPC API、前端使用方式完整指南。2026-05 入口已整合到資產庫。",
     content: `# 提示詞庫系統說明
 
 ## 概覽
 
-提示詞庫（/prompt-library）是用來管理、收藏和分享 AI 提示詞的系統。支援個人提示詞管理和公開社群廣場。
+提示詞庫用來管理、收藏和分享 AI 提示詞，支援個人提示詞管理和公開社群廣場。
+
+> 🆕 **2026-05 入口更新**：正式路徑為 \`/assets?section=prompts\`（資產庫子分頁），舊網址 \`/prompt-library\` 仍可使用並自動轉址。
+> 學習中心新增的「提示詞庫」分頁則提供**靜態參考範例**，可一鍵存入個人提示詞庫。
 
 ---
 
@@ -6059,12 +6075,13 @@ CREATE TABLE prompt_library (
 
 ---
 
-## 前端頁面：/prompt-library
+## 前端頁面：/assets?section=prompts（舊 /prompt-library 自動轉址）
 
 - **我的提示詞** tab：搜尋 + 分類篩選 + 只看收藏 toggle
 - **公開廣場** tab：熱門提示詞排行
 - **新增/編輯 Dialog**：標題、內容、分類、標籤、公開 switch、建議模型
 - 複製按鈕：複製到剪貼簿 + 自動呼叫 incrementUseCount
+- 學習中心「提示詞庫」分頁亦可呼叫 \`trpc.promptLibrary.create\` 把參考提示詞一鍵存入
 
 ---
 
@@ -6093,7 +6110,7 @@ const data = await trpc.promptLibrary.list.query({
     difficulty: "intermediate",
     readingMinutes: 8,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -6169,7 +6186,7 @@ Pinecone metadata 欄位：userId, generationId, prompt, generationType, vibeCar
     difficulty: "advanced",
     readingMinutes: 10,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -6261,7 +6278,7 @@ await falQueueSubmit(modelId, input, { webhookUrl });
     difficulty: "intermediate",
     readingMinutes: 7,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -6366,7 +6383,7 @@ A: 確認 \`VITE_SITE_URL\` 已設定為正式網域（不能是 localhost），
     difficulty: "beginner",
     readingMinutes: 10,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -6563,7 +6580,7 @@ priority, createdAt, updatedAt
     difficulty: "advanced",
     readingMinutes: 15,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -6669,7 +6686,7 @@ priority, createdAt, updatedAt
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -6767,7 +6784,7 @@ await takeR2Snapshot(); // 立即執行一次快照
     difficulty: "intermediate",
     readingMinutes: 6,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -6872,7 +6889,7 @@ const event = stripe.webhooks.constructEvent(
     difficulty: "advanced",
     readingMinutes: 12,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -6975,7 +6992,7 @@ await sendDiscordAlert({
     difficulty: "intermediate",
     readingMinutes: 8,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7079,7 +7096,7 @@ const { data } = trpc.backgroundTask.getStatus.useQuery(
     difficulty: "beginner",
     readingMinutes: 6,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7088,12 +7105,13 @@ const { data } = trpc.backgroundTask.getStatus.useQuery(
     id: "kb-prompt-library",
     title: "提示詞庫完整指南",
     category: "technique",
-    summary: "說明 /prompt-library 的 7 大分類、公開廣場、收藏與使用次數統計功能。",
+    summary: "說明提示詞庫（位於 /assets?section=prompts）的 7 大分類、公開廣場、收藏與使用次數統計，並整合學習中心的提示詞參考庫。",
     content: `# 提示詞庫完整指南
 
-## 什麼是提示詞庫？
+> 📌 **路徑更新（2026-05）**：提示詞庫已整合進統一資產庫，正式入口為 \`/assets?section=prompts\`，舊網址 \`/prompt-library\` 仍會自動轉址。
+> 另在「學習中心 → 提示詞庫」分頁可瀏覽多模態與代理人呼叫的精選參考提示詞，並一鍵儲存到個人庫。
 
-**路徑**：\`/prompt-library\`
+## 什麼是提示詞庫？
 
 提示詞庫是集中管理所有 AI 提示詞的地方，支援個人收藏、公開分享，以及按使用情境分類。
 
@@ -7169,7 +7187,7 @@ promptLibrary (
     difficulty: "beginner",
     readingMinutes: 5,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7260,7 +7278,7 @@ trpc.showcase.list({ limit: 20, cursor: lastItemId })
     difficulty: "beginner",
     readingMinutes: 5,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -7332,7 +7350,7 @@ Sense Engine 的所有分析均在**本地瀏覽器端**執行，不上傳原始
     difficulty: "advanced",
     readingMinutes: 8,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7428,7 +7446,7 @@ Sense Engine 的所有分析均在**本地瀏覽器端**執行，不上傳原始
     difficulty: "beginner",
     readingMinutes: 6,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7523,7 +7541,7 @@ Director AI 使用 **CO-STAR** 框架來確保腳本分析的一致性：
     difficulty: "intermediate",
     readingMinutes: 7,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7617,7 +7635,7 @@ LangSmith 頁面整合了 LangSmith 的 LLM 追蹤與評估功能，讓開發者
     difficulty: "advanced",
     readingMinutes: 8,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7741,7 +7759,7 @@ interface FocusFlowState {
     difficulty: "beginner",
     readingMinutes: 7,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7750,12 +7768,12 @@ interface FocusFlowState {
     id: "kb-lora-trainer-detail",
     title: "LoRA 訓練器完整指南",
     category: "model-guide",
-    summary: "說明 /lora-trainer 的訓練流程、6 種模型類型、狀態追蹤與訓練結果 zip 匯出。",
+    summary: "說明 /models 的訓練流程、6 種模型類型、狀態追蹤與訓練結果 zip 匯出。",
     content: `# LoRA 訓練器完整指南
 
 ## 什麼是 LoRA 訓練器？
 
-**路徑**：\`/lora-trainer\`
+**路徑**：\`/models\`
 
 LoRA（Low-Rank Adaptation）是一種高效的 AI 模型微調技術，讓你用少量圖片訓練專屬的個人化風格模型。
 
@@ -7801,7 +7819,7 @@ LoRA（Low-Rank Adaptation）是一種高效的 AI 模型微調技術，讓你�
 ### 步驟 4：取得訓練結果
 
 訓練完成後：
-1. 在 \`/lora-trainer\` 頁面看到「訓練完成」通知
+1. 在 \`/models\` 頁面看到「訓練完成」通知
 2. 點擊「下載模型」，取得 \`.zip\` 檔案
 3. 或點擊「直接使用」，在圖像工作室中套用此 LoRA
 
@@ -7848,7 +7866,7 @@ fineTunedModels (
     difficulty: "advanced",
     readingMinutes: 9,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -7968,7 +7986,7 @@ fineTunedModels (
     difficulty: "beginner",
     readingMinutes: 8,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -8322,7 +8340,7 @@ users ─┬─ userSubscriptions → subscriptionPlans
     difficulty: "advanced",
     readingMinutes: 12,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -8448,7 +8466,7 @@ newsArticles (
     difficulty: "intermediate",
     readingMinutes: 6,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -8579,7 +8597,7 @@ const score = evaluateAccuracy(testResponse);
     difficulty: "advanced",
     readingMinutes: 9,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -8650,7 +8668,7 @@ const score = evaluateAccuracy(testResponse);
 | 影片工作室 | \`/video-studio\` | 影片生成與編輯 |
 | 語音複製 | \`/pro-studio\` | 聲音克隆與合成 |
 | 3D 建模 | \`/assets\`（3D Tab）| 3D 模型生成 |
-| LoRA 訓練 | \`/lora-trainer\` | 自訂模型訓練 |
+| LoRA 訓練 | \`/models\` | 自訂模型訓練 |
 | 新聞中心 | \`/news\` | AI 產業動態 |
 
 ### 個性化排序
@@ -8700,7 +8718,7 @@ const score = evaluateAccuracy(testResponse);
     difficulty: "beginner",
     readingMinutes: 7,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -8926,7 +8944,7 @@ const checkTimeouts = async () => {
     difficulty: "advanced",
     readingMinutes: 10,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -9061,7 +9079,7 @@ const checkTimeouts = async () => {
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-22T00:00:00Z",
-    updatedAt: "2026-04-22T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -9122,7 +9140,7 @@ const checkTimeouts = async () => {
     difficulty: "intermediate",
     readingMinutes: 7,
     publishedAt: "2026-04-22T00:00:00Z",
-    updatedAt: "2026-04-22T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -9186,7 +9204,7 @@ const checkTimeouts = async () => {
 | 階段 | 工具 | 用來做什麼 | 怎麼開始 |
 |---|---|---|---|
 | 規劃 | 導演 AI \`/director\` | CO-STAR 框架寫腳本／分鏡 | 描述想做的成品＋目標觀眾，導演 AI 會主動追問 |
-| 配角 | LoRA 訓練工坊 \`/lora-trainer\` | 訓練自己的角色 / 風格 LoRA | 上傳 3–20 張角度齊全照片，AI 自動標註後送訓練 |
+| 配角 | LoRA 訓練工坊 \`/models\` | 訓練自己的角色 / 風格 LoRA | 上傳 3–20 張角度齊全照片，AI 自動標註後送訓練 |
 | 圖像 | 圖片創作室 \`/image-studio\` | 23 個模型生成關鍵畫面 | 選分頁（t2i/edit/upscale/pose/sd/3d）→ 選模型 → 寫提示詞 |
 | 影片 | 影片工作室 \`/video-studio\` | 21 個模型把畫面動起來 | t2v 直接寫提示，i2v 把圖丟進去再寫運鏡 |
 | 配樂 | 音樂配音創作室 \`/pro-studio\` | 音樂 / 音效 / 旁白 / 配音 | 切到 music / sfx / tts / clone 子分頁 |
@@ -9259,7 +9277,7 @@ const checkTimeouts = async () => {
 - **第一步：** 看模型卡片 → 點「分析」查看訓練細節。
 - **延伸學習：** tech-004、deep-lora-trainer
 
-### 9. LoRA 訓練工坊 \`/lora-trainer\`
+### 9. LoRA 訓練工坊 \`/models\`
 - **用途：** 上傳資料集、自動標註、設超參、啟動 Replicate 訓練。
 - **第一步：** 拖入 5–20 張同角色照片 → 系統自動標註 → 按開始訓練。
 - **延伸學習：** tech-004、deep-lora-trainer、kb-lora-trainer-detail
@@ -9448,7 +9466,7 @@ const checkTimeouts = async () => {
 ### 模板 C：學習導向
 > 「我完全不懂 LoRA，請從零教我，目標是訓練自己的角色。」
 
-光球會：列推薦學習文件（tech-004 / deep-lora-trainer / kb-lora-trainer-detail）→ navigate 到 \`/learn?docId=tech-004\` → 看完問你要不要直接到 \`/lora-trainer\`。
+光球會：列推薦學習文件（tech-004 / deep-lora-trainer / kb-lora-trainer-detail）→ navigate 到 \`/learn?docId=tech-004\` → 看完問你要不要直接到 \`/models\`。
 
 ### 模板 D：診斷修復
 > 「為什麼我剛剛生成失敗？」
@@ -9779,7 +9797,7 @@ const checkTimeouts = async () => {
 | \`studio.transcribe\` | low | \`/pro-studio\` whisper | \`audio_url, language?\` |
 | \`studio.animateSpeaker\` | medium | \`/pro-studio\` avatar | \`image_url, audio_url, modelId?\` |
 | \`studio.generate3D\` | medium | \`/image-studio\` 3d 分頁 | \`image_url, modelId?, texture?\` |
-| \`studio.trainLora\` | high | \`/lora-trainer\` | \`name, image_urls[], trigger_word, training_steps?, learning_rate?\` |
+| \`studio.trainLora\` | high | \`/models\` | \`name, image_urls[], trigger_word, training_steps?, learning_rate?\` |
 | \`director.suggestPlan\` | medium | \`/director\` | \`brief, personality?\` → 回 CO-STAR 計畫 |
 
 ### 3.3 治理 / Ops 工具（4 個 — 全部 \`requiresHuman: true\`，僅特定角色可用）
@@ -10025,7 +10043,7 @@ const SEED_VIDEOS: LearnVideo[] = [
     difficulty: "beginner",
     durationMinutes: 5,
     publishedAt: "2026-04-01T00:00:00Z",
-    updatedAt: "2026-04-01T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10039,7 +10057,7 @@ const SEED_VIDEOS: LearnVideo[] = [
     difficulty: "intermediate",
     durationMinutes: 12,
     publishedAt: "2026-04-05T00:00:00Z",
-    updatedAt: "2026-04-05T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10053,7 +10071,7 @@ const SEED_VIDEOS: LearnVideo[] = [
     difficulty: "beginner",
     durationMinutes: 8,
     publishedAt: "2026-04-08T00:00:00Z",
-    updatedAt: "2026-04-08T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10067,7 +10085,7 @@ const SEED_VIDEOS: LearnVideo[] = [
     difficulty: "intermediate",
     durationMinutes: 15,
     publishedAt: "2026-04-10T00:00:00Z",
-    updatedAt: "2026-04-10T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10081,7 +10099,7 @@ const SEED_VIDEOS: LearnVideo[] = [
     difficulty: "advanced",
     durationMinutes: 20,
     publishedAt: "2026-04-12T00:00:00Z",
-    updatedAt: "2026-04-12T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10095,7 +10113,7 @@ const SEED_VIDEOS: LearnVideo[] = [
     difficulty: "beginner",
     durationMinutes: 10,
     publishedAt: "2026-04-15T00:00:00Z",
-    updatedAt: "2026-04-15T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10179,7 +10197,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "beginner",
     estimatedMinutes: 3,
     publishedAt: "2026-04-01T00:00:00Z",
-    updatedAt: "2026-04-01T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10241,7 +10259,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-05T00:00:00Z",
-    updatedAt: "2026-04-05T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10289,7 +10307,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 4,
     publishedAt: "2026-04-08T00:00:00Z",
-    updatedAt: "2026-04-08T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10343,7 +10361,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "advanced",
     estimatedMinutes: 4,
     publishedAt: "2026-04-10T00:00:00Z",
-    updatedAt: "2026-04-10T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10440,7 +10458,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 6,
     publishedAt: "2026-04-11T00:00:00Z",
-    updatedAt: "2026-04-11T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10537,7 +10555,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 6,
     publishedAt: "2026-04-11T00:00:00Z",
-    updatedAt: "2026-04-11T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10647,7 +10665,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 7,
     publishedAt: "2026-04-12T00:00:00Z",
-    updatedAt: "2026-04-12T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10744,7 +10762,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "advanced",
     estimatedMinutes: 7,
     publishedAt: "2026-04-12T00:00:00Z",
-    updatedAt: "2026-04-12T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: true,
     authorName: "Healing Studio Team",
   },
@@ -10836,7 +10854,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "advanced",
     estimatedMinutes: 7,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -10920,7 +10938,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-13T00:00:00Z",
-    updatedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11004,7 +11022,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-14T00:00:00Z",
-    updatedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11101,7 +11119,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "advanced",
     estimatedMinutes: 7,
     publishedAt: "2026-04-14T00:00:00Z",
-    updatedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11185,7 +11203,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "beginner",
     estimatedMinutes: 5,
     publishedAt: "2026-04-14T00:00:00Z",
-    updatedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11269,7 +11287,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "beginner",
     estimatedMinutes: 5,
     publishedAt: "2026-04-15T00:00:00Z",
-    updatedAt: "2026-04-15T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11353,7 +11371,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "beginner",
     estimatedMinutes: 5,
     publishedAt: "2026-04-15T00:00:00Z",
-    updatedAt: "2026-04-15T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11437,7 +11455,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "beginner",
     estimatedMinutes: 5,
     publishedAt: "2026-04-16T00:00:00Z",
-    updatedAt: "2026-04-16T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11534,7 +11552,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "advanced",
     estimatedMinutes: 7,
     publishedAt: "2026-04-16T00:00:00Z",
-    updatedAt: "2026-04-16T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11618,7 +11636,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11702,7 +11720,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-17T00:00:00Z",
-    updatedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11786,7 +11804,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-18T00:00:00Z",
-    updatedAt: "2026-04-18T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11870,7 +11888,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "advanced",
     estimatedMinutes: 5,
     publishedAt: "2026-04-18T00:00:00Z",
-    updatedAt: "2026-04-18T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -11954,7 +11972,7 @@ const SEED_QUIZZES: LearnQuiz[] = [
     difficulty: "intermediate",
     estimatedMinutes: 5,
     publishedAt: "2026-04-19T00:00:00Z",
-    updatedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-05-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
