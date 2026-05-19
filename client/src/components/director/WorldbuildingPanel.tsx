@@ -11,6 +11,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,13 @@ import {
   Link2,
   X,
   FolderOpen,
+  Film,
+  Image as ImageIcon,
+  Smile,
+  Shirt,
+  Volume2,
+  Theater,
+  ChevronRight,
   Wand2,
 } from "lucide-react";
 import {
@@ -270,6 +278,85 @@ function ChipListInput({
   );
 }
 
+// ─── 動畫設定狀態指示器（v2） ──────────────────────────────────────────────
+// 在角色卡頂部顯示三視圖 / 表情 / 穿衣 / 配音 / 腳本定位的填寫狀態，
+// 並附直達 /animation 工作室的 CTA。深度編輯在動畫工作室。
+
+const CharacterAnimationStatus = memo(function CharacterAnimationStatus({
+  character,
+}: {
+  character: WorldCharacter;
+}) {
+  const [, navigate] = useLocation();
+  const tv = character.threeViewSheet;
+  const hasThreeView =
+    !!tv?.frontImageUrl ||
+    !!tv?.sideImageUrl ||
+    !!tv?.backImageUrl ||
+    !!tv?.threeQuarterImageUrl;
+  const exprCount = character.expressions?.length ?? 0;
+  const outfitCount = character.outfits?.length ?? 0;
+  const hasVoice =
+    !!character.voiceProfile?.voiceId || !!character.voiceProfile?.engine;
+  const hasTone = !!character.speechTone?.baseTone;
+  const hasScriptRole =
+    !!character.scriptRole?.archetype ||
+    !!character.scriptRole?.arcType ||
+    !!character.scriptRole?.defaultPosition;
+
+  const items: Array<{ key: string; label: string; Icon: typeof Film; ok: boolean; n?: number }> = [
+    { key: "tv", label: "三視圖", Icon: ImageIcon, ok: hasThreeView },
+    { key: "exp", label: "表情", Icon: Smile, ok: exprCount > 0, n: exprCount },
+    { key: "outfit", label: "穿衣", Icon: Shirt, ok: outfitCount > 0, n: outfitCount },
+    { key: "tone", label: "口氣", Icon: MapPin, ok: hasTone },
+    { key: "voice", label: "配音", Icon: Volume2, ok: hasVoice },
+    { key: "role", label: "腳本定位", Icon: Theater, ok: hasScriptRole },
+  ];
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium text-primary/80 flex items-center gap-1">
+          <Film className="w-3 h-3" /> 動畫製作設定
+        </span>
+        <button
+          type="button"
+          onClick={() => navigate("/animation")}
+          className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+        >
+          深度編輯 <ChevronRight className="w-2.5 h-2.5" />
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {items.map(it => {
+          const Icon = it.Icon;
+          return (
+            <button
+              key={it.key}
+              type="button"
+              onClick={() => navigate("/animation")}
+              title="到動畫工作室編輯"
+              className={`px-1.5 py-0.5 rounded-md text-[10px] flex items-center gap-1 transition border ${
+                it.ok
+                  ? "bg-primary/15 text-primary border-primary/30"
+                  : "bg-card/40 text-muted-foreground border-border/30 hover:bg-card/60"
+              }`}
+            >
+              <Icon className="w-2.5 h-2.5" />
+              {it.label}
+              {it.ok ? (
+                it.n != null ? <span className="font-mono">({it.n})</span> : <span>✓</span>
+              ) : (
+                <span className="opacity-50">·</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 // ─── Character Card ─────────────────────────────────────────────────────────
 
 const CharacterCard = memo(function CharacterCard({
@@ -328,6 +415,9 @@ const CharacterCard = memo(function CharacterCard({
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
+
+      {/* 動畫製作設定狀態 — 顯示 v2 擴充欄位的填寫情況，引導使用者前往 /animation 深度編輯 */}
+      <CharacterAnimationStatus character={character} />
 
       <Input
         value={character.tagline ?? ""}
@@ -703,6 +793,34 @@ const SceneCard = memo(function SceneCard({
   );
 });
 
+// ─── 動畫工作室入口橫幅 ────────────────────────────────────────────────────
+
+function AnimationStudioBanner() {
+  const [, navigate] = useLocation();
+  return (
+    <button
+      type="button"
+      onClick={() => navigate("/animation")}
+      className="w-full rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/[0.05] to-transparent p-3 text-left hover:from-primary/15 transition group"
+    >
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg bg-primary/15 p-2">
+          <Film className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold text-primary flex items-center gap-1">
+            動畫工作室（新）
+            <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </div>
+          <div className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed">
+            三視圖 · 表情包 · 穿衣集 · 口氣 · 配音 · 腳本定位 · 畫面風格 · 配樂主題 · 分鏡時間軸（幾分幾秒）· t2i→i2v 渲染管線
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // ─── Main Panel ─────────────────────────────────────────────────────────────
 
 export default function WorldbuildingPanel() {
@@ -889,6 +1007,10 @@ export default function WorldbuildingPanel() {
     <div className="flex gap-5">
       {/* Left: Editor */}
       <div className="flex-1 min-w-0 space-y-4">
+        {/* 動畫工作室入口橫幅 — 引導使用者前往 /animation 進行三視圖、表情、
+            穿衣、口氣、語音、腳本定位的深度配置與分鏡時間軸製作 */}
+        <AnimationStudioBanner />
+
         <GlassCard hover={false}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="hs-h3 !mb-0 flex items-center gap-2">
