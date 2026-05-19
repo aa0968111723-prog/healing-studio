@@ -2409,7 +2409,18 @@ export default function DirectorAI() {
   const [refiningIdx, setRefiningIdx] = useState<number | null>(null);
 
   // ─── Script Analysis State ──────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<string>("chat");
+  // 支援 URL query 預選分頁，例如 /director?tab=script 由世界觀系統的「腳本分析」按鈕導向。
+  const initialTab = useMemo(() => {
+    if (typeof window === "undefined") return "chat";
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      if (t && ["chat", "script", "planning"].includes(t)) return t;
+    } catch {
+      // ignore
+    }
+    return "chat";
+  }, []);
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [importedSegments, setImportedSegments] = useState<ScriptSegment[]>([]);
   const [importedTitle, setImportedTitle] = useState("");
   const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(

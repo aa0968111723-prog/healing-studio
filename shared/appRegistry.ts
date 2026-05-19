@@ -380,13 +380,13 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
       {
         id: "open-animation-studio",
-        label: "切到動畫工作室",
+        label: "切到世界觀系統",
         description: "把腳本接到世界觀 + 分鏡時間軸，準備產出動畫",
         path: "/animation",
-        prompt: "幫我把目前的腳本接到動畫工作室，建立角色、場景與分鏡。",
+        prompt: "幫我把目前的腳本接到世界觀系統，建立角色、場景與分鏡。",
       },
     ],
-    orbHints: ["幫我先整理腳本", "把腳本拉到動畫工作室"],
+    orbHints: ["幫我先整理腳本", "把腳本拉到世界觀系統"],
     supportedActions: [
       "setTab",
       "fillPrompt",
@@ -399,7 +399,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "animation-studio",
-    label: "動畫工作室",
+    label: "世界觀系統",
     path: "/animation",
     group: "create",
     description: "世界觀 → 分鏡 → 圖楨 → 配樂配音 → 轉影成片的完整動畫管線",
