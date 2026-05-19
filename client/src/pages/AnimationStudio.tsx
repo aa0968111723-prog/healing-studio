@@ -90,6 +90,9 @@ import {
   GenerateMusicButton,
   GenerateVoiceButton,
 } from "@/components/animation/QuickGenerateButtons";
+import { StoryboardTimelineUploader } from "@/components/animation/StoryboardTimelineUploader";
+import { ConsistencyCheckPanel } from "@/components/animation/ConsistencyCheckPanel";
+import { CompositionAssistant } from "@/components/animation/CompositionAssistant";
 import {
   buildCharacterConsistencyPrompt,
   buildSceneConsistencyPrompt,
@@ -5342,6 +5345,8 @@ export default function AnimationStudio() {
     | "sounds"
     | "script"
     | "storyboards"
+    | "timeline"
+    | "composition"
   >("characters");
 
   // 自動選第一個世界
@@ -5996,6 +6001,14 @@ export default function AnimationStudio() {
             <Camera className="w-3.5 h-3.5 mr-1" />
             分鏡（{storyboardsQuery.data?.length ?? 0}）
           </TabsTrigger>
+          <TabsTrigger value="timeline" className="text-xs">
+            <Clock className="w-3.5 h-3.5 mr-1" />
+            時間軸上傳
+          </TabsTrigger>
+          <TabsTrigger value="composition" className="text-xs">
+            <Layers className="w-3.5 h-3.5 mr-1" />
+            構圖助手
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="characters">
@@ -6335,6 +6348,66 @@ export default function AnimationStudio() {
               </div>
             </ScrollArea>
           </div>
+        </TabsContent>
+
+        {/* Timeline Upload Tab */}
+        <TabsContent value="timeline">
+          <div className="space-y-4">
+            {storyboardsQuery.data && storyboardsQuery.data.length > 0 ? (
+              <>
+                <div className="text-sm text-muted-foreground">
+                  選擇一個分鏡以上傳時間軸圖幀
+                </div>
+                <Select
+                  value={selectedStoryboard?.id ? String(selectedStoryboard.id) : ""}
+                  onValueChange={(value) => {
+                    const sb = storyboardsQuery.data?.find(s => s.id === Number(value));
+                    if (sb) setSelectedStoryboard(sb);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇分鏡..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {storyboardsQuery.data.map((sb) => (
+                      <SelectItem key={sb.id} value={String(sb.id)}>
+                        {sb.name} ({formatTimecode(sb.totalDurationSec)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {selectedStoryboard && (
+                  <StoryboardTimelineUploader
+                    storyboard={selectedStoryboard}
+                    onFrameUploaded={(frame) => {
+                      toast.success("圖幀已上傳");
+                    }}
+                    onFrameDeleted={() => {
+                      toast.success("圖幀已刪除");
+                    }}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                請先創建分鏡，再使用時間軸上傳功能
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Composition Assistant Tab */}
+        <TabsContent value="composition">
+          {effectiveWorld && (
+            <CompositionAssistant
+              framework={effectiveWorld}
+              storyboardId={selectedStoryboard?.id}
+              onSave={(composition) => {
+                toast.success("構圖已儲存");
+              }}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
