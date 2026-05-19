@@ -63,6 +63,10 @@ import {
   initModelCatalogResearchCron,
   stopModelCatalogResearchCron,
 } from "../jobs/modelCatalogResearchJob";
+import {
+  initMediaArchivalCron,
+  stopMediaArchivalCron,
+} from "../jobs/mediaArchivalCron";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -150,6 +154,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "modelCatalogResearchJob",
     start: initModelCatalogResearchCron,
     stop: stopModelCatalogResearchCron,
+  },
+  {
+    name: "mediaArchivalCron",
+    start: initMediaArchivalCron,
+    stop: stopMediaArchivalCron,
   },
 ];
 
