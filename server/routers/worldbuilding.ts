@@ -80,25 +80,40 @@ export const worldbuildingRouter = router({
   create: protectedProcedure
     .input(worldbuildingFrameworkInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const id = await db.createWorldbuildingFramework({
-        userId: ctx.user.id,
-        name: input.name,
-        description: input.description,
-        genre: input.genre,
-        era: input.era,
-        charactersJson: input.characters,
-        scenesJson: input.scenes,
-        objectsJson: input.objects ?? [],
-        linkedModelIds: input.linkedModelIds ?? [],
-        styleProfilesJson: input.styleProfiles ?? [],
-        musicThemesJson: input.musicThemes ?? [],
-        defaultStyleProfileId: input.defaultStyleProfileId ?? null,
-        globalNegativePrompt: input.globalNegativePrompt,
-        productionTargetsJson: input.productionTargets ?? null,
-        tags: input.tags ?? [],
-        isActive: input.isActive ?? true,
-      });
-      return { id };
+      try {
+        const id = await db.createWorldbuildingFramework({
+          userId: ctx.user.id,
+          name: input.name,
+          description: input.description,
+          genre: input.genre,
+          era: input.era,
+          charactersJson: input.characters,
+          scenesJson: input.scenes,
+          objectsJson: input.objects ?? [],
+          linkedModelIds: input.linkedModelIds ?? [],
+          styleProfilesJson: input.styleProfiles ?? [],
+          musicThemesJson: input.musicThemes ?? [],
+          defaultStyleProfileId: input.defaultStyleProfileId ?? null,
+          globalNegativePrompt: input.globalNegativePrompt,
+          productionTargetsJson: input.productionTargets ?? null,
+          tags: input.tags ?? [],
+          isActive: input.isActive ?? true,
+        });
+        return { id };
+      } catch (error) {
+        // Drizzle 的 DrizzleQueryError.message 只包含 SQL 與 params、不含
+        // 底層 MySQL 錯誤原因（Unknown column / Data too long…）。把 cause
+        // 拉出來重拋成 TRPCError，前端的 toast 才看得到真正的失敗原因。
+        const cause = (error as { cause?: { code?: string; message?: string } })
+          ?.cause;
+        const reason = cause?.message ?? (error as Error).message;
+        const code = cause?.code ? ` [${cause.code}]` : "";
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `建立世界觀失敗${code}：${reason}`,
+          cause: error,
+        });
+      }
     }),
 
   /** 更新既有世界觀 */

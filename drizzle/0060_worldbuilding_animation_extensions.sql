@@ -15,15 +15,60 @@
 --      - scenesJson：每場 sequence、起訖秒數、登場角色 beats、圖楨、音軌
 --      - pipelinePlanJson / jobsJson：管線執行計畫與各步驟狀態
 --      結構由 shared/worldbuilding-animation.ts 維護。
+--
+-- 重要：mysql2 pool 沒開 multipleStatements，drizzle migrator 看到沒
+-- breakpoint 會把整個檔案當一條 query 送、直接炸（見 commit 71d5836）。
+-- 此外 MySQL 不支援 `ADD COLUMN IF NOT EXISTS`，每個欄位用 prepared statement
+-- + information_schema 動態判斷是否需要加，已存在則 no-op，缺漏才補上。
+-- 沿用 0032_agent_preferences_specialist_columns.sql 已建立的防禦模式，
+-- 確保即使 production 處於任何半成品狀態都能恢復。
 
--- ─── A) worldbuilding_frameworks 擴充欄位 ───────────────────────────────────
+-- ─── A) worldbuilding_frameworks 擴充欄位（逐欄冪等）─────────────────────────
 
-ALTER TABLE `worldbuilding_frameworks`
-  ADD COLUMN `styleProfilesJson` json AFTER `linkedModelIds`,
-  ADD COLUMN `musicThemesJson` json AFTER `styleProfilesJson`,
-  ADD COLUMN `defaultStyleProfileId` varchar(64) AFTER `musicThemesJson`,
-  ADD COLUMN `globalNegativePrompt` text AFTER `defaultStyleProfileId`,
-  ADD COLUMN `productionTargetsJson` json AFTER `globalNegativePrompt`;
+SET @stmt := IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'worldbuilding_frameworks' AND column_name = 'styleProfilesJson'), 'SELECT 1', 'ALTER TABLE `worldbuilding_frameworks` ADD COLUMN `styleProfilesJson` json AFTER `linkedModelIds`');
+--> statement-breakpoint
+PREPARE add_wf_col FROM @stmt;
+--> statement-breakpoint
+EXECUTE add_wf_col;
+--> statement-breakpoint
+DEALLOCATE PREPARE add_wf_col;
+--> statement-breakpoint
+
+SET @stmt := IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'worldbuilding_frameworks' AND column_name = 'musicThemesJson'), 'SELECT 1', 'ALTER TABLE `worldbuilding_frameworks` ADD COLUMN `musicThemesJson` json AFTER `styleProfilesJson`');
+--> statement-breakpoint
+PREPARE add_wf_col FROM @stmt;
+--> statement-breakpoint
+EXECUTE add_wf_col;
+--> statement-breakpoint
+DEALLOCATE PREPARE add_wf_col;
+--> statement-breakpoint
+
+SET @stmt := IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'worldbuilding_frameworks' AND column_name = 'defaultStyleProfileId'), 'SELECT 1', 'ALTER TABLE `worldbuilding_frameworks` ADD COLUMN `defaultStyleProfileId` varchar(64) AFTER `musicThemesJson`');
+--> statement-breakpoint
+PREPARE add_wf_col FROM @stmt;
+--> statement-breakpoint
+EXECUTE add_wf_col;
+--> statement-breakpoint
+DEALLOCATE PREPARE add_wf_col;
+--> statement-breakpoint
+
+SET @stmt := IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'worldbuilding_frameworks' AND column_name = 'globalNegativePrompt'), 'SELECT 1', 'ALTER TABLE `worldbuilding_frameworks` ADD COLUMN `globalNegativePrompt` text AFTER `defaultStyleProfileId`');
+--> statement-breakpoint
+PREPARE add_wf_col FROM @stmt;
+--> statement-breakpoint
+EXECUTE add_wf_col;
+--> statement-breakpoint
+DEALLOCATE PREPARE add_wf_col;
+--> statement-breakpoint
+
+SET @stmt := IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'worldbuilding_frameworks' AND column_name = 'productionTargetsJson'), 'SELECT 1', 'ALTER TABLE `worldbuilding_frameworks` ADD COLUMN `productionTargetsJson` json AFTER `globalNegativePrompt`');
+--> statement-breakpoint
+PREPARE add_wf_col FROM @stmt;
+--> statement-breakpoint
+EXECUTE add_wf_col;
+--> statement-breakpoint
+DEALLOCATE PREPARE add_wf_col;
+--> statement-breakpoint
 
 -- ─── B) world_storyboards 新表 ──────────────────────────────────────────────
 
