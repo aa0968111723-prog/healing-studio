@@ -100,6 +100,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useGlobalOrbChat, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
 import OrbActionFlow from "./orb/OrbActionFlow";
+import OrbUnifiedAssistant from "./OrbUnifiedAssistant";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
@@ -3726,13 +3727,14 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
     [onClose, globalChat]
   );
 
-  // ── Panel mode: guided flow or free chat ──────────────────────────────────
+  // ── Panel mode: guided flow / free chat / unified site-wide tools ─────────
   // 三層判斷（由強到弱）：
   //   1. preferredPanelMode（context 帶上來）— 聊天驅動的跳頁明確要求 "chat"，
   //      必須優先採用，避免使用者剛剛還在打字、跳完頁卻被丟去看靜態引導卡。
   //   2. globalChat.isSending — 光球正在想，落在 chat 才看得到思考中泡泡。
   //   3. fallback "guide" — 純被動開啟（hover 浮球、starter 卡片）走引導。
-  const [panelMode, setPanelMode] = useState<"guide" | "chat">(
+  // unified 模式不會被自動切到 — 只有使用者點「全站助理」才會去。
+  const [panelMode, setPanelMode] = useState<"guide" | "chat" | "unified">(
     preferredPanelMode ?? (globalChat.isSending ? "chat" : "guide")
   );
 
@@ -4044,6 +4046,23 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
         >
           <MessageCircle className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
           自由聊天
+        </button>
+        <button
+          type="button"
+          onClick={() => setPanelMode("unified")}
+          aria-pressed={panelMode === "unified"}
+          aria-label="切換到全站助理模式"
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
+            fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
+            panelMode === "unified"
+              ? "bg-white/15 text-white"
+              : "text-white/40 hover:text-white/70 hover:bg-white/8"
+          )}
+          title="不跳頁，所有功能在光球內完成：提示詞 / 專注流 / 對話 / 積分 / 本頁學習"
+        >
+          <Wand2 className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
+          全站助理
         </button>
       </div>
       <div className={cn("shrink-0 flex flex-wrap gap-1.5", fullscreen ? "px-5 pb-2" : "px-4 pb-2")}>
@@ -4375,6 +4394,18 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Unified Assistant Mode — 全站功能 inline 在光球內 ── */}
+      {panelMode === "unified" && (
+        <div
+          className={cn(
+            "flex flex-col flex-1 overflow-hidden",
+            fullscreen ? "pb-2" : "pb-1"
+          )}
+        >
+          <OrbUnifiedAssistant fullscreen={fullscreen} />
         </div>
       )}
 
