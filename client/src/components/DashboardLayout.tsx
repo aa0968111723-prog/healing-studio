@@ -178,12 +178,9 @@ const sidebarStructure: SidebarEntry[] = (() => {
   push(
     buildGroup("創作工作室", Palette, [
       "studio",
-      "image-studio",
-      "video-studio",
-      "pro-studio",
-      "director",
     ])
   );
+  push(buildLeaf("director"));
   push(buildGroup("資源庫", FolderOpen, ["models", "assets"]));
   push(
     buildGroup("知識中心", GraduationCap, [
