@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ProgressivePromptBuilder,
   createEmptyPromptOutput,
+  isWeightAdjusted,
   type PromptBuilderOutput,
 } from "@/components/ProgressivePromptBuilder";
 import {
@@ -615,7 +616,7 @@ export default function Studio() {
   const hasWeightedTokens = useMemo(
     () =>
       Array.isArray(promptBuilder.tokenWeights) &&
-      promptBuilder.tokenWeights.some(t => t.weight !== 1.0),
+      promptBuilder.tokenWeights.some(t => isWeightAdjusted(t.weight)),
     [promptBuilder.tokenWeights]
   );
   const isWideAspect = useMemo(
