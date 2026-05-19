@@ -379,6 +379,13 @@
       "when": 1779050000060,
       "tag": "0060_worldbuilding_animation_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1779050000061,
+      "tag": "0061_repair_worldbuilding_columns",
+      "breakpoints": true
     }
   ]
 }
