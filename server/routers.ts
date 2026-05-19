@@ -51,6 +51,7 @@ import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
+import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
@@ -3974,6 +3975,10 @@ export const appRouter = router({
   // 多角色（主角/配角/反派）+ 多場景（環境、植被、物件）+ 連結 LoRA 訓練中心
   // v2 動畫擴充：三視圖、表情、穿衣、口氣、語音、腳本定位、風格 profile、配樂主題
   worldbuilding: worldbuildingRouter,
+
+  // ─── Worldbuilding Generation（AI 生成服務） ──────────────────────────────
+  // AI-powered generation of characters, scenes, and storyboards
+  worldbuildingGeneration: worldbuildingGenerationRouter,
 
   // ─── World Storyboard（動畫分鏡時間軸） ──────────────────────────────────
   // 「幾分幾秒」級的分鏡：角色 beats、圖楨、音軌（music/voice/sfx）、

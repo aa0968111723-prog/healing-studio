@@ -5438,6 +5438,34 @@ export default function AnimationStudio() {
     [updateWorld]
   );
 
+  // AI Generation mutations
+  const generateCharacterMutation = trpc.worldbuildingGeneration.generateCharacter.useMutation({
+    onSuccess: (data) => {
+      toast.success(`角色「${data.character.name}」已生成`);
+      utils.worldbuilding.list.invalidate();
+    },
+    onError: (e) => toast.error(`生成失敗：${e.message}`),
+  });
+
+  const generateSceneMutation = trpc.worldbuildingGeneration.generateScene.useMutation({
+    onSuccess: (data) => {
+      toast.success(`場景「${data.scene.name}」已生成`);
+      utils.worldbuilding.list.invalidate();
+    },
+    onError: (e) => toast.error(`生成失敗：${e.message}`),
+  });
+
+  const generateStoryboardMutation = trpc.worldbuildingGeneration.generateStoryboard.useMutation({
+    onSuccess: (data) => {
+      toast.success("分鏡已生成");
+      utils.worldStoryboard.listByWorld.invalidate();
+      if (data.storyboardId) {
+        navigate(`/animation/${data.storyboardId}`);
+      }
+    },
+    onError: (e) => toast.error(`生成失敗：${e.message}`),
+  });
+
   // ─── AI Agent Integration ───────────────────────────────────────────────
   useRegisterPageAgent({
     pageId: "worldbuilding",
@@ -5504,31 +5532,52 @@ export default function AnimationStudio() {
         if (!selectedWorldId) {
           return { ok: false, reason: "請先選擇一個世界觀" };
         }
-        // TODO: Call generation service
-        toast.info("角色生成功能即將推出");
-        return { ok: true, message: "角色生成請求已接收" };
+        try {
+          await generateCharacterMutation.mutateAsync({
+            worldId: selectedWorldId,
+            description: action.description,
+            archetype: action.archetype,
+          });
+          return { ok: true, message: "角色已生成並加入世界觀" };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
+        }
       }
 
       if (action.type === "generateScene") {
         if (!selectedWorldId) {
           return { ok: false, reason: "請先選擇一個世界觀" };
         }
-        // TODO: Call generation service
-        toast.info("場景生成功能即將推出");
-        return { ok: true, message: "場景生成請求已接收" };
+        try {
+          await generateSceneMutation.mutateAsync({
+            worldId: selectedWorldId,
+            description: action.description,
+            environmentType: action.environmentType,
+          });
+          return { ok: true, message: "場景已生成並加入世界觀" };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
+        }
       }
 
       if (action.type === "generateStoryboard") {
         if (!selectedWorldId) {
           return { ok: false, reason: "請先選擇一個世界觀" };
         }
-        // TODO: Call generation service
-        toast.info("分鏡生成功能即將推出");
-        return { ok: true, message: "分鏡生成請求已接收" };
+        try {
+          await generateStoryboardMutation.mutateAsync({
+            worldId: selectedWorldId,
+            scriptId: action.scriptId,
+            description: action.description,
+          });
+          return { ok: true, message: "分鏡已生成" };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
+        }
       }
 
       return { ok: false, reason: "不支援的動作" };
-    }, [selectedWorldId]),
+    }, [selectedWorldId, generateCharacterMutation, generateSceneMutation, generateStoryboardMutation]),
 
     getSnapshot: useCallback(() => {
       return {
