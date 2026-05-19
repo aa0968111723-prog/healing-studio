@@ -194,6 +194,7 @@ export function CollaborativeDiscussionLauncher({
   if (!expanded) {
     return (
       <div className="flex items-center justify-end gap-2 pt-1.5">
+        <span className="mr-1 text-[10px] text-muted-foreground">範圍設定已移到「精靈小屋」</span>
         <button
           type="button"
           onClick={() => void handleLaunch()}
@@ -206,16 +207,6 @@ export function CollaborativeDiscussionLauncher({
           data-testid="orb-collab-discuss-btn"
         >
           {launching ? "🌿 召集中…" : "🌿 讓 2-5 位精靈一起討論這個"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="text-[11px] px-2 py-1 rounded-full border border-slate-200/70 text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-800/50 inline-flex items-center gap-1"
-          data-testid="orb-collab-discuss-settings-toggle"
-        >
-          <Sparkles className="w-3 h-3" />
-          設定範圍
-          <ChevronDown className="w-3 h-3" />
         </button>
       </div>
     );
