@@ -526,6 +526,14 @@ export type TokenWeight = {
   category?: string;
 };
 
+// 權重視為「已調整」的門檻：低於此差距視為 1.0，不會編譯成 (token: w) 語法，
+// 也不會觸發自動切換到支援 token weights 的模型。
+export const WEIGHT_ADJUSTED_THRESHOLD = 0.05;
+
+export function isWeightAdjusted(weight: number): boolean {
+  return Math.abs(weight - 1.0) >= WEIGHT_ADJUSTED_THRESHOLD;
+}
+
 // ─── Token Parser ──────────────────────────────────────────────────────────
 
 function parseTokens(text: string): TokenWeight[] {
@@ -563,7 +571,7 @@ function compileWithWeights(
 ): string {
   if (tokens.length === 0) return rawPrompt;
   const weightedParts = tokens.map(t => {
-    if (Math.abs(t.weight - 1.0) < 0.05) return t.text;
+    if (!isWeightAdjusted(t.weight)) return t.text;
     return `(${t.text}: ${t.weight.toFixed(1)})`;
   });
   const vibeLabels = vibes
@@ -689,7 +697,7 @@ function TokenChip({
         style={getTokenStyle()}
       >
         <span>{token.text}</span>
-        {Math.abs(token.weight - 1.0) >= 0.05 && (
+        {isWeightAdjusted(token.weight) && (
           <span className="ml-1 text-[10px] opacity-70">
             {token.weight.toFixed(1)}
           </span>
@@ -1808,7 +1816,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
                   <span className="text-[10px] text-muted-foreground/60">
                     {tokens.length} 個 Token
                   </span>
-                  {tokens.some(t => Math.abs(t.weight - 1.0) >= 0.05) && (
+                  {tokens.some(t => isWeightAdjusted(t.weight)) && (
                     <span className="text-[10px] bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded-full font-medium">
                       已調整權重
                     </span>

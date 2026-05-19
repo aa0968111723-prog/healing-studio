@@ -107,6 +107,7 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
   },
 
   // ─── Gemini Nano-Banana 系（不解析 token weight，廣比例） ──
+  // 注意：Gemini API 不暴露 seed 參數，填了也會被 fal.ai 忽略，結果仍隨機。
   {
     modelId: "fal-ai/nano-banana-2",
     modality: "image",
@@ -116,7 +117,7 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
       aspectRatioWide: true,
       aspectRatioStandard: true,
       negativePrompt: false,
-      seed: true,
+      seed: false,
     },
   },
   {
@@ -128,7 +129,7 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
       aspectRatioWide: true,
       aspectRatioStandard: true,
       negativePrompt: false,
-      seed: true,
+      seed: false,
     },
   },
 
@@ -147,6 +148,7 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
   },
 
   // ─── Google Imagen 系（標準比例only） ──
+  // 注意：Imagen 4 Preview API 不暴露 seed 參數，填了也會被忽略。
   {
     modelId: "fal-ai/imagen4/preview",
     modality: "image",
@@ -156,7 +158,7 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
       aspectRatioWide: false,
       aspectRatioStandard: true,
       negativePrompt: true,
-      seed: true,
+      seed: false,
     },
   },
 

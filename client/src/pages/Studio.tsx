@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ProgressivePromptBuilder,
   createEmptyPromptOutput,
+  isWeightAdjusted,
   type PromptBuilderOutput,
 } from "@/components/ProgressivePromptBuilder";
 import {
@@ -51,16 +52,12 @@ import {
   Clock,
   Package,
   X,
-  Star,
   Bookmark,
-  BookmarkCheck,
   Send,
-  RefreshCw,
   StickyNote,
   Cpu,
   Check,
   Briefcase,
-  Search,
   SlidersHorizontal,
   Sparkles,
   Wand2,
@@ -164,218 +161,6 @@ interface DirectorBatchTaskPayload {
   overrideEngine?: string;
   musicStyle?: string;
   audioScript?: string;
-}
-
-// ─── Mini History Panel (embedded in right drawer) ──────────────────────────
-
-function MiniHistoryPanel({
-  onSendToStudio,
-}: {
-  onSendToStudio: (
-    prompt: string,
-    type: GenerationType,
-    parameterSnapshot?: Record<string, unknown>
-  ) => void;
-}) {
-  const historyQuery = trpc.history.list.useQuery(
-    { limit: 20 },
-    { retry: false }
-  );
-  const toggleBookmark = trpc.history.toggleBookmark.useMutation({
-    onSuccess: () => historyQuery.refetch(),
-  });
-  const rateHistory = trpc.history.rate.useMutation({
-    onSuccess: () => historyQuery.refetch(),
-  });
-  const [historyFilter, setHistoryFilter] = useState<
-    "all" | "image" | "video" | "audio" | "voice"
-  >("all");
-  const [historyKeyword, setHistoryKeyword] = useState("");
-
-  const MODALITY_ICONS: Record<string, React.ReactNode> = {
-    image: <Image className="w-3 h-3" />,
-    video: <Video className="w-3 h-3" />,
-    audio: <Music className="w-3 h-3" />,
-    voice: <Mic className="w-3 h-3" />,
-  };
-
-  if (historyQuery.isLoading) {
-    return (
-      <div className="p-3 space-y-2">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-16 rounded-lg bg-muted/30 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
-  const items = historyQuery.data || [];
-
-  if (!items.length) {
-    return (
-      <div className="p-6 text-center">
-        <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-xs text-muted-foreground">尚無生成歷史</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">
-          開始創作後，歷史紀錄將顯示在這裡
-        </p>
-      </div>
-    );
-  }
-
-  const filteredItems = items.filter((item: any) => {
-    if (historyFilter !== "all" && item.generationType !== historyFilter)
-      return false;
-    if (!historyKeyword.trim()) return true;
-    return String(item.prompt || "")
-      .toLowerCase()
-      .includes(historyKeyword.trim().toLowerCase());
-  });
-
-  return (
-    <div className="space-y-2 p-2">
-      <div className="rounded-lg border border-border/60 bg-background/70 p-2 space-y-2 sticky top-0 z-10 backdrop-blur-sm">
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          歷史篩選與搜尋
-        </div>
-        <div className="rounded-md border border-border/70 bg-background px-2 py-1.5 flex items-center gap-1.5">
-          <Search className="w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            value={historyKeyword}
-            onChange={e => setHistoryKeyword(e.target.value)}
-            placeholder="搜尋提示詞關鍵字..."
-            className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {(["all", "image", "video", "audio", "voice"] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setHistoryFilter(type)}
-              className={`text-[11px] rounded-md px-2 py-1 transition-colors ${
-                historyFilter === type
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/40 text-muted-foreground"
-              }`}
-            >
-              {type === "all" ? "全部" : type}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {filteredItems.map((item: any) => (
-        <div
-          key={item.id}
-          className="group rounded-lg p-2.5 hover:bg-accent/30 transition-colors cursor-pointer border border-transparent hover:border-border/40"
-        >
-          <div className="flex items-start gap-2">
-            {/* Thumbnail */}
-            {item.resultUrl && item.generationType === "image" ? (
-              <img
-                src={item.resultUrl}
-                alt=""
-                className="w-10 h-10 rounded-md object-cover shrink-0"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-md bg-muted/30 flex items-center justify-center shrink-0">
-                {MODALITY_ICONS[item.generationType] || (
-                  <Image className="w-3 h-3" />
-                )}
-              </div>
-            )}
-
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-foreground truncate leading-tight">
-                {item.prompt?.slice(0, 40) || "無提示詞"}
-              </p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground uppercase">
-                  {item.generationType}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {new Date(item.createdAt).toLocaleString("zh-TW", {
-                    month: "numeric",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {item.parameterSnapshot && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">
-                    含參數快照
-                  </span>
-                )}
-                {item.rating && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
-                    <Star className="w-2.5 h-2.5 fill-current" />
-                    {item.rating}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  toggleBookmark.mutate({
-                    id: item.id,
-                    isBookmarked: !item.bookmarked,
-                  });
-                }}
-                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
-                title={item.bookmarked ? "取消收藏" : "收藏"}
-              >
-                {item.bookmarked ? (
-                  <BookmarkCheck className="w-4 h-4 text-primary" />
-                ) : (
-                  <Bookmark className="w-4 h-4 text-muted-foreground" />
-                )}
-              </button>
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  onSendToStudio(
-                    item.prompt || "",
-                    item.generationType as GenerationType,
-                    item.parameterSnapshot as
-                      | Record<string, unknown>
-                      | undefined
-                  );
-                }}
-                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
-                title="重新生成"
-              >
-                <RefreshCw className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  rateHistory.mutate({ id: item.id, rating: 5 });
-                }}
-                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
-                title="評分 5"
-              >
-                <Star className="w-4 h-4 text-amber-500" />
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-      {filteredItems.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border/70 p-5 text-center">
-          <p className="text-xs text-muted-foreground">目前篩選條件沒有資料</p>
-          <p className="text-[11px] text-muted-foreground/70 mt-1">
-            你可以切換模態或清除關鍵字再試一次
-          </p>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Drawer Shell ───────────────────────────────────────────────────────────
@@ -614,7 +399,7 @@ export default function Studio() {
   const hasWeightedTokens = useMemo(
     () =>
       Array.isArray(promptBuilder.tokenWeights) &&
-      promptBuilder.tokenWeights.some(t => t.weight !== 1.0),
+      promptBuilder.tokenWeights.some(t => isWeightAdjusted(t.weight)),
     [promptBuilder.tokenWeights]
   );
   const isWideAspect = useMemo(
@@ -1926,139 +1711,6 @@ export default function Studio() {
     [activeModality, videoState, imageState, isMobile]
   );
 
-  // ── History → Studio handler (MiniHistoryPanel in right drawer) ──
-  const handleHistoryToStudio = useCallback(
-    (
-      prompt: string,
-      type: GenerationType,
-      parameterSnapshot?: Record<string, unknown>
-    ) => {
-      setPromptBuilder(prev => ({
-        ...prev,
-        rawPrompt: prompt,
-        compiledPrompt: prompt,
-      }));
-      setActiveModality(type);
-      if (parameterSnapshot) {
-        const snap = parameterSnapshot;
-        // ── Common params ──
-        if (snap.temperature != null) setTemperature(Number(snap.temperature));
-        if (snap.seed != null) setSeed(String(snap.seed));
-        if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
-          setPromptBuilder(prev => ({
-            ...prev,
-            vibeCardIds: snap.vibeCardIds as string[],
-          }));
-        }
-        if (snap.mode === "lightning" || snap.mode === "deep_precision") {
-          setMode(snap.mode as GenerationMode);
-        }
-        // ── LoRA weight ──
-        if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
-        // ── Fine-tuned model embedded in snapshot ──
-        if (snap.fineTunedModelId != null) {
-          setFineTunedModelId(Number(snap.fineTunedModelId));
-          if (snap.fineTunedModelName != null)
-            setFineTunedModelName(String(snap.fineTunedModelName));
-        }
-        // ── Consistency Vault IDs ──
-        if (snap.vaultCharacterId != null)
-          setVaultCharacterId(Number(snap.vaultCharacterId));
-        if (snap.vaultSceneId != null)
-          setVaultSceneId(Number(snap.vaultSceneId));
-
-        // ── Image-specific params ──
-        if (type === "image") {
-          setImageState(prev => ({
-            ...prev,
-            ...(snap.aspectRatio != null && {
-              aspectRatio: String(snap.aspectRatio),
-            }),
-            ...(snap.negativePrompt != null && {
-              negativePrompt: String(snap.negativePrompt),
-            }),
-            ...(snap.styleReferenceUrl != null && {
-              styleReferenceUrl: String(snap.styleReferenceUrl),
-            }),
-            ...(snap.vibeReferenceUrl != null && {
-              vibeReferenceUrl: String(snap.vibeReferenceUrl),
-            }),
-          }));
-        }
-
-        // ── Video-specific params ──
-        if (type === "video") {
-          setVideoState(prev => ({
-            ...prev,
-            ...(snap.videoDurationSeconds != null && {
-              duration: String(snap.videoDurationSeconds),
-            }),
-            ...(snap.firstFrameUrl != null && {
-              firstFrameUrl: String(snap.firstFrameUrl),
-            }),
-            ...(snap.lastFrameUrl != null && {
-              lastFrameUrl: String(snap.lastFrameUrl),
-            }),
-            ...(snap.characterRefUrl != null && {
-              characterRefUrl: String(snap.characterRefUrl),
-            }),
-            ...(snap.cameraMotion != null &&
-              typeof snap.cameraMotion === "object" && {
-                cameraMotion: snap.cameraMotion as {
-                  pan: number;
-                  zoom: number;
-                  tilt: number;
-                },
-              }),
-          }));
-        }
-
-        // ── Audio-specific params ──
-        if (type === "audio") {
-          setAudioState(prev => ({
-            ...prev,
-            ...(snap.musicStyle != null && {
-              musicStyle: String(snap.musicStyle),
-            }),
-            ...(snap.isInstrumental != null && {
-              isInstrumental: Boolean(snap.isInstrumental),
-            }),
-            ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
-            ...(snap.audioDuration != null && {
-              duration: Number(snap.audioDuration),
-            }),
-            ...(snap.audioEnergy != null && {
-              energy: Number(snap.audioEnergy),
-            }),
-          }));
-        }
-
-        // ── Voice-specific params ──
-        if (type === "voice") {
-          setVoiceState(prev => ({
-            ...prev,
-            ...(snap.voiceModelId != null && {
-              voiceActorId: String(snap.voiceModelId),
-            }),
-            ...(snap.voiceText != null && { text: String(snap.voiceText) }),
-            ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
-            ...(snap.voiceStability != null && {
-              stability: Number(snap.voiceStability),
-            }),
-            ...(snap.voiceEmotionType != null && {
-              emotionType: String(snap.voiceEmotionType),
-            }),
-            ...(snap.voiceEmotionIntensity != null && {
-              emotionIntensity: Number(snap.voiceEmotionIntensity),
-            }),
-          }));
-        }
-      }
-      toast.success("已 100% 還原歷史參數與提示詞");
-    },
-    []
-  );
-
   const showLoraWeight =
     activeModality === "video"
       ? !!(videoState.firstFrameUrl || videoState.characterRefUrl)
@@ -2780,7 +2432,9 @@ export default function Studio() {
                 ? { path: "/image-studio", label: "進階圖像創作" }
                 : activeModality === "video"
                   ? { path: "/video-studio", label: "進階影片創作" }
-                  : { path: "/pro-studio", label: "進階配音音樂" };
+                  : activeModality === "voice"
+                    ? { path: "/pro-studio?tab=tts", label: "進階語音合成" }
+                    : { path: "/pro-studio?tab=music", label: "進階配音音樂" };
             return (
               <Button
                 variant="outline"
@@ -2989,6 +2643,7 @@ export default function Studio() {
                   onLoraWeightChange={setLoraWeight}
                   showLoraWeight={showLoraWeight}
                   seedOnly={isStandard}
+                  selectedModelId={selectedFalModelId}
                 />
               </div>
             ) : leftDrawerTab === "recipes" ? (
@@ -4015,6 +3670,8 @@ export default function Studio() {
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
+                seedOnly={isStandard}
+                selectedModelId={selectedFalModelId}
               />
             )}
             {toolboxTab === "recipes" && (
