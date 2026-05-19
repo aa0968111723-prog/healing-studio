@@ -850,7 +850,12 @@ export default function AssetsLibrary() {
 
           {/* ── 範圍分頁（我的 / 團隊）— 移到篩選之上，因為使用者
                 通常先決定要看哪個範圍，再依類型/來源過濾。 */}
-          <Tabs value={tab} onValueChange={setTab}>
+          <Tabs
+            value={tab}
+            onValueChange={value => {
+              if (value === "my" || value === "team") setTab(value);
+            }}
+          >
             <TabsList className="rounded-xl bg-muted/40 p-1">
               <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
                 <Lock className="w-3 h-3" /> 我的資產

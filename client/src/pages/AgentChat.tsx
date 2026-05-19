@@ -779,6 +779,7 @@ export default function AgentChat() {
   >(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const heroInputRef = useRef<HTMLInputElement | null>(null);
+  const spiritDeckRef = useRef<HTMLElement | null>(null);
 
   const pushRecent = useCallback((entry: Omit<RecentEntry, "at">) => {
     setRecent(prev => {
@@ -1254,6 +1255,12 @@ export default function AgentChat() {
     },
     [attachArrivalGuide, globalChat, pushRecent, setLocation]
   );
+  const handleOpenSpiritHut = useCallback(() => {
+    setSpiritDeckOpen(true);
+    requestAnimationFrame(() => {
+      spiritDeckRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
 
   // 由 ID 找回最近項目對應的入口（task 或 studio）
   const recentResolved = useMemo(
@@ -1299,6 +1306,19 @@ export default function AgentChat() {
       <div className="w-full max-w-3xl flex-1 flex flex-col pl-12 pr-4 sm:px-6 py-4 sm:py-8 gap-4 sm:gap-5 relative">
         {/* 右上角：低頻工具（清除對話 / 代理設定）做成圖示，不搶版面 */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1 z-10">
+          <button
+            type="button"
+            onClick={handleOpenSpiritHut}
+            title="精靈小屋"
+            data-testid="spirit-hut-trigger"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200/70 bg-violet-50/75 text-violet-700 hover:bg-violet-100/80 dark:border-violet-700/40 dark:bg-violet-900/20 dark:text-violet-200 transition-colors"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-medium leading-none">精靈小屋</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 dark:bg-black/30">
+              {SPIRITS.length}
+            </span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -1853,6 +1873,7 @@ export default function AgentChat() {
               transition={{ duration: 0.35, delay: 0.21 }}
               className="w-full mt-1 space-y-2 text-left"
               data-testid="spirits-deck"
+              ref={spiritDeckRef}
             >
               <Collapsible open={spiritDeckOpen} onOpenChange={setSpiritDeckOpen}>
                 <CollapsibleTrigger asChild>
