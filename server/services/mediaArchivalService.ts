@@ -16,11 +16,13 @@
  * 直接 skip，所以重複呼叫（例如 webhook + polling 都觸發）不會重複下載。
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "../db";
 import {
   digitalAssetLibrary,
+  generationHistory,
   type DigitalAsset,
+  type GenerationHistoryItem,
 } from "../../drizzle/schema";
 import { detectStorageBackend } from "../storage";
 import { isInternalUrl, persistExternalMediaUrl } from "./internalMedia";
@@ -190,4 +192,134 @@ export async function enqueueMediaArchivalTask(
     .limit(1);
   const asset = rows[0];
   if (asset) await archiveAsset(asset);
+}
+
+/**
+ * 對單一 generation_history row 做歸檔 —— 和 archiveAsset 對稱，但寫
+ * 不同欄位（resultUrl 而非 fileUrl，無 fileKey）。Idempotency 一樣靠
+ * archivedAt 把關。
+ */
+export async function archiveHistoryEntry(
+  entry: GenerationHistoryItem
+): Promise<ArchiveAssetResult> {
+  if (entry.archivedAt) {
+    return { archived: false, reason: "already-archived" };
+  }
+
+  const originalUrl = entry.resultUrl?.trim();
+  const db = await getDb();
+  if (!db) return { archived: false, reason: "no-file-url" };
+
+  const now = new Date();
+  const provider = providerLabel();
+
+  if (!originalUrl) {
+    await db
+      .update(generationHistory)
+      .set({ archivedAt: now, ...(provider ? { provider } : {}) })
+      .where(eq(generationHistory.id, entry.id));
+    return { archived: true, reason: "no-file-url" };
+  }
+
+  if (isInternalUrl(originalUrl)) {
+    await db
+      .update(generationHistory)
+      .set({ archivedAt: now, ...(provider ? { provider } : {}) })
+      .where(eq(generationHistory.id, entry.id));
+    return {
+      archived: true,
+      reason: "already-internal",
+      fileUrl: originalUrl,
+    };
+  }
+
+  const category = categoryForAssetType(entry.modality);
+  const prefix = `archived/${category}/${entry.userId}`;
+  const internalUrl = await persistExternalMediaUrl(originalUrl, {
+    category,
+    prefix,
+  });
+
+  await db
+    .update(generationHistory)
+    .set({
+      resultUrl: internalUrl,
+      sourceUrl: originalUrl,
+      archivedAt: now,
+      ...(provider ? { provider } : {}),
+    })
+    .where(eq(generationHistory.id, entry.id));
+
+  return {
+    archived: true,
+    fileUrl: internalUrl,
+    sourceUrl: originalUrl,
+  };
+}
+
+export interface RunMediaArchivalResult {
+  assets: { total: number; archived: number; skipped: number; failed: number };
+  history: { total: number; archived: number; skipped: number; failed: number };
+}
+
+/**
+ * 掃描 digital_asset_library + generation_history 裡 archivedAt IS NULL 且
+ * 有 URL 的 row，逐筆呼叫 archiveAsset / archiveHistoryEntry。為了避免一次
+ * 拉太多，每張表各取 `batchSize` 筆（預設 20）。被 mediaArchivalCron 定期呼叫，
+ * 也可供測試 / 手動腳本直接使用。
+ */
+export async function runMediaArchival(batchSize = 20): Promise<RunMediaArchivalResult> {
+  const result: RunMediaArchivalResult = {
+    assets: { total: 0, archived: 0, skipped: 0, failed: 0 },
+    history: { total: 0, archived: 0, skipped: 0, failed: 0 },
+  };
+
+  const db = await getDb();
+  if (!db) return result;
+
+  const assets = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        isNull(digitalAssetLibrary.archivedAt),
+        isNotNull(digitalAssetLibrary.fileUrl)
+      )
+    )
+    .orderBy(asc(digitalAssetLibrary.createdAt))
+    .limit(batchSize);
+  result.assets.total = assets.length;
+  for (const asset of assets) {
+    try {
+      const r = await archiveAsset(asset);
+      if (r.archived) result.assets.archived += 1;
+      else result.assets.skipped += 1;
+    } catch {
+      result.assets.failed += 1;
+    }
+  }
+
+  const history = await db
+    .select()
+    .from(generationHistory)
+    .where(
+      and(
+        isNull(generationHistory.archivedAt),
+        isNotNull(generationHistory.resultUrl)
+      )
+    )
+    .orderBy(asc(generationHistory.createdAt))
+    .limit(batchSize);
+  result.history.total = history.length;
+  for (const entry of history) {
+    try {
+      const r = await archiveHistoryEntry(entry);
+      if (r.archived) result.history.archived += 1;
+      else result.history.skipped += 1;
+    } catch {
+      result.history.failed += 1;
+    }
+  }
+
+  return result;
 }
