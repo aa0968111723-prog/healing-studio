@@ -24,6 +24,8 @@ import type {
   WorldStyleProfile,
   WorldMusicTheme,
   WorldbuildingFrameworkData,
+  WorldResearchEntry,
+  SceneTimeOfDay,
   CharacterExpression,
   CharacterOutfit,
 } from "./worldbuilding-types";
@@ -464,15 +466,52 @@ export function buildFramePrompt(args: {
     if (worldScene.environment) parts.push(worldScene.environment);
     if (worldScene.lighting) parts.push(`光線：${worldScene.lighting}`);
     if (worldScene.mood) parts.push(`氛圍：${worldScene.mood}`);
+    // 場景細節：植被 / 動物 / 道具（各取前 2 項，避免 prompt 過長）
+    if (worldScene.flora?.length)
+      parts.push(`植被：${worldScene.flora.slice(0, 2).join("、")}`);
+    if (worldScene.fauna?.length)
+      parts.push(`生物：${worldScene.fauna.slice(0, 2).join("、")}`);
+    if (worldScene.props?.length)
+      parts.push(`道具：${worldScene.props.slice(0, 3).join("、")}`);
+    // 建築 / 美術設定：年代、建材
+    if (worldScene.productionDesign?.architecturalStyle)
+      parts.push(`建築：${worldScene.productionDesign.architecturalStyle}`);
+    if (worldScene.productionDesign?.materials?.length)
+      parts.push(`建材：${worldScene.productionDesign.materials.slice(0, 2).join("、")}`);
+    // Layout 提示：hero shot / 出入口（給構圖參考）
+    if (worldScene.layout?.heroShotAngle && !frame.shotDescription)
+      parts.push(`機位：${worldScene.layout.heroShotAngle}`);
+    // 大氣 / 粒子：霧、塵、光柱、雨雪
+    const atmo = worldScene.atmospherics;
+    if (atmo) {
+      const atmoParts: string[] = [];
+      if (atmo.fogDensity && atmo.fogDensity > 0.3) atmoParts.push("濃霧");
+      if (atmo.dustMotes) atmoParts.push("塵埃飛舞");
+      if (atmo.lightShafts) atmoParts.push("光柱");
+      if (atmo.precipitation && atmo.precipitation !== "none")
+        atmoParts.push(atmo.precipitation);
+      if (atmo.lightning) atmoParts.push("閃電");
+      if (atmo.customParticles?.length)
+        atmoParts.push(...atmo.customParticles.slice(0, 1));
+      if (atmoParts.length) parts.push(atmoParts.join("、"));
+    }
   }
 
   if (styleProfile) {
     if (styleProfile.triggerWord) parts.push(styleProfile.triggerWord);
     if (styleProfile.artStyle) parts.push(styleProfile.artStyle);
+    if (styleProfile.schoolReference) parts.push(styleProfile.schoolReference);
     if (styleProfile.palette?.length)
       parts.push(`色票：${styleProfile.palette.join("/")}`);
     if (styleProfile.lensSpec?.aspectRatio)
       parts.push(`比例 ${styleProfile.lensSpec.aspectRatio}`);
+    if (styleProfile.lensSpec?.depthOfField)
+      parts.push(`景深：${styleProfile.lensSpec.depthOfField}`);
+    if (styleProfile.shadingModel)
+      parts.push(`著色：${styleProfile.shadingModel}`);
+    if (styleProfile.lineSpec?.lineStyle)
+      parts.push(`線條：${styleProfile.lineSpec.lineStyle}`);
+    if (styleProfile.shootOn) parts.push(`拍 ${styleProfile.shootOn} 格`);
   }
 
   // 2. 鏡頭設定
@@ -488,6 +527,11 @@ export function buildFramePrompt(args: {
     const cparts: string[] = [];
     if (c.triggerWord) cparts.push(c.triggerWord);
     cparts.push(c.name);
+    // 體型 / 種族 / 顯著生理特徵（影響三視圖一致性）
+    if (c.body?.species) cparts.push(c.body.species);
+    if (c.body?.ageStage) cparts.push(c.body.ageStage);
+    if (c.body?.distinctiveFeatures?.length)
+      cparts.push(...c.body.distinctiveFeatures.slice(0, 2));
     const outfit =
       (beat.outfitId && c.outfits?.find(o => o.id === beat.outfitId)) ||
       c.outfits?.find(o => o.isDefault) ||
@@ -504,7 +548,13 @@ export function buildFramePrompt(args: {
         if (expr.promptKeywords?.length) cparts.push(...expr.promptKeywords);
       }
     }
+    // 姿勢：beat.pose 優先；否則用 actingNotes.defaultPosture
     if (beat.pose) cparts.push(beat.pose);
+    else if (c.actingNotes?.defaultPosture)
+      cparts.push(c.actingNotes.defaultPosture);
+    // 互動標籤（同場角色關係：戀人 / 敵對 / 羈絆…）
+    if (beat.interactionTags?.length)
+      cparts.push(`互動：${beat.interactionTags.slice(0, 2).join("、")}`);
     parts.push(`[${cparts.join(", ")}]`);
   }
 
@@ -533,7 +583,17 @@ export function buildFrameNegativePrompt(args: {
         args.framework.defaultStyleProfileId)
   );
   if (styleProfile?.negativePrompt) parts.push(styleProfile.negativePrompt);
-  return parts.join(", ");
+  // 製作目標的受眾 → 安全詞（兒童 / 全年齡會自動排除血腥色情）
+  const audienceNeg = buildAudienceSafetyNegative(
+    args.framework.productionTargets?.audience
+  );
+  if (audienceNeg) parts.push(audienceNeg);
+  // 製作目標的內容分級
+  const rating = args.framework.productionTargets?.rating?.toLowerCase();
+  if (rating && (rating === "g" || rating === "pg")) {
+    if (!audienceNeg) parts.push("blood, gore, nudity, sexual content");
+  }
+  return parts.filter(Boolean).join(", ");
 }
 
 // ─── 動畫管線編排（核心） ──────────────────────────────────────────────────
@@ -668,6 +728,11 @@ export function planAnimationPipeline(
 
     // ── audio：music / voiceover / sfx ──
     for (const clip of scene.audioClips) {
+      // 已有現成檔案（status=ready + audioUrl）→ 跳過生成步驟。
+      // compose_audio_track 仍會在 input 中讀到此 clip 的 audioUrl 並混音。
+      if (clip.status === "ready" && clip.audioUrl) {
+        continue;
+      }
       if (clip.kind === "music") {
         const theme = framework.musicThemes?.find(
           m => m.id === clip.musicThemeId
@@ -830,8 +895,17 @@ function buildMusicPrompt(
   if (theme?.mood) parts.push(theme.mood);
   if (theme?.instruments?.length) parts.push(theme.instruments.join("、"));
   if (theme?.bpm) parts.push(`BPM ${theme.bpm}`);
+  if (theme?.timeSignature) parts.push(`拍號 ${theme.timeSignature}`);
   if (theme?.key) parts.push(theme.key);
   if (theme?.promptKeywords?.length) parts.push(...theme.promptKeywords);
+  // Leitmotif —— 文字描述主題動機（給 AI 編曲時保持一致性）
+  if (theme?.leitmotif?.description)
+    parts.push(`主題動機：${theme.leitmotif.description}`);
+  else if (theme?.leitmotif?.melodicPhrase)
+    parts.push(`旋律：${theme.leitmotif.melodicPhrase}`);
+  // Transition style + LUFS 讓混音器拿到完整脈絡
+  if (theme?.transitionStyle) parts.push(`銜接：${theme.transitionStyle}`);
+  if (theme?.lufsTarget != null) parts.push(`LUFS ${theme.lufsTarget}`);
   if (scene.actionDescription)
     parts.push(`場景動作：${scene.actionDescription}`);
   return parts.filter(Boolean).join(", ");
@@ -898,11 +972,432 @@ function estimateWallClock(
   return Math.ceil(max);
 }
 
-// ─── 自動播種：從角色清單推導建議的分鏡架構 ───────────────────────────────
+// ─── 自動播種：從世界觀全模組推導分鏡架構 ─────────────────────────────────
+//
+//   設計：分鏡骨架是世界觀系統的「縫合層」 —— 把零散的角色、場景、
+//   風格、配樂、研究、音效、製作目標、腳本定位等模組，全部編織成
+//   一條可執行的時間軸。每個世界觀欄位都對應到分鏡的某個位置：
+//
+//     productionTargets.targetDurationSec  → 預設總長
+//     productionTargets.masterSpec.fps     → 預設 fps
+//     scene.preferredAspectRatio           → 預設比例
+//     scene.styleProfileId                 → storyboard scene.styleProfileId
+//     scene.musicThemeId                   → storyboard scene.musicThemeId
+//     scene.defaultCameraMovement          → storyboard scene.cameraDirection
+//     scene.environment / mood / changes   → actionDescription
+//     scene.soundDesign.signatureSfx       → audioClips (sfx)
+//     scene.soundLibraryRefs               → audioClips (ambient)
+//     character.scriptRole.appearsInBeats  → 角色在哪幕出場
+//     character.scriptRole.avgScreenTimeRatio → 占場比例
+//     character.scriptRole.signatureLines  → 開場/高潮/結尾對白
+//     character.outfits[isDefault]         → beat.outfitId
+//     character.expressions                → beat.expressionId（按幕別匹配）
+//     musicThemes (by mood)                → 按場景情緒挑配樂
+//     researchEntries (isCanon)            → 場景 notes 注入正史參考
+//
+//   設計原則：所有現有測試保留通過 —— 場數、起訖秒、主角到場等不變，
+//   只是「填得更滿」、把更多模組資料寫進骨架。
+
+/** 敘事節拍 —— 把場序映射成戲劇結構的標籤。 */
+export type NarrativeBeat =
+  | "opening"
+  | "rising"
+  | "climax"
+  | "falling"
+  | "ending";
+
+const BEAT_LABELS_ZH: Record<NarrativeBeat, string> = {
+  opening: "開場",
+  rising: "發展",
+  climax: "高潮",
+  falling: "轉折",
+  ending: "結局",
+};
+
+/** 角色 scriptRole.appearsInBeats 的中英關鍵字辨識表。 */
+const BEAT_TAG_KEYWORDS: Record<NarrativeBeat, string[]> = {
+  opening: ["開場", "序", "起", "引子", "opening", "intro"],
+  rising: ["發展", "上升", "推進", "rising", "build"],
+  climax: ["高潮", "頂點", "巔峰", "climax", "peak"],
+  falling: ["轉折", "下降", "falling", "twist"],
+  ending: ["結局", "結尾", "尾聲", "落幕", "終", "ending", "outro"],
+};
+
+/** 把 (場序, 總場數) 解析成 NarrativeBeat 標籤 */
+export function resolveNarrativeBeat(
+  idx: number,
+  total: number
+): NarrativeBeat {
+  if (total <= 1) return "opening";
+  if (idx === 0) return "opening";
+  if (idx === total - 1) return "ending";
+  const ratio = idx / (total - 1);
+  if (ratio < 0.45) return "rising";
+  if (ratio < 0.75) return "climax";
+  return "falling";
+}
+
+/** 判斷角色的 appearsInBeats 是否覆蓋當前節拍 */
+function characterTaggedForBeat(c: WorldCharacter, beat: NarrativeBeat): boolean {
+  const tags = c.scriptRole?.appearsInBeats;
+  if (!tags?.length) return false;
+  const keys = BEAT_TAG_KEYWORDS[beat];
+  return tags.some(t => {
+    const lower = t.toLowerCase();
+    return keys.some(k => lower.includes(k.toLowerCase()));
+  });
+}
+
+/** 按場景情緒 / 節拍挑選最適合的配樂主題 */
+function pickMusicThemeForScene(
+  worldScene: WorldScene | undefined,
+  themes: WorldMusicTheme[] | undefined,
+  beat: NarrativeBeat,
+  characterIds: string[]
+): WorldMusicTheme | undefined {
+  if (!themes?.length) return undefined;
+
+  // 1) 場景直接鎖定
+  if (worldScene?.musicThemeId) {
+    const m = themes.find(t => t.id === worldScene.musicThemeId);
+    if (m) return m;
+  }
+
+  // 2) 角色主題（applicableCharacterIds 命中當前在場角色）
+  for (const t of themes) {
+    if (t.applicableCharacterIds?.some(id => characterIds.includes(id))) {
+      return t;
+    }
+  }
+
+  // 3) 場景白名單（applicableSceneIds 命中當前場景）
+  if (worldScene) {
+    for (const t of themes) {
+      if (t.applicableSceneIds?.includes(worldScene.id)) return t;
+    }
+  }
+
+  // 4) 場景 mood 與主題 mood 模糊匹配
+  if (worldScene?.mood) {
+    const sceneMood = worldScene.mood;
+    const m = themes.find(
+      t =>
+        t.mood &&
+        (t.mood.includes(sceneMood) || sceneMood.includes(t.mood))
+    );
+    if (m) return m;
+  }
+
+  // 5) 節拍對應的情緒池
+  const beatMoodPool: Record<NarrativeBeat, string[]> = {
+    opening: ["希望", "溫馨", "靜謐", "神秘", "懷舊"],
+    rising: ["希望", "刺激", "推進", "動感"],
+    climax: ["史詩", "緊張", "戰鬥", "激昂"],
+    falling: ["哀傷", "壓抑", "孤寂"],
+    ending: ["溫馨", "希望", "釋懷", "落幕"],
+  };
+  for (const mood of beatMoodPool[beat]) {
+    const m = themes.find(t => t.mood?.includes(mood));
+    if (m) return m;
+  }
+
+  // 6) Fallback：第一個主題
+  return themes[0];
+}
+
+/** 按節拍挑選角色預設表情 id（從 expressions 名稱 / 關鍵字推導） */
+function pickExpressionForBeat(
+  c: WorldCharacter,
+  beat: NarrativeBeat
+): string | undefined {
+  if (!c.expressions?.length) return undefined;
+  const beatExprKeys: Record<NarrativeBeat, string[]> = {
+    opening: ["微笑", "平靜", "好奇", "smile", "neutral", "calm"],
+    rising: ["決心", "認真", "專注", "determined", "focused"],
+    climax: ["憤怒", "驚訝", "激動", "決絕", "anger", "shock", "intense"],
+    falling: ["哀傷", "失落", "疲憊", "sad", "tired"],
+    ending: ["微笑", "釋懷", "平靜", "smile", "peaceful", "relief"],
+  };
+  const keys = beatExprKeys[beat];
+  for (const k of keys) {
+    const lower = k.toLowerCase();
+    const found = c.expressions.find(e => {
+      if (e.name.toLowerCase().includes(lower)) return true;
+      return e.promptKeywords?.some(pk =>
+        pk.toLowerCase().includes(lower)
+      );
+    });
+    if (found) return found.id;
+  }
+  return c.expressions[0]?.id;
+}
+
+/** 從 scriptRole.signatureLines 挑出符合當前節拍的招牌台詞 */
+function pickSignatureLineForBeat(
+  c: WorldCharacter,
+  beat: NarrativeBeat
+): string | undefined {
+  const lines = c.scriptRole?.signatureLines;
+  if (!lines?.length) return undefined;
+  if (beat === "opening") return lines[0];
+  if (beat === "ending") return lines[lines.length - 1];
+  if (beat === "climax") {
+    return lines[Math.min(lines.length - 1, Math.floor(lines.length / 2))];
+  }
+  return undefined;
+}
+
+/** 找出與當前場景最相關的正史研究條目（給 scene.notes 注入背景參考） */
+function pickCanonResearchForScene(
+  research: WorldResearchEntry[] | undefined,
+  worldScene: WorldScene | undefined,
+  beat: NarrativeBeat
+): WorldResearchEntry | undefined {
+  if (!research?.length) return undefined;
+  const canon = research.filter(r => r.isCanon !== false);
+  if (!canon.length) return undefined;
+
+  // 1) tag / title 與場景 environment / name 模糊匹配
+  if (worldScene) {
+    const haystack = `${worldScene.name ?? ""} ${
+      worldScene.environment ?? ""
+    } ${worldScene.tagline ?? ""}`.toLowerCase();
+    const matched = canon.find(r => {
+      if (r.tags?.some(t => haystack.includes(t.toLowerCase()))) return true;
+      return r.title && haystack.includes(r.title.toLowerCase());
+    });
+    if (matched) return matched;
+  }
+
+  // 2) 開場優先 geography / history，高潮優先 politics / religion
+  const beatCategoryPref: Record<NarrativeBeat, string[]> = {
+    opening: ["geography", "culture", "history"],
+    rising: ["culture", "technology", "economy"],
+    climax: ["politics", "religion", "history"],
+    falling: ["culture", "religion"],
+    ending: ["culture", "history", "language"],
+  };
+  for (const cat of beatCategoryPref[beat]) {
+    const m = canon.find(r => r.category === cat);
+    if (m) return m;
+  }
+
+  // 3) Fallback：第一個正史
+  return canon[0];
+}
+
+/** 把研究條目壓縮成 scene.notes 字串（< 200 字） */
+function summarizeResearchEntryForNotes(r: WorldResearchEntry): string {
+  const parts: string[] = [`[正史參考] ${r.title}`];
+  if (r.category) parts.push(`類別：${r.category}`);
+  if (r.content) parts.push(r.content.slice(0, 140));
+  if (r.tags?.length) parts.push(`#${r.tags.slice(0, 4).join(" #")}`);
+  return parts.join("　");
+}
+
+/**
+ * 從場景的 timeOfDay 列表選一個時段 —— 多場景重用同一 worldScene 時
+ * 自動輪替時段（黎明 / 黃昏 / 入夜…），增加視覺變化。
+ */
+function pickTimeOfDayForScene(
+  worldScene: WorldScene | undefined,
+  sceneIdx: number
+): SceneTimeOfDay | undefined {
+  const arr = worldScene?.timeOfDay;
+  if (!arr?.length) return undefined;
+  return arr[sceneIdx % arr.length];
+}
+
+/**
+ * 按場長從 musicTheme.cueVariants 中挑選最相近時長的變體 —— 給混音用。
+ * 回傳變體 label，注入到 audio clip 的 sfxDescription 作為 hint
+ * （StoryboardAudioClip 沒有 cueVariantId 欄位，先用既有欄位攜帶）。
+ */
+function pickCueVariantLabelForDuration(
+  theme: WorldMusicTheme | undefined,
+  durationSec: number
+): string | undefined {
+  const variants = theme?.cueVariants;
+  if (!variants?.length) return undefined;
+  let best = variants[0];
+  let bestDiff = Math.abs(best.durationSec - durationSec);
+  for (const v of variants) {
+    const d = Math.abs(v.durationSec - durationSec);
+    if (d < bestDiff) {
+      best = v;
+      bestDiff = d;
+    }
+  }
+  return best.label;
+}
+
+/**
+ * 同場角色之間如有 relationships，互寫 interactionTags ——
+ * 讓動畫師 / LLM 在同場戲裡知道彼此的關係（羈絆、敵對、戀人等）。
+ */
+function enrichBeatsWithInteractionTags(
+  beats: StoryboardCharacterBeat[],
+  characters: WorldCharacter[]
+): void {
+  if (beats.length < 2) return;
+  const charById = new Map(characters.map(c => [c.id, c]));
+  const inSceneIds = new Set(beats.map(b => b.characterId));
+  for (const beat of beats) {
+    const c = charById.get(beat.characterId);
+    const rels = c?.scriptRole?.relationships;
+    if (!rels?.length) continue;
+    const tags = new Set(beat.interactionTags ?? []);
+    for (const rel of rels) {
+      if (inSceneIds.has(rel.targetCharacterId) && rel.relation) {
+        tags.add(rel.relation);
+      }
+    }
+    if (tags.size > 0) beat.interactionTags = Array.from(tags);
+  }
+}
+
+/**
+ * 為有 dialogue 的角色 beat 自動建立對應的 voiceover 音軌 ——
+ * 閉合「signatureLines → dialogue → 配音」這條線。
+ * 條件：角色有 voiceProfile.voiceId 或 voiceProfile.engine。
+ */
+function buildVoiceoverClipsForBeats(
+  beats: StoryboardCharacterBeat[],
+  characters: WorldCharacter[],
+  sceneIdxPrefix: number,
+  sceneLengthSec: number
+): StoryboardAudioClip[] {
+  const clips: StoryboardAudioClip[] = [];
+  const charById = new Map(characters.map(c => [c.id, c]));
+  for (const beat of beats) {
+    const text = beat.dialogue?.trim();
+    if (!text) continue;
+    const c = charById.get(beat.characterId);
+    const vp = c?.voiceProfile;
+    if (!vp?.voiceId && !vp?.engine) continue;
+    const estDur = estimateDialogueDurationSec(text);
+    const start = Math.max(
+      0,
+      Math.min(sceneLengthSec - estDur, beat.startOffsetSec + 1)
+    );
+    clips.push({
+      id: `${sceneIdxPrefix}-vo-${beat.characterId}`,
+      kind: "voiceover",
+      startOffsetSec: start,
+      durationSec: Math.max(1, Math.min(sceneLengthSec, estDur)),
+      characterId: beat.characterId,
+      text,
+      volume: 0.85,
+      fadeInSec: 0.2,
+      fadeOutSec: 0.3,
+      status: "pending",
+    });
+  }
+  return clips;
+}
+
+/**
+ * 估算中文台詞所需語音時長 —— 約 3.5 字 / 秒。
+ * Clamp 至 [2, 15]，避免單句佔滿整場或不到 1 秒。
+ */
+function estimateDialogueDurationSec(text: string): number {
+  const charCount = Array.from(text).length;
+  return Math.max(2, Math.min(15, Math.ceil(charCount / 3.5)));
+}
+
+/**
+ * 找出 framework.objects 中 appearsInScenes 命中當前場景的物件名稱，
+ * 拼入 actionDescription，告訴 LLM / 動畫師此場該出現哪些道具。
+ */
+function pickObjectsForScene(
+  framework: WorldbuildingFrameworkData,
+  worldSceneId: string | undefined
+): string[] {
+  if (!worldSceneId || !framework.objects?.length) return [];
+  return framework.objects
+    .filter(o => o.appearsInScenes?.includes(worldSceneId))
+    .slice(0, 4)
+    .map(o => o.name);
+}
+
+/**
+ * 依 productionTargets.audience 推導追加的負面提示詞 ——
+ * 兒童 / 全年齡限制血腥色情，青少年僅限明顯露骨。
+ */
+function buildAudienceSafetyNegative(
+  audience: string | undefined
+): string | undefined {
+  if (!audience) return undefined;
+  const a = audience.toLowerCase();
+  if (
+    a.includes("兒童") ||
+    a.includes("全年齡") ||
+    a.includes("kids") ||
+    a.includes("children") ||
+    a.includes("family")
+  ) {
+    return "blood, gore, scary, violence, sexual content, nudity, weapons closeup";
+  }
+  if (a.includes("青少年") || a.includes("teen") || a.includes("pg-13")) {
+    return "explicit gore, sexual content, nudity";
+  }
+  return undefined;
+}
+
+/**
+ * 平台對應的優先比例（TikTok / Reels 走 9:16，YouTube Shorts 也是；
+ * 影展 / 電影走 16:9 或 21:9）。若使用者沒指定 args.aspectRatio 且場景
+ * 也沒 preferredAspectRatio，會用這個 fallback。
+ */
+function inferAspectFromPlatform(platform: string | undefined): string | undefined {
+  if (!platform) return undefined;
+  const p = platform.toLowerCase();
+  if (
+    p.includes("tiktok") ||
+    p.includes("reels") ||
+    p.includes("shorts") ||
+    p.includes("抖音")
+  ) {
+    return "9:16";
+  }
+  if (p.includes("instagram")) return "1:1";
+  if (p.includes("影展") || p.includes("cinema") || p.includes("film festival")) {
+    return "21:9";
+  }
+  return undefined;
+}
+
+/**
+ * 從角色的 actingNotes 推導初始 pose：
+ *   - 開場場景 → signatureGestures[0]（招牌動作出場最有辨識度）
+ *   - 其他場景 → defaultPosture（基本站姿 / 坐姿）
+ */
+function pickPoseForBeat(
+  c: WorldCharacter,
+  beat: NarrativeBeat
+): string | undefined {
+  if (beat === "opening" && c.actingNotes?.signatureGestures?.length) {
+    return c.actingNotes.signatureGestures[0];
+  }
+  return c.actingNotes?.defaultPosture;
+}
 
 /**
  * 從世界觀生成一個 "空白分鏡骨架"。
- * 給定總長與 scene 切法，分配出場時間（按 character.scriptRole.avgScreenTimeRatio）。
+ *
+ * 此函式是世界觀系統的核心縫合層 —— 它把所有模組（角色、場景、風格、
+ * 配樂、研究、音效、製作目標）整合成一條可派生的時間軸。
+ *
+ * 給定總長與 scene 切法，會：
+ *   1. 從 productionTargets 推導 fps / aspectRatio 預設
+ *   2. 依角色 scriptRole（appearsInBeats / avgScreenTimeRatio / defaultPosition）
+ *      決定每場誰登場
+ *   3. 自動指定每個 beat 的 outfitId（預設穿衣）與 expressionId（按節拍）
+ *   4. 開場 / 高潮 / 結尾自動寫入 signatureLines 作為 dialogue 種子
+ *   5. 每場 styleProfile / musicTheme 從場景鎖定欄位繼承，否則按情緒挑選
+ *   6. 場景的 signatureSfx 與 soundLibraryRefs 自動展開為 sfx 音軌
+ *   7. researchEntries 中的正史條目按場景關聯注入到 notes
+ *   8. actionDescription 整合場景 environment / mood / environmentChanges
  */
 export function seedStoryboardSkeleton(args: {
   framework: WorldbuildingFrameworkData;
@@ -912,52 +1407,156 @@ export function seedStoryboardSkeleton(args: {
   fps?: number;
 }): WorldStoryboard {
   const { framework, totalDurationSec } = args;
+  const targets = framework.productionTargets;
+
+  // ── 預設值來源優先序：args → 場景偏好 → 平台 → masterSpec → fallback ──
+  const inferredAspectRatio =
+    args.aspectRatio ??
+    framework.scenes.find(s => s.preferredAspectRatio)?.preferredAspectRatio ??
+    inferAspectFromPlatform(targets?.platform) ??
+    framework.styleProfiles?.find(
+      p => p.id === framework.defaultStyleProfileId
+    )?.lensSpec?.aspectRatio ??
+    "16:9";
+  const inferredFps =
+    args.fps ?? targets?.masterSpec?.fps ?? framework.styleProfiles?.[0]?.fps ?? 24;
+
   const sceneCount =
     args.sceneCount ??
     Math.min(8, Math.max(3, Math.round(totalDurationSec / 30)));
   const perScene = totalDurationSec / sceneCount;
   const scenes: StoryboardScene[] = [];
 
-  // 用 framework.scenes 作 worldSceneId 池
+  // 用 framework.scenes 作 worldSceneId 池（旋轉指派）
   const scenePool = framework.scenes.length > 0 ? framework.scenes : [];
-  // 主角優先安排在所有場
-  const mainChars = framework.characters
-    .filter(c => c.role === "protagonist")
-    .map(c => c.id);
-  const otherChars = framework.characters
-    .filter(c => c.role !== "protagonist")
-    .map(c => c.id);
+
+  // ── 角色分桶：主角 always-in / 戲份高的配角 / 戲份低的配角 ──
+  // 規則：role=protagonist 且 defaultPosition=main_stage（含未設定）且 ratio>=0.5
+  //       的角色，每場必登場（保留與舊版測試一致：主角到所有場）。
+  const isAlwaysIn = (c: WorldCharacter): boolean => {
+    if (c.role !== "protagonist") return false;
+    const pos = c.scriptRole?.defaultPosition ?? "main_stage";
+    if (pos !== "main_stage") return false;
+    const ratio = c.scriptRole?.avgScreenTimeRatio;
+    if (ratio == null) return true; // 未設定 ratio 的主角預設always-in
+    return ratio >= 0.5;
+  };
+  const alwaysInChars = framework.characters.filter(isAlwaysIn);
+  const otherChars = framework.characters.filter(c => !isAlwaysIn(c));
+
+  // 旁白角色不應出現在分鏡 frame 裡（只作為畫外音）
+  const isFrameworthy = (c: WorldCharacter): boolean => {
+    const pos = c.scriptRole?.defaultPosition;
+    return pos !== "narrator";
+  };
 
   for (let i = 0; i < sceneCount; i++) {
     const start = Math.round(perScene * i);
     const end = Math.round(perScene * (i + 1));
-    const worldSceneId = scenePool[i % Math.max(1, scenePool.length)]?.id;
     const sceneLength = end - start;
+    const beat = resolveNarrativeBeat(i, sceneCount);
+    const beatLabel = BEAT_LABELS_ZH[beat];
 
+    const worldScene =
+      scenePool.length > 0 ? scenePool[i % scenePool.length] : undefined;
+
+    // 此場 styleProfile：場景鎖定 → world 預設
+    const styleProfileId =
+      worldScene?.styleProfileId ?? framework.defaultStyleProfileId ?? null;
+
+    // ── 角色出場 ──
     const characterBeats: StoryboardCharacterBeat[] = [];
-    for (const cid of mainChars) {
+    const beatCharIds: string[] = [];
+
+    const addCharacterBeat = (
+      c: WorldCharacter,
+      durationFactor: number
+    ): void => {
+      if (!isFrameworthy(c)) return;
+      const defaultOutfit =
+        c.outfits?.find(o => o.isDefault) ?? c.outfits?.[0];
+      const exprId = pickExpressionForBeat(c, beat);
+      const signatureLine = pickSignatureLineForBeat(c, beat);
+      const pose = pickPoseForBeat(c, beat);
+      const dur = Math.max(1, Math.round(sceneLength * durationFactor));
       characterBeats.push({
-        characterId: cid,
+        characterId: c.id,
         startOffsetSec: 0,
-        durationSec: sceneLength,
+        durationSec: Math.min(sceneLength, dur),
+        outfitId: defaultOutfit?.id,
+        expressionId: exprId,
+        pose,
+        dialogue: signatureLine,
+        goal: c.scriptRole?.archetype,
       });
-    }
-    // 在 25% / 50% / 75% 場次插入一個配角
-    if (otherChars.length && [1, Math.floor(sceneCount / 2), sceneCount - 2].includes(i)) {
-      const idx = i % otherChars.length;
-      characterBeats.push({
-        characterId: otherChars[idx],
-        startOffsetSec: 0,
-        durationSec: sceneLength,
-      });
+      beatCharIds.push(c.id);
+    };
+
+    // 1) Always-in 主角必登場
+    for (const c of alwaysInChars) addCharacterBeat(c, 1);
+
+    // 2) appearsInBeats 標籤命中當前節拍的角色登場
+    for (const c of otherChars) {
+      if (beatCharIds.includes(c.id)) continue;
+      if (characterTaggedForBeat(c, beat)) {
+        const ratio = c.scriptRole?.avgScreenTimeRatio ?? 0.7;
+        addCharacterBeat(c, Math.max(0.3, Math.min(1, ratio)));
+      }
     }
 
-    // 每場默認 2 個 keyframe（開頭、中段）
+    // 3) 配角輪替：保留舊版「25% / 50% / 75% 場插入一個配角」的行為，
+    //    避免回歸測試破壞 —— 旁白角色 / 已登場者跳過
+    const supportingPool = otherChars.filter(
+      c => isFrameworthy(c) && !beatCharIds.includes(c.id)
+    );
+    if (
+      supportingPool.length &&
+      [1, Math.floor(sceneCount / 2), sceneCount - 2].includes(i)
+    ) {
+      const idx = i % supportingPool.length;
+      const c = supportingPool[idx];
+      const ratio = c.scriptRole?.avgScreenTimeRatio ?? 1;
+      addCharacterBeat(c, Math.max(0.3, Math.min(1, ratio)));
+    }
+
+    // 同場關係：互寫 interactionTags（戀人、敵對、羈絆…）
+    enrichBeatsWithInteractionTags(characterBeats, framework.characters);
+
+    // ── 場景動作描述（彙整 environment / mood / 時段 / objects / 變化） ──
+    const actionParts: string[] = [];
+    if (worldScene?.environment) actionParts.push(worldScene.environment);
+    if (worldScene?.mood) actionParts.push(`氛圍：${worldScene.mood}`);
+    // 時段（多場景共用同一 worldScene 時自動輪替）
+    const todPick = pickTimeOfDayForScene(worldScene, i);
+    if (todPick) {
+      const todBits: string[] = [`時段：${todPick.label}`];
+      if (todPick.lighting) todBits.push(todPick.lighting);
+      if (todPick.palette?.length)
+        todBits.push(`色票：${todPick.palette.slice(0, 3).join("/")}`);
+      actionParts.push(todBits.join("　"));
+    }
+    if (worldScene?.environmentChanges?.length) {
+      actionParts.push(`環境變化：${worldScene.environmentChanges[0]}`);
+    }
+    // framework.objects 中此場可能出現的道具
+    const sceneObjects = pickObjectsForScene(framework, worldScene?.id);
+    if (sceneObjects.length)
+      actionParts.push(`場景物件：${sceneObjects.join("、")}`);
+
+    // ── 鏡頭指示（場景 defaultCameraMovement → cameraDirection） ──
+    const cameraDirection = worldScene?.defaultCameraMovement;
+
+    // ── frames：保留 2 個 keyframe（開頭、中段） ──
+    // 若場景有 layout.heroShotAngle，把第一格設為 hero shot；
+    // 角色 actingNotes.cameraPreference 也提供 fallback 構圖偏好。
+    const heroShotAngle = worldScene?.layout?.heroShotAngle;
+    const firstFrameShotDesc = heroShotAngle ?? undefined;
     const frames: StoryboardFrame[] = [
       {
         id: `${i}-kf1`,
         atSec: 0,
         status: "queued",
+        ...(firstFrameShotDesc ? { shotDescription: firstFrameShotDesc } : {}),
       },
       {
         id: `${i}-kf2`,
@@ -966,36 +1565,138 @@ export function seedStoryboardSkeleton(args: {
       },
     ];
 
-    // 默認音軌：整場一個 music
-    const sceneObj = scenePool[i % Math.max(1, scenePool.length)];
-    const musicThemeId =
-      sceneObj?.musicThemeId ?? framework.musicThemes?.[0]?.id ?? undefined;
-    const audioClips: StoryboardAudioClip[] = musicThemeId
-      ? [
-          {
-            id: `${i}-music`,
-            kind: "music",
-            startOffsetSec: 0,
-            durationSec: sceneLength,
-            musicThemeId,
-            volume: 0.6,
-            fadeInSec: 1,
-            fadeOutSec: 1,
-            status: "pending",
-          },
-        ]
-      : [];
+    // ── 音軌：music + signatureSfx + soundLibrary ambient ──
+    const audioClips: StoryboardAudioClip[] = [];
+    const pickedMusic = pickMusicThemeForScene(
+      worldScene,
+      framework.musicThemes,
+      beat,
+      beatCharIds
+    );
+    if (pickedMusic) {
+      // 場長最相近的 cue variant（給混音 / 生成 prompt 參考）
+      const cueVariantLabel = pickCueVariantLabelForDuration(
+        pickedMusic,
+        sceneLength
+      );
+      audioClips.push({
+        id: `${i}-music`,
+        kind: "music",
+        startOffsetSec: 0,
+        durationSec: sceneLength,
+        musicThemeId: pickedMusic.id,
+        volume: 0.6,
+        fadeInSec: 1,
+        fadeOutSec: 1,
+        status: "pending",
+        // 在 voiceover 用不到 sfxDescription 的情境下借此欄位攜帶 cue 變體
+        // 提示（避免新增 schema 欄位破壞向後相容）。
+        ...(cueVariantLabel
+          ? { sfxDescription: `cue:${cueVariantLabel}` }
+          : {}),
+      });
+    }
+    // 場景定義的招牌音效
+    if (worldScene?.soundDesign?.signatureSfx?.length) {
+      worldScene.soundDesign.signatureSfx.slice(0, 2).forEach((sfx, sIdx) => {
+        // 若 signatureSfx 已有 absolute URL，直接帶過去避免管線重新生成。
+        const validAudioUrl =
+          typeof sfx.url === "string" && /^https?:\/\//.test(sfx.url)
+            ? sfx.url
+            : undefined;
+        audioClips.push({
+          id: `${i}-sigsfx-${sIdx}`,
+          kind: "sfx",
+          startOffsetSec: Math.min(
+            sceneLength - 1,
+            Math.round(sceneLength * 0.15 * (sIdx + 1))
+          ),
+          durationSec: Math.max(1, Math.min(3, Math.round(sceneLength * 0.2))),
+          sfxDescription: sfx.description ?? sfx.label,
+          volume: 0.7,
+          status: validAudioUrl ? "ready" : "pending",
+          ...(validAudioUrl ? { audioUrl: validAudioUrl } : {}),
+        });
+      });
+    }
+    // 場景引用的世界音效庫項目 → 環境音床
+    if (worldScene?.soundLibraryRefs?.length && framework.soundLibrary?.length) {
+      worldScene.soundLibraryRefs.slice(0, 2).forEach((refId, sIdx) => {
+        const item = framework.soundLibrary!.find(s => s.id === refId);
+        if (!item) return;
+        // 音效庫已是現成檔案，直接帶 URL；管線可跳過生成步驟。
+        const validUrl =
+          typeof item.audioUrl === "string" && /^https?:\/\//.test(item.audioUrl)
+            ? item.audioUrl
+            : undefined;
+        audioClips.push({
+          id: `${i}-amb-${sIdx}`,
+          kind: "sfx",
+          startOffsetSec: 0,
+          durationSec: item.loopable
+            ? sceneLength
+            : Math.min(sceneLength, Math.max(1, item.durationSec ?? 5)),
+          sfxDescription: `[ambient/${item.category ?? "sfx"}] ${item.label}${
+            item.description ? `：${item.description}` : ""
+          }`,
+          volume: item.volumeDefault ?? 0.35,
+          status: validUrl ? "ready" : "pending",
+          ...(validUrl ? { audioUrl: validUrl } : {}),
+        });
+      });
+    }
+
+    // 對白 → voiceover：把已 seed 的招牌台詞自動展開成配音音軌
+    const voClips = buildVoiceoverClipsForBeats(
+      characterBeats,
+      framework.characters,
+      i,
+      sceneLength
+    );
+    audioClips.push(...voClips);
+
+    // ── 轉場：上一場 → 本場（若風格 / 場景變化才標註） ──
+    let transitionOut: string | undefined;
+    if (scenes.length > 0) {
+      const prev = scenes[scenes.length - 1];
+      const prevStyle = prev.styleProfileId ?? null;
+      const prevWorldScene = prev.worldSceneId ?? null;
+      const currWorldScene = worldScene?.id ?? null;
+      // 場景或風格切換時，給上一場標個轉場（hard_cut / crossfade）
+      if (prevWorldScene !== currWorldScene) {
+        prev.transitionOut =
+          prevStyle !== styleProfileId ? "crossfade" : "hard_cut";
+      }
+    }
+    void transitionOut;
+
+    // ── 場景標題與正史備註 ──
+    const title = worldScene
+      ? `${beatLabel}：${worldScene.name}`
+      : beatLabel;
+    const canon = pickCanonResearchForScene(
+      framework.researchEntries,
+      worldScene,
+      beat
+    );
+    const notes = canon ? summarizeResearchEntryForNotes(canon) : undefined;
 
     scenes.push({
       id: `s${i}`,
       sequenceIndex: i,
       startSec: start,
       endSec: end,
-      worldSceneId,
+      title,
+      worldSceneId: worldScene?.id,
       characterBeats,
+      actionDescription: actionParts.length ? actionParts.join("；") : undefined,
+      cameraDirection,
       frames,
       audioClips,
+      styleProfileId,
+      musicThemeId: pickedMusic?.id ?? null,
       status: "draft",
+      notes,
     });
   }
 
@@ -1003,8 +1704,8 @@ export function seedStoryboardSkeleton(args: {
     worldId: framework.id ?? 0,
     name: `${framework.name} 分鏡草稿`,
     totalDurationSec,
-    fps: args.fps ?? 24,
-    aspectRatio: args.aspectRatio ?? "16:9",
+    fps: inferredFps,
+    aspectRatio: inferredAspectRatio,
     scenes,
     productionStatus: "planning",
   };

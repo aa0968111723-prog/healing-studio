@@ -5965,6 +5965,21 @@ export default function AnimationStudio() {
               defaultDuration={
                 effectiveWorld.productionTargets?.targetDurationSec ?? 60
               }
+              defaultFps={
+                effectiveWorld.productionTargets?.masterSpec?.fps ?? 24
+              }
+              defaultAspectRatio={
+                effectiveWorld.scenes.find(s => s.preferredAspectRatio)
+                  ?.preferredAspectRatio ?? "16:9"
+              }
+              integrationCounts={{
+                characters: effectiveWorld.characters.length,
+                scenes: effectiveWorld.scenes.length,
+                styles: effectiveWorld.styleProfiles?.length ?? 0,
+                music: effectiveWorld.musicThemes?.length ?? 0,
+                research: effectiveWorld.researchEntries?.length ?? 0,
+                sounds: effectiveWorld.soundLibrary?.length ?? 0,
+              }}
               isPending={seedSkeleton.isPending}
               onSeed={args => seedSkeleton.mutate(args)}
             />
@@ -6065,11 +6080,24 @@ export default function AnimationStudio() {
 function SeedStoryboardForm({
   worldId,
   defaultDuration,
+  defaultFps,
+  defaultAspectRatio,
+  integrationCounts,
   isPending,
   onSeed,
 }: {
   worldId: number;
   defaultDuration: number;
+  defaultFps?: number;
+  defaultAspectRatio?: string;
+  integrationCounts?: {
+    characters: number;
+    scenes: number;
+    styles: number;
+    music: number;
+    research: number;
+    sounds: number;
+  };
   isPending: boolean;
   onSeed: (args: {
     worldId: number;
@@ -6083,14 +6111,52 @@ function SeedStoryboardForm({
 }) {
   const [duration, setDuration] = useState(defaultDuration);
   const [sceneCount, setSceneCount] = useState(6);
-  const [aspectRatio, setAspectRatio] = useState("16:9");
-  const [fps, setFps] = useState<number>(24);
+  const [aspectRatio, setAspectRatio] = useState(defaultAspectRatio ?? "16:9");
+  const [fps, setFps] = useState<number>(defaultFps ?? 24);
   const [name, setName] = useState("");
+  // 串連模組狀態 chip
+  const integrationChips: Array<{ label: string; count: number; key: string }> =
+    integrationCounts
+      ? [
+          { key: "characters", label: "角色", count: integrationCounts.characters },
+          { key: "scenes", label: "場景", count: integrationCounts.scenes },
+          { key: "styles", label: "風格", count: integrationCounts.styles },
+          { key: "music", label: "配樂", count: integrationCounts.music },
+          { key: "research", label: "研究", count: integrationCounts.research },
+          { key: "sounds", label: "音效", count: integrationCounts.sounds },
+        ]
+      : [];
   return (
     <div className="rounded-xl border border-dashed border-border/40 bg-card/20 p-3 space-y-2">
-      <h3 className="text-sm font-semibold flex items-center gap-1">
-        <Wand2 className="w-4 h-4" /> 自動派生分鏡骨架
-      </h3>
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <h3 className="text-sm font-semibold flex items-center gap-1">
+          <Wand2 className="w-4 h-4" /> 自動派生分鏡骨架
+        </h3>
+        {integrationChips.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {integrationChips.map(chip => (
+              <Badge
+                key={chip.key}
+                variant={chip.count > 0 ? "secondary" : "outline"}
+                className={`text-[9px] px-1.5 py-0 h-4 ${
+                  chip.count === 0 ? "opacity-40" : ""
+                }`}
+                title={
+                  chip.count > 0
+                    ? `${chip.label}模組已串連（${chip.count} 筆資料）`
+                    : `${chip.label}模組尚無資料 —— 補上後派生時會自動納入`
+                }
+              >
+                {chip.label} {chip.count}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        派生會把所有模組（角色 outfit/expression/scriptRole、場景 styleProfile/musicTheme/soundDesign、
+        研究正史、音效庫、製作目標 fps/比例）串連成分鏡時間軸，按敘事節拍（開場/發展/高潮/結局）分配角色與配樂。
+      </p>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <div>
           <Label className="text-[10px] text-muted-foreground">名稱（選填）</Label>
