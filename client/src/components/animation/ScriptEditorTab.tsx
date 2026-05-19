@@ -437,40 +437,40 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
                     key={seg.id}
                     className="rounded-lg border border-border/30 bg-card/30 overflow-hidden"
                   >
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(seg.id)}
-                      className="w-full flex items-center gap-2 p-2 hover:bg-card/50 transition text-left"
-                    >
-                      {isOpen ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      )}
-                      <Badge variant="outline" className="text-[10px] shrink-0">
-                        #{seg.index + 1}
-                      </Badge>
-                      <span className="text-xs font-medium flex-1 truncate">
-                        {seg.storyboard.sceneHeading ||
-                          seg.rawText.slice(0, 40) ||
-                          "(無標題)"}
-                      </span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
-                        {dur}s
-                      </Badge>
+                    <div className="flex items-center gap-2 p-2 hover:bg-card/50 transition">
                       <button
                         type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          removeSegment(seg.id);
-                        }}
-                        className="text-muted-foreground hover:text-destructive p-0.5"
+                        onClick={() => toggleExpand(seg.id)}
+                        className="flex items-center gap-2 flex-1 text-left min-w-0"
+                        aria-expanded={isOpen}
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        )}
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          #{seg.index + 1}
+                        </Badge>
+                        <span className="text-xs font-medium flex-1 truncate">
+                          {seg.storyboard.sceneHeading ||
+                            seg.rawText.slice(0, 40) ||
+                            "(無標題)"}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {dur}s
+                        </Badge>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSegment(seg.id)}
+                        className="text-muted-foreground hover:text-destructive p-0.5 shrink-0"
                         title="刪除段落"
                         aria-label="刪除段落"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
-                    </button>
+                    </div>
 
                     {isOpen && (
                       <div className="px-3 py-2 space-y-1.5 border-t border-border/20 bg-card/20">
