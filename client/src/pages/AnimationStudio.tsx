@@ -70,7 +70,11 @@ import {
   Search,
   X,
   Upload as UploadIcon,
+  Maximize2,
+  Minimize2,
+  ArrowLeft,
 } from "lucide-react";
+import { EarthGlobeAnimation } from "@/components/animation/EarthGlobeAnimation";
 import {
   AssetUploader,
   inferAssetType,
@@ -5308,6 +5312,9 @@ export default function AnimationStudio() {
   const params = useParams<{ storyboardId?: string }>();
   const [, navigate] = useLocation();
 
+  // 沉浸式模式狀態
+  const [immersiveMode, setImmersiveMode] = useState(false);
+
   const worldsQuery = trpc.worldbuilding.list.useQuery();
   const voicesQuery = trpc.worldbuilding.linkableVoices.useQuery();
   const linkableModelsQuery = trpc.worldbuilding.linkableModels.useQuery();
@@ -5499,41 +5506,81 @@ export default function AnimationStudio() {
   if (detailStoryboardId && storyboardDetailQuery.data && selectedWorld) {
     const sb = storyboardDetailQuery.data;
     return (
-      <div className="p-4 max-w-6xl mx-auto space-y-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/animation")}
-            className="text-xs"
-          >
-            ← 返回世界觀系統
-          </Button>
-          <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
-          <Badge variant="outline">{sb.productionStatus}</Badge>
-          <Button
-            size="sm"
-            onClick={() =>
-              planPipeline.mutate({ id: sb.id, persist: true })
-            }
-            disabled={planPipeline.isPending}
-          >
-            <Wand2 className="w-3.5 h-3.5 mr-1" />
-            編排動畫管線
-          </Button>
-        </div>
+      <>
+        {/* 沉浸式模式背景動畫 */}
+        {immersiveMode && <EarthGlobeAnimation />}
 
-        <StoryboardTimelinePreview storyboard={sb} framework={selectedWorld} />
+        <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
+          <div className={`flex items-center gap-2 ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
+            {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
+            {immersiveMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/director")}
+                className="h-8 text-xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                返回導演 AI
+              </Button>
+            )}
 
-        {sb.pipelinePlan && (
-          <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> 管線執行計畫
-            </h3>
-            <PipelinePlanView plan={sb.pipelinePlan} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/animation")}
+              className="text-xs"
+            >
+              ← 返回世界觀系統
+            </Button>
+
+            {/* 沉浸式模式切換按鈕 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setImmersiveMode(!immersiveMode)}
+              className="h-8 text-xs"
+              title={immersiveMode ? "退出沉浸式模式" : "進入沉浸式模式"}
+            >
+              {immersiveMode ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 mr-1" />
+                  退出沉浸
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                  沉浸式
+                </>
+              )}
+            </Button>
+
+            <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
+            <Badge variant="outline">{sb.productionStatus}</Badge>
+            <Button
+              size="sm"
+              onClick={() =>
+                planPipeline.mutate({ id: sb.id, persist: true })
+              }
+              disabled={planPipeline.isPending}
+            >
+              <Wand2 className="w-3.5 h-3.5 mr-1" />
+              編排動畫管線
+            </Button>
           </div>
-        )}
-      </div>
+
+          <StoryboardTimelinePreview storyboard={sb} framework={selectedWorld} />
+
+          {sb.pipelinePlan && (
+            <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="w-4 h-4" /> 管線執行計畫
+              </h3>
+              <PipelinePlanView plan={sb.pipelinePlan} />
+            </div>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -5543,26 +5590,65 @@ export default function AnimationStudio() {
   const effectiveWorld = draft ?? selectedWorld;
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Film className="w-5 h-5 text-primary" />
-        <h1 className="text-lg font-semibold">世界觀系統</h1>
-        <Select
-          value={String(selectedWorldId)}
-          onValueChange={v => setSelectedWorldId(Number(v))}
-        >
-          <SelectTrigger className="h-8 w-[220px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {worlds.map(w => (
-              <SelectItem key={w.id} value={String(w.id)} className="text-xs">
-                {w.name} · {w.genre ?? "—"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <>
+      {/* 沉浸式模式背景動畫 */}
+      {immersiveMode && <EarthGlobeAnimation />}
+
+      <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
+        {/* Header */}
+        <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
+          {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
+          {immersiveMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/director")}
+              className="h-8 text-xs"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              返回導演 AI
+            </Button>
+          )}
+
+          <Film className="w-5 h-5 text-primary" />
+          <h1 className="text-lg font-semibold">世界觀系統</h1>
+
+          {/* 沉浸式模式切換按鈕 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setImmersiveMode(!immersiveMode)}
+            className="h-8 text-xs ml-auto"
+            title={immersiveMode ? "退出沉浸式模式" : "進入沉浸式模式"}
+          >
+            {immersiveMode ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 mr-1" />
+                退出沉浸
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                沉浸式
+              </>
+            )}
+          </Button>
+
+          <Select
+            value={String(selectedWorldId)}
+            onValueChange={v => setSelectedWorldId(Number(v))}
+          >
+            <SelectTrigger className="h-8 w-[220px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {worlds.map(w => (
+                <SelectItem key={w.id} value={String(w.id)} className="text-xs">
+                  {w.name} · {w.genre ?? "—"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         <Button
           variant="outline"
           size="sm"
@@ -6072,6 +6158,7 @@ export default function AnimationStudio() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }
 
