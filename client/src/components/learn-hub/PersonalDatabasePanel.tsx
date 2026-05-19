@@ -36,7 +36,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 
@@ -77,7 +76,7 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
     return (
       <span className="text-[10px] flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 className="w-2.5 h-2.5" />
-        已索引
+        已轉字
       </span>
     );
   }
@@ -97,6 +96,7 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
       </span>
     );
   }
+  // "not_applicable" — no transcription needed (e.g. plain text item)
   return null;
 }
 
@@ -124,18 +124,34 @@ export default function PersonalDatabasePanel() {
     for (const item of items) {
       byMedia[item.mediaType] = (byMedia[item.mediaType] ?? 0) + 1;
       byVisibility[item.visibility] = (byVisibility[item.visibility] ?? 0) + 1;
-      if (item.transcriptionStatus === "completed") indexed += 1;
-      if (item.transcriptionStatus === "pending" || item.transcriptionStatus === "processing") pending += 1;
+      // "Searchable" = transcription done OR no transcription needed (text / image)
+      if (
+        item.transcriptionStatus === "completed" ||
+        item.transcriptionStatus === "not_applicable"
+      ) {
+        indexed += 1;
+      }
+      if (
+        item.transcriptionStatus === "pending" ||
+        item.transcriptionStatus === "processing"
+      ) {
+        pending += 1;
+      }
     }
     return { byMedia, byVisibility, total: items.length, indexed, pending };
   }, [items]);
 
   const recent = useMemo(() => items.slice(0, 5), [items]);
 
-  // ── 未登入：純介紹卡 ──────────────────────────────────────
+  // ── 未登入：純介紹卡（導向 Google OAuth；本站無 /login 路由） ──
   if (!isAuthed) {
     return (
-      <UnauthedIntro onLogin={() => navigate("/login")} />
+      <UnauthedIntro
+        onLogin={() => {
+          const here = window.location.pathname + window.location.search;
+          window.location.href = `/api/oauth/google/start?redirect=${encodeURIComponent(here)}`;
+        }}
+      />
     );
   }
 
@@ -198,7 +214,7 @@ export default function PersonalDatabasePanel() {
               tone="amber"
             />
             <StatCard
-              label="已索引"
+              label="可被檢索"
               value={stats.indexed}
               suffix={`/ ${stats.total}`}
               icon={CheckCircle2}
