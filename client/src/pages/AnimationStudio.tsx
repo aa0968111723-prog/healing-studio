@@ -75,6 +75,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { EarthGlobeAnimation } from "@/components/animation/EarthGlobeAnimation";
+import { CharacterVisualPreview } from "@/components/animation/CharacterVisualPreview";
+import { SceneEnvironmentPreview } from "@/components/animation/SceneEnvironmentPreview";
 import {
   AssetUploader,
   inferAssetType,
@@ -602,6 +604,9 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
         placeholder="一句話描述（被遺忘的森林守護者…）"
         className="h-7 text-[11px]"
       />
+
+      {/* 即時視覺預覽 */}
+      <CharacterVisualPreview character={character} className="my-2" />
 
       <div className="flex flex-wrap gap-1">
         {sections.map(s => {
@@ -3852,6 +3857,10 @@ const SceneCard = memo(function SceneCard({
         placeholder="一句話氛圍（濕潤、靜謐、微光穿過樹葉）"
         className="h-7 text-xs"
       />
+
+      {/* 即時環境視覺預覽 */}
+      <SceneEnvironmentPreview scene={scene} className="my-2" />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px] text-muted-foreground">環境</Label>
