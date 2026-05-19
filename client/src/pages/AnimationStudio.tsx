@@ -18,6 +18,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type { AgentAction, AgentCapability } from "../../../shared/agent-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,7 +72,13 @@ import {
   Search,
   X,
   Upload as UploadIcon,
+  Maximize2,
+  Minimize2,
+  ArrowLeft,
 } from "lucide-react";
+import { EarthGlobeAnimation } from "@/components/animation/EarthGlobeAnimation";
+import { CharacterVisualPreview } from "@/components/animation/CharacterVisualPreview";
+import { SceneEnvironmentPreview } from "@/components/animation/SceneEnvironmentPreview";
 import {
   AssetUploader,
   inferAssetType,
@@ -82,6 +90,9 @@ import {
   GenerateMusicButton,
   GenerateVoiceButton,
 } from "@/components/animation/QuickGenerateButtons";
+import { StoryboardTimelineUploader } from "@/components/animation/StoryboardTimelineUploader";
+import { ConsistencyCheckPanel } from "@/components/animation/ConsistencyCheckPanel";
+import { CompositionAssistant } from "@/components/animation/CompositionAssistant";
 import {
   buildCharacterConsistencyPrompt,
   buildSceneConsistencyPrompt,
@@ -598,6 +609,9 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
         placeholder="一句話描述（被遺忘的森林守護者…）"
         className="h-7 text-[11px]"
       />
+
+      {/* 即時視覺預覽 */}
+      <CharacterVisualPreview character={character} className="my-2" />
 
       <div className="flex flex-wrap gap-1">
         {sections.map(s => {
@@ -3848,6 +3862,10 @@ const SceneCard = memo(function SceneCard({
         placeholder="一句話氛圍（濕潤、靜謐、微光穿過樹葉）"
         className="h-7 text-xs"
       />
+
+      {/* 即時環境視覺預覽 */}
+      <SceneEnvironmentPreview scene={scene} className="my-2" />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px] text-muted-foreground">環境</Label>
@@ -5308,6 +5326,9 @@ export default function AnimationStudio() {
   const params = useParams<{ storyboardId?: string }>();
   const [, navigate] = useLocation();
 
+  // 沉浸式模式狀態
+  const [immersiveMode, setImmersiveMode] = useState(false);
+
   const worldsQuery = trpc.worldbuilding.list.useQuery();
   const voicesQuery = trpc.worldbuilding.linkableVoices.useQuery();
   const linkableModelsQuery = trpc.worldbuilding.linkableModels.useQuery();
@@ -5324,6 +5345,8 @@ export default function AnimationStudio() {
     | "sounds"
     | "script"
     | "storyboards"
+    | "timeline"
+    | "composition"
   >("characters");
 
   // 自動選第一個世界
@@ -5420,6 +5443,175 @@ export default function AnimationStudio() {
     [updateWorld]
   );
 
+  // AI Generation mutations
+  const generateCharacterMutation = trpc.worldbuildingGeneration.generateCharacter.useMutation({
+    onSuccess: (data) => {
+      toast.success(`角色「${data.character.name}」已生成`);
+      utils.worldbuilding.list.invalidate();
+    },
+    onError: (e) => toast.error(`生成失敗：${e.message}`),
+  });
+
+  const generateSceneMutation = trpc.worldbuildingGeneration.generateScene.useMutation({
+    onSuccess: (data) => {
+      toast.success(`場景「${data.scene.name}」已生成`);
+      utils.worldbuilding.list.invalidate();
+    },
+    onError: (e) => toast.error(`生成失敗：${e.message}`),
+  });
+
+  const generateStoryboardMutation = trpc.worldbuildingGeneration.generateStoryboard.useMutation({
+    onSuccess: (data) => {
+      toast.success("分鏡已生成");
+      utils.worldStoryboard.listByWorld.invalidate();
+      if (data.storyboardId) {
+        navigate(`/animation/${data.storyboardId}`);
+      }
+    },
+    onError: (e) => toast.error(`生成失敗：${e.message}`),
+  });
+
+  // ─── AI Agent Integration ───────────────────────────────────────────────
+  useRegisterPageAgent({
+    pageId: "worldbuilding",
+    pageLabel: "世界觀系統",
+    capabilities: useMemo((): AgentCapability[] => {
+      const tabs: AgentCapability["options"] = [
+        { id: "characters", label: "角色" },
+        { id: "scenes", label: "場景" },
+        { id: "style", label: "風格" },
+        { id: "music", label: "音樂" },
+        { id: "production", label: "製作" },
+        { id: "research", label: "研究" },
+        { id: "sounds", label: "音效庫" },
+        { id: "script", label: "腳本" },
+        { id: "storyboards", label: "分鏡" },
+      ];
+
+      return [
+        {
+          action: "setTab",
+          label: "分頁",
+          options: tabs,
+          currentId: selectedTab,
+        },
+        {
+          action: "generateCharacter",
+          label: "生成角色",
+          hint: "可根據描述生成新角色並加入目前世界觀",
+        },
+        {
+          action: "generateScene",
+          label: "生成場景",
+          hint: "可根據描述生成新場景並加入目前世界觀",
+        },
+        {
+          action: "generateStoryboard",
+          label: "生成分鏡",
+          hint: "可根據腳本或描述生成分鏡時間軸",
+        },
+      ];
+    }, [selectedTab]),
+
+    handler: useCallback(async (action: AgentAction) => {
+      if (action.type === "setTab") {
+        const validTabs = [
+          "characters",
+          "scenes",
+          "style",
+          "music",
+          "production",
+          "research",
+          "sounds",
+          "script",
+          "storyboards",
+        ];
+        if (validTabs.includes(action.tabId)) {
+          setSelectedTab(action.tabId as typeof selectedTab);
+          return { ok: true, message: `已切換到「${action.tabId}」分頁` };
+        }
+        return { ok: false, reason: "無效的分頁 ID" };
+      }
+
+      if (action.type === "generateCharacter") {
+        if (!selectedWorldId) {
+          return { ok: false, reason: "請先選擇一個世界觀" };
+        }
+        try {
+          await generateCharacterMutation.mutateAsync({
+            worldId: selectedWorldId,
+            description: action.description,
+            archetype: action.archetype,
+          });
+          return { ok: true, message: "角色已生成並加入世界觀" };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
+        }
+      }
+
+      if (action.type === "generateScene") {
+        if (!selectedWorldId) {
+          return { ok: false, reason: "請先選擇一個世界觀" };
+        }
+        try {
+          await generateSceneMutation.mutateAsync({
+            worldId: selectedWorldId,
+            description: action.description,
+            environmentType: action.environmentType,
+          });
+          return { ok: true, message: "場景已生成並加入世界觀" };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
+        }
+      }
+
+      if (action.type === "generateStoryboard") {
+        if (!selectedWorldId) {
+          return { ok: false, reason: "請先選擇一個世界觀" };
+        }
+        try {
+          await generateStoryboardMutation.mutateAsync({
+            worldId: selectedWorldId,
+            scriptId: action.scriptId,
+            description: action.description,
+          });
+          return { ok: true, message: "分鏡已生成" };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
+        }
+      }
+
+      return { ok: false, reason: "不支援的動作" };
+    }, [selectedWorldId, generateCharacterMutation, generateSceneMutation, generateStoryboardMutation]),
+
+    getSnapshot: useCallback(() => {
+      return {
+        pageId: "worldbuilding",
+        pageLabel: "世界觀系統",
+        pagePath: "/animation",
+        activeMode: undefined,
+        activeModel: undefined,
+        selectedPreset: undefined,
+        availableModels: [],
+        availableModes: [],
+        availableParameters: [],
+        currentPrompt: undefined,
+        hasUnsavedChanges: false,
+        warnings: [],
+        capabilities: [],
+        state: {
+          selectedWorldId,
+          selectedTab,
+          hasWorld: !!draft,
+          worldName: draft?.name || "",
+          charactersCount: draft?.characters?.length || 0,
+          scenesCount: draft?.scenes?.length || 0,
+          storyboardsCount: storyboardsQuery.data?.length || 0,
+        },
+      };
+    }, [selectedWorldId, selectedTab, draft, storyboardsQuery.data]),
+  });
+
   // 開分鏡細節（URL 路由）
   const detailStoryboardId = params.storyboardId
     ? Number(params.storyboardId)
@@ -5499,41 +5691,81 @@ export default function AnimationStudio() {
   if (detailStoryboardId && storyboardDetailQuery.data && selectedWorld) {
     const sb = storyboardDetailQuery.data;
     return (
-      <div className="p-4 max-w-6xl mx-auto space-y-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/animation")}
-            className="text-xs"
-          >
-            ← 返回世界觀系統
-          </Button>
-          <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
-          <Badge variant="outline">{sb.productionStatus}</Badge>
-          <Button
-            size="sm"
-            onClick={() =>
-              planPipeline.mutate({ id: sb.id, persist: true })
-            }
-            disabled={planPipeline.isPending}
-          >
-            <Wand2 className="w-3.5 h-3.5 mr-1" />
-            編排動畫管線
-          </Button>
-        </div>
+      <>
+        {/* 沉浸式模式背景動畫 */}
+        {immersiveMode && <EarthGlobeAnimation />}
 
-        <StoryboardTimelinePreview storyboard={sb} framework={selectedWorld} />
+        <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
+          <div className={`flex items-center gap-2 ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
+            {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
+            {immersiveMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/director")}
+                className="h-8 text-xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                返回導演 AI
+              </Button>
+            )}
 
-        {sb.pipelinePlan && (
-          <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> 管線執行計畫
-            </h3>
-            <PipelinePlanView plan={sb.pipelinePlan} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/animation")}
+              className="text-xs"
+            >
+              ← 返回世界觀系統
+            </Button>
+
+            {/* 沉浸式模式切換按鈕 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setImmersiveMode(!immersiveMode)}
+              className="h-8 text-xs"
+              title={immersiveMode ? "退出沉浸式模式" : "進入沉浸式模式"}
+            >
+              {immersiveMode ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 mr-1" />
+                  退出沉浸
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                  沉浸式
+                </>
+              )}
+            </Button>
+
+            <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
+            <Badge variant="outline">{sb.productionStatus}</Badge>
+            <Button
+              size="sm"
+              onClick={() =>
+                planPipeline.mutate({ id: sb.id, persist: true })
+              }
+              disabled={planPipeline.isPending}
+            >
+              <Wand2 className="w-3.5 h-3.5 mr-1" />
+              編排動畫管線
+            </Button>
           </div>
-        )}
-      </div>
+
+          <StoryboardTimelinePreview storyboard={sb} framework={selectedWorld} />
+
+          {sb.pipelinePlan && (
+            <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="w-4 h-4" /> 管線執行計畫
+              </h3>
+              <PipelinePlanView plan={sb.pipelinePlan} />
+            </div>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -5543,26 +5775,65 @@ export default function AnimationStudio() {
   const effectiveWorld = draft ?? selectedWorld;
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Film className="w-5 h-5 text-primary" />
-        <h1 className="text-lg font-semibold">世界觀系統</h1>
-        <Select
-          value={String(selectedWorldId)}
-          onValueChange={v => setSelectedWorldId(Number(v))}
-        >
-          <SelectTrigger className="h-8 w-[220px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {worlds.map(w => (
-              <SelectItem key={w.id} value={String(w.id)} className="text-xs">
-                {w.name} · {w.genre ?? "—"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <>
+      {/* 沉浸式模式背景動畫 */}
+      {immersiveMode && <EarthGlobeAnimation />}
+
+      <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
+        {/* Header */}
+        <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
+          {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
+          {immersiveMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/director")}
+              className="h-8 text-xs"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              返回導演 AI
+            </Button>
+          )}
+
+          <Film className="w-5 h-5 text-primary" />
+          <h1 className="text-lg font-semibold">世界觀系統</h1>
+
+          {/* 沉浸式模式切換按鈕 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setImmersiveMode(!immersiveMode)}
+            className="h-8 text-xs ml-auto"
+            title={immersiveMode ? "退出沉浸式模式" : "進入沉浸式模式"}
+          >
+            {immersiveMode ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 mr-1" />
+                退出沉浸
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                沉浸式
+              </>
+            )}
+          </Button>
+
+          <Select
+            value={String(selectedWorldId)}
+            onValueChange={v => setSelectedWorldId(Number(v))}
+          >
+            <SelectTrigger className="h-8 w-[220px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {worlds.map(w => (
+                <SelectItem key={w.id} value={String(w.id)} className="text-xs">
+                  {w.name} · {w.genre ?? "—"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         <Button
           variant="outline"
           size="sm"
@@ -5729,6 +6000,14 @@ export default function AnimationStudio() {
           <TabsTrigger value="storyboards" className="text-xs">
             <Camera className="w-3.5 h-3.5 mr-1" />
             分鏡（{storyboardsQuery.data?.length ?? 0}）
+          </TabsTrigger>
+          <TabsTrigger value="timeline" className="text-xs">
+            <Clock className="w-3.5 h-3.5 mr-1" />
+            時間軸上傳
+          </TabsTrigger>
+          <TabsTrigger value="composition" className="text-xs">
+            <Layers className="w-3.5 h-3.5 mr-1" />
+            構圖助手
           </TabsTrigger>
         </TabsList>
 
@@ -6070,8 +6349,69 @@ export default function AnimationStudio() {
             </ScrollArea>
           </div>
         </TabsContent>
+
+        {/* Timeline Upload Tab */}
+        <TabsContent value="timeline">
+          <div className="space-y-4">
+            {storyboardsQuery.data && storyboardsQuery.data.length > 0 ? (
+              <>
+                <div className="text-sm text-muted-foreground">
+                  選擇一個分鏡以上傳時間軸圖幀
+                </div>
+                <Select
+                  value={selectedStoryboard?.id ? String(selectedStoryboard.id) : ""}
+                  onValueChange={(value) => {
+                    const sb = storyboardsQuery.data?.find(s => s.id === Number(value));
+                    if (sb) setSelectedStoryboard(sb);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇分鏡..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {storyboardsQuery.data.map((sb) => (
+                      <SelectItem key={sb.id} value={String(sb.id)}>
+                        {sb.name} ({formatTimecode(sb.totalDurationSec)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {selectedStoryboard && (
+                  <StoryboardTimelineUploader
+                    storyboard={selectedStoryboard}
+                    onFrameUploaded={(frame) => {
+                      toast.success("圖幀已上傳");
+                    }}
+                    onFrameDeleted={() => {
+                      toast.success("圖幀已刪除");
+                    }}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                請先創建分鏡，再使用時間軸上傳功能
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Composition Assistant Tab */}
+        <TabsContent value="composition">
+          {effectiveWorld && (
+            <CompositionAssistant
+              framework={effectiveWorld}
+              storyboardId={selectedStoryboard?.id}
+              onSave={(composition) => {
+                toast.success("構圖已儲存");
+              }}
+            />
+          )}
+        </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }
 
