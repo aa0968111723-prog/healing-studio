@@ -3132,6 +3132,18 @@ export const worldbuildingFrameworks = mysqlTable(
       string,
       unknown
     >>(),
+    /** v4：世界研究資料庫條目陣列 */
+    researchEntriesJson: json("researchEntriesJson").$type<
+      Array<Record<string, unknown>>
+    >(),
+    /** v4：世界共用音效 / 環境音庫 */
+    soundLibraryJson: json("soundLibraryJson").$type<
+      Array<Record<string, unknown>>
+    >(),
+    /** v4：世界共用上傳資產引用清單 */
+    uploadedAssetsJson: json("uploadedAssetsJson").$type<
+      Array<Record<string, unknown>>
+    >(),
     tags: json("tags").$type<string[]>(),
     isActive: boolean("isActive").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

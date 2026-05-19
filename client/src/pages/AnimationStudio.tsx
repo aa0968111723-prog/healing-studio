@@ -61,7 +61,29 @@ import {
   MapPin,
   Link2,
   Save,
+  Palette,
+  Globe,
+  Database,
+  FileAudio,
+  Bot,
+  GraduationCap,
+  Search,
+  X,
+  Upload as UploadIcon,
 } from "lucide-react";
+import {
+  AssetUploader,
+  inferAssetType,
+} from "@/components/animation/AssetUploader";
+import {
+  GenerateImageButton,
+  GenerateMusicButton,
+  GenerateVoiceButton,
+} from "@/components/animation/QuickGenerateButtons";
+import {
+  buildCharacterConsistencyPrompt,
+  buildSceneConsistencyPrompt,
+} from "../../../shared/worldbuilding-types";
 import {
   ART_STYLE_PRESETS,
   CAMERA_MOVEMENT_PRESETS,
@@ -74,6 +96,35 @@ import {
   SCENE_LIGHTING_PRESETS,
   SCENE_MOOD_PRESETS,
   SCENE_TIME_OF_DAY_PRESETS,
+  // v3 專業
+  RIG_TYPE_PRESETS,
+  LIP_SYNC_SYSTEM_PRESETS,
+  PRESTON_BLAIR_PHONEMES,
+  WALK_CYCLE_STYLE_PRESETS,
+  ANIMATION_SCHOOL_PRESETS,
+  COMPOSITING_PASS_PRESETS,
+  SHADING_MODEL_PRESETS,
+  REVERB_PRESETS,
+  PRECIPITATION_PRESETS,
+  TRANSITION_STYLE_MUSIC_PRESETS,
+  MILESTONE_STAGE_PRESETS,
+  PRODUCTION_ROLE_PRESETS,
+  COLOR_SPACE_PRESETS,
+  MASTER_RESOLUTION_PRESETS,
+  MASTER_CODEC_PRESETS,
+  LUFS_TARGET_PRESETS,
+  // v4 真實參考 / 研究 / 音效庫
+  CHARACTER_REF_TYPE_PRESETS,
+  SCENE_REF_TYPE_PRESETS,
+  RESEARCH_CATEGORY_PRESETS,
+  SOUND_LIBRARY_CATEGORY_PRESETS,
+  SOUND_LICENSE_PRESETS,
+  ASSET_PURPOSE_PRESETS,
+  type CharacterRealWorldRef,
+  type SceneRealWorldRef,
+  type WorldAssetRef,
+  type WorldResearchEntry,
+  type WorldSoundLibraryItem,
   type WorldScene,
   EXPRESSION_PRESETS,
   MUSIC_INSTRUMENT_PRESETS,
@@ -337,42 +388,70 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
       ...character,
       threeViewSheet: { ...sheet, ...p },
     });
+  const basePrompt = buildCharacterConsistencyPrompt(character);
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      {[
-        { key: "frontImageUrl", label: "正面" },
-        { key: "sideImageUrl", label: "側面" },
-        { key: "backImageUrl", label: "背面" },
-        { key: "threeQuarterImageUrl", label: "3/4 視角" },
-      ].map(v => {
-        const url = (sheet as Record<string, string | undefined>)[v.key];
-        return (
-          <div key={v.key} className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">{v.label}</Label>
-            <div className="aspect-[3/4] rounded-md border border-dashed border-border/40 bg-card/20 flex items-center justify-center overflow-hidden">
-              {url ? (
-                <img
-                  src={url}
-                  alt={`${character.name} ${v.label}`}
-                  className="w-full h-full object-cover"
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {[
+          { key: "frontImageUrl", label: "正面", anglePrompt: "正面角度, full body front view" },
+          { key: "sideImageUrl", label: "側面", anglePrompt: "側面角度, full body side view" },
+          { key: "backImageUrl", label: "背面", anglePrompt: "背面角度, full body back view" },
+          {
+            key: "threeQuarterImageUrl",
+            label: "3/4 視角",
+            anglePrompt: "3/4 視角, full body 3/4 view",
+          },
+        ].map(v => {
+          const url = (sheet as Record<string, string | undefined>)[v.key];
+          const compiledPrompt = [basePrompt, v.anglePrompt, "character turnaround sheet, white background, A-pose"]
+            .filter(Boolean)
+            .join(", ");
+          return (
+            <div key={v.key} className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">{v.label}</Label>
+              <div className="aspect-[3/4] rounded-md border border-dashed border-border/40 bg-card/20 flex items-center justify-center overflow-hidden">
+                {url ? (
+                  <img
+                    src={url}
+                    alt={`${character.name} ${v.label}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+                )}
+              </div>
+              <Input
+                value={url ?? ""}
+                onChange={e =>
+                  patch({ [v.key]: e.target.value || undefined } as Partial<
+                    typeof sheet
+                  >)
+                }
+                placeholder={`${v.label} URL`}
+                className="h-6 text-[10px]"
+              />
+              <div className="flex gap-1">
+                <GenerateImageButton
+                  prompt={compiledPrompt}
+                  aspectRatio="3:4"
+                  label="AI 生成"
+                  onSuccess={imgUrl =>
+                    patch({ [v.key]: imgUrl } as Partial<typeof sheet>)
+                  }
+                  disabled={!character.name}
                 />
-              ) : (
-                <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
-              )}
+                <AssetUploader
+                  accept="image/*"
+                  label="上傳"
+                  onUploaded={r =>
+                    patch({ [v.key]: r.url } as Partial<typeof sheet>)
+                  }
+                />
+              </div>
             </div>
-            <Input
-              value={url ?? ""}
-              onChange={e =>
-                patch({ [v.key]: e.target.value || undefined } as Partial<
-                  typeof sheet
-                >)
-              }
-              placeholder={`${v.label} URL`}
-              className="h-6 text-[10px]"
-            />
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 });
@@ -416,6 +495,17 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
     { id: "voice", label: "語音檔", icon: Volume2 },
     { id: "scriptRole", label: "腳本定位", icon: Theater },
     { id: "lora", label: "LoRA", icon: Link2 },
+    // ─── v3 動畫製作專業 ───────────────────────────────────────────────
+    { id: "rig", label: "Rig 規格", icon: Wand2 },
+    { id: "lipSync", label: "口型", icon: MessageCircle },
+    { id: "acting", label: "演技指導", icon: Theater },
+    { id: "ageVariants", label: "年齡變體", icon: Users },
+    { id: "sounds", label: "聲音檔", icon: Volume2 },
+    { id: "refLib", label: "參考圖庫", icon: ImageIcon },
+    // ─── v4 真實參考 / 上傳資產 / 訓練 ─────────────────────────────────
+    { id: "realRefs", label: "真實參考", icon: Globe },
+    { id: "uploads", label: "上傳資產", icon: UploadIcon },
+    { id: "train", label: "訓練 LoRA", icon: GraduationCap },
   ];
 
   return (
@@ -913,6 +1003,37 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
             placeholder="試聽 mp3 / wav URL"
             className="h-7 text-xs"
           />
+          {/* 一鍵 TTS 試聽（直連 ProStudio elevenLabsTTS） */}
+          <div className="flex items-center gap-2">
+            <GenerateVoiceButton
+              text={
+                character.scriptRole?.signatureLines?.[0] ||
+                `你好，我是${character.name || "這個角色"}。`
+              }
+              voiceId={character.voiceProfile?.voiceId}
+              label="一鍵試聽（說招牌台詞）"
+              onJobStarted={reqId =>
+                toast.info(`TTS 任務 ${reqId.slice(0, 8)}… 已送出，請至背景任務查看結果`)
+              }
+            />
+            <AssetUploader
+              accept="audio/*"
+              label="上傳語音樣本"
+              onUploaded={r => {
+                patch({
+                  voiceProfile: {
+                    ...character.voiceProfile,
+                    sampleAudioUrl: r.url,
+                    useClone: true,
+                    cloneSampleUrls: [
+                      ...(character.voiceProfile?.cloneSampleUrls ?? []),
+                      r.url,
+                    ],
+                  },
+                });
+              }}
+            />
+          </div>
           {voices.length > 0 && (
             <div className="text-[10px] text-muted-foreground">
               <span>建議引擎：</span>
@@ -1139,9 +1260,1040 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
           </p>
         </div>
       )}
+
+      {/* ─── v3 動畫製作專業 ─────────────────────────────────────────────── */}
+
+      {openSection === "rig" && (
+        <div className="pt-1 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Rig 類型</Label>
+              <Select
+                value={character.rigSpec?.rigType ?? ""}
+                onValueChange={v =>
+                  patch({
+                    rigSpec: {
+                      ...character.rigSpec,
+                      rigType: v as "live2d" | "spine_2d" | "rigged_3d" | "stop_motion" | "ai_only",
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RIG_TYPE_PRESETS.map(p => (
+                    <SelectItem key={p.value} value={p.value} className="text-xs">
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">骨骼數</Label>
+              <Input
+                type="number"
+                value={character.rigSpec?.boneCount ?? 0}
+                onChange={e =>
+                  patch({
+                    rigSpec: {
+                      ...character.rigSpec,
+                      boneCount: Number(e.target.value),
+                    },
+                  })
+                }
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Blend Shape 數</Label>
+              <Input
+                type="number"
+                value={character.rigSpec?.blendShapeCount ?? 0}
+                onChange={e =>
+                  patch({
+                    rigSpec: {
+                      ...character.rigSpec,
+                      blendShapeCount: Number(e.target.value),
+                    },
+                  })
+                }
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Rig 製作者</Label>
+              <Input
+                value={character.rigSpec?.rigger ?? ""}
+                onChange={e =>
+                  patch({
+                    rigSpec: { ...character.rigSpec, rigger: e.target.value },
+                  })
+                }
+                placeholder="個人 / 工作室"
+                className="h-7 text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">IK 鏈（逗號分隔）</Label>
+            <Input
+              value={(character.rigSpec?.ikChains ?? []).join("、")}
+              onChange={e =>
+                patch({
+                  rigSpec: {
+                    ...character.rigSpec,
+                    ikChains: e.target.value
+                      .split(/[、,，]/)
+                      .map(s => s.trim())
+                      .filter(Boolean),
+                  },
+                })
+              }
+              placeholder="左手、右手、左腳、右腳、頭部、尾巴"
+              className="h-7 text-xs"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "hasClothSim", label: "布料模擬" },
+              { key: "hasHairPhysics", label: "頭髮物理" },
+              { key: "hasEyeTracking", label: "眼球追蹤" },
+            ].map(o => {
+              const v = (character.rigSpec as Record<string, unknown> | undefined)?.[
+                o.key
+              ] as boolean | undefined;
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() =>
+                    patch({
+                      rigSpec: {
+                        ...character.rigSpec,
+                        [o.key]: !v,
+                      } as WorldCharacter["rigSpec"],
+                    })
+                  }
+                  className={`px-2 py-1 rounded-md text-[10px] border transition ${
+                    v
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
+                  }`}
+                >
+                  {v ? "✓ " : "○ "}
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <Input
+            value={character.rigSpec?.rigAssetUrl ?? ""}
+            onChange={e =>
+              patch({
+                rigSpec: { ...character.rigSpec, rigAssetUrl: e.target.value },
+              })
+            }
+            placeholder="Rig 檔 URL（.fbx / .blend / .live2d）"
+            className="h-7 text-xs"
+          />
+          <Textarea
+            value={character.rigSpec?.riggerNotes ?? ""}
+            onChange={e =>
+              patch({
+                rigSpec: { ...character.rigSpec, riggerNotes: e.target.value },
+              })
+            }
+            placeholder="動畫師備註（已知限制、特別注意…）"
+            className="min-h-[40px] text-[11px]"
+          />
+        </div>
+      )}
+
+      {openSection === "lipSync" && (
+        <div className="pt-1 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">音素系統</Label>
+              <Select
+                value={character.lipSyncSet?.system ?? ""}
+                onValueChange={v =>
+                  patch({
+                    lipSyncSet: {
+                      ...character.lipSyncSet,
+                      system: v as "preston_blair" | "rhubarb" | "ipa" | "custom",
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LIP_SYNC_SYSTEM_PRESETS.map(p => (
+                    <SelectItem key={p.value} value={p.value} className="text-xs">
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">主要語言</Label>
+              <Input
+                value={character.lipSyncSet?.primaryLanguage ?? ""}
+                onChange={e =>
+                  patch({
+                    lipSyncSet: {
+                      ...character.lipSyncSet,
+                      primaryLanguage: e.target.value,
+                    },
+                  })
+                }
+                placeholder="zh / ja / en"
+                className="h-7 text-xs"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              patch({
+                lipSyncSet: {
+                  ...character.lipSyncSet,
+                  enabled: !character.lipSyncSet?.enabled,
+                  system: character.lipSyncSet?.system ?? "preston_blair",
+                },
+              })
+            }
+            className={`px-2 py-1 rounded-md text-[10px] border transition ${
+              character.lipSyncSet?.enabled
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
+            }`}
+          >
+            {character.lipSyncSet?.enabled ? "✓ 已啟用 lip sync" : "○ 啟用 lip sync"}
+          </button>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">
+              口型對映（音素 → 嘴型圖 URL）
+            </Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-1 mt-1">
+              {PRESTON_BLAIR_PHONEMES.map(ph => (
+                <div key={ph} className="flex items-center gap-1">
+                  <Badge variant="outline" className="text-[10px] w-10 justify-center">
+                    {ph}
+                  </Badge>
+                  <Input
+                    value={character.lipSyncSet?.shapes?.[ph] ?? ""}
+                    onChange={e =>
+                      patch({
+                        lipSyncSet: {
+                          ...character.lipSyncSet,
+                          shapes: {
+                            ...(character.lipSyncSet?.shapes ?? {}),
+                            [ph]: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                    placeholder="嘴型 URL"
+                    className="h-6 text-[10px] flex-1"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openSection === "acting" && (
+        <div className="pt-1 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">走路風格</Label>
+              <Select
+                value={character.actingNotes?.walkCycleStyle ?? ""}
+                onValueChange={v =>
+                  patch({
+                    actingNotes: {
+                      ...character.actingNotes,
+                      walkCycleStyle: v,
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WALK_CYCLE_STYLE_PRESETS.map(w => (
+                    <SelectItem key={w} value={w} className="text-xs">
+                      {w}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">站姿</Label>
+              <Input
+                value={character.actingNotes?.defaultPosture ?? ""}
+                onChange={e =>
+                  patch({
+                    actingNotes: {
+                      ...character.actingNotes,
+                      defaultPosture: e.target.value,
+                    },
+                  })
+                }
+                placeholder="挺直 / 駝背 / 警戒…"
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">鏡頭偏好</Label>
+              <Select
+                value={character.actingNotes?.cameraPreference ?? ""}
+                onValueChange={v =>
+                  patch({
+                    actingNotes: {
+                      ...character.actingNotes,
+                      cameraPreference: v as "front" | "three_quarter" | "side" | "varied",
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    { v: "front", l: "正面" },
+                    { v: "three_quarter", l: "3/4" },
+                    { v: "side", l: "側面" },
+                    { v: "varied", l: "多變" },
+                  ].map(o => (
+                    <SelectItem key={o.v} value={o.v} className="text-xs">
+                      {o.l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">
+                Squash / Stretch (0-1)
+              </Label>
+              <Input
+                type="number"
+                step={0.1}
+                min={0}
+                max={1}
+                value={character.actingNotes?.squashStretch ?? 0}
+                onChange={e =>
+                  patch({
+                    actingNotes: {
+                      ...character.actingNotes,
+                      squashStretch: Number(e.target.value),
+                    },
+                  })
+                }
+                className="h-7 text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">招牌動作（一行一個）</Label>
+            <Textarea
+              value={(character.actingNotes?.signatureGestures ?? []).join("\n")}
+              onChange={e =>
+                patch({
+                  actingNotes: {
+                    ...character.actingNotes,
+                    signatureGestures: e.target.value
+                      .split("\n")
+                      .map(s => s.trim())
+                      .filter(Boolean),
+                  },
+                })
+              }
+              placeholder="例如：撥瀏海、單手抱胸"
+              className="min-h-[40px] text-[11px]"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">情緒範圍</Label>
+            <Input
+              value={(character.actingNotes?.emotionalRange ?? []).join("、")}
+              onChange={e =>
+                patch({
+                  actingNotes: {
+                    ...character.actingNotes,
+                    emotionalRange: e.target.value
+                      .split(/[、,，]/)
+                      .map(s => s.trim())
+                      .filter(Boolean),
+                  },
+                })
+              }
+              placeholder="開朗、克制、不會崩潰…"
+              className="h-7 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">思考時習慣</Label>
+            <Input
+              value={(character.actingNotes?.thinkingTics ?? []).join("、")}
+              onChange={e =>
+                patch({
+                  actingNotes: {
+                    ...character.actingNotes,
+                    thinkingTics: e.target.value
+                      .split(/[、,，]/)
+                      .map(s => s.trim())
+                      .filter(Boolean),
+                  },
+                })
+              }
+              placeholder="摸下巴、咬唇、轉筆…"
+              className="h-7 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">配音指導</Label>
+            <Textarea
+              value={character.actingNotes?.vodirection ?? ""}
+              onChange={e =>
+                patch({
+                  actingNotes: {
+                    ...character.actingNotes,
+                    vodirection: e.target.value,
+                  },
+                })
+              }
+              placeholder="感情變化幅度、靜場喘息頻率、笑點處理…"
+              className="min-h-[50px] text-[11px]"
+            />
+          </div>
+        </div>
+      )}
+
+      {openSection === "ageVariants" && (
+        <div className="pt-1 space-y-2">
+          {(character.ageVariants ?? []).map((av, idx) => (
+            <div
+              key={av.id}
+              className="rounded-lg border border-border/30 bg-card/30 p-2 space-y-1"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  value={av.name}
+                  onChange={e =>
+                    patch({
+                      ageVariants: (character.ageVariants ?? []).map((x, i) =>
+                        i === idx ? { ...x, name: e.target.value } : x
+                      ),
+                    })
+                  }
+                  placeholder="變體名稱（童年 / 少年 / 老年）"
+                  className="h-7 text-xs flex-1"
+                />
+                <Input
+                  value={av.approxAge ?? ""}
+                  onChange={e =>
+                    patch({
+                      ageVariants: (character.ageVariants ?? []).map((x, i) =>
+                        i === idx ? { ...x, approxAge: e.target.value } : x
+                      ),
+                    })
+                  }
+                  placeholder="年齡"
+                  className="h-7 text-xs w-24"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    patch({
+                      ageVariants: (character.ageVariants ?? []).filter(
+                        (_, i) => i !== idx
+                      ),
+                    })
+                  }
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  aria-label="刪除年齡變體"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+              <Textarea
+                value={av.description ?? ""}
+                onChange={e =>
+                  patch({
+                    ageVariants: (character.ageVariants ?? []).map((x, i) =>
+                      i === idx ? { ...x, description: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="差異描述（髮型、身高、特徵）"
+                className="min-h-[40px] text-[11px]"
+              />
+              <Input
+                value={(av.imageUrls ?? []).join("\n")}
+                onChange={e =>
+                  patch({
+                    ageVariants: (character.ageVariants ?? []).map((x, i) =>
+                      i === idx
+                        ? {
+                            ...x,
+                            imageUrls: e.target.value
+                              .split(/\s+/)
+                              .filter(Boolean),
+                          }
+                        : x
+                    ),
+                  })
+                }
+                placeholder="參考圖 URL（換行分隔）"
+                className="h-7 text-[10px]"
+              />
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              patch({
+                ageVariants: [
+                  ...(character.ageVariants ?? []),
+                  { id: uid(), name: "" },
+                ],
+              })
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" /> 新增年齡變體
+          </Button>
+        </div>
+      )}
+
+      {openSection === "sounds" && (
+        <div className="pt-1 space-y-2">
+          <p className="text-[10px] text-muted-foreground">
+            非語音的聲音樣本（footsteps / 呼吸 / 笑哭怒痛）—— 給音效師混音時用。
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {[
+              { key: "breathSample", label: "呼吸" },
+              { key: "laughSample", label: "笑聲" },
+              { key: "crySample", label: "哭聲" },
+              { key: "shoutSample", label: "怒吼" },
+              { key: "hurtSample", label: "受傷" },
+              { key: "sighSample", label: "嘆息" },
+            ].map(o => {
+              const v = (
+                character.soundProfile as Record<string, unknown> | undefined
+              )?.[o.key] as string | undefined;
+              return (
+                <div key={o.key}>
+                  <Label className="text-[10px] text-muted-foreground">{o.label}</Label>
+                  <Input
+                    value={v ?? ""}
+                    onChange={e =>
+                      patch({
+                        soundProfile: {
+                          ...character.soundProfile,
+                          [o.key]: e.target.value || undefined,
+                        } as WorldCharacter["soundProfile"],
+                      })
+                    }
+                    placeholder="音檔 URL"
+                    className="h-7 text-[11px]"
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">
+              腳步聲（地面材質 → URL，一行一個 "材質=URL"）
+            </Label>
+            <Textarea
+              value={Object.entries(
+                character.soundProfile?.footsteps ?? {}
+              )
+                .map(([k, v]) => `${k}=${v}`)
+                .join("\n")}
+              onChange={e => {
+                const next: Record<string, string> = {};
+                for (const line of e.target.value.split("\n")) {
+                  const [k, v] = line.split("=");
+                  if (k?.trim() && v?.trim()) next[k.trim()] = v.trim();
+                }
+                patch({
+                  soundProfile: { ...character.soundProfile, footsteps: next },
+                });
+              }}
+              placeholder={"草地=https://...\n木地板=https://...\n石頭=https://..."}
+              className="min-h-[60px] text-[10px] font-mono"
+            />
+          </div>
+        </div>
+      )}
+
+      {openSection === "refLib" && (
+        <div className="pt-1 space-y-2">
+          <p className="text-[10px] text-muted-foreground">
+            參考圖庫（姿勢 / 手部 / 面部特寫 / 互動）—— 動畫師作畫前的素材池。
+          </p>
+          {(character.referenceLibrary ?? []).map((r, idx) => (
+            <div
+              key={r.id}
+              className="flex items-center gap-2 rounded-md border border-border/30 bg-card/30 p-1.5"
+            >
+              {r.imageUrl ? (
+                <img
+                  src={r.imageUrl}
+                  alt=""
+                  className="w-12 h-12 object-cover rounded"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded bg-card/40 flex items-center justify-center">
+                  <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
+                </div>
+              )}
+              <div className="flex-1 space-y-1">
+                <Input
+                  value={r.imageUrl ?? ""}
+                  onChange={e =>
+                    patch({
+                      referenceLibrary: (character.referenceLibrary ?? []).map(
+                        (x, i) => (i === idx ? { ...x, imageUrl: e.target.value } : x)
+                      ),
+                    })
+                  }
+                  placeholder="圖片 URL"
+                  className="h-6 text-[10px]"
+                />
+                <div className="flex gap-1">
+                  <Select
+                    value={r.category ?? ""}
+                    onValueChange={v =>
+                      patch({
+                        referenceLibrary: (character.referenceLibrary ?? []).map(
+                          (x, i) => (i === idx ? { ...x, category: v } : x)
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-6 text-[10px] flex-1">
+                      <SelectValue placeholder="類別" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["pose", "hands", "face", "dynamic", "interaction", "props"].map(
+                        c => (
+                          <SelectItem key={c} value={c} className="text-[10px]">
+                            {c}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={(r.tags ?? []).join(",")}
+                    onChange={e =>
+                      patch({
+                        referenceLibrary: (character.referenceLibrary ?? []).map(
+                          (x, i) =>
+                            i === idx
+                              ? {
+                                  ...x,
+                                  tags: e.target.value
+                                    .split(/[、,，]/)
+                                    .map(s => s.trim())
+                                    .filter(Boolean),
+                                }
+                              : x
+                        ),
+                      })
+                    }
+                    placeholder="標籤"
+                    className="h-6 text-[10px] flex-1"
+                  />
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  patch({
+                    referenceLibrary: (character.referenceLibrary ?? []).filter(
+                      (_, i) => i !== idx
+                    ),
+                  })
+                }
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                aria-label="刪除參考圖"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              patch({
+                referenceLibrary: [
+                  ...(character.referenceLibrary ?? []),
+                  { id: uid(), imageUrl: "" },
+                ],
+              })
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" /> 新增參考圖
+          </Button>
+        </div>
+      )}
+
+      {/* ─── v4: 真實參考 ───────────────────────────────────────────────── */}
+      {openSection === "realRefs" && (
+        <div className="pt-1 space-y-2">
+          <p className="text-[10px] text-muted-foreground">
+            真實人物 / 原型 / 聲優 / 學術參考 —— 給編劇 / 美術 / AI 代理交叉引用。
+          </p>
+          {(character.realWorldRefs ?? []).map((r, idx) => (
+            <div
+              key={r.id}
+              className="rounded-lg border border-border/30 bg-card/30 p-2 space-y-1.5"
+            >
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={r.label}
+                  onChange={e =>
+                    patch({
+                      realWorldRefs: (character.realWorldRefs ?? []).map(
+                        (x, i) => (i === idx ? { ...x, label: e.target.value } : x)
+                      ),
+                    })
+                  }
+                  placeholder="參考標題（例：歷史上的奧黛麗·赫本）"
+                  className="h-7 text-xs flex-1"
+                />
+                <Select
+                  value={r.refType ?? ""}
+                  onValueChange={v =>
+                    patch({
+                      realWorldRefs: (character.realWorldRefs ?? []).map(
+                        (x, i) =>
+                          i === idx
+                            ? {
+                                ...x,
+                                refType: v as CharacterRealWorldRef["refType"],
+                              }
+                            : x
+                      ),
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-7 w-[100px] text-xs">
+                    <SelectValue placeholder="類型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHARACTER_REF_TYPE_PRESETS.map(o => (
+                      <SelectItem key={o.value} value={o.value} className="text-xs">
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    patch({
+                      realWorldRefs: (character.realWorldRefs ?? []).filter(
+                        (_, i) => i !== idx
+                      ),
+                    })
+                  }
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+              <Input
+                value={r.personName ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, personName: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="真實人物姓名"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={r.externalUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, externalUrl: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="外部連結（Wikipedia / IMDB）"
+                className="h-7 text-[11px]"
+              />
+              <Textarea
+                value={r.description ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, description: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="參考點（哪裡像、靈感來源說明）"
+                className="min-h-[40px] text-[11px]"
+              />
+              <Input
+                value={r.citation ?? ""}
+                onChange={e =>
+                  patch({
+                    realWorldRefs: (character.realWorldRefs ?? []).map(
+                      (x, i) =>
+                        i === idx ? { ...x, citation: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="學術引用格式（作者, 年, 來源）"
+                className="h-7 text-[10px] font-mono"
+              />
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              patch({
+                realWorldRefs: [
+                  ...(character.realWorldRefs ?? []),
+                  { id: uid(), label: "", refType: "historical_figure" },
+                ],
+              })
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" /> 新增真實參考
+          </Button>
+        </div>
+      )}
+
+      {/* ─── v4: 上傳資產 ───────────────────────────────────────────────── */}
+      {openSection === "uploads" && (
+        <div className="pt-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">
+              直接上傳檔案到資產庫（圖、音、影、PDF、文件）。
+            </p>
+            <AssetUploader
+              accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+              label="上傳"
+              onUploaded={r => {
+                patch({
+                  uploadedAssets: [
+                    ...(character.uploadedAssets ?? []),
+                    {
+                      id: uid(),
+                      label: r.fileName,
+                      assetType: inferAssetType(r.mimeType),
+                      url: r.url,
+                      fileKey: r.fileKey,
+                      mimeType: r.mimeType,
+                      sizeBytes: r.sizeBytes,
+                      purpose: "reference 參考",
+                      uploadedAt: new Date().toISOString(),
+                    } as WorldAssetRef,
+                  ],
+                });
+                toast.success(`${r.fileName} 已加入資產庫`);
+              }}
+            />
+          </div>
+          {(character.uploadedAssets ?? []).map((a, idx) => (
+            <div
+              key={a.id}
+              className="flex items-center gap-2 rounded-md border border-border/30 bg-card/30 p-1.5"
+            >
+              {a.assetType === "image" ? (
+                <img
+                  src={a.url}
+                  alt={a.label}
+                  className="w-10 h-10 object-cover rounded"
+                />
+              ) : a.assetType === "audio" ? (
+                <FileAudio className="w-8 h-8 text-muted-foreground" />
+              ) : (
+                <Badge variant="outline" className="text-[9px]">
+                  {a.assetType}
+                </Badge>
+              )}
+              <div className="flex-1 min-w-0">
+                <Input
+                  value={a.label}
+                  onChange={e =>
+                    patch({
+                      uploadedAssets: (character.uploadedAssets ?? []).map(
+                        (x, i) => (i === idx ? { ...x, label: e.target.value } : x)
+                      ),
+                    })
+                  }
+                  className="h-6 text-[10px]"
+                />
+                <div className="flex items-center gap-1 mt-0.5">
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    下載
+                  </a>
+                  <span className="text-[9px] text-muted-foreground">
+                    {a.sizeBytes
+                      ? `${(a.sizeBytes / 1024).toFixed(1)} KB`
+                      : "—"}{" "}
+                    · {a.mimeType ?? a.assetType}
+                  </span>
+                </div>
+              </div>
+              <Select
+                value={a.purpose ?? ""}
+                onValueChange={v =>
+                  patch({
+                    uploadedAssets: (character.uploadedAssets ?? []).map(
+                      (x, i) => (i === idx ? { ...x, purpose: v } : x)
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="h-6 w-[80px] text-[10px]">
+                  <SelectValue placeholder="用途" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSET_PURPOSE_PRESETS.map(p => (
+                    <SelectItem key={p} value={p} className="text-[10px]">
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  patch({
+                    uploadedAssets: (character.uploadedAssets ?? []).filter(
+                      (_, i) => i !== idx
+                    ),
+                  })
+                }
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── v4: 訓練 LoRA 快速連結 ─────────────────────────────────────── */}
+      {openSection === "train" && (
+        <TrainCharacterLoraSection character={character} />
+      )}
     </div>
   );
 });
+
+// ─── 訓練 LoRA 子元件（v4） ────────────────────────────────────────────────
+
+function TrainCharacterLoraSection({
+  character,
+}: {
+  character: WorldCharacter;
+}) {
+  const [, navigate] = useLocation();
+  // 蒐集所有可用於訓練的圖像 URL：三視圖 + 表情 + 穿衣 + 參考圖庫
+  const seedImages: string[] = [];
+  const tv = character.threeViewSheet;
+  if (tv?.frontImageUrl) seedImages.push(tv.frontImageUrl);
+  if (tv?.sideImageUrl) seedImages.push(tv.sideImageUrl);
+  if (tv?.backImageUrl) seedImages.push(tv.backImageUrl);
+  if (tv?.threeQuarterImageUrl) seedImages.push(tv.threeQuarterImageUrl);
+  for (const e of character.expressions ?? [])
+    if (e.imageUrl) seedImages.push(e.imageUrl);
+  for (const o of character.outfits ?? [])
+    if (o.imageUrl) seedImages.push(o.imageUrl);
+  for (const r of character.referenceLibrary ?? [])
+    if (r.imageUrl) seedImages.push(r.imageUrl);
+  for (const a of character.uploadedAssets ?? [])
+    if (a.assetType === "image") seedImages.push(a.url);
+  const uniqueSeed = Array.from(new Set(seedImages));
+
+  const handleTrain = () => {
+    const params = new URLSearchParams();
+    if (character.name) params.set("modelName", `${character.name}_lora`);
+    if (character.triggerWord)
+      params.set(
+        "triggerWord",
+        character.triggerWord || `sks_${character.name.toLowerCase()}`
+      );
+    params.set(
+      "description",
+      [character.tagline, character.appearance].filter(Boolean).join("，")
+    );
+    params.set("trainingType", "image_subject");
+    if (uniqueSeed.length > 0)
+      params.set("seedImages", uniqueSeed.slice(0, 30).join(","));
+    navigate(`/lora-trainer?${params.toString()}`);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-muted-foreground">
+        以此角色現有的{" "}
+        <span className="font-mono text-primary">{uniqueSeed.length}</span>{" "}
+        張圖（三視圖 + 表情 + 穿衣 + 參考圖庫 + 上傳資產）為素材，
+        跳轉到模型訓練中心開始訓練專屬 LoRA。完成後角色 ID 會自動連結回來。
+      </p>
+      <Button
+        size="sm"
+        onClick={handleTrain}
+        disabled={uniqueSeed.length === 0}
+        className="h-8 text-xs"
+      >
+        <GraduationCap className="w-3.5 h-3.5 mr-1" />
+        在訓練中心訓練此角色（{uniqueSeed.length} 張素材）
+      </Button>
+      {uniqueSeed.length === 0 && (
+        <p className="text-[10px] text-muted-foreground italic">
+          先到「三視圖」「表情包」「參考圖庫」「上傳資產」加圖。
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ─── 風格 profile 編輯 ─────────────────────────────────────────────────────
 
@@ -1252,6 +2404,254 @@ const StyleProfileCard = memo(function StyleProfileCard({
         placeholder="色票（#ffe1a8、深綠絨布）"
         className="min-h-[40px] text-[11px]"
       />
+
+      {/* ─── v3 動畫製作專業技術欄位 ──────────────────────────────────── */}
+      <Collapsible>
+        <CollapsibleTrigger className="text-[11px] text-primary flex items-center gap-1 hover:underline">
+          <ChevronDown className="w-3 h-3" />
+          進階：拍格制 / 流派 / 著色 / 合成 / 色彩空間 / 解析度
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Shoot on Ns</Label>
+              <Select
+                value={String(profile.shootOn ?? "")}
+                onValueChange={v =>
+                  patch({ shootOn: Number(v) as 1 | 2 | 3 | 4 })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4].map(n => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">
+                      Shoot on {n}（{n === 1 ? "全動畫" : `每 ${n} 格一張`}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">流派</Label>
+              <Select
+                value={profile.schoolReference ?? ""}
+                onValueChange={v => patch({ schoolReference: v })}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANIMATION_SCHOOL_PRESETS.map(s => (
+                    <SelectItem key={s} value={s} className="text-xs">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">著色模型</Label>
+              <Select
+                value={profile.shadingModel ?? ""}
+                onValueChange={v =>
+                  patch({
+                    shadingModel: v as "cel" | "painted" | "flat" | "gradient" | "3d_toon" | "watercolor",
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SHADING_MODEL_PRESETS.map(s => (
+                    <SelectItem key={s.value} value={s.value} className="text-xs">
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">色彩空間</Label>
+              <Select
+                value={profile.colorSpace ?? ""}
+                onValueChange={v =>
+                  patch({
+                    colorSpace: v as "sRGB" | "Rec709" | "DCI_P3" | "Rec2020" | "ACES",
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COLOR_SPACE_PRESETS.map(s => (
+                    <SelectItem key={s.value} value={s.value} className="text-xs">
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Master 解析度</Label>
+              <Select
+                value={profile.masterResolution ?? ""}
+                onValueChange={v =>
+                  patch({
+                    masterResolution: v as "720p" | "1080p" | "1440p" | "4K" | "8K",
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MASTER_RESOLUTION_PRESETS.map(s => (
+                    <SelectItem key={s.value} value={s.value} className="text-xs">
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Codec</Label>
+              <Select
+                value={profile.masterCodec ?? ""}
+                onValueChange={v =>
+                  patch({
+                    masterCodec: v as "ProRes" | "DNxHR" | "H264" | "H265" | "VP9" | "AV1",
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MASTER_CODEC_PRESETS.map(s => (
+                    <SelectItem key={s.value} value={s.value} className="text-xs">
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">合成 pass</Label>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {COMPOSITING_PASS_PRESETS.map(p => {
+                const active = (profile.compositingPasses ?? []).includes(p);
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      const cur = profile.compositingPasses ?? [];
+                      patch({
+                        compositingPasses: active
+                          ? cur.filter(x => x !== p)
+                          : [...cur, p],
+                      });
+                    }}
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] border transition ${
+                      active
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
+                    }`}
+                  >
+                    {active ? "✓ " : "+ "}
+                    {p}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">線條風格</Label>
+              <Select
+                value={profile.lineSpec?.lineStyle ?? ""}
+                onValueChange={v =>
+                  patch({
+                    lineSpec: {
+                      ...profile.lineSpec,
+                      lineStyle: v as "clean" | "sketchy" | "boil" | "varied",
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    { v: "clean", l: "Clean 乾淨" },
+                    { v: "sketchy", l: "Sketchy 草稿感" },
+                    { v: "boil", l: "Boil 線條沸騰" },
+                    { v: "varied", l: "Varied 粗細變化" },
+                  ].map(o => (
+                    <SelectItem key={o.v} value={o.v} className="text-xs">
+                      {o.l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">線條粗細 px</Label>
+              <Input
+                type="number"
+                value={profile.lineSpec?.weight ?? 0}
+                onChange={e =>
+                  patch({
+                    lineSpec: {
+                      ...profile.lineSpec,
+                      weight: Number(e.target.value),
+                    },
+                  })
+                }
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">線條色</Label>
+              <Input
+                value={profile.lineSpec?.lineColor ?? ""}
+                onChange={e =>
+                  patch({
+                    lineSpec: {
+                      ...profile.lineSpec,
+                      lineColor: e.target.value,
+                    },
+                  })
+                }
+                placeholder="#000000"
+                className="h-7 text-xs font-mono"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">外框色</Label>
+              <Input
+                value={profile.lineSpec?.outlineColor ?? ""}
+                onChange={e =>
+                  patch({
+                    lineSpec: {
+                      ...profile.lineSpec,
+                      outlineColor: e.target.value,
+                    },
+                  })
+                }
+                placeholder="#222222"
+                className="h-7 text-xs font-mono"
+              />
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 });
@@ -1351,6 +2751,256 @@ const MusicThemeCard = memo(function MusicThemeCard({
         placeholder="試聽 URL"
         className="h-7 text-xs"
       />
+
+      {/* ─── v3 配樂專業欄位 ───────────────────────────────────────────── */}
+      <Collapsible>
+        <CollapsibleTrigger className="text-[11px] text-primary flex items-center gap-1 hover:underline">
+          <ChevronDown className="w-3 h-3" />
+          進階：Leitmotif / Cue 變體 / Stems / LUFS / 轉接
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-2">
+          <div>
+            <Label className="text-[10px] text-muted-foreground">
+              Leitmotif 主題動機（文字描述或音符）
+            </Label>
+            <Textarea
+              value={theme.leitmotif?.description ?? ""}
+              onChange={e =>
+                patch({
+                  leitmotif: {
+                    ...theme.leitmotif,
+                    description: e.target.value,
+                  },
+                })
+              }
+              placeholder="例如：上行小三度 → 下行純五度，象徵成長"
+              className="min-h-[40px] text-[11px]"
+            />
+            <Input
+              value={theme.leitmotif?.melodicPhrase ?? ""}
+              onChange={e =>
+                patch({
+                  leitmotif: {
+                    ...theme.leitmotif,
+                    melodicPhrase: e.target.value,
+                  },
+                })
+              }
+              placeholder="旋律（如 C-E-G-A）"
+              className="h-7 text-[11px] mt-1 font-mono"
+            />
+            <Input
+              value={theme.leitmotif?.midiUrl ?? ""}
+              onChange={e =>
+                patch({
+                  leitmotif: { ...theme.leitmotif, midiUrl: e.target.value },
+                })
+              }
+              placeholder="MIDI / musicXML URL"
+              className="h-7 text-[11px] mt-1"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">LUFS 響度目標</Label>
+              <Select
+                value={String(theme.lufsTarget ?? "")}
+                onValueChange={v => patch({ lufsTarget: Number(v) })}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LUFS_TARGET_PRESETS.map(p => (
+                    <SelectItem
+                      key={p.value}
+                      value={String(p.value)}
+                      className="text-xs"
+                    >
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">轉接風格</Label>
+              <Select
+                value={theme.transitionStyle ?? ""}
+                onValueChange={v =>
+                  patch({
+                    transitionStyle: v as "crossfade" | "hard_cut" | "sting" | "morphing",
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="選擇" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRANSITION_STYLE_MUSIC_PRESETS.map(p => (
+                    <SelectItem key={p.value} value={p.value} className="text-xs">
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Stems（分軌 URL）</Label>
+            <div className="grid grid-cols-2 gap-1 mt-1">
+              {[
+                ["drums", "鼓"],
+                ["bass", "貝斯"],
+                ["melody", "旋律"],
+                ["harmony", "和聲"],
+                ["pads", "Pad"],
+                ["fx", "FX"],
+              ].map(([key, label]) => (
+                <div key={key} className="flex items-center gap-1">
+                  <Badge variant="outline" className="text-[10px] w-10 justify-center">
+                    {label}
+                  </Badge>
+                  <Input
+                    value={
+                      (theme.stems as Record<string, string> | undefined)?.[key] ??
+                      ""
+                    }
+                    onChange={e =>
+                      patch({
+                        stems: {
+                          ...theme.stems,
+                          [key]: e.target.value || undefined,
+                        } as WorldMusicTheme["stems"],
+                      })
+                    }
+                    placeholder="URL"
+                    className="h-6 text-[10px] flex-1"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-[10px] text-muted-foreground">
+              Cue 長度變體（剪輯快套）
+            </Label>
+            {(theme.cueVariants ?? []).map((cv, idx) => (
+              <div key={idx} className="grid grid-cols-4 gap-1 mt-1">
+                <Input
+                  value={cv.label}
+                  onChange={e =>
+                    patch({
+                      cueVariants: (theme.cueVariants ?? []).map((x, i) =>
+                        i === idx ? { ...x, label: e.target.value } : x
+                      ),
+                    })
+                  }
+                  placeholder="標籤"
+                  className="h-7 text-[10px]"
+                />
+                <Input
+                  type="number"
+                  value={cv.durationSec}
+                  onChange={e =>
+                    patch({
+                      cueVariants: (theme.cueVariants ?? []).map((x, i) =>
+                        i === idx
+                          ? { ...x, durationSec: Number(e.target.value) }
+                          : x
+                      ),
+                    })
+                  }
+                  placeholder="秒"
+                  className="h-7 text-[10px]"
+                />
+                <Input
+                  value={cv.audioUrl ?? ""}
+                  onChange={e =>
+                    patch({
+                      cueVariants: (theme.cueVariants ?? []).map((x, i) =>
+                        i === idx ? { ...x, audioUrl: e.target.value } : x
+                      ),
+                    })
+                  }
+                  placeholder="音檔 URL"
+                  className="h-7 text-[10px]"
+                />
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patch({
+                        cueVariants: (theme.cueVariants ?? []).map((x, i) =>
+                          i === idx ? { ...x, loopable: !x.loopable } : x
+                        ),
+                      })
+                    }
+                    className={`flex-1 px-1 py-0.5 rounded text-[9px] border ${
+                      cv.loopable
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground"
+                    }`}
+                  >
+                    {cv.loopable ? "✓ Loop" : "Loop"}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      patch({
+                        cueVariants: (theme.cueVariants ?? []).filter(
+                          (_, i) => i !== idx
+                        ),
+                      })
+                    }
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                patch({
+                  cueVariants: [
+                    ...(theme.cueVariants ?? []),
+                    { label: "", durationSec: 30 },
+                  ],
+                })
+              }
+              className="h-7 text-xs mt-1"
+            >
+              <Plus className="w-3 h-3 mr-1" /> 新增 Cue 變體
+            </Button>
+          </div>
+
+          <div>
+            <Label className="text-[10px] text-muted-foreground">
+              Stinger 命中點（秒，逗號分隔；剪輯對齊用）
+            </Label>
+            <Input
+              value={(theme.stingerPoints ?? []).join(", ")}
+              onChange={e =>
+                patch({
+                  stingerPoints: e.target.value
+                    .split(/[、,，]/)
+                    .map(s => Number(s.trim()))
+                    .filter(n => !isNaN(n) && n >= 0),
+                })
+              }
+              placeholder="例如：0.5, 4.2, 8.0"
+              className="h-7 text-xs font-mono"
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 });
@@ -1548,6 +3198,434 @@ const WorldBasicsEditor = memo(function WorldBasicsEditor({
           placeholder="這個世界的核心設定、規則、基調…"
           className="min-h-[50px] text-xs"
         />
+      </div>
+    </div>
+  );
+});
+
+// ─── 製作管線編輯（v3：里程碑、credits、Master 規格） ─────────────────────
+
+const ProductionManifestEditor = memo(function ProductionManifestEditor({
+  world,
+  onPatch,
+}: {
+  world: WorldbuildingFrameworkData & { id?: number };
+  onPatch: (p: Partial<WorldbuildingFrameworkData>) => void;
+}) {
+  const targets = world.productionTargets ?? {};
+  const setTargets = (p: Partial<typeof targets>) =>
+    onPatch({ productionTargets: { ...targets, ...p } });
+
+  return (
+    <div className="space-y-3">
+      {/* Master 技術規格 */}
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-1">
+          <Film className="w-3.5 h-3.5" /> Master 技術規格
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div>
+            <Label className="text-[10px] text-muted-foreground">解析度</Label>
+            <Select
+              value={targets.masterSpec?.resolution ?? ""}
+              onValueChange={v =>
+                setTargets({
+                  masterSpec: { ...targets.masterSpec, resolution: v },
+                })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="選擇" />
+              </SelectTrigger>
+              <SelectContent>
+                {MASTER_RESOLUTION_PRESETS.map(p => (
+                  <SelectItem key={p.value} value={p.value} className="text-xs">
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">FPS</Label>
+            <Input
+              type="number"
+              value={targets.masterSpec?.fps ?? 24}
+              onChange={e =>
+                setTargets({
+                  masterSpec: {
+                    ...targets.masterSpec,
+                    fps: Number(e.target.value),
+                  },
+                })
+              }
+              className="h-7 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">色彩空間</Label>
+            <Select
+              value={targets.masterSpec?.colorSpace ?? ""}
+              onValueChange={v =>
+                setTargets({
+                  masterSpec: { ...targets.masterSpec, colorSpace: v },
+                })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="選擇" />
+              </SelectTrigger>
+              <SelectContent>
+                {COLOR_SPACE_PRESETS.map(p => (
+                  <SelectItem key={p.value} value={p.value} className="text-xs">
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">音訊聲道</Label>
+            <Select
+              value={targets.masterSpec?.audioChannels ?? ""}
+              onValueChange={v =>
+                setTargets({
+                  masterSpec: {
+                    ...targets.masterSpec,
+                    audioChannels: v as "mono" | "stereo" | "5.1" | "7.1" | "atmos",
+                  },
+                })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="選擇" />
+              </SelectTrigger>
+              <SelectContent>
+                {["mono", "stereo", "5.1", "7.1", "atmos"].map(c => (
+                  <SelectItem key={c} value={c} className="text-xs">
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setTargets({
+              masterSpec: {
+                ...targets.masterSpec,
+                hdr: !targets.masterSpec?.hdr,
+              },
+            })
+          }
+          className={`px-2 py-1 rounded-md text-[10px] border transition ${
+            targets.masterSpec?.hdr
+              ? "border-primary/60 bg-primary/10 text-primary"
+              : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
+          }`}
+        >
+          {targets.masterSpec?.hdr ? "✓ HDR" : "○ HDR"}
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] text-muted-foreground">分級</Label>
+            <Input
+              value={targets.rating ?? ""}
+              onChange={e => setTargets({ rating: e.target.value })}
+              placeholder="G / PG / PG-13 / R"
+              className="h-7 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">預算 USD</Label>
+            <Input
+              type="number"
+              value={targets.budgetUsd ?? 0}
+              onChange={e =>
+                setTargets({ budgetUsd: Number(e.target.value) })
+              }
+              className="h-7 text-xs"
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">交付清單</Label>
+          <Input
+            value={(targets.deliverables ?? []).join("、")}
+            onChange={e =>
+              setTargets({
+                deliverables: e.target.value
+                  .split(/[、,，]/)
+                  .map(s => s.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="Master ProRes、Proxy H.264、預告 15s、縮圖…"
+            className="h-7 text-xs"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] text-muted-foreground">字幕語言</Label>
+            <Input
+              value={(targets.subtitleLanguages ?? []).join("、")}
+              onChange={e =>
+                setTargets({
+                  subtitleLanguages: e.target.value
+                    .split(/[、,，]/)
+                    .map(s => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="zh-TW、en、ja"
+              className="h-7 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">配音語言</Label>
+            <Input
+              value={(targets.dubLanguages ?? []).join("、")}
+              onChange={e =>
+                setTargets({
+                  dubLanguages: e.target.value
+                    .split(/[、,，]/)
+                    .map(s => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="zh-TW、ja"
+              className="h-7 text-xs"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 製作里程碑 */}
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-1">
+          <Clock className="w-3.5 h-3.5" /> 製作里程碑
+        </h3>
+        {(targets.milestones ?? []).map((m, idx) => (
+          <div
+            key={m.id}
+            className="rounded-md border border-border/30 bg-card/30 p-2 space-y-1.5"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-1">
+              <Select
+                value={m.stage}
+                onValueChange={v =>
+                  setTargets({
+                    milestones: (targets.milestones ?? []).map((x, i) =>
+                      i === idx ? { ...x, stage: v } : x
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="階段" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MILESTONE_STAGE_PRESETS.map(s => (
+                    <SelectItem key={s} value={s} className="text-xs">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={m.title}
+                onChange={e =>
+                  setTargets({
+                    milestones: (targets.milestones ?? []).map((x, i) =>
+                      i === idx ? { ...x, title: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="任務"
+                className="h-7 text-xs"
+              />
+              <Input
+                type="date"
+                value={m.dueDate ?? ""}
+                onChange={e =>
+                  setTargets({
+                    milestones: (targets.milestones ?? []).map((x, i) =>
+                      i === idx ? { ...x, dueDate: e.target.value } : x
+                    ),
+                  })
+                }
+                className="h-7 text-xs"
+              />
+              <Select
+                value={m.status ?? "pending"}
+                onValueChange={v =>
+                  setTargets({
+                    milestones: (targets.milestones ?? []).map((x, i) =>
+                      i === idx
+                        ? {
+                            ...x,
+                            status: v as "pending" | "in_progress" | "completed" | "blocked",
+                          }
+                        : x
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    { v: "pending", l: "待辦" },
+                    { v: "in_progress", l: "進行中" },
+                    { v: "completed", l: "已完成" },
+                    { v: "blocked", l: "卡住" },
+                  ].map(o => (
+                    <SelectItem key={o.v} value={o.v} className="text-xs">
+                      {o.l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={m.owner ?? ""}
+                onChange={e =>
+                  setTargets({
+                    milestones: (targets.milestones ?? []).map((x, i) =>
+                      i === idx ? { ...x, owner: e.target.value } : x
+                    ),
+                  })
+                }
+                placeholder="負責人"
+                className="h-7 text-xs flex-1"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setTargets({
+                    milestones: (targets.milestones ?? []).filter(
+                      (_, i) => i !== idx
+                    ),
+                  })
+                }
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setTargets({
+              milestones: [
+                ...(targets.milestones ?? []),
+                {
+                  id: uid(),
+                  stage: "Pre-Production 前期",
+                  title: "",
+                  status: "pending" as const,
+                },
+              ],
+            })
+          }
+          className="h-7 text-xs"
+        >
+          <Plus className="w-3 h-3 mr-1" /> 新增里程碑
+        </Button>
+      </div>
+
+      {/* Credits */}
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-1">
+          <Users className="w-3.5 h-3.5" /> 工作人員 Credits
+        </h3>
+        {(targets.credits ?? []).map((c, idx) => (
+          <div
+            key={c.id}
+            className="grid grid-cols-1 md:grid-cols-4 gap-1 items-center"
+          >
+            <Select
+              value={c.role}
+              onValueChange={v =>
+                setTargets({
+                  credits: (targets.credits ?? []).map((x, i) =>
+                    i === idx ? { ...x, role: v } : x
+                  ),
+                })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="職稱" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRODUCTION_ROLE_PRESETS.map(r => (
+                  <SelectItem key={r} value={r} className="text-xs">
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              value={c.name}
+              onChange={e =>
+                setTargets({
+                  credits: (targets.credits ?? []).map((x, i) =>
+                    i === idx ? { ...x, name: e.target.value } : x
+                  ),
+                })
+              }
+              placeholder="姓名"
+              className="h-7 text-xs"
+            />
+            <Input
+              value={c.link ?? ""}
+              onChange={e =>
+                setTargets({
+                  credits: (targets.credits ?? []).map((x, i) =>
+                    i === idx ? { ...x, link: e.target.value } : x
+                  ),
+                })
+              }
+              placeholder="連結（IMDB / 社群）"
+              className="h-7 text-xs"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                setTargets({
+                  credits: (targets.credits ?? []).filter((_, i) => i !== idx),
+                })
+              }
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setTargets({
+              credits: [
+                ...(targets.credits ?? []),
+                { id: uid(), role: "導演", name: "" },
+              ],
+            })
+          }
+          className="h-7 text-xs"
+        >
+          <Plus className="w-3 h-3 mr-1" /> 新增 Credit
+        </Button>
       </div>
     </div>
   );
@@ -1775,6 +3853,25 @@ const SceneCard = memo(function SceneCard({
               placeholder="場景全景圖 URL"
               className="h-7 text-[11px]"
             />
+            <div className="flex gap-1 mt-1">
+              <GenerateImageButton
+                prompt={[
+                  buildSceneConsistencyPrompt(scene),
+                  "establishing shot, wide angle, no characters",
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+                aspectRatio={scene.preferredAspectRatio || "16:9"}
+                label="AI 生成"
+                onSuccess={url => patch({ establishingShotUrl: url })}
+                disabled={!scene.name}
+              />
+              <AssetUploader
+                accept="image/*"
+                label="上傳"
+                onUploaded={r => patch({ establishingShotUrl: r.url })}
+              />
+            </div>
           </div>
           <div>
             <Label className="text-[10px] text-muted-foreground">偏好構圖比例</Label>
@@ -1900,6 +3997,1019 @@ const SceneCard = memo(function SceneCard({
           />
         </div>
       </div>
+
+      {/* ─── v3 場景動畫製作專業欄位 ──────────────────────────────────── */}
+
+      <Collapsible>
+        <CollapsibleTrigger className="text-[11px] text-primary flex items-center gap-1 hover:underline">
+          <ChevronDown className="w-3 h-3" />
+          進階：Layout / Production Design / Atmospherics / Sound Design
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-2">
+          {/* Layout */}
+          <div className="rounded-md border border-border/30 bg-card/30 p-2 space-y-1.5">
+            <div className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+              <MapPin className="w-3 h-3" /> Layout / Blocking
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                value={scene.layout?.floorPlanUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    layout: { ...scene.layout, floorPlanUrl: e.target.value },
+                  })
+                }
+                placeholder="平面圖 URL"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={scene.layout?.blockingDiagramUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    layout: {
+                      ...scene.layout,
+                      blockingDiagramUrl: e.target.value,
+                    },
+                  })
+                }
+                placeholder="Blocking 圖 URL"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={(scene.layout?.entryPoints ?? []).join("、")}
+                onChange={e =>
+                  patch({
+                    layout: {
+                      ...scene.layout,
+                      entryPoints: e.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    },
+                  })
+                }
+                placeholder="入口（左門、後樓梯）"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={(scene.layout?.exitPoints ?? []).join("、")}
+                onChange={e =>
+                  patch({
+                    layout: {
+                      ...scene.layout,
+                      exitPoints: e.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    },
+                  })
+                }
+                placeholder="出口"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={scene.layout?.heroShotAngle ?? ""}
+                onChange={e =>
+                  patch({
+                    layout: {
+                      ...scene.layout,
+                      heroShotAngle: e.target.value,
+                    },
+                  })
+                }
+                placeholder="Hero shot 角度"
+                className="h-7 text-[11px]"
+              />
+              <div className="grid grid-cols-3 gap-1">
+                <Input
+                  type="number"
+                  value={scene.layout?.approxDimensions?.widthM ?? ""}
+                  onChange={e =>
+                    patch({
+                      layout: {
+                        ...scene.layout,
+                        approxDimensions: {
+                          ...scene.layout?.approxDimensions,
+                          widthM: Number(e.target.value) || undefined,
+                        },
+                      },
+                    })
+                  }
+                  placeholder="寬 m"
+                  className="h-7 text-[10px]"
+                />
+                <Input
+                  type="number"
+                  value={scene.layout?.approxDimensions?.depthM ?? ""}
+                  onChange={e =>
+                    patch({
+                      layout: {
+                        ...scene.layout,
+                        approxDimensions: {
+                          ...scene.layout?.approxDimensions,
+                          depthM: Number(e.target.value) || undefined,
+                        },
+                      },
+                    })
+                  }
+                  placeholder="深 m"
+                  className="h-7 text-[10px]"
+                />
+                <Input
+                  type="number"
+                  value={scene.layout?.approxDimensions?.heightM ?? ""}
+                  onChange={e =>
+                    patch({
+                      layout: {
+                        ...scene.layout,
+                        approxDimensions: {
+                          ...scene.layout?.approxDimensions,
+                          heightM: Number(e.target.value) || undefined,
+                        },
+                      },
+                    })
+                  }
+                  placeholder="高 m"
+                  className="h-7 text-[10px]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Production design */}
+          <div className="rounded-md border border-border/30 bg-card/30 p-2 space-y-1.5">
+            <div className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+              <Palette className="w-3 h-3" /> Production Design
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                value={scene.productionDesign?.architecturalStyle ?? ""}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      architecturalStyle: e.target.value,
+                    },
+                  })
+                }
+                placeholder="建築風格（哥德 / 和風 / 未來…）"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={(scene.productionDesign?.materials ?? []).join("、")}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      materials: e.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    },
+                  })
+                }
+                placeholder="主要建材"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={(scene.productionDesign?.setPieces ?? []).join("、")}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      setPieces: e.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    },
+                  })
+                }
+                placeholder="互動道具"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={scene.productionDesign?.periodDetails ?? ""}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      periodDetails: e.target.value,
+                    },
+                  })
+                }
+                placeholder="年代細節"
+                className="h-7 text-[11px]"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <Input
+                value={scene.productionDesign?.colorScript?.keyColor ?? ""}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      colorScript: {
+                        ...scene.productionDesign?.colorScript,
+                        keyColor: e.target.value,
+                      },
+                    },
+                  })
+                }
+                placeholder="Key #ffe1a8"
+                className="h-7 text-[10px] font-mono"
+              />
+              <Input
+                value={scene.productionDesign?.colorScript?.midColor ?? ""}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      colorScript: {
+                        ...scene.productionDesign?.colorScript,
+                        midColor: e.target.value,
+                      },
+                    },
+                  })
+                }
+                placeholder="Mid #..."
+                className="h-7 text-[10px] font-mono"
+              />
+              <Input
+                value={scene.productionDesign?.colorScript?.shadowColor ?? ""}
+                onChange={e =>
+                  patch({
+                    productionDesign: {
+                      ...scene.productionDesign,
+                      colorScript: {
+                        ...scene.productionDesign?.colorScript,
+                        shadowColor: e.target.value,
+                      },
+                    },
+                  })
+                }
+                placeholder="Shadow #..."
+                className="h-7 text-[10px] font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Atmospherics */}
+          <div className="rounded-md border border-border/30 bg-card/30 p-2 space-y-1.5">
+            <div className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> 大氣 / 粒子
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px] text-muted-foreground">霧密度 0-1</Label>
+                <Input
+                  type="number"
+                  step={0.1}
+                  min={0}
+                  max={1}
+                  value={scene.atmospherics?.fogDensity ?? 0}
+                  onChange={e =>
+                    patch({
+                      atmospherics: {
+                        ...scene.atmospherics,
+                        fogDensity: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">降水</Label>
+                <Select
+                  value={scene.atmospherics?.precipitation ?? ""}
+                  onValueChange={v =>
+                    patch({
+                      atmospherics: {
+                        ...scene.atmospherics,
+                        precipitation: v as "none" | "rain" | "snow" | "ash" | "petals" | "leaves",
+                      },
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="無" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRECIPITATION_PRESETS.map(p => (
+                      <SelectItem key={p.value} value={p.value} className="text-xs">
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "dustMotes", label: "塵埃" },
+                { key: "lightShafts", label: "光柱" },
+                { key: "lightning", label: "雷電" },
+              ].map(o => {
+                const v = (
+                  scene.atmospherics as Record<string, unknown> | undefined
+                )?.[o.key] as boolean | undefined;
+                return (
+                  <button
+                    key={o.key}
+                    type="button"
+                    onClick={() =>
+                      patch({
+                        atmospherics: {
+                          ...scene.atmospherics,
+                          [o.key]: !v,
+                        } as WorldScene["atmospherics"],
+                      })
+                    }
+                    className={`px-2 py-1 rounded-md text-[10px] border transition ${
+                      v
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
+                    }`}
+                  >
+                    {v ? "✓ " : "○ "}
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sound Design */}
+          <div className="rounded-md border border-border/30 bg-card/30 p-2 space-y-1.5">
+            <div className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+              <Volume2 className="w-3 h-3" /> Sound Design
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                value={scene.soundDesign?.ambientBedUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    soundDesign: {
+                      ...scene.soundDesign,
+                      ambientBedUrl: e.target.value,
+                    },
+                  })
+                }
+                placeholder="環境音床 URL"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={scene.soundDesign?.roomToneUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    soundDesign: {
+                      ...scene.soundDesign,
+                      roomToneUrl: e.target.value,
+                    },
+                  })
+                }
+                placeholder="Room tone URL"
+                className="h-7 text-[11px]"
+              />
+              <Select
+                value={scene.soundDesign?.reverb ?? ""}
+                onValueChange={v =>
+                  patch({
+                    soundDesign: {
+                      ...scene.soundDesign,
+                      reverb: v as "dry" | "room" | "hall" | "cathedral" | "outdoor" | "underwater",
+                    },
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Reverb" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REVERB_PRESETS.map(p => (
+                    <SelectItem key={p.value} value={p.value} className="text-xs">
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={(scene.soundDesign?.diegeticSources ?? []).join("、")}
+                onChange={e =>
+                  patch({
+                    soundDesign: {
+                      ...scene.soundDesign,
+                      diegeticSources: e.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    },
+                  })
+                }
+                placeholder="方向性音源"
+                className="h-7 text-[11px]"
+              />
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+});
+
+// ─── v4: 匯出 / 匯入按鈕 ───────────────────────────────────────────────────
+
+function ImportExportButtons({
+  worldId,
+  worldName,
+}: {
+  worldId: number;
+  worldName: string;
+}) {
+  const utils = trpc.useUtils();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const exportQuery = trpc.worldbuilding.exportFull.useQuery(
+    { id: worldId },
+    { enabled: false }
+  );
+  const importMut = trpc.worldbuilding.importFull.useMutation({
+    onSuccess: data => {
+      toast.success(`已匯入為新世界觀（id=${data.id}）`);
+      utils.worldbuilding.list.invalidate();
+    },
+    onError: e => toast.error(`匯入失敗：${e.message}`),
+  });
+
+  const handleExport = async () => {
+    const result = await exportQuery.refetch();
+    if (!result.data) {
+      toast.error("匯出失敗");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(result.data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${worldName.replace(/[^\w一-龥-]/g, "_")}.worldbuilding.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("已匯出 JSON");
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const fw =
+        parsed.framework ?? parsed; // 容忍直接是 framework 物件
+      // 移除 id / 時間戳，避免 schema 驗證錯誤
+      delete fw.id;
+      delete fw.createdAt;
+      delete fw.updatedAt;
+      importMut.mutate({ framework: fw });
+    } catch (e) {
+      toast.error(
+        `匯入失敗：${e instanceof Error ? e.message : "無法解析 JSON"}`
+      );
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleExport}
+        disabled={exportQuery.isFetching}
+        className="h-8 text-xs"
+      >
+        <Download className="w-3.5 h-3.5 mr-1" />
+        匯出
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => inputRef.current?.click()}
+        disabled={importMut.isPending}
+        className="h-8 text-xs"
+      >
+        <UploadIcon className="w-3.5 h-3.5 mr-1" />
+        匯入
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0];
+          if (f) handleImport(f);
+        }}
+      />
+    </>
+  );
+}
+
+// ─── v4: 研究資料庫編輯器 ──────────────────────────────────────────────────
+
+const ResearchDatabaseEditor = memo(function ResearchDatabaseEditor({
+  entries,
+  onChange,
+}: {
+  entries: WorldResearchEntry[];
+  onChange: (next: WorldResearchEntry[]) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const filtered = entries.filter(
+    e =>
+      !filter ||
+      e.title.toLowerCase().includes(filter.toLowerCase()) ||
+      (e.content ?? "").toLowerCase().includes(filter.toLowerCase()) ||
+      (e.tags ?? []).some(t => t.toLowerCase().includes(filter.toLowerCase()))
+  );
+
+  const patch = (idx: number, p: Partial<WorldResearchEntry>) =>
+    onChange(entries.map((it, i) => (i === idx ? { ...it, ...p } : it)));
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold flex-1">
+            研究資料庫（歷史、地理、文化、生物、技術、政治、宗教、語言、經濟）
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange([
+                ...entries,
+                {
+                  id: uid(),
+                  title: "",
+                  category: "history",
+                  content: "",
+                  isCanon: false,
+                },
+              ])
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            新增條目
+          </Button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="搜尋標題 / 內容 / 標籤"
+            className="h-7 text-xs pl-7"
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          光球代理會自動讀取此資料庫做交叉引用。標記為「核心設定」(Canon) 的條目會在生成時優先注入 prompt。
+        </p>
+      </div>
+
+      <ScrollArea className="max-h-[55vh] pr-2">
+        <div className="space-y-2">
+          {filtered.map(e => {
+            const idx = entries.findIndex(x => x.id === e.id);
+            return (
+              <div
+                key={e.id}
+                className="rounded-lg border border-border/30 bg-card/30 p-3 space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={e.title}
+                    onChange={ev =>
+                      patch(idx, { title: ev.target.value })
+                    }
+                    placeholder="標題（例：苔森紀年中的星象學）"
+                    className="h-7 text-sm font-medium flex-1"
+                  />
+                  <Select
+                    value={e.category ?? ""}
+                    onValueChange={v => patch(idx, { category: v })}
+                  >
+                    <SelectTrigger className="h-7 w-[100px] text-xs">
+                      <SelectValue placeholder="分類" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RESEARCH_CATEGORY_PRESETS.map(c => (
+                        <SelectItem key={c.value} value={c.value} className="text-xs">
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => patch(idx, { isCanon: !e.isCanon })}
+                    className={`px-2 py-1 rounded-md text-[10px] border transition ${
+                      e.isCanon
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground"
+                    }`}
+                    title="標記為核心設定 — AI 生成時優先注入"
+                  >
+                    {e.isCanon ? "✓ Canon" : "Canon"}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      onChange(entries.filter(x => x.id !== e.id))
+                    }
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+                <Textarea
+                  value={e.content ?? ""}
+                  onChange={ev => patch(idx, { content: ev.target.value })}
+                  placeholder="主要內容（支援 Markdown）"
+                  className="min-h-[100px] text-[11px]"
+                />
+                <Input
+                  value={(e.tags ?? []).join("、")}
+                  onChange={ev =>
+                    patch(idx, {
+                      tags: ev.target.value
+                        .split(/[、,，]/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="標籤（逗號分隔）"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  value={(e.sourceUrls ?? []).join("、")}
+                  onChange={ev =>
+                    patch(idx, {
+                      sourceUrls: ev.target.value
+                        .split(/[、,，\s]+/)
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="來源連結（多個用逗號或空白分隔）"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  value={e.citation ?? ""}
+                  onChange={ev => patch(idx, { citation: ev.target.value })}
+                  placeholder="引用格式（作者, 年, 來源, 頁碼）"
+                  className="h-7 text-[10px] font-mono"
+                />
+                <div className="flex items-center justify-between">
+                  <AssetUploader
+                    accept="image/*,application/pdf,.doc,.docx,.txt"
+                    label="加附件"
+                    onUploaded={r => {
+                      patch(idx, {
+                        attachments: [
+                          ...(e.attachments ?? []),
+                          {
+                            id: uid(),
+                            label: r.fileName,
+                            assetType: inferAssetType(r.mimeType),
+                            url: r.url,
+                            fileKey: r.fileKey,
+                            mimeType: r.mimeType,
+                            sizeBytes: r.sizeBytes,
+                            uploadedAt: new Date().toISOString(),
+                          },
+                        ],
+                      });
+                    }}
+                  />
+                  {(e.attachments?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(e.attachments ?? []).map((a, ai) => (
+                        <a
+                          key={a.id}
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                        >
+                          {a.label}
+                          <button
+                            type="button"
+                            onClick={ev => {
+                              ev.preventDefault();
+                              patch(idx, {
+                                attachments: (e.attachments ?? []).filter(
+                                  (_, i) => i !== ai
+                                ),
+                              });
+                            }}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && entries.length > 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              沒有符合「{filter}」的條目。
+            </p>
+          )}
+          {entries.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              尚無研究條目。點上方「新增條目」開始。
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+});
+
+// ─── v4: 音效 / 環境音庫 ───────────────────────────────────────────────────
+
+const SoundLibraryEditor = memo(function SoundLibraryEditor({
+  items,
+  onChange,
+}: {
+  items: WorldSoundLibraryItem[];
+  onChange: (next: WorldSoundLibraryItem[]) => void;
+}) {
+  const [filter, setFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const filtered = items.filter(
+    s =>
+      (!categoryFilter || s.category === categoryFilter) &&
+      (!filter ||
+        s.label.toLowerCase().includes(filter.toLowerCase()) ||
+        (s.tags ?? []).some(t =>
+          t.toLowerCase().includes(filter.toLowerCase())
+        ))
+  );
+
+  const patch = (idx: number, p: Partial<WorldSoundLibraryItem>) =>
+    onChange(items.map((it, i) => (i === idx ? { ...it, ...p } : it)));
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <FileAudio className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold flex-1">
+            音效 / 環境音庫
+          </h3>
+          <AssetUploader
+            accept="audio/*"
+            label="上傳音檔"
+            onUploaded={r => {
+              onChange([
+                ...items,
+                {
+                  id: uid(),
+                  label: r.fileName,
+                  category: "ambient",
+                  audioUrl: r.url,
+                  fileKey: r.fileKey,
+                  loopable: true,
+                  volumeDefault: 0.7,
+                },
+              ]);
+              toast.success(`${r.fileName} 已加入音效庫`);
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange([
+                ...items,
+                {
+                  id: uid(),
+                  label: "",
+                  category: "ambient",
+                  audioUrl: "",
+                  loopable: false,
+                  volumeDefault: 0.7,
+                },
+              ])
+            }
+            className="h-7 text-xs"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            手動加入
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder="搜尋音檔名稱 / 標籤"
+              className="h-7 text-xs pl-7"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue placeholder="全部分類" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">
+                全部分類
+              </SelectItem>
+              {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (
+                <SelectItem key={c.value} value={c.value} className="text-xs">
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          場景的「Sound Design」可以引用此庫的 id，避免重複上傳。AI 代理也可查詢此庫挑選合適音效。
+        </p>
+      </div>
+
+      <ScrollArea className="max-h-[55vh] pr-2">
+        <div className="space-y-2">
+          {filtered.map(s => {
+            const idx = items.findIndex(x => x.id === s.id);
+            return (
+              <div
+                key={s.id}
+                className="rounded-lg border border-border/30 bg-card/30 p-2 space-y-1.5"
+              >
+                <div className="flex items-center gap-2">
+                  <FileAudio className="w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    value={s.label}
+                    onChange={e => patch(idx, { label: e.target.value })}
+                    placeholder="名稱"
+                    className="h-7 text-xs flex-1"
+                  />
+                  <Select
+                    value={s.category ?? ""}
+                    onValueChange={v =>
+                      patch(idx, {
+                        category: v as WorldSoundLibraryItem["category"],
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-[120px] text-xs">
+                      <SelectValue placeholder="分類" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (
+                        <SelectItem key={c.value} value={c.value} className="text-xs">
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    type="button"
+                    onClick={() => patch(idx, { loopable: !s.loopable })}
+                    className={`px-2 py-1 rounded text-[10px] border ${
+                      s.loopable
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border/40 bg-card/30 text-muted-foreground"
+                    }`}
+                  >
+                    {s.loopable ? "✓ Loop" : "Loop"}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      onChange(items.filter(x => x.id !== s.id))
+                    }
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+                <Input
+                  value={s.audioUrl}
+                  onChange={e => patch(idx, { audioUrl: e.target.value })}
+                  placeholder="音檔 URL"
+                  className="h-7 text-[11px]"
+                />
+                {s.audioUrl && (
+                  <audio
+                    src={s.audioUrl}
+                    controls
+                    preload="none"
+                    className="w-full h-8"
+                  />
+                )}
+                <Input
+                  value={(s.tags ?? []).join("、")}
+                  onChange={e =>
+                    patch(idx, {
+                      tags: e.target.value
+                        .split(/[、,，]/)
+                        .map(t => t.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="標籤（雨、戰鬥、勝利、夜晚…）"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  value={(s.triggers ?? []).join("、")}
+                  onChange={e =>
+                    patch(idx, {
+                      triggers: e.target.value
+                        .split(/[、,，]/)
+                        .map(t => t.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="觸發情境（rain_start / battle_begin / victory）"
+                  className="h-7 text-[10px] font-mono"
+                />
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">時長 (秒)</Label>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      value={s.durationSec ?? 0}
+                      onChange={e =>
+                        patch(idx, { durationSec: Number(e.target.value) })
+                      }
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">預設音量</Label>
+                    <Input
+                      type="number"
+                      step={0.05}
+                      min={0}
+                      max={1}
+                      value={s.volumeDefault ?? 0.7}
+                      onChange={e =>
+                        patch(idx, {
+                          volumeDefault: Math.max(
+                            0,
+                            Math.min(1, Number(e.target.value))
+                          ),
+                        })
+                      }
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">授權</Label>
+                    <Select
+                      value={s.license ?? ""}
+                      onValueChange={v => patch(idx, { license: v })}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="選擇" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SOUND_LICENSE_PRESETS.map(l => (
+                          <SelectItem key={l} value={l} className="text-xs">
+                            {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && items.length > 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              沒有符合條件的音效。
+            </p>
+          )}
+          {items.length === 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              尚無音效。上傳音檔或手動加入開始建立音效庫。
+            </p>
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 });
@@ -1917,7 +5027,14 @@ export default function AnimationStudio() {
 
   const [selectedWorldId, setSelectedWorldId] = useState<number | null>(null);
   const [selectedTab, setSelectedTab] = useState<
-    "characters" | "scenes" | "style" | "music" | "storyboards"
+    | "characters"
+    | "scenes"
+    | "style"
+    | "music"
+    | "production"
+    | "research"
+    | "sounds"
+    | "storyboards"
   >("characters");
 
   // 自動選第一個世界
@@ -2169,6 +5286,20 @@ export default function AnimationStudio() {
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
+        <ImportExportButtons
+          worldId={selectedWorld.id!}
+          worldName={selectedWorld.name}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/agent?focus=worldbuilding")}
+          className="h-8 text-xs"
+          title="請光球代理（導演 / 美術 / 配音 / 編劇）查詢此世界觀資料庫並協助製作"
+        >
+          <Bot className="w-3.5 h-3.5 mr-1" />
+          請光球幫忙
+        </Button>
       </div>
 
       {/* 世界觀基本資料（從導演 AI 融合進來，一處編完） */}
@@ -2283,6 +5414,18 @@ export default function AnimationStudio() {
           <TabsTrigger value="music" className="text-xs">
             <Music className="w-3.5 h-3.5 mr-1" />
             配樂主題（{effectiveWorld.musicThemes?.length ?? 0}）
+          </TabsTrigger>
+          <TabsTrigger value="production" className="text-xs">
+            <Theater className="w-3.5 h-3.5 mr-1" />
+            製作管線
+          </TabsTrigger>
+          <TabsTrigger value="research" className="text-xs">
+            <Database className="w-3.5 h-3.5 mr-1" />
+            研究資料庫（{effectiveWorld.researchEntries?.length ?? 0}）
+          </TabsTrigger>
+          <TabsTrigger value="sounds" className="text-xs">
+            <FileAudio className="w-3.5 h-3.5 mr-1" />
+            音效庫（{effectiveWorld.soundLibrary?.length ?? 0}）
           </TabsTrigger>
           <TabsTrigger value="storyboards" className="text-xs">
             <Camera className="w-3.5 h-3.5 mr-1" />
@@ -2484,6 +5627,29 @@ export default function AnimationStudio() {
               <Plus className="w-3 h-3 mr-1" /> 新增配樂主題
             </Button>
           </div>
+        </TabsContent>
+
+        <TabsContent value="production">
+          <ProductionManifestEditor
+            world={effectiveWorld}
+            onPatch={handlePatchWorld}
+          />
+        </TabsContent>
+
+        <TabsContent value="research">
+          <ResearchDatabaseEditor
+            entries={effectiveWorld.researchEntries ?? []}
+            onChange={next =>
+              handlePatchWorld({ researchEntries: next })
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="sounds">
+          <SoundLibraryEditor
+            items={effectiveWorld.soundLibrary ?? []}
+            onChange={next => handlePatchWorld({ soundLibrary: next })}
+          />
         </TabsContent>
 
         <TabsContent value="storyboards">
