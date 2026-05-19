@@ -65,12 +65,10 @@ import {
   Globe,
   Database,
   FileAudio,
-  Bot,
   GraduationCap,
   Search,
   X,
   Upload as UploadIcon,
-  FileText,
 } from "lucide-react";
 import {
   AssetUploader,
@@ -5428,40 +5426,6 @@ export default function AnimationStudio() {
           worldId={selectedWorld.id!}
           worldName={selectedWorld.name}
         />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/director?tab=script")}
-          className="h-8 text-xs"
-          title="到導演 AI 的腳本分析編輯系統 — 匯入腳本、拆分分鏡、逐段微調"
-        >
-          <FileText className="w-3.5 h-3.5 mr-1" />
-          腳本分析
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/agent?focus=worldbuilding")}
-          className="h-8 text-xs"
-          title="請光球代理（導演 / 美術 / 配音 / 編劇）查詢此世界觀資料庫並協助製作"
-        >
-          <Bot className="w-3.5 h-3.5 mr-1" />
-          請光球幫忙
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            navigate(
-              `/agent?focus=worldbuilding&task=cleanup&worldId=${selectedWorld.id}`
-            )
-          }
-          className="h-8 text-xs text-muted-foreground hover:text-destructive"
-          title="請光球協助清理：刪除空白角色 / 場景、整理重複條目、刪除未命名草稿"
-        >
-          <Trash2 className="w-3.5 h-3.5 mr-1" />
-          請光球協助清理
-        </Button>
       </div>
 
       {/* 世界觀基本資料（從導演 AI 融合進來，一處編完） */}
