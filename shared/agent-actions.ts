@@ -150,6 +150,41 @@ export interface ShareViaLinkAction {
   title?: string;
 }
 
+// ─── Worldbuilding-specific Actions ───────────────────────────────────────
+
+/** 生成角色 */
+export interface GenerateCharacterAction {
+  type: "generateCharacter";
+  /** 世界觀 ID */
+  worldId: string;
+  /** 角色描述 */
+  description: string;
+  /** 角色原型（可選） */
+  archetype?: string;
+}
+
+/** 生成場景 */
+export interface GenerateSceneAction {
+  type: "generateScene";
+  /** 世界觀 ID */
+  worldId: string;
+  /** 場景描述 */
+  description: string;
+  /** 環境類型（可選） */
+  environmentType?: string;
+}
+
+/** 生成分鏡 */
+export interface GenerateStoryboardAction {
+  type: "generateStoryboard";
+  /** 世界觀 ID */
+  worldId: string;
+  /** 腳本 ID（可選） */
+  scriptId?: string;
+  /** 分鏡描述 */
+  description: string;
+}
+
 /** 複合任務：光球可以一次描述多步驟計畫，前端依序執行 */
 export interface RunWorkflowAction {
   type: "runWorkflow";
@@ -251,7 +286,10 @@ export type AgentAction =
   | ExecuteTaskAction
   | RunWorkflowAction
   | ExportChatPdfAction
-  | ShareViaLinkAction;
+  | ShareViaLinkAction
+  | GenerateCharacterAction
+  | GenerateSceneAction
+  | GenerateStoryboardAction;
 
 export type AgentActionType = AgentAction["type"];
 
@@ -600,6 +638,39 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
         ...(confirmationMode ? { confirmationMode } : {}),
       };
     }
+    case "generateCharacter": {
+      const worldId = obj.worldId ?? obj.payload;
+      const description = obj.description;
+      if (typeof worldId !== "string" || typeof description !== "string") return null;
+      return {
+        type: "generateCharacter",
+        worldId: String(worldId),
+        description: String(description),
+        archetype: typeof obj.archetype === "string" ? obj.archetype : undefined,
+      };
+    }
+    case "generateScene": {
+      const worldId = obj.worldId ?? obj.payload;
+      const description = obj.description;
+      if (typeof worldId !== "string" || typeof description !== "string") return null;
+      return {
+        type: "generateScene",
+        worldId: String(worldId),
+        description: String(description),
+        environmentType: typeof obj.environmentType === "string" ? obj.environmentType : undefined,
+      };
+    }
+    case "generateStoryboard": {
+      const worldId = obj.worldId ?? obj.payload;
+      const description = obj.description;
+      if (typeof worldId !== "string" || typeof description !== "string") return null;
+      return {
+        type: "generateStoryboard",
+        worldId: String(worldId),
+        description: String(description),
+        scriptId: typeof obj.scriptId === "string" ? obj.scriptId : undefined,
+      };
+    }
     default:
       return null;
   }
@@ -744,6 +815,24 @@ export function summarizeAction(action: AgentAction): string {
         : action.target === "studioState"
           ? "想幫你把目前創作工作室的設定打包成可分享連結"
           : "想幫你把剛剛的工作流程打包成可分享連結";
+    case "generateCharacter": {
+      const preview = action.description.length > 30
+        ? action.description.slice(0, 30) + "…"
+        : action.description;
+      return `想幫你生成角色：「${preview}」`;
+    }
+    case "generateScene": {
+      const preview = action.description.length > 30
+        ? action.description.slice(0, 30) + "…"
+        : action.description;
+      return `想幫你生成場景：「${preview}」`;
+    }
+    case "generateStoryboard": {
+      const preview = action.description.length > 30
+        ? action.description.slice(0, 30) + "…"
+        : action.description;
+      return `想幫你生成分鏡：「${preview}」`;
+    }
   }
 }
 

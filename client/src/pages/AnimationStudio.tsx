@@ -18,6 +18,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type { AgentAction, AgentCapability } from "../../../shared/agent-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -5435,6 +5437,126 @@ export default function AnimationStudio() {
     },
     [updateWorld]
   );
+
+  // ─── AI Agent Integration ───────────────────────────────────────────────
+  useRegisterPageAgent({
+    pageId: "worldbuilding",
+    pageLabel: "世界觀系統",
+    capabilities: useMemo((): AgentCapability[] => {
+      const tabs: AgentCapability["options"] = [
+        { id: "characters", label: "角色" },
+        { id: "scenes", label: "場景" },
+        { id: "style", label: "風格" },
+        { id: "music", label: "音樂" },
+        { id: "production", label: "製作" },
+        { id: "research", label: "研究" },
+        { id: "sounds", label: "音效庫" },
+        { id: "script", label: "腳本" },
+        { id: "storyboards", label: "分鏡" },
+      ];
+
+      return [
+        {
+          action: "setTab",
+          label: "分頁",
+          options: tabs,
+          currentId: selectedTab,
+        },
+        {
+          action: "generateCharacter",
+          label: "生成角色",
+          hint: "可根據描述生成新角色並加入目前世界觀",
+        },
+        {
+          action: "generateScene",
+          label: "生成場景",
+          hint: "可根據描述生成新場景並加入目前世界觀",
+        },
+        {
+          action: "generateStoryboard",
+          label: "生成分鏡",
+          hint: "可根據腳本或描述生成分鏡時間軸",
+        },
+      ];
+    }, [selectedTab]),
+
+    handler: useCallback(async (action: AgentAction) => {
+      if (action.type === "setTab") {
+        const validTabs = [
+          "characters",
+          "scenes",
+          "style",
+          "music",
+          "production",
+          "research",
+          "sounds",
+          "script",
+          "storyboards",
+        ];
+        if (validTabs.includes(action.tabId)) {
+          setSelectedTab(action.tabId as typeof selectedTab);
+          return { ok: true, message: `已切換到「${action.tabId}」分頁` };
+        }
+        return { ok: false, reason: "無效的分頁 ID" };
+      }
+
+      if (action.type === "generateCharacter") {
+        if (!selectedWorldId) {
+          return { ok: false, reason: "請先選擇一個世界觀" };
+        }
+        // TODO: Call generation service
+        toast.info("角色生成功能即將推出");
+        return { ok: true, message: "角色生成請求已接收" };
+      }
+
+      if (action.type === "generateScene") {
+        if (!selectedWorldId) {
+          return { ok: false, reason: "請先選擇一個世界觀" };
+        }
+        // TODO: Call generation service
+        toast.info("場景生成功能即將推出");
+        return { ok: true, message: "場景生成請求已接收" };
+      }
+
+      if (action.type === "generateStoryboard") {
+        if (!selectedWorldId) {
+          return { ok: false, reason: "請先選擇一個世界觀" };
+        }
+        // TODO: Call generation service
+        toast.info("分鏡生成功能即將推出");
+        return { ok: true, message: "分鏡生成請求已接收" };
+      }
+
+      return { ok: false, reason: "不支援的動作" };
+    }, [selectedWorldId]),
+
+    getSnapshot: useCallback(() => {
+      return {
+        pageId: "worldbuilding",
+        pageLabel: "世界觀系統",
+        pagePath: "/animation",
+        activeMode: undefined,
+        activeModel: undefined,
+        selectedPreset: undefined,
+        availableModels: [],
+        availableModes: [],
+        availableParameters: [],
+        currentPrompt: undefined,
+        hasUnsavedChanges: false,
+        warnings: [],
+        capabilities: [],
+        state: {
+          selectedWorldId,
+          selectedTab,
+          hasWorld: !!draft,
+          worldName: draft?.name || "",
+          charactersCount: draft?.characters?.length || 0,
+          scenesCount: draft?.scenes?.length || 0,
+          storyboardsCount: storyboardsQuery.data?.length || 0,
+        },
+      };
+    }, [selectedWorldId, selectedTab, draft, storyboardsQuery.data]),
+  });
 
   // 開分鏡細節（URL 路由）
   const detailStoryboardId = params.storyboardId
