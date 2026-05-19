@@ -809,11 +809,11 @@ function AnimationStudioBanner() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-primary flex items-center gap-1">
-            動畫工作室（新）
+            世界觀已融合進「動畫工作室」 — 點此前往
             <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </div>
           <div className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed">
-            三視圖 · 表情包 · 穿衣集 · 口氣 · 配音 · 腳本定位 · 畫面風格 · 配樂主題 · 分鏡時間軸（幾分幾秒）· t2i→i2v 渲染管線
+            本分頁仍可使用，但建議在動畫工作室一處編完：世界基本資料 · 角色（基本＋三視圖／表情／穿衣／口氣／配音／腳本定位／LoRA） · 場景（基本＋風格鎖／配樂鎖／時段表／運鏡） · 風格 profile · 配樂主題 · 分鏡時間軸 · 渲染管線
           </div>
         </div>
       </div>
