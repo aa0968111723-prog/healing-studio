@@ -298,7 +298,7 @@ export type CharacterActingNotes = {
   /** 動畫原則參考（squash/stretch 強度 0–1） */
   squashStretch?: number;
   /** 配音指導：感情變化幅度、靜場喘息頻率、笑點處理 */
-  vodirection?: string;
+  voDirection?: string;
 };
 
 /** 年齡變體 —— 同一角色在不同年齡段的視覺（回憶、未來、平行宇宙）。 */
@@ -1630,7 +1630,7 @@ export const worldCharacterSchema = z.object({
         .enum(["front", "three_quarter", "side", "varied"])
         .optional(),
       squashStretch: z.number().min(0).max(1).optional(),
-      vodirection: z.string().max(2000).optional(),
+      voDirection: z.string().max(2000).optional(),
     })
     .optional(),
   ageVariants: z
@@ -2450,7 +2450,7 @@ export function summarizeFrameworkForPrompt(
           lines.push(`  · 招牌動作：${a.signatureGestures.join("、")}`);
         if (a.emotionalRange?.length)
           lines.push(`  · 情緒範圍：${a.emotionalRange.join("、")}`);
-        if (a.vodirection) lines.push(`  · 配音指導：${a.vodirection}`);
+        if (a.voDirection) lines.push(`  · 配音指導：${a.voDirection}`);
       }
       if (c.lipSyncSet?.enabled) {
         lines.push(

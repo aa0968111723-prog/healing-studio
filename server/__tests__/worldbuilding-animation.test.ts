@@ -394,7 +394,7 @@ describe("worldbuildingFrameworkInputSchema v3 professional fields", () => {
             squashStretch: 0.4,
             signatureGestures: ["撥瀏海"],
             emotionalRange: ["開朗", "克制"],
-            vodirection: "笑點處理需保留 0.5s 喘息",
+            voDirection: "笑點處理需保留 0.5s 喘息",
           },
           ageVariants: [
             {

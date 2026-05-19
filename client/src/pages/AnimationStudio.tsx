@@ -1665,12 +1665,12 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
           <div>
             <Label className="text-[10px] text-muted-foreground">配音指導</Label>
             <Textarea
-              value={character.actingNotes?.vodirection ?? ""}
+              value={character.actingNotes?.voDirection ?? ""}
               onChange={e =>
                 patch({
                   actingNotes: {
                     ...character.actingNotes,
-                    vodirection: e.target.value,
+                    voDirection: e.target.value,
                   },
                 })
               }
@@ -4825,12 +4825,15 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
               className="h-7 text-xs pl-7"
             />
           </div>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select
+            value={categoryFilter || "__all"}
+            onValueChange={v => setCategoryFilter(v === "__all" ? "" : v)}
+          >
             <SelectTrigger className="h-7 text-xs">
               <SelectValue placeholder="全部分類" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="" className="text-xs">
+              <SelectItem value="__all" className="text-xs">
                 全部分類
               </SelectItem>
               {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (
@@ -5118,6 +5121,10 @@ export default function AnimationStudio() {
               defaultStyleProfileId: latest.defaultStyleProfileId,
               globalNegativePrompt: latest.globalNegativePrompt,
               productionTargets: latest.productionTargets,
+              // v4：之前 whitelist 漏了這三個 → 編輯後不會持久化（reload 即消失）
+              researchEntries: latest.researchEntries,
+              soundLibrary: latest.soundLibrary,
+              uploadedAssets: latest.uploadedAssets,
               tags: latest.tags,
             },
           });
