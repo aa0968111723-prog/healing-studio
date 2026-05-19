@@ -55,6 +55,8 @@ export type DockLeaf = {
   id: string;
   pageId: string;
   label: string;
+  /** One-line description shown in tooltip's secondary row. */
+  description?: string;
   icon: LucideIcon;
   path: string;
 };
@@ -62,6 +64,7 @@ export type DockLeaf = {
 export type DockGroup = {
   kind: "group";
   label: string;
+  description?: string;
   icon: LucideIcon;
   children: DockLeaf[];
 };
@@ -687,6 +690,7 @@ function AppleDock({
                 <AppleDockItem
                   icon={entry.icon}
                   label={entry.label}
+                  description={entry.description}
                   isActive={isActive}
                   onClick={() => handleNavigate(entry.path)}
                   id={entry.id}
@@ -711,6 +715,7 @@ function AppleDock({
                 <AppleDockItem
                   icon={entry.icon}
                   label={entry.label}
+                  description={onlyChild.description ?? entry.description}
                   isActive={activePath === onlyChild.path}
                   onClick={() => handleNavigate(onlyChild.path)}
                   id={onlyChild.id}
@@ -725,6 +730,7 @@ function AppleDock({
           const flyoutItems: FlyoutItem[] = entry.children.map(child => ({
             id: child.id,
             label: child.label,
+            description: child.description,
             icon: child.icon,
             isActive: activePath === child.path,
             onSelect: () => handleNavigate(child.path),
@@ -746,6 +752,7 @@ function AppleDock({
                   <AppleDockItem
                     icon={entry.icon}
                     label={entry.label}
+                    description={entry.description}
                     isActive={hasActiveChild}
                     showActiveDot={hasActiveChild && !isOpen}
                     showTooltip={!isOpen}

@@ -10,6 +10,13 @@ import type { LucideIcon } from "lucide-react";
 type AppleDockItemProps = {
   icon: LucideIcon;
   label: string;
+  /**
+   * Optional short description rendered as a muted second line in the
+   * tooltip. Keeps the dock icon-only while giving users a "what is this"
+   * preview on hover — the registry already carries one-line page
+   * descriptions, so this is mostly free polish.
+   */
+  description?: string;
   isActive?: boolean;
   showActiveDot?: boolean;
   showTooltip?: boolean;
@@ -23,6 +30,7 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
     {
       icon: Icon,
       label,
+      description,
       isActive = false,
       showActiveDot = true,
       showTooltip = true,
@@ -46,11 +54,9 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
         )}
         {...props}
       >
-        {/* Outer side rail — appears on the dock's outer edge when active */}
         {isActive && (
           <span aria-hidden="true" className="apple-dock-side-rail" />
         )}
-        {/* Soft inner halo on hover for a magnetic, breathing feel */}
         <span aria-hidden="true" className="apple-dock-halo" />
         <Icon
           className="apple-dock-icon relative h-[19px] w-[19px]"
@@ -72,7 +78,14 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
           sideOffset={12}
           className="apple-dock-tooltip"
         >
-          {label}
+          {description ? (
+            <div className="apple-dock-tooltip-stack">
+              <span className="apple-dock-tooltip-label">{label}</span>
+              <span className="apple-dock-tooltip-desc">{description}</span>
+            </div>
+          ) : (
+            label
+          )}
         </TooltipContent>
       </Tooltip>
     );
