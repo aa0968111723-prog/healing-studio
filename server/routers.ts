@@ -329,8 +329,10 @@ function aspectRatioToImageSize(
     case "9:16":
       return "portrait_16_9";
     case "4:3":
+    case "3:2":
       return "landscape_4_3";
     case "3:4":
+    case "2:3":
       return "portrait_4_3";
     default:
       return "square_hd";

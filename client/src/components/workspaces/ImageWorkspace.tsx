@@ -23,7 +23,6 @@ const ASPECT_RATIOS = [
   { value: "9:16", label: "9:16 直式" },
   { value: "4:3", label: "4:3 傳統" },
   { value: "3:2", label: "3:2 相片" },
-  { value: "21:9", label: "21:9 超寬" },
 ];
 
 // ─── Quick chips for Negative Prompt ──────────────────────────────────────

@@ -2293,7 +2293,7 @@ export default function Studio() {
         hint: [
           "全域: temperature(0~1)、seed(字串或數字)、loraWeight(0~1)",
           activeModality === "image"
-            ? "圖片: aspectRatio(1:1/16:9/9:16/4:3/3:2/21:9)、negativePrompt(文字)"
+            ? "圖片: aspectRatio(1:1/16:9/9:16/4:3/3:2)、negativePrompt(文字)"
             : "",
           activeModality === "video"
             ? "影片: duration(秒數字串,如\"5\"或\"8\"或\"10\")、cameraPan(-100~100)、cameraZoom(-100~100)、cameraTilt(-100~100)"
@@ -2330,7 +2330,6 @@ export default function Studio() {
           { id: "9:16", label: "9:16 直式", description: "手機桌布、IG 限動、Reels" },
           { id: "4:3", label: "4:3 傳統", description: "傳統照片比例" },
           { id: "3:2", label: "3:2 相片", description: "經典攝影比例" },
-          { id: "21:9", label: "21:9 超寬", description: "電影寬幅、橫幅" },
         ],
         hint: "用 [ACTION:setParam:aspectRatio=16:9] 設定；使用者說「我想要直式的」→ 9:16、「橫幅」→ 16:9、「正方形」→ 1:1",
       });
