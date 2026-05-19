@@ -196,6 +196,7 @@ import { eq } from "drizzle-orm";
 import { userAiBrain, promptLibrary } from "../drizzle/schema";
 import { getDb, getSiteWideModelUsageSnapshot, getUserTopModelRecent } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
+import { applyCameraMotionToPrompt } from "../shared/cameraMotionPrompt";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
 import {
   selectRoleForIntent,
@@ -2279,13 +2280,19 @@ export const appRouter = router({
             const videoModelId = input.firstFrameUrl
               ? falEngines.imageToVideo
               : falEngines.textToVideo;
+            // 鏡頭運動：嵌進 prompt(底層 fal 模型沒有結構化 camera 欄位;
+            // cammaster 已下架,詳見 shared/cameraMotionPrompt.ts 註解)
+            const videoPromptWithCamera = applyCameraMotionToPrompt(
+              compiledPrompt,
+              input.cameraMotion
+            );
             let videoUrl: string | undefined;
             try {
               if (videoViaGemini) {
                 const gemini = getGeminiMediaClient();
                 const geminiVideo = await withTimeout(
                   gemini.generateVideoSync({
-                    prompt: compiledPrompt,
+                    prompt: videoPromptWithCamera,
                     model:
                       videoEngine === "gemini/veo-2"
                         ? "veo-2.0-generate-001"
@@ -2306,7 +2313,7 @@ export const appRouter = router({
                 const videoDispatch = await withTimeout(
                   dispatchVideoGeneration({
                     modelId: videoModelId,
-                    prompt: compiledPrompt,
+                    prompt: videoPromptWithCamera,
                     imageUrl:
                       input.firstFrameUrl || input.characterRefUrl || undefined,
                     durationSec: input.videoDurationSeconds || 5,
@@ -2903,6 +2910,13 @@ export const appRouter = router({
           firstFrameUrl: z.string().nullable().optional(),
           lastFrameUrl: z.string().nullable().optional(),
           characterRefUrl: z.string().nullable().optional(),
+          cameraMotion: z
+            .object({
+              pan: z.number(),
+              zoom: z.number(),
+              tilt: z.number(),
+            })
+            .optional(),
           // Audio params
           musicStyle: z.string().optional(),
           isInstrumental: z.boolean().optional(),
@@ -3119,8 +3133,13 @@ export const appRouter = router({
           // i2v 來源圖：firstFrameUrl 優先、其次 characterRefUrl（與同步流程
           // routers.ts:1675 / videoStudio.klingImageToVideo 一致）
           const i2vImageUrl = input.firstFrameUrl || input.characterRefUrl;
+          // 鏡頭運動：底層 fal 影片模型(kling/wan/veo)沒有結構化 camera 欄位,
+          // 把滑桿值翻成 prompt 文字。fal-ai/cammaster 雖然吃 camera_motion enum,
+          // 但已在 fal 下架(catalog disabled,auto-substitute 到 kling-pro),
+          // 走 prompt 是唯一對所有模型都有效的路徑。
+          const videoPrompt = applyCameraMotionToPrompt(input.prompt, input.cameraMotion);
           falInput = {
-            prompt: input.prompt,
+            prompt: videoPrompt,
             ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
             ...(i2vImageUrl && { image_url: i2vImageUrl }),
             // Kling 結束幀正確欄位是 tail_image_url（見 videoStudio.klingImageToVideo:442）
@@ -3248,7 +3267,7 @@ export const appRouter = router({
               }
             } else if (input.generationType === "video") {
               const videoRes = await gemini.generateVideoSync({
-                prompt: input.prompt,
+                prompt: applyCameraMotionToPrompt(input.prompt, input.cameraMotion),
                 model:
                   modelId === "gemini/veo-2"
                     ? "veo-2.0-generate-001"
