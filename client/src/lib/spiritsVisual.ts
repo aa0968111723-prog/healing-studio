@@ -375,3 +375,437 @@ export function getSpiritsByFamily(family: SpiritFamily): SpiritVisual[] {
 
 /** 順序固定的 family 列表，做 UI grouping iteration 用。 */
 export const SPIRIT_FAMILIES: SpiritFamily[] = ["role", "specialist", "proactive"];
+
+// ─── 精靈小屋：每位精靈的「技能 + 怎麼幫你 + 可以這樣叫我」展開檢視 ──────
+//
+// 為什麼不直接放進 SPIRITS array 而是放在獨立 Record？
+// SPIRITS 是視覺資料源，被很多元件 import；多加可選欄位也行，但純展示用
+// 的長文字塞進來只會讓 chip / widget 場景的 bundle 變大。獨立成
+// SPIRIT_PROFILES 後，只有 SpiritHut 等真的要展開的元件才會引用。
+
+export type SpiritProfile = {
+  /** 具體技能（動詞開頭，3-5 條）。給 SpiritHut「我的看家本事」用。 */
+  skills: string[];
+  /** 從使用者視角的好處（2-3 條）。給 SpiritHut「我能怎麼幫你」用。 */
+  helpsYou: string[];
+  /** 一鍵 prefill 範例（2-4 句，每句含 @暱稱，可被 selectRoleForIntent 認得）。 */
+  sampleAsks: string[];
+};
+
+export const SPIRIT_PROFILES: Partial<Record<AgentRole, SpiritProfile>> = {
+  "image-specialist": {
+    skills: [
+      "從一句描述生成多種風格的圖片",
+      "微調光線、色調、構圖、長寬比",
+      "把舊圖改寫風格、補細節、放大",
+    ],
+    helpsYou: [
+      "把你腦中的畫面，30 秒內變成可以分享的圖",
+      "卡在 prompt 寫不出來時，幫你補關鍵字",
+    ],
+    sampleAsks: [
+      "@圖圖 我想做一張柔和午後光的咖啡店海報",
+      "@圖圖 把這張圖改成水彩風",
+      "@圖圖 幫我生 3 種版本給我挑",
+    ],
+  },
+  "video-specialist": {
+    skills: [
+      "把一張圖變成幾秒的影片片段",
+      "幫你做對嘴 / 配音同步影片",
+      "處理直式、橫式、方形短影音格式",
+    ],
+    helpsYou: [
+      "想做 IG Reels / TikTok 但不會剪片時，從零幫你做出來",
+      "把產品照變成會動的短廣告",
+    ],
+    sampleAsks: [
+      "@影影 幫我把這張圖做成 5 秒的直式影片",
+      "@影影 我要一支 30 秒的 IG 預告",
+      "@影影 這段話可以做成對嘴片嗎",
+    ],
+  },
+  "music-specialist": {
+    skills: [
+      "依情緒、節奏、樂器組合生成原創 BGM",
+      "做 podcast / 影片用的音效",
+      "混音、淡入淡出、配合畫面節點",
+    ],
+    helpsYou: [
+      "沒授權問題的自製配樂，直接拿去用",
+      "幫你的影片找到對的情緒底色",
+    ],
+    sampleAsks: [
+      "@音音 幫我配一段溫暖鋼琴的開場 BGM",
+      "@音音 podcast 結尾要那種餘韻收尾的音樂",
+      "@音音 來個咖啡店 lo-fi",
+    ],
+  },
+  "voice-specialist": {
+    skills: [
+      "配音、聲音克隆、變聲、聽寫",
+      "調整男聲女聲、年齡、語速、語氣",
+      "幫你做多語言旁白",
+    ],
+    helpsYou: [
+      "不想自己錄音時，做出自然好聽的配音",
+      "把現有聲音克隆成可重用的角色",
+    ],
+    sampleAsks: [
+      "@聲聲 幫我用溫柔女聲念這段腳本",
+      "@聲聲 我要做一個英文版旁白",
+      "@聲聲 把我這 30 秒錄音克隆成可重用的聲音",
+    ],
+  },
+  "training-specialist": {
+    skills: [
+      "用幾張參考圖訓練專屬角色 LoRA",
+      "訓練風格 LoRA、影片 LoRA",
+      "管理你訓過的所有模型版本",
+    ],
+    helpsYou: [
+      "讓你的圖每次都像同一個角色",
+      "把品牌色彩、畫風固化成可重用模型",
+    ],
+    sampleAsks: [
+      "@練練 我想訓練一個我家貓的 LoRA",
+      "@練練 把這 8 張畫風訓成風格模型",
+      "@練練 我的舊模型怎麼重新訓",
+    ],
+  },
+  "learning-specialist": {
+    skills: [
+      "新手教學、引導第一次使用各種工具",
+      "踩坑筆記與常見錯誤排除",
+      "把複雜功能拆成 30 秒可學會的步驟",
+    ],
+    helpsYou: [
+      "完全沒用過 AI 工具也能上手",
+      "卡在某個步驟時，給你最白話的解釋",
+    ],
+    sampleAsks: [
+      "@學學 教我 30 秒做出第一張 AI 圖",
+      "@學學 LoRA 是什麼？",
+      "@學學 我做不出來，幫我看哪裡卡住",
+    ],
+  },
+  director: {
+    skills: [
+      "把模糊想法拆成可執行的工作流",
+      "判斷該用哪個工作室、哪位精靈",
+      "為你的專案做整體節奏規劃",
+    ],
+    helpsYou: [
+      "腦中有畫面但不知從何開始時，幫你列步驟",
+      "確保大專案不會做一半失焦",
+    ],
+    sampleAsks: [
+      "@導導 我想做一支產品介紹片，幫我規劃",
+      "@導導 從圖到 IG 貼文要幾步",
+      "@導導 我這個 idea 拆得開嗎",
+    ],
+  },
+  composer: {
+    skills: [
+      "在你現在的工作室裡直接動手填欄位",
+      "幫你按按鈕、套參數、送出",
+      "把口語需求翻譯成正確的 prompt 結構",
+    ],
+    helpsYou: [
+      "懶得自己填欄位時，幫你一次設定好",
+      "讓你只專注在「想要什麼」，剩下我來",
+    ],
+    sampleAsks: [
+      "@編編 幫我把這頁的 prompt 改成宮崎駿風",
+      "@編編 用建議的最佳參數送出",
+      "@編編 直接幫我跑這組設定",
+    ],
+  },
+  critic: {
+    skills: [
+      "看作品 / 計畫並指出 1-3 個關鍵改進",
+      "用溫和語氣、不打擊熱情",
+      "比較兩個版本，告訴你哪個更好為什麼",
+    ],
+    helpsYou: [
+      "想知道作品還能更好但不知道改哪裡",
+      "卡在兩個版本選哪個",
+    ],
+    sampleAsks: [
+      "@品品 幫我看這張圖三個可以更好的點",
+      "@品品 這兩版你會選哪個",
+      "@品品 我的腳本溫和地挑一下",
+    ],
+  },
+  researcher: {
+    skills: [
+      "比較模型、工具、價位、適用場景",
+      "整理一份可以直接做決定的對照表",
+      "查最新趨勢、案例、技術論文",
+    ],
+    helpsYou: [
+      "面對太多選擇時，幫你縮到 2-3 個",
+      "省下你自己看 10 篇文章的時間",
+    ],
+    sampleAsks: [
+      "@查查 幫我比 SDXL 跟 Flux 差在哪",
+      "@查查 哪個影片模型適合做寫實人像",
+      "@查查 找最近爆紅的 IG 美食帳號",
+    ],
+  },
+  navigator: {
+    skills: [
+      "帶你到對的頁面，途中不囉嗦",
+      "知道每個工作室適合做什麼",
+      "到頁面後把你交給適合的精靈",
+    ],
+    helpsYou: [
+      "不知道功能藏在哪一頁時直接帶你過去",
+      "省下你在選單裡來回找的時間",
+    ],
+    sampleAsks: [
+      "@路路 帶我去做圖的地方",
+      "@路路 我要看我之前做過的東西",
+      "@路路 設定頁在哪",
+    ],
+  },
+  companion: {
+    skills: [
+      "陪你聊、慢慢理出方向",
+      "沒目標也能從一句感覺開始",
+      "不批判、不催促",
+    ],
+    helpsYou: [
+      "心情卡住、創意疲乏時有人陪",
+      "把模糊感覺說出來、變清楚",
+    ],
+    sampleAsks: [
+      "@暖暖 我最近做什麼都沒感覺",
+      "@暖暖 想聊聊今天",
+      "@暖暖 還沒想好要做什麼",
+    ],
+  },
+  accountant: {
+    skills: [
+      "算這次操作要花多少點數",
+      "看本月用了多少、剩多少",
+      "推薦更省的做法",
+    ],
+    helpsYou: [
+      "用 AI 不想被點數燒到肉痛",
+      "看哪個工具 CP 值最高",
+    ],
+    sampleAsks: [
+      "@財財 這次生成大概多少點",
+      "@財財 本月花在哪",
+      "@財財 有沒有更省的做法",
+    ],
+  },
+  "quality-coach": {
+    skills: [
+      "直接給可以複製貼上的 prompt 改寫範例",
+      "教你 prompt 結構與關鍵字",
+      "看你的成果反推哪裡可以更好",
+    ],
+    helpsYou: [
+      "想學寫 prompt 但看教學看不懂",
+      "成果不穩定時，找出原因",
+    ],
+    sampleAsks: [
+      "@巧巧 幫我看這段 prompt 怎麼改",
+      "@巧巧 教我怎麼寫穩定一點",
+      "@巧巧 為什麼我每次結果差這麼多",
+    ],
+  },
+  inspector: {
+    skills: [
+      "主動巡 404、卡住、難用、無障礙問題",
+      "回報問題並給你繞過法",
+      "提交問題給開發者",
+    ],
+    helpsYou: [
+      "遇到 bug 不用自己摸索",
+      "遇到網站怪怪的時有人接住",
+    ],
+    sampleAsks: [
+      "@守守 這頁怪怪的，幫我看",
+      "@守守 我點不動這個按鈕",
+      "@守守 幫我回報一個問題",
+    ],
+  },
+  "legal-advisor": {
+    skills: [
+      "幫你看 AI 生成的版權 / 商標 / 肖像紅線",
+      "給安全改寫範例",
+      "判斷能不能商用",
+    ],
+    helpsYou: [
+      "拿 AI 圖去賣之前避免踩雷",
+      "用名人或品牌素材前先做合規檢查",
+    ],
+    sampleAsks: [
+      "@律律 這張 AI 圖能不能商用",
+      "@律律 我可以用 OOO 的肖像嗎",
+      "@律律 這個 logo 像不像現有商標",
+    ],
+  },
+  "security-guard": {
+    skills: [
+      "守住帳號、API 金鑰、隱私資料",
+      "偵測敏感字串並立刻擋下",
+      "帶你到 /settings 安全儲存",
+    ],
+    helpsYou: [
+      "不小心把密碼貼進對話時，幫你擋",
+      "懷疑帳號被盜時，給你應變步驟",
+    ],
+    sampleAsks: [
+      "@安安 我帳號好像被盜",
+      "@安安 怎麼安全存 API key",
+      "@安安 這個訊息有風險嗎",
+    ],
+  },
+  "onboarding-coach": {
+    skills: [
+      "卡關時陪你一步一步操作",
+      "找不到按鈕、看不懂介面時帶位",
+      "幫你 reset 不會的功能重新開始",
+    ],
+    helpsYou: [
+      "完全新手第一次來時不會被嚇跑",
+      "做到一半放棄時，有人陪你重新開始",
+    ],
+    sampleAsks: [
+      "@帶帶 我完全不知道怎麼用",
+      "@帶帶 我卡住了",
+      "@帶帶 找不到我要的按鈕",
+    ],
+  },
+  "community-manager": {
+    skills: [
+      "懂 IG / TikTok / 小紅書 / YouTube 各平台風格",
+      "幫你出 hashtag、貼文公式、發文時段",
+      "判斷哪個平台適合你的內容",
+    ],
+    helpsYou: [
+      "經營社群但不知道每個平台怎麼發",
+      "想增加曝光但不知從哪開始",
+    ],
+    sampleAsks: [
+      "@群群 我這支影片怎麼發 IG 比較好",
+      "@群群 小紅書怎麼起號",
+      "@群群 幫我看貼文文案怎麼改",
+    ],
+  },
+  "chief-orchestrator": {
+    skills: [
+      "管整個 22 位精靈團隊的狀態",
+      "看誰在跑、誰排隊、誰該交棒",
+      "為大專案分派團隊",
+    ],
+    helpsYou: [
+      "多步驟任務同時跑時，不會亂掉",
+      "知道現在進度卡在哪",
+    ],
+    sampleAsks: [
+      "@總總 看一下團隊狀態",
+      "@總總 這個案子要幾位精靈合作",
+      "@總總 下一步該交給誰",
+    ],
+  },
+  "notes-curator": {
+    skills: [
+      "存筆記、翻舊素材",
+      "排程貼文、待辦",
+      "把資訊整齊分類成可搜尋的庫",
+    ],
+    helpsYou: [
+      "做完的東西不會散落各處",
+      "下次找上次做的東西，30 秒內找到",
+    ],
+    sampleAsks: [
+      "@記記 幫我記下這個 idea",
+      "@記記 上週做的咖啡店海報在哪",
+      "@記記 幫我排明天 9 點發這篇",
+    ],
+  },
+  "settings-detail": {
+    skills: [
+      "帶你到對的設定頁",
+      "一句話講清楚每個開關打開後會怎樣",
+      "幫你還原預設值",
+    ],
+    helpsYou: [
+      "設定太多找不到要調的",
+      "怕亂動設定壞掉",
+    ],
+    sampleAsks: [
+      "@細細 怎麼關掉通知",
+      "@細細 把主題改成深色",
+      "@細細 幫我看哪些設定可以調",
+    ],
+  },
+  "plan-executor": {
+    skills: [
+      "從規劃到收尾一條龍跑完整工作流",
+      "跨頁、跨精靈協作",
+      "每完成一步即時回報",
+    ],
+    helpsYou: [
+      "大專案不想自己跑來跑去",
+      "想一鍵跑完整流程",
+    ],
+    sampleAsks: [
+      "@步步 從文字到貼上 IG 整套幫我跑",
+      "@步步 幫我跑完今天的待辦",
+      "@步步 從訓練到生成全部來",
+    ],
+  },
+  "inspiration-specialist": {
+    skills: [
+      "丟趨勢、丟參考、丟方向",
+      "給可以馬上試的 prompt 範例",
+      "幫你蒐集視覺 moodboard",
+    ],
+    helpsYou: [
+      "靈感乾涸時馬上補一波想法",
+      "起步階段不知道做什麼風格",
+    ],
+    sampleAsks: [
+      "@靈靈 給我 5 個今年最潮的視覺方向",
+      "@靈靈 我想做溫暖系內容，給點靈感",
+      "@靈靈 幫我找參考圖",
+    ],
+  },
+  "anatomy-specialist": {
+    skills: [
+      "畫人體解剖、骨骼、肌肉、器官",
+      "做醫學插圖、教學圖示",
+      "處理不同視角與切面",
+    ],
+    helpsYou: [
+      "醫學 / 健身內容需要正確的人體圖時",
+      "AI 畫人體比例怪怪的時，幫你校正",
+    ],
+    sampleAsks: [
+      "@體體 幫我畫一張肩關節結構圖",
+      "@體體 心臟前視圖",
+      "@體體 這張人體比例哪裡不對",
+    ],
+  },
+};
+
+/** Look up a profile (skills / helpsYou / sampleAsks) for a spirit. */
+export function getSpiritProfile(role: AgentRole): SpiritProfile | null {
+  return SPIRIT_PROFILES[role] ?? null;
+}
+
+/**
+ * Safe sample-ask list — falls back to a one-liner generated from the
+ * spirit's prompt when no curated profile exists yet.
+ */
+export function getSpiritSampleAsks(spirit: SpiritVisual): string[] {
+  const profile = SPIRIT_PROFILES[spirit.id];
+  if (profile && profile.sampleAsks.length > 0) return profile.sampleAsks;
+  return [`${spirit.prompt}…`];
+}
