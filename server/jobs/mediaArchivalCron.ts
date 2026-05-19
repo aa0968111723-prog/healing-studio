@@ -15,10 +15,7 @@
  */
 
 import * as cron from "node-cron";
-import { and, asc, isNull, isNotNull } from "drizzle-orm";
-import { getDb } from "../db";
-import { digitalAssetLibrary } from "../../drizzle/schema";
-import { archiveAsset } from "../services/mediaArchivalService";
+import { runMediaArchival } from "../services/mediaArchivalService";
 
 const SWEEP_SCHEDULE = "*/5 * * * *";
 const MAX_BATCH = 20;
@@ -38,43 +35,11 @@ export async function runMediaArchivalSweep(): Promise<void> {
   }
   isWorkerRunning = true;
   try {
-    const db = await getDb();
-    if (!db) return;
-
-    const candidates = await db
-      .select()
-      .from(digitalAssetLibrary)
-      .where(
-        and(
-          isNull(digitalAssetLibrary.archivedAt),
-          isNotNull(digitalAssetLibrary.fileUrl)
-        )
-      )
-      .orderBy(asc(digitalAssetLibrary.createdAt))
-      .limit(MAX_BATCH);
-
-    if (candidates.length === 0) return;
-
-    let archived = 0;
-    let skipped = 0;
-    let failed = 0;
-    for (const asset of candidates) {
-      try {
-        const result = await archiveAsset(asset);
-        if (result.archived) archived += 1;
-        else skipped += 1;
-      } catch (err) {
-        failed += 1;
-        const message = err instanceof Error ? err.message : String(err);
-        logWorker(
-          "error",
-          `歸檔失敗 assetId=${asset.id} userId=${asset.userId}: ${message}`
-        );
-      }
-    }
+    const result = await runMediaArchival(MAX_BATCH);
+    if (result.assets.total === 0 && result.history.total === 0) return;
     logWorker(
       "info",
-      `掃描完成 candidates=${candidates.length} archived=${archived} skipped=${skipped} failed=${failed}`
+      `掃描完成 assets=${result.assets.total}/${result.assets.archived} history=${result.history.total}/${result.history.archived}`
     );
   } finally {
     isWorkerRunning = false;
