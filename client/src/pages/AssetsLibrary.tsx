@@ -58,6 +58,7 @@ import {
   ListChecks,
   Clock,
   Cloud,
+  Database,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { DriveLibrarySection } from "@/components/DriveLibrarySection";
@@ -73,6 +74,9 @@ import {
 const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
 const VaultPage = lazy(() => import("./VaultPage"));
 const BackgroundTasksPage = lazy(() => import("./BackgroundTasksPage"));
+const PersonalDatabasePanel = lazy(
+  () => import("@/components/learn-hub/PersonalDatabasePanel"),
+);
 
 const typeConfig: Record<
   string,
@@ -479,8 +483,16 @@ export default function AssetsLibrary() {
   // 合併大分頁：讀取 URL ?section= 決定初始分頁
   const [section, setSection] = useState<SectionId>(getInitialSection);
 
+  // 頂部分頁：在「數位資產」與「個人資料庫系統」之間切換
+  const [topTab, setTopTab] = useState<"assets" | "personal_db">(
+    () =>
+      new URLSearchParams(window.location.search).get("top") === "personal_db"
+        ? "personal_db"
+        : "assets",
+  );
+
   // 把 viewMode / tab 同步進 URL,讓使用者重新整理 / 分享連結時保留狀態
-  const updateAssetsUrlParam = (key: "view" | "tab", value: string, defaultValue: string) => {
+  const updateAssetsUrlParam = (key: "view" | "tab" | "top", value: string, defaultValue: string) => {
     const params = new URLSearchParams(window.location.search);
     if (value === defaultValue) {
       params.delete(key);
@@ -489,6 +501,10 @@ export default function AssetsLibrary() {
     }
     const qs = params.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  };
+  const handleTopTabChange = (t: "assets" | "personal_db") => {
+    setTopTab(t);
+    updateAssetsUrlParam("top", t, "assets");
   };
   const handleViewModeChange = (m: AssetsViewMode) => {
     setViewMode(m);
@@ -818,9 +834,11 @@ export default function AssetsLibrary() {
               </p>
             </header>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="rounded-lg text-xs">
-                {totalMyAssets} 個資產
-              </Badge>
+              {topTab === "assets" && (
+                <Badge variant="secondary" className="rounded-lg text-xs">
+                  {totalMyAssets} 個資產
+                </Badge>
+              )}
               <UploadDialog
                 onSuccess={() => myAssetsQuery.refetch()}
                 open={showUploadDialog}
@@ -829,6 +847,35 @@ export default function AssetsLibrary() {
             </div>
           </div>
 
+          {/* ── 頂部分頁：數位資產 / 個人資料庫系統 ────────────────── */}
+          <Tabs
+            value={topTab}
+            onValueChange={value => {
+              if (value === "assets" || value === "personal_db")
+                handleTopTabChange(value);
+            }}
+          >
+            <TabsList className="rounded-xl bg-muted/40 p-1">
+              <TabsTrigger value="assets" className="rounded-lg gap-1 text-xs">
+                <Package className="w-3 h-3" /> 數位資產
+              </TabsTrigger>
+              <TabsTrigger
+                value="personal_db"
+                className="rounded-lg gap-1 text-xs"
+              >
+                <Database className="w-3 h-3" /> 個人資料庫系統
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {topTab === "personal_db" && (
+            <Suspense fallback={<SubPageSkeleton />}>
+              <PersonalDatabasePanel />
+            </Suspense>
+          )}
+
+          {topTab === "assets" && (
+            <>
           {/* ── 範圍分頁（我的 / 團隊）— 移到篩選之上，因為使用者
                 通常先決定要看哪個範圍，再依類型/來源過濾。 */}
           <Tabs
@@ -1367,6 +1414,8 @@ export default function AssetsLibrary() {
           )}
         </div>
       )}
+            </>
+          )}
         </>
       )}
 

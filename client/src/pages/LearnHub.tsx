@@ -78,13 +78,10 @@ import {
   FileVideo,
   File,
   Sparkles,
-  Wand2,
-  Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import PromptReferenceTab from "@/components/learn-hub/PromptReferenceTab";
-import PersonalDatabasePanel from "@/components/learn-hub/PersonalDatabasePanel";
 
 // ─── Category Config ──────────────────────────────────────────────────────────
 
@@ -2392,44 +2389,6 @@ export default function LearnHub() {
             教學總覽
           </Button>
         </div>
-      </div>
-
-      {/* ── 個人資料庫面板（含統計、最近上傳、RAG 說明） ─────────────────── */}
-      <PersonalDatabasePanel />
-
-      {/* ── 其他快速入口（提示詞庫 × 我的詞庫） ─────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          onClick={() => navigate("/prompt-library")}
-          className="group text-left rounded-2xl border border-fuchsia-200/60 dark:border-fuchsia-900/40 bg-gradient-to-br from-fuchsia-50 to-purple-50 dark:from-fuchsia-950/30 dark:to-purple-950/20 p-4 hover:shadow-md transition-all hover:-translate-y-0.5"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-fuchsia-100 dark:bg-fuchsia-900/60 group-hover:scale-110 transition-transform">
-              <Wand2 className="w-4 h-4 text-fuchsia-700 dark:text-fuchsia-300" />
-            </div>
-            <h3 className="hs-h3 !mb-0 text-foreground text-sm">我的提示詞庫</h3>
-            <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto group-hover:translate-x-0.5 transition-transform" />
-          </div>
-          <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
-            管理收藏的提示詞、設定公開分享、串接創作工作室
-          </p>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("prompts")}
-          className="group text-left rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/20 p-4 hover:shadow-md transition-all hover:-translate-y-0.5"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 group-hover:scale-110 transition-transform">
-              <Layers className="w-4 h-4 text-indigo-700 dark:text-indigo-300" />
-            </div>
-            <h3 className="hs-h3 !mb-0 text-foreground text-sm">提示詞參考庫（120+ 條）</h3>
-            <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto group-hover:translate-x-0.5 transition-transform" />
-          </div>
-          <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
-            多模態 / 代理人呼叫 / 系統提示詞精選，一鍵複製或存入個人詞庫
-          </p>
-        </button>
       </div>
 
       {/* ── 子頁面 Tabs ────────────────────────────────────────── */}
