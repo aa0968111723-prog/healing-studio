@@ -18,6 +18,14 @@
 
 import { z } from "zod";
 
+// ─── Draft-tolerant field helpers ───────────────────────────────────────────
+// UI 卡片常常先建立空白條目讓使用者編輯，因此必須容忍 label/name/url 暫時為空。
+// 嚴格的 z.string().url() 會讓整份 patch 失敗（且原本沒掛 onError，使用者完全看不到錯誤）。
+// 以下 helper 允許空字串或合法值，最大長度仍嚴控。
+const draftLabel = (max: number) => z.string().max(max);
+const draftUrl = (max = 2048) =>
+  z.union([z.literal(""), z.string().url().max(max)]);
+
 // ─── Character ──────────────────────────────────────────────────────────────
 
 export type CharacterRole = "protagonist" | "supporting" | "antagonist" | "npc";
@@ -1477,20 +1485,20 @@ export const characterRoleSchema = z.enum([
 ]);
 
 export const characterThreeViewSheetSchema = z.object({
-  frontImageUrl: z.string().url().max(2048).optional(),
-  sideImageUrl: z.string().url().max(2048).optional(),
-  backImageUrl: z.string().url().max(2048).optional(),
-  threeQuarterImageUrl: z.string().url().max(2048).optional(),
+  frontImageUrl: draftUrl().optional(),
+  sideImageUrl: draftUrl().optional(),
+  backImageUrl: draftUrl().optional(),
+  threeQuarterImageUrl: draftUrl().optional(),
   isComplete: z.boolean().optional(),
-  referenceImageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+  referenceImageUrls: z.array(draftUrl()).max(20).optional(),
   generationPrompt: z.string().max(2000).optional(),
 });
 
 export const characterExpressionSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(64),
+  name: draftLabel(64),
   description: z.string().max(500).optional(),
-  imageUrl: z.string().url().max(2048).optional(),
+  imageUrl: draftUrl().optional(),
   promptKeywords: z.array(z.string().max(64)).max(20).optional(),
   intensity: z.number().min(0).max(1).optional(),
   triggers: z.array(z.string().max(64)).max(20).optional(),
@@ -1498,9 +1506,9 @@ export const characterExpressionSchema = z.object({
 
 export const characterOutfitSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(128),
+  name: draftLabel(128),
   description: z.string().max(1000).optional(),
-  imageUrl: z.string().url().max(2048).optional(),
+  imageUrl: draftUrl().optional(),
   occasion: z.string().max(64).optional(),
   season: z.string().max(32).optional(),
   palette: z.array(z.string().max(64)).max(12).optional(),
@@ -1530,9 +1538,9 @@ export const characterVoiceProfileSchema = z.object({
   pitch: z.number().min(-1).max(1).optional(),
   speed: z.number().min(0.25).max(4).optional(),
   emotion: z.string().max(64).optional(),
-  sampleAudioUrl: z.string().url().max(2048).optional(),
+  sampleAudioUrl: draftUrl().optional(),
   useClone: z.boolean().optional(),
-  cloneSampleUrls: z.array(z.string().url().max(2048)).max(10).optional(),
+  cloneSampleUrls: z.array(draftUrl()).max(10).optional(),
   promptPrefix: z.string().max(500).optional(),
 });
 
@@ -1569,7 +1577,7 @@ export const characterBodySchema = z.object({
 
 export const worldCharacterSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(128),
+  name: draftLabel(128),
   role: characterRoleSchema,
   tagline: z.string().max(255).optional(),
   personality: z.string().max(2000).optional(),
@@ -1603,7 +1611,7 @@ export const worldCharacterSchema = z.object({
       hasHairPhysics: z.boolean().optional(),
       hasEyeTracking: z.boolean().optional(),
       rigger: z.string().max(128).optional(),
-      rigAssetUrl: z.string().url().max(2048).optional(),
+      rigAssetUrl: draftUrl().optional(),
       riggerNotes: z.string().max(2000).optional(),
     })
     .optional(),
@@ -1637,9 +1645,9 @@ export const worldCharacterSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        name: z.string().min(1).max(64),
+        name: draftLabel(64),
         approxAge: z.string().max(32).optional(),
-        imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+        imageUrls: z.array(draftUrl()).max(20).optional(),
         description: z.string().max(2000).optional(),
         linkedModelId: z.number().int().positive().nullable().optional(),
         triggerWord: z.string().max(128).optional(),
@@ -1650,17 +1658,17 @@ export const worldCharacterSchema = z.object({
   soundProfile: z
     .object({
       footsteps: z.record(z.string().max(64), z.string().max(2048)).optional(),
-      breathSample: z.string().url().max(2048).optional(),
-      laughSample: z.string().url().max(2048).optional(),
-      crySample: z.string().url().max(2048).optional(),
-      shoutSample: z.string().url().max(2048).optional(),
-      hurtSample: z.string().url().max(2048).optional(),
-      sighSample: z.string().url().max(2048).optional(),
+      breathSample: draftUrl().optional(),
+      laughSample: draftUrl().optional(),
+      crySample: draftUrl().optional(),
+      shoutSample: draftUrl().optional(),
+      hurtSample: draftUrl().optional(),
+      sighSample: draftUrl().optional(),
       customSamples: z
         .array(
           z.object({
             label: z.string().max(64),
-            url: z.string().url().max(2048),
+            url: draftUrl(),
           })
         )
         .max(50)
@@ -1671,7 +1679,7 @@ export const worldCharacterSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        imageUrl: z.string().url().max(2048),
+        imageUrl: draftUrl(),
         category: z.string().max(32).optional(),
         tags: z.array(z.string().max(32)).max(20).optional(),
         description: z.string().max(500).optional(),
@@ -1684,7 +1692,7 @@ export const worldCharacterSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(1).max(255),
+        label: draftLabel(255),
         refType: z
           .enum([
             "historical_figure",
@@ -1698,8 +1706,8 @@ export const worldCharacterSchema = z.object({
           ])
           .optional(),
         personName: z.string().max(128).optional(),
-        externalUrl: z.string().url().max(2048).optional(),
-        imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+        externalUrl: draftUrl().optional(),
+        imageUrls: z.array(draftUrl()).max(20).optional(),
         description: z.string().max(2000).optional(),
         citation: z.string().max(500).optional(),
       })
@@ -1710,11 +1718,11 @@ export const worldCharacterSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(1).max(255),
+        label: draftLabel(255),
         assetType: z
           .enum(["image", "audio", "video", "pdf", "document", "other"])
           .optional(),
-        url: z.string().url().max(2048),
+        url: draftUrl(),
         fileKey: z.string().max(255).optional(),
         mimeType: z.string().max(128).optional(),
         sizeBytes: z.number().int().min(0).optional(),
@@ -1728,15 +1736,15 @@ export const worldCharacterSchema = z.object({
 });
 
 export const sceneTimeOfDaySchema = z.object({
-  label: z.string().min(1).max(32),
+  label: draftLabel(32),
   lighting: z.string().max(500).optional(),
   palette: z.array(z.string().max(64)).max(12).optional(),
-  imageUrl: z.string().url().max(2048).optional(),
+  imageUrl: draftUrl().optional(),
 });
 
 export const worldSceneSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(128),
+  name: draftLabel(128),
   tagline: z.string().max(255).optional(),
   environment: z.string().max(2000).optional(),
   flora: z.array(z.string().max(128)).max(50).optional(),
@@ -1749,7 +1757,7 @@ export const worldSceneSchema = z.object({
   triggerWord: z.string().max(128).optional(),
   notes: z.string().max(2000).optional(),
   // 動畫擴充 v2
-  establishingShotUrl: z.string().url().max(2048).optional(),
+  establishingShotUrl: draftUrl().optional(),
   timeOfDay: z.array(sceneTimeOfDaySchema).max(12).optional(),
   styleProfileId: z.string().max(64).nullable().optional(),
   musicThemeId: z.string().max(64).nullable().optional(),
@@ -1758,8 +1766,8 @@ export const worldSceneSchema = z.object({
   // 動畫製作專業擴充 v3
   layout: z
     .object({
-      floorPlanUrl: z.string().url().max(2048).optional(),
-      blockingDiagramUrl: z.string().url().max(2048).optional(),
+      floorPlanUrl: draftUrl().optional(),
+      blockingDiagramUrl: draftUrl().optional(),
       entryPoints: z.array(z.string().max(128)).max(20).optional(),
       exitPoints: z.array(z.string().max(128)).max(20).optional(),
       heroShotAngle: z.string().max(128).optional(),
@@ -1786,7 +1794,7 @@ export const worldSceneSchema = z.object({
           shadowColor: z.string().max(64).optional(),
         })
         .optional(),
-      referenceUrls: z.array(z.string().url().max(2048)).max(30).optional(),
+      referenceUrls: z.array(draftUrl()).max(30).optional(),
     })
     .optional(),
   atmospherics: z
@@ -1803,8 +1811,8 @@ export const worldSceneSchema = z.object({
     .optional(),
   soundDesign: z
     .object({
-      ambientBedUrl: z.string().url().max(2048).optional(),
-      roomToneUrl: z.string().url().max(2048).optional(),
+      ambientBedUrl: draftUrl().optional(),
+      roomToneUrl: draftUrl().optional(),
       reverb: z
         .enum(["dry", "room", "hall", "cathedral", "outdoor", "underwater"])
         .optional(),
@@ -1812,7 +1820,7 @@ export const worldSceneSchema = z.object({
         .array(
           z.object({
             label: z.string().max(128),
-            url: z.string().url().max(2048).optional(),
+            url: draftUrl().optional(),
             description: z.string().max(500).optional(),
           })
         )
@@ -1826,7 +1834,7 @@ export const worldSceneSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(1).max(255),
+        label: draftLabel(255),
         refType: z
           .enum([
             "location",
@@ -1847,9 +1855,9 @@ export const worldSceneSchema = z.object({
             lon: z.number().min(-180).max(180),
           })
           .optional(),
-        mapImageUrl: z.string().url().max(2048).optional(),
-        externalUrl: z.string().url().max(2048).optional(),
-        imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+        mapImageUrl: draftUrl().optional(),
+        externalUrl: draftUrl().optional(),
+        imageUrls: z.array(draftUrl()).max(20).optional(),
         description: z.string().max(2000).optional(),
         citation: z.string().max(500).optional(),
         yearOfReference: z.string().max(32).optional(),
@@ -1861,11 +1869,11 @@ export const worldSceneSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(1).max(255),
+        label: draftLabel(255),
         assetType: z
           .enum(["image", "audio", "video", "pdf", "document", "other"])
           .optional(),
-        url: z.string().url().max(2048),
+        url: draftUrl(),
         fileKey: z.string().max(255).optional(),
         mimeType: z.string().max(128).optional(),
         sizeBytes: z.number().int().min(0).optional(),
@@ -1881,7 +1889,7 @@ export const worldSceneSchema = z.object({
 
 export const worldStyleProfileSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(128),
+  name: draftLabel(128),
   artStyle: z.string().max(128).optional(),
   palette: z.array(z.string().max(64)).max(24).optional(),
   lighting: z.string().max(500).optional(),
@@ -1895,7 +1903,7 @@ export const worldStyleProfileSchema = z.object({
     .optional(),
   postProcessing: z.array(z.string().max(64)).max(20).optional(),
   fps: z.number().int().min(1).max(120).optional(),
-  referenceImageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+  referenceImageUrls: z.array(draftUrl()).max(20).optional(),
   triggerWord: z.string().max(128).optional(),
   negativePrompt: z.string().max(1000).optional(),
   linkedModelId: z.number().int().positive().nullable().optional(),
@@ -1939,7 +1947,7 @@ export const worldStyleProfileSchema = z.object({
 
 export const worldMusicThemeSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(128),
+  name: draftLabel(128),
   mood: z.string().max(64).optional(),
   instruments: z.array(z.string().max(64)).max(20).optional(),
   bpm: z.number().int().min(20).max(400).optional(),
@@ -1948,14 +1956,14 @@ export const worldMusicThemeSchema = z.object({
   applicableSceneIds: z.array(z.string().max(64)).max(100).optional(),
   applicableCharacterIds: z.array(z.string().max(64)).max(100).optional(),
   promptKeywords: z.array(z.string().max(64)).max(20).optional(),
-  sampleAudioUrl: z.string().url().max(2048).optional(),
+  sampleAudioUrl: draftUrl().optional(),
   description: z.string().max(1000).optional(),
   // 動畫製作專業擴充 v3
   leitmotif: z
     .object({
       description: z.string().max(1000).optional(),
       melodicPhrase: z.string().max(500).optional(),
-      midiUrl: z.string().url().max(2048).optional(),
+      midiUrl: draftUrl().optional(),
     })
     .optional(),
   cueVariants: z
@@ -1963,7 +1971,7 @@ export const worldMusicThemeSchema = z.object({
       z.object({
         label: z.string().max(64),
         durationSec: z.number().min(0).max(60 * 60),
-        audioUrl: z.string().url().max(2048).optional(),
+        audioUrl: draftUrl().optional(),
         loopable: z.boolean().optional(),
       })
     )
@@ -1971,12 +1979,12 @@ export const worldMusicThemeSchema = z.object({
     .optional(),
   stems: z
     .object({
-      drums: z.string().url().max(2048).optional(),
-      bass: z.string().url().max(2048).optional(),
-      melody: z.string().url().max(2048).optional(),
-      harmony: z.string().url().max(2048).optional(),
-      pads: z.string().url().max(2048).optional(),
-      fx: z.string().url().max(2048).optional(),
+      drums: draftUrl().optional(),
+      bass: draftUrl().optional(),
+      melody: draftUrl().optional(),
+      harmony: draftUrl().optional(),
+      pads: draftUrl().optional(),
+      fx: draftUrl().optional(),
     })
     .optional(),
   lufsTarget: z.number().min(-50).max(0).optional(),
@@ -1988,7 +1996,7 @@ export const worldMusicThemeSchema = z.object({
 
 export const worldObjectSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1).max(128),
+  name: draftLabel(128),
   category: z.string().max(64).optional(),
   description: z.string().max(2000).optional(),
   visualTraits: z.string().max(1000).optional(),
@@ -1997,7 +2005,7 @@ export const worldObjectSchema = z.object({
 });
 
 export const worldbuildingFrameworkInputSchema = z.object({
-  name: z.string().min(1).max(255),
+  name: draftLabel(255),
   description: z.string().max(5000).optional(),
   genre: z.string().max(128).optional(),
   era: z.string().max(128).optional(),
@@ -2017,19 +2025,19 @@ export const worldbuildingFrameworkInputSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        title: z.string().min(1).max(255),
+        title: draftLabel(255),
         category: z.string().max(32).optional(),
         content: z.string().max(50000).optional(),
-        sourceUrls: z.array(z.string().url().max(2048)).max(30).optional(),
+        sourceUrls: z.array(draftUrl()).max(30).optional(),
         attachments: z
           .array(
             z.object({
               id: z.string().min(1),
-              label: z.string().min(1).max(255),
+              label: draftLabel(255),
               assetType: z
                 .enum(["image", "audio", "video", "pdf", "document", "other"])
                 .optional(),
-              url: z.string().url().max(2048),
+              url: draftUrl(),
               fileKey: z.string().max(255).optional(),
               mimeType: z.string().max(128).optional(),
               sizeBytes: z.number().int().min(0).optional(),
@@ -2051,7 +2059,7 @@ export const worldbuildingFrameworkInputSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(1).max(255),
+        label: draftLabel(255),
         category: z
           .enum([
             "ambient",
@@ -2065,7 +2073,7 @@ export const worldbuildingFrameworkInputSchema = z.object({
             "other",
           ])
           .optional(),
-        audioUrl: z.string().url().max(2048),
+        audioUrl: draftUrl(),
         fileKey: z.string().max(255).optional(),
         durationSec: z.number().min(0).max(60 * 60).optional(),
         tags: z.array(z.string().max(32)).max(20).optional(),
@@ -2083,11 +2091,11 @@ export const worldbuildingFrameworkInputSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        label: z.string().min(1).max(255),
+        label: draftLabel(255),
         assetType: z
           .enum(["image", "audio", "video", "pdf", "document", "other"])
           .optional(),
-        url: z.string().url().max(2048),
+        url: draftUrl(),
         fileKey: z.string().max(255).optional(),
         mimeType: z.string().max(128).optional(),
         sizeBytes: z.number().int().min(0).optional(),
@@ -2109,8 +2117,8 @@ export const worldbuildingFrameworkInputSchema = z.object({
         .array(
           z.object({
             id: z.string().min(1),
-            stage: z.string().min(1).max(64),
-            title: z.string().min(1).max(255),
+            stage: draftLabel(64),
+            title: draftLabel(255),
             dueDate: z.string().max(32).optional(),
             status: z
               .enum(["pending", "in_progress", "completed", "blocked"])
@@ -2126,9 +2134,9 @@ export const worldbuildingFrameworkInputSchema = z.object({
         .array(
           z.object({
             id: z.string().min(1),
-            role: z.string().min(1).max(64),
-            name: z.string().min(1).max(128),
-            link: z.string().url().max(2048).optional(),
+            role: draftLabel(64),
+            name: draftLabel(128),
+            link: draftUrl().optional(),
           })
         )
         .max(200)

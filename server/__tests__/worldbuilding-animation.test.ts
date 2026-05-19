@@ -722,6 +722,79 @@ describe("worldbuildingFrameworkInputSchema v3 professional fields", () => {
     expect(parsed.soundLibrary?.[1].loopable).toBe(false);
   });
 
+  it("draft-tolerant schemas accept the UI placeholder rows", () => {
+    // 客戶端 UI 在「手動加入」/「新增條目」/「新增表情」等按鈕後會立即
+    // 塞一筆空白 row 讓使用者編輯，patch 馬上回寫後端。在 PR #757 之前
+    // 這些空白 label/url 會被 zod 全部擋下，整段 patch 就被吞掉（且 onError
+    // 也沒掛）— 那就是「音效庫無法使用」的真實根因。
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "未命名世界",
+      characters: [
+        {
+          id: "c-draft",
+          name: "",
+          role: "protagonist",
+          expressions: [{ id: "e-draft", name: "", imageUrl: "" }],
+          outfits: [
+            { id: "o-draft", name: "", isDefault: true, imageUrl: "" },
+          ],
+        },
+      ],
+      scenes: [{ id: "s-draft", name: "" }],
+      researchEntries: [{ id: "r-draft", title: "" }],
+      soundLibrary: [
+        { id: "sl-draft", label: "", audioUrl: "" },
+      ],
+    });
+    expect(parsed.characters[0].expressions?.[0].imageUrl).toBe("");
+    expect(parsed.soundLibrary?.[0].audioUrl).toBe("");
+    expect(parsed.researchEntries?.[0].title).toBe("");
+  });
+
+  it("script-derived storyboard scene payload validates against the schema", () => {
+    // 世界觀系統「腳本」分頁 → 「派生為分鏡草稿並儲存」會走這個 shape。
+    // 確保未來改 schema 不會悄悄打破整合流程。
+    const parsed = worldStoryboardInputSchema.parse({
+      worldId: 7,
+      name: "第一集 OP 分鏡草稿",
+      totalDurationSec: 20,
+      fps: 24,
+      aspectRatio: "16:9",
+      sourceScriptId: "script-1700000000000",
+      productionStatus: "planning",
+      scenes: [
+        {
+          id: "sc-1",
+          sequenceIndex: 0,
+          startSec: 0,
+          endSec: 6,
+          title: "EXT. 森林 — 黃昏",
+          actionDescription: "主角踏入苔森",
+          cameraDirection: "Dolly in",
+          characterBeats: [],
+          frames: [],
+          audioClips: [],
+          status: "draft",
+          notes: "對白：…\n音效：…\n氛圍：療癒",
+        },
+        {
+          id: "sc-2",
+          sequenceIndex: 1,
+          startSec: 6,
+          endSec: 20,
+          title: "第 2 場",
+          characterBeats: [],
+          frames: [],
+          audioClips: [],
+          status: "draft",
+        },
+      ],
+    });
+    expect(parsed.scenes).toHaveLength(2);
+    expect(parsed.scenes[1].startSec).toBe(parsed.scenes[0].endSec);
+    expect(parsed.totalDurationSec).toBe(20);
+  });
+
   it("summarizeFrameworkForPrompt includes v3 professional fields", () => {
     const fw: WorldbuildingFrameworkData = {
       name: "範例",
