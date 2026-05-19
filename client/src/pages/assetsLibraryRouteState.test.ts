@@ -18,4 +18,12 @@ describe("resolveAssetsLibraryRouteState", () => {
       tab: "my",
     });
   });
+
+  it("accepts the new collection section", () => {
+    expect(resolveAssetsLibraryRouteState("?section=collection")).toEqual({
+      section: "collection",
+      viewMode: "cards",
+      tab: "my",
+    });
+  });
 });

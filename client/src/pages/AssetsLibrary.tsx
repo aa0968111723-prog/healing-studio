@@ -71,6 +71,7 @@ import {
 } from "./assetsLibraryRouteState";
 
 const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
+const PromptCollectionPage = lazy(() => import("./PromptCollectionPage"));
 const VaultPage = lazy(() => import("./VaultPage"));
 const BackgroundTasksPage = lazy(() => import("./BackgroundTasksPage"));
 
@@ -1374,6 +1375,13 @@ export default function AssetsLibrary() {
       {section === "prompts" && (
         <Suspense fallback={<SubPageSkeleton />}>
           <PromptLibraryPage />
+        </Suspense>
+      )}
+
+      {/* ─── 個人提示詞收集（含全站精靈 / 模型樣板 / 模板，支援團隊共享）── */}
+      {section === "collection" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <PromptCollectionPage />
         </Suspense>
       )}
 

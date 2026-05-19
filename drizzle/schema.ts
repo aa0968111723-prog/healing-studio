@@ -1781,6 +1781,73 @@ export const promptLibrary = mysqlTable(
 export type PromptLibraryItem = typeof promptLibrary.$inferSelect;
 export type InsertPromptLibraryItem = typeof promptLibrary.$inferInsert;
 
+// ─── Prompt Collection（個人提示詞收集，可團隊共享）────────────────────────
+// 比照 digital_asset_library 的 private / team_shared visibility 模型。
+// 收集標的：站內任何可重用的提示詞（25 位精靈的 system slice、18 條精靈
+// 主動觸發句、模型 prompt 樣板、ImageStudio 內建模板、使用者手動輸入）。
+// 詳見 drizzle/0063_prompt_collection.sql 的設計理由。
+export const promptCollection = mysqlTable(
+  "prompt_collection",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    title: varchar("title", { length: 256 }).notNull(),
+    content: text("content").notNull(),
+    category: varchar("category", { length: 64 }).default("general").notNull(),
+    tags: json("tags").$type<string[]>(),
+    /** 使用者收集時加註的「為何想保留 / 想怎麼用」。 */
+    notes: text("notes"),
+    /**
+     * 來源類型 — 決定收藏條目要怎麼回連到站內：
+     *   • agent_role        — 25 位精靈的 system prompt slice
+     *   • proactive_trigger — 18 條精靈主動觸發 default prompt
+     *   • model_template    — modelPromptTemplates.ts 內的 prompt 樣板
+     *   • image_studio      — ImageStudio (t2i / sd) 內建模板
+     *   • site_prompt       — 其他站內系統內建片段
+     *   • manual            — 使用者完全自輸入
+     */
+    sourceType: varchar("sourceType", { length: 32 })
+      .default("manual")
+      .notNull(),
+    /** 來源唯一識別（AgentRole / event id / model prefix / template id）。 */
+    sourceRef: varchar("sourceRef", { length: 128 }),
+    /** 顯示用標籤（例「圖圖 image-specialist」、「FLUX Pro 樣板」）。 */
+    sourceLabel: varchar("sourceLabel", { length: 256 }),
+    visibility: mysqlEnum("visibility", ["private", "team_shared"])
+      .default("private")
+      .notNull(),
+    /**
+     * 若 visibility=team_shared，必須指向一個 team；該 team 的成員可讀。
+     * private 時為 NULL。
+     */
+    teamId: int("teamId"),
+    isFavorite: boolean("isFavorite").default(false).notNull(),
+    useCount: int("useCount").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("pc_userId_idx").on(table.userId),
+    userVisibilityIdx: index("pc_userId_visibility_idx").on(
+      table.userId,
+      table.visibility
+    ),
+    teamVisibilityIdx: index("pc_teamId_visibility_idx").on(
+      table.teamId,
+      table.visibility
+    ),
+    sourceTypeIdx: index("pc_sourceType_idx").on(table.sourceType),
+    userSourceUk: uniqueIndex("pc_user_source_uk").on(
+      table.userId,
+      table.sourceType,
+      table.sourceRef
+    ),
+  })
+);
+
+export type PromptCollectionItem = typeof promptCollection.$inferSelect;
+export type InsertPromptCollectionItem = typeof promptCollection.$inferInsert;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // NEW TABLES — Roadmap (外部服務訂閱 / R2 快照 / 用戶訂閱)
 // ═══════════════════════════════════════════════════════════════════════════
