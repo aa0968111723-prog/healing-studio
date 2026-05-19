@@ -28,13 +28,38 @@ import { MODEL_PROMPT_TEMPLATES } from "./modelPromptTemplates";
 import {
   IMAGE_STUDIO_PROMPT_TEMPLATES,
   IMAGE_STUDIO_SD_PROMPT_TEMPLATES,
+  IMAGE_STUDIO_EDIT_TEMPLATES,
+  VIDEO_STUDIO_T2V_TEMPLATES,
+  VIDEO_STUDIO_I2V_TEMPLATES,
+  VIDEO_STUDIO_V2V_TEMPLATES,
+  VIDEO_STUDIO_CONTROL_TEMPLATES,
+  PRO_STUDIO_MUSIC_TEMPLATES,
+  PRO_STUDIO_SFX_TEMPLATES,
+  PRO_STUDIO_TTS_TEMPLATES,
+  PRO_STUDIO_CLONE_TEMPLATES,
+  type VideoStudioPromptTemplate,
+  type ProStudioPromptTemplate,
 } from "./orb-studio-actions";
+import {
+  PROMPT_REFERENCE_LIBRARY,
+  PROMPT_MODALITY_META,
+  promptCategoryForLibrary,
+} from "./promptReferenceLibrary";
+import {
+  DIRECTOR_PERSONALITY_LABELS,
+  DIRECTOR_PERSONALITY_SYSTEM_PROMPTS,
+  type DirectorPersonality,
+} from "./director-personality-prompts";
 
 export type SitePromptSourceType =
   | "agent_role"
   | "proactive_trigger"
   | "model_template"
   | "image_studio"
+  | "video_studio"
+  | "pro_studio"
+  | "director_personality"
+  | "prompt_reference"
   | "site_prompt"
   | "manual";
 
@@ -216,23 +241,159 @@ function buildImageStudioEntries(): SitePromptEntry[] {
       description: "Image Studio Stable Diffusion 分頁內建模板（含主提示詞 + 負面詞）",
     };
   });
-  return [...t2i, ...sd];
+  const edit = IMAGE_STUDIO_EDIT_TEMPLATES.map(tpl => ({
+    sourceType: "image_studio" as const,
+    sourceRef: `edit:${tpl.id}`,
+    title: `${tpl.emoji} ${tpl.label}（編輯）`,
+    content: tpl.text,
+    sourceLabel: "ImageStudio · 編輯模板",
+    category: "image" as const,
+    tags: ["ImageStudio", "edit", tpl.label],
+    description:
+      tpl.suggestedModelId
+        ? `Image Studio 圖片編輯模板，建議模型：${tpl.suggestedModelId}`
+        : "Image Studio 圖片編輯模板",
+  }));
+  return [...t2i, ...sd, ...edit];
+}
+
+function videoStudioEntry(
+  tab: "t2v" | "i2v" | "v2v" | "control",
+  tpl: VideoStudioPromptTemplate
+): SitePromptEntry {
+  const tabLabel: Record<typeof tab, string> = {
+    t2v: "文字生影片",
+    i2v: "圖生影片",
+    v2v: "影片重繪",
+    control: "運鏡控制",
+  };
+  const content = tpl.negPrompt
+    ? `${tpl.prompt}\n\n【負面詞】${tpl.negPrompt}`
+    : tpl.prompt;
+  return {
+    sourceType: "video_studio",
+    sourceRef: `${tab}:${tpl.id}`,
+    title: `${tpl.emoji} ${tpl.label}`,
+    content,
+    sourceLabel: `VideoStudio · ${tabLabel[tab]}模板`,
+    category: "video",
+    tags: ["VideoStudio", tab, tpl.label],
+    description: tpl.suggestedModelId
+      ? `Video Studio ${tabLabel[tab]} 模板，建議模型：${tpl.suggestedModelId}`
+      : `Video Studio ${tabLabel[tab]} 模板`,
+  };
+}
+
+function buildVideoStudioEntries(): SitePromptEntry[] {
+  return [
+    ...VIDEO_STUDIO_T2V_TEMPLATES.map(t => videoStudioEntry("t2v", t)),
+    ...VIDEO_STUDIO_I2V_TEMPLATES.map(t => videoStudioEntry("i2v", t)),
+    ...VIDEO_STUDIO_V2V_TEMPLATES.map(t => videoStudioEntry("v2v", t)),
+    ...VIDEO_STUDIO_CONTROL_TEMPLATES.map(t => videoStudioEntry("control", t)),
+  ];
+}
+
+function proStudioEntry(
+  tab: "music" | "sfx" | "tts" | "clone",
+  tpl: ProStudioPromptTemplate
+): SitePromptEntry {
+  const tabCfg: Record<
+    typeof tab,
+    { label: string; category: SitePromptEntry["category"] }
+  > = {
+    music: { label: "音樂", category: "audio" },
+    sfx: { label: "音效", category: "audio" },
+    tts: { label: "文字轉語音", category: "voice" },
+    clone: { label: "聲音克隆", category: "voice" },
+  };
+  const cfg = tabCfg[tab];
+  // params（duration / instrumental / voiceId…）併進 description 讓使用者
+  // 知道 ProStudio 套這個模板時順手會設定哪些參數。
+  const paramHint = tpl.params?.length
+    ? ` · 預設參數：${tpl.params
+        .map(p => `${p.key}=${JSON.stringify(p.value)}`)
+        .join(", ")}`
+    : "";
+  return {
+    sourceType: "pro_studio",
+    sourceRef: `${tab}:${tpl.id}`,
+    title: `${tpl.emoji} ${tpl.label}`,
+    content: tpl.prompt,
+    sourceLabel: `ProStudio · ${cfg.label}模板`,
+    category: cfg.category,
+    tags: ["ProStudio", tab, tpl.label],
+    description: tpl.suggestedModelId
+      ? `ProStudio ${cfg.label} 模板，建議模型：${tpl.suggestedModelId}${paramHint}`
+      : `ProStudio ${cfg.label} 模板${paramHint}`,
+  };
+}
+
+function buildProStudioEntries(): SitePromptEntry[] {
+  return [
+    ...PRO_STUDIO_MUSIC_TEMPLATES.map(t => proStudioEntry("music", t)),
+    ...PRO_STUDIO_SFX_TEMPLATES.map(t => proStudioEntry("sfx", t)),
+    ...PRO_STUDIO_TTS_TEMPLATES.map(t => proStudioEntry("tts", t)),
+    ...PRO_STUDIO_CLONE_TEMPLATES.map(t => proStudioEntry("clone", t)),
+  ];
+}
+
+function buildDirectorPersonalityEntries(): SitePromptEntry[] {
+  const personalities: DirectorPersonality[] = ["calm", "creative", "technical"];
+  return personalities.map(p => ({
+    sourceType: "director_personality",
+    sourceRef: p,
+    title: `導演 AI · ${DIRECTOR_PERSONALITY_LABELS[p]} system prompt`,
+    content: DIRECTOR_PERSONALITY_SYSTEM_PROMPTS[p],
+    sourceLabel: `導演 AI · ${DIRECTOR_PERSONALITY_LABELS[p]}`,
+    category: "system",
+    tags: ["導演 AI", DIRECTOR_PERSONALITY_LABELS[p], "CO-STAR"],
+    description: "DirectorAI 在組 LLM message chain 時送進 role=\"system\" 的人格指令",
+  }));
+}
+
+function buildPromptReferenceEntries(): SitePromptEntry[] {
+  return PROMPT_REFERENCE_LIBRARY.map(ref => {
+    const meta = PROMPT_MODALITY_META[ref.modality];
+    const content = ref.negativePrompt
+      ? `${ref.prompt}\n\n【負面詞】${ref.negativePrompt}`
+      : ref.prompt;
+    return {
+      sourceType: "prompt_reference" as const,
+      sourceRef: ref.id,
+      title: `${meta.emoji} ${ref.title}`,
+      content,
+      sourceLabel: `學習中心 · ${meta.label}`,
+      category: promptCategoryForLibrary(ref.modality),
+      tags: [meta.label, ref.difficulty, ...ref.tags.slice(0, 3)],
+      description: ref.modelHint
+        ? `${ref.summary}（建議模型：${ref.modelHint}）`
+        : ref.summary,
+    };
+  });
 }
 
 /**
  * 一次列出所有站內可收集的 prompt。Order 為：
- *   1) agent_role（25 條）
- *   2) proactive_trigger（依 SPIRIT_PROACTIVE_TRIGGERS 順序）
- *   3) model_template（依 MODEL_PROMPT_TEMPLATES 順序）
- *   4) image_studio（T2I → SD）
+ *   1) agent_role（25 條）— 精靈 system prompt slice
+ *   2) proactive_trigger（依 SPIRIT_PROACTIVE_TRIGGERS 順序）— 18 條主動觸發
+ *   3) director_personality（3 條）— 導演 AI 三種人格 system prompt
+ *   4) model_template（依 MODEL_PROMPT_TEMPLATES 順序）— FLUX / SD / Kling…
+ *   5) image_studio（T2I → SD → 編輯）
+ *   6) video_studio（T2V → I2V → V2V → control）
+ *   7) pro_studio（music → sfx → tts → clone）
+ *   8) prompt_reference（120+ 條學習中心精選）
  * 同一群內依原始來源順序，方便測試固定 snapshot。
  */
 export function getSitePromptCatalog(): SitePromptEntry[] {
   return [
     ...buildAgentRoleEntries(),
     ...buildProactiveTriggerEntries(),
+    ...buildDirectorPersonalityEntries(),
     ...buildModelTemplateEntries(),
     ...buildImageStudioEntries(),
+    ...buildVideoStudioEntries(),
+    ...buildProStudioEntries(),
+    ...buildPromptReferenceEntries(),
   ];
 }
 
@@ -255,6 +416,10 @@ export const SITE_PROMPT_SOURCE_TYPES: readonly SitePromptSourceType[] = [
   "proactive_trigger",
   "model_template",
   "image_studio",
+  "video_studio",
+  "pro_studio",
+  "director_personality",
+  "prompt_reference",
   "site_prompt",
   "manual",
 ] as const;

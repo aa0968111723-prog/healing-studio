@@ -39,7 +39,7 @@ import {
   promptCategoryForLibrary,
   type PromptModality,
   type PromptReference,
-} from "@/data/promptReferenceLibrary";
+} from "@shared/promptReferenceLibrary";
 
 const DIFFICULTY_BADGES: Record<
   PromptReference["difficulty"],
