@@ -181,9 +181,9 @@ const sidebarStructure: SidebarEntry[] = (() => {
       "image-studio",
       "video-studio",
       "pro-studio",
-      "director",
     ])
   );
+  push(buildLeaf("director"));
   push(buildGroup("資源庫", FolderOpen, ["models", "assets"]));
   push(
     buildGroup("知識中心", GraduationCap, [
