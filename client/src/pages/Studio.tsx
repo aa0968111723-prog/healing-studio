@@ -1444,6 +1444,7 @@ export default function Studio() {
               firstFrameUrl: videoState.firstFrameUrl,
               lastFrameUrl: videoState.lastFrameUrl,
               characterRefUrl: videoState.characterRefUrl,
+              cameraMotion: videoState.cameraMotion,
               ...vaultPayload,
               fineTunedModelId,
               loraWeight,
@@ -1619,6 +1620,7 @@ export default function Studio() {
           firstFrameUrl: videoState.firstFrameUrl,
           lastFrameUrl: videoState.lastFrameUrl,
           characterRefUrl: videoState.characterRefUrl,
+          cameraMotion: videoState.cameraMotion,
         }),
         ...(activeModality === "audio" && {
           musicStyle: audioState.musicStyle,
