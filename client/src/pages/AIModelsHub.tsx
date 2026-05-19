@@ -130,7 +130,7 @@ const TIER_FILTERS: Array<{ id: ModelTier | "all"; label: string }> = [
 function formatReleaseDate(iso: string): string {
   const [y, m] = iso.split("-");
   if (!y) return iso;
-  return m ? `${y} 年 ${parseInt(m, 10)} 月` : y;
+  return m ? `${y}年${parseInt(m, 10)}月` : y;
 }
 
 function relativeRelease(iso: string): string {
@@ -1466,57 +1466,57 @@ function ModelDetailModal({
 
         {/* Body */}
         <ScrollArea className="flex-1 min-h-0">
-          <div className="p-6 space-y-6">
+          <div className="@container p-6 space-y-6">
             {/* Spec strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              <div className="rounded-xl border border-border bg-card p-3">
+            <div className="grid grid-cols-2 @md:grid-cols-3 @2xl:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-border bg-card p-3 min-w-0">
                 <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                   發佈時間
                 </div>
-                <div className="text-sm font-medium text-foreground mt-0.5">
+                <div className="text-sm font-medium text-foreground mt-0.5 truncate">
                   {formatReleaseDate(model.releaseDate)}
                 </div>
               </div>
               {model.contextWindow && (
-                <div className="rounded-xl border border-border bg-card p-3">
+                <div className="rounded-xl border border-border bg-card p-3 min-w-0">
                   <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                     上下文視窗
                   </div>
-                  <div className="text-sm font-medium text-foreground mt-0.5">
+                  <div className="text-sm font-medium text-foreground mt-0.5 truncate">
                     {model.contextWindow}
                   </div>
                 </div>
               )}
-              <div className="rounded-xl border border-border bg-card p-3">
+              <div className="rounded-xl border border-border bg-card p-3 min-w-0">
                 <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
                   授權方式
                 </div>
-                <div className="text-sm font-medium text-foreground mt-0.5">
-                  {model.openWeight ? "開源權重" : "閉源 / API"}
+                <div className="text-sm font-medium text-foreground mt-0.5 truncate">
+                  {model.openWeight ? "開源權重" : "閉源／API"}
                 </div>
               </div>
               {model.trainingCutoff && (
-                <div className="rounded-xl border border-gray-200 bg-card p-3">
+                <div className="rounded-xl border border-gray-200 bg-card p-3 min-w-0">
                   <div className="text-[10px] text-gray-400 uppercase tracking-wider">
                     訓練截止
                   </div>
-                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                  <div className="text-sm font-medium text-gray-800 mt-0.5 truncate">
                     {formatReleaseDate(model.trainingCutoff)}
                   </div>
                 </div>
               )}
               {model.latencyClass && (
-                <div className="rounded-xl border border-gray-200 bg-card p-3">
+                <div className="rounded-xl border border-gray-200 bg-card p-3 min-w-0">
                   <div className="text-[10px] text-gray-400 uppercase tracking-wider">
                     回應延遲
                   </div>
-                  <div className="text-sm font-medium text-gray-800 mt-0.5">
+                  <div className="text-sm font-medium text-gray-800 mt-0.5 truncate">
                     {LATENCY_LABELS[model.latencyClass]}
                   </div>
                 </div>
               )}
               {model.languages && model.languages.length > 0 && (
-                <div className="rounded-xl border border-gray-200 bg-card p-3">
+                <div className="rounded-xl border border-gray-200 bg-card p-3 min-w-0">
                   <div className="text-[10px] text-gray-400 uppercase tracking-wider">
                     主要語言
                   </div>
@@ -1530,7 +1530,7 @@ function ModelDetailModal({
                 </div>
               )}
               {model.region && (
-                <div className="rounded-xl border border-gray-200 bg-card p-3 sm:col-span-2">
+                <div className="rounded-xl border border-gray-200 bg-card p-3 min-w-0 col-span-2 @md:col-span-2">
                   <div className="text-[10px] text-gray-400 uppercase tracking-wider">
                     地區備註
                   </div>
@@ -1673,7 +1673,7 @@ function ModelDetailModal({
 
         {/* Footer with official link */}
         {model.officialUrl && (
-          <div className="border-t p-4 shrink-0 flex items-center justify-between gap-3 bg-muted/40">
+          <div className="border-t p-4 shrink-0 flex items-center justify-between gap-3 bg-background">
             <span className="text-xs text-muted-foreground">官方資訊與最新文件</span>
             <a
               href={model.officialUrl}
