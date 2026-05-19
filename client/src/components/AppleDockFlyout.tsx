@@ -10,6 +10,8 @@ import type { LucideIcon } from "lucide-react";
 type FlyoutItem = {
   id: string;
   label: string;
+  /** Muted secondary line under the label inside the flyout row. */
+  description?: string;
   icon: LucideIcon;
   isActive?: boolean;
   onSelect: () => void;
@@ -40,7 +42,7 @@ function AppleDockFlyout({
         align="start"
         sideOffset={14}
         className={cn(
-          "apple-dock-flyout w-[218px] p-1.5 border-0",
+          "apple-dock-flyout w-[244px] p-1.5 border-0",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
@@ -71,7 +73,18 @@ function AppleDockFlyout({
                     className="relative h-4 w-4 shrink-0 apple-dock-flyout-item-icon"
                     strokeWidth={item.isActive ? 2 : 1.85}
                   />
-                  <span className="relative truncate">{item.label}</span>
+                  {item.description ? (
+                    <span className="relative flex min-w-0 flex-1 flex-col text-left">
+                      <span className="truncate apple-dock-flyout-item-label">
+                        {item.label}
+                      </span>
+                      <span className="truncate apple-dock-flyout-item-desc">
+                        {item.description}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="relative truncate">{item.label}</span>
+                  )}
                   {item.isActive && (
                     <span
                       aria-hidden="true"
