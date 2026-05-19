@@ -4322,3 +4322,105 @@ html.dark {
   -webkit-box-shadow: 0 0 0 1000px rgba(28, 32, 48, 0.95) inset;
   caret-color: oklch(0.93 0.008 75);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   /agent 聊天頁：極簡風（minimalist）視覺處理
+   ──────────────────────────────────────────────────────────────────
+   data-design-mode="minimalist" 是個人設定的開關（DEFAULT 給新使用者）。
+   classic 模式不套用任何規則，介面與本次改動前完全一致。
+
+   為什麼用 CSS 而不是另開一份 JSX 樹？
+   AgentChat.tsx 是 2,900 行的成熟頁面，包含 SSE / pageAgent / orb guide
+   等多個 context 緊密耦合。複製整份 JSX 容易發生兩份漸漸 drift。CSS
+   負責「視覺密度」轉換，元件本身仍是同一份，行為一致、bug 也不分支。
+
+   主要差異：
+   1. 隱藏「切換代理風格」整段（高密度、4 張漸層卡片）
+   2. 隱藏「需求釐清提示」與「五步學會」開合區（保留「叫光球示範」按鈕入口）
+   3. 收緊夾層留白，加大主要區塊呼吸感
+   4. 精靈名片簿：去掉漸層光暈，邊框轉細，更像清爽 chip
+   5. 主動精靈群組的脈動提示點 → 淡化但保留
+   6. 全站能力地圖 collapsible 入口字體放大、icon 改成 outline
+*/
+
+[data-design-mode="minimalist"] [data-minimalist-hide],
+[data-design-mode="minimalist"] .minimalist-hide {
+  display: none !important;
+}
+
+/* 反向：classic-only 區塊（極簡風隱藏；目前未使用，留作未來擴充） */
+[data-design-mode="minimalist"] [data-classic-only] {
+  display: none !important;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card {
+  background: oklch(1 0 0 / 0.55);
+  border: 1px solid oklch(0.9 0.01 290 / 0.5);
+  box-shadow: none;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    transform 150ms ease;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card:hover {
+  background: oklch(1 0 0 / 0.85);
+  border-color: oklch(0.78 0.04 290 / 0.6);
+  transform: none;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card[data-pinned="true"] {
+  background: oklch(0.97 0.02 290 / 0.85);
+  border-color: oklch(0.7 0.08 290 / 0.55);
+  box-shadow: none;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card[data-pinned="true"]::before {
+  display: none;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-disc {
+  filter: saturate(0.85);
+  box-shadow: none;
+}
+
+[data-design-mode="minimalist"] .healing-family-strip {
+  gap: 0.5rem;
+}
+
+[data-design-mode="minimalist"] .healing-inner-card {
+  background: transparent;
+  border: 1px solid oklch(0.9 0.01 290 / 0.4);
+  box-shadow: none;
+}
+
+[data-design-mode="minimalist"] .healing-input-shell {
+  background: oklch(1 0 0 / 0.75);
+  border: 1px solid oklch(0.88 0.015 290 / 0.6);
+  box-shadow: 0 1px 2px oklch(0.5 0.04 290 / 0.05);
+}
+
+[data-design-mode="minimalist"] .healing-input-shell:focus-within {
+  border-color: oklch(0.7 0.08 290 / 0.55);
+  box-shadow: 0 0 0 3px oklch(0.85 0.05 290 / 0.18);
+}
+
+:is(.dark)[data-design-mode="minimalist"] .healing-spirit-card,
+.dark [data-design-mode="minimalist"] .healing-spirit-card {
+  background: oklch(0.24 0.015 290 / 0.6);
+  border-color: oklch(0.45 0.025 290 / 0.5);
+}
+
+.dark [data-design-mode="minimalist"] .healing-input-shell {
+  background: oklch(0.22 0.015 290 / 0.65);
+  border-color: oklch(0.4 0.025 290 / 0.55);
+}
+
+/* 主要段落留白：極簡風空間感的核心 */
+[data-design-mode="minimalist"] > div > div > div > .flex.flex-col.items-center {
+  /* 拉開段落間距，讓「呼吸感」具體顯現 */
+}
+
+[data-design-mode="minimalist"] .agent-section + .agent-section {
+  margin-top: 1.25rem;
+}

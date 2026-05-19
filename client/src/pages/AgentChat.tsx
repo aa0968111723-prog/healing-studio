@@ -14,7 +14,7 @@
  * 故意保持極簡，所有動作都轉給對應頁面的 handler 或走 navigate。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -90,6 +90,8 @@ import {
   SPIRITS_BY_ID,
   type SpiritVisual,
 } from "@/lib/spiritsVisual";
+import SpiritHut from "@/components/orb-agent/SpiritHut";
+import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import { toast } from "sonner";
 import AgentSettingsSheet from "@/components/AgentSettingsSheet";
 import ChatMessageText from "@/components/ChatMessageText";
@@ -718,6 +720,11 @@ export default function AgentChat() {
   const setSuggestions = (_newSuggestions: string[]) => {
     // Global chat manages suggestions internally
   };
+  // 個人偏好：聊天頁的版型 mode（classic ↔ minimalist）。在這裡讀取，
+  // 因為下方部份 useState 的 initializer 需要依賴 designMode 來決定預設值
+  // （例如極簡風要把精靈名片簿預設展開）。
+  const { settings: personalSettings } = usePersonalSettings();
+  const designMode = personalSettings.designMode;
   const [needGuideOpen, setNeedGuideOpen] = useState(false);
   const [howToOpen, setHowToOpen] = useState(false);
   const [showAdvancedEntry, setShowAdvancedEntry] = useState(false);
@@ -728,7 +735,11 @@ export default function AgentChat() {
   const [activeMode, setActiveMode] = useState<string | null>(null);
   const [modeBarOpen, setModeBarOpen] = useState(false);
   const [modeCatalogOpen, setModeCatalogOpen] = useState(false);
-  const [spiritDeckOpen, setSpiritDeckOpen] = useState(false);
+  // 極簡風預設展開精靈名片簿（呼吸感、留白為主，但主要互動不該藏起來）。
+  // Classic 維持原本預設摺起。
+  const [spiritDeckOpen, setSpiritDeckOpen] = useState(
+    personalSettings.designMode === "minimalist"
+  );
   /**
    * 跨模態建議卡：使用者送出的訊息同時提到多種模態（影片＋音樂…）
    * 而當下不是「多步驟代理」模式時，先掛起卡片詢問是否轉模式，避免單
@@ -741,6 +752,11 @@ export default function AgentChat() {
   } | null>(null);
   /** 使用者主動鎖定的精靈 — 鎖定後輸入會被預填 @label，狀態條顯示「已鎖定」。 */
   const [pinnedSpirit, setPinnedSpirit] = useState<AgentRole | null>(null);
+  /**
+   * 「精靈小屋」inline 展開檢視：null = 無人開門；當值為某 spirit.id 時，
+   * 該精靈名片下方撐開 SpiritHut，顯示技能/怎麼幫你/範例語句。一次只開一間。
+   */
+  const [hutSpiritId, setHutSpiritId] = useState<AgentRole | null>(null);
 
   // Pull mutedSpirits from server-side agent preferences so the client's
   // `selectRoleForIntent` fallback honours the same mute list as the server's
@@ -1125,6 +1141,22 @@ export default function AgentChat() {
     },
     [setInput, isFirstTurn, input]
   );
+  /** 精靈小屋的範例語句點擊：把該句灌到輸入欄並鎖定精靈，但不送出。
+   *  跟 handleCallSpirit 的差別：那個會用該精靈的 prompt 起手式；
+   *  這個會直接用使用者選的整句範例，少一步要再手動補內容的麻煩。 */
+  const handlePrefillSampleAsk = useCallback(
+    (spirit: SpiritVisual, text: string) => {
+      setPinnedSpirit(spirit.id);
+      // 範例語句已含 @暱稱，直接用；末尾保留空白方便繼續打字。
+      setInput(text.endsWith(" ") ? text : `${text} `);
+      if (isFirstTurn) heroInputRef.current?.focus();
+    },
+    [setInput, isFirstTurn]
+  );
+  /** 點擊精靈名片：toggle 小屋展開狀態。再點一次同一張就收合。 */
+  const handleToggleHut = useCallback((spirit: SpiritVisual) => {
+    setHutSpiritId(prev => (prev === spirit.id ? null : spirit.id));
+  }, []);
   /** 解除鎖定。會把預填的「@暱稱 」也擦掉。 */
   const handleUnpinSpirit = useCallback(() => {
     setPinnedSpirit(null);
@@ -1250,7 +1282,10 @@ export default function AgentChat() {
   }, [isFirstTurn]);
 
   return (
-    <div className="flex-1 flex flex-col items-center w-full min-h-full">
+    <div
+      className="flex-1 flex flex-col items-center w-full min-h-full agent-chat-shell"
+      data-design-mode={designMode}
+    >
       {/* 療癒環境光 — 與側邊欄、首頁同一套薰衣草/桃霧調性 */}
       <div
         aria-hidden
@@ -1419,9 +1454,10 @@ export default function AgentChat() {
             )}
           </AnimatePresence>
 
-          {/* 需求釐清提示 — 只在初始狀態顯示，避免在對話進行時擠壓聊天區 */}
+          {/* 需求釐清提示 — 只在初始狀態顯示，避免在對話進行時擠壓聊天區。
+              極簡風隱藏：使用者直接打字、需要時再透過「如何使用光球」入口取得。 */}
           {isFirstTurn && (
-          <div className="w-full mt-2 sm:mt-3">
+          <div className="w-full mt-2 sm:mt-3" data-minimalist-hide>
             <Collapsible
               open={needGuideOpen}
               onOpenChange={setNeedGuideOpen}
@@ -1667,10 +1703,14 @@ export default function AgentChat() {
           {/* ── 代理風格：4 個視覺化模式卡 ───────────────────────────
               4 個模式（多步驟 / 計畫 / 跳頁 / 功能詢問）。手機首屏密度
               太高，所以預設摺起：使用者大多帶著任務來，先看到 hero
-              composer + 任務範本就夠；想細調代理風格再展開。 */}
+              composer + 任務範本就夠；想細調代理風格再展開。
+              極簡風 (data-design-mode="minimalist") 透過 CSS 整段隱藏，
+              想調代理風格的熟手可隨時切回 classic。 */}
           {isFirstTurn && (
             <motion.section
               key="mode-catalog"
+              data-section="mode-catalog"
+              data-minimalist-hide
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.18 }}
@@ -1870,64 +1910,81 @@ export default function AgentChat() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {familySpirits.map((spirit, i) => {
                             const isPinned = pinnedSpirit === spirit.id;
+                            const isHutOpen = hutSpiritId === spirit.id;
                             return (
-                              <motion.button
-                                key={spirit.id}
-                                type="button"
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.04 * i }}
-                                whileTap={{ scale: 0.97 }}
-                                onClick={() => handleCallSpirit(spirit)}
-                                disabled={isSending}
-                                aria-pressed={isPinned}
-                                title={spirit.vibe}
-                                data-testid={`spirit-card-${spirit.id}`}
-                                data-pinned={isPinned ? "true" : "false"}
-                                className="healing-spirit-card group text-left p-2.5 disabled:opacity-40"
-                              >
-                                <div className="relative flex items-start gap-2">
-                                  <div
-                                    className={`healing-spirit-disc shrink-0 w-9 h-9 rounded-xl text-lg bg-gradient-to-br ${spirit.gradient}`}
-                                  >
-                                    <span aria-hidden>{spirit.emoji}</span>
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1">
-                                      <p
-                                        className={`text-xs font-semibold truncate ${
-                                          isPinned ? "text-[oklch(0.22_0.04_290)]" : "text-glass-strong"
-                                        }`}
-                                      >
-                                        {spirit.nickname}
-                                      </p>
-                                      <span
-                                        className={`text-[9px] truncate ${
-                                          isPinned ? "text-[oklch(0.3_0.04_290_/_0.7)]" : "text-glass-soft"
-                                        }`}
-                                      >
-                                        · {spirit.label}
-                                      </span>
+                              <Fragment key={spirit.id}>
+                                <motion.button
+                                  type="button"
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: 0.04 * i }}
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => handleToggleHut(spirit)}
+                                  disabled={isSending}
+                                  aria-pressed={isPinned}
+                                  aria-expanded={isHutOpen}
+                                  title={spirit.vibe}
+                                  data-testid={`spirit-card-${spirit.id}`}
+                                  data-pinned={isPinned ? "true" : "false"}
+                                  data-hut-open={isHutOpen ? "true" : "false"}
+                                  className={`healing-spirit-card group text-left p-2.5 disabled:opacity-40 ${
+                                    isHutOpen ? "ring-2 ring-violet-300/70" : ""
+                                  }`}
+                                >
+                                  <div className="relative flex items-start gap-2">
+                                    <div
+                                      className={`healing-spirit-disc shrink-0 w-9 h-9 rounded-xl text-lg bg-gradient-to-br ${spirit.gradient}`}
+                                    >
+                                      <span aria-hidden>{spirit.emoji}</span>
                                     </div>
-                                    <p
-                                      className={`text-[10px] leading-snug line-clamp-2 mt-0.5 ${
-                                        isPinned ? "text-[oklch(0.3_0.04_290_/_0.9)]" : "text-glass-soft"
-                                      }`}
-                                    >
-                                      {spirit.vibe}
-                                    </p>
-                                    <p
-                                      className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${
-                                        isPinned
-                                          ? "text-[oklch(0.22_0.04_290)]"
-                                          : "text-glass-soft group-hover:text-[oklch(0.4_0.08_300)]"
-                                      }`}
-                                    >
-                                      {isPinned ? "已在線 ✓" : "叫他來 →"}
-                                    </p>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1">
+                                        <p
+                                          className={`text-xs font-semibold truncate ${
+                                            isPinned ? "text-[oklch(0.22_0.04_290)]" : "text-glass-strong"
+                                          }`}
+                                        >
+                                          {spirit.nickname}
+                                        </p>
+                                        <span
+                                          className={`text-[9px] truncate ${
+                                            isPinned ? "text-[oklch(0.3_0.04_290_/_0.7)]" : "text-glass-soft"
+                                          }`}
+                                        >
+                                          · {spirit.label}
+                                        </span>
+                                      </div>
+                                      <p
+                                        className={`text-[10px] leading-snug line-clamp-2 mt-0.5 ${
+                                          isPinned ? "text-[oklch(0.3_0.04_290_/_0.9)]" : "text-glass-soft"
+                                        }`}
+                                      >
+                                        {spirit.vibe}
+                                      </p>
+                                      <p
+                                        className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${
+                                          isPinned
+                                            ? "text-[oklch(0.22_0.04_290)]"
+                                            : "text-glass-soft group-hover:text-[oklch(0.4_0.08_300)]"
+                                        }`}
+                                      >
+                                        {isHutOpen ? "收合小屋 ▲" : isPinned ? "已在線 · 看技能 →" : "看技能 →"}
+                                      </p>
+                                    </div>
                                   </div>
-                                </div>
-                              </motion.button>
+                                </motion.button>
+                                <SpiritHut
+                                  spirit={spirit}
+                                  variant={designMode === "minimalist" ? "minimalist" : "classic"}
+                                  isOpen={isHutOpen}
+                                  onClose={() => setHutSpiritId(null)}
+                                  onInvite={s => {
+                                    handleCallSpirit(s);
+                                    setHutSpiritId(null);
+                                  }}
+                                  onPrefill={handlePrefillSampleAsk}
+                                />
+                              </Fragment>
                             );
                           })}
                         </div>
@@ -2100,10 +2157,13 @@ export default function AgentChat() {
 
           {/* ── 全部工具瀏覽（次要層級，預設摺起）────────────────────
               熟手或想直接跳工具的人才需要打開。原本的「意圖大卡 + 能力
-              地圖」整套移進來，從首屏主角降為次選。 */}
+              地圖」整套移進來，從首屏主角降為次選。
+              極簡風完全隱藏：minimalist 使用者需要跳工具時，用左下角 dock 或
+              直接打字喊「@路路 帶我去...」。 */}
           {isFirstTurn && (
             <motion.section
               key="all-tools-collapsible"
+              data-minimalist-hide
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.3 }}

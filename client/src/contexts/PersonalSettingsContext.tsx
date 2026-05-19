@@ -11,6 +11,16 @@ import {
   useState,
 } from "react";
 
+/**
+ * `/agent` 聊天頁的兩種版型：
+ *   - "classic"：截至 2026-05 的原本設計（密度高、漸層色塊多）。
+ *   - "minimalist"：呼吸感大、互動仍順的極簡互動版。
+ *
+ * 新使用者預設極簡；舊使用者（localStorage 已有偏好但缺此欄）會在
+ * `parseStoredSettings` 內 fallback 到 classic，避免熟手介面被突襲改造。
+ */
+export type AgentChatDesignMode = "classic" | "minimalist";
+
 export type PersonalSettings = {
   displayName: string;
   timezone: string;
@@ -22,6 +32,7 @@ export type PersonalSettings = {
   viewMode: ViewMode;
   orbCuteMode: boolean;
   orbRandomFly: boolean;
+  designMode: AgentChatDesignMode;
 };
 
 const STORAGE_KEY = "settings-personal-preferences-v2";
@@ -45,6 +56,9 @@ export const DEFAULT_PERSONAL_SETTINGS: PersonalSettings = {
   viewMode: "auto",
   orbCuteMode: false,
   orbRandomFly: false,
+  // 程式預設＝新使用者體驗：極簡風。舊使用者透過 parseStoredSettings
+  // 的「raw 存在但缺欄」fallback 邏輯，會被指回 classic 以保留熟悉介面。
+  designMode: "minimalist",
 };
 
 export type PersonalSettingsSyncStatus =
@@ -75,7 +89,15 @@ export function parseStoredSettings(raw: string | null): PersonalSettings {
   if (!raw) return DEFAULT_PERSONAL_SETTINGS;
   try {
     const parsed = JSON.parse(raw) as Partial<PersonalSettings>;
-    return mergePersonalSettings(DEFAULT_PERSONAL_SETTINGS, parsed);
+    // 舊使用者的 localStorage 不會有 designMode 欄位；若使用者明顯曾經
+    // 用過這個站（有任何其他偏好已存），預設保留原本設計，避免被新版
+    // 突襲改造。新使用者走 `raw === null` 上面那條，會取 DEFAULT
+    // 的 minimalist。
+    const legacyBase: PersonalSettings = {
+      ...DEFAULT_PERSONAL_SETTINGS,
+      designMode: "classic",
+    };
+    return mergePersonalSettings(legacyBase, parsed);
   } catch {
     return DEFAULT_PERSONAL_SETTINGS;
   }
@@ -124,6 +146,10 @@ export function mergePersonalSettings(
       typeof patch.orbRandomFly === "boolean"
         ? patch.orbRandomFly
         : base.orbRandomFly,
+    designMode:
+      patch.designMode === "classic" || patch.designMode === "minimalist"
+        ? patch.designMode
+        : base.designMode,
   };
 }
 
@@ -181,6 +207,7 @@ export function encodeServerPayload(
         viewMode: settings.viewMode,
         orbCuteMode: settings.orbCuteMode,
         orbRandomFly: settings.orbRandomFly,
+        designMode: settings.designMode,
       },
     },
   };
