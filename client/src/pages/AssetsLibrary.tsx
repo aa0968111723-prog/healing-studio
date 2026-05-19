@@ -596,6 +596,27 @@ export default function AssetsLibrary() {
     return sorted;
   }, [rawAssets, sortKey]);
 
+  const filteredAssets = useMemo(() => {
+    if (!assets) return assets;
+    const keyword = search.trim().toLowerCase();
+    return assets.filter(asset => {
+      if (typeFilter !== "all" && asset.assetType !== typeFilter) return false;
+      if (sourceFilter !== "all" && (asset.sourceStudio ?? "unknown") !== sourceFilter) {
+        return false;
+      }
+      if (!keyword) return true;
+      const haystack = [
+        asset.title,
+        asset.description,
+        asset.promptUsed,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [assets, search, sourceFilter, typeFilter]);
+
   const resetFilters = () => {
     setTypeFilter("all");
     setSourceFilter("all");
@@ -946,11 +967,11 @@ export default function AssetsLibrary() {
           </div>
 
           {/* ── 結果統計 — 讓使用者知道目前篩選下顯示幾個 / 共幾個 ─── */}
-          {!isLoading && rawAssets && (
+          {!isLoading && rawAssets && filteredAssets && (
             <p className="hs-small !mb-0 text-muted-foreground">
               {hasActiveFilter ? (
                 <>
-                  顯示 <span className="text-foreground font-medium">{rawAssets.length}</span>{" "}
+                  顯示 <span className="text-foreground font-medium">{filteredAssets.length}</span>{" "}
                   個資產
                 </>
               ) : (
@@ -971,9 +992,9 @@ export default function AssetsLibrary() {
                 </GlassCard>
               ))}
             </div>
-          ) : assets && assets.length > 0 ? (
+          ) : filteredAssets && filteredAssets.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          {assets.map((asset, idx) => {
+          {filteredAssets.map((asset, idx) => {
             const config = typeConfig[asset.assetType] || {
               icon: <Package className="w-4 h-4" />,
               label: asset.assetType,
