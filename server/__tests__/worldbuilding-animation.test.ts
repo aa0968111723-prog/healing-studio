@@ -12,6 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  buildFrameNegativePrompt,
   buildFramePrompt,
   formatTimecode,
   planAnimationPipeline,
@@ -414,6 +415,391 @@ describe("resolveNarrativeBeat", () => {
 
   it("returns opening for single-scene storyboard", () => {
     expect(resolveNarrativeBeat(0, 1)).toBe("opening");
+  });
+});
+
+// ─── 細膩串連：第二輪整合測試 ──────────────────────────────────────────
+
+describe("seedStoryboardSkeleton — fine-grained integration", () => {
+  it("auto-creates voiceover audio clips when dialogue + voiceProfile exist", () => {
+    const fw = makeFramework();
+    // c1 已有 voiceProfile + signatureLines（由 seed 邏輯指派為 dialogue）
+    fw.characters[0].scriptRole = {
+      ...fw.characters[0].scriptRole,
+      signatureLines: ["你好世界。"],
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 3,
+    });
+    // 開場場景的 c1 beat 應有 dialogue → 對應 voiceover clip
+    const voClip = sb.scenes[0].audioClips.find(
+      a => a.kind === "voiceover" && a.characterId === "c1"
+    );
+    expect(voClip).toBeDefined();
+    expect(voClip?.text).toBe("你好世界。");
+    expect(voClip?.volume).toBeGreaterThan(0.5);
+  });
+
+  it("does NOT create voiceover when character has no voiceProfile", () => {
+    const fw = makeFramework();
+    fw.characters[0].voiceProfile = undefined;
+    fw.characters[0].scriptRole = {
+      ...fw.characters[0].scriptRole,
+      signatureLines: ["你好。"],
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 3,
+    });
+    const voClip = sb.scenes[0].audioClips.find(
+      a => a.kind === "voiceover" && a.characterId === "c1"
+    );
+    expect(voClip).toBeUndefined();
+  });
+
+  it("enriches interactionTags from character relationships when co-present", () => {
+    const fw = makeFramework();
+    // c1 與 c2 有羈絆關係；讓 c2 也每場登場（提升 ratio）
+    fw.characters[0].scriptRole = {
+      ...fw.characters[0].scriptRole,
+      relationships: [
+        { targetCharacterId: "c2", relation: "宿敵", tension: 0.9 },
+      ],
+    };
+    fw.characters[1].role = "protagonist";
+    fw.characters[1].scriptRole = {
+      defaultPosition: "main_stage",
+      avgScreenTimeRatio: 0.8,
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 3,
+    });
+    const beatC1 = sb.scenes[0].characterBeats.find(b => b.characterId === "c1");
+    expect(beatC1?.interactionTags).toContain("宿敵");
+  });
+
+  it("injects framework.objects into actionDescription when appearsInScenes matches", () => {
+    const fw = makeFramework();
+    fw.objects = [
+      {
+        id: "obj1",
+        name: "聖劍 Excalibur",
+        category: "武器",
+        appearsInScenes: ["s1"],
+      },
+      {
+        id: "obj2",
+        name: "魔法書",
+        category: "道具",
+        appearsInScenes: ["s1"],
+      },
+    ];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    // s1 場景應有兩個 objects
+    const scWithS1 = sb.scenes.find(s => s.worldSceneId === "s1");
+    expect(scWithS1?.actionDescription).toContain("聖劍 Excalibur");
+    expect(scWithS1?.actionDescription).toContain("魔法書");
+  });
+
+  it("rotates worldScene.timeOfDay entries across reused storyboard scenes", () => {
+    const fw = makeFramework();
+    fw.scenes[0].timeOfDay = [
+      { label: "黎明", lighting: "晨光" },
+      { label: "黃昏", lighting: "金黃光" },
+    ];
+    // 只有一個 worldScene s1，全部 storyboard 場都會 reuse 它
+    fw.scenes = [fw.scenes[0]];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 4,
+    });
+    expect(sb.scenes[0].actionDescription).toContain("黎明");
+    expect(sb.scenes[1].actionDescription).toContain("黃昏");
+    expect(sb.scenes[2].actionDescription).toContain("黎明");
+    expect(sb.scenes[3].actionDescription).toContain("黃昏");
+  });
+
+  it("sets first frame shotDescription from scene.layout.heroShotAngle", () => {
+    const fw = makeFramework();
+    fw.scenes[0].layout = {
+      heroShotAngle: "從上方俯瞰整個森林",
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    const scWithS1 = sb.scenes.find(s => s.worldSceneId === "s1");
+    expect(scWithS1?.frames[0].shotDescription).toBe("從上方俯瞰整個森林");
+  });
+
+  it("uses actingNotes.signatureGestures for opening pose, defaultPosture for others", () => {
+    const fw = makeFramework();
+    fw.characters[0].actingNotes = {
+      signatureGestures: ["撥瀏海", "握劍"],
+      defaultPosture: "挺直站姿",
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 4,
+    });
+    const opening = sb.scenes[0].characterBeats.find(b => b.characterId === "c1");
+    expect(opening?.pose).toBe("撥瀏海");
+    // 中段場應用 defaultPosture
+    const mid = sb.scenes[2].characterBeats.find(b => b.characterId === "c1");
+    expect(mid?.pose).toBe("挺直站姿");
+  });
+
+  it("infers aspectRatio 9:16 from productionTargets.platform=TikTok", () => {
+    const fw = makeFramework();
+    fw.productionTargets!.platform = "TikTok";
+    // 清除 scene preferredAspectRatio，讓平台 fallback 啟用
+    for (const s of fw.scenes) s.preferredAspectRatio = undefined;
+    const sb = seedStoryboardSkeleton({ framework: fw, totalDurationSec: 60 });
+    expect(sb.aspectRatio).toBe("9:16");
+  });
+
+  it("attaches cueVariant label to music clip when theme has variants", () => {
+    const fw = makeFramework();
+    fw.musicThemes![0].cueVariants = [
+      { label: "30s 預告版", durationSec: 30 },
+      { label: "60s 完整版", durationSec: 60 },
+      { label: "15s loop", durationSec: 15 },
+    ];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    // 場長 ~30s，應挑「30s 預告版」（最接近）
+    const musicClip = sb.scenes[0].audioClips.find(a => a.kind === "music");
+    expect(musicClip?.sfxDescription).toContain("30s 預告版");
+  });
+
+  it("adds crossfade/hard_cut transitionOut when scenes switch", () => {
+    const fw = makeFramework();
+    // s1 + s2 兩個不同場景；輪替時應有轉場
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 3,
+    });
+    // 第一場 → 第二場：場景切換（s1 → s2）
+    expect(sb.scenes[0].transitionOut).toBeDefined();
+    expect(["crossfade", "hard_cut"]).toContain(sb.scenes[0].transitionOut);
+  });
+});
+
+describe("buildFramePrompt — fine-grained integration", () => {
+  it("injects body species + distinctiveFeatures into character cluster", () => {
+    const fw = makeFramework();
+    fw.characters[0].body = {
+      species: "半精靈",
+      distinctiveFeatures: ["尖耳", "銀髮"],
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    const prompt = buildFramePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+      presentBeats: scene.characterBeats,
+    });
+    expect(prompt).toContain("半精靈");
+    expect(prompt).toContain("尖耳");
+  });
+
+  it("injects style profile schoolReference / shadingModel / shootOn", () => {
+    const fw = makeFramework();
+    fw.styleProfiles![0].schoolReference = "Studio Ghibli";
+    fw.styleProfiles![0].shadingModel = "cel";
+    fw.styleProfiles![0].shootOn = 2;
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    const prompt = buildFramePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+      presentBeats: scene.characterBeats,
+    });
+    expect(prompt).toContain("Studio Ghibli");
+    expect(prompt).toContain("著色：cel");
+    expect(prompt).toContain("拍 2 格");
+  });
+
+  it("falls back to actingNotes.defaultPosture when beat.pose missing", () => {
+    const fw = makeFramework();
+    fw.characters[0].actingNotes = { defaultPosture: "彎腰駝背" };
+    // 不要讓 signatureGestures 蓋掉
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    // 手動清掉 pose 模擬「沒指定」
+    scene.characterBeats[0].pose = undefined;
+    const prompt = buildFramePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+      presentBeats: scene.characterBeats,
+    });
+    expect(prompt).toContain("彎腰駝背");
+  });
+
+  it("injects productionDesign.materials and layout.heroShotAngle", () => {
+    const fw = makeFramework();
+    fw.scenes[0].productionDesign = {
+      architecturalStyle: "巴洛克",
+      materials: ["大理石", "黃金"],
+    };
+    fw.scenes[0].layout = { heroShotAngle: "教堂俯瞰" };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    // 用第二個 frame（無 shotDescription）測「機位」回退
+    const prompt = buildFramePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[1],
+      presentBeats: scene.characterBeats,
+    });
+    expect(prompt).toContain("巴洛克");
+    expect(prompt).toContain("建材：大理石");
+    expect(prompt).toContain("機位：教堂俯瞰");
+  });
+
+  it("includes interactionTags when present on beats", () => {
+    const fw = makeFramework();
+    fw.characters[0].scriptRole = {
+      ...fw.characters[0].scriptRole,
+      relationships: [{ targetCharacterId: "c2", relation: "戀人" }],
+    };
+    fw.characters[1].role = "protagonist";
+    fw.characters[1].scriptRole = { defaultPosition: "main_stage" };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    const prompt = buildFramePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+      presentBeats: scene.characterBeats,
+    });
+    expect(prompt).toContain("互動：戀人");
+  });
+});
+
+describe("planAnimationPipeline — passthrough ready audio", () => {
+  it("skips generate_sfx step when soundLibrary item has absolute audioUrl", () => {
+    const fw = makeFramework();
+    fw.soundLibrary = [
+      {
+        id: "sl1",
+        label: "森林環境",
+        category: "ambient",
+        audioUrl: "https://cdn.example.com/forest.mp3",
+        loopable: true,
+      },
+    ];
+    fw.scenes[0].soundLibraryRefs = ["sl1"];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 2,
+    });
+    // 含 audioUrl 的環境音 clip 不應觸發 generate_sfx 步驟
+    const plan = planAnimationPipeline(sb, fw, {
+      skipRefine: true,
+      skipVideo: true,
+    });
+    const sfxSteps = plan.steps.filter(s => s.kind === "generate_sfx");
+    // 沒有 signatureSfx，本來就不會有 sfx 步驟 —— 透過 audioClips count 也驗證
+    const ambientClip = sb.scenes[0].audioClips.find(
+      a => a.audioUrl === "https://cdn.example.com/forest.mp3"
+    );
+    expect(ambientClip?.status).toBe("ready");
+    expect(sfxSteps.length).toBe(0);
+  });
+});
+
+describe("buildFrameNegativePrompt — audience safety", () => {
+  it("appends children-safe constraints when audience=兒童", () => {
+    const fw = makeFramework();
+    fw.productionTargets!.audience = "兒童";
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    const neg = buildFrameNegativePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+    });
+    expect(neg).toContain("blood");
+    expect(neg).toContain("nudity");
+  });
+
+  it("appends teen-safe constraints when audience=青少年", () => {
+    const fw = makeFramework();
+    fw.productionTargets!.audience = "青少年";
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    const neg = buildFrameNegativePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+    });
+    expect(neg).toContain("explicit gore");
+  });
+
+  it("does not append safety when audience=成人", () => {
+    const fw = makeFramework();
+    fw.productionTargets!.audience = "成人";
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 30,
+      sceneCount: 1,
+    });
+    const scene = sb.scenes[0];
+    const neg = buildFrameNegativePrompt({
+      framework: fw,
+      storyboardScene: scene,
+      frame: scene.frames[0],
+    });
+    expect(neg).not.toContain("blood, gore, scary");
   });
 });
 
