@@ -449,6 +449,146 @@ export const CHARACTER_DESIGN_WORKFLOW: WorkflowTemplate = {
 // ============================================================================
 
 /**
+ * Animation Production Workflow（世界觀 → 分鏡 → 圖楨 → 配樂配音 → 成片）
+ *
+ * 對應 shared/worldbuilding-animation.ts 的 planAnimationPipeline 編排策略，
+ * 每場分鏡會 fan-out 出多個 image / video / music / voice step，最後一個
+ * compose 步驟把所有素材合成 final cut。
+ *
+ * 適用：角色與場景已備齊三視圖、表情、穿衣、配音；風格 profile 已選定；
+ * storyboard 已 seed skeleton。
+ */
+export const ANIMATION_PRODUCTION_WORKFLOW: WorkflowTemplate = {
+  templateId: "animation-production",
+  name: "動畫製作完整流程",
+  description:
+    "世界觀建立 → 三視圖設計 → 分鏡時間軸 → 圖楨生成 → 細膩化 → 圖轉影 → 配樂 → 配音 → 成片合成",
+  category: "content-creation",
+  difficulty: "advanced",
+  tags: [
+    "animation",
+    "worldbuilding",
+    "storyboard",
+    "video",
+    "music",
+    "voice",
+    "image",
+    "lora",
+  ],
+  estimatedTotalDuration: 900000, // 15 分鐘（依分鏡長度成長）
+  steps: [
+    {
+      stepId: "world-design",
+      spirit: "director",
+      description:
+        "建立世界觀：角色（含三視圖/表情/穿衣/口氣/語音/腳本定位）、場景、畫面風格、配樂主題",
+      outputType: "plan",
+      tools: ["worldbuilding.create", "worldbuilding.update"],
+      qualityRequirements: ["至少 1 主角 + 1 場景", "已選定風格 profile"],
+    },
+    {
+      stepId: "character-three-view",
+      spirit: "image-specialist",
+      description: "為每個主要角色生成三視圖（正/側/背/3-4 視角）",
+      outputType: "image",
+      tools: ["studio.generateImage"],
+      dependsOn: ["world-design"],
+      estimatedDuration: 120000,
+      qualityRequirements: ["保持比例一致", "服飾細節清楚"],
+    },
+    {
+      stepId: "storyboard-seed",
+      spirit: "director",
+      description: "依目標時長與世界觀派生分鏡骨架（幾分幾秒、角色出場、場景）",
+      outputType: "plan",
+      tools: ["worldStoryboard.seedSkeleton"],
+      dependsOn: ["world-design"],
+      qualityRequirements: ["時間軸不重疊", "主角戲份分配合理"],
+    },
+    {
+      stepId: "storyboard-fill",
+      spirit: "director",
+      description: "補完每場的對白、運鏡、轉場、表情、穿著",
+      outputType: "plan",
+      tools: ["worldStoryboard.update"],
+      dependsOn: ["storyboard-seed"],
+      qualityRequirements: ["對白符合角色口氣", "鏡頭運動與情緒匹配"],
+    },
+    {
+      stepId: "generate-keyframes",
+      spirit: "image-specialist",
+      description: "為每張圖楨跑 t2i，注入角色/場景/風格 trigger word",
+      outputType: "image",
+      tools: ["studio.generateImage"],
+      dependsOn: ["storyboard-fill", "character-three-view"],
+      estimatedDuration: 240000,
+      qualityRequirements: ["角色一致性", "畫面風格鎖定"],
+    },
+    {
+      stepId: "refine-frames",
+      spirit: "image-specialist",
+      description: "細膩化：image-to-image / inpaint / upscale 修崩、補細節",
+      outputType: "image",
+      tools: ["studio.imageToImage", "studio.upscaleImage"],
+      dependsOn: ["generate-keyframes"],
+      estimatedDuration: 180000,
+      optional: true,
+      qualityRequirements: ["無破圖", "細節清晰"],
+    },
+    {
+      stepId: "image-to-video",
+      spirit: "video-specialist",
+      description: "把每張關鍵幀轉成短片，套用本場 cameraMovement",
+      outputType: "video",
+      tools: ["studio.imageToVideo"],
+      dependsOn: ["refine-frames"],
+      estimatedDuration: 360000,
+      qualityRequirements: ["動畫流暢", "運鏡符合分鏡指示"],
+    },
+    {
+      stepId: "compose-music",
+      spirit: "music-specialist",
+      description: "依每場配樂主題生成 BGM",
+      outputType: "audio",
+      tools: ["studio.generateMusic"],
+      dependsOn: ["storyboard-fill"],
+      estimatedDuration: 90000,
+      qualityRequirements: ["情緒匹配", "節奏與場長相符"],
+    },
+    {
+      stepId: "generate-voiceover",
+      spirit: "voice-specialist",
+      description: "依角色語音檔生成對白與旁白",
+      outputType: "voice",
+      tools: ["studio.generateVoice"],
+      dependsOn: ["storyboard-fill"],
+      estimatedDuration: 90000,
+      qualityRequirements: ["音色一致", "情緒到位"],
+    },
+    {
+      stepId: "final-compose",
+      spirit: "video-specialist",
+      description: "把所有 video clip + audio track 合成最終影片",
+      outputType: "video",
+      tools: ["video.composeFinal"],
+      dependsOn: ["image-to-video", "compose-music", "generate-voiceover"],
+      estimatedDuration: 60000,
+      qualityRequirements: ["音畫對齊", "轉場流暢", "符合目標長寬比"],
+    },
+    {
+      stepId: "review",
+      spirit: "critic",
+      description: "成片 review：角色一致性、節奏、音畫同步",
+      outputType: "analysis",
+      tools: [],
+      dependsOn: ["final-compose"],
+      optional: true,
+      qualityRequirements: ["整體完成度", "可上線品質"],
+    },
+  ],
+};
+
+/**
  * All available workflow templates
  */
 export const WORKFLOW_TEMPLATES: Record<string, WorkflowTemplate> = {
@@ -458,6 +598,7 @@ export const WORKFLOW_TEMPLATES: Record<string, WorkflowTemplate> = {
   "multimedia-project": MULTIMEDIA_PROJECT_WORKFLOW,
   "quick-iteration": QUICK_ITERATION_WORKFLOW,
   "character-design": CHARACTER_DESIGN_WORKFLOW,
+  "animation-production": ANIMATION_PRODUCTION_WORKFLOW,
 };
 
 /**

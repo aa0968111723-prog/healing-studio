@@ -372,6 +372,13 @@
       "when": 1779050000059,
       "tag": "0059_media_archival_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1779050000060,
+      "tag": "0060_worldbuilding_animation_extensions",
+      "breakpoints": true
     }
   ]
 }

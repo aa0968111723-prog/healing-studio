@@ -378,8 +378,80 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         prompt:
           "請細膩比較導演 AI 管線裡圖像、影片、音樂、語音模型的長處、成本與適用場景，並給我分鏡選型策略。",
       },
+      {
+        id: "open-animation-studio",
+        label: "切到動畫工作室",
+        description: "把腳本接到世界觀 + 分鏡時間軸，準備產出動畫",
+        path: "/animation",
+        prompt: "幫我把目前的腳本接到動畫工作室，建立角色、場景與分鏡。",
+      },
     ],
-    orbHints: ["幫我先整理腳本"],
+    orbHints: ["幫我先整理腳本", "把腳本拉到動畫工作室"],
+    supportedActions: [
+      "setTab",
+      "fillPrompt",
+      "applyPreset",
+      "submit",
+      "reset",
+      "setParam",
+      "focusElement",
+    ],
+  },
+  {
+    id: "animation-studio",
+    label: "動畫工作室",
+    path: "/animation",
+    group: "create",
+    description: "世界觀 → 分鏡 → 圖楨 → 配樂配音 → 轉影成片的完整動畫管線",
+    aliases: [
+      "animation",
+      "動畫",
+      "分鏡",
+      "storyboard",
+      "worldbuilding",
+      "世界觀",
+    ],
+    showInSidebar: true,
+    showInAgentHome: true,
+    agentEntryPriority: 5,
+    supportsPageAgent: true,
+    quickActions: [
+      {
+        id: "new-world",
+        label: "新增世界觀",
+        description: "建立角色（三視圖/表情/穿衣/口氣/語音）與場景",
+        path: "/animation",
+        prompt:
+          "幫我建立一個新的世界觀，問我類型、時代、主角的個性與外貌，然後逐步建立角色三視圖、表情包、穿衣集、口氣與配音設定。",
+      },
+      {
+        id: "seed-storyboard",
+        label: "自動生成分鏡骨架",
+        description: "依世界觀與目標時長派生「幾分幾秒」時間軸",
+        path: "/animation",
+        prompt:
+          "幫我把目前選定的世界觀，生成 60 秒 / 6 場的動畫分鏡骨架，每場安排主角出場，配樂用世界觀預設主題。",
+      },
+      {
+        id: "plan-animation-pipeline",
+        label: "規劃動畫渲染管線",
+        description: "把分鏡轉成 t2i → refine → i2v → music → voice → 合成步驟",
+        path: "/animation",
+        prompt:
+          "幫我把當前分鏡的所有圖楨與音軌排成動畫管線，估算成本與時長，並提示哪些步驟需要先做風格鎖。",
+      },
+      {
+        id: "review-shot-list",
+        label: "輸出鏡頭表 CSV",
+        description: "把分鏡匯出成導演 / 動畫師可外部協作的鏡頭表",
+      },
+    ],
+    orbHints: [
+      "開新世界觀",
+      "幫我做角色三視圖",
+      "規劃 60 秒動畫分鏡",
+      "把分鏡渲染成影片",
+    ],
     supportedActions: [
       "setTab",
       "fillPrompt",
