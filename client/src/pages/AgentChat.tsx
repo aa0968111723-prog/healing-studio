@@ -1883,7 +1883,7 @@ export default function AgentChat() {
                   >
                     <span className="flex items-center gap-1.5 text-xs font-medium text-glass-strong">
                       <Users className="w-3.5 h-3.5 text-[oklch(0.74_0.12_330)]" />
-                      認識 {SPIRITS.length} 位代理精靈 — 像同事一樣，叫一聲就到
+                      精靈小屋：收錄 {SPIRITS.length} 位代理精靈 + 討論範圍設定
                       {pinnedSpirit && SPIRITS_BY_ID[pinnedSpirit] && (
                         <span
                           className={`ml-1 healing-spirit-chip bg-gradient-to-r ${SPIRITS_BY_ID[pinnedSpirit].gradient}`}
