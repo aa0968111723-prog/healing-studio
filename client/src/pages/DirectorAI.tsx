@@ -203,7 +203,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
           <Upload className="w-4 h-4" />
           匯入腳本
         </h3>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           支援純文字、劇本、字幕、Final Draft 等格式
         </span>
       </div>
@@ -216,7 +216,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
           value={scriptTitle}
           onChange={e => setScriptTitle(e.target.value)}
           placeholder="例：品牌宣傳短片 V2"
-          className="w-full rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="w-full rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-sm placeholder:text-muted-foreground/50 outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:border-(--ring-healing-strong) transition-shadow"
         />
       </div>
 
@@ -227,11 +227,13 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
           {FORMAT_OPTIONS.map(fmt => (
             <button
               key={fmt.value}
+              type="button"
               onClick={() => setSourceFormat(fmt.value)}
+              aria-pressed={sourceFormat === fmt.value}
               className={cn(
-                "px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all",
+                "hs-chip px-2.5 py-1 rounded-lg text-[11px] font-medium border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1",
                 sourceFormat === fmt.value
-                  ? "bg-primary text-primary-foreground border-primary"
+                  ? "bg-primary text-primary-foreground border-primary shadow-[var(--shadow-healing-sm)]"
                   : "bg-card/50 border-border/50 hover:bg-card/80 text-muted-foreground"
               )}
             >
@@ -246,7 +248,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
         <div className="flex items-center justify-between">
           <Label className="text-xs">腳本內容</Label>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {scriptContent.length.toLocaleString()} 字
             </span>
             <input
@@ -259,7 +261,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
             <Button
               variant="outline"
               size="sm"
-              className="rounded-lg text-[10px] h-6 px-2 gap-1"
+              className="rounded-lg text-2xs h-6 px-2 gap-1"
               onClick={() => fileInputRef.current?.click()}
             >
               <FileText className="w-3 h-3" />
@@ -545,7 +547,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           {statusCfg && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium",
+                "inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-medium",
                 statusCfg.color
               )}
             >
@@ -560,7 +562,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
               key={s}
               onClick={() => onStatusChange(s)}
               className={cn(
-                "text-[10px] px-2 py-0.5 rounded-md border transition-all",
+                "text-2xs px-2 py-0.5 rounded-md border transition-all",
                 segment.status === s
                   ? STATUS_CONFIG[s].color + " border-current/20"
                   : "text-muted-foreground/50 border-transparent hover:border-border/50"
@@ -579,7 +581,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           {segment.characters?.map(c => (
             <span
               key={c}
-              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"
+              className="inline-flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"
             >
               <Users className="w-2.5 h-2.5" />
               {c}
@@ -588,7 +590,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           {segment.locations?.map(l => (
             <span
               key={l}
-              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200"
+              className="inline-flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200"
             >
               <MapPin className="w-2.5 h-2.5" />
               {l}
@@ -648,7 +650,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowCostar(!showCostar)}
-            className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+            className="flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
           >
             <Layers className="w-3 h-3" />
             CO-STAR 結構
@@ -677,7 +679,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
             <Button
               variant="outline"
               size="sm"
-              className="rounded-lg text-[10px] h-6 px-2 gap-1"
+              className="rounded-lg text-2xs h-6 px-2 gap-1"
               onClick={onGenerateCostar}
               disabled={isGeneratingCostar}
             >
@@ -711,7 +713,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                     value: segment.costar.proactiveQuestion ?? "",
                   },
                 ].map(item => (
-                  <div key={item.label} className="flex gap-2 text-[10px]">
+                  <div key={item.label} className="flex gap-2 text-2xs">
                     <span className="font-bold text-primary/70 w-12 shrink-0">
                       {item.label}
                     </span>
@@ -722,7 +724,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                 ))}
                 {segment.costar.visualPrompt && (
                   <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 mt-1">
-                    <span className="text-[9px] font-bold text-blue-600 block mb-0.5">
+                    <span className="text-3xs font-bold text-blue-600 block mb-0.5">
                       Visual Prompt
                     </span>
                     <p className="hs-small !mb-0 text-blue-800/70 line-clamp-3">
@@ -732,7 +734,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                 )}
                 {segment.costar.musicVibe && (
                   <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
-                    <span className="text-[9px] font-bold text-purple-600 block mb-0.5">
+                    <span className="text-3xs font-bold text-purple-600 block mb-0.5">
                       Music Vibe
                     </span>
                     <p className="hs-small !mb-0 text-purple-800/70 line-clamp-2">
@@ -749,12 +751,12 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       {/* Quick actions */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
             快選動作
           </span>
           <button
             onClick={() => setShowAllActions(!showAllActions)}
-            className="text-[10px] text-primary hover:underline"
+            className="text-2xs text-primary hover:underline"
           >
             {showAllActions ? "收起" : `顯示全部 (${quickActions.length})`}
           </button>
@@ -768,7 +770,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                 <div key={cat}>
                   <span
                     className={cn(
-                      "text-[10px] font-medium px-1.5 py-0.5 rounded mb-1 inline-block",
+                      "text-2xs font-medium px-1.5 py-0.5 rounded mb-1 inline-block",
                       catCfg?.color
                     )}
                   >
@@ -819,11 +821,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
               )}
             >
               <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[10px] font-semibold text-muted-foreground">
+                <span className="text-2xs font-semibold text-muted-foreground">
                   {d.role === "user" ? "你" : "導演 AI"}
                 </span>
                 {d.quickAction && (
-                  <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                  <Badge variant="secondary" className="text-3xs h-4 px-1">
                     {d.quickAction}
                   </Badge>
                 )}
@@ -859,7 +861,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           }}
           placeholder="輸入討論內容，或直接點擊快選動作..."
           disabled={discussMut.isPending}
-          className="flex-1 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="flex-1 rounded-lg border border-border/50 bg-card/50 px-3 py-2 text-xs placeholder:text-muted-foreground/50 outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:border-(--ring-healing-strong) transition-shadow"
         />
         <Button
           size="sm"
@@ -1289,7 +1291,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       </div>
 
       {/* Scene context */}
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5">
+      <div className="flex items-center gap-2 text-2xs text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5">
         <Clapperboard className="w-3 h-3 shrink-0" />
         <span className="truncate">
           #{segment.index + 1} {segment.storyboard.sceneHeading} ·{" "}
@@ -1347,13 +1349,13 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                   <TaskIcon className="w-3.5 h-3.5 text-muted-foreground" />
                   <span className="text-xs font-semibold">{task.labelZh}</span>
                   {!hasPrompt && task.enabled && (
-                    <span className="text-[9px] text-red-400">缺少內容</span>
+                    <span className="text-3xs text-red-400">缺少內容</span>
                   )}
                 </div>
                 {task.enabled && selectedModel && (
                   <span
                     className={cn(
-                      "text-[10px] font-medium",
+                      "text-2xs font-medium",
                       TIER_COLORS[selectedModel.tier] ?? "text-muted-foreground"
                     )}
                   >
@@ -1366,18 +1368,18 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                 <>
                   {/* Prompt preview */}
                   {hasPrompt && (
-                    <div className="text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5 mb-2 line-clamp-2 leading-relaxed">
+                    <div className="text-2xs text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5 mb-2 line-clamp-2 leading-relaxed">
                       {task.prompt}
                     </div>
                   )}
 
                   {/* Model selector */}
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">
+                    <Label className="text-2xs text-muted-foreground">
                       選擇模型
                     </Label>
                     {modelsQuery.isLoading ? (
-                      <div className="text-[10px] text-muted-foreground animate-pulse">
+                      <div className="text-2xs text-muted-foreground animate-pulse">
                         載入模型中...
                       </div>
                     ) : (
@@ -1399,7 +1401,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                               }
                               disabled={!m.available}
                               className={cn(
-                                "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium border transition-all",
+                                "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-2xs font-medium border transition-all",
                                 isSelected
                                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                                   : m.available
@@ -1414,7 +1416,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                               <span>{m.label}</span>
                               <span
                                 className={cn(
-                                  "text-[9px]",
+                                  "text-3xs",
                                   TIER_COLORS[m.tier] ?? ""
                                 )}
                               >
@@ -1434,17 +1436,17 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                           );
                           return (
                             <>
-                              <p className="text-[10px] font-medium text-foreground">
+                              <p className="text-2xs font-medium text-foreground">
                                 適合：{coaching.bestFor}
                               </p>
-                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                              <p className="text-2xs text-muted-foreground mt-0.5 leading-relaxed">
                                 建議：{coaching.tip}
                               </p>
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {coaching.advantages.map(adv => (
                                   <span
                                     key={adv}
-                                    className="text-[9px] rounded-full border border-primary/20 bg-card/70 px-1.5 py-0.5 text-primary/80"
+                                    className="text-3xs rounded-full border border-primary/20 bg-card/70 px-1.5 py-0.5 text-primary/80"
                                   >
                                     {adv}
                                   </span>
@@ -1462,7 +1464,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="mt-2 rounded-lg text-[10px] h-7 gap-1 w-full"
+                      className="mt-2 rounded-lg text-2xs h-7 gap-1 w-full"
                       onClick={() => handleGenerate(task)}
                       disabled={!selectedModels[task.modality]}
                     >
@@ -1633,7 +1635,7 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
           href={task.resultUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[10px] text-emerald-700 hover:underline shrink-0"
+          className="text-2xs text-emerald-700 hover:underline shrink-0"
         >
           查看成品
         </a>
@@ -1643,12 +1645,12 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
           type="button"
           onClick={() => onRetry(task.segmentId, task.modality)}
           title={task.errorMessage ?? "重試"}
-          className="text-[10px] font-medium text-rose-700 hover:text-rose-900 underline-offset-2 hover:underline shrink-0"
+          className="text-2xs font-medium text-rose-700 hover:text-rose-900 underline-offset-2 hover:underline shrink-0"
         >
           重試
         </button>
       )}
-      <span className={cn("text-[10px] font-medium shrink-0", statusColor)}>
+      <span className={cn("text-2xs font-medium shrink-0", statusColor)}>
         {statusLabel}
       </span>
     </div>
@@ -1688,7 +1690,7 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
       <div className="flex items-center gap-2 p-3 border-b border-border/40">
         <Zap className="w-4 h-4 text-amber-500" />
         <span className="text-sm font-semibold">批次生成進度</span>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           {completed}/{tasks.length} 完成
           {processing > 0 ? ` · ${processing} 進行中` : ""}
           {pending > 0 ? ` · ${pending} 等待中` : ""}
@@ -1827,11 +1829,13 @@ const ExportPanel = memo(function ExportPanel({
           {EXPORT_FORMATS.map(fmt => (
             <button
               key={fmt.value}
+              type="button"
               onClick={() => setSelectedFormat(fmt.value)}
+              aria-pressed={selectedFormat === fmt.value}
               className={cn(
-                "px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all",
+                "hs-chip px-2.5 py-1.5 rounded-lg text-[11px] font-medium border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1",
                 selectedFormat === fmt.value
-                  ? "bg-primary text-primary-foreground border-primary"
+                  ? "bg-primary text-primary-foreground border-primary shadow-[var(--shadow-healing-sm)]"
                   : "bg-card/50 border-border/50 hover:bg-card/80 text-muted-foreground"
               )}
             >
@@ -1927,7 +1931,7 @@ const ExportPanel = memo(function ExportPanel({
               onClick={() =>
                 setCustomColumns([...customColumns, { header: "", field: "" }])
               }
-              className="text-[10px] text-primary hover:underline"
+              className="text-2xs text-primary hover:underline"
             >
               + 新增欄位
             </button>
@@ -2049,7 +2053,7 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
         <div className="flex-1 min-w-0">
           <span
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-wider",
+              "text-2xs font-semibold uppercase tracking-wider",
               config.textColor
             )}
           >
@@ -2060,7 +2064,7 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
               <p className="text-[11px] font-medium">
                 意圖：{intentCard.intent}
               </p>
-              <p className="text-[10px] text-foreground/70 mt-0.5">
+              <p className="text-2xs text-foreground/70 mt-0.5">
                 為何先問：{intentCard.whyAsk}
               </p>
             </div>
@@ -2082,7 +2086,7 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
             <button
               onClick={() => onUse(question)}
               className={cn(
-                "mt-2 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
+                "mt-2 text-2xs font-medium px-2 py-0.5 rounded-md border transition-colors",
                 "hover:bg-card/60 border-current/20",
                 config.textColor
               )}
@@ -2198,7 +2202,7 @@ const ScriptCard = memo(function ScriptCard({
             {/* Visual prompt preview */}
             {script.visualPrompt && (
               <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
-                <span className="text-[10px] font-medium text-muted-foreground block mb-1">
+                <span className="text-2xs font-medium text-muted-foreground block mb-1">
                   Visual Prompt
                 </span>
                 <p className="hs-small !mb-0 text-foreground/70 line-clamp-3">
@@ -2209,13 +2213,13 @@ const ScriptCard = memo(function ScriptCard({
 
             {/* Dispatch Targets */}
             <div className="flex gap-2 pt-2 mt-2 border-t border-border/30">
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
+              <div className="flex items-center gap-1 text-2xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
                 <Image className="w-3 h-3" /> Veo 2.0
               </div>
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
+              <div className="flex items-center gap-1 text-2xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
                 <Music className="w-3 h-3" /> Suno V4
               </div>
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
+              <div className="flex items-center gap-1 text-2xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
                 <Mic className="w-3 h-3" /> ElevenLabs
               </div>
             </div>
@@ -4038,7 +4042,7 @@ export default function DirectorAI() {
           <h1 className="hs-h2 !mb-0">導演 AI</h1>
           <span
             className={cn(
-              "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full",
+              "inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded-full",
               currentPersonality.bgActive,
               currentPersonality.textColor
             )}
@@ -4219,7 +4223,7 @@ export default function DirectorAI() {
                       <div className="flex items-center gap-2 mb-1.5">
                         <span
                           className={cn(
-                            "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                            "text-2xs font-medium px-1.5 py-0.5 rounded",
                             pConfig.bgActive,
                             pConfig.textColor
                           )}
@@ -4456,7 +4460,7 @@ export default function DirectorAI() {
             <FileText className="w-3.5 h-3.5" />
             腳本分析
             {importedSegments.length > 0 && (
-              <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-1">
+              <Badge variant="secondary" className="text-3xs h-4 px-1 ml-1">
                 {importedSegments.length}
               </Badge>
             )}
@@ -4468,7 +4472,7 @@ export default function DirectorAI() {
             <Lightbulb className="w-3.5 h-3.5" />
             規劃模式
             {planningSession && (
-              <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-1">
+              <Badge variant="secondary" className="text-3xs h-4 px-1 ml-1">
                 {planningSession.phases.filter(p => p.status === "completed").length}/{planningSession.phases.length}
               </Badge>
             )}
@@ -4628,20 +4632,20 @@ export default function DirectorAI() {
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-semibold">{importedTitle}</span>
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-2xs">
                     {importedSegments.length} 個分鏡
                   </Badge>
                   {scriptStats && (
                     <>
                       <Badge
                         variant="outline"
-                        className="text-[10px] bg-green-50 text-green-700 border-green-200"
+                        className="text-2xs bg-green-50 text-green-700 border-green-200"
                       >
                         {scriptStats.approved} 已確認
                       </Badge>
                       <Badge
                         variant="outline"
-                        className="text-[10px] bg-purple-50 text-purple-700 border-purple-200"
+                        className="text-2xs bg-purple-50 text-purple-700 border-purple-200"
                       >
                         {scriptStats.withCostar}/{scriptStats.total} CO-STAR
                       </Badge>
@@ -4749,7 +4753,7 @@ export default function DirectorAI() {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
                         <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100">
-                          <span className="text-blue-600 font-semibold block text-[10px]">
+                          <span className="text-blue-600 font-semibold block text-2xs">
                             總時長
                           </span>
                           <span className="text-blue-800 font-bold">
@@ -4757,7 +4761,7 @@ export default function DirectorAI() {
                           </span>
                         </div>
                         <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
-                          <span className="text-purple-600 font-semibold block text-[10px]">
+                          <span className="text-purple-600 font-semibold block text-2xs">
                             核心主題
                           </span>
                           <span className="text-purple-800">
@@ -4765,7 +4769,7 @@ export default function DirectorAI() {
                           </span>
                         </div>
                         <div className="p-2 rounded-lg bg-green-50/50 border border-green-100">
-                          <span className="text-green-600 font-semibold block text-[10px]">
+                          <span className="text-green-600 font-semibold block text-2xs">
                             角色數
                           </span>
                           <span className="text-green-800 font-bold">
@@ -4773,7 +4777,7 @@ export default function DirectorAI() {
                           </span>
                         </div>
                         <div className="p-2 rounded-lg bg-amber-50/50 border border-amber-100">
-                          <span className="text-amber-600 font-semibold block text-[10px]">
+                          <span className="text-amber-600 font-semibold block text-2xs">
                             場景數
                           </span>
                           <span className="text-amber-800 font-bold">
@@ -4784,14 +4788,14 @@ export default function DirectorAI() {
                       {/* Characters */}
                       {scriptOverview.characters.length > 0 && (
                         <div className="space-y-1">
-                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                          <span className="text-2xs font-semibold text-muted-foreground flex items-center gap-1">
                             <Users className="w-3 h-3" /> 角色分佈
                           </span>
                           <div className="flex flex-wrap gap-1.5">
                             {scriptOverview.characters.map(c => (
                               <span
                                 key={c.name}
-                                className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"
+                                className="text-2xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"
                               >
                                 {c.name}{" "}
                                 <span className="text-blue-400">
@@ -4806,7 +4810,7 @@ export default function DirectorAI() {
                       {Object.keys(scriptOverview.moodDistribution).length >
                         0 && (
                         <div className="space-y-1">
-                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                          <span className="text-2xs font-semibold text-muted-foreground flex items-center gap-1">
                             <Tag className="w-3 h-3" /> 氛圍分佈
                           </span>
                           <div className="flex flex-wrap gap-1.5">
@@ -4815,7 +4819,7 @@ export default function DirectorAI() {
                             ).map(([mood, count]) => (
                               <span
                                 key={mood}
-                                className="text-[10px] px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200"
+                                className="text-2xs px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200"
                               >
                                 {mood} ×{count}
                               </span>
@@ -4935,7 +4939,7 @@ export default function DirectorAI() {
                                   {sCfg && (
                                     <span
                                       className={cn(
-                                        "text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+                                        "text-3xs px-1.5 py-0.5 rounded-full font-medium",
                                         sCfg.color
                                       )}
                                     >
@@ -4971,7 +4975,7 @@ export default function DirectorAI() {
                                 {seg.discussion.length > 0 && (
                                   <div className="flex items-center gap-1 mt-1">
                                     <MessageSquare className="w-2.5 h-2.5 text-muted-foreground" />
-                                    <span className="text-[9px] text-muted-foreground">
+                                    <span className="text-3xs text-muted-foreground">
                                       {seg.discussion.length} 則討論
                                     </span>
                                   </div>
@@ -5257,7 +5261,7 @@ export default function DirectorAI() {
                   {planningSession.warmthScore != null && (
                     <Badge
                       variant="outline"
-                      className="text-[10px] bg-rose-50 text-rose-700 border-rose-200 gap-1"
+                      className="text-2xs bg-rose-50 text-rose-700 border-rose-200 gap-1"
                     >
                       <ThermometerSun className="w-3 h-3" />
                       溫度 {planningSession.warmthScore}/10
@@ -5286,7 +5290,7 @@ export default function DirectorAI() {
                       進入分鏡編輯
                       <Badge
                         variant="secondary"
-                        className="text-[9px] h-4 px-1 ml-1"
+                        className="text-3xs h-4 px-1 ml-1"
                       >
                         {planningSession.linkedScript?.segments.length ??
                           importedSegments.length}
@@ -5540,7 +5544,7 @@ export default function DirectorAI() {
                                   : "bg-muted/30 border border-border/30 mr-8"
                               )}
                             >
-                              <span className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                              <span className="text-2xs font-semibold text-muted-foreground block mb-1">
                                 {msg.role === "user" ? "你" : "導演 AI"}
                               </span>
                               <LazyStreamdown>{msg.content}</LazyStreamdown>
@@ -5660,7 +5664,7 @@ export default function DirectorAI() {
                         </p>
                         {planningSession.outline.keyTurningPoints.length > 0 && (
                           <div className="space-y-1">
-                            <span className="text-[10px] font-semibold text-muted-foreground">
+                            <span className="text-2xs font-semibold text-muted-foreground">
                               關鍵轉折
                             </span>
                             <div className="flex flex-wrap gap-1">
@@ -5668,7 +5672,7 @@ export default function DirectorAI() {
                                 (tp, i) => (
                                   <span
                                     key={i}
-                                    className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700"
+                                    className="text-2xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-700"
                                   >
                                     {tp}
                                   </span>
@@ -5713,7 +5717,7 @@ export default function DirectorAI() {
                           情感深度分析
                         </h4>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground">溫度</span>
+                          <span className="text-2xs text-muted-foreground">溫度</span>
                           <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                             <div
                               className="h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500 transition-all"
@@ -5731,7 +5735,7 @@ export default function DirectorAI() {
                             {planningSession.emotionalBeats.map((beat, i) => (
                               <div
                                 key={i}
-                                className="flex items-center gap-2 text-[10px] p-1.5 rounded bg-rose-50/40"
+                                className="flex items-center gap-2 text-2xs p-1.5 rounded bg-rose-50/40"
                               >
                                 <CircleDot className="w-3 h-3 text-rose-400 shrink-0" />
                                 <span className="font-medium">{beat.label}</span>
@@ -5779,7 +5783,7 @@ export default function DirectorAI() {
                                 {m.title}
                               </span>
                               {m.targetDate && (
-                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                <span className="text-2xs text-muted-foreground ml-auto">
                                   {new Date(m.targetDate).toLocaleDateString("zh-TW")}
                                 </span>
                               )}

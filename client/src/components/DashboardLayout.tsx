@@ -406,7 +406,14 @@ function LoginScreen() {
               key={s.id}
               type="button"
               onClick={() => setOverride(isLocked ? null : (s.id as SceneId))}
-              className="rounded-full px-2.5 py-1 transition-all"
+              className="hs-press rounded-full px-2.5 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0"
+              aria-label={
+                isLocked
+                  ? `已鎖定背景場景：${s.label}（再次點擊恢復自動）`
+                  : `切換背景場景為 ${s.label}`
+              }
+              aria-pressed={isActive}
+              aria-current={isLocked ? "true" : undefined}
               title={
                 isLocked
                   ? `已鎖定為「${s.label}」（再次點擊恢復自動）`
@@ -498,7 +505,7 @@ function LoginScreen() {
         {/* Visual divider — separates OAuth from email login so the form feels
          *  like a clear "alternative" path rather than a continuation. */}
         <div
-          className="login-card-stagger login-divider mt-5 flex items-center gap-3 text-[11px] tracking-[0.2em]"
+          className="login-card-stagger login-divider mt-5 flex items-center gap-3 text-[11px] tracking-cjk-display"
           data-stagger="5"
           aria-hidden
         >
