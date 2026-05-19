@@ -4,7 +4,6 @@ const HistoryPage = lazy(() => import("./HistoryPage"));
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
-import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -210,14 +209,6 @@ const SORT_LABELS: Record<AssetSortKey, string> = {
 //   統一承接(資料層已由 postGenActions 寫進 digital_asset_library)
 // 結果:7 個分頁 → 5 個分頁,且功能未流失。
 
-const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
-  { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
-  { id: "drive", label: "Drive 素材庫", icon: <Cloud className="w-3.5 h-3.5" /> },
-  { id: "prompts", label: "提示詞庫", icon: <BookMarked className="w-3.5 h-3.5" /> },
-  { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
-  { id: "tasks", label: "背景任務中心", icon: <ListChecks className="w-3.5 h-3.5" /> },
-];
-
 function SubPageSkeleton() {
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
@@ -233,7 +224,8 @@ function SubPageSkeleton() {
 }
 
 function getInitialSection(): SectionId {
-  return resolveAssetsLibraryRouteState(window.location.search).section;
+  // 2026-05: 入口統一為「數位資產庫」單頁，不再讓使用者在此頁切換到其他子頁。
+  return "assets";
 }
 
 function getInitialViewMode(): AssetsViewMode {
@@ -486,18 +478,6 @@ export default function AssetsLibrary() {
 
   // 合併大分頁：讀取 URL ?section= 決定初始分頁
   const [section, setSection] = useState<SectionId>(getInitialSection);
-
-  const handleSectionChange = (id: SectionId) => {
-    setSection(id);
-    const params = new URLSearchParams(window.location.search);
-    params.set("section", id);
-    // 切到非 assets 分頁時清掉舊的 view / tab 參數(它們只屬於 assets 內部)
-    if (id !== "assets") {
-      params.delete("view");
-      params.delete("tab");
-    }
-    window.history.replaceState(null, "", `?${params.toString()}`);
-  };
 
   // 把 viewMode / tab 同步進 URL,讓使用者重新整理 / 分享連結時保留狀態
   const updateAssetsUrlParam = (key: "view" | "tab", value: string, defaultValue: string) => {
@@ -803,24 +783,6 @@ export default function AssetsLibrary() {
 
   return (
     <div className="space-y-6">
-      {/* ─── 大分頁標籤列 ─────────────────────────────────────────────────── */}
-      <div className="flex gap-0.5 border-b overflow-x-auto pb-0 -mb-2">
-        {SECTION_TABS.map(st => (
-          <button
-            key={st.id}
-            onClick={() => handleSectionChange(st.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
-              section === st.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {st.icon}
-            {st.label}
-          </button>
-        ))}
-      </div>
-
       {/* ─── 數位資產庫（主內容） ──────────────────────────────────────────── */}
       {section === "assets" && (
         <>
@@ -845,8 +807,6 @@ export default function AssetsLibrary() {
               />
             </div>
           </div>
-
-          <AssetModelSubpageGuide page="assets" />
 
           {/* ── 範圍分頁（我的 / 團隊）— 移到篩選之上，因為使用者
                 通常先決定要看哪個範圍，再依類型/來源過濾。 */}
