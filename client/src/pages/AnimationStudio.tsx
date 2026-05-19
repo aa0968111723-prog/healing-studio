@@ -5192,6 +5192,7 @@ export default function AnimationStudio() {
   });
   const updateWorld = trpc.worldbuilding.update.useMutation({
     onSuccess: () => utils.worldbuilding.list.invalidate(),
+    onError: e => toast.error(`儲存失敗：${e.message}`),
   });
 
   // 本地 draft：避免每次打字都打 API 造成卡頓 + input 跳動。
