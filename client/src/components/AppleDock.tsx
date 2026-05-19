@@ -700,6 +700,27 @@ function AppleDock({
           const hasActiveChild = entry.children.some(
             child => activePath === child.path
           );
+          if (entry.children.length === 1) {
+            const onlyChild = entry.children[0];
+            return (
+              <div
+                key={`${entry.label}-${idx}`}
+                className="apple-dock-stagger"
+                style={itemStyle}
+              >
+                <AppleDockItem
+                  icon={entry.icon}
+                  label={entry.label}
+                  isActive={activePath === onlyChild.path}
+                  onClick={() => handleNavigate(onlyChild.path)}
+                  id={onlyChild.id}
+                  data-pageid={onlyChild.pageId}
+                  tooltipSide={tooltipSide}
+                />
+              </div>
+            );
+          }
+
           const isOpen = openGroup === entry.label;
           const flyoutItems: FlyoutItem[] = entry.children.map(child => ({
             id: child.id,
