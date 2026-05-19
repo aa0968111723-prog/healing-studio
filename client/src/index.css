@@ -668,6 +668,89 @@
     }
   }
 
+  /* ─── Healing micro-interactions ───────────────────────────────────────
+   * Three layered utilities give every clickable element a gentle, opt-in
+   * "alive" feel without the cartoonish bounce that ad-hoc Tailwind
+   * `hover:scale-105` produces. Pair with `.focus-ring-healing` for a11y.
+   *
+   * .hs-press  — small chip / icon buttons. Subtle 1px lift on hover and
+   *              a 2 % press scale on active. Tunes to the healing easing
+   *              tokens so the timing matches the rest of the surface.
+   * .hs-chip   — pill-shaped chip with a softer 1px lift and small shadow.
+   * .hs-lift   — cards / larger surfaces. 3px lift + healing-md shadow.
+   *
+   * Each respects `prefers-reduced-motion` and dim non-pointer (touch).
+   * ────────────────────────────────────────────────────────────────── */
+  .hs-press {
+    transition:
+      transform 0.18s var(--ease-healing-out),
+      box-shadow 0.22s var(--ease-healing-out),
+      background-color 0.2s var(--ease-healing-out),
+      border-color 0.2s var(--ease-healing-out),
+      color 0.18s var(--ease-healing-out);
+  }
+  @media (hover: hover) {
+    .hs-press:hover {
+      transform: translateY(-1px);
+    }
+  }
+  .hs-press:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.08s;
+  }
+
+  .hs-chip {
+    position: relative;
+    transition:
+      transform 0.2s var(--ease-healing-out),
+      background-color 0.22s var(--ease-healing-out),
+      border-color 0.22s var(--ease-healing-out),
+      color 0.18s var(--ease-healing-out),
+      box-shadow 0.28s var(--ease-healing-out);
+  }
+  @media (hover: hover) {
+    .hs-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-healing-sm);
+    }
+  }
+  .hs-chip:active {
+    transform: scale(0.96);
+    transition-duration: 0.08s;
+  }
+
+  .hs-lift {
+    transition:
+      transform 0.32s var(--ease-healing-out),
+      box-shadow 0.4s var(--ease-healing-out),
+      border-color 0.32s var(--ease-healing-out);
+  }
+  @media (hover: hover) {
+    .hs-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-healing-md);
+    }
+  }
+  .hs-lift:active {
+    transform: translateY(-1px) scale(0.995);
+    transition-duration: 0.12s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hs-press,
+    .hs-press:hover,
+    .hs-press:active,
+    .hs-chip,
+    .hs-chip:hover,
+    .hs-chip:active,
+    .hs-lift,
+    .hs-lift:hover,
+    .hs-lift:active {
+      transform: none;
+      transition-duration: 0s;
+    }
+  }
+
   /* ─── Apple-Style Floating Dock ─── */
   .apple-dock-glass {
     position: relative;

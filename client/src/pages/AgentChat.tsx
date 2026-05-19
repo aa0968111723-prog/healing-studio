@@ -1310,12 +1310,13 @@ export default function AgentChat() {
             type="button"
             onClick={handleOpenSpiritHut}
             title="精靈小屋"
+            aria-label={`開啟精靈小屋（收錄 ${SPIRITS.length} 位代理精靈）`}
             data-testid="spirit-hut-trigger"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200/70 bg-violet-50/75 text-violet-700 hover:bg-violet-100/80 dark:border-violet-700/40 dark:bg-violet-900/20 dark:text-violet-200 transition-colors"
+            className="hs-press inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200/70 bg-violet-50/75 text-violet-700 hover:bg-violet-100/80 dark:border-violet-700/40 dark:bg-violet-900/20 dark:text-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
           >
             <Users className="w-3.5 h-3.5" />
             <span className="text-[11px] font-medium leading-none">精靈小屋</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 dark:bg-black/30">
+            <span className="text-2xs px-1.5 py-0.5 rounded-full bg-white/80 dark:bg-black/30 tabular-nums">
               {SPIRITS.length}
             </span>
           </button>
@@ -1340,7 +1341,7 @@ export default function AgentChat() {
             title="清除對話"
             aria-label="清除目前的光球對話"
             data-testid="clear-chat-trigger"
-            className="p-1.5 rounded-lg text-muted-foreground/70 hover:text-destructive hover:bg-muted disabled:opacity-40 transition-colors"
+            className="hs-press p-1.5 rounded-lg text-muted-foreground/70 hover:text-destructive hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
           >
             <Eraser className="w-4 h-4" />
           </button>
@@ -1348,9 +1349,10 @@ export default function AgentChat() {
             type="button"
             onClick={() => setSettingsOpen(true)}
             title="代理設定"
+            aria-label="開啟代理設定"
             aria-haspopup="dialog"
             data-testid="agent-settings-trigger"
-            className="p-1.5 rounded-lg text-muted-foreground/70 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+            className="hs-press p-1.5 rounded-lg text-muted-foreground/70 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
           >
             <Settings2 className="w-4 h-4" />
           </button>
@@ -1457,14 +1459,14 @@ export default function AgentChat() {
                     <button
                       type="button"
                       onClick={() => void send("我是新手，請用 30 秒帶我認識這個聊天頁的用法。")}
-                      className="text-[11px] px-2 py-1 rounded-full border border-emerald-300/70 text-emerald-700 hover:bg-emerald-100/60 transition-colors"
+                      className="hs-chip text-[11px] px-2 py-1 rounded-full border border-emerald-300/70 text-emerald-700 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
                     >
                       🚀 讓光球親自示範
                     </button>
                     <button
                       type="button"
                       onClick={() => setLocation("/learn")}
-                      className="text-[11px] px-2 py-1 rounded-full border border-border/70 text-muted-foreground hover:text-foreground/90 hover:border-border transition-colors"
+                      className="hs-chip text-[11px] px-2 py-1 rounded-full border border-border/70 text-muted-foreground hover:text-foreground/90 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
                     >
                       📚 看完整文件
                     </button>
@@ -1666,7 +1668,7 @@ export default function AgentChat() {
                                     className={`flex items-center gap-1 rounded-full surface-2 border border-border/60 px-2 py-0.5`}
                                   >
                                     <StepIcon className="w-3 h-3 text-foreground/90" />
-                                    <span className="text-[10px] text-foreground/90 font-medium">
+                                    <span className="text-2xs text-foreground/90 font-medium">
                                       {step.label}
                                     </span>
                                   </div>
@@ -1680,12 +1682,12 @@ export default function AgentChat() {
 
                           {/* 一鍵範例：直接套這個模式送出 */}
                           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-muted-foreground">範例：</span>
+                            <span className="text-2xs text-muted-foreground">範例：</span>
                             <button
                               type="button"
                               onClick={() => void send(activeModeOption.example)}
                               disabled={isSending}
-                              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-card/80 border border-border/70 text-foreground/90 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                              className="hs-chip inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-card/80 border border-border/70 text-foreground/90 hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
                             >
                               <Play className="w-2.5 h-2.5" />
                               {activeModeOption.example}
@@ -1711,7 +1713,7 @@ export default function AgentChat() {
                     key={hint}
                     type="button"
                     onClick={() => void send(hint)}
-                    className="text-[11px] px-2 py-0.5 rounded-full border border-border/60 text-foreground/90 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 transition-colors"
+                    className="hs-chip text-[11px] px-2 py-0.5 rounded-full border border-border/60 text-foreground/90 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-1"
                   >
                     {hint}
                   </button>
@@ -1746,7 +1748,7 @@ export default function AgentChat() {
                       <Sparkles className="w-3.5 h-3.5 text-violet-500" />
                       切換代理風格（光球做事的方式）
                       {activeModeOption && (
-                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200 text-[10px] font-medium">
+                        <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200 text-2xs font-medium">
                           {activeModeOption.label}
                         </span>
                       )}
@@ -1758,7 +1760,7 @@ export default function AgentChat() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2 space-y-2">
                   <div className="flex items-center justify-end px-1">
-                    <span className="text-[10px] text-muted-foreground/70">
+                    <span className="text-2xs text-muted-foreground/70">
                       {activeModeOption ? "點同一個取消" : "可選一個"}
                     </span>
                   </div>
@@ -1810,7 +1812,7 @@ export default function AgentChat() {
                             {mode.label}
                           </p>
                           <p
-                            className={`text-[10px] leading-tight line-clamp-2 mt-0.5 ${
+                            className={`text-2xs leading-tight line-clamp-2 mt-0.5 ${
                               isActive
                                 ? "text-white/90"
                                 : "text-muted-foreground"
@@ -1926,7 +1928,7 @@ export default function AgentChat() {
                               <span className="inline-block w-1.5 h-1.5 rounded-full bg-[oklch(0.78_0.13_50)] animate-pulse" />
                             )}
                           </p>
-                          <span className="text-[10px] text-glass-soft">{groupHint}</span>
+                          <span className="text-2xs text-glass-soft">{groupHint}</span>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {familySpirits.map((spirit, i) => {
@@ -1968,7 +1970,7 @@ export default function AgentChat() {
                                           {spirit.nickname}
                                         </p>
                                         <span
-                                          className={`text-[9px] truncate ${
+                                          className={`text-3xs truncate ${
                                             isPinned ? "text-[oklch(0.3_0.04_290_/_0.7)]" : "text-glass-soft"
                                           }`}
                                         >
@@ -1976,14 +1978,14 @@ export default function AgentChat() {
                                         </span>
                                       </div>
                                       <p
-                                        className={`text-[10px] leading-snug line-clamp-2 mt-0.5 ${
+                                        className={`text-2xs leading-snug line-clamp-2 mt-0.5 ${
                                           isPinned ? "text-[oklch(0.3_0.04_290_/_0.9)]" : "text-glass-soft"
                                         }`}
                                       >
                                         {spirit.vibe}
                                       </p>
                                       <p
-                                        className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${
+                                        className={`mt-1 inline-flex items-center gap-1 text-2xs font-medium ${
                                           isPinned
                                             ? "text-[oklch(0.22_0.04_290)]"
                                             : "text-glass-soft group-hover:text-[oklch(0.4_0.08_300)]"
@@ -2103,7 +2105,7 @@ export default function AgentChat() {
                       挑一個任務，光球幫你串好整套流程
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                      <span className="text-2xs text-muted-foreground/70 hidden sm:inline">
                         點下去 = 自動跑多步驟
                       </span>
                       <ChevronDown
@@ -2161,7 +2163,7 @@ export default function AgentChat() {
                             })}
                           </div>
 
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                          <div className="flex items-center justify-between text-2xs text-muted-foreground">
                             <span>{tpl.eta}</span>
                             <span className="opacity-0 group-hover:opacity-100 transition-opacity text-emerald-600 dark:text-emerald-400 font-medium">
                               讓光球帶我做 →
@@ -2321,7 +2323,7 @@ export default function AgentChat() {
                           <p className="text-[11px] sm:text-xs font-medium text-foreground/90 text-center leading-tight line-clamp-2">
                             {entry.label}
                           </p>
-                          <p className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-1">
+                          <p className="text-2xs text-muted-foreground text-center leading-tight line-clamp-1">
                             {hint}
                           </p>
                         </motion.button>
@@ -2514,7 +2516,7 @@ export default function AgentChat() {
                       server-side URGENT_MARKERS 對齊。讓使用者立即看到「我懂你急」。 */}
                   {msg.role === "user" && URGENT_INPUT_RE.test(msg.text) && (
                     <span
-                      className="mb-1.5 ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100/90 text-amber-700 text-[10px] font-medium ring-1 ring-amber-300/60"
+                      className="mb-1.5 ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100/90 text-amber-700 text-2xs font-medium ring-1 ring-amber-300/60"
                       title="急件模式：光球會跳過 MIN 3 輪澄清，用 registry 預設值直接出計畫，缺哪一塊會在 summary 裡告訴你。"
                       data-testid="message-urgent-badge"
                     >
@@ -2529,7 +2531,7 @@ export default function AgentChat() {
                       {msg.notices.map((notice, ni) => (
                         <span
                           key={`${notice.kind}-${ni}`}
-                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ring-1 ${
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-medium ring-1 ${
                             notice.kind === "muted_fallback"
                               ? "bg-muted/90 text-muted-foreground ring-border/60"
                               : notice.kind === "mode_replan"
@@ -2594,7 +2596,7 @@ export default function AgentChat() {
                   ) : null}
                   {msg.webSources?.length ? (
                     <div className="mt-2 border-t border-border/60 pt-2 space-y-1">
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      <div className="text-2xs uppercase tracking-wider text-muted-foreground/70">
                         來源 · Sources
                       </div>
                       {msg.webSources.map((src, idx) => (
@@ -2617,7 +2619,7 @@ export default function AgentChat() {
                       items={msg.searchResults}
                     />
                   ) : null}
-                  <div className="mt-1.5 text-[10px] opacity-60 flex items-center gap-1">
+                  <div className="mt-1.5 text-2xs opacity-60 flex items-center gap-1">
                     <Clock3 className="w-3 h-3" />
                     {new Date(msg.at).toLocaleTimeString("zh-TW", {
                       hour: "2-digit",
@@ -2630,7 +2632,7 @@ export default function AgentChat() {
                       <button
                         type="button"
                         onClick={() => setThinkingPanelMessageAt(msg.at)}
-                        className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 text-[10px] font-medium transition-colors"
+                        className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 text-2xs font-medium transition-colors"
                         data-testid={`message-thinking-steps-${msg.at}`}
                         title="查看光球的思考步驟與行動軌跡"
                       >
@@ -2773,7 +2775,7 @@ export default function AgentChat() {
               className="flex items-center gap-1.5 flex-wrap px-1 -mt-0.5"
               data-testid="spirits-online-bar"
             >
-              <span className="text-[10px] text-muted-foreground shrink-0">
+              <span className="text-2xs text-muted-foreground shrink-0">
                 {pinnedSpirit ? "目前鎖定：" : "現在線上："}
               </span>
               {(() => {
@@ -2796,7 +2798,7 @@ export default function AgentChat() {
                       title={
                         isPinned ? `${s.nickname} 已鎖定，點一下解除` : `叫 ${s.nickname} 來接手`
                       }
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-all ${
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs transition-all ${
                         isPinned
                           ? `bg-gradient-to-r ${s.gradient} text-white shadow-sm ring-1 ${s.ring}`
                           : "bg-card/80 border border-border/60 text-foreground/90 hover:border-pink-300 hover:text-pink-700 dark:hover:text-pink-300"
@@ -2815,7 +2817,7 @@ export default function AgentChat() {
                 <button
                   type="button"
                   onClick={() => setSpiritDeckOpen(true)}
-                  className="text-[10px] text-muted-foreground hover:text-pink-600 dark:hover:text-pink-400 underline underline-offset-2"
+                  className="text-2xs text-muted-foreground hover:text-pink-600 dark:hover:text-pink-400 underline underline-offset-2"
                 >
                   叫別人來
                 </button>

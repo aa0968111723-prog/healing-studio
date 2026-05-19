@@ -129,7 +129,13 @@ function BackgroundTasksDockButton({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label="背景任務"
+              aria-label={
+                activeCount > 0
+                  ? `背景任務（${activeCount} 進行中）`
+                  : "背景任務"
+              }
+              aria-haspopup="dialog"
+              aria-expanded={open}
               data-active={activeCount > 0 ? "soft" : "false"}
               className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
             >
@@ -174,7 +180,7 @@ function BackgroundTasksDockButton({
         <div className="apple-dock-flyout-header flex items-center justify-between">
           <span className="apple-dock-flyout-title">背景任務</span>
           {activeCount > 0 && (
-            <span className="text-[10px] font-medium text-primary tabular-nums">
+            <span className="text-2xs font-medium text-primary tabular-nums">
               {activeCount} 進行中
             </span>
           )}
@@ -197,7 +203,7 @@ function BackgroundTasksDockButton({
                   <span className="text-xs text-foreground/85 truncate flex-1">
                     {t.label || t.studioType}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     生成中
                   </span>
                 </div>
@@ -224,7 +230,7 @@ function BackgroundTasksDockButton({
                     <span className="text-xs text-foreground/75 truncate flex-1">
                       {t.label || t.studioType}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t.status === "completed" ? "完成" : "結束"}
                     </span>
                   </div>
@@ -841,7 +847,8 @@ function AppleDock({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    aria-label="使用者選單"
+                    aria-label={`使用者選單（${displayName}）`}
+                    aria-haspopup="menu"
                     className="apple-dock-avatar group relative flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
                   >
                     <span
@@ -903,7 +910,7 @@ function AppleDock({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="px-2.5 pt-1 pb-1 text-[10px] font-semibold tracking-[0.18em] uppercase text-muted-foreground/80">
+              <DropdownMenuLabel className="px-2.5 pt-1 pb-1 text-2xs font-semibold tracking-cjk-wide uppercase text-muted-foreground/80">
                 導覽列位置
               </DropdownMenuLabel>
               {(
