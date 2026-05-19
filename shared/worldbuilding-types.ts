@@ -217,6 +217,130 @@ export type WorldCharacter = {
   scriptRole?: CharacterScriptRole;
   /** 體型 / 種族 */
   body?: CharacterBody;
+
+  // ─── 動畫製作專業擴充（v3） ─────────────────────────────────────────────
+  /** Rig 規格（影響動畫師工作流） */
+  rigSpec?: CharacterRigSpec;
+  /** 口型音素集（lip sync） */
+  lipSyncSet?: CharacterLipSyncSet;
+  /** 演技指導筆記（給動畫師、配音員、編劇看的） */
+  actingNotes?: CharacterActingNotes;
+  /** 年齡 / 階段變體（給回憶、未來等橋段用） */
+  ageVariants?: CharacterAgeVariant[];
+  /** 聲音檔資料庫（footsteps、呼吸、笑聲樣本） */
+  soundProfile?: CharacterSoundProfile;
+  /** 姿勢 / 動作參考圖庫（站姿、坐姿、跑、戰鬥、手部、面部特寫） */
+  referenceLibrary?: CharacterReferenceItem[];
+};
+
+// ─── 角色：動畫製作專業欄位 v3 ─────────────────────────────────────────────
+
+/** Rig 規格 —— 影響動畫師工作流，並驅動 prompt 是否啟用 control net / openpose。 */
+export type CharacterRigSpec = {
+  /** Rig 類型：2D 切片（Spine / Live2D）、3D（Maya / Blender）、Stop-Motion、純 AI（無 rig） */
+  rigType?: "live2d" | "spine_2d" | "rigged_3d" | "stop_motion" | "ai_only";
+  /** 骨骼數（若 rigged） */
+  boneCount?: number;
+  /** IK 鏈：手部、腳部、頭部、尾巴…… */
+  ikChains?: string[];
+  /** Blend shape / morph target 數量（臉部表情用） */
+  blendShapeCount?: number;
+  /** 是否含布料模擬 */
+  hasClothSim?: boolean;
+  /** 是否含頭髮物理 */
+  hasHairPhysics?: boolean;
+  /** 是否含眼球追蹤 */
+  hasEyeTracking?: boolean;
+  /** Rig 製作者 / 工作室 */
+  rigger?: string;
+  /** Rig 檔案存放位置（asset library 連結） */
+  rigAssetUrl?: string;
+  /** 動畫師備註（這 rig 已知的限制 / 注意事項） */
+  riggerNotes?: string;
+};
+
+/** 口型音素集 —— 對 lip sync 工具（如 Rhubarb、Papagayo）的 mouth shape 對映表。 */
+export type CharacterLipSyncSet = {
+  /** 使用的音素系統：Preston Blair 9 mouth shapes 是動畫標準 */
+  system?: "preston_blair" | "rhubarb" | "ipa" | "custom";
+  /** 每個音素對應的嘴型預覽圖：A / E / I / O / U / M / F / L / Rest */
+  shapes?: Record<string, string>;
+  /** 啟用 lip sync 動畫 */
+  enabled?: boolean;
+  /** 語言主導（zh/ja/en），影響音素辨識器 */
+  primaryLanguage?: string;
+};
+
+/** 演技指導 —— 給動畫師、配音員、編劇對齊角色表演用。 */
+export type CharacterActingNotes = {
+  /** 情緒範圍（不會超出這些情緒） */
+  emotionalRange?: string[];
+  /** 招牌動作 / 慣性手勢 */
+  signatureGestures?: string[];
+  /** 走路方式：穩重、輕盈、跛行、漂浮、機械步 */
+  walkCycleStyle?: string;
+  /** 站姿：駝背、挺直、放鬆、警戒 */
+  defaultPosture?: string;
+  /** 視線習慣：閃躲、直視、低頭 */
+  gazePattern?: string;
+  /** 思考時的習慣（摸下巴、咬唇、轉筆） */
+  thinkingTics?: string[];
+  /** 緊張時的習慣 */
+  stressTics?: string[];
+  /** 鏡頭友善度：總是面對鏡頭 / 偏 3/4 / 偏側面 */
+  cameraPreference?: "front" | "three_quarter" | "side" | "varied";
+  /** 動畫原則參考（squash/stretch 強度 0–1） */
+  squashStretch?: number;
+  /** 配音指導：感情變化幅度、靜場喘息頻率、笑點處理 */
+  vodirection?: string;
+};
+
+/** 年齡變體 —— 同一角色在不同年齡段的視覺（回憶、未來、平行宇宙）。 */
+export type CharacterAgeVariant = {
+  id: string;
+  /** 變體名稱（童年、少年、青年、晚年） */
+  name: string;
+  /** 對應年齡 */
+  approxAge?: string;
+  /** 三視圖 + 參考圖 */
+  imageUrls?: string[];
+  /** 描述差異（髮型、身高、特徵） */
+  description?: string;
+  /** 對應 LoRA（若有專屬模型） */
+  linkedModelId?: number | null;
+  triggerWord?: string;
+};
+
+/** 聲音檔資料庫 —— 角色非語音的聲音（footsteps、breath、laugh、grunt）。 */
+export type CharacterSoundProfile = {
+  /** 腳步聲樣本：地面材質 → 音檔 URL */
+  footsteps?: Record<string, string>;
+  /** 呼吸聲樣本 */
+  breathSample?: string;
+  /** 笑聲樣本 */
+  laughSample?: string;
+  /** 哭聲樣本 */
+  crySample?: string;
+  /** 怒吼 / 咆哮 */
+  shoutSample?: string;
+  /** 受傷 / 痛 */
+  hurtSample?: string;
+  /** 嘆息 */
+  sighSample?: string;
+  /** 自訂其他樣本 */
+  customSamples?: Array<{ label: string; url: string }>;
+};
+
+/** 參考圖庫項目 —— 帶 tag 的姿勢、表情、手部、特寫圖。 */
+export type CharacterReferenceItem = {
+  id: string;
+  imageUrl: string;
+  /** 類別：pose / hands / face / dynamic / interaction / props */
+  category?: string;
+  /** 自由標籤 */
+  tags?: string[];
+  /** 描述 */
+  description?: string;
 };
 
 // ─── Scene ──────────────────────────────────────────────────────────────────
@@ -270,6 +394,84 @@ export type WorldScene = {
   defaultCameraMovement?: string;
   /** 預設長寬比（場景偏好的構圖比例） */
   preferredAspectRatio?: string;
+
+  // ─── 動畫製作專業擴充（v3） ─────────────────────────────────────────────
+  /** Layout（平面圖、blocking、進出點） */
+  layout?: SceneLayoutSpec;
+  /** Production design（年代、建築風格、建材） */
+  productionDesign?: SceneProductionDesign;
+  /** 大氣 / 粒子效果（霧、塵、光柱） */
+  atmospherics?: SceneAtmospherics;
+  /** Sound design（環境音床、room tone、reverb、signature sfx） */
+  soundDesign?: SceneSoundDesign;
+};
+
+/** 場景 Layout / Blocking —— 動畫師用來規劃角色站位與鏡頭走位。 */
+export type SceneLayoutSpec = {
+  /** 平面圖 URL（鳥瞰） */
+  floorPlanUrl?: string;
+  /** Blocking 示意圖（角色站位） */
+  blockingDiagramUrl?: string;
+  /** 角色進場點（描述：左側門、後方樓梯） */
+  entryPoints?: string[];
+  /** 角色出場點 */
+  exitPoints?: string[];
+  /** Hero shot 角度（這場最具代表性的鏡頭） */
+  heroShotAngle?: string;
+  /** Coverage shots：建議的補充鏡頭角度 */
+  coverageAngles?: string[];
+  /** 場地尺度（公尺） */
+  approxDimensions?: { widthM?: number; depthM?: number; heightM?: number };
+};
+
+/** Production Design —— 美術指導關注的設計層面。 */
+export type SceneProductionDesign = {
+  /** 建築 / 環境風格：哥德、和風、未來主義、巴洛克…… */
+  architecturalStyle?: string;
+  /** 主要建材：木、石、金屬、玻璃、布料 */
+  materials?: string[];
+  /** 年代細節（與 world era 平行；場景內也可有古蹟、新建築混雜） */
+  periodDetails?: string;
+  /** Set pieces（互動道具：可坐、可開啟、可破壞） */
+  setPieces?: string[];
+  /** Color script：keyColor / midColor / shadowColor */
+  colorScript?: {
+    keyColor?: string;
+    midColor?: string;
+    shadowColor?: string;
+  };
+  /** 參考圖（concept art / 實景照） */
+  referenceUrls?: string[];
+};
+
+/** Atmospherics —— 大氣、粒子、光線效果（影響合成與後製）。 */
+export type SceneAtmospherics = {
+  /** 霧密度 0–1 */
+  fogDensity?: number;
+  /** 灰塵粒子（dust motes） */
+  dustMotes?: boolean;
+  /** 光柱（god rays） */
+  lightShafts?: boolean;
+  /** 雨 / 雪粒子 */
+  precipitation?: "none" | "rain" | "snow" | "ash" | "petals" | "leaves";
+  /** 雷電 */
+  lightning?: boolean;
+  /** 自訂粒子效果 */
+  customParticles?: string[];
+};
+
+/** Sound Design —— 場景的聲音設計（給音效師、合成師看的）。 */
+export type SceneSoundDesign = {
+  /** 環境音床（ambient bed） URL */
+  ambientBedUrl?: string;
+  /** Room tone（靜場底噪） URL */
+  roomToneUrl?: string;
+  /** Reverb 特性：dry / room / hall / cathedral / outdoor */
+  reverb?: "dry" | "room" | "hall" | "cathedral" | "outdoor" | "underwater";
+  /** 招牌音效（觀眾聽到就知道是這個場景） */
+  signatureSfx?: Array<{ label: string; url?: string; description?: string }>;
+  /** 是否有具方向性的音源（如門外的腳步、遠處的鐘聲） */
+  diegeticSources?: string[];
 };
 
 // ─── 畫面風格設定（World Style Profile） ────────────────────────────────────
@@ -306,6 +508,41 @@ export type WorldStyleProfile = {
   linkedModelId?: number | null;
   /** 簡述（給 LLM 看） */
   description?: string;
+
+  // ─── 動畫製作專業擴充（v3） ─────────────────────────────────────────────
+  /** Animation principles —— 拍幾格制 */
+  shootOn?: 1 | 2 | 3 | 4;
+  /** 流派參考：Disney 12 / Anime sakuga / Studio Ghibli / Kyoto Animation / Cartoon Saloon */
+  schoolReference?: string;
+  /** 線條：lineWeight (px 等效)、是否有外框、線條顏色 */
+  lineSpec?: {
+    weight?: number;
+    hasOutline?: boolean;
+    outlineColor?: string;
+    lineColor?: string;
+    lineStyle?: "clean" | "sketchy" | "boil" | "varied";
+  };
+  /** 著色模型：cel / painted / flat / gradient / 3d_toon */
+  shadingModel?: "cel" | "painted" | "flat" | "gradient" | "3d_toon" | "watercolor";
+  /** 合成 pass：DoF / lens flare / chromatic aberration / film grain / vignette / bloom */
+  compositingPasses?: string[];
+  /** 色彩空間：sRGB / Rec.709 / DCI-P3 / Rec.2020 */
+  colorSpace?: "sRGB" | "Rec709" | "DCI_P3" | "Rec2020" | "ACES";
+  /** Master 解析度 */
+  masterResolution?: "720p" | "1080p" | "1440p" | "4K" | "8K";
+  /** 容器格式 */
+  masterCodec?: "ProRes" | "DNxHR" | "H264" | "H265" | "VP9" | "AV1";
+  /** Letterboxing / pillarboxing 規則 */
+  letterboxing?: string;
+  /** 字幕字型 / 大小 */
+  subtitleSpec?: {
+    font?: string;
+    sizePt?: number;
+    color?: string;
+    outlineColor?: string;
+  };
+  /** Title card 風格 */
+  titleCardStyle?: string;
 };
 
 // ─── 配樂主題（World Music Theme） ──────────────────────────────────────────
@@ -335,6 +572,36 @@ export type WorldMusicTheme = {
   sampleAudioUrl?: string;
   /** 簡述 */
   description?: string;
+
+  // ─── 動畫製作專業擴充（v3） ─────────────────────────────────────────────
+  /** Leitmotif（主題動機）—— 文字描述主要旋律動機，或 MIDI/musicXML 連結 */
+  leitmotif?: {
+    description?: string;
+    melodicPhrase?: string;
+    midiUrl?: string;
+  };
+  /** Cue 長度變體 —— 給剪輯師快速套用對應長度 */
+  cueVariants?: Array<{
+    label: string;
+    durationSec: number;
+    audioUrl?: string;
+    loopable?: boolean;
+  }>;
+  /** Stems（分軌） —— 給混音 / 動態變化用 */
+  stems?: {
+    drums?: string;
+    bass?: string;
+    melody?: string;
+    harmony?: string;
+    pads?: string;
+    fx?: string;
+  };
+  /** LUFS 響度目標（廣播 -23、串流 -14、電影 -27） */
+  lufsTarget?: number;
+  /** 與其他 cue 的轉接：crossfade / hard cut / sting / morphing */
+  transitionStyle?: "crossfade" | "hard_cut" | "sting" | "morphing";
+  /** 自訂 stinger / hit point（節奏命中點，給剪輯對齊用） */
+  stingerPoints?: number[];
 };
 
 // ─── World Object（全域物件，可被多個場景引用） ─────────────────────────────
@@ -377,7 +644,7 @@ export type WorldbuildingFrameworkData = {
   defaultStyleProfileId?: string | null;
   /** 全世界共用的負面提示詞（套用於所有 AI 生成） */
   globalNegativePrompt?: string;
-  /** 製作目標：動畫類型 / 預期長度 / 受眾 */
+  /** 製作目標：動畫類型 / 預期長度 / 受眾 / 製作管線 */
   productionTargets?: {
     /** 動畫類型：短片 / 番劇 / MV / 廣告 / 教學 / 純插畫集 */
     format?: string;
@@ -387,7 +654,58 @@ export type WorldbuildingFrameworkData = {
     audience?: string;
     /** 平台：YouTube / TikTok / 影展 / 內部 */
     platform?: string;
+    /** 製作階段 milestones（development → pre-prod → production → post-prod → delivery） */
+    milestones?: ProductionMilestone[];
+    /** 製作預算（USD） */
+    budgetUsd?: number;
+    /** 主要工作人員 / 製作團隊 credits */
+    credits?: ProductionCredit[];
+    /** Master 規格：解析度、影格率、色彩空間（補 styleProfile 不夠的） */
+    masterSpec?: {
+      resolution?: string;
+      fps?: number;
+      colorSpace?: string;
+      hdr?: boolean;
+      audioChannels?: "mono" | "stereo" | "5.1" | "7.1" | "atmos";
+      audioBitrate?: string;
+    };
+    /** 交付清單（master + proxy + thumbnail + 預告等） */
+    deliverables?: string[];
+    /** 內容警告 / 分級：G / PG / PG-13 / R */
+    rating?: string;
+    /** 字幕語言清單 */
+    subtitleLanguages?: string[];
+    /** 配音語言清單 */
+    dubLanguages?: string[];
   };
+};
+
+/** 製作里程碑（給 production manifest 用） */
+export type ProductionMilestone = {
+  id: string;
+  /** 階段：development / pre-production / production / post-production / delivery */
+  stage: string;
+  /** 任務描述 */
+  title: string;
+  /** 預定完成日（ISO date） */
+  dueDate?: string;
+  /** 完成狀態 */
+  status?: "pending" | "in_progress" | "completed" | "blocked";
+  /** 負責人 */
+  owner?: string;
+  /** 備註 */
+  notes?: string;
+};
+
+/** 製作 credits（給片尾工作人員字幕用） */
+export type ProductionCredit = {
+  id: string;
+  /** 角色 / 職稱：導演、編劇、作畫監督、配音、配樂…… */
+  role: string;
+  /** 姓名 */
+  name: string;
+  /** 連結（IMDB、社群） */
+  link?: string;
 };
 
 // ─── Quick-pick presets（前端快選 chip 用） ─────────────────────────────────
@@ -723,6 +1041,181 @@ export const PRODUCTION_FORMAT_PRESETS = [
   "片尾 ED",
 ] as const;
 
+// ─── 動畫製作專業 v3 presets ────────────────────────────────────────────────
+
+export const RIG_TYPE_PRESETS = [
+  { value: "live2d", label: "Live2D（2D 切片）" },
+  { value: "spine_2d", label: "Spine 2D" },
+  { value: "rigged_3d", label: "3D Rig（Maya / Blender）" },
+  { value: "stop_motion", label: "Stop Motion 定格" },
+  { value: "ai_only", label: "純 AI（無 rig）" },
+] as const;
+
+export const LIP_SYNC_SYSTEM_PRESETS = [
+  { value: "preston_blair", label: "Preston Blair 9 mouth shapes（動畫標準）" },
+  { value: "rhubarb", label: "Rhubarb（A/B/C/D/E/F/G/X）" },
+  { value: "ipa", label: "IPA 國際音標" },
+  { value: "custom", label: "自訂" },
+] as const;
+
+export const PRESTON_BLAIR_PHONEMES = [
+  "A",      // ah, father
+  "E",      // bed, end
+  "I",      // sit, see
+  "O",      // go, home
+  "U",      // you, blue
+  "M",      // mm, bm
+  "F",      // f, v
+  "L",      // l
+  "Rest",   // 閉嘴 / 休息
+] as const;
+
+export const WALK_CYCLE_STYLE_PRESETS = [
+  "穩重",
+  "輕盈",
+  "雀躍",
+  "拖步",
+  "踮腳",
+  "跛行",
+  "漂浮",
+  "機械步",
+  "醉步",
+  "急行",
+  "潛行",
+  "霸氣大步",
+] as const;
+
+export const ANIMATION_SCHOOL_PRESETS = [
+  "Disney 12 原則",
+  "日本動畫 sakuga",
+  "Studio Ghibli",
+  "京都動畫 KyoAni",
+  "Pixar 3D",
+  "Cartoon Saloon",
+  "Studio Ponoc",
+  "Genndy Tartakovsky",
+  "Don Bluth",
+  "Sylvain Chomet",
+  "皮影戲 / 紙偶",
+  "黏土定格 Aardman",
+  "Rotoscoping",
+] as const;
+
+export const COMPOSITING_PASS_PRESETS = [
+  "Depth of Field 景深",
+  "Lens Flare 鏡頭眩光",
+  "Chromatic Aberration 色差",
+  "Film Grain 顆粒",
+  "Vignette 暈影",
+  "Bloom 光暈",
+  "Motion Blur 運動模糊",
+  "Light Wrap 光暈包覆",
+  "Color Grading LUT",
+  "Letterbox 黑邊",
+  "Scanlines",
+  "Halftone 半色調",
+  "VHS Glitch",
+] as const;
+
+export const SHADING_MODEL_PRESETS = [
+  { value: "cel", label: "Cel 賽璐璐（硬陰影）" },
+  { value: "painted", label: "厚塗" },
+  { value: "flat", label: "扁平無陰影" },
+  { value: "gradient", label: "漸層柔陰影" },
+  { value: "3d_toon", label: "3D Toon Shader" },
+  { value: "watercolor", label: "水彩" },
+] as const;
+
+export const REVERB_PRESETS = [
+  { value: "dry", label: "Dry（無殘響）" },
+  { value: "room", label: "Room 小房間" },
+  { value: "hall", label: "Hall 大廳" },
+  { value: "cathedral", label: "Cathedral 教堂" },
+  { value: "outdoor", label: "Outdoor 戶外" },
+  { value: "underwater", label: "Underwater 水下" },
+] as const;
+
+export const PRECIPITATION_PRESETS = [
+  { value: "none", label: "無" },
+  { value: "rain", label: "雨" },
+  { value: "snow", label: "雪" },
+  { value: "ash", label: "灰燼" },
+  { value: "petals", label: "花瓣" },
+  { value: "leaves", label: "落葉" },
+] as const;
+
+export const TRANSITION_STYLE_MUSIC_PRESETS = [
+  { value: "crossfade", label: "Crossfade 交叉淡入" },
+  { value: "hard_cut", label: "Hard Cut 直切" },
+  { value: "sting", label: "Sting 重音收束" },
+  { value: "morphing", label: "Morphing 漸變" },
+] as const;
+
+export const MILESTONE_STAGE_PRESETS = [
+  "Development 開發",
+  "Pre-Production 前期",
+  "Production 製作",
+  "Post-Production 後期",
+  "Delivery 交付",
+] as const;
+
+export const PRODUCTION_ROLE_PRESETS = [
+  "導演",
+  "編劇",
+  "製作人",
+  "作畫監督",
+  "美術指導",
+  "色彩指導",
+  "演出",
+  "分鏡",
+  "原畫",
+  "動畫",
+  "上色",
+  "背景",
+  "攝影",
+  "剪輯",
+  "音響監督",
+  "配樂",
+  "音效",
+  "配音",
+  "主題曲演唱",
+  "後期合成",
+  "宣傳",
+] as const;
+
+export const COLOR_SPACE_PRESETS = [
+  { value: "sRGB", label: "sRGB（網路、預設）" },
+  { value: "Rec709", label: "Rec.709（HDTV）" },
+  { value: "DCI_P3", label: "DCI-P3（電影院）" },
+  { value: "Rec2020", label: "Rec.2020（4K HDR）" },
+  { value: "ACES", label: "ACES（電影製片工作流）" },
+] as const;
+
+export const MASTER_RESOLUTION_PRESETS = [
+  { value: "720p", label: "720p HD" },
+  { value: "1080p", label: "1080p Full HD" },
+  { value: "1440p", label: "1440p QHD" },
+  { value: "4K", label: "4K UHD" },
+  { value: "8K", label: "8K UHD" },
+] as const;
+
+export const MASTER_CODEC_PRESETS = [
+  { value: "ProRes", label: "Apple ProRes（剪輯用）" },
+  { value: "DNxHR", label: "Avid DNxHR" },
+  { value: "H264", label: "H.264（通用）" },
+  { value: "H265", label: "H.265 / HEVC（高效）" },
+  { value: "VP9", label: "VP9（Web）" },
+  { value: "AV1", label: "AV1（新世代）" },
+] as const;
+
+export const LUFS_TARGET_PRESETS = [
+  { value: -23, label: "-23 LUFS（廣播 EBU R128）" },
+  { value: -16, label: "-16 LUFS（YouTube）" },
+  { value: -14, label: "-14 LUFS（Spotify）" },
+  { value: -27, label: "-27 LUFS（電影院 Atmos）" },
+  { value: -10, label: "-10 LUFS（高動態廣告）" },
+] as const;
+
 // ─── Zod schemas（router 用） ───────────────────────────────────────────────
 
 export const characterRoleSchema = z.enum([
@@ -838,7 +1331,7 @@ export const worldCharacterSchema = z.object({
   linkedModelId: z.number().int().positive().nullable().optional(),
   triggerWord: z.string().max(128).optional(),
   notes: z.string().max(2000).optional(),
-  // 動畫擴充
+  // 動畫擴充 v2
   threeViewSheet: characterThreeViewSheetSchema.optional(),
   expressions: z.array(characterExpressionSchema).max(50).optional(),
   outfits: z.array(characterOutfitSchema).max(30).optional(),
@@ -846,6 +1339,95 @@ export const worldCharacterSchema = z.object({
   voiceProfile: characterVoiceProfileSchema.optional(),
   scriptRole: characterScriptRoleSchema.optional(),
   body: characterBodySchema.optional(),
+  // 動畫製作專業擴充 v3
+  rigSpec: z
+    .object({
+      rigType: z
+        .enum(["live2d", "spine_2d", "rigged_3d", "stop_motion", "ai_only"])
+        .optional(),
+      boneCount: z.number().int().min(0).max(5000).optional(),
+      ikChains: z.array(z.string().max(64)).max(30).optional(),
+      blendShapeCount: z.number().int().min(0).max(1000).optional(),
+      hasClothSim: z.boolean().optional(),
+      hasHairPhysics: z.boolean().optional(),
+      hasEyeTracking: z.boolean().optional(),
+      rigger: z.string().max(128).optional(),
+      rigAssetUrl: z.string().url().max(2048).optional(),
+      riggerNotes: z.string().max(2000).optional(),
+    })
+    .optional(),
+  lipSyncSet: z
+    .object({
+      system: z
+        .enum(["preston_blair", "rhubarb", "ipa", "custom"])
+        .optional(),
+      shapes: z.record(z.string().max(64), z.string().max(2048)).optional(),
+      enabled: z.boolean().optional(),
+      primaryLanguage: z.string().max(16).optional(),
+    })
+    .optional(),
+  actingNotes: z
+    .object({
+      emotionalRange: z.array(z.string().max(64)).max(30).optional(),
+      signatureGestures: z.array(z.string().max(128)).max(20).optional(),
+      walkCycleStyle: z.string().max(128).optional(),
+      defaultPosture: z.string().max(128).optional(),
+      gazePattern: z.string().max(128).optional(),
+      thinkingTics: z.array(z.string().max(128)).max(20).optional(),
+      stressTics: z.array(z.string().max(128)).max(20).optional(),
+      cameraPreference: z
+        .enum(["front", "three_quarter", "side", "varied"])
+        .optional(),
+      squashStretch: z.number().min(0).max(1).optional(),
+      vodirection: z.string().max(2000).optional(),
+    })
+    .optional(),
+  ageVariants: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(64),
+        approxAge: z.string().max(32).optional(),
+        imageUrls: z.array(z.string().url().max(2048)).max(20).optional(),
+        description: z.string().max(2000).optional(),
+        linkedModelId: z.number().int().positive().nullable().optional(),
+        triggerWord: z.string().max(128).optional(),
+      })
+    )
+    .max(20)
+    .optional(),
+  soundProfile: z
+    .object({
+      footsteps: z.record(z.string().max(64), z.string().max(2048)).optional(),
+      breathSample: z.string().url().max(2048).optional(),
+      laughSample: z.string().url().max(2048).optional(),
+      crySample: z.string().url().max(2048).optional(),
+      shoutSample: z.string().url().max(2048).optional(),
+      hurtSample: z.string().url().max(2048).optional(),
+      sighSample: z.string().url().max(2048).optional(),
+      customSamples: z
+        .array(
+          z.object({
+            label: z.string().max(64),
+            url: z.string().url().max(2048),
+          })
+        )
+        .max(50)
+        .optional(),
+    })
+    .optional(),
+  referenceLibrary: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        imageUrl: z.string().url().max(2048),
+        category: z.string().max(32).optional(),
+        tags: z.array(z.string().max(32)).max(20).optional(),
+        description: z.string().max(500).optional(),
+      })
+    )
+    .max(200)
+    .optional(),
 });
 
 export const sceneTimeOfDaySchema = z.object({
@@ -869,13 +1451,79 @@ export const worldSceneSchema = z.object({
   linkedModelId: z.number().int().positive().nullable().optional(),
   triggerWord: z.string().max(128).optional(),
   notes: z.string().max(2000).optional(),
-  // 動畫擴充
+  // 動畫擴充 v2
   establishingShotUrl: z.string().url().max(2048).optional(),
   timeOfDay: z.array(sceneTimeOfDaySchema).max(12).optional(),
   styleProfileId: z.string().max(64).nullable().optional(),
   musicThemeId: z.string().max(64).nullable().optional(),
   defaultCameraMovement: z.string().max(64).optional(),
   preferredAspectRatio: z.string().max(16).optional(),
+  // 動畫製作專業擴充 v3
+  layout: z
+    .object({
+      floorPlanUrl: z.string().url().max(2048).optional(),
+      blockingDiagramUrl: z.string().url().max(2048).optional(),
+      entryPoints: z.array(z.string().max(128)).max(20).optional(),
+      exitPoints: z.array(z.string().max(128)).max(20).optional(),
+      heroShotAngle: z.string().max(128).optional(),
+      coverageAngles: z.array(z.string().max(128)).max(20).optional(),
+      approxDimensions: z
+        .object({
+          widthM: z.number().min(0).max(10000).optional(),
+          depthM: z.number().min(0).max(10000).optional(),
+          heightM: z.number().min(0).max(10000).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  productionDesign: z
+    .object({
+      architecturalStyle: z.string().max(128).optional(),
+      materials: z.array(z.string().max(64)).max(30).optional(),
+      periodDetails: z.string().max(2000).optional(),
+      setPieces: z.array(z.string().max(128)).max(50).optional(),
+      colorScript: z
+        .object({
+          keyColor: z.string().max(64).optional(),
+          midColor: z.string().max(64).optional(),
+          shadowColor: z.string().max(64).optional(),
+        })
+        .optional(),
+      referenceUrls: z.array(z.string().url().max(2048)).max(30).optional(),
+    })
+    .optional(),
+  atmospherics: z
+    .object({
+      fogDensity: z.number().min(0).max(1).optional(),
+      dustMotes: z.boolean().optional(),
+      lightShafts: z.boolean().optional(),
+      precipitation: z
+        .enum(["none", "rain", "snow", "ash", "petals", "leaves"])
+        .optional(),
+      lightning: z.boolean().optional(),
+      customParticles: z.array(z.string().max(128)).max(20).optional(),
+    })
+    .optional(),
+  soundDesign: z
+    .object({
+      ambientBedUrl: z.string().url().max(2048).optional(),
+      roomToneUrl: z.string().url().max(2048).optional(),
+      reverb: z
+        .enum(["dry", "room", "hall", "cathedral", "outdoor", "underwater"])
+        .optional(),
+      signatureSfx: z
+        .array(
+          z.object({
+            label: z.string().max(128),
+            url: z.string().url().max(2048).optional(),
+            description: z.string().max(500).optional(),
+          })
+        )
+        .max(30)
+        .optional(),
+      diegeticSources: z.array(z.string().max(128)).max(20).optional(),
+    })
+    .optional(),
 });
 
 export const worldStyleProfileSchema = z.object({
@@ -899,6 +1547,41 @@ export const worldStyleProfileSchema = z.object({
   negativePrompt: z.string().max(1000).optional(),
   linkedModelId: z.number().int().positive().nullable().optional(),
   description: z.string().max(2000).optional(),
+  // 動畫製作專業擴充 v3
+  shootOn: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  schoolReference: z.string().max(128).optional(),
+  lineSpec: z
+    .object({
+      weight: z.number().min(0).max(20).optional(),
+      hasOutline: z.boolean().optional(),
+      outlineColor: z.string().max(32).optional(),
+      lineColor: z.string().max(32).optional(),
+      lineStyle: z.enum(["clean", "sketchy", "boil", "varied"]).optional(),
+    })
+    .optional(),
+  shadingModel: z
+    .enum(["cel", "painted", "flat", "gradient", "3d_toon", "watercolor"])
+    .optional(),
+  compositingPasses: z.array(z.string().max(64)).max(20).optional(),
+  colorSpace: z
+    .enum(["sRGB", "Rec709", "DCI_P3", "Rec2020", "ACES"])
+    .optional(),
+  masterResolution: z
+    .enum(["720p", "1080p", "1440p", "4K", "8K"])
+    .optional(),
+  masterCodec: z
+    .enum(["ProRes", "DNxHR", "H264", "H265", "VP9", "AV1"])
+    .optional(),
+  letterboxing: z.string().max(128).optional(),
+  subtitleSpec: z
+    .object({
+      font: z.string().max(64).optional(),
+      sizePt: z.number().int().min(8).max(200).optional(),
+      color: z.string().max(32).optional(),
+      outlineColor: z.string().max(32).optional(),
+    })
+    .optional(),
+  titleCardStyle: z.string().max(500).optional(),
 });
 
 export const worldMusicThemeSchema = z.object({
@@ -914,6 +1597,40 @@ export const worldMusicThemeSchema = z.object({
   promptKeywords: z.array(z.string().max(64)).max(20).optional(),
   sampleAudioUrl: z.string().url().max(2048).optional(),
   description: z.string().max(1000).optional(),
+  // 動畫製作專業擴充 v3
+  leitmotif: z
+    .object({
+      description: z.string().max(1000).optional(),
+      melodicPhrase: z.string().max(500).optional(),
+      midiUrl: z.string().url().max(2048).optional(),
+    })
+    .optional(),
+  cueVariants: z
+    .array(
+      z.object({
+        label: z.string().max(64),
+        durationSec: z.number().min(0).max(60 * 60),
+        audioUrl: z.string().url().max(2048).optional(),
+        loopable: z.boolean().optional(),
+      })
+    )
+    .max(20)
+    .optional(),
+  stems: z
+    .object({
+      drums: z.string().url().max(2048).optional(),
+      bass: z.string().url().max(2048).optional(),
+      melody: z.string().url().max(2048).optional(),
+      harmony: z.string().url().max(2048).optional(),
+      pads: z.string().url().max(2048).optional(),
+      fx: z.string().url().max(2048).optional(),
+    })
+    .optional(),
+  lufsTarget: z.number().min(-50).max(0).optional(),
+  transitionStyle: z
+    .enum(["crossfade", "hard_cut", "sting", "morphing"])
+    .optional(),
+  stingerPoints: z.array(z.number().min(0).max(60 * 60)).max(50).optional(),
 });
 
 export const worldObjectSchema = z.object({
@@ -948,6 +1665,51 @@ export const worldbuildingFrameworkInputSchema = z.object({
       targetDurationSec: z.number().int().min(1).max(60 * 60 * 6).optional(),
       audience: z.string().max(64).optional(),
       platform: z.string().max(64).optional(),
+      // 製作專業擴充 v3
+      milestones: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            stage: z.string().min(1).max(64),
+            title: z.string().min(1).max(255),
+            dueDate: z.string().max(32).optional(),
+            status: z
+              .enum(["pending", "in_progress", "completed", "blocked"])
+              .optional(),
+            owner: z.string().max(128).optional(),
+            notes: z.string().max(2000).optional(),
+          })
+        )
+        .max(100)
+        .optional(),
+      budgetUsd: z.number().min(0).max(1e9).optional(),
+      credits: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            role: z.string().min(1).max(64),
+            name: z.string().min(1).max(128),
+            link: z.string().url().max(2048).optional(),
+          })
+        )
+        .max(200)
+        .optional(),
+      masterSpec: z
+        .object({
+          resolution: z.string().max(16).optional(),
+          fps: z.number().int().min(1).max(120).optional(),
+          colorSpace: z.string().max(32).optional(),
+          hdr: z.boolean().optional(),
+          audioChannels: z
+            .enum(["mono", "stereo", "5.1", "7.1", "atmos"])
+            .optional(),
+          audioBitrate: z.string().max(16).optional(),
+        })
+        .optional(),
+      deliverables: z.array(z.string().max(128)).max(30).optional(),
+      rating: z.string().max(16).optional(),
+      subtitleLanguages: z.array(z.string().max(16)).max(30).optional(),
+      dubLanguages: z.array(z.string().max(16)).max(30).optional(),
     })
     .optional(),
 });
@@ -981,7 +1743,43 @@ export function summarizeFrameworkForPrompt(
     if (t.targetDurationSec) tparts.push(`目標時長：${t.targetDurationSec}s`);
     if (t.audience) tparts.push(`受眾：${t.audience}`);
     if (t.platform) tparts.push(`平台：${t.platform}`);
+    if (t.rating) tparts.push(`分級：${t.rating}`);
+    if (t.budgetUsd) tparts.push(`預算：$${t.budgetUsd}`);
     if (tparts.length) lines.push(`製作目標：${tparts.join(" · ")}`);
+
+    if (t.masterSpec) {
+      const m = t.masterSpec;
+      const mparts: string[] = [];
+      if (m.resolution) mparts.push(m.resolution);
+      if (m.fps) mparts.push(`${m.fps}fps`);
+      if (m.colorSpace) mparts.push(m.colorSpace);
+      if (m.hdr) mparts.push("HDR");
+      if (m.audioChannels) mparts.push(`音訊 ${m.audioChannels}`);
+      if (mparts.length) lines.push(`Master：${mparts.join(" / ")}`);
+    }
+    if (t.subtitleLanguages?.length)
+      lines.push(`字幕語言：${t.subtitleLanguages.join("、")}`);
+    if (t.dubLanguages?.length)
+      lines.push(`配音語言：${t.dubLanguages.join("、")}`);
+    if (t.deliverables?.length)
+      lines.push(`交付：${t.deliverables.join("、")}`);
+
+    if (t.milestones?.length) {
+      lines.push("\n## 製作里程碑");
+      for (const m of t.milestones) {
+        const meta: string[] = [m.stage];
+        if (m.status) meta.push(m.status);
+        if (m.dueDate) meta.push(m.dueDate);
+        if (m.owner) meta.push(`負責 ${m.owner}`);
+        lines.push(`- [${meta.join(" · ")}] ${m.title}`);
+      }
+    }
+    if (t.credits?.length) {
+      lines.push("\n## Credits");
+      for (const c of t.credits) {
+        lines.push(`- ${c.role}：${c.name}`);
+      }
+    }
   }
 
   if (framework.globalNegativePrompt)
@@ -1015,6 +1813,20 @@ export function summarizeFrameworkForPrompt(
       if (sp.negativePrompt)
         lines.push(`  · 風格負面詞：${sp.negativePrompt}`);
       if (sp.description) lines.push(`  · 說明：${sp.description}`);
+      // v3 專業
+      const techParts: string[] = [];
+      if (sp.shootOn) techParts.push(`shoot on ${sp.shootOn}s`);
+      if (sp.schoolReference) techParts.push(sp.schoolReference);
+      if (sp.shadingModel) techParts.push(`shading ${sp.shadingModel}`);
+      if (sp.colorSpace) techParts.push(sp.colorSpace);
+      if (sp.masterResolution) techParts.push(sp.masterResolution);
+      if (sp.masterCodec) techParts.push(sp.masterCodec);
+      if (techParts.length)
+        lines.push(`  · 技術：${techParts.join(" / ")}`);
+      if (sp.compositingPasses?.length)
+        lines.push(`  · 合成 pass：${sp.compositingPasses.join("、")}`);
+      if (sp.lineSpec?.lineStyle)
+        lines.push(`  · 線條：${sp.lineSpec.lineStyle}`);
     }
   }
 
@@ -1034,6 +1846,28 @@ export function summarizeFrameworkForPrompt(
       if (mt.promptKeywords?.length)
         lines.push(`  · 生成關鍵字：${mt.promptKeywords.join("、")}`);
       if (mt.description) lines.push(`  · 說明：${mt.description}`);
+      // v3 專業
+      if (mt.leitmotif?.description)
+        lines.push(`  · 主題動機：${mt.leitmotif.description}`);
+      if (mt.cueVariants?.length)
+        lines.push(
+          `  · Cue 變體：${mt.cueVariants
+            .map(v => `${v.label}(${v.durationSec}s${v.loopable ? "·loop" : ""})`)
+            .join("、")}`
+        );
+      const audioTech: string[] = [];
+      if (mt.lufsTarget != null) audioTech.push(`${mt.lufsTarget} LUFS`);
+      if (mt.transitionStyle) audioTech.push(mt.transitionStyle);
+      if (audioTech.length) lines.push(`  · 技術：${audioTech.join(" / ")}`);
+      const stemsList: string[] = [];
+      if (mt.stems) {
+        for (const [k, v] of Object.entries(mt.stems))
+          if (v) stemsList.push(k);
+        if (stemsList.length)
+          lines.push(`  · Stems：${stemsList.join("、")}`);
+      }
+      if (mt.stingerPoints?.length)
+        lines.push(`  · Stingers @ ${mt.stingerPoints.join("s, ")}s`);
     }
   }
 
@@ -1148,6 +1982,61 @@ export function summarizeFrameworkForPrompt(
       if (c.signatureItems?.length)
         lines.push(`  · 隨身物件：${c.signatureItems.join("、")}`);
       if (c.triggerWord) lines.push(`  · LoRA trigger：${c.triggerWord}`);
+
+      // ─── v3 專業欄位 ──────────────────────────────────────────────────
+      if (c.rigSpec) {
+        const r = c.rigSpec;
+        const rparts: string[] = [];
+        if (r.rigType) rparts.push(r.rigType);
+        if (r.boneCount) rparts.push(`${r.boneCount} 骨`);
+        if (r.blendShapeCount) rparts.push(`${r.blendShapeCount} blend shapes`);
+        if (r.ikChains?.length) rparts.push(`IK: ${r.ikChains.join("、")}`);
+        const flags: string[] = [];
+        if (r.hasClothSim) flags.push("布料");
+        if (r.hasHairPhysics) flags.push("頭髮物理");
+        if (r.hasEyeTracking) flags.push("眼追蹤");
+        if (flags.length) rparts.push(`含：${flags.join("、")}`);
+        if (rparts.length) lines.push(`  · Rig：${rparts.join(" / ")}`);
+      }
+      if (c.actingNotes) {
+        const a = c.actingNotes;
+        const aparts: string[] = [];
+        if (a.walkCycleStyle) aparts.push(`走路 ${a.walkCycleStyle}`);
+        if (a.defaultPosture) aparts.push(`站姿 ${a.defaultPosture}`);
+        if (a.cameraPreference) aparts.push(`鏡頭偏好 ${a.cameraPreference}`);
+        if (a.squashStretch != null)
+          aparts.push(`squash/stretch ${a.squashStretch}`);
+        if (aparts.length) lines.push(`  · 演技：${aparts.join(" / ")}`);
+        if (a.signatureGestures?.length)
+          lines.push(`  · 招牌動作：${a.signatureGestures.join("、")}`);
+        if (a.emotionalRange?.length)
+          lines.push(`  · 情緒範圍：${a.emotionalRange.join("、")}`);
+        if (a.vodirection) lines.push(`  · 配音指導：${a.vodirection}`);
+      }
+      if (c.lipSyncSet?.enabled) {
+        lines.push(
+          `  · 口型：${c.lipSyncSet.system ?? "preston_blair"} (${c.lipSyncSet.primaryLanguage ?? "—"})`
+        );
+      }
+      if (c.ageVariants?.length) {
+        lines.push(
+          `  · 年齡變體：${c.ageVariants.map(v => v.name).join("、")}`
+        );
+      }
+      if (c.soundProfile) {
+        const sp = c.soundProfile;
+        const has: string[] = [];
+        if (sp.footsteps && Object.keys(sp.footsteps).length)
+          has.push(`腳步聲(${Object.keys(sp.footsteps).length})`);
+        if (sp.breathSample) has.push("呼吸");
+        if (sp.laughSample) has.push("笑聲");
+        if (sp.crySample) has.push("哭聲");
+        if (sp.shoutSample) has.push("怒吼");
+        if (sp.hurtSample) has.push("痛");
+        if (has.length) lines.push(`  · 聲音檔：${has.join("、")}`);
+      }
+      if (c.referenceLibrary?.length)
+        lines.push(`  · 參考圖：${c.referenceLibrary.length} 張`);
     }
   }
 
@@ -1185,6 +2074,63 @@ export function summarizeFrameworkForPrompt(
         if (mt) lines.push(`  · 配樂鎖：${mt.name}`);
       }
       if (s.triggerWord) lines.push(`  · LoRA trigger：${s.triggerWord}`);
+
+      // v3 專業欄位
+      if (s.layout) {
+        const l = s.layout;
+        const lparts: string[] = [];
+        if (l.heroShotAngle) lparts.push(`hero shot ${l.heroShotAngle}`);
+        if (l.entryPoints?.length)
+          lparts.push(`入口 ${l.entryPoints.join("、")}`);
+        if (l.exitPoints?.length)
+          lparts.push(`出口 ${l.exitPoints.join("、")}`);
+        if (l.approxDimensions) {
+          const d = l.approxDimensions;
+          if (d.widthM || d.depthM || d.heightM)
+            lparts.push(
+              `尺度 ${d.widthM ?? "?"}×${d.depthM ?? "?"}×${d.heightM ?? "?"}m`
+            );
+        }
+        if (lparts.length) lines.push(`  · Layout：${lparts.join(" / ")}`);
+      }
+      if (s.productionDesign) {
+        const pd = s.productionDesign;
+        const pdparts: string[] = [];
+        if (pd.architecturalStyle) pdparts.push(pd.architecturalStyle);
+        if (pd.materials?.length) pdparts.push(pd.materials.join("、"));
+        if (pd.periodDetails) pdparts.push(pd.periodDetails);
+        if (pdparts.length)
+          lines.push(`  · Production design：${pdparts.join(" / ")}`);
+        if (pd.colorScript) {
+          const cs = pd.colorScript;
+          const csparts: string[] = [];
+          if (cs.keyColor) csparts.push(`key ${cs.keyColor}`);
+          if (cs.midColor) csparts.push(`mid ${cs.midColor}`);
+          if (cs.shadowColor) csparts.push(`shadow ${cs.shadowColor}`);
+          if (csparts.length)
+            lines.push(`  · Color script：${csparts.join(" / ")}`);
+        }
+      }
+      if (s.atmospherics) {
+        const at = s.atmospherics;
+        const aparts: string[] = [];
+        if (at.fogDensity != null) aparts.push(`霧 ${at.fogDensity}`);
+        if (at.dustMotes) aparts.push("塵埃");
+        if (at.lightShafts) aparts.push("光柱");
+        if (at.precipitation && at.precipitation !== "none")
+          aparts.push(at.precipitation);
+        if (at.lightning) aparts.push("雷電");
+        if (aparts.length) lines.push(`  · 大氣：${aparts.join("、")}`);
+      }
+      if (s.soundDesign) {
+        const sd = s.soundDesign;
+        const sdparts: string[] = [];
+        if (sd.reverb) sdparts.push(`reverb ${sd.reverb}`);
+        if (sd.ambientBedUrl) sdparts.push("環境音床");
+        if (sd.signatureSfx?.length)
+          sdparts.push(`signature sfx ×${sd.signatureSfx.length}`);
+        if (sdparts.length) lines.push(`  · 音效：${sdparts.join(" / ")}`);
+      }
     }
   }
 

@@ -20,7 +20,11 @@ import {
   validateStoryboardTimeline,
   worldStoryboardInputSchema,
 } from "../../shared/worldbuilding-animation";
-import type { WorldbuildingFrameworkData } from "../../shared/worldbuilding-types";
+import {
+  summarizeFrameworkForPrompt,
+  worldbuildingFrameworkInputSchema,
+  type WorldbuildingFrameworkData,
+} from "../../shared/worldbuilding-types";
 
 function makeFramework(): WorldbuildingFrameworkData & { id: number } {
   return {
@@ -353,5 +357,271 @@ describe("worldStoryboardInputSchema", () => {
         scenes: [],
       })
     ).toThrow();
+  });
+});
+
+// ─── v3 動畫製作專業欄位 ─────────────────────────────────────────────────────
+
+describe("worldbuildingFrameworkInputSchema v3 professional fields", () => {
+  it("accepts rigSpec, lipSyncSet, actingNotes, ageVariants on character", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [
+        {
+          id: "c1",
+          name: "艾莉雅",
+          role: "protagonist",
+          rigSpec: {
+            rigType: "rigged_3d",
+            boneCount: 64,
+            blendShapeCount: 52,
+            ikChains: ["left_arm", "right_arm", "left_leg", "right_leg"],
+            hasClothSim: true,
+            hasHairPhysics: true,
+            hasEyeTracking: true,
+            rigger: "Studio X",
+          },
+          lipSyncSet: {
+            system: "preston_blair",
+            enabled: true,
+            primaryLanguage: "zh-TW",
+            shapes: { A: "https://cdn/a.png", E: "https://cdn/e.png" },
+          },
+          actingNotes: {
+            walkCycleStyle: "輕盈",
+            defaultPosture: "挺直",
+            cameraPreference: "three_quarter",
+            squashStretch: 0.4,
+            signatureGestures: ["撥瀏海"],
+            emotionalRange: ["開朗", "克制"],
+            vodirection: "笑點處理需保留 0.5s 喘息",
+          },
+          ageVariants: [
+            {
+              id: "av1",
+              name: "童年",
+              approxAge: "8 歲",
+              description: "雙馬尾、身高 130cm",
+            },
+          ],
+          soundProfile: {
+            footsteps: { 草地: "https://cdn/grass.mp3", 木地板: "https://cdn/wood.mp3" },
+            breathSample: "https://cdn/breath.mp3",
+            laughSample: "https://cdn/laugh.mp3",
+          },
+          referenceLibrary: [
+            {
+              id: "r1",
+              imageUrl: "https://cdn/pose1.jpg",
+              category: "pose",
+              tags: ["奔跑", "全身"],
+            },
+          ],
+        },
+      ],
+      scenes: [],
+    });
+    expect(parsed.characters[0].rigSpec?.boneCount).toBe(64);
+    expect(parsed.characters[0].lipSyncSet?.enabled).toBe(true);
+    expect(parsed.characters[0].actingNotes?.cameraPreference).toBe("three_quarter");
+    expect(parsed.characters[0].ageVariants).toHaveLength(1);
+    expect(parsed.characters[0].soundProfile?.footsteps?.["草地"]).toBeTruthy();
+    expect(parsed.characters[0].referenceLibrary).toHaveLength(1);
+  });
+
+  it("accepts layout, productionDesign, atmospherics, soundDesign on scene", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [
+        {
+          id: "s1",
+          name: "宴會廳",
+          layout: {
+            floorPlanUrl: "https://cdn/floor.jpg",
+            entryPoints: ["主門", "側門"],
+            exitPoints: ["後門"],
+            heroShotAngle: "從吊燈下俯瞰",
+            approxDimensions: { widthM: 20, depthM: 30, heightM: 8 },
+          },
+          productionDesign: {
+            architecturalStyle: "巴洛克",
+            materials: ["大理石", "黃金"],
+            colorScript: {
+              keyColor: "#ffe0b3",
+              midColor: "#a0764a",
+              shadowColor: "#3a2410",
+            },
+          },
+          atmospherics: {
+            fogDensity: 0.1,
+            dustMotes: true,
+            lightShafts: true,
+            precipitation: "petals",
+          },
+          soundDesign: {
+            ambientBedUrl: "https://cdn/amb.mp3",
+            reverb: "hall",
+            signatureSfx: [{ label: "水晶杯碰撞", description: "尖細高頻" }],
+          },
+        },
+      ],
+    });
+    expect(parsed.scenes[0].layout?.approxDimensions?.widthM).toBe(20);
+    expect(parsed.scenes[0].productionDesign?.colorScript?.keyColor).toBe("#ffe0b3");
+    expect(parsed.scenes[0].atmospherics?.precipitation).toBe("petals");
+    expect(parsed.scenes[0].soundDesign?.reverb).toBe("hall");
+  });
+
+  it("accepts shootOn, shadingModel, compositingPasses, colorSpace on styleProfile", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [],
+      styleProfiles: [
+        {
+          id: "sp1",
+          name: "京阿尼明亮",
+          shootOn: 2,
+          schoolReference: "京都動畫 KyoAni",
+          shadingModel: "cel",
+          compositingPasses: ["Depth of Field 景深", "Bloom 光暈"],
+          colorSpace: "Rec709",
+          masterResolution: "4K",
+          masterCodec: "ProRes",
+          lineSpec: {
+            weight: 1.5,
+            hasOutline: true,
+            lineStyle: "clean",
+            lineColor: "#1a1a1a",
+          },
+        },
+      ],
+    });
+    expect(parsed.styleProfiles?.[0].shootOn).toBe(2);
+    expect(parsed.styleProfiles?.[0].masterResolution).toBe("4K");
+    expect(parsed.styleProfiles?.[0].compositingPasses).toContain("Bloom 光暈");
+  });
+
+  it("accepts leitmotif, cueVariants, stems, LUFS on musicTheme", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [],
+      musicThemes: [
+        {
+          id: "mt1",
+          name: "主角主題",
+          leitmotif: {
+            description: "上行小三度 → 下行純五度",
+            melodicPhrase: "C-Eb-G-D",
+          },
+          cueVariants: [
+            { label: "15s ad", durationSec: 15 },
+            { label: "loop", durationSec: 60, loopable: true },
+          ],
+          stems: {
+            drums: "https://cdn/drums.wav",
+            melody: "https://cdn/mel.wav",
+          },
+          lufsTarget: -14,
+          transitionStyle: "crossfade",
+          stingerPoints: [0.5, 4.2, 8.0],
+        },
+      ],
+    });
+    expect(parsed.musicThemes?.[0].cueVariants).toHaveLength(2);
+    expect(parsed.musicThemes?.[0].lufsTarget).toBe(-14);
+    expect(parsed.musicThemes?.[0].stingerPoints).toEqual([0.5, 4.2, 8.0]);
+  });
+
+  it("accepts milestones, credits, masterSpec on productionTargets", () => {
+    const parsed = worldbuildingFrameworkInputSchema.parse({
+      name: "test",
+      characters: [],
+      scenes: [],
+      productionTargets: {
+        format: "短片動畫",
+        targetDurationSec: 180,
+        budgetUsd: 5000,
+        rating: "PG",
+        subtitleLanguages: ["zh-TW", "en", "ja"],
+        dubLanguages: ["zh-TW"],
+        deliverables: ["Master ProRes 4K", "H.264 1080p", "預告 15s"],
+        masterSpec: {
+          resolution: "4K",
+          fps: 24,
+          colorSpace: "Rec709",
+          hdr: false,
+          audioChannels: "5.1",
+        },
+        milestones: [
+          {
+            id: "m1",
+            stage: "Pre-Production 前期",
+            title: "完成角色三視圖",
+            dueDate: "2026-06-01",
+            status: "in_progress",
+            owner: "美術組",
+          },
+        ],
+        credits: [
+          { id: "cr1", role: "導演", name: "山田", link: "https://example.com" },
+          { id: "cr2", role: "配樂", name: "Brian" },
+        ],
+      },
+    });
+    expect(parsed.productionTargets?.milestones).toHaveLength(1);
+    expect(parsed.productionTargets?.credits).toHaveLength(2);
+    expect(parsed.productionTargets?.masterSpec?.audioChannels).toBe("5.1");
+  });
+
+  it("summarizeFrameworkForPrompt includes v3 professional fields", () => {
+    const fw: WorldbuildingFrameworkData = {
+      name: "範例",
+      characters: [
+        {
+          id: "c1",
+          name: "艾莉雅",
+          role: "protagonist",
+          rigSpec: { rigType: "rigged_3d", boneCount: 64 },
+          actingNotes: { walkCycleStyle: "輕盈", squashStretch: 0.4 },
+        },
+      ],
+      scenes: [
+        {
+          id: "s1",
+          name: "宴會廳",
+          atmospherics: { precipitation: "petals", dustMotes: true },
+          soundDesign: { reverb: "hall" },
+        },
+      ],
+      musicThemes: [
+        {
+          id: "mt1",
+          name: "主角主題",
+          lufsTarget: -14,
+          leitmotif: { description: "上行三度" },
+          cueVariants: [{ label: "loop", durationSec: 60, loopable: true }],
+        },
+      ],
+      productionTargets: {
+        masterSpec: { resolution: "4K", fps: 24, colorSpace: "Rec709" },
+        milestones: [
+          { id: "m1", stage: "前期", title: "完稿", status: "in_progress" },
+        ],
+        credits: [{ id: "cr1", role: "導演", name: "山田" }],
+      },
+    };
+    const text = summarizeFrameworkForPrompt(fw);
+    expect(text).toContain("Rig：rigged_3d");
+    expect(text).toContain("演技");
+    expect(text).toContain("petals");
+    expect(text).toContain("hall");
+    expect(text).toContain("主題動機");
+    expect(text).toContain("LUFS");
+    expect(text).toContain("Master");
+    expect(text).toContain("製作里程碑");
+    expect(text).toContain("Credits");
   });
 });
