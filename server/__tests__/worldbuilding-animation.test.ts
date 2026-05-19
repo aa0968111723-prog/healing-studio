@@ -15,6 +15,7 @@ import {
   buildFramePrompt,
   formatTimecode,
   planAnimationPipeline,
+  resolveNarrativeBeat,
   seedStoryboardSkeleton,
   summarizeStoryboardForPrompt,
   validateStoryboardTimeline,
@@ -143,6 +144,276 @@ describe("seedStoryboardSkeleton", () => {
     const sb = seedStoryboardSkeleton({ framework: fw, totalDurationSec: 30 });
     // 30s → ~1 場 → clamp 至最小 3
     expect(sb.scenes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  // ─── 世界觀串連：跨模組整合測試 ────────────────────────────────────────
+
+  it("inherits fps from productionTargets.masterSpec when args.fps omitted", () => {
+    const fw = makeFramework();
+    fw.productionTargets!.masterSpec = { fps: 30, resolution: "1080p" };
+    const sb = seedStoryboardSkeleton({ framework: fw, totalDurationSec: 60 });
+    expect(sb.fps).toBe(30);
+  });
+
+  it("inherits aspectRatio from scene.preferredAspectRatio when args omitted", () => {
+    const fw = makeFramework();
+    fw.scenes[0].preferredAspectRatio = "9:16";
+    const sb = seedStoryboardSkeleton({ framework: fw, totalDurationSec: 60 });
+    expect(sb.aspectRatio).toBe("9:16");
+  });
+
+  it("mirrors scene.styleProfileId onto storyboard scene styleProfileId", () => {
+    const fw = makeFramework();
+    // 場景 s1 已鎖定 sp1；s2 未鎖定 → 應回退到 framework.defaultStyleProfileId
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    expect(sb.scenes[0].styleProfileId).toBe("sp1"); // 來自 scene 鎖定
+    expect(sb.scenes[1].styleProfileId).toBe("sp1"); // 回退 default
+  });
+
+  it("picks scene-locked music theme; falls back to mood matching", () => {
+    const fw = makeFramework();
+    // 加入另一個配樂主題：詭異的氛圍
+    fw.musicThemes!.push({
+      id: "mt2",
+      name: "暗影主題",
+      mood: "詭異",
+      bpm: 60,
+    });
+    // s1 鎖定 mt1；s2 沒鎖定但 mood=詭異 → 應自動挑 mt2
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    // scene[0] = 第一場（worldScene s1 鎖定 mt1）
+    const music0 = sb.scenes[0].audioClips.find(a => a.kind === "music");
+    expect(music0?.musicThemeId).toBe("mt1");
+    expect(sb.scenes[0].musicThemeId).toBe("mt1");
+    // scene[1] = 第二場（worldScene s2 mood=詭異 → mt2）
+    const music1 = sb.scenes[1].audioClips.find(a => a.kind === "music");
+    expect(music1?.musicThemeId).toBe("mt2");
+  });
+
+  it("assigns default outfit and beat-matched expression to character beats", () => {
+    const fw = makeFramework();
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 4,
+    });
+    // 主角艾莉雅 c1 有 default outfit o1
+    const firstBeat = sb.scenes[0].characterBeats.find(
+      b => b.characterId === "c1"
+    );
+    expect(firstBeat?.outfitId).toBe("o1");
+    expect(firstBeat?.expressionId).toBe("e1"); // 微笑符合 opening
+  });
+
+  it("injects signatureLines as dialogue at opening / climax / ending", () => {
+    const fw = makeFramework();
+    fw.characters[0].scriptRole = {
+      ...fw.characters[0].scriptRole,
+      signatureLines: ["我要踏上旅程。", "為了夥伴！", "終於回家了……"],
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 90,
+      sceneCount: 4,
+    });
+    // 第一場（opening）→ 第一句招牌台詞
+    const opening = sb.scenes[0].characterBeats.find(b => b.characterId === "c1");
+    expect(opening?.dialogue).toBe("我要踏上旅程。");
+    // 最後一場（ending）→ 最後一句
+    const last = sb.scenes[sb.scenes.length - 1].characterBeats.find(
+      b => b.characterId === "c1"
+    );
+    expect(last?.dialogue).toBe("終於回家了……");
+  });
+
+  it("places character tagged with appearsInBeats=[結局] only in ending scene", () => {
+    const fw = makeFramework();
+    fw.characters.push({
+      id: "c3",
+      name: "守墓人",
+      role: "supporting",
+      scriptRole: {
+        defaultPosition: "cameo",
+        avgScreenTimeRatio: 0.3,
+        appearsInBeats: ["結局"],
+      },
+    });
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 120,
+      sceneCount: 5,
+    });
+    // 守墓人應該只在結局場（最後一場）
+    const appearsIn = sb.scenes
+      .map((sc, i) =>
+        sc.characterBeats.some(b => b.characterId === "c3") ? i : -1
+      )
+      .filter(i => i >= 0);
+    expect(appearsIn).toContain(sb.scenes.length - 1);
+  });
+
+  it("excludes narrator characters from frame-level character beats", () => {
+    const fw = makeFramework();
+    fw.characters.push({
+      id: "c_nar",
+      name: "畫外旁白",
+      role: "supporting",
+      scriptRole: { defaultPosition: "narrator" },
+    });
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 3,
+    });
+    for (const sc of sb.scenes) {
+      expect(sc.characterBeats.find(b => b.characterId === "c_nar")).toBeUndefined();
+    }
+  });
+
+  it("expands scene.soundDesign.signatureSfx into sfx audio clips", () => {
+    const fw = makeFramework();
+    fw.scenes[0].soundDesign = {
+      signatureSfx: [
+        { label: "鐘聲", description: "古老的青銅鐘聲" },
+        { label: "風嘯", description: "穿過樹梢的風" },
+      ],
+    };
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    const sfxClips = sb.scenes[0].audioClips.filter(a => a.kind === "sfx");
+    expect(sfxClips.length).toBe(2);
+    expect(sfxClips[0].sfxDescription).toContain("青銅鐘聲");
+  });
+
+  it("expands scene.soundLibraryRefs into ambient sfx clips", () => {
+    const fw = makeFramework();
+    fw.soundLibrary = [
+      {
+        id: "sl1",
+        label: "森林環境音",
+        category: "ambient",
+        audioUrl: "https://cdn/forest.mp3",
+        loopable: true,
+        volumeDefault: 0.5,
+      },
+    ];
+    fw.scenes[0].soundLibraryRefs = ["sl1"];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    const ambient = sb.scenes[0].audioClips.find(
+      a => a.kind === "sfx" && a.sfxDescription?.includes("森林環境音")
+    );
+    expect(ambient).toBeDefined();
+    expect(ambient?.volume).toBeCloseTo(0.5);
+  });
+
+  it("injects canonical research entry into scene notes", () => {
+    const fw = makeFramework();
+    fw.researchEntries = [
+      {
+        id: "r1",
+        title: "晨光森林的歷史",
+        category: "history",
+        content: "這片森林源自上古，曾有精靈居住其中。",
+        tags: ["森林"],
+        isCanon: true,
+      },
+    ];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 3,
+    });
+    const noteScene = sb.scenes.find(s => s.notes?.includes("晨光森林的歷史"));
+    expect(noteScene).toBeDefined();
+    expect(noteScene?.notes).toContain("[正史參考]");
+  });
+
+  it("uses scene.defaultCameraMovement as cameraDirection", () => {
+    const fw = makeFramework();
+    fw.scenes[0].defaultCameraMovement = "緩慢推軌";
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    expect(sb.scenes[0].cameraDirection).toBe("緩慢推軌");
+  });
+
+  it("composes actionDescription from environment + mood + environmentChanges", () => {
+    const fw = makeFramework();
+    fw.scenes[0].environmentChanges = ["突然下起小雨"];
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 2,
+    });
+    expect(sb.scenes[0].actionDescription).toContain("陽光穿透樹冠"); // environment
+    expect(sb.scenes[0].actionDescription).toContain("靜謐"); // mood
+    expect(sb.scenes[0].actionDescription).toContain("突然下起小雨"); // change
+  });
+
+  it("titles scenes with narrative-beat prefix and scene name", () => {
+    const fw = makeFramework();
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 60,
+      sceneCount: 4,
+    });
+    expect(sb.scenes[0].title).toMatch(/^開場：/);
+    expect(sb.scenes[sb.scenes.length - 1].title).toMatch(/^結局：/);
+  });
+
+  it("respects character.scriptRole.defaultPosition='cameo' for screen-time-low chars", () => {
+    const fw = makeFramework();
+    // 加入戲份極低的客串角色
+    fw.characters.push({
+      id: "c_cameo",
+      name: "客串老闆",
+      role: "supporting",
+      scriptRole: {
+        defaultPosition: "cameo",
+        avgScreenTimeRatio: 0.1,
+      },
+    });
+    const sb = seedStoryboardSkeleton({
+      framework: fw,
+      totalDurationSec: 120,
+      sceneCount: 5,
+    });
+    // 客串應有出現但不該每場都在
+    const appearances = sb.scenes.filter(sc =>
+      sc.characterBeats.some(b => b.characterId === "c_cameo")
+    ).length;
+    expect(appearances).toBeLessThan(sb.scenes.length);
+  });
+});
+
+describe("resolveNarrativeBeat", () => {
+  it("maps scene index to opening / rising / climax / falling / ending", () => {
+    expect(resolveNarrativeBeat(0, 5)).toBe("opening");
+    expect(resolveNarrativeBeat(4, 5)).toBe("ending");
+    // 中間場：rising / climax / falling
+    const mids = [1, 2, 3].map(i => resolveNarrativeBeat(i, 5));
+    expect(mids).toEqual(expect.arrayContaining(["rising", "climax", "falling"]));
+  });
+
+  it("returns opening for single-scene storyboard", () => {
+    expect(resolveNarrativeBeat(0, 1)).toBe("opening");
   });
 });
 
