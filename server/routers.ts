@@ -57,6 +57,7 @@ import { teamsRouter } from "./routers/teams";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
+import { promptCollectionRouter } from "./routers/promptCollection";
 import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
@@ -1075,6 +1076,7 @@ export const appRouter = router({
   loraTrainer: loraTrainerRouter,
   modelConsents: modelConsentsRouter,
   promptLibrary: promptLibraryRouter,
+  promptCollection: promptCollectionRouter,
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
   orbScheduler: orbSchedulerRouter,

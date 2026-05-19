@@ -1,6 +1,7 @@
 export type AssetsLibrarySectionId =
   | "assets"
   | "prompts"
+  | "collection"
   | "vault"
   | "tasks"
   | "drive";
@@ -11,6 +12,7 @@ export type AssetsLibraryTab = "my" | "team";
 const SECTION_IDS: AssetsLibrarySectionId[] = [
   "assets",
   "prompts",
+  "collection",
   "vault",
   "tasks",
   "drive",

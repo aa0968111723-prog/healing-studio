@@ -776,6 +776,47 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
+    id: "prompt-collection",
+    label: "個人提示詞收集",
+    path: "/assets?section=collection",
+    routeAliases: ["/prompt-collection"],
+    group: "assets",
+    description:
+      "收集全站包含精靈代理、主動觸發、模型樣板與 ImageStudio 模板的提示詞，可分享給團隊",
+    aliases: [
+      "提示詞收集",
+      "收集",
+      "collection",
+      "個人收集",
+      "團隊提示詞",
+      "agent prompt",
+      "精靈提示詞",
+    ],
+    showInSidebar: false,
+    showInAgentHome: true,
+    agentEntryPriority: 23,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-prompt-collection",
+        label: "打開提示詞收集",
+        description: "管理我的提示詞收集 / 團隊共享 / 全站可收集 prompt",
+        path: "/assets?section=collection",
+      },
+      {
+        id: "collect-from-site",
+        label: "收集全站提示詞",
+        description: "把 25 位精靈、主動觸發、模型樣板、ImageStudio 內建模板加入個人收集",
+        path: "/assets?section=collection",
+      },
+    ],
+    orbHints: [
+      "把精靈的系統提示存起來",
+      "我想收藏這條提示詞並分享給團隊",
+    ],
+    supportedActions: [],
+  },
+  {
     id: "models",
     label: "模型訓練中心",
     path: "/models",

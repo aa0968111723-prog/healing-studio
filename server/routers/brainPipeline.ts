@@ -345,6 +345,7 @@ const PAGE_TO_ROUTERS: Record<string, string[]> = {
   learn: ["router:learnHub"],
   "tutorial-overview": ["router:learnHub"],
   "prompt-library": ["router:promptLibrary"],
+  "prompt-collection": ["router:promptCollection"],
   langsmith: ["router:langsmith"],
   "agent-preferences": ["router:agentPreferences"],
   settings: ["router:agentPreferences"],
@@ -499,6 +500,17 @@ const ROUTER_TO_PROVIDERS: Array<{
     description: "提示詞 CRUD、收藏、分享",
     providers: [],
     files: ["server/routers/promptLibrary.ts"],
+  },
+  {
+    id: "router:promptCollection",
+    label: "promptCollection（提示詞收集）",
+    description:
+      "收集站內 25 位精靈 / 主動觸發 / 模型樣板 / ImageStudio 內建模板，支援團隊共享",
+    providers: [],
+    files: [
+      "server/routers/promptCollection.ts",
+      "shared/site-prompt-catalog.ts",
+    ],
   },
   {
     id: "router:news",
