@@ -48,7 +48,9 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
         aria-current={isActive ? "page" : undefined}
         data-active={isActive ? "true" : "false"}
         className={cn(
-          "apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0",
+          // h-11 w-11 + icon size are now driven by CSS (--dock-leaf-size +
+          // .apple-dock-item rule) so density/variant can dial them up/down.
+          "apple-dock-item group relative flex items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0",
           "text-foreground/80",
           className
         )}
@@ -59,9 +61,11 @@ const AppleDockItem = React.forwardRef<HTMLButtonElement, AppleDockItemProps>(
         )}
         <span aria-hidden="true" className="apple-dock-halo" />
         <Icon
-          className="apple-dock-icon relative h-[19px] w-[19px]"
+          className="apple-dock-icon relative"
           strokeWidth={isActive ? 2 : 1.85}
         />
+        {/* Label only visible in variant=panel — see .apple-dock-item-label */}
+        <span className="apple-dock-item-label">{label}</span>
         {isActive && showActiveDot && (
           <span aria-hidden="true" className="apple-dock-active-dot" />
         )}

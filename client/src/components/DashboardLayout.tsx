@@ -40,11 +40,15 @@ import AppleDock, {
   type DockEntry,
   type DockLeaf,
   type DockPosition,
+  type DockDensity,
+  type DockVariant,
 } from "./AppleDock";
 
 const DOCK_POSITION_KEY = "apple-dock-position";
 const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
 const DOCK_IMMERSIVE_KEY = "apple-dock-immersive";
+const DOCK_DENSITY_KEY = "apple-dock-density";
+const DOCK_VARIANT_KEY = "apple-dock-variant";
 
 function readDockPosition(): DockPosition {
   if (typeof window === "undefined") return "left";
@@ -63,6 +67,20 @@ function readDockMinimized(): boolean {
 function readDockImmersive(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(DOCK_IMMERSIVE_KEY) === "1";
+}
+
+function readDockDensity(): DockDensity {
+  if (typeof window === "undefined") return "comfortable";
+  const v = window.localStorage.getItem(DOCK_DENSITY_KEY);
+  if (v === "compact" || v === "comfortable" || v === "spacious") return v;
+  return "comfortable";
+}
+
+function readDockVariant(): DockVariant {
+  if (typeof window === "undefined") return "dock";
+  const v = window.localStorage.getItem(DOCK_VARIANT_KEY);
+  if (v === "dock" || v === "rail" || v === "panel") return v;
+  return "dock";
 }
 
 const POSITION_CYCLE: DockPosition[] = ["left", "top", "right", "bottom"];
@@ -621,11 +639,13 @@ function DashboardLayoutContent({
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 
-  // ── Dock position + minimize + immersive (persisted) ────────────────────
+  // ── Dock position + minimize + immersive + density + variant (persisted) ─
   const [dockPosition, setDockPosition] =
     useState<DockPosition>(readDockPosition);
   const [dockMinimized, setDockMinimized] = useState<boolean>(readDockMinimized);
   const [dockImmersive, setDockImmersive] = useState<boolean>(readDockImmersive);
+  const [dockDensity, setDockDensity] = useState<DockDensity>(readDockDensity);
+  const [dockVariant, setDockVariant] = useState<DockVariant>(readDockVariant);
   useEffect(() => {
     window.localStorage.setItem(DOCK_POSITION_KEY, dockPosition);
   }, [dockPosition]);
@@ -635,6 +655,12 @@ function DashboardLayoutContent({
   useEffect(() => {
     window.localStorage.setItem(DOCK_IMMERSIVE_KEY, dockImmersive ? "1" : "0");
   }, [dockImmersive]);
+  useEffect(() => {
+    window.localStorage.setItem(DOCK_DENSITY_KEY, dockDensity);
+  }, [dockDensity]);
+  useEffect(() => {
+    window.localStorage.setItem(DOCK_VARIANT_KEY, dockVariant);
+  }, [dockVariant]);
   const cycleDockPosition = useCallback(() => {
     setDockPosition(p => {
       const idx = POSITION_CYCLE.indexOf(p);
@@ -647,6 +673,14 @@ function DashboardLayoutContent({
   }, []);
   const toggleDockImmersive = useCallback(() => {
     setDockImmersive(v => !v);
+  }, []);
+  // Switching variant: rail/panel live on a vertical edge — auto-pull the
+  // position off top/bottom so the dock doesn't end up in an impossible state.
+  const setDockVariantSafe = useCallback((next: DockVariant) => {
+    setDockVariant(next);
+    if (next !== "dock") {
+      setDockPosition(p => (p === "top" || p === "bottom" ? "left" : p));
+    }
   }, []);
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
@@ -725,7 +759,9 @@ function DashboardLayoutContent({
   // ── Main-content padding mirrors the dock side and tightens when minimized.
   //    In immersive mode we leave only a thin gutter for the edge peek handle.
   //    On mobile the dock collapses to a corner bubble (handled inside
-  //    AppleDock), so the main content needs no extra dock-clearance padding. ──
+  //    AppleDock), so the main content needs no extra dock-clearance padding.
+  //    Variant-aware: rail/panel are flush vertical sidebars, so they need
+  //    rail-width vs panel-width clearance instead of the float gutter. ──
   const dockPadClass = (() => {
     if (isMobile) return "";
     if (dockImmersive) {
@@ -751,6 +787,14 @@ function DashboardLayoutContent({
         case "bottom":
           return "pb-[56px] sm:pb-[68px]";
       }
+    }
+    // Variant: rail/panel — flush edge, no floating gutter. Width matches the
+    // rail (item + chrome) or panel (15rem) widths in index.css.
+    if (dockVariant === "rail") {
+      return dockPosition === "right" ? "pr-[68px]" : "pl-[68px]";
+    }
+    if (dockVariant === "panel") {
+      return dockPosition === "right" ? "pr-[15rem]" : "pl-[15rem]";
     }
     switch (dockPosition) {
       case "left":
@@ -795,6 +839,10 @@ function DashboardLayoutContent({
         onToggleMinimized={toggleDockMinimized}
         immersive={dockImmersive}
         onToggleImmersive={toggleDockImmersive}
+        density={dockDensity}
+        onSetDensity={setDockDensity}
+        variant={dockVariant}
+        onSetVariant={setDockVariantSafe}
       />
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">

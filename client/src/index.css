@@ -819,6 +819,40 @@
   }
 
   /* ─── Apple-Style Floating Dock ─── */
+  /*
+   * Density + variant axes:
+   *   [data-density]  comfortable (default) | compact | spacious
+   *                   — overrides --dock-item-size / gap / icon-size / padding
+   *                     so the same dock can dial up or down.
+   *   [data-variant]  dock (default floating) | rail (flush icon-only) |
+   *                   panel (flush full sidebar with labels)
+   *                   — adjusts shape, edge anchoring, width, and reveals
+   *                     inline labels in panel mode.
+   * Both axes are pure CSS — JS only flips data attributes + skips floating
+   * animations for the non-dock variants.
+   */
+  .apple-dock-glass {
+    /* Density-driven sizing tokens — overridden by [data-density] below.
+       Components consume --dock-leaf-size / --dock-leaf-gap / --dock-leaf-icon
+       so density changes don't require touching JSX. */
+    --dock-leaf-size: var(--dock-item-size);
+    --dock-leaf-icon: 19px;
+    --dock-leaf-gap: 0.375rem;
+    --dock-leaf-padding: 0.625rem;
+  }
+  [data-density="compact"].apple-dock-glass {
+    --dock-leaf-size: 2.4rem;
+    --dock-leaf-icon: 17px;
+    --dock-leaf-gap: 0.25rem;
+    --dock-leaf-padding: 0.5rem;
+  }
+  [data-density="spacious"].apple-dock-glass {
+    --dock-leaf-size: 3.25rem;
+    --dock-leaf-icon: 21px;
+    --dock-leaf-gap: 0.5rem;
+    --dock-leaf-padding: 0.75rem;
+  }
+
   .apple-dock-glass {
     position: relative;
     /* Stay clear of notch + home indicator on mobile (vertical dock).
@@ -944,6 +978,121 @@
       oklch(1 0 0 / 0.015) 60%,
       transparent 100%
     );
+  }
+
+  /* ─── Variant: rail (flush vertical sidebar, icon-only) ─── */
+  /*
+   * Anchors the dock to the viewport edge instead of floating, drops the
+   * pill border-radius on the docked side, and disables the float animation
+   * so it sits like a traditional sidebar — but keeps the glass material,
+   * halos, and aurora wash so the "design sense" survives the layout swap.
+   */
+  [data-variant="rail"].apple-dock-glass,
+  [data-variant="panel"].apple-dock-glass {
+    border-radius: 0;
+    max-height: 100svh;
+    height: 100svh;
+    top: 0;
+    bottom: 0;
+    transform: none;
+    margin: 0;
+    /* Drop the float bob — fixed sidebars must not drift. Keep aurora/pop. */
+    animation:
+      apple-dock-pop var(--duration-gentle) var(--ease-healing-out),
+      apple-dock-aurora 18s ease-in-out 0.5s infinite;
+  }
+  [data-variant="rail"][data-position="left"].apple-dock-glass,
+  [data-variant="panel"][data-position="left"].apple-dock-glass {
+    left: 0;
+    right: auto;
+    border-right: 1px solid oklch(1 0 0 / 0.18);
+  }
+  [data-variant="rail"][data-position="right"].apple-dock-glass,
+  [data-variant="panel"][data-position="right"].apple-dock-glass {
+    right: 0;
+    left: auto;
+    border-left: 1px solid oklch(1 0 0 / 0.18);
+  }
+  :is(.dark) [data-variant="rail"].apple-dock-glass,
+  :is(.dark) [data-variant="panel"].apple-dock-glass {
+    border-color: oklch(1 0 0 / 0.08);
+  }
+  /* Soften the floating top-light reflection — looks odd against a hard edge */
+  [data-variant="rail"].apple-dock-glass::before,
+  [data-variant="panel"].apple-dock-glass::before {
+    border-radius: 0;
+    height: 32%;
+    opacity: 0.6;
+  }
+  [data-variant="rail"].apple-dock-glass::after,
+  [data-variant="panel"].apple-dock-glass::after {
+    display: none;
+  }
+
+  /* ─── Variant: panel — full sidebar with inline labels ─── */
+  /*
+   * Expands the dock to a 15rem sidebar and turns each round leaf into a
+   * full-width row (icon + label + optional active rail). The label span
+   * is hidden by default and only revealed in panel mode so the same JSX
+   * works for dock/rail too.
+   */
+  [data-variant="panel"].apple-dock-glass {
+    width: 15rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
+  [data-variant="panel"] .apple-dock-stagger,
+  [data-variant="panel"] .apple-dock-glass > div {
+    width: 100%;
+  }
+  [data-variant="panel"] .apple-dock-item {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.625rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+    border-radius: 12px;
+  }
+  /* Labels are rendered as a child span; only shown in panel variant */
+  .apple-dock-item-label {
+    display: none;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: inherit;
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-variant="panel"] .apple-dock-item-label {
+    display: inline;
+  }
+  /* In panel mode, the avatar/credit buttons inherit the same row treatment */
+  [data-variant="panel"] .apple-dock-avatar {
+    width: 100%;
+    border-radius: 14px;
+    justify-content: flex-start;
+    gap: 0.625rem;
+    padding-left: 0.5rem;
+    padding-right: 0.625rem;
+  }
+  /* Active rail moves from "outside the floating dock" to "inside the row" */
+  [data-variant="panel"] .apple-dock-side-rail,
+  [data-variant="rail"] .apple-dock-side-rail {
+    left: -2px;
+    height: 60%;
+  }
+  [data-variant="panel"][data-position="right"] .apple-dock-side-rail,
+  [data-variant="rail"][data-position="right"] .apple-dock-side-rail {
+    left: auto;
+    right: -2px;
+  }
+  /* Active dot lives under floating items; suppress in non-floating variants */
+  [data-variant="rail"] .apple-dock-active-dot,
+  [data-variant="panel"] .apple-dock-active-dot {
+    display: none;
   }
 
   .apple-dock-divider {
@@ -1355,9 +1504,20 @@
   .apple-dock-item {
     isolation: isolate;
     color: oklch(0.34 0.012 60);
+    /* Sizing driven by --dock-leaf-* tokens (density-aware). The h-11/w-11
+       Tailwind classes in the original JSX are now governed by these vars
+       via `width`/`height` rules below so density can dial them up/down. */
+    width: var(--dock-leaf-size, 2.75rem);
+    height: var(--dock-leaf-size, 2.75rem);
     transition:
       transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      color var(--duration-gentle) var(--ease-healing-out);
+      color var(--duration-gentle) var(--ease-healing-out),
+      width var(--duration-gentle) var(--ease-healing-out),
+      height var(--duration-gentle) var(--ease-healing-out);
+  }
+  .apple-dock-item .apple-dock-icon {
+    width: var(--dock-leaf-icon, 19px);
+    height: var(--dock-leaf-icon, 19px);
   }
   :is(.dark) .apple-dock-item {
     color: oklch(0.88 0.02 60);
@@ -1545,7 +1705,14 @@
   .apple-dock-avatar {
     isolation: isolate;
     color: var(--text-on-glass-strong);
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* Track --dock-leaf-size so density changes scale the avatar in lockstep
+       with the other dock leaves. */
+    width: var(--dock-leaf-size, 2.75rem);
+    height: var(--dock-leaf-size, 2.75rem);
+    transition:
+      transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+      width var(--duration-gentle) var(--ease-healing-out),
+      height var(--duration-gentle) var(--ease-healing-out);
   }
   .apple-dock-avatar:hover {
     transform: scale(1.08);
