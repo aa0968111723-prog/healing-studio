@@ -27,8 +27,8 @@ import type {
   CompositionSuggestion,
 } from "../../../../shared/worldbuilding-timeline";
 import type { WorldbuildingFrameworkData, WorldCharacter, WorldObject } from "../../../../shared/worldbuilding-types";
-import { Button } from "../../../components/ui/button";
-import { trpc } from "../../../lib/trpc";
+import { Button } from "../ui/button";
+import { trpc } from "../../lib/trpc";
 
 interface CompositionAssistantProps {
   framework: WorldbuildingFrameworkData;
