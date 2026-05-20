@@ -78,9 +78,9 @@ async function extractRegistryEntries() {
   if (assignIdx === -1) return entries;
   const arrayOpenIdx = assignIdx + 2; // points to the `[`
   // Walk forward to find the matching closing `]`
-  let depth = 0;
+  let depth = 1; // start at 1: the `[` at arrayOpenIdx is already open
   let arrayCloseIdx = -1;
-  for (let i = arrayOpenIdx; i < source.length; i++) {
+  for (let i = arrayOpenIdx + 1; i < source.length; i++) {
     if (source[i] === "[" || source[i] === "{") depth++;
     else if (source[i] === "]" || source[i] === "}") {
       depth--;
@@ -96,8 +96,8 @@ async function extractRegistryEntries() {
   const pathRe = /\bpath:\s*"([^"]+)"/;
   const supportsRe = /\bsupportsPageAgent:\s*(true|false)/;
 
-  // Split top-level objects by `},` followed by newline+indent then `{`.
-  const matches = registrySource.match(/\{[\s\S]*?\},\s*(?=\{|];|\])/g) ?? [];
+  // Split top-level objects by `},` followed by whitespace then `{` or `]`.
+  const matches = registrySource.match(/\{[\s\S]*?\},\s*(?=\{|\])/g) ?? [];
   for (const block of matches) {
     const idMatch = idRe.exec(block);
     const pathMatch = pathRe.exec(block);
