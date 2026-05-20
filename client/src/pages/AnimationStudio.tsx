@@ -5349,11 +5349,20 @@ export default function AnimationStudio() {
     | "composition"
   >("characters");
 
-  // 自動選第一個世界
+  // 自動選第一個世界（避免在 render 階段 setState）
   const worlds = worldsQuery.data ?? [];
-  if (selectedWorldId === null && worlds.length > 0) {
-    setSelectedWorldId(worlds[0].id);
-  }
+
+  useEffect(() => {
+    if (worlds.length === 0) {
+      return;
+    }
+
+    // 初次進入自動選第一個；若目前選取已不存在（被刪除/資料變更）則回退第一個。
+    if (selectedWorldId === null || !worlds.some(w => w.id === selectedWorldId)) {
+      setSelectedWorldId(worlds[0].id);
+    }
+  }, [worlds, selectedWorldId]);
+
   const selectedWorld = useMemo(
     () => worlds.find(w => w.id === selectedWorldId) ?? null,
     [worlds, selectedWorldId]
