@@ -4747,7 +4747,7 @@ export default function ProStudio() {
 
   return (
     <AgentBridgeContext.Provider value={bridgeRef}>
-    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
+    <div className="page-shell page-shell-narrow px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 標題 */}
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">

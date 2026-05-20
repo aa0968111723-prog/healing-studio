@@ -20,6 +20,12 @@ import {
   Sun,
   Moon,
   Laptop,
+  Hexagon,
+  PanelLeft,
+  PanelLeftClose,
+  Rows3,
+  Rows2,
+  StretchVertical,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
@@ -74,6 +80,18 @@ export type DockEntry = DockLeaf | DockGroup;
 export type DockPosition = "left" | "right" | "top" | "bottom";
 export type DockOrientation = "vertical" | "horizontal";
 
+/** Display density — three tiers that re-scale dock leaves via CSS vars. */
+export type DockDensity = "comfortable" | "compact" | "spacious";
+
+/**
+ * Layout variant.
+ *  - dock:  current Apple-style floating pill (default)
+ *  - rail:  flush vertical sidebar, icon-only (still glass)
+ *  - panel: flush vertical sidebar with inline labels (full sidebar)
+ * Non-dock variants are forced to left/right (top/bottom don't make sense).
+ */
+export type DockVariant = "dock" | "rail" | "panel";
+
 export function dockOrientation(position: DockPosition): DockOrientation {
   return position === "top" || position === "bottom" ? "horizontal" : "vertical";
 }
@@ -99,6 +117,12 @@ type AppleDockProps = {
   onToggleMinimized: () => void;
   immersive: boolean;
   onToggleImmersive: () => void;
+  /** Sizing tier — defaults to "comfortable". */
+  density?: DockDensity;
+  onSetDensity?: (density: DockDensity) => void;
+  /** Layout style — defaults to "dock". */
+  variant?: DockVariant;
+  onSetVariant?: (variant: DockVariant) => void;
 };
 
 // ─── Background tasks dock trigger ──────────────────────────────────────────
@@ -140,20 +164,23 @@ function BackgroundTasksDockButton({
               aria-haspopup="dialog"
               aria-expanded={open}
               data-active={activeCount > 0 ? "soft" : "false"}
-              className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+              className="apple-dock-item group relative flex items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
             >
               <span aria-hidden="true" className="apple-dock-halo" />
               {activeCount > 0 ? (
                 <Loader2
-                  className="apple-dock-icon relative h-[19px] w-[19px] animate-spin text-primary"
+                  className="apple-dock-icon relative animate-spin text-primary"
                   strokeWidth={1.95}
                 />
               ) : (
                 <ListChecks
-                  className="apple-dock-icon relative h-[19px] w-[19px]"
+                  className="apple-dock-icon relative"
                   strokeWidth={1.85}
                 />
               )}
+              <span className="apple-dock-item-label">
+                背景任務{activeCount > 0 ? ` · ${activeCount}` : ""}
+              </span>
               {activeCount > 0 && (
                 <span
                   aria-hidden="true"
@@ -325,13 +352,14 @@ function ThemeToggleDockButton({
           type="button"
           aria-label={label}
           onClick={cycle}
-          className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+          className="apple-dock-item group relative flex items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
         >
           <span aria-hidden="true" className="apple-dock-halo" />
           <Icon
-            className="apple-dock-icon relative h-[19px] w-[19px]"
+            className="apple-dock-icon relative"
             strokeWidth={1.85}
           />
+          <span className="apple-dock-item-label">{label}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent
@@ -424,6 +452,10 @@ function AppleDock({
   onToggleMinimized,
   immersive,
   onToggleImmersive,
+  density = "comfortable",
+  onSetDensity,
+  variant = "dock",
+  onSetVariant,
 }: AppleDockProps) {
   const [openGroup, setOpenGroup] = React.useState<string | null>(null);
   const [revealed, setRevealed] = React.useState(false);
@@ -656,6 +688,8 @@ function AppleDock({
         aria-label="主導覽"
         data-position={position}
         data-orientation={orientation}
+        data-density={density}
+        data-variant={variant}
         data-immersive={immersive ? "true" : "false"}
         data-immersive-revealed={revealed ? "true" : "false"}
         onMouseEnter={() => immersive && setRevealed(true)}
@@ -819,13 +853,16 @@ function AppleDock({
               <Link
                 href="/dashboard?section=credits"
                 aria-label="查看積分"
-                className="apple-dock-item group relative flex h-11 w-11 items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+                className="apple-dock-item group relative flex items-center justify-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
               >
                 <span aria-hidden="true" className="apple-dock-halo" />
                 <Zap
-                  className="apple-dock-icon relative h-[19px] w-[19px]"
+                  className="apple-dock-icon relative"
                   strokeWidth={1.85}
                 />
+                <span className="apple-dock-item-label">
+                  配額 · {user?.remainingGenerations ?? 0}
+                </span>
                 <span
                   aria-hidden="true"
                   className="apple-dock-credit-badge"
@@ -856,7 +893,7 @@ function AppleDock({
                     type="button"
                     aria-label={`使用者選單（${displayName}）`}
                     aria-haspopup="menu"
-                    className="apple-dock-avatar group relative flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
+                    className="apple-dock-avatar group relative flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong)"
                   >
                     <span
                       aria-hidden="true"
@@ -867,6 +904,7 @@ function AppleDock({
                       fallback={displayInitial}
                       className="h-9 w-9 relative"
                     />
+                    <span className="apple-dock-item-label">{displayName}</span>
                   </button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
@@ -918,25 +956,27 @@ function AppleDock({
               )}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="px-2.5 pt-1 pb-1 text-2xs font-semibold tracking-cjk-wide uppercase text-muted-foreground/80">
-                導覽列位置
+                導覽列樣式
               </DropdownMenuLabel>
               {(
                 [
-                  { value: "left", label: "靠左", icon: ArrowLeft },
-                  { value: "top", label: "置頂", icon: ArrowUp },
-                  { value: "right", label: "靠右", icon: ArrowRight },
-                  { value: "bottom", label: "置底", icon: ArrowDown },
+                  { value: "dock", label: "浮動 Dock", icon: Hexagon, desc: "Apple 風格懸浮膠囊" },
+                  { value: "rail", label: "緊縮側欄", icon: PanelLeftClose, desc: "貼邊側欄，僅顯示圖示" },
+                  { value: "panel", label: "完整側欄", icon: PanelLeft, desc: "貼邊側欄，含文字標籤" },
                 ] as const
               ).map(opt => (
                 <DropdownMenuItem
                   key={opt.value}
-                  onClick={() => onSetPosition?.(opt.value)}
+                  onClick={() => onSetVariant?.(opt.value)}
                   className="cursor-pointer rounded-[10px]"
-                  data-active={position === opt.value ? "true" : "false"}
+                  data-active={variant === opt.value ? "true" : "false"}
                 >
                   <opt.icon className="mr-2 h-4 w-4" />
-                  <span>{opt.label}</span>
-                  {position === opt.value && (
+                  <div className="flex flex-col">
+                    <span>{opt.label}</span>
+                    <span className="text-2xs text-muted-foreground">{opt.desc}</span>
+                  </div>
+                  {variant === opt.value && (
                     <span
                       aria-hidden="true"
                       className="ml-auto h-1.5 w-1.5 rounded-full bg-primary"
@@ -944,6 +984,66 @@ function AppleDock({
                   )}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2.5 pt-1 pb-1 text-2xs font-semibold tracking-cjk-wide uppercase text-muted-foreground/80">
+                顯示密度
+              </DropdownMenuLabel>
+              {(
+                [
+                  { value: "compact", label: "緊湊", icon: Rows3 },
+                  { value: "comfortable", label: "舒適", icon: Rows2 },
+                  { value: "spacious", label: "寬鬆", icon: StretchVertical },
+                ] as const
+              ).map(opt => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => onSetDensity?.(opt.value)}
+                  className="cursor-pointer rounded-[10px]"
+                  data-active={density === opt.value ? "true" : "false"}
+                >
+                  <opt.icon className="mr-2 h-4 w-4" />
+                  <span>{opt.label}</span>
+                  {density === opt.value && (
+                    <span
+                      aria-hidden="true"
+                      className="ml-auto h-1.5 w-1.5 rounded-full bg-primary"
+                    />
+                  )}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="px-2.5 pt-1 pb-1 text-2xs font-semibold tracking-cjk-wide uppercase text-muted-foreground/80">
+                導覽列位置
+              </DropdownMenuLabel>
+              {(
+                [
+                  { value: "left", label: "靠左", icon: ArrowLeft, vertical: true },
+                  { value: "top", label: "置頂", icon: ArrowUp, vertical: false },
+                  { value: "right", label: "靠右", icon: ArrowRight, vertical: true },
+                  { value: "bottom", label: "置底", icon: ArrowDown, vertical: false },
+                ] as const
+              )
+                // rail/panel are vertical-only — hide top/bottom rather than
+                // silently no-op the click, so the menu always reflects the
+                // valid choices for the current variant.
+                .filter(opt => variant === "dock" || opt.vertical)
+                .map(opt => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => onSetPosition?.(opt.value)}
+                    className="cursor-pointer rounded-[10px]"
+                    data-active={position === opt.value ? "true" : "false"}
+                  >
+                    <opt.icon className="mr-2 h-4 w-4" />
+                    <span>{opt.label}</span>
+                    {position === opt.value && (
+                      <span
+                        aria-hidden="true"
+                        className="ml-auto h-1.5 w-1.5 rounded-full bg-primary"
+                      />
+                    )}
+                  </DropdownMenuItem>
+                ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={onToggleImmersive}

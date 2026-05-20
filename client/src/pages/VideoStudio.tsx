@@ -4916,7 +4916,7 @@ export default function VideoStudio() {
       onClose={() => setSmartOpen(false)}
       onApply={handleApplyCompiledPrompt}
     />
-    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
+    <div className="page-shell page-shell-default px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 頁面標題 */}
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">

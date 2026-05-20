@@ -3892,8 +3892,10 @@ export default function ImageStudio() {
 
   const hasResults = resultImages.length > 0 || !!result3d || !!resultPose;
 
-  /** Shared max-height for sticky right-side panels (results + history) */
-  const stickyPanelMaxH = "calc(100vh - 5rem)";
+  /** Shared max-height for sticky right-side panels (results + history).
+   *  Sourced from --page-sticky-panel-max-h so every studio sticky panel
+   *  follows the same viewport-anchored ceiling. */
+  const stickyPanelMaxH = "var(--page-sticky-panel-max-h)";
 
   // ── 光球代理人：註冊頁面能力 ─────────────────────────────────────────
   const agentCapabilities: AgentCapability[] = [
@@ -4323,7 +4325,7 @@ export default function ImageStudio() {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto px-3 sm:px-4 lg:px-6 pb-24 lg:pb-10">
+    <div className="page-shell page-shell-studio px-3 sm:px-4 lg:px-6 pb-24 lg:pb-10">
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-3 py-3 sm:py-4">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">

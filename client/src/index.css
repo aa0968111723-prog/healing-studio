@@ -136,6 +136,45 @@
   --space-11: 10rem;    /* 160px */
   --space-12: 12rem;    /* 192px */
 
+  /* ─── Layout standardization — single source of truth for page widths,
+     dock geometry, sticky offsets, and breakpoints. Pages should consume
+     these via the .page-shell-* utility classes (or max-w-[var(...)] for
+     one-offs) instead of picking their own max-w-5xl / max-w-[1400px]. */
+
+  /* Page-content max widths, tiered by density. Tailwind equivalents in
+     comments so it's obvious what each tier replaces. */
+  --page-max-w-narrow:  64rem;  /* 1024px — was max-w-5xl  (settings, ProStudio) */
+  --page-max-w-default: 72rem;  /* 1152px — was max-w-6xl  (VideoStudio, AnimationStudio) */
+  --page-max-w-wide:    80rem;  /* 1280px — was max-w-7xl  (LightOrbCreationStudio) */
+  --page-max-w-studio:  87.5rem;/* 1400px — was max-w-[1400px] (ImageStudio, param-heavy) */
+
+  /* AppleDock geometry — JS padding (DashboardLayout.tsx :: dockPadClass)
+     should stay in lockstep with these. */
+  --dock-item-size:   2.75rem;  /* 44px — h-11/w-11 dock leaf */
+  --dock-bubble-size: 3rem;     /* 48px — minimized corner bubble */
+  --dock-item-radius: 14px;
+
+  /* App-wide breakpoints — mirror useIsMobile (MOBILE_BREAKPOINT) and
+     Tailwind sm/lg/xl. Pure documentation tokens; matchMedia still uses
+     the JS constants. */
+  --bp-mobile:  768px;          /* matches MOBILE_BREAKPOINT in useMobile.ts */
+  --bp-tablet:  1024px;         /* matches Tailwind lg */
+  --bp-desktop: 1280px;         /* matches Tailwind xl */
+
+  /* Sticky offsets — for page-internal toolbars / param panels that need
+     to stick below the top safe-area inset without colliding with the dock. */
+  --page-sticky-offset: calc(0.5rem + env(safe-area-inset-top, 0px));
+  --page-sticky-panel-max-h: calc(100vh - 5rem);
+
+  /* Active-state palette — shared by AppleDock rail/dot and any future
+     page-internal sidebar/tab. Light-mode values; .dark overrides below. */
+  --active-rail-from:  oklch(0.88 0.10 300);
+  --active-rail-to:    oklch(0.82 0.12 320);
+  --active-rail-glow:  oklch(0.82 0.13 300 / 0.55);
+  --active-dot-mid-a:  oklch(0.86 0.10 300);
+  --active-dot-mid-b:  oklch(0.80 0.11 320);
+  --active-dot-glow:   oklch(0.82 0.12 300 / 0.52);
+
   /* Semantic glass surface tiers — replace ad-hoc bg-background/60 patterns */
   --surface-1: oklch(0.99 0.003 75 / 0.55);
   --surface-2: oklch(0.99 0.003 75 / 0.7);
@@ -213,6 +252,14 @@
 
   --ring-healing: oklch(0.72 0.05 300 / 0.55);
   --ring-healing-strong: oklch(0.82 0.06 300 / 0.75);
+
+  /* Active-state palette — slightly brighter on dark surfaces */
+  --active-rail-from:  oklch(0.92 0.10 300);
+  --active-rail-to:    oklch(0.86 0.12 320);
+  --active-rail-glow:  oklch(0.86 0.14 300 / 0.6);
+  --active-dot-mid-a:  oklch(0.90 0.09 300);
+  --active-dot-mid-b:  oklch(0.84 0.10 320);
+  --active-dot-glow:   oklch(0.86 0.12 300 / 0.58);
 
   /* Dark mode healing shadows — deeper but still tinted with lavender */
   --shadow-healing-sm:
@@ -306,6 +353,26 @@
   .flex {
     min-height: 0;
     min-width: 0;
+  }
+
+  /* ─── Page-shell utilities — every studio/page should pick one tier so the
+     content area width is governed by --page-max-w-* tokens. Replaces
+     ad-hoc max-w-5xl / max-w-6xl / max-w-[1400px]. */
+  .page-shell {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .page-shell-narrow  { max-width: var(--page-max-w-narrow); }
+  .page-shell-default { max-width: var(--page-max-w-default); }
+  .page-shell-wide    { max-width: var(--page-max-w-wide); }
+  .page-shell-studio  { max-width: var(--page-max-w-studio); }
+
+  /* Sticky panel — page-internal toolbars/params that should follow the
+     viewport. Pair with `position: sticky` and `top` on the parent if a
+     different offset is needed; this provides the common max-height. */
+  .page-sticky-panel {
+    max-height: var(--page-sticky-panel-max-h);
   }
 
   @media (min-width: 640px) {
@@ -752,6 +819,40 @@
   }
 
   /* ─── Apple-Style Floating Dock ─── */
+  /*
+   * Density + variant axes:
+   *   [data-density]  comfortable (default) | compact | spacious
+   *                   — overrides --dock-item-size / gap / icon-size / padding
+   *                     so the same dock can dial up or down.
+   *   [data-variant]  dock (default floating) | rail (flush icon-only) |
+   *                   panel (flush full sidebar with labels)
+   *                   — adjusts shape, edge anchoring, width, and reveals
+   *                     inline labels in panel mode.
+   * Both axes are pure CSS — JS only flips data attributes + skips floating
+   * animations for the non-dock variants.
+   */
+  .apple-dock-glass {
+    /* Density-driven sizing tokens — overridden by [data-density] below.
+       Components consume --dock-leaf-size / --dock-leaf-gap / --dock-leaf-icon
+       so density changes don't require touching JSX. */
+    --dock-leaf-size: var(--dock-item-size);
+    --dock-leaf-icon: 19px;
+    --dock-leaf-gap: 0.375rem;
+    --dock-leaf-padding: 0.625rem;
+  }
+  [data-density="compact"].apple-dock-glass {
+    --dock-leaf-size: 2.4rem;
+    --dock-leaf-icon: 17px;
+    --dock-leaf-gap: 0.25rem;
+    --dock-leaf-padding: 0.5rem;
+  }
+  [data-density="spacious"].apple-dock-glass {
+    --dock-leaf-size: 3.25rem;
+    --dock-leaf-icon: 21px;
+    --dock-leaf-gap: 0.5rem;
+    --dock-leaf-padding: 0.75rem;
+  }
+
   .apple-dock-glass {
     position: relative;
     /* Stay clear of notch + home indicator on mobile (vertical dock).
@@ -877,6 +978,133 @@
       oklch(1 0 0 / 0.015) 60%,
       transparent 100%
     );
+  }
+
+  /* ─── Variant: rail (flush vertical sidebar, icon-only) ─── */
+  /*
+   * Anchors the dock to the viewport edge instead of floating, drops the
+   * pill border-radius on the docked side, and disables the float animation
+   * so it sits like a traditional sidebar — but keeps the glass material,
+   * halos, and aurora wash so the "design sense" survives the layout swap.
+   */
+  [data-variant="rail"].apple-dock-glass,
+  [data-variant="panel"].apple-dock-glass {
+    border-radius: 0;
+    max-height: 100svh;
+    height: 100svh;
+    top: 0;
+    bottom: 0;
+    transform: none;
+    margin: 0;
+    /* Drop the float bob — fixed sidebars must not drift. Keep aurora/pop. */
+    animation:
+      apple-dock-pop var(--duration-gentle) var(--ease-healing-out),
+      apple-dock-aurora 18s ease-in-out 0.5s infinite;
+  }
+  [data-variant="rail"][data-position="left"].apple-dock-glass,
+  [data-variant="panel"][data-position="left"].apple-dock-glass {
+    left: 0;
+    right: auto;
+    border-right: 1px solid oklch(1 0 0 / 0.18);
+  }
+  [data-variant="rail"][data-position="right"].apple-dock-glass,
+  [data-variant="panel"][data-position="right"].apple-dock-glass {
+    right: 0;
+    left: auto;
+    border-left: 1px solid oklch(1 0 0 / 0.18);
+  }
+  :is(.dark) [data-variant="rail"].apple-dock-glass,
+  :is(.dark) [data-variant="panel"].apple-dock-glass {
+    border-color: oklch(1 0 0 / 0.08);
+  }
+  /* Soften the floating top-light reflection — looks odd against a hard edge */
+  [data-variant="rail"].apple-dock-glass::before,
+  [data-variant="panel"].apple-dock-glass::before {
+    border-radius: 0;
+    height: 32%;
+    opacity: 0.6;
+  }
+  [data-variant="rail"].apple-dock-glass::after,
+  [data-variant="panel"].apple-dock-glass::after {
+    display: none;
+  }
+
+  /* ─── Variant: panel — full sidebar with inline labels ─── */
+  /*
+   * Expands the dock to a 15rem sidebar and turns each round leaf into a
+   * full-width row (icon + label + optional active rail). The label span
+   * is hidden by default and only revealed in panel mode so the same JSX
+   * works for dock/rail too.
+   */
+  [data-variant="panel"].apple-dock-glass {
+    width: 15rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
+  [data-variant="panel"] .apple-dock-stagger,
+  [data-variant="panel"] .apple-dock-glass > div {
+    width: 100%;
+  }
+  [data-variant="panel"] .apple-dock-item {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.625rem;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+    border-radius: 12px;
+  }
+  /* Labels are rendered as a child span; only shown in panel variant */
+  .apple-dock-item-label {
+    display: none;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: inherit;
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-variant="panel"] .apple-dock-item-label {
+    display: inline;
+  }
+  /* In panel mode, the avatar/credit buttons inherit the same row treatment */
+  [data-variant="panel"] .apple-dock-avatar {
+    width: 100%;
+    border-radius: 14px;
+    justify-content: flex-start;
+    gap: 0.625rem;
+    padding-left: 0.5rem;
+    padding-right: 0.625rem;
+  }
+  /* Active rail moves from "outside the floating dock" to "inside the row" */
+  [data-variant="panel"] .apple-dock-side-rail,
+  [data-variant="rail"] .apple-dock-side-rail {
+    left: -2px;
+    height: 60%;
+  }
+  [data-variant="panel"][data-position="right"] .apple-dock-side-rail,
+  [data-variant="rail"][data-position="right"] .apple-dock-side-rail {
+    left: auto;
+    right: -2px;
+  }
+  /* Active dot lives under floating items; suppress in non-floating variants */
+  [data-variant="rail"] .apple-dock-active-dot,
+  [data-variant="panel"] .apple-dock-active-dot {
+    display: none;
+  }
+  /* Bottom-center badges (credits, task count) clash with full-width rows.
+     In panel mode the inline label already carries the count, so hide them. */
+  [data-variant="panel"] .apple-dock-credit-badge,
+  [data-variant="panel"] .apple-dock-count-badge {
+    display: none;
+  }
+  /* Avatar ring is a circle pinned to the avatar's own square footprint.
+     In panel mode the button becomes a wide row, so the ring stretches
+     into an oval — hide it and let the AvatarRenderer carry the identity. */
+  [data-variant="panel"] .apple-dock-avatar-ring {
+    display: none;
   }
 
   .apple-dock-divider {
@@ -1288,9 +1516,20 @@
   .apple-dock-item {
     isolation: isolate;
     color: oklch(0.34 0.012 60);
+    /* Sizing driven by --dock-leaf-* tokens (density-aware). The h-11/w-11
+       Tailwind classes in the original JSX are now governed by these vars
+       via `width`/`height` rules below so density can dial them up/down. */
+    width: var(--dock-leaf-size, 2.75rem);
+    height: var(--dock-leaf-size, 2.75rem);
     transition:
       transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
-      color var(--duration-gentle) var(--ease-healing-out);
+      color var(--duration-gentle) var(--ease-healing-out),
+      width var(--duration-gentle) var(--ease-healing-out),
+      height var(--duration-gentle) var(--ease-healing-out);
+  }
+  .apple-dock-item .apple-dock-icon {
+    width: var(--dock-leaf-icon, 19px);
+    height: var(--dock-leaf-icon, 19px);
   }
   :is(.dark) .apple-dock-item {
     color: oklch(0.88 0.02 60);
@@ -1425,7 +1664,9 @@
     display: none;
   }
 
-  /* Vertical pill rail on the dock's outer edge — appears next to active item */
+  /* Vertical pill rail on the dock's outer edge — appears next to active item.
+     Colors are driven by --active-rail-* tokens so tabs / page sidebars can
+     reuse the same active palette. */
   .apple-dock-side-rail {
     position: absolute;
     left: -10px;
@@ -1435,11 +1676,11 @@
     border-radius: 9999px;
     background: linear-gradient(
       180deg,
-      oklch(0.88 0.1 300),
-      oklch(0.82 0.12 320)
+      var(--active-rail-from),
+      var(--active-rail-to)
     );
     transform: translateY(-50%);
-    box-shadow: 0 0 10px oklch(0.82 0.13 300 / 0.55);
+    box-shadow: 0 0 10px var(--active-rail-glow);
     animation: apple-dock-rail-in 0.45s var(--ease-healing-out) backwards;
   }
   [data-position="right"] .apple-dock-side-rail {
@@ -1447,12 +1688,7 @@
     right: -10px;
   }
   :is(.dark) .apple-dock-side-rail {
-    background: linear-gradient(
-      180deg,
-      oklch(0.92 0.1 300),
-      oklch(0.86 0.12 320)
-    );
-    box-shadow: 0 0 12px oklch(0.86 0.14 300 / 0.6);
+    box-shadow: 0 0 12px var(--active-rail-glow);
   }
 
   .apple-dock-active-dot {
@@ -1465,30 +1701,30 @@
     background: linear-gradient(
       90deg,
       transparent,
-      oklch(0.86 0.1 300),
-      oklch(0.8 0.11 320),
+      var(--active-dot-mid-a),
+      var(--active-dot-mid-b),
       transparent
     );
     transform: translateX(-50%);
-    box-shadow: 0 0 10px oklch(0.82 0.12 300 / 0.52);
+    box-shadow: 0 0 10px var(--active-dot-glow);
     animation: apple-dock-dot-glow 2.4s ease-in-out infinite;
   }
   :is(.dark) .apple-dock-active-dot {
-    background: linear-gradient(
-      90deg,
-      transparent,
-      oklch(0.9 0.09 300),
-      oklch(0.84 0.1 320),
-      transparent
-    );
-    box-shadow: 0 0 11px oklch(0.86 0.12 300 / 0.58);
+    box-shadow: 0 0 11px var(--active-dot-glow);
   }
 
   /* ─── Avatar trigger ─── */
   .apple-dock-avatar {
     isolation: isolate;
     color: var(--text-on-glass-strong);
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* Track --dock-leaf-size so density changes scale the avatar in lockstep
+       with the other dock leaves. */
+    width: var(--dock-leaf-size, 2.75rem);
+    height: var(--dock-leaf-size, 2.75rem);
+    transition:
+      transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+      width var(--duration-gentle) var(--ease-healing-out),
+      height var(--duration-gentle) var(--ease-healing-out);
   }
   .apple-dock-avatar:hover {
     transform: scale(1.08);
