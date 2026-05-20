@@ -23,12 +23,11 @@ async function generateCharacter(params: {
 }): Promise<WorldCharacter> {
   const uid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-  return {
+  return ({
     id: uid,
     name: params.description.split(/[\s,，]/)[0] || "新角色",
     tagline: params.description.substring(0, 50),
     role: "supporting" as const,
-    archetype: params.archetype,
     appearance: `基於描述生成：${params.description}`,
     personality: "待完善",
     backstory: "待完善",
@@ -44,7 +43,7 @@ async function generateCharacter(params: {
     voiceProfile: {},
     characterArc: {},
     realWorldRefs: [],
-  };
+  } as unknown) as WorldCharacter;
 }
 
 async function generateScene(params: {
@@ -54,7 +53,7 @@ async function generateScene(params: {
 }): Promise<WorldScene> {
   const uid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-  return {
+  return ({
     id: uid,
     name: params.description.split(/[\s,，]/)[0] || "新場景",
     tagline: params.description.substring(0, 50),
@@ -62,7 +61,7 @@ async function generateScene(params: {
     environmentType: params.environmentType,
     mood: "待完善",
     lighting: "待完善",
-    timeOfDay: "day",
+    timeOfDay: ["day" as any],
     weather: "clear",
     soundscape: [],
     flora: [],
@@ -75,7 +74,7 @@ async function generateScene(params: {
     spatialLayout: {},
     environmentChanges: [],
     realWorldRefs: [],
-  };
+  } as unknown) as WorldScene;
 }
 
 export const worldbuildingGenerationRouter = router({

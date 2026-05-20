@@ -222,7 +222,7 @@ export const compositionElementSchema = z.object({
   expressionId: z.string().max(64).optional(),
   outfitId: z.string().max(64).optional(),
   pose: z.string().max(500).optional(),
-  style: z.record(z.unknown()).optional(),
+  style: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const sceneCompositionInputSchema = z.object({

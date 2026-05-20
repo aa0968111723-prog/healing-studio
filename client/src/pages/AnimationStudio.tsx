@@ -5330,8 +5330,8 @@ export default function AnimationStudio() {
   const [immersiveMode, setImmersiveMode] = useState(false);
 
   const worldsQuery = trpc.worldbuilding.list.useQuery();
-  const voicesQuery = trpc.worldbuilding.linkableVoices.useQuery();
-  const linkableModelsQuery = trpc.worldbuilding.linkableModels.useQuery();
+  const voicesQuery = trpc.worldbuilding.linkableVoices.useQuery(undefined, { retry: 1 });
+  const linkableModelsQuery = trpc.worldbuilding.linkableModels.useQuery(undefined, { retry: 1 });
   const utils = trpc.useUtils();
 
   const [selectedWorldId, setSelectedWorldId] = useState<number | null>(null);
@@ -5351,6 +5351,12 @@ export default function AnimationStudio() {
 
   // 自動選第一個世界（避免在 render 階段 setState）
   const worlds = worldsQuery.data ?? [];
+
+  const loadError =
+    worldsQuery.error ??
+    voicesQuery.error ??
+    linkableModelsQuery.error ??
+    null;
 
   useEffect(() => {
     if (worlds.length === 0) {
@@ -5372,6 +5378,20 @@ export default function AnimationStudio() {
     { worldId: selectedWorldId! },
     { enabled: !!selectedWorldId }
   );
+  const [selectedStoryboard, setSelectedStoryboard] = useState<WorldStoryboard | null>(null);
+
+  useEffect(() => {
+    const list = storyboardsQuery.data ?? [];
+    if (list.length === 0) {
+      setSelectedStoryboard(null);
+      return;
+    }
+    setSelectedStoryboard(prev => {
+      if (prev && list.some(sb => sb.id === prev.id)) return prev;
+      return list[0];
+    });
+  }, [storyboardsQuery.data]);
+
 
   const createWorld = trpc.worldbuilding.create.useMutation({
     onSuccess: data => {
@@ -5579,9 +5599,10 @@ export default function AnimationStudio() {
           return { ok: false, reason: "請先選擇一個世界觀" };
         }
         try {
+          const parsedScriptId = action.scriptId ? Number(action.scriptId) : undefined;
           await generateStoryboardMutation.mutateAsync({
             worldId: selectedWorldId,
-            scriptId: action.scriptId,
+            scriptId: Number.isFinite(parsedScriptId) ? parsedScriptId : undefined,
             description: action.description,
           });
           return { ok: true, message: "分鏡已生成" };
@@ -5650,6 +5671,25 @@ export default function AnimationStudio() {
     return (
       <div className="p-6 text-center text-muted-foreground text-sm">
         載入世界觀中…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-6 max-w-xl mx-auto text-center space-y-3">
+        <p className="text-sm text-muted-foreground">世界觀系統載入失敗：{loadError.message}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            worldsQuery.refetch();
+            voicesQuery.refetch();
+            linkableModelsQuery.refetch();
+          }}
+        >
+          重新載入
+        </Button>
       </div>
     );
   }

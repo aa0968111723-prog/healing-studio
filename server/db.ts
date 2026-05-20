@@ -1,4 +1,4 @@
-import { eq, desc, and, or, sql, lt, inArray } from "drizzle-orm";
+import { eq, ne, desc, asc, and, or, like, sql, lt, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
@@ -68,6 +68,9 @@ import {
   modelWishes,
   InsertModelWish,
   modelWishVotes,
+  realEarthEntries,
+  type RealEarthEntry,
+  type InsertRealEarthEntry,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import type { UserRole } from "@shared/const";
@@ -2782,6 +2785,7 @@ const TEACHING_MATERIAL_SUMMARY_COLUMNS = {
   topic: teachingMaterials.topic,
   speaker: teachingMaterials.speaker,
   tags: teachingMaterials.tags,
+  realEarthRefs: teachingMaterials.realEarthRefs,
   visibility: teachingMaterials.visibility,
   isFeatured: teachingMaterials.isFeatured,
   sortOrder: teachingMaterials.sortOrder,
@@ -3222,7 +3226,7 @@ export async function getRealEarthEntries(params: {
 
   const conditions: any[] = [];
   if (params.category) {
-    conditions.push(eq(realEarthEntries.category, params.category));
+    conditions.push(eq(realEarthEntries.category, params.category as any));
   }
   if (params.taiwanOnly) {
     conditions.push(eq(realEarthEntries.isTaiwanFocused, true));
@@ -3273,7 +3277,7 @@ export async function searchRealEarthEntries(params: {
   // 類別篩選
   if (params.categories && params.categories.length > 0) {
     conditions.push(
-      or(...params.categories.map(cat => eq(realEarthEntries.category, cat)))
+      or(...params.categories.map(cat => eq(realEarthEntries.category, cat as any)))
     );
   }
 
@@ -3333,7 +3337,7 @@ export async function searchRealEarthEntries(params: {
     }
     if (params.categories && params.categories.length > 0) {
       countConditions.push(
-        or(...params.categories.map(cat => eq(realEarthEntries.category, cat)))
+        or(...params.categories.map(cat => eq(realEarthEntries.category, cat as any)))
       );
     }
     if (params.taiwanOnly) {
@@ -3437,7 +3441,7 @@ export async function findSimilarRealEarthEntries(params: {
     .from(realEarthEntries)
     .where(
       and(
-        eq(realEarthEntries.category, params.category),
+        eq(realEarthEntries.category, params.category as any),
         ne(realEarthEntries.id, params.excludeId)
       )
     )

@@ -360,7 +360,7 @@ export function CompositionAssistant({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saveCompositionMutation.isLoading || elements.length === 0}
+            disabled={saveCompositionMutation.isPending || elements.length === 0}
             size="sm"
           >
             <Save className="w-4 h-4 mr-2" />
