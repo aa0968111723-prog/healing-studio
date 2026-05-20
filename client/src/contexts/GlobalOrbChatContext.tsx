@@ -2004,6 +2004,12 @@ export interface CollaborativeDiscussionMeta {
   allowedRoles: string[];
   allowedFamilies: CollaborativeDiscussionFamily[];
   startedAt: number;
+  /** 0-based index of the latest completed turn; undefined before first turn */
+  currentRound?: number;
+  /** Ordered list of agentRole ids that have spoken so far */
+  speakersSoFar?: string[];
+  /** agentRole of the most recent speaker; null = discussion started but no turns yet */
+  latestSpeaker?: string | null;
 }
 
 interface GlobalOrbChatContextValue {
@@ -2452,6 +2458,25 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           at: m.timestamp,
           pagePath: locationPath,
           agentRole,
+        });
+        // Update runtime tracking so CollaborativeProgressPanel can show
+        // the active speaker + round progress. Functional update form is
+        // safe here because React 18 chains functional updates within the
+        // same flush, so speakersSoFar accumulates correctly across turns.
+        setCollaborativeDiscussionMeta(prev => {
+          if (!prev) return prev;
+          const newSpeakers = prev.speakersSoFar ?? [];
+          const updatedSpeakers = newSpeakers.includes(agentRole)
+            ? newSpeakers
+            : [...newSpeakers, agentRole];
+          return {
+            ...prev,
+            ...(typeof td?.roundIndex === "number"
+              ? { currentRound: td.roundIndex }
+              : {}),
+            speakersSoFar: updatedSpeakers,
+            latestSpeaker: agentRole,
+          };
         });
       } else if (action === "discussion_complete") {
         const cd = (m.content as {
@@ -5923,6 +5948,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           allowedFamilies:
             (result.allowedFamilies ?? []) as CollaborativeDiscussionFamily[],
           startedAt: now,
+          currentRound: undefined,
+          speakersSoFar: [],
+          latestSpeaker: null,
         });
         return result.collaborationId;
       } catch (err) {
