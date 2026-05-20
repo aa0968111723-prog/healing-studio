@@ -16,8 +16,8 @@ import type {
   ConsistencyItem,
   ConsistencyIssue,
 } from "../../../../shared/worldbuilding-timeline";
-import { Button } from "../ui/button";
-import { trpc } from "../../lib/trpc";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
 interface ConsistencyCheckPanelProps {
   frame: TimelineFrame;
