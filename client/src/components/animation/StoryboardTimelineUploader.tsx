@@ -12,8 +12,8 @@ import { useState, useCallback } from "react";
 import { Upload, Clock, Image as ImageIcon, Check, AlertCircle, Trash2 } from "lucide-react";
 import type { TimelineFrame, TimelineFrameInput } from "../../../../shared/worldbuilding-timeline";
 import type { WorldStoryboard, StoryboardScene } from "../../../../shared/worldbuilding-animation";
-import { Button } from "../../../components/ui/button";
-import { trpc } from "../../../lib/trpc";
+import { Button } from "../ui/button";
+import { trpc } from "../../lib/trpc";
 import { formatTimecode } from "../../../../shared/worldbuilding-animation";
 
 interface StoryboardTimelineUploaderProps {

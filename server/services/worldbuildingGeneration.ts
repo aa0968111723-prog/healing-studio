@@ -12,8 +12,8 @@
  */
 
 import { z } from "zod";
-import { publicProcedure, router } from "../trpc";
-import { db } from "../../db";
+import { publicProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import type {
   WorldCharacter,
@@ -126,6 +126,8 @@ export const worldbuildingGenerationRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+
       // Verify world exists and user has access
       const world = await db
         .selectFrom("worldbuilding_framework")
@@ -173,6 +175,8 @@ export const worldbuildingGenerationRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+
       const world = await db
         .selectFrom("worldbuilding_framework")
         .where("id", "=", input.worldId)
@@ -217,6 +221,8 @@ export const worldbuildingGenerationRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+
       const world = await db
         .selectFrom("worldbuilding_framework")
         .where("id", "=", input.worldId)
