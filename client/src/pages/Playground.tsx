@@ -17,6 +17,7 @@ import {
   BarChart3,
   BookMarked,
   Sparkles,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -25,6 +26,7 @@ import {
   type AgentActionResult,
 } from "@/contexts/PageAgentContext";
 
+const Studio = lazy(() => import("./Studio"));
 const ImageStudio = lazy(() => import("./ImageStudio"));
 const VideoStudio = lazy(() => import("./VideoStudio"));
 const ProStudio = lazy(() => import("./ProStudio"));
@@ -34,6 +36,7 @@ const DashboardPage = lazy(() => import("./DashboardPage"));
 const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
 
 type PlaygroundTabId =
+  | "studio"
   | "image-studio"
   | "video-studio"
   | "pro-studio"
@@ -51,6 +54,13 @@ type PlaygroundTab = {
 };
 
 const TABS: readonly PlaygroundTab[] = [
+  {
+    id: "studio",
+    label: "創作工作室",
+    hint: "跨模態統一創作入口（圖 / 影 / 音 / 語音）",
+    icon: Wand2,
+    Component: Studio,
+  },
   {
     id: "image-studio",
     label: "圖片創作室",
@@ -122,9 +132,9 @@ export default function Playground() {
     try {
       const params = new URLSearchParams(search);
       const v = params.get("tab");
-      return isPlaygroundTabId(v) ? v : "image-studio";
+      return isPlaygroundTabId(v) ? v : "studio";
     } catch {
-      return "image-studio";
+      return "studio";
     }
   }, [search]);
 
@@ -157,6 +167,7 @@ export default function Playground() {
     () =>
       new Set([
         "/playground",
+        "/studio",
         "/image-studio",
         "/video-studio",
         "/pro-studio",
@@ -184,6 +195,7 @@ export default function Playground() {
         action: "navigate",
         label: "進入單獨工具頁",
         options: [
+          { id: "/studio", label: "創作工作室（獨立頁）" },
           { id: "/image-studio", label: "圖片創作室（獨立頁）" },
           { id: "/video-studio", label: "影片創作室（獨立頁）" },
           { id: "/pro-studio", label: "音樂配音創作室（獨立頁）" },
@@ -236,7 +248,7 @@ export default function Playground() {
             <p className="page-eyebrow">Playground</p>
             <h1 className="page-title !mb-0">模型樂園</h1>
             <p className="page-subtitle">
-              所有進階模型工具都在這裡：圖片、影片、音樂創作室、角色鍛造、模型訓練、數據儀表板與提示詞庫，可在頁籤間自由切換。
+              想自己挑模型直接用？這裡集中了所有單一模型工具：跨模態創作工作室、圖片 / 影片 / 音樂配音創作室、角色鍛造、模型訓練、數據儀表板與提示詞庫，可在頁籤間自由切換。
             </p>
           </div>
         </div>
