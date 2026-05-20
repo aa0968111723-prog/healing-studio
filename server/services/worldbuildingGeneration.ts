@@ -5,38 +5,27 @@
  * - Characters (appearance, personality, backstory from description + archetype)
  * - Scenes (environment, mood, lighting from description + type)
  * - Storyboards (shot list from script + world context)
- *
- * Integrates with:
- * - LLM service (for structured generation)
- * - worldbuilding.ts (to persist generated entities)
  */
 
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
-import { getDb } from "../db";
+import { protectedProcedure, router } from "../_core/trpc";
+import * as db from "../db";
 import { TRPCError } from "@trpc/server";
 import type {
   WorldCharacter,
   WorldScene,
 } from "../../shared/worldbuilding-types";
-import type { WorldStoryboard } from "../../shared/worldbuilding-animation";
 
-/**
- * Generate a character based on description and optional archetype.
- * Returns structured character data ready to be added to a world.
- */
 async function generateCharacter(params: {
   worldId: number;
   description: string;
   archetype?: string;
 }): Promise<WorldCharacter> {
-  // TODO: Call LLM service with structured output schema
-  // For now, return a basic template with the description
   const uid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
   return {
     id: uid,
-    name: params.description.split(/[\s,]/)[0] || "新角色",
+    name: params.description.split(/[\s,，]/)[0] || "新角色",
     tagline: params.description.substring(0, 50),
     role: "supporting" as const,
     archetype: params.archetype,
@@ -58,21 +47,16 @@ async function generateCharacter(params: {
   };
 }
 
-/**
- * Generate a scene based on description and optional environment type.
- * Returns structured scene data ready to be added to a world.
- */
 async function generateScene(params: {
   worldId: number;
   description: string;
   environmentType?: string;
 }): Promise<WorldScene> {
-  // TODO: Call LLM service with structured output schema
   const uid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
   return {
     id: uid,
-    name: params.description.split(/[\s,]/)[0] || "新場景",
+    name: params.description.split(/[\s,，]/)[0] || "新場景",
     tagline: params.description.substring(0, 50),
     environment: `基於描述生成：${params.description}`,
     environmentType: params.environmentType,
@@ -94,30 +78,8 @@ async function generateScene(params: {
   };
 }
 
-/**
- * Generate a storyboard from script and world context.
- * Returns shot list with scene assignments and camera directions.
- */
-async function generateStoryboard(params: {
-  worldId: number;
-  scriptId?: number;
-  description: string;
-}): Promise<Partial<WorldStoryboard>> {
-  // TODO: Call LLM service to parse script and generate shot sequence
-  return {
-    name: params.description.substring(0, 30) || "新分鏡",
-    description: params.description,
-    scenes: [],
-    aspectRatio: "16:9",
-    fps: 24,
-  };
-}
-
 export const worldbuildingGenerationRouter = router({
-  /**
-   * Generate a character and add it to the specified world
-   */
-  generateCharacter: publicProcedure
+  generateCharacter: protectedProcedure
     .input(
       z.object({
         worldId: z.number(),
@@ -126,47 +88,29 @@ export const worldbuildingGenerationRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
+      const world = await db.getWorldbuildingFramework(input.worldId);
 
-      // Verify world exists and user has access
-      const world = await db
-        .selectFrom("worldbuilding_framework")
-        .where("id", "=", input.worldId)
-        .where("userId", "=", ctx.userId)
-        .selectAll()
-        .executeTakeFirst();
-
-      if (!world) {
+      if (!world || world.userId !== ctx.user.id) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "World not found or access denied",
         });
       }
 
-      // Generate character
       const character = await generateCharacter(input);
 
-      // Add to world
-      const data = world.data as any;
-      const characters = data.characters || [];
-      characters.push(character);
+      const characters = Array.isArray(world.charactersJson)
+        ? [...(world.charactersJson as WorldCharacter[]), character]
+        : [character];
 
-      await db
-        .updateTable("worldbuilding_framework")
-        .set({
-          data: JSON.stringify({ ...data, characters }),
-          updated_at: new Date(),
-        })
-        .where("id", "=", input.worldId)
-        .execute();
+      await db.updateWorldbuildingFramework(input.worldId, {
+        charactersJson: characters as Array<Record<string, unknown>>,
+      });
 
       return { character };
     }),
 
-  /**
-   * Generate a scene and add it to the specified world
-   */
-  generateScene: publicProcedure
+  generateScene: protectedProcedure
     .input(
       z.object({
         worldId: z.number(),
@@ -175,16 +119,9 @@ export const worldbuildingGenerationRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
+      const world = await db.getWorldbuildingFramework(input.worldId);
 
-      const world = await db
-        .selectFrom("worldbuilding_framework")
-        .where("id", "=", input.worldId)
-        .where("userId", "=", ctx.userId)
-        .selectAll()
-        .executeTakeFirst();
-
-      if (!world) {
+      if (!world || world.userId !== ctx.user.id) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "World not found or access denied",
@@ -193,26 +130,18 @@ export const worldbuildingGenerationRouter = router({
 
       const scene = await generateScene(input);
 
-      const data = world.data as any;
-      const scenes = data.scenes || [];
-      scenes.push(scene);
+      const scenes = Array.isArray(world.scenesJson)
+        ? [...(world.scenesJson as WorldScene[]), scene]
+        : [scene];
 
-      await db
-        .updateTable("worldbuilding_framework")
-        .set({
-          data: JSON.stringify({ ...data, scenes }),
-          updated_at: new Date(),
-        })
-        .where("id", "=", input.worldId)
-        .execute();
+      await db.updateWorldbuildingFramework(input.worldId, {
+        scenesJson: scenes as Array<Record<string, unknown>>,
+      });
 
       return { scene };
     }),
 
-  /**
-   * Generate a storyboard from script or description
-   */
-  generateStoryboard: publicProcedure
+  generateStoryboard: protectedProcedure
     .input(
       z.object({
         worldId: z.number(),
@@ -221,39 +150,29 @@ export const worldbuildingGenerationRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
+      const world = await db.getWorldbuildingFramework(input.worldId);
 
-      const world = await db
-        .selectFrom("worldbuilding_framework")
-        .where("id", "=", input.worldId)
-        .where("userId", "=", ctx.userId)
-        .selectAll()
-        .executeTakeFirst();
-
-      if (!world) {
+      if (!world || world.userId !== ctx.user.id) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "World not found or access denied",
         });
       }
 
-      const storyboardData = await generateStoryboard(input);
+      const storyboardId = await db.createWorldStoryboard({
+        userId: ctx.user.id,
+        worldId: input.worldId,
+        name: input.description.substring(0, 30) || "新分鏡",
+        totalDurationSec: 60,
+        fps: 24,
+        aspectRatio: "16:9",
+        scenesJson: [],
+        productionStatus: "planning",
+        ...(input.scriptId
+          ? { sourceScriptId: String(input.scriptId) }
+          : {}),
+      });
 
-      // Create storyboard record
-      const result = await db
-        .insertInto("world_storyboard")
-        .values({
-          user_id: ctx.userId,
-          world_id: input.worldId,
-          name: storyboardData.name || "新分鏡",
-          description: storyboardData.description,
-          data: JSON.stringify(storyboardData),
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning("id")
-        .executeTakeFirst();
-
-      return { storyboardId: result?.id, storyboard: storyboardData };
+      return { storyboardId };
     }),
 });
