@@ -10,6 +10,8 @@ import { useState, useRef, useCallback, useEffect, createContext, useContext, us
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useWorldContext } from "@/contexts/WorldContextContext";
+import { WorldContextSidebar } from "@/components/WorldContextSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -719,6 +721,9 @@ function TextToVideoTab() {
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
+  // 世界觀注入：所有送出的 prompt 在發出前先過 injectIntoPrompt，
+  // 沒有選定創作專案時為 no-op。
+  const injectWorld = useWorldContext().injectIntoPrompt;
   // ─ Kling
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingNeg, setKlingNeg] = useState("");
@@ -906,7 +911,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
-        prompt: klingPrompt,
+        prompt: injectWorld(klingPrompt),
         negativePrompt: klingNeg || undefined,
         duration: klingDuration,
         aspectRatio: klingAspect,
@@ -929,7 +934,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
-        prompt: wanPrompt,
+        prompt: injectWorld(wanPrompt),
         negativePrompt: wanNeg || undefined,
         resolution: wanRes,
         numFrames: wanFrames,
@@ -951,7 +956,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await mmMut.mutateAsync({
-        prompt: mmPrompt,
+        prompt: injectWorld(mmPrompt),
         promptOptimizer: mmOptimize,
       });
       setMmResult(r);
@@ -971,7 +976,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await veoMut.mutateAsync({
-        prompt: veoPrompt,
+        prompt: injectWorld(veoPrompt),
         aspectRatio: veoAspect,
         generateAudio: veoAudio,
       });
@@ -992,7 +997,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await veoProMut.mutateAsync({
-        prompt: veoPrompt,
+        prompt: injectWorld(veoPrompt),
         aspectRatio: veoAspect,
         generateAudio: veoAudio,
       });
@@ -1014,7 +1019,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await ltxMut.mutateAsync({
-        prompt: ltxPrompt,
+        prompt: injectWorld(ltxPrompt),
         negativePrompt: ltxNeg || undefined,
       });
       setLtxResult(r);
@@ -1034,7 +1039,7 @@ function TextToVideoTab() {
     setAIState("generating");
     try {
       const r = await soraMut.mutateAsync({
-        prompt: soraPrompt,
+        prompt: injectWorld(soraPrompt),
         duration: soraDuration,
         resolution: soraRes,
         aspectRatio: soraAspect,
@@ -1633,6 +1638,7 @@ function ImageToVideoTab() {
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
+  const injectWorld = useWorldContext().injectIntoPrompt;
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingImage, setKlingImage] = useState("");
   const [klingTail, setKlingTail] = useState("");
@@ -1783,7 +1789,7 @@ function ImageToVideoTab() {
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
-        prompt: klingPrompt,
+        prompt: injectWorld(klingPrompt),
         imageUrl: klingImage,
         tailImageUrl: klingTail || undefined,
         duration: klingDuration,
@@ -1806,7 +1812,7 @@ function ImageToVideoTab() {
     setAIState("generating");
     try {
       const r = await klingProMut.mutateAsync({
-        prompt: klingPrompt,
+        prompt: injectWorld(klingPrompt),
         imageUrl: klingImage,
         tailImageUrl: klingTail || undefined,
         duration: klingDuration,
@@ -1829,7 +1835,7 @@ function ImageToVideoTab() {
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
-        prompt: wanPrompt,
+        prompt: injectWorld(wanPrompt),
         imageUrl: wanImage,
         resolution: wanRes,
         numFrames: wanFrames,
@@ -1853,7 +1859,7 @@ function ImageToVideoTab() {
     setAIState("generating");
     try {
       const r = await runwayMut.mutateAsync({
-        prompt: runwayPrompt,
+        prompt: injectWorld(runwayPrompt),
         imageUrl: runwayImage,
         duration: runwayDuration,
         ratio: runwayRatio as any,
@@ -1876,7 +1882,7 @@ function ImageToVideoTab() {
     setAIState("generating");
     try {
       const r = await pvMut.mutateAsync({
-        prompt: pvPrompt,
+        prompt: injectWorld(pvPrompt),
         imageUrl: pvImage,
         negativePrompt: pvNeg || undefined,
         duration: pvDuration,
@@ -1902,7 +1908,7 @@ function ImageToVideoTab() {
     setAIState("generating");
     try {
       const r = await mmMut.mutateAsync({
-        prompt: mmPrompt,
+        prompt: injectWorld(mmPrompt),
         imageUrl: mmImage,
         promptOptimizer: mmOptimize,
         duration: mmDuration,
@@ -2468,6 +2474,7 @@ function VideoToVideoTab() {
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
+  const injectWorld = useWorldContext().injectIntoPrompt;
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanVideo, setWanVideo] = useState("");
   const [wanNeg, setWanNeg] = useState("");
@@ -2575,7 +2582,7 @@ function VideoToVideoTab() {
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
-        prompt: wanPrompt,
+        prompt: injectWorld(wanPrompt),
         videoUrl: wanVideo,
         negativePrompt: wanNeg || undefined,
         strength: wanStrength,
@@ -2598,7 +2605,7 @@ function VideoToVideoTab() {
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
-        prompt: klingPrompt,
+        prompt: injectWorld(klingPrompt),
         videoUrl: klingVideo,
         negativePrompt: klingNeg || undefined,
         cfgScale: klingCfg,
@@ -2621,7 +2628,7 @@ function VideoToVideoTab() {
     setAIState("generating");
     try {
       const r = await ltxMut.mutateAsync({
-        prompt: ltxPrompt,
+        prompt: injectWorld(ltxPrompt),
         imageUrl: ltxImage,
         negativePrompt: ltxNeg || undefined,
         numFrames: ltxFrames,
@@ -3314,6 +3321,7 @@ function AdvancedControlTab() {
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
+  const injectWorld = useWorldContext().injectIntoPrompt;
   type ControlModel = "cam" | "ad" | "depth" | "vidu";
   const [activeControlModel, setActiveControlModel] =
     useState<ControlModel>("cam");
@@ -3361,7 +3369,7 @@ function AdvancedControlTab() {
     setAIState("generating");
     try {
       const r = await camMut.mutateAsync({
-        prompt: camPrompt,
+        prompt: injectWorld(camPrompt),
         imageUrl: camImage,
         cameraMotion: camMotion as any,
         duration: camDuration,
@@ -3383,7 +3391,7 @@ function AdvancedControlTab() {
     setAIState("generating");
     try {
       const r = await adMut.mutateAsync({
-        prompt: adPrompt,
+        prompt: injectWorld(adPrompt),
         videoUrl: adVideo,
         controlNet: adControlNet,
         guidanceScale: adGuide,
@@ -3423,7 +3431,7 @@ function AdvancedControlTab() {
     setAIState("generating");
     try {
       const r = await viduMut.mutateAsync({
-        prompt: viduPrompt,
+        prompt: injectWorld(viduPrompt),
         imageUrls: urls,
         duration: viduDuration,
         aspectRatio: viduAspect,
@@ -4264,6 +4272,10 @@ export default function VideoStudio() {
   // 全站新手引導
   usePageTour("video-studio");
   const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
+  // 世界觀上下文：若用戶選定了創作專案，所有 Tab 的生成 prompt
+  // 都會自動帶入該世界觀的一致性前綴（每個 Tab 各自呼叫
+  // useWorldContext().injectIntoPrompt 包裝送出）。
+  const worldCtx = useWorldContext();
 
   // ── AI Agent Integration ──
   const {
@@ -4969,6 +4981,13 @@ export default function VideoStudio() {
 
       {/* API Key 提示 */}
       <ApiKeyBanner />
+
+      {/* 世界觀上下文（僅在用戶選定創作專案時顯示） */}
+      {worldCtx.currentProjectId !== null && (
+        <div className="mb-3">
+          <WorldContextSidebar defaultOpen={false} />
+        </div>
+      )}
 
       {/* Applied Model Banner */}
       {appliedModelBanner && (
