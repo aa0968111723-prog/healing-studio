@@ -30,6 +30,16 @@ import {
 } from "../../shared/worldbuilding-timeline";
 import { VOICE_MODEL_REGISTRY } from "../../shared/voiceModelRegistry";
 
+function asArray<T>(value: unknown, fallback: T[] = []): T[] {
+  return Array.isArray(value) ? (value as T[]) : fallback;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((v): v is string => typeof v === "string");
+}
+
+
 function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildingFramework>>>): WorldbuildingFrameworkData & {
   id: number;
   createdAt: Date;
@@ -41,12 +51,10 @@ function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildin
     description: row.description ?? undefined,
     genre: row.genre ?? undefined,
     era: row.era ?? undefined,
-    characters: (row.charactersJson ?? []) as WorldbuildingFrameworkData["characters"],
-    scenes: (row.scenesJson ?? []) as WorldbuildingFrameworkData["scenes"],
-    objects: (row.objectsJson ?? undefined) as
-      | WorldbuildingFrameworkData["objects"]
-      | undefined,
-    linkedModelIds: (row.linkedModelIds ?? undefined) as number[] | undefined,
+    characters: asArray<WorldbuildingFrameworkData["characters"][number]>(row.charactersJson),
+    scenes: asArray<WorldbuildingFrameworkData["scenes"][number]>(row.scenesJson),
+    objects: Array.isArray(row.objectsJson) ? (row.objectsJson as WorldbuildingFrameworkData["objects"]) : undefined,
+    linkedModelIds: Array.isArray(row.linkedModelIds) ? (row.linkedModelIds as number[]) : undefined,
     styleProfiles:
       (row.styleProfilesJson ?? undefined) as
         | WorldbuildingFrameworkData["styleProfiles"]
@@ -73,7 +81,7 @@ function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildin
       (row.uploadedAssetsJson ?? undefined) as
         | WorldbuildingFrameworkData["uploadedAssets"]
         | undefined,
-    tags: (row.tags ?? undefined) as string[] | undefined,
+    tags: asStringArray(row.tags),
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
