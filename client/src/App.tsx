@@ -220,6 +220,13 @@ function Router() {
       <Route path="/animation/:storyboardId">
         <ProtectedDashboardRoute component={AnimationStudio} />
       </Route>
+      {/* 舊版世界觀入口相容：統一導向 /animation */}
+      <Route path="/worldbuilding">
+        <NavigateRedirect to="/animation" />
+      </Route>
+      <Route path="/worldbuilding/:storyboardId">
+        {params => <NavigateRedirect to={`/animation/${params.storyboardId}`} />}
+      </Route>
       <Route path="/assets">
         <DashboardRoute component={AssetsLibrary} />
       </Route>
