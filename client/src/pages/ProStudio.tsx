@@ -1017,6 +1017,7 @@ function MusicTab() {
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
   const [tags, setTags] = useState("");
+  const [referenceAudioUrl, setReferenceAudioUrl] = useState("");
   // DEF-14 修正：預設改為 ACE-Step（Sonauto v2 在 fal.ai 上不穩定，除非話概可用時才切回）
   const [musicModel, setMusicModel] = useState<MusicModelChoice>("ace-step");
   const [duration, setDuration] = useState(30);
@@ -1040,10 +1041,11 @@ function MusicTab() {
         case "instrumental": { setInstrumental(value === "true"); return true; }
         case "lyrics": { setLyrics(value); return true; }
         case "tags": { setTags(value); return true; }
+        case "referenceAudioUrl": { setReferenceAudioUrl(value); return true; }
         default: return false;
       }
     },
-    getState: () => ({ prompt, musicModel, duration, instrumental, lyrics, tags }),
+    getState: () => ({ prompt, musicModel, duration, instrumental, lyrics, tags, referenceAudioUrl }),
     submit: () => { if (!prompt.trim()) return false; return true; },
     reset: () => {
       setPrompt("");
@@ -1051,6 +1053,7 @@ function MusicTab() {
       setTags("");
       setInstrumental(false);
       setDuration(30);
+      setReferenceAudioUrl("");
       setResult(null);
       setSunoJob(null);
     },
@@ -1305,6 +1308,15 @@ function MusicTab() {
           <div className="mt-1">
             <MusicTagPicker tags={tags} onChange={setTags} />
           </div>
+          {!isSunoModel && (
+            <FileUploadInput
+              label="參考音訊（選填）"
+              value={referenceAudioUrl}
+              onChange={setReferenceAudioUrl}
+              accept="audio/*"
+              hint="可上傳一段示例音色／節奏給 fal.ai 音樂模型參考（目前主要支援 Stable Audio）。"
+            />
+          )}
           <div className="flex items-center gap-2">
             <Switch
               checked={instrumental}
@@ -1388,6 +1400,7 @@ function MusicTab() {
                   tags: tags || undefined,
                   model: musicModel as "sonauto" | "ace-step" | "stable-audio" | "musicgen",
                   duration: showDuration ? duration : undefined,
+                  referenceAudioUrl: referenceAudioUrl || undefined,
                 });
               }
             }}

@@ -5013,11 +5013,12 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
   items: WorldSoundLibraryItem[];
   onChange: (next: WorldSoundLibraryItem[]) => void;
 }) {
+  const ALL_CATEGORY_FILTER = "__all__";
   const [filter, setFilter] = useState<string>("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORY_FILTER);
   const filtered = items.filter(
     s =>
-      (!categoryFilter || s.category === categoryFilter) &&
+      (categoryFilter === ALL_CATEGORY_FILTER || s.category === categoryFilter) &&
       (!filter ||
         s.label.toLowerCase().includes(filter.toLowerCase()) ||
         (s.tags ?? []).some(t =>
@@ -5112,7 +5113,7 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
               <SelectValue placeholder="全部分類" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="" className="text-xs">
+              <SelectItem value={ALL_CATEGORY_FILTER} className="text-xs">
                 全部分類
               </SelectItem>
               {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (

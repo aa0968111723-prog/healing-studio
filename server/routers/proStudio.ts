@@ -512,6 +512,7 @@ export const proStudioRouter = router({
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
         // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
         negativePrompt: z.string().max(500).optional(),
+        referenceAudioUrl: z.string().url().max(2000).optional(),
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
           .optional(),
@@ -617,6 +618,9 @@ export const proStudioRouter = router({
         const payload: Record<string, unknown> = {
           prompt: combinedPrompt,
           seconds_total: input.duration ?? 30,
+          ...(input.referenceAudioUrl
+            ? { audio_url: input.referenceAudioUrl }
+            : {}),
         };
         // DEF-S1：Stable Audio 支援 negative_prompt
         if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
