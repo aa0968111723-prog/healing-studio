@@ -68,14 +68,36 @@ async function extractRegistryEntries() {
   const source = await fs.readFile(APP_REGISTRY, "utf8");
   const entries = [];
 
-  // Naive but reliable: match every {...} object literal that has id+path keys.
-  // We iterate character by character to find matched braces; good enough.
+  // Scope extraction to the APP_PAGE_REGISTRY array only to avoid
+  // accidentally matching SIDEBAR_GROUPS or other objects that share
+  // the `id:` key but are not page entries.
+  const registryStartIdx = source.indexOf("APP_PAGE_REGISTRY:");
+  if (registryStartIdx === -1) return entries;
+  // Find the opening `= [` of the array (not the `[]` in the type annotation)
+  const assignIdx = source.indexOf("= [", registryStartIdx);
+  if (assignIdx === -1) return entries;
+  const arrayOpenIdx = assignIdx + 2; // points to the `[`
+  // Walk forward to find the matching closing `]`
+  let depth = 0;
+  let arrayCloseIdx = -1;
+  for (let i = arrayOpenIdx; i < source.length; i++) {
+    if (source[i] === "[" || source[i] === "{") depth++;
+    else if (source[i] === "]" || source[i] === "}") {
+      depth--;
+      if (depth === 0) { arrayCloseIdx = i; break; }
+    }
+  }
+  const registrySource =
+    arrayCloseIdx === -1
+      ? source.slice(arrayOpenIdx)
+      : source.slice(arrayOpenIdx, arrayCloseIdx + 1);
+
   const idRe = /\bid:\s*"([^"]+)"/;
   const pathRe = /\bpath:\s*"([^"]+)"/;
   const supportsRe = /\bsupportsPageAgent:\s*(true|false)/;
 
   // Split top-level objects by `},` followed by newline+indent then `{`.
-  const matches = source.match(/\{[\s\S]*?\},\s*(?=\{|];)/g) ?? [];
+  const matches = registrySource.match(/\{[\s\S]*?\},\s*(?=\{|];|\])/g) ?? [];
   for (const block of matches) {
     const idMatch = idRe.exec(block);
     const pathMatch = pathRe.exec(block);
@@ -163,7 +185,12 @@ async function main() {
     // Redirect-only routes don't need a registry entry; they're transparent
     // shortcuts to a real page that already has one.
     if (redirects.has(path)) return false;
-    return !registryPaths.has(normalised);
+    if (registryPaths.has(normalised)) return false;
+    // Parameterised routes (e.g. /animation/:storyboardId) are deep-link
+    // variants of a registered parent path — they are not true orphans.
+    const parentPath = normalised.replace(/\/:[^/]+.*$/, "");
+    if (parentPath !== normalised && registryPaths.has(parentPath)) return false;
+    return true;
   });
   if (orphanRoutes.length > 0) {
     header("App.tsx 路由未在 appRegistry 註冊（光球無法導航至此）");

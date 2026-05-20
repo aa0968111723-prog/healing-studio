@@ -5482,7 +5482,7 @@ export default function AnimationStudio() {
 
   // ─── AI Agent Integration ───────────────────────────────────────────────
   useRegisterPageAgent({
-    pageId: "worldbuilding",
+    pageId: "animation-studio",
     pageLabel: "世界觀系統",
     capabilities: useMemo((): AgentCapability[] => {
       const tabs: AgentCapability["options"] = [
