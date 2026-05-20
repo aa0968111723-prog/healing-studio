@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, memo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
+import { ScriptGeneratePanel } from "@/components/director/ScriptGeneratePanel";
 import LazyStreamdown from "@/components/LazyStreamdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -4629,12 +4630,26 @@ export default function DirectorAI() {
         {/* ═══ Tab 2: Script Analysis Mode ═══ */}
         <TabsContent value="script" className="space-y-4 mt-0">
           {importedSegments.length === 0 ? (
-            /* Import panel when no script is loaded */
-            <ScriptImportPanel
-              onImport={handleImportScript}
-              isImporting={importScriptMut.isPending}
-              personality={personality}
-            />
+            /* Two parallel entry points when no script is loaded:
+               1. Import an existing script and parse → segments
+               2. Generate from brief by video type → segments (Phase 2) */
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ScriptGeneratePanel
+                personality={personality}
+                onGenerated={data => {
+                  setImportedSegments(data.segments as ScriptSegment[]);
+                  setImportedTitle(data.title);
+                  if (data.segments.length > 0) {
+                    setSelectedSegmentIdx(0);
+                  }
+                }}
+              />
+              <ScriptImportPanel
+                onImport={handleImportScript}
+                isImporting={importScriptMut.isPending}
+                personality={personality}
+              />
+            </div>
           ) : (
             /* Script analysis workspace */
             <div className="space-y-4">

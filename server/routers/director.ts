@@ -46,6 +46,12 @@ import {
   discussSegmentWithAI,
 } from "../services/director/scriptAnalysisService";
 import {
+  generateVideoScriptFromBrief,
+  VIDEO_SCRIPT_TYPES,
+  VIDEO_TYPE_PROFILES,
+} from "../services/director/scriptGenerationService";
+import { summarizeFrameworkForPrompt } from "../../shared/worldbuilding-types";
+import {
   discussPlanningPhase,
   analyzeEmotionalDepth,
 } from "../services/director/planningService";
@@ -384,6 +390,115 @@ export const directorRouter = router({
         updatedAt: new Date().toISOString(),
       };
     }),
+
+  /**
+   * Phase 2: 影片腳本類型分流
+   *
+   * 從一段 brief（創作概念）直接生成結構化分鏡腳本。與 importScript 不同的是：
+   *   - importScript 解析既有長腳本 → 拆段
+   *   - generateVideoScript 從零生成 → 依影片類型輸出
+   *
+   * 影片類型決定段落數、節奏、對白 vs 旁白的偏好。可選帶入 worldFrameworkId
+   * 以自動把當前世界觀的角色 / 場景 / 風格設定注入系統提示，讓生成的腳本
+   * 與既有世界觀保持一致。
+   */
+  generateVideoScript: brainProcedure
+    .input(
+      z.object({
+        brief: z.string().min(1).max(20_000),
+        title: z.string().min(1).max(255),
+        type: z.enum(VIDEO_SCRIPT_TYPES),
+        targetDurationSec: z.number().int().positive().max(7200).optional(),
+        targetSegmentCount: z.number().int().min(1).max(50).optional(),
+        worldFrameworkId: z.number().int().positive().optional(),
+        referenceMediaUrls: z.array(z.string().url()).max(8).optional(),
+        personality: z
+          .enum(["calm", "creative", "technical"])
+          .default("creative"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
+
+      // 拉取世界觀摘要（若使用者有指定且擁有該世界觀）
+      let worldContext: string | undefined;
+      if (input.worldFrameworkId) {
+        const wb = await db.getWorldbuildingFramework(input.worldFrameworkId);
+        if (wb && wb.userId === ctx.user.id) {
+          try {
+            worldContext = summarizeFrameworkForPrompt({
+              name: wb.name,
+              description: wb.description ?? undefined,
+              genre: wb.genre ?? undefined,
+              era: wb.era ?? undefined,
+              characters: Array.isArray(wb.charactersJson)
+                ? (wb.charactersJson as never)
+                : [],
+              scenes: Array.isArray(wb.scenesJson)
+                ? (wb.scenesJson as never)
+                : [],
+              objects: Array.isArray(wb.objectsJson)
+                ? (wb.objectsJson as never)
+                : undefined,
+              tags: Array.isArray(wb.tags)
+                ? (wb.tags as string[])
+                : undefined,
+              isActive: wb.isActive,
+            });
+          } catch {
+            // 世界觀摘要失敗不應該阻擋腳本生成
+            worldContext = undefined;
+          }
+        }
+      }
+
+      const segments = await generateVideoScriptFromBrief({
+        brief: input.brief,
+        type: input.type,
+        targetDurationSec: input.targetDurationSec,
+        targetSegmentCount: input.targetSegmentCount,
+        worldContext,
+        referenceMediaUrls: input.referenceMediaUrls,
+        personality: input.personality,
+        brainConfig: {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        },
+      });
+
+      const fullSegments: ScriptSegment[] = segments.map(seg => ({
+        ...seg,
+        discussion: [],
+        status: "draft" as const,
+      }));
+
+      return {
+        id: `script-${Date.now()}`,
+        title: input.title,
+        rawContent: input.brief,
+        sourceFormat: `generated:${input.type}`,
+        type: input.type,
+        typeLabel: VIDEO_TYPE_PROFILES[input.type].label,
+        worldFrameworkId: input.worldFrameworkId ?? null,
+        worldContextUsed: Boolean(worldContext),
+        segments: fullSegments,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }),
+
+  /** 取得所有支援的影片類型（給前端 UI 用） */
+  videoScriptTypes: brainProcedure.query(() => {
+    return VIDEO_SCRIPT_TYPES.map(t => ({
+      id: t,
+      label: VIDEO_TYPE_PROFILES[t].label,
+      guidance: VIDEO_TYPE_PROFILES[t].guidance,
+      defaultSegmentCount: VIDEO_TYPE_PROFILES[t].defaultSegmentCount,
+      defaultTotalDurationSec: VIDEO_TYPE_PROFILES[t].defaultTotalDurationSec,
+    }));
+  }),
 
   /** Discuss a specific segment with AI — supports quick actions, image references, and adjacent segment context */
   discussSegment: brainProcedure
