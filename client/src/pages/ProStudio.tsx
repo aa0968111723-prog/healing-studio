@@ -9,6 +9,8 @@ import { useState, useRef, useCallback, useEffect, createContext, useContext, us
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useWorldContext } from "@/contexts/WorldContextContext";
+import { WorldContextSidebar } from "@/components/WorldContextSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -4152,6 +4154,11 @@ export default function ProStudio() {
   // 全站新手引導
   usePageTour("pro-studio");
   const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
+  // 世界觀上下文：ProStudio 的輸入大多是腳本（TTS）或標籤（音樂），
+  // 自動注入會污染語音內容，所以這裡只顯示 sidebar 提供視覺參考——
+  // 用戶可從 sidebar 看到當前世界觀，再手動把音樂主題或角色聲音特徵
+  // 複製到對應欄位。不做自動注入。
+  const worldCtx = useWorldContext();
 
   // ── AI Agent Integration ──
   const { setPageContext } = useAIState();
@@ -4934,6 +4941,12 @@ export default function ProStudio() {
             回到導演 AI
           </button>
         </div>
+      )}
+
+      {/* 世界觀上下文（僅在用戶選定創作專案時顯示為視覺參考；
+          ProStudio 不自動注入到語音腳本/音樂標籤——避免污染輸出） */}
+      {worldCtx.currentProjectId !== null && (
+        <WorldContextSidebar defaultOpen={false} hideSwitcher={false} />
       )}
 
       {/* 活躍 Tab 內容 */}

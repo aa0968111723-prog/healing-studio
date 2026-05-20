@@ -26,6 +26,7 @@ import { GlobalOrbChatProvider } from "./contexts/GlobalOrbChatContext";
 import { OrbStateProvider } from "./contexts/OrbStateContext";
 import { PersonalSettingsProvider } from "./contexts/PersonalSettingsContext";
 import { IntentCardProvider } from "./contexts/IntentCardContext";
+import { WorldContextProvider } from "./contexts/WorldContextContext";
 import SkipToContent from "./components/SkipToContent";
 import RouteTransition from "./components/RouteTransition";
 const SiteOnboardingOverlay = lazy(
@@ -73,6 +74,7 @@ const AgentCodexPage = lazy(() => import("./pages/AgentCodexPage"));
 const SharedSpace = lazy(() => import("./pages/SharedSpace"));
 const TeachingArchive = lazy(() => import("./pages/TeachingArchive"));
 const TeamsPage = lazy(() => import("./pages/TeamsPage"));
+const CreativeProjectPage = lazy(() => import("./pages/CreativeProjectPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -213,6 +215,9 @@ function Router() {
       </Route>
       <Route path="/director">
         <ProtectedDashboardRoute component={DirectorAI} />
+      </Route>
+      <Route path="/creative-projects">
+        <ProtectedDashboardRoute component={CreativeProjectPage} />
       </Route>
       <Route path="/animation">
         <ProtectedDashboardRoute component={AnimationStudio} />
@@ -378,6 +383,7 @@ function App() {
                     <OrbGuideProvider>
                     <PageAgentProvider>
                     <OrbStateProvider>
+                    <WorldContextProvider>
                     <GlobalOrbChatProvider>
                     <IntentCardProvider>
                     <TooltipProvider>
@@ -399,6 +405,7 @@ function App() {
                     </TooltipProvider>
                     </IntentCardProvider>
                     </GlobalOrbChatProvider>
+                    </WorldContextProvider>
                     </OrbStateProvider>
                     </PageAgentProvider>
                     </OrbGuideProvider>

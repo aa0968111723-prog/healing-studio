@@ -10,6 +10,8 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useWorldContext } from "@/contexts/WorldContextContext";
+import { WorldContextSidebar } from "@/components/WorldContextSidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -2884,6 +2886,9 @@ export default function ImageStudio() {
   usePageTour("image-studio");
   const registerBgTask = useRegisterBgTask();
   const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
+  // 世界觀上下文：若用戶選定了創作專案，所有生成的 prompt 會自動注入
+  // 該世界觀的一致性前綴（角色/場景/風格描述）。
+  const worldCtx = useWorldContext();
 
   // ── AI Agent Integration ──
   const {
@@ -3336,8 +3341,12 @@ export default function ImageStudio() {
       .map(id => VIBE_CARDS.find(v => v.id === id)?.keywords)
       .filter(Boolean)
       .join(", ");
-    const fullPrompt =
+    const rawPrompt =
       prompt && vibeKw ? `${prompt}, ${vibeKw}` : prompt || vibeKw;
+    // 若用戶選定了創作專案，自動把世界觀一致性前綴注入到 prompt 最前面。
+    // worldCtx.injectIntoPrompt 在停用狀態下回傳原 prompt，所以這個呼叫
+    // 對所有未綁定專案的使用者是無感的。
+    const fullPrompt = worldCtx.injectIntoPrompt(rawPrompt);
     const parsedSeed = seed.trim() ? parseInt(seed.trim(), 10) : NaN;
     const seedNum = Number.isFinite(parsedSeed) ? parsedSeed : undefined;
     if (seed.trim() && seedNum === undefined) {
@@ -4366,6 +4375,15 @@ export default function ImageStudio() {
       </div>
 
       <ApiKeyBanner />
+
+      {/* ── World Context Sidebar ──
+          顯示當前選定的創作專案 + 世界觀。預設折疊；無專案時引導用戶建立。
+          選定後，所有生成的提示詞會自動帶入世界觀一致性前綴。 */}
+      {worldCtx.currentProjectId !== null && (
+        <div className="mb-3">
+          <WorldContextSidebar defaultOpen={false} />
+        </div>
+      )}
 
       {/* ── Tab Bar — scrollable pill strip ── */}
       <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 py-2 bg-background/80 backdrop-blur-md border-b border-border/20">
