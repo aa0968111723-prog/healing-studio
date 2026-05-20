@@ -3282,6 +3282,61 @@ export const worldStoryboards = mysqlTable(
 export type WorldStoryboard = typeof worldStoryboards.$inferSelect;
 export type InsertWorldStoryboard = typeof worldStoryboards.$inferInsert;
 
+// ─── Creative Projects（創作專案）─────────────────────────────────────────
+// 把 Director session + Worldbuilding framework + World Storyboard 三者綁定
+// 成一個有意義的創作單位，讓全站光球與各 Studio 頁面可以共享上下文。
+//
+// References（刻意不用 FK，方便重新綁定）：
+//   directorSessionId  → project_notes_calendar.id（導演對話存在 project_notes
+//                        裡，noteType = "script" + tag "director-session"）
+//   worldFrameworkId   → worldbuilding_frameworks.id
+//   worldStoryboardId  → world_storyboards.id
+export const creativeProjects = mysqlTable(
+  "creative_projects",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    /** 連結 project_notes_calendar.id（導演對話 session） */
+    directorSessionId: int("directorSessionId"),
+    /** 連結 worldbuilding_frameworks.id */
+    worldFrameworkId: int("worldFrameworkId"),
+    /** 連結 world_storyboards.id */
+    worldStoryboardId: int("worldStoryboardId"),
+    status: mysqlEnum("status", [
+      "concept",
+      "production",
+      "review",
+      "complete",
+    ])
+      .default("concept")
+      .notNull(),
+    coverImageUrl: varchar("coverImageUrl", { length: 2048 }),
+    tags: json("tags").$type<string[]>(),
+    /** 預留擴充欄位（例如未來的設計案連結、品牌設定 id 等） */
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("cp_userId_idx").on(table.userId),
+    userIdUpdatedAtIdx: index("cp_userId_updatedAt_idx").on(
+      table.userId,
+      table.updatedAt
+    ),
+    worldFrameworkIdIdx: index("cp_worldFrameworkId_idx").on(
+      table.worldFrameworkId
+    ),
+    worldStoryboardIdIdx: index("cp_worldStoryboardId_idx").on(
+      table.worldStoryboardId
+    ),
+  })
+);
+
+export type CreativeProject = typeof creativeProjects.$inferSelect;
+export type InsertCreativeProject = typeof creativeProjects.$inferInsert;
+
 // ─── Model Wishlist（模型許願池）─────────────────────────────────────────
 // 使用者許願希望平台支援的 AI 模型；其他人可投票表示需求。
 //   * modelWishes：許願主體

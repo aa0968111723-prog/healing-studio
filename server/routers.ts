@@ -53,6 +53,7 @@ import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
 import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
+import { creativeProjectRouter } from "./routers/creativeProject";
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
@@ -3985,6 +3986,11 @@ export const appRouter = router({
   // 「幾分幾秒」級的分鏡：角色 beats、圖楨、音軌（music/voice/sfx）、
   //   管線編排（t2i → refine → i2v → music → voice → final compose）
   worldStoryboard: worldStoryboardRouter,
+
+  // ─── Creative Projects（創作專案整合層） ──────────────────────────────────
+  // 把 Director session + Worldbuilding framework + World Storyboard 三者
+  // 綁定成一個有意義的創作單位，供全站光球與各 Studio 頁面共享世界觀上下文。
+  creativeProject: creativeProjectRouter,
 
   // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
   // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，

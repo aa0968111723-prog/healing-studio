@@ -53,6 +53,9 @@ import {
   worldStoryboards,
   InsertWorldStoryboard,
   WorldStoryboard as WorldStoryboardRow,
+  creativeProjects,
+  InsertCreativeProject,
+  CreativeProject,
   teachingMaterials,
   InsertTeachingMaterial,
   TeachingMaterial,
@@ -2431,6 +2434,60 @@ export async function deleteWorldStoryboard(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(worldStoryboards).where(eq(worldStoryboards.id, id));
+}
+
+// ─── Creative Projects（創作專案）─────────────────────────────────────────
+
+export async function createCreativeProject(
+  data: InsertCreativeProject
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(creativeProjects).values(data);
+  return result[0].insertId;
+}
+
+export async function getCreativeProject(
+  id: number
+): Promise<CreativeProject | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(creativeProjects)
+    .where(eq(creativeProjects.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getCreativeProjectsByUser(
+  userId: number
+): Promise<CreativeProject[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(creativeProjects)
+    .where(eq(creativeProjects.userId, userId))
+    .orderBy(desc(creativeProjects.updatedAt));
+}
+
+export async function updateCreativeProject(
+  id: number,
+  data: Partial<InsertCreativeProject>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(creativeProjects)
+    .set(data)
+    .where(eq(creativeProjects.id, id));
+}
+
+export async function deleteCreativeProject(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(creativeProjects).where(eq(creativeProjects.id, id));
 }
 
 // ─── Model Wishlist（模型許願池）──────────────────────────────────────────
