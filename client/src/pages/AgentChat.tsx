@@ -1378,7 +1378,7 @@ export default function AgentChat() {
               >
                 先聊聊看就好 🌿
               </motion.h1>
-              <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
+              <p className="text-sm text-muted-foreground max-w-md leading-relaxed" data-minimalist-hide>
                 我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
               </p>
             </>
@@ -1870,6 +1870,7 @@ export default function AgentChat() {
           {isFirstTurn && (
             <motion.section
               key="spirits-deck"
+              data-minimalist-hide
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.21 }}
@@ -2088,6 +2089,7 @@ export default function AgentChat() {
           {isFirstTurn && (
             <motion.section
               key="task-templates"
+              data-minimalist-hide
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.25 }}
