@@ -62,6 +62,14 @@ export interface ScriptStructure {
   purpose: ScriptPurpose | null;
   /** Number of explicit scene markers (場景 1, scene 1, 第一段…). */
   scenes: number;
+  /** Entities detected from the script for worldbuilding auto-linking. */
+  productionEntities: {
+    characters: string[];
+    sceneRefs: string[];
+    objects: string[];
+    musicCues: string[];
+    storyboardCues: string[];
+  };
   /** Aggregate confidence score in 0–1 range — number of populated fields / 7. */
   coverage: number;
   /** Diagnostic: which raw signals fired. Useful for tests + the summary card. */
@@ -354,6 +362,32 @@ function detectScenes(text: string): number {
   return count;
 }
 
+function detectProductionEntities(text: string): ScriptStructure["productionEntities"] {
+  const normalize = (items: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of items) {
+      const token = raw.trim();
+      if (!token || token.length < 2 || seen.has(token)) continue;
+      seen.add(token);
+      out.push(token);
+      if (out.length >= 8) break;
+    }
+    return out;
+  };
+
+  const pick = (re: RegExp): string[] =>
+    Array.from(text.matchAll(re)).map(m => (m[1] ?? "").replace(/[，。,.!?！？:：]/g, "").trim());
+
+  return {
+    characters: normalize(pick(/(?:角色|主角|人物)\s*[：:是為]?\s*([\u4e00-\u9fffa-zA-Z0-9_\-]{2,20})/gmu)),
+    sceneRefs: normalize(pick(/(?:場景|scene)\s*[：:#]?\s*([\u4e00-\u9fffa-zA-Z0-9_\-]{1,24})/gimu)),
+    objects: normalize(pick(/(?:物件|道具|props?)\s*[：:是為]?\s*([\u4e00-\u9fffa-zA-Z0-9_\-]{2,20})/gimu)),
+    musicCues: normalize(pick(/(?:配樂|bgm|music)\s*[：:是為]?\s*([\u4e00-\u9fffa-zA-Z0-9_\-]{2,24})/gimu)),
+    storyboardCues: normalize(pick(/(?:分鏡|鏡頭|shot)\s*[：:#]?\s*([\u4e00-\u9fffa-zA-Z0-9_\-]{1,24})/gimu)),
+  };
+}
+
 /**
  * Top-level parser. Always returns a populated `ScriptStructure` — fields
  * that couldn't be extracted are null / empty. Use `coverage` (or check
@@ -372,6 +406,7 @@ export function extractScriptStructure(text: string): ScriptStructure {
       platforms: [],
       purpose: null,
       scenes: 0,
+      productionEntities: { characters: [], sceneRefs: [], objects: [], musicCues: [], storyboardCues: [] },
       coverage: 0,
       signals: [],
     };
@@ -384,6 +419,7 @@ export function extractScriptStructure(text: string): ScriptStructure {
   const platforms = detectPlatforms(text);
   const purpose = detectPurpose(text);
   const scenes = detectScenes(text);
+  const productionEntities = detectProductionEntities(text);
 
   const signals: string[] = [];
   if (formatHit.format) signals.push(`format=${formatHit.format}`);
@@ -393,6 +429,9 @@ export function extractScriptStructure(text: string): ScriptStructure {
   if (platforms.length > 0) signals.push(`platforms=${platforms.join(",")}`);
   if (purpose) signals.push(`purpose=${purpose}`);
   if (scenes > 0) signals.push(`scenes=${scenes}`);
+  if (Object.values(productionEntities).some(items => items.length > 0)) {
+    signals.push("production_entities");
+  }
 
   // Coverage: how many of the seven dimensions are populated.
   const coverage = signals.length / 7;
@@ -407,6 +446,7 @@ export function extractScriptStructure(text: string): ScriptStructure {
     platforms,
     purpose,
     scenes,
+    productionEntities,
     coverage,
     signals,
   };
@@ -461,6 +501,10 @@ export function summarizeScriptStructure(
   }
   if (s.scenes > 0) {
     lines.push(`• 場景：偵測到 ${s.scenes} 段（會走多章節流程）`);
+  }
+  const queueSize = Object.values(s.productionEntities).reduce((sum, items) => sum + items.length, 0);
+  if (queueSize > 0) {
+    lines.push(`• 製作清單：抓到 ${queueSize} 個角色／場景／物件／配樂／分鏡線索，可自動建立初稿供你調整`);
   }
   lines.push("");
   lines.push("是這樣嗎？想直接開始就回「這樣開始」，要修改告訴我哪一項。");

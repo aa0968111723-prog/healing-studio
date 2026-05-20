@@ -129,6 +129,18 @@ describe("extractScriptStructure", () => {
       expect(s.subject).not.toMatch(/風格/);
     }
   });
+
+  it("extracts production entities for worldbuilding auto-link", () => {
+    const s = extractScriptStructure(
+      "角色：小光。場景：森林神殿。物件：古老羅盤。配樂：空靈鋼琴。分鏡：特寫。"
+    );
+    expect(s.productionEntities.characters).toContain("小光");
+    expect(s.productionEntities.sceneRefs).toContain("森林神殿");
+    expect(s.productionEntities.objects).toContain("古老羅盤");
+    expect(s.productionEntities.musicCues).toContain("空靈鋼琴");
+    expect(s.productionEntities.storyboardCues).toContain("特寫");
+    expect(s.signals).toContain("production_entities");
+  });
 });
 
 describe("structureToDimensionSignals", () => {
