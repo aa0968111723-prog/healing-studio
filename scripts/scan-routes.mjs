@@ -77,10 +77,10 @@ async function extractRegistryEntries() {
   const assignIdx = source.indexOf("= [", registryStartIdx);
   if (assignIdx === -1) return entries;
   const arrayOpenIdx = assignIdx + 2; // points to the `[`
-  // Walk forward to find the matching closing `]`
-  let depth = 1; // start at 1: the `[` at arrayOpenIdx is already open
+  // Walk forward to find the matching closing `]`, counting nested brackets.
+  let depth = 0;
   let arrayCloseIdx = -1;
-  for (let i = arrayOpenIdx + 1; i < source.length; i++) {
+  for (let i = arrayOpenIdx; i < source.length; i++) {
     if (source[i] === "[" || source[i] === "{") depth++;
     else if (source[i] === "]" || source[i] === "}") {
       depth--;
@@ -188,8 +188,12 @@ async function main() {
     if (registryPaths.has(normalised)) return false;
     // Parameterised routes (e.g. /animation/:storyboardId) are deep-link
     // variants of a registered parent path — they are not true orphans.
-    const parentPath = normalised.replace(/\/:[^/]+.*$/, "");
-    if (parentPath !== normalised && registryPaths.has(parentPath)) return false;
+    // Strip one trailing /:param segment at a time until we find a match.
+    let ancestor = normalised;
+    while (ancestor.includes("/:")) {
+      ancestor = ancestor.replace(/\/:[^/]+$/, "");
+      if (registryPaths.has(ancestor)) return false;
+    }
     return true;
   });
   if (orphanRoutes.length > 0) {
