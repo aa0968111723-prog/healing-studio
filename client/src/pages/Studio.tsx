@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ProgressivePromptBuilder,
   createEmptyPromptOutput,
+  isWeightAdjusted,
   type PromptBuilderOutput,
 } from "@/components/ProgressivePromptBuilder";
 import {
@@ -51,18 +52,15 @@ import {
   Clock,
   Package,
   X,
-  Star,
   Bookmark,
-  BookmarkCheck,
   Send,
-  RefreshCw,
   StickyNote,
   Cpu,
   Check,
   Briefcase,
-  Search,
   SlidersHorizontal,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -163,218 +161,6 @@ interface DirectorBatchTaskPayload {
   overrideEngine?: string;
   musicStyle?: string;
   audioScript?: string;
-}
-
-// ─── Mini History Panel (embedded in right drawer) ──────────────────────────
-
-function MiniHistoryPanel({
-  onSendToStudio,
-}: {
-  onSendToStudio: (
-    prompt: string,
-    type: GenerationType,
-    parameterSnapshot?: Record<string, unknown>
-  ) => void;
-}) {
-  const historyQuery = trpc.history.list.useQuery(
-    { limit: 20 },
-    { retry: false }
-  );
-  const toggleBookmark = trpc.history.toggleBookmark.useMutation({
-    onSuccess: () => historyQuery.refetch(),
-  });
-  const rateHistory = trpc.history.rate.useMutation({
-    onSuccess: () => historyQuery.refetch(),
-  });
-  const [historyFilter, setHistoryFilter] = useState<
-    "all" | "image" | "video" | "audio" | "voice"
-  >("all");
-  const [historyKeyword, setHistoryKeyword] = useState("");
-
-  const MODALITY_ICONS: Record<string, React.ReactNode> = {
-    image: <Image className="w-3 h-3" />,
-    video: <Video className="w-3 h-3" />,
-    audio: <Music className="w-3 h-3" />,
-    voice: <Mic className="w-3 h-3" />,
-  };
-
-  if (historyQuery.isLoading) {
-    return (
-      <div className="p-3 space-y-2">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-16 rounded-lg bg-muted/30 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
-  const items = historyQuery.data || [];
-
-  if (!items.length) {
-    return (
-      <div className="p-6 text-center">
-        <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-xs text-muted-foreground">尚無生成歷史</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">
-          開始創作後，歷史紀錄將顯示在這裡
-        </p>
-      </div>
-    );
-  }
-
-  const filteredItems = items.filter((item: any) => {
-    if (historyFilter !== "all" && item.generationType !== historyFilter)
-      return false;
-    if (!historyKeyword.trim()) return true;
-    return String(item.prompt || "")
-      .toLowerCase()
-      .includes(historyKeyword.trim().toLowerCase());
-  });
-
-  return (
-    <div className="space-y-2 p-2">
-      <div className="rounded-lg border border-border/60 bg-background/70 p-2 space-y-2 sticky top-0 z-10 backdrop-blur-sm">
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          歷史篩選與搜尋
-        </div>
-        <div className="rounded-md border border-border/70 bg-background px-2 py-1.5 flex items-center gap-1.5">
-          <Search className="w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            value={historyKeyword}
-            onChange={e => setHistoryKeyword(e.target.value)}
-            placeholder="搜尋提示詞關鍵字..."
-            className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {(["all", "image", "video", "audio", "voice"] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setHistoryFilter(type)}
-              className={`text-[11px] rounded-md px-2 py-1 transition-colors ${
-                historyFilter === type
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/40 text-muted-foreground"
-              }`}
-            >
-              {type === "all" ? "全部" : type}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {filteredItems.map((item: any) => (
-        <div
-          key={item.id}
-          className="group rounded-lg p-2.5 hover:bg-accent/30 transition-colors cursor-pointer border border-transparent hover:border-border/40"
-        >
-          <div className="flex items-start gap-2">
-            {/* Thumbnail */}
-            {item.resultUrl && item.generationType === "image" ? (
-              <img
-                src={item.resultUrl}
-                alt=""
-                className="w-10 h-10 rounded-md object-cover shrink-0"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-md bg-muted/30 flex items-center justify-center shrink-0">
-                {MODALITY_ICONS[item.generationType] || (
-                  <Image className="w-3 h-3" />
-                )}
-              </div>
-            )}
-
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-foreground truncate leading-tight">
-                {item.prompt?.slice(0, 40) || "無提示詞"}
-              </p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground uppercase">
-                  {item.generationType}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {new Date(item.createdAt).toLocaleString("zh-TW", {
-                    month: "numeric",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {item.parameterSnapshot && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">
-                    含參數快照
-                  </span>
-                )}
-                {item.rating && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
-                    <Star className="w-2.5 h-2.5 fill-current" />
-                    {item.rating}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  toggleBookmark.mutate({
-                    id: item.id,
-                    isBookmarked: !item.bookmarked,
-                  });
-                }}
-                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
-                title={item.bookmarked ? "取消收藏" : "收藏"}
-              >
-                {item.bookmarked ? (
-                  <BookmarkCheck className="w-4 h-4 text-primary" />
-                ) : (
-                  <Bookmark className="w-4 h-4 text-muted-foreground" />
-                )}
-              </button>
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  onSendToStudio(
-                    item.prompt || "",
-                    item.generationType as GenerationType,
-                    item.parameterSnapshot as
-                      | Record<string, unknown>
-                      | undefined
-                  );
-                }}
-                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
-                title="重新生成"
-              >
-                <RefreshCw className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  rateHistory.mutate({ id: item.id, rating: 5 });
-                }}
-                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
-                title="評分 5"
-              >
-                <Star className="w-4 h-4 text-amber-500" />
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-      {filteredItems.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border/70 p-5 text-center">
-          <p className="text-xs text-muted-foreground">目前篩選條件沒有資料</p>
-          <p className="text-[11px] text-muted-foreground/70 mt-1">
-            你可以切換模態或清除關鍵字再試一次
-          </p>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Drawer Shell ───────────────────────────────────────────────────────────
@@ -557,15 +343,13 @@ export default function Studio() {
     useState<CreativeMode>(loadCreativeMode);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [leftDrawerTab, setLeftDrawerTab] = useState<
-    "vault" | "assets" | "models" | "recipes" | "versions"
+    "vault" | "assets" | "models" | "controls" | "recipes" | "versions"
   >("vault");
-  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
   const [toolboxTab, setToolboxTab] = useState<
     | "vault"
     | "assets"
     | "models"
-    | "history"
     | "controls"
     | "recipes"
     | "versions"
@@ -615,7 +399,7 @@ export default function Studio() {
   const hasWeightedTokens = useMemo(
     () =>
       Array.isArray(promptBuilder.tokenWeights) &&
-      promptBuilder.tokenWeights.some(t => t.weight !== 1.0),
+      promptBuilder.tokenWeights.some(t => isWeightAdjusted(t.weight)),
     [promptBuilder.tokenWeights]
   );
   const isWideAspect = useMemo(
@@ -1660,6 +1444,7 @@ export default function Studio() {
               firstFrameUrl: videoState.firstFrameUrl,
               lastFrameUrl: videoState.lastFrameUrl,
               characterRefUrl: videoState.characterRefUrl,
+              cameraMotion: videoState.cameraMotion,
               ...vaultPayload,
               fineTunedModelId,
               loraWeight,
@@ -1835,6 +1620,7 @@ export default function Studio() {
           firstFrameUrl: videoState.firstFrameUrl,
           lastFrameUrl: videoState.lastFrameUrl,
           characterRefUrl: videoState.characterRefUrl,
+          cameraMotion: videoState.cameraMotion,
         }),
         ...(activeModality === "audio" && {
           musicStyle: audioState.musicStyle,
@@ -1925,140 +1711,6 @@ export default function Studio() {
       if (isMobile) setToolboxSheetOpen(false);
     },
     [activeModality, videoState, imageState, isMobile]
-  );
-
-  // ── History → Studio handler (MiniHistoryPanel in right drawer) ──
-  const handleHistoryToStudio = useCallback(
-    (
-      prompt: string,
-      type: GenerationType,
-      parameterSnapshot?: Record<string, unknown>
-    ) => {
-      setPromptBuilder(prev => ({
-        ...prev,
-        rawPrompt: prompt,
-        compiledPrompt: prompt,
-      }));
-      setActiveModality(type);
-      if (parameterSnapshot) {
-        const snap = parameterSnapshot;
-        // ── Common params ──
-        if (snap.temperature != null) setTemperature(Number(snap.temperature));
-        if (snap.seed != null) setSeed(String(snap.seed));
-        if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
-          setPromptBuilder(prev => ({
-            ...prev,
-            vibeCardIds: snap.vibeCardIds as string[],
-          }));
-        }
-        if (snap.mode === "lightning" || snap.mode === "deep_precision") {
-          setMode(snap.mode as GenerationMode);
-        }
-        // ── LoRA weight ──
-        if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
-        // ── Fine-tuned model embedded in snapshot ──
-        if (snap.fineTunedModelId != null) {
-          setFineTunedModelId(Number(snap.fineTunedModelId));
-          if (snap.fineTunedModelName != null)
-            setFineTunedModelName(String(snap.fineTunedModelName));
-        }
-        // ── Consistency Vault IDs ──
-        if (snap.vaultCharacterId != null)
-          setVaultCharacterId(Number(snap.vaultCharacterId));
-        if (snap.vaultSceneId != null)
-          setVaultSceneId(Number(snap.vaultSceneId));
-
-        // ── Image-specific params ──
-        if (type === "image") {
-          setImageState(prev => ({
-            ...prev,
-            ...(snap.aspectRatio != null && {
-              aspectRatio: String(snap.aspectRatio),
-            }),
-            ...(snap.negativePrompt != null && {
-              negativePrompt: String(snap.negativePrompt),
-            }),
-            ...(snap.styleReferenceUrl != null && {
-              styleReferenceUrl: String(snap.styleReferenceUrl),
-            }),
-            ...(snap.vibeReferenceUrl != null && {
-              vibeReferenceUrl: String(snap.vibeReferenceUrl),
-            }),
-          }));
-        }
-
-        // ── Video-specific params ──
-        if (type === "video") {
-          setVideoState(prev => ({
-            ...prev,
-            ...(snap.videoDurationSeconds != null && {
-              duration: String(snap.videoDurationSeconds),
-            }),
-            ...(snap.firstFrameUrl != null && {
-              firstFrameUrl: String(snap.firstFrameUrl),
-            }),
-            ...(snap.lastFrameUrl != null && {
-              lastFrameUrl: String(snap.lastFrameUrl),
-            }),
-            ...(snap.characterRefUrl != null && {
-              characterRefUrl: String(snap.characterRefUrl),
-            }),
-            ...(snap.cameraMotion != null &&
-              typeof snap.cameraMotion === "object" && {
-                cameraMotion: snap.cameraMotion as {
-                  pan: number;
-                  zoom: number;
-                  tilt: number;
-                },
-              }),
-          }));
-        }
-
-        // ── Audio-specific params ──
-        if (type === "audio") {
-          setAudioState(prev => ({
-            ...prev,
-            ...(snap.musicStyle != null && {
-              musicStyle: String(snap.musicStyle),
-            }),
-            ...(snap.isInstrumental != null && {
-              isInstrumental: Boolean(snap.isInstrumental),
-            }),
-            ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
-            ...(snap.audioDuration != null && {
-              duration: Number(snap.audioDuration),
-            }),
-            ...(snap.audioEnergy != null && {
-              energy: Number(snap.audioEnergy),
-            }),
-          }));
-        }
-
-        // ── Voice-specific params ──
-        if (type === "voice") {
-          setVoiceState(prev => ({
-            ...prev,
-            ...(snap.voiceModelId != null && {
-              voiceActorId: String(snap.voiceModelId),
-            }),
-            ...(snap.voiceText != null && { text: String(snap.voiceText) }),
-            ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
-            ...(snap.voiceStability != null && {
-              stability: Number(snap.voiceStability),
-            }),
-            ...(snap.voiceEmotionType != null && {
-              emotionType: String(snap.voiceEmotionType),
-            }),
-            ...(snap.voiceEmotionIntensity != null && {
-              emotionIntensity: Number(snap.voiceEmotionIntensity),
-            }),
-          }));
-        }
-      }
-      setRightDrawerOpen(false);
-      toast.success("已 100% 還原歷史參數與提示詞");
-    },
-    []
   );
 
   const showLoraWeight =
@@ -2293,7 +1945,7 @@ export default function Studio() {
         hint: [
           "全域: temperature(0~1)、seed(字串或數字)、loraWeight(0~1)",
           activeModality === "image"
-            ? "圖片: aspectRatio(1:1/16:9/9:16/4:3/3:2/21:9)、negativePrompt(文字)"
+            ? "圖片: aspectRatio(1:1/16:9/9:16/4:3/3:2)、negativePrompt(文字)"
             : "",
           activeModality === "video"
             ? "影片: duration(秒數字串,如\"5\"或\"8\"或\"10\")、cameraPan(-100~100)、cameraZoom(-100~100)、cameraTilt(-100~100)"
@@ -2330,7 +1982,6 @@ export default function Studio() {
           { id: "9:16", label: "9:16 直式", description: "手機桌布、IG 限動、Reels" },
           { id: "4:3", label: "4:3 傳統", description: "傳統照片比例" },
           { id: "3:2", label: "3:2 相片", description: "經典攝影比例" },
-          { id: "21:9", label: "21:9 超寬", description: "電影寬幅、橫幅" },
         ],
         hint: "用 [ACTION:setParam:aspectRatio=16:9] 設定；使用者說「我想要直式的」→ 9:16、「橫幅」→ 16:9、「正方形」→ 1:1",
       });
@@ -2429,9 +2080,8 @@ export default function Studio() {
         { id: "toolbox?tab=controls", label: "進階控制", description: "溫度 / 種子 / LoRA 權重 / 模式" },
         { id: "toolbox?tab=vault", label: "一致性保險庫", description: "角色 / 場景一致性綁定" },
         { id: "toolbox?tab=assets", label: "數位資產", description: "翻過去用過的素材" },
-        { id: "toolbox?tab=history", label: "歷史紀錄", description: "重組 / fork 過去作品" },
       ],
-      hint: "使用 dialogId='toolbox'，params.tab 可填 models / controls / vault / assets / history",
+      hint: "使用 dialogId='toolbox'，params.tab 可填 models / controls / vault / assets",
     });
 
     return caps;
@@ -2674,11 +2324,10 @@ export default function Studio() {
           return { ok: true };
         }
         case "openDialog": {
-          const openToolbox = (tab: "vault" | "assets" | "models" | "history" | "controls") => {
+          const openToolbox = (tab: "vault" | "assets" | "models" | "controls") => {
             setToolboxTab(tab);
             setToolboxSheetOpen(true);
             setLeftDrawerOpen(false);
-            setRightDrawerOpen(false);
           };
           if (action.dialogId === "toolbox") {
             const tab =
@@ -2689,7 +2338,6 @@ export default function Studio() {
               tab === "vault" ||
               tab === "assets" ||
               tab === "models" ||
-              tab === "history" ||
               tab === "controls"
                 ? tab
                 : "assets";
@@ -2779,18 +2427,29 @@ export default function Studio() {
             <span className="hidden sm:inline">工具箱</span>
           </Button>
 
-          {/* History drawer toggle (desktop only, not in simple mode) */}
-          {!isMobile && !isSimple && (
-            <Button
-              variant={rightDrawerOpen ? "default" : "outline"}
-              size="sm"
-              className="rounded-xl gap-1.5 text-xs h-8"
-              onClick={() => setRightDrawerOpen(!rightDrawerOpen)}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">歷史</span>
-            </Button>
-          )}
+          {/* Advanced studio entry — routes to ImageStudio / VideoStudio / ProStudio by modality */}
+          {(() => {
+            const advanced =
+              activeModality === "image"
+                ? { path: "/image-studio", label: "進階圖像創作" }
+                : activeModality === "video"
+                  ? { path: "/video-studio", label: "進階影片創作" }
+                  : activeModality === "voice"
+                    ? { path: "/pro-studio?tab=tts", label: "進階語音合成" }
+                    : { path: "/pro-studio?tab=music", label: "進階配音音樂" };
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 text-xs h-8 border-primary/40 text-primary hover:bg-primary/10"
+                onClick={() => navigate(advanced.path)}
+                title={advanced.label}
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{advanced.label}</span>
+              </Button>
+            );
+          })()}
         </div>
       </div>
 
@@ -2806,17 +2465,21 @@ export default function Studio() {
                 ? "一致性保險庫"
                 : leftDrawerTab === "models"
                   ? "角色鍛造所"
-                  : leftDrawerTab === "recipes"
-                    ? "配方庫"
-                    : leftDrawerTab === "versions"
-                      ? "版本歷史"
-                      : "數位資產"
+                  : leftDrawerTab === "controls"
+                    ? "進階控制（種子碼）"
+                    : leftDrawerTab === "recipes"
+                      ? "配方庫"
+                      : leftDrawerTab === "versions"
+                        ? "版本歷史"
+                        : "數位資產"
             }
             icon={
               leftDrawerTab === "vault" ? (
                 <Layers className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "models" ? (
                 <Cpu className="w-4 h-4 text-primary" />
+              ) : leftDrawerTab === "controls" ? (
+                <SlidersHorizontal className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "recipes" ? (
                 <Bookmark className="w-4 h-4 text-primary" />
               ) : leftDrawerTab === "versions" ? (
@@ -2862,6 +2525,17 @@ export default function Studio() {
                 >
                   <Cpu className="w-3 h-3 inline mr-1" />
                   模型
+                </button>
+                <button
+                  onClick={() => setLeftDrawerTab("controls")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "controls"
+                      ? "bg-card shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3 h-3 inline mr-1" />
+                  參數
                 </button>
                 <button
                   onClick={() => setLeftDrawerTab("recipes")}
@@ -2949,6 +2623,31 @@ export default function Studio() {
                   toast.info("已移除微調模型");
                 }}
               />
+            ) : leftDrawerTab === "controls" ? (
+              <div className="px-3 pb-3 pt-2">
+                <GenerationControls
+                  temperature={temperature}
+                  onTemperatureChange={v => {
+                    setTemperature(v);
+                    notifyAdvancedParams();
+                  }}
+                  seed={seed}
+                  onSeedChange={v => {
+                    setSeed(v);
+                    notifyAdvancedParams();
+                  }}
+                  mode={mode}
+                  onModeChange={v => {
+                    setMode(v);
+                    notifyAdvancedParams();
+                  }}
+                  loraWeight={loraWeight}
+                  onLoraWeightChange={setLoraWeight}
+                  showLoraWeight={showLoraWeight}
+                  seedOnly={isStandard}
+                  selectedModelId={selectedFalModelId}
+                />
+              </div>
             ) : leftDrawerTab === "recipes" ? (
               <div className="px-2 pb-3">
                 <RecipeLibraryPanel
@@ -3820,47 +3519,6 @@ export default function Studio() {
           </AnimatePresence>
         </div>
 
-        {/* ── Right Panel: Controls + Version History + Recipes (desktop, hidden in simple mode) ── */}
-        {!isMobile && !isSimple && (
-          <div className="hidden lg:block w-72 shrink-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <GlassCard hover={false}>
-              <GenerationControls
-                temperature={temperature}
-                onTemperatureChange={v => {
-                  setTemperature(v);
-                  notifyAdvancedParams();
-                }}
-                seed={seed}
-                onSeedChange={v => {
-                  setSeed(v);
-                  notifyAdvancedParams();
-                }}
-                mode={mode}
-                onModeChange={v => {
-                  setMode(v);
-                  notifyAdvancedParams();
-                }}
-                loraWeight={loraWeight}
-                onLoraWeightChange={setLoraWeight}
-                showLoraWeight={showLoraWeight}
-                seedOnly={isStandard}
-              />
-            </GlassCard>
-          </div>
-        )}
-
-        {/* ── Right Drawer: History ── */}
-        {!isMobile && (
-          <DrawerPanel
-            open={rightDrawerOpen}
-            side="right"
-            title="生成歷史"
-            icon={<Clock className="w-4 h-4 text-primary" />}
-            onClose={() => setRightDrawerOpen(false)}
-          >
-            <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
-          </DrawerPanel>
-        )}
       </div>
 
       {/* ── Mobile Bottom Sheets ── */}
@@ -3931,7 +3589,7 @@ export default function Studio() {
                 </div>
                 <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground leading-relaxed">
                   <li>• 先在「保險庫」選角色/場景，拖放到工作區保持一致性。</li>
-                  <li>• 到「參數」鎖定 seed 與模式，再切「歷史」比較最佳版本。</li>
+                  <li>• 到「參數」鎖定 seed 與模式，再切換到對應的進階創作室。</li>
                   <li>• 若要跨模態延伸，先從上方切換圖片/影片/音樂/語音再生成。</li>
                 </ul>
               </div>
@@ -3943,7 +3601,6 @@ export default function Studio() {
                   "assets",
                   "models",
                   "controls",
-                  "history",
                   "recipes",
                   "versions",
                 ] as const
@@ -3953,7 +3610,6 @@ export default function Studio() {
                   assets: "資產",
                   models: "模型",
                   controls: "參數",
-                  history: "歷史",
                   recipes: "配方",
                   versions: "版本",
                 };
@@ -3999,18 +3655,26 @@ export default function Studio() {
             {toolboxTab === "controls" && (
               <GenerationControls
                 temperature={temperature}
-                onTemperatureChange={setTemperature}
+                onTemperatureChange={v => {
+                  setTemperature(v);
+                  notifyAdvancedParams();
+                }}
                 seed={seed}
-                onSeedChange={setSeed}
+                onSeedChange={v => {
+                  setSeed(v);
+                  notifyAdvancedParams();
+                }}
                 mode={mode}
-                onModeChange={setMode}
+                onModeChange={v => {
+                  setMode(v);
+                  notifyAdvancedParams();
+                }}
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
+                seedOnly={isStandard}
+                selectedModelId={selectedFalModelId}
               />
-            )}
-            {toolboxTab === "history" && (
-              <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
             )}
             {toolboxTab === "recipes" && (
               <div className="px-2 pb-3">

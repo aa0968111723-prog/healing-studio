@@ -280,7 +280,7 @@ function ChipListInput({
 
 // ─── 動畫設定狀態指示器（v2） ──────────────────────────────────────────────
 // 在角色卡頂部顯示三視圖 / 表情 / 穿衣 / 配音 / 腳本定位的填寫狀態，
-// 並附直達 /animation 工作室的 CTA。深度編輯在動畫工作室。
+// 並附直達 /animation 世界觀系統的 CTA。深度編輯在世界觀系統。
 
 const CharacterAnimationStatus = memo(function CharacterAnimationStatus({
   character,
@@ -335,7 +335,7 @@ const CharacterAnimationStatus = memo(function CharacterAnimationStatus({
               key={it.key}
               type="button"
               onClick={() => navigate("/animation")}
-              title="到動畫工作室編輯"
+              title="到世界觀系統編輯"
               className={`px-1.5 py-0.5 rounded-md text-[10px] flex items-center gap-1 transition border ${
                 it.ok
                   ? "bg-primary/15 text-primary border-primary/30"
@@ -793,7 +793,7 @@ const SceneCard = memo(function SceneCard({
   );
 });
 
-// ─── 動畫工作室入口橫幅 ────────────────────────────────────────────────────
+// ─── 世界觀系統入口橫幅 ────────────────────────────────────────────────────
 
 function AnimationStudioBanner() {
   const [, navigate] = useLocation();
@@ -809,11 +809,11 @@ function AnimationStudioBanner() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-primary flex items-center gap-1">
-            世界觀已融合進「動畫工作室」 — 點此前往
+            世界觀已融合進「世界觀系統」 — 點此前往
             <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </div>
           <div className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed">
-            本分頁仍可使用，但建議在動畫工作室一處編完：世界基本資料 · 角色（基本＋三視圖／表情／穿衣／口氣／配音／腳本定位／LoRA） · 場景（基本＋風格鎖／配樂鎖／時段表／運鏡） · 風格 profile · 配樂主題 · 分鏡時間軸 · 渲染管線
+            本分頁仍可使用，但建議在世界觀系統一處編完：世界基本資料 · 角色（基本＋三視圖／表情／穿衣／口氣／配音／腳本定位／LoRA） · 場景（基本＋風格鎖／配樂鎖／時段表／運鏡） · 風格 profile · 配樂主題 · 分鏡時間軸 · 渲染管線
           </div>
         </div>
       </div>
@@ -1007,7 +1007,7 @@ export default function WorldbuildingPanel() {
     <div className="flex gap-5">
       {/* Left: Editor */}
       <div className="flex-1 min-w-0 space-y-4">
-        {/* 動畫工作室入口橫幅 — 引導使用者前往 /animation 進行三視圖、表情、
+        {/* 世界觀系統入口橫幅 — 引導使用者前往 /animation 進行三視圖、表情、
             穿衣、口氣、語音、腳本定位的深度配置與分鏡時間軸製作 */}
         <AnimationStudioBanner />
 

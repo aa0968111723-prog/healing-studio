@@ -668,6 +668,89 @@
     }
   }
 
+  /* ─── Healing micro-interactions ───────────────────────────────────────
+   * Three layered utilities give every clickable element a gentle, opt-in
+   * "alive" feel without the cartoonish bounce that ad-hoc Tailwind
+   * `hover:scale-105` produces. Pair with `.focus-ring-healing` for a11y.
+   *
+   * .hs-press  — small chip / icon buttons. Subtle 1px lift on hover and
+   *              a 2 % press scale on active. Tunes to the healing easing
+   *              tokens so the timing matches the rest of the surface.
+   * .hs-chip   — pill-shaped chip with a softer 1px lift and small shadow.
+   * .hs-lift   — cards / larger surfaces. 3px lift + healing-md shadow.
+   *
+   * Each respects `prefers-reduced-motion` and dim non-pointer (touch).
+   * ────────────────────────────────────────────────────────────────── */
+  .hs-press {
+    transition:
+      transform 0.18s var(--ease-healing-out),
+      box-shadow 0.22s var(--ease-healing-out),
+      background-color 0.2s var(--ease-healing-out),
+      border-color 0.2s var(--ease-healing-out),
+      color 0.18s var(--ease-healing-out);
+  }
+  @media (hover: hover) {
+    .hs-press:hover {
+      transform: translateY(-1px);
+    }
+  }
+  .hs-press:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.08s;
+  }
+
+  .hs-chip {
+    position: relative;
+    transition:
+      transform 0.2s var(--ease-healing-out),
+      background-color 0.22s var(--ease-healing-out),
+      border-color 0.22s var(--ease-healing-out),
+      color 0.18s var(--ease-healing-out),
+      box-shadow 0.28s var(--ease-healing-out);
+  }
+  @media (hover: hover) {
+    .hs-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-healing-sm);
+    }
+  }
+  .hs-chip:active {
+    transform: scale(0.96);
+    transition-duration: 0.08s;
+  }
+
+  .hs-lift {
+    transition:
+      transform 0.32s var(--ease-healing-out),
+      box-shadow 0.4s var(--ease-healing-out),
+      border-color 0.32s var(--ease-healing-out);
+  }
+  @media (hover: hover) {
+    .hs-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-healing-md);
+    }
+  }
+  .hs-lift:active {
+    transform: translateY(-1px) scale(0.995);
+    transition-duration: 0.12s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hs-press,
+    .hs-press:hover,
+    .hs-press:active,
+    .hs-chip,
+    .hs-chip:hover,
+    .hs-chip:active,
+    .hs-lift,
+    .hs-lift:hover,
+    .hs-lift:active {
+      transform: none;
+      transition-duration: 0s;
+    }
+  }
+
   /* ─── Apple-Style Floating Dock ─── */
   .apple-dock-glass {
     position: relative;
@@ -1571,6 +1654,32 @@
     color: oklch(0.22 0.014 280);
     border-color: oklch(0 0 0 / 0.06);
   }
+  /* When a tooltip carries both label + description we widen the padding
+     slightly and stack the two lines. The label stays the same weight as
+     the single-line tooltip; the description sits beneath in muted text so
+     the eye still parses label first. Capped at ~220px to keep the tooltip
+     from running into the viewport edge on the smallest dock positions. */
+  .apple-dock-tooltip:has(.apple-dock-tooltip-stack) {
+    padding: 7px 12px;
+    max-width: 220px;
+  }
+  .apple-dock-tooltip-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.35;
+  }
+  .apple-dock-tooltip-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .apple-dock-tooltip-desc {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.72;
+    letter-spacing: 0.015em;
+  }
 
   /* ─── Flyout ─── */
   .apple-dock-flyout {
@@ -1637,6 +1746,13 @@
     color: oklch(0.32 0.014 60);
     transition: color 0.2s var(--ease-healing-out);
     outline: none;
+  }
+  /* When a row hosts a stacked label + description column, bump vertical
+     padding a hair so the two lines don't crowd against the rounded
+     corners. Detected via :has() so single-line rows stay tighter. */
+  .apple-dock-flyout-item:has(.apple-dock-flyout-item-desc) {
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
   :is(.dark) .apple-dock-flyout-item {
     color: oklch(0.9 0.014 60);
@@ -1714,6 +1830,34 @@
       oklch(0.72 0.14 320)
     );
     box-shadow: 0 0 8px oklch(0.78 0.14 300 / 0.55);
+  }
+  /* Two-line flyout row variant (label + muted description). The label
+     keeps the same weight/size as the single-line row so the menu still
+     scans as a uniform list; the description is one shade muted and sits
+     beneath. Both lines truncate so a long description can't blow out the
+     popover width. */
+  .apple-dock-flyout-item-label {
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  .apple-dock-flyout-item-desc {
+    font-size: 11.5px;
+    font-weight: 400;
+    line-height: 1.3;
+    color: oklch(0.5 0.018 280 / 0.78);
+    margin-top: 1px;
+  }
+  :is(.dark) .apple-dock-flyout-item-desc {
+    color: oklch(0.78 0.02 280 / 0.65);
+  }
+  .apple-dock-flyout-item[data-active="true"] .apple-dock-flyout-item-desc {
+    color: oklch(0.4 0.06 300 / 0.85);
+  }
+  :is(.dark)
+    .apple-dock-flyout-item[data-active="true"]
+    .apple-dock-flyout-item-desc {
+    color: oklch(0.88 0.05 300 / 0.78);
   }
 
   @keyframes apple-dock-pop {
@@ -4321,4 +4465,106 @@ html.dark {
   -webkit-text-fill-color: oklch(0.93 0.008 75);
   -webkit-box-shadow: 0 0 0 1000px rgba(28, 32, 48, 0.95) inset;
   caret-color: oklch(0.93 0.008 75);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   /agent 聊天頁：極簡風（minimalist）視覺處理
+   ──────────────────────────────────────────────────────────────────
+   data-design-mode="minimalist" 是個人設定的開關（DEFAULT 給新使用者）。
+   classic 模式不套用任何規則，介面與本次改動前完全一致。
+
+   為什麼用 CSS 而不是另開一份 JSX 樹？
+   AgentChat.tsx 是 2,900 行的成熟頁面，包含 SSE / pageAgent / orb guide
+   等多個 context 緊密耦合。複製整份 JSX 容易發生兩份漸漸 drift。CSS
+   負責「視覺密度」轉換，元件本身仍是同一份，行為一致、bug 也不分支。
+
+   主要差異：
+   1. 隱藏「切換代理風格」整段（高密度、4 張漸層卡片）
+   2. 隱藏「需求釐清提示」與「五步學會」開合區（保留「叫光球示範」按鈕入口）
+   3. 收緊夾層留白，加大主要區塊呼吸感
+   4. 精靈名片簿：去掉漸層光暈，邊框轉細，更像清爽 chip
+   5. 主動精靈群組的脈動提示點 → 淡化但保留
+   6. 全站能力地圖 collapsible 入口字體放大、icon 改成 outline
+*/
+
+[data-design-mode="minimalist"] [data-minimalist-hide],
+[data-design-mode="minimalist"] .minimalist-hide {
+  display: none !important;
+}
+
+/* 反向：classic-only 區塊（極簡風隱藏；目前未使用，留作未來擴充） */
+[data-design-mode="minimalist"] [data-classic-only] {
+  display: none !important;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card {
+  background: oklch(1 0 0 / 0.55);
+  border: 1px solid oklch(0.9 0.01 290 / 0.5);
+  box-shadow: none;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    transform 150ms ease;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card:hover {
+  background: oklch(1 0 0 / 0.85);
+  border-color: oklch(0.78 0.04 290 / 0.6);
+  transform: none;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card[data-pinned="true"] {
+  background: oklch(0.97 0.02 290 / 0.85);
+  border-color: oklch(0.7 0.08 290 / 0.55);
+  box-shadow: none;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-card[data-pinned="true"]::before {
+  display: none;
+}
+
+[data-design-mode="minimalist"] .healing-spirit-disc {
+  filter: saturate(0.85);
+  box-shadow: none;
+}
+
+[data-design-mode="minimalist"] .healing-family-strip {
+  gap: 0.5rem;
+}
+
+[data-design-mode="minimalist"] .healing-inner-card {
+  background: transparent;
+  border: 1px solid oklch(0.9 0.01 290 / 0.4);
+  box-shadow: none;
+}
+
+[data-design-mode="minimalist"] .healing-input-shell {
+  background: oklch(1 0 0 / 0.75);
+  border: 1px solid oklch(0.88 0.015 290 / 0.6);
+  box-shadow: 0 1px 2px oklch(0.5 0.04 290 / 0.05);
+}
+
+[data-design-mode="minimalist"] .healing-input-shell:focus-within {
+  border-color: oklch(0.7 0.08 290 / 0.55);
+  box-shadow: 0 0 0 3px oklch(0.85 0.05 290 / 0.18);
+}
+
+:is(.dark)[data-design-mode="minimalist"] .healing-spirit-card,
+.dark [data-design-mode="minimalist"] .healing-spirit-card {
+  background: oklch(0.24 0.015 290 / 0.6);
+  border-color: oklch(0.45 0.025 290 / 0.5);
+}
+
+.dark [data-design-mode="minimalist"] .healing-input-shell {
+  background: oklch(0.22 0.015 290 / 0.65);
+  border-color: oklch(0.4 0.025 290 / 0.55);
+}
+
+/* 主要段落留白：極簡風空間感的核心 */
+[data-design-mode="minimalist"] > div > div > div > .flex.flex-col.items-center {
+  /* 拉開段落間距，讓「呼吸感」具體顯現 */
+}
+
+[data-design-mode="minimalist"] .agent-section + .agent-section {
+  margin-top: 1.25rem;
 }

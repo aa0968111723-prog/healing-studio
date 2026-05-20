@@ -384,7 +384,42 @@
       "idx": 61,
       "version": "5",
       "when": 1779050000061,
-      "tag": "0061_worldbuilding_v4_research_sound_assets",
+      "tag": "0061_repair_worldbuilding_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1779050000062,
+      "tag": "0062_worldbuilding_v4_research_sound_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "5",
+      "when": 1779050000063,
+      "tag": "0063_prompt_collection",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "5",
+      "when": 1779050000064,
+      "tag": "0064_timeline_frames_and_compositions",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "5",
+      "when": 1779050000065,
+      "tag": "0065_real_earth_information_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "5",
+      "when": 1779050000066,
+      "tag": "0066_teaching_materials_real_earth_refs",
       "breakpoints": true
     }
   ]

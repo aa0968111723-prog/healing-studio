@@ -992,6 +992,99 @@ export default function SettingsPage() {
             </div>
           </GlassCard>
 
+          {/* ── Section: /agent 聊天頁的介面設計風格 ───────────────
+              極簡風 vs 原本設計。新使用者預設極簡；舊使用者預設保留
+              原本設計（透過 PersonalSettingsContext 的 fallback 邏輯）。
+              切換後立即生效，不需要 reload。 */}
+          <GlassCard>
+            <h2 className="hs-h3 !mb-0 text-foreground mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              介面設計風格
+            </h2>
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
+              /agent 聊天頁的版型 — 目前：
+              <span className="font-medium">
+                {settings.designMode === "minimalist" ? "極簡風" : "原本設計"}
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-3" data-testid="design-mode-grid">
+              {[
+                {
+                  id: "minimalist" as const,
+                  label: "極簡風（互動式）",
+                  hint: "呼吸感大、視覺乾淨、留白多。新版精靈小屋同步啟用。",
+                  preview: (
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-stone-50 to-violet-50/40 dark:from-zinc-800/60 dark:to-violet-900/30 flex flex-col items-center justify-center gap-1.5 px-3">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-br from-violet-300 to-pink-300" />
+                      <div className="w-12 h-1 rounded-full bg-foreground/40" />
+                      <div className="w-16 h-1 rounded-full bg-foreground/20" />
+                      <div className="flex gap-1 mt-1">
+                        <div className="w-2 h-2 rounded-full border border-foreground/30" />
+                        <div className="w-2 h-2 rounded-full border border-foreground/30" />
+                        <div className="w-2 h-2 rounded-full border border-foreground/30" />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "classic" as const,
+                  label: "原本設計",
+                  hint: "資訊密度高、漸層色塊多。熟手一目了然。",
+                  preview: (
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-purple-100 via-pink-100 to-amber-100 dark:from-purple-900/40 dark:via-pink-900/30 dark:to-amber-900/30 flex flex-col gap-1 p-2">
+                      <div className="h-2 rounded bg-gradient-to-r from-rose-400 to-pink-500" />
+                      <div className="h-2 rounded bg-gradient-to-r from-orange-400 to-amber-500" />
+                      <div className="h-2 rounded bg-gradient-to-r from-emerald-400 to-teal-500" />
+                      <div className="grid grid-cols-3 gap-0.5 mt-0.5">
+                        <div className="h-1.5 rounded bg-violet-400/70" />
+                        <div className="h-1.5 rounded bg-sky-400/70" />
+                        <div className="h-1.5 rounded bg-rose-400/70" />
+                      </div>
+                    </div>
+                  ),
+                },
+              ].map(opt => {
+                const isActive = settings.designMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      updateSettings({ designMode: opt.id });
+                      toast.success(`介面設計風格：${opt.label}`);
+                    }}
+                    aria-pressed={isActive}
+                    data-testid={`design-mode-${opt.id}`}
+                    className={`relative rounded-xl border overflow-hidden text-left transition-all min-h-[112px] ${
+                      isActive
+                        ? "ring-2 ring-primary/50 border-primary/40 shadow-sm"
+                        : "border-border/40 hover:border-border/60"
+                    }`}
+                  >
+                    {opt.preview}
+                    <div className="relative z-10 p-2.5 mt-auto bg-background/65 dark:bg-background/40 backdrop-blur-sm border-t border-border/30">
+                      <div className="flex items-center gap-1.5">
+                        <p
+                          className={`hs-small !mb-0 font-semibold ${
+                            isActive ? "text-primary" : "text-foreground"
+                          }`}
+                        >
+                          {opt.label}
+                        </p>
+                        {isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                        )}
+                      </div>
+                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5 leading-snug">
+                        {opt.hint}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </GlassCard>
+
           <GlassCard>
             <h2 className="hs-h3 !mb-0 text-foreground mb-1 flex items-center gap-2">
               <Monitor className="w-4 h-4" />

@@ -51,12 +51,15 @@ import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
+import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
+import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
+import { promptCollectionRouter } from "./routers/promptCollection";
 import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
@@ -196,6 +199,7 @@ import { eq } from "drizzle-orm";
 import { userAiBrain, promptLibrary } from "../drizzle/schema";
 import { getDb, getSiteWideModelUsageSnapshot, getUserTopModelRecent } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
+import { applyCameraMotionToPrompt } from "../shared/cameraMotionPrompt";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
 import {
   selectRoleForIntent,
@@ -329,8 +333,10 @@ function aspectRatioToImageSize(
     case "9:16":
       return "portrait_16_9";
     case "4:3":
+    case "3:2":
       return "landscape_4_3";
     case "3:4":
+    case "2:3":
       return "portrait_4_3";
     default:
       return "square_hd";
@@ -1072,6 +1078,7 @@ export const appRouter = router({
   loraTrainer: loraTrainerRouter,
   modelConsents: modelConsentsRouter,
   promptLibrary: promptLibraryRouter,
+  promptCollection: promptCollectionRouter,
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
   orbScheduler: orbSchedulerRouter,
@@ -2279,13 +2286,19 @@ export const appRouter = router({
             const videoModelId = input.firstFrameUrl
               ? falEngines.imageToVideo
               : falEngines.textToVideo;
+            // 鏡頭運動：嵌進 prompt(底層 fal 模型沒有結構化 camera 欄位;
+            // cammaster 已下架,詳見 shared/cameraMotionPrompt.ts 註解)
+            const videoPromptWithCamera = applyCameraMotionToPrompt(
+              compiledPrompt,
+              input.cameraMotion
+            );
             let videoUrl: string | undefined;
             try {
               if (videoViaGemini) {
                 const gemini = getGeminiMediaClient();
                 const geminiVideo = await withTimeout(
                   gemini.generateVideoSync({
-                    prompt: compiledPrompt,
+                    prompt: videoPromptWithCamera,
                     model:
                       videoEngine === "gemini/veo-2"
                         ? "veo-2.0-generate-001"
@@ -2306,7 +2319,7 @@ export const appRouter = router({
                 const videoDispatch = await withTimeout(
                   dispatchVideoGeneration({
                     modelId: videoModelId,
-                    prompt: compiledPrompt,
+                    prompt: videoPromptWithCamera,
                     imageUrl:
                       input.firstFrameUrl || input.characterRefUrl || undefined,
                     durationSec: input.videoDurationSeconds || 5,
@@ -2903,6 +2916,13 @@ export const appRouter = router({
           firstFrameUrl: z.string().nullable().optional(),
           lastFrameUrl: z.string().nullable().optional(),
           characterRefUrl: z.string().nullable().optional(),
+          cameraMotion: z
+            .object({
+              pan: z.number(),
+              zoom: z.number(),
+              tilt: z.number(),
+            })
+            .optional(),
           // Audio params
           musicStyle: z.string().optional(),
           isInstrumental: z.boolean().optional(),
@@ -3119,8 +3139,13 @@ export const appRouter = router({
           // i2v 來源圖：firstFrameUrl 優先、其次 characterRefUrl（與同步流程
           // routers.ts:1675 / videoStudio.klingImageToVideo 一致）
           const i2vImageUrl = input.firstFrameUrl || input.characterRefUrl;
+          // 鏡頭運動：底層 fal 影片模型(kling/wan/veo)沒有結構化 camera 欄位,
+          // 把滑桿值翻成 prompt 文字。fal-ai/cammaster 雖然吃 camera_motion enum,
+          // 但已在 fal 下架(catalog disabled,auto-substitute 到 kling-pro),
+          // 走 prompt 是唯一對所有模型都有效的路徑。
+          const videoPrompt = applyCameraMotionToPrompt(input.prompt, input.cameraMotion);
           falInput = {
-            prompt: input.prompt,
+            prompt: videoPrompt,
             ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
             ...(i2vImageUrl && { image_url: i2vImageUrl }),
             // Kling 結束幀正確欄位是 tail_image_url（見 videoStudio.klingImageToVideo:442）
@@ -3248,7 +3273,7 @@ export const appRouter = router({
               }
             } else if (input.generationType === "video") {
               const videoRes = await gemini.generateVideoSync({
-                prompt: input.prompt,
+                prompt: applyCameraMotionToPrompt(input.prompt, input.cameraMotion),
                 model:
                   modelId === "gemini/veo-2"
                     ? "veo-2.0-generate-001"
@@ -3952,10 +3977,19 @@ export const appRouter = router({
   // v2 動畫擴充：三視圖、表情、穿衣、口氣、語音、腳本定位、風格 profile、配樂主題
   worldbuilding: worldbuildingRouter,
 
+  // ─── Worldbuilding Generation（AI 生成服務） ──────────────────────────────
+  // AI-powered generation of characters, scenes, and storyboards
+  worldbuildingGeneration: worldbuildingGenerationRouter,
+
   // ─── World Storyboard（動畫分鏡時間軸） ──────────────────────────────────
   // 「幾分幾秒」級的分鏡：角色 beats、圖楨、音軌（music/voice/sfx）、
   //   管線編排（t2i → refine → i2v → music → voice → final compose）
   worldStoryboard: worldStoryboardRouter,
+
+  // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
+  // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
+  // 方便使用者研究與撰寫腳本。可被世界觀系統引用、AI 代理查詢。
+  realEarth: realEarthRouter,
 
   // ─── 資料庫（training-data 素材池） ──────────────────────────────────────
   // 上傳純文字 / PDF / 文件 / 圖片 / 影片 / 語音 / 簡報，依分類、來源、主題分類。

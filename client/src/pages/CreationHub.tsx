@@ -12,7 +12,6 @@ import {
   Clapperboard,
   Package,
   StickyNote,
-  CalendarDays,
   Clock,
   type LucideIcon,
 } from "lucide-react";
@@ -33,8 +32,7 @@ type CreationTabId =
   | "studio"
   | "director"
   | "assets"
-  | "notes"
-  | "calendar"
+  | "projectSchedule"
   | "history";
 
 type CreationTab = {
@@ -44,6 +42,46 @@ type CreationTab = {
   icon: LucideIcon;
   Component: React.ComponentType;
 };
+
+function ProjectScheduleWorkspace() {
+  const [subTab, setSubTab] = useState<"notes" | "calendar">("notes");
+
+  return (
+    <div className="space-y-4">
+      <Tabs
+        value={subTab}
+        onValueChange={value =>
+          setSubTab(value === "calendar" ? "calendar" : "notes")
+        }
+      >
+        <TabsList className="bg-transparent p-0 h-auto gap-1.5 flex-wrap justify-start overflow-x-auto w-full">
+          <TabsTrigger
+            value="notes"
+            className="hub-tab-trigger gap-2 h-10 px-3.5 rounded-xl border border-border/40 bg-background/60"
+          >
+            專案筆記
+          </TabsTrigger>
+          <TabsTrigger
+            value="calendar"
+            className="hub-tab-trigger gap-2 h-10 px-3.5 rounded-xl border border-border/40 bg-background/60"
+          >
+            創作排程
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="notes" className="mt-0">
+          <Suspense fallback={<FallbackSkeleton />}>
+            <NotesPage />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="calendar" className="mt-0">
+          <Suspense fallback={<FallbackSkeleton />}>
+            <CalendarPage />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
 
 const TABS: readonly CreationTab[] = [
   {
@@ -68,18 +106,11 @@ const TABS: readonly CreationTab[] = [
     Component: AssetsLibrary,
   },
   {
-    id: "notes",
-    label: "專案筆記",
-    hint: "靈感、腳本、待辦",
+    id: "projectSchedule",
+    label: "專案排程",
+    hint: "靈感筆記與行事曆整合",
     icon: StickyNote,
-    Component: NotesPage,
-  },
-  {
-    id: "calendar",
-    label: "創作排程",
-    hint: "本週節奏與交付節點",
-    icon: CalendarDays,
-    Component: CalendarPage,
+    Component: ProjectScheduleWorkspace,
   },
   {
     id: "history",
@@ -110,9 +141,9 @@ export default function CreationHub() {
     try {
       const params = new URLSearchParams(search);
       const v = params.get("tab");
-      return isCreationTabId(v) ? v : "studio";
+      return isCreationTabId(v) ? v : "projectSchedule";
     } catch {
-      return "studio";
+      return "projectSchedule";
     }
   }, [search]);
 

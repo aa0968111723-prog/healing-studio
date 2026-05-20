@@ -489,7 +489,7 @@ export default function ModelsPage() {
   usePageTour("models");
 
   // 頁面分頁：角色鍛造所 | 模型訓練中心
-  const [pageTab, setPageTab] = useState<"forge" | "trainer">("forge");
+  const [pageTab, setPageTab] = useState<"forge" | "trainer">("trainer");
 
   useEffect(() => {
     if (pageTab === "forge") {
@@ -882,7 +882,7 @@ export default function ModelsPage() {
         }
         case "reset": {
           setTab("my");
-          setPageTab("forge");
+          setPageTab("trainer");
           setDialogOpen(false);
           return { ok: true, message: "已回到我的模型" };
         }
@@ -901,18 +901,6 @@ export default function ModelsPage() {
       <div className="flex items-center gap-1 border-b border-border/50 pb-0">
         <button
           type="button"
-          onClick={() => setPageTab("forge")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-            pageTab === "forge"
-              ? "bg-primary/10 text-primary border-b-2 border-primary"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Cpu className="w-4 h-4" />
-          角色鍛造所
-        </button>
-        <button
-          type="button"
           onClick={() => setPageTab("trainer")}
           className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
             pageTab === "trainer"
@@ -925,9 +913,7 @@ export default function ModelsPage() {
         </button>
       </div>
 
-      <AssetModelSubpageGuide
-        page={pageTab === "trainer" ? "lora-trainer" : "models"}
-      />
+      {pageTab === "forge" && <AssetModelSubpageGuide page="models" />}
 
       {pageTab === "trainer" ? (
         <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>

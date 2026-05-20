@@ -3193,3 +3193,277 @@ export async function listTeachingMaterialAccessLogs(
     .orderBy(desc(teachingMaterialAccessLog.createdAt))
     .limit(limit);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Real Earth Information System（真實地球資訊系統）
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(realEarthEntries)
+    .where(eq(realEarthEntries.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getRealEarthEntries(params: {
+  category?: string;
+  taiwanOnly?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<RealEarthEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select().from(realEarthEntries);
+
+  const conditions: any[] = [];
+  if (params.category) {
+    conditions.push(eq(realEarthEntries.category, params.category));
+  }
+  if (params.taiwanOnly) {
+    conditions.push(eq(realEarthEntries.isTaiwanFocused, true));
+  }
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  query = query
+    .orderBy(desc(realEarthEntries.createdAt))
+    .limit(params.limit ?? 50)
+    .offset(params.offset ?? 0) as any;
+
+  return query;
+}
+
+export async function searchRealEarthEntries(params: {
+  query?: string;
+  categories?: string[];
+  regions?: string[];
+  historicalPeriods?: string[];
+  yearRange?: { start?: number; end?: number };
+  tags?: string[];
+  taiwanOnly?: boolean;
+  minCredibility?: string;
+  sortBy?: string;
+  limit: number;
+  offset: number;
+}): Promise<{ rows: RealEarthEntry[]; total: number }> {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+
+  const conditions: any[] = [];
+
+  // 搜尋關鍵字（使用 LIKE）
+  if (params.query) {
+    const searchTerm = `%${params.query}%`;
+    conditions.push(
+      or(
+        like(realEarthEntries.title, searchTerm),
+        like(realEarthEntries.summary, searchTerm),
+        like(realEarthEntries.content, searchTerm)
+      )
+    );
+  }
+
+  // 類別篩選
+  if (params.categories && params.categories.length > 0) {
+    conditions.push(
+      or(...params.categories.map(cat => eq(realEarthEntries.category, cat)))
+    );
+  }
+
+  // 台灣重點資料
+  if (params.taiwanOnly) {
+    conditions.push(eq(realEarthEntries.isTaiwanFocused, true));
+  }
+
+  // 歷史時期篩選
+  if (params.historicalPeriods && params.historicalPeriods.length > 0) {
+    conditions.push(
+      or(...params.historicalPeriods.map(period =>
+        eq(realEarthEntries.historicalPeriod, period)
+      ))
+    );
+  }
+
+  // 構建查詢
+  let query = db.select().from(realEarthEntries);
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  // 排序
+  if (params.sortBy === "date_desc") {
+    query = query.orderBy(desc(realEarthEntries.createdAt)) as any;
+  } else if (params.sortBy === "date_asc") {
+    query = query.orderBy(asc(realEarthEntries.createdAt)) as any;
+  } else if (params.sortBy === "title") {
+    query = query.orderBy(asc(realEarthEntries.title)) as any;
+  } else {
+    // 預設相關性排序（創建時間倒序）
+    query = query.orderBy(desc(realEarthEntries.createdAt)) as any;
+  }
+
+  // 分頁
+  const rows = await query.limit(params.limit).offset(params.offset);
+
+  // 計算總數
+  const countQuery = db
+    .select({ count: sql<number>`count(*)` })
+    .from(realEarthEntries);
+
+  const countConditions: any[] = [];
+  if (conditions.length > 0) {
+    // 重複應用相同的條件
+    if (params.query) {
+      const searchTerm = `%${params.query}%`;
+      countConditions.push(
+        or(
+          like(realEarthEntries.title, searchTerm),
+          like(realEarthEntries.summary, searchTerm),
+          like(realEarthEntries.content, searchTerm)
+        )
+      );
+    }
+    if (params.categories && params.categories.length > 0) {
+      countConditions.push(
+        or(...params.categories.map(cat => eq(realEarthEntries.category, cat)))
+      );
+    }
+    if (params.taiwanOnly) {
+      countConditions.push(eq(realEarthEntries.isTaiwanFocused, true));
+    }
+    if (params.historicalPeriods && params.historicalPeriods.length > 0) {
+      countConditions.push(
+        or(...params.historicalPeriods.map(period =>
+          eq(realEarthEntries.historicalPeriod, period)
+        ))
+      );
+    }
+  }
+
+  const countResult = await (countConditions.length > 0
+    ? countQuery.where(and(...countConditions))
+    : countQuery);
+
+  const total = countResult[0]?.count ?? 0;
+
+  return { rows, total };
+}
+
+export async function createRealEarthEntry(
+  data: InsertRealEarthEntry
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(realEarthEntries).values(data);
+  return result[0].insertId;
+}
+
+export async function updateRealEarthEntry(
+  id: number,
+  data: Partial<InsertRealEarthEntry>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(realEarthEntries)
+    .set(data)
+    .where(eq(realEarthEntries.id, id));
+}
+
+export async function deleteRealEarthEntry(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(realEarthEntries).where(eq(realEarthEntries.id, id));
+}
+
+export async function getRealEarthStats(): Promise<{
+  total: number;
+  taiwanFocused: number;
+  byCategory: Record<string, number>;
+}> {
+  const db = await getDb();
+  if (!db) return { total: 0, taiwanFocused: 0, byCategory: {} };
+
+  // 總數
+  const totalResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(realEarthEntries);
+  const total = totalResult[0]?.count ?? 0;
+
+  // 台灣重點資料數
+  const taiwanResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(realEarthEntries)
+    .where(eq(realEarthEntries.isTaiwanFocused, true));
+  const taiwanFocused = taiwanResult[0]?.count ?? 0;
+
+  // 按類別統計
+  const categoryResult = await db
+    .select({
+      category: realEarthEntries.category,
+      count: sql<number>`count(*)`,
+    })
+    .from(realEarthEntries)
+    .groupBy(realEarthEntries.category);
+
+  const byCategory: Record<string, number> = {};
+  for (const row of categoryResult) {
+    byCategory[row.category] = row.count;
+  }
+
+  return { total, taiwanFocused, byCategory };
+}
+
+export async function findSimilarRealEarthEntries(params: {
+  excludeId: number;
+  category: string;
+  tags: string[];
+  limit: number;
+}): Promise<RealEarthEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 查找相同類別的條目
+  const rows = await db
+    .select()
+    .from(realEarthEntries)
+    .where(
+      and(
+        eq(realEarthEntries.category, params.category),
+        ne(realEarthEntries.id, params.excludeId)
+      )
+    )
+    .orderBy(desc(realEarthEntries.createdAt))
+    .limit(params.limit);
+
+  return rows;
+}
+
+/**
+ * 根據真實地球條目 ID 查找關聯的教材
+ */
+export async function findTeachingMaterialsByRealEarthRef(
+  realEarthId: number
+): Promise<TeachingMaterial[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 使用 JSON_CONTAINS 查詢包含特定 ID 的教材
+  const rows = await db
+    .select()
+    .from(teachingMaterials)
+    .where(
+      sql`JSON_CONTAINS(${teachingMaterials.realEarthRefs}, ${JSON.stringify(realEarthId)})`
+    )
+    .orderBy(desc(teachingMaterials.createdAt));
+
+  return rows;
+}

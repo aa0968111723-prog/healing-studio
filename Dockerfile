@@ -9,9 +9,10 @@ RUN apk add --no-cache python3 make g++
 # Copy package files first for better layer caching
 COPY package.json package-lock.json ./
 
-# Use npm install (NOT npm ci) with legacy peer deps
-# npm ci requires lockfileVersion mismatch handling that breaks in some envs
-RUN npm install --legacy-peer-deps
+# Use deterministic dependency install in CI/Cloud Build.
+# Increase Node heap for large Vite production builds to avoid OOM in small builders.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+RUN npm ci --legacy-peer-deps
 
 # Copy all source code
 COPY . .

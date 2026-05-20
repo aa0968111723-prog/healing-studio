@@ -100,6 +100,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useGlobalOrbChat, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
 import OrbActionFlow from "./orb/OrbActionFlow";
+import OrbUnifiedAssistant from "./OrbUnifiedAssistant";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
@@ -3726,45 +3727,15 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
     [onClose, globalChat]
   );
 
-  // ── Panel mode: guided flow or free chat ──────────────────────────────────
-  // 三層判斷（由強到弱）：
-  //   1. preferredPanelMode（context 帶上來）— 聊天驅動的跳頁明確要求 "chat"，
-  //      必須優先採用，避免使用者剛剛還在打字、跳完頁卻被丟去看靜態引導卡。
-  //   2. globalChat.isSending — 光球正在想，落在 chat 才看得到思考中泡泡。
-  //   3. fallback "guide" — 純被動開啟（hover 浮球、starter 卡片）走引導。
-  const [panelMode, setPanelMode] = useState<"guide" | "chat">(
-    preferredPanelMode ?? (globalChat.isSending ? "chat" : "guide")
-  );
-
-  // preferredPanelMode 是「跨 mount 也要生效」的 hint：聊天驅動的跳頁可能
-  // 在 panel 還沒掛載前就 setIsPanelOpen(true)，等 panel mount 完才看到偏
-  // 好。autoSwitchedRef 同時負責：
-  //   • isSending 觸發的自動切換（原本行為）
-  //   • preferredPanelMode === "chat" 觸發的自動切換（新行為）
-  // 兩種 trigger 共用同一支 ref，避免被切兩次。一旦 ref 被吃掉就清掉
-  // preferredPanelMode，下一輪不影響。
-  const autoSwitchedRef = useRef(false);
+  // ── Panel mode: 永遠固定在 unified（全站助理）──────────────────────────
+  // 引導帶路與自由聊天分頁已隱藏；面板只剩全站助理模式，避免依賴光球代理對話。
+  // setPanelMode 仍保留為 no-op，讓底下未走到的 guide/chat 程式碼維持型別正確。
+  const [panelMode] = useState<"guide" | "chat" | "unified">("unified");
+  const setPanelMode = (_mode: "guide" | "chat" | "unified") => {};
+  // 不再依 preferredPanelMode / globalChat.isSending 自動切到 chat
   useEffect(() => {
-    if (autoSwitchedRef.current) return;
-    if (preferredPanelMode === "chat" && panelMode !== "chat") {
-      autoSwitchedRef.current = true;
-      setPanelMode("chat");
-      clearPreferredPanelMode();
-      return;
-    }
-    if (
-      globalChat.isSending &&
-      panelMode === "guide"
-    ) {
-      autoSwitchedRef.current = true;
-      setPanelMode("chat");
-    }
-  }, [
-    globalChat.isSending,
-    panelMode,
-    preferredPanelMode,
-    clearPreferredPanelMode,
-  ]);
+    if (preferredPanelMode) clearPreferredPanelMode();
+  }, [preferredPanelMode, clearPreferredPanelMode]);
   // Use global chat state for chat mode - keep full message objects for metadata
   const chatMessages = panelMode === "chat" ? globalChat.messages : [];
   const chatSuggestions = panelMode === "chat" ? globalChat.suggestions : [];
@@ -4008,44 +3979,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
         </div>
       </div>
 
-      {/* ── Mode Tabs ── */}
-      <div className={cn(
-        "flex items-center gap-1 shrink-0",
-        fullscreen ? "px-5 pb-3" : "px-4 pb-3"
-      )}>
-        <button
-          type="button"
-          onClick={() => setPanelMode("guide")}
-          aria-pressed={panelMode === "guide"}
-          aria-label="切換到引導帶路模式"
-          className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
-            fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
-            panelMode === "guide"
-              ? "bg-white/15 text-white"
-              : "text-white/40 hover:text-white/70 hover:bg-white/8"
-          )}
-        >
-          <Navigation2 className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
-          引導帶路
-        </button>
-        <button
-          type="button"
-          onClick={() => setPanelMode("chat")}
-          aria-pressed={panelMode === "chat"}
-          aria-label="切換到自由聊天模式"
-          className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
-            fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
-            panelMode === "chat"
-              ? "bg-white/15 text-white"
-              : "text-white/40 hover:text-white/70 hover:bg-white/8"
-          )}
-        >
-          <MessageCircle className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
-          自由聊天
-        </button>
-      </div>
+      {/* ── Mode Tabs（已隱藏：只保留全站助理模式，不依賴光球代理對話）── */}
       <div className={cn("shrink-0 flex flex-wrap gap-1.5", fullscreen ? "px-5 pb-2" : "px-4 pb-2")}>
         <span className="rounded-full border border-white/15 bg-white/8 px-2 py-0.5 text-[10px] text-white/70">
           新版引導已啟用
@@ -4375,6 +4309,18 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Unified Assistant Mode — 全站功能 inline 在光球內 ── */}
+      {panelMode === "unified" && (
+        <div
+          className={cn(
+            "flex flex-col flex-1 overflow-hidden",
+            fullscreen ? "pb-2" : "pb-1"
+          )}
+        >
+          <OrbUnifiedAssistant fullscreen={fullscreen} />
         </div>
       )}
 

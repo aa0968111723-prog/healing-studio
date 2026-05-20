@@ -315,6 +315,9 @@ function Router() {
       <Route path="/prompt-library">
         <AssetsRedirect section="prompts" />
       </Route>
+      <Route path="/prompt-collection">
+        <AssetsRedirect section="collection" />
+      </Route>
       <Route path="/agent">
         <DashboardRoute component={AgentChat} />
       </Route>

@@ -256,11 +256,18 @@ async function startServer() {
       .split(",")
       .map(x => x.trim())
       .filter(Boolean);
-    if (explicitAllowOrigins.length === 0) {
+    const hasToolRegistry = (process.env.ORB_TOOL_REGISTRY_JSON ?? "").trim().length > 0;
+    if (explicitAllowOrigins.length === 0 && hasToolRegistry) {
       logger.error(
         "[FATAL] ORB_TOOL_ALLOWED_ORIGINS is empty in production. Refusing to boot. See .env.example -> 光球代理 Orb Tool Execution."
       );
       process.exit(1);
+    }
+    if (explicitAllowOrigins.length === 0 && !hasToolRegistry) {
+      logger.warn(
+        "[Orb] ORB_TOOL_ALLOWED_ORIGINS is empty in production, but ORB_TOOL_REGISTRY_JSON is not set. " +
+          "Booting with outbound orb tools disabled by default."
+      );
     }
   }
 

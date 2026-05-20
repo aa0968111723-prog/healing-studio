@@ -82,7 +82,7 @@ import {
   Globe2,
 } from "lucide-react";
 import { nanoid } from "nanoid";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 
 // ─── 常數 — 與 server/routers/teachingArchive.ts 保持同步 ────────────────────
 
@@ -152,6 +152,16 @@ function getSourceLabel(value: string): string {
 // ─── 主元件 ─────────────────────────────────────────────────────────────────
 
 export default function TeachingArchive() {
+  // 從 URL 預載初始 filters / 對話框狀態（給 LearnHub 個人資料庫面板深連結用）
+  const initialSearch = useSearch();
+  const initialParams = useMemo(() => new URLSearchParams(initialSearch), [initialSearch]);
+  const validMediaTypes: MediaType[] = ["text", "pdf", "document", "image", "video", "audio", "presentation"];
+  const validScopes = ["mine", "team", "public"] as const;
+  const urlMediaType = initialParams.get("mediaType");
+  const urlScope = initialParams.get("scope");
+  const urlOpenUpload = initialParams.get("openUpload") === "1";
+  const urlOpenId = Number(initialParams.get("openId"));
+
   const [filters, setFilters] = useState<{
     mediaType?: MediaType;
     sourceType?: SourceType;
@@ -159,9 +169,18 @@ export default function TeachingArchive() {
     topic?: string;
     search?: string;
     scope?: "mine" | "team" | "public";
-  }>({});
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
+  }>({
+    mediaType: validMediaTypes.includes(urlMediaType as MediaType)
+      ? (urlMediaType as MediaType)
+      : undefined,
+    scope: validScopes.includes(urlScope as (typeof validScopes)[number])
+      ? (urlScope as "mine" | "team" | "public")
+      : undefined,
+  });
+  const [uploadOpen, setUploadOpen] = useState(urlOpenUpload);
+  const [detailId, setDetailId] = useState<number | null>(
+    Number.isFinite(urlOpenId) && urlOpenId > 0 ? urlOpenId : null
+  );
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [trainOpen, setTrainOpen] = useState(false);

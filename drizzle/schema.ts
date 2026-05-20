@@ -1781,6 +1781,73 @@ export const promptLibrary = mysqlTable(
 export type PromptLibraryItem = typeof promptLibrary.$inferSelect;
 export type InsertPromptLibraryItem = typeof promptLibrary.$inferInsert;
 
+// ─── Prompt Collection（個人提示詞收集，可團隊共享）────────────────────────
+// 比照 digital_asset_library 的 private / team_shared visibility 模型。
+// 收集標的：站內任何可重用的提示詞（25 位精靈的 system slice、18 條精靈
+// 主動觸發句、模型 prompt 樣板、ImageStudio 內建模板、使用者手動輸入）。
+// 詳見 drizzle/0063_prompt_collection.sql 的設計理由。
+export const promptCollection = mysqlTable(
+  "prompt_collection",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    title: varchar("title", { length: 256 }).notNull(),
+    content: text("content").notNull(),
+    category: varchar("category", { length: 64 }).default("general").notNull(),
+    tags: json("tags").$type<string[]>(),
+    /** 使用者收集時加註的「為何想保留 / 想怎麼用」。 */
+    notes: text("notes"),
+    /**
+     * 來源類型 — 決定收藏條目要怎麼回連到站內：
+     *   • agent_role        — 25 位精靈的 system prompt slice
+     *   • proactive_trigger — 18 條精靈主動觸發 default prompt
+     *   • model_template    — modelPromptTemplates.ts 內的 prompt 樣板
+     *   • image_studio      — ImageStudio (t2i / sd) 內建模板
+     *   • site_prompt       — 其他站內系統內建片段
+     *   • manual            — 使用者完全自輸入
+     */
+    sourceType: varchar("sourceType", { length: 32 })
+      .default("manual")
+      .notNull(),
+    /** 來源唯一識別（AgentRole / event id / model prefix / template id）。 */
+    sourceRef: varchar("sourceRef", { length: 128 }),
+    /** 顯示用標籤（例「圖圖 image-specialist」、「FLUX Pro 樣板」）。 */
+    sourceLabel: varchar("sourceLabel", { length: 256 }),
+    visibility: mysqlEnum("visibility", ["private", "team_shared"])
+      .default("private")
+      .notNull(),
+    /**
+     * 若 visibility=team_shared，必須指向一個 team；該 team 的成員可讀。
+     * private 時為 NULL。
+     */
+    teamId: int("teamId"),
+    isFavorite: boolean("isFavorite").default(false).notNull(),
+    useCount: int("useCount").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("pc_userId_idx").on(table.userId),
+    userVisibilityIdx: index("pc_userId_visibility_idx").on(
+      table.userId,
+      table.visibility
+    ),
+    teamVisibilityIdx: index("pc_teamId_visibility_idx").on(
+      table.teamId,
+      table.visibility
+    ),
+    sourceTypeIdx: index("pc_sourceType_idx").on(table.sourceType),
+    userSourceUk: uniqueIndex("pc_user_source_uk").on(
+      table.userId,
+      table.sourceType,
+      table.sourceRef
+    ),
+  })
+);
+
+export type PromptCollectionItem = typeof promptCollection.$inferSelect;
+export type InsertPromptCollectionItem = typeof promptCollection.$inferInsert;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // NEW TABLES — Roadmap (外部服務訂閱 / R2 快照 / 用戶訂閱)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3370,6 +3437,9 @@ export const teachingMaterials = mysqlTable(
     speaker: varchar("speaker", { length: 128 }),
     tags: json("tags").$type<string[]>(),
 
+    /** 關聯的真實地球資訊條目 ID（用於深度連結） */
+    realEarthRefs: json("realEarthRefs").$type<number[]>(),
+
     // ── 管理 ─────────────────────────────────────────────────────────────
     visibility: mysqlEnum("visibility", [
       "private",
@@ -3513,3 +3583,108 @@ export type TeachingMaterialAccessLog =
   typeof teachingMaterialAccessLog.$inferSelect;
 export type InsertTeachingMaterialAccessLog =
   typeof teachingMaterialAccessLog.$inferInsert;
+
+// ─── Real Earth Information System（真實地球資訊系統）──────────────────────────
+//
+// 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
+// 方便使用者研究與撰寫腳本。可被世界觀系統引用、AI 代理查詢。
+
+export const realEarthEntries = mysqlTable(
+  "real_earth_entries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** 條目標題 */
+    title: varchar("title", { length: 500 }).notNull(),
+    /** 資料類別 */
+    category: mysqlEnum("category", [
+      "history", "culture", "geography", "architecture", "language",
+      "cuisine", "clothing", "art", "religion", "society",
+      "economy", "politics", "military", "technology", "nature",
+      "folklore", "education", "entertainment", "transportation", "people",
+    ]).notNull(),
+    /** 簡短描述（1-2 句話） */
+    summary: text("summary").notNull(),
+    /** 詳細內容（支援 markdown） */
+    content: mediumtext("content").notNull(),
+
+    /** 地理位置資訊（JSON） */
+    locationJson: json("locationJson").$type<{
+      region?: string;
+      gpsCoords?: { lat: number; lon: number };
+      address?: string;
+    }>(),
+
+    /** 歷史時期 */
+    historicalPeriod: varchar("historicalPeriod", { length: 200 }),
+
+    /** 年份範圍（JSON） */
+    yearRangeJson: json("yearRangeJson").$type<{
+      start?: number;
+      end?: number;
+    }>(),
+
+    /** 參考圖片 URL 列表（JSON） */
+    imageUrls: json("imageUrls").$type<string[]>(),
+
+    /** 外部連結（JSON） */
+    externalLinksJson: json("externalLinksJson").$type<Array<{
+      label: string;
+      url: string;
+      type?: string;
+    }>>(),
+
+    /** 學術引用（JSON） */
+    citationsJson: json("citationsJson").$type<Array<{
+      author?: string;
+      title: string;
+      source: string;
+      year?: number;
+      url?: string;
+    }>>(),
+
+    /** 標籤 */
+    tags: json("tags").$type<string[]>(),
+
+    /** 相關條目 ID（JSON） */
+    relatedEntryIds: json("relatedEntryIds").$type<string[]>(),
+
+    /** 資料品質標記（JSON） */
+    qualityJson: json("qualityJson").$type<{
+      credibility: "low" | "medium" | "high" | "verified";
+      sourceType?: string;
+      lastVerified?: string;
+    }>(),
+
+    /** 是否為台灣重點資料 */
+    isTaiwanFocused: boolean("isTaiwanFocused").default(false).notNull(),
+
+    /** 資料語言 */
+    language: varchar("language", { length: 10 }).default("zh-TW"),
+
+    /** 額外後設資料（JSON） */
+    metadata: json("metadata").$type<Record<string, any>>(),
+
+    /** 建立者 ID（null = 系統預設資料） */
+    createdBy: int("createdBy"),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // 類別索引 — 用於分類瀏覽
+    categoryIdx: index("ree_category_idx").on(table.category),
+    // 台灣重點資料索引 — 用於快速篩選台灣相關資料
+    taiwanFocusedIdx: index("ree_taiwanFocused_idx").on(table.isTaiwanFocused),
+    // 建立者索引 — 用於查詢使用者建立的資料
+    createdByIdx: index("ree_createdBy_idx").on(table.createdBy),
+    // 歷史時期索引 — 用於時期篩選
+    historicalPeriodIdx: index("ree_historicalPeriod_idx").on(table.historicalPeriod),
+    // 建立時間索引 — 用於排序與查詢
+    createdAtIdx: index("ree_createdAt_idx").on(table.createdAt),
+    // 全文搜索索引 — MySQL FULLTEXT for title and summary
+    titleSummaryFulltext: index("ree_title_summary_fulltext").on(table.title, table.summary),
+  })
+);
+
+export type RealEarthEntry = typeof realEarthEntries.$inferSelect;
+export type InsertRealEarthEntry = typeof realEarthEntries.$inferInsert;

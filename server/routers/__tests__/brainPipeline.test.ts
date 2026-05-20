@@ -343,6 +343,7 @@ describe("brainPipeline graph builder", () => {
       "/shared", // registry: /assets?section=shared
       "/history", // registry: /assets?section=history
       "/prompt-library", // registry: /assets?section=prompts
+      "/prompt-collection", // registry: /assets?section=collection
       "/background-tasks", // registry: /assets?section=tasks
       // registry 用 /dashboard?section=xxx 表達子分頁
       "/credits", // registry: /dashboard?section=credits

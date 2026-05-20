@@ -7,38 +7,7 @@ import LoginCosmicScene, { getSceneFrameHues } from "@/components/LoginCosmicSce
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
 import { SoundControl } from "@/components/AmbientSoundEngine";
-import {
-  Wand2,
-  Clapperboard,
-  Cpu,
-  BarChart3,
-  Settings,
-  StickyNote,
-  CalendarDays,
-  Image,
-  Clock,
-  Package,
-  Layers,
-  MessageSquare,
-  Zap,
-  Film,
-  BookOpen,
-  BookMarked,
-  ListChecks,
-  Coins,
-  Monitor,
-  Music,
-  Bot,
-  Sparkles,
-  LayoutGrid,
-  Palette,
-  FolderOpen,
-  GraduationCap,
-  Users,
-  Gift,
-} from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
-import type { LucideIcon } from "lucide-react";
 import {
   useSiteOnboarding,
   type PageId,
@@ -61,9 +30,10 @@ import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
 import {
-  getSidebarPages,
-  type AppPageRegistryItem,
+  getSidebarTree,
+  type SidebarTreeLeaf,
 } from "@/config/appRegistry";
+import { resolveSidebarIcon } from "@/config/sidebarIcons";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import AppleDock, {
@@ -98,103 +68,33 @@ function readDockImmersive(): boolean {
 const POSITION_CYCLE: DockPosition[] = ["left", "top", "right", "bottom"];
 
 
-type SidebarLeafItem = DockLeaf;
+// ─── Sidebar structure ──────────────────────────────────────────────────
+//
+// The dock's content (which leaves go where, group labels/icons, ordering)
+// is fully driven by shared/appRegistry — see SIDEBAR_GROUPS + each page's
+// sidebarOrder/sidebarGroup/sidebarIcon. To add or move a dock entry, edit
+// the registry, NOT this file.
 
-type SidebarGroupItem = {
-  kind: "group";
-  icon: LucideIcon;
-  label: string;
-  children: SidebarLeafItem[];
-};
-
-type SidebarEntry = DockEntry;
-
-const sidebarIconByPageId: Record<string, LucideIcon> = {
-  "agent-chat": Bot,
-  create: LayoutGrid,
-  playground: Sparkles,
-  studio: Wand2,
-  "image-studio": Image,
-  "video-studio": Film,
-  "pro-studio": Music,
-  director: Clapperboard,
-  assets: Package,
-  history: Clock,
-  "prompt-library": BookMarked,
-  shared: Users,
-  models: Cpu,
-  "lora-trainer": Zap,
-  vault: Layers,
-  "background-tasks": ListChecks,
-  notes: StickyNote,
-  calendar: CalendarDays,
-  dashboard: BarChart3,
-  credits: Coins,
-  learn: BookOpen,
-  "ai-models-hub": Sparkles,
-  "model-wishlist": Gift,
-  feedback: MessageSquare,
-  langsmith: Monitor,
-  settings: Settings,
-};
-
-const allSidebarPages = getSidebarPages();
-const sidebarPagesById = new Map(
-  allSidebarPages.map(page => [page.id, page])
-);
-
-const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
+const toDockLeaf = (leaf: SidebarTreeLeaf): DockLeaf => ({
   kind: "leaf",
-  icon: sidebarIconByPageId[page.id] ?? BookOpen,
-  label: page.label,
-  path: page.path,
-  id: `sidebar-${page.id}-link`,
-  pageId: page.id,
+  icon: resolveSidebarIcon(leaf.icon),
+  label: leaf.label,
+  description: leaf.description,
+  path: leaf.path,
+  id: `sidebar-${leaf.pageId}-link`,
+  pageId: leaf.pageId,
 });
 
-const buildLeaf = (id: string): SidebarLeafItem | null => {
-  const page = sidebarPagesById.get(id);
-  return page ? toLeafItem(page) : null;
-};
-
-const buildGroup = (
-  label: string,
-  icon: LucideIcon,
-  ids: string[]
-): SidebarGroupItem | null => {
-  const children = ids
-    .map(buildLeaf)
-    .filter((leaf): leaf is SidebarLeafItem => leaf !== null);
-  if (children.length === 0) return null;
-  return { kind: "group", label, icon, children };
-};
-
-const sidebarStructure: SidebarEntry[] = (() => {
-  const entries: SidebarEntry[] = [];
-  const push = (entry: SidebarEntry | null) => {
-    if (entry) entries.push(entry);
+const sidebarStructure: DockEntry[] = getSidebarTree().map(node => {
+  if (node.kind === "leaf") return toDockLeaf(node);
+  return {
+    kind: "group",
+    icon: resolveSidebarIcon(node.icon),
+    label: node.label,
+    description: node.description,
+    children: node.children.map(toDockLeaf),
   };
-  push(buildLeaf("agent-chat"));
-  push(
-    buildGroup("創作工作室", Palette, [
-      "studio",
-      "image-studio",
-      "video-studio",
-      "pro-studio",
-      "director",
-    ])
-  );
-  push(buildGroup("資源庫", FolderOpen, ["models", "assets"]));
-  push(
-    buildGroup("知識中心", GraduationCap, [
-      "notes",
-      "learn",
-      "ai-models-hub",
-      "model-wishlist",
-    ])
-  );
-  return entries;
-})();
+});
 
 // ─── Per-scene login card chrome ────────────────────────────────────────────
 
@@ -409,7 +309,14 @@ function LoginScreen() {
               key={s.id}
               type="button"
               onClick={() => setOverride(isLocked ? null : (s.id as SceneId))}
-              className="rounded-full px-2.5 py-1 transition-all"
+              className="hs-press rounded-full px-2.5 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring-healing-strong) focus-visible:ring-offset-0"
+              aria-label={
+                isLocked
+                  ? `已鎖定背景場景：${s.label}（再次點擊恢復自動）`
+                  : `切換背景場景為 ${s.label}`
+              }
+              aria-pressed={isActive}
+              aria-current={isLocked ? "true" : undefined}
               title={
                 isLocked
                   ? `已鎖定為「${s.label}」（再次點擊恢復自動）`
@@ -501,7 +408,7 @@ function LoginScreen() {
         {/* Visual divider — separates OAuth from email login so the form feels
          *  like a clear "alternative" path rather than a continuation. */}
         <div
-          className="login-card-stagger login-divider mt-5 flex items-center gap-3 text-[11px] tracking-[0.2em]"
+          className="login-card-stagger login-divider mt-5 flex items-center gap-3 text-[11px] tracking-cjk-display"
           data-stagger="5"
           aria-hidden
         >

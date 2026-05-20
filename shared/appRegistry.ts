@@ -10,6 +10,50 @@ export type AppPageGroupId =
   | "settings"
   | "admin";
 
+/**
+ * 側邊欄分組鍵 — 與 AppPageGroupId 解耦。Sidebar 的視覺分組是 UX 決策
+ * （哪些頁面被收進同一個 flyout 卡片裡），跟 registry 用於光球路由的 `group`
+ * 不一定一致。例如 `notes` 在 registry 屬 `project`，但在側邊欄被歸到「知識
+ * 中心」。要新增分組就在 SIDEBAR_GROUPS 加一條，然後把對應頁面標上同樣的
+ * sidebarGroup 鍵即可，DashboardLayout 不必再改。
+ */
+export type SidebarGroupId = "creation" | "resources" | "knowledge";
+
+export interface SidebarGroupDefinition {
+  id: SidebarGroupId;
+  label: string;
+  /** Lucide icon component name — resolved at UI layer via sidebarIcons.ts. */
+  icon: string;
+  /** Top-level sort key against standalone leaves; lower comes first. */
+  order: number;
+  /** Short tagline shown beneath the group label inside the tooltip. */
+  description?: string;
+}
+
+export const SIDEBAR_GROUPS: readonly SidebarGroupDefinition[] = [
+  {
+    id: "creation",
+    label: "創作工作室",
+    icon: "Palette",
+    order: 20,
+    description: "圖片、影片、音樂的主要創作入口",
+  },
+  {
+    id: "resources",
+    label: "資源庫",
+    icon: "FolderOpen",
+    order: 40,
+    description: "模型訓練、素材、提示詞與背景任務",
+  },
+  {
+    id: "knowledge",
+    label: "知識中心",
+    icon: "GraduationCap",
+    order: 50,
+    description: "筆記、教學、模型情報與許願池",
+  },
+] as const;
+
 export interface AppPageQuickAction {
   id: string;
   label: string;
@@ -31,6 +75,20 @@ export interface AppPageRegistryItem {
   description: string;
   aliases: string[];
   showInSidebar: boolean;
+  /**
+   * Sort key for the dock/sidebar. Pages without a defined `sidebarOrder` are
+   * excluded from the visual sidebar even if `showInSidebar` is true — that
+   * keeps CommandPalette's grouping (which keys off showInSidebar) intact
+   * while letting the dock opt pages in explicitly. Lower comes first.
+   */
+  sidebarOrder?: number;
+  /**
+   * Optional sidebar grouping bucket. Omit to render as a standalone leaf at
+   * the top level of the dock. See SIDEBAR_GROUPS for available group IDs.
+   */
+  sidebarGroup?: SidebarGroupId;
+  /** Lucide icon name shown in the dock (resolved at UI layer). */
+  sidebarIcon?: string;
   showInAgentHome: boolean;
   agentEntryPriority: number;
   supportsPageAgent: boolean;
@@ -72,6 +130,8 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "先理解需求，再帶你去正確功能並幫忙操作",
     aliases: ["光球", "全站光球代理", "agent", "聊天", "助手"],
     showInSidebar: true,
+    sidebarOrder: 10,
+    sidebarIcon: "Bot",
     showInAgentHome: true,
     agentEntryPriority: 1,
     supportsPageAgent: true,
@@ -181,6 +241,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "跨模態創作主入口",
     aliases: ["工作室", "創作", "studio"],
     showInSidebar: true,
+    sidebarOrder: 20,
+    sidebarGroup: "creation",
+    sidebarIcon: "Wand2",
     showInAgentHome: true,
     agentEntryPriority: 2,
     supportsPageAgent: true,
@@ -360,6 +423,8 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "腳本與分鏡企劃",
     aliases: ["script", "director", "腳本"],
     showInSidebar: true,
+    sidebarOrder: 30,
+    sidebarIcon: "Clapperboard",
     showInAgentHome: true,
     agentEntryPriority: 6,
     supportsPageAgent: true,
@@ -380,13 +445,13 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
       {
         id: "open-animation-studio",
-        label: "切到動畫工作室",
+        label: "切到世界觀系統",
         description: "把腳本接到世界觀 + 分鏡時間軸，準備產出動畫",
         path: "/animation",
-        prompt: "幫我把目前的腳本接到動畫工作室，建立角色、場景與分鏡。",
+        prompt: "幫我把目前的腳本接到世界觀系統，建立角色、場景與分鏡。",
       },
     ],
-    orbHints: ["幫我先整理腳本", "把腳本拉到動畫工作室"],
+    orbHints: ["幫我先整理腳本", "把腳本拉到世界觀系統"],
     supportedActions: [
       "setTab",
       "fillPrompt",
@@ -399,7 +464,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "animation-studio",
-    label: "動畫工作室",
+    label: "世界觀系統",
     path: "/animation",
     group: "create",
     description: "世界觀 → 分鏡 → 圖楨 → 配樂配音 → 轉影成片的完整動畫管線",
@@ -562,6 +627,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "筆記與專案整理",
     aliases: ["notes", "筆記"],
     showInSidebar: true,
+    sidebarOrder: 51,
+    sidebarGroup: "knowledge",
+    sidebarIcon: "StickyNote",
     showInAgentHome: true,
     agentEntryPriority: 21,
     supportsPageAgent: true,
@@ -711,6 +779,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "管理圖片、影片與音頻資產；含生成歷史、提示詞庫、一致性保險庫、共享空間、背景任務中心",
     aliases: ["assets", "素材", "資產", "提示詞", "保險庫", "共享", "背景任務"],
     showInSidebar: true,
+    sidebarOrder: 42,
+    sidebarGroup: "resources",
+    sidebarIcon: "Package",
     showInAgentHome: true,
     agentEntryPriority: 10,
     supportsPageAgent: true,
@@ -776,13 +847,57 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
+    id: "prompt-collection",
+    label: "個人提示詞收集",
+    path: "/assets?section=collection",
+    routeAliases: ["/prompt-collection"],
+    group: "assets",
+    description:
+      "收集全站包含精靈代理、主動觸發、模型樣板與 ImageStudio 模板的提示詞，可分享給團隊",
+    aliases: [
+      "提示詞收集",
+      "收集",
+      "collection",
+      "個人收集",
+      "團隊提示詞",
+      "agent prompt",
+      "精靈提示詞",
+    ],
+    showInSidebar: false,
+    showInAgentHome: true,
+    agentEntryPriority: 23,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-prompt-collection",
+        label: "打開提示詞收集",
+        description: "管理我的提示詞收集 / 團隊共享 / 全站可收集 prompt",
+        path: "/assets?section=collection",
+      },
+      {
+        id: "collect-from-site",
+        label: "收集全站提示詞",
+        description: "把 25 位精靈、主動觸發、模型樣板、ImageStudio 內建模板加入個人收集",
+        path: "/assets?section=collection",
+      },
+    ],
+    orbHints: [
+      "把精靈的系統提示存起來",
+      "我想收藏這條提示詞並分享給團隊",
+    ],
+    supportedActions: [],
+  },
+  {
     id: "models",
-    label: "角色鍛造所",
+    label: "模型訓練中心",
     path: "/models",
     group: "assets",
     description: "模型管理與版本檢視",
     aliases: ["models", "模型", "角色"],
     showInSidebar: true,
+    sidebarOrder: 41,
+    sidebarGroup: "resources",
+    sidebarIcon: "Cpu",
     showInAgentHome: true,
     agentEntryPriority: 23,
     supportsPageAgent: true,
@@ -897,6 +1012,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "教學文件與指南",
     aliases: ["learn", "教學", "文件"],
     showInSidebar: true,
+    sidebarOrder: 52,
+    sidebarGroup: "knowledge",
+    sidebarIcon: "BookOpen",
     showInAgentHome: true,
     agentEntryPriority: 40,
     supportsPageAgent: true,
@@ -932,6 +1050,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "models hub",
     ],
     showInSidebar: true,
+    sidebarOrder: 53,
+    sidebarGroup: "knowledge",
+    sidebarIcon: "Sparkles",
     showInAgentHome: true,
     agentEntryPriority: 42,
     supportsPageAgent: true,
@@ -985,6 +1106,9 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "model wish",
     ],
     showInSidebar: true,
+    sidebarOrder: 54,
+    sidebarGroup: "knowledge",
+    sidebarIcon: "Gift",
     showInAgentHome: false,
     agentEntryPriority: 43,
     supportsPageAgent: false,
@@ -1413,6 +1537,95 @@ export const getPageByPath = (path: string) => {
 
 export const getSidebarPages = () =>
   APP_PAGE_REGISTRY.filter(page => page.showInSidebar);
+
+/**
+ * Pages explicitly opted into the dock (`sidebarOrder` defined). This is the
+ * subset that actually renders inside the AppleDock, sorted left→right /
+ * top→bottom by sidebarOrder.
+ */
+export const getDockPages = () =>
+  APP_PAGE_REGISTRY.filter(
+    page => page.showInSidebar && typeof page.sidebarOrder === "number"
+  ).sort(
+    (a, b) => (a.sidebarOrder ?? Infinity) - (b.sidebarOrder ?? Infinity)
+  );
+
+export type SidebarTreeLeaf = {
+  kind: "leaf";
+  pageId: string;
+  label: string;
+  /** One-line page description, used as tooltip secondary text. */
+  description: string;
+  path: string;
+  /** Lucide icon name; resolve at the UI layer. */
+  icon: string;
+  order: number;
+};
+
+export type SidebarTreeBranch = {
+  kind: "group";
+  id: SidebarGroupId;
+  label: string;
+  /** Optional one-line summary describing what the group covers. */
+  description?: string;
+  /** Lucide icon name; resolve at the UI layer. */
+  icon: string;
+  order: number;
+  children: SidebarTreeLeaf[];
+};
+
+export type SidebarTreeNode = SidebarTreeLeaf | SidebarTreeBranch;
+
+const FALLBACK_ICON = "BookOpen";
+
+/**
+ * Build the hierarchical sidebar tree from APP_PAGE_REGISTRY. Pages without
+ * `sidebarOrder` are skipped; pages with `sidebarGroup` collect into their
+ * group's children list (group ordering uses SIDEBAR_GROUPS[].order, not
+ * children's order, so adding a child can't bump a group around).
+ */
+export const getSidebarTree = (): SidebarTreeNode[] => {
+  const dockPages = getDockPages();
+  const groupChildren = new Map<SidebarGroupId, SidebarTreeLeaf[]>();
+  const standalone: SidebarTreeLeaf[] = [];
+
+  for (const page of dockPages) {
+    const leaf: SidebarTreeLeaf = {
+      kind: "leaf",
+      pageId: page.id,
+      label: page.label,
+      description: page.description,
+      path: page.path,
+      icon: page.sidebarIcon ?? FALLBACK_ICON,
+      order: page.sidebarOrder ?? Number.MAX_SAFE_INTEGER,
+    };
+    if (page.sidebarGroup) {
+      const arr = groupChildren.get(page.sidebarGroup) ?? [];
+      arr.push(leaf);
+      groupChildren.set(page.sidebarGroup, arr);
+    } else {
+      standalone.push(leaf);
+    }
+  }
+
+  const branches: SidebarTreeBranch[] = SIDEBAR_GROUPS.flatMap(def => {
+    const children = groupChildren.get(def.id);
+    if (!children || children.length === 0) return [];
+    return [
+      {
+        kind: "group",
+        id: def.id,
+        label: def.label,
+        description: def.description,
+        icon: def.icon,
+        order: def.order,
+        children: [...children].sort((a, b) => a.order - b.order),
+      },
+    ];
+  });
+
+  return [...standalone, ...branches].sort((a, b) => a.order - b.order);
+};
 
 export const getSidebarGroups = () => {
   const groups = new Map<AppPageGroupId, AppPageRegistryItem[]>();

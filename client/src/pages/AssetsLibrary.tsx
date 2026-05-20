@@ -4,7 +4,6 @@ const HistoryPage = lazy(() => import("./HistoryPage"));
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
-import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -59,6 +58,7 @@ import {
   ListChecks,
   Clock,
   Cloud,
+  Database,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { DriveLibrarySection } from "@/components/DriveLibrarySection";
@@ -72,8 +72,12 @@ import {
 } from "./assetsLibraryRouteState";
 
 const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
+const PromptCollectionPage = lazy(() => import("./PromptCollectionPage"));
 const VaultPage = lazy(() => import("./VaultPage"));
 const BackgroundTasksPage = lazy(() => import("./BackgroundTasksPage"));
+const PersonalDatabasePanel = lazy(
+  () => import("@/components/learn-hub/PersonalDatabasePanel"),
+);
 
 const typeConfig: Record<
   string,
@@ -210,14 +214,6 @@ const SORT_LABELS: Record<AssetSortKey, string> = {
 //   統一承接(資料層已由 postGenActions 寫進 digital_asset_library)
 // 結果:7 個分頁 → 5 個分頁,且功能未流失。
 
-const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
-  { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
-  { id: "drive", label: "Drive 素材庫", icon: <Cloud className="w-3.5 h-3.5" /> },
-  { id: "prompts", label: "提示詞庫", icon: <BookMarked className="w-3.5 h-3.5" /> },
-  { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
-  { id: "tasks", label: "背景任務中心", icon: <ListChecks className="w-3.5 h-3.5" /> },
-];
-
 function SubPageSkeleton() {
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
@@ -233,7 +229,8 @@ function SubPageSkeleton() {
 }
 
 function getInitialSection(): SectionId {
-  return resolveAssetsLibraryRouteState(window.location.search).section;
+  // 2026-05: 入口統一為「數位資產庫」單頁，不再讓使用者在此頁切換到其他子頁。
+  return "assets";
 }
 
 function getInitialViewMode(): AssetsViewMode {
@@ -487,20 +484,16 @@ export default function AssetsLibrary() {
   // 合併大分頁：讀取 URL ?section= 決定初始分頁
   const [section, setSection] = useState<SectionId>(getInitialSection);
 
-  const handleSectionChange = (id: SectionId) => {
-    setSection(id);
-    const params = new URLSearchParams(window.location.search);
-    params.set("section", id);
-    // 切到非 assets 分頁時清掉舊的 view / tab 參數(它們只屬於 assets 內部)
-    if (id !== "assets") {
-      params.delete("view");
-      params.delete("tab");
-    }
-    window.history.replaceState(null, "", `?${params.toString()}`);
-  };
+  // 頂部分頁：在「數位資產」與「個人資料庫系統」之間切換
+  const [topTab, setTopTab] = useState<"assets" | "personal_db">(
+    () =>
+      new URLSearchParams(window.location.search).get("top") === "personal_db"
+        ? "personal_db"
+        : "assets",
+  );
 
   // 把 viewMode / tab 同步進 URL,讓使用者重新整理 / 分享連結時保留狀態
-  const updateAssetsUrlParam = (key: "view" | "tab", value: string, defaultValue: string) => {
+  const updateAssetsUrlParam = (key: "view" | "tab" | "top", value: string, defaultValue: string) => {
     const params = new URLSearchParams(window.location.search);
     if (value === defaultValue) {
       params.delete(key);
@@ -509,6 +502,10 @@ export default function AssetsLibrary() {
     }
     const qs = params.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  };
+  const handleTopTabChange = (t: "assets" | "personal_db") => {
+    setTopTab(t);
+    updateAssetsUrlParam("top", t, "assets");
   };
   const handleViewModeChange = (m: AssetsViewMode) => {
     setViewMode(m);
@@ -615,6 +612,27 @@ export default function AssetsLibrary() {
     }
     return sorted;
   }, [rawAssets, sortKey]);
+
+  const filteredAssets = useMemo(() => {
+    if (!assets) return assets;
+    const keyword = search.trim().toLowerCase();
+    return assets.filter(asset => {
+      if (typeFilter !== "all" && asset.assetType !== typeFilter) return false;
+      if (sourceFilter !== "all" && (asset.sourceStudio ?? "unknown") !== sourceFilter) {
+        return false;
+      }
+      if (!keyword) return true;
+      const haystack = [
+        asset.title,
+        asset.description,
+        asset.promptUsed,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [assets, search, sourceFilter, typeFilter]);
 
   const resetFilters = () => {
     setTypeFilter("all");
@@ -803,24 +821,6 @@ export default function AssetsLibrary() {
 
   return (
     <div className="space-y-6">
-      {/* ─── 大分頁標籤列 ─────────────────────────────────────────────────── */}
-      <div className="flex gap-0.5 border-b overflow-x-auto pb-0 -mb-2">
-        {SECTION_TABS.map(st => (
-          <button
-            key={st.id}
-            onClick={() => handleSectionChange(st.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
-              section === st.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {st.icon}
-            {st.label}
-          </button>
-        ))}
-      </div>
-
       {/* ─── 數位資產庫（主內容） ──────────────────────────────────────────── */}
       {section === "assets" && (
         <>
@@ -835,9 +835,11 @@ export default function AssetsLibrary() {
               </p>
             </header>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="rounded-lg text-xs">
-                {totalMyAssets} 個資產
-              </Badge>
+              {topTab === "assets" && (
+                <Badge variant="secondary" className="rounded-lg text-xs">
+                  {totalMyAssets} 個資產
+                </Badge>
+              )}
               <UploadDialog
                 onSuccess={() => myAssetsQuery.refetch()}
                 open={showUploadDialog}
@@ -846,11 +848,43 @@ export default function AssetsLibrary() {
             </div>
           </div>
 
-          <AssetModelSubpageGuide page="assets" />
+          {/* ── 頂部分頁：數位資產 / 個人資料庫系統 ────────────────── */}
+          <Tabs
+            value={topTab}
+            onValueChange={value => {
+              if (value === "assets" || value === "personal_db")
+                handleTopTabChange(value);
+            }}
+          >
+            <TabsList className="rounded-xl bg-muted/40 p-1">
+              <TabsTrigger value="assets" className="rounded-lg gap-1 text-xs">
+                <Package className="w-3 h-3" /> 數位資產
+              </TabsTrigger>
+              <TabsTrigger
+                value="personal_db"
+                className="rounded-lg gap-1 text-xs"
+              >
+                <Database className="w-3 h-3" /> 個人資料庫系統
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
+          {topTab === "personal_db" && (
+            <Suspense fallback={<SubPageSkeleton />}>
+              <PersonalDatabasePanel />
+            </Suspense>
+          )}
+
+          {topTab === "assets" && (
+            <>
           {/* ── 範圍分頁（我的 / 團隊）— 移到篩選之上，因為使用者
                 通常先決定要看哪個範圍，再依類型/來源過濾。 */}
-          <Tabs value={tab} onValueChange={setTab}>
+          <Tabs
+            value={tab}
+            onValueChange={value => {
+              if (value === "my" || value === "team") setTab(value);
+            }}
+          >
             <TabsList className="rounded-xl bg-muted/40 p-1">
               <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
                 <Lock className="w-3 h-3" /> 我的資產
@@ -981,11 +1015,11 @@ export default function AssetsLibrary() {
           </div>
 
           {/* ── 結果統計 — 讓使用者知道目前篩選下顯示幾個 / 共幾個 ─── */}
-          {!isLoading && rawAssets && (
+          {!isLoading && rawAssets && filteredAssets && (
             <p className="hs-small !mb-0 text-muted-foreground">
               {hasActiveFilter ? (
                 <>
-                  顯示 <span className="text-foreground font-medium">{rawAssets.length}</span>{" "}
+                  顯示 <span className="text-foreground font-medium">{filteredAssets.length}</span>{" "}
                   個資產
                 </>
               ) : (
@@ -1006,9 +1040,9 @@ export default function AssetsLibrary() {
                 </GlassCard>
               ))}
             </div>
-          ) : assets && assets.length > 0 ? (
+          ) : filteredAssets && filteredAssets.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          {assets.map((asset, idx) => {
+          {filteredAssets.map((asset, idx) => {
             const config = typeConfig[asset.assetType] || {
               icon: <Package className="w-4 h-4" />,
               label: asset.assetType,
@@ -1381,6 +1415,8 @@ export default function AssetsLibrary() {
           )}
         </div>
       )}
+            </>
+          )}
         </>
       )}
 
@@ -1388,6 +1424,13 @@ export default function AssetsLibrary() {
       {section === "prompts" && (
         <Suspense fallback={<SubPageSkeleton />}>
           <PromptLibraryPage />
+        </Suspense>
+      )}
+
+      {/* ─── 個人提示詞收集（含全站精靈 / 模型樣板 / 模板，支援團隊共享）── */}
+      {section === "collection" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <PromptCollectionPage />
         </Suspense>
       )}
 
