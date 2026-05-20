@@ -3580,3 +3580,108 @@ export type TeachingMaterialAccessLog =
   typeof teachingMaterialAccessLog.$inferSelect;
 export type InsertTeachingMaterialAccessLog =
   typeof teachingMaterialAccessLog.$inferInsert;
+
+// ─── Real Earth Information System（真實地球資訊系統）──────────────────────────
+//
+// 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
+// 方便使用者研究與撰寫腳本。可被世界觀系統引用、AI 代理查詢。
+
+export const realEarthEntries = mysqlTable(
+  "real_earth_entries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** 條目標題 */
+    title: varchar("title", { length: 500 }).notNull(),
+    /** 資料類別 */
+    category: mysqlEnum("category", [
+      "history", "culture", "geography", "architecture", "language",
+      "cuisine", "clothing", "art", "religion", "society",
+      "economy", "politics", "military", "technology", "nature",
+      "folklore", "education", "entertainment", "transportation", "people",
+    ]).notNull(),
+    /** 簡短描述（1-2 句話） */
+    summary: text("summary").notNull(),
+    /** 詳細內容（支援 markdown） */
+    content: mediumtext("content").notNull(),
+
+    /** 地理位置資訊（JSON） */
+    locationJson: json("locationJson").$type<{
+      region?: string;
+      gpsCoords?: { lat: number; lon: number };
+      address?: string;
+    }>(),
+
+    /** 歷史時期 */
+    historicalPeriod: varchar("historicalPeriod", { length: 200 }),
+
+    /** 年份範圍（JSON） */
+    yearRangeJson: json("yearRangeJson").$type<{
+      start?: number;
+      end?: number;
+    }>(),
+
+    /** 參考圖片 URL 列表（JSON） */
+    imageUrls: json("imageUrls").$type<string[]>(),
+
+    /** 外部連結（JSON） */
+    externalLinksJson: json("externalLinksJson").$type<Array<{
+      label: string;
+      url: string;
+      type?: string;
+    }>>(),
+
+    /** 學術引用（JSON） */
+    citationsJson: json("citationsJson").$type<Array<{
+      author?: string;
+      title: string;
+      source: string;
+      year?: number;
+      url?: string;
+    }>>(),
+
+    /** 標籤 */
+    tags: json("tags").$type<string[]>(),
+
+    /** 相關條目 ID（JSON） */
+    relatedEntryIds: json("relatedEntryIds").$type<string[]>(),
+
+    /** 資料品質標記（JSON） */
+    qualityJson: json("qualityJson").$type<{
+      credibility: "low" | "medium" | "high" | "verified";
+      sourceType?: string;
+      lastVerified?: string;
+    }>(),
+
+    /** 是否為台灣重點資料 */
+    isTaiwanFocused: boolean("isTaiwanFocused").default(false).notNull(),
+
+    /** 資料語言 */
+    language: varchar("language", { length: 10 }).default("zh-TW"),
+
+    /** 額外後設資料（JSON） */
+    metadata: json("metadata").$type<Record<string, any>>(),
+
+    /** 建立者 ID（null = 系統預設資料） */
+    createdBy: int("createdBy"),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // 類別索引 — 用於分類瀏覽
+    categoryIdx: index("ree_category_idx").on(table.category),
+    // 台灣重點資料索引 — 用於快速篩選台灣相關資料
+    taiwanFocusedIdx: index("ree_taiwanFocused_idx").on(table.isTaiwanFocused),
+    // 建立者索引 — 用於查詢使用者建立的資料
+    createdByIdx: index("ree_createdBy_idx").on(table.createdBy),
+    // 歷史時期索引 — 用於時期篩選
+    historicalPeriodIdx: index("ree_historicalPeriod_idx").on(table.historicalPeriod),
+    // 建立時間索引 — 用於排序與查詢
+    createdAtIdx: index("ree_createdAt_idx").on(table.createdAt),
+    // 全文搜索索引 — MySQL FULLTEXT for title and summary
+    titleSummaryFulltext: index("ree_title_summary_fulltext").on(table.title, table.summary),
+  })
+);
+
+export type RealEarthEntry = typeof realEarthEntries.$inferSelect;
+export type InsertRealEarthEntry = typeof realEarthEntries.$inferInsert;

@@ -53,6 +53,7 @@ import { directorRouter } from "./routers/director";
 import { worldbuildingRouter } from "./routers/worldbuilding";
 import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
+import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
 import { spiritRouter } from "./routers/spiritRouter";
@@ -3984,6 +3985,11 @@ export const appRouter = router({
   // 「幾分幾秒」級的分鏡：角色 beats、圖楨、音軌（music/voice/sfx）、
   //   管線編排（t2i → refine → i2v → music → voice → final compose）
   worldStoryboard: worldStoryboardRouter,
+
+  // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
+  // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
+  // 方便使用者研究與撰寫腳本。可被世界觀系統引用、AI 代理查詢。
+  realEarth: realEarthRouter,
 
   // ─── 資料庫（training-data 素材池） ──────────────────────────────────────
   // 上傳純文字 / PDF / 文件 / 圖片 / 影片 / 語音 / 簡報，依分類、來源、主題分類。
