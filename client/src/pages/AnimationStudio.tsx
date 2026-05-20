@@ -5731,7 +5731,7 @@ export default function AnimationStudio() {
         {/* 沉浸式模式背景動畫 */}
         {immersiveMode && <EarthGlobeAnimation />}
 
-        <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
+        <div className={`p-4 page-shell page-shell-default space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
           <div className={`flex items-center gap-2 ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
             {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
             {immersiveMode && (
@@ -5877,7 +5877,7 @@ export default function AnimationStudio() {
       {/* 沉浸式模式背景動畫 */}
       {immersiveMode && <EarthGlobeAnimation />}
 
-      <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10 text-slate-100" : ""}`}>
+      <div className={`p-4 page-shell page-shell-default space-y-4 ${immersiveMode ? "relative z-10 text-slate-100" : ""}`}>
         {/* Header */}
         <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-xl bg-slate-900/55 border border-slate-200/20 rounded-xl p-3 shadow-[0_12px_32px_rgba(2,6,23,0.35)]" : ""}`}>
           {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}

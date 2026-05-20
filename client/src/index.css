@@ -136,6 +136,45 @@
   --space-11: 10rem;    /* 160px */
   --space-12: 12rem;    /* 192px */
 
+  /* ─── Layout standardization — single source of truth for page widths,
+     dock geometry, sticky offsets, and breakpoints. Pages should consume
+     these via the .page-shell-* utility classes (or max-w-[var(...)] for
+     one-offs) instead of picking their own max-w-5xl / max-w-[1400px]. */
+
+  /* Page-content max widths, tiered by density. Tailwind equivalents in
+     comments so it's obvious what each tier replaces. */
+  --page-max-w-narrow:  64rem;  /* 1024px — was max-w-5xl  (settings, ProStudio) */
+  --page-max-w-default: 72rem;  /* 1152px — was max-w-6xl  (VideoStudio, AnimationStudio) */
+  --page-max-w-wide:    80rem;  /* 1280px — was max-w-7xl  (LightOrbCreationStudio) */
+  --page-max-w-studio:  87.5rem;/* 1400px — was max-w-[1400px] (ImageStudio, param-heavy) */
+
+  /* AppleDock geometry — JS padding (DashboardLayout.tsx :: dockPadClass)
+     should stay in lockstep with these. */
+  --dock-item-size:   2.75rem;  /* 44px — h-11/w-11 dock leaf */
+  --dock-bubble-size: 3rem;     /* 48px — minimized corner bubble */
+  --dock-item-radius: 14px;
+
+  /* App-wide breakpoints — mirror useIsMobile (MOBILE_BREAKPOINT) and
+     Tailwind sm/lg/xl. Pure documentation tokens; matchMedia still uses
+     the JS constants. */
+  --bp-mobile:  768px;          /* matches MOBILE_BREAKPOINT in useMobile.ts */
+  --bp-tablet:  1024px;         /* matches Tailwind lg */
+  --bp-desktop: 1280px;         /* matches Tailwind xl */
+
+  /* Sticky offsets — for page-internal toolbars / param panels that need
+     to stick below the top safe-area inset without colliding with the dock. */
+  --page-sticky-offset: calc(0.5rem + env(safe-area-inset-top, 0px));
+  --page-sticky-panel-max-h: calc(100vh - 5rem);
+
+  /* Active-state palette — shared by AppleDock rail/dot and any future
+     page-internal sidebar/tab. Light-mode values; .dark overrides below. */
+  --active-rail-from:  oklch(0.88 0.10 300);
+  --active-rail-to:    oklch(0.82 0.12 320);
+  --active-rail-glow:  oklch(0.82 0.13 300 / 0.55);
+  --active-dot-mid-a:  oklch(0.86 0.10 300);
+  --active-dot-mid-b:  oklch(0.80 0.11 320);
+  --active-dot-glow:   oklch(0.82 0.12 300 / 0.52);
+
   /* Semantic glass surface tiers — replace ad-hoc bg-background/60 patterns */
   --surface-1: oklch(0.99 0.003 75 / 0.55);
   --surface-2: oklch(0.99 0.003 75 / 0.7);
@@ -213,6 +252,14 @@
 
   --ring-healing: oklch(0.72 0.05 300 / 0.55);
   --ring-healing-strong: oklch(0.82 0.06 300 / 0.75);
+
+  /* Active-state palette — slightly brighter on dark surfaces */
+  --active-rail-from:  oklch(0.92 0.10 300);
+  --active-rail-to:    oklch(0.86 0.12 320);
+  --active-rail-glow:  oklch(0.86 0.14 300 / 0.6);
+  --active-dot-mid-a:  oklch(0.90 0.09 300);
+  --active-dot-mid-b:  oklch(0.84 0.10 320);
+  --active-dot-glow:   oklch(0.86 0.12 300 / 0.58);
 
   /* Dark mode healing shadows — deeper but still tinted with lavender */
   --shadow-healing-sm:
@@ -306,6 +353,26 @@
   .flex {
     min-height: 0;
     min-width: 0;
+  }
+
+  /* ─── Page-shell utilities — every studio/page should pick one tier so the
+     content area width is governed by --page-max-w-* tokens. Replaces
+     ad-hoc max-w-5xl / max-w-6xl / max-w-[1400px]. */
+  .page-shell {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .page-shell-narrow  { max-width: var(--page-max-w-narrow); }
+  .page-shell-default { max-width: var(--page-max-w-default); }
+  .page-shell-wide    { max-width: var(--page-max-w-wide); }
+  .page-shell-studio  { max-width: var(--page-max-w-studio); }
+
+  /* Sticky panel — page-internal toolbars/params that should follow the
+     viewport. Pair with `position: sticky` and `top` on the parent if a
+     different offset is needed; this provides the common max-height. */
+  .page-sticky-panel {
+    max-height: var(--page-sticky-panel-max-h);
   }
 
   @media (min-width: 640px) {
@@ -1425,7 +1492,9 @@
     display: none;
   }
 
-  /* Vertical pill rail on the dock's outer edge — appears next to active item */
+  /* Vertical pill rail on the dock's outer edge — appears next to active item.
+     Colors are driven by --active-rail-* tokens so tabs / page sidebars can
+     reuse the same active palette. */
   .apple-dock-side-rail {
     position: absolute;
     left: -10px;
@@ -1435,11 +1504,11 @@
     border-radius: 9999px;
     background: linear-gradient(
       180deg,
-      oklch(0.88 0.1 300),
-      oklch(0.82 0.12 320)
+      var(--active-rail-from),
+      var(--active-rail-to)
     );
     transform: translateY(-50%);
-    box-shadow: 0 0 10px oklch(0.82 0.13 300 / 0.55);
+    box-shadow: 0 0 10px var(--active-rail-glow);
     animation: apple-dock-rail-in 0.45s var(--ease-healing-out) backwards;
   }
   [data-position="right"] .apple-dock-side-rail {
@@ -1447,12 +1516,7 @@
     right: -10px;
   }
   :is(.dark) .apple-dock-side-rail {
-    background: linear-gradient(
-      180deg,
-      oklch(0.92 0.1 300),
-      oklch(0.86 0.12 320)
-    );
-    box-shadow: 0 0 12px oklch(0.86 0.14 300 / 0.6);
+    box-shadow: 0 0 12px var(--active-rail-glow);
   }
 
   .apple-dock-active-dot {
@@ -1465,23 +1529,16 @@
     background: linear-gradient(
       90deg,
       transparent,
-      oklch(0.86 0.1 300),
-      oklch(0.8 0.11 320),
+      var(--active-dot-mid-a),
+      var(--active-dot-mid-b),
       transparent
     );
     transform: translateX(-50%);
-    box-shadow: 0 0 10px oklch(0.82 0.12 300 / 0.52);
+    box-shadow: 0 0 10px var(--active-dot-glow);
     animation: apple-dock-dot-glow 2.4s ease-in-out infinite;
   }
   :is(.dark) .apple-dock-active-dot {
-    background: linear-gradient(
-      90deg,
-      transparent,
-      oklch(0.9 0.09 300),
-      oklch(0.84 0.1 320),
-      transparent
-    );
-    box-shadow: 0 0 11px oklch(0.86 0.12 300 / 0.58);
+    box-shadow: 0 0 11px var(--active-dot-glow);
   }
 
   /* ─── Avatar trigger ─── */

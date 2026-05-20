@@ -1,6 +1,7 @@
 import * as React from "react";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 
+// Keep in lockstep with --bp-mobile in client/src/index.css.
 const MOBILE_BREAKPOINT = 768;
 
 export function useIsMobile() {
