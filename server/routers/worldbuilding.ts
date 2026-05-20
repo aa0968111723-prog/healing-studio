@@ -18,16 +18,6 @@ import {
   buildGlobalNegativePrompt,
   type WorldbuildingFrameworkData,
 } from "../../shared/worldbuilding-types";
-import {
-  timelineFrameInputSchema,
-  consistencyCheckRequestSchema,
-  sceneCompositionInputSchema,
-  compositionSuggestionRequestSchema,
-  type TimelineFrame,
-  type ConsistencyCheckResult,
-  type SceneComposition,
-  type CompositionSuggestion,
-} from "../../shared/worldbuilding-timeline";
 import { VOICE_MODEL_REGISTRY } from "../../shared/voiceModelRegistry";
 
 function rowToData(row: NonNullable<Awaited<ReturnType<typeof db.getWorldbuildingFramework>>>): WorldbuildingFrameworkData & {
@@ -102,43 +92,28 @@ export const worldbuildingRouter = router({
   create: protectedProcedure
     .input(worldbuildingFrameworkInputSchema)
     .mutation(async ({ ctx, input }) => {
-      try {
-        const id = await db.createWorldbuildingFramework({
-          userId: ctx.user.id,
-          name: input.name,
-          description: input.description,
-          genre: input.genre,
-          era: input.era,
-          charactersJson: input.characters,
-          scenesJson: input.scenes,
-          objectsJson: input.objects ?? [],
-          linkedModelIds: input.linkedModelIds ?? [],
-          styleProfilesJson: input.styleProfiles ?? [],
-          musicThemesJson: input.musicThemes ?? [],
-          defaultStyleProfileId: input.defaultStyleProfileId ?? null,
-          globalNegativePrompt: input.globalNegativePrompt,
-          productionTargetsJson: input.productionTargets ?? null,
-          researchEntriesJson: input.researchEntries ?? [],
-          soundLibraryJson: input.soundLibrary ?? [],
-          uploadedAssetsJson: input.uploadedAssets ?? [],
-          tags: input.tags ?? [],
-          isActive: input.isActive ?? true,
-        });
-        return { id };
-      } catch (error) {
-        // Drizzle 的 DrizzleQueryError.message 只包含 SQL 與 params、不含
-        // 底層 MySQL 錯誤原因（Unknown column / Data too long…）。把 cause
-        // 拉出來重拋成 TRPCError，前端的 toast 才看得到真正的失敗原因。
-        const cause = (error as { cause?: { code?: string; message?: string } })
-          ?.cause;
-        const reason = cause?.message ?? (error as Error).message;
-        const code = cause?.code ? ` [${cause.code}]` : "";
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `建立世界觀失敗${code}：${reason}`,
-          cause: error,
-        });
-      }
+      const id = await db.createWorldbuildingFramework({
+        userId: ctx.user.id,
+        name: input.name,
+        description: input.description,
+        genre: input.genre,
+        era: input.era,
+        charactersJson: input.characters,
+        scenesJson: input.scenes,
+        objectsJson: input.objects ?? [],
+        linkedModelIds: input.linkedModelIds ?? [],
+        styleProfilesJson: input.styleProfiles ?? [],
+        musicThemesJson: input.musicThemes ?? [],
+        defaultStyleProfileId: input.defaultStyleProfileId ?? null,
+        globalNegativePrompt: input.globalNegativePrompt,
+        productionTargetsJson: input.productionTargets ?? null,
+        researchEntriesJson: input.researchEntries ?? [],
+        soundLibraryJson: input.soundLibrary ?? [],
+        uploadedAssetsJson: input.uploadedAssets ?? [],
+        tags: input.tags ?? [],
+        isActive: input.isActive ?? true,
+      });
+      return { id };
     }),
 
   /** 更新既有世界觀 */
@@ -596,193 +571,5 @@ export const worldbuildingRouter = router({
         isActive: fw.isActive ?? true,
       });
       return { id };
-    }),
-
-  // ─── Timeline Frame Upload & Consistency Checking ──────────────────────
-
-  /**
-   * 列出指定 storyboard 的所有時間軸圖幀
-   */
-  listTimelineFrames: protectedProcedure
-    .input(z.object({ storyboardId: z.number().int().positive() }))
-    .query(async ({ ctx, input }) => {
-      // TODO: 實作資料庫查詢
-      // const frames = await db.getTimelineFramesByStoryboard(input.storyboardId, ctx.user.id);
-      // return frames;
-
-      // 暫時返回空陣列
-      return [] as TimelineFrame[];
-    }),
-
-  /**
-   * 上傳時間軸圖幀
-   */
-  uploadTimelineFrame: protectedProcedure
-    .input(timelineFrameInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      // TODO: 實作資料庫插入
-      // const frameId = await db.createTimelineFrame({
-      //   ...input,
-      //   userId: ctx.user.id,
-      // });
-      // const frame = await db.getTimelineFrame(frameId);
-      // return frame;
-
-      // 暫時返回模擬數據
-      const mockFrame: TimelineFrame = {
-        id: Date.now(),
-        ...input,
-        userId: ctx.user.id,
-        uploadedAt: new Date(),
-        updatedAt: new Date(),
-      };
-      return mockFrame;
-    }),
-
-  /**
-   * 刪除時間軸圖幀
-   */
-  deleteTimelineFrame: protectedProcedure
-    .input(z.number().int().positive())
-    .mutation(async ({ ctx, input: frameId }) => {
-      // TODO: 實作資料庫刪除
-      // await db.deleteTimelineFrame(frameId, ctx.user.id);
-      return frameId;
-    }),
-
-  /**
-   * 執行一致性檢查
-   */
-  checkConsistency: protectedProcedure
-    .input(consistencyCheckRequestSchema)
-    .mutation(async ({ ctx, input }) => {
-      // TODO: 實作 Vision API 呼叫與一致性分析
-      // const frame = await db.getTimelineFrame(input.timelineFrameId);
-      // const storyboard = await db.getStoryboard(frame.storyboardId);
-      // const framework = await db.getWorldbuildingFramework(storyboard.worldId);
-
-      // 使用 Vision API 分析圖像
-      // const analysis = await visionAPI.analyze(frame.imageUrl, {
-      //   characters: framework.characters,
-      //   scenes: framework.scenes,
-      //   styleProfiles: framework.styleProfiles,
-      // });
-
-      // 暫時返回模擬數據
-      const mockResult: ConsistencyCheckResult = {
-        checkedAt: new Date(),
-        overallScore: 85,
-        characterConsistency: [
-          {
-            name: "主角外觀",
-            score: 90,
-            details: "角色外觀與設定基本一致，髮型、服裝符合設定",
-          },
-          {
-            name: "角色表情",
-            score: 80,
-            details: "表情符合場景氛圍，但細節可以更精緻",
-          },
-        ],
-        sceneConsistency: [
-          {
-            name: "場景環境",
-            score: 85,
-            details: "場景布局合理，光線與氛圍符合設定",
-          },
-        ],
-        styleConsistency: [
-          {
-            name: "整體風格",
-            score: 85,
-            details: "色調、線條風格與設定一致",
-          },
-        ],
-        issues: [
-          {
-            severity: "warning",
-            category: "character",
-            message: "角色的服裝細節與設定略有差異",
-            suggestedFix: "建議參考三視圖中的服裝細節進行微調",
-          },
-        ],
-        suggestions: [
-          "整體一致性良好，建議加強服裝細節的準確度",
-          "場景光線可以更加突出主角",
-        ],
-      };
-
-      // await db.updateTimelineFrameConsistency(input.timelineFrameId, mockResult);
-      return mockResult;
-    }),
-
-  // ─── Multi-Character/Scene Composition ─────────────────────────────────
-
-  /**
-   * 列出指定 world 的所有構圖
-   */
-  listCompositions: protectedProcedure
-    .input(z.object({ worldId: z.number().int().positive() }))
-    .query(async ({ ctx, input }) => {
-      // TODO: 實作資料庫查詢
-      return [] as SceneComposition[];
-    }),
-
-  /**
-   * 儲存構圖
-   */
-  saveComposition: protectedProcedure
-    .input(sceneCompositionInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      // TODO: 實作資料庫插入或更新
-      const mockComposition: SceneComposition = {
-        id: Date.now(),
-        ...input,
-        userId: ctx.user.id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      return mockComposition;
-    }),
-
-  /**
-   * 刪除構圖
-   */
-  deleteComposition: protectedProcedure
-    .input(z.number().int().positive())
-    .mutation(async ({ ctx, input: compositionId }) => {
-      // TODO: 實作資料庫刪除
-      return compositionId;
-    }),
-
-  /**
-   * 獲取 AI 構圖建議
-   */
-  getCompositionSuggestions: protectedProcedure
-    .input(compositionSuggestionRequestSchema)
-    .mutation(async ({ ctx, input }) => {
-      // TODO: 實作 AI 構圖分析
-      // 分析元素位置、大小、層級關係
-      // 根據構圖原則（三分法、視覺平衡、焦點引導等）提供建議
-
-      const mockSuggestions: CompositionSuggestion[] = [
-        {
-          type: "balance",
-          title: "視覺平衡建議",
-          content: "主角位於畫面右側，建議在左側增加視覺元素以平衡構圖",
-        },
-        {
-          type: "focus",
-          title: "焦點引導",
-          content: "建議使用前景元素引導視線至主角位置",
-        },
-        {
-          type: "depth",
-          title: "景深層次",
-          content: "可以通過大小對比和位置關係增強畫面的空間感",
-        },
-      ];
-
-      return mockSuggestions;
     }),
 });

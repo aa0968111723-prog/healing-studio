@@ -18,8 +18,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
-import type { AgentAction, AgentCapability } from "../../../shared/agent-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,32 +65,21 @@ import {
   Globe,
   Database,
   FileAudio,
-  FileText,
+  Bot,
   GraduationCap,
   Search,
   X,
   Upload as UploadIcon,
-  Maximize2,
-  Minimize2,
-  ArrowLeft,
 } from "lucide-react";
-import { EarthGlobeAnimation } from "@/components/animation/EarthGlobeAnimation";
-import { CharacterVisualPreview } from "@/components/animation/CharacterVisualPreview";
-import { SceneEnvironmentPreview } from "@/components/animation/SceneEnvironmentPreview";
 import {
   AssetUploader,
   inferAssetType,
 } from "@/components/animation/AssetUploader";
-import { ScriptEditorTab } from "@/components/animation/ScriptEditorTab";
-import { SourcePicker } from "@/components/animation/SourcePicker";
 import {
   GenerateImageButton,
   GenerateMusicButton,
   GenerateVoiceButton,
 } from "@/components/animation/QuickGenerateButtons";
-import { StoryboardTimelineUploader } from "@/components/animation/StoryboardTimelineUploader";
-import { ConsistencyCheckPanel } from "@/components/animation/ConsistencyCheckPanel";
-import { CompositionAssistant } from "@/components/animation/CompositionAssistant";
 import {
   buildCharacterConsistencyPrompt,
   buildSceneConsistencyPrompt,
@@ -254,25 +241,12 @@ const ExpressionEditor = memo(function ExpressionEditor({
               placeholder="描述（嘴角上揚、眉毛揪起…）"
               className="h-7 text-[11px]"
             />
-            <div className="flex gap-1">
-              <Input
-                value={it.imageUrl ?? ""}
-                onChange={e => patch(idx, { imageUrl: e.target.value })}
-                placeholder="表情預覽圖 URL（可從 Image Studio 拖入）"
-                className="h-7 text-[11px] flex-1"
-              />
-              <AssetUploader
-                accept="image/*"
-                label="上傳"
-                onUploaded={r => patch(idx, { imageUrl: r.url })}
-              />
-              <SourcePicker
-                accept="image/*"
-                assetKind="image"
-                vaultItemType="character"
-                onPick={r => patch(idx, { imageUrl: r.url })}
-              />
-            </div>
+            <Input
+              value={it.imageUrl ?? ""}
+              onChange={e => patch(idx, { imageUrl: e.target.value })}
+              placeholder="表情預覽圖 URL（可從 Image Studio 拖入）"
+              className="h-7 text-[11px]"
+            />
           </div>
         ))
       )}
@@ -371,25 +345,12 @@ const OutfitEditor = memo(function OutfitEditor({
               placeholder="細節描述（材質、配色、配件…）"
               className="min-h-[40px] text-[11px]"
             />
-            <div className="flex gap-1">
-              <Input
-                value={it.imageUrl ?? ""}
-                onChange={e => patch(idx, { imageUrl: e.target.value })}
-                placeholder="參考圖 URL"
-                className="h-7 text-[11px] flex-1"
-              />
-              <AssetUploader
-                accept="image/*"
-                label="上傳"
-                onUploaded={r => patch(idx, { imageUrl: r.url })}
-              />
-              <SourcePicker
-                accept="image/*"
-                assetKind="image"
-                vaultItemType="character"
-                onPick={r => patch(idx, { imageUrl: r.url })}
-              />
-            </div>
+            <Input
+              value={it.imageUrl ?? ""}
+              onChange={e => patch(idx, { imageUrl: e.target.value })}
+              placeholder="參考圖 URL"
+              className="h-7 text-[11px]"
+            />
             <Input
               value={it.triggerWord ?? ""}
               onChange={e => patch(idx, { triggerWord: e.target.value })}
@@ -469,7 +430,7 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
                 placeholder={`${v.label} URL`}
                 className="h-6 text-[10px]"
               />
-              <div className="flex flex-wrap gap-1">
+              <div className="flex gap-1">
                 <GenerateImageButton
                   prompt={compiledPrompt}
                   aspectRatio="3:4"
@@ -483,14 +444,6 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
                   accept="image/*"
                   label="上傳"
                   onUploaded={r =>
-                    patch({ [v.key]: r.url } as Partial<typeof sheet>)
-                  }
-                />
-                <SourcePicker
-                  accept="image/*"
-                  assetKind="image"
-                  vaultItemType="character"
-                  onPick={r =>
                     patch({ [v.key]: r.url } as Partial<typeof sheet>)
                   }
                 />
@@ -610,9 +563,6 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
         className="h-7 text-[11px]"
       />
 
-      {/* 即時視覺預覽 */}
-      <CharacterVisualPreview character={character} className="my-2" />
-
       <div className="flex flex-wrap gap-1">
         {sections.map(s => {
           const Icon = s.icon;
@@ -656,33 +606,25 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
                 className="min-h-[50px] text-[11px]"
               />
               <div className="flex flex-wrap gap-1 mt-1">
-                {PERSONALITY_TRAIT_PRESETS.map(p => {
-                  const isActive = (character.personality ?? "").includes(p);
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => {
-                        const cur = (character.personality ?? "").trim();
-                        patch({
-                          personality: cur.includes(p)
-                            ? cur
-                            : cur
-                              ? `${cur}、${p}`
-                              : p,
-                        });
-                      }}
-                      className={`px-2 py-0.5 rounded-full text-[10px] border transition ${
-                        isActive
-                          ? "border-primary/60 bg-primary/10 text-primary"
-                          : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
-                      }`}
-                    >
-                      {isActive ? "✓ " : "+ "}
-                      {p}
-                    </button>
-                  );
-                })}
+                {PERSONALITY_TRAIT_PRESETS.slice(0, 10).map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      const cur = (character.personality ?? "").trim();
+                      patch({
+                        personality: cur.includes(p)
+                          ? cur
+                          : cur
+                            ? `${cur}、${p}`
+                            : p,
+                      });
+                    }}
+                    className="px-1.5 py-0.5 rounded-full text-[9px] border border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 transition"
+                  >
+                    + {p}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -1723,12 +1665,12 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
           <div>
             <Label className="text-[10px] text-muted-foreground">配音指導</Label>
             <Textarea
-              value={character.actingNotes?.vodirection ?? ""}
+              value={character.actingNotes?.voDirection ?? ""}
               onChange={e =>
                 patch({
                   actingNotes: {
                     ...character.actingNotes,
-                    vodirection: e.target.value,
+                    voDirection: e.target.value,
                   },
                 })
               }
@@ -1799,43 +1741,25 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
                 placeholder="差異描述（髮型、身高、特徵）"
                 className="min-h-[40px] text-[11px]"
               />
-              <div className="flex gap-1">
-                <Input
-                  value={(av.imageUrls ?? []).join("\n")}
-                  onChange={e =>
-                    patch({
-                      ageVariants: (character.ageVariants ?? []).map((x, i) =>
-                        i === idx
-                          ? {
-                              ...x,
-                              imageUrls: e.target.value
-                                .split(/\s+/)
-                                .filter(Boolean),
-                            }
-                          : x
-                      ),
-                    })
-                  }
-                  placeholder="參考圖 URL（換行分隔）"
-                  className="h-7 text-[10px] flex-1"
-                />
-                <AssetUploader
-                  accept="image/*"
-                  label="上傳"
-                  onUploaded={r =>
-                    patch({
-                      ageVariants: (character.ageVariants ?? []).map((x, i) =>
-                        i === idx
-                          ? {
-                              ...x,
-                              imageUrls: [...(x.imageUrls ?? []), r.url],
-                            }
-                          : x
-                      ),
-                    })
-                  }
-                />
-              </div>
+              <Input
+                value={(av.imageUrls ?? []).join("\n")}
+                onChange={e =>
+                  patch({
+                    ageVariants: (character.ageVariants ?? []).map((x, i) =>
+                      i === idx
+                        ? {
+                            ...x,
+                            imageUrls: e.target.value
+                              .split(/\s+/)
+                              .filter(Boolean),
+                          }
+                        : x
+                    ),
+                  })
+                }
+                placeholder="參考圖 URL（換行分隔）"
+                className="h-7 text-[10px]"
+              />
             </div>
           ))}
           <Button
@@ -1876,45 +1800,19 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
               return (
                 <div key={o.key}>
                   <Label className="text-[10px] text-muted-foreground">{o.label}</Label>
-                  <div className="flex gap-1">
-                    <Input
-                      value={v ?? ""}
-                      onChange={e =>
-                        patch({
-                          soundProfile: {
-                            ...character.soundProfile,
-                            [o.key]: e.target.value || undefined,
-                          } as WorldCharacter["soundProfile"],
-                        })
-                      }
-                      placeholder="音檔 URL"
-                      className="h-7 text-[11px] flex-1"
-                    />
-                    <AssetUploader
-                      accept="audio/*"
-                      label="上傳"
-                      onUploaded={r =>
-                        patch({
-                          soundProfile: {
-                            ...character.soundProfile,
-                            [o.key]: r.url,
-                          } as WorldCharacter["soundProfile"],
-                        })
-                      }
-                    />
-                    <SourcePicker
-                      accept="audio/*"
-                      assetKind="audio"
-                      onPick={r =>
-                        patch({
-                          soundProfile: {
-                            ...character.soundProfile,
-                            [o.key]: r.url,
-                          } as WorldCharacter["soundProfile"],
-                        })
-                      }
-                    />
-                  </div>
+                  <Input
+                    value={v ?? ""}
+                    onChange={e =>
+                      patch({
+                        soundProfile: {
+                          ...character.soundProfile,
+                          [o.key]: e.target.value || undefined,
+                        } as WorldCharacter["soundProfile"],
+                      })
+                    }
+                    placeholder="音檔 URL"
+                    className="h-7 text-[11px]"
+                  />
                 </div>
               );
             })}
@@ -1968,43 +1866,18 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
                 </div>
               )}
               <div className="flex-1 space-y-1">
-                <div className="flex gap-1">
-                  <Input
-                    value={r.imageUrl ?? ""}
-                    onChange={e =>
-                      patch({
-                        referenceLibrary: (character.referenceLibrary ?? []).map(
-                          (x, i) => (i === idx ? { ...x, imageUrl: e.target.value } : x)
-                        ),
-                      })
-                    }
-                    placeholder="圖片 URL"
-                    className="h-6 text-[10px] flex-1"
-                  />
-                  <AssetUploader
-                    accept="image/*"
-                    label="上傳"
-                    onUploaded={asset =>
-                      patch({
-                        referenceLibrary: (character.referenceLibrary ?? []).map(
-                          (x, i) => (i === idx ? { ...x, imageUrl: asset.url } : x)
-                        ),
-                      })
-                    }
-                  />
-                  <SourcePicker
-                    accept="image/*"
-                    assetKind="image"
-                    vaultItemType="character"
-                    onPick={asset =>
-                      patch({
-                        referenceLibrary: (character.referenceLibrary ?? []).map(
-                          (x, i) => (i === idx ? { ...x, imageUrl: asset.url } : x)
-                        ),
-                      })
-                    }
-                  />
-                </div>
+                <Input
+                  value={r.imageUrl ?? ""}
+                  onChange={e =>
+                    patch({
+                      referenceLibrary: (character.referenceLibrary ?? []).map(
+                        (x, i) => (i === idx ? { ...x, imageUrl: e.target.value } : x)
+                      ),
+                    })
+                  }
+                  placeholder="圖片 URL"
+                  className="h-6 text-[10px]"
+                />
                 <div className="flex gap-1">
                   <Select
                     value={r.category ?? ""}
@@ -2233,58 +2106,29 @@ const CharacterAnimationCard = memo(function CharacterAnimationCard({
             <p className="text-[10px] text-muted-foreground">
               直接上傳檔案到資產庫（圖、音、影、PDF、文件）。
             </p>
-            <div className="flex gap-1">
-              <AssetUploader
-                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
-                label="上傳"
-                onUploaded={r => {
-                  patch({
-                    uploadedAssets: [
-                      ...(character.uploadedAssets ?? []),
-                      {
-                        id: uid(),
-                        label: r.fileName,
-                        assetType: inferAssetType(r.mimeType),
-                        url: r.url,
-                        fileKey: r.fileKey,
-                        mimeType: r.mimeType,
-                        sizeBytes: r.sizeBytes,
-                        purpose: "reference 參考",
-                        uploadedAt: new Date().toISOString(),
-                      } as WorldAssetRef,
-                    ],
-                  });
-                  toast.success(`${r.fileName} 已加入資產庫`);
-                }}
-              />
-              <SourcePicker
-                label="從來源引用"
-                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
-                assetKind="any"
-                vaultItemType="character"
-                onPick={r => {
-                  patch({
-                    uploadedAssets: [
-                      ...(character.uploadedAssets ?? []),
-                      {
-                        id: uid(),
-                        label: r.label ?? "資產",
-                        assetType: r.mimeType
-                          ? inferAssetType(r.mimeType)
-                          : "other",
-                        url: r.url,
-                        fileKey: r.fileKey,
-                        mimeType: r.mimeType,
-                        sizeBytes: r.sizeBytes,
-                        purpose: "reference 參考",
-                        uploadedAt: new Date().toISOString(),
-                      } as WorldAssetRef,
-                    ],
-                  });
-                  toast.success(`${r.label ?? "資產"} 已加入資產庫`);
-                }}
-              />
-            </div>
+            <AssetUploader
+              accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+              label="上傳"
+              onUploaded={r => {
+                patch({
+                  uploadedAssets: [
+                    ...(character.uploadedAssets ?? []),
+                    {
+                      id: uid(),
+                      label: r.fileName,
+                      assetType: inferAssetType(r.mimeType),
+                      url: r.url,
+                      fileKey: r.fileKey,
+                      mimeType: r.mimeType,
+                      sizeBytes: r.sizeBytes,
+                      purpose: "reference 參考",
+                      uploadedAt: new Date().toISOString(),
+                    } as WorldAssetRef,
+                  ],
+                });
+                toast.success(`${r.fileName} 已加入資產庫`);
+              }}
+            />
           </div>
           {(character.uploadedAssets ?? []).map((a, idx) => (
             <div
@@ -3045,7 +2889,7 @@ const MusicThemeCard = memo(function MusicThemeCard({
               Cue 長度變體（剪輯快套）
             </Label>
             {(theme.cueVariants ?? []).map((cv, idx) => (
-              <div key={idx} className="grid grid-cols-[1fr_60px_1.4fr_auto] gap-1 mt-1 items-center">
+              <div key={idx} className="grid grid-cols-4 gap-1 mt-1">
                 <Input
                   value={cv.label}
                   onChange={e =>
@@ -3073,42 +2917,18 @@ const MusicThemeCard = memo(function MusicThemeCard({
                   placeholder="秒"
                   className="h-7 text-[10px]"
                 />
-                <div className="flex gap-1">
-                  <Input
-                    value={cv.audioUrl ?? ""}
-                    onChange={e =>
-                      patch({
-                        cueVariants: (theme.cueVariants ?? []).map((x, i) =>
-                          i === idx ? { ...x, audioUrl: e.target.value } : x
-                        ),
-                      })
-                    }
-                    placeholder="音檔 URL"
-                    className="h-7 text-[10px] flex-1"
-                  />
-                  <AssetUploader
-                    accept="audio/*"
-                    label="上傳"
-                    onUploaded={r =>
-                      patch({
-                        cueVariants: (theme.cueVariants ?? []).map((x, i) =>
-                          i === idx ? { ...x, audioUrl: r.url } : x
-                        ),
-                      })
-                    }
-                  />
-                  <SourcePicker
-                    accept="audio/*"
-                    assetKind="audio"
-                    onPick={r =>
-                      patch({
-                        cueVariants: (theme.cueVariants ?? []).map((x, i) =>
-                          i === idx ? { ...x, audioUrl: r.url } : x
-                        ),
-                      })
-                    }
-                  />
-                </div>
+                <Input
+                  value={cv.audioUrl ?? ""}
+                  onChange={e =>
+                    patch({
+                      cueVariants: (theme.cueVariants ?? []).map((x, i) =>
+                        i === idx ? { ...x, audioUrl: e.target.value } : x
+                      ),
+                    })
+                  }
+                  placeholder="音檔 URL"
+                  className="h-7 text-[10px]"
+                />
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -3328,12 +3148,12 @@ const WorldBasicsEditor = memo(function WorldBasicsEditor({
             className="h-7 text-xs"
           />
           <div className="flex flex-wrap gap-1 mt-1">
-            {GENRE_PRESETS.map(g => (
+            {GENRE_PRESETS.slice(0, 10).map(g => (
               <button
                 key={g}
                 type="button"
                 onClick={() => onPatch({ genre: g })}
-                className={`px-2 py-0.5 rounded-full text-[10px] border transition ${
+                className={`px-1.5 py-0.5 rounded-full text-[9px] border transition ${
                   world.genre === g
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
@@ -3353,12 +3173,12 @@ const WorldBasicsEditor = memo(function WorldBasicsEditor({
             className="h-7 text-xs"
           />
           <div className="flex flex-wrap gap-1 mt-1">
-            {ERA_PRESETS.map(e => (
+            {ERA_PRESETS.slice(0, 10).map(e => (
               <button
                 key={e}
                 type="button"
                 onClick={() => onPatch({ era: e })}
-                className={`px-2 py-0.5 rounded-full text-[10px] border transition ${
+                className={`px-1.5 py-0.5 rounded-full text-[9px] border transition ${
                   world.era === e
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
@@ -3862,10 +3682,6 @@ const SceneCard = memo(function SceneCard({
         placeholder="一句話氛圍（濕潤、靜謐、微光穿過樹葉）"
         className="h-7 text-xs"
       />
-
-      {/* 即時環境視覺預覽 */}
-      <SceneEnvironmentPreview scene={scene} className="my-2" />
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px] text-muted-foreground">環境</Label>
@@ -3885,12 +3701,12 @@ const SceneCard = memo(function SceneCard({
             className="h-7 text-[11px]"
           />
           <div className="flex flex-wrap gap-1 mt-1">
-            {SCENE_LIGHTING_PRESETS.map(l => (
+            {SCENE_LIGHTING_PRESETS.slice(0, 10).map(l => (
               <button
                 key={l}
                 type="button"
                 onClick={() => patch({ lighting: l })}
-                className={`px-2 py-0.5 rounded-full text-[10px] border transition ${
+                className={`px-1.5 py-0.5 rounded-full text-[9px] border transition ${
                   scene.lighting === l
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
@@ -3910,12 +3726,12 @@ const SceneCard = memo(function SceneCard({
             className="h-7 text-[11px]"
           />
           <div className="flex flex-wrap gap-1 mt-1">
-            {SCENE_MOOD_PRESETS.map(m => (
+            {SCENE_MOOD_PRESETS.slice(0, 10).map(m => (
               <button
                 key={m}
                 type="button"
                 onClick={() => patch({ mood: m })}
-                className={`px-2 py-0.5 rounded-full text-[10px] border transition ${
+                className={`px-1.5 py-0.5 rounded-full text-[9px] border transition ${
                   scene.mood === m
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
@@ -3961,7 +3777,7 @@ const SceneCard = memo(function SceneCard({
           className="min-h-[40px] text-[11px]"
         />
         <div className="flex flex-wrap gap-1 mt-1">
-          {ENVIRONMENT_CHANGE_PRESETS.map(ec => {
+          {ENVIRONMENT_CHANGE_PRESETS.slice(0, 8).map(ec => {
             const active = (scene.environmentChanges ?? []).includes(ec);
             return (
               <button
@@ -3975,7 +3791,7 @@ const SceneCard = memo(function SceneCard({
                       : [...cur, ec],
                   });
                 }}
-                className={`px-2 py-0.5 rounded-full text-[10px] border transition ${
+                className={`px-1.5 py-0.5 rounded-full text-[9px] border transition ${
                   active
                     ? "border-primary/60 bg-primary/10 text-primary"
                     : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60"
@@ -4529,84 +4345,32 @@ const SceneCard = memo(function SceneCard({
               <Volume2 className="w-3 h-3" /> Sound Design
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="flex gap-1">
-                <Input
-                  value={scene.soundDesign?.ambientBedUrl ?? ""}
-                  onChange={e =>
-                    patch({
-                      soundDesign: {
-                        ...scene.soundDesign,
-                        ambientBedUrl: e.target.value,
-                      },
-                    })
-                  }
-                  placeholder="環境音床 URL"
-                  className="h-7 text-[11px] flex-1"
-                />
-                <AssetUploader
-                  accept="audio/*"
-                  label="上傳"
-                  onUploaded={r =>
-                    patch({
-                      soundDesign: {
-                        ...scene.soundDesign,
-                        ambientBedUrl: r.url,
-                      },
-                    })
-                  }
-                />
-                <SourcePicker
-                  accept="audio/*"
-                  assetKind="audio"
-                  onPick={r =>
-                    patch({
-                      soundDesign: {
-                        ...scene.soundDesign,
-                        ambientBedUrl: r.url,
-                      },
-                    })
-                  }
-                />
-              </div>
-              <div className="flex gap-1">
-                <Input
-                  value={scene.soundDesign?.roomToneUrl ?? ""}
-                  onChange={e =>
-                    patch({
-                      soundDesign: {
-                        ...scene.soundDesign,
-                        roomToneUrl: e.target.value,
-                      },
-                    })
-                  }
-                  placeholder="Room tone URL"
-                  className="h-7 text-[11px] flex-1"
-                />
-                <AssetUploader
-                  accept="audio/*"
-                  label="上傳"
-                  onUploaded={r =>
-                    patch({
-                      soundDesign: {
-                        ...scene.soundDesign,
-                        roomToneUrl: r.url,
-                      },
-                    })
-                  }
-                />
-                <SourcePicker
-                  accept="audio/*"
-                  assetKind="audio"
-                  onPick={r =>
-                    patch({
-                      soundDesign: {
-                        ...scene.soundDesign,
-                        roomToneUrl: r.url,
-                      },
-                    })
-                  }
-                />
-              </div>
+              <Input
+                value={scene.soundDesign?.ambientBedUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    soundDesign: {
+                      ...scene.soundDesign,
+                      ambientBedUrl: e.target.value,
+                    },
+                  })
+                }
+                placeholder="環境音床 URL"
+                className="h-7 text-[11px]"
+              />
+              <Input
+                value={scene.soundDesign?.roomToneUrl ?? ""}
+                onChange={e =>
+                  patch({
+                    soundDesign: {
+                      ...scene.soundDesign,
+                      roomToneUrl: e.target.value,
+                    },
+                  })
+                }
+                placeholder="Room tone URL"
+                className="h-7 text-[11px]"
+              />
               <Select
                 value={scene.soundDesign?.reverb ?? ""}
                 onValueChange={v =>
@@ -4908,54 +4672,28 @@ const ResearchDatabaseEditor = memo(function ResearchDatabaseEditor({
                   placeholder="引用格式（作者, 年, 來源, 頁碼）"
                   className="h-7 text-[10px] font-mono"
                 />
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex gap-1">
-                    <AssetUploader
-                      accept="image/*,application/pdf,.doc,.docx,.txt"
-                      label="加附件"
-                      onUploaded={r => {
-                        patch(idx, {
-                          attachments: [
-                            ...(e.attachments ?? []),
-                            {
-                              id: uid(),
-                              label: r.fileName,
-                              assetType: inferAssetType(r.mimeType),
-                              url: r.url,
-                              fileKey: r.fileKey,
-                              mimeType: r.mimeType,
-                              sizeBytes: r.sizeBytes,
-                              uploadedAt: new Date().toISOString(),
-                            },
-                          ],
-                        });
-                      }}
-                    />
-                    <SourcePicker
-                      label="從來源引用"
-                      accept="image/*,application/pdf,.doc,.docx,.txt"
-                      assetKind="any"
-                      onPick={r => {
-                        patch(idx, {
-                          attachments: [
-                            ...(e.attachments ?? []),
-                            {
-                              id: uid(),
-                              label: r.label ?? "附件",
-                              assetType: r.mimeType
-                                ? inferAssetType(r.mimeType)
-                                : "other",
-                              url: r.url,
-                              fileKey: r.fileKey,
-                              mimeType: r.mimeType,
-                              sizeBytes: r.sizeBytes,
-                              uploadedAt: new Date().toISOString(),
-                            },
-                          ],
-                        });
-                      }}
-                    />
-                  </div>
+                <div className="flex items-center justify-between">
+                  <AssetUploader
+                    accept="image/*,application/pdf,.doc,.docx,.txt"
+                    label="加附件"
+                    onUploaded={r => {
+                      patch(idx, {
+                        attachments: [
+                          ...(e.attachments ?? []),
+                          {
+                            id: uid(),
+                            label: r.fileName,
+                            assetType: inferAssetType(r.mimeType),
+                            url: r.url,
+                            fileKey: r.fileKey,
+                            mimeType: r.mimeType,
+                            sizeBytes: r.sizeBytes,
+                            uploadedAt: new Date().toISOString(),
+                          },
+                        ],
+                      });
+                    }}
+                  />
                   {(e.attachments?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {(e.attachments ?? []).map((a, ai) => (
@@ -5055,26 +4793,6 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
               toast.success(`${r.fileName} 已加入音效庫`);
             }}
           />
-          <SourcePicker
-            label="從來源引用"
-            accept="audio/*"
-            assetKind="audio"
-            onPick={r => {
-              onChange([
-                ...items,
-                {
-                  id: uid(),
-                  label: r.label ?? "音效",
-                  category: "ambient",
-                  audioUrl: r.url,
-                  fileKey: r.fileKey,
-                  loopable: true,
-                  volumeDefault: 0.7,
-                },
-              ]);
-              toast.success(`${r.label ?? "音效"} 已加入音效庫`);
-            }}
-          />
           <Button
             variant="outline"
             size="sm"
@@ -5107,12 +4825,15 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
               className="h-7 text-xs pl-7"
             />
           </div>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select
+            value={categoryFilter || "__all"}
+            onValueChange={v => setCategoryFilter(v === "__all" ? "" : v)}
+          >
             <SelectTrigger className="h-7 text-xs">
               <SelectValue placeholder="全部分類" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="" className="text-xs">
+              <SelectItem value="__all" className="text-xs">
                 全部分類
               </SelectItem>
               {SOUND_LIBRARY_CATEGORY_PRESETS.map(c => (
@@ -5186,36 +4907,12 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
-                <div className="flex gap-1">
-                  <Input
-                    value={s.audioUrl}
-                    onChange={e => patch(idx, { audioUrl: e.target.value })}
-                    placeholder="音檔 URL"
-                    className="h-7 text-[11px] flex-1"
-                  />
-                  <AssetUploader
-                    accept="audio/*"
-                    label="上傳"
-                    onUploaded={r =>
-                      patch(idx, {
-                        audioUrl: r.url,
-                        fileKey: r.fileKey,
-                        label: s.label || r.fileName,
-                      })
-                    }
-                  />
-                  <SourcePicker
-                    accept="audio/*"
-                    assetKind="audio"
-                    onPick={r =>
-                      patch(idx, {
-                        audioUrl: r.url,
-                        fileKey: r.fileKey,
-                        label: s.label || r.label || "音效",
-                      })
-                    }
-                  />
-                </div>
+                <Input
+                  value={s.audioUrl}
+                  onChange={e => patch(idx, { audioUrl: e.target.value })}
+                  placeholder="音檔 URL"
+                  className="h-7 text-[11px]"
+                />
                 {s.audioUrl && (
                   <audio
                     src={s.audioUrl}
@@ -5326,9 +5023,6 @@ export default function AnimationStudio() {
   const params = useParams<{ storyboardId?: string }>();
   const [, navigate] = useLocation();
 
-  // 沉浸式模式狀態
-  const [immersiveMode, setImmersiveMode] = useState(false);
-
   const worldsQuery = trpc.worldbuilding.list.useQuery();
   const voicesQuery = trpc.worldbuilding.linkableVoices.useQuery();
   const linkableModelsQuery = trpc.worldbuilding.linkableModels.useQuery();
@@ -5343,10 +5037,7 @@ export default function AnimationStudio() {
     | "production"
     | "research"
     | "sounds"
-    | "script"
     | "storyboards"
-    | "timeline"
-    | "composition"
   >("characters");
 
   // 自動選第一個世界
@@ -5382,7 +5073,6 @@ export default function AnimationStudio() {
   });
   const updateWorld = trpc.worldbuilding.update.useMutation({
     onSuccess: () => utils.worldbuilding.list.invalidate(),
-    onError: e => toast.error(`儲存失敗：${e.message}`),
   });
 
   // 本地 draft：避免每次打字都打 API 造成卡頓 + input 跳動。
@@ -5431,8 +5121,10 @@ export default function AnimationStudio() {
               defaultStyleProfileId: latest.defaultStyleProfileId,
               globalNegativePrompt: latest.globalNegativePrompt,
               productionTargets: latest.productionTargets,
+              // v4：之前 whitelist 漏了這三個 → 編輯後不會持久化（reload 即消失）
               researchEntries: latest.researchEntries,
               soundLibrary: latest.soundLibrary,
+              uploadedAssets: latest.uploadedAssets,
               tags: latest.tags,
             },
           });
@@ -5442,175 +5134,6 @@ export default function AnimationStudio() {
     },
     [updateWorld]
   );
-
-  // AI Generation mutations
-  const generateCharacterMutation = trpc.worldbuildingGeneration.generateCharacter.useMutation({
-    onSuccess: (data) => {
-      toast.success(`角色「${data.character.name}」已生成`);
-      utils.worldbuilding.list.invalidate();
-    },
-    onError: (e) => toast.error(`生成失敗：${e.message}`),
-  });
-
-  const generateSceneMutation = trpc.worldbuildingGeneration.generateScene.useMutation({
-    onSuccess: (data) => {
-      toast.success(`場景「${data.scene.name}」已生成`);
-      utils.worldbuilding.list.invalidate();
-    },
-    onError: (e) => toast.error(`生成失敗：${e.message}`),
-  });
-
-  const generateStoryboardMutation = trpc.worldbuildingGeneration.generateStoryboard.useMutation({
-    onSuccess: (data) => {
-      toast.success("分鏡已生成");
-      utils.worldStoryboard.listByWorld.invalidate();
-      if (data.storyboardId) {
-        navigate(`/animation/${data.storyboardId}`);
-      }
-    },
-    onError: (e) => toast.error(`生成失敗：${e.message}`),
-  });
-
-  // ─── AI Agent Integration ───────────────────────────────────────────────
-  useRegisterPageAgent({
-    pageId: "worldbuilding",
-    pageLabel: "世界觀系統",
-    capabilities: useMemo((): AgentCapability[] => {
-      const tabs: AgentCapability["options"] = [
-        { id: "characters", label: "角色" },
-        { id: "scenes", label: "場景" },
-        { id: "style", label: "風格" },
-        { id: "music", label: "音樂" },
-        { id: "production", label: "製作" },
-        { id: "research", label: "研究" },
-        { id: "sounds", label: "音效庫" },
-        { id: "script", label: "腳本" },
-        { id: "storyboards", label: "分鏡" },
-      ];
-
-      return [
-        {
-          action: "setTab",
-          label: "分頁",
-          options: tabs,
-          currentId: selectedTab,
-        },
-        {
-          action: "generateCharacter",
-          label: "生成角色",
-          hint: "可根據描述生成新角色並加入目前世界觀",
-        },
-        {
-          action: "generateScene",
-          label: "生成場景",
-          hint: "可根據描述生成新場景並加入目前世界觀",
-        },
-        {
-          action: "generateStoryboard",
-          label: "生成分鏡",
-          hint: "可根據腳本或描述生成分鏡時間軸",
-        },
-      ];
-    }, [selectedTab]),
-
-    handler: useCallback(async (action: AgentAction) => {
-      if (action.type === "setTab") {
-        const validTabs = [
-          "characters",
-          "scenes",
-          "style",
-          "music",
-          "production",
-          "research",
-          "sounds",
-          "script",
-          "storyboards",
-        ];
-        if (validTabs.includes(action.tabId)) {
-          setSelectedTab(action.tabId as typeof selectedTab);
-          return { ok: true, message: `已切換到「${action.tabId}」分頁` };
-        }
-        return { ok: false, reason: "無效的分頁 ID" };
-      }
-
-      if (action.type === "generateCharacter") {
-        if (!selectedWorldId) {
-          return { ok: false, reason: "請先選擇一個世界觀" };
-        }
-        try {
-          await generateCharacterMutation.mutateAsync({
-            worldId: selectedWorldId,
-            description: action.description,
-            archetype: action.archetype,
-          });
-          return { ok: true, message: "角色已生成並加入世界觀" };
-        } catch (error) {
-          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
-        }
-      }
-
-      if (action.type === "generateScene") {
-        if (!selectedWorldId) {
-          return { ok: false, reason: "請先選擇一個世界觀" };
-        }
-        try {
-          await generateSceneMutation.mutateAsync({
-            worldId: selectedWorldId,
-            description: action.description,
-            environmentType: action.environmentType,
-          });
-          return { ok: true, message: "場景已生成並加入世界觀" };
-        } catch (error) {
-          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
-        }
-      }
-
-      if (action.type === "generateStoryboard") {
-        if (!selectedWorldId) {
-          return { ok: false, reason: "請先選擇一個世界觀" };
-        }
-        try {
-          await generateStoryboardMutation.mutateAsync({
-            worldId: selectedWorldId,
-            scriptId: action.scriptId,
-            description: action.description,
-          });
-          return { ok: true, message: "分鏡已生成" };
-        } catch (error) {
-          return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
-        }
-      }
-
-      return { ok: false, reason: "不支援的動作" };
-    }, [selectedWorldId, generateCharacterMutation, generateSceneMutation, generateStoryboardMutation]),
-
-    getSnapshot: useCallback(() => {
-      return {
-        pageId: "worldbuilding",
-        pageLabel: "世界觀系統",
-        pagePath: "/animation",
-        activeMode: undefined,
-        activeModel: undefined,
-        selectedPreset: undefined,
-        availableModels: [],
-        availableModes: [],
-        availableParameters: [],
-        currentPrompt: undefined,
-        hasUnsavedChanges: false,
-        warnings: [],
-        capabilities: [],
-        state: {
-          selectedWorldId,
-          selectedTab,
-          hasWorld: !!draft,
-          worldName: draft?.name || "",
-          charactersCount: draft?.characters?.length || 0,
-          scenesCount: draft?.scenes?.length || 0,
-          storyboardsCount: storyboardsQuery.data?.length || 0,
-        },
-      };
-    }, [selectedWorldId, selectedTab, draft, storyboardsQuery.data]),
-  });
 
   // 開分鏡細節（URL 路由）
   const detailStoryboardId = params.storyboardId
@@ -5639,19 +5162,6 @@ export default function AnimationStudio() {
     },
     onError: e => toast.error(`編排失敗：${e.message}`),
   });
-  const deleteStoryboard = trpc.worldStoryboard.delete.useMutation({
-    onSuccess: () => {
-      toast.success("分鏡草稿已刪除");
-      utils.worldStoryboard.listByWorld.invalidate();
-    },
-    onError: e => toast.error(`刪除失敗：${e.message}`),
-  });
-  const renameStoryboard = trpc.worldStoryboard.update.useMutation({
-    onSuccess: () => {
-      utils.worldStoryboard.listByWorld.invalidate();
-    },
-    onError: e => toast.error(`重新命名失敗：${e.message}`),
-  });
 
   if (worldsQuery.isLoading) {
     return (
@@ -5667,7 +5177,7 @@ export default function AnimationStudio() {
         <Film className="w-12 h-12 mx-auto text-muted-foreground/50" />
         <h2 className="text-lg font-semibold">建立第一個世界觀</h2>
         <p className="text-sm text-muted-foreground">
-          世界觀系統 = 世界觀 × 分鏡。先在這裡建立世界、配置角色（三視圖、表情、
+          動畫工作室 = 世界觀 × 分鏡。先在這裡建立世界、配置角色（三視圖、表情、
           穿衣、口氣、語音、腳本定位）與場景，接著派生分鏡時間軸、編排動畫渲染管線。
         </p>
         <Button
@@ -5691,81 +5201,41 @@ export default function AnimationStudio() {
   if (detailStoryboardId && storyboardDetailQuery.data && selectedWorld) {
     const sb = storyboardDetailQuery.data;
     return (
-      <>
-        {/* 沉浸式模式背景動畫 */}
-        {immersiveMode && <EarthGlobeAnimation />}
-
-        <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
-          <div className={`flex items-center gap-2 ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
-            {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
-            {immersiveMode && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate("/director")}
-                className="h-8 text-xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-                返回導演 AI
-              </Button>
-            )}
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/animation")}
-              className="text-xs"
-            >
-              ← 返回世界觀系統
-            </Button>
-
-            {/* 沉浸式模式切換按鈕 */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setImmersiveMode(!immersiveMode)}
-              className="h-8 text-xs"
-              title={immersiveMode ? "退出沉浸式模式" : "進入沉浸式模式"}
-            >
-              {immersiveMode ? (
-                <>
-                  <Minimize2 className="w-3.5 h-3.5 mr-1" />
-                  退出沉浸
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="w-3.5 h-3.5 mr-1" />
-                  沉浸式
-                </>
-              )}
-            </Button>
-
-            <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
-            <Badge variant="outline">{sb.productionStatus}</Badge>
-            <Button
-              size="sm"
-              onClick={() =>
-                planPipeline.mutate({ id: sb.id, persist: true })
-              }
-              disabled={planPipeline.isPending}
-            >
-              <Wand2 className="w-3.5 h-3.5 mr-1" />
-              編排動畫管線
-            </Button>
-          </div>
-
-          <StoryboardTimelinePreview storyboard={sb} framework={selectedWorld} />
-
-          {sb.pipelinePlan && (
-            <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Sparkles className="w-4 h-4" /> 管線執行計畫
-              </h3>
-              <PipelinePlanView plan={sb.pipelinePlan} />
-            </div>
-          )}
+      <div className="p-4 max-w-6xl mx-auto space-y-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/animation")}
+            className="text-xs"
+          >
+            ← 返回工作室
+          </Button>
+          <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
+          <Badge variant="outline">{sb.productionStatus}</Badge>
+          <Button
+            size="sm"
+            onClick={() =>
+              planPipeline.mutate({ id: sb.id, persist: true })
+            }
+            disabled={planPipeline.isPending}
+          >
+            <Wand2 className="w-3.5 h-3.5 mr-1" />
+            編排動畫管線
+          </Button>
         </div>
-      </>
+
+        <StoryboardTimelinePreview storyboard={sb} framework={selectedWorld} />
+
+        {sb.pipelinePlan && (
+          <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> 管線執行計畫
+            </h3>
+            <PipelinePlanView plan={sb.pipelinePlan} />
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -5775,65 +5245,26 @@ export default function AnimationStudio() {
   const effectiveWorld = draft ?? selectedWorld;
 
   return (
-    <>
-      {/* 沉浸式模式背景動畫 */}
-      {immersiveMode && <EarthGlobeAnimation />}
-
-      <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
-        {/* Header */}
-        <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
-          {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
-          {immersiveMode && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/director")}
-              className="h-8 text-xs"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-              返回導演 AI
-            </Button>
-          )}
-
-          <Film className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-semibold">世界觀系統</h1>
-
-          {/* 沉浸式模式切換按鈕 */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setImmersiveMode(!immersiveMode)}
-            className="h-8 text-xs ml-auto"
-            title={immersiveMode ? "退出沉浸式模式" : "進入沉浸式模式"}
-          >
-            {immersiveMode ? (
-              <>
-                <Minimize2 className="w-3.5 h-3.5 mr-1" />
-                退出沉浸
-              </>
-            ) : (
-              <>
-                <Maximize2 className="w-3.5 h-3.5 mr-1" />
-                沉浸式
-              </>
-            )}
-          </Button>
-
-          <Select
-            value={String(selectedWorldId)}
-            onValueChange={v => setSelectedWorldId(Number(v))}
-          >
-            <SelectTrigger className="h-8 w-[220px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {worlds.map(w => (
-                <SelectItem key={w.id} value={String(w.id)} className="text-xs">
-                  {w.name} · {w.genre ?? "—"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="p-4 max-w-6xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Film className="w-5 h-5 text-primary" />
+        <h1 className="text-lg font-semibold">動畫工作室</h1>
+        <Select
+          value={String(selectedWorldId)}
+          onValueChange={v => setSelectedWorldId(Number(v))}
+        >
+          <SelectTrigger className="h-8 w-[220px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {worlds.map(w => (
+              <SelectItem key={w.id} value={String(w.id)} className="text-xs">
+                {w.name} · {w.genre ?? "—"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           variant="outline"
           size="sm"
@@ -5866,6 +5297,16 @@ export default function AnimationStudio() {
           worldId={selectedWorld.id!}
           worldName={selectedWorld.name}
         />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/agent?focus=worldbuilding")}
+          className="h-8 text-xs"
+          title="請光球代理（導演 / 美術 / 配音 / 編劇）查詢此世界觀資料庫並協助製作"
+        >
+          <Bot className="w-3.5 h-3.5 mr-1" />
+          請光球幫忙
+        </Button>
       </div>
 
       {/* 世界觀基本資料（從導演 AI 融合進來，一處編完） */}
@@ -5993,21 +5434,9 @@ export default function AnimationStudio() {
             <FileAudio className="w-3.5 h-3.5 mr-1" />
             音效庫（{effectiveWorld.soundLibrary?.length ?? 0}）
           </TabsTrigger>
-          <TabsTrigger value="script" className="text-xs">
-            <FileText className="w-3.5 h-3.5 mr-1" />
-            腳本
-          </TabsTrigger>
           <TabsTrigger value="storyboards" className="text-xs">
             <Camera className="w-3.5 h-3.5 mr-1" />
             分鏡（{storyboardsQuery.data?.length ?? 0}）
-          </TabsTrigger>
-          <TabsTrigger value="timeline" className="text-xs">
-            <Clock className="w-3.5 h-3.5 mr-1" />
-            時間軸上傳
-          </TabsTrigger>
-          <TabsTrigger value="composition" className="text-xs">
-            <Layers className="w-3.5 h-3.5 mr-1" />
-            構圖助手
           </TabsTrigger>
         </TabsList>
 
@@ -6230,13 +5659,6 @@ export default function AnimationStudio() {
           />
         </TabsContent>
 
-        <TabsContent value="script">
-          <ScriptEditorTab
-            worldId={selectedWorld.id!}
-            worldName={effectiveWorld.name}
-          />
-        </TabsContent>
-
         <TabsContent value="storyboards">
           <div className="space-y-3">
             <SeedStoryboardForm
@@ -6244,21 +5666,6 @@ export default function AnimationStudio() {
               defaultDuration={
                 effectiveWorld.productionTargets?.targetDurationSec ?? 60
               }
-              defaultFps={
-                effectiveWorld.productionTargets?.masterSpec?.fps ?? 24
-              }
-              defaultAspectRatio={
-                effectiveWorld.scenes.find(s => s.preferredAspectRatio)
-                  ?.preferredAspectRatio ?? "16:9"
-              }
-              integrationCounts={{
-                characters: effectiveWorld.characters.length,
-                scenes: effectiveWorld.scenes.length,
-                styles: effectiveWorld.styleProfiles?.length ?? 0,
-                music: effectiveWorld.musicThemes?.length ?? 0,
-                research: effectiveWorld.researchEntries?.length ?? 0,
-                sounds: effectiveWorld.soundLibrary?.length ?? 0,
-              }}
               isPending={seedSkeleton.isPending}
               onSeed={args => seedSkeleton.mutate(args)}
             />
@@ -6270,67 +5677,20 @@ export default function AnimationStudio() {
                   </p>
                 ) : (
                   storyboardsQuery.data!.map(sb => (
-                    <div
+                    <button
                       key={sb.id}
-                      className="rounded-lg border border-border/30 bg-card/30 p-3 hover:bg-card/50 transition"
+                      type="button"
+                      onClick={() => navigate(`/animation/${sb.id}`)}
+                      className="w-full text-left rounded-lg border border-border/30 bg-card/30 p-3 hover:bg-card/50 transition"
                     >
                       <div className="flex items-center gap-2">
-                        <Camera className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/animation/${sb.id}`)}
-                          className="text-sm font-medium flex-1 text-left hover:underline truncate"
-                        >
-                          {sb.name}
-                        </button>
+                        <Camera className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium flex-1">{sb.name}</span>
                         <Badge variant="outline" className="text-[10px]">
                           {sb.productionStatus}
                         </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={e => {
-                            e.stopPropagation();
-                            const next = window.prompt(
-                              "重新命名分鏡草稿",
-                              sb.name
-                            );
-                            if (next && next.trim() && next.trim() !== sb.name) {
-                              renameStoryboard.mutate({
-                                id: sb.id,
-                                patch: { name: next.trim() },
-                              });
-                            }
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
-                          title="重新命名"
-                          aria-label="重新命名分鏡"
-                        >
-                          <Wand2 className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (
-                              confirm(`確定刪除分鏡草稿「${sb.name}」？此操作無法復原。`)
-                            ) {
-                              deleteStoryboard.mutate({ id: sb.id });
-                            }
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          title="刪除分鏡草稿"
-                          aria-label="刪除分鏡"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/animation/${sb.id}`)}
-                        className="text-[11px] text-muted-foreground mt-1 flex gap-3 cursor-pointer w-full text-left"
-                      >
+                      <div className="text-[11px] text-muted-foreground mt-1 flex gap-3">
                         <span>
                           <Clock className="inline w-2.5 h-2.5 mr-0.5" />
                           {formatTimecode(sb.totalDurationSec)}
@@ -6341,77 +5701,16 @@ export default function AnimationStudio() {
                         {sb.estimatedCostUsd ? (
                           <span>≈ ${sb.estimatedCostUsd}</span>
                         ) : null}
-                      </button>
-                    </div>
+                      </div>
+                    </button>
                   ))
                 )}
               </div>
             </ScrollArea>
           </div>
         </TabsContent>
-
-        {/* Timeline Upload Tab */}
-        <TabsContent value="timeline">
-          <div className="space-y-4">
-            {storyboardsQuery.data && storyboardsQuery.data.length > 0 ? (
-              <>
-                <div className="text-sm text-muted-foreground">
-                  選擇一個分鏡以上傳時間軸圖幀
-                </div>
-                <Select
-                  value={selectedStoryboard?.id ? String(selectedStoryboard.id) : ""}
-                  onValueChange={(value) => {
-                    const sb = storyboardsQuery.data?.find(s => s.id === Number(value));
-                    if (sb) setSelectedStoryboard(sb);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="選擇分鏡..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {storyboardsQuery.data.map((sb) => (
-                      <SelectItem key={sb.id} value={String(sb.id)}>
-                        {sb.name} ({formatTimecode(sb.totalDurationSec)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {selectedStoryboard && (
-                  <StoryboardTimelineUploader
-                    storyboard={selectedStoryboard}
-                    onFrameUploaded={(frame) => {
-                      toast.success("圖幀已上傳");
-                    }}
-                    onFrameDeleted={() => {
-                      toast.success("圖幀已刪除");
-                    }}
-                  />
-                )}
-              </>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                請先創建分鏡，再使用時間軸上傳功能
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Composition Assistant Tab */}
-        <TabsContent value="composition">
-          {effectiveWorld && (
-            <CompositionAssistant
-              framework={effectiveWorld}
-              storyboardId={selectedStoryboard?.id}
-              onSave={(composition) => {
-                toast.success("構圖已儲存");
-              }}
-            />
-          )}
-        </TabsContent>
       </Tabs>
     </div>
-    </>
   );
 }
 
@@ -6420,24 +5719,11 @@ export default function AnimationStudio() {
 function SeedStoryboardForm({
   worldId,
   defaultDuration,
-  defaultFps,
-  defaultAspectRatio,
-  integrationCounts,
   isPending,
   onSeed,
 }: {
   worldId: number;
   defaultDuration: number;
-  defaultFps?: number;
-  defaultAspectRatio?: string;
-  integrationCounts?: {
-    characters: number;
-    scenes: number;
-    styles: number;
-    music: number;
-    research: number;
-    sounds: number;
-  };
   isPending: boolean;
   onSeed: (args: {
     worldId: number;
@@ -6451,52 +5737,14 @@ function SeedStoryboardForm({
 }) {
   const [duration, setDuration] = useState(defaultDuration);
   const [sceneCount, setSceneCount] = useState(6);
-  const [aspectRatio, setAspectRatio] = useState(defaultAspectRatio ?? "16:9");
-  const [fps, setFps] = useState<number>(defaultFps ?? 24);
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [fps, setFps] = useState<number>(24);
   const [name, setName] = useState("");
-  // 串連模組狀態 chip
-  const integrationChips: Array<{ label: string; count: number; key: string }> =
-    integrationCounts
-      ? [
-          { key: "characters", label: "角色", count: integrationCounts.characters },
-          { key: "scenes", label: "場景", count: integrationCounts.scenes },
-          { key: "styles", label: "風格", count: integrationCounts.styles },
-          { key: "music", label: "配樂", count: integrationCounts.music },
-          { key: "research", label: "研究", count: integrationCounts.research },
-          { key: "sounds", label: "音效", count: integrationCounts.sounds },
-        ]
-      : [];
   return (
     <div className="rounded-xl border border-dashed border-border/40 bg-card/20 p-3 space-y-2">
-      <div className="flex items-start justify-between gap-2 flex-wrap">
-        <h3 className="text-sm font-semibold flex items-center gap-1">
-          <Wand2 className="w-4 h-4" /> 自動派生分鏡骨架
-        </h3>
-        {integrationChips.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {integrationChips.map(chip => (
-              <Badge
-                key={chip.key}
-                variant={chip.count > 0 ? "secondary" : "outline"}
-                className={`text-[9px] px-1.5 py-0 h-4 ${
-                  chip.count === 0 ? "opacity-40" : ""
-                }`}
-                title={
-                  chip.count > 0
-                    ? `${chip.label}模組已串連（${chip.count} 筆資料）`
-                    : `${chip.label}模組尚無資料 —— 補上後派生時會自動納入`
-                }
-              >
-                {chip.label} {chip.count}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-      <p className="text-[10px] text-muted-foreground leading-relaxed">
-        派生會把所有模組（角色 outfit/expression/scriptRole、場景 styleProfile/musicTheme/soundDesign、
-        研究正史、音效庫、製作目標 fps/比例）串連成分鏡時間軸，按敘事節拍（開場/發展/高潮/結局）分配角色與配樂。
-      </p>
+      <h3 className="text-sm font-semibold flex items-center gap-1">
+        <Wand2 className="w-4 h-4" /> 自動派生分鏡骨架
+      </h3>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <div>
           <Label className="text-[10px] text-muted-foreground">名稱（選填）</Label>
