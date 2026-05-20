@@ -583,8 +583,8 @@ export default function NotesPage() {
 
   return (
     <div className="space-y-6">
-      {/* 頁面切換標籤 */}
-      <div className="flex items-center gap-1 border-b border-border/50 pb-0">
+      {/* 行動版：標籤切換（lg 以上隱藏，改為並排顯示） */}
+      <div className="flex items-center gap-1 border-b border-border/50 pb-0 lg:hidden">
         <button
           type="button"
           onClick={() => setPageTab("notes")}
@@ -611,11 +611,11 @@ export default function NotesPage() {
         </button>
       </div>
 
-      {pageTab === "calendar" ? (
-        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
-          <CalendarPage />
-        </Suspense>
-      ) : (
+      {/* 並排版面：桌機版同時顯示筆記（左）+ 排程（右） */}
+      <div className="lg:grid lg:grid-cols-[58%_42%] lg:gap-6 lg:items-start">
+
+      {/* ═══ 筆記欄 ═══ */}
+      <div className={pageTab === "calendar" ? "hidden lg:block" : ""}>
         <>
       <header className="page-header">
       <div className="flex items-center justify-between gap-2 !mb-0">
@@ -1559,7 +1559,16 @@ export default function NotesPage() {
         </div>
       )}
         </>
-      )}
+      </div>{/* end notes column */}
+
+      {/* ═══ 排程欄 ═══ */}
+      <div className={pageTab === "notes" ? "hidden lg:block" : ""}>
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
+          <CalendarPage embedded />
+        </Suspense>
+      </div>
+
+      </div>{/* end lg:grid */}
 
       {/* ── Perplexity / 深度研究 Dialog ── */}
       <Dialog open={showResearch} onOpenChange={setShowResearch}>
