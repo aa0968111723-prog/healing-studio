@@ -5812,9 +5812,9 @@ export default function AnimationStudio() {
       {/* 沉浸式模式背景動畫 */}
       {immersiveMode && <EarthGlobeAnimation />}
 
-      <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10" : ""}`}>
+      <div className={`p-4 max-w-6xl mx-auto space-y-4 ${immersiveMode ? "relative z-10 text-slate-100" : ""}`}>
         {/* Header */}
-        <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-md bg-card/30 border border-border/30 rounded-xl p-3" : ""}`}>
+        <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-xl bg-slate-900/55 border border-slate-200/20 rounded-xl p-3 shadow-[0_12px_32px_rgba(2,6,23,0.35)]" : ""}`}>
           {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
           {immersiveMode && (
             <Button
@@ -5829,7 +5829,7 @@ export default function AnimationStudio() {
           )}
 
           <Film className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-semibold">世界觀系統</h1>
+          <h1 className={`text-lg font-semibold ${immersiveMode ? "text-slate-50" : ""}`}>世界觀系統</h1>
 
           {/* 沉浸式模式切換按鈕 */}
           <Button
@@ -5908,8 +5908,8 @@ export default function AnimationStudio() {
       />
 
       {/* Production targets quick edit */}
-      <div className="rounded-xl border border-border/40 bg-card/30 p-3 space-y-2">
-        <h3 className="text-sm font-semibold">製作目標</h3>
+      <div className={`rounded-xl p-3 space-y-2 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg shadow-[0_10px_30px_rgba(2,6,23,0.28)]" : "border border-border/40 bg-card/30"}`}>
+        <h3 className={`text-sm font-semibold ${immersiveMode ? "text-slate-100" : ""}`}>製作目標</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <div>
             <Label className="text-[10px] text-muted-foreground">格式</Label>
