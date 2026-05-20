@@ -169,15 +169,18 @@ function BackgroundTasksDockButton({
               <span aria-hidden="true" className="apple-dock-halo" />
               {activeCount > 0 ? (
                 <Loader2
-                  className="apple-dock-icon relative h-[19px] w-[19px] animate-spin text-primary"
+                  className="apple-dock-icon relative animate-spin text-primary"
                   strokeWidth={1.95}
                 />
               ) : (
                 <ListChecks
-                  className="apple-dock-icon relative h-[19px] w-[19px]"
+                  className="apple-dock-icon relative"
                   strokeWidth={1.85}
                 />
               )}
+              <span className="apple-dock-item-label">
+                背景任務{activeCount > 0 ? ` · ${activeCount}` : ""}
+              </span>
               {activeCount > 0 && (
                 <span
                   aria-hidden="true"
@@ -353,9 +356,10 @@ function ThemeToggleDockButton({
         >
           <span aria-hidden="true" className="apple-dock-halo" />
           <Icon
-            className="apple-dock-icon relative h-[19px] w-[19px]"
+            className="apple-dock-icon relative"
             strokeWidth={1.85}
           />
+          <span className="apple-dock-item-label">{label}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent
@@ -853,9 +857,12 @@ function AppleDock({
               >
                 <span aria-hidden="true" className="apple-dock-halo" />
                 <Zap
-                  className="apple-dock-icon relative h-[19px] w-[19px]"
+                  className="apple-dock-icon relative"
                   strokeWidth={1.85}
                 />
+                <span className="apple-dock-item-label">
+                  配額 · {user?.remainingGenerations ?? 0}
+                </span>
                 <span
                   aria-hidden="true"
                   className="apple-dock-credit-badge"
@@ -897,6 +904,7 @@ function AppleDock({
                       fallback={displayInitial}
                       className="h-9 w-9 relative"
                     />
+                    <span className="apple-dock-item-label">{displayName}</span>
                   </button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>

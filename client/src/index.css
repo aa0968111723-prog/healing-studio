@@ -1094,6 +1094,18 @@
   [data-variant="panel"] .apple-dock-active-dot {
     display: none;
   }
+  /* Bottom-center badges (credits, task count) clash with full-width rows.
+     In panel mode the inline label already carries the count, so hide them. */
+  [data-variant="panel"] .apple-dock-credit-badge,
+  [data-variant="panel"] .apple-dock-count-badge {
+    display: none;
+  }
+  /* Avatar ring is a circle pinned to the avatar's own square footprint.
+     In panel mode the button becomes a wide row, so the ring stretches
+     into an oval — hide it and let the AvatarRenderer carry the identity. */
+  [data-variant="panel"] .apple-dock-avatar-ring {
+    display: none;
+  }
 
   .apple-dock-divider {
     position: relative;
