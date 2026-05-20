@@ -282,7 +282,7 @@ export const realEarthEntryInputSchema = z.object({
   quality: qualitySchema,
   isTaiwanFocused: z.boolean().optional(),
   language: z.enum(["zh-TW", "zh-CN", "en", "ja", "other"]).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export type RealEarthEntryInput = z.infer<typeof realEarthEntryInputSchema>;

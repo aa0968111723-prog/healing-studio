@@ -460,17 +460,13 @@ export const teachingArchiveRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const mat = await loadMaterialForWrite(
-        input.materialId,
-        ctx.user.id,
-        ctx.user.role
-      );
+      const mat = await loadMaterialForWrite(input.materialId, { userId: ctx.user.id });
       if (!mat) {
         throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在或無權修改" });
       }
 
       // 取得現有的連結
-      const existingRefs = (mat.realEarthRefs as number[]) ?? [];
+      const existingRefs = (mat.material.realEarthRefs as number[]) ?? [];
       if (existingRefs.includes(input.realEarthId)) {
         // 已經連結過了
         return { ok: true, alreadyLinked: true };
@@ -494,17 +490,13 @@ export const teachingArchiveRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const mat = await loadMaterialForWrite(
-        input.materialId,
-        ctx.user.id,
-        ctx.user.role
-      );
+      const mat = await loadMaterialForWrite(input.materialId, { userId: ctx.user.id });
       if (!mat) {
         throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在或無權修改" });
       }
 
       // 取得現有的連結
-      const existingRefs = (mat.realEarthRefs as number[]) ?? [];
+      const existingRefs = (mat.material.realEarthRefs as number[]) ?? [];
       const newRefs = existingRefs.filter(id => id !== input.realEarthId);
 
       await db.updateTeachingMaterial(input.materialId, {
@@ -518,16 +510,12 @@ export const teachingArchiveRouter = router({
   getRealEarthLinks: protectedProcedure
     .input(z.object({ materialId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      const mat = await loadMaterialForRead(
-        input.materialId,
-        ctx.user.id,
-        ctx.user.role
-      );
+      const mat = await loadMaterialForRead(input.materialId, { userId: ctx.user.id });
       if (!mat) {
         throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在或無權查看" });
       }
 
-      const refs = (mat.realEarthRefs as number[]) ?? [];
+      const refs = (mat.material.realEarthRefs as number[]) ?? [];
       return { realEarthIds: refs };
     }),
 });

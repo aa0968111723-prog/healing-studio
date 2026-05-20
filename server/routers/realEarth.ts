@@ -58,12 +58,11 @@ export const realEarthRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const params = input ?? {};
       const rows = await db.getRealEarthEntries({
-        category: params.category,
-        taiwanOnly: params.taiwanOnly,
-        limit: params.limit,
-        offset: params.offset,
+        category: input?.category,
+        taiwanOnly: input?.taiwanOnly,
+        limit: input?.limit,
+        offset: input?.offset,
       });
       return rows.map(rowToEntry);
     }),
@@ -214,11 +213,10 @@ export const realEarthRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const params = input ?? {};
       const rows = await db.getRealEarthEntries({
         taiwanOnly: true,
-        category: params.category,
-        limit: params.limit,
+        category: input?.category,
+        limit: input?.limit,
         offset: 0,
       });
       return rows.map(rowToEntry);

@@ -212,7 +212,7 @@ export const SEED_DATA: RealEarthEntryInput[] = [
     tags: ["淡江大學", "私立大學", "高等教育", "淡水", "新北市", "國際化", "教育機構"],
     quality: {
       credibility: "verified",
-      sourceType: "official",
+      sourceType: "government",
     },
     isTaiwanFocused: true,
     language: "zh-TW",
@@ -475,7 +475,7 @@ export const SEED_DATA: RealEarthEntryInput[] = [
     tags: ["北藝大", "藝術大學", "高等教育", "關渡", "台北市", "藝術教育", "表演藝術"],
     quality: {
       credibility: "verified",
-      sourceType: "official",
+      sourceType: "government",
     },
     isTaiwanFocused: true,
     language: "zh-TW",
