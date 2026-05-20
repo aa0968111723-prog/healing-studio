@@ -5522,7 +5522,7 @@ export default function AnimationStudio() {
       ];
     }, [selectedTab]),
 
-    handler: useCallback(async (action: AgentAction) => {
+    handle: useCallback(async (action: AgentAction) => {
       if (action.type === "setTab") {
         const validTabs = [
           "characters",
@@ -5593,32 +5593,16 @@ export default function AnimationStudio() {
       return { ok: false, reason: "不支援的動作" };
     }, [selectedWorldId, generateCharacterMutation, generateSceneMutation, generateStoryboardMutation]),
 
-    getSnapshot: useCallback(() => {
-      return {
-        pageId: "worldbuilding",
-        pageLabel: "世界觀系統",
-        pagePath: "/animation",
-        activeMode: undefined,
-        activeModel: undefined,
-        selectedPreset: undefined,
-        availableModels: [],
-        availableModes: [],
-        availableParameters: [],
-        currentPrompt: undefined,
-        hasUnsavedChanges: false,
-        warnings: [],
-        capabilities: [],
-        state: {
-          selectedWorldId,
-          selectedTab,
-          hasWorld: !!draft,
-          worldName: draft?.name || "",
-          charactersCount: draft?.characters?.length || 0,
-          scenesCount: draft?.scenes?.length || 0,
-          storyboardsCount: storyboardsQuery.data?.length || 0,
-        },
-      };
-    }, [selectedWorldId, selectedTab, draft, storyboardsQuery.data]),
+    pagePath: "/animation",
+    state: {
+      selectedWorldId,
+      selectedTab,
+      hasWorld: !!draft,
+      worldName: draft?.name || "",
+      charactersCount: draft?.characters?.length || 0,
+      scenesCount: draft?.scenes?.length || 0,
+      storyboardsCount: storyboardsQuery.data?.length || 0,
+    },
   });
 
   // 開分鏡細節（URL 路由）
