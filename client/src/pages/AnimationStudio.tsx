@@ -75,6 +75,8 @@ import {
   Maximize2,
   Minimize2,
   ArrowLeft,
+  Eye,
+  MousePointerClick,
 } from "lucide-react";
 import { EarthGlobeAnimation } from "@/components/animation/EarthGlobeAnimation";
 import { CharacterVisualPreview } from "@/components/animation/CharacterVisualPreview";
@@ -5806,7 +5808,69 @@ export default function AnimationStudio() {
   if (!selectedWorld) return null;
 
   // 渲染用 draft（本地、即時反應使用者輸入），未 ready 時 fallback 到 server 資料
-  const effectiveWorld = draft ?? selectedWorld;
+  const visualAssetGallery = useMemo(() => {
+    const items: Array<{ id: string; title: string; url: string; type: "角色" | "場景" | "資產" }> = [];
+
+    effectiveWorld.characters.forEach(character => {
+      character.referenceLibrary?.forEach(ref => {
+        if (!ref.imageUrl) return;
+        items.push({
+          id: `char-${character.id}-${ref.id}`,
+          title: `${character.name} · ${ref.category ?? "參考"}`,
+          url: ref.imageUrl,
+          type: "角色",
+        });
+      });
+      character.ageVariants?.forEach(variant => {
+        variant.imageUrls?.forEach((url, idx) => {
+          if (!url) return;
+          items.push({
+            id: `age-${character.id}-${variant.id}-${idx}`,
+            title: `${character.name} · ${variant.name}`,
+            url,
+            type: "角色",
+          });
+        });
+      });
+    });
+
+    effectiveWorld.scenes.forEach(scene => {
+      scene.realWorldRefs?.forEach(ref => {
+        ref.imageUrls?.forEach((url, idx) => {
+          if (!url) return;
+          items.push({
+            id: `scene-${scene.id}-${ref.id}-${idx}`,
+            title: `${scene.name} · ${ref.label}`,
+            url,
+            type: "場景",
+          });
+        });
+      });
+    });
+
+    effectiveWorld.uploadedAssets?.forEach(asset => {
+      if (asset.assetType !== "image" || !asset.url) return;
+      items.push({
+        id: `asset-${asset.id}`,
+        title: asset.label || "素材",
+        url: asset.url,
+        type: "資產",
+      });
+    });
+
+    return items.slice(0, 12);
+  }, [effectiveWorld]);
+
+  const completionRatio = Math.min(
+    1,
+    [
+      effectiveWorld.characters.length > 0,
+      effectiveWorld.scenes.length > 0,
+      (effectiveWorld.styleProfiles?.length ?? 0) > 0,
+      (effectiveWorld.musicThemes?.length ?? 0) > 0,
+      (storyboardsQuery.data?.length ?? 0) > 0,
+    ].filter(Boolean).length / 5
+  );
 
   return (
     <>
@@ -5994,6 +6058,59 @@ export default function AnimationStudio() {
           placeholder="全域負面詞（如 watermark, blurry, extra fingers）"
           className="h-7 text-xs"
         />
+      </div>
+
+      <div className={`rounded-xl p-3 space-y-3 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg" : "border border-border/40 bg-card/30"}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="text-[11px]">
+            <Eye className="w-3 h-3 mr-1" /> 視覺進度 {Math.round(completionRatio * 100)}%
+          </Badge>
+          <div className="h-2 w-36 rounded-full bg-muted overflow-hidden">
+            <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(completionRatio * 100)}%` }} />
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            已蒐集 {visualAssetGallery.length} 筆可用視覺素材
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {[
+            ["characters", "先補角色視覺"],
+            ["scenes", "先補場景氛圍"],
+            ["storyboards", "進入分鏡規劃"],
+          ].map(([tab, label]) => (
+            <Button key={tab} size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedTab(tab as typeof selectedTab)}>
+              <MousePointerClick className="w-3 h-3 mr-1" />
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        {visualAssetGallery.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {visualAssetGallery.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                className="group text-left rounded-lg overflow-hidden border border-border/40 bg-black/5 hover:border-primary/60 transition"
+                onClick={() => {
+                  if (item.type === "角色") setSelectedTab("characters");
+                  else if (item.type === "場景") setSelectedTab("scenes");
+                }}
+              >
+                <img src={item.url} alt={item.title} className="h-20 w-full object-cover" loading="lazy" />
+                <div className="p-1.5">
+                  <p className="text-[10px] text-muted-foreground">{item.type}</p>
+                  <p className="text-[11px] leading-tight line-clamp-2">{item.title}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            還沒有可預覽的視覺素材。先在角色參考圖、場景真實參考或資產庫上傳圖片，這裡會自動形成素材牆。
+          </p>
+        )}
       </div>
 
       {/* Tabs */}
