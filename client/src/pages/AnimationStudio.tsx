@@ -7,7 +7,7 @@
  *      口氣、語音檔、腳本定位
  *   3. 分鏡時間軸 —— 列出 / 新建分鏡、auto-seed 骨架、跑管線 plan、匯出鏡頭表
  *
- * 此頁面是「世界觀架構」與「動畫產線」的單一入口，串接全站功能：
+ * 此頁面是「世界觀架構」與「動畫產線」的單一入口，串接全站功能，且生成流程統一走站內系統（不直連外部功能）：
  *   - 模型訓練中心（LoRA）— 角色 / 場景 / 風格 profile
  *   - Image Studio / Video Studio — 圖楨 / 細膩化 / i2v
  *   - Pro Studio — 配樂 / 配音 / 音效
@@ -473,7 +473,7 @@ const ThreeViewEditor = memo(function ThreeViewEditor({
                 <GenerateImageButton
                   prompt={compiledPrompt}
                   aspectRatio="3:4"
-                  label="AI 生成"
+                  label="Fal.ai 生成"
                   onSuccess={imgUrl =>
                     patch({ [v.key]: imgUrl } as Partial<typeof sheet>)
                   }
@@ -4046,7 +4046,7 @@ const SceneCard = memo(function SceneCard({
                   .filter(Boolean)
                   .join(", ")}
                 aspectRatio={scene.preferredAspectRatio || "16:9"}
-                label="AI 生成"
+                label="Fal.ai 生成"
                 onSuccess={url => patch({ establishingShotUrl: url })}
                 disabled={!scene.name}
               />
@@ -5700,7 +5700,7 @@ export default function AnimationStudio() {
         <Film className="w-12 h-12 mx-auto text-muted-foreground/50" />
         <h2 className="text-lg font-semibold">建立第一個世界觀</h2>
         <p className="text-sm text-muted-foreground">
-          世界觀系統 = 世界觀 × 分鏡。先在這裡建立世界、配置角色（三視圖、表情、
+          世界觀系統 = 世界觀 × 分鏡，並統一串接全站可用的站內生成系統。先在這裡建立世界、配置角色（三視圖、表情、
           穿衣、口氣、語音、腳本定位）與場景，接著派生分鏡時間軸、編排動畫渲染管線。
         </p>
         <Button
