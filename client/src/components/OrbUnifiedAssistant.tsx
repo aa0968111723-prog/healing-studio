@@ -41,6 +41,14 @@ import {
   ChevronRight,
   Target,
   Wand2,
+  StickyNote,
+  Circle,
+  CircleDot,
+  CircleCheck,
+  Calendar,
+  Tag,
+  Check,
+  CalendarDays,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -55,7 +63,7 @@ import FocusFlowMini from "./FocusFlowMini";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export type UnifiedTab = "prompts" | "focus" | "chat" | "credits" | "page";
+export type UnifiedTab = "prompts" | "focus" | "chat" | "credits" | "page" | "notes";
 
 interface Props {
   fullscreen?: boolean;
@@ -69,6 +77,7 @@ const TABS: { key: UnifiedTab; label: string; icon: typeof Lightbulb }[] = [
   { key: "chat", label: "對話", icon: MessageCircle },
   { key: "focus", label: "專注流", icon: Leaf },
   { key: "credits", label: "積分", icon: Coins },
+  { key: "notes", label: "筆記", icon: StickyNote },
 ];
 
 const PROMPT_CATEGORIES = [
@@ -105,7 +114,7 @@ export default function OrbUnifiedAssistant({
       {/* Tab bar — 五顆並排，等寬 */}
       <div
         className={cn(
-          "shrink-0 grid grid-cols-5 gap-1 px-2 pt-1 pb-2"
+          "shrink-0 grid grid-cols-6 gap-0.5 px-2 pt-1 pb-2"
         )}
       >
         {TABS.map(t => {
@@ -196,6 +205,17 @@ export default function OrbUnifiedAssistant({
               transition={{ duration: 0.18 }}
             >
               <CreditsPanel fullscreen={fullscreen} />
+            </motion.div>
+          )}
+          {tab === "notes" && (
+            <motion.div
+              key="notes"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+            >
+              <NotesSchedulePanel fullscreen={fullscreen} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1976,5 +1996,453 @@ function NumberRow({
         {suffix && <span className="text-white/45 ml-0.5">{suffix}</span>}
       </span>
     </label>
+  );
+}
+
+// ─── NotesSchedulePanel ────────────────────────────────────────────────────
+// 在光球內直接編輯筆記與排程，即時同步到主頁面（共用 tRPC 快取）
+
+type OrbNoteStatus = "todo" | "in_progress" | "done";
+
+const orbStatusInfo: Record<OrbNoteStatus, { label: string; icon: React.ReactNode; pill: string }> = {
+  todo: { label: "待辦", icon: <Circle className="w-3 h-3" />, pill: "bg-sky-400/15 text-sky-300 border-sky-400/30" },
+  in_progress: { label: "進行中", icon: <CircleDot className="w-3 h-3" />, pill: "bg-amber-400/15 text-amber-300 border-amber-400/30" },
+  done: { label: "完成", icon: <CircleCheck className="w-3 h-3" />, pill: "bg-emerald-400/15 text-emerald-300 border-emerald-400/30" },
+};
+
+function orbNextStatus(s: OrbNoteStatus): OrbNoteStatus {
+  if (s === "todo") return "in_progress";
+  if (s === "in_progress") return "done";
+  return "todo";
+}
+
+const ORB_NOTE_TYPE_LABELS: Record<string, string> = {
+  note: "筆記",
+  script: "腳本",
+  calendar_event: "行事曆",
+};
+
+function NotesSchedulePanel({ fullscreen }: { fullscreen: boolean }) {
+  const utils = trpc.useUtils();
+
+  const notesQuery = trpc.notes.list.useQuery(undefined, {
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  const createNote = trpc.notes.create.useMutation({
+    onSuccess: () => {
+      utils.notes.list.invalidate();
+      utils.notes.summary.invalidate();
+      setShowCreate(false);
+      setNewTitle("");
+      setNewContent("");
+      setNewTags("");
+      setNewType("note");
+      toast.success("筆記已建立");
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const updateNote = trpc.notes.update.useMutation({
+    onSuccess: (_d, vars) => {
+      utils.notes.list.invalidate();
+      utils.notes.summary.invalidate();
+      if (vars?.status === "done") toast.success("已標記完成 ✓");
+      else if (vars?.status) toast.success("狀態已更新");
+      else { toast.success("筆記已更新"); setEditingId(null); }
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const deleteNote = trpc.notes.delete.useMutation({
+    onSuccess: () => {
+      utils.notes.list.invalidate();
+      utils.notes.summary.invalidate();
+      toast.success("已刪除");
+    },
+  });
+
+  // Create form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [newTags, setNewTags] = useState("");
+  const [newType, setNewType] = useState<"note" | "script" | "calendar_event">("note");
+
+  // Edit state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editTags, setEditTags] = useState("");
+
+  // View toggle
+  const [view, setView] = useState<"notes" | "schedule">("notes");
+
+  const allNotes = notesQuery.data ?? [];
+
+  const recentNotes = useMemo(
+    () =>
+      [...allNotes]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10),
+    [allNotes]
+  );
+
+  const upcomingNotes = useMemo(() => {
+    const now = Date.now();
+    return [...allNotes]
+      .filter(
+        n =>
+          n.scheduledDate &&
+          new Date(n.scheduledDate).getTime() >= now - 24 * 60 * 60 * 1000 &&
+          (n.status ?? "todo") !== "done"
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.scheduledDate!).getTime() - new Date(b.scheduledDate!).getTime()
+      )
+      .slice(0, 8);
+  }, [allNotes]);
+
+  const startEdit = (note: { id: number; title: string; content?: string | null; tags?: string[] | null }) => {
+    setEditingId(note.id);
+    setEditTitle(note.title);
+    setEditContent(note.content ?? "");
+    setEditTags(((note.tags as string[] | null) ?? []).join(", "));
+  };
+
+  const saveEdit = () => {
+    if (!editTitle.trim() || editingId === null) return;
+    const tags = editTags.trim()
+      ? editTags.split(",").map(t => t.trim()).filter(Boolean)
+      : [];
+    updateNote.mutate({
+      id: editingId,
+      title: editTitle.trim(),
+      content: editContent.trim() || undefined,
+      tags: tags.length ? tags : undefined,
+    });
+  };
+
+  const handleCreate = () => {
+    if (!newTitle.trim()) { toast.error("請輸入標題"); return; }
+    const tags = newTags.trim()
+      ? newTags.split(",").map(t => t.trim()).filter(Boolean)
+      : undefined;
+    createNote.mutate({ title: newTitle.trim(), content: newContent.trim() || undefined, noteType: newType, tags });
+  };
+
+  const baseText = fullscreen ? "text-sm" : "text-xs";
+
+  return (
+    <div className={cn("space-y-2.5", baseText, "text-white/85")}>
+      {/* View toggle */}
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/4 p-0.5">
+        {(["notes", "schedule"] as const).map(v => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            aria-pressed={view === v}
+            className={cn(
+              "rounded-lg py-1.5 text-[11px] font-medium transition-all flex items-center justify-center gap-1",
+              view === v ? "bg-white/15 text-white" : "text-white/50 hover:text-white/85"
+            )}
+          >
+            {v === "notes" ? <StickyNote className="w-3 h-3" /> : <CalendarDays className="w-3 h-3" />}
+            {v === "notes" ? "筆記" : "排程"}
+          </button>
+        ))}
+      </div>
+
+      {/* Quick create */}
+      {!showCreate ? (
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300/30 bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-100 px-3 py-2 text-[11px] transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          新增筆記
+        </button>
+      ) : (
+        <div className="rounded-xl border border-emerald-300/30 bg-emerald-400/8 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-emerald-100/90 font-medium">新增筆記</span>
+            <button type="button" onClick={() => setShowCreate(false)} className="text-white/40 hover:text-white/70">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <input
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            placeholder="標題 *"
+            className="w-full bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/30 outline-none focus:border-emerald-300/50"
+            onKeyDown={e => e.key === "Enter" && handleCreate()}
+            autoFocus
+          />
+          <textarea
+            value={newContent}
+            onChange={e => setNewContent(e.target.value)}
+            placeholder="內容（選填）"
+            rows={3}
+            className="w-full bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder:text-white/30 outline-none resize-none focus:border-emerald-300/50"
+          />
+          <input
+            value={newTags}
+            onChange={e => setNewTags(e.target.value)}
+            placeholder="標籤（逗號分隔，選填）"
+            className="w-full bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder:text-white/30 outline-none focus:border-emerald-300/50"
+          />
+          {/* Type selector */}
+          <div className="flex gap-1">
+            {(["note", "script", "calendar_event"] as const).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setNewType(t)}
+                className={cn(
+                  "flex-1 py-1 rounded-lg text-[10px] font-medium border transition-all",
+                  newType === t
+                    ? "border-emerald-300/50 bg-emerald-400/20 text-emerald-100"
+                    : "border-white/10 bg-white/5 text-white/50 hover:text-white/80"
+                )}
+              >
+                {ORB_NOTE_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setShowCreate(false); setNewTitle(""); setNewContent(""); setNewTags(""); }}
+              className="flex-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/12 text-white/60 py-1.5 text-[11px] transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={!newTitle.trim() || createNote.isPending}
+              className="flex-1 rounded-lg bg-emerald-500/80 hover:bg-emerald-500 text-white py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50"
+            >
+              {createNote.isPending ? "建立中…" : "建立"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Content: notes list or schedule list */}
+      {notesQuery.isLoading ? (
+        <div className="flex items-center justify-center py-6 text-white/40 text-[11px] gap-1.5">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          載入中…
+        </div>
+      ) : view === "notes" ? (
+        <div className="space-y-1.5">
+          {recentNotes.length === 0 ? (
+            <p className="text-[11px] text-white/40 text-center py-4">尚無筆記，點上方按鈕新增</p>
+          ) : (
+            recentNotes.map(note => {
+              const status = (note.status ?? "todo") as OrbNoteStatus;
+              const sInfo = orbStatusInfo[status];
+              const isEditing = editingId === note.id;
+              const tags = (note.tags as string[] | null) ?? [];
+
+              return (
+                <div
+                  key={note.id}
+                  className={cn(
+                    "rounded-xl border bg-white/5 hover:bg-white/8 transition-colors",
+                    isEditing ? "border-emerald-300/30" : "border-white/10"
+                  )}
+                >
+                  <div className="flex items-center gap-2 px-2.5 py-2">
+                    {/* Status toggle */}
+                    <button
+                      type="button"
+                      onClick={() => updateNote.mutate({ id: note.id, status: orbNextStatus(status) })}
+                      title={`狀態：${sInfo.label}`}
+                      className={cn("shrink-0 rounded-full p-0.5 border hover:scale-110 transition-transform", sInfo.pill)}
+                    >
+                      {sInfo.icon}
+                    </button>
+
+                    {/* Title / edit field */}
+                    {isEditing ? (
+                      <input
+                        value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        className="flex-1 bg-white/8 border border-white/20 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-emerald-300/50 min-w-0"
+                        onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingId(null); }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex-1 text-[12px] truncate cursor-pointer",
+                          status === "done" ? "line-through text-white/40" : "text-white/90"
+                        )}
+                        onClick={() => startEdit(note)}
+                        title="點擊編輯"
+                      >
+                        {note.title}
+                      </span>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={saveEdit}
+                            disabled={updateNote.isPending}
+                            className="rounded-lg p-1 bg-emerald-400/20 hover:bg-emerald-400/35 text-emerald-200 transition-colors"
+                            title="儲存"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            className="rounded-lg p-1 hover:bg-white/10 text-white/50 transition-colors"
+                            title="取消"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(note)}
+                            className="rounded-lg p-1 hover:bg-white/10 text-white/40 hover:text-white/80 transition-colors"
+                            title="編輯"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteNote.mutate({ id: note.id })}
+                            className="rounded-lg p-1 hover:bg-red-500/20 text-white/30 hover:text-red-300 transition-colors"
+                            title="刪除"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded edit fields */}
+                  {isEditing && (
+                    <div className="px-2.5 pb-2.5 space-y-2 border-t border-white/8 mt-1 pt-2">
+                      <textarea
+                        value={editContent}
+                        onChange={e => setEditContent(e.target.value)}
+                        placeholder="內容…"
+                        rows={4}
+                        className="w-full bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder:text-white/30 outline-none resize-none focus:border-emerald-300/50"
+                      />
+                      <input
+                        value={editTags}
+                        onChange={e => setEditTags(e.target.value)}
+                        placeholder="標籤（逗號分隔）"
+                        className="w-full bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder:text-white/30 outline-none focus:border-emerald-300/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={saveEdit}
+                        disabled={!editTitle.trim() || updateNote.isPending}
+                        className="w-full rounded-lg bg-emerald-500/80 hover:bg-emerald-500 text-white py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50"
+                      >
+                        {updateNote.isPending ? "儲存中…" : "儲存變更"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Type + tags info (non-editing) */}
+                  {!isEditing && (
+                    <div className="flex items-center gap-1.5 px-2.5 pb-2 flex-wrap">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/8 text-white/45">
+                        {ORB_NOTE_TYPE_LABELS[note.noteType] ?? note.noteType}
+                      </span>
+                      {note.scheduledDate && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 flex items-center gap-0.5">
+                          <Calendar className="w-2 h-2" />
+                          {new Date(note.scheduledDate).toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" })}
+                        </span>
+                      )}
+                      {tags.slice(0, 2).map(tag => (
+                        <span key={tag} className="text-[9px] px-1 py-0.5 rounded bg-violet-400/15 text-violet-300 flex items-center gap-0.5">
+                          <Tag className="w-2 h-2" />{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        // Schedule view
+        <div className="space-y-1.5">
+          {upcomingNotes.length === 0 ? (
+            <p className="text-[11px] text-white/40 text-center py-4">目前沒有排程中的筆記</p>
+          ) : (
+            upcomingNotes.map(note => {
+              const status = (note.status ?? "todo") as OrbNoteStatus;
+              const sInfo = orbStatusInfo[status];
+              const dt = note.scheduledDate ? new Date(note.scheduledDate) : null;
+              const now = new Date();
+              now.setHours(0, 0, 0, 0);
+              const isOverdue = dt ? dt.getTime() < now.getTime() : false;
+              const isToday = dt ? dt.toDateString() === now.toDateString() : false;
+
+              return (
+                <div
+                  key={note.id}
+                  className={cn(
+                    "rounded-xl border p-2.5 bg-white/5 transition-colors",
+                    isOverdue ? "border-red-400/30" : isToday ? "border-amber-400/30" : "border-white/10"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateNote.mutate({ id: note.id, status: orbNextStatus(status) })}
+                      title={`狀態：${sInfo.label}`}
+                      className={cn("shrink-0 rounded-full p-0.5 border hover:scale-110 transition-transform", sInfo.pill)}
+                    >
+                      {sInfo.icon}
+                    </button>
+                    <span className={cn("flex-1 text-[12px] truncate", status === "done" ? "line-through text-white/40" : "text-white/90")}>
+                      {note.title}
+                    </span>
+                    {dt && (
+                      <span
+                        className={cn(
+                          "text-[10px] tabular-nums shrink-0 font-medium",
+                          isOverdue ? "text-red-300" : isToday ? "text-amber-300" : "text-white/55"
+                        )}
+                      >
+                        {isOverdue
+                          ? `逾期 ${Math.max(1, Math.floor((now.getTime() - dt.getTime()) / (24 * 60 * 60 * 1000)))}天`
+                          : isToday
+                          ? dt.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })
+                          : dt.toLocaleDateString("zh-TW", { month: "numeric", day: "numeric" })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
   );
 }

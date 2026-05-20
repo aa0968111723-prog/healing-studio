@@ -538,12 +538,12 @@ function NewEventForm({
 
 // ─── Calendar Page ─────────────────────────────────────────────────────────
 
-export default function CalendarPage() {
+export default function CalendarPage({ embedded = false }: { embedded?: boolean }) {
   const { personality } = useAIState();
   const [, navigate] = useLocation();
 
-  // 全站新手引導
-  usePageTour("calendar");
+  // 全站新手引導（嵌入模式不重複觸發）
+  usePageTour(embedded ? null : "calendar");
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date()
@@ -765,6 +765,7 @@ export default function CalendarPage() {
     pageId: "calendar",
     pageLabel: "創作行事曆",
     pagePath: "/calendar",
+    enabled: !embedded,
     capabilities: calendarAgentCapabilities,
     state: {
       month: month.toISOString(),
@@ -911,7 +912,7 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+      <div className={`flex items-end justify-between gap-4 ${embedded ? "lg:flex-col lg:items-start" : ""}`}>
         <header className="page-header !mb-0">
           <h1 className="page-title !mb-0">創作排程</h1>
           <p className="page-subtitle">
