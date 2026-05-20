@@ -450,6 +450,86 @@ export const teachingArchiveRouter = router({
       }
       return hits;
     }),
+
+  /** 連結真實地球資訊條目 */
+  linkRealEarthEntry: protectedProcedure
+    .input(
+      z.object({
+        materialId: z.number().int().positive(),
+        realEarthId: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const mat = await loadMaterialForWrite(
+        input.materialId,
+        ctx.user.id,
+        ctx.user.role
+      );
+      if (!mat) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在或無權修改" });
+      }
+
+      // 取得現有的連結
+      const existingRefs = (mat.realEarthRefs as number[]) ?? [];
+      if (existingRefs.includes(input.realEarthId)) {
+        // 已經連結過了
+        return { ok: true, alreadyLinked: true };
+      }
+
+      // 新增連結
+      const newRefs = [...existingRefs, input.realEarthId];
+      await db.updateTeachingMaterial(input.materialId, {
+        realEarthRefs: newRefs,
+      });
+
+      return { ok: true, alreadyLinked: false };
+    }),
+
+  /** 移除真實地球資訊條目連結 */
+  unlinkRealEarthEntry: protectedProcedure
+    .input(
+      z.object({
+        materialId: z.number().int().positive(),
+        realEarthId: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const mat = await loadMaterialForWrite(
+        input.materialId,
+        ctx.user.id,
+        ctx.user.role
+      );
+      if (!mat) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在或無權修改" });
+      }
+
+      // 取得現有的連結
+      const existingRefs = (mat.realEarthRefs as number[]) ?? [];
+      const newRefs = existingRefs.filter(id => id !== input.realEarthId);
+
+      await db.updateTeachingMaterial(input.materialId, {
+        realEarthRefs: newRefs,
+      });
+
+      return { ok: true };
+    }),
+
+  /** 取得教材的真實地球資訊連結 */
+  getRealEarthLinks: protectedProcedure
+    .input(z.object({ materialId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const mat = await loadMaterialForRead(
+        input.materialId,
+        ctx.user.id,
+        ctx.user.role
+      );
+      if (!mat) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "教材不存在或無權查看" });
+      }
+
+      const refs = (mat.realEarthRefs as number[]) ?? [];
+      return { realEarthIds: refs };
+    }),
 });
 
 export type TeachingArchiveRouter = typeof teachingArchiveRouter;

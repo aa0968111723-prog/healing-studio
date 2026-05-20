@@ -16,6 +16,7 @@ import {
   type RealEarthSearchResult,
   type RealEarthSearchParams,
 } from "../../shared/real-earth-types";
+import { seedRealEarthData, hasExistingSeedData } from "../services/realEarthSeeder";
 
 /**
  * 將資料庫 row 轉換成 RealEarthEntry 格式
@@ -264,5 +265,43 @@ export const realEarthRouter = router({
       }
 
       return related;
+    }),
+
+  /** 初始化種子資料（僅管理員可用） */
+  seedData: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      // 檢查權限：僅管理員可執行
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "僅管理員可執行此操作" });
+      }
+
+      // 檢查是否已有資料
+      const hasData = await hasExistingSeedData();
+      if (hasData) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "系統已有資料，無法重複初始化。如需重新初始化，請先清空資料庫。"
+        });
+      }
+
+      // 執行種子資料初始化
+      const result = await seedRealEarthData(ctx.user.id);
+      return result;
+    }),
+
+  /** 檢查是否需要初始化 */
+  needsInit: protectedProcedure
+    .query(async ({ ctx }) => {
+      const hasData = await hasExistingSeedData();
+      return { needsInit: !hasData };
+    }),
+
+  /** 取得關聯的教材列表 */
+  getLinkedMaterials: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const entryId = parseInt(input.id, 10);
+      const materials = await db.findTeachingMaterialsByRealEarthRef(entryId);
+      return materials;
     }),
 });

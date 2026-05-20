@@ -3446,3 +3446,24 @@ export async function findSimilarRealEarthEntries(params: {
 
   return rows;
 }
+
+/**
+ * 根據真實地球條目 ID 查找關聯的教材
+ */
+export async function findTeachingMaterialsByRealEarthRef(
+  realEarthId: number
+): Promise<TeachingMaterial[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 使用 JSON_CONTAINS 查詢包含特定 ID 的教材
+  const rows = await db
+    .select()
+    .from(teachingMaterials)
+    .where(
+      sql`JSON_CONTAINS(${teachingMaterials.realEarthRefs}, ${JSON.stringify(realEarthId)})`
+    )
+    .orderBy(desc(teachingMaterials.createdAt));
+
+  return rows;
+}

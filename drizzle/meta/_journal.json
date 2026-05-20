@@ -414,6 +414,13 @@
       "when": 1779050000065,
       "tag": "0065_real_earth_information_system",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "5",
+      "when": 1779050000066,
+      "tag": "0066_teaching_materials_real_earth_refs",
+      "breakpoints": true
     }
   ]
 }

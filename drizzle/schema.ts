@@ -3437,6 +3437,9 @@ export const teachingMaterials = mysqlTable(
     speaker: varchar("speaker", { length: 128 }),
     tags: json("tags").$type<string[]>(),
 
+    /** 關聯的真實地球資訊條目 ID（用於深度連結） */
+    realEarthRefs: json("realEarthRefs").$type<number[]>(),
+
     // ── 管理 ─────────────────────────────────────────────────────────────
     visibility: mysqlEnum("visibility", [
       "private",
