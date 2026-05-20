@@ -26,8 +26,11 @@ import {
   validateStoryboardTimeline,
   summarizeStoryboardForPrompt,
   type WorldStoryboard,
+  type StoryboardScene,
+  type StoryboardCharacterBeat,
 } from "../../shared/worldbuilding-animation";
 import type { WorldbuildingFrameworkData } from "../../shared/worldbuilding-types";
+import { parseDurationToSeconds } from "../services/director/exportFormats";
 
 // ─── 內部 helper：DB row → API model ────────────────────────────────────────
 
@@ -348,6 +351,114 @@ export const worldStoryboardRouter = router({
       const framework = await loadFramework(ctx.user.id, row.worldId);
       const sb = rowToStoryboard(row);
       return { summary: summarizeStoryboardForPrompt(sb, framework) };
+    }),
+
+  /**
+   * Phase 2 後續：把 Director 生成或匯入的腳本段落直接轉成分鏡板場景。
+   *
+   * 與 seedSkeleton 的差異：seedSkeleton 是從世界觀框架反推場景骨架（角色
+   * 分桶 + 旁白節點 + 平均切分），這個端點則是直接接受已經規劃好的腳本
+   * 段落（visualDescription / dialogue / duration），按段落順序建立場景。
+   *
+   * 後續使用者可在 /animation 內細調，或直接呼叫 planPipeline 跑生成。
+   */
+  createFromSegments: protectedProcedure
+    .input(
+      z.object({
+        worldId: z.number().int().positive(),
+        name: z.string().min(1).max(255),
+        segments: z
+          .array(
+            z.object({
+              rawText: z.string().optional(),
+              storyboard: z.object({
+                sceneHeading: z.string(),
+                visualDescription: z.string(),
+                dialogue: z.string(),
+                soundDesign: z.string(),
+                cameraDirection: z.string(),
+                duration: z.string(),
+                mood: z.string(),
+              }),
+              characters: z.array(z.string()).default([]),
+              locations: z.array(z.string()).default([]),
+            })
+          )
+          .min(1)
+          .max(60),
+        aspectRatio: z.string().max(16).optional(),
+        fps: z.number().int().min(1).max(120).optional(),
+        sourceScriptId: z.string().max(64).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const framework = await loadFramework(ctx.user.id, input.worldId);
+
+      // 解析每段時長，累積成 startSec/endSec；至少 3 秒避免 0 秒場景
+      let cursor = 0;
+      const scenes: StoryboardScene[] = input.segments.map((seg, idx) => {
+        const durSec = Math.max(
+          3,
+          parseDurationToSeconds(seg.storyboard.duration) || 5
+        );
+        const startSec = cursor;
+        const endSec = cursor + durSec;
+        cursor = endSec;
+
+        // 比對 segment.characters 與 framework.characters，建立 characterBeats
+        // 名字相符就帶上 characterId（指向 framework.characters[].id），
+        // 後續 /animation 內可手動調整未匹配的角色
+        const characterBeats: StoryboardCharacterBeat[] = [];
+        for (const charName of seg.characters ?? []) {
+          const fwChar = framework.characters.find(c => c.name === charName);
+          if (!fwChar) continue;
+          characterBeats.push({
+            characterId: fwChar.id,
+            startOffsetSec: 0,
+            durationSec: durSec,
+            dialogue: seg.storyboard.dialogue || undefined,
+          });
+        }
+
+        // 比對 segment.locations 與 framework.scenes 找 worldSceneId
+        const matchedScene = framework.scenes.find(s =>
+          (seg.locations ?? []).some(loc => s.name === loc)
+        );
+
+        const scene: StoryboardScene = {
+          id: `scene-${Date.now()}-${idx}`,
+          sequenceIndex: idx,
+          startSec,
+          endSec,
+          title: seg.storyboard.sceneHeading,
+          worldSceneId: matchedScene?.id,
+          characterBeats,
+          actionDescription: seg.storyboard.visualDescription,
+          cameraDirection: seg.storyboard.cameraDirection,
+          frames: [],
+          audioClips: [],
+          styleProfileId: framework.defaultStyleProfileId ?? null,
+          status: "draft",
+          notes: seg.rawText,
+        };
+        return scene;
+      });
+
+      const totalDurationSec = cursor;
+
+      const id = await db.createWorldStoryboard({
+        userId: ctx.user.id,
+        worldId: input.worldId,
+        name: input.name,
+        totalDurationSec,
+        fps: input.fps ?? 24,
+        aspectRatio: input.aspectRatio ?? "16:9",
+        scenesJson: scenes as unknown as Record<string, unknown>[],
+        productionStatus: "planning",
+        sourceScriptId: input.sourceScriptId,
+      });
+
+      return { id, sceneCount: scenes.length, totalDurationSec };
     }),
 
   /**
