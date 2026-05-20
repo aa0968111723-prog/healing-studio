@@ -100,6 +100,7 @@ import { QuickActionChip } from "@/components/director/QuickActionChip";
 import { SessionItem } from "@/components/director/SessionItem";
 import { PlanningSessionItem } from "@/components/director/PlanningSessionItem";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useWorldContext } from "@/contexts/WorldContextContext";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -2241,6 +2242,8 @@ export default function DirectorAI() {
   usePageTour("director");
   const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
   const [, navigate] = useLocation();
+  // 世界觀上下文：用於把生成 / 匯入的腳本一鍵變成分鏡板
+  const worldCtx = useWorldContext();
   const {
     setAIState,
     personality: globalPersonality,
@@ -2644,6 +2647,52 @@ export default function DirectorAI() {
   const deleteSessionMut = trpc.director.deleteSession.useMutation({
     onSuccess: () => sessionsQuery.refetch(),
   });
+
+  // Phase 2 後續：把當前腳本段落一鍵轉成分鏡板。需要當前選定的創作專案
+  // 有綁定世界觀，沒有的話會 toast 引導使用者去 /creative-projects。
+  const createStoryboardMut =
+    trpc.worldStoryboard.createFromSegments.useMutation({
+      onSuccess: data => {
+        toast.success(
+          `分鏡板已建立 — ${data.sceneCount} 個場景，共 ${data.totalDurationSec} 秒`
+        );
+        navigate(`/animation/${data.id}`);
+      },
+      onError: e => toast.error("建立分鏡板失敗：" + e.message),
+    });
+
+  const handleCreateStoryboardFromScript = useCallback(() => {
+    if (importedSegments.length === 0) {
+      toast.error("尚未有腳本段落");
+      return;
+    }
+    const worldId = worldCtx.worldFrameworkId;
+    if (!worldId) {
+      toast.error("請先在「創作專案」選定有綁定世界觀的專案", {
+        action: {
+          label: "前往",
+          onClick: () => navigate("/creative-projects"),
+        },
+      });
+      return;
+    }
+    createStoryboardMut.mutate({
+      worldId,
+      name: importedTitle || `分鏡板 ${new Date().toLocaleString("zh-TW")}`,
+      segments: importedSegments.map(s => ({
+        rawText: s.rawText,
+        storyboard: s.storyboard,
+        characters: s.characters ?? [],
+        locations: s.locations ?? [],
+      })),
+    });
+  }, [
+    importedSegments,
+    importedTitle,
+    worldCtx.worldFrameworkId,
+    navigate,
+    createStoryboardMut,
+  ]);
 
   // Script analysis hooks
   const quickActionsQuery = trpc.director.quickActions.useQuery(undefined, {
@@ -4716,6 +4765,28 @@ export default function DirectorAI() {
                   >
                     <Zap className="w-3.5 h-3.5 text-purple-600" />
                     批次生成
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-300/50 hover:from-blue-500/20 hover:to-cyan-500/20"
+                    onClick={handleCreateStoryboardFromScript}
+                    disabled={
+                      createStoryboardMut.isPending ||
+                      importedSegments.length === 0
+                    }
+                    title={
+                      worldCtx.worldFrameworkId
+                        ? `將 ${importedSegments.length} 個段落建為分鏡板`
+                        : "需要先在「創作專案」選定有綁定世界觀的專案"
+                    }
+                  >
+                    {createStoryboardMut.isPending ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                    ) : (
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                    建立分鏡板
                   </Button>
                   <Button
                     variant="outline"
