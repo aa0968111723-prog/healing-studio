@@ -1,353 +1,228 @@
 /**
- * WorldbuildingPanel — 導演 AI 的自訂世界觀架構器（第 4 個分頁）
+ * WorldbuildingPanel — 導演 AI 的世界觀儀表板
  *
- * 功能：
- *   - 多角色（主角／配角／反派／NPC），各自有
- *     喜好、興趣、穿著、樣貌、隨身物件、個性
- *   - 多場景，每個場景含環境、植被（花草樹木）、動物、物件、
- *     光線、氛圍、環境變化
- *   - 角色與場景可下拉連結到「模型訓練中心」已訓練完成的 LoRA
- *   - CRUD 透過 trpc.worldbuilding.* — 草稿即時暫存於 localStorage
+ * 重新設計：取代舊的草稿編輯器，改為任務表 / 儀表板形式。
+ *   - 展示所有已建立的世界觀框架（角色數、場景數、LoRA 連結）
+ *   - 每個世界觀有任務進度指示（待辦事項 checklist）
+ *   - 最上方有「進入世界觀系統」的主要 CTA 按鈕
+ *   - 深度編輯一律引導到 /animation 完整世界觀系統
  */
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { GlassCard } from "@/components/ZenCoPilot";
-import { toast } from "sonner";
-import {
-  Plus,
-  Trash2,
-  Save,
-  Users,
-  Palette,
-  MapPin,
-  Sparkles,
-  Link2,
-  X,
-  FolderOpen,
   Film,
+  Users,
+  MapPin,
+  Link2,
+  ChevronRight,
+  Plus,
+  CheckCircle2,
+  Circle,
+  Sparkles,
+  Wand2,
   Image as ImageIcon,
   Smile,
   Shirt,
   Volume2,
   Theater,
-  ChevronRight,
-  Wand2,
+  Camera,
+  ArrowRight,
 } from "lucide-react";
-import {
-  CHARACTER_ROLE_LABELS,
-  ENVIRONMENT_CHANGE_PRESETS,
-  ERA_PRESETS,
-  GENRE_PRESETS,
-  PERSONALITY_TRAIT_PRESETS,
-  SCENE_LIGHTING_PRESETS,
-  SCENE_MOOD_PRESETS,
-  type CharacterRole,
-  type WorldCharacter,
-  type WorldScene,
-  type WorldbuildingFrameworkData,
-} from "../../../../shared/worldbuilding-types";
+import type { WorldbuildingFrameworkData } from "../../../../shared/worldbuilding-types";
 
-const DRAFT_KEY = "hs.director.worldbuildingDraft.v1";
-
-// ─── Quick-pick chip rows ───────────────────────────────────────────────────
-
-/** 單選：點擊填入單一文字欄位（覆蓋現值或保留） */
-function QuickPickRow({
-  presets,
-  active,
-  onPick,
-  ariaLabel,
-}: {
-  presets: readonly string[];
-  active?: string;
-  onPick: (value: string) => void;
-  ariaLabel: string;
-}) {
-  return (
-    <div
-      role="listbox"
-      aria-label={ariaLabel}
-      className="flex flex-wrap gap-1"
-    >
-      {presets.map(p => {
-        const isActive = active === p;
-        return (
-          <button
-            key={p}
-            type="button"
-            onClick={() => onPick(p)}
-            className={`px-2 py-0.5 rounded-full text-[10.5px] border transition ${
-              isActive
-                ? "border-primary/60 bg-primary/10 text-primary"
-                : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 hover:text-foreground"
-            }`}
-          >
-            {p}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** 多選：點擊追加到 string[]（chip 集合） */
-function QuickAppendRow({
-  presets,
-  values,
-  onAppend,
-  ariaLabel,
-}: {
-  presets: readonly string[];
-  values: string[];
-  onAppend: (next: string[]) => void;
-  ariaLabel: string;
-}) {
-  return (
-    <div
-      role="listbox"
-      aria-label={ariaLabel}
-      className="flex flex-wrap gap-1"
-    >
-      {presets.map(p => {
-        const isActive = values.includes(p);
-        return (
-          <button
-            key={p}
-            type="button"
-            onClick={() =>
-              onAppend(
-                isActive ? values.filter(v => v !== p) : [...values, p]
-              )
-            }
-            className={`px-2 py-0.5 rounded-full text-[10.5px] border transition ${
-              isActive
-                ? "border-primary/60 bg-primary/10 text-primary"
-                : "border-border/40 bg-card/30 text-muted-foreground hover:bg-card/60 hover:text-foreground"
-            }`}
-          >
-            {isActive ? "✓ " : "+ "}
-            {p}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-type LinkableModel = {
+type LoadedFramework = WorldbuildingFrameworkData & {
   id: number;
-  name: string;
-  modelType: string;
-  status: string;
-  triggerWord: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
-type LoadedFramework = WorldbuildingFrameworkData & { id: number };
+// ─── 任務進度指示器 ──────────────────────────────────────────────────────────
 
-function uid(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
+type TaskItem = {
+  key: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  done: boolean;
+  count?: number;
+};
 
-function emptyCharacter(role: CharacterRole = "supporting"): WorldCharacter {
-  return {
-    id: uid(),
-    name: "",
-    role,
-    tagline: "",
-    personality: "",
-    likes: [],
-    interests: [],
-    outfit: "",
-    appearance: "",
-    signatureItems: [],
-    backstory: "",
-    linkedModelId: null,
-    triggerWord: "",
-    notes: "",
-  };
-}
+function getWorldTasks(fw: LoadedFramework): TaskItem[] {
+  const hasCharacters = (fw.characters?.length ?? 0) > 0;
+  const hasScenes = (fw.scenes?.length ?? 0) > 0;
+  const hasLoRA = (fw.linkedModelIds?.length ?? 0) > 0;
+  const hasStyleProfile = (fw.styleProfiles?.length ?? 0) > 0;
+  const hasMusicTheme = (fw.musicThemes?.length ?? 0) > 0;
 
-function emptyScene(): WorldScene {
-  return {
-    id: uid(),
-    name: "",
-    tagline: "",
-    environment: "",
-    flora: [],
-    fauna: [],
-    props: [],
-    lighting: "",
-    mood: "",
-    environmentChanges: [],
-    linkedModelId: null,
-    triggerWord: "",
-    notes: "",
-  };
-}
-
-function emptyDraft(): WorldbuildingFrameworkData {
-  return {
-    name: "",
-    description: "",
-    genre: "",
-    era: "",
-    characters: [emptyCharacter("protagonist")],
-    scenes: [emptyScene()],
-    objects: [],
-    linkedModelIds: [],
-    tags: [],
-    isActive: true,
-  };
-}
-
-// ─── Chip-style multi-value input ───────────────────────────────────────────
-
-function ChipListInput({
-  values,
-  onChange,
-  placeholder,
-  ariaLabel,
-}: {
-  values: string[];
-  onChange: (next: string[]) => void;
-  placeholder: string;
-  ariaLabel: string;
-}) {
-  const [draft, setDraft] = useState("");
-  const commit = () => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    if (values.includes(trimmed)) {
-      setDraft("");
-      return;
-    }
-    onChange([...values, trimmed]);
-    setDraft("");
-  };
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
-        {values.map(v => (
-          <Badge
-            key={v}
-            variant="secondary"
-            className="gap-1 pr-1 font-normal"
-          >
-            <span>{v}</span>
-            <button
-              type="button"
-              aria-label={`移除 ${v}`}
-              onClick={() => onChange(values.filter(x => x !== v))}
-              className="rounded-sm opacity-60 hover:opacity-100 transition"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </Badge>
-        ))}
-      </div>
-      <Input
-        value={draft}
-        aria-label={ariaLabel}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === "Enter" || e.key === ",") {
-            e.preventDefault();
-            commit();
-          }
-        }}
-        onBlur={commit}
-        placeholder={placeholder}
-        className="h-8 text-xs"
-      />
-    </div>
+  const chars = fw.characters ?? [];
+  const hasThreeView = chars.some(
+    c =>
+      c.threeViewSheet?.frontImageUrl ||
+      c.threeViewSheet?.sideImageUrl ||
+      c.threeViewSheet?.backImageUrl
   );
+  const hasExpression = chars.some(c => (c.expressions?.length ?? 0) > 0);
+  const hasVoice = chars.some(
+    c => c.voiceProfile?.voiceId || c.voiceProfile?.engine
+  );
+
+  return [
+    {
+      key: "characters",
+      label: "角色",
+      Icon: Users,
+      done: hasCharacters,
+      count: fw.characters?.length,
+    },
+    {
+      key: "scenes",
+      label: "場景",
+      Icon: MapPin,
+      done: hasScenes,
+      count: fw.scenes?.length,
+    },
+    {
+      key: "threeview",
+      label: "三視圖",
+      Icon: ImageIcon,
+      done: hasThreeView,
+    },
+    {
+      key: "expression",
+      label: "表情包",
+      Icon: Smile,
+      done: hasExpression,
+    },
+    {
+      key: "outfit",
+      label: "穿衣集",
+      Icon: Shirt,
+      done: chars.some(c => (c.outfits?.length ?? 0) > 0),
+    },
+    {
+      key: "voice",
+      label: "配音",
+      Icon: Volume2,
+      done: hasVoice,
+    },
+    {
+      key: "script-role",
+      label: "腳本定位",
+      Icon: Theater,
+      done: chars.some(
+        c => c.scriptRole?.archetype || c.scriptRole?.arcType
+      ),
+    },
+    {
+      key: "style",
+      label: "風格設定",
+      Icon: Sparkles,
+      done: hasStyleProfile,
+      count: fw.styleProfiles?.length,
+    },
+    {
+      key: "music",
+      label: "配樂主題",
+      Icon: Camera,
+      done: hasMusicTheme,
+      count: fw.musicThemes?.length,
+    },
+    {
+      key: "lora",
+      label: "LoRA 連結",
+      Icon: Link2,
+      done: hasLoRA,
+      count: fw.linkedModelIds?.length,
+    },
+  ];
 }
 
-// ─── 動畫設定狀態指示器（v2） ──────────────────────────────────────────────
-// 在角色卡頂部顯示三視圖 / 表情 / 穿衣 / 配音 / 腳本定位的填寫狀態，
-// 並附直達 /animation 世界觀系統的 CTA。深度編輯在世界觀系統。
+// ─── 世界觀任務卡 ──────────────────────────────────────────────────────────
 
-const CharacterAnimationStatus = memo(function CharacterAnimationStatus({
-  character,
+const WorldCard = memo(function WorldCard({
+  fw,
+  onNavigate,
 }: {
-  character: WorldCharacter;
+  fw: LoadedFramework;
+  onNavigate: (id: number) => void;
 }) {
-  const [, navigate] = useLocation();
-  const tv = character.threeViewSheet;
-  const hasThreeView =
-    !!tv?.frontImageUrl ||
-    !!tv?.sideImageUrl ||
-    !!tv?.backImageUrl ||
-    !!tv?.threeQuarterImageUrl;
-  const exprCount = character.expressions?.length ?? 0;
-  const outfitCount = character.outfits?.length ?? 0;
-  const hasVoice =
-    !!character.voiceProfile?.voiceId || !!character.voiceProfile?.engine;
-  const hasTone = !!character.speechTone?.baseTone;
-  const hasScriptRole =
-    !!character.scriptRole?.archetype ||
-    !!character.scriptRole?.arcType ||
-    !!character.scriptRole?.defaultPosition;
-
-  const items: Array<{ key: string; label: string; Icon: typeof Film; ok: boolean; n?: number }> = [
-    { key: "tv", label: "三視圖", Icon: ImageIcon, ok: hasThreeView },
-    { key: "exp", label: "表情", Icon: Smile, ok: exprCount > 0, n: exprCount },
-    { key: "outfit", label: "穿衣", Icon: Shirt, ok: outfitCount > 0, n: outfitCount },
-    { key: "tone", label: "口氣", Icon: MapPin, ok: hasTone },
-    { key: "voice", label: "配音", Icon: Volume2, ok: hasVoice },
-    { key: "role", label: "腳本定位", Icon: Theater, ok: hasScriptRole },
-  ];
+  const tasks = useMemo(() => getWorldTasks(fw), [fw]);
+  const doneCount = tasks.filter(t => t.done).length;
+  const pct = Math.round((doneCount / tasks.length) * 100);
 
   return (
-    <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-2 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-primary/80 flex items-center gap-1">
-          <Film className="w-3 h-3" /> 動畫製作設定
-        </span>
-        <button
-          type="button"
-          onClick={() => navigate("/animation")}
-          className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+    <div className="rounded-xl border border-border/40 bg-card/40 hover:bg-card/60 transition-all group">
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 border-b border-border/20">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Film className="w-4 h-4 text-primary shrink-0" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate">{fw.name}</div>
+            {fw.genre && (
+              <div className="text-[10px] text-muted-foreground truncate">
+                {fw.genre}
+                {fw.era ? ` · ${fw.era}` : ""}
+              </div>
+            )}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => onNavigate(fw.id)}
+          className="h-7 text-xs gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          深度編輯 <ChevronRight className="w-2.5 h-2.5" />
-        </button>
+          進入編輯
+          <ChevronRight className="w-3 h-3" />
+        </Button>
       </div>
-      <div className="flex flex-wrap gap-1">
-        {items.map(it => {
-          const Icon = it.Icon;
+
+      {/* Progress bar */}
+      <div className="px-3 pt-2.5">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] text-muted-foreground">
+            完成度 {doneCount}/{tasks.length}
+          </span>
+          <span className="text-[10px] font-semibold text-primary">{pct}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Task grid */}
+      <div className="p-3 grid grid-cols-5 gap-1.5">
+        {tasks.map(task => {
+          const Icon = task.Icon;
           return (
             <button
-              key={it.key}
+              key={task.key}
               type="button"
-              onClick={() => navigate("/animation")}
-              title="到世界觀系統編輯"
-              className={`px-1.5 py-0.5 rounded-md text-[10px] flex items-center gap-1 transition border ${
-                it.ok
-                  ? "bg-primary/15 text-primary border-primary/30"
-                  : "bg-card/40 text-muted-foreground border-border/30 hover:bg-card/60"
+              onClick={() => onNavigate(fw.id)}
+              title={task.label + (task.done ? "（已完成）" : "（待設定）")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg text-[9px] font-medium transition border ${
+                task.done
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "bg-muted/20 text-muted-foreground border-border/20 hover:bg-muted/40"
               }`}
             >
-              <Icon className="w-2.5 h-2.5" />
-              {it.label}
-              {it.ok ? (
-                it.n != null ? <span className="font-mono">({it.n})</span> : <span>✓</span>
+              <Icon className="w-3 h-3" />
+              <span className="leading-tight text-center">
+                {task.label}
+                {task.count != null && task.count > 0 && (
+                  <span className="ml-0.5 font-mono">({task.count})</span>
+                )}
+              </span>
+              {task.done ? (
+                <CheckCircle2 className="w-2.5 h-2.5 text-primary" />
               ) : (
-                <span className="opacity-50">·</span>
+                <Circle className="w-2.5 h-2.5 opacity-30" />
               )}
             </button>
           );
@@ -357,923 +232,120 @@ const CharacterAnimationStatus = memo(function CharacterAnimationStatus({
   );
 });
 
-// ─── Character Card ─────────────────────────────────────────────────────────
-
-const CharacterCard = memo(function CharacterCard({
-  character,
-  models,
-  onChange,
-  onDelete,
-}: {
-  character: WorldCharacter;
-  models: LinkableModel[];
-  onChange: (next: WorldCharacter) => void;
-  onDelete: () => void;
-}) {
-  const patch = useCallback(
-    (p: Partial<WorldCharacter>) => onChange({ ...character, ...p }),
-    [character, onChange]
-  );
-  return (
-    <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-3">
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-[10px] uppercase">
-          {CHARACTER_ROLE_LABELS[character.role]}
-        </Badge>
-        <Input
-          value={character.name}
-          onChange={e => patch({ name: e.target.value })}
-          placeholder="角色名稱"
-          className="h-8 flex-1 text-sm font-medium"
-        />
-        <Select
-          value={character.role}
-          onValueChange={v => patch({ role: v as CharacterRole })}
-        >
-          <SelectTrigger className="h-8 w-[110px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(
-              Object.entries(CHARACTER_ROLE_LABELS) as Array<
-                [CharacterRole, string]
-              >
-            ).map(([id, label]) => (
-              <SelectItem key={id} value={id} className="text-xs">
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-          aria-label="刪除角色"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-
-      {/* 動畫製作設定狀態 — 顯示 v2 擴充欄位的填寫情況，引導使用者前往 /animation 深度編輯 */}
-      <CharacterAnimationStatus character={character} />
-
-      <Input
-        value={character.tagline ?? ""}
-        onChange={e => patch({ tagline: e.target.value })}
-        placeholder="一句話描述（例如：被遺忘的森林守護者）"
-        className="h-8 text-xs"
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">樣貌</Label>
-          <Textarea
-            value={character.appearance ?? ""}
-            onChange={e => patch({ appearance: e.target.value })}
-            placeholder="髮型、瞳色、身高、特徵…"
-            className="min-h-[60px] text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">穿著</Label>
-          <Textarea
-            value={character.outfit ?? ""}
-            onChange={e => patch({ outfit: e.target.value })}
-            placeholder="服裝風格、配色、細節…"
-            className="min-h-[60px] text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">個性</Label>
-          <Textarea
-            value={character.personality ?? ""}
-            onChange={e => patch({ personality: e.target.value })}
-            placeholder="性格、行為模式、口頭禪…"
-            className="min-h-[60px] text-xs"
-          />
-          <QuickPickRow
-            presets={PERSONALITY_TRAIT_PRESETS}
-            onPick={v => {
-              const current = (character.personality ?? "").trim();
-              const next = current.includes(v)
-                ? current
-                : current
-                  ? `${current}、${v}`
-                  : v;
-              patch({ personality: next });
-            }}
-            ariaLabel="快選 個性特質"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">背景</Label>
-          <Textarea
-            value={character.backstory ?? ""}
-            onChange={e => patch({ backstory: e.target.value })}
-            placeholder="出身、經歷、動機…"
-            className="min-h-[60px] text-xs"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">喜好</Label>
-          <ChipListInput
-            values={character.likes ?? []}
-            onChange={v => patch({ likes: v })}
-            placeholder="按 Enter 新增"
-            ariaLabel="新增喜好"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">興趣</Label>
-          <ChipListInput
-            values={character.interests ?? []}
-            onChange={v => patch({ interests: v })}
-            placeholder="按 Enter 新增"
-            ariaLabel="新增興趣"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">隨身物件</Label>
-          <ChipListInput
-            values={character.signatureItems ?? []}
-            onChange={v => patch({ signatureItems: v })}
-            placeholder="按 Enter 新增"
-            ariaLabel="新增物件"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-border/30">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <Link2 className="w-3 h-3" /> 連結 LoRA 模型
-          </Label>
-          <Select
-            value={character.linkedModelId?.toString() ?? "none"}
-            onValueChange={v =>
-              patch({
-                linkedModelId: v === "none" ? null : Number(v),
-                triggerWord:
-                  v === "none"
-                    ? ""
-                    : (models.find(m => m.id === Number(v))?.triggerWord ??
-                      character.triggerWord ??
-                      ""),
-              })
-            }
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="（未連結）" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" className="text-xs">
-                （未連結）
-              </SelectItem>
-              {models.length === 0 ? (
-                <div className="px-3 py-2 text-[11px] text-muted-foreground">
-                  尚未有訓練完成的 LoRA — 請至「模型訓練中心」訓練
-                </div>
-              ) : (
-                models.map(m => (
-                  <SelectItem
-                    key={m.id}
-                    value={m.id.toString()}
-                    className="text-xs"
-                  >
-                    {m.name}
-                    <span className="ml-1 text-[10px] text-muted-foreground">
-                      {m.modelType}
-                      {m.status !== "ready" ? ` · ${m.status}` : ""}
-                    </span>
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">
-            Trigger word（生成時插入）
-          </Label>
-          <Input
-            value={character.triggerWord ?? ""}
-            onChange={e => patch({ triggerWord: e.target.value })}
-            placeholder="例如：sks_alice"
-            className="h-8 text-xs"
-          />
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// ─── Scene Card ─────────────────────────────────────────────────────────────
-
-const SceneCard = memo(function SceneCard({
-  scene,
-  models,
-  onChange,
-  onDelete,
-}: {
-  scene: WorldScene;
-  models: LinkableModel[];
-  onChange: (next: WorldScene) => void;
-  onDelete: () => void;
-}) {
-  const patch = useCallback(
-    (p: Partial<WorldScene>) => onChange({ ...scene, ...p }),
-    [scene, onChange]
-  );
-  return (
-    <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-3">
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-[10px] uppercase gap-1">
-          <MapPin className="w-3 h-3" /> 場景
-        </Badge>
-        <Input
-          value={scene.name}
-          onChange={e => patch({ name: e.target.value })}
-          placeholder="場景名稱（例如：晨霧中的療癒森林）"
-          className="h-8 flex-1 text-sm font-medium"
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-          aria-label="刪除場景"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-
-      <Input
-        value={scene.tagline ?? ""}
-        onChange={e => patch({ tagline: e.target.value })}
-        placeholder="一句話氛圍（例如：濕潤、靜謐、有微光穿過樹葉）"
-        className="h-8 text-xs"
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">環境</Label>
-          <Textarea
-            value={scene.environment ?? ""}
-            onChange={e => patch({ environment: e.target.value })}
-            placeholder="地點、季節、天氣、時間…"
-            className="min-h-[60px] text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">光線</Label>
-          <Textarea
-            value={scene.lighting ?? ""}
-            onChange={e => patch({ lighting: e.target.value })}
-            placeholder="光源方向、色溫、明暗對比…"
-            className="min-h-[60px] text-xs"
-          />
-          <QuickPickRow
-            presets={SCENE_LIGHTING_PRESETS}
-            onPick={v => {
-              const current = (scene.lighting ?? "").trim();
-              const next = current.includes(v)
-                ? current
-                : current
-                  ? `${current}、${v}`
-                  : v;
-              patch({ lighting: next });
-            }}
-            ariaLabel="快選 光線"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">氛圍</Label>
-          <Textarea
-            value={scene.mood ?? ""}
-            onChange={e => patch({ mood: e.target.value })}
-            placeholder="情緒、節奏、聲音…"
-            className="min-h-[60px] text-xs"
-          />
-          <QuickPickRow
-            presets={SCENE_MOOD_PRESETS}
-            onPick={v => {
-              const current = (scene.mood ?? "").trim();
-              const next = current.includes(v)
-                ? current
-                : current
-                  ? `${current}、${v}`
-                  : v;
-              patch({ mood: next });
-            }}
-            ariaLabel="快選 氛圍"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">備註</Label>
-          <Textarea
-            value={scene.notes ?? ""}
-            onChange={e => patch({ notes: e.target.value })}
-            placeholder="鏡位、運鏡、特殊安排…"
-            className="min-h-[60px] text-xs"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">
-            花草樹木
-          </Label>
-          <ChipListInput
-            values={scene.flora ?? []}
-            onChange={v => patch({ flora: v })}
-            placeholder="松樹、苔蘚…"
-            ariaLabel="新增植被"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">
-            動物 / 生物
-          </Label>
-          <ChipListInput
-            values={scene.fauna ?? []}
-            onChange={v => patch({ fauna: v })}
-            placeholder="螢火蟲、鹿…"
-            ariaLabel="新增生物"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">物件</Label>
-          <ChipListInput
-            values={scene.props ?? []}
-            onChange={v => patch({ props: v })}
-            placeholder="石燈、木橋…"
-            ariaLabel="新增物件"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <Label className="text-[11px] text-muted-foreground">
-          環境變化（晝夜、季節、突發事件）
-        </Label>
-        <ChipListInput
-          values={scene.environmentChanges ?? []}
-          onChange={v => patch({ environmentChanges: v })}
-          placeholder="例如：黃昏時起霧"
-          ariaLabel="新增環境變化"
-        />
-        <QuickAppendRow
-          presets={ENVIRONMENT_CHANGE_PRESETS}
-          values={scene.environmentChanges ?? []}
-          onAppend={v => patch({ environmentChanges: v })}
-          ariaLabel="快選 環境變化"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-border/30">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <Link2 className="w-3 h-3" /> 連結 LoRA 模型
-          </Label>
-          <Select
-            value={scene.linkedModelId?.toString() ?? "none"}
-            onValueChange={v =>
-              patch({
-                linkedModelId: v === "none" ? null : Number(v),
-                triggerWord:
-                  v === "none"
-                    ? ""
-                    : (models.find(m => m.id === Number(v))?.triggerWord ??
-                      scene.triggerWord ??
-                      ""),
-              })
-            }
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="（未連結）" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" className="text-xs">
-                （未連結）
-              </SelectItem>
-              {models.map(m => (
-                <SelectItem
-                  key={m.id}
-                  value={m.id.toString()}
-                  className="text-xs"
-                >
-                  {m.name}
-                  <span className="ml-1 text-[10px] text-muted-foreground">
-                    {m.modelType}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">
-            Trigger word（生成時插入）
-          </Label>
-          <Input
-            value={scene.triggerWord ?? ""}
-            onChange={e => patch({ triggerWord: e.target.value })}
-            placeholder="例如：scn_forest"
-            className="h-8 text-xs"
-          />
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// ─── 世界觀系統入口橫幅 ────────────────────────────────────────────────────
-
-function AnimationStudioBanner() {
-  const [, navigate] = useLocation();
-  return (
-    <button
-      type="button"
-      onClick={() => navigate("/animation")}
-      className="w-full rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/[0.05] to-transparent p-3 text-left hover:from-primary/15 transition group"
-    >
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-primary/15 p-2">
-          <Film className="w-4 h-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-primary flex items-center gap-1">
-            世界觀已融合進「世界觀系統」 — 點此前往
-            <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
-          </div>
-          <div className="text-[10.5px] text-muted-foreground mt-0.5 leading-relaxed">
-            本分頁仍可使用，但建議在世界觀系統一處編完：世界基本資料 · 角色（基本＋三視圖／表情／穿衣／口氣／配音／腳本定位／LoRA） · 場景（基本＋風格鎖／配樂鎖／時段表／運鏡） · 風格 profile · 配樂主題 · 分鏡時間軸 · 渲染管線
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// ─── Main Panel ─────────────────────────────────────────────────────────────
+// ─── 主面板 ───────────────────────────────────────────────────────────────
 
 export default function WorldbuildingPanel() {
-  const utils = trpc.useUtils();
+  const [, navigate] = useLocation();
   const listQuery = trpc.worldbuilding.list.useQuery(undefined, {
     retry: false,
   });
-  const modelsQuery = trpc.worldbuilding.linkableModels.useQuery(undefined, {
-    retry: false,
-  });
-  const createMutation = trpc.worldbuilding.create.useMutation({
-    onSuccess: () => {
-      utils.worldbuilding.list.invalidate();
-      toast.success("世界觀已建立");
-    },
-    onError: e => toast.error(`建立失敗：${e.message}`),
-  });
-  const updateMutation = trpc.worldbuilding.update.useMutation({
-    onSuccess: () => {
-      utils.worldbuilding.list.invalidate();
-      toast.success("已儲存");
-    },
-    onError: e => toast.error(`儲存失敗：${e.message}`),
-  });
-  const deleteMutation = trpc.worldbuilding.delete.useMutation({
-    onSuccess: () => {
-      utils.worldbuilding.list.invalidate();
-      toast.success("已刪除");
-    },
-    onError: e => toast.error(`刪除失敗：${e.message}`),
-  });
 
-  // currentId === null → 編輯中為「新世界觀」草稿；> 0 → 編輯既有
-  const [currentId, setCurrentId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<WorldbuildingFrameworkData>(() => {
-    // 從 localStorage 復原草稿
-    if (typeof window === "undefined") return emptyDraft();
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return emptyDraft();
-      const parsed = JSON.parse(raw) as WorldbuildingFrameworkData;
-      if (parsed && Array.isArray(parsed.characters) && Array.isArray(parsed.scenes)) {
-        return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return emptyDraft();
-  });
+  const frameworks = (listQuery.data ?? []) as LoadedFramework[];
 
-  // 草稿 → localStorage（只在新建模式時儲存，避免覆蓋既有編輯）
-  useEffect(() => {
-    if (currentId !== null) return;
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // ignore quota errors
-    }
-  }, [draft, currentId]);
-
-  const models: LinkableModel[] = useMemo(
-    () => (modelsQuery.data ?? []) as LinkableModel[],
-    [modelsQuery.data]
-  );
-
-  const frameworks: LoadedFramework[] = useMemo(
-    () => ((listQuery.data ?? []) as unknown as LoadedFramework[]),
-    [listQuery.data]
-  );
-
-  const loadFramework = useCallback((fw: LoadedFramework) => {
-    setCurrentId(fw.id);
-    setDraft({
-      name: fw.name,
-      description: fw.description ?? "",
-      genre: fw.genre ?? "",
-      era: fw.era ?? "",
-      characters: fw.characters ?? [],
-      scenes: fw.scenes ?? [],
-      objects: fw.objects ?? [],
-      linkedModelIds: fw.linkedModelIds ?? [],
-      tags: fw.tags ?? [],
-      isActive: fw.isActive ?? true,
-    });
-  }, []);
-
-  const resetToNewDraft = useCallback(() => {
-    setCurrentId(null);
-    setDraft(emptyDraft());
-    try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // ── Mutators ──
-  const updateChar = useCallback(
-    (id: string, next: WorldCharacter) => {
-      setDraft(d => ({
-        ...d,
-        characters: d.characters.map(c => (c.id === id ? next : c)),
-      }));
-    },
-    []
-  );
-  const addCharacter = (role: CharacterRole) =>
-    setDraft(d => ({ ...d, characters: [...d.characters, emptyCharacter(role)] }));
-  const removeCharacter = (id: string) =>
-    setDraft(d => ({ ...d, characters: d.characters.filter(c => c.id !== id) }));
-
-  const updateScene = useCallback((id: string, next: WorldScene) => {
-    setDraft(d => ({
-      ...d,
-      scenes: d.scenes.map(s => (s.id === id ? next : s)),
-    }));
-  }, []);
-  const addScene = () =>
-    setDraft(d => ({ ...d, scenes: [...d.scenes, emptyScene()] }));
-  const removeScene = (id: string) =>
-    setDraft(d => ({ ...d, scenes: d.scenes.filter(s => s.id !== id) }));
-
-  // ── Save ──
-  const linkedModelIdSet = useMemo(() => {
-    const ids = new Set<number>();
-    for (const c of draft.characters)
-      if (c.linkedModelId != null) ids.add(c.linkedModelId);
-    for (const s of draft.scenes)
-      if (s.linkedModelId != null) ids.add(s.linkedModelId);
-    return Array.from(ids);
-  }, [draft.characters, draft.scenes]);
-
-  const canSave = draft.name.trim().length > 0 && draft.characters.length > 0;
-
-  const handleSave = () => {
-    if (!canSave) {
-      toast.error("請至少填寫世界觀名稱與一位角色");
-      return;
-    }
-    const payload = {
-      name: draft.name.trim(),
-      description: draft.description?.trim() || undefined,
-      genre: draft.genre?.trim() || undefined,
-      era: draft.era?.trim() || undefined,
-      characters: draft.characters,
-      scenes: draft.scenes,
-      objects: draft.objects ?? [],
-      linkedModelIds: linkedModelIdSet,
-      tags: draft.tags ?? [],
-      isActive: draft.isActive ?? true,
-    };
-    if (currentId == null) {
-      createMutation.mutate(payload, {
-        onSuccess: ({ id }) => {
-          setCurrentId(id);
-          try {
-            localStorage.removeItem(DRAFT_KEY);
-          } catch {
-            // ignore
-          }
-        },
-      });
+  const handleNavigateToWorld = (worldId?: number) => {
+    if (worldId) {
+      navigate(`/animation?worldId=${worldId}`);
     } else {
-      updateMutation.mutate({ id: currentId, patch: payload });
+      navigate("/animation");
     }
   };
-
-  const handleDelete = (id: number) => {
-    if (!confirm("確定刪除此世界觀？")) return;
-    deleteMutation.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          if (currentId === id) resetToNewDraft();
-        },
-      }
-    );
-  };
-
-  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="flex gap-5">
-      {/* Left: Editor */}
-      <div className="flex-1 min-w-0 space-y-4">
-        {/* 世界觀系統入口橫幅 — 引導使用者前往 /animation 進行三視圖、表情、
-            穿衣、口氣、語音、腳本定位的深度配置與分鏡時間軸製作 */}
-        <AnimationStudioBanner />
-
-        <GlassCard hover={false}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              {currentId == null ? "新世界觀草稿" : `編輯：${draft.name || "（未命名）"}`}
-            </h3>
-            <div className="flex items-center gap-2">
-              {currentId != null && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetToNewDraft}
-                  className="text-xs"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> 新增
-                </Button>
-              )}
-              <Button
-                onClick={handleSave}
-                disabled={!canSave || isSaving}
-                size="sm"
-                className="text-xs"
-              >
-                <Save className="w-3.5 h-3.5 mr-1" />
-                {isSaving ? "儲存中…" : currentId == null ? "建立" : "儲存"}
-              </Button>
-            </div>
+    <div className="space-y-4">
+      {/* 主要 CTA — 進入世界觀系統 */}
+      <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/[0.06] to-transparent p-5">
+        <div className="flex items-center gap-4">
+          <div className="rounded-xl bg-primary/15 p-3 shrink-0">
+            <Film className="w-6 h-6 text-primary" />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">
-                世界觀名稱 *
-              </Label>
-              <Input
-                value={draft.name}
-                onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-                placeholder="例如：苔森紀年"
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">
-                風格 / 類型
-              </Label>
-              <Input
-                value={draft.genre ?? ""}
-                onChange={e => setDraft(d => ({ ...d, genre: e.target.value }))}
-                placeholder="療癒奇幻、賽博龐克、日常…"
-                className="h-9"
-              />
-              <QuickPickRow
-                presets={GENRE_PRESETS}
-                active={draft.genre ?? ""}
-                onPick={v => setDraft(d => ({ ...d, genre: v }))}
-                ariaLabel="快選 風格類型"
-              />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <Label className="text-[11px] text-muted-foreground">
-                時代背景
-              </Label>
-              <Input
-                value={draft.era ?? ""}
-                onChange={e => setDraft(d => ({ ...d, era: e.target.value }))}
-                placeholder="例如：中世紀、近未來、架空…"
-                className="h-9"
-              />
-              <QuickPickRow
-                presets={ERA_PRESETS}
-                active={draft.era ?? ""}
-                onPick={v => setDraft(d => ({ ...d, era: v }))}
-                ariaLabel="快選 時代背景"
-              />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <Label className="text-[11px] text-muted-foreground">描述</Label>
-              <Textarea
-                value={draft.description ?? ""}
-                onChange={e =>
-                  setDraft(d => ({ ...d, description: e.target.value }))
-                }
-                placeholder="這個世界的核心設定、規則、基調…"
-                className="min-h-[60px]"
-              />
-            </div>
-          </div>
-
-          {linkedModelIdSet.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-2 text-xs text-muted-foreground">
-              <Link2 className="w-3.5 h-3.5" />
-              已連結模型訓練中心 LoRA：
-              <Badge variant="secondary" className="text-[10px]">
-                {linkedModelIdSet.length} 個
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-primary flex items-center gap-1.5">
+              世界觀系統
+              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">
+                完整功能
               </Badge>
-            </div>
-          )}
-        </GlassCard>
-
-        {/* Characters */}
-        <GlassCard hover={false}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-              <Users className="w-4 h-4" /> 角色（{draft.characters.length}）
             </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                Object.entries(CHARACTER_ROLE_LABELS) as Array<
-                  [CharacterRole, string]
-                >
-              ).map(([role, label]) => (
-                <Button
-                  key={role}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addCharacter(role)}
-                  className="h-7 text-[11px] gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  {label}
-                </Button>
-              ))}
-            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+              三視圖 · 表情包 · 穿衣集 · 口氣 · 配音 · 腳本定位 · LoRA · 分鏡時間軸 · 渲染管線
+            </p>
           </div>
-          <div className="space-y-3">
-            {draft.characters.length === 0 ? (
-              <div className="text-center text-xs text-muted-foreground py-6">
-                還沒有角色 — 從上方按鈕新增一位主角開始
-              </div>
-            ) : (
-              draft.characters.map(c => (
-                <CharacterCard
-                  key={c.id}
-                  character={c}
-                  models={models}
-                  onChange={next => updateChar(c.id, next)}
-                  onDelete={() => removeCharacter(c.id)}
-                />
-              ))
-            )}
-          </div>
-        </GlassCard>
+          <Button
+            onClick={() => navigate("/animation")}
+            className="shrink-0 gap-2 rounded-xl"
+          >
+            <Wand2 className="w-4 h-4" />
+            進入世界觀系統
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
-        {/* Scenes */}
-        <GlassCard hover={false}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-              <Palette className="w-4 h-4" /> 場景（{draft.scenes.length}）
-            </h3>
+      {/* 儀表板主體 */}
+      {listQuery.isLoading ? (
+        <div className="py-8 text-center text-sm text-muted-foreground animate-pulse">
+          載入中…
+        </div>
+      ) : frameworks.length === 0 ? (
+        /* 沒有世界觀時的空狀態 */
+        <div className="rounded-xl border border-dashed border-border/60 p-8 text-center space-y-3">
+          <Film className="w-10 h-10 mx-auto text-muted-foreground/40" />
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">
+              還沒有世界觀
+            </p>
+            <p className="text-xs text-muted-foreground/70 mt-1">
+              在世界觀系統建立第一個世界，開始配置角色與場景
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate("/animation")}
+            className="gap-2 rounded-xl"
+          >
+            <Plus className="w-4 h-4" />
+            建立第一個世界觀
+          </Button>
+        </div>
+      ) : (
+        /* 世界觀任務列表 */
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" />
+              我的世界觀（{frameworks.length}）
+            </h4>
             <Button
               variant="outline"
               size="sm"
-              onClick={addScene}
-              className="h-7 text-[11px] gap-1"
+              onClick={() => navigate("/animation")}
+              className="h-7 text-xs gap-1 rounded-lg"
             >
-              <Plus className="w-3 h-3" /> 新增場景
+              <Plus className="w-3 h-3" />
+              新增
             </Button>
           </div>
-          <div className="space-y-3">
-            {draft.scenes.length === 0 ? (
-              <div className="text-center text-xs text-muted-foreground py-6">
-                還沒有場景 — 新增一個讓導演 AI 知道故事發生在哪裡
-              </div>
-            ) : (
-              draft.scenes.map(s => (
-                <SceneCard
-                  key={s.id}
-                  scene={s}
-                  models={models}
-                  onChange={next => updateScene(s.id, next)}
-                  onDelete={() => removeScene(s.id)}
+
+          <ScrollArea className="max-h-[calc(100vh-420px)]">
+            <div className="space-y-2.5 pr-1">
+              {frameworks.map(fw => (
+                <WorldCard
+                  key={fw.id}
+                  fw={fw}
+                  onNavigate={handleNavigateToWorld}
                 />
-              ))
-            )}
-          </div>
-        </GlassCard>
-      </div>
-
-      {/* Right: Library */}
-      <div className="hidden md:block w-[280px] shrink-0">
-        <GlassCard hover={false} className="sticky top-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-              <FolderOpen className="w-4 h-4" />
-              我的世界觀
-            </h3>
-            <Badge variant="secondary" className="text-[10px]">
-              {frameworks.length}
-            </Badge>
-          </div>
-
-          <div className="mb-3 rounded-lg border border-border/30 bg-card/30 p-2.5 text-[11px] text-muted-foreground space-y-1">
-            <div className="flex items-center gap-1.5 font-medium text-foreground/80">
-              <Wand2 className="w-3 h-3" /> 連結模型訓練中心
+              ))}
             </div>
-            <div>
-              可連結 LoRA：
-              <Badge variant="outline" className="ml-1 text-[10px]">
-                {models.length}
-              </Badge>
-            </div>
-            {models.length === 0 && (
-              <div className="text-amber-700 dark:text-amber-300">
-                尚未有訓練完成的模型 — 前往「模型訓練中心」訓練後即可在角色／場景下拉選用
-              </div>
-            )}
-          </div>
-
-          <ScrollArea className="h-[calc(100vh-380px)]">
-            {frameworks.length === 0 ? (
-              <div className="text-center text-xs text-muted-foreground py-8">
-                還沒有儲存的世界觀
-              </div>
-            ) : (
-              <div className="space-y-1.5 pr-2">
-                {frameworks.map(fw => (
-                  <div
-                    key={fw.id}
-                    className={`rounded-lg border p-2 text-xs cursor-pointer transition ${
-                      currentId === fw.id
-                        ? "border-primary/60 bg-primary/5"
-                        : "border-border/30 bg-card/30 hover:bg-card/60"
-                    }`}
-                    onClick={() => loadFramework(fw)}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium truncate">{fw.name}</div>
-                        {fw.genre && (
-                          <div className="text-[10px] text-muted-foreground truncate">
-                            {fw.genre}
-                          </div>
-                        )}
-                        <div className="flex gap-2 mt-1 text-[10px] text-muted-foreground">
-                          <span>{fw.characters?.length ?? 0} 角色</span>
-                          <span>·</span>
-                          <span>{fw.scenes?.length ?? 0} 場景</span>
-                          {(fw.linkedModelIds?.length ?? 0) > 0 && (
-                            <>
-                              <span>·</span>
-                              <span>{fw.linkedModelIds!.length} LoRA</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label="刪除"
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleDelete(fw.id);
-                        }}
-                        className="text-muted-foreground/60 hover:text-destructive transition"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </ScrollArea>
-        </GlassCard>
+        </div>
+      )}
+
+      {/* 底部說明 */}
+      <div className="rounded-xl border border-border/30 bg-card/20 px-3 py-2.5 text-[11px] text-muted-foreground space-y-0.5">
+        <div className="flex items-center gap-1.5 font-medium text-foreground/70">
+          <Sparkles className="w-3 h-3" /> 關於世界觀系統
+        </div>
+        <p>
+          本頁僅供快速瀏覽與進入。角色三視圖、表情、穿衣、配音、腳本定位、LoRA 連結、風格設定、分鏡時間軸等深度功能請前往世界觀系統完成。
+        </p>
       </div>
     </div>
   );
