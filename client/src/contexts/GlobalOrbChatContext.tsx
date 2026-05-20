@@ -43,6 +43,7 @@ import {
 } from "@/lib/workflowFailureMessages";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
+import { useWorldContext } from "./WorldContextContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
 import { evaluateStepOutcome } from "../../../shared/orb-perception-loop";
@@ -2198,6 +2199,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
 export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
+  const worldContext = useWorldContext();
   const [locationPath, setLocation] = useLocation();
 
   // ─── Multi-session bootstrap ──────────────────────────────────────────
@@ -4911,6 +4913,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           ? crypto.randomUUID()
           : `orb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       setActiveProgressRequestId(progressRequestId);
+      // 全站光球世界觀感知：把當前選定的創作專案 + 世界觀框架資訊夾帶
+      // 給後端，讓 ai.chat 系統提示可以基於專案個人化回應。
+      // 不會強制覆蓋既有 context；只是多附加一段資訊。
+      const worldContextHint = worldContext.currentProject
+        ? ` · 創作專案: ${worldContext.currentProject.title}${
+            worldContext.currentProject.worldFrameworkName
+              ? ` · 世界觀: ${worldContext.currentProject.worldFrameworkName}`
+              : ""
+          }`
+        : "";
+
       const data = await aiChat.mutateAsync({
         messages: compactHistoryForRequest(nextHistory)
           .map(m => ({
@@ -4918,16 +4931,35 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             content: toLLMMessageContent(m),
           })),
         personality,
-        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}${parsedStructureHint}${selectedTextHint}`,
+        context: `全站光球聊天 · 當前頁面: ${locationPath}${worldContextHint} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}${parsedStructureHint}${selectedTextHint}`,
         // L17 修復:路由切換(A→B)時,B 頁 mount 完成到 PageAgent register
         // effect 跑之間有 >=1 frame 的空窗,期間 pageAgent.snapshot 仍指
         // 向 A 頁。如果 sendMessage 剛好在這段空窗觸發,server 拿到「使用
         // 者在 B 頁但 capability 是 A 頁的」,planner 路由錯。
         // 比對 locationPath 與 snapshot.pagePath:不一致就傳 undefined,
         // 讓 server 走 page-agnostic 路徑而不是錯頁 capability。
+        //
+        // 另一條增強：把當前世界觀資訊夾在 snapshot.state，讓 server 的
+        // spirit 路由可以做世界觀感知的決策（例如：在當前世界新增角色）。
         pageSnapshot:
           pageAgent.snapshot && pageAgent.snapshot.pagePath === locationPath
-            ? pageAgent.snapshot
+            ? {
+                ...pageAgent.snapshot,
+                state: {
+                  ...(pageAgent.snapshot.state ?? {}),
+                  ...(worldContext.currentProjectId !== null
+                    ? {
+                        currentCreativeProjectId:
+                          worldContext.currentProjectId,
+                        currentWorldFrameworkId:
+                          worldContext.worldFrameworkId,
+                        currentWorldFrameworkName:
+                          worldContext.currentProject?.worldFrameworkName ??
+                          null,
+                      }
+                    : {}),
+                },
+              }
             : undefined,
         recentFeedback: pageAgent.recentFeedback,
         preferences: preferencesForChat,

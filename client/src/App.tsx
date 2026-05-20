@@ -74,6 +74,7 @@ const AgentCodexPage = lazy(() => import("./pages/AgentCodexPage"));
 const SharedSpace = lazy(() => import("./pages/SharedSpace"));
 const TeachingArchive = lazy(() => import("./pages/TeachingArchive"));
 const TeamsPage = lazy(() => import("./pages/TeamsPage"));
+const CreativeProjectPage = lazy(() => import("./pages/CreativeProjectPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -214,6 +215,9 @@ function Router() {
       </Route>
       <Route path="/director">
         <ProtectedDashboardRoute component={DirectorAI} />
+      </Route>
+      <Route path="/creative-projects">
+        <ProtectedDashboardRoute component={CreativeProjectPage} />
       </Route>
       <Route path="/animation">
         <ProtectedDashboardRoute component={AnimationStudio} />

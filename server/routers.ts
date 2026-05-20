@@ -6792,8 +6792,65 @@ export const appRouter = router({
           ]);
 
         const persistedOrbMemorySummary = await getOrbMemorySummary(ctx.user.id);
+
+        // 全站光球世界觀感知：若前端在 pageSnapshot.state 帶來
+        // currentCreativeProjectId / currentWorldFrameworkId，拉取對應
+        // 世界觀的壓縮摘要注入系統提示，讓光球能基於該專案個人化回應。
+        let worldContextBlock: string | undefined;
+        try {
+          const snapshotState = (input.pageSnapshot?.state ?? null) as
+            | Record<string, unknown>
+            | null;
+          const worldFrameworkId = snapshotState?.currentWorldFrameworkId;
+          if (typeof worldFrameworkId === "number" && worldFrameworkId > 0) {
+            const wb = await db.getWorldbuildingFramework(worldFrameworkId);
+            if (wb && wb.userId === ctx.user.id) {
+              const projectName =
+                typeof snapshotState?.currentWorldFrameworkName === "string"
+                  ? snapshotState.currentWorldFrameworkName
+                  : wb.name;
+              const charSummary = Array.isArray(wb.charactersJson)
+                ? (wb.charactersJson as Array<Record<string, unknown>>)
+                    .slice(0, 8)
+                    .map(c => {
+                      const name = typeof c.name === "string" ? c.name : null;
+                      const role = typeof c.role === "string" ? c.role : null;
+                      return name
+                        ? role
+                          ? `${name}（${role}）`
+                          : name
+                        : null;
+                    })
+                    .filter(Boolean)
+                    .join("、")
+                : "";
+              const sceneSummary = Array.isArray(wb.scenesJson)
+                ? (wb.scenesJson as Array<Record<string, unknown>>)
+                    .slice(0, 6)
+                    .map(s => (typeof s.name === "string" ? s.name : null))
+                    .filter(Boolean)
+                    .join("、")
+                : "";
+              worldContextBlock = [
+                `【當前世界觀：${projectName}】`,
+                wb.description ? wb.description : null,
+                charSummary ? `主要角色：${charSummary}` : null,
+                sceneSummary ? `主要場景：${sceneSummary}` : null,
+                wb.globalNegativePrompt
+                  ? `全域 negative prompt：${wb.globalNegativePrompt}`
+                  : null,
+              ]
+                .filter((s): s is string => Boolean(s && s.trim()))
+                .join("\n");
+            }
+          }
+        } catch {
+          // 世界觀摘要拉取失敗不應該阻擋對話 — 安靜略過。
+        }
+
         const mergedPromptContext = [
           input.context,
+          worldContextBlock,
           persistedOrbMemorySummary
             ? `【使用者短期記憶摘要】\n${persistedOrbMemorySummary}`
             : undefined,
