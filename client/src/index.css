@@ -368,82 +368,6 @@
   .page-shell-wide    { max-width: var(--page-max-w-wide); }
   .page-shell-studio  { max-width: var(--page-max-w-studio); }
 
-  /* ─── Home creation-hub glass tiles ────────────────────────────────────
-     The home page sits on a scene-tinted backdrop (night sky / morning /
-     cafe / deep sea). PageHeader / SectionCard default to bg-card/40 which
-     fades into that backdrop. These helpers re-skin nested header/section
-     blocks so the hub content reads as proper glass tiles against either a
-     dark or light scene. Apply `.home-hub-glass.home-hub-glass--dark` on
-     dark scenes and `--light` on light scenes; the `:where()` selectors
-     keep specificity low so individual children can still override. */
-  .home-hub-glass :where(header, section).rounded-xl {
-    border-radius: 1rem;
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
-    transition: background-color 600ms ease, border-color 600ms ease;
-  }
-  .home-hub-glass--dark :where(header, section).rounded-xl {
-    background-color: rgba(10, 14, 32, 0.62);
-    border-color: rgba(255, 255, 255, 0.10);
-    box-shadow: 0 8px 36px rgba(0, 0, 0, 0.42);
-  }
-  .home-hub-glass--light :where(header, section).rounded-xl {
-    background-color: rgba(255, 255, 255, 0.78);
-    border-color: rgba(0, 0, 0, 0.08);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.10);
-  }
-
-  /* Boost text contrast for muted descriptions / paragraphs inside the
-     hub so the「副標」 / 卡片描述 / 進度標籤 are readable against the scene
-     overlay. Headings inherit the surrounding `--foreground` already, but
-     `text-muted-foreground` is too dim once the card sits on a tinted glass. */
-  .home-hub-glass--dark :where(header, section).rounded-xl :is(p, span) {
-    color: rgba(235, 236, 252, 0.82);
-  }
-  .home-hub-glass--dark :where(header, section).rounded-xl :is(h1, h2, h3) {
-    color: rgba(255, 255, 255, 0.96);
-  }
-  .home-hub-glass--light :where(header, section).rounded-xl :is(p, span) {
-    color: rgba(28, 30, 56, 0.78);
-  }
-  .home-hub-glass--light :where(header, section).rounded-xl :is(h1, h2, h3) {
-    color: rgba(20, 22, 44, 0.96);
-  }
-
-  /* The orb-prompt input + the project's progress bar live inside the
-     section but pick up the page-level theme tokens; force their bg/border
-     too so they don't disappear on a dark scene. */
-  .home-hub-glass--dark input {
-    background-color: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.16);
-    color: rgba(255, 255, 255, 0.95);
-  }
-  .home-hub-glass--dark input::placeholder {
-    color: rgba(255, 255, 255, 0.48);
-  }
-  .home-hub-glass--dark progress,
-  .home-hub-glass--dark [role="progressbar"] {
-    background-color: rgba(255, 255, 255, 0.10);
-  }
-
-  /* QuickStart inner article tiles (rounded-2xl, gradient bg) — bump their
-     base bg on dark scenes so the 6 cards don't dissolve into the parent
-     glass tile. Light scenes already have enough contrast from the
-     gradient. */
-  .home-hub-glass--dark article.rounded-2xl {
-    background: linear-gradient(
-      135deg,
-      rgba(28, 32, 60, 0.78) 0%,
-      rgba(18, 22, 44, 0.72) 50%,
-      rgba(12, 16, 36, 0.66) 100%
-    );
-    border-color: rgba(255, 255, 255, 0.10);
-  }
-  .home-hub-glass--dark article.rounded-2xl:hover {
-    border-color: rgba(170, 175, 255, 0.55);
-  }
-
   /* Sticky panel — page-internal toolbars/params that should follow the
      viewport. Pair with `position: sticky` and `top` on the parent if a
      different offset is needed; this provides the common max-height. */
@@ -4879,4 +4803,87 @@ html.dark {
 
 [data-design-mode="minimalist"] .agent-section + .agent-section {
   margin-top: 1.25rem;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   HOME CREATION HUB — scene-tinted glass tiles
+   ────────────────────────────────────────────────────────────────────────
+   The post-login home sits on top of AmbientEnvironment + a scene-tinted
+   gradient (night sky / morning / cafe / deep sea). PageHeader and
+   SectionCard default to `bg-card/40` + `text-muted-foreground`, which
+   nearly vanish into a dark backdrop.
+
+   Apply `.home-hub-glass` on the hub wrapper plus `--dark` (nightSky /
+   deepSea) or `--light` (morning / cafe) modifier; Home.tsx picks the
+   variant from useAmbient().isDark.
+
+   Rules live OUTSIDE @layer on purpose — Tailwind utilities like
+   `bg-card/40` live in @layer utilities and win over @layer components
+   regardless of selector specificity. Unlayered rules override all
+   layered rules, so we don't need `!important` to make these stick.
+
+   Selectors stay scoped to .rounded-xl/.rounded-2xl children inside the
+   wrapper so the rest of the page is untouched.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.home-hub-glass :where(header, section).rounded-xl {
+  border-radius: 1rem;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  transition: background-color 600ms ease, border-color 600ms ease;
+}
+
+.home-hub-glass--dark :where(header, section).rounded-xl {
+  background-color: rgba(10, 14, 32, 0.72);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.46);
+}
+.home-hub-glass--light :where(header, section).rounded-xl {
+  background-color: rgba(255, 255, 255, 0.82);
+  border-color: rgba(0, 0, 0, 0.09);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.10);
+}
+
+/* Text contrast inside the cards — 副標 / 描述 / 進度標籤 / badge etc. */
+.home-hub-glass--dark :where(header, section).rounded-xl :is(p, span) {
+  color: rgba(235, 236, 252, 0.86);
+}
+.home-hub-glass--dark :where(header, section).rounded-xl :is(h1, h2, h3) {
+  color: rgba(255, 255, 255, 0.97);
+}
+.home-hub-glass--light :where(header, section).rounded-xl :is(p, span) {
+  color: rgba(28, 30, 56, 0.78);
+}
+.home-hub-glass--light :where(header, section).rounded-xl :is(h1, h2, h3) {
+  color: rgba(20, 22, 44, 0.96);
+}
+
+/* AskOrb 輸入框、ProgressBar — 走頁面主題 token，在 dark scene 也會消失。 */
+.home-hub-glass--dark input {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.95);
+}
+.home-hub-glass--dark input::placeholder {
+  color: rgba(255, 255, 255, 0.52);
+}
+.home-hub-glass--dark [role="progressbar"] {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* QuickStart 六張內層 article (rounded-2xl, gradient bg) — dark scene 下
+   換成深色科技漸層底，避免融入外層玻璃 tile。 */
+.home-hub-glass--dark article.rounded-2xl {
+  background: linear-gradient(
+    135deg,
+    rgba(36, 40, 76, 0.82) 0%,
+    rgba(22, 26, 56, 0.78) 50%,
+    rgba(14, 18, 40, 0.72) 100%
+  );
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.home-hub-glass--dark article.rounded-2xl:hover {
+  border-color: rgba(170, 175, 255, 0.6);
+  box-shadow: 0 10px 32px rgba(80, 100, 200, 0.28);
 }
