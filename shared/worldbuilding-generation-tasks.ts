@@ -2,29 +2,35 @@ import type { WorldbuildingFrameworkData } from "./worldbuilding-types";
 import type { WorldStoryboard } from "./worldbuilding-animation";
 import type { WorldbuildingProductionPackage } from "./worldbuilding-production-package";
 import { pickDefaultModelForTask, type ModelTaskKind } from "./model-capability-registry";
+import type { VisualInspirationLibrary } from "./worldbuilding-inspiration";
+import { evaluateVisualConsistencyHints, selectInspirationsForGenerationTask } from "./visual-inspiration-selector";
 
 export type WorldbuildingGenerationTaskType = "character_image" | "scene_image" | "shot_image" | "shot_video" | "voice" | "music" | "sound" | "publishing";
 export type WorldbuildingGenerationTaskExecutionMode = "internal_model" | "page_agent" | "manual" | "dry_run";
-export type WorldbuildingGenerationTask = { id: string; type: WorldbuildingGenerationTaskType; title: string; description?: string; prompt?: string; negativePrompt?: string; sourceWorldId?: string | number; sourceEntityId?: string; sourceStoryboardId?: string | number; sourceShotId?: string; targetModelId?: string; recommendedModels: string[]; executionMode: WorldbuildingGenerationTaskExecutionMode; status: "draft" | "ready" | "blocked"; blockers: string[]; estimatedCostLevel?: "low" | "medium" | "high"; requiresConfirmation: boolean; payload: Record<string, unknown>; };
+export type WorldbuildingGenerationTask = { id: string; type: WorldbuildingGenerationTaskType; title: string; description?: string; prompt?: string; negativePrompt?: string; sourceWorldId?: string | number; sourceEntityId?: string; sourceStoryboardId?: string | number; sourceShotId?: string; targetModelId?: string; recommendedModels: string[]; executionMode: WorldbuildingGenerationTaskExecutionMode; status: "draft" | "ready" | "blocked"; blockers: string[]; estimatedCostLevel?: "low" | "medium" | "high"; requiresConfirmation: boolean; referenceImageUrls?: string[]; inspirationIds?: string[]; promptEnhancements?: string[]; consistencyWarnings?: string[]; payload: Record<string, unknown>; };
 
 const mapKind = (type: WorldbuildingGenerationTaskType): ModelTaskKind => type === "publishing" ? "publishing_copy" : type;
 const uid = (prefix: string, id: string) => `${prefix}-${id || Math.random().toString(36).slice(2, 8)}`;
 const readyState = (prompt: string | undefined, blockers: string[]) => ({ status: blockers.length || !prompt?.trim() ? "blocked" as const : "ready" as const });
 
-export function buildWorldbuildingGenerationTasks(args: { world: WorldbuildingFrameworkData; productionPackage: WorldbuildingProductionPackage; storyboards?: WorldStoryboard[]; mode?: WorldbuildingGenerationTaskExecutionMode; }): WorldbuildingGenerationTask[] {
-  const { world, productionPackage, storyboards = [], mode = "dry_run" } = args;
+export function buildWorldbuildingGenerationTasks(args: { world: WorldbuildingFrameworkData; productionPackage: WorldbuildingProductionPackage; storyboards?: WorldStoryboard[]; mode?: WorldbuildingGenerationTaskExecutionMode; inspirationLibrary?: VisualInspirationLibrary; }): WorldbuildingGenerationTask[] {
+  const { world, productionPackage, storyboards = [], mode = "dry_run", inspirationLibrary } = args;
   const tasks: WorldbuildingGenerationTask[] = [];
   for (const c of world.characters ?? []) {
     const blockers = []; if (!c.appearance?.trim()) blockers.push("缺角色外觀描述");
     const model = pickDefaultModelForTask("character_image"); if (!model) blockers.push("尚未設定可用模型");
     const prompt = c.appearance?.trim() || undefined;
-    tasks.push({ id: uid("char", c.id), type: "character_image", title: `角色圖：${c.name || "未命名"}`, prompt, sourceWorldId: world.id, sourceEntityId: c.id, targetModelId: model?.id, recommendedModels: model ? [model.id] : [], executionMode: mode, blockers, ...readyState(prompt, blockers), estimatedCostLevel: model?.costLevel, requiresConfirmation: true, payload: { characterId: c.id, worldId: world.id, name: c.name } });
+    const inspirations = inspirationLibrary ? selectInspirationsForGenerationTask({ taskType: "character_image", library: inspirationLibrary, characterIds: [c.id] }) : [];
+    const hints = evaluateVisualConsistencyHints({ taskPrompt: prompt || "", selectedInspirations: inspirations });
+    tasks.push({ id: uid("char", c.id), type: "character_image", title: `角色圖：${c.name || "未命名"}`, prompt, sourceWorldId: world.id, sourceEntityId: c.id, targetModelId: model?.id, recommendedModels: model ? [model.id] : [], executionMode: mode, blockers, ...readyState(prompt, blockers), estimatedCostLevel: model?.costLevel, requiresConfirmation: true, referenceImageUrls: inspirations.map(i => i.imageUrl).filter(Boolean) as string[], inspirationIds: inspirations.map(i => i.id), promptEnhancements: hints.promptAdditions, consistencyWarnings: hints.warnings, payload: { characterId: c.id, worldId: world.id, name: c.name } });
   }
   for (const s of world.scenes ?? []) {
     const prompt = s.environment || s.tagline || "";
     const blockers = []; if (!s.mood?.trim()) blockers.push("缺場景氛圍");
     const model = pickDefaultModelForTask("scene_image"); if (!model) blockers.push("尚未設定可用模型");
-    tasks.push({ id: uid("scene", s.id), type: "scene_image", title: `場景圖：${s.name || "未命名"}`, prompt, sourceWorldId: world.id, sourceEntityId: s.id, targetModelId: model?.id, recommendedModels: model ? [model.id] : [], executionMode: mode, blockers, ...readyState(prompt, blockers), estimatedCostLevel: model?.costLevel, requiresConfirmation: true, payload: { sceneId: s.id, worldId: world.id } });
+    const inspirations = inspirationLibrary ? selectInspirationsForGenerationTask({ taskType: "scene_image", library: inspirationLibrary, sceneIds: [s.id] }) : [];
+    const hints = evaluateVisualConsistencyHints({ taskPrompt: prompt || "", selectedInspirations: inspirations });
+    tasks.push({ id: uid("scene", s.id), type: "scene_image", title: `場景圖：${s.name || "未命名"}`, prompt, sourceWorldId: world.id, sourceEntityId: s.id, targetModelId: model?.id, recommendedModels: model ? [model.id] : [], executionMode: mode, blockers, ...readyState(prompt, blockers), estimatedCostLevel: model?.costLevel, requiresConfirmation: true, referenceImageUrls: inspirations.map(i => i.imageUrl).filter(Boolean) as string[], inspirationIds: inspirations.map(i => i.id), promptEnhancements: hints.promptAdditions, consistencyWarnings: hints.warnings, payload: { sceneId: s.id, worldId: world.id } });
   }
   for (const sb of storyboards) for (const sc of sb.scenes ?? []) for (const fr of sc.frames ?? []) {
     const blockers = []; if (!sc.actionDescription?.trim() && !fr.shotDescription?.trim()) blockers.push("缺場景氛圍");
