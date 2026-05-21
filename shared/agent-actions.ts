@@ -212,6 +212,19 @@ export interface ExecuteTaskAction {
   resultUrl?: string;
 }
 
+export interface ExecuteWorldbuildingTaskAction {
+  type: "execute_worldbuilding_task";
+  task: any;
+  mode: "dry_run" | "internal_model" | "page_agent";
+}
+
+export interface ExecuteWorldbuildingTaskBatchAction {
+  type: "execute_worldbuilding_task_batch";
+  tasks: any[];
+  mode: "dry_run" | "internal_model" | "page_agent";
+  confirmationMode?: "all-at-once" | "step-by-step" | "high-risk-only";
+}
+
 export interface WorkflowRequiredInput {
   key: string;
   label: string;
@@ -284,6 +297,8 @@ export type AgentAction =
   | SearchAction
   | ToggleSettingAction
   | ExecuteTaskAction
+  | ExecuteWorldbuildingTaskAction
+  | ExecuteWorldbuildingTaskBatchAction
   | RunWorkflowAction
   | ExportChatPdfAction
   | ShareViaLinkAction
@@ -671,6 +686,20 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
         scriptId: typeof obj.scriptId === "string" ? obj.scriptId : undefined,
       };
     }
+    case "execute_worldbuilding_task": {
+      if (!obj.task || typeof obj.task !== "object") return null;
+      const mode = obj.mode === "internal_model" || obj.mode === "page_agent" ? obj.mode : "dry_run";
+      return { type: "execute_worldbuilding_task", task: obj.task, mode };
+    }
+    case "execute_worldbuilding_task_batch": {
+      if (!Array.isArray(obj.tasks)) return null;
+      const mode = obj.mode === "internal_model" || obj.mode === "page_agent" ? obj.mode : "dry_run";
+      const confirmationMode =
+        obj.confirmationMode === "all-at-once" || obj.confirmationMode === "high-risk-only"
+          ? obj.confirmationMode
+          : "step-by-step";
+      return { type: "execute_worldbuilding_task_batch", tasks: obj.tasks, mode, confirmationMode };
+    }
     default:
       return null;
   }
@@ -739,6 +768,8 @@ export function isDestructiveAction(action: AgentAction): boolean {
     case "applyPreset":
     case "setModality":
     case "execute_task":
+    case "execute_worldbuilding_task":
+    case "execute_worldbuilding_task_batch":
     case "runWorkflow":
       return true;
     default:
@@ -796,6 +827,10 @@ export function summarizeAction(action: AgentAction): string {
         : `想幫你切換「${action.key}」設定`;
     case "execute_task":
       return `想直接幫你執行「${action.task.type}」`;
+    case "execute_worldbuilding_task":
+      return `想執行世界觀任務「${action.task?.title ?? action.task?.id ?? "未命名"}」`;
+    case "execute_worldbuilding_task_batch":
+      return `想批次執行世界觀任務（${action.tasks.length} 筆）`;
     case "runWorkflow": {
       const stepCount = action.steps.length;
       return `想幫你執行「${action.name}」計畫（共 ${stepCount} 步）`;
