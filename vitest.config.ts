@@ -24,6 +24,10 @@ export default defineConfig({
     include: [
       "server/**/*.test.ts",
       "server/**/*.spec.ts",
+      "shared/**/*.test.ts",
+      "shared/**/*.spec.ts",
+      "shared/**/*.test.tsx",
+      "shared/**/*.spec.tsx",
       "tests/unit/**/*.test.ts",
       "tests/unit/**/*.spec.ts",
       "tests/unit/**/*.test.tsx",
