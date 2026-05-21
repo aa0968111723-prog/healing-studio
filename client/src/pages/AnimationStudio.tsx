@@ -15,6 +15,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { skipToken } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -5376,7 +5377,7 @@ export default function AnimationStudio() {
   );
 
   const storyboardsQuery = trpc.worldStoryboard.listByWorld.useQuery(
-    { worldId: selectedWorldId! },
+    selectedWorldId ? { worldId: selectedWorldId } : skipToken,
     { enabled: !!selectedWorldId }
   );
   const [selectedStoryboard, setSelectedStoryboard] = useState<WorldStoryboard | null>(null);
@@ -5632,7 +5633,7 @@ export default function AnimationStudio() {
     ? Number(params.storyboardId)
     : null;
   const storyboardDetailQuery = trpc.worldStoryboard.get.useQuery(
-    { id: detailStoryboardId! },
+    detailStoryboardId ? { id: detailStoryboardId } : skipToken,
     { enabled: !!detailStoryboardId }
   );
 
