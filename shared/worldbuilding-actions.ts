@@ -6,7 +6,7 @@ export type WorldbuildingActionPlan = {
   actions: WorldbuildingAction[];
   blockers: WorldbuildingBlocker[];
   readyForGeneration: boolean;
-  generationState: "drafting" | "storyboard_ready" | "generation_ready";
+  generationState: "drafting" | "storyboard_ready" | "asset_ready" | "generation_ready";
 };
 
 export type WorldbuildingAction = {
@@ -31,7 +31,8 @@ export type WorldbuildingBlocker = {
 const hasText = (v?: string | null) => !!v?.trim();
 
 export function getWorldbuildingActionPlan(
-  world: WorldbuildingFrameworkData | null | undefined
+  world: WorldbuildingFrameworkData | null | undefined,
+  options?: { storyboardsCount?: number; visualAssetsCount?: number }
 ): WorldbuildingActionPlan {
   const progress = calculateWorldbuildingProgress(world ?? null);
   const characters = world?.characters ?? [];
@@ -39,7 +40,8 @@ export function getWorldbuildingActionPlan(
   const styleProfiles = world?.styleProfiles ?? [];
   const hasVoice = characters.some(c => hasText(c.voiceProfile?.voiceId) || hasText(c.voiceProfile?.emotion) || hasText(c.voiceProfile?.languageCode));
   const hasMusic = (world?.musicThemes?.length ?? 0) > 0;
-  const hasStoryboard = progress.overall >= 60;
+  const hasStoryboard = (options?.storyboardsCount ?? 0) > 0;
+  const hasVisualAssets = (options?.visualAssetsCount ?? 0) > 0;
 
   const characterVisualMissing = characters.some(c =>
     !hasText(c.appearance) || (!c.threeViewSheet?.frontImageUrl && !c.threeViewSheet?.sideImageUrl) || (c.outfits?.length ?? 0) === 0 || (c.expressions?.length ?? 0) === 0
@@ -78,12 +80,20 @@ export function getWorldbuildingActionPlan(
     actions.push({ id:"export-production-package", label:"產生完整製作包", description:"先預覽目前可輸出內容，邊做邊補。", priority:"low", category:"export", cta:"產生完整製作包", targetTab:"export" });
   }
 
-  const readyForGeneration = blockers.every(b => b.severity !== "blocking") && progress.overall >= 70;
-  const generationState: WorldbuildingActionPlan["generationState"] = readyForGeneration
-    ? "generation_ready"
-    : hasStoryboard
-      ? "storyboard_ready"
-      : "drafting";
+  if (hasStoryboard && !hasVisualAssets) {
+    blockers.push({ id:"missing-visual-assets", label:"缺少視覺素材", reason:"尚未蒐集可用視覺素材，角色與場景生成可能不一致。", category:"visualStyle", severity:"warning" });
+  }
+
+  const hasBlockingBlocker = blockers.some(b => b.severity === "blocking");
+  const readyForGeneration = characters.length > 0 && scenes.length > 0 && styleProfiles.length > 0 && hasStoryboard && !hasBlockingBlocker;
+
+  const generationState: WorldbuildingActionPlan["generationState"] = (() => {
+    if (characters.length === 0 || scenes.length === 0 || styleProfiles.length === 0) return "drafting";
+    if (!hasStoryboard) return "storyboard_ready";
+    if (!hasVisualAssets) return "asset_ready";
+    if (!hasVoice || !hasMusic) return "asset_ready";
+    return "generation_ready";
+  })();
 
   return { primaryAction: actions[0], actions, blockers, readyForGeneration, generationState };
 }

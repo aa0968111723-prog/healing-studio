@@ -2,35 +2,34 @@ import { describe, expect, it } from "vitest";
 import { getWorldbuildingActionPlan } from "../../../shared/worldbuilding-actions";
 
 describe("getWorldbuildingActionPlan", () => {
-  it("empty world 不會 readyForGeneration", () => {
+  it("空世界 -> drafting 且 not ready", () => {
     const plan = getWorldbuildingActionPlan(null);
+    expect(plan.generationState).toBe("drafting");
     expect(plan.readyForGeneration).toBe(false);
-    expect(plan.primaryAction.label).toContain("建立主角");
   });
 
-  it("only skeleton character 仍然提示補角色視覺", () => {
+  it("骨架角色沒外觀 -> 補角色視覺", () => {
     const plan = getWorldbuildingActionPlan({ characters: [{ name: "小雨" }] as any });
-    expect(plan.primaryAction.label).toContain("角色視覺一致性");
+    expect(plan.primaryAction.cta).toContain("補角色");
   });
 
-  it("有角色但沒場景會提示補場景", () => {
-    const plan = getWorldbuildingActionPlan({ characters: [{ name: "小雨", appearance: "短髮", outfits:["便服"], expressions:["笑"], threeViewSheet:{frontImageUrl:"x"} }] as any, scenes: [] } as any);
+  it("完整角色但沒場景 -> 建立主要場景", () => {
+    const plan = getWorldbuildingActionPlan({ characters: [{ name: "A", appearance: "x", outfits:["a"], expressions:["笑"], threeViewSheet:{frontImageUrl:"a"} }] as any, scenes: [] } as any);
     expect(plan.primaryAction.label).toContain("建立主要場景");
   });
 
-  it("有角色場景但沒 style 會提示補風格", () => {
-    const plan = getWorldbuildingActionPlan({ characters: [{ name: "A", appearance: "x", outfits:["a"], expressions:["笑"] , threeViewSheet:{frontImageUrl:"a"}, voiceProfile:{emotion:"calm", languageCode:"zh-TW"}}], scenes:[{name:"家", environment:"客廳", mood:"暖", lighting:"柔"}] } as any);
-    expect(plan.primaryAction.label).toContain("建立視覺風格");
+  it("有角色場景風格但無分鏡 -> storyboard_ready", () => {
+    const plan = getWorldbuildingActionPlan({ characters:[{name:"A",appearance:"x",outfits:["a"],expressions:["笑"],threeViewSheet:{frontImageUrl:"a"}}], scenes:[{name:"S",environment:"e",mood:"m",lighting:"l"}], styleProfiles:[{artStyle:"日系"}] } as any, { storyboardsCount: 0 });
+    expect(plan.generationState).toBe("storyboard_ready");
   });
 
-  it("完整世界會提示產生製作包", () => {
-    const plan = getWorldbuildingActionPlan({ characters: [{ name: "A", appearance: "x", outfits:["a"], expressions:["笑"] , threeViewSheet:{frontImageUrl:"a"}, voiceProfile:{emotion:"calm", languageCode:"zh-TW"}}], scenes:[{name:"家", environment:"客廳", mood:"暖", lighting:"柔"}], styleProfiles:[{artStyle:"動畫", palette:["暖橘"]}], musicThemes:[{mood:"療癒", instruments:["鋼琴"]}] } as any);
-    expect(plan.primaryAction.cta).toContain("產生完整製作包");
+  it("有分鏡但無素材 -> 有視覺素材 warning", () => {
+    const plan = getWorldbuildingActionPlan({ characters:[{name:"A",appearance:"x",outfits:["a"],expressions:["笑"],threeViewSheet:{frontImageUrl:"a"}}], scenes:[{name:"S",environment:"e",mood:"m",lighting:"l"}], styleProfiles:[{artStyle:"日系"}] } as any, { storyboardsCount: 1, visualAssetsCount: 0 });
+    expect(plan.blockers.some(b => b.reason.includes("視覺素材"))).toBe(true);
   });
 
-  it("blockers 會列出缺漏原因", () => {
-    const plan = getWorldbuildingActionPlan({ characters: [{ name: "A" }] as any });
-    expect(plan.blockers.length).toBeGreaterThan(0);
-    expect(plan.blockers[0].reason.length).toBeGreaterThan(0);
+  it("完整世界 + 分鏡 + 素材 -> generation_ready", () => {
+    const plan = getWorldbuildingActionPlan({ characters:[{name:"A",appearance:"x",outfits:["a"],expressions:["笑"],threeViewSheet:{frontImageUrl:"a"},voiceProfile:{emotion:"calm"}}], scenes:[{name:"S",environment:"e",mood:"m",lighting:"l"}], styleProfiles:[{artStyle:"日系"}], musicThemes:[{mood:"療癒"}] } as any, { storyboardsCount: 1, visualAssetsCount: 2 });
+    expect(plan.generationState).toBe("generation_ready");
   });
 });

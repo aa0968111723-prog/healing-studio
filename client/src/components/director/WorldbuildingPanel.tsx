@@ -11,7 +11,6 @@
  */
 
 import { memo, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -52,7 +51,7 @@ import {
   type WorldProgressResult,
 } from "../../../../shared/worldbuilding-progress";
 import { getWorldbuildingActionPlan } from "../../../../shared/worldbuilding-actions";
-import { buildWorldbuildingProductionPackage } from "../../../../shared/worldbuilding-production-package";
+import { ProductionPackagePreview } from "@/components/animation/ProductionPackagePreview";
 
 type LoadedFramework = WorldbuildingFrameworkData & {
   id: number;
@@ -241,12 +240,6 @@ const WorldCard = memo(function WorldCard({
   const actionPlan = useMemo(() => getWorldbuildingActionPlan(fw), [fw]);
   const topBlockers = actionPlan.blockers.slice(0,2);
 
-  const handlePreviewPackage = () => {
-    const pkg = buildWorldbuildingProductionPackage(fw);
-    navigator.clipboard.writeText(pkg.markdown).then(() => {
-      toast.success(actionPlan.readyForGeneration ? "已複製完整製作包 Markdown" : "已複製製作包預覽 Markdown（建議先補齊設定）");
-    }).catch(() => toast.error("複製失敗，請稍後再試"));
-  };
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/40 hover:bg-card/60 transition-all group">
@@ -340,9 +333,7 @@ const WorldCard = memo(function WorldCard({
         )}
         <div className="flex items-center gap-1.5">
           <Button size="sm" className="h-6 text-[10px]" onClick={() => onNavigate(fw.id)}>{actionPlan.primaryAction.cta}</Button>
-          <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={handlePreviewPackage}>
-            {actionPlan.readyForGeneration ? "產生製作包" : "預覽製作包"}
-          </Button>
+          <ProductionPackagePreview world={fw} />
         </div>
       </div>
 

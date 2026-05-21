@@ -167,6 +167,7 @@ import {
 
 import { calculateWorldbuildingProgress } from "../../../shared/worldbuilding-progress";
 import { getWorldbuildingActionPlan } from "../../../shared/worldbuilding-actions";
+import { calculateWorldbuildingReadiness } from "../../../shared/worldbuilding-readiness";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -5883,7 +5884,8 @@ export default function AnimationStudio() {
   }, [effectiveWorld]);
 
   const worldProgress = useMemo(() => calculateWorldbuildingProgress(effectiveWorld ?? null), [effectiveWorld]);
-  const actionPlan = useMemo(() => getWorldbuildingActionPlan(effectiveWorld ?? null), [effectiveWorld]);
+  const readiness = useMemo(() => calculateWorldbuildingReadiness(effectiveWorld ?? null, { storyboardsCount: storyboardsQuery.data?.length ?? 0 }), [effectiveWorld, storyboardsQuery.data]);
+  const actionPlan = useMemo(() => getWorldbuildingActionPlan(effectiveWorld ?? null, { storyboardsCount: storyboardsQuery.data?.length ?? 0, visualAssetsCount: readiness.visualAssetsCount }), [effectiveWorld, storyboardsQuery.data, readiness.visualAssetsCount]);
 
   const completionRatio = useMemo(() => {
     if (!effectiveWorld) return 0;
@@ -6022,7 +6024,7 @@ export default function AnimationStudio() {
           {actionPlan.actions.slice(0,3).map(a => (
             <Button key={a.id} size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedTab(a.category === "storyboard" ? "storyboards" : "characters")}>{a.cta}</Button>
           ))}
-          <ProductionPackagePreview world={effectiveWorld} />
+          <ProductionPackagePreview world={effectiveWorld} storyboards={storyboardsQuery.data as any[]} readinessPercent={readiness.generationReadinessPercent} warnings={actionPlan.blockers.map(b => b.reason)} />
         </div>
       </div>
 
@@ -6116,14 +6118,14 @@ export default function AnimationStudio() {
 
       <div className={`rounded-xl p-3 space-y-3 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg" : "border border-border/40 bg-card/30"}`}>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="text-[11px]">
-            <Eye className="w-3 h-3 mr-1" /> 視覺進度 {Math.round(completionRatio * 100)}%
-          </Badge>
+          <Badge variant="secondary" className="text-[11px]">世界觀完整度：{readiness.worldCompletionPercent}%</Badge>
+          <Badge variant="outline" className="text-[11px]">視覺素材完整度：{readiness.visualAssetPercent}%</Badge>
+          <Badge variant="outline" className="text-[11px]"><Eye className="w-3 h-3 mr-1" />生成準備度：{readiness.generationReadinessPercent}%</Badge>
           <div className="h-2 w-36 rounded-full bg-muted overflow-hidden">
             <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(completionRatio * 100)}%` }} />
           </div>
           <span className="text-[11px] text-muted-foreground">
-            已蒐集 {visualAssetGallery.length} 筆可用視覺素材
+            已蒐集 {readiness.visualAssetsCount} 筆可用視覺素材
           </span>
         </div>
 
@@ -6140,6 +6142,7 @@ export default function AnimationStudio() {
           ))}
         </div>
 
+        {readiness.visualAssetsCount === 0 && <p className="text-xs text-amber-600">尚未蒐集可用視覺素材，角色與場景生成可能不一致。</p>}
         {visualAssetGallery.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {visualAssetGallery.map(item => (
