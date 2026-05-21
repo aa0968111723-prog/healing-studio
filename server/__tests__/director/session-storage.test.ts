@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { isDirectorSessionNote } from "../../routers/director";
+import {
+  decodeDirectorSessionData,
+  encodeDirectorSessionData,
+  isDirectorSessionNote,
+} from "../../routers/director";
 
 /**
  * Type-guard regression tests for director session storage.
@@ -53,5 +57,32 @@ describe("isDirectorSessionNote", () => {
         tags: "director-session" as unknown as string[],
       })
     ).toBe(false);
+  });
+});
+
+
+describe("director session data codec", () => {
+  it("round-trips UTF-8 JSON through gzip codec", () => {
+    const payload = JSON.stringify({
+      title: "導演測試",
+      messages: [
+        { role: "user", content: "請幫我優化儲存" },
+        { role: "assistant", content: "已完成壓縮處理" },
+      ],
+    });
+
+    const encoded = encodeDirectorSessionData(payload);
+    expect(encoded.startsWith("gz:")).toBe(true);
+    expect(decodeDirectorSessionData(encoded)).toBe(payload);
+  });
+
+  it("keeps legacy plain-text payloads unchanged", () => {
+    const legacy = '{"legacy":true}';
+    expect(decodeDirectorSessionData(legacy)).toBe(legacy);
+  });
+
+  it("fails open for malformed compressed payloads", () => {
+    const malformed = "gz:not-valid-base64!!";
+    expect(decodeDirectorSessionData(malformed)).toBe(malformed);
   });
 });

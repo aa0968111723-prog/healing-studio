@@ -14,6 +14,7 @@
  */
 
 import { z } from "zod";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { router, brainProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM, extractMessageText } from "../_core/llm";
@@ -73,6 +74,33 @@ import type {
  * `noteType="script"` rows (long-form imports, generic scripts) can never
  * be returned, updated, or deleted through the session endpoints.
  */
+
+
+const DIRECTOR_SESSION_COMPRESSION_PREFIX = "gz:";
+
+export function encodeDirectorSessionData(sessionData: string): string {
+  const compressed = gzipSync(Buffer.from(sessionData, "utf8"));
+  const encoded = compressed.toString("base64");
+  return `${DIRECTOR_SESSION_COMPRESSION_PREFIX}${encoded}`;
+}
+
+export function decodeDirectorSessionData(sessionData: string): string {
+  if (!sessionData.startsWith(DIRECTOR_SESSION_COMPRESSION_PREFIX)) {
+    return sessionData;
+  }
+
+  const base64Payload = sessionData.slice(
+    DIRECTOR_SESSION_COMPRESSION_PREFIX.length
+  );
+  try {
+    const inflated = gunzipSync(Buffer.from(base64Payload, "base64"));
+    return inflated.toString("utf8");
+  } catch {
+    // Defensive fallback: return raw payload if decoding fails so older/bad
+    // records never block loading in Director UI.
+    return sessionData;
+  }
+}
 export function isDirectorSessionNote(note: {
   noteType?: string | null;
   tags?: string[] | null;
@@ -254,7 +282,7 @@ export const directorRouter = router({
         }
         await db.updateProjectNote(input.id, {
           title: storedTitle,
-          content: input.sessionData,
+          content: encodeDirectorSessionData(input.sessionData),
           tags,
         });
         return { id: input.id };
@@ -263,7 +291,7 @@ export const directorRouter = router({
       const id = await db.createProjectNote({
         userId: ctx.user.id,
         title: storedTitle,
-        content: input.sessionData,
+        content: encodeDirectorSessionData(input.sessionData),
         noteType: "script",
         tags,
       });
@@ -298,7 +326,7 @@ export const directorRouter = router({
       return {
         id: note.id,
         title: note.title.replace("[導演對話] ", ""),
-        sessionData: note.content,
+        sessionData: decodeDirectorSessionData(note.content),
         createdAt: note.createdAt,
       };
     }),
@@ -1345,7 +1373,7 @@ ${segmentSummaries}
         if (note && note.userId === ctx.user.id) {
           await db.updateProjectNote(input.id, {
             title: `[長腳本規劃] ${input.title}`,
-            content: input.sessionData,
+            content: encodeDirectorSessionData(input.sessionData),
             tags: ["planning-session", input.personality, "long-script"],
           });
           return { id: input.id };
@@ -1355,7 +1383,7 @@ ${segmentSummaries}
       const id = await db.createProjectNote({
         userId: ctx.user.id,
         title: `[長腳本規劃] ${input.title}`,
-        content: input.sessionData,
+        content: encodeDirectorSessionData(input.sessionData),
         noteType: "script",
         tags: ["planning-session", input.personality, "long-script"],
       });
@@ -1386,7 +1414,7 @@ ${segmentSummaries}
       return {
         id: note.id,
         title: note.title.replace("[長腳本規劃] ", ""),
-        sessionData: note.content,
+        sessionData: decodeDirectorSessionData(note.content),
         createdAt: note.createdAt,
       };
     }),
