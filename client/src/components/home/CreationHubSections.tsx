@@ -139,6 +139,8 @@ export interface QuickStartEntry {
   id: string;
   label: string;
   description: string;
+  /** 卡片底部按鈕文字（每張卡都有自己的動詞）。 */
+  buttonLabel: string;
   href: string;
   icon: LucideIcon;
 }
@@ -147,42 +149,48 @@ export const DEFAULT_QUICK_START_ENTRIES: QuickStartEntry[] = [
   {
     id: "video",
     label: "做一支影片",
-    description: "走影片創作室、世界觀或導演分鏡。",
+    description: "從想法、腳本、分鏡到素材生成，建立一個影片專案。",
+    buttonLabel: "開始製作",
     href: "/video-studio",
     icon: Film,
   },
   {
     id: "poster",
     label: "做一張海報 / 文宣",
-    description: "用圖片創作室排版主視覺、文案排版。",
+    description: "快速產生活動文案、視覺方向與設計草稿。",
+    buttonLabel: "開始設計",
     href: "/image-studio",
     icon: ImagePlus,
   },
   {
     id: "image",
     label: "產生圖片",
-    description: "從提示詞、風格、模型快速生成圖片。",
+    description: "進入圖像工作室,生成角色圖、場景圖或宣傳圖。",
+    buttonLabel: "前往圖像",
     href: "/image-studio",
     icon: ImageIcon,
   },
   {
     id: "audio",
     label: "產生配音 / 音樂",
-    description: "音樂、語音、音效專業工作台。",
+    description: "製作旁白、角色聲音、背景音樂或音效。",
+    buttonLabel: "前往聲音",
     href: "/pro-studio",
     icon: Music,
   },
   {
     id: "assets",
     label: "整理素材",
-    description: "上傳並管理素材，建立創作資料庫。",
+    description: "管理圖片、影片、音訊、提示詞與生成紀錄。",
+    buttonLabel: "整理資料",
     href: "/teaching-archive",
     icon: Layers,
   },
   {
     id: "train",
     label: "訓練模型",
-    description: "LoRA 訓練流程、角色鍛造、版本管理。",
+    description: "建立角色模型、風格模型或 LoRA 訓練任務。",
+    buttonLabel: "開始訓練",
     href: "/models",
     icon: Cpu,
   },
@@ -198,34 +206,66 @@ export function QuickStartSection({
   return (
     <SectionCard
       title="快速開始"
-      description="挑一個任務直接開工，光球會跟著你進到那個系統。"
+      description="今天想創作什麼？"
       icon={<Sparkles className="size-4" aria-hidden />}
     >
       <ul
         data-testid="quick-start-list"
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
       >
         {entries.map(entry => {
           const Icon = entry.icon;
           return (
             <li key={entry.id}>
-              <Link
-                href={entry.href}
+              <article
                 data-testid={`quick-start-${entry.id}`}
-                className="group flex h-full flex-col gap-2 rounded-xl border border-border/40 bg-card/40 p-3 transition hover:border-primary/40 hover:bg-card/70"
+                className={[
+                  // 卡片本體 — 圓角 + 邊框 + 柔光 + 漸層底
+                  "group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl p-4",
+                  "border border-border/50 bg-gradient-to-br from-card/70 via-card/50 to-card/30",
+                  "shadow-sm",
+                  // hover 互動 — 微上浮 + 邊框發亮 + 陰影加深
+                  "transition-all duration-200 ease-out",
+                  "hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10",
+                ].join(" ")}
               >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Icon className="size-4 text-primary" aria-hidden />
-                  {entry.label}
-                </span>
-                <span className="text-xs text-muted-foreground">
+                {/* 內側 highlight — 給卡片一點科技感的玻璃光感 */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/0 via-transparent to-primary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                />
+
+                <header className="relative flex items-center gap-2">
+                  <span className="inline-flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15 transition-transform duration-200 group-hover:scale-105">
+                    <Icon className="size-4" aria-hidden />
+                  </span>
+                  <h3 className="text-sm font-semibold tracking-tight">
+                    {entry.label}
+                  </h3>
+                </header>
+
+                <p className="relative text-xs leading-relaxed text-muted-foreground">
                   {entry.description}
-                </span>
-                <span className="mt-auto inline-flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                  前往
-                  <ArrowRight className="size-3" aria-hidden />
-                </span>
-              </Link>
+                </p>
+
+                <div className="relative mt-auto pt-1">
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="secondary"
+                    className="w-full justify-between gap-1 rounded-xl transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
+                    data-testid={`quick-start-${entry.id}-button`}
+                  >
+                    <Link href={entry.href}>
+                      {entry.buttonLabel}
+                      <ArrowRight
+                        className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+                        aria-hidden
+                      />
+                    </Link>
+                  </Button>
+                </div>
+              </article>
             </li>
           );
         })}
