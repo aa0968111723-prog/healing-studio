@@ -89,6 +89,7 @@ import {
 import { ScriptEditorTab } from "@/components/animation/ScriptEditorTab";
 import { SourcePicker } from "@/components/animation/SourcePicker";
 import { ProductionPackagePreview } from "@/components/animation/ProductionPackagePreview";
+import { VisualInspirationLibraryPanel } from "@/components/animation/VisualInspirationLibraryPanel";
 import {
   GenerateImageButton,
   GenerateMusicButton,
@@ -6055,6 +6056,7 @@ export default function AnimationStudio() {
           ))}
           <ProductionPackagePreview world={effectiveWorld} storyboards={storyboardsQuery.data as any[]} readinessPercent={readiness.generationReadinessPercent} warnings={actionPlan.blockers.map(b => b.reason)} />
           <div className="w-full"><GenerationReadinessChecklist readiness={readiness} actionPlan={actionPlan} onAction={handleWorldbuildingAction} /></div>
+          <div className="w-full"><VisualInspirationLibraryPanel world={effectiveWorld} /></div>
         </div>
       </div>
 
