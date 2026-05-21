@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Tabs,
@@ -23,6 +23,12 @@ import {
   type AgentAction,
   type AgentActionResult,
 } from "@/contexts/PageAgentContext";
+import { useProjects } from "@/contexts/ProjectsContext";
+import {
+  AskOrbSection,
+  ContinueProjectSection,
+  QuickStartSection,
+} from "@/components/home/CreationHubSections";
 
 const Studio = lazy(() => import("./Studio"));
 const DirectorAI = lazy(() => import("./DirectorAI"));
@@ -136,9 +142,30 @@ function FallbackSkeleton() {
   );
 }
 
+// Phase 2c: home 瘦身後，把原本掛在 / 的「快速開始 / 繼續上次專案 / 直接問光球」
+// 三個 hub 區塊搬進 /create 頂部。AskOrb 仍把 prompt 暫存到這個 key，等
+// AgentChat 端後續 step 接 pickup（與原本 home 端的契約一致）。
+const ORB_HANDOFF_KEY = "home-orb-pending-prompt";
+
 export default function CreationHub() {
   const [, setLocation] = useLocation();
   const search = useSearch();
+  const { activeProject } = useProjects();
+
+  const handleAskOrbSubmit = useCallback(
+    (prompt: string) => {
+      try {
+        window.sessionStorage.setItem(ORB_HANDOFF_KEY, prompt);
+      } catch {
+        // privacy mode / quota — fail open; user still lands on /agent.
+      }
+      setLocation("/agent");
+    },
+    [setLocation],
+  );
+  const handleOpenAgent = useCallback(() => {
+    setLocation("/agent");
+  }, [setLocation]);
 
   const initialTab = useMemo<CreationTabId>(() => {
     try {
@@ -248,6 +275,16 @@ export default function CreationHub() {
     <div className="creation-hub-shell page-shell space-y-5">
       <PageHeader title="創作中樞" subtitle="AI 創作作業系統入口：先定專案，再串接六大系統與模型工具。" />
       <NextStepPanel title="下一步：選擇骨架入口" description="先決定專案與系統，再進入單模型工具，避免入口平鋪造成迷路。" />
+
+      {/* Phase 2c: 從首頁搬下來的三個 hub 區塊。放在 4 卡 grid 上方做為 intro
+          panel — 使用者一進來先看到「繼續上次專案 / 快速開始 / 直接問光球」，
+          再往下才是模態選擇卡與 tabs。 */}
+      <ContinueProjectSection activeProject={activeProject} loading={false} />
+      <QuickStartSection />
+      <AskOrbSection
+        onSubmit={handleAskOrbSubmit}
+        onOpenAgent={handleOpenAgent}
+      />
 
       <div className="grid gap-3 md:grid-cols-2">
         <SectionCard title="我要做影片" description="從導演 AI 進入完整影片企劃與生成流程。" />
