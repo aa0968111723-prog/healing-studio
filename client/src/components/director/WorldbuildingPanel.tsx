@@ -3,37 +3,53 @@
  *
  * 重新設計：取代舊的草稿編輯器，改為任務表 / 儀表板形式。
  *   - 展示所有已建立的世界觀框架（角色數、場景數、LoRA 連結）
- *   - 每個世界觀有任務進度指示（待辦事項 checklist）
+ *   - 動態計算完成度（依角色、場景、風格、音樂、配音的加權平均）
+ *   - 卡片可展開查看細節（每個角色、每個場景的標籤）
+ *   - 缺漏項目顯示 warning 提示
  *   - 最上方有「進入世界觀系統」的主要 CTA 按鈕
  *   - 深度編輯一律引導到 /animation 完整世界觀系統
  */
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Film,
   Users,
   MapPin,
   Link2,
   ChevronRight,
+  ChevronDown,
   Plus,
   CheckCircle2,
   Circle,
   Sparkles,
   Wand2,
-  Image as ImageIcon,
-  Smile,
-  Shirt,
   Volume2,
-  Theater,
-  Camera,
+  AlertTriangle,
+  Music,
+  Palette,
   ArrowRight,
 } from "lucide-react";
-import type { WorldbuildingFrameworkData } from "../../../../shared/worldbuilding-types";
+import type {
+  WorldbuildingFrameworkData,
+  WorldCharacter,
+  WorldScene,
+} from "../../../../shared/worldbuilding-types";
+import {
+  calculateWorldbuildingProgress,
+  type WorldProgressCategory,
+  type WorldProgressCategoryKey,
+  type WorldProgressResult,
+} from "../../../../shared/worldbuilding-progress";
 
 type LoadedFramework = WorldbuildingFrameworkData & {
   id: number;
@@ -41,104 +57,156 @@ type LoadedFramework = WorldbuildingFrameworkData & {
   updatedAt?: Date;
 };
 
-// ─── 任務進度指示器 ──────────────────────────────────────────────────────────
-
-type TaskItem = {
-  key: string;
-  label: string;
-  Icon: React.ComponentType<{ className?: string }>;
-  done: boolean;
-  count?: number;
+const CATEGORY_ICON: Record<
+  WorldProgressCategoryKey,
+  React.ComponentType<{ className?: string }>
+> = {
+  characters: Users,
+  scenes: MapPin,
+  style: Palette,
+  music: Music,
+  voice: Volume2,
 };
 
-function getWorldTasks(fw: LoadedFramework): TaskItem[] {
-  const hasCharacters = (fw.characters?.length ?? 0) > 0;
-  const hasScenes = (fw.scenes?.length ?? 0) > 0;
-  const hasLoRA = (fw.linkedModelIds?.length ?? 0) > 0;
-  const hasStyleProfile = (fw.styleProfiles?.length ?? 0) > 0;
-  const hasMusicTheme = (fw.musicThemes?.length ?? 0) > 0;
+// ─── 類別小條 ──────────────────────────────────────────────────────────────
 
-  const chars = fw.characters ?? [];
-  const hasThreeView = chars.some(
-    c =>
-      c.threeViewSheet?.frontImageUrl ||
-      c.threeViewSheet?.sideImageUrl ||
-      c.threeViewSheet?.backImageUrl
+function CategoryRow({ cat }: { cat: WorldProgressCategory }) {
+  const Icon = CATEGORY_ICON[cat.key];
+  const colorClass =
+    cat.status === "complete"
+      ? "text-primary"
+      : cat.status === "partial"
+        ? "text-amber-500"
+        : "text-muted-foreground/60";
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <Icon className={`w-3.5 h-3.5 shrink-0 ${colorClass}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium truncate">
+            {cat.label}
+            {cat.count > 0 && (
+              <span className="ml-1 text-[10px] font-mono text-muted-foreground">
+                ({cat.count})
+              </span>
+            )}
+          </span>
+          <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+            {cat.completedItems}/{cat.totalItems}
+            <span className="ml-1.5 text-[10px] font-semibold text-primary">
+              {cat.percent}%
+            </span>
+          </span>
+        </div>
+        <div className="h-1 rounded-full bg-muted overflow-hidden mt-0.5">
+          <div
+            className={`h-full rounded-full transition-all ${
+              cat.status === "complete"
+                ? "bg-primary"
+                : cat.status === "partial"
+                  ? "bg-amber-400/80"
+                  : "bg-muted-foreground/30"
+            }`}
+            style={{ width: `${cat.percent}%` }}
+          />
+        </div>
+      </div>
+    </div>
   );
-  const hasExpression = chars.some(c => (c.expressions?.length ?? 0) > 0);
-  const hasVoice = chars.some(
-    c => c.voiceProfile?.voiceId || c.voiceProfile?.engine
-  );
+}
 
-  return [
-    {
-      key: "characters",
-      label: "角色",
-      Icon: Users,
-      done: hasCharacters,
-      count: fw.characters?.length,
-    },
-    {
-      key: "scenes",
-      label: "場景",
-      Icon: MapPin,
-      done: hasScenes,
-      count: fw.scenes?.length,
-    },
-    {
-      key: "threeview",
-      label: "三視圖",
-      Icon: ImageIcon,
-      done: hasThreeView,
-    },
-    {
-      key: "expression",
-      label: "表情包",
-      Icon: Smile,
-      done: hasExpression,
-    },
-    {
-      key: "outfit",
-      label: "穿衣集",
-      Icon: Shirt,
-      done: chars.some(c => (c.outfits?.length ?? 0) > 0),
-    },
-    {
-      key: "voice",
-      label: "配音",
-      Icon: Volume2,
-      done: hasVoice,
-    },
-    {
-      key: "script-role",
-      label: "腳本定位",
-      Icon: Theater,
-      done: chars.some(
-        c => c.scriptRole?.archetype || c.scriptRole?.arcType
-      ),
-    },
-    {
-      key: "style",
-      label: "風格設定",
-      Icon: Sparkles,
-      done: hasStyleProfile,
-      count: fw.styleProfiles?.length,
-    },
-    {
-      key: "music",
-      label: "配樂主題",
-      Icon: Camera,
-      done: hasMusicTheme,
-      count: fw.musicThemes?.length,
-    },
-    {
-      key: "lora",
-      label: "LoRA 連結",
-      Icon: Link2,
-      done: hasLoRA,
-      count: fw.linkedModelIds?.length,
-    },
-  ];
+// ─── 展開後的細節清單 ─────────────────────────────────────────────────────
+
+function CharactersDetail({ characters }: { characters: WorldCharacter[] }) {
+  if (characters.length === 0) {
+    return (
+      <p className="text-[10px] text-muted-foreground italic">
+        尚未建立任何角色。
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      {characters.slice(0, 8).map(c => {
+        const tags: string[] = [];
+        if (c.role) tags.push(c.role);
+        if (c.body?.ageStage) tags.push(c.body.ageStage);
+        if (c.scriptRole?.archetype) tags.push(c.scriptRole.archetype);
+        return (
+          <div
+            key={c.id}
+            className="rounded border border-border/20 bg-card/30 p-2"
+          >
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[11px] font-medium truncate">{c.name || "(未命名)"}</span>
+              {tags.map(t => (
+                <Badge key={t} variant="outline" className="text-[9px] h-3.5 px-1">
+                  {t}
+                </Badge>
+              ))}
+            </div>
+            {c.appearance ? (
+              <p className="text-[10px] text-muted-foreground line-clamp-2">
+                {c.appearance}
+              </p>
+            ) : (
+              <p className="text-[10px] text-amber-500/80 italic">
+                尚未填寫外觀
+              </p>
+            )}
+          </div>
+        );
+      })}
+      {characters.length > 8 && (
+        <p className="text-[10px] text-muted-foreground italic">
+          … 另有 {characters.length - 8} 個角色
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ScenesDetail({ scenes }: { scenes: WorldScene[] }) {
+  if (scenes.length === 0) {
+    return (
+      <p className="text-[10px] text-muted-foreground italic">
+        尚未建立任何場景。
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      {scenes.slice(0, 8).map(s => (
+        <div
+          key={s.id}
+          className="rounded border border-border/20 bg-card/30 p-2"
+        >
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[11px] font-medium truncate">{s.name || "(未命名)"}</span>
+            {s.mood && (
+              <Badge variant="outline" className="text-[9px] h-3.5 px-1">
+                {s.mood}
+              </Badge>
+            )}
+          </div>
+          {s.environment || s.tagline ? (
+            <p className="text-[10px] text-muted-foreground line-clamp-2">
+              {s.tagline ?? s.environment}
+            </p>
+          ) : (
+            <p className="text-[10px] text-amber-500/80 italic">
+              尚未填寫場景說明
+            </p>
+          )}
+        </div>
+      ))}
+      {scenes.length > 8 && (
+        <p className="text-[10px] text-muted-foreground italic">
+          … 另有 {scenes.length - 8} 個場景
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ─── 世界觀任務卡 ──────────────────────────────────────────────────────────
@@ -150,9 +218,23 @@ const WorldCard = memo(function WorldCard({
   fw: LoadedFramework;
   onNavigate: (id: number) => void;
 }) {
-  const tasks = useMemo(() => getWorldTasks(fw), [fw]);
-  const doneCount = tasks.filter(t => t.done).length;
-  const pct = Math.round((doneCount / tasks.length) * 100);
+  const progress: WorldProgressResult = useMemo(
+    () => calculateWorldbuildingProgress(fw),
+    [fw]
+  );
+  const [expandedDetail, setExpandedDetail] = useState<
+    "characters" | "scenes" | null
+  >(null);
+
+  const overallColorClass =
+    progress.status === "complete"
+      ? "from-primary/80 to-primary"
+      : progress.status === "partial"
+        ? "from-amber-400/70 to-primary/80"
+        : "from-muted-foreground/30 to-muted-foreground/40";
+
+  const lora = fw.linkedModelIds ?? [];
+  const topWarnings = progress.blockingWarnings.slice(0, 2);
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/40 hover:bg-card/60 transition-all group">
@@ -180,53 +262,120 @@ const WorldCard = memo(function WorldCard({
         </Button>
       </div>
 
-      {/* Progress bar */}
+      {/* Overall progress bar */}
       <div className="px-3 pt-2.5">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] text-muted-foreground">
-            完成度 {doneCount}/{tasks.length}
+            整體完成度 {progress.completedCount}/{progress.totalCount}
           </span>
-          <span className="text-[10px] font-semibold text-primary">{pct}%</span>
+          <span className="text-[11px] font-bold text-primary tabular-nums">
+            {progress.overall}%
+          </span>
         </div>
-        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className="h-2 rounded-full bg-muted overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all"
-            style={{ width: `${pct}%` }}
+            className={`h-full rounded-full bg-gradient-to-r ${overallColorClass} transition-all`}
+            style={{ width: `${progress.overall}%` }}
           />
         </div>
       </div>
 
-      {/* Task grid */}
-      <div className="p-3 grid grid-cols-5 gap-1.5">
-        {tasks.map(task => {
-          const Icon = task.Icon;
-          return (
-            <button
-              key={task.key}
-              type="button"
-              onClick={() => onNavigate(fw.id)}
-              title={task.label + (task.done ? "（已完成）" : "（待設定）")}
-              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg text-[9px] font-medium transition border ${
-                task.done
-                  ? "bg-primary/10 text-primary border-primary/20"
-                  : "bg-muted/20 text-muted-foreground border-border/20 hover:bg-muted/40"
-              }`}
-            >
-              <Icon className="w-3 h-3" />
-              <span className="leading-tight text-center">
-                {task.label}
-                {task.count != null && task.count > 0 && (
-                  <span className="ml-0.5 font-mono">({task.count})</span>
-                )}
-              </span>
-              {task.done ? (
-                <CheckCircle2 className="w-2.5 h-2.5 text-primary" />
-              ) : (
-                <Circle className="w-2.5 h-2.5 opacity-30" />
+      {/* Per-category progress rows */}
+      <div className="px-3 pt-2 pb-2 space-y-0.5">
+        {Object.values(progress.categories).map(cat => (
+          <CategoryRow key={cat.key} cat={cat} />
+        ))}
+        {/* LoRA 連結補一行（非進度，但給使用者看狀態） */}
+        <div className="flex items-center gap-2 py-1">
+          <Link2
+            className={`w-3.5 h-3.5 shrink-0 ${
+              lora.length > 0
+                ? "text-primary"
+                : "text-muted-foreground/60"
+            }`}
+          />
+          <div className="flex-1 min-w-0 flex items-center justify-between">
+            <span className="text-[11px] font-medium">
+              LoRA 連結
+              {lora.length > 0 && (
+                <span className="ml-1 text-[10px] font-mono text-muted-foreground">
+                  ({lora.length})
+                </span>
               )}
-            </button>
-          );
-        })}
+            </span>
+            {lora.length > 0 ? (
+              <CheckCircle2 className="w-3 h-3 text-primary" />
+            ) : (
+              <Circle className="w-3 h-3 text-muted-foreground/30" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Warning banner */}
+      {topWarnings.length > 0 && (
+        <div className="mx-3 mb-2 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle className="w-3 h-3 text-amber-500 mt-[1px] shrink-0" />
+            <div className="flex-1 min-w-0 space-y-0.5">
+              {topWarnings.map((w, idx) => (
+                <p
+                  key={idx}
+                  className="text-[10px] text-amber-700 dark:text-amber-300 leading-tight"
+                >
+                  {w}
+                </p>
+              ))}
+              {progress.blockingWarnings.length > topWarnings.length && (
+                <p className="text-[9px] text-muted-foreground">
+                  …另有 {progress.blockingWarnings.length - topWarnings.length} 個提示
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expandable detail panels */}
+      <div className="border-t border-border/20 px-3 py-2 space-y-1.5">
+        <Collapsible
+          open={expandedDetail === "characters"}
+          onOpenChange={open =>
+            setExpandedDetail(open ? "characters" : null)
+          }
+        >
+          <CollapsibleTrigger className="w-full flex items-center justify-between text-[10px] font-medium text-muted-foreground hover:text-foreground transition">
+            <span className="flex items-center gap-1.5">
+              {expandedDetail === "characters" ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
+              查看角色細節（{fw.characters?.length ?? 0}）
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <CharactersDetail characters={fw.characters ?? []} />
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible
+          open={expandedDetail === "scenes"}
+          onOpenChange={open => setExpandedDetail(open ? "scenes" : null)}
+        >
+          <CollapsibleTrigger className="w-full flex items-center justify-between text-[10px] font-medium text-muted-foreground hover:text-foreground transition">
+            <span className="flex items-center gap-1.5">
+              {expandedDetail === "scenes" ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
+              查看場景細節（{fw.scenes?.length ?? 0}）
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <ScenesDetail scenes={fw.scenes ?? []} />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   );
@@ -344,7 +493,9 @@ export default function WorldbuildingPanel() {
           <Sparkles className="w-3 h-3" /> 關於世界觀系統
         </div>
         <p>
-          本頁僅供快速瀏覽與進入。角色三視圖、表情、穿衣、配音、腳本定位、LoRA 連結、風格設定、分鏡時間軸等深度功能請前往世界觀系統完成。
+          本頁僅供快速瀏覽與進入。完成度依角色 / 場景 / 風格 / 配樂 / 配音
+          加權計算（30/30/20/10/10），缺漏會以提示說明影響的生成品質。
+          深度編輯（三視圖、表情、穿衣、配音、腳本定位、LoRA、分鏡時間軸）請進入世界觀系統。
         </p>
       </div>
     </div>
