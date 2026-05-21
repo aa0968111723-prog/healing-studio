@@ -27,6 +27,7 @@ import { OrbStateProvider } from "./contexts/OrbStateContext";
 import { PersonalSettingsProvider } from "./contexts/PersonalSettingsContext";
 import { IntentCardProvider } from "./contexts/IntentCardContext";
 import { WorldContextProvider } from "./contexts/WorldContextContext";
+import { ProjectsProvider } from "./contexts/ProjectsContext";
 import SkipToContent from "./components/SkipToContent";
 import RouteTransition from "./components/RouteTransition";
 const SiteOnboardingOverlay = lazy(
@@ -75,6 +76,8 @@ const SharedSpace = lazy(() => import("./pages/SharedSpace"));
 const TeachingArchive = lazy(() => import("./pages/TeachingArchive"));
 const TeamsPage = lazy(() => import("./pages/TeamsPage"));
 const CreativeProjectPage = lazy(() => import("./pages/CreativeProjectPage"));
+const ProjectsListPage = lazy(() => import("./pages/ProjectsListPage"));
+const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -218,6 +221,15 @@ function Router() {
       </Route>
       <Route path="/creative-projects">
         <ProtectedDashboardRoute component={CreativeProjectPage} />
+      </Route>
+      {/* Step 3 creation-hub project skeleton — list + detail placeholder.
+          Lives alongside /creative-projects (legacy world-builder console)
+          while we figure out how the two converge. */}
+      <Route path="/projects">
+        <ProtectedDashboardRoute component={ProjectsListPage} />
+      </Route>
+      <Route path="/projects/:id">
+        <ProtectedDashboardRoute component={ProjectDetailPage} />
       </Route>
       <Route path="/animation">
         <ProtectedDashboardRoute component={AnimationStudio} />
@@ -384,6 +396,7 @@ function App() {
                     <PageAgentProvider>
                     <OrbStateProvider>
                     <WorldContextProvider>
+                    <ProjectsProvider>
                     <GlobalOrbChatProvider>
                     <IntentCardProvider>
                     <TooltipProvider>
@@ -405,6 +418,7 @@ function App() {
                     </TooltipProvider>
                     </IntentCardProvider>
                     </GlobalOrbChatProvider>
+                    </ProjectsProvider>
                     </WorldContextProvider>
                     </OrbStateProvider>
                     </PageAgentProvider>
