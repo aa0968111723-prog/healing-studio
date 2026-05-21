@@ -75,6 +75,9 @@ import {
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
 import { useLocation } from "wouter";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -184,6 +187,9 @@ function useModelAvailability(modelId?: string) {
 // ─── 子元件：影片播放器 ──────────────────────────────────────────────────────
 
 function VideoPlayer({ url, label }: { url: string; label?: string }) {
+  const visualDensity = getVisualDensity();
+  const showAdvanced = shouldShowAdvanced(visualDensity);
+
   return (
     <div className="mt-4 p-3 sm:p-4 rounded-2xl bg-gradient-to-br from-blue-500/8 to-purple-500/5 border border-blue-200/40">
       {label && (
@@ -4917,6 +4923,9 @@ export default function VideoStudio() {
       onApply={handleApplyCompiledPrompt}
     />
     <div className="page-shell page-shell-default px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
+      <PageHeader title="影片工作室" subtitle="把分鏡、圖片或文字描述轉成可用影片片段。" primaryAction={<Button>生成影片</Button>} />
+      <NextStepPanel title="下一步：輸入影片" description="先完成必要輸入後再執行主要生成流程。" primaryAction={<Button>生成影片</Button>} />
+
       {/* 頁面標題 */}
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">

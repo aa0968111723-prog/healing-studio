@@ -74,6 +74,9 @@ import {
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
 import { useLocation } from "wouter";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
 
 // ─── Agent Bridge：讓光球代理人能深度控制各分頁參數 ─────────────────────────────
 
@@ -4732,6 +4735,8 @@ export default function ProStudio() {
   }
 
   const currentTabModels = PRO_MODELS.filter(m => m.tab === tab);
+  const visualDensity = getVisualDensity();
+  const showAdvanced = shouldShowAdvanced(visualDensity);
   const [guideKeyword, setGuideKeyword] = useState("");
   const [openGuideModelId, setOpenGuideModelId] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
