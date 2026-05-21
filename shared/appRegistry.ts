@@ -480,7 +480,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "worldbuilding",
       "世界觀",
     ],
-    showInSidebar: true,
+    showInSidebar: false,
     sidebarOrder: 21,
     sidebarGroup: "creation",
     sidebarIcon: "Film",
