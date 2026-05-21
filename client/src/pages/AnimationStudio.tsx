@@ -5355,11 +5355,9 @@ export default function AnimationStudio() {
   // 自動選第一個世界（避免在 render 階段 setState）
   const worlds = worldsQuery.data ?? [];
 
-  const loadError =
-    worldsQuery.error ??
-    voicesQuery.error ??
-    linkableModelsQuery.error ??
-    null;
+  // 僅以「世界觀主資料」作為頁面可用性的阻斷條件。
+  // voices / models 是輔助資料，失敗時不應讓整個世界觀系統無法操作。
+  const loadError = worldsQuery.error ?? null;
 
   useEffect(() => {
     if (worlds.length === 0) {
@@ -5808,6 +5806,20 @@ export default function AnimationStudio() {
   if (!selectedWorld) return null;
 
   // 渲染用 draft（本地、即時反應使用者輸入），未 ready 時 fallback 到 server 資料
+  const effectiveWorld = useMemo<WorldbuildingFrameworkData & { id?: number }>(() => {
+    const base = (draft ?? selectedWorld) as WorldbuildingFrameworkData & { id?: number };
+    return {
+      ...base,
+      characters: base.characters ?? [],
+      scenes: base.scenes ?? [],
+      styleProfiles: base.styleProfiles ?? [],
+      musicThemes: base.musicThemes ?? [],
+      researchEntries: base.researchEntries ?? [],
+      soundLibrary: base.soundLibrary ?? [],
+      uploadedAssets: base.uploadedAssets ?? [],
+    };
+  }, [draft, selectedWorld]);
+
   const visualAssetGallery = useMemo(() => {
     const items: Array<{ id: string; title: string; url: string; type: "角色" | "場景" | "資產" }> = [];
 
