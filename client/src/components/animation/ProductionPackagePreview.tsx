@@ -6,11 +6,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import type { WorldbuildingFrameworkData } from "../../../../shared/worldbuilding-types";
 import { buildWorldbuildingProductionPackage } from "../../../../shared/worldbuilding-production-package";
+import { buildGenerationTaskList } from "../../../../shared/worldbuilding-generation-tasks";
 
 export function ProductionPackagePreview({ world, storyboards, readinessPercent, warnings }: { world: WorldbuildingFrameworkData; storyboards?: any[]; readinessPercent?: number; warnings?: string[] }) {
   const [open, setOpen] = useState(false);
   const pkg = useMemo(() => buildWorldbuildingProductionPackage(world, storyboards), [world, storyboards]);
   const mergedWarnings = [...(warnings ?? []), ...pkg.warnings];
+  const taskList = useMemo(() => buildGenerationTaskList(pkg), [pkg]);
   const copy = (text: string, label: string) => navigator.clipboard.writeText(text).then(() => toast.success(`已複製${label}`));
   const download = (name: string, text: string, type: string) => { const blob = new Blob([text], { type }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
@@ -28,6 +30,28 @@ export function ProductionPackagePreview({ world, storyboards, readinessPercent,
           <Button size="sm" variant="outline" onClick={() => copy((pkg.json.videoPromptSeeds ?? []).join("\n"), "影片 Prompt")}>複製影片 Prompt</Button>
           <Button size="sm" variant="outline" onClick={() => copy((pkg.json.voiceDirections ?? []).join("\n"), "配音稿")}>複製配音稿</Button>
           <Button size="sm" variant="outline" onClick={() => download("worldbuilding-production-package.md", pkg.markdown, "text/markdown")}>下載 Markdown</Button>
+        </div>
+
+        <div className="rounded border p-2 space-y-2">
+          <h4 className="text-xs font-semibold">可建立的生成任務</h4>
+          {[
+            ["角色圖生成任務", taskList.imageTasks.filter(t => t.type === "character_image").length],
+            ["場景圖生成任務", taskList.imageTasks.filter(t => t.type === "scene_image").length],
+            ["逐鏡圖像任務", taskList.imageTasks.filter(t => t.type === "shot_image").length],
+            ["逐鏡影片任務", taskList.videoTasks.length],
+            ["配音任務", taskList.voiceTasks.length],
+            ["配樂任務", taskList.musicTasks.length],
+            ["音效任務", taskList.soundTasks.length],
+            ["發布文案任務", taskList.publishingTasks.length],
+          ].map(([label, count]) => (
+            <div key={String(label)} className="flex items-center justify-between text-xs gap-2">
+              <span>{label}：{Number(count)} 個</span>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => copy(`${label}\n` + JSON.stringify(taskList, null, 2), "任務清單")}>複製任務清單</Button>
+                <Button size="sm" disabled className="h-6 text-[11px]" onClick={() => toast("即將支援：從製作包建立圖像、影片、配音、配樂與發布任務。")}>建立任務（即將支援）</Button>
+              </div>
+            </div>
+          ))}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <ScrollArea className="h-[45vh] rounded border p-2"><h4 className="text-xs font-semibold mb-2">Markdown 預覽</h4><pre className="text-xs whitespace-pre-wrap">{pkg.markdown}</pre></ScrollArea>

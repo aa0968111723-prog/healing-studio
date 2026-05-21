@@ -168,6 +168,7 @@ import {
 import { calculateWorldbuildingProgress } from "../../../shared/worldbuilding-progress";
 import { getWorldbuildingActionPlan } from "../../../shared/worldbuilding-actions";
 import { calculateWorldbuildingReadiness } from "../../../shared/worldbuilding-readiness";
+import { GenerationReadinessChecklist } from "@/components/animation/GenerationReadinessChecklist";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -5887,6 +5888,18 @@ export default function AnimationStudio() {
   const readiness = useMemo(() => calculateWorldbuildingReadiness(effectiveWorld ?? null, { storyboardsCount: storyboardsQuery.data?.length ?? 0 }), [effectiveWorld, storyboardsQuery.data]);
   const actionPlan = useMemo(() => getWorldbuildingActionPlan(effectiveWorld ?? null, { storyboardsCount: storyboardsQuery.data?.length ?? 0, visualAssetsCount: readiness.visualAssetsCount }), [effectiveWorld, storyboardsQuery.data, readiness.visualAssetsCount]);
 
+  const handleWorldbuildingAction = useCallback((action: any) => {
+    const tab = action.targetTab ?? "characters";
+    setSelectedTab(tab);
+    if (action.targetEntityId) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-worldbuilding-entity-id="${action.targetEntityId}"]`);
+        if (el) (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" });
+        else toast("已切換到對應分頁，請補齊缺漏欄位。");
+      }, 120);
+    }
+  }, [setSelectedTab]);
+
   const completionRatio = useMemo(() => {
     if (!effectiveWorld) return 0;
     return Math.min(
@@ -6013,6 +6026,8 @@ export default function AnimationStudio() {
           <Badge variant="outline">{actionPlan.generationState === "generation_ready" ? "可以產生製作包" : actionPlan.generationState === "storyboard_ready" ? "可以開始做分鏡" : "還在整理設定"}</Badge>
         </div>
         <div className="text-[11px]">
+          <div>角色視覺覆蓋率 Top 3：{readiness.visualCoverage.characterCoverage.slice(0,3).map((c:any)=>`${c.name}：${c.percent}%｜缺${c.missing.slice(0,2).join("、") || "無"}`).join("；") || "無"}</div>
+          <div>場景視覺覆蓋率 Top 3：{readiness.visualCoverage.sceneCoverage.slice(0,3).map((c:any)=>`${c.name}：${c.percent}%｜缺${c.missing.slice(0,2).join("、") || "無"}`).join("；") || "無"}</div>
           <span className="font-medium">建議下一步：</span>{actionPlan.primaryAction.label}（{actionPlan.primaryAction.cta}）
         </div>
         {actionPlan.blockers.length > 0 && (
@@ -6022,9 +6037,10 @@ export default function AnimationStudio() {
         )}
         <div className="flex flex-wrap gap-2">
           {actionPlan.actions.slice(0,3).map(a => (
-            <Button key={a.id} size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedTab(a.category === "storyboard" ? "storyboards" : "characters")}>{a.cta}</Button>
+            <Button key={a.id} size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleWorldbuildingAction(a)}>{a.cta}</Button>
           ))}
           <ProductionPackagePreview world={effectiveWorld} storyboards={storyboardsQuery.data as any[]} readinessPercent={readiness.generationReadinessPercent} warnings={actionPlan.blockers.map(b => b.reason)} />
+          <div className="w-full"><GenerationReadinessChecklist readiness={readiness} actionPlan={actionPlan} onAction={handleWorldbuildingAction} /></div>
         </div>
       </div>
 
@@ -6223,7 +6239,7 @@ export default function AnimationStudio() {
           <ScrollArea className="max-h-[70vh] pr-2">
             <div className="space-y-2">
               {effectiveWorld.characters.map(c => (
-                <CharacterAnimationCard
+                <div data-worldbuilding-entity-id={c.id} data-worldbuilding-field="threeView"><CharacterAnimationCard
                   key={c.id}
                   character={c}
                   voices={voicesQuery.data ?? []}
@@ -6243,6 +6259,7 @@ export default function AnimationStudio() {
                     })
                   }
                 />
+                </div>
               ))}
               <div className="flex flex-wrap gap-2">
                 {(
@@ -6283,7 +6300,7 @@ export default function AnimationStudio() {
           <ScrollArea className="max-h-[70vh] pr-2">
             <div className="space-y-2">
               {effectiveWorld.scenes.map(s => (
-                <SceneCard
+                <div data-worldbuilding-entity-id={s.id} data-worldbuilding-field="environment"><SceneCard
                   key={s.id}
                   scene={s}
                   styleProfiles={effectiveWorld.styleProfiles ?? []}
@@ -6302,6 +6319,7 @@ export default function AnimationStudio() {
                     })
                   }
                 />
+                </div>
               ))}
               <Button
                 variant="outline"
