@@ -38,6 +38,7 @@ import {
 import { parseDurationToSeconds } from "../../../../shared/orb-script-structure";
 import { detectScriptEntities } from "../../../../shared/script-entity-detection";
 import { calculateWorldbuildingProgress } from "../../../../shared/worldbuilding-progress";
+import { detectScriptAssetNeeds } from "../../../../shared/script-asset-needs";
 import type { ScriptSegment } from "../../../../shared/types";
 import type {
   WorldbuildingFrameworkData,
@@ -202,6 +203,7 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
     return detectScriptEntities(combined, worldData ?? null);
   }, [draft.content, draft.segments, worldData]);
 
+
   const worldProgress = useMemo(
     () => calculateWorldbuildingProgress(worldData ?? null),
     [worldData]
@@ -267,12 +269,15 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
         id: `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         name,
         role: "supporting" as const,
+        tagline: "從腳本偵測建立，請補外觀與聲音以保持生成一致性。",
+        appearance: "",
+        personality: "",
       }));
       await worldUpdate.mutateAsync({
         id: worldId,
         patch: { characters: [...existing, ...newChars] },
       });
-      toast.success(`已將 ${names.length} 個角色加入世界觀`);
+      toast.success("已建立角色草稿，請補外觀以保持生成一致性。");
     },
     [worldData, worldId, worldUpdate]
   );
@@ -284,12 +289,16 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
       const newScenes: WorldScene[] = names.map(name => ({
         id: `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         name,
+        tagline: "從腳本偵測建立，請補場景氛圍與參考圖。",
+        environment: "",
+        mood: "",
+        lighting: "",
       }));
       await worldUpdate.mutateAsync({
         id: worldId,
         patch: { scenes: [...existing, ...newScenes] },
       });
-      toast.success(`已將 ${names.length} 個場景加入世界觀`);
+      toast.success("已建立場景草稿，請補氛圍與參考圖以保持畫面一致性。");
     },
     [worldData, worldId, worldUpdate]
   );
@@ -989,13 +998,11 @@ function ScriptAnalysisInsights({
       {/* 這段腳本需要的素材 */}
       <div className="rounded border border-border/30 bg-card/20 px-2 py-2 space-y-1">
         <div className="text-[10px] font-medium">這段腳本需要的素材</div>
-        <div className="flex flex-wrap gap-1">
-          {analysis.characters.length > 0 && <Badge variant="outline" className="text-[10px]">需要角色</Badge>}
-          {analysis.scenes.length > 0 && <Badge variant="outline" className="text-[10px]">需要場景</Badge>}
-          {(analysis.dialogues.length > 0 || analysis.characters.length > 0) && <Badge variant="outline" className="text-[10px]">需要聲音</Badge>}
-          {analysis.emotions.length > 0 && <Badge variant="outline" className="text-[10px]">需要視覺風格</Badge>}
-          {(analysis.scenes.length > 0 || analysis.dialogues.length > 0) && <Badge variant="outline" className="text-[10px]">可能需要的分鏡素材</Badge>}
-        </div>
+        <div className="text-[10px] text-muted-foreground">角色：{analysis.characters.map(c => c.name).join("、") || "（未偵測）"}</div>
+        <div className="text-[10px] text-muted-foreground">場景：{analysis.scenes.map(s => s.name).join("、") || "（未偵測）"}</div>
+        <div className="text-[10px] text-muted-foreground">音效提示：{detectScriptAssetNeeds("", analysis).audioCues.join("、") || "（待補）"}</div>
+        <div className="text-[10px] text-muted-foreground">配樂情緒：{detectScriptAssetNeeds("", analysis).musicMoodCues.join("、") || "（待補）"}</div>
+        <div className="text-[10px] text-muted-foreground">鏡頭提示：{detectScriptAssetNeeds("", analysis).cameraCues.join("、") || "（待補）"}</div>
       </div>
 
       {/* 生成前風險提醒 */}

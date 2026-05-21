@@ -7,42 +7,33 @@ import { Badge } from "@/components/ui/badge";
 import type { WorldbuildingFrameworkData } from "../../../../shared/worldbuilding-types";
 import { buildWorldbuildingProductionPackage } from "../../../../shared/worldbuilding-production-package";
 
-export function ProductionPackagePreview({ world }: { world: WorldbuildingFrameworkData }) {
+export function ProductionPackagePreview({ world, storyboards, readinessPercent, warnings }: { world: WorldbuildingFrameworkData; storyboards?: any[]; readinessPercent?: number; warnings?: string[] }) {
   const [open, setOpen] = useState(false);
-  const pkg = useMemo(() => buildWorldbuildingProductionPackage(world), [world]);
-
-  const download = (name: string, text: string, type: string) => {
-    const blob = new Blob([text], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const pkg = useMemo(() => buildWorldbuildingProductionPackage(world, storyboards), [world, storyboards]);
+  const mergedWarnings = [...(warnings ?? []), ...pkg.warnings];
+  const copy = (text: string, label: string) => navigator.clipboard.writeText(text).then(() => toast.success(`已複製${label}`));
+  const download = (name: string, text: string, type: string) => { const blob = new Blob([text], { type }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="h-7 text-xs">產生完整製作包</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>製作包預覽</DialogTitle>
-        </DialogHeader>
-        {pkg.warnings.length > 0 && (
-          <Badge variant="outline" className="text-amber-700 border-amber-500/40">
-            目前製作包可產生，但尚缺的設定可能會影響圖、影、音一致性。
-          </Badge>
-        )}
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(pkg.markdown).then(() => toast.success("已複製 Markdown"))}>複製 Markdown</Button>
+      <DialogTrigger asChild><Button size="sm" className="h-7 text-xs">產生完整製作包</Button></DialogTrigger>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader><DialogTitle>製作包預覽</DialogTitle></DialogHeader>
+        <Badge variant="secondary">生成準備度 {readinessPercent ?? pkg.readinessPercent}%</Badge>
+        {mergedWarnings.length > 0 && <div className="text-xs text-amber-700">尚缺資訊會影響生成一致性。{mergedWarnings.map((w, i) => <div key={i}>- {w}</div>)}</div>}
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => copy(pkg.markdown, "Markdown")}>複製 Markdown</Button>
+          <Button size="sm" variant="outline" onClick={() => copy([...(pkg.json.imagePromptSeeds ?? []), ...(pkg.json.videoPromptSeeds ?? []), ...(pkg.json.voiceDirections ?? [])].join("\n"), "所有 Prompt")}>複製所有 Prompt</Button>
+          <Button size="sm" variant="outline" onClick={() => copy((pkg.json.imagePromptSeeds ?? []).join("\n"), "圖像 Prompt")}>複製圖像 Prompt</Button>
+          <Button size="sm" variant="outline" onClick={() => copy((pkg.json.videoPromptSeeds ?? []).join("\n"), "影片 Prompt")}>複製影片 Prompt</Button>
+          <Button size="sm" variant="outline" onClick={() => copy((pkg.json.voiceDirections ?? []).join("\n"), "配音稿")}>複製配音稿</Button>
           <Button size="sm" variant="outline" onClick={() => download("worldbuilding-production-package.md", pkg.markdown, "text/markdown")}>下載 Markdown</Button>
-          <Button size="sm" variant="outline" onClick={() => download("worldbuilding-production-package.json", JSON.stringify(pkg.json, null, 2), "application/json")}>下載 JSON</Button>
         </div>
-        <ScrollArea className="h-[55vh] rounded border border-border/40 p-3">
-          <pre className="text-xs whitespace-pre-wrap">{pkg.markdown}</pre>
-        </ScrollArea>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <ScrollArea className="h-[45vh] rounded border p-2"><h4 className="text-xs font-semibold mb-2">Markdown 預覽</h4><pre className="text-xs whitespace-pre-wrap">{pkg.markdown}</pre></ScrollArea>
+          <ScrollArea className="h-[45vh] rounded border p-2"><h4 className="text-xs font-semibold mb-2">Prompt Seeds</h4><pre className="text-xs whitespace-pre-wrap">{(pkg.json.imagePromptSeeds ?? []).concat(pkg.json.videoPromptSeeds ?? []).concat(pkg.json.voiceDirections ?? []).concat(pkg.json.musicPromptSeeds ?? []).join("\n") || "（待補）"}</pre></ScrollArea>
+          <ScrollArea className="h-[45vh] rounded border p-2"><h4 className="text-xs font-semibold mb-2">缺漏提醒</h4><pre className="text-xs whitespace-pre-wrap">{(pkg.json.missingItems ?? []).join("\n") || "無"}</pre></ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
