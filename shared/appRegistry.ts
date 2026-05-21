@@ -17,7 +17,7 @@ export type AppPageGroupId =
  * 中心」。要新增分組就在 SIDEBAR_GROUPS 加一條，然後把對應頁面標上同樣的
  * sidebarGroup 鍵即可，DashboardLayout 不必再改。
  */
-export type SidebarGroupId = "creation" | "resources" | "knowledge";
+export type SidebarGroupId = "getting-started" | "creation" | "assets" | "management";
 
 export interface SidebarGroupDefinition {
   id: SidebarGroupId;
@@ -31,28 +31,11 @@ export interface SidebarGroupDefinition {
 }
 
 export const SIDEBAR_GROUPS: readonly SidebarGroupDefinition[] = [
-  {
-    id: "creation",
-    label: "創作工作室",
-    icon: "Palette",
-    order: 20,
-    description: "圖片、影片、音樂的主要創作入口",
-  },
-  {
-    id: "resources",
-    label: "資源庫",
-    icon: "FolderOpen",
-    order: 40,
-    description: "模型訓練、素材、提示詞與背景任務",
-  },
-  {
-    id: "knowledge",
-    label: "知識中心",
-    icon: "GraduationCap",
-    order: 50,
-    description: "筆記、教學、模型情報與許願池",
-  },
-] as const;
+  { id: "getting-started", label: "開始", icon: "Home", order: 10, description: "首頁、創作中心與專案入口" },
+  { id: "creation", label: "創作", icon: "Palette", order: 20, description: "導演 AI、世界觀、圖像、影片、音樂" },
+  { id: "assets", label: "素材", icon: "FolderOpen", order: 30, description: "資產庫、模型、LoRA、視覺靈感" },
+  { id: "management", label: "管理", icon: "Settings", order: 40, description: "設定、API 用量與代理設定" },
+] as const;;
 
 export interface AppPageQuickAction {
   id: string;
@@ -635,7 +618,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["notes", "筆記"],
     showInSidebar: true,
     sidebarOrder: 51,
-    sidebarGroup: "knowledge",
+    sidebarGroup: "assets",
     sidebarIcon: "StickyNote",
     showInAgentHome: true,
     agentEntryPriority: 21,
@@ -787,7 +770,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["assets", "素材", "資產", "提示詞", "保險庫", "共享", "背景任務"],
     showInSidebar: true,
     sidebarOrder: 42,
-    sidebarGroup: "resources",
+    sidebarGroup: "assets",
     sidebarIcon: "Package",
     showInAgentHome: true,
     agentEntryPriority: 10,
@@ -903,7 +886,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["models", "模型", "角色"],
     showInSidebar: true,
     sidebarOrder: 41,
-    sidebarGroup: "resources",
+    sidebarGroup: "assets",
     sidebarIcon: "Cpu",
     showInAgentHome: true,
     agentEntryPriority: 23,
@@ -1020,7 +1003,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["learn", "教學", "文件"],
     showInSidebar: true,
     sidebarOrder: 52,
-    sidebarGroup: "knowledge",
+    sidebarGroup: "assets",
     sidebarIcon: "BookOpen",
     showInAgentHome: true,
     agentEntryPriority: 40,
@@ -1058,7 +1041,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     showInSidebar: true,
     sidebarOrder: 53,
-    sidebarGroup: "knowledge",
+    sidebarGroup: "assets",
     sidebarIcon: "Sparkles",
     showInAgentHome: true,
     agentEntryPriority: 42,
@@ -1114,7 +1097,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     showInSidebar: true,
     sidebarOrder: 54,
-    sidebarGroup: "knowledge",
+    sidebarGroup: "assets",
     sidebarIcon: "Gift",
     showInAgentHome: false,
     agentEntryPriority: 43,
@@ -1459,7 +1442,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["創作專案", "專案", "creative projects", "project"],
     showInSidebar: true,
     sidebarOrder: 55,
-    sidebarGroup: "resources",
+    sidebarGroup: "assets",
     sidebarIcon: "FolderKanban",
     showInAgentHome: true,
     agentEntryPriority: 26,
