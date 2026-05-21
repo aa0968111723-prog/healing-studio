@@ -332,7 +332,7 @@ export const directorRouter = router({
       return {
         id: note.id,
         title: note.title.replace("[導演對話] ", ""),
-        sessionData: decodeDirectorSessionData(note.content),
+        sessionData: decodeDirectorSessionData(note.content ?? ""),
         createdAt: note.createdAt,
       };
     }),
@@ -1529,7 +1529,7 @@ ${segmentSummaries}
       return {
         id: note.id,
         title: note.title.replace("[長腳本規劃] ", ""),
-        sessionData: decodeDirectorSessionData(note.content),
+        sessionData: decodeDirectorSessionData(note.content ?? ""),
         createdAt: note.createdAt,
       };
     }),
