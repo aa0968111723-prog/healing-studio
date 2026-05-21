@@ -4,7 +4,7 @@ import { APP_PAGE_REGISTRY, SIDEBAR_GROUPS } from "./appRegistry";
 describe("appRegistry sidebar grouping", () => {
   it("contains new grouped buckets", () => {
     const labels = SIDEBAR_GROUPS.map(g => g.label);
-    expect(labels).toEqual(expect.arrayContaining(["開始", "創作系統", "素材與模型", "管理"]));
+    expect(labels).toEqual(["創作中樞", "六大系統", "模型樂園", "管理"]);
   });
 
   it("every sidebar page has complete sidebar metadata", () => {

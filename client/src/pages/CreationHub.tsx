@@ -191,7 +191,7 @@ export default function CreationHub() {
 
   useRegisterPageAgent({
     pageId: "create",
-    pageLabel: "創作中心",
+    pageLabel: "創作中樞",
     pagePath: "/create",
     capabilities: [
       {
@@ -246,8 +246,8 @@ export default function CreationHub() {
 
   return (
     <div className="creation-hub-shell page-shell space-y-5">
-      <PageHeader title="創作中心" subtitle="依照你的意圖進入影片、圖片、聲音與素材工作流。" />
-      <NextStepPanel title="下一步：選擇主要工作流" description="先選一個主要目標，再用次要入口補足素材與設定。" />
+      <PageHeader title="創作中樞" subtitle="AI 創作作業系統入口：先定專案，再串接六大系統與模型工具。" />
+      <NextStepPanel title="下一步：選擇骨架入口" description="先決定專案與系統，再進入單模型工具，避免入口平鋪造成迷路。" />
 
       <div className="grid gap-3 md:grid-cols-2">
         <SectionCard title="我要做影片" description="從導演 AI 進入完整影片企劃與生成流程。" />
@@ -258,7 +258,7 @@ export default function CreationHub() {
 
       <header className="page-header">
         <p className="page-eyebrow">Creation Hub</p>
-        <h1 className="page-title">創作中心</h1>
+        <h1 className="page-title">創作中樞</h1>
         <p className="page-subtitle">
           整合創作工作室、導演 AI、資產、筆記與排程的單一工作台。切換上方頁籤即可在不同任務間流暢移動。
         </p>
