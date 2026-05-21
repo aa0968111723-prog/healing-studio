@@ -1444,11 +1444,12 @@ ${profileSnippet}`;
             title="今天想創作什麼？"
             subtitle="選擇繼續創作中的專案、從快速入口起步，或交給光球帶你進到正確系統。"
           />
+          {/* 快速開始放在主標下方，讓使用者一進站就能挑一個任務開始 */}
+          <QuickStartSection />
           <ContinueProjectSection
             activeProject={activeProject}
             loading={false}
           />
-          <QuickStartSection />
           <AskOrbSection
             onSubmit={handleAskOrbSubmit}
             onOpenAgent={handleOpenAgent}

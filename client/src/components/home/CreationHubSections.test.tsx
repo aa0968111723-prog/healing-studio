@@ -60,6 +60,12 @@ describe("ContinueProjectSection", () => {
 });
 
 describe("QuickStartSection", () => {
+  it("renders the 區塊標題 / 副標 pair", () => {
+    renderWithRouter(<QuickStartSection />);
+    expect(screen.getByText("快速開始")).toBeTruthy();
+    expect(screen.getByText("今天想創作什麼？")).toBeTruthy();
+  });
+
   it("renders every quick-start entry", () => {
     renderWithRouter(<QuickStartSection />);
     expect(screen.getByTestId("quick-start-list")).toBeTruthy();
@@ -82,6 +88,25 @@ describe("QuickStartSection", () => {
       "訓練模型",
     ]) {
       expect(screen.getByText(label), `${label} should render`).toBeTruthy();
+    }
+  });
+
+  it("renders a per-card button with its own verb label", () => {
+    renderWithRouter(<QuickStartSection />);
+    const expected: Array<[string, string]> = [
+      ["video", "開始製作"],
+      ["poster", "開始設計"],
+      ["image", "前往圖像"],
+      ["audio", "前往聲音"],
+      ["assets", "整理資料"],
+      ["train", "開始訓練"],
+    ];
+    for (const [id, label] of expected) {
+      const btn = screen.getByTestId(`quick-start-${id}-button`);
+      expect(btn, `${id} button should render`).toBeTruthy();
+      expect(btn.textContent ?? "", `${id} button should show "${label}"`).toContain(
+        label,
+      );
     }
   });
 });
