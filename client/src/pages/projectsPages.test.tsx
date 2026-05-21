@@ -87,6 +87,33 @@ describe("ProjectDetailPage (/projects/:id)", () => {
     expect(screen.getByTestId("project-detail-back-home")).toBeTruthy();
   });
 
+  it("surfaces bound world framework + storyboard for the zen sample", () => {
+    const zen = MOCK_PROJECTS.find(p => p.id === "proj-zen-short")!;
+    renderDetailAt(`/projects/${zen.id}`);
+    expect(screen.getByTestId("project-detail-bindings")).toBeTruthy();
+    const wf = screen.getByTestId("binding-world-framework");
+    expect(wf.dataset.bound).toBe("true");
+    expect(wf.textContent).toContain("禪修世界觀 v1");
+    const sb = screen.getByTestId("binding-storyboard");
+    expect(sb.dataset.bound).toBe("true");
+    expect(sb.textContent).toContain("30 秒禪修分鏡");
+  });
+
+  it("shows 未綁定 fallback when no binding is set on the project", () => {
+    // proj-club-poster 沒有 binding 欄位 → 三行都應顯示「未綁定」。
+    const club = MOCK_PROJECTS.find(p => p.id === "proj-club-poster")!;
+    renderDetailAt(`/projects/${club.id}`);
+    for (const id of [
+      "binding-world-framework",
+      "binding-storyboard",
+      "binding-director-session",
+    ]) {
+      const row = screen.getByTestId(id);
+      expect(row.dataset.bound, `${id} should be 未綁定`).toBe("false");
+      expect(row.textContent).toContain("未綁定");
+    }
+  });
+
   it("shows a 找不到 fallback for unknown project ids", () => {
     renderDetailAt("/projects/missing-id");
     expect(screen.getByText("找不到這個專案")).toBeTruthy();

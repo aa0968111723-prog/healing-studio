@@ -96,6 +96,42 @@ export default function ProjectDetailPage() {
         </p>
       </SectionCard>
 
+      <SectionCard
+        title="綁定狀態"
+        description="世界觀、分鏡板、導演對話會在這裡跟著專案走。"
+      >
+        <ul
+          data-testid="project-detail-bindings"
+          className="space-y-1.5 text-sm"
+        >
+          <BindingRow
+            label="世界觀"
+            value={project.binding?.worldFramework}
+            testId="binding-world-framework"
+          />
+          <BindingRow
+            label="分鏡板"
+            value={project.binding?.storyboard}
+            testId="binding-storyboard"
+          />
+          <BindingRow
+            label="導演對話"
+            value={project.binding?.directorSession}
+            testId="binding-director-session"
+          />
+        </ul>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          想改綁定到別的世界觀或分鏡板？到{" "}
+          <Link
+            href="/creative-projects"
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            創作專案主控台
+          </Link>{" "}
+          上點該專案的「綁定」即可。
+        </p>
+      </SectionCard>
+
       <NextStepPanel
         title="下一步建議"
         description={project.nextAction}
@@ -106,5 +142,29 @@ export default function ProjectDetailPage() {
         }
       />
     </div>
+  );
+}
+
+function BindingRow({
+  label,
+  value,
+  testId,
+}: {
+  label: string;
+  value: string | undefined;
+  testId: string;
+}) {
+  const bound = Boolean(value && value.trim());
+  return (
+    <li
+      data-testid={testId}
+      data-bound={bound ? "true" : "false"}
+      className="flex items-center justify-between gap-3"
+    >
+      <span className="text-muted-foreground">{label}</span>
+      <span className={bound ? "text-foreground" : "italic text-muted-foreground"}>
+        {bound ? value : "未綁定"}
+      </span>
+    </li>
   );
 }

@@ -10,8 +10,7 @@
  *   - 切換到「當前世界觀上下文」，讓各 Studio 頁面自動帶入一致性
  */
 
-import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useWorldContext } from "@/contexts/WorldContextContext";
@@ -77,6 +76,9 @@ export default function CreativeProjectPage() {
   const world = useWorldContext();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  // Phase 2a: post-creation 綁定 / 解綁。Tracks the project whose binding the
+  // user is editing — null means the dialog is closed.
+  const [bindProjectId, setBindProjectId] = useState<number | null>(null);
 
   const listQuery = trpc.creativeProject.list.useQuery(undefined, {
     staleTime: 5_000,
@@ -123,6 +125,23 @@ export default function CreativeProjectPage() {
     },
     onError: err => toast.error(err.message || "刪除失敗"),
   });
+
+  // Phase 2a: link mutation for re-binding world / storyboard on existing
+  // projects. Reuses the existing creativeProject.link tRPC procedure so we
+  // don't introduce new server surface area.
+  const linkMutation = trpc.creativeProject.link.useMutation({
+    onSuccess: () => {
+      toast.success("綁定已更新");
+      setBindProjectId(null);
+      utils.creativeProject.list.invalidate();
+    },
+    onError: err => toast.error(err.message || "綁定更新失敗"),
+  });
+
+  const projectToBind = useMemo(
+    () => projects.find(p => p.id === bindProjectId) ?? null,
+    [projects, bindProjectId],
+  );
 
   return (
     <div className="page-shell space-y-6">
@@ -212,10 +231,11 @@ export default function CreativeProjectPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    asChild
+                    onClick={() => setBindProjectId(p.id)}
                     className="text-muted-foreground"
+                    data-testid={`bind-project-${p.id}`}
                   >
-                    <Link href={`/creative-projects/${p.id}`}>編輯</Link>
+                    綁定
                   </Button>
                   <Button
                     size="sm"
@@ -237,6 +257,21 @@ export default function CreativeProjectPage() {
         onOpenChange={setCreateOpen}
         onSubmit={input => createMutation.mutate(input)}
         submitting={createMutation.isPending}
+      />
+
+      <BindProjectDialog
+        project={projectToBind}
+        onOpenChange={open => {
+          if (!open) setBindProjectId(null);
+        }}
+        onSubmit={input =>
+          linkMutation.mutate({
+            id: input.id,
+            worldFrameworkId: input.worldFrameworkId,
+            worldStoryboardId: input.worldStoryboardId,
+          })
+        }
+        submitting={linkMutation.isPending}
       />
 
       <AlertDialog
@@ -456,6 +491,145 @@ function CreateProjectDialog({
               <Plus className="mr-1 size-4" />
             )}
             建立
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Bind project dialog ────────────────────────────────────────────────────
+//
+// Lets the user re-bind / unbind worldview framework + storyboard on an
+// existing creative project — the post-creation counterpart to
+// CreateProjectDialog. Calls trpc.creativeProject.link via onSubmit so the
+// server-side `link` mutation stays the single source of binding truth.
+
+interface BindInput {
+  id: number;
+  worldFrameworkId: number | null;
+  worldStoryboardId: number | null;
+}
+
+interface BindableProject {
+  id: number;
+  title: string;
+  worldFrameworkId: number | null;
+  worldStoryboardId: number | null;
+}
+
+function BindProjectDialog({
+  project,
+  onOpenChange,
+  onSubmit,
+  submitting,
+}: {
+  project: BindableProject | null;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (input: BindInput) => void;
+  submitting: boolean;
+}) {
+  const open = project !== null;
+  const [worldFrameworkId, setWorldFrameworkId] = useState<string>("__none__");
+  const [worldStoryboardId, setWorldStoryboardId] = useState<string>("__none__");
+
+  const worldsQuery = trpc.worldbuilding.list.useQuery(undefined, {
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const storyboardsQuery = trpc.worldStoryboard.list.useQuery(undefined, {
+    enabled: open,
+    staleTime: 30_000,
+  });
+
+  // 載入專案目前綁定到 dialog state — 用 project.id 當 key 是為了避免
+  // 切換 project 時 stale state（同一個 dialog 被連續打開兩個專案的情況）。
+  useEffect(() => {
+    if (!project) return;
+    setWorldFrameworkId(
+      project.worldFrameworkId === null ? "__none__" : String(project.worldFrameworkId),
+    );
+    setWorldStoryboardId(
+      project.worldStoryboardId === null ? "__none__" : String(project.worldStoryboardId),
+    );
+  }, [project]);
+
+  if (!project) return null;
+
+  const handleSubmit = () => {
+    onSubmit({
+      id: project.id,
+      worldFrameworkId:
+        worldFrameworkId === "__none__"
+          ? null
+          : Number.parseInt(worldFrameworkId, 10),
+      worldStoryboardId:
+        worldStoryboardId === "__none__"
+          ? null
+          : Number.parseInt(worldStoryboardId, 10),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>調整綁定 — {project.title}</DialogTitle>
+          <DialogDescription>
+            把這個專案接上世界觀框架與分鏡板，之後所有 Studio
+            頁面會跟著這個專案的設定走。選「未綁定」就會解除。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>世界觀框架</Label>
+            <Select value={worldFrameworkId} onValueChange={setWorldFrameworkId}>
+              <SelectTrigger data-testid="bind-world-framework-trigger">
+                <SelectValue placeholder="未綁定" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">未綁定</SelectItem>
+                {(worldsQuery.data ?? []).map(w => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>分鏡板</Label>
+            <Select value={worldStoryboardId} onValueChange={setWorldStoryboardId}>
+              <SelectTrigger data-testid="bind-storyboard-trigger">
+                <SelectValue placeholder="未綁定" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">未綁定</SelectItem>
+                {(storyboardsQuery.data ?? []).map(s => (
+                  <SelectItem key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting}
+            data-testid="bind-submit"
+          >
+            {submitting ? (
+              <Loader2 className="mr-1 size-4 animate-spin" />
+            ) : null}
+            儲存綁定
           </Button>
         </DialogFooter>
       </DialogContent>

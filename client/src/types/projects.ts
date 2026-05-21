@@ -36,6 +36,19 @@ export interface Project {
   /** ISO date strings — keep client-friendly so we can sort without parsing. */
   createdAt: string;
   updatedAt: string;
+  /**
+   * Phase 2a: creative-project ↔ worldview binding stub.
+   *
+   * Mock-only labels for now — the real source of truth is the server-side
+   * creative_projects.worldFrameworkId / worldStoryboardId. We surface these
+   * here so the /projects/:id placeholder can teach the binding concept
+   * before the two stores converge.
+   */
+  binding?: {
+    worldFramework?: string;
+    storyboard?: string;
+    directorSession?: string;
+  };
 }
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
