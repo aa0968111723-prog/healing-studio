@@ -6,7 +6,7 @@
  *   - 動態計算完成度（依角色、場景、風格、音樂、配音的加權平均）
  *   - 卡片可展開查看細節（每個角色、每個場景的標籤）
  *   - 缺漏項目顯示 warning 提示
- *   - 最上方有「進入世界觀系統」的主要 CTA 按鈕
+ *   - 最上方有「貼上劇本開始」的主要 CTA 按鈕
  *   - 深度編輯一律引導到 /animation 完整世界觀系統
  */
 
@@ -426,7 +426,7 @@ export default function WorldbuildingPanel() {
 
   return (
     <div className="space-y-4">
-      {/* 主要 CTA — 進入世界觀系統 */}
+      {/* 主要 CTA — 貼上劇本開始 */}
       <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/[0.06] to-transparent p-5">
         <div className="flex items-center gap-4">
           <div className="rounded-xl bg-primary/15 p-3 shrink-0">
@@ -448,7 +448,7 @@ export default function WorldbuildingPanel() {
             className="shrink-0 gap-2 rounded-xl"
           >
             <Wand2 className="w-4 h-4" />
-            進入世界觀系統
+            貼上劇本開始
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
@@ -468,7 +468,7 @@ export default function WorldbuildingPanel() {
               還沒有世界觀
             </p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              在世界觀系統建立第一個世界，開始配置角色與場景
+              世界觀不是讓你填設定，而是幫你把想法變成可生成的影片專案。貼上劇本或一句話，系統會整理角色、場景、風格、聲音、分鏡與生成提示詞。
             </p>
           </div>
           <Button
@@ -476,7 +476,7 @@ export default function WorldbuildingPanel() {
             className="gap-2 rounded-xl"
           >
             <Plus className="w-4 h-4" />
-            建立第一個世界觀
+            從一句話建立世界觀
           </Button>
         </div>
       ) : (
@@ -520,7 +520,7 @@ export default function WorldbuildingPanel() {
         <p>
           本頁僅供快速瀏覽與進入。完成度依角色 / 場景 / 風格 / 配樂 / 配音
           加權計算（30/30/20/10/10），缺漏會以提示說明影響的生成品質。
-          深度編輯（三視圖、表情、穿衣、配音、腳本定位、LoRA、分鏡時間軸）請進入世界觀系統。
+          深度編輯（三視圖、表情、穿衣、配音、腳本定位、LoRA、分鏡時間軸）請貼上劇本開始。
         </p>
       </div>
     </div>

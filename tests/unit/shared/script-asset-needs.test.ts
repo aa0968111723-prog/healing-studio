@@ -2,23 +2,25 @@ import { describe, expect, it } from "vitest";
 import { detectScriptAssetNeeds } from "../../../shared/script-asset-needs";
 
 describe("detectScriptAssetNeeds", () => {
-  it("有對白時風險包含需要配音", () => {
-    const r = detectScriptAssetNeeds("小明說：你好。\n小華回答：嗨");
-    expect(r.risks).toContain("需要配音");
+  it("偵測雨聲 / 踩水 / 手機震動", () => {
+    const r = detectScriptAssetNeeds("雨聲、踩水、手機震動");
+    expect(r.audioCues).toEqual(expect.arrayContaining(["雨聲","踩水","手機震動"]));
   });
-
-  it("有雨聲與腳步時會抓到 audio cues", () => {
-    const r = detectScriptAssetNeeds("雨聲中傳來腳步聲");
-    expect(r.audioCues.length).toBeGreaterThan(0);
+  it("偵測青春 / 命運感 / 空靈", () => {
+    const r = detectScriptAssetNeeds("青春、命運感與空靈");
+    expect(r.musicMoodCues).toEqual(expect.arrayContaining(["青春","命運感","空靈"]));
   });
-
-  it("有孤單與療癒時會抓到 mood cues", () => {
-    const r = detectScriptAssetNeeds("孤單但療癒的夜晚");
-    expect(r.musicMoodCues).toEqual(expect.arrayContaining(["孤單", "療癒"]));
+  it("偵測傘 / 書包 / 花瓶 與 VO / 旁白", () => {
+    const r = detectScriptAssetNeeds("VO 旁白：拿著傘與書包，旁邊有花瓶");
+    expect(r.propsNeeded).toEqual(expect.arrayContaining(["傘","書包","花瓶"]));
+    expect(r.subtitleOrNarrationCues).toEqual(expect.arrayContaining(["VO","旁白"]));
   });
-
-  it("有特寫與遠景時會抓到 camera cues", () => {
-    const r = detectScriptAssetNeeds("先特寫眼神，再切遠景");
-    expect(r.cameraCues).toEqual(expect.arrayContaining(["特寫", "遠景"]));
+  it("world 風險提示", () => {
+    const r = detectScriptAssetNeeds("青春配樂", undefined, { musicThemes: [] } as any);
+    expect(r.risks.some(x => x.includes("musicThemes"))).toBe(true);
+  });
+  it("world 有角色但缺 appearance", () => {
+    const r = detectScriptAssetNeeds("測試", undefined, { characters: [{ name: "A" }] } as any);
+    expect(r.risks.some(x => x.includes("角色外觀不足"))).toBe(true);
   });
 });
