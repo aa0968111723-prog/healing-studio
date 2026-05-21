@@ -73,7 +73,21 @@ export type DockGroup = {
   description?: string;
   icon: LucideIcon;
   children: DockLeaf[];
+  /**
+   * When children.length exceeds MAX_FLYOUT_ITEMS, the flyout shows only the
+   * top items and appends a "查看全部" row that navigates to this path.
+   * Omit and the flyout will simply truncate without a footer link.
+   */
+  seeAllPath?: string;
 };
+
+/**
+ * Maximum number of real items rendered inside a group's flyout. Anything
+ * beyond this is hidden behind a "查看全部" row that links to the group's
+ * seeAllPath. Keeps the menu from growing past one screen on dense groups
+ * (e.g. 模型樂園 has 8+ children).
+ */
+const MAX_FLYOUT_ITEMS = 6;
 
 export type DockEntry = DockLeaf | DockGroup;
 
@@ -767,7 +781,11 @@ function AppleDock({
           }
 
           const isOpen = openGroup === entry.label;
-          const flyoutItems: FlyoutItem[] = entry.children.map(child => ({
+          const overflowing = entry.children.length > MAX_FLYOUT_ITEMS;
+          const visibleChildren = overflowing
+            ? entry.children.slice(0, MAX_FLYOUT_ITEMS)
+            : entry.children;
+          const flyoutItems: FlyoutItem[] = visibleChildren.map(child => ({
             id: child.id,
             label: child.label,
             description: child.description,
@@ -775,6 +793,16 @@ function AppleDock({
             isActive: activePath === child.path,
             onSelect: () => handleNavigate(child.path),
           }));
+          if (overflowing && entry.seeAllPath) {
+            const seeAllPath = entry.seeAllPath;
+            flyoutItems.push({
+              id: `${entry.label}-see-all`,
+              label: "查看全部",
+              description: `共 ${entry.children.length} 項，前往總覽`,
+              icon: ArrowRight,
+              onSelect: () => handleNavigate(seeAllPath),
+            });
+          }
 
           return (
             <div

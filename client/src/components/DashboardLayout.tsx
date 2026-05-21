@@ -30,6 +30,7 @@ import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
 import {
+  getPageById,
   getSidebarTree,
   type SidebarTreeLeaf,
 } from "@/config/appRegistry";
@@ -111,6 +112,7 @@ const sidebarStructure: DockEntry[] = getSidebarTree().map(node => {
     label: node.label,
     description: node.description,
     children: node.children.map(toDockLeaf),
+    seeAllPath: node.seeAllPath,
   };
 });
 
@@ -639,6 +641,29 @@ function DashboardLayoutContent({
   const displayName = settings.displayName.trim() || user?.name || "使用者";
   const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 
+  // Hide admin-only registry pages from the dock for non-admins. Pages keep
+  // their sidebar metadata in shared/appRegistry (so admins see them when the
+  // dock is built), but we prune `group: "admin"` leaves at render time so
+  // regular users don't get broken navigation into the admin console.
+  const visibleSidebarStructure = useMemo<DockEntry[]>(() => {
+    if (isAdmin) return sidebarStructure;
+    return sidebarStructure
+      .map(entry => {
+        if (entry.kind === "leaf") {
+          const page = getPageById(entry.pageId);
+          if (page?.group === "admin") return null;
+          return entry;
+        }
+        const children = entry.children.filter(child => {
+          const page = getPageById(child.pageId);
+          return page?.group !== "admin";
+        });
+        if (children.length === 0) return null;
+        return { ...entry, children };
+      })
+      .filter((entry): entry is DockEntry => entry !== null);
+  }, [isAdmin]);
+
   // ── Dock position + minimize + immersive + density + variant (persisted) ─
   const [dockPosition, setDockPosition] =
     useState<DockPosition>(readDockPosition);
@@ -823,7 +848,7 @@ function DashboardLayoutContent({
       />
       {/* ── Apple-style floating dock (all viewports) ── */}
       <AppleDock
-        entries={sidebarStructure}
+        entries={visibleSidebarStructure}
         activePath={location}
         onNavigate={setLocation}
         user={user}
