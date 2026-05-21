@@ -4312,7 +4312,6 @@ export default function DirectorAI() {
       {/* Personality Selector + Preferred Format – hidden */}
 
       <p className="hs-small !mb-0 text-muted-foreground">
-        雙引擎 RAG（事實研究 + CO-STAR 創意編排）—
         腳本可一鍵發送到工作室，也可微調修改
       </p>
 
