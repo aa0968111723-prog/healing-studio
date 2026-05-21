@@ -22,6 +22,10 @@ export default defineConfig({
     // tests/unit/client/) to a DOM environment.
     environment: "node",
     include: [
+      "client/src/**/*.test.ts",
+      "client/src/**/*.spec.ts",
+      "client/src/**/*.test.tsx",
+      "client/src/**/*.spec.tsx",
       "server/**/*.test.ts",
       "server/**/*.spec.ts",
       "shared/**/*.test.ts",
