@@ -1,5 +1,5 @@
 /**
- * CreativeProjectPage.tsx — 創作專案列表 + 詳情
+ * CreativeProjectPage.tsx — 專案主控台列表 + 詳情
  * ────────────────────────────────────────────────────────────────────────────
  * 把 Director session（存在 project_notes_calendar）+ 世界觀框架 + 世界分鏡板
  * 三者綁定成一個有意義的「創作專案」。
@@ -10,11 +10,14 @@
  *   - 切換到「當前世界觀上下文」，讓各 Studio 頁面自動帶入一致性
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useWorldContext } from "@/contexts/WorldContextContext";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { SectionCard } from "@/components/layout/SectionCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,6 +60,12 @@ import {
 
 type ProjectStatus = "concept" | "production" | "review" | "complete";
 
+
+function isMissingCreativeProjectsTable(error: unknown): boolean {
+  const message = (error as { message?: string } | null)?.message ?? "";
+  return /ER_NO_SUCH_TABLE/i.test(message) && /creative_projects/i.test(message);
+}
+
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "concept", label: "概念中" },
   { value: "production", label: "製作中" },
@@ -74,6 +83,17 @@ export default function CreativeProjectPage() {
   });
   const projects = listQuery.data ?? [];
   const utils = trpc.useUtils();
+  const tableMissing = isMissingCreativeProjectsTable(listQuery.error);
+  const activeProject = useMemo(() => projects.find(p => p.id === world.currentProjectId) ?? null, [projects, world.currentProjectId]);
+  const nextStepText = activeProject
+    ? activeProject.worldFrameworkId === null
+      ? "下一步：先綁定世界觀。"
+      : activeProject.worldStoryboardId === null
+      ? "下一步：建立分鏡。"
+      : "下一步：產生製作包 / 建立生成任務。"
+    : projects.length === 0
+    ? "下一步：建立第一個創作專案。"
+    : "下一步：選擇目前專案作為全站上下文。";
 
   const createMutation = trpc.creativeProject.create.useMutation({
     onSuccess: ({ id }) => {
@@ -82,7 +102,13 @@ export default function CreativeProjectPage() {
       utils.creativeProject.list.invalidate();
       world.setCurrentProjectId(id);
     },
-    onError: err => toast.error(err.message || "建立失敗"),
+    onError: err => {
+      if (isMissingCreativeProjectsTable(err)) {
+        toast.error("創作專案資料表尚未建立，請執行資料庫 migration。");
+        return;
+      }
+      toast.error(err.message || "建立失敗");
+    },
   });
 
   const deleteMutation = trpc.creativeProject.delete.useMutation({
@@ -100,23 +126,18 @@ export default function CreativeProjectPage() {
 
   return (
     <div className="page-shell space-y-6">
-      <header className="page-header flex items-center justify-between">
-        <div>
-          <p className="page-eyebrow">Creative Projects</p>
-          <h1 className="page-title flex items-center gap-2">
-            <FolderOpen className="w-6 h-6" />
-            創作專案
-          </h1>
-          <p className="page-subtitle">
-            把導演對話、世界觀框架、動畫分鏡板三者綁在同一個專案下，
-            然後在任何 Studio 頁面都會自動帶入這個專案的世界觀一致性。
-          </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="w-4 h-4 mr-1" />
-          建立專案
-        </Button>
-      </header>
+      <PageHeader title="創作專案" subtitle="把世界觀、腳本、分鏡、素材與生成紀錄綁在同一個專案下。" primaryAction={{ label: "建立專案", onClick: () => setCreateOpen(true) }} />
+
+      <NextStepPanel title="專案主控台下一步" description={nextStepText} />
+
+      {tableMissing && (
+        <SectionCard title="資料庫尚未完成初始化" description="創作專案資料表尚未建立，請執行資料庫 migration。" />
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <SectionCard title="目前專案" description={activeProject ? `當前：${activeProject.title}` : "尚未啟用專案"} />
+        <SectionCard title="綁定狀態" description={activeProject ? `世界觀：${activeProject.worldFrameworkId ? "已綁定" : "未綁定"}｜分鏡：${activeProject.worldStoryboardId ? "已綁定" : "未綁定"}` : "先啟用專案後檢查綁定"} />
+      </div>
 
       {listQuery.isLoading ? (
         <div className="text-muted-foreground py-12 text-center">
