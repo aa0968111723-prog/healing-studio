@@ -5804,11 +5804,14 @@ export default function AnimationStudio() {
     );
   }
 
-  if (!selectedWorld) return null;
-
   // 渲染用 draft（本地、即時反應使用者輸入），未 ready 時 fallback 到 server 資料
-  const effectiveWorld = useMemo<WorldbuildingFrameworkData & { id?: number }>(() => {
-    const base = (draft ?? selectedWorld) as WorldbuildingFrameworkData & { id?: number };
+  const effectiveWorld = useMemo<
+    (WorldbuildingFrameworkData & { id?: number }) | null
+  >(() => {
+    if (!selectedWorld) return null;
+    const base = (draft ?? selectedWorld) as WorldbuildingFrameworkData & {
+      id?: number;
+    };
     return {
       ...base,
       characters: base.characters ?? [],
@@ -5822,6 +5825,7 @@ export default function AnimationStudio() {
   }, [draft, selectedWorld]);
 
   const visualAssetGallery = useMemo(() => {
+    if (!effectiveWorld) return [];
     const items: Array<{ id: string; title: string; url: string; type: "角色" | "場景" | "資產" }> = [];
 
     effectiveWorld.characters.forEach(character => {
@@ -5874,16 +5878,21 @@ export default function AnimationStudio() {
     return items.slice(0, 12);
   }, [effectiveWorld]);
 
-  const completionRatio = Math.min(
-    1,
-    [
-      effectiveWorld.characters.length > 0,
-      effectiveWorld.scenes.length > 0,
-      (effectiveWorld.styleProfiles?.length ?? 0) > 0,
-      (effectiveWorld.musicThemes?.length ?? 0) > 0,
-      (storyboardsQuery.data?.length ?? 0) > 0,
-    ].filter(Boolean).length / 5
-  );
+  const completionRatio = useMemo(() => {
+    if (!effectiveWorld) return 0;
+    return Math.min(
+      1,
+      [
+        effectiveWorld.characters.length > 0,
+        effectiveWorld.scenes.length > 0,
+        (effectiveWorld.styleProfiles?.length ?? 0) > 0,
+        (effectiveWorld.musicThemes?.length ?? 0) > 0,
+        (storyboardsQuery.data?.length ?? 0) > 0,
+      ].filter(Boolean).length / 5
+    );
+  }, [effectiveWorld, storyboardsQuery.data]);
+
+  if (!selectedWorld || !effectiveWorld) return null;
 
   return (
     <>
