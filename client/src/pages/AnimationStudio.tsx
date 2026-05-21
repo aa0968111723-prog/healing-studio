@@ -168,6 +168,7 @@ import {
 import { calculateWorldbuildingProgress } from "../../../shared/worldbuilding-progress";
 import { getWorldbuildingActionPlan } from "../../../shared/worldbuilding-actions";
 import { calculateWorldbuildingReadiness } from "../../../shared/worldbuilding-readiness";
+import { buildAgentWorkflowFromGenerationTasks } from "../../../shared/worldbuilding-agent-workflow";
 import { GenerationReadinessChecklist } from "@/components/animation/GenerationReadinessChecklist";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
@@ -5618,9 +5619,22 @@ export default function AnimationStudio() {
           return { ok: false, reason: error instanceof Error ? error.message : "生成失敗" };
         }
       }
+      if (action.type === "execute_worldbuilding_task" || action.type === "execute_worldbuilding_task_batch") {
+        const tasks = action.type === "execute_worldbuilding_task" ? [action.task] : action.tasks;
+        const blocked = tasks.filter((t: any) => t.status === "blocked");
+        if (blocked.length) return { ok: false, reason: `blocked:${blocked.map((b: any) => b.title).join(",")}` };
+        if (action.mode === "internal_model") {
+          return { ok: false, reason: "內建模型批次執行尚未啟用，請先使用 dry-run 或代理 workflow" };
+        }
+        if (action.mode === "page_agent") {
+          const workflow = buildAgentWorkflowFromGenerationTasks({ tasks: tasks as any, worldName: draft?.name, confirmationMode: action.type === "execute_worldbuilding_task_batch" ? (action.confirmationMode ?? "step-by-step") : "step-by-step" });
+          return { ok: true, message: "workflow preview", data: { workflow } };
+        }
+        return { ok: true, message: "dry_run", data: { tasks, summary: { total: tasks.length, blocked: blocked.length } } };
+      }
 
       return { ok: false, reason: "不支援的動作" };
-    }, [selectedWorldId, generateCharacterMutation, generateSceneMutation, generateStoryboardMutation]),
+    }, [selectedWorldId, generateCharacterMutation, generateSceneMutation, generateStoryboardMutation, draft]),
 
     pagePath: "/animation",
     state: {

@@ -6,13 +6,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import type { WorldbuildingFrameworkData } from "../../../../shared/worldbuilding-types";
 import { buildWorldbuildingProductionPackage } from "../../../../shared/worldbuilding-production-package";
-import { buildGenerationTaskList } from "../../../../shared/worldbuilding-generation-tasks";
+import { buildWorldbuildingGenerationTasks } from "../../../../shared/worldbuilding-generation-tasks";
+import { WorldbuildingAgentExecutionPanel } from "./WorldbuildingAgentExecutionPanel";
 
 export function ProductionPackagePreview({ world, storyboards, readinessPercent, warnings }: { world: WorldbuildingFrameworkData; storyboards?: any[]; readinessPercent?: number; warnings?: string[] }) {
   const [open, setOpen] = useState(false);
   const pkg = useMemo(() => buildWorldbuildingProductionPackage(world, storyboards), [world, storyboards]);
   const mergedWarnings = [...(warnings ?? []), ...pkg.warnings];
-  const taskList = useMemo(() => buildGenerationTaskList(pkg), [pkg]);
+  const taskList = useMemo(() => buildWorldbuildingGenerationTasks({ world, productionPackage: pkg, storyboards: storyboards as any[] }), [world, pkg, storyboards]);
   const copy = (text: string, label: string) => navigator.clipboard.writeText(text).then(() => toast.success(`已複製${label}`));
   const download = (name: string, text: string, type: string) => { const blob = new Blob([text], { type }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
@@ -35,14 +36,14 @@ export function ProductionPackagePreview({ world, storyboards, readinessPercent,
         <div className="rounded border p-2 space-y-2">
           <h4 className="text-xs font-semibold">可建立的生成任務</h4>
           {[
-            ["角色圖生成任務", taskList.imageTasks.filter(t => t.type === "character_image").length],
-            ["場景圖生成任務", taskList.imageTasks.filter(t => t.type === "scene_image").length],
-            ["逐鏡圖像任務", taskList.imageTasks.filter(t => t.type === "shot_image").length],
-            ["逐鏡影片任務", taskList.videoTasks.length],
-            ["配音任務", taskList.voiceTasks.length],
-            ["配樂任務", taskList.musicTasks.length],
-            ["音效任務", taskList.soundTasks.length],
-            ["發布文案任務", taskList.publishingTasks.length],
+            ["角色圖生成任務", taskList.filter(t => t.type === "character_image").length],
+            ["場景圖生成任務", taskList.filter(t => t.type === "scene_image").length],
+            ["逐鏡圖像任務", taskList.filter(t => t.type === "shot_image").length],
+            ["逐鏡影片任務", taskList.filter(t => t.type === "shot_video").length],
+            ["配音任務", taskList.filter(t => t.type === "voice").length],
+            ["配樂任務", taskList.filter(t => t.type === "music").length],
+            ["音效任務", taskList.filter(t => t.type === "sound").length],
+            ["發布文案任務", taskList.filter(t => t.type === "publishing").length],
           ].map(([label, count]) => (
             <div key={String(label)} className="flex items-center justify-between text-xs gap-2">
               <span>{label}：{Number(count)} 個</span>
@@ -53,6 +54,7 @@ export function ProductionPackagePreview({ world, storyboards, readinessPercent,
             </div>
           ))}
         </div>
+        <WorldbuildingAgentExecutionPanel tasks={taskList} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <ScrollArea className="h-[45vh] rounded border p-2"><h4 className="text-xs font-semibold mb-2">Markdown 預覽</h4><pre className="text-xs whitespace-pre-wrap">{pkg.markdown}</pre></ScrollArea>
           <ScrollArea className="h-[45vh] rounded border p-2"><h4 className="text-xs font-semibold mb-2">Prompt Seeds</h4><pre className="text-xs whitespace-pre-wrap">{(pkg.json.imagePromptSeeds ?? []).concat(pkg.json.videoPromptSeeds ?? []).concat(pkg.json.voiceDirections ?? []).concat(pkg.json.musicPromptSeeds ?? []).join("\n") || "（待補）"}</pre></ScrollArea>
