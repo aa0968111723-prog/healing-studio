@@ -595,6 +595,7 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
             if (unknownChars.length) toast.success("已建立角色草稿，請補外觀以保持生成一致性。");
             if (!unknownChars.length && !unknownScenes.length) toast.info("目前沒有可補的未知角色或場景");
           }}
+          scriptText={[draft.content, draft.segments.map(s => [s.storyboard.sceneHeading, s.storyboard.dialogue, s.storyboard.visualDescription].filter(Boolean).join("\n")).join("\n")].join("\n")}
         />
       )}
       {draft.segments.length > 0 && (
@@ -836,6 +837,7 @@ type ScriptAnalysisInsightsProps = {
   onOpenWorld: () => void;
   isUpdating: boolean;
   onDraftAssist: (analysis: ReturnType<typeof detectScriptEntities>) => Promise<void>;
+  scriptText: string;
 };
 
 function ScriptAnalysisInsights({
@@ -847,6 +849,7 @@ function ScriptAnalysisInsights({
   onOpenWorld,
   isUpdating,
   onDraftAssist,
+  scriptText,
 }: ScriptAnalysisInsightsProps) {
   const hasCharacters = analysis.characters.length > 0;
   const hasScenes = analysis.scenes.length > 0;
@@ -866,6 +869,8 @@ function ScriptAnalysisInsights({
       });
   }, [analysis.characters, worldDataReady, worldProgress]);
 
+
+  const assetNeeds = useMemo(() => detectScriptAssetNeeds(scriptText, analysis), [scriptText, analysis]);
   return (
     <div
       id="script-entities-section"
@@ -1000,9 +1005,9 @@ function ScriptAnalysisInsights({
         <div className="text-[10px] font-medium">這段腳本需要的素材</div>
         <div className="text-[10px] text-muted-foreground">角色：{analysis.characters.map(c => c.name).join("、") || "（未偵測）"}</div>
         <div className="text-[10px] text-muted-foreground">場景：{analysis.scenes.map(s => s.name).join("、") || "（未偵測）"}</div>
-        <div className="text-[10px] text-muted-foreground">音效提示：{detectScriptAssetNeeds("", analysis).audioCues.join("、") || "（待補）"}</div>
-        <div className="text-[10px] text-muted-foreground">配樂情緒：{detectScriptAssetNeeds("", analysis).musicMoodCues.join("、") || "（待補）"}</div>
-        <div className="text-[10px] text-muted-foreground">鏡頭提示：{detectScriptAssetNeeds("", analysis).cameraCues.join("、") || "（待補）"}</div>
+        <div className="text-[10px] text-muted-foreground">音效提示：{assetNeeds.audioCues.join("、") || "（待補）"}</div>
+        <div className="text-[10px] text-muted-foreground">配樂情緒：{assetNeeds.musicMoodCues.join("、") || "（待補）"}</div>
+        <div className="text-[10px] text-muted-foreground">鏡頭提示：{assetNeeds.cameraCues.join("、") || "（待補）"}</div>
       </div>
 
       {/* 生成前風險提醒 */}
