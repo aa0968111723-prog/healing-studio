@@ -171,6 +171,10 @@ import { getWorldbuildingActionPlan } from "../../../shared/worldbuilding-action
 import { calculateWorldbuildingReadiness } from "../../../shared/worldbuilding-readiness";
 import { buildAgentWorkflowFromGenerationTasks } from "../../../shared/worldbuilding-agent-workflow";
 import { GenerationReadinessChecklist } from "@/components/animation/GenerationReadinessChecklist";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { AdvancedSection } from "@/components/layout/AdvancedSection";
+import { getVisualDensity, shouldShowAdvanced, shouldShowDiagnostics } from "@/lib/visualDensity";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -5335,6 +5339,7 @@ const SoundLibraryEditor = memo(function SoundLibraryEditor({
 // ─── 主頁面 ────────────────────────────────────────────────────────────────
 
 export default function AnimationStudio() {
+  const density = getVisualDensity();
   const params = useParams<{ storyboardId?: string }>();
   const [, navigate] = useLocation();
 
@@ -5937,8 +5942,13 @@ export default function AnimationStudio() {
       {immersiveMode && <EarthGlobeAnimation />}
 
       <div className={`p-4 page-shell page-shell-default space-y-4 ${immersiveMode ? "relative z-10 text-slate-100" : ""}`}>
-        {/* Header */}
-        <div className={`flex items-center gap-2 flex-wrap ${immersiveMode ? "backdrop-blur-xl bg-slate-900/55 border border-slate-200/20 rounded-xl p-3 shadow-[0_12px_32px_rgba(2,6,23,0.35)]" : ""}`}>
+        <PageHeader
+          icon={<Film className="w-5 h-5 text-primary" />}
+          title="世界觀系統"
+          subtitle="把想法、劇本、角色、場景與素材整理成可生成影片專案。"
+          primaryAction={<Button size="sm" onClick={() => handleWorldbuildingAction(actionPlan.primaryAction as any)}>繼續下一步</Button>}
+          badges={<><Badge variant="secondary">準備度 {worldProgress.overall}%</Badge><Badge variant="outline">{actionPlan.generationState === "generation_ready" ? "可以產生製作包" : actionPlan.generationState === "storyboard_ready" ? "可以開始做分鏡" : "還在整理設定"}</Badge></>}
+          secondaryActions={<div className="flex items-center gap-2 flex-wrap">
           {/* 沉浸式模式：顯示返回導演 AI 按鈕 */}
           {immersiveMode && (
             <Button
@@ -6023,7 +6033,8 @@ export default function AnimationStudio() {
           worldId={selectedWorld.id!}
           worldName={selectedWorld.name}
         />
-      </div>
+      </div>}
+        />
 
       {/* 世界觀基本資料（從導演 AI 融合進來，一處編完） */}
       <WorldBasicsEditor
@@ -6031,34 +6042,8 @@ export default function AnimationStudio() {
         onPatch={handlePatchWorld}
       />
 
-      <div className={`rounded-xl p-3 space-y-2 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg" : "border border-primary/30 bg-primary/[0.04]"}`}>
-        <h3 className={`text-sm font-semibold flex items-center gap-1.5 ${immersiveMode ? "text-slate-100" : "text-primary"}`}>
-          <Sparkles className="w-4 h-4" /> 世界觀製作助理
-        </h3>
-        <p className="text-[11px] text-muted-foreground">世界觀不是讓你填設定，而是幫你把想法變成可生成的影片專案。</p>
-        <div className="flex flex-wrap items-center gap-2 text-[11px]">
-          <Badge variant="secondary">準備度 {worldProgress.overall}%</Badge>
-          <Badge variant="outline">{actionPlan.generationState === "generation_ready" ? "可以產生製作包" : actionPlan.generationState === "storyboard_ready" ? "可以開始做分鏡" : "還在整理設定"}</Badge>
-        </div>
-        <div className="text-[11px]">
-          <div>角色視覺覆蓋率 Top 3：{readiness.visualCoverage.characterCoverage.slice(0,3).map((c:any)=>`${c.name}：${c.percent}%｜缺${c.missing.slice(0,2).join("、") || "無"}`).join("；") || "無"}</div>
-          <div>場景視覺覆蓋率 Top 3：{readiness.visualCoverage.sceneCoverage.slice(0,3).map((c:any)=>`${c.name}：${c.percent}%｜缺${c.missing.slice(0,2).join("、") || "無"}`).join("；") || "無"}</div>
-          <span className="font-medium">建議下一步：</span>{actionPlan.primaryAction.label}（{actionPlan.primaryAction.cta}）
-        </div>
-        {actionPlan.blockers.length > 0 && (
-          <ul className="text-[10px] text-amber-700 dark:text-amber-300 list-disc ml-4">
-            {actionPlan.blockers.slice(0,3).map(b => <li key={b.id}>{b.reason}</li>)}
-          </ul>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {actionPlan.actions.slice(0,3).map(a => (
-            <Button key={a.id} size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleWorldbuildingAction(a)}>{a.cta}</Button>
-          ))}
-          <ProductionPackagePreview world={effectiveWorld} storyboards={storyboardsQuery.data as any[]} readinessPercent={readiness.generationReadinessPercent} warnings={actionPlan.blockers.map(b => b.reason)} />
-          <div className="w-full"><GenerationReadinessChecklist readiness={readiness} actionPlan={actionPlan} onAction={handleWorldbuildingAction} /></div>
-          <div className="w-full"><VisualInspirationLibraryPanel world={effectiveWorld} /></div>
-        </div>
-      </div>
+      <NextStepPanel title={actionPlan.primaryAction.label} description="世界觀不是讓你填設定，而是幫你把想法變成可生成的影片專案。" reason={actionPlan.blockers[0]?.reason} primaryAction={<Button size="sm" onClick={() => handleWorldbuildingAction(actionPlan.primaryAction as any)}>{actionPlan.primaryAction.cta}</Button>} />
+      {shouldShowAdvanced(density) && <AdvancedSection title="進階 / 診斷"><div className="space-y-2 text-xs"><div>角色視覺覆蓋率 Top 3：{readiness.visualCoverage.characterCoverage.slice(0,3).map((c:any)=>`${c.name}：${c.percent}%｜缺${c.missing.slice(0,2).join("、") || "無"}`).join("；") || "無"}</div><div>場景視覺覆蓋率 Top 3：{readiness.visualCoverage.sceneCoverage.slice(0,3).map((c:any)=>`${c.name}：${c.percent}%｜缺${c.missing.slice(0,2).join("、") || "無"}`).join("；") || "無"}</div>{shouldShowDiagnostics(density) && <GenerationReadinessChecklist readiness={readiness} actionPlan={actionPlan} onAction={handleWorldbuildingAction} />}</div></AdvancedSection>}
 
       {/* Production targets quick edit */}
       <div className={`rounded-xl p-3 space-y-2 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg shadow-[0_10px_30px_rgba(2,6,23,0.28)]" : "border border-border/40 bg-card/30"}`}>

@@ -1,0 +1,6 @@
+import type { ReactNode } from "react";
+export interface PageHeaderAction { label: string; onClick?: () => void; element?: ReactNode; }
+export function PageHeader({ icon, title, subtitle, badges, primaryAction, secondaryActions }: { icon?: ReactNode; title: string; subtitle?: string; badges?: ReactNode; primaryAction?: ReactNode | PageHeaderAction; secondaryActions?: ReactNode; }) {
+  const renderAction = (action: ReactNode | PageHeaderAction) => (typeof action === "object" && action !== null && "label" in action ? (action as PageHeaderAction).element ?? <button type="button" onClick={(action as PageHeaderAction).onClick} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">{(action as PageHeaderAction).label}</button> : action);
+  return <header className="rounded-xl border border-border/40 bg-card/40 p-4 space-y-3"><div className="flex items-start justify-between gap-3 flex-wrap"><div className="space-y-1"><h1 className="text-xl font-semibold flex items-center gap-2">{icon}{title}</h1>{subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}{badges ? <div className="flex flex-wrap gap-2">{badges}</div> : null}</div>{primaryAction ? <div>{renderAction(primaryAction)}</div> : null}</div>{secondaryActions ? <div className="flex flex-wrap gap-2">{secondaryActions}</div> : null}</header>;
+}
