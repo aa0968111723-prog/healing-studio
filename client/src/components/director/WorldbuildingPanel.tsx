@@ -11,6 +11,7 @@
  */
 
 import { memo, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,8 @@ import {
   type WorldProgressCategoryKey,
   type WorldProgressResult,
 } from "../../../../shared/worldbuilding-progress";
+import { getWorldbuildingActionPlan } from "../../../../shared/worldbuilding-actions";
+import { buildWorldbuildingProductionPackage } from "../../../../shared/worldbuilding-production-package";
 
 type LoadedFramework = WorldbuildingFrameworkData & {
   id: number;
@@ -235,6 +238,15 @@ const WorldCard = memo(function WorldCard({
 
   const lora = fw.linkedModelIds ?? [];
   const topWarnings = progress.blockingWarnings.slice(0, 2);
+  const actionPlan = useMemo(() => getWorldbuildingActionPlan(fw), [fw]);
+  const topBlockers = actionPlan.blockers.slice(0,2);
+
+  const handlePreviewPackage = () => {
+    const pkg = buildWorldbuildingProductionPackage(fw);
+    navigator.clipboard.writeText(pkg.markdown).then(() => {
+      toast.success(actionPlan.readyForGeneration ? "已複製完整製作包 Markdown" : "已複製製作包預覽 Markdown（建議先補齊設定）");
+    }).catch(() => toast.error("複製失敗，請稍後再試"));
+  };
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/40 hover:bg-card/60 transition-all group">
@@ -309,6 +321,28 @@ const WorldCard = memo(function WorldCard({
               <Circle className="w-3 h-3 text-muted-foreground/30" />
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Action plan */}
+      <div className="mx-3 mt-2 rounded border border-primary/20 bg-primary/[0.04] px-2 py-1.5 space-y-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-medium text-primary">建議下一步：{actionPlan.primaryAction.label}</span>
+          <Badge variant={actionPlan.readyForGeneration ? "default" : "outline"} className="text-[9px] h-4 px-1.5">
+            {actionPlan.readyForGeneration ? "可生成" : "尚需補齊"}
+          </Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{actionPlan.primaryAction.description}</p>
+        {topBlockers.length > 0 && (
+          <ul className="text-[10px] text-amber-700 dark:text-amber-300 list-disc ml-4">
+            {topBlockers.map(b => <li key={b.id}>{b.reason}</li>)}
+          </ul>
+        )}
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" className="h-6 text-[10px]" onClick={() => onNavigate(fw.id)}>{actionPlan.primaryAction.cta}</Button>
+          <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={handlePreviewPackage}>
+            {actionPlan.readyForGeneration ? "產生製作包" : "預覽製作包"}
+          </Button>
         </div>
       </div>
 

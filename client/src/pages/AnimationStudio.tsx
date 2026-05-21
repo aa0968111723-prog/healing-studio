@@ -88,6 +88,7 @@ import {
 } from "@/components/animation/AssetUploader";
 import { ScriptEditorTab } from "@/components/animation/ScriptEditorTab";
 import { SourcePicker } from "@/components/animation/SourcePicker";
+import { ProductionPackagePreview } from "@/components/animation/ProductionPackagePreview";
 import {
   GenerateImageButton,
   GenerateMusicButton,
@@ -163,6 +164,9 @@ import {
   formatTimecode,
   type WorldStoryboard,
 } from "../../../shared/worldbuilding-animation";
+
+import { calculateWorldbuildingProgress } from "../../../shared/worldbuilding-progress";
+import { getWorldbuildingActionPlan } from "../../../shared/worldbuilding-actions";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -5878,6 +5882,9 @@ export default function AnimationStudio() {
     return items.slice(0, 12);
   }, [effectiveWorld]);
 
+  const worldProgress = useMemo(() => calculateWorldbuildingProgress(effectiveWorld ?? null), [effectiveWorld]);
+  const actionPlan = useMemo(() => getWorldbuildingActionPlan(effectiveWorld ?? null), [effectiveWorld]);
+
   const completionRatio = useMemo(() => {
     if (!effectiveWorld) return 0;
     return Math.min(
@@ -5993,6 +6000,31 @@ export default function AnimationStudio() {
         world={effectiveWorld}
         onPatch={handlePatchWorld}
       />
+
+      <div className={`rounded-xl p-3 space-y-2 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg" : "border border-primary/30 bg-primary/[0.04]"}`}>
+        <h3 className={`text-sm font-semibold flex items-center gap-1.5 ${immersiveMode ? "text-slate-100" : "text-primary"}`}>
+          <Sparkles className="w-4 h-4" /> 世界觀製作助理
+        </h3>
+        <p className="text-[11px] text-muted-foreground">世界觀不是讓你填設定，而是幫你把想法變成可生成的影片專案。</p>
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <Badge variant="secondary">準備度 {worldProgress.overall}%</Badge>
+          <Badge variant="outline">{actionPlan.generationState === "generation_ready" ? "可以產生製作包" : actionPlan.generationState === "storyboard_ready" ? "可以開始做分鏡" : "還在整理設定"}</Badge>
+        </div>
+        <div className="text-[11px]">
+          <span className="font-medium">建議下一步：</span>{actionPlan.primaryAction.label}（{actionPlan.primaryAction.cta}）
+        </div>
+        {actionPlan.blockers.length > 0 && (
+          <ul className="text-[10px] text-amber-700 dark:text-amber-300 list-disc ml-4">
+            {actionPlan.blockers.slice(0,3).map(b => <li key={b.id}>{b.reason}</li>)}
+          </ul>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {actionPlan.actions.slice(0,3).map(a => (
+            <Button key={a.id} size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedTab(a.category === "storyboard" ? "storyboards" : "characters")}>{a.cta}</Button>
+          ))}
+          <ProductionPackagePreview world={effectiveWorld} />
+        </div>
+      </div>
 
       {/* Production targets quick edit */}
       <div className={`rounded-xl p-3 space-y-2 ${immersiveMode ? "border border-slate-200/20 bg-slate-900/50 backdrop-blur-lg shadow-[0_10px_30px_rgba(2,6,23,0.28)]" : "border border-border/40 bg-card/30"}`}>
