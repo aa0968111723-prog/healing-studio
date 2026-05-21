@@ -19,6 +19,11 @@ export const MOCK_PROJECTS: Project[] = [
     nextAction: "用配音 / 音樂創作室產出 30 秒環境音 demo。",
     createdAt: "2026-04-28T01:30:00.000Z",
     updatedAt: "2026-05-19T09:12:00.000Z",
+    binding: {
+      worldFramework: "禪修世界觀 v1",
+      storyboard: "30 秒禪修分鏡",
+      directorSession: "禪修腳本對話",
+    },
   },
   {
     id: "proj-club-poster",
@@ -41,6 +46,9 @@ export const MOCK_PROJECTS: Project[] = [
     nextAction: "用同一段腳本各跑 1 版做 A/B。",
     createdAt: "2026-05-03T03:15:00.000Z",
     updatedAt: "2026-05-20T11:02:00.000Z",
+    binding: {
+      directorSession: "配音腳本對話",
+    },
   },
   {
     id: "proj-brand-bgm",
