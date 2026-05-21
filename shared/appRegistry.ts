@@ -1449,6 +1449,32 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     orbHints: ["我想改密碼", "查看登入記錄", "打開兩步驟驗證"],
     supportedActions: ["navigate", "setTab"],
   },
+
+  {
+    id: "creative-projects",
+    label: "創作專案",
+    path: "/creative-projects",
+    group: "project",
+    description: "管理專案、綁定世界觀與進入動畫製作流程",
+    aliases: ["創作專案", "專案", "creative projects", "project"],
+    showInSidebar: true,
+    sidebarOrder: 55,
+    sidebarGroup: "resources",
+    sidebarIcon: "FolderKanban",
+    showInAgentHome: true,
+    agentEntryPriority: 26,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-creative-projects",
+        label: "查看專案列表",
+        description: "打開創作專案總覽",
+        path: "/creative-projects",
+      },
+    ],
+    orbHints: ["帶我去創作專案", "我想管理專案", "從專案進入動畫製作"],
+    supportedActions: ["navigate"],
+  },
   {
     id: "process-viewer",
     label: "流程說明檢視器",

@@ -578,6 +578,14 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
           onAddScenes={addScenesToWorld}
           onOpenWorld={() => navigate(`/animation?worldId=${worldId}`)}
           isUpdating={worldUpdate.isPending}
+          onDraftAssist={async analysis => {
+            const unknownChars = analysis.unknownCharacters.map(c => c.name);
+            const unknownScenes = analysis.unknownScenes.map(c => c.name);
+            if (unknownChars.length) await addCharactersToWorld(unknownChars);
+            if (unknownScenes.length) await addScenesToWorld(unknownScenes);
+            if (unknownChars.length) toast.success("已建立角色草稿，請補外觀以保持生成一致性。");
+            if (!unknownChars.length && !unknownScenes.length) toast.info("目前沒有可補的未知角色或場景");
+          }}
         />
       )}
       {draft.segments.length > 0 && (
@@ -818,6 +826,7 @@ type ScriptAnalysisInsightsProps = {
   onAddScenes: (names: string[]) => Promise<void>;
   onOpenWorld: () => void;
   isUpdating: boolean;
+  onDraftAssist: (analysis: ReturnType<typeof detectScriptEntities>) => Promise<void>;
 };
 
 function ScriptAnalysisInsights({
@@ -828,6 +837,7 @@ function ScriptAnalysisInsights({
   onAddScenes,
   onOpenWorld,
   isUpdating,
+  onDraftAssist,
 }: ScriptAnalysisInsightsProps) {
   const hasCharacters = analysis.characters.length > 0;
   const hasScenes = analysis.scenes.length > 0;
@@ -974,6 +984,34 @@ function ScriptAnalysisInsights({
           </div>
         </div>
       )}
+
+
+      {/* 這段腳本需要的素材 */}
+      <div className="rounded border border-border/30 bg-card/20 px-2 py-2 space-y-1">
+        <div className="text-[10px] font-medium">這段腳本需要的素材</div>
+        <div className="flex flex-wrap gap-1">
+          {analysis.characters.length > 0 && <Badge variant="outline" className="text-[10px]">需要角色</Badge>}
+          {analysis.scenes.length > 0 && <Badge variant="outline" className="text-[10px]">需要場景</Badge>}
+          {(analysis.dialogues.length > 0 || analysis.characters.length > 0) && <Badge variant="outline" className="text-[10px]">需要聲音</Badge>}
+          {analysis.emotions.length > 0 && <Badge variant="outline" className="text-[10px]">需要視覺風格</Badge>}
+          {(analysis.scenes.length > 0 || analysis.dialogues.length > 0) && <Badge variant="outline" className="text-[10px]">可能需要的分鏡素材</Badge>}
+        </div>
+      </div>
+
+      {/* 生成前風險提醒 */}
+      <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-2 space-y-1">
+        <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300">生成前風險提醒</div>
+        <ul className="text-[10px] text-muted-foreground list-disc ml-4">
+          {analysis.characters.length > 0 && worldProgress.categories.characters.percent < 40 && <li>腳本有角色，但角色外觀資料偏少</li>}
+          {analysis.scenes.length > 0 && worldProgress.categories.scenes.percent < 40 && <li>腳本有場景，但場景 environment / mood 仍不足</li>}
+          {analysis.dialogues.length > 0 && worldProgress.categories.voice.percent === 0 && <li>腳本有 dialogue，但角色缺少配音方向</li>}
+          {analysis.dialogues.length > 0 && worldProgress.categories.music.percent === 0 && <li>腳本含聲音節奏需求，但世界觀缺少配樂或音效庫</li>}
+          {analysis.emotions.length > 0 && worldProgress.categories.style.percent === 0 && <li>腳本有視覺情緒描述，但沒有 styleProfiles</li>}
+        </ul>
+        <Button size="sm" variant="outline" className="h-6 text-[10px]" disabled={isUpdating} onClick={() => onDraftAssist(analysis)}>
+          <Plus className="w-3 h-3 mr-1" /> 一鍵補草稿
+        </Button>
+      </div>
 
       {/* 智能缺漏提醒 */}
       {(unknownChars.length > 0 ||
