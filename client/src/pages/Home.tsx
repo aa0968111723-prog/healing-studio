@@ -81,11 +81,56 @@ import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
 import { useIsMobile } from "@/hooks/useMobile";
+// Step 3 creation-hub wiring — the new post-login home content lives inside
+// the legacy scene/orb backdrop instead of replacing it.
+import { useProjects } from "@/contexts/ProjectsContext";
+import { PageHeader } from "@/components/layout/PageHeader";
+import {
+  AskOrbSection,
+  ContinueProjectSection,
+  QuickStartSection,
+} from "@/components/home/CreationHubSections";
+
+const ORB_HANDOFF_KEY = "home-orb-pending-prompt";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
 const ShowcaseMasonry = lazy(() => import("@/components/ShowcaseMasonry"));
 const SHOW_BOTTOM_CTA = false;
+
+// ─── Step 3: Creation Hub feature flags ─────────────────────────────────────
+// 旗艦版景觀 / 行銷向 section 暫時隱藏（不刪除），讓首頁作為「創作中樞」呈現。
+// 想要恢復舊版動畫劇場、情報站、瀑布流、行動邀約等只需把這些旗標打開即可，
+// 對應的元件 import 都還保留在最上方。
+const HOME_FEATURE_FLAGS = {
+  /** 上方頂部 nav（場景切換 / 聲音 / 開始創作）。登入後 Dock 已負責導覽，
+   *  這個 nav 在創作中樞情境下會重複，所以預設關閉。 */
+  showLegacyTopNav: false,
+  /** Scene badge greeting（夜深了…）。視覺裝飾，留作 future 使用。 */
+  showSceneBadge: false,
+  /** OARS 多段 hero 文案。已被「今天想創作什麼？」取代。 */
+  showOarsGreeting: false,
+  /** Hero 區下方的兩顆 CTA（進入光球入口 / 導演 AI）。創作中樞改由
+   *  CreationHubSections 的「直接問光球」承接，所以收起來。 */
+  showHeroCtaButtons: false,
+  /** 「向下探索」滑鼠 icon。內容已縮短，不再需要。 */
+  showScrollIndicator: false,
+  /** 滾動驅動的 hero 視差（heroY / heroOrbScale / heroOrbDrift / nav opacity
+   *  boost）。一旦回開行銷版面再打開。 */
+  enableHeroScrollAnimations: false,
+  /** OrbCreationStage：互動式創作劇場。占螢幕高，創作中樞模式下隱藏。 */
+  showOrbCreationStage: false,
+  /** Intent inference 低語卡。資訊量太密，先隱藏。 */
+  showIntentWhisper: false,
+  /** IntelBentoGrid（情報站）。 */
+  showIntelBento: false,
+  /** ShowcaseMasonry（精選作品瀑布流）。 */
+  showShowcaseMasonry: false,
+  /** VisualSoulInvitation（光球行動 + 邀約）。 */
+  showVisualSoulInvitation: false,
+  /** Footer 區塊。Dock 已涵蓋品牌資訊，創作中樞模式下不再需要重複。 */
+  showLegacyFooter: false,
+} as const;
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -648,7 +693,24 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const { personality } = useAIState();
   const [, navigate] = useLocation();
+  const { activeProject } = useProjects();
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // ── Step 3: handlers wired into the creation-hub sections ─────────────
+  const handleAskOrbSubmit = useCallback(
+    (prompt: string) => {
+      try {
+        window.sessionStorage.setItem(ORB_HANDOFF_KEY, prompt);
+      } catch {
+        // privacy mode / quota — fail open; user still lands on /agent.
+      }
+      navigate("/agent");
+    },
+    [navigate],
+  );
+  const handleOpenAgent = useCallback(() => {
+    navigate("/agent");
+  }, [navigate]);
   const {
     activeSurface: onboardingSurface,
     acquireSurface,
@@ -1123,6 +1185,7 @@ ${profileSnippet}`;
       </motion.div>
 
       {/* ── Navigation — healing glass nav ── */}
+      {HOME_FEATURE_FLAGS.showLegacyTopNav && (
       <motion.nav
         className="fixed top-0 left-0 right-0 z-50 h-16 transition-all duration-1000"
         style={{
@@ -1186,18 +1249,27 @@ ${profileSnippet}`;
           </div>
         </div>
       </motion.nav>
+      )}
 
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-20 sm:pt-32 lg:pt-44 pb-12 sm:pb-24 lg:pb-36 px-4 sm:px-6 relative z-10 min-h-[70vh] sm:min-h-[85vh] lg:min-h-[90vh] flex items-center"
-        style={{ y: heroY }}
+        className="pt-12 sm:pt-20 lg:pt-28 pb-8 sm:pb-12 lg:pb-16 px-4 sm:px-6 relative z-10 flex items-center justify-center"
+        style={
+          HOME_FEATURE_FLAGS.enableHeroScrollAnimations
+            ? { y: heroY }
+            : undefined
+        }
       >
         <AuroraBlobs sceneId={sceneId} />
         <HeroMagneticSpotlight color={s.glowColor} />
         <motion.div
           className="max-w-4xl mx-auto text-center w-full relative"
-          style={{ opacity: heroContentOpacity }}
+          style={
+            HOME_FEATURE_FLAGS.enableHeroScrollAnimations
+              ? { opacity: heroContentOpacity }
+              : undefined
+          }
         >
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -1205,6 +1277,7 @@ ${profileSnippet}`;
             transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Scene Badge */}
+            {HOME_FEATURE_FLAGS.showSceneBadge && (
             <motion.div
               className="flex justify-center mb-5 sm:mb-10"
               initial={{ opacity: 0, y: -12 }}
@@ -1217,6 +1290,7 @@ ${profileSnippet}`;
             >
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </motion.div>
+            )}
 
             {/* Central Orb — wrapped in JewelOrbStage so it becomes a
                 scene-aware "光球寶珠" (constellation field on nightSky,
@@ -1225,11 +1299,15 @@ ${profileSnippet}`;
                 as the user descends. */}
             <motion.div
               className="flex flex-col items-center mb-5 sm:mb-12"
-              style={{
-                scale: heroOrbScale,
-                x: heroOrbDriftX,
-                y: heroOrbDriftY,
-              }}
+              style={
+                HOME_FEATURE_FLAGS.enableHeroScrollAnimations
+                  ? {
+                      scale: heroOrbScale,
+                      x: heroOrbDriftX,
+                      y: heroOrbDriftY,
+                    }
+                  : undefined
+              }
             >
               <JewelOrbStage
                 sceneId={sceneId}
@@ -1282,6 +1360,7 @@ ${profileSnippet}`;
             </motion.div>
 
             {/* OARS Contextual Greeting — replaces static title */}
+            {HOME_FEATURE_FLAGS.showOarsGreeting && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1297,7 +1376,9 @@ ${profileSnippet}`;
                 textMuted={`transition-colors duration-1000 body-healing ${s.textMuted}`}
               />
             </motion.div>
+            )}
 
+            {HOME_FEATURE_FLAGS.showHeroCtaButtons && (
             <motion.div
               className="mt-6 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 sm:px-0"
               initial={{ opacity: 0, y: 16 }}
@@ -1341,17 +1422,47 @@ ${profileSnippet}`;
                 導演 AI
               </Button>
             </motion.div>
+            )}
 
             {/* Scroll indicator — gentle invitation */}
-            <ScrollIndicator isDark={isDark} />
+            {HOME_FEATURE_FLAGS.showScrollIndicator && (
+              <ScrollIndicator isDark={isDark} />
+            )}
           </motion.div>
         </motion.div>
       </motion.section>
 
+      {/* ── Step 3: Creation Hub sections — 繼續上次專案 / 快速開始 / 直接問光球
+            Inserted between the orb hero and the (now hidden) marketing
+            sections so the post-login home reads as a hub, not a landing. */}
+      <section
+        data-testid="home-creation-hub"
+        className="relative z-10 px-4 sm:px-6 pb-16"
+      >
+        <div className="mx-auto max-w-4xl space-y-6">
+          <PageHeader
+            title="今天想創作什麼？"
+            subtitle="選擇繼續創作中的專案、從快速入口起步，或交給光球帶你進到正確系統。"
+          />
+          <ContinueProjectSection
+            activeProject={activeProject}
+            loading={false}
+          />
+          <QuickStartSection />
+          <AskOrbSection
+            onSubmit={handleAskOrbSubmit}
+            onOpenAgent={handleOpenAgent}
+          />
+        </div>
+      </section>
+
       {/* ── Shimmering hairline divider between Hero and Narrative ── */}
-      <ShimmerDivider color={s.dividerColor} />
+      {HOME_FEATURE_FLAGS.showOrbCreationStage && (
+        <ShimmerDivider color={s.dividerColor} />
+      )}
 
       {/* ── Orb Creation Stage — Phase 01 + 02 合併互動劇場 ── */}
+      {HOME_FEATURE_FLAGS.showOrbCreationStage && (
       <OrbCreationStage
         textPrimary={s.textPrimary}
         textMuted={s.textMuted}
@@ -1362,12 +1473,15 @@ ${profileSnippet}`;
         btnPrimaryText={s.btnPrimaryText}
         isDark={isDark}
       />
+      )}
 
       {/* SITE_VALUE_HIGHLIGHTS + SITE_USE_CASES were merged into the unified
           OrbCreationStage above so the orb agent can dispatch every modality
           in place — no studio detour. */}
 
-      <ShimmerDivider color={s.dividerColor} />
+      {HOME_FEATURE_FLAGS.showOrbCreationStage && (
+        <ShimmerDivider color={s.dividerColor} />
+      )}
 
       {/* 首頁快速導覽已完整移至 /learn/tutorial-overview */}
 
@@ -1376,7 +1490,7 @@ ${profileSnippet}`;
           interactive prompt → live generation experience in one panel. */}
 
       {/* ── Intent Inference Whisper (意圖推論低語) ── */}
-      {intentResult && intentResult.confidence > 0.4 && (
+      {HOME_FEATURE_FLAGS.showIntentWhisper && intentResult && intentResult.confidence > 0.4 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1446,6 +1560,7 @@ ${profileSnippet}`;
       )}
 
       {/* ── Intel Bento Grid (情報站) — 僅顯示 AI 相關新聞 ── */}
+      {HOME_FEATURE_FLAGS.showIntelBento && (
       <Suspense
         fallback={
           <SectionShimmerSkeleton
@@ -1464,8 +1579,10 @@ ${profileSnippet}`;
           <IntelBentoGrid sceneId={sceneId} />
         </motion.div>
       </Suspense>
+      )}
 
       {/* ── Showcase Masonry (精選作品瀑布流) ── */}
+      {HOME_FEATURE_FLAGS.showShowcaseMasonry && (
       <Suspense
         fallback={
           <SectionShimmerSkeleton
@@ -1494,6 +1611,7 @@ ${profileSnippet}`;
           />
         </motion.div>
       </Suspense>
+      )}
 
       {SHOW_BOTTOM_CTA ? (
         <>
@@ -1609,14 +1727,17 @@ ${profileSnippet}`;
       )}
 
       {/* ── VisualSoul Invitation (光球行動與邀約) ── */}
+      {HOME_FEATURE_FLAGS.showVisualSoulInvitation && (
       <VisualSoulInvitation
         sceneId={sceneId}
         personality={personality}
         intentResult={intentResult}
         isInferring={isIntentInferring}
       />
+      )}
 
       {/* ── Footer — healing minimal ── */}
+      {HOME_FEATURE_FLAGS.showLegacyFooter && (
       <footer className="py-10 sm:py-12 lg:py-14 px-4 sm:px-6 transition-colors duration-1000 relative z-10 mt-auto">
         {/* Scene-tinted glow seam — soft halo at top of footer */}
         <div
@@ -1650,6 +1771,7 @@ ${profileSnippet}`;
           </span>
         </div>
       </footer>
+      )}
     </div>
   );
 }

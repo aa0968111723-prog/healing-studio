@@ -1,0 +1,94 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { Route, Router } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
+import { ProjectsProvider } from "@/contexts/ProjectsContext";
+import { MOCK_PROJECTS } from "@/data/mockProjects";
+import ProjectsListPage from "./ProjectsListPage";
+import ProjectDetailPage from "./ProjectDetailPage";
+
+afterEach(() => {
+  cleanup();
+  try {
+    window.localStorage.clear();
+  } catch {
+    /* ignore */
+  }
+});
+
+function renderAt(path: string, ui: React.ReactNode) {
+  const { hook } = memoryLocation({ path });
+  return render(
+    <Router hook={hook}>
+      <ProjectsProvider>{ui}</ProjectsProvider>
+    </Router>,
+  );
+}
+
+/** Wrap detail page in the matching Route so useParams resolves `:id`. */
+function renderDetailAt(path: string) {
+  const { hook } = memoryLocation({ path });
+  return render(
+    <Router hook={hook}>
+      <ProjectsProvider>
+        <Route path="/projects/:id" component={ProjectDetailPage} />
+      </ProjectsProvider>
+    </Router>,
+  );
+}
+
+describe("ProjectsListPage (/projects)", () => {
+  it("renders the page title and every mock project card", () => {
+    renderAt("/projects", <ProjectsListPage />);
+    expect(screen.getByText("我的創作專案")).toBeTruthy();
+    expect(screen.getByTestId("projects-list")).toBeTruthy();
+    for (const project of MOCK_PROJECTS) {
+      expect(
+        screen.getByTestId(`project-card-${project.id}`),
+        `card for ${project.id}`,
+      ).toBeTruthy();
+      expect(screen.getByText(project.title)).toBeTruthy();
+    }
+  });
+
+  it("renders progress, current step, and next-action for each card", () => {
+    renderAt("/projects", <ProjectsListPage />);
+    const zen = MOCK_PROJECTS.find(p => p.id === "proj-zen-short")!;
+    expect(screen.getByTestId(`project-progress-${zen.id}`).textContent).toBe(
+      `${zen.progress}%`,
+    );
+    expect(screen.getByText(zen.currentStep)).toBeTruthy();
+    expect(screen.getByText(zen.nextAction)).toBeTruthy();
+    // Every card has a 繼續創作 button.
+    for (const project of MOCK_PROJECTS) {
+      expect(screen.getByTestId(`continue-${project.id}`)).toBeTruthy();
+    }
+  });
+});
+
+describe("ProjectDetailPage (/projects/:id)", () => {
+  it("renders title / type / status / current-step / next-action / 回到創作中樞", () => {
+    const zen = MOCK_PROJECTS.find(p => p.id === "proj-zen-short")!;
+    renderDetailAt(`/projects/${zen.id}`);
+
+    expect(screen.getByRole("heading", { name: zen.title })).toBeTruthy();
+    expect(screen.getByTestId("project-detail-type").textContent).toBe("影片");
+    expect(screen.getByTestId("project-detail-status").textContent).toBe(
+      "進行中",
+    );
+    expect(screen.getByTestId("project-detail-progress").textContent).toBe(
+      `進度 ${zen.progress}%`,
+    );
+    expect(
+      screen.getByTestId("project-detail-current-step-text").textContent,
+    ).toBe(zen.currentStep);
+    expect(screen.getByText(zen.nextAction)).toBeTruthy();
+    expect(screen.getByTestId("project-detail-back-home")).toBeTruthy();
+  });
+
+  it("shows a 找不到 fallback for unknown project ids", () => {
+    renderDetailAt("/projects/missing-id");
+    expect(screen.getByText("找不到這個專案")).toBeTruthy();
+  });
+});
