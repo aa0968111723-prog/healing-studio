@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   decodeDirectorSessionData,
+  decodeDirectorSessionDataOrNull,
   encodeDirectorSessionData,
   isDirectorSessionNote,
 } from "../../routers/director";
@@ -84,5 +85,19 @@ describe("director session data codec", () => {
   it("fails open for malformed compressed payloads", () => {
     const malformed = "gz:not-valid-base64!!";
     expect(decodeDirectorSessionData(malformed)).toBe(malformed);
+  });
+});
+
+
+describe("decodeDirectorSessionDataOrNull", () => {
+  it("returns null for null, undefined, and blank content", () => {
+    expect(decodeDirectorSessionDataOrNull(null)).toBeNull();
+    expect(decodeDirectorSessionDataOrNull(undefined)).toBeNull();
+    expect(decodeDirectorSessionDataOrNull("   ")).toBeNull();
+  });
+
+  it("decodes non-empty content", () => {
+    const payload = '{"messages":[]}';
+    expect(decodeDirectorSessionDataOrNull(payload)).toBe(payload);
   });
 });

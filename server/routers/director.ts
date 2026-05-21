@@ -107,6 +107,14 @@ export function decodeDirectorSessionData(sessionData: string): string {
     return sessionData;
   }
 }
+export function decodeDirectorSessionDataOrNull(
+  sessionData: string | null | undefined
+): string | null {
+  if (typeof sessionData !== "string") return null;
+  if (sessionData.trim().length === 0) return null;
+  return decodeDirectorSessionData(sessionData);
+}
+
 export function isDirectorSessionNote(note: {
   noteType?: string | null;
   tags?: string[] | null;
@@ -332,7 +340,7 @@ export const directorRouter = router({
       return {
         id: note.id,
         title: note.title.replace("[導演對話] ", ""),
-        sessionData: decodeDirectorSessionData(note.content),
+        sessionData: decodeDirectorSessionDataOrNull(note.content),
         createdAt: note.createdAt,
       };
     }),
@@ -1529,7 +1537,7 @@ ${segmentSummaries}
       return {
         id: note.id,
         title: note.title.replace("[長腳本規劃] ", ""),
-        sessionData: decodeDirectorSessionData(note.content),
+        sessionData: decodeDirectorSessionDataOrNull(note.content),
         createdAt: note.createdAt,
       };
     }),
