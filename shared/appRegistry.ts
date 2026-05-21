@@ -17,7 +17,7 @@ export type AppPageGroupId =
  * 中心」。要新增分組就在 SIDEBAR_GROUPS 加一條，然後把對應頁面標上同樣的
  * sidebarGroup 鍵即可，DashboardLayout 不必再改。
  */
-export type SidebarGroupId = "getting-started" | "creation" | "assets" | "management";
+export type SidebarGroupId = "getting-started" | "creation-system" | "assets-models" | "management";
 
 export interface SidebarGroupDefinition {
   id: SidebarGroupId;
@@ -32,8 +32,8 @@ export interface SidebarGroupDefinition {
 
 export const SIDEBAR_GROUPS: readonly SidebarGroupDefinition[] = [
   { id: "getting-started", label: "開始", icon: "Home", order: 10, description: "首頁、創作中心與專案入口" },
-  { id: "creation", label: "創作", icon: "Palette", order: 20, description: "導演 AI、世界觀、圖像、影片、音樂" },
-  { id: "assets", label: "素材", icon: "FolderOpen", order: 30, description: "資產庫、模型、LoRA、視覺靈感" },
+  { id: "creation-system", label: "創作系統", icon: "Palette", order: 20, description: "設計企劃、導演 AI、圖像、影片、聲音" },
+  { id: "assets-models", label: "素材與模型", icon: "FolderOpen", order: 30, description: "資產庫、靈感、模型樂園、模型訓練、共享空間" },
   { id: "management", label: "管理", icon: "Settings", order: 40, description: "設定、API 用量與代理設定" },
 ] as const;;
 
@@ -189,7 +189,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["模型樂園", "playground", "進階工具", "professional"],
     showInSidebar: true,
     sidebarOrder: 22,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Sparkles",
     showInAgentHome: true,
     agentEntryPriority: 3,
@@ -230,7 +230,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["工作室", "創作", "studio"],
     showInSidebar: true,
     sidebarOrder: 20,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Wand2",
     showInAgentHome: true,
     agentEntryPriority: 2,
@@ -268,7 +268,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["image", "圖片", "圖像"],
     showInSidebar: true,
     sidebarOrder: 40,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Image",
     showInAgentHome: true,
     agentEntryPriority: 3,
@@ -320,7 +320,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["video", "影片", "動畫"],
     showInSidebar: true,
     sidebarOrder: 50,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Film",
     showInAgentHome: true,
     agentEntryPriority: 4,
@@ -370,7 +370,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["music", "voice", "audio", "音樂", "配音"],
     showInSidebar: true,
     sidebarOrder: 60,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Music",
     showInAgentHome: true,
     agentEntryPriority: 5,
@@ -421,7 +421,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["script", "director", "腳本"],
     showInSidebar: true,
     sidebarOrder: 30,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Clapperboard",
     showInAgentHome: true,
     agentEntryPriority: 6,
@@ -476,7 +476,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     showInSidebar: false,
     sidebarOrder: 21,
-    sidebarGroup: "creation",
+    sidebarGroup: "creation-system",
     sidebarIcon: "Film",
     showInAgentHome: true,
     agentEntryPriority: 5,
@@ -629,7 +629,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["notes", "筆記"],
     showInSidebar: true,
     sidebarOrder: 51,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "StickyNote",
     showInAgentHome: true,
     agentEntryPriority: 21,
@@ -781,7 +781,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["assets", "素材", "資產", "提示詞", "保險庫", "共享", "背景任務"],
     showInSidebar: true,
     sidebarOrder: 42,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "Package",
     showInAgentHome: true,
     agentEntryPriority: 10,
@@ -897,7 +897,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["models", "模型", "角色"],
     showInSidebar: true,
     sidebarOrder: 41,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "Cpu",
     showInAgentHome: true,
     agentEntryPriority: 23,
@@ -1014,7 +1014,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["learn", "教學", "文件"],
     showInSidebar: true,
     sidebarOrder: 52,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "BookOpen",
     showInAgentHome: true,
     agentEntryPriority: 40,
@@ -1052,7 +1052,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     showInSidebar: true,
     sidebarOrder: 53,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "Sparkles",
     showInAgentHome: true,
     agentEntryPriority: 42,
@@ -1108,7 +1108,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     showInSidebar: true,
     sidebarOrder: 54,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "Gift",
     showInAgentHome: false,
     agentEntryPriority: 43,
@@ -1184,7 +1184,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     // 讓側邊欄露出入口 — 之前藏起來導致使用者找不到上傳頁。
     showInSidebar: true,
     sidebarOrder: 52,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "Database",
     showInAgentHome: true,
     agentEntryPriority: 18,
@@ -1218,7 +1218,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     // 跟資料庫一組，sidebar 一起露出
     showInSidebar: true,
     sidebarOrder: 54,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "Users",
     showInAgentHome: true,
     agentEntryPriority: 19,
@@ -1459,7 +1459,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["創作專案", "專案", "creative projects", "project"],
     showInSidebar: true,
     sidebarOrder: 55,
-    sidebarGroup: "assets",
+    sidebarGroup: "assets-models",
     sidebarIcon: "FolderKanban",
     showInAgentHome: true,
     agentEntryPriority: 26,
