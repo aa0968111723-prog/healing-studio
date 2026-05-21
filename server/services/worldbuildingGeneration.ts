@@ -11,25 +11,42 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { TRPCError } from "@trpc/server";
+import { randomUUID } from "node:crypto";
 import type {
   WorldCharacter,
   WorldScene,
 } from "../../shared/worldbuilding-types";
+
+function normalizeDescription(input: string): string {
+  return input.replace(/\s+/g, " ").trim();
+}
+
+function buildNameFromDescription(description: string, fallback: string): string {
+  const firstChunk = description
+    .split(/[\s,，。.!?！？]/)
+    .map(chunk => chunk.trim())
+    .find(Boolean);
+  return firstChunk?.slice(0, 20) ?? fallback;
+}
 
 async function generateCharacter(params: {
   worldId: number;
   description: string;
   archetype?: string;
 }): Promise<WorldCharacter> {
-  const uid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const normalizedDescription = normalizeDescription(params.description);
+  const uid = randomUUID();
+  const archetypeNote = params.archetype?.trim();
 
   return ({
     id: uid,
-    name: params.description.split(/[\s,，]/)[0] || "新角色",
-    tagline: params.description.substring(0, 50),
-    role: "supporting" as const,
-    appearance: `基於描述生成：${params.description}`,
-    personality: "待完善",
+    name: buildNameFromDescription(normalizedDescription, "新角色"),
+    tagline: normalizedDescription.substring(0, 80),
+    role: "supporting",
+    appearance: `基於描述生成：${normalizedDescription}`,
+    personality: archetypeNote
+      ? `原型傾向：${archetypeNote}（待完善）`
+      : "待完善",
     backstory: "待完善",
     likes: [],
     dislikes: [],
@@ -51,14 +68,15 @@ async function generateScene(params: {
   description: string;
   environmentType?: string;
 }): Promise<WorldScene> {
-  const uid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const normalizedDescription = normalizeDescription(params.description);
+  const uid = randomUUID();
 
   return ({
     id: uid,
-    name: params.description.split(/[\s,，]/)[0] || "新場景",
-    tagline: params.description.substring(0, 50),
-    environment: `基於描述生成：${params.description}`,
-    environmentType: params.environmentType,
+    name: buildNameFromDescription(normalizedDescription, "新場景"),
+    tagline: normalizedDescription.substring(0, 80),
+    environment: `基於描述生成：${normalizedDescription}`,
+    environmentType: params.environmentType?.trim() || undefined,
     mood: "待完善",
     lighting: "待完善",
     timeOfDay: ["day" as any],
