@@ -1439,7 +1439,15 @@ ${profileSnippet}`;
         data-testid="home-creation-hub"
         className="relative z-10 px-4 sm:px-6 pb-16"
       >
-        <div className="mx-auto max-w-4xl space-y-6">
+        {/* `home-hub-glass` 把 PageHeader / SectionCard 的 bg-card/40 換成
+            場景感知的玻璃底（暗版／亮版二選一），避免在夜空 / 深海場景下
+            描述文字與卡片邊框幾乎透明、讀不到。樣式定義在 index.css。 */}
+        <div
+          className={[
+            "mx-auto max-w-4xl space-y-6 home-hub-glass",
+            isDark ? "home-hub-glass--dark" : "home-hub-glass--light",
+          ].join(" ")}
+        >
           <PageHeader
             title="今天想創作什麼？"
             subtitle="選擇繼續創作中的專案、從快速入口起步，或交給光球帶你進到正確系統。"
