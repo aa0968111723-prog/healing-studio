@@ -7,6 +7,9 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { SectionCard } from "@/components/layout/SectionCard";
 import {
   Wand2,
   Clapperboard,
@@ -243,6 +246,16 @@ export default function CreationHub() {
 
   return (
     <div className="creation-hub-shell page-shell space-y-5">
+      <PageHeader title="創作中心" subtitle="依照你的意圖進入影片、圖片、聲音與素材工作流。" />
+      <NextStepPanel title="下一步：選擇主要工作流" description="先選一個主要目標，再用次要入口補足素材與設定。" />
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <SectionCard title="我要做影片" description="從導演 AI 進入完整影片企劃與生成流程。" />
+        <SectionCard title="我要做圖片" description="以圖像工作室快速產生角色圖、場景圖與分鏡圖。" />
+        <SectionCard title="我要做聲音" description="用聲音製作中心完成配音、配樂與音效。" />
+        <SectionCard title="我要整理素材" description="管理資料庫、資產庫、專案與共享空間。" />
+      </div>
+
       <header className="page-header">
         <p className="page-eyebrow">Creation Hub</p>
         <h1 className="page-title">創作中心</h1>

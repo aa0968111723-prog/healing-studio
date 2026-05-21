@@ -124,6 +124,11 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { SectionCard } from "@/components/layout/SectionCard";
+import { AdvancedSection } from "@/components/layout/AdvancedSection";
+import { getVisualDensity, shouldShowDiagnostics } from "@/lib/visualDensity";
 import type {
   CoStarScript,
   ScriptSegment,
@@ -4096,7 +4101,17 @@ export default function DirectorAI() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      <PageHeader title="導演 AI" subtitle="把想法、腳本與世界觀整理成可拍攝的分鏡與生成任務。" primaryAction={<Button onClick={() => setShowTemplates(true)} className="rounded-xl">開始整理腳本</Button>} secondaryActions={<><Button variant="outline" onClick={() => setShowStoryboard(true)}>開啟世界觀系統</Button><Button variant="outline" onClick={() => setShowStoryboard(true)}>查看製作包</Button></>} />
+
+      <NextStepPanel title="下一步：整理腳本" description="先把想法或腳本整理成可製作段落，再進入世界觀與分鏡。" primaryAction={<Button onClick={() => setShowTemplates(true)}>開始整理腳本</Button>} />
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <SectionCard title="腳本整理" description="貼上想法、逐字稿或劇本，讓 AI 拆成可製作段落。" actions={<Button size="sm" onClick={() => setShowTemplates(true)}>貼上腳本</Button>} />
+        <SectionCard title="世界觀系統" description="整理角色、場景、風格、聲音與視覺靈感。" actions={<Button size="sm" variant="outline" onClick={() => setShowStoryboard(true)}>開啟世界觀</Button>} />
+        <SectionCard title="分鏡規劃" description="把腳本轉為鏡頭、畫面、音效與配音需求。" actions={<Button size="sm" variant="outline" onClick={() => setShowStoryboard(true)}>產生分鏡</Button>} />
+        <SectionCard title="生成任務" description="把製作包轉成圖像、影片、配音、配樂任務。" actions={<Button size="sm" variant="outline" onClick={() => setShowStoryboard(true)}>建立生成任務</Button>} />
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Clapperboard className="w-5 h-5 text-muted-foreground" />

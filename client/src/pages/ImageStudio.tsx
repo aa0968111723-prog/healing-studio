@@ -77,6 +77,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
 import { readImageStudioHandoff } from "@/components/home/OrbCreationStage";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
@@ -842,6 +845,9 @@ function T2iQuickStartGuide({ onQuickTry }: { onQuickTry: () => void }) {
     setDismissed(true);
     localStorage.setItem(T2I_GUIDE_KEY, "true");
   };
+  const visualDensity = getVisualDensity();
+  const showAdvanced = shouldShowAdvanced(visualDensity);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
