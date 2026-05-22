@@ -6,6 +6,32 @@ interface Props {
 
 export default function CosmicBackdrop({ glowColor }: Props) {
   const reduceMotion = useReducedMotion();
+  const starLayers = [
+    {
+      opacity: 0.42,
+      duration: 160,
+      drift: ["0px 0px", "58px -36px", "0px 0px"],
+      density: "170px 170px",
+      twinkle: [0.32, 0.55, 0.34, 0.5, 0.32],
+      twinkleDuration: 9,
+    },
+    {
+      opacity: 0.28,
+      duration: 120,
+      drift: ["0px 0px", "-52px -30px", "0px 0px"],
+      density: "125px 125px",
+      twinkle: [0.22, 0.4, 0.2, 0.36, 0.22],
+      twinkleDuration: 7.5,
+    },
+    {
+      opacity: 0.18,
+      duration: 90,
+      drift: ["0px 0px", "30px -24px", "0px 0px"],
+      density: "92px 92px",
+      twinkle: [0.15, 0.3, 0.14, 0.26, 0.15],
+      twinkleDuration: 6.5,
+    },
+  ] as const;
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-[18] overflow-hidden">
@@ -26,12 +52,7 @@ export default function CosmicBackdrop({ glowColor }: Props) {
         transition={reduceMotion ? undefined : { duration: 48, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {[0, 1, 2].map(layer => {
-        const specs = [
-          { size: "2px 2px", density: "180px 180px", opacity: 0.35, duration: 220, drift: ["0px 0px", "40px -28px", "0px 0px"] },
-          { size: "1.6px 1.6px", density: "130px 130px", opacity: 0.24, duration: 160, drift: ["0px 0px", "-38px -26px", "0px 0px"] },
-          { size: "1px 1px", density: "90px 90px", opacity: 0.16, duration: 120, drift: ["0px 0px", "22px -18px", "0px 0px"] },
-        ][layer];
+      {starLayers.map((specs, layer) => {
         return (
           <motion.div
             key={layer}
@@ -44,9 +65,29 @@ export default function CosmicBackdrop({ glowColor }: Props) {
               WebkitMaskImage: "radial-gradient(circle at center, black 32%, transparent 100%)",
             }}
             animate={
-              reduceMotion ? undefined : { backgroundPosition: specs.drift as unknown as string[] }
+              reduceMotion
+                ? undefined
+                : {
+                    backgroundPosition: specs.drift as unknown as string[],
+                    opacity: specs.twinkle as unknown as number[],
+                  }
             }
-            transition={reduceMotion ? undefined : { duration: specs.duration, repeat: Infinity, ease: "easeInOut" }}
+            transition={
+              reduceMotion
+                ? undefined
+                : {
+                    backgroundPosition: {
+                      duration: specs.duration,
+                      repeat: Infinity,
+                      ease: "linear",
+                    },
+                    opacity: {
+                      duration: specs.twinkleDuration,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    },
+                  }
+            }
           />
         );
       })}
@@ -60,6 +101,25 @@ export default function CosmicBackdrop({ glowColor }: Props) {
         }}
         animate={reduceMotion ? undefined : { opacity: [0.45, 0.62, 0.45], scale: [1, 1.03, 1] }}
         transition={reduceMotion ? undefined : { duration: 26, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      <motion.div
+        className="absolute inset-[-8%]"
+        style={{
+          background:
+            "radial-gradient(34% 30% at 8% 14%, rgba(121, 93, 255, 0.2) 0%, transparent 75%), radial-gradient(40% 36% at 92% 22%, rgba(63, 136, 255, 0.16) 0%, transparent 78%), radial-gradient(36% 30% at 88% 84%, rgba(193, 110, 255, 0.13) 0%, transparent 80%), radial-gradient(33% 28% at 12% 86%, rgba(90, 161, 255, 0.14) 0%, transparent 76%)",
+          filter: "blur(44px)",
+        }}
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                x: ["0%", "2.5%", "-1.5%", "0%"],
+                y: ["0%", "-1.8%", "2.2%", "0%"],
+                opacity: [0.52, 0.72, 0.58, 0.52],
+              }
+        }
+        transition={reduceMotion ? undefined : { duration: 32, repeat: Infinity, ease: "easeInOut" }}
       />
 
       {!reduceMotion && (
@@ -77,7 +137,7 @@ export default function CosmicBackdrop({ glowColor }: Props) {
                 transform: "rotate(-20deg)",
               }}
               animate={{ x: ["0vw", "132vw"], opacity: [0, 0, 0.5, 0, 0] }}
-              transition={{ duration: 14 + i * 3, repeat: Infinity, ease: "easeOut", delay: i * 5 + 2 }}
+              transition={{ duration: 13 + i * 2, repeat: Infinity, ease: "easeOut", delay: i * 4 + 1.5 }}
             />
           ))}
         </>
