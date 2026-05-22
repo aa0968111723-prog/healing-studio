@@ -788,7 +788,20 @@ function DashboardLayoutContent({
   //    Variant-aware: rail/panel are flush vertical sidebars, so they need
   //    rail-width vs panel-width clearance instead of the float gutter. ──
   const dockPadClass = (() => {
-    if (isMobile) return "";
+    // Mobile keeps the dock visible as a floating rail by default; reserve a
+    // slim gutter so core controls aren't covered on narrow screens.
+    if (isMobile) {
+      switch (dockPosition) {
+        case "left":
+          return "pl-[84px]";
+        case "right":
+          return "pr-[84px]";
+        case "top":
+          return "pt-[84px]";
+        case "bottom":
+          return "pb-[84px]";
+      }
+    }
     if (dockImmersive) {
       switch (dockPosition) {
         case "left":
