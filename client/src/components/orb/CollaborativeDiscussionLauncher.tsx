@@ -18,7 +18,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Sparkles } from "lucide-react";
 import { CollaborativeProgressPanel } from "./CollaborativeProgressPanel";
 
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
