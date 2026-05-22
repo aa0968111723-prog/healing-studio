@@ -72,4 +72,25 @@ describe("ProjectsContext", () => {
     );
     expect(result.current.getProjectById("does-not-exist")).toBeUndefined();
   });
+
+  it("createProject appends a new project and pins it as active", () => {
+    const { result } = renderHook(() => useProjects(), { wrapper });
+    const before = result.current.projects.length;
+    let createdId = "";
+    act(() => {
+      const created = result.current.createProject({
+        title: "新影片企劃",
+        type: "video",
+        worldFramework: "新世界觀",
+      });
+      createdId = created.id;
+    });
+    expect(result.current.projects.length).toBe(before + 1);
+    expect(result.current.activeProjectId).toBe(createdId);
+    const created = result.current.getProjectById(createdId);
+    expect(created?.title).toBe("新影片企劃");
+    expect(created?.type).toBe("video");
+    expect(created?.status).toBe("draft");
+    expect(created?.binding?.worldFramework).toBe("新世界觀");
+  });
 });
