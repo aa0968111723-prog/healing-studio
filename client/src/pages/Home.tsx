@@ -1231,7 +1231,7 @@ ${profileSnippet}`;
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-8 sm:pt-20 lg:pt-28 pb-8 sm:pb-16 lg:pb-20 px-4 sm:px-6 relative z-10 flex items-center justify-center min-h-[72vh] sm:min-h-[78vh]"
+        className="pt-4 sm:pt-20 lg:pt-28 pb-10 sm:pb-16 lg:pb-20 px-4 sm:px-6 relative z-10 flex items-center justify-center min-h-[92vh] sm:min-h-[80vh]"
         style={
           HOME_FEATURE_FLAGS.enableHeroScrollAnimations
             ? { y: heroY }
@@ -1275,7 +1275,7 @@ ${profileSnippet}`;
                 and click ripple.  Scroll-morphs toward the floating orb
                 as the user descends. */}
             <motion.div
-              className="flex flex-col items-center mb-5 sm:mb-14"
+              className="flex flex-col items-center mb-2 sm:mb-8"
               style={
                 HOME_FEATURE_FLAGS.enableHeroScrollAnimations
                   ? {
@@ -1296,18 +1296,18 @@ ${profileSnippet}`;
                     Lower opacity on mobile so it doesn't stack with the
                     JewelOrbStage bloom into a heavy amber ring. */}
                 <motion.div
-                  className="absolute inset-0 m-auto w-32 h-32 sm:w-52 sm:h-52 lg:w-60 lg:h-60 rounded-full pointer-events-none"
+                  className="absolute inset-0 m-auto w-48 h-48 sm:w-52 sm:h-52 lg:w-60 lg:h-60 rounded-full pointer-events-none"
                   style={{
                     background: `radial-gradient(circle, ${s.glowColor} 0%, rgba(255,255,255,0.02) 42%, transparent 78%)`,
-                    filter: "blur(16px)",
+                    filter: "blur(18px)",
                   }}
                   animate={
                     reduceMotion
                       ? undefined
                       : {
-                          scale: [0.9, 1.05, 0.92, 1],
+                          scale: [0.9, 1.08, 0.92, 1],
                           opacity: isMobile
-                            ? [0.14, 0.26, 0.16, 0.14]
+                            ? [0.22, 0.42, 0.26, 0.22]
                             : [0.2, 0.38, 0.23, 0.2],
                         }
                   }
@@ -1319,10 +1319,10 @@ ${profileSnippet}`;
                 />
                 <motion.div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 m-auto w-44 h-44 sm:w-64 sm:h-64 rounded-full"
+                  className="pointer-events-none absolute inset-0 m-auto w-56 h-56 sm:w-64 sm:h-64 rounded-full"
                   style={{
-                    border: "1px solid rgba(226,232,255,0.16)",
-                    boxShadow: `0 0 50px ${s.glowColor}`,
+                    border: "1px solid rgba(226,232,255,0.22)",
+                    boxShadow: `0 0 60px ${s.glowColor}`,
                   }}
                   animate={
                     reduceMotion
@@ -1337,8 +1337,8 @@ ${profileSnippet}`;
                 />
                 <motion.div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 m-auto w-56 h-56 sm:w-80 sm:h-80 rounded-full border"
-                  style={{ borderColor: "rgba(191,200,255,0.14)" }}
+                  className="pointer-events-none absolute inset-0 m-auto w-72 h-72 sm:w-80 sm:h-80 rounded-full border"
+                  style={{ borderColor: "rgba(191,200,255,0.16)" }}
                   animate={
                     reduceMotion
                       ? undefined
@@ -1369,12 +1369,43 @@ ${profileSnippet}`;
                   }
                 >
                   <VisualSoul
-                    size="md"
+                    size="lg"
                     personality={personality}
-                    className="sm:!w-16 sm:!h-16"
+                    className="!w-16 !h-16 sm:!w-20 sm:!h-20"
                   />
                 </motion.div>
               </JewelOrbStage>
+            </motion.div>
+
+            {/* ── Poetic title cluster — fills the space between orb and CTA,
+                gives the page a clear emotional anchor that matches the
+                healing/cosmic backdrop. Always visible; replaces the heavier
+                OARS multi-step greeting which is gated off. */}
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.9,
+                delay: 0.45,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              className="text-center px-4 sm:px-0 mb-6 sm:mb-10"
+            >
+              <h1
+                className={`heading-healing text-2xl sm:text-4xl lg:text-5xl font-semibold leading-tight tracking-tight ${s.textPrimary}`}
+                style={{
+                  textShadow: isDark
+                    ? `0 2px 24px ${s.glowColor}`
+                    : "0 1px 2px rgba(0,0,0,0.04)",
+                }}
+              >
+                今天，想創作什麼？
+              </h1>
+              <p
+                className={`mt-3 sm:mt-4 body-healing text-[13px] sm:text-base lg:text-lg max-w-md mx-auto ${s.textMuted}`}
+              >
+                光球為你引路，從一個念頭，到完整作品。
+              </p>
             </motion.div>
 
             {/* OARS Contextual Greeting — replaces static title */}
@@ -1402,7 +1433,7 @@ ${profileSnippet}`;
             {HOME_FEATURE_FLAGS.showHeroCtaButtons && (
             <motion.div
               data-testid="home-enter-os-cta"
-              className="mt-5 sm:mt-12 flex items-center justify-center px-3 sm:px-0 relative"
+              className="mt-2 sm:mt-2 flex items-center justify-center px-3 sm:px-0 relative"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1437,6 +1468,48 @@ ${profileSnippet}`;
               </MagneticTilt>
             </motion.div>
             )}
+
+            {/* ── Status cluster below the CTA — fills the lower mobile void
+                with a calm "光球已就緒" pill + breathing microcopy, signalling
+                that the orb is alive and ready to guide. */}
+            <motion.div
+              className="mt-8 sm:mt-10 flex flex-col items-center gap-3 sm:gap-4"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.8,
+                delay: 0.85,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+            >
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md text-[10px] sm:text-[11px] tracking-[0.18em] uppercase ${s.textMuted}`}
+                style={{
+                  background: s.cardBg,
+                  border: `1px solid ${s.cardBorder}`,
+                }}
+              >
+                <motion.span
+                  aria-hidden
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: s.glowColor, boxShadow: `0 0 8px ${s.glowColor}` }}
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : { opacity: [0.4, 1, 0.4], scale: [0.85, 1.15, 0.85] }
+                  }
+                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                />
+                光球已就緒
+              </div>
+              <motion.p
+                className={`text-[11px] sm:text-xs tracking-wide max-w-[16rem] sm:max-w-sm text-center ${s.textMuted}`}
+                animate={reduceMotion ? undefined : { opacity: [0.55, 0.85, 0.55] }}
+                transition={{ duration: 5.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                點一下進入，光球會帶你走最短路徑
+              </motion.p>
+            </motion.div>
 
             {/* Scroll indicator — gentle invitation */}
             {HOME_FEATURE_FLAGS.showScrollIndicator && (
