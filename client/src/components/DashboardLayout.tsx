@@ -36,6 +36,7 @@ import {
 } from "@/config/appRegistry";
 import { resolveSidebarIcon } from "@/config/sidebarIcons";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
+import { ProjectSelector } from "./layout/ProjectSelector";
 import { useIsMobile } from "@/hooks/useMobile";
 import AppleDock, {
   type DockEntry,
@@ -909,6 +910,13 @@ function DashboardLayoutContent({
               : "calc(2rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
+          {/* Phase 1：全站專案選擇器 — 跨系統導航時保持同一創作上下文。
+              採黏性定位讓滾動時也保持可見,使用者可隨時切換或新增專案。 */}
+          {user && (
+            <div className="sticky top-0 z-30 -mx-2 mb-4 flex items-center justify-end gap-2 bg-background/80 px-2 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <ProjectSelector />
+            </div>
+          )}
           {children}
         </main>
       </SidebarInset>

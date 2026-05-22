@@ -235,7 +235,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/create">
-        <StandaloneProtectedRoute component={CreationHub} />
+        <ProtectedDashboardRoute component={CreationHub} />
       </Route>
       <Route path="/playground">
         <ProtectedDashboardRoute component={Playground} />

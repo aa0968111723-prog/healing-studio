@@ -421,6 +421,27 @@
       "when": 1779050000066,
       "tag": "0066_teaching_materials_real_earth_refs",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1779050000067,
+      "tag": "0067_creative_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "5",
+      "when": 1779050000068,
+      "tag": "0068_creative_projects_bootstrap",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "5",
+      "when": 1779050000069,
+      "tag": "0069_creative_projects_worldview_script",
+      "breakpoints": true
     }
   ]
 }
