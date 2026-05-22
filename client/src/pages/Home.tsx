@@ -26,6 +26,7 @@ import {
   useScroll,
   useTransform,
   useMotionValueEvent,
+  useReducedMotion,
 } from "framer-motion";
 import {
   ArrowRight,
@@ -679,6 +680,7 @@ function ScrollIndicator({ isDark }: { isDark: boolean }) {
 // ─── Home Page ──────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const reduceMotion = useReducedMotion();
   const { user, loading, isAuthenticated } = useAuth();
   const { personality } = useAIState();
   const [, navigate] = useLocation();
@@ -1297,14 +1299,20 @@ ${profileSnippet}`;
                   className="absolute inset-0 m-auto w-32 h-32 sm:w-52 sm:h-52 lg:w-60 lg:h-60 rounded-full pointer-events-none"
                   style={{
                     background: `radial-gradient(circle, ${s.glowColor} 0%, rgba(255,255,255,0.02) 42%, transparent 78%)`,
-                    filter: "blur(12px)",
+                    filter: "blur(16px)",
                   }}
-                  animate={{
-                    scale: [1, 1.06, 1],
-                    opacity: isMobile ? [0.1, 0.18, 0.1] : [0.16, 0.28, 0.16],
-                  }}
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          scale: [0.9, 1.05, 0.92, 1],
+                          opacity: isMobile
+                            ? [0.14, 0.26, 0.16, 0.14]
+                            : [0.2, 0.38, 0.23, 0.2],
+                        }
+                  }
                   transition={{
-                    duration: 8,
+                    duration: 8.2,
                     repeat: Infinity,
                     ease: "easeInOut",
                   }}
@@ -1316,35 +1324,49 @@ ${profileSnippet}`;
                     border: "1px solid rgba(226,232,255,0.16)",
                     boxShadow: `0 0 50px ${s.glowColor}`,
                   }}
-                  animate={{
-                    scale: [0.95, 1.05, 0.95],
-                    opacity: [0.2, 0.42, 0.2],
-                  }}
-                  transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          scale: [0.9, 1.08, 0.94, 0.9],
+                          opacity: [0.18, 0.48, 0.28, 0.18],
+                          rotate: [0, 8, 16, 24],
+                        }
+                  }
+                  transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
                 />
                 <motion.div
                   aria-hidden
                   className="pointer-events-none absolute inset-0 m-auto w-56 h-56 sm:w-80 sm:h-80 rounded-full border"
                   style={{ borderColor: "rgba(191,200,255,0.14)" }}
-                  animate={{ scale: [0.92, 1.04], opacity: [0.08, 0.22, 0.08] }}
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          scale: [0.88, 1.1, 0.92, 0.88],
+                          opacity: [0.06, 0.24, 0.12, 0.06],
+                          rotate: [0, -6, -14, -22],
+                        }
+                  }
                   transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
                 />
                 {/* Orb with subtle scene-matched aura */}
                 <motion.div
                   className="relative"
-                  transition={{
-                    duration: 7,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                  animate={{
-                    filter: [
-                      `drop-shadow(0 0 16px ${s.glowColor}) brightness(1)`,
-                      `drop-shadow(0 0 34px ${s.glowColor}) brightness(1.08)`,
-                      `drop-shadow(0 0 18px ${s.glowColor}) brightness(1)`,
-                    ],
-                    scale: [1, 1.045, 1],
-                  }}
+                  transition={{ duration: 8.4, repeat: Infinity, ease: "easeInOut" }}
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          filter: [
+                            `drop-shadow(0 0 18px ${s.glowColor}) brightness(0.96)`,
+                            `drop-shadow(0 0 42px ${s.glowColor}) brightness(1.14)`,
+                            `drop-shadow(0 0 24px ${s.glowColor}) brightness(1.02)`,
+                            `drop-shadow(0 0 18px ${s.glowColor}) brightness(0.96)`,
+                          ],
+                          scale: [0.9, 1.05, 0.93, 0.9],
+                        }
+                  }
                 >
                   <VisualSoul
                     size="md"
