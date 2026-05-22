@@ -1231,7 +1231,7 @@ ${profileSnippet}`;
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-12 sm:pt-20 lg:pt-28 pb-10 sm:pb-16 lg:pb-20 px-4 sm:px-6 relative z-10 flex items-center justify-center min-h-[78vh]"
+        className="pt-8 sm:pt-20 lg:pt-28 pb-8 sm:pb-16 lg:pb-20 px-4 sm:px-6 relative z-10 flex items-center justify-center min-h-[72vh] sm:min-h-[78vh]"
         style={
           HOME_FEATURE_FLAGS.enableHeroScrollAnimations
             ? { y: heroY }
@@ -1275,7 +1275,7 @@ ${profileSnippet}`;
                 and click ripple.  Scroll-morphs toward the floating orb
                 as the user descends. */}
             <motion.div
-              className="flex flex-col items-center mb-7 sm:mb-14"
+              className="flex flex-col items-center mb-5 sm:mb-14"
               style={
                 HOME_FEATURE_FLAGS.enableHeroScrollAnimations
                   ? {
@@ -1402,7 +1402,7 @@ ${profileSnippet}`;
             {HOME_FEATURE_FLAGS.showHeroCtaButtons && (
             <motion.div
               data-testid="home-enter-os-cta"
-              className="mt-7 sm:mt-12 flex items-center justify-center px-4 sm:px-0 relative"
+              className="mt-5 sm:mt-12 flex items-center justify-center px-3 sm:px-0 relative"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1416,7 +1416,7 @@ ${profileSnippet}`;
                 <Button
                   size="lg"
                   onClick={() => navigate("/create")}
-                  className={`group relative overflow-hidden rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  className={`group relative overflow-hidden rounded-2xl h-10 sm:h-12 px-5 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto max-w-[248px] sm:max-w-none ${s.btnPrimary} ${s.btnPrimaryText}`}
                   style={{
                     boxShadow: `0 8px 32px ${s.glowColor}, 0 0 0 1px rgba(255,255,255,0.06) inset`,
                   }}
