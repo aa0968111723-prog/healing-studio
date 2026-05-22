@@ -28,7 +28,6 @@ import {
   useMotionValueEvent,
 } from "framer-motion";
 import {
-  Clapperboard,
   ArrowRight,
   Sparkles,
   Moon,
@@ -81,17 +80,6 @@ import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
 import { useIsMobile } from "@/hooks/useMobile";
-// Step 3 creation-hub wiring — the new post-login home content lives inside
-// the legacy scene/orb backdrop instead of replacing it.
-import { useProjects } from "@/contexts/ProjectsContext";
-import { PageHeader } from "@/components/layout/PageHeader";
-import {
-  AskOrbSection,
-  ContinueProjectSection,
-  QuickStartSection,
-} from "@/components/home/CreationHubSections";
-
-const ORB_HANDOFF_KEY = "home-orb-pending-prompt";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -110,9 +98,9 @@ const HOME_FEATURE_FLAGS = {
   showSceneBadge: false,
   /** OARS 多段 hero 文案。已被「今天想創作什麼？」取代。 */
   showOarsGreeting: false,
-  /** Hero 區下方的兩顆 CTA（進入光球入口 / 導演 AI）。創作中樞改由
-   *  CreationHubSections 的「直接問光球」承接，所以收起來。 */
-  showHeroCtaButtons: false,
+  /** Hero 區下方的「進入創作作業系統」CTA。Phase 2c 起首頁瘦身成「動畫 +
+   *  單 CTA」，CTA 內容由下方 hero block 渲染（一顆按鈕導到 /create）。 */
+  showHeroCtaButtons: true,
   /** 「向下探索」滑鼠 icon。內容已縮短，不再需要。 */
   showScrollIndicator: false,
   /** 滾動驅動的 hero 視差（heroY / heroOrbScale / heroOrbDrift / nav opacity
@@ -693,24 +681,9 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const { personality } = useAIState();
   const [, navigate] = useLocation();
-  const { activeProject } = useProjects();
   const [showOnboarding, setShowOnboarding] = useState(false);
-
-  // ── Step 3: handlers wired into the creation-hub sections ─────────────
-  const handleAskOrbSubmit = useCallback(
-    (prompt: string) => {
-      try {
-        window.sessionStorage.setItem(ORB_HANDOFF_KEY, prompt);
-      } catch {
-        // privacy mode / quota — fail open; user still lands on /agent.
-      }
-      navigate("/agent");
-    },
-    [navigate],
-  );
-  const handleOpenAgent = useCallback(() => {
-    navigate("/agent");
-  }, [navigate]);
+  // Phase 2c: 三段創作中樞 sections 已搬到 /create，這頁不再需要 useProjects /
+  // AskOrb handler — 由 CreationHub 直接消化。
   const {
     activeSurface: onboardingSurface,
     acquireSurface,
@@ -1378,9 +1351,13 @@ ${profileSnippet}`;
             </motion.div>
             )}
 
+            {/* Phase 2c: 首頁瘦身 — 只留一顆 CTA「進入創作作業系統」直接導到
+                /create（CreationHub 已承接快速開始 / 繼續上次專案 / 直接問光球
+                三大區塊）。 */}
             {HOME_FEATURE_FLAGS.showHeroCtaButtons && (
             <motion.div
-              className="mt-6 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 sm:px-0"
+              data-testid="home-enter-os-cta"
+              className="mt-6 sm:mt-10 flex items-center justify-center px-4 sm:px-0"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1392,7 +1369,7 @@ ${profileSnippet}`;
               <MagneticTilt strength={10}>
                 <Button
                   size="lg"
-                  onClick={() => navigate("/agent")}
+                  onClick={() => navigate("/create")}
                   className={`group relative overflow-hidden rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   style={{
                     boxShadow: `0 8px 32px ${s.glowColor}, 0 0 0 1px rgba(255,255,255,0.06) inset`,
@@ -1408,19 +1385,10 @@ ${profileSnippet}`;
                     }}
                   />
                   <Sparkles className="w-4 h-4 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110" />
-                  <span className="relative z-10">進入光球入口</span>
+                  <span className="relative z-10">進入創作作業系統</span>
                   <ArrowRight className="w-4 h-4 transition-transform duration-500 group-hover:translate-x-1" />
                 </Button>
               </MagneticTilt>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/director")}
-                className={`rounded-xl h-9 px-3 gap-1.5 text-xs sm:text-sm btn-healing ${s.textSecondary}`}
-              >
-                <Clapperboard className="w-3.5 h-3.5" />
-                導演 AI
-              </Button>
             </motion.div>
             )}
 
@@ -1432,38 +1400,9 @@ ${profileSnippet}`;
         </motion.div>
       </motion.section>
 
-      {/* ── Step 3: Creation Hub sections — 繼續上次專案 / 快速開始 / 直接問光球
-            Inserted between the orb hero and the (now hidden) marketing
-            sections so the post-login home reads as a hub, not a landing. */}
-      <section
-        data-testid="home-creation-hub"
-        className="relative z-10 px-4 sm:px-6 pb-16"
-      >
-        {/* `home-hub-glass` 把 PageHeader / SectionCard 的 bg-card/40 換成
-            場景感知的玻璃底（暗版／亮版二選一），避免在夜空 / 深海場景下
-            描述文字與卡片邊框幾乎透明、讀不到。樣式定義在 index.css。 */}
-        <div
-          className={[
-            "mx-auto max-w-4xl space-y-6 home-hub-glass",
-            isDark ? "home-hub-glass--dark" : "home-hub-glass--light",
-          ].join(" ")}
-        >
-          <PageHeader
-            title="今天想創作什麼？"
-            subtitle="選擇繼續創作中的專案、從快速入口起步，或交給光球帶你進到正確系統。"
-          />
-          {/* 快速開始放在主標下方，讓使用者一進站就能挑一個任務開始 */}
-          <QuickStartSection />
-          <ContinueProjectSection
-            activeProject={activeProject}
-            loading={false}
-          />
-          <AskOrbSection
-            onSubmit={handleAskOrbSubmit}
-            onOpenAgent={handleOpenAgent}
-          />
-        </div>
-      </section>
+      {/* Phase 2c: 首頁瘦身 — 原本掛在這的「快速開始 / 繼續上次專案 / 直接問
+          光球」三段已搬到 /create 頂部，由上面的 hero CTA「進入創作作業系統」
+          帶使用者進站。home-hub-glass CSS 保留在 index.css 留作未來重用。 */}
 
       {/* ── Shimmering hairline divider between Hero and Narrative ── */}
       {HOME_FEATURE_FLAGS.showOrbCreationStage && (
