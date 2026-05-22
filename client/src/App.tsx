@@ -1,3 +1,5 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 import { Suspense, useEffect } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Toaster } from "@/components/ui/sonner";
@@ -126,6 +128,31 @@ function DashboardRoute({
   );
 }
 
+
+function StandaloneProtectedRoute({
+  component: Component,
+}: {
+  component: React.ComponentType;
+}) {
+  const { loading, isAuthenticated } = useAuth();
+
+  if (loading) return <PageSkeleton />;
+  if (!isAuthenticated) {
+    if (typeof window !== "undefined") window.location.href = getLoginUrl();
+    return null;
+  }
+
+  return (
+    <ErrorBoundary inline>
+      <Suspense fallback={<PageSkeleton />}>
+        <RouteTransition>
+          <Component />
+        </RouteTransition>
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
 function ProtectedDashboardRoute({
   component: Component,
 }: {
@@ -208,7 +235,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/create">
-        <ProtectedDashboardRoute component={CreationHub} />
+        <StandaloneProtectedRoute component={CreationHub} />
       </Route>
       <Route path="/playground">
         <ProtectedDashboardRoute component={Playground} />
