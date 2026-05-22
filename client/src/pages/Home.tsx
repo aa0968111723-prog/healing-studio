@@ -1227,7 +1227,7 @@ ${profileSnippet}`;
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-12 sm:pt-20 lg:pt-28 pb-8 sm:pb-12 lg:pb-16 px-4 sm:px-6 relative z-10 flex items-center justify-center"
+        className="pt-16 sm:pt-24 lg:pt-32 pb-12 sm:pb-16 lg:pb-20 px-4 sm:px-6 relative z-10 flex items-center justify-center"
         style={
           HOME_FEATURE_FLAGS.enableHeroScrollAnimations
             ? { y: heroY }
@@ -1237,7 +1237,7 @@ ${profileSnippet}`;
         <AuroraBlobs sceneId={sceneId} />
         <HeroMagneticSpotlight color={s.glowColor} />
         <motion.div
-          className="max-w-4xl mx-auto text-center w-full relative"
+          className="max-w-5xl mx-auto text-center w-full relative"
           style={
             HOME_FEATURE_FLAGS.enableHeroScrollAnimations
               ? { opacity: heroContentOpacity }
@@ -1351,13 +1351,61 @@ ${profileSnippet}`;
             </motion.div>
             )}
 
+
+
+            <motion.div
+              className="mx-auto max-w-3xl mb-8 sm:mb-12 px-2"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-4 sm:mb-5 text-[11px] sm:text-xs tracking-wide"
+                style={{
+                  background: s.featureBg,
+                  border: `1px solid ${s.cardBorder}`,
+                }}
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${s.textSecondary}`} />
+                <span className={`transition-colors duration-1000 ${s.textSecondary}`}>
+                  Healing Studio · Creative OS
+                </span>
+              </div>
+
+              <h1 className={`text-[30px] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.15] transition-colors duration-1000 ${s.textPrimary}`}>
+                把靈感變成作品，
+                <span className="block mt-2 sm:mt-3 text-base sm:text-2xl lg:text-3xl font-normal opacity-90">
+                  用更輕鬆、有呼吸感的創作流程開始今天
+                </span>
+              </h1>
+
+              <p className={`mt-4 sm:mt-5 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${s.textMuted}`}>
+                單一入口串起圖片、影片與導演 AI，從草稿到成片更專注、更有節奏。
+              </p>
+
+              <div className="mt-4 sm:mt-6 flex flex-wrap justify-center gap-2 sm:gap-2.5">
+                {['圖片生成','影片分鏡','導演協作'].map((item) => (
+                  <span
+                    key={item}
+                    className={`rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs transition-colors duration-1000 ${s.textSecondary}`}
+                    style={{
+                      background: s.cardBg,
+                      border: `1px solid ${s.cardBorder}`,
+                    }}
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+
             {/* Phase 2c: 首頁瘦身 — 只留一顆 CTA「進入創作作業系統」直接導到
                 /create（CreationHub 已承接快速開始 / 繼續上次專案 / 直接問光球
                 三大區塊）。 */}
             {HOME_FEATURE_FLAGS.showHeroCtaButtons && (
             <motion.div
               data-testid="home-enter-os-cta"
-              className="mt-6 sm:mt-10 flex items-center justify-center px-4 sm:px-0"
+              className="mt-8 sm:mt-12 flex items-center justify-center px-4 sm:px-0"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1370,7 +1418,7 @@ ${profileSnippet}`;
                 <Button
                   size="lg"
                   onClick={() => navigate("/create")}
-                  className={`group relative overflow-hidden rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  className={`group relative overflow-hidden rounded-2xl h-12 sm:h-14 px-7 sm:px-10 gap-2.5 text-sm sm:text-base btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   style={{
                     boxShadow: `0 8px 32px ${s.glowColor}, 0 0 0 1px rgba(255,255,255,0.06) inset`,
                   }}
