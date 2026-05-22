@@ -28,6 +28,40 @@ healing-studio 是一個 React 19 + Express + tRPC v11 + Drizzle/MySQL 的單體
 5. **Domain router 每檔上限約 800 行。** 超過就按資料表 noun 邊界切，用 tRPC `mergeRouters` 拼回。
 6. **每個子系統擁有自己的 contract。** 跨子系統呼叫只能透過 `<subsystem>/contracts.ts` 匯出的 interface。
 7. **Observability 是子系統。** Logger、metrics、LangSmith、cost 一次接好，透過 ctx 注入。
+8. **CreativeProject 是主幹，所有子系統環環相扣。** 每個子系統都從同一個 `creative_projects` 讀「目前 project context」（worldFramework、style、LoRA、negativePrompt、credits budget），輸出（assets、generation 紀錄、agent 任務）都寫回該 project。沒有 project 也能跑單點操作，但一旦綁定 project，整條鏈路就應自動接上下文。UI 上「當前專案」卡片（世界觀 → 腳本 → 分鏡 → 素材）是這條主幹的可視化。
+
+---
+
+## 主幹圖：CreativeProject 為中心的環
+
+```
+                    ┌─────────────────────────┐
+                    │   CreativeProject       │
+                    │  （主幹 / 唯一 context）  │
+                    │  worldFrameworkId       │
+                    │  directorSessionId      │
+                    │  videoSessionId         │
+                    │  designBoardId          │
+                    │  assetIds[]             │
+                    │  agentTaskIds[]         │
+                    │  budget / consistency   │
+                    └────────────┬────────────┘
+                                 │ 讀 context / 寫產出
+            ┌────────────┬───────┼───────┬────────────┐
+            ▼            ▼       ▼       ▼            ▼
+       世界觀子系統   導演AI    影片     資料庫       光球代理
+       (Worldview)  (Director) (Video) (Assets)   (Orb Agent)
+            ▲            ▲       ▲       ▲            ▲
+            └────────────┴───────┼───────┴────────────┘
+                                 │ 同樣讀寫主幹
+                          設計企劃 / 學習中心 / 模型樂園
+```
+
+任一子系統都遵守同一份「contract with project」：
+- **input 端**：載入 project → 自動帶入 worldFramework consistency、locked LoRAs、negative prompt、style profile。
+- **output 端**：產出（圖片、影片、腳本、Brain 任務結果）一律掛回 `creative_projects.assets` 或 `generation_history`，並寫入該 project 的時間軸。
+
+這條原則讓「環環相扣」不是 UI 口號，而是後端契約。
 
 ---
 
@@ -124,6 +158,8 @@ export interface StorageProvider {
 ### Step 0 — 影片系統垂直切片（決定先做這個）
 
 橫向收斂底層（Config、Storage、Generation）是「正確但不立即可見」的工作。為了讓首波整合就有可驗證的使用者價值，先做一個垂直切片：把**世界觀 + 導演AI + 影片模型**縫成一個連續工作流，順手把這條路徑上需要的底層 contract 真實長出來。
+
+**這不是孤例，是 pattern。** 影片系統證實「子系統環環相扣到 CreativeProject 主幹」這個契約之後，後續設計企劃、創作資料庫、學習中心、模型樂園都會依照同一個模板繞接上去——同樣的 `loadProjectContext()`、同樣的 `appendToProjectAssets()`、同樣的 consistency / budget / agent task 注入點。Step 0 同時是「驗證契約」與「打第一根樁」。
 
 **現況斷點**（來自 2026-05-22 整合稽核）：
 
