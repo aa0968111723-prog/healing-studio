@@ -15,8 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { NextStepPanel } from "@/components/layout/NextStepPanel";
-import { SectionCard } from "@/components/layout/SectionCard";
 import {
   BarChart3,
   Zap,
@@ -406,14 +404,6 @@ export default function DashboardPage() {
       {/* ─── 使用統計（主內容） ────────────────────────────────────────────── */}
       {section === "dashboard" && (<>
       <PageHeader title="儀表板" subtitle="以任務目標檢視創作進度、用量與下一步。" />
-      <NextStepPanel title="下一步：選擇主要工作流" description="先選一個主要目標，再用次要入口補足素材與設定。" />
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <SectionCard title="我要做影片" description="從導演 AI 進入完整影片企劃與生成流程。" />
-        <SectionCard title="我要做圖片" description="以圖像工作室快速產生角色圖、場景圖與分鏡圖。" />
-        <SectionCard title="我要做聲音" description="用聲音製作中心完成配音、配樂與音效。" />
-        <SectionCard title="我要整理素材" description="管理資料庫、資產庫、專案與共享空間。" />
-      </div>
 
       <header className="page-header">
         <div className="flex items-center gap-3">
