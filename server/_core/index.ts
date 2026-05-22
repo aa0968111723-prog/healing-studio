@@ -86,19 +86,12 @@ import {
   checkElevenLabsHealth,
   setElevenLabsAvailability,
 } from "../services/providerHealth";
+import { WebSocketServer } from "ws";
 import { handleOrbVoiceConnection } from "../ws/orbVoiceGateway";
 import { cache } from "./cache";
 import { metrics } from "./metrics";
 import { featureFlags } from "./featureFlags";
 import { rateLimiters, rateLimitContextMiddleware } from "./rateLimiter";
-
-const { WebSocketServer } = require("ws") as {
-  WebSocketServer: new (options: { noServer: boolean }) => {
-    on: (event: "connection", cb: (ws: unknown, req: unknown) => void) => void;
-    handleUpgrade: (req: unknown, socket: unknown, head: unknown, cb: (ws: unknown) => void) => void;
-    emit: (event: "connection", ws: unknown, req: unknown) => void;
-  };
-};
 
 type ScheduledMaintenanceJob = {
   name: string;
