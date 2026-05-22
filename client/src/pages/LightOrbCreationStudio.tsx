@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
 import { SPIRITS, SPIRITS_BY_ID } from "@/lib/spiritsVisual";
+import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 import type { AgentRole } from "../../../shared/orb-agent-roles";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -313,6 +314,59 @@ export default function LightOrbCreationStudio() {
     phase === 1 ? "sensing" :
     phase === 2 ? "routing" :
     phase === 3 ? "generating" : "done";
+
+  const LIGHT_ORB_NAV_ALLOWLIST = useMemo(() => new Set(["/light-orb-studio", "/image-studio", "/agent", "/create"]), []);
+
+  useRegisterPageAgent({
+    pageId: "light-orb-studio",
+    pageLabel: "光球創作場",
+    pagePath: "/light-orb-studio",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "前往關聯頁面",
+        options: [
+          { id: "/light-orb-studio", label: "光球創作場" },
+          { id: "/image-studio", label: "圖片工作室" },
+          { id: "/agent", label: "光球對話" },
+          { id: "/create", label: "創作中心" },
+        ],
+      },
+      {
+        action: "setParam",
+        label: "切換演示模式",
+        options: DEMO_MODES.map((m) => ({ id: m.id, label: m.label })),
+      },
+      { action: "submit", label: "開始演示" },
+      { action: "reset", label: "重設演示" },
+    ],
+    state: { mode, phase, running, eventIdx },
+    handle: async (action): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && typeof action.path === "string") {
+        if (!LIGHT_ORB_NAV_ALLOWLIST.has(action.path)) {
+          return { ok: false, reason: `light-orb-studio: 不在允許跳轉清單：${action.path}` };
+        }
+        navigate(action.path);
+        return { ok: true };
+      }
+      if (action.type === "setParam" && action.key === "mode" && typeof action.value === "string") {
+        if (!DEMO_MODES.some((m) => m.id === action.value)) {
+          return { ok: false, reason: `light-orb-studio: unknown mode ${action.value}` };
+        }
+        setMode(action.value as DemoMode);
+        return { ok: true };
+      }
+      if (action.type === "submit") {
+        startRun();
+        return { ok: true };
+      }
+      if (action.type === "reset") {
+        reset();
+        return { ok: true };
+      }
+      return { ok: false, reason: `light-orb-studio: unsupported action "${action.type}"` };
+    },
+  });
 
   return (
     <div className="relative min-h-screen w-full bg-[#0b0a1c] text-slate-100 overflow-x-hidden">

@@ -98,14 +98,14 @@ const toDockLeaf = (leaf: SidebarTreeLeaf): DockLeaf => ({
   kind: "leaf",
   icon: resolveSidebarIcon(leaf.icon),
   label: leaf.label,
-  description: leaf.description,
+  description: getPageById(leaf.pageId)?.description,
   path: leaf.path,
   id: `sidebar-${leaf.pageId}-link`,
   pageId: leaf.pageId,
 });
 
 const sidebarStructure: DockEntry[] = getSidebarTree().map(node => {
-  if (node.kind === "leaf") return toDockLeaf(node);
+  if (node.kind === "page") return toDockLeaf(node);
   return {
     kind: "group",
     icon: resolveSidebarIcon(node.icon),
