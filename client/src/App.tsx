@@ -80,6 +80,7 @@ const TeamsPage = lazy(() => import("./pages/TeamsPage"));
 const CreativeProjectPage = lazy(() => import("./pages/CreativeProjectPage"));
 const ProjectsListPage = lazy(() => import("./pages/ProjectsListPage"));
 const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage"));
+const UnorganizedArea = lazy(() => import("./pages/UnorganizedArea"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -400,6 +401,9 @@ function Router() {
         <Suspense fallback={<PageSkeleton />}>
           <ProcessViewerPage />
         </Suspense>
+      </Route>
+      <Route path="/unorganized">
+        <DashboardRoute component={UnorganizedArea} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

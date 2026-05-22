@@ -17,7 +17,25 @@ export type AppPageGroupId =
  * 中心」。要新增分組就在 SIDEBAR_GROUPS 加一條，然後把對應頁面標上同樣的
  * sidebarGroup 鍵即可，DashboardLayout 不必再改。
  */
-export type SidebarGroupId = "creation-hub" | "six-systems" | "model-playground" | "management";
+export type SidebarGroupId =
+  | "creation-hub"
+  | "six-systems"
+  | "model-playground"
+  | "management"
+  | "film-director";
+
+/**
+ * 目前實際顯示在 dock 上的頁面白名單（按使用者要求暫時瘦身選單）。所有其他頁
+ * 面仍保留在 registry 內，可從「未整理區域」(/unorganized) 訪問，方便日後逐
+ * 步歸位。
+ */
+export const VISIBLE_DOCK_PAGE_IDS: ReadonlySet<string> = new Set([
+  "create",
+  "assets",
+  "animation-studio",
+  "director",
+  "teaching-archive",
+]);
 
 export interface SidebarGroupDefinition {
   id: SidebarGroupId;
@@ -38,36 +56,12 @@ export interface SidebarGroupDefinition {
 
 export const SIDEBAR_GROUPS: readonly SidebarGroupDefinition[] = [
   {
-    id: "creation-hub",
-    label: "創作中樞",
-    icon: "Home",
-    order: 10,
-    description: "開始創作、選擇專案、查看目前創作進度。",
-    seeAllPath: "/create",
-  },
-  {
-    id: "six-systems",
-    label: "六大系統",
-    icon: "Palette",
-    order: 20,
-    description: "用目標導向完成完整創作流程。",
-    seeAllPath: "/agent",
-  },
-  {
-    id: "model-playground",
-    label: "模型樂園",
-    icon: "Sparkles",
+    id: "film-director",
+    label: "影片世界觀+導演ai",
+    icon: "Clapperboard",
     order: 30,
-    description: "給專業使用者直接選模型、填 prompt、生成、測試或訓練模型。",
-    seeAllPath: "/playground",
-  },
-  {
-    id: "management",
-    label: "管理",
-    icon: "Settings",
-    order: 40,
-    description: "管理平台設定、權限、API 與團隊。",
-    seeAllPath: "/settings",
+    description: "從世界觀、分鏡到導演 AI，一條龍規劃影片內容。",
+    seeAllPath: "/animation",
   },
 ] as const;
 
@@ -192,22 +186,22 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "create",
-    label: "創作中樞",
+    label: "創作作業系統",
     path: "/create",
     group: "create",
-    description: "創作中樞入口：以目標導向啟動完整創作流程（六大系統）",
-    aliases: ["創作中心", "creation hub", "creation-hub", "create"],
+    description: "全站創作系統專案管理區：以目標導向啟動完整創作流程（六大系統）",
+    aliases: ["創作中心", "創作中樞", "創作作業系統", "全站創作系統", "creation hub", "creation-hub", "create"],
     showInSidebar: true,
     sidebarOrder: 10,
-    sidebarGroup: "creation-hub",
-    sidebarIcon: "Home",
+    sidebarGroup: undefined,
+    sidebarIcon: "LayoutGrid",
     showInAgentHome: true,
     agentEntryPriority: 2,
     supportsPageAgent: true,
     quickActions: [
       {
         id: "open-creation-hub",
-        label: "進入創作中樞",
+        label: "進入創作作業系統",
         description: "打開整合的創作工作台",
         path: "/create",
       },
@@ -456,14 +450,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "director",
-    label: "設計企劃",
+    label: "導演 AI",
     path: "/director",
     group: "create",
-    description: "腳本、分鏡與導演企劃工作台",
-    aliases: ["script", "director", "腳本", "導演 AI", "設計企劃"],
+    description: "腳本、分鏡與導演 AI 企劃工作台",
+    aliases: ["script", "director", "腳本", "導演 AI", "導演AI", "設計企劃"],
     showInSidebar: true,
     sidebarOrder: 20,
-    sidebarGroup: "six-systems",
+    sidebarGroup: "film-director",
     sidebarIcon: "Clapperboard",
     showInAgentHome: true,
     agentEntryPriority: 6,
@@ -519,8 +513,8 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "影片世界觀",
     ],
     showInSidebar: true,
-    sidebarOrder: 30,
-    sidebarGroup: "six-systems",
+    sidebarOrder: 10,
+    sidebarGroup: "film-director",
     sidebarIcon: "Film",
     showInAgentHome: true,
     agentEntryPriority: 5,
@@ -835,7 +829,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     aliases: ["assets", "素材", "資產", "提示詞", "保險庫", "共享", "背景任務", "資料庫", "我的檔案", "媒體庫"],
     showInSidebar: true,
     sidebarOrder: 20,
-    sidebarGroup: "creation-hub",
+    sidebarGroup: undefined,
     sidebarIcon: "Library",
     showInAgentHome: true,
     agentEntryPriority: 10,
@@ -1231,10 +1225,10 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "teaching-archive",
-    label: "創作資料庫",
+    label: "個人資料庫",
     path: "/teaching-archive",
     group: "learn",
-    description: "上傳並管理 PDF、文件、圖片、影片、語音、簡報等素材，依分類與主題保存，為日後 RAG 檢索建立內容池",
+    description: "個人資料庫：上傳並管理 PDF、文件、圖片、影片、語音、簡報等素材，依分類與主題保存，為日後 RAG 檢索建立內容池",
     aliases: [
       "teaching-archive",
       "database",
@@ -1244,10 +1238,11 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "上傳",
       "檔案",
       "創作資料庫",
+      "個人資料庫",
     ],
     showInSidebar: true,
     sidebarOrder: 40,
-    sidebarGroup: "six-systems",
+    sidebarGroup: undefined,
     sidebarIcon: "Database",
     showInAgentHome: true,
     agentEntryPriority: 18,
@@ -1360,6 +1355,28 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     orbHints: ["我有哪些背景任務"],
     supportedActions: ["setTab", "search", "reset"],
   },
+  {
+    id: "unorganized",
+    label: "未整理區域",
+    path: "/unorganized",
+    group: "create",
+    description: "暫時不在主選單上的頁面集合，可以從這裡逐步整理回主選單。",
+    aliases: ["unorganized", "未整理", "未整理區域", "其他頁面", "暫存區"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 200,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-unorganized",
+        label: "進入未整理區域",
+        description: "查看暫時不在主選單的頁面",
+        path: "/unorganized",
+      },
+    ],
+    orbHints: ["未整理區域"],
+    supportedActions: ["navigate"],
+  },
 ];
 
 export interface SidebarGroupBucket {
@@ -1435,7 +1452,11 @@ export const getSidebarPages = (): AppPageRegistryItem[] =>
     .sort((a, b) => (a.sidebarOrder ?? Number.MAX_SAFE_INTEGER) - (b.sidebarOrder ?? Number.MAX_SAFE_INTEGER));
 
 export const getDockPages = (): AppPageRegistryItem[] =>
-  getSidebarPages().filter(page => typeof page.sidebarOrder === "number" && !!page.sidebarGroup);
+  getSidebarPages().filter(
+    page =>
+      typeof page.sidebarOrder === "number" &&
+      VISIBLE_DOCK_PAGE_IDS.has(page.id),
+  );
 
 export const getSidebarGroups = (): SidebarGroupBucket[] => {
   const buckets = new Map<AppPageGroupId, AppPageRegistryItem[]>();
@@ -1449,7 +1470,24 @@ export const getSidebarGroups = (): SidebarGroupBucket[] => {
 
 export const getSidebarTree = (): SidebarTreeNode[] => {
   const dockPages = getDockPages();
-  return SIDEBAR_GROUPS.map(group => ({
+
+  // Standalone top-level leaves: pages with `sidebarOrder` but no `sidebarGroup`
+  // (or whose `sidebarGroup` isn't a registered group). These render as
+  // first-class dock items, alongside groups.
+  const groupIds = new Set<SidebarGroupId>(SIDEBAR_GROUPS.map(group => group.id));
+  const standaloneLeaves: SidebarTreeNode[] = dockPages
+    .filter(page => !page.sidebarGroup || !groupIds.has(page.sidebarGroup))
+    .map(page => ({
+      kind: "page" as const,
+      id: page.id,
+      pageId: page.id,
+      label: page.label,
+      path: page.path,
+      icon: page.sidebarIcon,
+      order: page.sidebarOrder ?? Number.MAX_SAFE_INTEGER,
+    }));
+
+  const groupBranches: SidebarTreeNode[] = SIDEBAR_GROUPS.map(group => ({
     kind: "group" as const,
     id: group.id,
     label: group.label,
@@ -1469,7 +1507,9 @@ export const getSidebarTree = (): SidebarTreeNode[] => {
         order: page.sidebarOrder ?? Number.MAX_SAFE_INTEGER,
       }))
       .sort((a, b) => a.order - b.order),
-  })).sort((a, b) => a.order - b.order);
+  })).filter(branch => branch.children.length > 0);
+
+  return [...standaloneLeaves, ...groupBranches].sort((a, b) => a.order - b.order);
 };
 
 export const getAgentHomeEntries = (): AppPageRegistryItem[] =>

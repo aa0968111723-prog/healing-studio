@@ -1,72 +1,53 @@
 import { describe, it, expect } from "vitest";
 import {
-  APP_PAGE_REGISTRY,
   SIDEBAR_GROUPS,
+  VISIBLE_DOCK_PAGE_IDS,
   getSidebarTree,
   type SidebarTreeBranch,
+  type SidebarTreeLeaf,
 } from "./appRegistry";
 
 describe("appRegistry sidebar grouping", () => {
-  it("contains exactly the four top-level sidebar groups", () => {
+  it("only emits the film-director group at the top level", () => {
     const labels = SIDEBAR_GROUPS.map(g => g.label);
-    expect(labels).toEqual(["創作中樞", "六大系統", "模型樂園", "管理"]);
+    expect(labels).toEqual(["影片世界觀+導演ai"]);
   });
 
-  it("dock top-level branches match the four configured groups", () => {
+  it("dock top level shows exactly the 4 user-selected entries", () => {
     const tree = getSidebarTree();
-    const groupLabels = tree
-      .filter((node): node is SidebarTreeBranch => node.kind === "group")
-      .map(node => node.label);
-    // Step 1 ships every sidebar page inside one of the four groups — no
-    // standalone leaves should sneak in at the dock's top level.
-    expect(groupLabels).toEqual(["創作中樞", "六大系統", "模型樂園", "管理"]);
-    expect(tree.every(node => node.kind === "group")).toBe(true);
+    const topLabels = tree.map(node => node.label);
+    // 用戶指定：只保留 創作作業系統、數位資產庫、影片世界觀+導演ai、個人資料庫
+    expect(topLabels).toEqual([
+      "創作作業系統",
+      "數位資產庫",
+      "影片世界觀+導演ai",
+      "個人資料庫",
+    ]);
   });
 
-  it("六大系統 does NOT include single-model studio tools", () => {
+  it("film-director group expands to 影片世界觀 + 導演AI", () => {
     const tree = getSidebarTree();
-    const sixSystems = tree.find(
+    const filmDirector = tree.find(
       (node): node is SidebarTreeBranch =>
-        node.kind === "group" && node.id === "six-systems",
+        node.kind === "group" && node.id === "film-director",
     );
-    expect(sixSystems).toBeTruthy();
-    const childLabels = sixSystems!.children.map(child => child.label);
-    for (const banned of [
-      "圖片創作室",
-      "影片創作室",
-      "音樂配音創作室",
-      "模型訓練中心",
-    ]) {
-      expect(childLabels, `${banned} must not appear in 六大系統`).not.toContain(banned);
-    }
+    expect(filmDirector).toBeTruthy();
+    const childLabels = filmDirector!.children.map(child => child.label);
+    expect(childLabels).toEqual(["影片世界觀", "導演 AI"]);
   });
 
-  it("模型樂園 includes every single-model studio + trainer", () => {
+  it("top-level standalone leaves are the non-grouped keepers", () => {
     const tree = getSidebarTree();
-    const playground = tree.find(
-      (node): node is SidebarTreeBranch =>
-        node.kind === "group" && node.id === "model-playground",
+    const leaves = tree.filter(
+      (node): node is SidebarTreeLeaf => node.kind === "page",
     );
-    expect(playground).toBeTruthy();
-    const childLabels = playground!.children.map(child => child.label);
-    for (const required of [
-      "圖片創作室",
-      "影片創作室",
-      "音樂配音創作室",
-      "模型訓練中心",
-    ]) {
-      expect(childLabels, `${required} must appear in 模型樂園`).toContain(required);
-    }
+    const leafIds = leaves.map(leaf => leaf.pageId);
+    expect(leafIds).toEqual(["create", "assets", "teaching-archive"]);
   });
 
-  it("every sidebar page has complete sidebar metadata", () => {
-    const sidebarPages = APP_PAGE_REGISTRY.filter(page => page.showInSidebar);
-    expect(sidebarPages.length).toBeGreaterThan(0);
-    for (const page of sidebarPages) {
-      expect(page.sidebarGroup, `${page.id} missing sidebarGroup`).toBeTruthy();
-      expect(page.sidebarOrder, `${page.id} missing sidebarOrder`).toBeTypeOf("number");
-      expect(page.sidebarIcon, `${page.id} missing sidebarIcon`).toBeTruthy();
-      expect(page.description, `${page.id} missing description`).toBeTruthy();
-    }
+  it("VISIBLE_DOCK_PAGE_IDS matches the 5 keepers (2 of which sit under a group)", () => {
+    expect(VISIBLE_DOCK_PAGE_IDS).toEqual(
+      new Set(["create", "assets", "animation-studio", "director", "teaching-archive"]),
+    );
   });
 });

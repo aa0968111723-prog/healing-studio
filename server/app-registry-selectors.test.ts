@@ -41,6 +41,9 @@ describe("appRegistry selectors", () => {
   });
 
   it("returns grouped sidebar pages", () => {
+    // getSidebarGroups still buckets by the registry-level `group` field
+    // (AppPageGroupId). It is independent of the visual dock structure, which
+    // is now built from VISIBLE_DOCK_PAGE_IDS via getSidebarTree.
     const groups = getSidebarGroups();
     const groupIds = groups.map(group => group.groupId);
 
