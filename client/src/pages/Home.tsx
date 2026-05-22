@@ -682,8 +682,13 @@ function ScrollIndicator({ isDark }: { isDark: boolean }) {
 export default function Home() {
   const reduceMotion = useReducedMotion();
   const { user, loading, isAuthenticated } = useAuth();
-  const { personality } = useAIState();
   const [, navigate] = useLocation();
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate("/create");
+    }
+  }, [isAuthenticated, loading, navigate]);
+  const { personality } = useAIState();
   const [showOnboarding, setShowOnboarding] = useState(false);
   // Phase 2c: 三段創作中樞 sections 已搬到 /create，這頁不再需要 useProjects /
   // AskOrb handler — 由 CreationHub 直接消化。

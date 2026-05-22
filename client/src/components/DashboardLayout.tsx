@@ -98,7 +98,7 @@ const toDockLeaf = (leaf: SidebarTreeLeaf): DockLeaf => ({
   kind: "leaf",
   icon: resolveSidebarIcon(leaf.icon),
   label: leaf.label,
-  description: getPageById(leaf.pageId)?.description,
+  description: undefined,
   path: leaf.path,
   id: `sidebar-${leaf.pageId}-link`,
   pageId: leaf.pageId,
