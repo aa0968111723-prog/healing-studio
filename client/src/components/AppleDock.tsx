@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link } from "wouter";
 import {
+  Inbox,
   ListChecks,
   LogOut,
   Home,
@@ -972,6 +973,13 @@ function AppleDock({
               >
                 <Settings className="mr-2 h-4 w-4" />
                 <span>個人設定</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onNavigate("/unorganized")}
+                className="cursor-pointer rounded-[10px]"
+              >
+                <Inbox className="mr-2 h-4 w-4" />
+                <span>未整理區域</span>
               </DropdownMenuItem>
               {isAdmin && (
                 <DropdownMenuItem

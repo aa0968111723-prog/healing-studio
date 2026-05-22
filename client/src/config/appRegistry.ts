@@ -1,6 +1,7 @@
 export {
   APP_PAGE_REGISTRY,
   SIDEBAR_GROUPS,
+  VISIBLE_DOCK_PAGE_IDS,
   getAgentHomeEntries,
   getAllPages,
   getDockPages,
