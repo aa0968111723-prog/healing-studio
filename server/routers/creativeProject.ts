@@ -26,6 +26,8 @@ const createInputSchema = z.object({
   directorSessionId: z.number().int().positive().nullable().optional(),
   worldFrameworkId: z.number().int().positive().nullable().optional(),
   worldStoryboardId: z.number().int().positive().nullable().optional(),
+  worldviewId: z.number().int().positive().nullable().optional(),
+  scriptId: z.number().int().positive().nullable().optional(),
   status: projectStatusSchema.optional(),
   coverImageUrl: z.string().max(2048).optional(),
   tags: z.array(z.string().max(64)).max(32).optional(),
@@ -45,6 +47,8 @@ function rowToData(row: CreativeProject) {
     directorSessionId: row.directorSessionId ?? null,
     worldFrameworkId: row.worldFrameworkId ?? null,
     worldStoryboardId: row.worldStoryboardId ?? null,
+    worldviewId: row.worldviewId ?? null,
+    scriptId: row.scriptId ?? null,
     status: row.status,
     coverImageUrl: row.coverImageUrl ?? undefined,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
@@ -98,6 +102,8 @@ export const creativeProjectRouter = router({
           directorSessionId: input.directorSessionId ?? null,
           worldFrameworkId: input.worldFrameworkId ?? null,
           worldStoryboardId: input.worldStoryboardId ?? null,
+          worldviewId: input.worldviewId ?? null,
+          scriptId: input.scriptId ?? null,
           status: input.status ?? "concept",
           coverImageUrl: input.coverImageUrl ?? null,
           tags: input.tags ?? [],
@@ -138,6 +144,8 @@ export const creativeProjectRouter = router({
         ...(p.worldStoryboardId !== undefined
           ? { worldStoryboardId: p.worldStoryboardId }
           : {}),
+        ...(p.worldviewId !== undefined ? { worldviewId: p.worldviewId } : {}),
+        ...(p.scriptId !== undefined ? { scriptId: p.scriptId } : {}),
         ...(p.status !== undefined ? { status: p.status } : {}),
         ...(p.coverImageUrl !== undefined
           ? { coverImageUrl: p.coverImageUrl }

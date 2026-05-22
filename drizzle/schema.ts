@@ -3300,6 +3300,10 @@ export const creativeProjects = mysqlTable(
     description: text("description"),
     /** 連結 project_notes_calendar.id（導演對話 session） */
     directorSessionId: int("directorSessionId"),
+    /** Phase 1 alias: 連結世界觀主資料（nullable） */
+    worldviewId: int("worldviewId"),
+    /** Phase 1 alias: 連結腳本資料（nullable） */
+    scriptId: int("scriptId"),
     /** 連結 worldbuilding_frameworks.id */
     worldFrameworkId: int("worldFrameworkId"),
     /** 連結 world_storyboards.id */
