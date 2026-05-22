@@ -140,6 +140,23 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["navigate"],
   },
   {
+    id: "light-orb-studio",
+    label: "光球工作室",
+    path: "/light-orb-studio",
+    group: "orb",
+    description: "光球互動工作室",
+    aliases: ["light orb", "light-orb-studio", "光球工作室"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 99,
+    supportsPageAgent: true,
+    quickActions: [
+      { id: "open-light-orb-studio", label: "開啟光球工作室", description: "進入光球工作室", path: "/light-orb-studio" },
+    ],
+    orbHints: ["打開光球工作室"],
+    supportedActions: ["navigate"],
+  },
+  {
     id: "agent-chat",
     label: "全站光球代理",
     path: "/agent",
@@ -1295,3 +1312,156 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["setTab", "search", "reset"],
   },
 ];
+
+export interface SidebarGroupBucket {
+  groupId: AppPageGroupId;
+  pages: AppPageRegistryItem[];
+}
+
+export interface SidebarTreeLeaf {
+  kind: "page";
+  id: string;
+  pageId: string;
+  label: string;
+  path: string;
+  icon?: string;
+  order: number;
+}
+
+export interface SidebarTreeBranch {
+  kind: "group";
+  id: SidebarGroupId;
+  label: string;
+  icon: string;
+  order: number;
+  description?: string;
+  seeAllPath?: string;
+  children: SidebarTreeLeaf[];
+}
+
+export type SidebarTreeNode = SidebarTreeLeaf | SidebarTreeBranch;
+
+const normalizePath = (path: string): string => {
+  if (!path) return "/";
+  const [rawPathname, rawQuery = ""] = path.trim().split("?");
+  let pathname = rawPathname || "/";
+  if (!pathname.startsWith("/")) pathname = `/${pathname}`;
+  pathname = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const query = rawQuery.trim();
+  return query ? `${pathname}?${query}` : pathname;
+};
+
+const getNormalizedPathname = (path: string): string => normalizePath(path).split("?")[0] ?? "/";
+
+export const getAllPages = (): AppPageRegistryItem[] => [...APP_PAGE_REGISTRY];
+
+export const getPageById = (id: string): AppPageRegistryItem | undefined =>
+  APP_PAGE_REGISTRY.find(page => page.id === id);
+
+export const getPageByPath = (path: string): AppPageRegistryItem | undefined => {
+  const target = normalizePath(path);
+  const exact = APP_PAGE_REGISTRY.find(page => normalizePath(page.path) === target);
+  if (exact) return exact;
+
+  const aliasExact = APP_PAGE_REGISTRY.find(page =>
+    (page.routeAliases ?? []).some(alias => normalizePath(alias) === target),
+  );
+  if (aliasExact) return aliasExact;
+
+  const targetPathname = getNormalizedPathname(target);
+  const canonicalPathMatch = APP_PAGE_REGISTRY.find(
+    page => getNormalizedPathname(page.path) === targetPathname && !normalizePath(page.path).includes("?"),
+  );
+  if (canonicalPathMatch) return canonicalPathMatch;
+
+  return APP_PAGE_REGISTRY.find(page => {
+    if (getNormalizedPathname(page.path) === targetPathname) return true;
+    return (page.routeAliases ?? []).some(alias => getNormalizedPathname(alias) === targetPathname);
+  });
+};
+
+export const getSidebarPages = (): AppPageRegistryItem[] =>
+  APP_PAGE_REGISTRY.filter(page => page.showInSidebar)
+    .slice()
+    .sort((a, b) => (a.sidebarOrder ?? Number.MAX_SAFE_INTEGER) - (b.sidebarOrder ?? Number.MAX_SAFE_INTEGER));
+
+export const getDockPages = (): AppPageRegistryItem[] =>
+  getSidebarPages().filter(page => typeof page.sidebarOrder === "number" && !!page.sidebarGroup);
+
+export const getSidebarGroups = (): SidebarGroupBucket[] => {
+  const buckets = new Map<AppPageGroupId, AppPageRegistryItem[]>();
+  for (const page of getSidebarPages()) {
+    const arr = buckets.get(page.group) ?? [];
+    arr.push(page);
+    buckets.set(page.group, arr);
+  }
+  return [...buckets.entries()].map(([groupId, pages]) => ({ groupId, pages }));
+};
+
+export const getSidebarTree = (): SidebarTreeNode[] => {
+  const dockPages = getDockPages();
+  return SIDEBAR_GROUPS.map(group => ({
+    kind: "group" as const,
+    id: group.id,
+    label: group.label,
+    icon: group.icon,
+    order: group.order,
+    description: group.description,
+    seeAllPath: group.seeAllPath,
+    children: dockPages
+      .filter(page => page.sidebarGroup === group.id)
+      .map(page => ({
+        kind: "page" as const,
+        id: page.id,
+        pageId: page.id,
+        label: page.label,
+        path: page.path,
+        icon: page.sidebarIcon,
+        order: page.sidebarOrder ?? Number.MAX_SAFE_INTEGER,
+      }))
+      .sort((a, b) => a.order - b.order),
+  })).sort((a, b) => a.order - b.order);
+};
+
+export const getAgentHomeEntries = (): AppPageRegistryItem[] =>
+  APP_PAGE_REGISTRY.filter(page => page.showInAgentHome)
+    .slice()
+    .sort((a, b) => a.agentEntryPriority - b.agentEntryPriority);
+
+export const getPrimaryQuickAction = (pageId: string): AppPageQuickAction | undefined =>
+  getPageById(pageId)?.quickActions[0];
+
+export interface SerializableAppRegistryItem {
+  id: string;
+  label: string;
+  path: string;
+  routeAliases?: string[];
+  group: AppPageGroupId;
+  description: string;
+  aliases: string[];
+  sidebarGroup?: SidebarGroupId;
+  sidebarOrder?: number;
+  sidebarIcon?: string;
+  supportsPageAgent: boolean;
+  supportedActions: AgentActionType[];
+  quickActions: AppPageQuickAction[];
+  orbHints: string[];
+}
+
+export const serializeRegistryForSiteKnowledge = (): SerializableAppRegistryItem[] =>
+  APP_PAGE_REGISTRY.map(page => ({
+    id: page.id,
+    label: page.label,
+    path: page.path,
+    routeAliases: page.routeAliases,
+    group: page.group,
+    description: page.description,
+    aliases: page.aliases,
+    sidebarGroup: page.sidebarGroup,
+    sidebarOrder: page.sidebarOrder,
+    sidebarIcon: page.sidebarIcon,
+    supportsPageAgent: page.supportsPageAgent,
+    supportedActions: page.supportedActions,
+    quickActions: page.quickActions,
+    orbHints: page.orbHints,
+  }));
