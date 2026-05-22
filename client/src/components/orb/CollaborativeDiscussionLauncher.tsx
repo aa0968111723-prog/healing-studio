@@ -18,7 +18,8 @@
  */
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { CollaborativeProgressPanel } from "./CollaborativeProgressPanel";
 
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import {
@@ -150,43 +151,13 @@ export function CollaborativeDiscussionLauncher({
     await cancelCollaborativeDiscussion();
   }
 
-  // ─── 進行中：顯示 progress card + 停止鈕 ─────────────────────────────
+  // ─── 進行中：顯示豐富的協作視覺化 panel ─────────────────────────────
   if (isCollaborativeDiscussionActive && collaborativeDiscussionMeta) {
-    const meta = collaborativeDiscussionMeta;
-    const scopeChips: string[] = [];
-    if (meta.allowedFamilies.length > 0) {
-      scopeChips.push(...meta.allowedFamilies.map(f => SPIRIT_FAMILY_LABEL[f]));
-    }
-    if (meta.allowedRoles.length > 0) {
-      scopeChips.push(`${meta.allowedRoles.length} 位指定精靈`);
-    }
-    if (scopeChips.length === 0) {
-      scopeChips.push("全部 15 位都可能出席");
-    }
     return (
-      <div
-        className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-800/50 dark:bg-emerald-900/20 px-3 py-2 text-xs"
-        data-testid="orb-collab-discussion-progress"
-      >
-        <div className="flex items-center gap-2">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-300" />
-          <span className="font-medium text-emerald-800 dark:text-emerald-200">
-            精靈討論進行中…（最多 {meta.maxRounds} 棒；起跑：{meta.initialAgent}）
-          </span>
-          <button
-            type="button"
-            onClick={() => void handleCancel()}
-            className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-300/70 hover:bg-emerald-100 dark:border-emerald-700/50 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-200"
-            data-testid="orb-collab-discussion-cancel"
-          >
-            <X className="w-3 h-3" />
-            停止
-          </button>
-        </div>
-        <div className="mt-1 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
-          範圍：{scopeChips.join(" · ")}
-        </div>
-      </div>
+      <CollaborativeProgressPanel
+        meta={collaborativeDiscussionMeta}
+        onCancel={() => void handleCancel()}
+      />
     );
   }
 

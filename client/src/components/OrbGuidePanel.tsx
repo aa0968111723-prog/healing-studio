@@ -3938,10 +3938,6 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
             size="md"
             className={fullscreen ? undefined : "!w-7 !h-7"}
           />
-          <span className={cn(
-            "font-medium text-white/60 tracking-wide",
-            fullscreen ? "text-sm" : "text-xs"
-          )}>光球助手</span>
         </div>
         <div className="flex items-center gap-1">
           {panelMode === "guide" && step !== "ask_intent" && (

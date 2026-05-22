@@ -89,13 +89,12 @@ export function parseStoredSettings(raw: string | null): PersonalSettings {
   if (!raw) return DEFAULT_PERSONAL_SETTINGS;
   try {
     const parsed = JSON.parse(raw) as Partial<PersonalSettings>;
-    // 舊使用者的 localStorage 不會有 designMode 欄位；若使用者明顯曾經
-    // 用過這個站（有任何其他偏好已存），預設保留原本設計，避免被新版
-    // 突襲改造。新使用者走 `raw === null` 上面那條，會取 DEFAULT
-    // 的 minimalist。
+    // 舊使用者的 localStorage 不會有 designMode 欄位；統一預設 minimalist
+    // 以提供 iOS 極簡體驗。已明確選 classic 的使用者其 localStorage 會有
+    // designMode: "classic"，mergePersonalSettings 會保留。
     const legacyBase: PersonalSettings = {
       ...DEFAULT_PERSONAL_SETTINGS,
-      designMode: "classic",
+      designMode: "minimalist",
     };
     return mergePersonalSettings(legacyBase, parsed);
   } catch {
