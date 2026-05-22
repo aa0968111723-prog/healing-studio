@@ -76,6 +76,7 @@ import PageRevealVeil from "@/components/home/PageRevealVeil";
 import AuroraBlobs from "@/components/home/AuroraBlobs";
 import GrainOverlay from "@/components/home/GrainOverlay";
 import SceneVignette from "@/components/home/SceneVignette";
+import CosmicBackdrop from "@/components/home/CosmicBackdrop";
 import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
@@ -1136,6 +1137,7 @@ ${profileSnippet}`;
       />
       {/* ── Scene-tinted vignette: deepens edges per time-of-day ── */}
       <SceneVignette sceneId={sceneId} />
+      <CosmicBackdrop glowColor={s.glowColor} />
 
       {/* ── Page-wide pointer aura (mouse + touch) — gentle scene-tinted glow
           that follows the cursor / finger across the homepage. */}
@@ -1227,7 +1229,7 @@ ${profileSnippet}`;
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-12 sm:pt-20 lg:pt-28 pb-8 sm:pb-12 lg:pb-16 px-4 sm:px-6 relative z-10 flex items-center justify-center"
+        className="pt-12 sm:pt-20 lg:pt-28 pb-10 sm:pb-16 lg:pb-20 px-4 sm:px-6 relative z-10 flex items-center justify-center min-h-[78vh]"
         style={
           HOME_FEATURE_FLAGS.enableHeroScrollAnimations
             ? { y: heroY }
@@ -1271,7 +1273,7 @@ ${profileSnippet}`;
                 and click ripple.  Scroll-morphs toward the floating orb
                 as the user descends. */}
             <motion.div
-              className="flex flex-col items-center mb-5 sm:mb-12"
+              className="flex flex-col items-center mb-7 sm:mb-14"
               style={
                 HOME_FEATURE_FLAGS.enableHeroScrollAnimations
                   ? {
@@ -1307,20 +1309,41 @@ ${profileSnippet}`;
                     ease: "easeInOut",
                   }}
                 />
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 m-auto w-44 h-44 sm:w-64 sm:h-64 rounded-full"
+                  style={{
+                    border: "1px solid rgba(226,232,255,0.16)",
+                    boxShadow: `0 0 50px ${s.glowColor}`,
+                  }}
+                  animate={{
+                    scale: [0.95, 1.05, 0.95],
+                    opacity: [0.2, 0.42, 0.2],
+                  }}
+                  transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 m-auto w-56 h-56 sm:w-80 sm:h-80 rounded-full border"
+                  style={{ borderColor: "rgba(191,200,255,0.14)" }}
+                  animate={{ scale: [0.92, 1.04], opacity: [0.08, 0.22, 0.08] }}
+                  transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
+                />
                 {/* Orb with subtle scene-matched aura */}
                 <motion.div
                   className="relative"
-                  animate={{
-                    filter: [
-                      `drop-shadow(0 0 16px ${s.glowColor})`,
-                      `drop-shadow(0 0 28px ${s.glowColor})`,
-                      `drop-shadow(0 0 16px ${s.glowColor})`,
-                    ],
-                  }}
                   transition={{
-                    duration: 6,
+                    duration: 7,
                     repeat: Infinity,
                     ease: "easeInOut",
+                  }}
+                  animate={{
+                    filter: [
+                      `drop-shadow(0 0 16px ${s.glowColor}) brightness(1)`,
+                      `drop-shadow(0 0 34px ${s.glowColor}) brightness(1.08)`,
+                      `drop-shadow(0 0 18px ${s.glowColor}) brightness(1)`,
+                    ],
+                    scale: [1, 1.045, 1],
                   }}
                 >
                   <VisualSoul
@@ -1357,7 +1380,7 @@ ${profileSnippet}`;
             {HOME_FEATURE_FLAGS.showHeroCtaButtons && (
             <motion.div
               data-testid="home-enter-os-cta"
-              className="mt-6 sm:mt-10 flex items-center justify-center px-4 sm:px-0"
+              className="mt-7 sm:mt-12 flex items-center justify-center px-4 sm:px-0 relative"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -1366,6 +1389,7 @@ ${profileSnippet}`;
                 ease: [0.16, 1, 0.3, 1],
               }}
             >
+              <span aria-hidden className="pointer-events-none absolute inset-x-0 -inset-y-3 m-auto h-20 w-72 sm:w-96 rounded-full" style={{ background: `radial-gradient(circle, ${s.glowColor.replace(/0\.\d+\)/, "0.22)")} 0%, transparent 70%)`, filter: "blur(18px)" }} />
               <MagneticTilt strength={10}>
                 <Button
                   size="lg"
