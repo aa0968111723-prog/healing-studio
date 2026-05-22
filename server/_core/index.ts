@@ -638,9 +638,21 @@ async function startServer() {
     startScheduledMaintenanceJobs();
   });
 
-  const wss = new WebSocketServer({ server, path: "/ws/orb-voice" });
-  wss.on("connection", (ws: unknown, req: unknown) => {
+  // Use noServer mode + manual upgrade dispatch so Vite HMR (which opens its
+  // own WebSocket on "/") and any future WS endpoints can coexist. With
+  // `{ server, path }`, the ws library aborts every non-matching upgrade,
+  // which silently breaks Vite HMR and leaves the dev home page in a reload
+  // loop where modules never finish loading.
+  const orbVoiceWss = new WebSocketServer({ noServer: true });
+  orbVoiceWss.on("connection", (ws: unknown, req: unknown) => {
     void handleOrbVoiceConnection(ws as never, req as never);
+  });
+  server.on("upgrade", (req, socket, head) => {
+    const pathname = (req.url ?? "").split("?")[0];
+    if (pathname !== "/ws/orb-voice") return;
+    orbVoiceWss.handleUpgrade(req, socket, head, ws => {
+      orbVoiceWss.emit("connection", ws, req);
+    });
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
