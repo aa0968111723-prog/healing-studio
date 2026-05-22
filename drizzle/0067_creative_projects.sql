@@ -9,7 +9,7 @@
 --   worldFrameworkId   → worldbuilding_frameworks.id
 --   worldStoryboardId  → world_storyboards.id
 
-CREATE TABLE `creative_projects` (
+CREATE TABLE IF NOT EXISTS `creative_projects` (
   `id` int AUTO_INCREMENT NOT NULL,
   `userId` int NOT NULL,
   `title` varchar(255) NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE `creative_projects` (
   CONSTRAINT `creative_projects_id` PRIMARY KEY(`id`)
 );
 
-CREATE INDEX `cp_userId_idx` ON `creative_projects` (`userId`);
-CREATE INDEX `cp_userId_updatedAt_idx` ON `creative_projects` (`userId`,`updatedAt`);
-CREATE INDEX `cp_worldFrameworkId_idx` ON `creative_projects` (`worldFrameworkId`);
-CREATE INDEX `cp_worldStoryboardId_idx` ON `creative_projects` (`worldStoryboardId`);
+CREATE INDEX IF NOT EXISTS `cp_userId_idx` ON `creative_projects` (`userId`);
+CREATE INDEX IF NOT EXISTS `cp_userId_updatedAt_idx` ON `creative_projects` (`userId`,`updatedAt`);
+CREATE INDEX IF NOT EXISTS `cp_worldFrameworkId_idx` ON `creative_projects` (`worldFrameworkId`);
+CREATE INDEX IF NOT EXISTS `cp_worldStoryboardId_idx` ON `creative_projects` (`worldStoryboardId`);

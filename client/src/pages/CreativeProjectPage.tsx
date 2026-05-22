@@ -150,7 +150,18 @@ export default function CreativeProjectPage() {
       <NextStepPanel title="專案主控台下一步" description={nextStepText} />
 
       {tableMissing && (
-        <SectionCard title="資料庫尚未完成初始化" description="創作專案資料表尚未建立，請執行資料庫 migration。" />
+        <div className="rounded-xl border-2 border-amber-300/70 bg-amber-50/70 dark:bg-amber-950/30 p-4 space-y-2">
+          <h3 className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-2">
+            <Sparkles className="size-4" /> 創作專案資料表尚未建立
+          </h3>
+          <p className="text-sm text-amber-900/90 dark:text-amber-200/90">
+            後端偵測到 <code className="rounded bg-amber-200/40 px-1">creative_projects</code> 資料表不存在(ER_NO_SUCH_TABLE)。
+            請聯繫管理員或重新部署以套用最新資料庫 migration。
+          </p>
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
+            管理員可在後端執行 <code className="rounded bg-amber-200/40 px-1">npm run db:push</code> 或重新部署服務以套用 0067–0069 migration。
+          </p>
+        </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
