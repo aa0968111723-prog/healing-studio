@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `timeline_frames` (
   KEY `idx_user` (`user_id`),
   KEY `idx_time` (`time_offset_sec`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--> statement-breakpoint
 
 -- Scene Composition (Multi-Character/Scene Assembly)
 -- 多角色多場景構圖表
