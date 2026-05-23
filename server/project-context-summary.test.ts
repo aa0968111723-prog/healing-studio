@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getCreativeProjectMock = vi.fn();
 const getWorldbuildingFrameworkMock = vi.fn();
 const getDigitalAssetsByUserMock = vi.fn();
+const getOrchestrationRunsByProjectMock = vi.fn();
 
 vi.mock("./db", () => ({
   getCreativeProject: (...args: unknown[]) => getCreativeProjectMock(...args),
@@ -22,6 +23,8 @@ vi.mock("./db", () => ({
     getWorldbuildingFrameworkMock(...args),
   getDigitalAssetsByUser: (...args: unknown[]) =>
     getDigitalAssetsByUserMock(...args),
+  getOrchestrationRunsByProject: (...args: unknown[]) =>
+    getOrchestrationRunsByProjectMock(...args),
 }));
 
 import { getProjectContextSummary } from "./subsystems/projectContext/projectContextService";
@@ -50,9 +53,35 @@ beforeEach(() => {
   getCreativeProjectMock.mockReset();
   getWorldbuildingFrameworkMock.mockReset();
   getDigitalAssetsByUserMock.mockReset();
+  getOrchestrationRunsByProjectMock.mockReset();
   getDigitalAssetsByUserMock.mockResolvedValue([]);
   getWorldbuildingFrameworkMock.mockResolvedValue(null);
+  getOrchestrationRunsByProjectMock.mockResolvedValue([]);
 });
+
+function runRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    userId: OWNER,
+    projectId: 7,
+    teamId: null,
+    mode: "director",
+    intent: "分鏡這場戲",
+    status: "pending",
+    commander: null,
+    planJson: null,
+    contextPacketIdsJson: null,
+    toolCallsJson: null,
+    citationsJson: null,
+    searchResultsJson: null,
+    estimatedCostUsd: null,
+    actualCostUsd: null,
+    errorMessage: null,
+    createdAt: new Date("2026-05-22T00:00:00.000Z"),
+    updatedAt: new Date("2026-05-22T00:00:00.000Z"),
+    ...overrides,
+  };
+}
 
 describe("getProjectContextSummary — shape & happy path", () => {
   it("returns the M1-A summary shape for the project owner", async () => {
@@ -187,5 +216,55 @@ describe("getProjectContextSummary — recent assets", () => {
     });
     expect(summary.recentAssets[1].thumbnailUrl).toBeUndefined();
     expect(summary.recentAssets[1].createdAt).toBe("2026-05-18T00:00:00.000Z");
+  });
+});
+
+describe("getProjectContextSummary — open tasks from orchestration runs (M1-B)", () => {
+  it("maps non-terminal runs to openTasks and drops openTasks from pendingSections", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    getOrchestrationRunsByProjectMock.mockResolvedValue([
+      runRow({ id: 9, status: "running", mode: "video", estimatedCostUsd: "1.250000" }),
+      runRow({ id: 8, status: "pending", mode: "director", estimatedCostUsd: null }),
+    ]);
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+
+    expect(getOrchestrationRunsByProjectMock).toHaveBeenCalledWith(baseProject.id, 50);
+    expect(summary.openTasks).toHaveLength(2);
+    expect(summary.openTasks[0]).toEqual({
+      id: "9",
+      title: "分鏡這場戲",
+      status: "running",
+      mode: "video",
+      estimatedCostUsd: 1.25,
+      createdAt: "2026-05-22T00:00:00.000Z",
+    });
+    expect(summary.openTasks[1].estimatedCostUsd).toBeNull();
+    // openTasks is now implemented, so it must not be advertised as pending.
+    expect(summary.pendingSections).not.toContain("openTasks");
+  });
+
+  it("filters out completed and cancelled runs", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    getOrchestrationRunsByProjectMock.mockResolvedValue([
+      runRow({ id: 3, status: "completed" }),
+      runRow({ id: 2, status: "cancelled" }),
+      runRow({ id: 1, status: "failed" }),
+    ]);
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+
+    // failed stays open (needs a retry decision); completed / cancelled are gone.
+    expect(summary.openTasks.map(t => t.id)).toEqual(["1"]);
+  });
+
+  it("caps openTasks at 8 even when more are open", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    getOrchestrationRunsByProjectMock.mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => runRow({ id: i + 1, status: "pending" })),
+    );
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+    expect(summary.openTasks).toHaveLength(8);
   });
 });

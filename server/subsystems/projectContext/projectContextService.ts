@@ -16,14 +16,22 @@ import {
   getCreativeProject,
   getWorldbuildingFramework,
   getDigitalAssetsByUser,
+  getOrchestrationRunsByProject,
 } from "../../db";
 import {
   ProjectContextAccessError,
   type ProjectContextSummary,
   type ProjectContextAsset,
+  type ProjectContextOpenTask,
 } from "./contracts";
 
 const RECENT_ASSET_LIMIT = 6;
+/** 抓多少筆 run 進來篩；數量小、project-scoped，成本可忽略。 */
+const OPEN_TASK_FETCH_LIMIT = 50;
+/** 摘要最多顯示幾筆未完成任務，避免脈絡區被洗版。 */
+const OPEN_TASK_LIMIT = 8;
+/** 視為「已結束、不再列為待辦」的 run 狀態。failed 仍算待辦（需要決定是否重跑）。 */
+const CLOSED_TASK_STATUSES = new Set(["completed", "cancelled"]);
 
 function toIso(value: Date | string | null | undefined): string {
   if (!value) return new Date(0).toISOString();
@@ -32,6 +40,14 @@ function toIso(value: Date | string | null | undefined): string {
   return Number.isNaN(parsed.getTime())
     ? new Date(0).toISOString()
     : parsed.toISOString();
+}
+
+function toNumberOrNull(
+  value: string | number | null | undefined,
+): number | null {
+  if (value === null || value === undefined) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function snippet(text: string | null | undefined, max = 160): string | undefined {
@@ -122,6 +138,9 @@ export async function getProjectContextSummary(
   const assetRows = await getRecentUserAssets(userId);
   const recentAssets = assetRows.map(mapAsset);
 
+  // 未完成任務：M1-B orchestration_runs 帶入（非 completed / cancelled）。
+  const openTasks = await getOpenTasks(project.id);
+
   return {
     projectId: project.id,
     title: project.title,
@@ -131,10 +150,34 @@ export async function getProjectContextSummary(
     ...(styleBible ? { styleBible } : {}),
     recentAssets,
     recentAssetsScope: "user",
-    openTasks: [],
+    openTasks,
     updatedAt: toIso(project.updatedAt),
-    pendingSections: ["teamData", "openTasks", "budget", "projectScopedAssets"],
+    pendingSections: ["teamData", "budget", "projectScopedAssets"],
   };
+}
+
+/**
+ * 取專案最近的 orchestration runs，篩掉已結束的，整理成未完成任務清單。
+ * runs 已由 db 依 createdAt 由新到舊排序。
+ */
+async function getOpenTasks(
+  projectId: number,
+): Promise<ProjectContextOpenTask[]> {
+  const rows = await getOrchestrationRunsByProject(
+    projectId,
+    OPEN_TASK_FETCH_LIMIT,
+  );
+  return rows
+    .filter(row => !CLOSED_TASK_STATUSES.has(row.status))
+    .slice(0, OPEN_TASK_LIMIT)
+    .map(row => ({
+      id: String(row.id),
+      title: row.intent,
+      status: row.status,
+      mode: row.mode,
+      estimatedCostUsd: toNumberOrNull(row.estimatedCostUsd),
+      createdAt: toIso(row.createdAt),
+    }));
 }
 
 /** 抽出來方便測試/重用：取使用者最近 N 筆素材。 */

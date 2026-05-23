@@ -32,6 +32,7 @@ import {
   Image as ImageIcon,
   Clock,
   Loader2,
+  ListChecks,
 } from "lucide-react";
 import {
   PROJECT_STATUS_LABELS,
@@ -41,6 +42,7 @@ import {
   NO_ACTIVE_PROJECT_HINT,
   type ProjectStatus,
 } from "./projectContextFormat";
+import { modeLabel, runStatusLabel, costPreviewLabel } from "./commanderFormat";
 
 function isMissingCreativeProjectsTable(error: unknown): boolean {
   const message = (error as { message?: string } | null)?.message ?? "";
@@ -275,6 +277,40 @@ function ProjectSummaryBody({
           </span>
         ) : (
           <span className="italic text-muted-foreground">尚無素材。</span>
+        )}
+      </SummaryRow>
+
+      <SummaryRow icon={<ListChecks className="size-3.5" />} label="未完成任務">
+        {summary.openTasks.length > 0 ? (
+          <ul className="space-y-1" data-testid="active-project-open-tasks">
+            {summary.openTasks.map(task => (
+              <li
+                key={task.id}
+                className="flex flex-wrap items-center gap-x-2 gap-y-0.5"
+                data-testid={`active-project-open-task-${task.id}`}
+              >
+                <span
+                  className="min-w-0 max-w-[240px] truncate text-[13px]"
+                  title={task.title}
+                >
+                  {task.title}
+                </span>
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  {modeLabel(task.mode)}
+                </Badge>
+                <span className="text-[11px] text-muted-foreground">
+                  {runStatusLabel(task.status)}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {costPreviewLabel(task.estimatedCostUsd)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="italic text-muted-foreground">
+            目前沒有待處理的創作意圖。在下方輸入一句話即可記錄。
+          </span>
         )}
       </SummaryRow>
 

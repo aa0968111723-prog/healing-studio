@@ -49,3 +49,24 @@ export function costPreviewLabel(estimatedCostUsd: number | null): string {
   if (estimatedCostUsd == null) return "成本尚未估算";
   return `預估 $${estimatedCostUsd.toFixed(4)}`;
 }
+
+/** 與 server ProjectContextOpenTask 結構相容的最小形狀。 */
+export interface OpenTaskLike {
+  status: string;
+}
+
+/**
+ * 把未完成意圖摘成脈絡列用的一行：數量 + 最新一筆狀態。
+ * tasks 預期已依時間由新到舊排序（server getOrchestrationRunsByProject desc）。
+ */
+export function summarizeOpenTasks(tasks: readonly OpenTaskLike[]): {
+  count: number;
+  headline: string;
+} {
+  const count = tasks.length;
+  if (count === 0) return { count: 0, headline: "尚無待辦意圖" };
+  return {
+    count,
+    headline: `${count} 個未完成意圖 · 最新：${runStatusLabel(tasks[0].status)}`,
+  };
+}

@@ -17,11 +17,23 @@ export interface ProjectContextAsset {
   createdAt: string;
 }
 
-/** 未完成任務（M1-B createIntent / orchestration_runs 之後才會有真實資料）。 */
+/**
+ * 未完成任務 — 由 M1-B orchestration_runs 帶入（status 非 completed / cancelled）。
+ * 讓 `/create` 與影片製作頁面隨時看得到「目前還有哪些創作意圖待處理」。
+ */
 export interface ProjectContextOpenTask {
+  /** 對應 orchestration run id（字串化以符合通用 task 形狀）。 */
   id: string;
+  /** 任務標題 = 該次創作意圖。 */
   title: string;
+  /** orchestration run status：pending / planned / waiting_confirmation / running / failed。 */
   status: string;
+  /** 創作模式：create / director / video / assets / database。 */
+  mode: string;
+  /** 預估成本（USD）；第一版多為 null（尚未估算）。 */
+  estimatedCostUsd: number | null;
+  /** 建立時間（ISO 8601）。 */
+  createdAt: string;
 }
 
 export interface ProjectContextBudget {
@@ -57,7 +69,7 @@ export interface ProjectContextSummary {
    * 尚未接上的區塊清單，讓前端可顯示「即將推出 / 後續 milestone」提示，
    * 而不是顯示空白或假資料。
    */
-  pendingSections: Array<"teamData" | "openTasks" | "budget" | "projectScopedAssets">;
+  pendingSections: Array<"teamData" | "budget" | "projectScopedAssets">;
 }
 
 /** projectContextService 在權限不足或找不到專案時丟出的錯誤。 */
