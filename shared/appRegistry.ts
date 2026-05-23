@@ -21,8 +21,7 @@ export type SidebarGroupId =
   | "creation-hub"
   | "six-systems"
   | "model-playground"
-  | "management"
-  | "film-director";
+  | "management";
 
 /**
  * 目前實際顯示在 dock 上的頁面白名單（按使用者要求暫時瘦身選單）。所有其他頁
@@ -32,7 +31,6 @@ export type SidebarGroupId =
 export const VISIBLE_DOCK_PAGE_IDS: ReadonlySet<string> = new Set([
   "create",
   "assets",
-  "animation-studio",
   "director",
   "teaching-archive",
 ]);
@@ -54,16 +52,10 @@ export interface SidebarGroupDefinition {
   seeAllPath?: string;
 }
 
-export const SIDEBAR_GROUPS: readonly SidebarGroupDefinition[] = [
-  {
-    id: "film-director",
-    label: "影片世界觀+導演ai",
-    icon: "Clapperboard",
-    order: 30,
-    description: "從世界觀、分鏡到導演 AI，一條龍規劃影片內容。",
-    seeAllPath: "/animation",
-  },
-] as const;
+// 影片世界觀 (animation-studio) 暫時從 dock 移除，導演 AI 直接以 standalone
+// leaf 出現，所以這裡沒有任何 group。之後如果要把世界觀、分鏡等頁面組回同一
+// 個 flyout，再在這個陣列裡加回對應的 SidebarGroupDefinition。
+export const SIDEBAR_GROUPS: readonly SidebarGroupDefinition[] = [] as const;
 
 export interface AppPageQuickAction {
   id: string;
@@ -456,8 +448,8 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "腳本、分鏡與導演 AI 企劃工作台",
     aliases: ["script", "director", "腳本", "導演 AI", "導演AI", "設計企劃"],
     showInSidebar: true,
-    sidebarOrder: 20,
-    sidebarGroup: "film-director",
+    sidebarOrder: 30,
+    sidebarGroup: undefined,
     sidebarIcon: "Clapperboard",
     showInAgentHome: true,
     agentEntryPriority: 6,
@@ -514,7 +506,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     showInSidebar: true,
     sidebarOrder: 10,
-    sidebarGroup: "film-director",
+    sidebarGroup: undefined,
     sidebarIcon: "Film",
     showInAgentHome: true,
     agentEntryPriority: 5,

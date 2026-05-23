@@ -17,9 +17,17 @@ import {
   type ReactNode,
 } from "react";
 import { MOCK_PROJECTS } from "@/data/mockProjects";
-import type { Project } from "@/types/projects";
+import type { Project, ProjectType } from "@/types/projects";
 
 const ACTIVE_PROJECT_KEY = "creation-hub-active-project-id";
+
+export interface CreateProjectDraft {
+  title: string;
+  type: ProjectType;
+  worldFramework?: string;
+  storyboard?: string;
+  directorSession?: string;
+}
 
 interface ProjectsContextValue {
   projects: Project[];
@@ -33,6 +41,10 @@ interface ProjectsContextValue {
   activeProject: Project | null;
   setActiveProjectId: (id: string | null) => void;
   getProjectById: (id: string) => Project | undefined;
+  /** Append a new project to the local store and pin it as active. Mock-only
+   *  for now — the real persistence lands when /creative-projects graduates
+   *  to tRPC/Drizzle. */
+  createProject: (draft: CreateProjectDraft) => Project;
 }
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null);
@@ -60,9 +72,7 @@ function writeStoredId(id: string | null) {
 }
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
-  // Mock store is read-only for Step 3 — no create/update mutations yet.
-  // Once we wire the real backend, swap MOCK_PROJECTS for a query.
-  const [projects] = useState<Project[]>(() => [...MOCK_PROJECTS]);
+  const [projects, setProjects] = useState<Project[]>(() => [...MOCK_PROJECTS]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(
     () => readStoredId(),
   );
@@ -84,6 +94,39 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     (id: string) => projects.find(p => p.id === id),
     [projects],
   );
+
+  const createProject = useCallback((draft: CreateProjectDraft): Project => {
+    const now = new Date().toISOString();
+    const id = `proj-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+    const binding =
+      draft.worldFramework || draft.storyboard || draft.directorSession
+        ? {
+            ...(draft.worldFramework ? { worldFramework: draft.worldFramework } : {}),
+            ...(draft.storyboard ? { storyboard: draft.storyboard } : {}),
+            ...(draft.directorSession
+              ? { directorSession: draft.directorSession }
+              : {}),
+          }
+        : undefined;
+    const project: Project = {
+      id,
+      title: draft.title.trim(),
+      type: draft.type,
+      status: "draft",
+      progress: 0,
+      currentStep: "剛建立，待設定世界觀與腳本。",
+      nextAction: "到導演工作室為這個專案綁定世界觀與腳本。",
+      createdAt: now,
+      updatedAt: now,
+      ...(binding ? { binding } : {}),
+    };
+    setProjects(prev => [...prev, project]);
+    setActiveProjectIdState(id);
+    writeStoredId(id);
+    return project;
+  }, []);
 
   const latestProject = useMemo<Project | null>(() => {
     if (projects.length === 0) return null;
@@ -107,6 +150,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       activeProject,
       setActiveProjectId,
       getProjectById,
+      createProject,
     }),
     [
       projects,
@@ -115,6 +159,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       activeProject,
       setActiveProjectId,
       getProjectById,
+      createProject,
     ],
   );
 
