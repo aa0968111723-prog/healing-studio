@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import { ActiveProjectContextPanel } from "@/components/create/ActiveProjectContextPanel";
+import { IntentComposer } from "@/components/create/IntentComposer";
 import { PROJECT_STATUS_LABELS, type Project } from "@/types/projects";
 import {
   ArrowRight,
@@ -316,6 +317,8 @@ export default function CreationHub() {
 
       <main className="mx-auto w-full max-w-3xl space-y-4 px-6 pb-10">
         <ActiveProjectContextPanel />
+
+        <IntentComposer />
 
         {videoProjects.length > 0 ? (
           <>

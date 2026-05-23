@@ -3341,6 +3341,76 @@ export const creativeProjects = mysqlTable(
 export type CreativeProject = typeof creativeProjects.$inferSelect;
 export type InsertCreativeProject = typeof creativeProjects.$inferInsert;
 
+// ─── Orchestration Runs（任務總指揮入口紀錄）─────────────────────────────────
+// M1-B：記錄使用者每次創作意圖。第一版 createIntent 只建立 pending run，不呼叫
+// 任何外部模型 / Perplexity / SubQ / MCP。projectId 可為 null（無 project
+// context 時仍可建立 run）。成本與 plan / tool / citation 欄位先保留結構，由後續
+// M5（commander adapter）與 M6（cost ledger）填入。
+export const orchestrationRuns = mysqlTable(
+  "orchestration_runs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** 可為 null：未選專案時仍可建立 run（標記為無 project context）。 */
+    projectId: int("projectId"),
+    teamId: int("teamId"),
+    mode: mysqlEnum("mode", [
+      "create",
+      "director",
+      "video",
+      "assets",
+      "database",
+    ]).notNull(),
+    intent: text("intent").notNull(),
+    status: mysqlEnum("status", [
+      "pending",
+      "planned",
+      "waiting_confirmation",
+      "running",
+      "completed",
+      "failed",
+      "cancelled",
+    ])
+      .default("pending")
+      .notNull(),
+    /** 指揮層（fallback / perplexity / subq / orb / codex / claude）；第一版為 null。 */
+    commander: mysqlEnum("commander", [
+      "fallback",
+      "perplexity",
+      "subq",
+      "orb",
+      "codex",
+      "claude",
+    ]),
+    planJson: json("planJson"),
+    contextPacketIdsJson: json("contextPacketIdsJson").$type<number[]>(),
+    toolCallsJson: json("toolCallsJson"),
+    citationsJson: json("citationsJson"),
+    searchResultsJson: json("searchResultsJson"),
+    /** 預估成本（USD）；第一版為 null，欄位先保留。 */
+    estimatedCostUsd: decimal("estimatedCostUsd", { precision: 10, scale: 6 }),
+    actualCostUsd: decimal("actualCostUsd", { precision: 10, scale: 6 }),
+    errorMessage: text("errorMessage"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("orun_userId_idx").on(table.userId),
+    projectIdIdx: index("orun_projectId_idx").on(table.projectId),
+    projectCreatedAtIdx: index("orun_projectId_createdAt_idx").on(
+      table.projectId,
+      table.createdAt
+    ),
+    userCreatedAtIdx: index("orun_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+  })
+);
+
+export type OrchestrationRun = typeof orchestrationRuns.$inferSelect;
+export type InsertOrchestrationRun = typeof orchestrationRuns.$inferInsert;
+
 // ─── Model Wishlist（模型許願池）─────────────────────────────────────────
 // 使用者許願希望平台支援的 AI 模型；其他人可投票表示需求。
 //   * modelWishes：許願主體

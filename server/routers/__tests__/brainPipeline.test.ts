@@ -287,6 +287,7 @@ describe("brainPipeline graph builder", () => {
       "modelWishes", // 模型許願池 — 純 CRUD + 投票，不觸發 AI 推理
       "worldbuilding", // 世界觀架構器資料 CRUD，不觸發 AI 推理
       "worldStoryboard", // 動畫分鏡時間軸 CRUD + 純函式管線編排，不直接觸發 AI（plan 僅返回步驟描述）
+      "commander", // M1-B：createIntent 只寫 orchestration run（純資料持久化），不觸發 AI；接 Perplexity/SubQ adapter（M5）後再加入 graph
     ]);
 
     const inGraph = new Set(
