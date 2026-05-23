@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { ActiveProjectContextPanel } from "@/components/create/ActiveProjectContextPanel";
 import { PROJECT_STATUS_LABELS, type Project } from "@/types/projects";
 import {
   ArrowRight,
@@ -314,6 +315,8 @@ export default function CreationHub() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl space-y-4 px-6 pb-10">
+        <ActiveProjectContextPanel />
+
         {videoProjects.length > 0 ? (
           <>
             <nav

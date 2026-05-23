@@ -12,6 +12,8 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import type { CreativeProject } from "../../drizzle/schema";
+import { getProjectContextSummary } from "../subsystems/projectContext/projectContextService";
+import { ProjectContextAccessError } from "../subsystems/projectContext/contracts";
 
 const projectStatusSchema = z.enum([
   "concept",
@@ -88,6 +90,26 @@ export const creativeProjectRouter = router({
       }
 
       return { ...data, worldFrameworkName };
+    }),
+
+  /**
+   * M1-A Active Project Context：取得 `/create` 顯示的專案上下文摘要。
+   * 彙整專案核心欄位、連結世界觀框架與最近素材；權限檢查在 service 內完成。
+   */
+  getContextSummary: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getProjectContextSummary(ctx.user.id, input.projectId);
+      } catch (error) {
+        if (error instanceof ProjectContextAccessError) {
+          throw new TRPCError({
+            code: error.reason === "forbidden" ? "FORBIDDEN" : "NOT_FOUND",
+            message: error.message,
+          });
+        }
+        throw error;
+      }
     }),
 
   /** 建立新創作專案 */
