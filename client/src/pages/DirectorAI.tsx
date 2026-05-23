@@ -79,6 +79,7 @@ import {
 import VisualSoul from "@/components/VisualSoul";
 import { BatchGenerationDialog } from "@/components/director/BatchGenerationDialog";
 import WorldbuildingPanel from "@/components/director/WorldbuildingPanel";
+import { WorkflowStepper } from "@/components/director/WorkflowStepper";
 import {
   PLANNING_DRAFT_KEY,
   PERSONALITIES,
@@ -125,8 +126,6 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { NextStepPanel } from "@/components/layout/NextStepPanel";
-import { SectionCard } from "@/components/layout/SectionCard";
 import { AdvancedSection } from "@/components/layout/AdvancedSection";
 import { getVisualDensity, shouldShowDiagnostics } from "@/lib/visualDensity";
 import type {
@@ -2427,13 +2426,20 @@ export default function DirectorAI() {
     if (typeof window === "undefined") return "chat";
     try {
       const t = new URLSearchParams(window.location.search).get("tab");
-      if (t && ["chat", "script", "planning"].includes(t)) return t;
+      if (t && ["chat", "script", "planning", "worldbuilding"].includes(t))
+        return t;
     } catch {
       // ignore
     }
     return "chat";
   }, []);
   const [activeTab, setActiveTab] = useState<string>(initialTab);
+  // 跨分頁共享：使用者目前在「世界觀」分頁選中的世界 id；
+  // 沒選的話，由 WorldbuildingPanel 自己 fallback 到第一個。
+  // 在「腳本 → 分鏡」一鍵生成時會優先使用這個值。
+  const [worldbuildingSelectedId, setWorldbuildingSelectedId] = useState<
+    number | null
+  >(null);
   const [importedSegments, setImportedSegments] = useState<ScriptSegment[]>([]);
   const [importedTitle, setImportedTitle] = useState("");
   const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(
@@ -2666,38 +2672,48 @@ export default function DirectorAI() {
       onError: e => toast.error("建立分鏡板失敗：" + e.message),
     });
 
-  const handleCreateStoryboardFromScript = useCallback(() => {
-    if (importedSegments.length === 0) {
-      toast.error("尚未有腳本段落");
-      return;
-    }
-    const worldId = worldCtx.worldFrameworkId;
-    if (!worldId) {
-      toast.error("請先在「創作專案」選定有綁定世界觀的專案", {
-        action: {
-          label: "前往",
-          onClick: () => navigate("/creative-projects"),
-        },
+  const handleCreateStoryboardFromScript = useCallback(
+    (overrideWorldId?: number) => {
+      if (importedSegments.length === 0) {
+        toast.error("尚未有腳本段落，請先到「腳本分析」分頁匯入或生成腳本", {
+          action: {
+            label: "前往腳本分析",
+            onClick: () => setActiveTab("script"),
+          },
+        });
+        return;
+      }
+      // 三層 fallback：明確傳入 > 世界觀分頁選中 > 創作專案綁定
+      const worldId =
+        overrideWorldId ?? worldbuildingSelectedId ?? worldCtx.worldFrameworkId;
+      if (!worldId) {
+        toast.error("請先在「世界觀」分頁選擇要使用的世界觀", {
+          action: {
+            label: "前往世界觀",
+            onClick: () => setActiveTab("worldbuilding"),
+          },
+        });
+        return;
+      }
+      createStoryboardMut.mutate({
+        worldId,
+        name: importedTitle || `分鏡板 ${new Date().toLocaleString("zh-TW")}`,
+        segments: importedSegments.map(s => ({
+          rawText: s.rawText,
+          storyboard: s.storyboard,
+          characters: s.characters ?? [],
+          locations: s.locations ?? [],
+        })),
       });
-      return;
-    }
-    createStoryboardMut.mutate({
-      worldId,
-      name: importedTitle || `分鏡板 ${new Date().toLocaleString("zh-TW")}`,
-      segments: importedSegments.map(s => ({
-        rawText: s.rawText,
-        storyboard: s.storyboard,
-        characters: s.characters ?? [],
-        locations: s.locations ?? [],
-      })),
-    });
-  }, [
-    importedSegments,
-    importedTitle,
-    worldCtx.worldFrameworkId,
-    navigate,
-    createStoryboardMut,
-  ]);
+    },
+    [
+      importedSegments,
+      importedTitle,
+      worldbuildingSelectedId,
+      worldCtx.worldFrameworkId,
+      createStoryboardMut,
+    ]
+  );
 
   // Script analysis hooks
   const quickActionsQuery = trpc.director.quickActions.useQuery(undefined, {
@@ -4099,18 +4115,62 @@ export default function DirectorAI() {
       }
   }
 
+  const worldsForStepperQuery = trpc.worldbuilding.list.useQuery(undefined, {
+    retry: false,
+    staleTime: 30_000,
+  });
+  const stepperCounts = useMemo(() => {
+    const worldsList = worldsForStepperQuery.data ?? [];
+    const focusedWorld =
+      worldsList.find(w => w.id === worldbuildingSelectedId) ??
+      worldsList[0] ??
+      null;
+    return {
+      scripts: scripts.length,
+      segments: importedSegments.length,
+      worlds: worldsList.length,
+      characters: focusedWorld?.characters?.length ?? 0,
+      scenes: focusedWorld?.scenes?.length ?? 0,
+      // storyboards 數量需個別 query；先省略，由 WorldbuildingPanel 內顯示
+      storyboards: 0,
+      generation: generationTasks.length,
+    };
+  }, [
+    worldsForStepperQuery.data,
+    worldbuildingSelectedId,
+    scripts.length,
+    importedSegments.length,
+    generationTasks.length,
+  ]);
+
   return (
     <div className="space-y-4">
-      <PageHeader title="導演 AI" subtitle="把想法、腳本與世界觀整理成可拍攝的分鏡與生成任務。" primaryAction={<Button onClick={() => setShowTemplates(true)} className="rounded-xl">開始整理腳本</Button>} secondaryActions={<><Button variant="outline" onClick={() => setShowStoryboard(true)}>開啟世界觀系統</Button><Button variant="outline" onClick={() => setShowStoryboard(true)}>查看製作包</Button></>} />
+      <PageHeader
+        title="導演 AI"
+        subtitle="對話 → 腳本 → 世界觀 → 分鏡 → 生成，全部在這頁完成，不再跳頁。"
+        primaryAction={
+          <Button
+            onClick={() => setShowTemplates(true)}
+            className="rounded-xl"
+          >
+            開始整理腳本
+          </Button>
+        }
+        secondaryActions={
+          <Button
+            variant="outline"
+            onClick={() => setActiveTab("worldbuilding")}
+          >
+            開啟世界觀系統
+          </Button>
+        }
+      />
 
-      <NextStepPanel title="下一步：整理腳本" description="先把想法或腳本整理成可製作段落，再進入世界觀與分鏡。" primaryAction={<Button onClick={() => setShowTemplates(true)}>開始整理腳本</Button>} />
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <SectionCard title="腳本整理" description="貼上想法、逐字稿或劇本，讓 AI 拆成可製作段落。" actions={<Button size="sm" onClick={() => setShowTemplates(true)}>貼上腳本</Button>} />
-        <SectionCard title="世界觀系統" description="整理角色、場景、風格、聲音與視覺靈感。" actions={<Button size="sm" variant="outline" onClick={() => setShowStoryboard(true)}>開啟世界觀</Button>} />
-        <SectionCard title="分鏡規劃" description="把腳本轉為鏡頭、畫面、音效與配音需求。" actions={<Button size="sm" variant="outline" onClick={() => setShowStoryboard(true)}>產生分鏡</Button>} />
-        <SectionCard title="生成任務" description="把製作包轉成圖像、影片、配音、配樂任務。" actions={<Button size="sm" variant="outline" onClick={() => setShowStoryboard(true)}>建立生成任務</Button>} />
-      </div>
+      <WorkflowStepper
+        activeTab={activeTab}
+        onSwitch={setActiveTab}
+        counts={stepperCounts}
+      />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -4784,15 +4844,15 @@ export default function DirectorAI() {
                     variant="outline"
                     size="sm"
                     className="rounded-xl text-xs gap-1 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-300/50 hover:from-blue-500/20 hover:to-cyan-500/20"
-                    onClick={handleCreateStoryboardFromScript}
+                    onClick={() => handleCreateStoryboardFromScript()}
                     disabled={
                       createStoryboardMut.isPending ||
                       importedSegments.length === 0
                     }
                     title={
-                      worldCtx.worldFrameworkId
+                      worldbuildingSelectedId || worldCtx.worldFrameworkId
                         ? `將 ${importedSegments.length} 個段落建為分鏡板`
-                        : "需要先在「創作專案」選定有綁定世界觀的專案"
+                        : "需要先在「世界觀」分頁選擇或建立世界觀"
                     }
                   >
                     {createStoryboardMut.isPending ? (
@@ -5944,7 +6004,25 @@ export default function DirectorAI() {
 
         {/* ═══ Tab 4: Worldbuilding Mode ═══ */}
         <TabsContent value="worldbuilding" className="space-y-4 mt-0">
-          <WorldbuildingPanel />
+          <WorldbuildingPanel
+            selectedWorldId={worldbuildingSelectedId}
+            onSelectWorld={setWorldbuildingSelectedId}
+            onCreateStoryboard={worldId => {
+              if (importedSegments.length === 0) {
+                toast.info(
+                  "尚未有腳本段落，請先到「腳本分析」分頁匯入或生成腳本",
+                  {
+                    action: {
+                      label: "前往腳本分析",
+                      onClick: () => setActiveTab("script"),
+                    },
+                  }
+                );
+                return;
+              }
+              handleCreateStoryboardFromScript(worldId);
+            }}
+          />
         </TabsContent>
       </Tabs>
 
