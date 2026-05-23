@@ -56,6 +56,9 @@ import {
   creativeProjects,
   InsertCreativeProject,
   CreativeProject,
+  orchestrationRuns,
+  InsertOrchestrationRun,
+  OrchestrationRun,
   teachingMaterials,
   InsertTeachingMaterial,
   TeachingMaterial,
@@ -2488,6 +2491,58 @@ export async function deleteCreativeProject(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(creativeProjects).where(eq(creativeProjects.id, id));
+}
+
+// ─── Orchestration Runs（M1-B 任務總指揮入口紀錄）─────────────────────────────
+
+export async function createOrchestrationRun(
+  data: InsertOrchestrationRun
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(orchestrationRuns).values(data);
+  return result[0].insertId;
+}
+
+export async function getOrchestrationRun(
+  id: number
+): Promise<OrchestrationRun | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(orchestrationRuns)
+    .where(eq(orchestrationRuns.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getOrchestrationRunsByProject(
+  projectId: number,
+  limit?: number
+): Promise<OrchestrationRun[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const q = db
+    .select()
+    .from(orchestrationRuns)
+    .where(eq(orchestrationRuns.projectId, projectId))
+    .orderBy(desc(orchestrationRuns.createdAt));
+  return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
+}
+
+export async function getOrchestrationRunsByUser(
+  userId: number,
+  limit?: number
+): Promise<OrchestrationRun[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const q = db
+    .select()
+    .from(orchestrationRuns)
+    .where(eq(orchestrationRuns.userId, userId))
+    .orderBy(desc(orchestrationRuns.createdAt));
+  return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
 }
 
 // ─── Model Wishlist（模型許願池）──────────────────────────────────────────

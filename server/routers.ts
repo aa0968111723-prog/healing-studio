@@ -54,6 +54,7 @@ import { worldbuildingRouter } from "./routers/worldbuilding";
 import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { creativeProjectRouter } from "./routers/creativeProject";
+import { commanderRouter } from "./subsystems/commander/commanderRouter";
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
@@ -3991,6 +3992,11 @@ export const appRouter = router({
   // 把 Director session + Worldbuilding framework + World Storyboard 三者
   // 綁定成一個有意義的創作單位，供全站光球與各 Studio 頁面共享世界觀上下文。
   creativeProject: creativeProjectRouter,
+
+  // ─── Commander（任務總指揮入口） ──────────────────────────────────────────
+  // M1-B：記錄使用者創作意圖（createIntent → pending orchestration run）。
+  // 第一版只寫 DB，不接 Perplexity / SubQ / MCP / 外部模型。
+  commander: commanderRouter,
 
   // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
   // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
