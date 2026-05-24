@@ -16,6 +16,7 @@ const getCreativeProjectMock = vi.fn();
 const getWorldbuildingFrameworkMock = vi.fn();
 const getDigitalAssetsByUserMock = vi.fn();
 const getOrchestrationRunsByProjectMock = vi.fn();
+const reuseOrRefreshPacketMock = vi.fn();
 
 vi.mock("./db", () => ({
   getCreativeProject: (...args: unknown[]) => getCreativeProjectMock(...args),
@@ -25,6 +26,10 @@ vi.mock("./db", () => ({
     getDigitalAssetsByUserMock(...args),
   getOrchestrationRunsByProject: (...args: unknown[]) =>
     getOrchestrationRunsByProjectMock(...args),
+}));
+
+vi.mock("./subsystems/contextPackets/contextPacketService", () => ({
+  reuseOrRefreshPacket: (...args: unknown[]) => reuseOrRefreshPacketMock(...args),
 }));
 
 import { getProjectContextSummary } from "./subsystems/projectContext/projectContextService";
@@ -54,9 +59,12 @@ beforeEach(() => {
   getWorldbuildingFrameworkMock.mockReset();
   getDigitalAssetsByUserMock.mockReset();
   getOrchestrationRunsByProjectMock.mockReset();
+  reuseOrRefreshPacketMock.mockReset();
   getDigitalAssetsByUserMock.mockResolvedValue([]);
   getWorldbuildingFrameworkMock.mockResolvedValue(null);
   getOrchestrationRunsByProjectMock.mockResolvedValue([]);
+  // 預設沒有已編譯的 context packet（團隊資料尚未整理）。
+  reuseOrRefreshPacketMock.mockResolvedValue(null);
 });
 
 function runRow(overrides: Record<string, unknown> = {}) {
@@ -266,5 +274,57 @@ describe("getProjectContextSummary — open tasks from orchestration runs (M1-B)
 
     const summary = await getProjectContextSummary(OWNER, baseProject.id);
     expect(summary.openTasks).toHaveLength(8);
+  });
+});
+
+describe("getProjectContextSummary — team data from context packet (M4)", () => {
+  it("fills teamDataSummary + sourcesUsed and drops teamData from pendingSections when a packet exists", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    reuseOrRefreshPacketMock.mockResolvedValue({
+      id: 1,
+      projectId: baseProject.id,
+      teamId: null,
+      scope: "project",
+      summaryMarkdown:
+        "# 可用資料來源\n- 「呼吸引導稿」（team_data · summary_only）：吸氣四拍…",
+      sourceRefs: [
+        {
+          kind: "team_data",
+          refId: "101",
+          title: "呼吸引導稿",
+          accessLevel: "summary_only",
+          snippet: "吸氣四拍…",
+          connectionId: null,
+          score: 0.8,
+          matchedBy: "vector",
+        },
+      ],
+      tokenEstimate: 20,
+      createdByModel: null,
+      expiresAt: "2999-01-01T00:00:00.000Z",
+      createdAt: "2026-05-23T00:00:00.000Z",
+      reused: true,
+    });
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+
+    expect(summary.teamDataSummary).toContain("可用資料來源");
+    expect(summary.sourcesUsed).toHaveLength(1);
+    expect(summary.sourcesUsed?.[0]).toMatchObject({
+      kind: "team_data",
+      refId: "101",
+      accessLevel: "summary_only",
+    });
+    expect(summary.pendingSections).not.toContain("teamData");
+    expect(summary.pendingSections).toContain("budget");
+  });
+
+  it("leaves teamData pending and summary unset when no packet exists", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    // reuseOrRefreshPacketMock defaults to null in beforeEach.
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+    expect(summary.teamDataSummary).toBeUndefined();
+    expect(summary.sourcesUsed).toBeUndefined();
+    expect(summary.pendingSections).toContain("teamData");
   });
 });

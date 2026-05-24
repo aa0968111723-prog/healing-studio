@@ -24,6 +24,7 @@ import {
   type ProjectContextAsset,
   type ProjectContextOpenTask,
 } from "./contracts";
+import { reuseOrRefreshPacket } from "../contextPackets/contextPacketService";
 
 const RECENT_ASSET_LIMIT = 6;
 /** 抓多少筆 run 進來篩；數量小、project-scoped，成本可忽略。 */
@@ -141,6 +142,19 @@ export async function getProjectContextSummary(
   // 未完成任務：M1-B orchestration_runs 帶入（非 completed / cancelled）。
   const openTasks = await getOpenTasks(project.id);
 
+  // 團隊資料 / 資料來源：M4 最新且未過期的 context packet（cache-only，不在此熱路徑重算）。
+  const packet = await reuseOrRefreshPacket({
+    userId,
+    projectId: project.id,
+    scope: "project",
+  });
+  const pendingSections: ProjectContextSummary["pendingSections"] = [
+    "budget",
+    "projectScopedAssets",
+  ];
+  // 尚未編譯過 packet 時，誠實標示團隊資料「尚未整理」。
+  if (!packet) pendingSections.unshift("teamData");
+
   return {
     projectId: project.id,
     title: project.title,
@@ -148,11 +162,13 @@ export async function getProjectContextSummary(
     ...(snippet(project.description) ? { description: snippet(project.description) } : {}),
     ...(worldview ? { worldview } : {}),
     ...(styleBible ? { styleBible } : {}),
+    ...(packet ? { teamDataSummary: snippet(packet.summaryMarkdown, 280) } : {}),
+    ...(packet ? { sourcesUsed: packet.sourceRefs } : {}),
     recentAssets,
     recentAssetsScope: "user",
     openTasks,
     updatedAt: toIso(project.updatedAt),
-    pendingSections: ["teamData", "budget", "projectScopedAssets"],
+    pendingSections,
   };
 }
 

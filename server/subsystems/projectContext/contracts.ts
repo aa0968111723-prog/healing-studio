@@ -8,6 +8,8 @@
  * M1-B / M2 / M4 milestone 逐步補上，避免在 UI 上做出尚未存在的承諾。
  */
 
+import type { ContextSourceRef } from "../contextPackets/contracts";
+
 /** 最近素材（M1-A 先以使用者最近素材為近似，M2-A 之後改為 project-scoped）。 */
 export interface ProjectContextAsset {
   id: number;
@@ -53,8 +55,10 @@ export interface ProjectContextSummary {
   worldview?: string;
   /** 風格設定摘要（style profiles / global negative prompt 的精簡描述）。 */
   styleBible?: string;
-  /** 團隊資料摘要 — M4 Context Packets 之後填入。 */
+  /** 團隊資料摘要 — M4：最新未過期 context packet 的 summary（截斷）。 */
   teamDataSummary?: string;
+  /** 本次創作用到的資料來源（最新未過期 packet 的 sourceRefs）。 */
+  sourcesUsed?: ContextSourceRef[];
   recentAssets: ProjectContextAsset[];
   /**
    * recentAssets 的範圍。M1-A 沒有 project_asset_links，先回 "user"

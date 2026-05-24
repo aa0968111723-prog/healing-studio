@@ -55,6 +55,10 @@ import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneratio
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { creativeProjectRouter } from "./routers/creativeProject";
 import { commanderRouter } from "./subsystems/commander/commanderRouter";
+import {
+  contextPacketRouter,
+  teamDataRouter,
+} from "./subsystems/contextPackets/contextPacketRouter";
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
@@ -3997,6 +4001,14 @@ export const appRouter = router({
   // M1-B：記錄使用者創作意圖（createIntent → pending orchestration run）。
   // 第一版只寫 DB，不接 Perplexity / SubQ / MCP / 外部模型。
   commander: commanderRouter,
+
+  // ─── Context Packets（M4 團隊內部資料接入創作上下文） ─────────────────────
+  // 把 project + 團隊資料（之後 cloud / notes / mcp）摘成可重用、有 TTL 的上下文包。
+  contextPacket: contextPacketRouter,
+
+  // ─── Team Data（M4 資料來源存取規則） ────────────────────────────────────
+  // 控制哪個 team / project 可用哪些內部 / 外部資料來源，及 accessLevel 與可用 mode。
+  teamData: teamDataRouter,
 
   // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
   // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
