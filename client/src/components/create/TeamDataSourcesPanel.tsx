@@ -32,6 +32,7 @@ import {
   providerLabel,
 } from "./teamDataFormat";
 import { ProjectAccessRulesPanel } from "./ProjectAccessRulesPanel";
+import { TeamModelTrainingPanel } from "./TeamModelTrainingPanel";
 
 export function TeamDataSourcesPanel({ projectId }: { projectId: number }) {
   const utils = trpc.useUtils();
@@ -114,6 +115,7 @@ export function TeamDataSourcesPanel({ projectId }: { projectId: number }) {
 
       <DataConnectionsSection projectId={projectId} />
       <ProjectAccessRulesPanel projectId={projectId} />
+      <TeamModelTrainingPanel projectId={projectId} />
     </section>
   );
 }
