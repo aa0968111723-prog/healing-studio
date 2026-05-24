@@ -18,6 +18,7 @@ const getLatestContextPacketForProjectMock = vi.fn();
 const createContextPacketMock = vi.fn();
 const getContextPacketMock = vi.fn();
 const listProjectDataAccessRulesMock = vi.fn();
+const listDataSourceConnectionsForUserMock = vi.fn();
 const searchTeachingArchiveMock = vi.fn();
 const loadMaterialForReadMock = vi.fn();
 const logAccessMock = vi.fn();
@@ -30,8 +31,8 @@ vi.mock("./db", () => ({
   getContextPacket: (...a: unknown[]) => getContextPacketMock(...a),
   listProjectDataAccessRules: (...a: unknown[]) =>
     listProjectDataAccessRulesMock(...a),
-  // 預設沒有外部來源連接 → compile 只跑 team_data adapter。
-  listDataSourceConnectionsForUser: () => Promise.resolve([]),
+  listDataSourceConnectionsForUser: (...a: unknown[]) =>
+    listDataSourceConnectionsForUserMock(...a),
   // 下列在 compile 流程用不到，但 service/adapter import 了整個 module。
   getTeamMembership: vi.fn(),
   upsertProjectDataAccessRule: vi.fn(),
@@ -51,6 +52,10 @@ import {
   reuseOrRefreshPacket,
 } from "./subsystems/contextPackets/contextPacketService";
 import { ContextPacketAccessError } from "./subsystems/contextPackets/contracts";
+import { encryptSecret, __resetSecretCryptoKeyForTests } from "./_core/secretCrypto";
+
+// 設在 module scope：notionConn 在 describe body（collection 期）就會呼叫 encryptSecret。
+process.env.CREDENTIAL_ENCRYPTION_KEY ||= "test-encryption-key-please-rotate";
 
 const OWNER = 42;
 const PROJECT = { id: 7, userId: OWNER, title: "禪修短片", description: "呼吸與放下" };
@@ -88,9 +93,13 @@ function material(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
+  process.env.CREDENTIAL_ENCRYPTION_KEY = "test-encryption-key-please-rotate";
+  __resetSecretCryptoKeyForTests();
   getCreativeProjectMock.mockResolvedValue({ ...PROJECT });
   getLatestContextPacketForProjectMock.mockResolvedValue(null);
   listProjectDataAccessRulesMock.mockResolvedValue([]);
+  listDataSourceConnectionsForUserMock.mockResolvedValue([]);
   // createContextPacket 記下寫入內容，getContextPacket 回對應 row。
   let lastInsert: Record<string, unknown> | null = null;
   createContextPacketMock.mockImplementation(async (data: Record<string, unknown>) => {
@@ -227,6 +236,49 @@ describe("compileProjectContextPacket — ownership", () => {
     expect(view.id).toBe(9);
     expect(searchTeachingArchiveMock).not.toHaveBeenCalled();
     expect(createContextPacketMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("compileProjectContextPacket — connection-level gating", () => {
+  const notionConn = {
+    id: 50,
+    ownerUserId: OWNER,
+    teamId: 7,
+    projectId: 7,
+    kind: "notes",
+    provider: "notion",
+    authType: "api_key",
+    status: "active",
+    encryptedCredentialRef: encryptSecret("notion_token"),
+    configJson: null,
+    lastHealthCheckAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it("skips an external connection that has an explicit 'none' rule (no API call)", async () => {
+    searchTeachingArchiveMock.mockResolvedValue([]); // 隔離團隊資料
+    listDataSourceConnectionsForUserMock.mockResolvedValue([notionConn]);
+    listProjectDataAccessRulesMock.mockResolvedValue([
+      { id: 1, teamId: 7, projectId: 7, materialId: null, connectionId: 50, accessLevel: "none", allowedModesJson: null },
+    ]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = await compileProjectContextPacket({ userId: OWNER, projectId: 7, mode: "create" });
+    expect(view.sourceRefs).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled(); // 連接被擋 → 不打 Notion API
+  });
+
+  it("invokes the external connection when no blocking rule exists", async () => {
+    searchTeachingArchiveMock.mockResolvedValue([]);
+    listDataSourceConnectionsForUserMock.mockResolvedValue([notionConn]);
+    listProjectDataAccessRulesMock.mockResolvedValue([]);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await compileProjectContextPacket({ userId: OWNER, projectId: 7, mode: "create" });
+    expect(fetchMock).toHaveBeenCalled(); // 連接放行 → 會打 Notion search
   });
 });
 

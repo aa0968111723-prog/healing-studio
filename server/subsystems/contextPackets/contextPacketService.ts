@@ -69,8 +69,23 @@ async function getEnabledAdaptersForProject(
 ): Promise<DataSourceAdapter[]> {
   const adapters: DataSourceAdapter[] = [teamDataAdapter];
   const connections = await db.listDataSourceConnectionsForUser(userId, projectId);
+  // 連接層級存取規則：team-scoped 連接若有明確 none 規則 → 整源排除（admin 可關）。
+  const blockedConnectionIds = new Set<number>();
+  const teamRuleCache = new Map<number, Awaited<ReturnType<typeof db.listProjectDataAccessRules>>>();
+  for (const conn of connections) {
+    if (conn.status !== "active" || conn.teamId == null) continue;
+    let rules = teamRuleCache.get(conn.teamId);
+    if (!rules) {
+      rules = await db.listProjectDataAccessRules(conn.teamId, projectId);
+      teamRuleCache.set(conn.teamId, rules);
+    }
+    if (rules.some(r => r.connectionId === conn.id && r.accessLevel === "none")) {
+      blockedConnectionIds.add(conn.id);
+    }
+  }
   for (const conn of connections) {
     if (conn.status !== "active") continue;
+    if (blockedConnectionIds.has(conn.id)) continue;
     if (conn.kind === "cloud" && conn.provider === "google_drive") {
       adapters.push(createDriveAdapter(conn));
     } else if (conn.kind === "notes" && conn.provider === "notion") {

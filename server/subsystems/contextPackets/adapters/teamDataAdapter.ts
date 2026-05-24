@@ -39,6 +39,8 @@ function resolveRule(
   let best: ProjectDataAccessRule | null = null;
   let bestScore = -1;
   for (const r of rules) {
+    // 連接層級規則（針對外部來源）不套用於內部 material。
+    if (r.connectionId != null) continue;
     const materialOk = r.materialId === materialId || r.materialId === null;
     const projectOk = r.projectId === projectId || r.projectId === null;
     if (!materialOk || !projectOk) continue;
