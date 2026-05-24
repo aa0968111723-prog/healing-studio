@@ -59,6 +59,15 @@ import {
   orchestrationRuns,
   InsertOrchestrationRun,
   OrchestrationRun,
+  contextPackets,
+  InsertContextPacket,
+  ContextPacket,
+  projectDataAccessRules,
+  InsertProjectDataAccessRule,
+  ProjectDataAccessRule,
+  dataSourceConnections,
+  InsertDataSourceConnection,
+  DataSourceConnection,
   teachingMaterials,
   InsertTeachingMaterial,
   TeachingMaterial,
@@ -2543,6 +2552,189 @@ export async function getOrchestrationRunsByUser(
     .where(eq(orchestrationRuns.userId, userId))
     .orderBy(desc(orchestrationRuns.createdAt));
   return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
+}
+
+// ─── Context Packets（M4 可重用創作上下文包）────────────────────────────────
+
+export async function createContextPacket(
+  data: InsertContextPacket
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(contextPackets).values(data);
+  return result[0].insertId;
+}
+
+export async function getContextPacket(
+  id: number
+): Promise<ContextPacket | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(contextPackets)
+    .where(eq(contextPackets.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** 取某 project 最新一筆 context packet（可選 scope）；給 reuseOrRefreshPacket 用。 */
+export async function getLatestContextPacketForProject(
+  projectId: number,
+  scope?: string
+): Promise<ContextPacket | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const condition = scope
+    ? and(
+        eq(contextPackets.projectId, projectId),
+        eq(contextPackets.scope, scope as ContextPacket["scope"])
+      )
+    : eq(contextPackets.projectId, projectId);
+  const rows = await db
+    .select()
+    .from(contextPackets)
+    .where(condition)
+    .orderBy(desc(contextPackets.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// ─── Project Data Access Rules（M4 資料來源存取規則）─────────────────────────
+
+/**
+ * 列出某 project 適用的存取規則：team-wide 預設（projectId IS NULL）+ 該 project
+ * 專屬規則。caller 端再讓 project 專屬覆寫 team-wide。
+ */
+export async function listProjectDataAccessRules(
+  teamId: number,
+  projectId: number | null
+): Promise<ProjectDataAccessRule[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const projectCond =
+    projectId == null
+      ? sql`${projectDataAccessRules.projectId} IS NULL`
+      : or(
+          eq(projectDataAccessRules.projectId, projectId),
+          sql`${projectDataAccessRules.projectId} IS NULL`
+        );
+  return db
+    .select()
+    .from(projectDataAccessRules)
+    .where(and(eq(projectDataAccessRules.teamId, teamId), projectCond))
+    .orderBy(desc(projectDataAccessRules.updatedAt));
+}
+
+/**
+ * Upsert 一條存取規則。自然鍵 = (teamId, projectId, materialId)；存在就更新，
+ * 不存在才插入（service 層維護「一個目標一條規則」，DB 不加 NULL-distinct UNIQUE）。
+ */
+export async function upsertProjectDataAccessRule(
+  data: InsertProjectDataAccessRule
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const matCond =
+    data.materialId == null
+      ? sql`${projectDataAccessRules.materialId} IS NULL`
+      : eq(projectDataAccessRules.materialId, data.materialId);
+  const projCond =
+    data.projectId == null
+      ? sql`${projectDataAccessRules.projectId} IS NULL`
+      : eq(projectDataAccessRules.projectId, data.projectId);
+
+  const existing = await db
+    .select()
+    .from(projectDataAccessRules)
+    .where(and(eq(projectDataAccessRules.teamId, data.teamId), projCond, matCond))
+    .limit(1);
+
+  if (existing[0]) {
+    await db
+      .update(projectDataAccessRules)
+      .set({
+        accessLevel: data.accessLevel,
+        allowedModesJson: data.allowedModesJson ?? null,
+        connectionId: data.connectionId ?? null,
+        collectionId: data.collectionId ?? null,
+      })
+      .where(eq(projectDataAccessRules.id, existing[0].id));
+    return existing[0].id;
+  }
+
+  const result = await db.insert(projectDataAccessRules).values(data);
+  return result[0].insertId;
+}
+
+export async function deleteProjectDataAccessRule(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(projectDataAccessRules)
+    .where(eq(projectDataAccessRules.id, id));
+}
+
+// ─── Data Source Connections（M4/M5 外部資料來源連接）───────────────────────
+
+export async function createDataSourceConnection(
+  data: InsertDataSourceConnection
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(dataSourceConnections).values(data);
+  return result[0].insertId;
+}
+
+export async function getDataSourceConnection(
+  id: number
+): Promise<DataSourceConnection | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(dataSourceConnections)
+    .where(eq(dataSourceConnections.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** 列出使用者的連接；可選用 project 過濾（含未綁 project 的個人連接）。 */
+export async function listDataSourceConnectionsForUser(
+  userId: number,
+  projectId?: number | null
+): Promise<DataSourceConnection[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const base = eq(dataSourceConnections.ownerUserId, userId);
+  const condition =
+    projectId == null
+      ? base
+      : and(
+          base,
+          or(
+            eq(dataSourceConnections.projectId, projectId),
+            sql`${dataSourceConnections.projectId} IS NULL`
+          )
+        );
+  return db
+    .select()
+    .from(dataSourceConnections)
+    .where(condition)
+    .orderBy(desc(dataSourceConnections.updatedAt));
+}
+
+export async function updateDataSourceConnection(
+  id: number,
+  patch: Partial<InsertDataSourceConnection>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(dataSourceConnections)
+    .set(patch)
+    .where(eq(dataSourceConnections.id, id));
 }
 
 // ─── Model Wishlist（模型許願池）──────────────────────────────────────────
