@@ -288,6 +288,9 @@ describe("brainPipeline graph builder", () => {
       "worldbuilding", // 世界觀架構器資料 CRUD，不觸發 AI 推理
       "worldStoryboard", // 動畫分鏡時間軸 CRUD + 純函式管線編排，不直接觸發 AI（plan 僅返回步驟描述）
       "commander", // M1-B：createIntent 只寫 orchestration run（純資料持久化），不觸發 AI；接 Perplexity/SubQ adapter（M5）後再加入 graph
+      "contextPacket", // M4：編譯/讀取 context packet（重用 teachingArchive 檢索 + deterministic 摘要），不直接觸發 AI provider 節點
+      "teamData", // M4：資料來源存取規則 CRUD，純資料持久化，不觸發 AI
+      "dataConnections", // M4/M5：外部來源連接 CRUD + 健檢，純資料持久化，不觸發 AI
     ]);
 
     const inGraph = new Set(
