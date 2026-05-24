@@ -456,6 +456,8 @@ export const fineTunedModels = mysqlTable(
     visibility: mysqlEnum("visibility", ["private", "team_shared"])
       .default("private")
       .notNull(),
+    /** team_shared 模型所屬團隊；個人模型為 null。M（訓練 track）。 */
+    teamId: int("teamId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -468,6 +470,7 @@ export const fineTunedModels = mysqlTable(
       table.userId,
       table.createdAt
     ),
+    teamIdIdx: index("ftm_teamId_idx").on(table.teamId),
   })
 );
 
@@ -3410,6 +3413,137 @@ export const orchestrationRuns = mysqlTable(
 
 export type OrchestrationRun = typeof orchestrationRuns.$inferSelect;
 export type InsertOrchestrationRun = typeof orchestrationRuns.$inferInsert;
+
+// ─── Context Packets（可重用的創作上下文包）─────────────────────────────────
+// M4：把 project + 團隊資料 + 外部來源摘成可重用、有 TTL 的小上下文包。
+// sourceRefsJson 存 ContextSourceRef[]（source-agnostic；schema 端用 unknown[]
+// 避免 server→schema 依賴循環，service 端再轉型）。
+export const contextPackets = mysqlTable(
+  "context_packets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull(),
+    teamId: int("teamId"),
+    userId: int("userId").notNull(),
+    scope: mysqlEnum("scope", ["project", "team", "user"])
+      .default("project")
+      .notNull(),
+    sourceRefsJson: json("sourceRefsJson").$type<unknown[]>(),
+    summaryMarkdown: mediumtext("summaryMarkdown"),
+    tokenEstimate: int("tokenEstimate"),
+    /** 產生摘要的模型；deterministic 拼接時為 null。 */
+    createdByModel: varchar("createdByModel", { length: 64 }),
+    /** TTL：過期後 reuseOrRefreshPacket 會重算。 */
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    projectIdIdx: index("cp_projectId_idx").on(table.projectId),
+    projectCreatedAtIdx: index("cp_projectId_createdAt_idx").on(
+      table.projectId,
+      table.createdAt
+    ),
+    userIdIdx: index("cp_userId_idx").on(table.userId),
+    teamIdIdx: index("cp_teamId_idx").on(table.teamId),
+    expiresAtIdx: index("cp_expiresAt_idx").on(table.expiresAt),
+  })
+);
+
+export type ContextPacket = typeof contextPackets.$inferSelect;
+export type InsertContextPacket = typeof contextPackets.$inferInsert;
+
+// ─── Project Data Access Rules（資料來源存取規則）───────────────────────────
+// M4：控制哪個 team / project 可用哪些內部 material 或外部 connection，
+// 以及 accessLevel 與可用 mode。projectId 為 null 代表 team-wide 預設規則。
+export const projectDataAccessRules = mysqlTable(
+  "project_data_access_rules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamId: int("teamId").notNull(),
+    /** null = team-wide 預設；有值 = project 專屬覆寫。 */
+    projectId: int("projectId"),
+    /** 單筆 teaching_materials。 */
+    materialId: int("materialId"),
+    /** 外部來源連接（cloud / notes / mcp）。 */
+    connectionId: int("connectionId"),
+    /** 未來：material 的集合分組。 */
+    collectionId: int("collectionId"),
+    accessLevel: mysqlEnum("accessLevel", [
+      "none",
+      "summary_only",
+      "chunk_access",
+      "full_reference",
+    ])
+      .default("summary_only")
+      .notNull(),
+    /** 可用 mode 陣列；null = 全部 mode。 */
+    allowedModesJson: json("allowedModesJson").$type<string[]>(),
+    createdBy: int("createdBy").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    teamIdIdx: index("pdar_teamId_idx").on(table.teamId),
+    projectIdIdx: index("pdar_projectId_idx").on(table.projectId),
+    materialIdIdx: index("pdar_materialId_idx").on(table.materialId),
+    teamProjectIdx: index("pdar_teamId_projectId_idx").on(
+      table.teamId,
+      table.projectId
+    ),
+  })
+);
+
+export type ProjectDataAccessRule = typeof projectDataAccessRules.$inferSelect;
+export type InsertProjectDataAccessRule =
+  typeof projectDataAccessRules.$inferInsert;
+
+// ─── Data Source Connections（外部資料來源連接 / 創作加速層）─────────────────
+// M4/M5：使用者 / 團隊連結的外部來源（cloud Drive、notes Notion，未來 mcp）。
+// Drive 走既有 OAuth（encryptedCredentialRef = null）；Notion 用後端加密 token。
+// credential 一律不進前端 / log / prompt。第一版只 read-only。
+export const dataSourceConnections = mysqlTable(
+  "data_source_connections",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    ownerUserId: int("ownerUserId").notNull(),
+    teamId: int("teamId"),
+    projectId: int("projectId"),
+    kind: mysqlEnum("kind", [
+      "cloud",
+      "notes",
+      "mcp",
+      "external_api",
+    ]).notNull(),
+    /** 供應商：google_drive / notion / ... */
+    provider: varchar("provider", { length: 64 }).notNull(),
+    authType: mysqlEnum("authType", ["oauth", "api_key", "none"])
+      .default("api_key")
+      .notNull(),
+    /** 後端加密後的憑證；OAuth（如 Drive）為 null（憑證另存 userGoogleOauthTokens）。 */
+    encryptedCredentialRef: text("encryptedCredentialRef"),
+    /** 非敏感設定：Notion database/page ids、Drive folder ids 等。 */
+    configJson: json("configJson"),
+    status: mysqlEnum("status", ["pending", "active", "disabled", "error"])
+      .default("pending")
+      .notNull(),
+    lastHealthCheckAt: timestamp("lastHealthCheckAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    ownerUserIdIdx: index("dsc_ownerUserId_idx").on(table.ownerUserId),
+    teamIdIdx: index("dsc_teamId_idx").on(table.teamId),
+    projectIdIdx: index("dsc_projectId_idx").on(table.projectId),
+    ownerProviderIdx: index("dsc_ownerUserId_provider_idx").on(
+      table.ownerUserId,
+      table.provider
+    ),
+  })
+);
+
+export type DataSourceConnection = typeof dataSourceConnections.$inferSelect;
+export type InsertDataSourceConnection =
+  typeof dataSourceConnections.$inferInsert;
 
 // ─── Model Wishlist（模型許願池）─────────────────────────────────────────
 // 使用者許願希望平台支援的 AI 模型；其他人可投票表示需求。

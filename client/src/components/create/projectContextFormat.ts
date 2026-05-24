@@ -29,7 +29,6 @@ export function assetTypeLabel(assetType: string): string {
 
 const PENDING_SECTION_LABELS: Record<string, string> = {
   teamData: "團隊資料摘要",
-  openTasks: "未完成任務",
   budget: "成本預算",
   projectScopedAssets: "依專案篩選的素材",
 };

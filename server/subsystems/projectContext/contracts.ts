@@ -8,6 +8,8 @@
  * M1-B / M2 / M4 milestone 逐步補上，避免在 UI 上做出尚未存在的承諾。
  */
 
+import type { ContextSourceRef } from "../contextPackets/contracts";
+
 /** 最近素材（M1-A 先以使用者最近素材為近似，M2-A 之後改為 project-scoped）。 */
 export interface ProjectContextAsset {
   id: number;
@@ -17,11 +19,23 @@ export interface ProjectContextAsset {
   createdAt: string;
 }
 
-/** 未完成任務（M1-B createIntent / orchestration_runs 之後才會有真實資料）。 */
+/**
+ * 未完成任務 — 由 M1-B orchestration_runs 帶入（status 非 completed / cancelled）。
+ * 讓 `/create` 與影片製作頁面隨時看得到「目前還有哪些創作意圖待處理」。
+ */
 export interface ProjectContextOpenTask {
+  /** 對應 orchestration run id（字串化以符合通用 task 形狀）。 */
   id: string;
+  /** 任務標題 = 該次創作意圖。 */
   title: string;
+  /** orchestration run status：pending / planned / waiting_confirmation / running / failed。 */
   status: string;
+  /** 創作模式：create / director / video / assets / database。 */
+  mode: string;
+  /** 預估成本（USD）；第一版多為 null（尚未估算）。 */
+  estimatedCostUsd: number | null;
+  /** 建立時間（ISO 8601）。 */
+  createdAt: string;
 }
 
 export interface ProjectContextBudget {
@@ -41,8 +55,10 @@ export interface ProjectContextSummary {
   worldview?: string;
   /** 風格設定摘要（style profiles / global negative prompt 的精簡描述）。 */
   styleBible?: string;
-  /** 團隊資料摘要 — M4 Context Packets 之後填入。 */
+  /** 團隊資料摘要 — M4：最新未過期 context packet 的 summary（截斷）。 */
   teamDataSummary?: string;
+  /** 本次創作用到的資料來源（最新未過期 packet 的 sourceRefs）。 */
+  sourcesUsed?: ContextSourceRef[];
   recentAssets: ProjectContextAsset[];
   /**
    * recentAssets 的範圍。M1-A 沒有 project_asset_links，先回 "user"
@@ -57,7 +73,7 @@ export interface ProjectContextSummary {
    * 尚未接上的區塊清單，讓前端可顯示「即將推出 / 後續 milestone」提示，
    * 而不是顯示空白或假資料。
    */
-  pendingSections: Array<"teamData" | "openTasks" | "budget" | "projectScopedAssets">;
+  pendingSections: Array<"teamData" | "budget" | "projectScopedAssets">;
 }
 
 /** projectContextService 在權限不足或找不到專案時丟出的錯誤。 */

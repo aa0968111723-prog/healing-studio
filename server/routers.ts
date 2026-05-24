@@ -55,6 +55,12 @@ import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneratio
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { creativeProjectRouter } from "./routers/creativeProject";
 import { commanderRouter } from "./subsystems/commander/commanderRouter";
+import {
+  contextPacketRouter,
+  teamDataRouter,
+  dataConnectionsRouter,
+} from "./subsystems/contextPackets/contextPacketRouter";
+import { teamTrainingRouter } from "./subsystems/trainingTrack/trainingTrackRouter";
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
@@ -3997,6 +4003,22 @@ export const appRouter = router({
   // M1-B：記錄使用者創作意圖（createIntent → pending orchestration run）。
   // 第一版只寫 DB，不接 Perplexity / SubQ / MCP / 外部模型。
   commander: commanderRouter,
+
+  // ─── Context Packets（M4 團隊內部資料接入創作上下文） ─────────────────────
+  // 把 project + 團隊資料（之後 cloud / notes / mcp）摘成可重用、有 TTL 的上下文包。
+  contextPacket: contextPacketRouter,
+
+  // ─── Team Data（M4 資料來源存取規則） ────────────────────────────────────
+  // 控制哪個 team / project 可用哪些內部 / 外部資料來源，及 accessLevel 與可用 mode。
+  teamData: teamDataRouter,
+
+  // ─── Data Connections（M4/M5 外部資料來源連接） ──────────────────────────
+  // 使用者連接自己的雲端 Drive / 筆記 Notion；credential 後端加密，read-only。
+  dataConnections: dataConnectionsRouter,
+
+  // ─── Team Training（M 訓練 track） ────────────────────────────────────────
+  // 用團隊 archive 圖片（access rule full_reference 為訓練來源）訓練 team_shared LoRA。
+  teamTraining: teamTrainingRouter,
 
   // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
   // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，

@@ -102,6 +102,7 @@ import { SessionItem } from "@/components/director/SessionItem";
 import { PlanningSessionItem } from "@/components/director/PlanningSessionItem";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useWorldContext } from "@/contexts/WorldContextContext";
+import { ProjectContextStrip } from "@/components/project/ProjectContextStrip";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -4165,6 +4166,8 @@ export default function DirectorAI() {
           </Button>
         }
       />
+
+      <ProjectContextStrip />
 
       <WorkflowStepper
         activeTab={activeTab}

@@ -15,6 +15,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getCreativeProjectMock = vi.fn();
 const getWorldbuildingFrameworkMock = vi.fn();
 const getDigitalAssetsByUserMock = vi.fn();
+const getOrchestrationRunsByProjectMock = vi.fn();
+const reuseOrRefreshPacketMock = vi.fn();
 
 vi.mock("./db", () => ({
   getCreativeProject: (...args: unknown[]) => getCreativeProjectMock(...args),
@@ -22,6 +24,12 @@ vi.mock("./db", () => ({
     getWorldbuildingFrameworkMock(...args),
   getDigitalAssetsByUser: (...args: unknown[]) =>
     getDigitalAssetsByUserMock(...args),
+  getOrchestrationRunsByProject: (...args: unknown[]) =>
+    getOrchestrationRunsByProjectMock(...args),
+}));
+
+vi.mock("./subsystems/contextPackets/contextPacketService", () => ({
+  reuseOrRefreshPacket: (...args: unknown[]) => reuseOrRefreshPacketMock(...args),
 }));
 
 import { getProjectContextSummary } from "./subsystems/projectContext/projectContextService";
@@ -50,9 +58,38 @@ beforeEach(() => {
   getCreativeProjectMock.mockReset();
   getWorldbuildingFrameworkMock.mockReset();
   getDigitalAssetsByUserMock.mockReset();
+  getOrchestrationRunsByProjectMock.mockReset();
+  reuseOrRefreshPacketMock.mockReset();
   getDigitalAssetsByUserMock.mockResolvedValue([]);
   getWorldbuildingFrameworkMock.mockResolvedValue(null);
+  getOrchestrationRunsByProjectMock.mockResolvedValue([]);
+  // 預設沒有已編譯的 context packet（團隊資料尚未整理）。
+  reuseOrRefreshPacketMock.mockResolvedValue(null);
 });
+
+function runRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    userId: OWNER,
+    projectId: 7,
+    teamId: null,
+    mode: "director",
+    intent: "分鏡這場戲",
+    status: "pending",
+    commander: null,
+    planJson: null,
+    contextPacketIdsJson: null,
+    toolCallsJson: null,
+    citationsJson: null,
+    searchResultsJson: null,
+    estimatedCostUsd: null,
+    actualCostUsd: null,
+    errorMessage: null,
+    createdAt: new Date("2026-05-22T00:00:00.000Z"),
+    updatedAt: new Date("2026-05-22T00:00:00.000Z"),
+    ...overrides,
+  };
+}
 
 describe("getProjectContextSummary — shape & happy path", () => {
   it("returns the M1-A summary shape for the project owner", async () => {
@@ -187,5 +224,107 @@ describe("getProjectContextSummary — recent assets", () => {
     });
     expect(summary.recentAssets[1].thumbnailUrl).toBeUndefined();
     expect(summary.recentAssets[1].createdAt).toBe("2026-05-18T00:00:00.000Z");
+  });
+});
+
+describe("getProjectContextSummary — open tasks from orchestration runs (M1-B)", () => {
+  it("maps non-terminal runs to openTasks and drops openTasks from pendingSections", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    getOrchestrationRunsByProjectMock.mockResolvedValue([
+      runRow({ id: 9, status: "running", mode: "video", estimatedCostUsd: "1.250000" }),
+      runRow({ id: 8, status: "pending", mode: "director", estimatedCostUsd: null }),
+    ]);
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+
+    expect(getOrchestrationRunsByProjectMock).toHaveBeenCalledWith(baseProject.id, 50);
+    expect(summary.openTasks).toHaveLength(2);
+    expect(summary.openTasks[0]).toEqual({
+      id: "9",
+      title: "分鏡這場戲",
+      status: "running",
+      mode: "video",
+      estimatedCostUsd: 1.25,
+      createdAt: "2026-05-22T00:00:00.000Z",
+    });
+    expect(summary.openTasks[1].estimatedCostUsd).toBeNull();
+    // openTasks is now implemented, so it must not be advertised as pending.
+    expect(summary.pendingSections).not.toContain("openTasks");
+  });
+
+  it("filters out completed and cancelled runs", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    getOrchestrationRunsByProjectMock.mockResolvedValue([
+      runRow({ id: 3, status: "completed" }),
+      runRow({ id: 2, status: "cancelled" }),
+      runRow({ id: 1, status: "failed" }),
+    ]);
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+
+    // failed stays open (needs a retry decision); completed / cancelled are gone.
+    expect(summary.openTasks.map(t => t.id)).toEqual(["1"]);
+  });
+
+  it("caps openTasks at 8 even when more are open", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    getOrchestrationRunsByProjectMock.mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => runRow({ id: i + 1, status: "pending" })),
+    );
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+    expect(summary.openTasks).toHaveLength(8);
+  });
+});
+
+describe("getProjectContextSummary — team data from context packet (M4)", () => {
+  it("fills teamDataSummary + sourcesUsed and drops teamData from pendingSections when a packet exists", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    reuseOrRefreshPacketMock.mockResolvedValue({
+      id: 1,
+      projectId: baseProject.id,
+      teamId: null,
+      scope: "project",
+      summaryMarkdown:
+        "# 可用資料來源\n- 「呼吸引導稿」（team_data · summary_only）：吸氣四拍…",
+      sourceRefs: [
+        {
+          kind: "team_data",
+          refId: "101",
+          title: "呼吸引導稿",
+          accessLevel: "summary_only",
+          snippet: "吸氣四拍…",
+          connectionId: null,
+          score: 0.8,
+          matchedBy: "vector",
+        },
+      ],
+      tokenEstimate: 20,
+      createdByModel: null,
+      expiresAt: "2999-01-01T00:00:00.000Z",
+      createdAt: "2026-05-23T00:00:00.000Z",
+      reused: true,
+    });
+
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+
+    expect(summary.teamDataSummary).toContain("可用資料來源");
+    expect(summary.sourcesUsed).toHaveLength(1);
+    expect(summary.sourcesUsed?.[0]).toMatchObject({
+      kind: "team_data",
+      refId: "101",
+      accessLevel: "summary_only",
+    });
+    expect(summary.pendingSections).not.toContain("teamData");
+    expect(summary.pendingSections).toContain("budget");
+  });
+
+  it("leaves teamData pending and summary unset when no packet exists", async () => {
+    getCreativeProjectMock.mockResolvedValue({ ...baseProject });
+    // reuseOrRefreshPacketMock defaults to null in beforeEach.
+    const summary = await getProjectContextSummary(OWNER, baseProject.id);
+    expect(summary.teamDataSummary).toBeUndefined();
+    expect(summary.sourcesUsed).toBeUndefined();
+    expect(summary.pendingSections).toContain("teamData");
   });
 });

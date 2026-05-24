@@ -326,3 +326,38 @@ export function parseDriveFolderId(input: string): string | null {
   }
   return null;
 }
+
+/**
+ * Best-effort plain-text content for a Drive file. Google Docs are exported as
+ * text/plain; text/* files are downloaded via alt=media. Everything else
+ * (images, binaries, PDFs…) returns null — only metadata is usable for those.
+ * Returns at most `maxChars` characters. Never throws (returns null on error).
+ */
+export async function exportDriveFileText(
+  accessToken: string,
+  file: { id: string; mimeType: string },
+  maxChars = 4000
+): Promise<string | null> {
+  let url: URL;
+  if (file.mimeType === "application/vnd.google-apps.document") {
+    url = new URL(`${DRIVE_API_BASE}/files/${encodeURIComponent(file.id)}/export`);
+    url.searchParams.set("mimeType", "text/plain");
+  } else if (file.mimeType.startsWith("text/")) {
+    url = new URL(`${DRIVE_API_BASE}/files/${encodeURIComponent(file.id)}`);
+    url.searchParams.set("alt", "media");
+  } else {
+    return null;
+  }
+  url.searchParams.set("supportsAllDrives", "true");
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text.slice(0, maxChars);
+  } catch (err) {
+    logger.warn("[Drive] Could not export file text", { fileId: file.id, err });
+    return null;
+  }
+}
