@@ -291,6 +291,7 @@ describe("brainPipeline graph builder", () => {
       "contextPacket", // M4：編譯/讀取 context packet（重用 teachingArchive 檢索 + deterministic 摘要），不直接觸發 AI provider 節點
       "teamData", // M4：資料來源存取規則 CRUD，純資料持久化，不觸發 AI
       "dataConnections", // M4/M5：外部來源連接 CRUD + 健檢，純資料持久化，不觸發 AI
+      "teamTraining", // M 訓練 track：團隊治理包裝，沿用 loraTrainer 的 Replicate 流程；graph 已由 loraTrainer 呈現
     ]);
 
     const inGraph = new Set(

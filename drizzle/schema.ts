@@ -456,6 +456,8 @@ export const fineTunedModels = mysqlTable(
     visibility: mysqlEnum("visibility", ["private", "team_shared"])
       .default("private")
       .notNull(),
+    /** team_shared 模型所屬團隊；個人模型為 null。M（訓練 track）。 */
+    teamId: int("teamId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -468,6 +470,7 @@ export const fineTunedModels = mysqlTable(
       table.userId,
       table.createdAt
     ),
+    teamIdIdx: index("ftm_teamId_idx").on(table.teamId),
   })
 );
 

@@ -795,6 +795,22 @@ export async function getFineTunedModel(id: number) {
   return rows[0] || null;
 }
 
+/** 列出某團隊的 team_shared 模型（M 訓練 track）。 */
+export async function getFineTunedModelsByTeam(teamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(fineTunedModels)
+    .where(
+      and(
+        eq(fineTunedModels.teamId, teamId),
+        eq(fineTunedModels.visibility, "team_shared")
+      )
+    )
+    .orderBy(desc(fineTunedModels.createdAt));
+}
+
 export async function getFineTunedModelsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];

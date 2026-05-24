@@ -60,6 +60,7 @@ import {
   teamDataRouter,
   dataConnectionsRouter,
 } from "./subsystems/contextPackets/contextPacketRouter";
+import { teamTrainingRouter } from "./subsystems/trainingTrack/trainingTrackRouter";
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
@@ -4014,6 +4015,10 @@ export const appRouter = router({
   // ─── Data Connections（M4/M5 外部資料來源連接） ──────────────────────────
   // 使用者連接自己的雲端 Drive / 筆記 Notion；credential 後端加密，read-only。
   dataConnections: dataConnectionsRouter,
+
+  // ─── Team Training（M 訓練 track） ────────────────────────────────────────
+  // 用團隊 archive 圖片（access rule full_reference 為訓練來源）訓練 team_shared LoRA。
+  teamTraining: teamTrainingRouter,
 
   // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
   // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
