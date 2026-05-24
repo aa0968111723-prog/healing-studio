@@ -43,6 +43,7 @@ import {
   type ProjectStatus,
 } from "./projectContextFormat";
 import { modeLabel, runStatusLabel, costPreviewLabel } from "./commanderFormat";
+import { TeamDataSourcesPanel } from "./TeamDataSourcesPanel";
 
 function isMissingCreativeProjectsTable(error: unknown): boolean {
   const message = (error as { message?: string } | null)?.message ?? "";
@@ -317,6 +318,8 @@ function ProjectSummaryBody({
       <SummaryRow icon={<Clock className="size-3.5" />} label="更新時間">
         <span>{formatUpdatedAt(summary.updatedAt)}</span>
       </SummaryRow>
+
+      <TeamDataSourcesPanel projectId={summary.projectId} />
 
       {pending.length > 0 ? (
         <p className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
