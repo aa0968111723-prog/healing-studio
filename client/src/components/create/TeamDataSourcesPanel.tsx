@@ -31,6 +31,7 @@ import {
   connectionStatusLabel,
   providerLabel,
 } from "./teamDataFormat";
+import { ProjectAccessRulesPanel } from "./ProjectAccessRulesPanel";
 
 export function TeamDataSourcesPanel({ projectId }: { projectId: number }) {
   const utils = trpc.useUtils();
@@ -112,6 +113,7 @@ export function TeamDataSourcesPanel({ projectId }: { projectId: number }) {
       )}
 
       <DataConnectionsSection projectId={projectId} />
+      <ProjectAccessRulesPanel projectId={projectId} />
     </section>
   );
 }
