@@ -69,27 +69,33 @@ async function getEnabledAdaptersForProject(
 ): Promise<DataSourceAdapter[]> {
   const adapters: DataSourceAdapter[] = [teamDataAdapter];
   const connections = await db.listDataSourceConnectionsForUser(userId, projectId);
-  // 連接層級存取規則：team-scoped 連接若有明確 none 規則 → 整源排除（admin 可關）。
-  const blockedConnectionIds = new Set<number>();
+  // 連接層級存取規則：team-scoped 連接可設 accessLevel（none → 整源排除；
+  // summary_only / chunk_access / full_reference → 控制外部內文長度）。
   const teamRuleCache = new Map<number, Awaited<ReturnType<typeof db.listProjectDataAccessRules>>>();
-  for (const conn of connections) {
-    if (conn.status !== "active" || conn.teamId == null) continue;
+  const resolveConnectionLevel = async (
+    conn: (typeof connections)[number]
+  ): Promise<AccessLevel> => {
+    if (conn.teamId == null) return "summary_only";
     let rules = teamRuleCache.get(conn.teamId);
     if (!rules) {
       rules = await db.listProjectDataAccessRules(conn.teamId, projectId);
       teamRuleCache.set(conn.teamId, rules);
     }
-    if (rules.some(r => r.connectionId === conn.id && r.accessLevel === "none")) {
-      blockedConnectionIds.add(conn.id);
-    }
-  }
+    // project 專屬規則優先於 team-wide。
+    const matched = rules
+      .filter(r => r.connectionId === conn.id)
+      .sort((a, b) => (b.projectId === projectId ? 1 : 0) - (a.projectId === projectId ? 1 : 0));
+    return (matched[0]?.accessLevel as AccessLevel) ?? "summary_only";
+  };
+
   for (const conn of connections) {
     if (conn.status !== "active") continue;
-    if (blockedConnectionIds.has(conn.id)) continue;
+    const level = await resolveConnectionLevel(conn);
+    if (level === "none") continue; // admin 明確關閉此連接
     if (conn.kind === "cloud" && conn.provider === "google_drive") {
-      adapters.push(createDriveAdapter(conn));
+      adapters.push(createDriveAdapter(conn, level));
     } else if (conn.kind === "notes" && conn.provider === "notion") {
-      adapters.push(createNotionAdapter(conn));
+      adapters.push(createNotionAdapter(conn, level));
     }
   }
   return adapters;

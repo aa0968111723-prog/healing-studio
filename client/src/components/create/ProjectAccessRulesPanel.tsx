@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Plus } from "lucide-react";
 import { accessLevelLabel } from "./teamDataFormat";
 
 const ACCESS_LEVELS = ["none", "summary_only", "chunk_access", "full_reference"] as const;
@@ -41,6 +42,19 @@ export function ProjectAccessRulesPanel({ projectId }: { projectId: number }) {
   );
   const rules = rulesQuery.data ?? [];
   const teamDefault = rules.find(r => r.materialId == null && r.projectId === projectId);
+  const ruledMaterialIds = useMemo(
+    () => new Set(rules.map(r => r.materialId).filter((m): m is number => m != null)),
+    [rules]
+  );
+
+  const [materialSearch, setMaterialSearch] = useState("");
+  const materialsQuery = trpc.teachingArchive.list.useQuery(
+    { scope: "team", search: materialSearch.trim() || undefined },
+    { enabled: canEdit && materialSearch.trim().length > 0, retry: false }
+  );
+  const materialOptions = (materialsQuery.data ?? [])
+    .filter(m => m.teamId === effectiveTeamId && !ruledMaterialIds.has(m.id))
+    .slice(0, 8);
 
   const setRules = trpc.teamData.setProjectAccessRules.useMutation({
     onSuccess: () => {
@@ -143,6 +157,41 @@ export function ProjectAccessRulesPanel({ projectId }: { projectId: number }) {
             ))}
         </ul>
       ) : null}
+      {canEdit ? (
+        <div className="space-y-1">
+          <Input
+            value={materialSearch}
+            onChange={e => setMaterialSearch(e.target.value)}
+            placeholder="搜尋團隊素材以新增規則…"
+            className="h-7 text-[12px]"
+          />
+          {materialOptions.length > 0 ? (
+            <ul className="space-y-1">
+              {materialOptions.map(m => (
+                <li key={m.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[12px]" title={m.title}>
+                    {m.title}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-[11px]"
+                    disabled={setRules.isPending}
+                    onClick={() => {
+                      save(m.id, "summary_only");
+                      setMaterialSearch("");
+                    }}
+                  >
+                    <Plus className="size-3" />
+                    加規則
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
       <p className="text-[11px] text-muted-foreground">
         預設規則套用於該團隊在此專案可見的素材；可用明確「不開放」排除特定素材。
       </p>
