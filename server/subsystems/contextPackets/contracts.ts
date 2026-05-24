@@ -19,6 +19,15 @@ export const DATA_SOURCE_KINDS = [
 ] as const;
 export type DataSourceKind = (typeof DATA_SOURCE_KINDS)[number];
 
+/** 可外部連接的來源類型（不含 team_data，後者是內部資料）。 */
+export const CONNECTION_KINDS = [
+  "cloud",
+  "notes",
+  "mcp",
+  "external_api",
+] as const;
+export type ConnectionKind = (typeof CONNECTION_KINDS)[number];
+
 /** 存取層級：none 完全排除；summary_only 只給摘要；chunk 給命中片段；full 可進完整引用。 */
 export const ACCESS_LEVELS = [
   "none",

@@ -30,6 +30,8 @@ vi.mock("./db", () => ({
   getContextPacket: (...a: unknown[]) => getContextPacketMock(...a),
   listProjectDataAccessRules: (...a: unknown[]) =>
     listProjectDataAccessRulesMock(...a),
+  // 預設沒有外部來源連接 → compile 只跑 team_data adapter。
+  listDataSourceConnectionsForUser: () => Promise.resolve([]),
   // 下列在 compile 流程用不到，但 service/adapter import 了整個 module。
   getTeamMembership: vi.fn(),
   upsertProjectDataAccessRule: vi.fn(),

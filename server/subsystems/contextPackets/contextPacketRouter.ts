@@ -17,9 +17,16 @@ import {
   listProjectAccessRules,
 } from "./contextPacketService";
 import {
+  createConnection,
+  listConnections,
+  testConnection,
+  setConnectionStatus,
+} from "./connectionService";
+import {
   ContextPacketAccessError,
   COMPILE_MODES,
   ACCESS_LEVELS,
+  CONNECTION_KINDS,
 } from "./contracts";
 
 function mapAccessError(error: unknown): never {
@@ -111,6 +118,73 @@ export const teamDataRouter = router({
           teamId: input.teamId,
           projectId: input.projectId,
         });
+      } catch (error) {
+        mapAccessError(error);
+      }
+    }),
+});
+
+export const dataConnectionsRouter = router({
+  /** 建立外部資料來源連接（Notion 需 credential；Drive 走既有 OAuth）。 */
+  create: protectedProcedure
+    .input(
+      z.object({
+        kind: z.enum(CONNECTION_KINDS),
+        provider: z.string().trim().min(1).max(64),
+        teamId: z.number().int().positive().nullable().optional(),
+        projectId: z.number().int().positive().nullable().optional(),
+        credential: z.string().trim().min(1).max(4096).nullable().optional(),
+        config: z.record(z.string(), z.unknown()).nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createConnection(ctx.user.id, {
+          kind: input.kind,
+          provider: input.provider,
+          teamId: input.teamId ?? null,
+          projectId: input.projectId ?? null,
+          credential: input.credential ?? null,
+          config: input.config ?? null,
+        });
+      } catch (error) {
+        mapAccessError(error);
+      }
+    }),
+
+  /** 列出使用者的連接（不含 credential）；可選 project 過濾。 */
+  list: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive().nullable().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return listConnections(ctx.user.id, input.projectId ?? null);
+    }),
+
+  /** 健檢一個連接，更新 status。 */
+  test: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await testConnection(ctx.user.id, input.id);
+      } catch (error) {
+        mapAccessError(error);
+      }
+    }),
+
+  /** 啟用 / 停用一個連接。 */
+  setStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["pending", "active", "disabled", "error"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await setConnectionStatus(ctx.user.id, input.id, input.status);
       } catch (error) {
         mapAccessError(error);
       }

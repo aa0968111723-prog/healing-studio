@@ -14,6 +14,7 @@ import { getCreativeProject } from "../../db";
 import * as db from "../../db";
 import { getTeamMembership } from "../../db";
 import { teamDataAdapter } from "./adapters/teamDataAdapter";
+import { createDriveAdapter, createNotionAdapter } from "./adapters/external";
 import {
   ContextPacketAccessError,
   type CompileProjectContextPacketInput,
@@ -58,9 +59,25 @@ async function assertProjectOwnership(userId: number, projectId: number) {
   return project;
 }
 
-/** 啟用中的資料來源 adapters。第一版只有 team_data；cloud / notes / mcp 之後接入。 */
-function getEnabledAdapters(): DataSourceAdapter[] {
-  return [teamDataAdapter];
+/**
+ * 某 project 啟用中的資料來源 adapters：team_data 永遠在，外加該使用者已連接且
+ * status=active 的外部來源（cloud Drive / notes Notion）。mcp 留待後續里程碑。
+ */
+async function getEnabledAdaptersForProject(
+  userId: number,
+  projectId: number
+): Promise<DataSourceAdapter[]> {
+  const adapters: DataSourceAdapter[] = [teamDataAdapter];
+  const connections = await db.listDataSourceConnectionsForUser(userId, projectId);
+  for (const conn of connections) {
+    if (conn.status !== "active") continue;
+    if (conn.kind === "cloud" && conn.provider === "google_drive") {
+      adapters.push(createDriveAdapter(conn));
+    } else if (conn.kind === "notes" && conn.provider === "notion") {
+      adapters.push(createNotionAdapter(conn));
+    }
+  }
+  return adapters;
 }
 
 function buildQuery(project: {
@@ -146,7 +163,11 @@ export async function compileProjectContextPacket(
 
   // 合併所有 adapter 的來源（各自已套用自己的 ACL）。
   const refs: ContextSourceRef[] = [];
-  for (const adapter of getEnabledAdapters()) {
+  const adapters = await getEnabledAdaptersForProject(
+    input.userId,
+    input.projectId
+  );
+  for (const adapter of adapters) {
     const got = await adapter.collect({
       userId: input.userId,
       projectId: input.projectId,

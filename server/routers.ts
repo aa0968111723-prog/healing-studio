@@ -58,6 +58,7 @@ import { commanderRouter } from "./subsystems/commander/commanderRouter";
 import {
   contextPacketRouter,
   teamDataRouter,
+  dataConnectionsRouter,
 } from "./subsystems/contextPackets/contextPacketRouter";
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
@@ -4009,6 +4010,10 @@ export const appRouter = router({
   // ─── Team Data（M4 資料來源存取規則） ────────────────────────────────────
   // 控制哪個 team / project 可用哪些內部 / 外部資料來源，及 accessLevel 與可用 mode。
   teamData: teamDataRouter,
+
+  // ─── Data Connections（M4/M5 外部資料來源連接） ──────────────────────────
+  // 使用者連接自己的雲端 Drive / 筆記 Notion；credential 後端加密，read-only。
+  dataConnections: dataConnectionsRouter,
 
   // ─── Real Earth Information System（真實地球資訊系統） ─────────────────────
   // 提供真實歷史、文化、人文、環境資料查驗，特別深化台灣相關資訊，
