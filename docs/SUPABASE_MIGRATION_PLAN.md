@@ -149,7 +149,49 @@ Supabase = 託管 **PostgreSQL** + Auth + Storage + Realtime + **Deno** Edge Fun
 
 ---
 
-## 8. 待你確認 / 提供
+## 8. App Server 部署：哪些是「我（AI）可掌控」的
+
+> 背景：Supabase 不託管長駐 Node server（§1）。那 server 要放哪、由誰掌控部署，獨立決定。
+
+### 8.1 這個工作環境我實際能直接操作的工具
+
+| 工具 | 我能掌控的範圍 | 需要你給憑證？ |
+|---|---|---|
+| **Supabase MCP** | DB、Storage、Auth、Edge Functions（Deno）：建立/部署/灌資料/查日誌/advisors | 否 |
+| **GitHub MCP** | repo、分支、PR、**GitHub Actions**（寫 workflow、觸發/重跑、讀建置日誌） | 否 |
+| Railway / Fly / Vercel / Render 後台 | **無直接 MCP** | — |
+
+### 8.2 關鍵觀念
+
+**沒有任何 host 能讓 AI 完全不需要你。** 任何平台都要你**一次性**建立帳號並把一組 deploy
+token 放進 GitHub Secrets。重點是做完那一次後，**之後每次部署都能由我掌控**。
+
+能讓我掌控部署的模式只有一種：**用 GitHub Actions 當部署引擎**。我寫好 deploy workflow，
+之後就能透過 GitHub MCP 觸發部署、重跑、讀日誌、以重新部署回滾——全程不碰任何平台後台。
+
+### 8.3 三種「我可掌控」的部署架構
+
+| 方案 | App server 跑在哪 | 我的掌控度 | 你的一次性設定 | 適配度 |
+|---|---|---|---|---|
+| **A. Railway + GitHub Actions** | Railway（不搬） | 高：寫 workflow + 觸發/監控/回滾 | `RAILWAY_TOKEN` → GitHub Secrets | 最省事，現況延續 |
+| **B. Fly.io + GitHub Actions** | Fly.io | 高：同上 | 建 Fly 帳號 + `FLY_API_TOKEN` | 與現有 Dockerfile 天作之合，長駐 Node 友善 |
+| **C. 純 Supabase Edge Functions** | Supabase（Deno） | 最高：我直接 MCP 部署、零憑證 | 無 | **不適合**大型 Express/tRPC 單體，僅能放零星 webhook/cron |
+
+> 資料層（DB/Storage/Auth）不論選哪案，皆由我以 Supabase MCP 全權處理。
+
+### 8.4 建議
+
+- **最務實**：方案 A（Railway 不搬，改由 Actions 驅動部署）。你只貼一次 `RAILWAY_TOKEN`，
+  之後部署由我掌控；DB 照本計畫搬 Supabase。
+- **想與 Railway 脫鉤**：方案 B（Fly.io），契合現有 Dockerfile。
+- 方案 C 不建議當主體。
+
+> 決策待定（你表示先寫進計畫再決定）。選定後，我會先把對應的 GitHub Actions deploy
+> workflow 寫好，token 處留位給你填，之後部署即由我透過 GitHub MCP 觸發與監控。
+
+---
+
+## 9. 待你確認 / 提供
 
 1. **要不要連 Storage、Auth 一起搬？**（預設只搬 DB；Auth 不建議搬）
 2. **資料搬遷**：正式 MySQL 資料要不要我一起搬？需要你提供匯出（dump）或唯讀連線。
