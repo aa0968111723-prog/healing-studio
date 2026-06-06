@@ -41,16 +41,29 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
+  // Dev-only escape hatch for the Figma screenshot workflow
+  // (scripts/figma-screenshots.mjs). When the build is produced with
+  // VITE_FIGMA_CAPTURE=1, useAuth returns a synthetic signed-in user so the
+  // auth-gated dashboard pages render for capture. It is a no-op in every
+  // normal/production build (the env var is unset) and ships no real session.
+  const CAPTURE = import.meta.env.VITE_FIGMA_CAPTURE === "1";
+  const captureUser = {
+    id: "figma-capture",
+    name: "Figma Capture",
+    email: "capture@example.com",
+    avatarUrl: "",
+  } as unknown as NonNullable<typeof meQuery.data>;
+
   const state = useMemo(() => {
     localStorage.setItem(
       "manus-runtime-user-info",
       JSON.stringify(meQuery.data)
     );
     return {
-      user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      user: CAPTURE ? captureUser : (meQuery.data ?? null),
+      loading: CAPTURE ? false : (meQuery.isLoading || logoutMutation.isPending),
       error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      isAuthenticated: CAPTURE ? true : Boolean(meQuery.data),
     };
   }, [
     meQuery.data,
