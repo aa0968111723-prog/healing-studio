@@ -1,4 +1,4 @@
-import type { ViewMode } from "@/hooks/useMobile";
+import type { ViewMode } from "@/hooks/viewMode"; // P0：改自共用葉節點，斷 useMobile 循環依賴
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import {

@@ -38,6 +38,7 @@ import { resolveSidebarIcon } from "@/config/sidebarIcons";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import { ProjectSelector } from "./layout/ProjectSelector";
 import { useIsMobile } from "@/hooks/useMobile";
+import type { ShellId } from "@/spine/types"; // P0 4-shell：可選 shell 範圍
 import AppleDock, {
   type DockEntry,
   type DockLeaf,
@@ -465,8 +466,11 @@ function LoginScreen() {
 
 export default function DashboardLayout({
   children,
+  shell,
 }: {
   children: React.ReactNode;
+  /** P0 4-shell：當頁面由某 shell 掛載時帶入；未帶入時行為與線上完全一致。 */
+  shell?: ShellId;
 }) {
   const { loading, user } = useAuth();
 
@@ -479,7 +483,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider className="h-svh overflow-hidden">
+    <SidebarProvider className="h-svh overflow-hidden" data-shell={shell}>
       <BackgroundTasksProvider>
         <DashboardLayoutContent>{children}</DashboardLayoutContent>
       </BackgroundTasksProvider>
