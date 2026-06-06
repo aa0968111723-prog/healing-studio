@@ -1,0 +1,235 @@
+# COORDINATION — AI-Director 4-Shell 重構（三方訊息板）
+
+> **這是什麼**：`healing-studio` repo 根目錄的**單一交接點 / live 訊息板**。三個 AI 代理 — **Claude（導演／架構守門／整合／QC）**、**Codex（/video 旗艦深垂直）**、**Antigravity（/social + /learn + Gemini）** — 都在這裡同步狀態。
+> **放哪**：P0 套用後 commit 到 repo 根目錄（與 `.mcp.json`、`AGENTS.md` 同層）。這是 repo 內的 live 檔，不是 Obsidian vault 主體（vault 只存里程碑快照）。
+> **事實基準**：`main` HEAD `2888a36`（2026-06-04）。React19 / Vite7 / Wouter3.7.1(patched) / tRPC v11 / Drizzle。82 `mysqlTable` · 54 路由 · 68 router namespace。
+> **黃金鐵律（不得牴觸）**：延伸開發計畫與整合指南、不牴觸；既有功能一個都不丟；先 parity 再換功能、只加不刪（strangler-fig）；三方各守自己的資料夾，只透過 5 接縫契約交換。
+
+---
+
+## 📜 使用規則（每個 agent 必讀）
+
+1. **開工先讀全文**，收工先寫自己的狀態區。
+2. **只編輯「自己的狀態區」與「給某人的訊息（@agent）」**；不要動別人的區塊。
+3. **唯二的共享寫入點**是本檔（各寫各的區塊）與 `.env.example`（Claude 維護）。其餘檔案皆**單一 owner**（見 §6 資料夾所有權）。
+4. **想改任何接縫契約 / `appRegistry` 映射 / 脊椎 provider 樹 / 鏡號 `S0X` 主鍵語意 → 一律走 §3 CCR，由 Claude 拍板**。沒過 Claude，不准改介面簽章。
+5. **動手前先查 GitNexus**（§4）：「這函式在哪、誰呼叫、改它炸到哪」三方共用同一答案。
+6. **卡住先在 §2 看板寫「blocked 於誰」**，不要亂改別人的檔。
+7. **只有 Claude** 能 rebase umbrella、合子分支、對 `main` 開 PR、推 GitHub（最後一步 Bruce 拍板）。Codex / Antigravity 只在自己子分支 commit。
+
+---
+
+## 0. 接縫契約版本（Claude 維護｜唯一真相）
+
+```
+契約版本：v1.0   凍結日：____（P1 合入 umbrella 當日填）   變更摘要：初凍結（P0 包已落地 5 介面 + SpineProvider）
+```
+
+**5 接縫 env 旗標當前預設（全部 = 零行為改變 / 零金鑰）：**
+
+| 旗標 | 預設 | 意義 |
+|---|---|---|
+| `DATA_STORE` | `trpc` | P0 保留既有後端→預設 trpc＝打同一批 procedure＝零行為改變；無金鑰跑模擬設 `mock` |
+| `GENERATION_PROVIDER` | `mock` | 生成 provider；`mock\|hf\|gemini\|fal` |
+| `COMMANDER_ADAPTER` | `fallback` | 代理／編排；`fallback\|sonar\|subq` |
+| `CONTEXT_PACKET_MODE` | `mock` | ContextPacket 編譯；`mock\|rag-pinecone\|rag-pgvector` |
+| `STORAGE_PROVIDER` | `mock` | 資產儲存（選配）；`mock\|r2\|gcs\|supabase` |
+
+**功能旗標（各 agent 的新功能掛自己的、預設 OFF；行為 == main）：**
+`ENABLE_4SHELL`（總開關，OFF）· `videoSessions`（P4 兩表，OFF）· `shellSocial`（P5，OFF）· `shellLearn`（OFF）· `research`（Sonar 面板，OFF）· `geminiProvider`（OFF）· `byomcp`（OFF）。
+> Vite 前端旗標讀 `import.meta.env.VITE_*`（如 `VITE_ENABLE_4SHELL=1`）。詳見 `AI-Director-P0補丁/APPLY_GUIDE.md §4`。
+
+---
+
+## 1. 分支策略（umbrella + 三方各前綴子分支）
+
+```
+main (權威基準 2888a36)
+ └─ feat/4-shell-restructure                 ← umbrella（長命；Claude 擁有；唯一對 main 開 PR 者）
+     ├─ claude/4shell-p0-routing             P0 路由骨架＋redirect map＋group→shell（已打包＝P0 包）
+     ├─ claude/4shell-p1-spine               P1 SpineProvider＋IDataStore＋MockDataStore＋【契約凍結】
+     ├─ claude/4shell-p3-supabase            P3 Supabase parity（MySQL→PG＋pgvector）；與 P2/P5 並行
+     ├─ claude/4shell-settings-qa            /settings 治理＋E-QA harness（橫貫，不擋任何階段）
+     ├─ claude/4shell-p6-mcp-harden          SubQ adapter＋mcpGateway＋BYOMCP 3 表＋硬化
+     ├─ codex/4shell-video                   ← Codex 軌（P2→P4；見下方拆分）
+     │    ├─ codex/4shell-p2-cockpit-gate    P2 /video cockpit＋確認門＋Mock 生成（零金鑰）
+     │    └─ codex/4shell-p4-director-video  P4 video 兩表＋真實 HF/Fal＋director.breakdown（需 P3）
+     └─ antigravity/4shell-social-learn      ← Antigravity 軌（P5＋P6；見下方拆分）
+          ├─ antigravity/4shell-p5-social        P5 /social shell（重用 cockpit、零新表）
+          └─ antigravity/4shell-p6-learn-research P6 /learn 研究 Sonar＋Gemini 生成/感知＋BYOMCP 入口
+```
+
+**規則**：(1) 每個子分支＝一個可獨立 review／rollback 的 PR，**合回 umbrella、不直接打 main**；(2) **每個 PR 用 feature flag 包覆、預設 OFF**，OFF 時行為 == main；(3) 權威基準永遠是 main HEAD，用 **rebase** 不長期分叉；(4) **只有 Claude** 合子分支進 umbrella、對 main 開 PR（Bruce 拍板才 push）；(5) Codex／Antigravity **不 rebase umbrella、不碰對方分支**。
+
+**命名**：分支 `<agent>/4shell-<phase>-<topic>`；commit `feat(<scope>): <中文摘要>`（scope ∈ `spine/adapters/video/social/learn/settings/db/qa`），對齊 real repo 中文 `feat:` 慣例。
+
+> **2026-06-07 增補**：新增 **Claude Design** 軌 `claude/4shell-ui-design`（前端 UI/UX 落地，見 `交接_給ClaudeDesign.md`）；umbrella 對 main 的 **PR #852 已開（head `500a4e4d`）、未合併**。
+
+---
+
+## 2. 看板（誰在做什麼／blocked 於誰）— 各 agent 寫自己那列
+
+| Agent | 當前分支 | 在做 | 狀態 | blocked 於 | 預計交付 |
+|---|---|---|---|---|---|
+| **Claude** | `claude/4shell-p1-spine` | 凍結 5 接縫契約＋通用 cockpit 骨架 | 🟡 進行中 | — | 契約 v1 凍結 → 解鎖另兩方 |
+| **Claude Design** | `claude/4shell-ui-design` | D1 token → D2 chrome → D3 共用元件 | ⏸ 等派工 | Claude P1 凍結（D1/D2 可先做） | 四 shell UI/UX 落地 |
+| **Codex** | `codex/4shell-p2-cockpit-gate` | /video 三欄 cockpit＋確認門狀態機 | ⏸ 等契約 | Claude P1 凍結 | P2 cockpit＋Mock 生成全動線 |
+| **Antigravity** | `antigravity/4shell-p5-social` | SocialShell 外框（實例化通用 cockpit） | ⏸ 等契約 | Claude P1 凍結 | P5 /social＋P6 /learn 研究面板 |
+
+**狀態圖例**：🟢 完成 ｜ 🟡 進行中 ｜ ⏸ 等待（blocked）｜ 🔴 出問題。
+
+---
+
+## 3. 契約變更請求（CCR）— 想改介面的提這裡，Claude 拍板
+
+> **規則**：任何想改介面簽章、`appRegistry` group→shell 映射、脊椎 provider 樹、鏡號 `S0X` 語意、或既有 `drizzle/schema.ts` 表 → 在此開一筆 CCR。Claude 用 GitNexus 查反向引用評估影響面 → 准則改 `adapters/types.ts`＋bump 契約版本＋廣播 → 三方各自 rebase 取新契約。**介面增量採「只加方法、不改既有簽章」；mock 與 real 同簽章、同語意。**
+
+| 編號 | 提案人 | 想改什麼 | 影響面（GitNexus） | Claude 裁決 |
+|---|---|---|---|---|
+| CCR-000 | — | （範例）`GenerationProvider` 加 `cancel(jobId)` 方法 | `impact GenerationProvider` → 3 軌 adapter | 待 / 准 / 駁 |
+
+---
+
+## 4. GitNexus — 三方共用的 code 知識圖譜（必設）
+
+> **為什麼**：repo 大（82 表／54 路由／34 router／~565 procedure）。三個 agent 各自「重讀整個 repo」會偏差又燒 token。GitNexus 用 Tree-sitter 把 repo 解析成程式碼知識圖譜（節點＝function/class/interface/module；邊＝calls/imports/exports），以 MCP server 暴露，**三方查同一張圖**。唯讀、不改 code。
+
+**repo 根 `.mcp.json` 早已掛好 gitnexus**（HEAD `2888a36` 即存在）。Claude Code 開箱即連；**真正缺的只有兩件**：(a) 跑一次索引；(b) 把同一組設定複製到 Codex / Antigravity。
+
+**(a) 建索引（一次性，在 repo 根）：**
+```bash
+npm install -g gitnexus            # 或每次 npx -y gitnexus@latest <cmd>
+cd /path/to/healing-studio
+gitnexus analyze .                 # 全 repo；本機無沙盒時限，會開啟語意嵌入/FTS
+#   gitnexus status   看索引狀態   ｜   gitnexus analyze . --force  強制全量重建
+```
+> ⚠ **MCP server 只查、不建索引**——務必先 `gitnexus analyze .` 一次，否則工具回「Repository not indexed」。umbrella 每次合入子分支後由 **Claude** 重索引；任一 agent 大改完自己領域後在 §5 標「需 reindex」。
+
+**(b) 三方 MCP 設定（同一組 server）：**
+
+`gitnexus` MCP server（JSON，Claude Code / Cursor / Antigravity 通用）：
+```json
+{ "mcpServers": { "gitnexus": { "command": "npx", "args": ["-y", "gitnexus@latest", "mcp"] } } }
+```
+- **Claude Code**：repo 根 `.mcp.json`（已存在，內容即上方）。首次會問是否信任此 MCP server → 允許。
+- **Codex（OpenAI Codex CLI）**：`~/.codex/config.toml`（TOML 格式）：
+  ```toml
+  [mcp_servers.gitnexus]
+  command = "npx"
+  args = ["-y", "gitnexus@latest", "mcp"]
+  ```
+- **Antigravity（Google 代理式 IDE）**：Settings → MCP / Tools（或 `mcp_config.json`）貼上方 JSON 的 `mcpServers`。
+
+**三方高價值查詢（動手前先問圖）：**
+```bash
+gitnexus impact "createIntent"        # 改 commander 入口，誰會壞（merge / 改契約前必查）
+gitnexus context "compileProject"     # 某符號 360°：callers / callees / processes
+gitnexus query "video generation pipeline"   # 以概念找執行流
+gitnexus detect-changes               # 把 git diff 對映到受影響符號與流
+```
+> Claude 在批准 CCR 前，用 `gitnexus impact <介面>` 查反向引用，確認影響到哪幾軌再廣播。
+
+---
+
+## 5. 已合入 umbrella 的子分支（Claude 維護）＋ reindex 狀態
+
+- [ ] `claude/4shell-p0-routing`（P0 包；待套用＋首次合入）→ 合入後 Claude 跑 `gitnexus analyze . --force`
+- [ ] `claude/4shell-p1-spine`（契約凍結）
+- [ ] `codex/4shell-p2-cockpit-gate`
+- [ ] `claude/4shell-p3-supabase`
+- [ ] `antigravity/4shell-p5-social`
+- [ ] `antigravity/4shell-p6-learn-research`
+- [ ] `codex/4shell-p4-director-video`（需 P3 先合）
+- [ ] `claude/4shell-ui-design`（Claude Design 軌，2026-06-07 增補）
+
+---
+
+## 6. 資料夾所有權地圖（避免撞車的硬保證——每夾單一 owner）
+
+| 資料夾 / 檔 | Owner | 備註 |
+|---|---|---|
+| `client/src/adapters/*`（含 `types.ts`、composition root `index.ts`） | **Claude** | 5 接縫契約；別人只 import |
+| `client/src/spine/*`、`client/src/providers/SpineProvider.tsx` | **Claude** | 包覆既有 context |
+| `client/src/components/chrome/*`、`client/src/components/cockpit/*`（**通用骨架**） | **Claude**（chrome 實作可派 Claude Design） | video/social 都實例化它 |
+| `client/src/App.tsx`、`shared/appRegistry.ts`、`client/src/config/shells.ts` | **Claude** | 路由前綴／redirect／group→shell（改動需 CCR） |
+| `server/db.ts`、`drizzle/*`、`server/services/ragMemory.ts` | **Claude** | P3 遷移 |
+| `client/src/shells/settings/*`、feature-flag、`server/routers/mcpGateway.ts` | **Claude** | ④ 治理＋BYOMCP 後端 |
+| 設計 token 落點 `client/src/index.css`、設計系統元件（PromptVault/OrbAssistant/FlowWall/WorkflowEditor） | **Claude Design** | 依 `AI-Director-UIUX設計/`；token 貼入由守門 Claude review |
+| `client/src/shells/video/*`、`client/src/components/{director,gate}/*` | **Codex** | /video 前端（視覺殼與 Claude Design 對齊） |
+| `server/subsystems/video/*`、`server/services/generation/{Mock,Hf,Fal}*.ts` | **Codex** | 影片狀態機＋HF/Fal 生成 |
+| `client/src/shells/social/*`、`client/src/components/social/*` | **Antigravity** | /social 前端（視覺殼與 Claude Design 對齊） |
+| `client/src/shells/learn/*`、`client/src/components/learn/*` | **Antigravity** | /learn 前端＋BYOMCP 入口 UI |
+| `server/services/generation/GeminiGenerationAdapter.ts`、`server/subsystems/commander/SonarCommanderAdapter.ts` | **Antigravity** | Gemini 生成/感知＋研究 |
+| `server/services/generation/GenerationProvider.ts`（介面）＋`index.ts`（選擇器）、`server/subsystems/commander/{contracts,index.ts}` | **Claude（獨佔）** | **唯一會合檔**：adapter 各自掛入，由 Claude 在選擇器加一行接線 |
+| `COORDINATION.md`、`.env.example`、CI 設定 | **Claude**（三方讀、寫各自區塊） | 訊息板＋旗標＋回歸門檻 |
+
+> **共用 seam 資料夾規則**：`server/services/generation/` 與 `server/subsystems/commander/` 內**多 owner 各擁不同檔**（Codex：Mock/Hf/Fal、MockCommander；Antigravity：Gemini、Sonar；Claude：SubQ）——檔案層級單一 owner，仍零重疊。**唯一會合檔（介面＋選擇器 `index.ts`）由 Claude 獨佔**，每個 adapter 落地後由 Claude 在選擇器掛一行接入。
+> **唯讀共用檔**：`drizzle/schema.ts` 既有 82 表（P0–P2 不准改；新增表 P3+ 一律加法，由 owner 在自己分支加）。
+
+---
+
+## 7. Review 矩陣（誰審誰）＋ Definition of Done
+
+| PR 來自 | 第一 reviewer（架構/契約） | 第二 reviewer（接縫對位） |
+|---|---|---|
+| Codex（/video） | **Claude**（守契約、DB、整合風險） | Antigravity（可重用度：social 能否複用其 cockpit 沉澱） |
+| Antigravity（/social、/learn） | **Claude**（零新表、脊椎、ACL） | Codex（cockpit 重用正確、生成選擇器接縫） |
+| Claude Design（UI/UX） | **Claude**（token 合規、脊椎、不互嵌、路由不破壞） | Codex／Antigravity（各自 shell 元件契約對位） |
+| Claude（脊椎/P3/settings） | Codex（DataStore/commander 消費端） | Antigravity（Gemini/ContextPacket 消費端） |
+
+> **Claude 一定在每個 PR 的 reviewer 列**（架構守門）。
+
+**DoD（硬門檻，每個子分支對 umbrella 開 PR 都要過）：**
+1. **回歸三件套全綠**：`npm run check:routes`／`check:smoke`／`check:navigation`（54 路由全可達、舊連結不斷）。
+2. `npm run build` 通過；`npm run typecheck` 通過；`vitest` 既有測試不退步；新接縫附**介面契約測試**（mock 與 real 同簽章）。
+3. 該 PR 的 feature flag 預設 OFF；OFF 時行為 == main。
+4. P0–P2 不改 `drizzle/schema.ts` 既有表；新增表 P3+ 一律加法。
+
+---
+
+## 8. 風險 / 撞車預警（三道防線 + 觀察項）
+
+- **三道防線**：① 資料夾互斥（§6，檔案層級零重疊→不可能 merge 衝突）；② 接縫契約凍結（§0，介面不漂移→mock==real 不翻盤）；③ feature flag 包覆（§0，各掛自己 flag、預設 OFF→出事關 flag 即回退、不連坐另兩軌）。
+- ⚠ **前置整理（Claude P0/P1）**：先打斷 `PersonalSettingsContext ⇄ useMobile` 循環（純型別搬移到 `hooks/viewMode.ts`），再抽共用 provider 為脊椎單例。已含在 P0 包。
+- ⚠ **生成選擇器是會合點**：Codex 的 Hf/Fal 與 Antigravity 的 Gemini 在同一個 `GenerationProvider` 選擇器（`server/services/generation/index.ts`）會合——**不同檔、由 Claude 掛入**，兩方都不改選擇器。
+- ⚠ **adapter 命名校正**：對應表多項 procedure 名為「建議命名」，已由 GitNexus 對 main HEAD 校正（如 GenerationAdapter→`generate.*`、commanderPlan→`commander.createIntent`、ingestBreakdown→`worldStoryboard.createFromSegments`、rebuildPacket→`contextPacket.compileProject`）。詳見 `AI-Director_GitNexus深度整合分析.md §D`。
+- ⚠ **Claude Design ↔ Codex／Antigravity 的「殼 vs 深功能」邊界**：初剪/時間軸（Codex 定資料形狀、Claude Design 綁 UI）與 canvas S6（Claude Design 出殼、Antigravity 接 konva/fabric）——**動手前先在本檔對齊**。
+
+---
+
+## 9. 狀態總表（P0 ready · 誰擁哪個 shell · 什麼 blocked）
+
+| 項目 | 狀態 | 擁有者 | 說明 |
+|---|---|---|---|
+| **P0 路由 4-shell 骨架＋redirect＋5 adapter＋SpineProvider** | ✅ **已打包，待套用** | Claude | `AI-Director-P0補丁/`（24 新檔＋5 編輯，旗標 OFF＝零行為改變）。套用＝啟動序 ① |
+| **P1 脊椎＋契約凍結** | 🟡 P0 包已落地基礎；待凍結廣播 | Claude | P0 包已含 SpineProvider＋5 介面；凍結＝填 §0 契約版本 v1 |
+| **UI/UX 落地（token/chrome/共用元件/四 shell 視覺）** | ⏸ 等派工 | **Claude Design** | `claude/4shell-ui-design`；設計 SSOT＝`AI-Director-UIUX設計/` |
+| **/video shell（P2 cockpit＋確認門＋Mock 生成）** | ⏸ 等契約 | **Codex** | `codex/4shell-p2-cockpit-gate`；porting 源＝sim `AI-Director-模擬/client/src/shells/video` |
+| **/video 真實生成（P4 兩表＋HF/Fal＋breakdown）** | ⛔ blocked 於 P3 | **Codex** | 需 P3 PG 兩表（`video_generation_sessions`/`video_segment_jobs`，已在 P3 additive schema） |
+| **/social shell（P5）** | ⏸ 等契約（不需等 P2 完成） | **Antigravity** | `antigravity/4shell-p5-social`；實例化通用 cockpit、零新表 |
+| **/learn shell＋研究（P6）＋Gemini adapter** | ⏸ 等契約 | **Antigravity** | `antigravity/4shell-p6-learn-research`；Sonar 研究＋Gemini 生成/感知＋BYOMCP 入口 UI |
+| **/settings 治理＋feature-flag＋E-QA** | 🟡 橫貫，不擋任何階段 | Claude | 多為重新歸群既有 ✅ 頁 |
+| **P3 Supabase parity（MySQL→PG＋pgvector）** | ✅ **已打包，待金鑰** | Claude | `AI-Director-Supabase遷移/`（86 表已驗證可產）；上線開關＝`DATABASE_URL` |
+| **BYOMCP 後端（mcpGateway＋3 表＋SubQ）＋硬化** | ⏸ P6 後段 | Claude | 與 Antigravity 的 /learn 入口 UI 分屬 |
+| **GitNexus 索引** | ⏸ 待跑 `gitnexus analyze .` | Claude | `.mcp.json` 已在 repo 根；缺索引＋複製設定到 Codex/Antigravity |
+
+**唯二的等待**：(1) Codex P2 與 Antigravity P5/P6 都等 Claude P1 契約凍結（相位 A，P0 包已落地脊椎/adapters/chrome，故快）；(2) Codex P4 真實生成等 Claude P3 parity 合入。
+
+---
+
+## 10. 開源選型回報（各代理寫自己的子區塊；Claude 收斂）
+
+> 規則見 `AI-Director-交接包/開源選型/開源選型協議.md §7`；每個候選用協議 §4 的 12 欄範本。**不安裝、不杜撰數據、授權+供應鏈雙審、Bruce 拍板。**
+
+### @Codex 候選
+- [ ] （複驗 + 新增候選貼這裡：`<類別> <repo>｜結論<✅/◑/⚠️>｜接縫#<n>｜工作量<S/M/L>｜授權<SPDX>｜一句話`）
+
+### @Antigravity 候選
+- [ ] （複驗 + 新增候選貼這裡）
+
+### @Claude 收斂裁決
+- （`<repo>` → 進清單(類別X) / 退回(原因) / 升 CCR / 待 Bruce）
+
+---
+
+*本檔為 repo 內 live 訊息板，對齊 `AI-Director_多代理分工.md`（§3.7 模板）、`AI-Director_開發計畫.md`（P0–P6）、`AI-Director-整合包/`（整合指南・adapter對應表・PR範本・風險清單）、`AI-Director_GitNexus深度整合分析.md`（§D 校正・§G 設定）、`AI-Director-交接包/00_總交接_START_HERE.md`（最新狀態主索引）。每個里程碑由 Claude 另存 `settings_多代理協作快照_YYYY-MM-DD.md` 回流 Obsidian vault。*

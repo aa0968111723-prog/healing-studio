@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Director · 設計系統 Style Guide（亮色暖光 Claude）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./theme.css">
+<style>
+  body{overflow:auto}
+  .sg{max-width:1100px;margin:0 auto;padding:48px 28px 100px}
+  .sg-hero{margin-bottom:8px}
+  .sg-hero h1{font-size:42px;margin:10px 0 6px;background:linear-gradient(120deg,var(--clay-deep),var(--gold-deep));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .sec{margin-top:54px}
+  .sec > h2{font-family:var(--f-display);font-size:24px;margin-bottom:4px}
+  .sec > .sub{color:var(--text-mute);font-size:13px;margin-bottom:20px}
+  .swgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .sw{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--surface);box-shadow:var(--shadow-xs)}
+  .sw .chip{height:74px}
+  .sw .meta{padding:9px 11px}
+  .sw .nm{font-size:12px;font-weight:600}
+  .sw .hex{font-family:var(--f-mono);font-size:10px;color:var(--muted-2);margin-top:2px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .panel{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-card);padding:22px}
+  .label{font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);margin:18px 0 10px}
+  .type-row{display:flex;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .type-row .k{font-family:var(--f-mono);font-size:10px;color:var(--muted-2);width:130px;flex:none}
+  .radius-box{width:84px;height:64px;background:var(--clay-tint-2);border:1px solid var(--clay-soft)}
+  .shadow-box{width:120px;height:74px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);display:grid;place-items:center;font-size:11px;color:var(--muted)}
+  .gguide{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.gguide{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="sg">
+
+  <header class="sg-hero">
+    <div class="eyebrow">AI DIRECTOR · DESIGN SYSTEM · rev. L1</div>
+    <h1>暖光 Claude 設計系統</h1>
+    <p class="lead" style="max-width:680px">明亮通透的暖米白分層表面 ＋ 黏土／珊瑚橘主強調。大量留白、柔和圓角、克制細邊框、安靜層次、標題帶 serif 質感。靈感取自 Claude/Anthropic 的「感覺」，但為平台自有亮色識別——所有既有元件、版面、功能保留，只統一視覺語言並補齊細節。</p>
+    <div class="row" style="margin-top:14px">
+      <span class="pill ok" >亮色為主</span>
+      <span class="pill" style="color:var(--clay-deep);border-color:var(--clay-soft);background:var(--clay-tint)">clay / coral 主強調</span>
+      <span class="pill warn">保留原系統</span>
+      <span class="tag">單一真實來源 SSOT</span>
+    </div>
+  </header>
+
+  <!-- COLOR -->
+  <section class="sec">
+    <h2>色彩 Color</h2>
+    <p class="sub">元件一律引用語意別名（--accent / --surface / --text…）。下列為 primitive 值。</p>
+
+    <div class="label">暖米白分層表面 Surfaces</div>
+    <div class="swgrid" id="sw-surface"></div>
+    <div class="label">主強調 · 黏土／珊瑚橘 Clay / Coral</div>
+    <div class="swgrid" id="sw-clay"></div>
+    <div class="label">次強調 · 蜜金 Honey ＋ 寧靜輔色</div>
+    <div class="swgrid" id="sw-accent2"></div>
+    <div class="label">語意狀態 Semantic</div>
+    <div class="swgrid" id="sw-sem"></div>
+    <div class="label">文字色階 Text（on --surface）</div>
+    <div class="swgrid" id="sw-text"></div>
+  </section>
+
+  <!-- TYPE -->
+  <section class="sec">
+    <h2>字體 Typography</h2>
+    <p class="sub">Fraunces（標題 serif 質感）· Inter / Noto Sans TC（內文）· IBM Plex Mono（標籤/代碼）。</p>
+    <div class="panel">
+      <div class="type-row"><span class="k">display/hero · 48</span><span style="font-family:var(--f-display);font-size:48px;font-weight:600;letter-spacing:-.01em">放下與呼吸</span></div>
+      <div class="type-row"><span class="k">display/bigcount · 26</span><span style="font-family:var(--f-display);font-size:26px;font-weight:600">1,379</span></div>
+      <div class="type-row"><span class="k">serif/section · 17</span><span style="font-family:var(--f-serif);font-size:17px;font-weight:600">導演台 · 確認門</span></div>
+      <div class="type-row"><span class="k">sans/lead · 13.5</span><span style="font-size:13.5px;line-height:1.75">一條後端脊椎，四個各自獨立的前端系統 — 像 Claude 與 Claude Code。</span></div>
+      <div class="type-row"><span class="k">sans/body · 13</span><span style="font-size:13px">把一個故事做成影片：世界觀 → 腳本 → 分鏡 → 生成 → 成片。</span></div>
+      <div class="type-row" style="border:0"><span class="k">mono/eyebrow · 10</span><span class="eyebrow">ZEN × COSMIC × MULTIMODAL</span></div>
+    </div>
+  </section>
+
+  <!-- SPACING / RADIUS / SHADOW -->
+  <section class="sec">
+    <h2>間距 · 圓角 · 陰影</h2>
+    <p class="sub">節奏 spacing scale ＋ 柔和圓角 ＋ 暖灰低不透明陰影（安靜的浮起）。</p>
+    <div class="panel">
+      <div class="label" style="margin-top:0">圓角 Radius</div>
+      <div class="row" id="radius-row"></div>
+      <div class="label">陰影 Shadow</div>
+      <div class="row">
+        <div class="shadow-box" style="box-shadow:var(--shadow-xs)">xs</div>
+        <div class="shadow-box" style="box-shadow:var(--shadow-sm)">sm</div>
+        <div class="shadow-box" style="box-shadow:var(--shadow-card)">card</div>
+        <div class="shadow-box" style="box-shadow:var(--shadow-lift)">lift（hover）</div>
+        <div class="shadow-box" style="box-shadow:var(--ring)">focus ring</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section class="sec">
+    <h2>核心元件 Components</h2>
+    <p class="sub">與既有 styles.css class 同名；hover / focus / press / disabled 全狀態。</p>
+    <div class="panel">
+      <div class="label" style="margin-top:0">Button</div>
+      <div class="row">
+        <button class="btn primary">主要動作</button>
+        <button class="btn gold">次強調</button>
+        <button class="btn">預設</button>
+        <button class="btn ghost">幽靈</button>
+        <button class="btn danger">危險</button>
+        <button class="btn" disabled>停用</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary sm">sm</button>
+        <button class="btn primary xs">xs</button>
+        <button class="btn sm">sm</button>
+        <button class="btn xs">xs</button>
+      </div>
+
+      <div class="label">Pill · Tag · Kbd</div>
+      <div class="row">
+        <span class="pill ok"><i class="d"></i>可量產</span>
+        <span class="pill warn"><i class="d"></i>部分待補</span>
+        <span class="pill bad"><i class="d"></i>全待補</span>
+        <span class="pill info"><i class="d"></i>已核准</span>
+        <span class="pill mute">中性</span>
+        <span class="tag">seed 1042</span>
+        <span class="kbd">⌘K</span><span class="kbd">esc</span><span class="kbd">↵</span>
+      </div>
+
+      <div class="label">Toggle · Meter · Spinner · Seg</div>
+      <div class="row">
+        <div class="toggle on" role="switch" aria-checked="true"><i></i></div>
+        <div class="toggle" role="switch" aria-checked="false"><i></i></div>
+        <div style="width:200px"><div class="meter"><i style="width:68%"></i></div></div>
+        <div class="spin"></div>
+        <div class="seg"><button class="on">自動</button><button>空</button><button>載入</button><button>成功</button><button>錯誤</button></div>
+      </div>
+
+      <div class="label">Input</div>
+      <div class="row">
+        <input class="input" style="max-width:280px" placeholder="例：放下與呼吸的三分鐘療癒短片">
+        <select class="input" style="max-width:160px"><option>創作模式：影片</option><option>社群</option></select>
+      </div>
+
+      <div class="label">Card · Eyebrow</div>
+      <div class="row">
+        <div class="card pad hover" style="max-width:280px">
+          <div class="eyebrow">PROJECT</div>
+          <div class="h-row" style="margin-top:8px"><span class="ti">惹瓊巴傳</span><span class="cnt">42%</span></div>
+          <p class="lead" style="font-size:12.5px;margin:0">完成第一版分鏡，正在挑配樂。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLAGSHIP COMPOSITES -->
+  <section class="sec">
+    <h2>旗艦複合元件</h2>
+    <p class="sub">確認門 GateCard 三態、分鏡卡 ShotCard 生命週期、生成→存庫狀態、四態視圖。</p>
+    <div class="gguide">
+
+      <div class="panel">
+        <div class="label" style="margin-top:0">確認門 GateCard（ready / partial / blocked）</div>
+        <div class="gate" style="margin:0">
+          <div class="gh">🔒 確認門 · GATE</div>
+          <div class="gb">
+            <div class="counts">
+              <div class="bigcount ok"><b>4</b><span>可量產</span></div>
+              <div class="bigcount warn"><b>1</b><span>部分待補</span></div>
+              <div class="bigcount bad"><b>1</b><span>全待補</span></div>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <span class="pill warn">⚠ 估算</span>
+              <span style="font-size:12.5px;flex:1">「惹瓊巴」未定版 — 先補精準參考</span>
+              <button class="btn gold xs">上傳參考照</button>
+            </div>
+            <div class="gate-rule">角色未定版不進分鏡 · 關鍵影格未核准不跑 i2v · 媒體生成前先估成本</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="label" style="margin-top:0">分鏡卡 ShotCard 生命週期</div>
+        <div class="shots" style="padding:0">
+          <div class="shot">
+            <div class="thumb"><div class="gimg" style="background:radial-gradient(120% 120% at 30% 20%,hsl(28 52% 72%),hsl(66 46% 58%) 55%,hsl(112 40% 46%))"></div><span class="seedtag">seed 1042 · hf</span></div>
+            <div class="meta"><div class="sn"><span class="no">S01</span>雪山道遠景</div><div class="st"><span class="pill ok">可量產</span><span class="pill info">已核准</span></div></div>
+          </div>
+          <div class="shot">
+            <div class="thumb"><div class="scan"></div><div class="gen"><div class="spin" style="width:34px;height:34px"></div><span style="font-size:11px;color:var(--muted)">生成中…</span></div></div>
+            <div class="meta"><div class="sn"><span class="no">S02</span>洞口</div><div class="st"><span class="pill ok">可量產</span></div></div>
+          </div>
+          <div class="shot">
+            <div class="thumb"><div class="ph">🔒 角色 · 參考圖轉繪<br><span class="mono" style="font-size:10px">seed 3120</span></div></div>
+            <div class="meta"><div class="sn"><span class="no">S03</span>惹瓊巴登場</div><div class="st"><span class="pill warn">部分待補</span><span class="tag">待補：惹瓊巴</span></div></div>
+          </div>
+          <div class="shot error">
+            <div class="thumb"><div class="gen"><span class="pill bad">生成失敗</span></div></div>
+            <div class="meta"><div class="sn"><span class="no">S05</span>山神示現</div><div class="st"><span class="pill bad">全待補</span><button class="btn xs">重試</button></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="label" style="margin-top:0">生成 → 存庫（SaveToVault 狀態）</div>
+        <div class="col-f" style="gap:12px">
+          <div class="row"><button class="btn xs">＋ 存入提示詞庫</button><span class="muted fz12">idle</span></div>
+          <div class="row"><span class="pill ok"><i class="d"></i>已存入提示詞庫 · 可重用</span><span class="muted fz12">saved</span></div>
+          <div class="row"><span class="pill warn"><i class="d"></i>已存在 · 已更新使用次數</span><span class="muted fz12">duplicate</span></div>
+          <div class="row"><span class="pill bad"><i class="d"></i>存入失敗</span><button class="btn xs">重試</button><span class="muted fz12">error</span></div>
+          <div class="row" style="border-top:1px dashed var(--line-strong);padding-top:10px"><span class="mono" style="font-size:10px;color:var(--muted-2)">真實落點：promptLibrary.create · generate.recordGenResult → digital_asset_library</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="label" style="margin-top:0">四態鐵律 State Views</div>
+        <div class="state" style="min-height:auto;padding:20px">
+          <div class="ico">🎬</div>
+          <div class="ti">這個專案還是空的</div>
+          <div class="ds">貼上你的長腳本，光球會幫你拆成幕、分鏡與角色。</div>
+          <button class="btn primary sm">開始引導式創作</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer style="margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted-2);font-family:var(--f-mono);font-size:11px">
+    AI Director · 設計系統 rev. L1 · 2026-06-06 · 單一真實來源 · 對齊 Obsidian 與 GitNexus 校驗
+  </footer>
+</div>
+
+<script>
+  const SW = {
+    surface:[["--paper","#F6F1E8","最底層暖紙"],["--bg","#F4EEE4","主背景"],["--bg-2","#EFE8DC","次背景/rail"],["--surface","#FDFBF7","卡片表面"],["--surface-2","#F7F1E8","次表面/輸入"],["--line","#E4DACA","邊框"]],
+    clay:[["--clay","#C2613F","主強調"],["--clay-bright","#D5734D","hover"],["--clay-deep","#A44E2E","press/深字"],["--clay-soft","#E8B59B","柔光描邊"],["--clay-tint-2","rgba(194,97,63,.16)","淡底"],["--on-clay","#FFF7F1","底上文字"]],
+    accent2:[["--gold","#C8922F","次強調/warn"],["--gold-deep","#9C6F1E","金字"],["--teal","#3E9D94","寧靜/info"],["--sage","#6E8B5E","點綴"],["--sky","#5C86B0","Calm 人格"],["--plum","#8A5BAE","Technical 人格"]],
+    sem:[["--ok","#5C8A55","成功/可量產"],["--warn","#C8922F","警示/估算"],["--bad","#C7493A","錯誤/失敗"],["--info","#5C86B0","資訊/已核准"]],
+    text:[["--ink","#2B2620","主文字 AAA"],["--ink-soft","#5A5145","次文字 AA"],["--muted","#897F70","弱文字"],["--muted-2","#A89C89","標籤弱字"]],
+  };
+  const tile=(v,h,n)=>`<div class="sw"><div class="chip" style="background:${h}"></div><div class="meta"><div class="nm">${n}</div><div class="hex">${v} · ${h}</div></div></div>`;
+  for(const [key,id] of [["surface","sw-surface"],["clay","sw-clay"],["accent2","sw-accent2"],["sem","sw-sem"],["text","sw-text"]])
+    document.getElementById(id).innerHTML = SW[key].map(([v,h,n])=>tile(v,h,n)).join("");
+  const RAD=[["sm","10"],["btn","12"],["md","14"],["lg","16"],["xl","20"]];
+  document.getElementById("radius-row").innerHTML = RAD.map(([k,px])=>
+    `<div style="text-align:center"><div class="radius-box" style="border-radius:${px}px"></div><div class="mono" style="font-size:10px;color:var(--muted-2);margin-top:6px">--r-${k} · ${px}</div></div>`).join("");
+</script>
+</body>
+</html>
