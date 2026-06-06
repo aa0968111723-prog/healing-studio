@@ -32,6 +32,10 @@ import { WorldContextProvider } from "./contexts/WorldContextContext";
 import { ProjectsProvider } from "./contexts/ProjectsContext";
 import SkipToContent from "./components/SkipToContent";
 import RouteTransition from "./components/RouteTransition";
+// ── P0 4-shell（旗標控制；ENABLE_4SHELL=OFF 時整段不啟用，行為==線上現狀） ──
+import { ENABLE_4SHELL } from "@/config/featureFlags";
+import { shellRoutes } from "@/app/ShellRoutes";
+import { SpineProvider } from "@/providers/SpineProvider";
 const SiteOnboardingOverlay = lazy(
   () => import("./components/SiteOnboardingOverlay")
 );
@@ -234,6 +238,9 @@ function AdminRedirect() {
 function Router() {
   return (
     <Switch>
+      {/* P0 4-shell：旗標 ON 時注入 shell 掛載 + 舊路徑相容導向（shadow 同路徑舊 Route）；
+          OFF 時為 false，被 wouter <Switch> 忽略，路由完全照舊。見 app/ShellRoutes.tsx。 */}
+      {ENABLE_4SHELL && shellRoutes()}
       <Route path="/" component={Home} />
       <Route path="/create">
         <ProtectedDashboardRoute component={CreationHub} />
@@ -414,6 +421,8 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
+      {/* P0：SpineProvider 包覆既有 provider 樹（加法、無副作用；不取代任何 context）。 */}
+      <SpineProvider>
       <ThemeProvider defaultTheme="light" switchable>
         <PersonalSettingsProvider>
           <PersonalityProvider>
@@ -463,6 +472,7 @@ function App() {
           </PersonalityProvider>
         </PersonalSettingsProvider>
       </ThemeProvider>
+      </SpineProvider>
     </ErrorBoundary>
   );
 }

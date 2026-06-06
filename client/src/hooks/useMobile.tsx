@@ -1,5 +1,6 @@
 import * as React from "react";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
+import type { ViewMode } from "@/hooks/viewMode"; // P0：ViewMode 下沉共用葉節點（斷循環依賴）
 
 // Keep in lockstep with --bp-mobile in client/src/index.css.
 const MOBILE_BREAKPOINT = 768;
@@ -28,7 +29,9 @@ export function useIsMobile() {
 }
 
 // ─── View Mode Toggle: force desktop or mobile view ──────────────────────
-export type ViewMode = "auto" | "desktop" | "mobile";
+// ViewMode 已下沉到 @/hooks/viewMode（斷 PersonalSettingsContext⇄useMobile 循環）；
+// re-export 維持既有 `@/hooks/useMobile` 匯入相容（~23 個消費端零修改）。
+export type { ViewMode };
 
 export function useViewMode() {
   const {
