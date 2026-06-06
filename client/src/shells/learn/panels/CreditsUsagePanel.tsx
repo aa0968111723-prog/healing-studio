@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function CreditsUsagePanel() {
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { retry: false });
@@ -74,7 +75,9 @@ export function CreditsUsagePanel() {
           <MiniStat label="剩餘配額" value={Number(remaining).toLocaleString()} />
         </div>
 
-        {logsQ.isLoading ? (
+        {logsQ.isError ? (
+          <PanelError compact message="讀取用量紀錄失敗，請稍後重試。" onRetry={() => logsQ.refetch()} />
+        ) : logsQ.isLoading ? (
           <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 rounded" />)}</div>
         ) : logs.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">尚無用量紀錄（或未登入）。</div>

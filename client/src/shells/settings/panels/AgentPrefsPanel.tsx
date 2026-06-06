@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 const PERSONAS = [{ v: "calm", l: "平靜" }, { v: "creative", l: "創意" }, { v: "technical", l: "技術" }];
 
@@ -78,8 +79,10 @@ export function AgentPrefsPanel() {
       {/* 最近活動 */}
       <Card className="p-5 space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold"><Activity className="h-4 w-4" />最近活動</div>
-        {actQ.isLoading ? (
-          <div className="text-xs text-muted-foreground">載入中…</div>
+        {actQ.isError ? (
+          <PanelError compact message="讀取最近活動失敗，請稍後重試。" onRetry={() => actQ.refetch()} />
+        ) : actQ.isLoading ? (
+          <div className="text-xs text-muted-foreground" role="status" aria-busy="true">載入中…</div>
         ) : acts.length === 0 ? (
           <div className="text-xs text-muted-foreground">尚無活動（或未登入）。</div>
         ) : (

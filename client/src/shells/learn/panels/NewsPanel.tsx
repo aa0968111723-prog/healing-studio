@@ -13,6 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function NewsPanel() {
   const [limit] = useState(20);
@@ -31,7 +32,9 @@ export function NewsPanel() {
         <Badge variant="secondary">{q.isLoading ? "…" : `${items.length} 則`}</Badge>
       </div>
 
-      {q.isLoading ? (
+      {q.isError ? (
+        <PanelError message="讀取情報失敗，請稍後重試。" onRetry={() => q.refetch()} />
+      ) : q.isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
         </div>

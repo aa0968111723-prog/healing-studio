@@ -18,6 +18,7 @@ import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 // 執行時治理旗標（存 settings.extraSettings.featureFlags）。
 const RUNTIME_FLAGS: { key: string; label: string; desc: string }[] = [
@@ -72,6 +73,9 @@ export function FeatureFlagsTab() {
           <div className="flex items-center gap-2 text-sm font-semibold"><Flag className="h-4 w-4" />執行時功能開關</div>
           <span className="text-[11px] text-muted-foreground">settings.update · extraSettings.featureFlags</span>
         </div>
+        {getQ.isError && (
+          <PanelError compact message="讀取現有功能開關失敗（需管理員）；以下為預設值。" onRetry={() => getQ.refetch()} />
+        )}
         {RUNTIME_FLAGS.map((f) => (
           <div key={f.key} className="flex items-center justify-between gap-4 py-1">
             <div><div className="text-sm font-medium">{f.label}</div><div className="text-[11px] text-muted-foreground">{f.desc}</div></div>

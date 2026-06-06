@@ -14,6 +14,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function ApiKeysPanel() {
   const { user } = useAuth();
@@ -49,7 +50,9 @@ export function ApiKeysPanel() {
             <div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4" />平台金鑰狀態</div>
             <span className="text-[11px] text-muted-foreground">admin.apiKeysStatus · 只報 isSet，不暴露 secret</span>
           </div>
-          {keysQ.isLoading ? (
+          {keysQ.isError ? (
+            <PanelError compact message="讀取平台金鑰狀態失敗（需管理員權限）。" onRetry={() => keysQ.refetch()} />
+          ) : keysQ.isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
             </div>

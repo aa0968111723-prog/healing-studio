@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 import { METHODOLOGY_DOCS, LEARN_DIFFICULTIES } from "../learnContent";
 
 // 中文難度 ↔ 後端 enum
@@ -80,7 +81,12 @@ export function LearnDocsPanel() {
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
       ) : useFallback ? (
-        <FallbackDocs />
+        <div className="space-y-2">
+          {listQ.isError && (
+            <PanelError compact message="讀取學習文件失敗，暫顯示內建精選方法論。" onRetry={() => listQ.refetch()} />
+          )}
+          <FallbackDocs />
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {items.map((d) => (

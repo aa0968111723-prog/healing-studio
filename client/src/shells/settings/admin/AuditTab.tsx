@@ -12,6 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function AuditTab() {
   const logsQ = trpc.admin.usageLogs.useQuery({ limit: 100 }, { retry: false });
@@ -28,7 +29,9 @@ export function AuditTab() {
           <div className="flex items-center gap-2 text-sm font-semibold"><KeyRound className="h-4 w-4" />平台金鑰狀態</div>
           <span className="text-[11px] text-muted-foreground">admin.apiKeysStatus · 不暴露 secret</span>
         </div>
-        {keysQ.isLoading ? (
+        {keysQ.isError ? (
+          <PanelError compact message="讀取平台金鑰狀態失敗（需管理員權限）。" onRetry={() => keysQ.refetch()} />
+        ) : keysQ.isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -49,7 +52,9 @@ export function AuditTab() {
           <div className="flex items-center gap-2 text-sm font-semibold"><ScrollText className="h-4 w-4" />稽核 / 活動日誌</div>
           <Badge variant="outline">{logsQ.isLoading ? "…" : `${logs.length} 筆`}</Badge>
         </div>
-        {logsQ.isLoading ? (
+        {logsQ.isError ? (
+          <PanelError compact message="讀取稽核日誌失敗（需管理員權限）。" onRetry={() => logsQ.refetch()} />
+        ) : logsQ.isLoading ? (
           <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 rounded" />)}</div>
         ) : logs.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">無日誌（或需管理員權限）。</div>

@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function DataRepairTab() {
   const jobsQ = trpc.admin.allBackgroundJobs.useQuery({ limit: 100 }, { retry: false });
@@ -59,7 +60,9 @@ export function DataRepairTab() {
           <div className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4" />卡住 / 失敗任務</div>
           <Badge variant="outline">{jobsQ.isLoading ? "…" : `${stuck.length} 筆`}</Badge>
         </div>
-        {jobsQ.isLoading ? (
+        {jobsQ.isError ? (
+          <PanelError compact message="讀取背景任務失敗（需管理員權限）。" onRetry={() => jobsQ.refetch()} />
+        ) : jobsQ.isLoading ? (
           <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 rounded" />)}</div>
         ) : stuck.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">沒有卡住 / 失敗的任務。</div>

@@ -14,6 +14,7 @@ import { useRole, roleAtLeast } from "../rbac";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function ObservabilityPanel() {
   const role = useRole();
@@ -66,7 +67,9 @@ export function ObservabilityPanel() {
             <div className="flex items-center gap-2 text-sm font-semibold"><Activity className="h-4 w-4" />背景任務</div>
             <span className="text-[11px] text-muted-foreground">background_jobs</span>
           </div>
-          {jobsQ.isLoading ? (
+          {jobsQ.isError ? (
+            <PanelError compact message="讀取背景任務失敗（需管理員權限）。" onRetry={() => jobsQ.refetch()} />
+          ) : jobsQ.isLoading ? (
             <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 rounded" />)}</div>
           ) : jobs.length === 0 ? (
             <div className="text-xs text-muted-foreground py-6 text-center">無背景任務。</div>

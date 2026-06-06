@@ -15,6 +15,7 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 export function ContentTab() {
   const [, navigate] = useLocation();
@@ -26,9 +27,18 @@ export function ContentTab() {
   const newsCount = ((newsQ.data as any)?.items ?? []).length;
   const cats: Record<string, number> = (catsQ.data as any) ?? {};
   const docCount = Object.values(cats).reduce((n, c) => n + Number(c || 0), 0);
+  const anyError = modelsQ.isError || newsQ.isError || catsQ.isError;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="space-y-3">
+      {anyError && (
+        <PanelError
+          compact
+          message="部分內容統計讀取失敗，數字可能不完整。"
+          onRetry={() => { modelsQ.refetch(); newsQ.refetch(); catsQ.refetch(); }}
+        />
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <ContentCard
         icon={<Cpu className="h-4 w-4" />}
         title="模型情報"
@@ -57,6 +67,7 @@ export function ContentTab() {
         footer="news_articles · sense"
         onOpen={() => navigate("/learn/news")}
       />
+      </div>
     </div>
   );
 }
