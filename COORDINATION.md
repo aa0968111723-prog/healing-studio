@@ -204,7 +204,7 @@ gitnexus detect-changes               # 把 git diff 對映到受影響符號與
 | **/settings 治理＋feature-flag＋E-QA** | ✅ 前端治理殼已合入；E-QA 持續 | Claude | provider/RBAC/觀測 UI 已在位；後端治理另按 CCR/子分支 |
 | **P3 Supabase parity（MySQL→PG＋pgvector）** | ✅ **已打包，待金鑰** | Claude | `AI-Director-Supabase遷移/`（86 表已驗證可產）；上線開關＝`DATABASE_URL` |
 | **BYOMCP 後端（mcpGateway＋3 表＋SubQ）＋硬化** | ⏸ P6 後段 | Claude | 與 Antigravity 的 /learn 入口 UI 分屬 |
-| **GitNexus 索引** | 🟡 固定 alias 可用，FTS/query 待修 | Claude | `.mcp.json` 已在 repo 根；`healing-studio-ai-director` 指向 `D:\AI-Director-gitnexus\healing-studio-index`，commit `8e8e700`，34227 nodes / 56146 edges；`context SpineProvider` 已驗證；概念 `query` 仍提示 FTS indexes missing；正式中文路徑仍回 Repository not indexed |
+| **GitNexus 索引** | 🟡 固定 alias 可用，FTS/query 待修 | Claude | `.mcp.json` 已在 repo 根；`healing-studio-ai-director` 指向 `D:\AI-Director-gitnexus\healing-studio-index`，commit `997eb0d`，34227 nodes / 56146 edges；`context SpineProvider` 已驗證；概念 `query` 仍提示 FTS indexes missing；正式中文路徑仍回 Repository not indexed |
 
 **目前等待**：(1) 將 `claude/coord-freeze-v1` PR/merge；(2) pin/確認 GitNexus CLI，修正正式中文路徑 `.gitnexus\lbug` IO 與 FTS query 降級；(3) P3 Supabase parity 需 Bruce 拍板 #2 向量 `halfvec(3072)` 與 #10 Auth 分軌，並備妥 Supabase 金鑰；(4) Codex P4 真實生成等 P3 migration 落地後再套用。
 
