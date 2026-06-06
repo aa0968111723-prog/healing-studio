@@ -149,9 +149,13 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
   }
 
   async function createPromptBlock(input: PromptBlockCreateInput): Promise<void> {
-    // promptLibrary.create（prompt_library / custom_blocks）。
+    // promptLibrary.create（prompt_library）。真實 zod 輸入＝{ title, content, category?, … }，
+    // 無 projectId / label 欄。原本送 {projectId,label,content} → 必填的 title 缺失，伺服器
+    // 端 zod 會退回（且 ProjectSpineProvider 的 optimistic catch 會吞掉錯誤 → 看似存了、實際
+    // 沒寫入庫）。改送 title（取面板標籤）+ content；prompt_library 為 user 級（schema 無
+    // projectId 欄），故不再傳 projectId。category 由後端預設 "general"。
     await client.promptLibrary.create.mutate({
-      projectId: num(input.projectId), label: input.label, content: input.text,
+      title: input.label, content: input.text,
     });
   }
 
