@@ -2,7 +2,7 @@
 
 > **這是什麼**：`healing-studio` repo 根目錄的**單一交接點 / live 訊息板**。三個 AI 代理 — **Claude（導演／架構守門／整合／QC）**、**Codex（/video 旗艦深垂直）**、**Antigravity（/social + /learn + Gemini）** — 都在這裡同步狀態。
 > **放哪**：P0 套用後 commit 到 repo 根目錄（與 `.mcp.json`、`AGENTS.md` 同層）。這是 repo 內的 live 檔，不是 Obsidian vault 主體（vault 只存里程碑快照）。
-> **事實基準**：`main` HEAD `a68f2567`（2026-06-06，PR #852 已合併）。React19 / Vite7 / Wouter3.7.1(patched) / tRPC v11 / Drizzle。82 `mysqlTable` · 54 路由 · 68 router namespace。
+> **事實基準**：`main` HEAD `069392c3`（2026-06-07，PR #852 / #853 / #854 / #850 已合併）。React19 / Vite7 / Wouter3.7.1(patched) / tRPC v11 / Drizzle。82 `mysqlTable` · 54 路由 · 68 router namespace。
 > **黃金鐵律（不得牴觸）**：延伸開發計畫與整合指南、不牴觸；既有功能一個都不丟；先 parity 再換功能、只加不刪（strangler-fig）；三方各守自己的資料夾，只透過 5 接縫契約交換。
 
 ---
@@ -44,7 +44,7 @@
 ## 1. 分支策略（umbrella + 三方各前綴子分支）
 
 ```
-main (權威基準 2888a36)
+main (權威基準 069392c3)
  └─ feat/4-shell-restructure                 ← umbrella（長命；Claude 擁有；唯一對 main 開 PR 者）
      ├─ claude/4shell-p0-routing             P0 路由骨架＋redirect map＋group→shell（已打包＝P0 包）
      ├─ claude/4shell-p1-spine               P1 SpineProvider＋IDataStore＋MockDataStore＋【契約凍結】
@@ -69,7 +69,7 @@ main (權威基準 2888a36)
 
 | Agent | 當前分支 | 在做 | 狀態 | blocked 於 | 預計交付 |
 |---|---|---|---|---|---|
-| **Claude** | `claude/coord-freeze-v1` | 將 COORDINATION live 訊息板入庫；補齊契約凍結狀態 | ⏸ 待 PR/merge | — | 本分支已提交；GitNexus 固定 alias 已建於 ASCII worktree，正式中文路徑與 FTS query 待修 |
+| **Claude** | `claude/coord-main-status` | 補齊 PR #853/#854/#850 合併後 live board 與 GitNexus main 索引 | ⏸ 待 PR/merge | — | GitNexus 固定 alias 已重建到 latest main；本檔狀態補齊後開 PR |
 | **Codex** | `codex/4shell-p4-director-video` | /video 真實生成後端：兩表、HF/Fal、DLQ/Reaper/退點 | ⏸ 等 P3 | Claude P3 Supabase parity + 金鑰 | P4 backend 可 ship dark |
 | **Antigravity** | `antigravity/4shell-p6-learn-research` | Gemini/Sonar/PostingProvider/canvas 深功能與開源複驗 | ⏸ 等接縫掛入/授權 | Claude 選擇器接線 + 相關金鑰 | real adapters + E2E 截圖證據 |
 
@@ -91,7 +91,7 @@ main (權威基準 2888a36)
 
 > **為什麼**：repo 大（82 表／54 路由／34 router／~565 procedure）。三個 agent 各自「重讀整個 repo」會偏差又燒 token。GitNexus 用 Tree-sitter 把 repo 解析成程式碼知識圖譜（節點＝function/class/interface/module；邊＝calls/imports/exports），以 MCP server 暴露，**三方查同一張圖**。唯讀、不改 code。
 
-**repo 根 `.mcp.json` 早已掛好 gitnexus**（HEAD `2888a36` 即存在）。Claude Code 開箱即連；**真正缺的只有兩件**：(a) 跑一次索引；(b) 把同一組設定複製到 Codex / Antigravity。
+**repo 根 `.mcp.json` 早已掛好 gitnexus**（HEAD `2888a36` 即存在）。Claude Code 開箱即連；固定 alias `healing-studio-ai-director` 已於 ASCII worktree 建索引；Codex `~/.codex/config.toml` 與 Antigravity `~/.antigravity/mcp_config.json` 已補同源 MCP 設定；**目前缺口**：(a) 修復概念 `query` 的 FTS 降級；(b) 修復正式中文路徑 `D:\AI-Director系統\healing-studio` 的 not indexed 狀態；(c) 重啟 Codex / Antigravity 後驗證工具可見。
 
 **(a) 建索引（一次性，在 repo 根）：**
 ```bash
@@ -137,7 +137,10 @@ gitnexus detect-changes               # 把 git diff 對映到受影響符號與
 - [x] `antigravity/4shell-p5-social`（前端/mock 已合入 PR #852）
 - [x] `antigravity/4shell-p6-learn-research`（前端/mock 已合入 PR #852；real adapters 待後續子分支）
 - [ ] `codex/4shell-p4-director-video`（需 P3 先合；P4 補丁已備妥）
-- [ ] `claude/coord-freeze-v1`（本檔已在分支提交，待 PR/merge；GitNexus alias `healing-studio-ai-director` 已建於 `D:\AI-Director-gitnexus\healing-studio-index`，`context/impact` 可用，正式中文路徑與 FTS query 待修）
+- [x] `claude/coord-freeze-v1`（PR #853 已合入 main；COORDINATION live board 入庫）
+- [x] `feat/4-shell-restructure` handoff docs（PR #854 已合入 main；`docs/4shell-handoff/` 入庫）
+- [x] `claude/website-figma-import-f407c`（PR #850 已合入 main；設計參考與 Figma screenshot workflow 入庫）
+- [ ] `claude/coord-main-status`（本檔補齊 PR #853/#854/#850 合併後狀態；待 PR/merge）
 
 ---
 
@@ -204,9 +207,9 @@ gitnexus detect-changes               # 把 git diff 對映到受影響符號與
 | **/settings 治理＋feature-flag＋E-QA** | ✅ 前端治理殼已合入；E-QA 持續 | Claude | provider/RBAC/觀測 UI 已在位；後端治理另按 CCR/子分支 |
 | **P3 Supabase parity（MySQL→PG＋pgvector）** | ✅ **已打包，待金鑰** | Claude | `AI-Director-Supabase遷移/`（86 表已驗證可產）；上線開關＝`DATABASE_URL` |
 | **BYOMCP 後端（mcpGateway＋3 表＋SubQ）＋硬化** | ⏸ P6 後段 | Claude | 與 Antigravity 的 /learn 入口 UI 分屬 |
-| **GitNexus 索引** | 🟡 固定 alias 可用，FTS/query 待修 | Claude | `.mcp.json` 已在 repo 根；`healing-studio-ai-director` 指向 `D:\AI-Director-gitnexus\healing-studio-index`；最新 commit 以 `gitnexus status` 為準；34227 nodes / 56146 edges；`context SpineProvider` 已驗證；概念 `query` 仍提示 FTS indexes missing；正式中文路徑仍回 Repository not indexed |
+| **GitNexus 索引** | 🟡 固定 alias 可用，FTS/query 待修 | Claude | `.mcp.json` 已在 repo 根；Codex/Antigravity MCP 設定已補；`healing-studio-ai-director` 指向 `D:\AI-Director-gitnexus\healing-studio-index`；最新 commit 以 `gitnexus status` 為準；35453 nodes / 57694 edges；`context SpineProvider` 已驗證；概念 `query` 仍提示 FTS indexes missing；正式中文路徑仍回 Repository not indexed |
 
-**目前等待**：(1) 將 `claude/coord-freeze-v1` PR/merge；(2) pin/確認 GitNexus CLI，修正正式中文路徑 `.gitnexus\lbug` IO 與 FTS query 降級；(3) P3 Supabase parity 需 Bruce 拍板 #2 向量 `halfvec(3072)` 與 #10 Auth 分軌，並備妥 Supabase 金鑰；(4) Codex P4 真實生成等 P3 migration 落地後再套用。
+**目前等待**：(1) 將 `claude/coord-main-status` PR/merge；(2) pin/確認 GitNexus CLI，修正正式中文路徑 `.gitnexus\lbug` IO 與 FTS query 降級；(3) 重啟 Codex / Antigravity 後驗證 MCP 工具可見；(4) P3 Supabase parity 需 Bruce 拍板 #2 向量 `halfvec(3072)` 與 #10 Auth 分軌，並備妥 Supabase 金鑰；(5) Codex P4 真實生成等 P3 migration 落地後再套用。
 
 ---
 
