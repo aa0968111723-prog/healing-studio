@@ -66,7 +66,12 @@ export const SHELL_SUBROUTES: Record<ShellId, ShellSubRoute[]> = {
     { path: "/settings/admin/brain-pipeline", component: P.AiBrainPipelinePage },
   ],
   social: [
-    // 社群系統②：0 專屬實作（新建）。P0 僅佔位骨架；實 UI 為 P5。
+    // 社群系統②：P5 專屬實作（新建頁面，非 re-home 既有頁）。設計 §7.1 路由地圖。
+    // 受 SHELL_SOCIAL 旗標控制：OFF（預設）時 ShellFrame 仍顯示「已關閉」佔位（meta.enabled=false）。
+    { path: "/social", component: P.SocialCockpit, index: true },
+    { path: "/social/studio", component: P.SocialStudio },
+    { path: "/social/brand", component: P.SocialBrand },
+    { path: "/social/publish", component: P.SocialPublish },
   ],
 };
 

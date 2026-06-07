@@ -37,3 +37,10 @@ export const AgentPreferencesPage = lazy(() => import("@/pages/settings/AgentPre
 export const AdminPage = lazy(() => import("@/pages/AdminPage"));
 export const AdminApiUsagePage = lazy(() => import("@/pages/AdminApiUsagePage"));
 export const AiBrainPipelinePage = lazy(() => import("@/pages/AiBrainPipelinePage"));
+
+// ── social shell 頁面（group: social 新建；P5 社群圖文系統②）─────────────────
+// 非 re-home 既有頁：這四頁是 P5 新建（pages/social/*）。lazy 包裝＝與其他 shell 一致。
+export const SocialCockpit = lazy(() => import("@/pages/social/SocialCockpitPage"));
+export const SocialStudio = lazy(() => import("@/pages/social/SocialStudioPage"));
+export const SocialBrand = lazy(() => import("@/pages/social/SocialBrandPage"));
+export const SocialPublish = lazy(() => import("@/pages/social/SocialPublishPage"));
