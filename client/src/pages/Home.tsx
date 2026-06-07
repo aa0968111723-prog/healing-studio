@@ -683,11 +683,8 @@ export default function Home() {
   const reduceMotion = useReducedMotion();
   const { user, loading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      navigate("/create");
-    }
-  }, [isAuthenticated, loading, navigate]);
+  // 首頁不再自動把已登入使用者轉到 /create —— 保留光球首頁，由使用者自行點
+  // 「進入創作作業系統」CTA 進站（避免首頁「閃幾秒就跳走」的體感）。
   const { personality } = useAIState();
   const [showOnboarding, setShowOnboarding] = useState(false);
   // Phase 2c: 三段創作中樞 sections 已搬到 /create，這頁不再需要 useProjects /
