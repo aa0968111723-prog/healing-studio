@@ -1,0 +1,143 @@
+// ============================================================================
+// shells/video/canvas/VoiceAmbientCanvas.tsx — 中欄畫布：2-5 配音 / 環境音（接真實 proStudio.*）
+// ----------------------------------------------------------------------------
+// 真實 procedure（typed trpc hooks → fal.ai 非同步佇列）：
+//   proStudio.qwenTTS（無需額外金鑰，FAL_API_KEY 即可）— 預設配音路徑
+//   proStudio.elevenLabsTTS（需 ELEVENLABS_API_KEY，無則 PRECONDITION_FAILED）
+//   proStudio.soundEffects（環境音 / 音效）
+// 成本原子性：先以 generate.estimateCost 估點（不扣）→ 確認 → proStudio.* 提交（伺服器先扣、
+//   失敗全額退）。提交後進 background_jobs 非同步佇列，完成後在資產庫。
+// ============================================================================
+import { useState } from "react";
+import { Mic, Waves, Loader2, Coins, CircleCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+
+type Engine = "qwenTTS" | "elevenLabsTTS" | "soundEffects";
+
+const ENGINES: { id: Engine; label: string; needsKey?: boolean; ambient?: boolean }[] = [
+  { id: "qwenTTS", label: "配音 · Qwen TTS（無需金鑰）" },
+  { id: "elevenLabsTTS", label: "配音 · ElevenLabs（需金鑰）", needsKey: true },
+  { id: "soundEffects", label: "環境音 / 音效", ambient: true },
+];
+
+/** 環境音預設秒數：估算與提交共用同一值，避免「估點 < 實扣」。 */
+const AMBIENT_DURATION_SEC = 6;
+
+export function VoiceAmbientCanvas() {
+  const utils = trpc.useUtils();
+  const qwen = trpc.proStudio.qwenTTS.useMutation();
+  const eleven = trpc.proStudio.elevenLabsTTS.useMutation();
+  const sfx = trpc.proStudio.soundEffects.useMutation();
+
+  const [engine, setEngine] = useState<Engine>("qwenTTS");
+  const [text, setText] = useState("");
+  const [estimate, setEstimate] = useState<number | null>(null);
+  const [submitted, setSubmitted] = useState<{ requestId: string; credits: number } | null>(null);
+  const meta = ENGINES.find((e) => e.id === engine)!;
+
+  const busy = qwen.isPending || eleven.isPending || sfx.isPending;
+
+  const doEstimate = async () => {
+    if (!text.trim()) return;
+    setSubmitted(null);
+    try {
+      const r = await utils.generate.estimateCost.fetch(
+        meta.ambient
+          ? { generationType: "audio", durationSec: AMBIENT_DURATION_SEC }
+          : { generationType: "voice", charCount: text.trim().length },
+      );
+      const pts = readPts(r);
+      setEstimate(pts);
+      toast(`估算成本：約 ${pts} pts`, { description: "確認後先扣後生成 · 失敗全額退還" });
+    } catch (e) {
+      toast.error("估算失敗", { description: e instanceof Error ? e.message : "generate.estimateCost 無回應" });
+    }
+  };
+
+  const doSubmit = async () => {
+    const t = text.trim();
+    if (!t) return;
+    try {
+      let res: { request_id: string; estimated_credits: number };
+      if (engine === "qwenTTS") res = await qwen.mutateAsync({ text: t });
+      else if (engine === "elevenLabsTTS") res = await eleven.mutateAsync({ text: t });
+      else res = await sfx.mutateAsync({ text: t.slice(0, 500), duration_seconds: AMBIENT_DURATION_SEC });
+      setSubmitted({ requestId: res.request_id, credits: res.estimated_credits });
+      toast.success("已送出生成佇列", { description: `已扣 ${res.estimated_credits} pts（失敗全額退還）· 背景處理中` });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "proStudio 無回應";
+      toast.error("送出失敗", {
+        description: meta.needsKey && /key|金鑰|PRECONDITION/i.test(msg) ? "需要 ELEVENLABS_API_KEY（待後端設定）" : msg,
+      });
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col gap-3 overflow-y-auto">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {meta.ambient ? <Waves className="size-3.5 text-primary" /> : <Mic className="size-3.5 text-primary" />}
+        配音 / 環境音 · proStudio → fal.ai
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {ENGINES.map((e) => (
+          <Button
+            key={e.id}
+            size="sm"
+            variant={engine === e.id ? "default" : "outline"}
+            className="h-7 text-xs"
+            onClick={() => { setEngine(e.id); setEstimate(null); setSubmitted(null); }}
+          >
+            {e.label}
+          </Button>
+        ))}
+      </div>
+
+      {meta.needsKey && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+          ElevenLabs 需 <span className="font-mono">ELEVENLABS_API_KEY</span>（後端設定）；未設定會回 PRECONDITION_FAILED。無金鑰請改用 Qwen TTS。
+        </div>
+      )}
+
+      <Textarea
+        value={text}
+        onChange={(e) => { setText(e.target.value); setEstimate(null); }}
+        placeholder={meta.ambient ? "描述環境音 / 音效（如：雪山風聲、溪流、寺院鐘聲）…" : "輸入要配音的旁白文字…"}
+        className="min-h-[100px] resize-none text-sm"
+        maxLength={meta.ambient ? 500 : 5000}
+      />
+
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => void doEstimate()} disabled={busy || !text.trim()}>
+          <Coins className="size-4" /> 估算成本
+        </Button>
+        {estimate !== null && <Badge variant="secondary" className="text-[10px]">約 {estimate} pts</Badge>}
+        <Button size="sm" className="ml-auto" onClick={() => void doSubmit()} disabled={busy || !text.trim()}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : null} 確認生成
+        </Button>
+      </div>
+
+      {submitted && (
+        <div className="flex items-center gap-2 rounded-xl border bg-card/60 p-3 text-xs">
+          <CircleCheck className="size-4 text-emerald-500" />
+          <span className="flex-1">
+            已送出佇列 · <span className="font-mono text-[10px] text-muted-foreground">{submitted.requestId.slice(0, 18)}…</span>
+            <span className="ml-1 text-muted-foreground">已扣 {submitted.credits} pts · 完成後在資產庫</span>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 從 generate.estimateCost 多形輸出取點數。 */
+function readPts(r: unknown): number {
+  const o = r as { pointsCost?: number; points?: number; pointsBreakdown?: { total?: number } } | null;
+  return Math.round(o?.pointsCost ?? o?.points ?? o?.pointsBreakdown?.total ?? 0);
+}
+
+export default VoiceAmbientCanvas;
