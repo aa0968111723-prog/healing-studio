@@ -50,10 +50,19 @@ export const ENABLE_VIDEO_COCKPIT: boolean = readFlag("VITE_ENABLE_VIDEO_COCKPIT
  */
 export const VIDEO_SPINE_MOCK: boolean = readFlag("VITE_VIDEO_SPINE_MOCK", false);
 
+/**
+ * Wave 0 導演台重構總開關。**預設 ON**，但只在 ENABLE_4SHELL=ON ＋ ENABLE_VIDEO_COCKPIT=ON
+ * 之下才可達（座艙永遠在雙旗標之下）。ON → /video 首頁＝三欄導演台（Story Spine／創作畫布／
+ * Context Sidecar ＋ 頂部創作流程列 ＋ 光球 Ambient Copilot）。
+ * 設 .env：VITE_ENABLE_DIRECTOR_CONSOLE=0 → 退回 P2 既有三欄座艙（除錯逃生口，strangler-fig 只加不刪）。
+ */
+export const ENABLE_DIRECTOR_CONSOLE: boolean = readFlag("VITE_ENABLE_DIRECTOR_CONSOLE", true);
+
 /** 集中匯出，方便偵錯面板/驗收一次讀取。 */
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
   VIDEO_SPINE_MOCK,
+  ENABLE_DIRECTOR_CONSOLE,
 } as const;
 
 export type VideoFlagKey = keyof typeof VIDEO_FLAGS;
