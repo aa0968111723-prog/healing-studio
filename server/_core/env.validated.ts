@@ -455,6 +455,13 @@ const multimodalSchema = z.object({
   PERPLEXITY_PER_USER_PER_DAY: z.string().optional().default("100"),
   PERPLEXITY_GLOBAL_PER_MINUTE: z.string().optional().default("60"),
 
+  // ── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）─────────
+  // 寫入開關：ON 時 postGenActions.doPostGenComplete 在寫完 prompt_library 與
+  // digital_asset_library 後自動補建 relation=derived 的關聯邊。預設 OFF —
+  // 讀取 procedure（promptLibrary.linkedAssets / assets.linkedPrompts）不受
+  // 此旗標影響，空表回空陣列，先跑 migration 後開旗標是安全順序。
+  ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("false"),
+
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
 

@@ -683,11 +683,8 @@ export default function Home() {
   const reduceMotion = useReducedMotion();
   const { user, loading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
-  useEffect(() => {
-    if (!loading && isAuthenticated) {
-      navigate("/create");
-    }
-  }, [isAuthenticated, loading, navigate]);
+  // 首頁不再自動把已登入使用者轉到 /create —— 保留光球首頁，由使用者自行點
+  // 「進入創作作業系統」CTA 進站（避免首頁「閃幾秒就跳走」的體感）。
   const { personality } = useAIState();
   const [showOnboarding, setShowOnboarding] = useState(false);
   // Phase 2c: 三段創作中樞 sections 已搬到 /create，這頁不再需要 useProjects /
@@ -1355,20 +1352,26 @@ ${profileSnippet}`;
                   }
                   transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
                 />
-                {/* Orb with subtle scene-matched aura */}
+                {/* Orb with subtle scene-matched aura.
+                    NOTE: We intentionally animate ONLY `scale` here (a GPU
+                    transform), never `filter`. The orb is a WebGL <canvas>
+                    (VisualSoul3D); animating drop-shadow/brightness on its
+                    wrapper forces the compositor to re-sample the canvas alpha
+                    every frame, which makes the orb visibly flicker on mobile
+                    (see the matching note in VisualSoul3D.tsx). The breathing
+                    glow is already supplied by the sibling radial-gradient
+                    aura ring above + VisualSoul3D's own static drop-shadow, so
+                    dropping the animated filter loses no visual richness. */}
                 <motion.div
                   className="relative"
+                  style={{
+                    filter: `drop-shadow(0 0 24px ${s.glowColor})`,
+                  }}
                   transition={{ duration: 8.4, repeat: Infinity, ease: "easeInOut" }}
                   animate={
                     reduceMotion
                       ? undefined
                       : {
-                          filter: [
-                            `drop-shadow(0 0 18px ${s.glowColor}) brightness(0.96)`,
-                            `drop-shadow(0 0 42px ${s.glowColor}) brightness(1.14)`,
-                            `drop-shadow(0 0 24px ${s.glowColor}) brightness(1.02)`,
-                            `drop-shadow(0 0 18px ${s.glowColor}) brightness(0.96)`,
-                          ],
                           scale: [0.9, 1.05, 0.93, 0.9],
                         }
                   }

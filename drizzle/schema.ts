@@ -1784,6 +1784,44 @@ export const promptLibrary = mysqlTable(
 export type PromptLibraryItem = typeof promptLibrary.$inferSelect;
 export type InsertPromptLibraryItem = typeof promptLibrary.$inferInsert;
 
+// ─── Prompt ↔ Asset 關聯（junction）────────────────────────────────────────
+// 已拍板採 junction 而非在資產表上加單一 promptId 欄：一個 prompt 會衍生多個
+// 資產（重生成/變體/延長），一個資產也可能被多個 prompt 觸及（rewrite 鏈）。
+// relation 記這條邊的語意：
+//   derived  = 生成完成鏈自動建立（資產由該 prompt 直接生成；backfill 也用此值）
+//   variant  = 同 prompt 重骰的變體
+//   rewrite  = prompt 改寫後再生成的承接關係
+//   extended = 延長（影片續段等）
+// 不在 schema 掛 references()（全檔慣例：schema 無 FK 宣告）；DB 層 FK 由
+// migration 0075 用 ALTER TABLE ADD CONSTRAINT 補（同 0055 teaching_archive_fk
+// 模式），兩側 ON DELETE CASCADE — 任一端刪除時關聯邊自動清除。
+export const promptAssets = mysqlTable(
+  "prompt_assets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    promptId: int("promptId").notNull(), // → prompt_library.id
+    assetId: int("assetId").notNull(), // → digital_asset_library.id
+    relation: mysqlEnum("relation", ["derived", "variant", "rewrite", "extended"])
+      .default("derived")
+      .notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    promptIdIdx: index("pa_promptId_idx").on(table.promptId),
+    assetIdIdx: index("pa_assetId_idx").on(table.assetId),
+    // 冪等去重：同一條 (prompt, asset, relation) 邊只存一次 — 生成鏈重跑
+    // （webhook + polling 雙路徑）與 backfill 重跑都靠它擋重複。
+    promptAssetRelUnique: uniqueIndex("pa_prompt_asset_rel_unique").on(
+      table.promptId,
+      table.assetId,
+      table.relation
+    ),
+  })
+);
+
+export type PromptAssetLink = typeof promptAssets.$inferSelect;
+export type InsertPromptAssetLink = typeof promptAssets.$inferInsert;
+
 // ─── Prompt Collection（個人提示詞收集，可團隊共享）────────────────────────
 // 比照 digital_asset_library 的 private / team_shared visibility 模型。
 // 收集標的：站內任何可重用的提示詞（25 位精靈的 system slice、18 條精靈

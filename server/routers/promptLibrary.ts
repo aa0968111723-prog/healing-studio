@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { eq, and, desc, like, inArray, sql } from "drizzle-orm";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, getLinkedAssetsForPrompt } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 
@@ -272,6 +272,99 @@ export const promptLibraryRouter = router({
 
       return { success: true };
     }),
+
+  // ── 此 prompt 衍生的資產（prompt_assets junction, migration 0075）──────────
+  // 讀取不掛 ENABLE_PROMPT_ASSET_LINKS 旗標 — 旗標只管生成鏈的寫入端；
+  // 表空（旗標未開、尚未 backfill）時回空陣列，前端相容。
+  linkedAssets: protectedProcedure
+    .input(z.object({ promptId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
+
+      // 確認 prompt 是本人的（與 getById 同款防護）
+      const owned = await db
+        .select({ id: promptLibrary.id })
+        .from(promptLibrary)
+        .where(
+          and(
+            eq(promptLibrary.id, input.promptId),
+            eq(promptLibrary.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+      if (!owned[0]) throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
+
+      return getLinkedAssetsForPrompt(ctx.user.id, input.promptId);
+    }),
+
+  // ── 歷史資料回填（admin）────────────────────────────────────────────────────
+  // 把既有 inline 提示詞文字對回 prompt_library 建關聯，只做「完全等值」匹配
+  // （同 userId、content 與 promptUsed/generation_history.prompt 完全相同），
+  // 對不上的略過、不亂猜；同 user 同 content 多列時取最早一列（MIN(id)，
+  // 決定性）。INSERT IGNORE + (promptId, assetId, relation) 唯一鍵 → 可重跑。
+  //   pass 1：digital_asset_library.promptUsed
+  //   pass 2：promptUsed 缺值的資產，經 generation_history（userId +
+  //           resultUrl = fileUrl）借它的 prompt 文字再對一次
+  // 明確的 admin 動作，不受 ENABLE_PROMPT_ASSET_LINKS 旗標限制。
+  backfillAssetLinks: adminProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
+
+    // pass 1: 資產自帶的 promptUsed 全文等值
+    const pass1 = await db.execute(sql`
+      INSERT IGNORE INTO prompt_assets (promptId, assetId, relation)
+      SELECT pl.minId, a.id, 'derived'
+      FROM digital_asset_library a
+      JOIN (
+        SELECT userId, content, MIN(id) AS minId
+        FROM prompt_library
+        GROUP BY userId, content
+      ) pl
+        ON pl.userId = a.userId AND pl.content = a.promptUsed
+      WHERE a.promptUsed IS NOT NULL
+        AND CHAR_LENGTH(TRIM(a.promptUsed)) >= 4
+    `);
+
+    // pass 2: 沒有 promptUsed 的資產，借 generation_history 的 prompt
+    //（同 user 且 resultUrl 等於資產 fileUrl 才視為同一次生成）
+    const pass2 = await db.execute(sql`
+      INSERT IGNORE INTO prompt_assets (promptId, assetId, relation)
+      SELECT pl.minId, a.id, 'derived'
+      FROM digital_asset_library a
+      JOIN generation_history gh
+        ON gh.userId = a.userId
+       AND gh.resultUrl IS NOT NULL
+       AND gh.resultUrl <> ''
+       AND gh.resultUrl = a.fileUrl
+      JOIN (
+        SELECT userId, content, MIN(id) AS minId
+        FROM prompt_library
+        GROUP BY userId, content
+      ) pl
+        ON pl.userId = a.userId AND pl.content = gh.prompt
+      WHERE (a.promptUsed IS NULL OR CHAR_LENGTH(TRIM(a.promptUsed)) < 4)
+        AND gh.prompt IS NOT NULL
+        AND CHAR_LENGTH(TRIM(gh.prompt)) >= 4
+        AND a.fileUrl IS NOT NULL
+        AND a.fileUrl <> ''
+    `);
+
+    // mysql2 ResultSetHeader.affectedRows = 實際新建的邊數
+    //（IGNORE 之下：重複鍵/FK 對不上的列都跳過、不計入）。
+    const linkedFromPromptUsed = Number(
+      (pass1 as unknown as Array<{ affectedRows?: number }>)?.[0]?.affectedRows ?? 0
+    );
+    const linkedFromHistory = Number(
+      (pass2 as unknown as Array<{ affectedRows?: number }>)?.[0]?.affectedRows ?? 0
+    );
+
+    return {
+      linkedFromPromptUsed,
+      linkedFromHistory,
+      totalLinked: linkedFromPromptUsed + linkedFromHistory,
+    };
+  }),
 
   // ── 管理員批次種子 ──────────────────────────────────────────────────────────
   adminSeed: adminProcedure

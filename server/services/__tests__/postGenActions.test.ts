@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const createDigitalAssetMock = vi.fn(async () => 1);
 const createHistoryEntryMock = vi.fn(async () => 1);
+const createPromptAssetLinkMock = vi.fn(async () => 1);
 const getBackgroundJobMock = vi.fn();
 const updateBackgroundJobMock = vi.fn(async () => undefined);
 const refundUserPointsMock = vi.fn(async () => undefined);
@@ -30,6 +31,8 @@ vi.mock("../../db", () => ({
     createDigitalAssetMock(...(args as [unknown])),
   createHistoryEntry: (...args: unknown[]) =>
     createHistoryEntryMock(...(args as [unknown])),
+  createPromptAssetLink: (...args: unknown[]) =>
+    createPromptAssetLinkMock(...(args as [unknown])),
   getBackgroundJob: (...args: unknown[]) =>
     getBackgroundJobMock(...(args as [number])),
   updateBackgroundJob: (...args: unknown[]) =>
@@ -69,6 +72,8 @@ describe("doPostGenComplete", () => {
     createDigitalAssetMock.mockResolvedValue(1);
     createHistoryEntryMock.mockReset();
     createHistoryEntryMock.mockResolvedValue(1);
+    createPromptAssetLinkMock.mockReset();
+    createPromptAssetLinkMock.mockResolvedValue(1);
     insertMock.mockReset();
     insertMock.mockResolvedValue(undefined);
     addGenerationLogMock.mockReset();
@@ -85,6 +90,11 @@ describe("doPostGenComplete", () => {
         }),
       }),
     });
+    delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_PROMPT_ASSET_LINKS;
   });
 
   it("writes to digital asset library, history, and AI monitoring on success", async () => {
@@ -144,6 +154,84 @@ describe("doPostGenComplete", () => {
     expect(addGenerationLogMock).toHaveBeenCalledTimes(1);
     const log = addGenerationLogMock.mock.calls[0][0] as Record<string, unknown>;
     expect(log.success).toBe(false);
+  });
+
+  it("links prompt to asset when ENABLE_PROMPT_ASSET_LINKS is on", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    // mysql2 driver 形狀：[ResultSetHeader]；prompt_library 寫入回 insertId=55
+    insertMock.mockResolvedValue([{ insertId: 55 }] as never);
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    expect(createPromptAssetLinkMock).toHaveBeenCalledTimes(1);
+    expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+      promptId: 55,
+      assetId: 99,
+      relation: "derived",
+    });
+  });
+
+  it("does NOT link when the flag is off (default) even with both ids available", async () => {
+    // 旗標未設（預設 OFF）
+    insertMock.mockResolvedValue([{ insertId: 55 }] as never);
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
+    // 既有寫入不受影響
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips the link when the prompt is too short for the library (no promptId)", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "猫", // < MIN_PROMPT_LENGTH_FOR_LIBRARY → 不進提示詞庫 → 無 promptId
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
+    // 資產照常寫入
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("link failure is swallowed and does not break history/log writes", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    insertMock.mockResolvedValue([{ insertId: 55 }] as never);
+    createDigitalAssetMock.mockResolvedValue(99);
+    createPromptAssetLinkMock.mockRejectedValue(new Error("FK violation"));
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    expect(createPromptAssetLinkMock).toHaveBeenCalledTimes(1);
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+    expect(addGenerationLogMock).toHaveBeenCalledTimes(1);
   });
 
   it("records actual costCredits in history when provided", async () => {
