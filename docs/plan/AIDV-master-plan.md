@@ -177,6 +177,13 @@ AI Director 影片系統（空間首頁＝①）
 
 轉移後 Notion 端：在每頁頂端加「已遷 Confluence（連結）」橫幅，**不刪原文**。
 
+> **2026-06-12 轉移執行結果**（Confluence 空間 AIDIR id=262147）：
+> - 首頁＝①架構與真實基準；②–⑥＋變更紀錄＋Archive 已建。
+> - 已遷全文：③-1 深度研究報告 v2／②-A SubQ 整合規劃 v1（Notion 原頁在過時區）／②-B 資料模型深入設計（標註 pg→MySQL 轉換注意＋0070/0071 已落地）／②-C 進度 DB 快照與拍板細節（25 列精華，含 LoRA=fal-ai/flux-lora-fast-training）／⑤-A 交接開工索引（13 個 Notion 子頁連結）。
+> - 三個決策頁＋四個 Wave/正式碼頁＝Notion 空白頁（內容只在 DB 備註）→ 已併入 ②-C 與 Jira AIDV-26/27/28 留言，不另建頁。
+> - Notion 規劃區首頁已加「已遷移至 Atlassian」橫幅（原文未刪）。
+> - 待搬（標 待議）：⑤-A 索引中的 13 個子頁正文（多數已鏡像 repo docs/4shell-handoff/）、網站知識庫、文件庫地圖整併版、Q&amp;A 雜頁。
+
 ---
 
 ## 5. 維運 SOP（之後維護）
