@@ -456,6 +456,34 @@
       "when": 1779050000075,
       "tag": "0075_prompt_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1779050000076,
+      "tag": "0071_context_packets",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "5",
+      "when": 1779050000077,
+      "tag": "0072_project_data_access_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "5",
+      "when": 1779050000078,
+      "tag": "0073_data_source_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "5",
+      "when": 1779050000079,
+      "tag": "0074_fine_tuned_models_team",
+      "breakpoints": true
     }
   ]
 }
