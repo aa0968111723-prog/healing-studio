@@ -1,0 +1,35 @@
+Issue Type,Summary,Description,Status,Labels,Labels,Epic Name,Epic Link
+Epic,Wave 0 前端骨架/導演台,"四殼一脊椎前端骨架＋三欄導演台。全部完成（PR #852–#862）。",Done,wave0,,Wave 0 前端骨架/導演台,
+Epic,Wave 1 SSOT+接線,"假資料換真資料、prompt↔asset 關聯、供應商門面。進行中。",In Progress,wave1,,Wave 1 SSOT+接線,
+Epic,Wave 2 耐久任務/成本/血統,"任務耐久化、成本落帳閉環、上傳、fal 雙層生影片。",To Do,wave2,,Wave 2 耐久任務/成本/血統,
+Epic,Wave 3 重後端/基建/協作,"M3 段落狀態機、Supabase 遷移、生成鎖、即時協作、XState 收斂。",To Do,wave3,,Wave 3 重後端/基建/協作,
+Epic,Wave 4 代理建置區/BYOMCP,"可觀察/可審核/半唯讀 builder → BYOMCP 權限稽核 → orchestrator+worker。",To Do,wave4,,Wave 4 代理建置區/BYOMCP,
+Story,4-shell 重構（flag-gated）,"PR #852–#861 已合併 main（2026-06-06/07）。ENABLE_4SHELL 預設 OFF。驗收：tsc/scan/測試綠、旗標 OFF 零行為改變。https://github.com/aa0968111723-prog/healing-studio/pull/852",Done,,,,Wave 0 前端骨架/導演台
+Story,Wave 0 三欄導演台正式碼,"PR #862 已於 2026-06-11 合併 feat/4-shell-restructure（尚未回流 main）。驗收：tsc/scan/測試綠、旗標 OFF 逐像素一致。https://github.com/aa0968111723-prog/healing-studio/pull/862",Done,,,,Wave 0 前端骨架/導演台
+Story,互動原型（三欄導演台）,"bruce882-ai-director-video-proto.static.hf.space",Done,,,,Wave 0 前端骨架/導演台
+Story,技術簡報（落地路線圖）,"bruce882-ai-director-video-brief.static.hf.space（活文件）",Done,,,,Wave 0 前端骨架/導演台
+Story,Project SSOT：MOCK→真 creative_projects,"PR #863 已於 2026-06-12 合併 feat/4-shell-restructure。ENABLE_PROJECT_SSOT 旗標（4SHELL 之下預設 ON、線上 OFF）；active id 歸 WorldContext。依賴 #862。https://github.com/aa0968111723-prog/healing-studio/pull/863",Done,,,,Wave 1 SSOT+接線
+Story,prompt_assets junction 表,"PR #864 已於 2026-06-12 合併 main。migration 0075 冪等可回滾；ENABLE_PROMPT_ASSET_LINKS 預設 OFF；讀取 procedure：promptLibrary.linkedAssets / assets.linkedPrompts；admin backfill 已備。https://github.com/aa0968111723-prog/healing-studio/pull/864",Done,decision-resolved,,,Wave 1 SSOT+接線
+Story,合流 feat/4-shell-restructure → main,"聚合 #862（導演台）+ #863（SSOT）回流 main。驗收：旗標 OFF 線上零變化、CI 綠。依賴 #862 #863。下一步建議。",To Do,,,,Wave 1 SSOT+接線
+Story,junction backfill 真 DB 實跑,"admin 呼叫 promptLibrary.backfillAssetLinks 並核對 totalLinked；可重跑冪等。依賴 #864 與 DATABASE_URL 環境。",To Do,,,,Wave 1 SSOT+接線
+Story,junction relation 寫入點（variant/rewrite/extended）,"座艙重骰/改寫/延長流程接上三種 relation。依賴 #864 與導演台流程。",To Do,,,,Wave 1 SSOT+接線
+Story,prompt_library content 去重策略,"生成鏈每次生成新插一列 prompt_library（無去重）；同 prompt 聚合需拍板 upsert-by-content 或維持現狀。待 Bruce 拍板。",Blocked,decision,待議,,Wave 1 SSOT+接線
+Story,統一供應商門面＋Cloudflare AI Gateway,"所有生成呼叫過統一門面；免費 Cloudflare AI Gateway 做快取/觀測。",To Do,,,,Wave 1 SSOT+接線
+Story,其餘可接子系統接真實 procedure,"18 子系統矩陣的 ✅8 可接項；部分已在 #862 完成。逐項列實際 procedure 名。",In Progress,,,,Wave 1 SSOT+接線
+Story,任務耐久化 BullMQ+Redis+可重連 SSE,"殺 5 分鐘 timeout。驗收：任務跨重啟存活、SSE 斷線重連續傳。缺 Redis 金鑰（貼 Railway、勿寫頁面）。",Blocked,needs-key,,,Wave 2 耐久任務/成本/血統
+Story,真實成本落帳閉環,"估→原子扣→落帳/全退，outbox 模式。驗收：cost_aggregations 不再 $0.00。",To Do,,,,Wave 2 耐久任務/成本/血統
+Story,上傳改 signed URL/tus（廢 base64）,"大檔上傳不再過 tRPC body。",To Do,,,,Wave 2 耐久任務/成本/血統
+Story,fal.ai 雙層生影片,"草稿 Seedance/Kling/Wan＋精修 Veo 3.1。缺 FAL_KEY（貼 Railway）。注意：影片價以 fal 帳號頁為準。",Blocked,needs-key,caution,,Wave 2 耐久任務/成本/血統
+Story,migration 治理：孤兒 0071–0074 處置,"四個 .sql 未登記 journal（boot 警告 orphan、永不套用）。補登記會在下次部署突然套用 4 張表——需拍板：補登記或標廢棄。",Blocked,decision,待議,,Wave 2 耐久任務/成本/血統
+Story,M3 影片段落狀態機,"video_generation_sessions / segment_jobs；段落級重試/續跑。規模 XL。依賴 Wave 2 耐久化。",To Do,,,,Wave 3 重後端/基建/協作
+Story,MySQL→Supabase 遷移＋退役 Pinecone,"pg + pgvector halfvec(3072) + HNSW。注意：transaction pooler:6543、migration ledger 回填、enum/extension 衝突。已拍板排在任務耐久化之後。缺 Supabase keys（貼 Railway）。",Blocked,needs-key,caution,,Wave 3 重後端/基建/協作
+Story,presence＋Redis SET NX 生成鎖,"並發生成不互踩。依賴 Redis。",To Do,,,,Wave 3 重後端/基建/協作
+Story,Yjs/Hocuspocus（腳本）＋tRPC subscription（Shot JSON）,"雙人即時編輯不丟字。",To Do,,,,Wave 3 重後端/基建/協作
+Story,XState 收斂,"只留段落/鏡號狀態機，其餘移除。依賴 M3。",To Do,,,,Wave 3 重後端/基建/協作
+Story,可觀察/可審核/半唯讀 builder,"代理建置區第一階段。",To Do,,,,Wave 4 代理建置區/BYOMCP
+Story,BYOMCP 權限/稽核,"使用者自帶 MCP 的權限模型與稽核。",To Do,,,,Wave 4 代理建置區/BYOMCP
+Story,orchestrator＋專責 worker,"代理編排與專責 worker。",To Do,,,,Wave 4 代理建置區/BYOMCP
+Story,決策紀錄：prompt↔asset=junction,"已拍板並落地（PR #864、migration 0075）。",Done,decision-resolved,,,Wave 1 SSOT+接線
+Story,決策紀錄：LoRA 改走 fal.ai,"保留 Replicate 備援。已拍板。",Done,decision-resolved,,,Wave 2 耐久任務/成本/血統
+Story,決策紀錄：halfvec(3072)+HNSW／自建 JWT／Supabase 排後,"後端方向已拍板：向量 halfvec(3072)+HNSW；維持自建 JWT；Supabase 排任務耐久化之後。",Done,decision-resolved,,,Wave 3 重後端/基建/協作
+Story,避雷備忘,"Sora 2 已停用勿用；OpenAI 可重用 prompt 物件 2026-11-30 下線勿硬綁；影片價以 fal 帳號頁為準；本機 jsdom29+vitest2 localStorage 失效（main baseline 13 failed 為既有問題）。",To Do,caution,,,Wave 1 SSOT+接線
