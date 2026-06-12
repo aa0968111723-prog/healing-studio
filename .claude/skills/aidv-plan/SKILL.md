@@ -5,15 +5,19 @@ description: AIDV 專案規劃中樞 — 以 docs/plan/AIDV-master-plan.md（Atl
 
 # AIDV 規劃中樞（單一真實進度來源）
 
-**SSOT 優先序**：Atlassian（Jira 專案 `AIDV` + Confluence 空間「AI Director 影片系統」）→ 未連接時退回 `docs/plan/AIDV-master-plan.md`。兩者並存時 Atlassian 為準、master-plan 為鏡像（同步時雙寫）。
+**SSOT 優先序**：Atlassian（Jira 專案 `AIDV` + Confluence 空間 `AIDIR`「AI Director 影片系統」）→ 未連接時退回 `docs/plan/AIDV-master-plan.md`。兩者並存時 Atlassian 為準、master-plan 為鏡像（同步時雙寫）。Atlassian 存取：REST API＋`~/.atlassian-credentials`（站台 https://aa0968111723.atlassian.net）。
 
 ## 鐵律（每個子命令都適用）
 
 1. **不刪既有內容** — 過時內容移 Archive（Jira 用 label `archived`、Confluence 移 Archive 子頁、master-plan 移第 7 節）。
 2. **不確定 → label `待議`**，並列入週報「待決策」。
-3. **金鑰絕不寫入** issue／頁面／master-plan／commit。金鑰一律指示「貼 Railway 環境變數」。
+3. **金鑰絕不寫入** issue／頁面／master-plan／commit。金鑰一律指示「貼 Railway 環境變數」（寫到 AIDISC「🤝 需要你動手」頁）。
 4. 狀態詞彙固定：`Done ✅`／`In Progress 🔄`／`To Do 📋`／`Blocked ⛔`；label：`decision`／`decision-resolved`／`needs-key`／`caution`／`待議`。
 5. 任何進度斷言先以 `git fetch --all --prune` ＋ GitHub PR 狀態核實，不轉述舊文件。
+6. **定錨規則（Bruce 2026-06-12 live doc 指示）**：開發方向（四殼一脊椎＋Wave 0–4）定錨不動；按部就班照 ⑤ 順序；**要改只改未來的項目**，且先在 AIDISC 討論區與 Bruce 確認後才動。
+7. **白話文義務**：Bruce 是工程小白——所有 Confluence 頁面、週報、回覆遇到工程術語都附白話解釋；精準細節不可遺漏。
+8. **鮮度規則**：2026-06-10 前的文件＝過時（移 Archive、僅供參考）；06-10 之後的為現行。
+9. **討論區工作流**：每次 `status`／`sync`／開工前，先讀 Confluence 空間 `AIDISC`「📥 收件匣」與「🔬 參考研究」的新子頁 → 逐頁留言回覆 → 該變任務的開 Jira 卡 → 標題加 `[已回覆]`；要 Bruce 做的事寫進「🤝 需要你動手」。
 
 ## 子命令
 
