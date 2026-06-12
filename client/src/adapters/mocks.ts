@@ -8,6 +8,7 @@
 import type {
   AdapterDeps, Adapters,
   DataStoreAdapter, GenerationAdapter, CommanderAdapter, ContextPacketAdapter, StorageAdapter,
+  PromptVaultAdapter, PromptVaultItem, PromptVaultPage, PromptLinkedAsset, PromptLinkedPrompt,
   GenRequest, GenResult, GenEvent, DirectorReplyInput, DirectorReply, CommanderPlan, ScriptBreakdown,
   RecordedAsset,
 } from "./types";
@@ -106,6 +107,52 @@ export function makeStorageMock(_deps: AdapterDeps): StorageAdapter {
   };
 }
 
+// ─── 6) PromptVault mock（W1-3 新增；離線種子，與 promptVault.trpc.ts 同介面）────
+
+export function makePromptVaultMock(_deps: AdapterDeps): PromptVaultAdapter {
+  const store: PromptVaultItem[] = [
+    { id: 1, title: "禪修晨霧開場", content: "morning mist over a zen garden, soft golden light", category: "video", tags: ["禪修"], isFavorite: true, useCount: 7, modelHint: "kling-v2.1", updatedAt: Date.now() - 86400000 },
+    { id: 2, title: "角色定裝特寫", content: "portrait of a tibetan monk, weathered face, warm light", category: "image", tags: ["角色"], isFavorite: false, useCount: 3, updatedAt: Date.now() - 3600000 },
+  ];
+  let nextId = 100;
+  return {
+    async listPrompts(input): Promise<PromptVaultPage> {
+      await delay(100);
+      let items = [...store];
+      if (input?.category) items = items.filter(i => i.category === input.category);
+      if (input?.favoritesOnly) items = items.filter(i => i.isFavorite);
+      if (input?.search) items = items.filter(i => i.title.includes(input.search!));
+      const pageSize = input?.pageSize ?? 20;
+      return { items, total: items.length, page: input?.page ?? 1, pageSize, totalPages: Math.ceil(items.length / pageSize) };
+    },
+    async getPrompt(id): Promise<PromptVaultItem | null> {
+      await delay(60);
+      return store.find(i => i.id === id) ?? null;
+    },
+    async createPrompt(input): Promise<{ id: number }> {
+      await delay(80);
+      const id = nextId++;
+      store.push({ id, title: input.title, content: input.content, category: input.category ?? "general", tags: input.tags ?? [], isFavorite: false, useCount: 0, modelHint: input.modelHint, updatedAt: Date.now() });
+      return { id };
+    },
+    async incrementUseCount(id): Promise<void> {
+      await delay(40);
+      const it = store.find(i => i.id === id);
+      if (it) it.useCount += 1;
+    },
+    async listLinkedAssets(promptId): Promise<PromptLinkedAsset[]> {
+      await delay(80);
+      if (promptId !== 1) return [];
+      return [{ relation: "derived", linkedAt: Date.now() - 7200000, asset: { id: 11, title: "晨霧 take-1", assetType: "video" } }];
+    },
+    async listLinkedPrompts(assetId): Promise<PromptLinkedPrompt[]> {
+      await delay(80);
+      if (assetId !== 11) return [];
+      return [{ relation: "derived", linkedAt: Date.now() - 7200000, prompt: { id: 1, title: "禪修晨霧開場", content: "morning mist over a zen garden, soft golden light", category: "video" } }];
+    },
+  };
+}
+
 /** 一次組出全 mock registry（供 index.ts 在 *_STORE=mock 時使用）。 */
 export function makeMockAdapters(deps: AdapterDeps): Adapters {
   return {
@@ -114,6 +161,7 @@ export function makeMockAdapters(deps: AdapterDeps): Adapters {
     commander: makeCommanderMock(deps),
     contextPacket: makeContextPacketMock(deps),
     storage: makeStorageMock(deps),
-    meta: { dataStore: "mock", generation: "mock", commander: "mock", contextPacket: "mock", storage: "mock" },
+    promptVault: makePromptVaultMock(deps),
+    meta: { dataStore: "mock", generation: "mock", commander: "mock", contextPacket: "mock", storage: "mock", promptVault: "mock" },
   };
 }

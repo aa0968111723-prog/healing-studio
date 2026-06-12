@@ -21,8 +21,10 @@ import { makeGenerationTrpc } from "./generation.trpc";
 import { makeCommanderTrpc } from "./commander.trpc";
 import { makeContextPacketTrpc } from "./contextPacket.trpc";
 import { makeStorageTrpc } from "./storage.trpc";
+import { makePromptVaultTrpc } from "./promptVault.trpc";
 import {
   makeDataStoreMock, makeGenerationMock, makeCommanderMock, makeContextPacketMock, makeStorageMock,
+  makePromptVaultMock,
 } from "./mocks";
 
 export type { Adapters, AdapterDeps } from "./types";
@@ -43,6 +45,8 @@ export function createAdapters(deps: AdapterDeps): Adapters {
     commander: mode("VITE_COMMANDER_ADAPTER"),
     contextPacket: mode("VITE_CONTEXT_PACKET_MODE"),
     storage: mode("VITE_STORAGE_PROVIDER"),
+    // W1-3 第六條接縫（promptLibrary.* ＋ junction 雙向查詢）；同其餘接縫預設 trpc。
+    promptVault: mode("VITE_PROMPT_VAULT"),
   } as const;
 
   return {
@@ -51,6 +55,7 @@ export function createAdapters(deps: AdapterDeps): Adapters {
     commander: m.commander === "mock" ? makeCommanderMock(deps) : makeCommanderTrpc(deps),
     contextPacket: m.contextPacket === "mock" ? makeContextPacketMock(deps) : makeContextPacketTrpc(deps),
     storage: m.storage === "mock" ? makeStorageMock(deps) : makeStorageTrpc(deps),
+    promptVault: m.promptVault === "mock" ? makePromptVaultMock(deps) : makePromptVaultTrpc(deps),
     meta: { ...m },
   };
 }
