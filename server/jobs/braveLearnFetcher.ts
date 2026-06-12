@@ -15,6 +15,7 @@
 
 import * as cron from "node-cron";
 import { createHash } from "crypto";
+import { resolveProviderBaseUrl, providerGatewayHeaders } from "../_core/providerFacade";
 import { invokeLLM, extractMessageText } from "../_core/llm";
 import { CircuitBreaker } from "./circuitBreaker";
 import { ENV } from "../_core/env";
@@ -185,11 +186,12 @@ async function searchPerplexity(
   }
 
   try {
-    const res = await fetch("https://api.perplexity.ai/chat/completions", {
+    const res = await fetch(`${resolveProviderBaseUrl("perplexity")}/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...providerGatewayHeaders("perplexity"),
       },
       body: JSON.stringify({
         model: "sonar-pro",

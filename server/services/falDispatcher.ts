@@ -22,6 +22,7 @@ import {
   resolveActiveModelId,
   type FalCallInput,
 } from "./falModels";
+import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 import { calculateActualCost, estimatePoints, getModelPricing } from "./modelPricing";
 import { deductCredits, reconcileCredits } from "./orbCostGuard";
 import { recordSpecialistInteraction } from "./specializedAgentMemoryStore";
@@ -905,8 +906,6 @@ export async function dispatchLoRATraining(params: {
 // ═══════════════════════════════════════════════════════════════════════════
 // Queue dispatcher — async submit to fal.ai queue with fallback chain support
 // ═══════════════════════════════════════════════════════════════════════════
-
-const FAL_QUEUE_BASE = "https://queue.fal.run";
 
 export interface FalQueueDispatchInput {
   /** 使用者選定模型；若不在 catalog 且能推論 category，會自動降級到該 category 的 fallback chain */

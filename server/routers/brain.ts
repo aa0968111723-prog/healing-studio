@@ -8,6 +8,10 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
+import {
+  resolveProviderBaseUrl,
+  providerGatewayHeaders,
+} from "../_core/providerFacade";
 import { getDb } from "../db";
 import {
   getAlerts,
@@ -701,7 +705,8 @@ export const brainRouter = router({
         });
       }
 
-      const url = `https://api.elevenlabs.io/v1/text-to-speech/${input.voiceId}`;
+      // base URL 走統一門面（CF AI Gateway 啟用時自動換軌）。
+      const url = `${resolveProviderBaseUrl("elevenlabs")}/v1/text-to-speech/${input.voiceId}`;
       const payload = {
         text: input.text,
         model_id: input.modelId,
@@ -718,6 +723,7 @@ export const brainRouter = router({
           "xi-api-key": apiKey,
           "Content-Type": "application/json",
           Accept: "audio/mpeg",
+          ...providerGatewayHeaders("elevenlabs"),
         },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(15_000),

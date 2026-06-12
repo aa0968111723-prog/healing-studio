@@ -1,8 +1,11 @@
 import type { AIAdapter, AdapterProxyRequest } from "../types";
+import {
+  resolveProviderBaseUrl,
+  providerGatewayHeaders,
+} from "../../../_core/providerFacade";
 
 export class FalAdapter implements AIAdapter {
   readonly provider = "fal_ai";
-  private readonly baseUrl = "https://fal.run";
 
   async proxy(req: AdapterProxyRequest): Promise<Response> {
     const apiKey = process.env.FAL_API_KEY || "";
@@ -11,10 +14,12 @@ export class FalAdapter implements AIAdapter {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), req.timeoutMs ?? 120_000);
     try {
-      return await fetch(`${this.baseUrl}/${req.pathWithQuery.replace(/^\/+/, "")}`, {
+      const baseUrl = resolveProviderBaseUrl("fal_ai");
+      return await fetch(`${baseUrl}/${req.pathWithQuery.replace(/^\/+/, "")}`, {
         method: req.method,
         headers: {
           ...req.headers,
+          ...providerGatewayHeaders("fal_ai"),
           Authorization: `Key ${apiKey}`,
         },
         body: req.body,

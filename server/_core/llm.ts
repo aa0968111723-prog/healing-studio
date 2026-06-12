@@ -14,6 +14,10 @@
  */
 
 import { serverEnv } from "./env.validated";
+import {
+  engineGatewayProvider,
+  providerGatewayHeaders,
+} from "./providerFacade";
 import { withLLMSlot } from "./llmConcurrency";
 import { cache } from "./cache";
 import { dedup } from "./deduplication";
@@ -1933,6 +1937,13 @@ async function invokeSingleEngine(
           if (serverEnv.OPENROUTER_X_TITLE) {
             headers["X-Title"] = serverEnv.OPENROUTER_X_TITLE;
           }
+        }
+
+        // CF AI Gateway 啟用且此引擎走閘道時，附上 cf-aig-authorization
+        //（直連或未設 token 時為空物件，零影響）。
+        const gatewayProvider = engineGatewayProvider(engineConfig.engine);
+        if (gatewayProvider) {
+          Object.assign(headers, providerGatewayHeaders(gatewayProvider));
         }
         const response = await fetch(engineConfig.url, {
           method: "POST",

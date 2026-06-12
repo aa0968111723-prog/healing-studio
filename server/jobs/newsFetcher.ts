@@ -17,6 +17,7 @@
 import * as cron from "node-cron";
 import { getDb } from "../db";
 import { newsArticles } from "../../drizzle/schema";
+import { resolveProviderBaseUrl, providerGatewayHeaders } from "../_core/providerFacade";
 import { invokeLLM } from "../_core/llm";
 import { eq, inArray } from "drizzle-orm";
 import { CircuitBreaker } from "./circuitBreaker";
@@ -240,12 +241,13 @@ async function fetchFromPerplexity(apiKey: string): Promise<FetchResult> {
   logOars("info", "嘗試從第三級備援 Perplexity Sonar 抓取新聞...");
 
   const response = await fetchWithTimeout(
-    "https://api.perplexity.ai/chat/completions",
+    `${resolveProviderBaseUrl("perplexity")}/chat/completions`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...providerGatewayHeaders("perplexity"),
       },
       body: JSON.stringify({
         // sonar-pro：含 web grounding 但不啟動 reasoning，速度 / 成本最佳。

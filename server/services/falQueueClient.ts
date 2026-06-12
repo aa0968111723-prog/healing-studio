@@ -15,7 +15,8 @@
  * layer.
  */
 
-const FAL_QUEUE_BASE = "https://queue.fal.run";
+// 統一供應商門面的單一來源（fal 無 CF Gateway slug，永遠直連）。
+import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 
 export async function falQueueFetchWithPrefixFallback(
   modelId: string,

@@ -23,6 +23,7 @@
 import { z } from "zod";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
@@ -39,9 +40,7 @@ import {
   type VideoBlock,
 } from "../services/videoCompiler";
 
-// ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
-
-const FAL_QUEUE_BASE = "https://queue.fal.run";
+// ─── fal.ai 呼叫工具（與 proStudio 相同模式；base URL 來自 providerFacade）───
 
 function getFalKey(): string {
   const key = process.env.FAL_API_KEY;
