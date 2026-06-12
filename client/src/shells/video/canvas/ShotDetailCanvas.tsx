@@ -68,7 +68,9 @@ export function ShotDetailCanvas() {
             <span className="text-xs">生成中…（掃光 + 輪詢 generate.jobStatus）</span>
           </div>
         )}
-        {gen.status === "error" && <Badge variant="destructive">生成失敗 · 可重試或切 provider</Badge>}
+        {gen.status === "error" && (
+          <Badge variant="destructive">生成失敗（generate.submitStudioJob）· 可重試或切 provider</Badge>
+        )}
         {(gen.status === "idle" || gen.status === "queued") && (
           <div className="text-center text-xs text-muted-foreground">
             {shot.route === "text" ? "🌄 空景 · 文字生成" : "🔒 角色 · 參考圖轉繪"}

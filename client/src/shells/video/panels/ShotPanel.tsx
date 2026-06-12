@@ -8,6 +8,7 @@
 // 動作走 useProjectSpine().generateShot / approveShot（→ P0 generation adapter，generate.* 真實串法）。
 // ============================================================================
 import { Bolt, RefreshCw, Check, Loader2 } from "lucide-react";
+import { PanelEmpty } from "@/shells/_shared/PanelState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -114,13 +115,14 @@ function ShotCard({ shot }: { shot: Shot }) {
   );
 }
 
+/** 面板空態：委派共用 PanelEmpty（role="status"，報讀器不會把空誤判成壞）。 */
 export function Empty({ icon, title, desc }: { icon: string; title: string; desc?: string }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 py-10 text-center">
-      <div className="text-3xl">{icon}</div>
-      <div className="text-sm font-medium">{title}</div>
-      {desc && <div className="max-w-[220px] text-xs text-muted-foreground">{desc}</div>}
-    </div>
+    <PanelEmpty
+      icon={<span className="text-3xl">{icon}</span>}
+      title={<span className="font-medium text-foreground">{title}</span>}
+      hint={desc}
+    />
   );
 }
 

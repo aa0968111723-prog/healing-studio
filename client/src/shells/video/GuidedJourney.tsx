@@ -7,7 +7,8 @@
 // 寫入 → useProjectSpine().ingestBreakdown()（樂觀本地 + worldStoryboard.createFromSegments 回寫）。
 // 抽出的角色預設「⚠ 估算」未定版 → 確認門擋住，需到角色頁上傳參考升「✅ 精準」解鎖。
 // ============================================================================
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { Wand2, Loader2, Check, Plus, Lock, ArrowLeft } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -36,23 +37,49 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
   const [bd, setBd] = useState<ScriptBreakdown | null>(null);
   const [name, setName] = useState("");
 
-  const reset = () => { setStep("input"); setText(""); setBd(null); setName(""); };
+  /** 遞增序號＝取消保護：按「取消返回」後，過期的拆解結果/錯誤直接丟棄。 */
+  const runSeq = useRef(0);
+
+  const reset = () => { runSeq.current++; setStep("input"); setText(""); setBd(null); setName(""); };
   const close = () => { onClose(); reset(); };
 
   const run = async () => {
     setStep("loading");
+    const token = ++runSeq.current;
     try {
       const b = await spine.breakdownScript(text || SAMPLE);
+      if (runSeq.current !== token) return; // 已取消或重跑
       setBd(b);
       setStep("review");
-    } catch {
-      // 拆解失敗回到輸入（toast 已由 adapter 邊界吞掉細節）。
+    } catch (err) {
+      if (runSeq.current !== token) return;
+      // error 標真實 procedure 名（W1-8）：P0 過渡走 director.analyzeScriptOverview
+      // ＋ director.generateVideoScript（正式 director.breakdown 為 M3 待後端）。
+      toast.error("腳本拆解失敗（director.analyzeScriptOverview / generateVideoScript）", {
+        description: err instanceof Error ? err.message : "請稍後重試，或先按「填入範例腳本」測試流程。",
+      });
       setStep("input");
     }
   };
 
+  /** loading 的取消出口：拆解可長達數十秒，不能把使用者關在轉圈圈裡。 */
+  const cancelRun = () => {
+    runSeq.current++;
+    setStep("input");
+  };
+
   const commit = async (newProject: boolean) => {
-    if (bd) await spine.ingestBreakdown(name || spine.project?.name || "引導式新專案", bd, { newProject });
+    if (bd) {
+      try {
+        await spine.ingestBreakdown(name || spine.project?.name || "引導式新專案", bd, { newProject });
+      } catch (err) {
+        // 寫入失敗不關窗：拆解結果還在，使用者可改名或換目標重試。
+        toast.error("寫入分鏡失敗（worldStoryboard.createFromSegments）", {
+          description: err instanceof Error ? err.message : "請稍後重試。",
+        });
+        return;
+      }
+    }
     close();
   };
 
@@ -93,12 +120,15 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
           )}
 
           {step === "loading" && (
-            <div className="flex flex-col items-center gap-3 py-16 text-center">
+            <div role="status" aria-busy="true" className="flex flex-col items-center gap-3 py-16 text-center">
               <Loader2 className="size-7 animate-spin text-primary" />
               <div className="text-sm font-medium">commander 正在拆解腳本…</div>
               <div className="max-w-sm text-xs text-muted-foreground">
                 Deterministic→Cache→RAG 壓成 Context Packet，再由導演腦切幕/分鏡、抽角色場景。
               </div>
+              <Button size="sm" variant="ghost" onClick={cancelRun}>
+                <ArrowLeft className="size-4" /> 取消返回
+              </Button>
             </div>
           )}
 
