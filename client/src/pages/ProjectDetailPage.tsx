@@ -21,9 +21,24 @@ import { ArrowLeft, Home } from "lucide-react";
 
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
-  const { getProjectById } = useProjects();
+  const { getProjectById, isLoading } = useProjects();
   const [, setLocation] = useLocation();
   const project = params.id ? getProjectById(params.id) : undefined;
+
+  if (!project && isLoading) {
+    // SSOT 路徑首次載入：清單還沒回來前不要閃「找不到」。
+    return (
+      <div className="page-shell page-shell-default space-y-6">
+        <PageHeader title="載入專案中…" subtitle="正在從伺服器取回專案內容。" />
+        <SectionCard title="請稍候" description="專案資料載入中。">
+          <div
+            data-testid="project-detail-loading"
+            className="h-2 w-1/2 animate-pulse rounded bg-muted"
+          />
+        </SectionCard>
+      </div>
+    );
+  }
 
   if (!project) {
     return (

@@ -31,10 +31,12 @@ function formatUpdatedAt(iso: string): string {
 }
 
 export default function ProjectsListPage() {
-  const { projects, setActiveProjectId } = useProjects();
+  const { projects, setActiveProjectId, isLoading, error } = useProjects();
   const [, setLocation] = useLocation();
 
   const continueProject = (project: Project) => {
+    // 樂觀臨時列（負數 id）沒有真實路由可去 —— 等 refetch 換上真列再導。
+    if (project.isPending) return;
     setActiveProjectId(project.id);
     setLocation(`/projects/${project.id}`);
   };
@@ -51,7 +53,29 @@ export default function ProjectsListPage() {
         }
       />
 
-      {projects.length === 0 ? (
+      {isLoading && projects.length === 0 ? (
+        // SSOT 路徑首次載入：先畫載入卡，避免把「還沒有專案」閃現給已有專案的人。
+        <SectionCard
+          title="載入專案中…"
+          description="正在從伺服器取回你的創作專案。"
+          icon={<FolderOpen className="size-4" aria-hidden />}
+        >
+          <div
+            data-testid="projects-list-loading"
+            className="h-2 w-1/2 animate-pulse rounded bg-muted"
+          />
+        </SectionCard>
+      ) : error && projects.length === 0 ? (
+        <SectionCard
+          title="載入失敗"
+          description="專案清單暫時拿不回來，稍後再試一次。"
+          icon={<FolderOpen className="size-4" aria-hidden />}
+        >
+          <p data-testid="projects-list-error" className="text-xs text-muted-foreground">
+            {error}
+          </p>
+        </SectionCard>
+      ) : projects.length === 0 ? (
         <SectionCard
           title="還沒有專案"
           description="建立一個專案後就會出現在這裡。"
@@ -113,6 +137,7 @@ export default function ProjectsListPage() {
                   <Button
                     size="sm"
                     onClick={() => continueProject(project)}
+                    disabled={project.isPending}
                     data-testid={`continue-${project.id}`}
                   >
                     繼續創作

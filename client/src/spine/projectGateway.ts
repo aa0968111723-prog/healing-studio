@@ -160,8 +160,15 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
   }
 
   async function createProject(input: ProjectCreateInput): Promise<{ id: string }> {
-    // creativeProject.create。
-    const r = await client.creativeProject.create.mutate({ name: input.name, type: input.type });
+    // creativeProject.create。真實 zod 輸入＝{ title 必填, status?, metadata?, … }，無 name/type
+    // 欄。原本送 {name,type} → 必填的 title 缺失，伺服器端 zod 會退回（同 promptLibrary.create
+    // 前例）。改送 title；type（"影片"/"社群"/"混合"）正規化後落 metadata.type（creative_projects
+    // 無 type 欄，待後端升格；與 ProjectsContext 的 rowToProject 讀同一個 key）。
+    const metaType = input.type === "影片" ? "video" : "other";
+    const r = await client.creativeProject.create.mutate({
+      title: input.name,
+      metadata: { type: metaType, spineType: input.type },
+    });
     return { id: String(r?.id ?? r?.projectId ?? "") };
   }
 
