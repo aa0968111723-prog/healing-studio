@@ -3,7 +3,9 @@ import { describe, it, expect, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { Route, Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import { ProjectsProvider } from "@/contexts/ProjectsContext";
+// 直接釘 MockProjectsProvider：本檔斷言 MOCK_PROJECTS 內容，不該因
+// VITE_ENABLE_4SHELL/PROJECT_SSOT 環境改走真實 provider 而轉紅。
+import { MockProjectsProvider } from "@/contexts/ProjectsContext";
 import { MOCK_PROJECTS } from "@/data/mockProjects";
 import ProjectsListPage from "./ProjectsListPage";
 import ProjectDetailPage from "./ProjectDetailPage";
@@ -21,7 +23,7 @@ function renderAt(path: string, ui: React.ReactNode) {
   const { hook } = memoryLocation({ path });
   return render(
     <Router hook={hook}>
-      <ProjectsProvider>{ui}</ProjectsProvider>
+      <MockProjectsProvider>{ui}</MockProjectsProvider>
     </Router>,
   );
 }
@@ -31,9 +33,9 @@ function renderDetailAt(path: string) {
   const { hook } = memoryLocation({ path });
   return render(
     <Router hook={hook}>
-      <ProjectsProvider>
+      <MockProjectsProvider>
         <Route path="/projects/:id" component={ProjectDetailPage} />
-      </ProjectsProvider>
+      </MockProjectsProvider>
     </Router>,
   );
 }
