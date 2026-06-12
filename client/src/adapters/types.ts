@@ -168,7 +168,63 @@ export interface StorageAdapter {
   exportToAssets(input: { projectId: number; vaultId: string }): Promise<{ ok: boolean }>;
 }
 
-// ─── Registry：五接縫 + meta ─────────────────────────────────────────────────
+// ─── 6) PromptVault（PROMPT_VAULT）── promptLibrary.* ＋ prompt_assets 雙向查詢 ──
+// Wave 1（W1-3）新增的第六條接縫：提示詞庫 CRUD＋使用計數＋（G9 junction 已落地）
+// 素材↔提示詞雙向反查。Flow TV（W1-4）與血統檢視（W3-F）的資料面。
+
+export interface PromptVaultItem {
+  id: number;
+  title: string;
+  content: string;
+  /** 伺服器 enum：general/image/video/audio/voice/story/system。 */
+  category: string;
+  tags: string[];
+  isFavorite: boolean;
+  useCount: number;
+  modelHint?: string;
+  /** epoch ms；列表排序用。 */
+  updatedAt?: number;
+}
+export interface PromptVaultPage {
+  items: PromptVaultItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+/** 🔧 promptLibrary.linkedAssets 的單列（junction 0075）。 */
+export interface PromptLinkedAsset {
+  relation: string; // derived | variant | rewrite | extended
+  linkedAt?: number;
+  asset: { id: number; title: string; assetType: string; fileUrl?: string; thumbnailUrl?: string; modelId?: string };
+}
+/** 🔧 assets.linkedPrompts 的單列。 */
+export interface PromptLinkedPrompt {
+  relation: string;
+  linkedAt?: number;
+  prompt: { id: number; title: string; content: string; category: string; modelHint?: string };
+}
+
+export interface PromptVaultAdapter {
+  /** ✅ promptLibrary.list — 分頁列出我的提示詞（category/search/favoritesOnly 篩選）。 */
+  listPrompts(input?: {
+    category?: string; search?: string; favoritesOnly?: boolean; page?: number; pageSize?: number;
+  }): Promise<PromptVaultPage>;
+  /** ✅ promptLibrary.getById — 取單一提示詞（非本人 NOT_FOUND → 回 null）。 */
+  getPrompt(id: number): Promise<PromptVaultItem | null>;
+  /** ✅ promptLibrary.create — 新增提示詞（title 必填；缺 title 曾靜默失敗，已校正）。 */
+  createPrompt(input: {
+    title: string; content: string; category?: string; tags?: string[]; modelHint?: string;
+  }): Promise<{ id: number }>;
+  /** ✅ promptLibrary.incrementUseCount — 應用提示詞時 +1。 */
+  incrementUseCount(id: number): Promise<void>;
+  /** 🔧 promptLibrary.linkedAssets — 此 prompt 衍生哪些資產（junction 0075，PR #864）。 */
+  listLinkedAssets(promptId: number): Promise<PromptLinkedAsset[]>;
+  /** 🔧 assets.linkedPrompts — 此資產用過哪些 prompt。 */
+  listLinkedPrompts(assetId: number): Promise<PromptLinkedPrompt[]>;
+}
+
+// ─── Registry：六接縫 + meta ─────────────────────────────────────────────────
 
 export interface Adapters {
   dataStore: DataStoreAdapter;
@@ -176,5 +232,9 @@ export interface Adapters {
   commander: CommanderAdapter;
   contextPacket: ContextPacketAdapter;
   storage: StorageAdapter;
-  meta: { dataStore: string; generation: string; commander: string; contextPacket: string; storage: string };
+  promptVault: PromptVaultAdapter;
+  meta: {
+    dataStore: string; generation: string; commander: string;
+    contextPacket: string; storage: string; promptVault: string;
+  };
 }
