@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderHook, act, cleanup } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { ProjectsProvider, useProjects } from "./ProjectsContext";
+import { MockProjectsProvider, useProjects } from "./ProjectsContext";
 import { MOCK_PROJECTS } from "@/data/mockProjects";
 
 afterEach(() => {
@@ -22,8 +22,10 @@ beforeEach(() => {
   }
 });
 
+// 直接釘 MockProjectsProvider（而非旗標決定的 ProjectsProvider）：本檔測的是
+// mock 路徑語意，不該因 VITE_ENABLE_4SHELL/PROJECT_SSOT 環境而轉紅。
 function wrapper({ children }: { children: ReactNode }) {
-  return <ProjectsProvider>{children}</ProjectsProvider>;
+  return <MockProjectsProvider>{children}</MockProjectsProvider>;
 }
 
 describe("ProjectsContext", () => {
@@ -73,12 +75,14 @@ describe("ProjectsContext", () => {
     expect(result.current.getProjectById("does-not-exist")).toBeUndefined();
   });
 
-  it("createProject appends a new project and pins it as active", () => {
+  it("createProject appends a new project and pins it as active", async () => {
     const { result } = renderHook(() => useProjects(), { wrapper });
     const before = result.current.projects.length;
     let createdId = "";
-    act(() => {
-      const created = result.current.createProject({
+    // Wave 1 SSOT 之後 createProject 是 async（真實路徑為 server mutation）；
+    // mock 路徑立即 resolve，語意不變。
+    await act(async () => {
+      const created = await result.current.createProject({
         title: "新影片企劃",
         type: "video",
         worldFramework: "新世界觀",

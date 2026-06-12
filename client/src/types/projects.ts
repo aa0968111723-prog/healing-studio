@@ -49,6 +49,11 @@ export interface Project {
     storyboard?: string;
     directorSession?: string;
   };
+  /**
+   * Wave 1 SSOT：樂觀插入、尚未取得伺服器真實 id 的臨時專案（id 為負數字串）。
+   * 消費端應停用導頁／選取等互動，等 refetch 帶回真列後自然消失。
+   */
+  isPending?: boolean;
 }
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {

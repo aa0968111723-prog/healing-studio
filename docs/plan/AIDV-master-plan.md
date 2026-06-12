@@ -177,6 +177,13 @@ AI Director 影片系統（空間首頁＝①）
 
 轉移後 Notion 端：在每頁頂端加「已遷 Confluence（連結）」橫幅，**不刪原文**。
 
+> **2026-06-12 轉移執行結果**（Confluence 空間 AIDIR id=262147）：
+> - 首頁＝①架構與真實基準；②–⑥＋變更紀錄＋Archive 已建。
+> - 已遷全文：③-1 深度研究報告 v2／②-A SubQ 整合規劃 v1（Notion 原頁在過時區）／②-B 資料模型深入設計（標註 pg→MySQL 轉換注意＋0070/0071 已落地）／②-C 進度 DB 快照與拍板細節（25 列精華，含 LoRA=fal-ai/flux-lora-fast-training）／⑤-A 交接開工索引（13 個 Notion 子頁連結）。
+> - 三個決策頁＋四個 Wave/正式碼頁＝Notion 空白頁（內容只在 DB 備註）→ 已併入 ②-C 與 Jira AIDV-26/27/28 留言，不另建頁。
+> - Notion 規劃區首頁已加「已遷移至 Atlassian」橫幅（原文未刪）。
+> - 待搬（標 待議）：⑤-A 索引中的 13 個子頁正文（多數已鏡像 repo docs/4shell-handoff/）、網站知識庫、文件庫地圖整併版、Q&amp;A 雜頁。
+
 ---
 
 ## 5. 維運 SOP（之後維護）
@@ -200,6 +207,12 @@ AI Director 影片系統（空間首頁＝①）
 3. Confluence 建空間：「**AI Director 影片系統**」。
 
 ### 6.2 灌資料（兩條路，擇一）
+
+> **2026-06-12 進度**：Jira 已由代理經 REST API（API token，存 `~/.atlassian-credentials`，未進 repo）**灌入完成**：
+> 專案 `AIDV`（kanban）＋5 大型工作 AIDV-30～34（Wave 0–4）＋29 Story AIDV-1～29（parent 已掛、Done/In Progress 已轉、labels 齊）。
+> 看板：https://aa0968111723.atlassian.net/jira/software/c/projects/AIDV/boards
+> 注意：站台介面為中文（Epic=大型工作、Story=故事；狀態=待辦/進行中/完成）；板上無 Blocked 欄，Blocked 語意以 label `blocked` 表示（Bruce 可日後在板設定加欄）。
+> **Confluence 未開通**（/wiki 全 401）→ Bruce 待辦：admin.atlassian.com → 你的站台 → Products → **Add Confluence（Free）**，開通後代理續跑頁面樹＋Notion 轉移。
 - **A（不需 MCP）**：Jira → Settings → System → External System Import → CSV → 上傳 `docs/plan/jira-import.csv`（UTF-8）。匯入精靈中：Issue Type/Summary/Description/Labels 直接對映；Status 對映到 board 欄；Epic 用「Epic Name」（epic 列）與「Epic Link」（story 列）對映。
 - **B（MCP 連上後）**：對 Claude 說「執行 /aidv-plan sync」——插件會讀本檔，逐項建 Epic/Story/頁面（冪等：先查同名再建，不重複、不刪除）。
 
@@ -208,6 +221,32 @@ AI Director 影片系統（空間首頁＝①）
 
 ---
 
+## 6.5 2026-06-12 第二輪轉移＋協作工作流（已執行）
+
+- **本機文件全量上傳**：D:\AI-Director系統 整合開發計畫六件套（06-11）→ ②-1～②-6；repo docs/4shell-handoff 全套＋D: UIUX 文件 → 新 **⑦ UIUX 設計**（46 頁：底層邏輯/設計系統/殼層/4 殼規格集/大調整計畫/原型改進 M1–M4/_CONTRACT）；④ 補 6 頁實證（網站細節深掘/GitNexus/移植對照/實站截圖/比對報告/現況同步）；⑤ 補交接包 7 頁＋開源選型 3 頁＋「⑤-1 下一步詳細規格」。
+- **6/10 鮮度規則**：②-A（05-23 SubQ 規劃）與 ②-B（05-27 資料模型）已移 Archive＋過時橫幅；06-10/11/12 文件為現行。
+- **討論空間 `AIDISC`「AIDV 討論區」**：收件匣／參考研究／🤝 需要你動手（金鑰與拍板待辦）／已結案歸檔。注意：曾嘗試 key `AIDQ` 失敗留下幽靈 key（已棄用，勿再用 AIDQ）。
+- **Bruce 六點指示（live doc 66245）已落地**：定錨規則＋白話導讀寫入 AIDIR 首頁；AIDV-35「瀏覽器模擬創作者實測」已建（含 Google Drive 雲端專案資料夾參照）；live doc 已留言回覆。
+- 鐵律新增（同 skill）：定錨不動／要改只改未來並先確認／白話文義務／每次開工先讀 AIDISC 收件匣。
+
+## 6.6 ⑧ 補遺規劃（2026-06-12 晚，待 Bruce 審）
+
+4 個偵察代理對碼實證 30 個發現（每項含檔案行號證據），已上 Confluence「⑧ 補遺規劃」（id=328171）＋討論區審閱頁：
+- **🔴 高嚴重 10**：H1 無 CI/CD（零 GitHub Actions、push 直達 prod）／H2 無 DB 備份計畫／H3 /api/metrics 與 SSE 無 auth＋無 Sentry／H4 JWT 一年效期＋secret 缺失不 fail-fast／H5 aiProxy 未登入可用＋限流 fail-open＋limiters 沒掛載／H6 無回滾 SOP＋migration 失敗照常服務／H7 手機版導演台缺失（VideoCockpit 幾乎零 RWD，Bruce 主場景）／H8 npm run eval 壞掉（ts-node ESM）＋userRating 與模型推薦斷線／H9 無刪帳號/資料匯出/log 保留政策／H10 costUsd 寫死 0（aiProxy.ts L232/L416）＝$0.00 真兇。
+- **🟡 中 12**：上傳 MIME 自報＋SVG XSS／審核 fail-open＋fal safety_checker:false／媒體單份無版本／儲存只進不出（R2 孤兒）／secretCrypto 綁 JWT_SECRET／教材庫 RAG 注入側門／無 staging／巨檔（routers.ts 9249 行等）／12MB markdown chunk＋367KB manus-runtime inline／TS 443 處 as any＋test 檔不過 tsc／告警 webhook 未設靜默吞／Stripe 假驗簽。
+- **🟢 低 8**：i18n／a11y／成長機制／方案空架子／金流／per-project 成本／E2E 22 條／無 eslint。
+- **提案**：新增平行軌「Wave H 營運與安全硬化」＋未來軌「Wave 5 商業化」；H7→Wave 1、H10→AIDV-14；不動既有定錨。風險登記簿含「token 已在對話暴露→撤銷換新」。Jira 卡待 Bruce 審後才灌。
+
+## 6.7 ⑨ 影片製作系統建構總規劃（2026-06-12 晚，已發佈）
+
+依 06-11 六件套（②-1~②-6）校準 06-12 實況後的執行藍圖，Confluence id=393698：
+- **實況校準**：G1 SSOT ✅（#863 提前完成）、G9 junction ✅（#864 提前一個 Wave）、D1 LoRA 已拍板 fal（取代 04 文件建議 A）、D2/D4 已拍板、新增合流＋⑧H7 手機導演台。
+- **Jira 細項卡已灌**：AIDV-36~54 共 19 張（W1-3~W1-9、W2-E~W2-I、W3-B/D/E/F/G、W4-E/F），全掛對應 Wave Epic；既有 14 張卡（AIDV-7/11/12/13/14/15/16/18/19/20/21/22/27/35）已留言補「⑨ 藍圖對應」（範圍/驗收/依賴/避雷）。看板現 54 卡。
+- **北極星 DoD**：一句話 logline→成片匯出六步全流程；最終驗收＝惹瓊巴傳 30 秒成片。
+- **D 速答卡**（D3/D5~D15 共 12 項小拍板）已放 AIDISC「需要你動手」，一行回覆即可。
+- Wave 門檻照 03 路線圖：W1→W2＝Bruce 正式站試用一週無 P0/P1；W2→W3＝金流三測綠＋對帳 7 天零告警；W3→W4＝成片驗收＋帳單誤差 <5%。月費階梯 $0→$5-10→$5-10→$5-20。
+
 ## 7. Archive（過時內容移此，不刪）
 
-（目前空）
+- ②-A 核心創作鏈路與 SubQ 整合規劃（2026-05-23）— 已移 Confluence Archive（6/10 規則）
+- ②-B 資料模型深入設計（2026-05-27）— 已移 Confluence Archive（6/10 規則；表設計仍可參考）

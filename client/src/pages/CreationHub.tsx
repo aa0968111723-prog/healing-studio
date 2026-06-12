@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -187,7 +188,11 @@ function VideoProjectCard({
 }
 
 interface NewVideoProjectFormProps {
-  onCreate: (draft: { title: string; worldFramework?: string }) => void;
+  /** 回傳是否建立成功 —— 成功才清空輸入，失敗保留使用者打的字。 */
+  onCreate: (draft: {
+    title: string;
+    worldFramework?: string;
+  }) => Promise<boolean>;
 }
 
 function NewVideoProjectForm({ onCreate }: NewVideoProjectFormProps) {
@@ -199,12 +204,15 @@ function NewVideoProjectForm({ onCreate }: NewVideoProjectFormProps) {
 
   const submit = () => {
     if (!canSubmit) return;
-    onCreate({
+    void onCreate({
       title: trimmed,
       worldFramework: worldFramework.trim() || undefined,
+    }).then(ok => {
+      if (ok) {
+        setTitle("");
+        setWorldFramework("");
+      }
     });
-    setTitle("");
-    setWorldFramework("");
   };
 
   return (
@@ -261,8 +269,14 @@ function NewVideoProjectForm({ onCreate }: NewVideoProjectFormProps) {
 
 export default function CreationHub() {
   const [, setLocation] = useLocation();
-  const { projects, activeProjectId, setActiveProjectId, createProject } =
-    useProjects();
+  const {
+    projects,
+    activeProjectId,
+    setActiveProjectId,
+    createProject,
+    isLoading,
+    error,
+  } = useProjects();
 
   const videoProjects = useMemo<Project[]>(
     () =>
@@ -289,14 +303,22 @@ export default function CreationHub() {
 
   const projectCount = videoProjects.length;
 
-  const handleCreate = ({
+  const handleCreate = async ({
     title,
     worldFramework,
   }: {
     title: string;
     worldFramework?: string;
-  }) => {
-    createProject({ title, type: "video", worldFramework });
+  }): Promise<boolean> => {
+    // SSOT 路徑是 server mutation（樂觀更新會先讓卡片出現）；失敗時告警，
+    // 樂觀插入由 context 的 onError 回滾，表單依回傳值決定是否清空。
+    try {
+      await createProject({ title, type: "video", worldFramework });
+      return true;
+    } catch {
+      toast.error("建立專案失敗，請稍後再試。");
+      return false;
+    }
   };
 
   return (
@@ -320,7 +342,23 @@ export default function CreationHub() {
 
         <IntentComposer />
 
-        {videoProjects.length > 0 ? (
+        {isLoading && videoProjects.length === 0 ? (
+          // SSOT 路徑首次載入：避免把「建立第一個專案」表單閃現給其實已有專案的人。
+          <section
+            data-testid="projects-loading"
+            className="rounded-xl border border-border/40 bg-card/40 p-6 text-sm text-muted-foreground"
+          >
+            正在載入你的影片專案…
+          </section>
+        ) : error && videoProjects.length === 0 ? (
+          // 清單載入失敗 ≠ 沒有專案：別把「建立第一個專案」表單端給已有專案的人。
+          <section
+            data-testid="projects-error"
+            className="rounded-xl border border-destructive/40 bg-card/40 p-6 text-sm text-muted-foreground"
+          >
+            專案清單載入失敗，稍後再試一次。（{error}）
+          </section>
+        ) : videoProjects.length > 0 ? (
           <>
             <nav
               data-testid="video-project-switcher"
@@ -360,7 +398,11 @@ export default function CreationHub() {
 
             <VideoProjectCard
               project={activeVideoProject!}
-              onContinue={() => setLocation(`/projects/${activeVideoProject!.id}`)}
+              onContinue={() => {
+                // 樂觀臨時列（負數 id）還沒有真實路由可去 —— 等 refetch 換上真列。
+                if (activeVideoProject!.isPending) return;
+                setLocation(`/projects/${activeVideoProject!.id}`);
+              }}
               onOpenWorldview={() => setLocation("/worldbuilding")}
               onOpenScript={() => setLocation("/director")}
               onOpenStoryboard={() => setLocation("/animation")}

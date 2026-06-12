@@ -13,11 +13,13 @@ import { Wand2, Film, FolderOpen, AlertTriangle, RefreshCw, Loader2 } from "luci
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
+import { ENABLE_DIRECTOR_CONSOLE } from "@/config/videoFlags";
 import { StageBar } from "./StageBar";
 import { ContextColumn } from "./columns/ContextColumn";
 import { DirectorColumn } from "./columns/DirectorColumn";
 import { DatabaseColumn } from "./columns/DatabaseColumn";
 import { GuidedJourney } from "./GuidedJourney";
+import { DirectorConsole } from "./DirectorConsole";
 
 export function VideoCockpit() {
   const spine = useProjectSpine();
@@ -79,6 +81,15 @@ export function VideoCockpit() {
 
   // ── empty：專案存在但完全空（無分鏡無角色）──
   const isBlank = p.shots.length === 0 && p.characters.length === 0;
+
+  // Wave 0：非空專案 → 三欄導演台（旗標 ON 時）。導演台自帶頂部創作流程列＋引導式＋光球。
+  if (!isBlank && ENABLE_DIRECTOR_CONSOLE) {
+    return (
+      <CockpitShell>
+        <DirectorConsole />
+      </CockpitShell>
+    );
+  }
 
   return (
     <CockpitShell>

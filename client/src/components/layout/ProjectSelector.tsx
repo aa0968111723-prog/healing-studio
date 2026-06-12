@@ -24,8 +24,13 @@ import { cn } from "@/lib/utils";
 
 export function ProjectSelector({ className }: { className?: string }) {
   const [, setLocation] = useLocation();
-  const { projects, activeProject, activeProjectId, setActiveProjectId } =
-    useProjects();
+  const {
+    projects,
+    activeProject,
+    activeProjectId,
+    setActiveProjectId,
+    isLoading,
+  } = useProjects();
   const [open, setOpen] = useState(false);
 
   const handleSelect = (id: string) => {
@@ -79,7 +84,7 @@ export function ProjectSelector({ className }: { className?: string }) {
         <div className="max-h-72 overflow-y-auto py-1">
           {projects.length === 0 ? (
             <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-              尚無專案
+              {isLoading ? "載入專案中…" : "尚無專案"}
             </p>
           ) : (
             projects.map(p => {
@@ -89,7 +94,8 @@ export function ProjectSelector({ className }: { className?: string }) {
                   key={p.id}
                   type="button"
                   onClick={() => handleSelect(p.id)}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-muted/60"
+                  disabled={p.isPending}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">
