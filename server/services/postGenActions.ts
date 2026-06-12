@@ -32,6 +32,20 @@ export const MAX_MODEL_HINT_LENGTH = 128;
 export const MAX_ASSET_DESCRIPTION_LENGTH = 500;
 export const MAX_LOG_FIELD_LENGTH = 200;
 
+/**
+ * prompt ↔ asset 關聯（prompt_assets junction, migration 0075）寫入開關。
+ * 預設 OFF — 與 env.validated.ts 的 ENABLE_PROMPT_ASSET_LINKS 同名同預設；
+ * 這裡直接讀 process.env（lazy，與 perplexityThrottle 同模式）讓測試可在
+ * runtime 重設 env 立即生效，也避免在本模組引入 env.validated 的載入副作用。
+ */
+export function isPromptAssetLinksEnabled(): boolean {
+  const value = process.env.ENABLE_PROMPT_ASSET_LINKS;
+  if (value === undefined || value === null || value.trim() === "") return false;
+  return !["0", "false", "off", "no", "disabled"].includes(
+    value.trim().toLowerCase()
+  );
+}
+
 export type PostGenModality = "image" | "video" | "audio" | "voice";
 
 /**
@@ -173,11 +187,13 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
   }
 
   // 1-2. 提示詞庫
+  // 記下新寫入列的 id — 1-3a 寫完資產後（旗標 ON 時）用它建 prompt ↔ asset 邊。
+  let savedPromptId: number | null = null;
   if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
     try {
       const dbConn = await getDb();
       if (dbConn) {
-        await dbConn.insert(promptLibrary).values({
+        const insertResult = await dbConn.insert(promptLibrary).values({
           userId,
           title:
             promptText.slice(0, MAX_PROMPT_TITLE_LENGTH) ||
@@ -189,6 +205,9 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
           modelHint: modelId.slice(0, MAX_MODEL_HINT_LENGTH),
           language: "zh",
         });
+        // mysql2 driver 回 [ResultSetHeader]；防禦式取值（測試 mock 可能回 undefined）。
+        const rawId = Number(insertResult?.[0]?.insertId);
+        savedPromptId = Number.isFinite(rawId) && rawId > 0 ? rawId : null;
       }
     } catch {
       // 靜默忽略（重複等）
@@ -200,7 +219,7 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
   // 工作室與 AI 模型分類，並反向連回 backgroundJobs。
   if (resultUrl) {
     try {
-      await db.createDigitalAsset({
+      const newAssetId = await db.createDigitalAsset({
         userId,
         title: label ?? `AI 生成 ${modality}`,
         description: promptText
@@ -216,6 +235,28 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
         backgroundJobId:
           typeof backgroundJobId === "number" ? backgroundJobId : null,
       });
+
+      // 1-3a-2. prompt ↔ asset 關聯（prompt_assets junction, migration 0075）。
+      // 旗標 ENABLE_PROMPT_ASSET_LINKS 預設 OFF；ON 時把 1-2 剛寫的提示詞列
+      // 與本資產列連起來（relation=derived）。(promptId, assetId, relation)
+      // 唯一鍵保證 webhook+polling 雙路徑重跑冪等；失敗吞錯不影響主流程。
+      const linkAssetId = Number(newAssetId);
+      if (
+        isPromptAssetLinksEnabled() &&
+        savedPromptId !== null &&
+        Number.isFinite(linkAssetId) &&
+        linkAssetId > 0
+      ) {
+        try {
+          await db.createPromptAssetLink({
+            promptId: savedPromptId,
+            assetId: linkAssetId,
+            relation: "derived",
+          });
+        } catch {
+          // 靜默忽略 — 關聯失敗不能擋資產/歷史寫入
+        }
+      }
     } catch {
       // 靜默忽略
     }

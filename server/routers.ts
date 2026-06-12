@@ -4109,6 +4109,20 @@ export const appRouter = router({
         }
       }),
 
+    // ── 此資產用過哪些 prompt（prompt_assets junction, migration 0075）──────
+    // 讀取不掛 ENABLE_PROMPT_ASSET_LINKS 旗標 — 旗標只管生成鏈的寫入端；
+    // 表空（旗標未開、尚未 backfill）時回空陣列，前端相容。
+    linkedPrompts: protectedProcedure
+      .input(z.object({ assetId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        // 確認資產是本人的（與 myAssets 同 userId 範圍）
+        const asset = await db.getDigitalAsset(input.assetId);
+        if (!asset || asset.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "找不到此資產" });
+        }
+        return db.getLinkedPromptsForAsset(ctx.user.id, input.assetId);
+      }),
+
     teamAssets: protectedProcedure
       .input(
         z
