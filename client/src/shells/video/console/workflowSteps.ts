@@ -2,7 +2,7 @@
 // shells/video/console/workflowSteps.ts — Wave 0 導演台「可設定工作流」步驟常數
 // ----------------------------------------------------------------------------
 // 來源：原型 app.js DEFAULT_WF / STEP_LIB（設計系統 §14.2 WorkflowBuilder）。
-// 六步＝**預設範本**，非寫死流程：使用者可在 WorkflowBuilder（2-16 客製化設定）
+// 六步＝**預設範本**，非寫死流程：使用者可在 WorkflowBuilder（2-17 工作流設定）
 //   新增／刪除／重排／啟用停用。必經步驟（intent·asset·gate·done）不可刪/停。
 //
 // 【後端待補】步驟自訂持久化＝ user_workflows / workflow_steps（候選 workflowEngine.*

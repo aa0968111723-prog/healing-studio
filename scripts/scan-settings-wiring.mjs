@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const arg = process.argv[2];
 const base = arg
   ? (existsSync(join(arg, "client/src/shells/settings")) ? join(arg, "client/src") : arg)
-  : join(__dirname, "..", "new-files", "client", "src");
+  : join(__dirname, "..", "client", "src"); // W1-7 修正：原 new-files 暫存路徑已收編
 const read = (p) => readFileSync(join(base, p), "utf8");
 let fail = 0;
 const ok = (m) => console.log("  ✓ " + m);

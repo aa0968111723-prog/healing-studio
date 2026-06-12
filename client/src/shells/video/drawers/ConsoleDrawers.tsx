@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // 以 Sheet（Radix Dialog 疊層）實作 drawer / split-view，避免 Next.js Parallel+Intercepting
 //   Routes（本 repo 為 React 19 + Vite + Wouter，L1 禁 Next.js）。四個抽屜：
-//   • workflow   2-16 客製化設定（WorkflowBuilder，本地狀態；後端 user_workflows/workflow_steps 待補）
+//   • workflow   2-17 工作流設定（WorkflowBuilder，本地狀態；後端 user_workflows 待補＝G10／W2-E）
 //   • flowtv     2-12 Flow 電視牆 / 提示詞庫（promptLibrary.list/create/delete）
 //   • playground 2-13 單模型遊樂場（aiModels.list ＋ 既有 Generation 接縫試生成 → fal）
 //   • settings   2-18 影片系統設定（生成引擎 / 顯隱 / 自動存草稿 ＋ 鐵則；全站設定在 /settings）
@@ -47,7 +47,7 @@ export function ConsoleDrawers() {
 
   return (
     <>
-      {wrap("workflow", "工作流設定 · 2-16", "步驟可新增／刪除／重排／啟用停用；必經步驟不可刪。", <WorkflowBuilderBody />)}
+      {wrap("workflow", "工作流設定 · 2-17", "步驟可新增／刪除／重排／啟用停用；必經步驟不可刪。", <WorkflowBuilderBody />)}
       {wrap("flowtv", "Flow 電視牆 · 提示詞庫 · 2-12", "存庫 → 重用：promptLibrary。生成的提示詞可在此再生成 / 複製編輯。", <FlowTvBody />, true)}
       {wrap("playground", "單模型遊樂場 · 2-13", "aiModels.list 模型情報 ＋ 既有 Generation 接縫試生成（→ fal）。", <PlaygroundBody />, true)}
       {wrap("settings", "影片系統設定 · 2-18", "生成引擎 / 介面顯隱 / 自動存草稿 ＋ 鐵則。帳號層設定在 /settings。", <VideoSettingsBody />)}
@@ -55,7 +55,7 @@ export function ConsoleDrawers() {
   );
 }
 
-// ── 2-16 WorkflowBuilder（本地狀態，後端待補）────────────────────────────────
+// ── 2-17 WorkflowBuilder（本地狀態，後端待補=G10/W2-E）──────────────────────
 function WorkflowBuilderBody() {
   const console_ = useDirectorConsole();
   const steps = console_.steps;

@@ -33,7 +33,7 @@ export type CanvasMode =
 
 /** 抽屜（split-view / drawer 疊層，不整頁離場）。 */
 export type DrawerId =
-  | "workflow" // 2-16 客製化設定（WorkflowBuilder）
+  | "workflow" // 2-17 工作流設定（WorkflowBuilder；W1-7 修正：原誤標 2-16=客製化設定）
   | "flowtv" // 2-12 Flow 電視牆 / 提示詞庫（promptLibrary.*）
   | "playground" // 2-13 單模型遊樂場（aiModels.list）
   | "settings"; // 2-18 影片系統設定
@@ -72,7 +72,7 @@ interface DirectorConsoleValue {
   setShowSidecar: (b: boolean) => void;
   autoSaveDraft: boolean;
   setAutoSaveDraft: (b: boolean) => void;
-  // ── 可設定工作流（2-16，後端待補 → 本地狀態）──
+  // ── 可設定工作流（2-17，後端待補=G10/W2-E → 本地狀態）──
   steps: WorkflowStep[];
   setSteps: (s: WorkflowStep[]) => void;
   // ── deep-link 到修復點（chip → 聚焦該鏡的「分鏡」畫布，內含待補原因 + 就地修復）──
