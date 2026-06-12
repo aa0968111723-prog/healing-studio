@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { PanelError } from "@/shells/_shared/PanelState";
+import { PanelEmpty, PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 
 export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
   const types = trpc.director.videoScriptTypes.useQuery(undefined, { staleTime: 5 * 60_000 });
@@ -100,7 +100,7 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">類型</span>
           {types.isError ? (
-            <PanelError compact message="腳本類型讀取失敗" onRetry={() => types.refetch()} />
+            <PanelError compact message="腳本類型讀取失敗（director.videoScriptTypes）" onRetry={() => types.refetch()} />
           ) : (
             <Select value={selectedType?.id} onValueChange={setTypeId}>
               <SelectTrigger className="h-8 flex-1 text-xs">
@@ -162,13 +162,15 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
           <FolderOpen className="size-3.5" /> 腳本專案資料庫
         </div>
         {sessions.isLoading ? (
-          <div className="text-xs text-muted-foreground">載入腳本專案…</div>
+          <PanelLoading count={3} className="h-8 rounded-lg" label="載入腳本專案…" />
         ) : sessions.isError ? (
-          <PanelError compact message="腳本專案讀取失敗" onRetry={() => sessions.refetch()} />
+          <PanelError compact message="腳本專案讀取失敗（director.listSessions）" onRetry={() => sessions.refetch()} />
         ) : (sessions.data?.length ?? 0) === 0 ? (
-          <div className="rounded-lg border border-dashed py-4 text-center text-xs text-muted-foreground">
-            還沒有腳本專案 · 從一句話開始，或貼上長腳本
-          </div>
+          <PanelEmpty
+            className="rounded-lg border border-dashed py-4"
+            title={<span className="text-xs">還沒有腳本專案</span>}
+            hint="從一句話開始，或貼上長腳本"
+          />
         ) : (
           <ul className="space-y-1">
             {sessions.data?.slice(0, 6).map((s) => (

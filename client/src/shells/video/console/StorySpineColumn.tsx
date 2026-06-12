@@ -16,6 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { PanelEmpty } from "@/shells/_shared/PanelState";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { computeGate, countGate, GRADE_LABEL, isCharacterProductionReady } from "@/spine/gate";
@@ -91,9 +92,12 @@ export function StorySpineColumn() {
         {/* 場景 → 鏡頭 樹 */}
         <div className="max-h-[46vh] space-y-2.5 overflow-y-auto pr-1">
           {p.shots.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">
-              尚無分鏡 · 用「引導式創作」貼長腳本自動拆幕／分鏡
-            </div>
+            <PanelEmpty
+              className="py-6"
+              icon={<span className="text-xl">🎞</span>}
+              title={<span className="text-xs">尚無分鏡</span>}
+              hint="用「引導式創作」貼長腳本自動拆幕／分鏡"
+            />
           ) : (
             [...groups.entries()].map(([sceneId, shots]) => {
               const scene = sceneId ? p.scenes.find((s) => s.id === sceneId) : undefined;
