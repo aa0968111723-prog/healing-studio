@@ -323,6 +323,12 @@ async function startServer() {
   app.use("/api/auth/forgot-password", rateLimiters.auth);
   app.use("/api/auth/reset-password", rateLimiters.auth);
   app.use("/api/auth/change-password", rateLimiters.auth);
+  // H5（AIDV-60）：upload 限流器寫好後從未掛載——補掛。此處在 auth 中介層
+  // 之前，key 退化為 per-IP（20 req/15min/IP）；per-user 細分留待 upload
+  // 路由內建 auth 重構時一併處理。
+  // （llm／llmPerUser 兩個限流器掛在 aiProxyRouter 內、verifyToken 之後，
+  //   見 routes/aiProxy.ts —— 在那裡才拿得到 req.user 做 per-user key。）
+  app.use("/api/upload", rateLimiters.upload);
   app.use("/api/", rateLimiters.api);
 
   // Configure body parser with larger size limit for file uploads.

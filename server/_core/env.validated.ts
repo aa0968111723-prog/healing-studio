@@ -357,6 +357,16 @@ const multimodalSchema = z.object({
   ELEVENLABS_API_KEY: z.string().min(1).optional().default(""),
   SUNO_API_KEY: z.string().min(1).optional().default(""),
 
+  // ── Cloudflare AI Gateway（統一供應商門面，W1-2）────────
+  // 形如 https://gateway.ai.cloudflare.com/v1/<account>/<gateway>。
+  // 設定後，有 CF slug 的供應商改走閘道（快取/觀測/告警）；留空＝全部直連。
+  // 實際解析在 _core/providerFacade.ts（lazy 讀 process.env）。
+  CF_AI_GATEWAY_BASE_URL: z.string().optional().default(""),
+  // CF「Authenticated Gateway」的 token；以 cf-aig-authorization 標頭送出。
+  CF_AI_GATEWAY_TOKEN: z.string().optional().default(""),
+  // 逗號分隔白名單（providerFacade 的鍵）；留空＝支援的供應商全走閘道。
+  CF_AI_GATEWAY_PROVIDERS: z.string().optional().default(""),
+
   // ── 向量資料庫（RAG 記憶系統）───────────────────────────
   PINECONE_API_KEY: z.string().min(1).optional().default(""),
   PINECONE_ENVIRONMENT: z.string().min(1).optional().default("us-east-1"),

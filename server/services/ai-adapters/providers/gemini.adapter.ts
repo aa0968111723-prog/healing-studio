@@ -1,8 +1,11 @@
 import type { AIAdapter, AdapterProxyRequest } from "../types";
+import {
+  resolveProviderBaseUrl,
+  providerGatewayHeaders,
+} from "../../../_core/providerFacade";
 
 export class GeminiAdapter implements AIAdapter {
   readonly provider = "gemini";
-  private readonly baseUrl = "https://generativelanguage.googleapis.com";
 
   async proxy(req: AdapterProxyRequest): Promise<Response> {
     const apiKey = process.env.GEMINI_API_KEY || "";
@@ -11,10 +14,12 @@ export class GeminiAdapter implements AIAdapter {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), req.timeoutMs ?? 120_000);
     try {
-      return await fetch(`${this.baseUrl}/${req.pathWithQuery.replace(/^\/+/, "")}`, {
+      const baseUrl = resolveProviderBaseUrl("gemini");
+      return await fetch(`${baseUrl}/${req.pathWithQuery.replace(/^\/+/, "")}`, {
         method: req.method,
         headers: {
           ...req.headers,
+          ...providerGatewayHeaders("gemini"),
           "x-goog-api-key": apiKey,
         },
         body: req.body,

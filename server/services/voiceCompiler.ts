@@ -13,6 +13,10 @@
  */
 import { ELEVENLABS_AVAILABLE } from "./providerHealth";
 import textToSpeech from "@google-cloud/text-to-speech";
+import {
+  resolveProviderBaseUrl,
+  providerGatewayHeaders,
+} from "../_core/providerFacade";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -617,11 +621,14 @@ export class VoiceCompiler {
   ): Promise<VoiceSynthesisResult> {
     const apiKey = process.env.ELEVENLABS_API_KEY ?? "";
     if (!apiKey) throw new Error("ElevenLabs API key missing");
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    // base URL 走統一門面（CF AI Gateway 啟用時自動換軌）。
+    const baseUrl = resolveProviderBaseUrl("elevenlabs");
+    const response = await fetch(`${baseUrl}/v1/text-to-speech/${voiceId}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "xi-api-key": apiKey,
+        ...providerGatewayHeaders("elevenlabs"),
       },
       body: JSON.stringify({
         text,

@@ -38,6 +38,7 @@ import { z } from "zod";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { signWebhookToken } from "../_core/webhookTokens";
+import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
@@ -75,10 +76,7 @@ async function chargeForFalTask(
   return estimate.totalPoints;
 }
 
-// ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
-
-const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_RUN_BASE = "https://fal.run";
+// ─── fal.ai 呼叫工具（base URL 來自 providerFacade 單一來源）─────────────────
 
 function getFalKey(): string {
   const key = process.env.FAL_API_KEY;

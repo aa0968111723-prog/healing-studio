@@ -26,7 +26,7 @@
  * chain steps end-to-end without the user clicking refresh.
  */
 
-const FAL_QUEUE_BASE = "https://queue.fal.run";
+import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 
 function getFalKey(): string | null {
   const key = process.env.FAL_API_KEY?.trim();

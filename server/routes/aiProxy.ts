@@ -13,16 +13,25 @@ import { getDb } from "../db";
 import { aiUsageEvents, rateLimitRules } from "../../drizzle/schema";
 import { eq, and, gte, sql, or, isNull } from "drizzle-orm";
 import { traceToolRun } from "../services/langsmithTracer";
-import { optionalVerifyToken } from "../middleware/verifyToken";
+import { verifyToken } from "../middleware/verifyToken";
+import { rateLimiters } from "../_core/rateLimiter";
 import { getAdapter } from "../services/ai-adapters/registry";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
+import {
+  resolveProviderBaseUrl,
+  type FacadeProvider,
+} from "../_core/providerFacade";
 
 // ─── Provider Config ─────────────────────────────────────────────────────────
+// base URL 一律由 _core/providerFacade 解析（統一門面；CF AI Gateway 啟用時
+// 自動換軌），這裡只保留金鑰與導引資訊。
 
-type ProviderKey = "fal_ai" | "gemini" | "elevenlabs" | "suno";
+type ProviderKey = Extract<
+  FacadeProvider,
+  "fal_ai" | "gemini" | "elevenlabs" | "suno"
+>;
 
 interface ProviderConfig {
-  baseUrl: string;
   keyEnvVar: keyof typeof serverEnv;
   headerName: string;
   headerPrefix: string;
@@ -31,28 +40,24 @@ interface ProviderConfig {
 
 const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
   fal_ai: {
-    baseUrl: "https://fal.run",
     keyEnvVar: "FAL_API_KEY",
     headerName: "Authorization",
     headerPrefix: "Key ",
     applyGuideUrl: "https://fal.ai/dashboard/keys",
   },
   gemini: {
-    baseUrl: "https://generativelanguage.googleapis.com",
     keyEnvVar: "GEMINI_API_KEY",
     headerName: "x-goog-api-key",
     headerPrefix: "",
     applyGuideUrl: "https://aistudio.google.com/apikey",
   },
   elevenlabs: {
-    baseUrl: "https://api.elevenlabs.io",
     keyEnvVar: "ELEVENLABS_API_KEY",
     headerName: "xi-api-key",
     headerPrefix: "",
     applyGuideUrl: "https://elevenlabs.io/app/settings/api-keys",
   },
   suno: {
-    baseUrl: "https://api.sunoapi.org",
     keyEnvVar: "SUNO_API_KEY",
     headerName: "Authorization",
     headerPrefix: "Bearer ",
@@ -88,13 +93,26 @@ async function postHogCapture(event: Record<string, unknown>): Promise<void> {
 
 // ─── Rate Limit Check ────────────────────────────────────────────────────────
 
+/**
+ * DB 規則限流檢查（rate_limit_rules 表）。
+ *
+ * H5（AIDV-60）改為 fail-closed：查不到 DB 或查詢爆炸時一律「擋」，
+ * 不再「出錯就放行」。付費上游的保險絲斷了就該斷電，而不是直通。
+ * `degraded: true` 表示是檢查機制本身故障（回 503），與真的超限（429）區分。
+ */
 async function checkRateLimit(
   provider: ProviderKey,
   userId?: number
-): Promise<{ allowed: boolean; reason?: string }> {
+): Promise<{ allowed: boolean; reason?: string; degraded?: boolean }> {
   try {
     const db = await getDb();
-    if (!db) return { allowed: true };
+    if (!db) {
+      return {
+        allowed: false,
+        reason: "Rate limit check unavailable (no database)",
+        degraded: true,
+      };
+    }
 
     const rules = await db
       .select()
@@ -177,8 +195,12 @@ async function checkRateLimit(
 
     return { allowed: true };
   } catch (err) {
-    console.warn("[AI Proxy] Rate limit check failed, allowing request:", err);
-    return { allowed: true };
+    console.warn("[AI Proxy] Rate limit check failed, blocking request (fail-closed):", err);
+    return {
+      allowed: false,
+      reason: "Rate limit check failed",
+      degraded: true,
+    };
   }
 }
 
@@ -186,7 +208,19 @@ async function checkRateLimit(
 
 export const aiProxyRouter = Router();
 bootstrapAiAdapters();
-aiProxyRouter.use("/api/ai", optionalVerifyToken);
+// H5（AIDV-60）鎖門：
+//   1. verifyToken（嚴格版）— 未登入一律 401。前端零直接呼叫 /api/ai（全走
+//      tRPC），所以這不破壞任何現有流程；之前的 optionalVerifyToken 等於把
+//      付費上游敞開給任何人。
+//   2. rateLimiters.llm／llmPerUser — 已寫好但從未掛載的兩個限流器。順序
+//      必須在 verifyToken 之後，限流 key 才能拿到 req.user 做 per-user 計數
+//      （否則全部退化成 per-IP）。
+aiProxyRouter.use(
+  "/api/ai",
+  verifyToken,
+  rateLimiters.llm,
+  rateLimiters.llmPerUser
+);
 
 aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => {
   const provider = req.params.provider as string;
@@ -201,6 +235,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
 
   const providerKey = provider as ProviderKey;
   const config = PROVIDER_CONFIG[providerKey];
+  const baseUrl = resolveProviderBaseUrl(providerKey);
   const apiKey = serverEnv[config.keyEnvVar];
 
   if (!apiKey || (typeof apiKey === "string" && apiKey.trim().length === 0)) {
@@ -217,7 +252,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   // Extract userId from request context (if authenticated)
   const userId = (req as unknown as { user?: { id?: number } }).user?.id;
 
-  // Rate limit check
+  // Rate limit check（fail-closed：degraded＝檢查機制故障回 503，超限回 429）
   const rateCheck = await checkRateLimit(providerKey, userId);
   if (!rateCheck.allowed) {
     try {
@@ -234,22 +269,30 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
       }
     } catch { /* best effort */ }
 
-    res.status(429).json({
-      error: "Rate limit exceeded",
-      detail: rateCheck.reason,
-    });
+    if (rateCheck.degraded) {
+      res.status(503).json({
+        error: "Rate limit check unavailable",
+        detail: rateCheck.reason,
+      });
+    } else {
+      res.status(429).json({
+        error: "Rate limit exceeded",
+        detail: rateCheck.reason,
+      });
+    }
     return;
   }
 
   // Build upstream URL — sanitize path to prevent SSRF
   const pathSuffix = (req.params[0] || "").replace(/\.\./g, "").replace(/[^a-zA-Z0-9\-_\/.:@=&?%+,]/g, "");
   const queryStr = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-  const upstreamUrl = `${config.baseUrl}/${pathSuffix}${queryStr}`;
+  const upstreamUrl = `${baseUrl}/${pathSuffix}${queryStr}`;
 
   // Validate the resolved URL stays within the expected base URL
+  // （base 由門面解析：直連或 CF Gateway，host 驗證跟著同一來源走）
   try {
     const resolved = new URL(upstreamUrl);
-    const expected = new URL(config.baseUrl);
+    const expected = new URL(baseUrl);
     if (resolved.hostname !== expected.hostname) {
       res.status(400).json({ error: "Invalid upstream URL: hostname mismatch" });
       return;

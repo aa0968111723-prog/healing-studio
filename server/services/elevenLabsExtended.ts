@@ -11,6 +11,11 @@
  *   - Transcription 語音轉文字
  */
 
+import {
+  resolveProviderBaseUrl,
+  providerGatewayHeaders,
+} from "../_core/providerFacade";
+
 // ─── Models & Voices Catalog ─────────────────────────────────────────────
 
 export const ELEVENLABS_TTS_MODELS = [
@@ -223,10 +228,14 @@ export interface ElevenLabsTranscriptionParams {
 
 export class ElevenLabsExtendedClient {
   private apiKey: string | null;
-  private baseUrl = "https://api.elevenlabs.io/v1";
 
   constructor() {
     this.apiKey = process.env.ELEVENLABS_API_KEY ?? null;
+  }
+
+  /** base URL 走統一門面（CF AI Gateway 啟用時自動換軌），呼叫時才解析。 */
+  private get baseUrl(): string {
+    return `${resolveProviderBaseUrl("elevenlabs")}/v1`;
   }
 
   get isAvailable(): boolean {
@@ -243,6 +252,7 @@ export class ElevenLabsExtendedClient {
       ...options,
       headers: {
         "xi-api-key": this.apiKey,
+        ...providerGatewayHeaders("elevenlabs"),
         ...(options.body && typeof options.body === "string"
           ? { "Content-Type": "application/json" }
           : {}),

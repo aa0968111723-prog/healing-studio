@@ -40,6 +40,7 @@
 import { z } from "zod";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { localizeResultUrls } from "../services/internalMedia";
 import { traceToolRun } from "../services/langsmithTracer";
@@ -51,10 +52,8 @@ import {
   unifiedAssetPrefix,
 } from "../services/postGenActions";
 
-// ─── fal.ai 呼叫工具（透過 falDispatcher 統一派發，享有 fallback chain）────────
-
-const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_RUN_BASE = "https://fal.run";
+// ─── fal.ai 呼叫工具（透過 falDispatcher 統一派發，享有 fallback chain；
+//     base URL 來自 providerFacade 單一來源）─────────────────────────────────
 
 function getFalKey(): string {
   const key = process.env.FAL_API_KEY;

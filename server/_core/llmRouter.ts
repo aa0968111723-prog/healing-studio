@@ -37,6 +37,7 @@
 
 import { serverEnv } from "./env.validated";
 import { ENV } from "./env";
+import { resolveProviderBaseUrl } from "./providerFacade";
 
 // ─── 引擎類型 ──────────────────────────────────────────────────────────────
 
@@ -574,7 +575,11 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
     case "openrouter": {
       if (!ENV.openRouterApiKey)
         throw new Error("Engine 'openrouter' 指定但 OPENROUTER_API_KEY 未設定");
-      const baseUrl = ENV.openRouterBaseUrl.replace(/\/$/, "");
+      // 門面解析：OPENROUTER_BASE_URL 有自訂值時優先；否則直連或 CF Gateway。
+      const baseUrl = resolveProviderBaseUrl(
+        "openrouter",
+        ENV.openRouterBaseUrl
+      );
       return {
         name: "OpenRouter (Unified Gateway)",
         engine: "openrouter",
@@ -602,7 +607,7 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         engine: "anthropic",
         // Native messages endpoint — invokeSingleEngine handles the
         // Anthropic-specific request/response shape.
-        url: "https://api.anthropic.com/v1/messages",
+        url: `${resolveProviderBaseUrl("anthropic")}/v1/messages`,
         apiKey: ENV.anthropicApiKey,
         // Haiku 4.5 = best speed/cost for orb dispatch + clarification.
         // Override per-call (model: "claude-sonnet-4-6") for harder planning.
@@ -623,7 +628,7 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         engine: "perplexity",
         // OpenAI-compatible chat completions endpoint。Sonar 系列原生帶 web
         // grounding（不需要 tool 即可搜尋），所以 supportsGrounding=true。
-        url: "https://api.perplexity.ai/chat/completions",
+        url: `${resolveProviderBaseUrl("perplexity")}/chat/completions`,
         apiKey: ENV.perplexityApiKey,
         // 預設 sonar-pro：Perplexity 旗艦推理模型，內建 web search，
         // 最適合需要規劃 + 即時資訊查詢的全站光球代理。可在每次呼叫覆寫
@@ -644,7 +649,7 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
       return {
         name: "Gemini API (Direct)",
         engine: "gemini",
-        url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        url: `${resolveProviderBaseUrl("gemini")}/v1beta/openai/chat/completions`,
         apiKey: ENV.geminiApiKey,
         model: "gemini-2.5-flash",
         supportsThinking: true,
@@ -847,7 +852,7 @@ export function resolveMultimodalEndpoint(
   return {
     name: `${modelName} (AI Studio)`,
     modelId: `gemini/${modelName}`,
-    url: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict`,
+    url: `${resolveProviderBaseUrl("gemini")}/v1beta/models/${modelName}:predict`,
     apiKey: ENV.geminiApiKey,
     provider: "gemini",
   };
