@@ -192,7 +192,10 @@ AI Director 影片系統（空間首頁＝①）
 ## 6. 上線手冊（Atlassian 連上後照做）
 
 ### 6.1 Bruce 先做（一次性）
-1. 連接 Atlassian MCP：claude.ai／Claude Desktop → Settings → Connectors → 搜「Atlassian」→ Connect（OAuth）；或 CLI：`claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse`。完成後本 session 會出現 `mcp__atlassian__*`（Jira+Confluence+Rovo）工具。
+1. 連接 Atlassian MCP：**設定檔已由代理寫入**（2026-06-12，`~/.claude.json` user 層 `mcpServers.atlassian` → `https://mcp.atlassian.com/v1/sse`，備份在 `~/.claude.json.bak-aidv`）。剩兩步：
+   a. **重啟 Claude session／桌面 App**（MCP 在啟動時載入）；
+   b. 首次連線會跳 **Atlassian OAuth**（瀏覽器登入 Atlassian 帳號 → Allow；CLI 環境則在互動模式輸入 `/mcp` → 選 atlassian → Authenticate）。完成後 session 會出現 `mcp__atlassian__*`（Jira+Confluence+Rovo）工具。
+   （若你偏好 claude.ai Connectors 雲端版：Settings → Connectors → 搜「Atlassian」→ Connect，亦可，兩者擇一。）
 2. Jira 建軟體專案：key **AIDV**、模板 **Kanban**（建議 company-managed，CSV 匯入對 Epic Link 支援較好）。
 3. Confluence 建空間：「**AI Director 影片系統**」。
 
