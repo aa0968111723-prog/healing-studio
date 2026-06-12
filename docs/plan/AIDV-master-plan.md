@@ -229,6 +229,14 @@ AI Director 影片系統（空間首頁＝①）
 - **Bruce 六點指示（live doc 66245）已落地**：定錨規則＋白話導讀寫入 AIDIR 首頁；AIDV-35「瀏覽器模擬創作者實測」已建（含 Google Drive 雲端專案資料夾參照）；live doc 已留言回覆。
 - 鐵律新增（同 skill）：定錨不動／要改只改未來並先確認／白話文義務／每次開工先讀 AIDISC 收件匣。
 
+## 6.6 ⑧ 補遺規劃（2026-06-12 晚，待 Bruce 審）
+
+4 個偵察代理對碼實證 30 個發現（每項含檔案行號證據），已上 Confluence「⑧ 補遺規劃」（id=328171）＋討論區審閱頁：
+- **🔴 高嚴重 10**：H1 無 CI/CD（零 GitHub Actions、push 直達 prod）／H2 無 DB 備份計畫／H3 /api/metrics 與 SSE 無 auth＋無 Sentry／H4 JWT 一年效期＋secret 缺失不 fail-fast／H5 aiProxy 未登入可用＋限流 fail-open＋limiters 沒掛載／H6 無回滾 SOP＋migration 失敗照常服務／H7 手機版導演台缺失（VideoCockpit 幾乎零 RWD，Bruce 主場景）／H8 npm run eval 壞掉（ts-node ESM）＋userRating 與模型推薦斷線／H9 無刪帳號/資料匯出/log 保留政策／H10 costUsd 寫死 0（aiProxy.ts L232/L416）＝$0.00 真兇。
+- **🟡 中 12**：上傳 MIME 自報＋SVG XSS／審核 fail-open＋fal safety_checker:false／媒體單份無版本／儲存只進不出（R2 孤兒）／secretCrypto 綁 JWT_SECRET／教材庫 RAG 注入側門／無 staging／巨檔（routers.ts 9249 行等）／12MB markdown chunk＋367KB manus-runtime inline／TS 443 處 as any＋test 檔不過 tsc／告警 webhook 未設靜默吞／Stripe 假驗簽。
+- **🟢 低 8**：i18n／a11y／成長機制／方案空架子／金流／per-project 成本／E2E 22 條／無 eslint。
+- **提案**：新增平行軌「Wave H 營運與安全硬化」＋未來軌「Wave 5 商業化」；H7→Wave 1、H10→AIDV-14；不動既有定錨。風險登記簿含「token 已在對話暴露→撤銷換新」。Jira 卡待 Bruce 審後才灌。
+
 ## 7. Archive（過時內容移此，不刪）
 
 - ②-A 核心創作鏈路與 SubQ 整合規劃（2026-05-23）— 已移 Confluence Archive（6/10 規則）
