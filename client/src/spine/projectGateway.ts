@@ -77,17 +77,21 @@ export interface ProjectGateway {
 // 真實 tRPC 實作（預設）
 // ============================================================================
 export function makeProjectGatewayTrpc(): ProjectGateway {
-  // 重用 P0 的 vanilla client；tRPC 邊界寬鬆化（procedure 名已驗證；確切 zod 輸入由 Code session 收斂）。
+  // 【W1-7 typed 化開跑】typed＝createTRPCClient<AppRouter>，tsc 可抓 input/output 不符；
+  // 已轉 typed：listProjects / createProject / createPromptBlock / createNote（後兩者
+  // 都曾因 any-cast 讓「缺必填 title」靜默失敗——typed 化即此類蟲的根治）。
+  // client（any）僅供尚未收斂的聚合方法（loadProject 等）過渡使用，後續卡逐方法遷移。
+  const typed = getTrpcClient();
   const client = getTrpcClient() as unknown as any;
   const num = (id: string | number) => (typeof id === "number" ? id : Number(id));
 
   async function listProjects(): Promise<CreativeProjectSummary[]> {
-    const rows = await client.creativeProject.list.query();
-    return (Array.isArray(rows) ? rows : rows?.items ?? []).map((r: any): CreativeProjectSummary => ({
+    // ✅ typed：creativeProject.list 的列＝rowToData 投影（title 為名稱欄；無 emoji/type 欄，
+    // type 暫不從 metadata 推導——spine 的 type 是中文枚舉，待 G10 era 對齊）。
+    const rows = await typed.creativeProject.list.query();
+    return rows.map((r): CreativeProjectSummary => ({
       id: String(r.id),
-      name: r.name ?? r.title ?? "未命名專案",
-      emoji: r.emoji,
-      type: r.type,
+      name: r.title || "未命名專案",
       updatedAt: r.updatedAt ? new Date(r.updatedAt).getTime() : undefined,
     }));
   }
@@ -142,34 +146,46 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
   }
 
   async function createNote(input: NoteCreateInput): Promise<void> {
-    // notes.create（project_notes_calendar）。
-    await client.notes.create.mutate({
-      projectId: num(input.projectId), text: input.text, shotNo: input.shotNo,
+    // ✅ typed（W1-7）：notes.create 真實 zod 輸入＝{ title 必填, content?, noteType, status,
+    // tags?, … }，**無 projectId / text / shotNo 欄**。原本送 {projectId,text,shotNo} →
+    // 必填的 title 缺失被 zod 退回（且 Provider 的 optimistic catch 吞錯 → 導演台「新增筆記」
+    // 看似成功、實際從未寫入庫——promptLibrary.create 同款蟲，typed 化抓出）。
+    // 改：text 截前 80 字當 title（shotNo 作前綴）、全文進 content；notes 為 user 級
+    //（project_notes_calendar 以 userId 掛載），projectId 關聯待 M2 era 補欄。
+    const title =
+      ((input.shotNo ? `[${input.shotNo}] ` : "") + input.text.trim()).slice(0, 80) ||
+      "導演台筆記";
+    await typed.notes.create.mutate({
+      title,
+      content: input.text,
+      noteType: "note",
+      tags: ["導演台"],
     });
   }
 
   async function createPromptBlock(input: PromptBlockCreateInput): Promise<void> {
-    // promptLibrary.create（prompt_library）。真實 zod 輸入＝{ title, content, category?, … }，
+    // ✅ typed（W1-7）：promptLibrary.create 真實 zod 輸入＝{ title, content, category?, … }，
     // 無 projectId / label 欄。原本送 {projectId,label,content} → 必填的 title 缺失，伺服器
     // 端 zod 會退回（且 ProjectSpineProvider 的 optimistic catch 會吞掉錯誤 → 看似存了、實際
     // 沒寫入庫）。改送 title（取面板標籤）+ content；prompt_library 為 user 級（schema 無
     // projectId 欄），故不再傳 projectId。category 由後端預設 "general"。
-    await client.promptLibrary.create.mutate({
-      title: input.label, content: input.text,
+    await typed.promptLibrary.create.mutate({
+      title: input.label || "未命名提示詞",
+      content: input.text,
     });
   }
 
   async function createProject(input: ProjectCreateInput): Promise<{ id: string }> {
-    // creativeProject.create。真實 zod 輸入＝{ title 必填, status?, metadata?, … }，無 name/type
-    // 欄。原本送 {name,type} → 必填的 title 缺失，伺服器端 zod 會退回（同 promptLibrary.create
-    // 前例）。改送 title；type（"影片"/"社群"/"混合"）正規化後落 metadata.type（creative_projects
-    // 無 type 欄，待後端升格；與 ProjectsContext 的 rowToProject 讀同一個 key）。
+    // ✅ typed（W1-7）：creativeProject.create 真實 zod 輸入＝{ title 必填, status?, metadata?, … }，
+    // 無 name/type 欄。原本送 {name,type} → 必填的 title 缺失，伺服器端 zod 會退回（同
+    // promptLibrary.create 前例）。改送 title；type（"影片"/"社群"/"混合"）正規化後落
+    // metadata.type（creative_projects 無 type 欄，待後端升格；與 rowToProject 讀同一個 key）。
     const metaType = input.type === "影片" ? "video" : "other";
-    const r = await client.creativeProject.create.mutate({
+    const r = await typed.creativeProject.create.mutate({
       title: input.name,
       metadata: { type: metaType, spineType: input.type },
     });
-    return { id: String(r?.id ?? r?.projectId ?? "") };
+    return { id: String(r.id) };
   }
 
   async function ingestStoryboard(input: StoryboardIngestInput): Promise<void> {

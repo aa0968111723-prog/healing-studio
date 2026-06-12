@@ -11,7 +11,7 @@
 //
 // 用法：node tests/scan-learn-wiring.mjs <repoRootOrPackageNewFiles>
 //   - 傳入「已套用本補丁的 repo 根目錄」→ 掃 client/src
-//   - 不傳 → 預設掃本補丁的 new-files/client/src（套用前自檢）
+//   - 不傳 → 預設掃 repo 正式碼 client/src（W1-7 修正：原 new-files 暫存路徑已收編）
 // 退出碼非 0 = 有缺漏。
 // ============================================================================
 import { readFileSync, existsSync } from "node:fs";
@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const arg = process.argv[2];
 const base = arg
   ? (existsSync(join(arg, "client/src/shells/learn")) ? join(arg, "client/src") : arg)
-  : join(__dirname, "..", "new-files", "client", "src");
+  : join(__dirname, "..", "client", "src");
 
 const read = (p) => readFileSync(join(base, p), "utf8");
 let fail = 0;
