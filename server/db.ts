@@ -10,6 +10,9 @@ import {
   InsertFineTunedModel,
   digitalAssetLibrary,
   InsertDigitalAsset,
+  promptLibrary,
+  promptAssets,
+  InsertPromptAssetLink,
   projectNotesCalendar,
   InsertProjectNote,
   userGoogleOauthTokens,
@@ -1013,6 +1016,93 @@ export async function getDigitalAssetsByUser(userId: number, limit?: number) {
     .where(eq(digitalAssetLibrary.userId, userId))
     .orderBy(desc(digitalAssetLibrary.createdAt));
   return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
+}
+
+// ─── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）────────────
+
+/**
+ * 建一條 prompt ↔ asset 邊。(promptId, assetId, relation) 有唯一鍵 —
+ * 重複建邊（生成鏈 webhook+polling 雙路徑、backfill 重跑）視為成功回 0，
+ * 其他錯誤照拋。
+ */
+export async function createPromptAssetLink(data: InsertPromptAssetLink) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  try {
+    const result = await db.insert(promptAssets).values(data);
+    return Number(result[0].insertId);
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code ?? "";
+    if (code === "ER_DUP_ENTRY") return 0; // 冪等：邊已存在
+    throw err;
+  }
+}
+
+/**
+ * 某 prompt 衍生了哪些資產。join digital_asset_library 並以資產的 userId
+ * 限縮（呼叫端 router 另檢查 prompt 本身的所有權 — 雙層防護）。
+ */
+export async function getLinkedAssetsForPrompt(userId: number, promptId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      relation: promptAssets.relation,
+      linkedAt: promptAssets.createdAt,
+      asset: {
+        id: digitalAssetLibrary.id,
+        title: digitalAssetLibrary.title,
+        assetType: digitalAssetLibrary.assetType,
+        fileUrl: digitalAssetLibrary.fileUrl,
+        thumbnailUrl: digitalAssetLibrary.thumbnailUrl,
+        sourceStudio: digitalAssetLibrary.sourceStudio,
+        modelId: digitalAssetLibrary.modelId,
+        createdAt: digitalAssetLibrary.createdAt,
+      },
+    })
+    .from(promptAssets)
+    .innerJoin(
+      digitalAssetLibrary,
+      eq(promptAssets.assetId, digitalAssetLibrary.id)
+    )
+    .where(
+      and(
+        eq(promptAssets.promptId, promptId),
+        eq(digitalAssetLibrary.userId, userId)
+      )
+    )
+    .orderBy(desc(promptAssets.createdAt));
+}
+
+/**
+ * 某資產用過哪些 prompt。join prompt_library 並以 prompt 的 userId 限縮
+ * （呼叫端 router 另檢查資產本身的所有權 — 雙層防護）。
+ */
+export async function getLinkedPromptsForAsset(userId: number, assetId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      relation: promptAssets.relation,
+      linkedAt: promptAssets.createdAt,
+      prompt: {
+        id: promptLibrary.id,
+        title: promptLibrary.title,
+        content: promptLibrary.content,
+        category: promptLibrary.category,
+        modelHint: promptLibrary.modelHint,
+        createdAt: promptLibrary.createdAt,
+      },
+    })
+    .from(promptAssets)
+    .innerJoin(promptLibrary, eq(promptAssets.promptId, promptLibrary.id))
+    .where(
+      and(
+        eq(promptAssets.assetId, assetId),
+        eq(promptLibrary.userId, userId)
+      )
+    )
+    .orderBy(desc(promptAssets.createdAt));
 }
 
 export async function getTeamSharedAssets() {
