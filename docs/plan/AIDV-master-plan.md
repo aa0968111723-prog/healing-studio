@@ -29,17 +29,18 @@ healing-studio（線上 director.today）影片系統整合進現有網站、收
 **規模**：82 表／54 routes／50 頁／34 router（~565 procedure）；影片 18 子系統：8✅可接／10⚠半接／0 全空。
 **目標棧**：+Supabase（pg + pgvector halfvec(3072) + HNSW）+ HF 生成 + SubQ。
 
-**現況（2026-06-12）**：
+**現況（2026-06-13 git 實證更新）**：
 - 4-shell 已合併 main（PR #852–#861）；四殼＋六旗標上線（`ENABLE_4SHELL` 預設 OFF）。
-- Wave 0 三欄導演台 **PR #862 已合併** `feat/4-shell-restructure`。
-- Wave 1 Project SSOT **PR #863 已合併** `feat/4-shell-restructure`。
-- prompt_assets junction **PR #864 已合併 main**（migration 0075）。
-- `feat/4-shell-restructure`（含 #862+#863）**尚未回流 main** ← 目前最近的合流動作。
+- 合流完成：#866（=#862 導演台＋#863 SSOT 回流 main）、#867（W1-3 promptVault）、#868（W1-7 工程衛生）皆已合併 main。
+- 06-13 已合併：#869（0071–0074 journal 補登記）、#870（W1-2 門面＋H5 鎖門）、#871（W1-8 四態文案）。
+- 🔴 **P0 待合**：#872 解卡生產 migration（0066–0069 冪等化）——真站驗證發現生產遷移卡死、creative_projects/orchestration_runs/prompt_assets 從未建立（AIDV-76）；**#872 不合，#869 的補登記不會生效**。
+- prompt_assets junction **PR #864 已合併 main**（migration 0075；生產實際生效要等 #872）。
 
 **UI 原則**：三欄導演台（Story Spine／創作畫布／Context Sidecar）、S0X 導航主軸、readiness chips、確認門＋成本常駐、drawer 不離場、光球 Ambient 四態無人格、漸進揭露。
 
 **重要 repo 機制（開發必讀）**：
-- migration 由 boot 時 `server/db.ts applyMigrations → drizzle migrate()` 依 `drizzle/meta/_journal.json` 套用；**未登記 journal 的 .sql 永遠不會跑**（boot 警告 orphan）。0071–0074 目前是孤兒（`待議`）。
+- migration 由 boot 時 `server/db.ts applyMigrations → drizzle migrate()` 依 `drizzle/meta/_journal.json` 套用；**未登記 journal 的 .sql 永遠不會跑**（boot 警告 orphan）。0071–0074 已補登記（#869，2026-06-13）；尚餘已知孤兒 0033_add_plan_status_to_sessions、0039–0044（orb 系列）、0067_repair_worldbuilding_v4_columns（`待議`，白名單在 server/orphan-migrations-journal.test.ts）。
+- **migration 三鐵則（06-13 P0 教訓，守門測試 server/migration-prod-pending-block.test.ts）**：①禁 MySQL 不支援的 `CREATE INDEX IF NOT EXISTS`；②每個 `--> statement-breakpoint` chunk 只能一句（mysql2 不開 multipleStatements）；③ALTER/CREATE INDEX 必須 information_schema 守門（裸寫重跑必爆＝卡死整個 runner）。drizzle 套用規則＝journal `when` 必須大於 DB 最後一筆 created_at，補登記要用更大的 when 追加。
 - 旗標慣例：前端 `client/src/config/*Flags.ts`（Vite env，階層在 ENABLE_4SHELL 之下）；後端 `server/_core/env.validated.ts` + lazy `process.env` 讀取。
 - schema.ts 慣例不寫 `references()`；FK 由 raw-SQL migration 補（0055 模式）。
 
@@ -66,7 +67,14 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 |---|---|---|---|---|
 | Project SSOT：MOCK→真 creative_projects | ✅ Done（06-12 合併 `feat/4-shell-restructure`） | [#863](https://github.com/aa0968111723-prog/healing-studio/pull/863) | tsc/測試綠；ENABLE_PROJECT_SSOT 旗標；active id 歸 WorldContext | #862 |
 | prompt_assets junction 表（已採 junction） | ✅ Done（06-12 合併 main，migration 0075） | [#864](https://github.com/aa0968111723-prog/healing-studio/pull/864) | migration 冪等可回滾；旗標 ENABLE_PROMPT_ASSET_LINKS 預設 OFF | — |
-| **合流 `feat/4-shell-restructure` → main**（聚合 #862+#863） | 📋 To Do（**新增**，下一步建議） | — | main 含導演台+SSOT；旗標 OFF 線上零變化；CI 綠 | #862 #863 |
+| **合流 `feat/4-shell-restructure` → main**（聚合 #862+#863） | ✅ Done（06-12，AIDV-7） | [#866](https://github.com/aa0968111723-prog/healing-studio/pull/866) | main 含導演台+SSOT；旗標 OFF 線上零變化 | — |
+| W1-3 promptVault adapter 接縫（AIDV-36） | ✅ Done（06-12 合併 main） | [#867](https://github.com/aa0968111723-prog/healing-studio/pull/867) | promptLibrary.*＋junction 雙向查詢 | #864 |
+| W1-7 工程衛生（AIDV-40） | ✅ Done（06-13 合併 main） | [#868](https://github.com/aa0968111723-prog/healing-studio/pull/868) | scan 一鍵化；eval tsx；notes.create 蟲修 | — |
+| 0071–0074 journal 補登記（AIDV-17） | 🔄 In Progress（#869 已合併；生效擋在 #872） | [#869](https://github.com/aa0968111723-prog/healing-studio/pull/869) | 真站驗證四張表建立後關卡 | **#872** |
+| W1-2 統一供應商門面＋H5 鎖門（AIDV-11+60） | ✅ Done（06-13 合併 main） | [#870](https://github.com/aa0968111723-prog/healing-studio/pull/870) | CF_AI_GATEWAY_* 未設＝零變化；/api/ai 401＋fail-closed＋限流掛載 | CF 帳號（啟用閘道用） |
+| W1-8 引導表單細修＋四態文案（AIDV-41） | ✅ Done（06-13 合併 main） | [#871](https://github.com/aa0968111723-prog/healing-studio/pull/871) | error 標真實 procedure；GuidedJourney 取消出口 | — |
+| 🔴 **P0 解卡生產 migration（AIDV-76）** | ⛔ Blocked `caution`（**等 Bruce 合 #872，最優先**） | [#872](https://github.com/aa0968111723-prog/healing-studio/pull/872) | 合併部署後 creative_projects 等表自動補建；真站瀏覽器驗證痊癒 | Bruce Merge |
+| W1-4 Flow TV 放映皮（AIDV-37） | 🔄 In Progress（06-13 開發中） | — | 全屏放映/重用/fork；頻道＝真實後端篩選 | — |
 | junction follow-up A：backfill 在真 DB 實跑＋數字核對 | 📋 To Do | admin 呼叫 `promptLibrary.backfillAssetLinks` | totalLinked 數字合理、可重跑冪等 | #864、DATABASE_URL 環境 |
 | junction follow-up B：variant/rewrite/extended 寫入點（座艙重骰/改寫/延長） | 📋 To Do | — | 三種 relation 有實際寫入 | #864、導演台流程 |
 | junction follow-up C：prompt_library content 去重策略（每次生成新插一列） | ⛔ Blocked `decision` `待議` | — | 拍板 upsert-by-content 或保持現狀 | — |
@@ -100,6 +108,11 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | 「可觀察/可審核/半唯讀」builder 先行 | 📋 To Do | Notion: Wave 3：開放代理建置區＋BYOMCP |
 | BYOMCP 權限/稽核 | 📋 To Do | — |
 | orchestrator＋專責 worker | 📋 To Do | — |
+
+### 2.5b 平行軌（Jira 為準，此處僅鏡像索引）
+
+- **Wave H 營運與安全硬化**（Epic AIDV-55＋AIDV-56~73，06-13 全啟動）：H5 鎖門已隨 #870 完成；H6 的活案例＝AIDV-76 P0。Railway MCP 接入＝AIDV-77（官方遠端版已寫入本機設定，待 Bruce OAuth）。
+- **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。
 
 ### 2.6 已拍板決策（label `decision-resolved`）
 

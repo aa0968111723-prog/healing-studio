@@ -13,13 +13,12 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
-  ArrowUp, ArrowDown, Trash2, Plus, RotateCcw, Loader2, Star, ImagePlus, Search, RefreshCw, Copy,
+  ArrowUp, ArrowDown, Trash2, Plus, RotateCcw, Loader2, ImagePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -27,6 +26,7 @@ import { useSpine } from "@/providers/SpineProvider";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole, type DrawerId } from "../DirectorConsoleProvider";
 import { STEP_LIBRARY, freshDefaultWorkflow } from "../console/workflowSteps";
+import { FlowTvBody } from "./FlowTv";
 import { frameStyle } from "@/spine/seedVisual";
 import type { ProviderId } from "@/spine/types";
 
@@ -123,105 +123,9 @@ function WorkflowBuilderBody() {
   );
 }
 
-// ── 2-12 Flow TV / 提示詞庫（promptLibrary.* ＋ 既有 Generation 接縫重用）──────────
-function FlowTvBody() {
-  const sp = useSpine();
-  const [search, setSearch] = useState("");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [regenId, setRegenId] = useState<number | null>(null);
-  const list = trpc.promptLibrary.list.useQuery({ search: search || undefined }, { staleTime: 15_000 });
-  const create = trpc.promptLibrary.create.useMutation();
-  const del = trpc.promptLibrary.delete.useMutation();
-  const incUse = trpc.promptLibrary.incrementUseCount.useMutation();
-
-  const items = list.data?.items ?? [];
-
-  // 重用迴圈（§9）：再生成＝把舊 prompt 重跑 Generation 接縫（先估→生成→落庫）＋ useCount+1。
-  const regen = async (id: number, prompt: string) => {
-    if (regenId !== null) return;
-    setRegenId(id);
-    try {
-      const res = await sp.adapters.generation.generate({
-        kind: "image", prompt, seed: 1000 + Math.floor(Math.random() * 9000), provider: sp.provider,
-      });
-      incUse.mutate({ id }, { onSuccess: () => void list.refetch() });
-      toast.success("已依舊提示詞再生成", { description: `${res.model} · seed ${res.seedUsed} · ${res.provider}` });
-    } catch (e) {
-      toast.error("再生成失敗", { description: e instanceof Error ? e.message : "Generation 接縫無回應" });
-    } finally {
-      setRegenId(null);
-    }
-  };
-  // 複製並編輯（fork）：把 prompt 帶進上方新增表單，另存為新 entry。
-  const fork = (t: string, c: string) => {
-    setTitle(t ? `${t}（複製）` : "");
-    setContent(c);
-    toast("已複製到新增表單 · 可編輯後另存");
-  };
-
-  return (
-    <div className="space-y-4 pt-4">
-      {/* 新增 */}
-      <div className="space-y-2 rounded-xl border bg-card/60 p-2.5">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="標籤 / 標題（必填）" className="h-8 text-xs" />
-        <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="prompt 內容（必填）" className="min-h-[56px] text-xs" />
-        <Button
-          size="sm"
-          className="w-full"
-          disabled={!title.trim() || !content.trim() || create.isPending}
-          onClick={() => create.mutate(
-            { title: title.trim(), content: content.trim(), category: "general" },
-            { onSuccess: () => { toast.success("已存入提示詞庫"); setTitle(""); setContent(""); void list.refetch(); }, onError: (e) => toast.error("存庫失敗", { description: e.message }) },
-          )}
-        >
-          <Plus className="size-4" /> 存入提示詞庫
-        </Button>
-      </div>
-
-      {/* 搜尋 */}
-      <div className="flex items-center gap-2">
-        <Search className="size-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋標題…" className="h-8 text-xs" />
-      </div>
-
-      {/* 列表 */}
-      {list.isLoading ? (
-        <div className="py-6 text-center text-xs text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></div>
-      ) : items.length === 0 ? (
-        <div className="py-8 text-center text-xs text-muted-foreground">
-          還沒有提示詞 · 生成素材後存庫，即可在此再生成 / 複製編輯
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {items.map((it) => (
-            <li key={it.id} className="rounded-xl border p-2.5">
-              <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{it.title}</span>
-                {it.isFavorite && <Star className="size-3.5 fill-amber-400 text-amber-400" />}
-                <Badge variant="outline" className="text-[9px]">{it.category}</Badge>
-                <Button size="icon" variant="ghost" className="size-6 text-destructive" aria-label="刪除"
-                  onClick={() => del.mutate({ id: it.id }, { onSuccess: () => { toast("已刪除"); void list.refetch(); } })}>
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-              <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{it.content}</p>
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" disabled={regenId !== null} onClick={() => void regen(it.id, it.content)}>
-                  {regenId === it.id ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />} 再生成
-                </Button>
-                <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => fork(it.title, it.content)}>
-                  <Copy className="size-3" /> 複製編輯
-                </Button>
-                <span className="ml-auto font-mono text-[9px] text-muted-foreground">×{it.useCount ?? 0} 重用</span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+// ── 2-12 Flow TV / 提示詞庫 ──────────────────────────────────────────────────
+// W1-4 放映皮後抽出獨立檔 ./FlowTv.tsx（全屏播放器＋頻道＋格狀/清單）；
+// 這裡只負責 drawer 掛載。
 
 // ── 2-13 單模型遊樂場（aiModels.list ＋ Generation 接縫）─────────────────────
 const MODALITIES = ["image", "video", "audio", "text"];
