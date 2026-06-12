@@ -200,6 +200,12 @@ AI Director 影片系統（空間首頁＝①）
 3. Confluence 建空間：「**AI Director 影片系統**」。
 
 ### 6.2 灌資料（兩條路，擇一）
+
+> **2026-06-12 進度**：Jira 已由代理經 REST API（API token，存 `~/.atlassian-credentials`，未進 repo）**灌入完成**：
+> 專案 `AIDV`（kanban）＋5 大型工作 AIDV-30～34（Wave 0–4）＋29 Story AIDV-1～29（parent 已掛、Done/In Progress 已轉、labels 齊）。
+> 看板：https://aa0968111723.atlassian.net/jira/software/c/projects/AIDV/boards
+> 注意：站台介面為中文（Epic=大型工作、Story=故事；狀態=待辦/進行中/完成）；板上無 Blocked 欄，Blocked 語意以 label `blocked` 表示（Bruce 可日後在板設定加欄）。
+> **Confluence 未開通**（/wiki 全 401）→ Bruce 待辦：admin.atlassian.com → 你的站台 → Products → **Add Confluence（Free）**，開通後代理續跑頁面樹＋Notion 轉移。
 - **A（不需 MCP）**：Jira → Settings → System → External System Import → CSV → 上傳 `docs/plan/jira-import.csv`（UTF-8）。匯入精靈中：Issue Type/Summary/Description/Labels 直接對映；Status 對映到 board 欄；Epic 用「Epic Name」（epic 列）與「Epic Link」（story 列）對映。
 - **B（MCP 連上後）**：對 Claude 說「執行 /aidv-plan sync」——插件會讀本檔，逐項建 Epic/Story/頁面（冪等：先查同名再建，不重複、不刪除）。
 
