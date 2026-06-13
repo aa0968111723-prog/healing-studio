@@ -31,10 +31,11 @@ const PROVIDERS: { id: ProviderId; label: string }[] = [
   { id: "mock", label: "Mock（離線）" },
 ];
 
-/** 各模態 → registry 領域（brainDefaults 的 key 用 director 模態命名）。 */
+/** 各模態 → registry 領域（brainDefaults 的 key 用 director 模態命名）。
+ *  註：registry 無純 text-to-video 領域，本系統「影片引擎」實作＝圖生影片(i2v)，故 T2V 對映 image-to-video。 */
 const ENGINE_MODALITIES: { key: string; label: string; domain: ModelDomain }[] = [
   { key: "text-to-image", label: "文字生圖", domain: "text-to-image" },
-  { key: "text-to-video", label: "文字生影片", domain: "image-to-video" },
+  { key: "text-to-video", label: "影片（圖生影片 i2v）", domain: "image-to-video" },
   { key: "text-to-audio", label: "音樂 / 音效", domain: "audio-music" },
   { key: "text-to-speech", label: "語音 / 配音", domain: "voice-tts" },
 ];
