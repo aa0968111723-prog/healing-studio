@@ -28,7 +28,7 @@ const { listCalls, listState, mutations, generateMock } = vi.hoisted(() => ({
     incrementUseCount: vi.fn(),
     toggleFavorite: vi.fn(),
   },
-  generateMock: vi.fn(async () => ({ model: "flux-dev", seedUsed: 1234, provider: "hf", costUsd: 0.01 })),
+  generateMock: vi.fn(async (_input: Record<string, unknown>) => ({ model: "flux-dev", seedUsed: 1234, provider: "hf", costUsd: 0.01 })),
 }));
 
 vi.mock("@/lib/trpc", () => ({

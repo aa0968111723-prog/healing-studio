@@ -5,29 +5,26 @@
 //   Routes（本 repo 為 React 19 + Vite + Wouter，L1 禁 Next.js）。四個抽屜：
 //   • workflow   2-17 工作流設定（WorkflowBuilder，本地狀態；後端 user_workflows 待補＝G10／W2-E）
 //   • flowtv     2-12 Flow 電視牆 / 提示詞庫（promptLibrary.list/create/delete）
-//   • playground 2-13 單模型遊樂場（aiModels.list ＋ 既有 Generation 接縫試生成 → fal）
+//   • playground 2-13 單模型遊樂場「統一目錄頁」（registry 為準＋catalog 情報層＋選型試生成）
 //   • settings   2-18 影片系統設定（生成引擎 / 顯隱 / 自動存草稿 ＋ 鐵則；全站設定在 /settings）
 // ============================================================================
-import { useState } from "react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
-  ArrowUp, ArrowDown, Trash2, Plus, RotateCcw, Loader2, ImagePlus,
+  ArrowUp, ArrowDown, Trash2, Plus, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { useSpine } from "@/providers/SpineProvider";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole, type DrawerId } from "../DirectorConsoleProvider";
 import { STEP_LIBRARY, freshDefaultWorkflow } from "../console/workflowSteps";
 import { FlowTvBody } from "./FlowTv";
-import { frameStyle } from "@/spine/seedVisual";
+import { ModelCatalogBody } from "./ModelCatalog";
 import type { ProviderId } from "@/spine/types";
 
 export function ConsoleDrawers() {
@@ -49,7 +46,7 @@ export function ConsoleDrawers() {
     <>
       {wrap("workflow", "工作流設定 · 2-17", "步驟可新增／刪除／重排／啟用停用；必經步驟不可刪。", <WorkflowBuilderBody />)}
       {wrap("flowtv", "Flow 電視牆 · 提示詞庫 · 2-12", "存庫 → 重用：promptLibrary。生成的提示詞可在此再生成 / 複製編輯。", <FlowTvBody />, true)}
-      {wrap("playground", "單模型遊樂場 · 2-13", "aiModels.list 模型情報 ＋ 既有 Generation 接縫試生成（→ fal）。", <PlaygroundBody />, true)}
+      {wrap("playground", "單模型遊樂場 · 統一目錄 · 2-13", "registry 為準的可用模型目錄（按領域）＋ catalog 情報層 enrich ＋ 選型試生成（→ fal）。", <ModelCatalogBody />, true)}
       {wrap("settings", "影片系統設定 · 2-18", "生成引擎 / 介面顯隱 / 自動存草稿 ＋ 鐵則。帳號層設定在 /settings。", <VideoSettingsBody />)}
     </>
   );
@@ -127,92 +124,9 @@ function WorkflowBuilderBody() {
 // W1-4 放映皮後抽出獨立檔 ./FlowTv.tsx（全屏播放器＋頻道＋格狀/清單）；
 // 這裡只負責 drawer 掛載。
 
-// ── 2-13 單模型遊樂場（aiModels.list ＋ Generation 接縫）─────────────────────
-const MODALITIES = ["image", "video", "audio", "text"];
-
-function PlaygroundBody() {
-  const sp = useSpine();
-  const [modality, setModality] = useState("image");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [seed, setSeed] = useState<number | null>(null);
-
-  const models = trpc.aiModels.list.useQuery({ modality }, { staleTime: 5 * 60_000 });
-
-  const run = async () => {
-    if (!prompt.trim() || busy) return;
-    const s = 1000 + Math.floor(Math.random() * 9000);
-    setBusy(true);
-    setSeed(null);
-    try {
-      const res = await sp.adapters.generation.generate({
-        kind: "image", prompt: prompt.trim(), seed: s, provider: sp.provider, model: selected ?? undefined,
-      });
-      setSeed(res.seedUsed);
-      toast.success("試生成完成", { description: `${res.model} · seed ${res.seedUsed} · ${res.provider}` });
-    } catch (e) {
-      toast.error("試生成失敗", { description: e instanceof Error ? e.message : "Generation 接縫無回應" });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4 pt-4">
-      <div className="flex flex-wrap gap-1.5">
-        {MODALITIES.map((m) => (
-          <Button key={m} size="sm" variant={modality === m ? "default" : "outline"} className="h-7 text-xs" onClick={() => { setModality(m); setSelected(null); }}>{m}</Button>
-        ))}
-      </div>
-
-      <div className="max-h-56 space-y-1.5 overflow-y-auto">
-        {models.isLoading ? (
-          <div className="py-4 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></div>
-        ) : (models.data?.models ?? []).length === 0 ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">此模態暫無模型情報（aiModels.list）</div>
-        ) : (
-          (models.data?.models ?? []).slice(0, 30).map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setSelected(m.id)}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-healing",
-                selected === m.id ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50",
-              )}
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-medium">{m.name}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">{m.provider} · {m.tagline}</span>
-              </span>
-              <Badge variant="outline" className="shrink-0 text-[9px]">{m.tier}</Badge>
-            </button>
-          ))
-        )}
-      </div>
-
-      {modality === "image" ? (
-        <>
-          <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="提示詞 · 試生成一張（走既有 Generation 接縫 → fal）" className="min-h-[64px] text-sm" />
-          <Button size="sm" onClick={() => void run()} disabled={busy || !prompt.trim()}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />} 試生成{selected ? `（${selected}）` : ""}
-          </Button>
-          {seed !== null && (
-            <div className="flex items-center gap-3 rounded-xl border bg-card/60 p-2.5">
-              <div className="size-16 shrink-0 rounded-lg" style={{ background: frameStyle(seed, 0) }} />
-              <div className="font-mono text-[10px] text-muted-foreground">seed {seed} · {sp.provider}</div>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-[11px] text-muted-foreground">
-          {modality} 模態的試生成 Wave 0 走對應 studio（{modality === "video" ? "videoStudio.*（session 狀態機 M3 待後端）" : modality === "audio" ? "proStudio.*（見「配音/配樂」畫布）" : "director.chat"}）。此處先提供模型情報瀏覽。
-        </div>
-      )}
-    </div>
-  );
-}
+// ── 2-13 單模型遊樂場「統一目錄頁」──────────────────────────────────────────
+// W1-5：抽出獨立檔 ./ModelCatalog.tsx（registry 為準的領域目錄＋catalog 情報層 enrich
+// ＋選型試生成）；這裡只負責 drawer 掛載。
 
 // ── 2-18 影片系統設定 ───────────────────────────────────────────────────────
 const PROVIDERS: { id: ProviderId; label: string }[] = [
