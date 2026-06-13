@@ -272,6 +272,13 @@ AI Director 影片系統（空間首頁＝①）
 
 **🤝 需要你動手（因 Confluence 不可達，暫記於此鏡像，待通後補回 AIDISC「需要你動手」頁）**：重做一次 Atlassian 連接器授權，授權畫面務必把 **Confluence** 一起勾（並確認站台 aa0968111723 的 Confluence 產品在授權範圍內、必要時於 OAuth 畫面同意安裝/批准）。完成後對我說 `/aidv-plan sync`，我即續跑 Confluence 頁面樹對帳＋AIDISC 收件匣工作流（鐵律 9）。在此之前，`sync` 的 Jira 部分仍可單獨執行。
 
+**Jira 暫代討論區（2026-06-13 建，Confluence 不可達期間）**：因 AIDISC 討論區住在 Confluence、目前不可達，已在 Jira 建臨時收件匣工作流（依 Bruce 指示「在 Jira 創建 AIDISC 收件匣工作流」）：
+- **AIDV-89**（Epic「📥 AIDISC 討論區（Jira 暫代）」）＝hub，描述內含白話 SOP 與標籤對照。
+- 標籤＝頻道：`aidisc-inbox`(📥收件匣)／`aidisc-reference`(🔬參考研究)／`aidisc-todo-bruce`(🤝需要你動手)／`aidisc-replied`([已回覆])；已結案＝狀態「完成」。
+- 在途 🤝 需要你動手：**AIDV-88**（重連 Atlassian＋納入 Confluence，已加 `aidisc` 標籤）、**AIDV-90**（撤銷外洩的 Atlassian API token，安全優先，已指派 Bruce）。
+- 既有事實補記（見 AIDV-88）：本機容器 network egress 擋掉所有 atlassian.com/.net，故 REST token 路徑在雲端 session 不可用，MCP（Jira 可用）走 Anthropic 基建代理；連 Confluence 唯一乾淨路＝MCP 重新授權含 Confluence scope。
+- Confluence 通了之後：把 AIDV-89 底下內容搬回 Confluence AIDISC，再把 Epic 轉「完成」歸檔（不刪）。
+
 ## 7. Archive（過時內容移此，不刪）
 
 - ②-A 核心創作鏈路與 SubQ 整合規劃（2026-05-23）— 已移 Confluence Archive（6/10 規則）
