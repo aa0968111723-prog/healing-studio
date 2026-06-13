@@ -37,6 +37,7 @@ healing-studio（線上 director.today）影片系統整合進現有網站、收
 - prompt_assets junction **PR #864 已合併 main**（migration 0075；生產實際生效隨 #872 部署）。
 - ✅ **W1-5 已合併**：單模型遊樂場「統一目錄頁」（AIDV-38，#875）——registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；零後端變更、全程在 ENABLE_4SHELL 之下。
 - 🔄 **W1-6 開發中**：影片系統設定強化（AIDV-39，branch `claude/beautiful-mendel-hso334`）——per-引擎各模態預設引擎可覆寫（registry 選項、本地偏好、後端持久化待補）＋個人化面板完善（把帳號層 PersonalSettings 偏好搬進座艙就地調）；零後端。
+- 🔄 **W1-9 開發中**：手機版導演台 RWD（AIDV-42，⑧-H7，同分支）——`<lg` 斷點三欄改單欄＋底部頁籤切換（脊椎／畫布／Context）；桌機用 `lg:contents` 還原為 grid 直接子項、逐像素不變。Bruce 主場景（手機）可走六步工作流。
 - 📋 **Confluence 待補（AIDV-88）**：本 session 連不上 Confluence——Atlassian Rovo MCP 僅 Jira scopes（Confluence 回「app 未安裝」）＋容器 network egress 擋掉所有 atlassian.net/.com 主機（github 可達）。鐵律⑨討論區工作流／06-13 變更紀錄鏡像／頁面樹核對 皆待連上後補。⚠️ Bruce 06-13 在對話貼出的 Atlassian API token 已外洩，須撤銷換新。
 
 **UI 原則**：三欄導演台（Story Spine／創作畫布／Context Sidecar）、S0X 導航主軸、readiness chips、確認門＋成本常駐、drawer 不離場、光球 Ambient 四態無人格、漸進揭露。
@@ -80,6 +81,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | W1-4 Flow TV 放映皮（AIDV-37） | ✅ Done（06-12 合併 main） | [#873](https://github.com/aa0968111723-prog/healing-studio/pull/873) | 全屏放映/重用/fork；頻道＝真實後端篩選 | — |
 | W1-5 單模型遊樂場統一目錄頁（AIDV-38） | ✅ Done（06-13 合併 main） | [#875](https://github.com/aa0968111723-prog/healing-studio/pull/875) | registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；ModelCard；四態；零後端 | — |
 | W1-6 影片系統設定強化：per-引擎預設＋個人化完善（AIDV-39） | 🔄 In Progress（06-13 開發中） | — | 各模態預設引擎可覆寫（registry 選項、本地偏好）＋帳號層個人化搬進座艙；四態；零後端 | — |
+| W1-9 手機版導演台 RWD（AIDV-42，⑧-H7） | 🔄 In Progress（06-13 開發中） | — | `<lg` 三欄改單欄＋底部頁籤（脊椎/畫布/Context）；桌機 `lg:contents` 不變；手機可走六步 | — |
 | Confluence MCP 連線啟用＋頁面樹/變更紀錄/討論區補建（AIDV-88） | ⛔ Blocked（待 Bruce 開 Confluence＋重連授權） | — | getConfluenceSpaces 能列空間；鐵律⑨補跑；舊 token 撤銷 | Bruce |
 | junction follow-up A：backfill 在真 DB 實跑＋數字核對 | 📋 To Do | admin 呼叫 `promptLibrary.backfillAssetLinks` | totalLinked 數字合理、可重跑冪等 | #864、DATABASE_URL 環境 |
 | junction follow-up B：variant/rewrite/extended 寫入點（座艙重骰/改寫/延長） | 📋 To Do | — | 三種 relation 有實際寫入 | #864、導演台流程 |
