@@ -56,6 +56,12 @@ export interface OrbState {
   bubble: OrbBubble | null;
 }
 
+export type EngineModality =
+  | "text-to-image"
+  | "text-to-video"
+  | "text-to-audio"
+  | "text-to-speech";
+
 interface DirectorConsoleValue {
   // ── S0X 導航主軸 ──
   focusShotId: string | null;
@@ -72,9 +78,9 @@ interface DirectorConsoleValue {
   setShowSidecar: (b: boolean) => void;
   autoSaveDraft: boolean;
   setAutoSaveDraft: (b: boolean) => void;
-  // ── per-引擎偏好（2-16，後端持久化待補=brain mutation/G10 → 本地 per session 覆寫）──
-  enginePrefs: Record<string, string>;
-  setEnginePref: (modality: string, modelId: string | null) => void;
+  // ── per-引擎偏好備忘（2-16，型別約束 key 避免錯字產生死條目；後端接線待補 G10）──
+  enginePrefs: Partial<Record<EngineModality, string>>;
+  setEnginePref: (modality: EngineModality, modelId: string | null) => void;
   // ── 可設定工作流（2-17，後端待補=G10/W2-E → 本地狀態）──
   steps: WorkflowStep[];
   setSteps: (s: WorkflowStep[]) => void;
@@ -104,11 +110,11 @@ export function DirectorConsoleProvider({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState<DrawerId | null>(null);
   const [showSidecar, setShowSidecar] = useState(true);
   const [autoSaveDraft, setAutoSaveDraft] = useState(false);
-  const [enginePrefs, setEnginePrefs] = useState<Record<string, string>>({});
+  const [enginePrefs, setEnginePrefs] = useState<Partial<Record<EngineModality, string>>>({});
   const [steps, setSteps] = useState<WorkflowStep[]>(() => freshDefaultWorkflow());
 
-  // per-引擎偏好覆寫：傳 null 清除回「用系統預設」。
-  const setEnginePref = useCallback((modality: string, modelId: string | null) => {
+  // per-引擎偏好備忘：傳 null 清除回「用系統預設」。
+  const setEnginePref = useCallback((modality: EngineModality, modelId: string | null) => {
     setEnginePrefs((prev) => {
       const next = { ...prev };
       if (!modelId) delete next[modality];

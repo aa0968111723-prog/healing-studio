@@ -38,7 +38,8 @@ healing-studio（線上 director.today）影片系統整合進現有網站、收
 - ✅ **W1-5 已合併**：單模型遊樂場「統一目錄頁」（AIDV-38，#875）——registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；零後端變更、全程在 ENABLE_4SHELL 之下。
 - 🔄 **W1-6 開發中**：影片系統設定強化（AIDV-39，branch `claude/beautiful-mendel-hso334`）——per-引擎各模態預設引擎可覆寫（registry 選項、本地偏好、後端持久化待補）＋個人化面板完善（把帳號層 PersonalSettings 偏好搬進座艙就地調）；零後端。
 - 🔄 **W1-9 開發中**：手機版導演台 RWD（AIDV-42，⑧-H7，同分支）——`<lg` 斷點三欄改單欄＋底部頁籤切換（脊椎／畫布／Context）；桌機用 `lg:contents` 還原為 grid 直接子項、逐像素不變。Bruce 主場景（手機）可走六步工作流。
-- 📋 **Confluence 待補（AIDV-88）**：本 session 連不上 Confluence——Atlassian Rovo MCP 僅 Jira scopes（Confluence 回「app 未安裝」）＋容器 network egress 擋掉所有 atlassian.net/.com 主機（github 可達）。鐵律⑨討論區工作流／06-13 變更紀錄鏡像／頁面樹核對 皆待連上後補。⚠️ Bruce 06-13 在對話貼出的 Atlassian API token 已外洩，須撤銷換新。
+- 📋 **Confluence 待補（追蹤卡 AIDV-88 · Owner: Bruce）**：本 session 連不上 Confluence，兩個獨立阻擋——(1) Atlassian Rovo MCP 僅 Jira scopes（Confluence 回「app 未安裝」）；(2) **本 cloud agent 容器**（非共享基建、非生產）的 network egress 政策擋掉所有 atlassian.net/.com 主機（github 可達）。解法（見 AIDV-88，皆 Bruce 動手）：①站台加 Confluence 產品＋重連連接器（含 Confluence scopes）；或②在此 cloud 環境 egress 白名單加 `aa0968111723.atlassian.net` 走 REST token。連上後補：鐵律⑨討論區工作流／06-13 變更紀錄鏡像／頁面樹核對。
+- 🔴 **安全待辦（Owner: Bruce · 即刻 · 追蹤於 AIDV-88）**：06-13 對話中外洩的 Atlassian API token 須撤銷換新（id.atlassian.com → Security → API tokens）。依鐵律 3：金鑰一律只貼 Railway 環境變數，絕不入 repo／issue／頁面（本機暫存檔已刪）。
 
 **UI 原則**：三欄導演台（Story Spine／創作畫布／Context Sidecar）、S0X 導航主軸、readiness chips、確認門＋成本常駐、drawer 不離場、光球 Ambient 四態無人格、漸進揭露。
 
