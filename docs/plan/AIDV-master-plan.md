@@ -32,10 +32,10 @@ healing-studio（線上 director.today）影片系統整合進現有網站、收
 **現況（2026-06-13 git 實證更新）**：
 - 4-shell 已合併 main（PR #852–#861）；四殼＋六旗標上線（`ENABLE_4SHELL` 預設 OFF）。
 - 合流完成：#866（=#862 導演台＋#863 SSOT 回流 main）、#867（W1-3 promptVault）、#868（W1-7 工程衛生）皆已合併 main。
-- 06-13 已合併：#869（0071–0074 journal 補登記）、#870（W1-2 門面＋H5 鎖門）、#871（W1-8 四態文案）、#872（P0 解卡生產 migration）、#873（W1-4 Flow TV）。
+- 06-13 已合併：#869（0071–0074 journal 補登記）、#870（W1-2 門面＋H5 鎖門）、#871（W1-8 四態文案）、#872（P0 解卡生產 migration）、#873（W1-4 Flow TV）、#875（W1-5 單模型遊樂場統一目錄頁）。
 - ✅ **P0 已解**：#872 解卡生產 migration（0066–0069 冪等化＋逐句 breakpoint＋information_schema 守門＋5 條鐵則守門測試）已合併 main（AIDV-76→Done）；#869 補登記隨之在下次部署生效。**待 Bruce 真站瀏覽器驗證** creative_projects/orchestration_runs/prompt_assets 三表補建、影片專案功能恢復。
 - prompt_assets junction **PR #864 已合併 main**（migration 0075；生產實際生效隨 #872 部署）。
-- 🔄 **開發中**：W1-5 單模型遊樂場「統一目錄頁」（AIDV-38，branch `claude/beautiful-mendel-hso334`）——registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；零後端變更、全程在 ENABLE_4SHELL 之下。
+- ✅ **W1-5 已合併**：單模型遊樂場「統一目錄頁」（AIDV-38，#875）——registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；零後端變更、全程在 ENABLE_4SHELL 之下。
 
 **UI 原則**：三欄導演台（Story Spine／創作畫布／Context Sidecar）、S0X 導航主軸、readiness chips、確認門＋成本常駐、drawer 不離場、光球 Ambient 四態無人格、漸進揭露。
 
@@ -76,7 +76,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | W1-8 引導表單細修＋四態文案（AIDV-41） | ✅ Done（06-13 合併 main） | [#871](https://github.com/aa0968111723-prog/healing-studio/pull/871) | error 標真實 procedure；GuidedJourney 取消出口 | — |
 | 🔴 **P0 解卡生產 migration（AIDV-76）** | ✅ Done（06-12 合併 main） | [#872](https://github.com/aa0968111723-prog/healing-studio/pull/872) | 合併部署後 creative_projects 等表自動補建；**待真站瀏覽器驗證痊癒** | — |
 | W1-4 Flow TV 放映皮（AIDV-37） | ✅ Done（06-12 合併 main） | [#873](https://github.com/aa0968111723-prog/healing-studio/pull/873) | 全屏放映/重用/fork；頻道＝真實後端篩選 | — |
-| W1-5 單模型遊樂場統一目錄頁（AIDV-38） | 🔄 In Progress（06-13 開發中，branch `claude/beautiful-mendel-hso334`） | — | registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；ModelCard；四態；零後端 | — |
+| W1-5 單模型遊樂場統一目錄頁（AIDV-38） | ✅ Done（06-13 合併 main） | [#875](https://github.com/aa0968111723-prog/healing-studio/pull/875) | registry 為準的領域目錄＋catalog 情報層 enrich＋選型試生成；ModelCard；四態；零後端 | — |
 | junction follow-up A：backfill 在真 DB 實跑＋數字核對 | 📋 To Do | admin 呼叫 `promptLibrary.backfillAssetLinks` | totalLinked 數字合理、可重跑冪等 | #864、DATABASE_URL 環境 |
 | junction follow-up B：variant/rewrite/extended 寫入點（座艙重骰/改寫/延長） | 📋 To Do | — | 三種 relation 有實際寫入 | #864、導演台流程 |
 | junction follow-up C：prompt_library content 去重策略（每次生成新插一列） | ⛔ Blocked `decision` `待議` | — | 拍板 upsert-by-content 或保持現狀 | — |
