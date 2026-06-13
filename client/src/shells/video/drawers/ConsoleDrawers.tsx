@@ -6,26 +6,23 @@
 //   • workflow   2-17 工作流設定（WorkflowBuilder，本地狀態；後端 user_workflows 待補＝G10／W2-E）
 //   • flowtv     2-12 Flow 電視牆 / 提示詞庫（promptLibrary.list/create/delete）
 //   • playground 2-13 單模型遊樂場「統一目錄頁」（registry 為準＋catalog 情報層＋選型試生成）
-//   • settings   2-18 影片系統設定（生成引擎 / 顯隱 / 自動存草稿 ＋ 鐵則；全站設定在 /settings）
+//   • settings   2-18 影片系統設定（生成引擎＋per-引擎預設覆寫＋個人化＋鐵則；抽出 ./VideoSettings.tsx）
 // ============================================================================
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   ArrowUp, ArrowDown, Trash2, Plus, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
-import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole, type DrawerId } from "../DirectorConsoleProvider";
 import { STEP_LIBRARY, freshDefaultWorkflow } from "../console/workflowSteps";
 import { FlowTvBody } from "./FlowTv";
 import { ModelCatalogBody } from "./ModelCatalog";
-import type { ProviderId } from "@/spine/types";
+import { VideoSettingsBody } from "./VideoSettings";
 
 export function ConsoleDrawers() {
   const console_ = useDirectorConsole();
@@ -47,7 +44,7 @@ export function ConsoleDrawers() {
       {wrap("workflow", "工作流設定 · 2-17", "步驟可新增／刪除／重排／啟用停用；必經步驟不可刪。", <WorkflowBuilderBody />)}
       {wrap("flowtv", "Flow 電視牆 · 提示詞庫 · 2-12", "存庫 → 重用：promptLibrary。生成的提示詞可在此再生成 / 複製編輯。", <FlowTvBody />, true)}
       {wrap("playground", "單模型遊樂場 · 統一目錄 · 2-13", "registry 為準的可用模型目錄（按領域）＋ catalog 情報層 enrich ＋ 選型試生成（→ fal）。", <ModelCatalogBody />, true)}
-      {wrap("settings", "影片系統設定 · 2-18", "生成引擎 / 介面顯隱 / 自動存草稿 ＋ 鐵則。帳號層設定在 /settings。", <VideoSettingsBody />)}
+      {wrap("settings", "影片系統設定 · 2-18", "生成引擎＋各模態 per-引擎預設（2-16）＋個人化（帳號層）＋鐵則。", <VideoSettingsBody />)}
     </>
   );
 }
@@ -129,75 +126,7 @@ function WorkflowBuilderBody() {
 // ＋選型試生成）；這裡只負責 drawer 掛載。
 
 // ── 2-18 影片系統設定 ───────────────────────────────────────────────────────
-const PROVIDERS: { id: ProviderId; label: string }[] = [
-  { id: "hf", label: "Hugging Face" },
-  { id: "gemini", label: "Gemini 2.5" },
-  { id: "fal", label: "fal" },
-  { id: "mock", label: "Mock（離線）" },
-];
-
-function VideoSettingsBody() {
-  const console_ = useDirectorConsole();
-  const spine = useProjectSpine();
-  const defaults = trpc.director.generationModels.useQuery(undefined, { staleTime: 5 * 60_000 });
-
-  return (
-    <div className="space-y-4 pt-4">
-      {/* 生成引擎 */}
-      <div>
-        <div className="mb-1.5 text-xs font-medium text-muted-foreground">生成引擎（GENERATION_PROVIDER）</div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {PROVIDERS.map((pv) => (
-            <button
-              key={pv.id}
-              type="button"
-              onClick={() => spine.setProvider(pv.id)}
-              className={cn(
-                "rounded-lg border px-2.5 py-1.5 text-left text-xs transition-healing",
-                spine.provider === pv.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted/50",
-              )}
-            >
-              {pv.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 介面 toggles */}
-      <div className="space-y-2">
-        <label className="flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs">
-          <span>顯示 Context Sidecar（右欄）</span>
-          <Switch checked={console_.showSidecar} onCheckedChange={console_.setShowSidecar} />
-        </label>
-        <label className="flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs">
-          <span>自動存草稿（prompt ≥4 字自動入庫）</span>
-          <Switch checked={console_.autoSaveDraft} onCheckedChange={console_.setAutoSaveDraft} />
-        </label>
-      </div>
-
-      {/* 預設模型（brain defaults） */}
-      <div>
-        <div className="mb-1.5 text-xs font-medium text-muted-foreground">各模態預設引擎（brain defaults）</div>
-        {defaults.isLoading ? (
-          <div className="text-xs text-muted-foreground">讀取中…</div>
-        ) : (
-          <ul className="space-y-1">
-            {Object.entries(defaults.data?.brainDefaults ?? {}).map(([cat, model]) => (
-              <li key={cat} className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-1.5 text-[11px]">
-                <span className="text-muted-foreground">{cat}</span>
-                <span className="font-mono">{model ?? "—"}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
-        鐵則：角色未定版不進分鏡 · 關鍵影格未核准不跑 i2v · 媒體生成前先估成本。<br />
-        帳號／權限／觀測等全站設定在 <span className="font-mono">/settings</span> shell。
-      </div>
-    </div>
-  );
-}
+// W1-6：抽出獨立檔 ./VideoSettings.tsx（生成引擎＋per-引擎預設覆寫＋個人化完善）；
+// 這裡只負責 drawer 掛載。
 
 export default ConsoleDrawers;
