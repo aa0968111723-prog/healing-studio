@@ -261,6 +261,17 @@ AI Director 影片系統（空間首頁＝①）
 - **D 速答卡**（D3/D5~D15 共 12 項小拍板）已放 AIDISC「需要你動手」，一行回覆即可。
 - Wave 門檻照 03 路線圖：W1→W2＝Bruce 正式站試用一週無 P0/P1；W2→W3＝金流三測綠＋對帳 7 天零告警；W3→W4＝成片驗收＋帳單誤差 <5%。月費階梯 $0→$5-10→$5-10→$5-20。
 
+## 6.8 2026-06-13 連線狀態核實（重連授權結果）
+
+本輪 `/aidv-plan 開 Confluence＋重連授權` 經 Atlassian 官方遠端 MCP（Rovo 連接器）實測站台 `aa0968111723.atlassian.net`（cloudId `a70fd562-5997-4fe4-8de7-18ac3e894a29`）：
+
+- **Jira：✅ 已重連、可讀可寫。** 專案 `AIDV` 可見，87 張議題（8 大型工作／78 故事／1 漏洞）；狀態分佈 19 完成／3 進行中／65 待辦。Epic：AIDV-30(Wave0,完成)／31(Wave1,進行中)／32/33/34(Wave2/3/4,待辦)／55(WaveH)／74(WaveU)／78(WaveI)。OAuth 授權範圍＝`read:jira-work`＋`write:jira-work`。
+- **Confluence：⛔ 仍不可達。** `getConfluenceSpaces` 與 `searchConfluenceUsingCql` 皆回 `403 Forbidden — The app is not installed on this instance`（UUID 與站台網域兩種 cloudId 都試過）。本次 OAuth 只拿到 Jira 範圍、**沒有 Confluence 範圍**＝連接器這次授權時沒把 Confluence 一起勾。
+
+**白話**：Jira（任務看板）已經接通、能看能改；Confluence（知識庫頁面）這次的「授權」只授權了 Jira，沒授權 Confluence，所以系統說「這個 app 沒安裝在 Confluence 上」。你 06-12 建好的 Confluence 頁面（AIDIR 空間、⑧、⑨ 等）**沒有不見**，只是這條連線目前碰不到它們。06-12 的 REST API token 路徑（`~/.atlassian-credentials`）在本次全新容器中不存在，故無法走舊備援路徑；乾淨解法＝重做 OAuth 並納入 Confluence。
+
+**🤝 需要你動手（因 Confluence 不可達，暫記於此鏡像，待通後補回 AIDISC「需要你動手」頁）**：重做一次 Atlassian 連接器授權，授權畫面務必把 **Confluence** 一起勾（並確認站台 aa0968111723 的 Confluence 產品在授權範圍內、必要時於 OAuth 畫面同意安裝/批准）。完成後對我說 `/aidv-plan sync`，我即續跑 Confluence 頁面樹對帳＋AIDISC 收件匣工作流（鐵律 9）。在此之前，`sync` 的 Jira 部分仍可單獨執行。
+
 ## 7. Archive（過時內容移此，不刪）
 
 - ②-A 核心創作鏈路與 SubQ 整合規劃（2026-05-23）— 已移 Confluence Archive（6/10 規則）
