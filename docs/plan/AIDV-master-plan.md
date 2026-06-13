@@ -330,6 +330,26 @@ AI Director 影片系統（空間首頁＝①）
 - 既有事實補記（見 AIDV-88）：本機容器 network egress 擋掉所有 atlassian.com/.net，故 REST token 路徑在雲端 session 不可用，MCP（Jira 可用）走 Anthropic 基建代理；連 Confluence 唯一乾淨路＝MCP 重新授權含 Confluence scope。
 - Confluence 通了之後：把 AIDV-89 底下內容搬回 Confluence AIDISC，再把 Epic 轉「完成」歸檔（不刪）。
 
+## 6.9 ⑩ 深度規劃：AI 代理 × UIUX × 影片工作流 × 現有功能整合（2026-06-13）
+
+依 Bruce 指示，四個偵察代理對碼實證（82 表／54 routes／~565 procedure）後產出深度規劃，全文見 `docs/plan/AIDV-deep-plan-2026-06-13.md`（Confluence「⑩ 深度規劃」鏡像；**Confluence 待重新授權**，見下）。
+
+- **核心發現**：repo 內有一整套成熟、多為 LIVE 的代理/創作系統（15 精靈＋多代理編排器＋工作流引擎＋帶確認門工具執行器＋長期記憶＋教材庫 RAG＋世界觀／分鏡／真實地球／圖影音三大工作室 200+ procedure），但活在舊頁面，**新四殼導演台脊椎幾乎沒接到**。最高 CP 值的未來工作＝接線，而非新建。
+- **AI 代理**：近期＝光球接既有 orb/spirit 編排（AIDV-79）；遠期 Wave 4 BYOMCP 缺的只是 MCP 工具註冊表轉接層（編排器已輸出結構化工具呼叫＋確認門）。
+- **UIUX**：骨架＋46 頁規格皆完整；缺卡片內部狀態（ShotCard 狀態機）與手機版 RWD（cockpit-tabs/.mnav）；排序見 deep-plan §2.2（補 AIDV-74 留言）。
+- **影片工作流**：step 1–6 LIVE；最大洞＝step 7 組裝/匯出（無時間軸/rough-cut/Flow TV 拼接/export_jobs）＋段落狀態機表（video_generation_sessions/segment_jobs，補 AIDV-18/37/48 留言）。
+- **現有功能整合（我沒想到的）**：36 個實作功能，~12 未整合、4 個無前端（realEarth/worldStoryboard 等）。Top 10 整合角度見 deep-plan §4。
+
+**Jira 已同步（2026-06-13）**：
+- 新 Epic **AIDV-78** Wave I 現有功能整合（label `待議`/`integration`/`wave-i`）。
+- 新 Story **AIDV-79~87**（I-1~I-9，皆 `待議`）：光球接編排器／世界觀自動注入／劇本→分鏡骨架／教材庫 RAG 接地／真實地球研究面板／Projects 主入口／LoRA 角色閉環／Prompt 跨庫／Sense 個人化。
+- 既有卡補規劃留言：AIDV-37、AIDV-18、AIDV-48、AIDV-24、AIDV-74。
+- **不動既有 Wave 0–4 定錨**；Wave I 全為提案，待 Bruce 拍板（排程建議與 Wave 2 並行）。
+
+**🤝 需要 Bruce 動手**：
+1. **Confluence 重新授權**——目前 Atlassian OAuth 只授權 Jira（scope 僅 `read/write:jira-work`），Confluence 全回 403「app not installed」，本檔與 deep-plan 無法上 Confluence。請到 Settings → Connectors → Atlassian 重新 Connect 並勾選 Confluence 權限（`read/write:confluence-content`）。完成後代理把 deep-plan 原樣搬上 Confluence「⑩」並更新 AIDISC 討論區。
+2. 拍板 Wave I 九張卡是否納入、排程。
+
 ## 7. Archive（過時內容移此，不刪）
 
 - ②-A 核心創作鏈路與 SubQ 整合規劃（2026-05-23）— 已移 Confluence Archive（6/10 規則）
