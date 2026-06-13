@@ -10,9 +10,9 @@
 // 由 VideoCockpit 掛載；OFF 任一 → 完全不可達（零行為改變保證）。
 // ============================================================================
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { DirectorConsoleProvider, useDirectorConsole } from "./DirectorConsoleProvider";
 import { CreationFlowBar } from "./console/CreationFlowBar";
+import { CockpitColumns } from "./console/CockpitColumns";
 import { StorySpineColumn } from "./console/StorySpineColumn";
 import { CreationCanvas } from "./console/CreationCanvas";
 import { ContextSidecar } from "./console/ContextSidecar";
@@ -36,18 +36,12 @@ function ConsoleInner() {
     <div className="space-y-4">
       <CreationFlowBar onGuided={() => setGuided(true)} />
 
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-4",
-          console_.showSidecar
-            ? "lg:grid-cols-[minmax(260px,300px)_minmax(0,1fr)_minmax(300px,340px)]"
-            : "lg:grid-cols-[minmax(260px,300px)_minmax(0,1fr)]",
-        )}
-      >
-        <StorySpineColumn />
-        <CreationCanvas onGuided={() => setGuided(true)} />
-        {console_.showSidecar && <ContextSidecar />}
-      </div>
+      <CockpitColumns
+        showSidecar={console_.showSidecar}
+        spine={<StorySpineColumn />}
+        canvas={<CreationCanvas onGuided={() => setGuided(true)} />}
+        context={<ContextSidecar />}
+      />
 
       <AmbientOrb />
       <ConsoleDrawers />
