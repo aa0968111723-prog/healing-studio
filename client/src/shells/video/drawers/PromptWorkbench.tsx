@@ -66,12 +66,18 @@ export function PromptWorkbenchBody() {
 
   const copyMerged = async () => {
     if (!merged) return;
-    try {
-      await navigator.clipboard?.writeText(merged);
-      toast.success("已複製組合提示詞", { description: `合併 ${pickedList.length} 段，可貼進腳本／提示詞。` });
-    } catch {
-      toast.message("組合提示詞", { description: merged });
+    // 守門：Clipboard API 不存在時 optional chaining 會無聲 no-op，故確認 API 在＋寫入成功
+    // 才報「已複製」，否則落到手動複製 fallback（不謊報成功）。
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(merged);
+        toast.success("已複製組合提示詞", { description: `合併 ${pickedList.length} 段，可貼進腳本／提示詞。` });
+        return;
+      } catch {
+        // 寫入失敗 → fallback
+      }
     }
+    toast.message("組合提示詞（請手動複製）", { description: merged });
   };
 
   return (

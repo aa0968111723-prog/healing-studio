@@ -12,7 +12,7 @@
  * 沿用 repo 慣例：模組級 vi.mock 釘住 trpc / sonner；Radix 需 ResizeObserver polyfill。
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/dom";
 
 const h = vi.hoisted(() => ({
@@ -92,12 +92,15 @@ describe("PromptWorkbench（I-8 / AIDV-86 Phase 1）", () => {
     expect(screen.getByText(/已選 2 段/)).toBeTruthy();
   });
 
-  it("『複製組合提示詞』→ toast 回饋", async () => {
+  it("『複製組合提示詞』→ clipboard 成功 → 只發 success toast", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<PromptWorkbenchBody />);
     fireEvent.click(screen.getByRole("button", { name: /電影感打光/ }));
     fireEvent.click(screen.getByRole("button", { name: "複製組合提示詞" }));
-    await Promise.resolve();
-    expect(h.toast.success.mock.calls.length + h.toast.message.mock.calls.length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalledTimes(1));
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(h.toast.message).not.toHaveBeenCalled();
   });
 
   it("載入中 → PanelLoading、不渲染卡", () => {
