@@ -28,6 +28,8 @@ export interface Character {
   locked: boolean;
   locks: { face: boolean; hair: boolean; costume: boolean; accessory: boolean };
   loraStatus: "未訓練" | "排隊中" | "訓練中" | "已完成";
+  /** 已連結的訓練 LoRA 模型 id（fine_tuned_models.id）；I-7 readiness 的權威訊號，可無。 */
+  linkedModelId?: number | null;
   refImages: number;
 }
 
@@ -101,6 +103,8 @@ export interface CreativeProject {
   packet: ContextPacket;
   /** I-2（AIDV-80）：選定世界的預設 style profile 精簡前綴；生成時旗標開才 prepend。可無。 */
   worldStyle?: string;
+  /** I-3（AIDV-81）：連結的世界觀 framework id（creative_projects.worldFrameworkId）；自動分鏡骨架的 worldId。可無。 */
+  worldFrameworkId?: number | null;
   updatedAt: number;
 }
 

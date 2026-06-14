@@ -237,6 +237,8 @@ function assembleProject(
   const characters: Character[] = wbChars.map((c: any): Character => {
     const v = vaultRows.find((x) => String(x.characterId ?? x.id) === String(c.id)) ?? {};
     const locks = v.locks ?? c.locks ?? { face: false, hair: false, costume: false, accessory: false };
+    // 已連結 LoRA（linkedModelId）＝權威訊號；loraStatus 缺漏時據此推得「已完成」（I-7）。
+    const linkedModelId = c.linkedModelId ?? null;
     return {
       id: String(c.id ?? uid("c")),
       name: String(c.name ?? "角色"),
@@ -244,7 +246,8 @@ function assembleProject(
       sourceGrade: (v.sourceGrade ?? c.sourceGrade ?? "estimate") as SourceGrade,
       locked: Boolean(v.locked ?? c.locked ?? false),
       locks: { face: !!locks.face, hair: !!locks.hair, costume: !!locks.costume, accessory: !!locks.accessory },
-      loraStatus: (c.loraStatus ?? "未訓練") as Character["loraStatus"],
+      loraStatus: (c.loraStatus ?? (linkedModelId != null ? "已完成" : "未訓練")) as Character["loraStatus"],
+      linkedModelId,
       refImages: Number(c.refImages ?? v.refImages ?? 0),
     };
   });
@@ -314,6 +317,8 @@ function assembleProject(
     packet: toPacket(packet) ?? { summaryMarkdown: "", sourceRefs: [], tokenEstimate: 0, ttlSec: 0, permissions: "擁有者可讀寫" },
     // I-2（AIDV-80）：從已抓到的 world 預計算精簡風格前綴；旗標關時不會被使用（零行為改變）。
     worldStyle: buildWorldStylePrefix(world) || undefined,
+    // I-3（AIDV-81）：連結世界觀 id，供「劇本→自動分鏡骨架」當 seedSkeleton 的 worldId。
+    worldFrameworkId: base.worldFrameworkId ?? null,
     updatedAt: base.updatedAt ? new Date(base.updatedAt).getTime() : Date.now(),
   };
   // 伺服器尚無 packet → 本地即時編一份，避免左欄空白。
