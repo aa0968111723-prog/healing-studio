@@ -36,6 +36,7 @@ export type DrawerId =
   | "workflow" // 2-17 工作流設定（WorkflowBuilder；W1-7 修正：原誤標 2-16=客製化設定）
   | "flowtv" // 2-12 Flow 電視牆 / 提示詞庫（promptLibrary.*）
   | "playground" // 2-13 單模型遊樂場（aiModels.list）
+  | "research" // I-5 真實地球研究面板（realEarth.* 唯讀查詢；AIDV-83）
   | "settings"; // 2-18 影片系統設定
 
 /** 光球 Ambient Copilot 四態（移除人格預設）。 */
