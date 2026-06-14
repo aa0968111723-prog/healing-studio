@@ -122,7 +122,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 
 - **Wave H 營運與安全硬化**（Epic AIDV-55＋AIDV-56~73，06-13 全啟動）：H5 鎖門已隨 #870 完成；H6 的活案例＝AIDV-76 P0。Railway MCP 接入＝AIDV-77（官方遠端版已寫入本機設定，待 Bruce OAuth）。
 - **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。
-- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**🔄 I-7 角色 LoRA 一致性(AIDV-85)＝唯讀 Phase 1 開發中**（角色 LoRA 狀態面板；自動套用 loraUrl/loraScale＝Phase 2 待擴生成合約）。其餘 I-3(AIDV-81)／I-6(AIDV-84，依賴 I-2/I-3)／I-9(AIDV-87) To Do。Jira 為準。
+- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**🔄 開發中（#881）**：I-7 角色 LoRA 一致性(AIDV-85)＝唯讀 Phase 1（狀態面板；自動套用 loraUrl/loraScale＝Phase 2 待擴生成合約）；I-3 劇本→分鏡骨架(AIDV-81)＝座艙 ScriptCanvas 一鍵 worldStoryboard.seedSkeleton 產生與段落數一致的空白分鏡（worldId 取脊椎 worldFrameworkId、純使用者觸發）。其餘 I-6(AIDV-84，依賴 I-2/I-3)／I-9(AIDV-87) To Do。Jira 為準。
 
 ### 2.6 已拍板決策（label `decision-resolved`）
 
