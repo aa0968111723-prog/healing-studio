@@ -39,12 +39,14 @@ export function LoraCharactersBody() {
         ) : (
           <div className="space-y-2">
             {characters.map((c) => {
-              const st = LORA_STATUS[c.loraStatus] ?? { label: c.loraStatus, trained: false };
+              // 權威訊號＝linkedModelId（已連結訓練好的 LoRA）；loraStatus="已完成" 為輔。
+              const trained = c.linkedModelId != null || c.loraStatus === "已完成";
+              const label = trained ? "LoRA 已就緒" : (LORA_STATUS[c.loraStatus]?.label ?? c.loraStatus);
               return (
                 <div key={c.id} className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-card/60 px-2.5 py-2">
                   <span className="text-xs font-medium">{c.emoji} {c.name}</span>
-                  <Badge variant={st.trained ? "secondary" : "outline"} className="text-[9px]">{st.label}</Badge>
-                  {st.trained ? (
+                  <Badge variant={trained ? "secondary" : "outline"} className="text-[9px]">{label}</Badge>
+                  {trained ? (
                     <span className="ml-auto text-[10px] text-muted-foreground">Phase 2 將於生成時自動套用</span>
                   ) : (
                     <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400">可訓練 LoRA（前往模型訓練中心）</span>

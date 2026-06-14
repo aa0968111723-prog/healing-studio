@@ -50,6 +50,13 @@ describe("LoraCharacters（I-7 / AIDV-85 唯讀 Phase 1）", () => {
     expect(screen.getByText(/可訓練 LoRA/)).toBeTruthy();
   });
 
+  it("linkedModelId 推得『已就緒』（即使 loraStatus 仍未訓練）— Codex review 修正", () => {
+    h.spine.project = { characters: [{ id: "c9", name: "阿明", emoji: "🧒", loraStatus: "未訓練", linkedModelId: 9 }] };
+    render(<LoraCharactersBody />);
+    expect(screen.getByText("LoRA 已就緒")).toBeTruthy();
+    expect(screen.queryByText(/可訓練 LoRA/)).toBeNull();
+  });
+
   it("列出 LoRA 模型庫（name / 可用 / triggerWord）", () => {
     render(<LoraCharactersBody />);
     expect(screen.getByText("小明 LoRA")).toBeTruthy();

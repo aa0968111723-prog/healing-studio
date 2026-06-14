@@ -28,6 +28,8 @@ export interface Character {
   locked: boolean;
   locks: { face: boolean; hair: boolean; costume: boolean; accessory: boolean };
   loraStatus: "未訓練" | "排隊中" | "訓練中" | "已完成";
+  /** 已連結的訓練 LoRA 模型 id（fine_tuned_models.id）；I-7 readiness 的權威訊號，可無。 */
+  linkedModelId?: number | null;
   refImages: number;
 }
 
