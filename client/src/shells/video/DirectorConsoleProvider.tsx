@@ -38,6 +38,7 @@ export type DrawerId =
   | "playground" // 2-13 單模型遊樂場（aiModels.list）
   | "research" // I-5 真實地球研究面板（realEarth.* 唯讀查詢；AIDV-83）
   | "prompts" // I-8 提示詞跨庫組合（promptLibrary/Collection 唯讀；AIDV-86）
+  | "agents" // I-1 光球精靈能力＋成本目錄（spirit.listModels / estimateSegmentCost 唯讀；AIDV-79）
   | "settings"; // 2-18 影片系統設定
 
 /** 光球 Ambient Copilot 四態（移除人格預設）。 */
