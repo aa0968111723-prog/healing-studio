@@ -317,6 +317,8 @@ function assembleProject(
     packet: toPacket(packet) ?? { summaryMarkdown: "", sourceRefs: [], tokenEstimate: 0, ttlSec: 0, permissions: "擁有者可讀寫" },
     // I-2（AIDV-80）：從已抓到的 world 預計算精簡風格前綴；旗標關時不會被使用（零行為改變）。
     worldStyle: buildWorldStylePrefix(world) || undefined,
+    // I-3（AIDV-81）：連結世界觀 id，供「劇本→自動分鏡骨架」當 seedSkeleton 的 worldId。
+    worldFrameworkId: base.worldFrameworkId ?? null,
     updatedAt: base.updatedAt ? new Date(base.updatedAt).getTime() : Date.now(),
   };
   // 伺服器尚無 packet → 本地即時編一份，避免左欄空白。

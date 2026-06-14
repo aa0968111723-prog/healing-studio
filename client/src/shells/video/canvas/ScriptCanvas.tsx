@@ -8,9 +8,12 @@
 //   director.listSessions / loadSession / saveSession → 腳本專案資料庫（續作）
 // 拆片→分鏡（GATE handoff）走既有 GuidedJourney（analyzeScriptOverview + generateVideoScript
 //   + worldStoryboard.createFromSegments；正式 director.breakdown 為 M3 待後端）。
+// I-3（AIDV-81）劇本→自動分鏡骨架：腳本有 N 段 → 一鍵 worldStoryboard.seedSkeleton 產生
+//   與段落數一致的 N 格空白分鏡（autoSave，續到 /animation 補對白／圖楨）。worldId 取自
+//   脊椎當前專案的 worldFrameworkId；未連結世界觀則提示先建。純使用者觸發、零自動行為。
 // ============================================================================
 import { useState } from "react";
-import { FileText, Sparkles, Import, Save, FolderOpen, Wand2, Loader2 } from "lucide-react";
+import { FileText, Sparkles, Import, Save, FolderOpen, Wand2, Loader2, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,14 +23,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { PanelEmpty, PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 
 export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
+  const { project } = useProjectSpine();
+  const worldFrameworkId = project?.worldFrameworkId ?? null;
   const types = trpc.director.videoScriptTypes.useQuery(undefined, { staleTime: 5 * 60_000 });
   const sessions = trpc.director.listSessions.useQuery(undefined, { staleTime: 30_000 });
   const generate = trpc.director.generateVideoScript.useMutation();
   const importScript = trpc.director.importScript.useMutation();
   const saveSession = trpc.director.saveSession.useMutation();
+  const seedSkeleton = trpc.worldStoryboard.seedSkeleton.useMutation();
 
   const [title, setTitle] = useState("");
   const [typeId, setTypeId] = useState<string | null>(null);
@@ -72,6 +79,29 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
       {
         onSuccess: () => { toast.success("已存為腳本專案"); void sessions.refetch(); },
         onError: (e) => toast.error("存檔失敗", { description: e.message }),
+      },
+    );
+  };
+
+  // I-3：把目前腳本的段落數 → 對應格數的空白分鏡骨架（worldStoryboard.seedSkeleton）。
+  const runSkeleton = () => {
+    if (!result) return;
+    if (!worldFrameworkId) {
+      toast.error("尚未連結世界觀", { description: "請先在世界觀為此專案建立角色／場景，再自動分鏡。" });
+      return;
+    }
+    const sceneCount = Math.min(60, Math.max(1, result.segments || 1));
+    seedSkeleton.mutate(
+      {
+        worldId: worldFrameworkId,
+        totalDurationSec: Math.min(60 * 60 * 6, Math.max(5, sceneCount * 8)),
+        sceneCount,
+        autoSave: true,
+        name: `${result.title || "未命名"} · 分鏡骨架`,
+      },
+      {
+        onSuccess: () => toast.success(`已建立 ${sceneCount} 格分鏡骨架`, { description: "到 /animation 動畫工作室續編對白與圖楨。" }),
+        onError: (e) => toast.error("建立分鏡骨架失敗", { description: e.message }),
       },
     );
   };
@@ -146,7 +176,17 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
           <div className="mb-1.5 flex items-center gap-2">
             <span className="text-sm font-semibold">{result.title}</span>
             <Badge variant="secondary" className="text-[10px]">{result.segments} 段</Badge>
-            <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={runSave} disabled={saveSession.isPending}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto h-7 px-2 text-xs"
+              onClick={runSkeleton}
+              disabled={seedSkeleton.isPending || !result.segments}
+              title={worldFrameworkId ? undefined : "此專案尚未連結世界觀"}
+            >
+              {seedSkeleton.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <LayoutGrid className="size-3.5" />} 自動分鏡骨架（{result.segments} 格）
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={runSave} disabled={saveSession.isPending}>
               <Save className="size-3.5" /> 存為腳本專案
             </Button>
           </div>
