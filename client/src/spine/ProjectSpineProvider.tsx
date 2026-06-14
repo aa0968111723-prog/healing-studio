@@ -26,9 +26,10 @@ import {
 import { toast } from "sonner";
 import { useSpine } from "@/providers/SpineProvider";
 import { useCreativeProject } from "@/spine/useCreativeProject";
-import { VIDEO_SPINE_MOCK } from "@/config/videoFlags";
+import { VIDEO_SPINE_MOCK, ENABLE_WORLD_STYLE_INJECTION } from "@/config/videoFlags";
 import { makeProjectGateway, type ProjectGateway } from "@/spine/projectGateway";
 import { compileContextPacket } from "@/spine/contextPacket";
+import { applyWorldStyle } from "@/spine/worldStyle";
 import { isShotGeneratable } from "@/spine/gate";
 import { uid, now, delay, creditsForCost } from "@/spine/spineUtil";
 import { DEFAULT_MOCK_PROJECT_ID } from "@/spine/mockProjects";
@@ -167,7 +168,8 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
           provider: spine.provider,
           kind: shot.route === "text" ? "image" : "keyframe",
           shotNo: shot.no,
-          prompt: shot.prompt,
+          // I-2（AIDV-80）：旗標開時 prepend 世界風格前綴；關（預設）時原樣＝零行為改變。
+          prompt: applyWorldStyle(shot.prompt, p.worldStyle, ENABLE_WORLD_STYLE_INJECTION),
           projectId: Number(p.id) || undefined,
         },
         (e) => {

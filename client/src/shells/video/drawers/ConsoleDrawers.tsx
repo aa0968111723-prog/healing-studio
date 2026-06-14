@@ -23,6 +23,10 @@ import { STEP_LIBRARY, freshDefaultWorkflow } from "../console/workflowSteps";
 import { FlowTvBody } from "./FlowTv";
 import { ModelCatalogBody } from "./ModelCatalog";
 import { VideoSettingsBody } from "./VideoSettings";
+import { RealEarthResearchBody } from "./RealEarthResearch";
+import { PromptWorkbenchBody } from "./PromptWorkbench";
+import { AgentCatalogBody } from "./AgentCatalog";
+import { TeachingArchiveGroundingBody } from "./TeachingArchiveGrounding";
 
 export function ConsoleDrawers() {
   const console_ = useDirectorConsole();
@@ -44,6 +48,10 @@ export function ConsoleDrawers() {
       {wrap("workflow", "工作流設定 · 2-17", "步驟可新增／刪除／重排／啟用停用；必經步驟不可刪。", <WorkflowBuilderBody />)}
       {wrap("flowtv", "Flow 電視牆 · 提示詞庫 · 2-12", "存庫 → 重用：promptLibrary。生成的提示詞可在此再生成 / 複製編輯。", <FlowTvBody />, true)}
       {wrap("playground", "單模型遊樂場 · 統一目錄 · 2-13", "registry 為準的可用模型目錄（按領域）＋ catalog 情報層 enrich ＋ 選型試生成（→ fal）。", <ModelCatalogBody />, true)}
+      {wrap("research", "真實地球研究 · I-5", "唯讀查真實歷史／地理／文化（realEarth）；複製參照為這段接地。Phase 1 零後端。", <RealEarthResearchBody />, true)}
+      {wrap("prompts", "提示詞跨庫組合 · I-8", "庫＋收藏跨庫多選 → 合成組合提示詞 → 複製。Phase 1 零後端。", <PromptWorkbenchBody />, true)}
+      {wrap("agents", "精靈能力 · 成本預估 · I-1", "選精靈 → 看可用 fal 模型＋預估成本（唯讀、不觸發生成）。Phase 1 零後端。", <AgentCatalogBody />, true)}
+      {wrap("grounding", "教材庫接地 · I-4", "搜尋你的教材（向量＋關鍵字）→ 複製參照為這段劇本接地。Phase 1 零後端。", <TeachingArchiveGroundingBody />, true)}
       {wrap("settings", "影片系統設定 · 2-18", "生成引擎＋各模態 per-引擎預設（2-16）＋個人化（帳號層）＋鐵則。", <VideoSettingsBody />)}
     </>
   );

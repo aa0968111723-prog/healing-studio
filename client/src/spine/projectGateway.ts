@@ -25,6 +25,7 @@ import type {
 } from "@/spine/types";
 import { getTrpcClient } from "@/adapters/trpcClient";
 import { compileContextPacket } from "@/spine/contextPacket";
+import { buildWorldStylePrefix } from "@/spine/worldStyle";
 import { MOCK_PROJECTS, DEFAULT_MOCK_PROJECT_ID } from "@/spine/mockProjects";
 import { uid, delay } from "@/spine/spineUtil";
 
@@ -311,6 +312,8 @@ function assembleProject(
     stageIndex: Number(base.stageIndex ?? 0),
     characters, scenes, shots, notes: noteList, assets, promptBlocks,
     packet: toPacket(packet) ?? { summaryMarkdown: "", sourceRefs: [], tokenEstimate: 0, ttlSec: 0, permissions: "擁有者可讀寫" },
+    // I-2（AIDV-80）：從已抓到的 world 預計算精簡風格前綴；旗標關時不會被使用（零行為改變）。
+    worldStyle: buildWorldStylePrefix(world) || undefined,
     updatedAt: base.updatedAt ? new Date(base.updatedAt).getTime() : Date.now(),
   };
   // 伺服器尚無 packet → 本地即時編一份，避免左欄空白。

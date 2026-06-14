@@ -58,11 +58,20 @@ export const VIDEO_SPINE_MOCK: boolean = readFlag("VITE_VIDEO_SPINE_MOCK", false
  */
 export const ENABLE_DIRECTOR_CONSOLE: boolean = readFlag("VITE_ENABLE_DIRECTOR_CONSOLE", true);
 
+/**
+ * I-2 世界風格自動注入（AIDV-80）。**預設 OFF**＝零行為改變：關閉時生成提示詞一字不動。
+ * 開啟（VITE_ENABLE_WORLD_STYLE_INJECTION=1）後，選定世界的預設 style profile（繪風／色票／
+ * 燈光／trigger word）會自動 prepend 到圖/影格生成提示詞，達成跨鏡視覺一致。
+ * 注入點＝脊椎 genOne（client 端、dispatch 前）；純函式組前綴，見 spine/worldStyle.ts。
+ */
+export const ENABLE_WORLD_STYLE_INJECTION: boolean = readFlag("VITE_ENABLE_WORLD_STYLE_INJECTION", false);
+
 /** 集中匯出，方便偵錯面板/驗收一次讀取。 */
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
   VIDEO_SPINE_MOCK,
   ENABLE_DIRECTOR_CONSOLE,
+  ENABLE_WORLD_STYLE_INJECTION,
 } as const;
 
 export type VideoFlagKey = keyof typeof VIDEO_FLAGS;

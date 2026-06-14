@@ -101,6 +101,10 @@ export function AmbientOrb() {
           <div className="space-y-1 p-2">
             <OrbAction label="提示詞庫 · Flow 電視牆" hint="存庫 / 再生成 / 複製編輯" onClick={() => console_.openDrawer("flowtv")} />
             <OrbAction label="單模型遊樂場" hint="挑模型 · 自由試生成" onClick={() => console_.openDrawer("playground")} />
+            <OrbAction label="真實地球研究" hint="查真實歷史/地理 · 為這段接地" onClick={() => console_.openDrawer("research")} />
+            <OrbAction label="提示詞跨庫組合" hint="庫＋收藏挑多個 · 合成組合提示詞" onClick={() => console_.openDrawer("prompts")} />
+            <OrbAction label="精靈能力 · 成本預估" hint="看精靈可用模型＋預估成本 · 不觸發生成" onClick={() => console_.openDrawer("agents")} />
+            <OrbAction label="教材庫接地" hint="搜尋你的教材 · 複製參照為劇本接地" onClick={() => console_.openDrawer("grounding")} />
             <OrbAction label="看就緒鏡" hint="走確認門 · 先估成本" onClick={() => { console_.setCanvasMode("shot"); console_.setOrbOpen(false); }} />
             <OrbAction label="重建 Context Packet" hint="Deterministic→Cache→RAG" onClick={() => void spine.rebuildPacket()} />
             <OrbAction label="影片系統設定" hint="生成引擎 / 顯隱 / 自動存草稿" onClick={() => console_.openDrawer("settings")} />
