@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
-import { useDirectorConsole } from "../DirectorConsoleProvider";
+import { useDirectorConsole, type EngineModality } from "../DirectorConsoleProvider";
 import { PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 import { getModelsByDomain, type ModelDomain } from "@shared/unifiedModelRegistry";
 import {
@@ -32,8 +32,9 @@ const PROVIDERS: { id: ProviderId; label: string }[] = [
 ];
 
 /** 各模態 → registry 領域（brainDefaults 的 key 用 director 模態命名）。
- *  註：registry 無純 text-to-video 領域，本系統「影片引擎」實作＝圖生影片(i2v)，故 T2V 對映 image-to-video。 */
-const ENGINE_MODALITIES: { key: string; label: string; domain: ModelDomain }[] = [
+ *  註：registry 無純 text-to-video 領域，本系統「影片引擎」實作＝圖生影片(i2v)，故 T2V 對映 image-to-video。
+ *  此為「偏好備忘」用途（不直接餵生成），故 i2v 選項用於影片引擎偏好是安全的。 */
+const ENGINE_MODALITIES: { key: EngineModality; label: string; domain: ModelDomain }[] = [
   { key: "text-to-image", label: "文字生圖", domain: "text-to-image" },
   { key: "text-to-video", label: "影片（圖生影片 i2v）", domain: "image-to-video" },
   { key: "text-to-audio", label: "音樂 / 音效", domain: "audio-music" },
@@ -95,7 +96,7 @@ export function VideoSettingsBody() {
       <div>
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">各模態預設引擎（per-引擎 · 2-16）</span>
-          <Badge variant="outline" className="text-[9px]">本地偏好</Badge>
+          <Badge variant="outline" className="text-[9px]">偏好備忘 · 未接線</Badge>
         </div>
         {defaults.isLoading ? (
           <PanelLoading count={4} className="h-9 rounded-lg" label="讀取各模態預設引擎…" />
@@ -117,7 +118,7 @@ export function VideoSettingsBody() {
                   <div className="mb-1 flex items-center gap-2">
                     <span className="text-xs font-medium">{m.label}</span>
                     {override ? (
-                      <Badge variant="secondary" className="text-[9px]">已覆寫</Badge>
+                      <Badge variant="secondary" className="text-[9px]">已記偏好</Badge>
                     ) : (
                       <span className="text-[9px] text-muted-foreground">系統預設：<span className="font-mono">{baseline ?? "—"}</span></span>
                     )}
@@ -137,7 +138,7 @@ export function VideoSettingsBody() {
               );
             })}
             <p className="text-[10px] leading-relaxed text-muted-foreground">
-              覆寫為本地偏好（per session）；寫回 brain 預設＝後端待補（brain mutation / G10）。未覆寫者跑系統預設。
+              偏好備忘（per session）：<span className="font-medium">目前不影響生成</span>，生成仍走系統預設（brain）。接線到生成＝後端待補（G10／AIDV-9 之後）。
             </p>
           </div>
         )}
