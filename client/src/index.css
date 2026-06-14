@@ -87,40 +87,44 @@
 
 :root {
   --radius: 1rem;
-  /* Zen Professional Palette — warm oat base */
-  --background: oklch(0.97 0.006 75);
-  --foreground: oklch(0.28 0.01 60);
-  --card: oklch(0.99 0.003 75 / 0.65);
-  --card-foreground: oklch(0.28 0.01 60);
-  --popover: oklch(0.99 0.003 75 / 0.85);
-  --popover-foreground: oklch(0.28 0.01 60);
-  --primary: oklch(0.4 0.02 60);
-  --primary-foreground: oklch(0.98 0.005 75);
-  --secondary: oklch(0.93 0.01 75);
-  --secondary-foreground: oklch(0.35 0.01 60);
-  --muted: oklch(0.94 0.008 75);
-  /* Tightened from 0.5 → 0.46 for WCAG AA contrast on glass surfaces */
+  /* ── AI Director · 亮色暖光（黏土／珊瑚橘）— Wave U 設計系統落地（AIDV-74）──
+     來源：docs/4shell-handoff/AI-Director-UIUX設計/00_設計系統 (rev L1)。
+     沿用 shadcn 語意名，全站元件透過 CSS 變數間接換膚；保留玻璃分層的
+     半透明結構（card/popover/sidebar），主要識別變化＝黏土主強調 --primary。
+     登入畫面以 .login-cosmic carve-out 保留原 Zen 暖燕麥識別（見下）。 */
+  --background: #F4EEE4;
+  --foreground: #2B2620;
+  --card: oklch(0.99 0.004 75 / 0.72);
+  --card-foreground: #2B2620;
+  --popover: oklch(0.99 0.004 75 / 0.9);
+  --popover-foreground: #2B2620;
+  --primary: #C2613F;
+  --primary-foreground: #FFF7F1;
+  --secondary: #F7F1E8;
+  --secondary-foreground: #5A5145;
+  --muted: #F1EADF;
+  /* Kept at 0.46 L for WCAG AA contrast on glass surfaces */
   --muted-foreground: oklch(0.46 0.015 60);
-  --accent: oklch(0.91 0.015 300);
-  --accent-foreground: oklch(0.35 0.02 300);
-  --destructive: oklch(0.6 0.15 25);
-  --destructive-foreground: oklch(0.97 0.006 75);
-  --border: oklch(0.91 0.01 75);
-  --input: oklch(0.93 0.008 75);
-  --ring: oklch(0.55 0.04 60);
-  --chart-1: oklch(0.85 0.04 30);
-  --chart-2: oklch(0.84 0.04 145);
-  --chart-3: oklch(0.82 0.04 300);
-  --chart-4: oklch(0.86 0.03 230);
-  --chart-5: oklch(0.82 0.04 80);
-  --sidebar: oklch(0.96 0.006 75 / 0.8);
-  --sidebar-foreground: oklch(0.28 0.01 60);
-  --sidebar-primary: oklch(0.4 0.02 60);
-  --sidebar-primary-foreground: oklch(0.98 0.005 75);
-  --sidebar-accent: oklch(0.93 0.01 75);
-  --sidebar-accent-foreground: oklch(0.28 0.01 60);
-  --sidebar-border: oklch(0.91 0.01 75);
-  --sidebar-ring: oklch(0.55 0.04 60);
+  --accent: #F0E7D8;
+  --accent-foreground: #5A5145;
+  --destructive: #C7493A;
+  --destructive-foreground: #FFF7F1;
+  --border: #E4DACA;
+  --input: #E4DACA;
+  --ring: #C2613F;
+  --chart-1: #C2613F;
+  --chart-2: #C8922F;
+  --chart-3: #6E8B5E;
+  --chart-4: #5C86B0;
+  --chart-5: #8A5BAE;
+  --sidebar: oklch(0.96 0.008 75 / 0.85);
+  --sidebar-foreground: #2B2620;
+  --sidebar-primary: #C2613F;
+  --sidebar-primary-foreground: #FFF7F1;
+  --sidebar-accent: #F7F1E8;
+  --sidebar-accent-foreground: #2B2620;
+  --sidebar-border: #E4DACA;
+  --sidebar-ring: #C2613F;
 
   /* Healing rhythm scale — consistent vertical/horizontal spacing */
   --space-1: 0.25rem;   /* 4px */
@@ -209,6 +213,95 @@
     0 0 0 1px oklch(0.82 0.04 300 / 0.18),
     0 2px 8px rgba(212, 197, 226, 0.12),
     0 12px 40px rgba(212, 197, 226, 0.14);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   AI Director · 設計套件「亮色暖光」平台擴充 token（Wave U / AIDV-74）
+   來源：docs/4shell-handoff/AI-Director-UIUX設計/00_設計系統/tokens.css (rev L1)
+   · shadcn 語意層之外的平台母題色（黏土／蜜金／寧靜輔色）、表面、陰影、動效、
+     serif 顯示字體。供全站 utility（bg-clay/text-gold…）與 design-kit 元件使用。
+   · 命名避開既有 app token（--surface-1/2/3 玻璃層、shadcn --muted 表面）以免衝突；
+     design-kit 元件專用的短別名（--surface/--line/--text、--muted＝次級文字）
+     在 components/design-kit/design-kit.css 以 .aidv-kit scope 提供。
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* 暖米白分層表面（擴充） */
+  --paper: #F6F1E8; --bg-2: #EFE8DC; --wash: #FCFAF5;
+  /* 邊框 */
+  --line: #E4DACA; --line-soft: #EDE5D7; --line-strong: #D8CCB7; --hair: rgba(58, 46, 30, 0.06);
+  /* 主強調 · 黏土／珊瑚橘 */
+  --brand-clay: #C2613F; --clay: #C2613F; --clay-bright: #D5734D; --clay-deep: #A44E2E; --clay-soft: #E8B59B;
+  --clay-tint: rgba(194, 97, 63, 0.10); --clay-tint-2: rgba(194, 97, 63, 0.16); --clay-ring: rgba(194, 97, 63, 0.22); --on-clay: #FFF7F1;
+  /* 次強調 · 蜜金 */
+  --gold: #C8922F; --gold-bright: #E0AC4A; --gold-deep: #9C6F1E; --gold-soft: #EBD3A0; --gold-tint: rgba(200, 146, 47, 0.12); --on-gold: #2E2207;
+  /* 寧靜輔色 */
+  --teal: #3E9D94; --teal-deep: #2C7E77; --teal-soft: #A9DAD3; --teal-tint: rgba(62, 157, 148, 0.12);
+  --sage: #6E8B5E; --sky: #5C86B0; --plum: #8A5BAE;
+  /* 語意狀態（擴充；與 shadcn --destructive 並存） */
+  --ok: #5C8A55; --warn: #C8922F; --bad: #C7493A; --info: #5C86B0;
+  --ok-tint: rgba(92, 138, 85, 0.12); --warn-tint: rgba(200, 146, 47, 0.14); --bad-tint: rgba(199, 73, 58, 0.12); --info-tint: rgba(92, 134, 176, 0.12);
+  /* 文字色階（擴充） */
+  --ink: #2B2620; --ink-soft: #5A5145; --muted-2: #A89C89;
+  /* 導演人格三色 */
+  --persona-calm: #5C86B0; --persona-creative: #C2613F; --persona-technical: #8A5BAE;
+  /* 暖色陰影（與既有 --shadow-healing-* 並存） */
+  --shadow-xs: 0 1px 2px rgba(72, 56, 38, 0.05);
+  --shadow-card: 0 6px 22px -12px rgba(86, 66, 42, 0.18), 0 1px 3px rgba(86, 66, 42, 0.06);
+  --shadow-lift: 0 14px 34px -14px rgba(86, 66, 42, 0.22), 0 3px 8px rgba(86, 66, 42, 0.08);
+  --shadow-cmdk: 0 36px 80px -28px rgba(58, 42, 26, 0.34), 0 6px 16px rgba(58, 42, 26, 0.12);
+  --shadow-toast: 0 18px 40px -18px rgba(58, 42, 26, 0.28), 0 2px 6px rgba(58, 42, 26, 0.08);
+  --ring-soft: 0 0 0 3px rgba(194, 97, 63, 0.12);
+  /* 動效（擴充） */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1); --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 0.13s; --t: 0.19s; --t-slow: 0.32s;
+  /* serif 顯示字體（標題質感）＋ mono */
+  --font-serif: "Fraunces", "Noto Serif TC", Georgia, serif;
+  --font-mono: "IBM Plex Mono", Menlo, monospace;
+}
+
+/* ── 登入畫面 carve-out：保留原本 cosmic 場景識別（Bruce 指示「登入用原本美美的」）──
+   .login-cosmic（DashboardLayout 未登入分支）包住整個登入畫面：場景＋登入卡＋
+   email 表單。在此重新宣告原本「Zen 暖燕麥」shadcn 語意色，讓全站換膚不波及登入。
+   ⚠ 必須 unlayered 且排在 :root 之後，才能覆蓋上方的亮色暖光值。 */
+.login-cosmic {
+  --background: oklch(0.97 0.006 75);
+  --foreground: oklch(0.28 0.01 60);
+  --card: oklch(0.99 0.003 75 / 0.65);
+  --card-foreground: oklch(0.28 0.01 60);
+  --popover: oklch(0.99 0.003 75 / 0.85);
+  --popover-foreground: oklch(0.28 0.01 60);
+  --primary: oklch(0.4 0.02 60);
+  --primary-foreground: oklch(0.98 0.005 75);
+  --secondary: oklch(0.93 0.01 75);
+  --secondary-foreground: oklch(0.35 0.01 60);
+  --muted: oklch(0.94 0.008 75);
+  --muted-foreground: oklch(0.46 0.015 60);
+  --accent: oklch(0.91 0.015 300);
+  --accent-foreground: oklch(0.35 0.02 300);
+  --destructive: oklch(0.6 0.15 25);
+  --destructive-foreground: oklch(0.97 0.006 75);
+  --border: oklch(0.91 0.01 75);
+  --input: oklch(0.93 0.008 75);
+  --ring: oklch(0.55 0.04 60);
+}
+
+/* Tailwind 4：把擴充色曝成 utility（bg-clay / text-gold / bg-ok…）＋ serif/mono 字體族 */
+@theme inline {
+  --color-clay: var(--brand-clay);
+  --color-clay-bright: var(--clay-bright);
+  --color-clay-deep: var(--clay-deep);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-teal: var(--teal);
+  --color-sage: var(--sage);
+  --color-sky: var(--sky);
+  --color-plum: var(--plum);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 }
 
 /* ─── Dark Mode — Night-leaning palette harmonized with nightSky/deepSea ─── */
