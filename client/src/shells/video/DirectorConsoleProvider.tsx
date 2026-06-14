@@ -40,6 +40,7 @@ export type DrawerId =
   | "prompts" // I-8 提示詞跨庫組合（promptLibrary/Collection 唯讀；AIDV-86）
   | "agents" // I-1 光球精靈能力＋成本目錄（spirit.listModels / estimateSegmentCost 唯讀；AIDV-79）
   | "grounding" // I-4 教材庫接地（teachingArchive.search 唯讀；AIDV-82）
+  | "lora" // I-7 角色 LoRA 一致性（worldbuilding.linkableModels 唯讀；AIDV-85）
   | "settings"; // 2-18 影片系統設定
 
 /** 光球 Ambient Copilot 四態（移除人格預設）。 */
