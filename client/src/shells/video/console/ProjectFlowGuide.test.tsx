@@ -23,6 +23,8 @@ vi.mock("@/spine/ProjectSpineProvider", () => ({
   useProjectSpine: () => ({ project: h.project, scheduleGeneration: h.scheduleGeneration }),
 }));
 vi.mock("../DirectorConsoleProvider", () => ({ useDirectorConsole: () => ({ setCanvasMode: h.setCanvasMode }) }));
+// 世界連結選單獨立測試（WorldLinkPicker.test）；此處 stub 掉以保持嚮導測試純粹。
+vi.mock("./WorldLinkPicker", () => ({ WorldLinkPicker: () => null }));
 
 import { ProjectFlowGuide } from "./ProjectFlowGuide";
 

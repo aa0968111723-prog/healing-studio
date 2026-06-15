@@ -69,6 +69,9 @@ interface ProjectSpineValue {
   rebuildPacket: () => Promise<void>;
   ingestBreakdown: (name: string, b: ScriptBreakdown, opts?: { newProject?: boolean }) => Promise<void>;
   createProject: (name: string, type: CreativeProject["type"]) => Promise<string>;
+  // ── I-6 Phase 2b（AIDV-100）：世界連結 ──
+  linkWorld: (worldFrameworkId: number | null) => Promise<void>;
+  listWorlds: () => Promise<{ id: number; name: string }[]>;
   // ── 導演 / 拆解（薄包 P0 commander adapter）──
   directorReply: (message: string) => Promise<DirectorReply>;
   breakdownScript: (script: string) => Promise<ScriptBreakdown>;
@@ -379,6 +382,23 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
   }
   const createProject = useCallback(createProjectImpl, [gateway, setActiveProject]);
 
+  // ── I-6 Phase 2b（AIDV-100）：連結世界觀 framework 到當前專案 ──
+  // 樂觀 patch worldFrameworkId（嚮導世界步即時打勾、I-2 風格於下次 reload 帶入），再 best-effort
+  // 回寫 creativeProject.link（既有 procedure、零新後端）；回寫失敗只告警、不回滾。
+  const linkWorld = useCallback(async (worldFrameworkId: number | null) => {
+    const p = projRef.current; if (!p) return;
+    patchProject((pp) => ({ ...pp, worldFrameworkId }));
+    try {
+      await gateway.linkWorld(p.id, worldFrameworkId);
+      toast.success(worldFrameworkId == null ? "已解除世界連結" : "已連結世界", {
+        description: "後續自動分鏡與生成會帶入該世界的風格與角色一致性",
+      });
+    } catch {
+      toast.warning("世界連結已套用（本地）", { description: "creativeProject.link 回寫稍後重試" });
+    }
+  }, [gateway, patchProject]);
+  const listWorlds = useCallback(() => gateway.listWorlds(), [gateway]);
+
   // ── 導演對話（薄包 P0 commander adapter）──
   const directorReply = useCallback(async (message: string): Promise<DirectorReply> => {
     const p = projRef.current;
@@ -402,6 +422,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     generateShot, scheduleGeneration,
     uploadReference, changeCharacterSetting, toggleLock, toggleSceneLock, approveShot,
     addNote, addPromptBlock, rebuildPacket, ingestBreakdown, createProject, directorReply, breakdownScript,
+    linkWorld, listWorlds,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -23,6 +23,7 @@ import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole, type CanvasMode } from "../DirectorConsoleProvider";
 import { ENABLE_WORLD_STYLE_INJECTION } from "@/config/videoFlags";
 import { countGate, isShotGeneratable } from "@/spine/gate";
+import { WorldLinkPicker } from "./WorldLinkPicker";
 
 type StepId = "world" | "script" | "storyboard" | "generate" | "film";
 
@@ -139,6 +140,9 @@ export function ProjectFlowGuide({ onGuided }: { onGuided?: () => void }) {
           <ArrowRight className="size-3.5" /> {primary.label}
         </button>
       )}
+
+      {/* I-6 Phase 2b（AIDV-100）：世界步為當前步（未連結）時，內嵌世界連結選單 */}
+      {current?.id === "world" && <WorldLinkPicker />}
 
       <ol className="space-y-1">
         {steps.map((st, i) => {
