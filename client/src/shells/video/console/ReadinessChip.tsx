@@ -10,6 +10,11 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GateState } from "@/spine/types";
 import { GATE_STATE_LABEL } from "@/spine/gate";
+// U-2（AIDV-92）逐殼採用 · /video：旗標 ON 時改用 design-kit 亮色暖光 ReadinessChip / Pill
+// （與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有 Tailwind 版＝零變化。
+// 設計門依 ui-ux-pro-max「色彩非唯一資訊（High）」：兩版皆保留文字標籤、design-kit 於 .aidv-kit 內解析 AA 對比。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, ReadinessChip as DkReadinessChip, Pill as DkPill } from "@/components/design-kit";
 
 const TONE: Record<GateState, string> = {
   ready: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -31,6 +36,15 @@ export function ReadinessChip({
   className?: string;
   title?: string;
 }) {
+  // 旗標 ON：design-kit 版（state 字面值與 DkGateState 同：ready/partial/blocked，可直傳）。
+  // 以 <AidvKit as="span"> 維持 inline 版面並把 className 帶上；onClick 由 design-kit 自帶按鈕與焦點環。
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit as="span" className={className}>
+        <DkReadinessChip state={state} label={label} onClick={onClick} />
+      </AidvKit>
+    );
+  }
   const content = (
     <span
       className={cn(
@@ -53,6 +67,14 @@ export function ReadinessChip({
 
 /** 已核准徽章（lavender/accent 語意）。 */
 export function ApprovedChip({ className }: { className?: string }) {
+  // 旗標 ON：design-kit Pill（kind="info" 帶狀態點＋文字，不用 emoji 圖示＝符 ui-ux-pro-max no-emoji-icons）。
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit as="span" className={className}>
+        <DkPill kind="info" dot>已核准</DkPill>
+      </AidvKit>
+    );
+  }
   return (
     <span
       className={cn(
