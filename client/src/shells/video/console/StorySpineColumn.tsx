@@ -31,7 +31,7 @@ function sceneIcon(kind: Scene["kind"]) {
   return <Mountain className="size-3.5 text-muted-foreground" />;
 }
 
-export function StorySpineColumn() {
+export function StorySpineColumn({ onGuided }: { onGuided?: () => void } = {}) {
   const spine = useProjectSpine();
   const console_ = useDirectorConsole();
   const p = spine.project!;
@@ -62,7 +62,7 @@ export function StorySpineColumn() {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* I-6 創作流程嚮導（AIDV-84，旗標 ENABLE_PROJECT_HUB 預設 OFF） */}
-        {ENABLE_PROJECT_HUB && <ProjectFlowGuide />}
+        {ENABLE_PROJECT_HUB && <ProjectFlowGuide onGuided={onGuided} />}
 
         {/* 專案切換器（脊椎） */}
         {spine.projects.length > 1 && (

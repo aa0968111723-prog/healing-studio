@@ -67,10 +67,30 @@ describe("IntentOnboardingNudge（I-9 / AIDV-87）", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("找靈感 → CTA 導向 /studio", () => {
+    render(<IntentOnboardingNudge intentResult={intent({ intentType: "inspiration_seeking" })} />);
+    fireEvent.click(screen.getByText("逛六大系統找靈感"));
+    expect(h.navigate).toHaveBeenCalledWith("/studio");
+  });
+
+  it("探索模式 → CTA 導向 /studio", () => {
+    render(<IntentOnboardingNudge intentResult={intent({ intentType: "exploration_mode" })} />);
+    fireEvent.click(screen.getByText("自由探索六大系統"));
+    expect(h.navigate).toHaveBeenCalledWith("/studio");
+  });
+
   it("按「不用了」→ 卡片消失（關閉個人化）", () => {
     render(<IntentOnboardingNudge intentResult={intent()} />);
     expect(screen.getByText("直接開始創作")).toBeTruthy();
     fireEvent.click(screen.getByText("不用了，我自己逛"));
+    expect(screen.queryByText("直接開始創作")).toBeNull();
+  });
+
+  it("按「不用了」後重新掛載仍不顯示（localStorage 持久化）", () => {
+    const { unmount } = render(<IntentOnboardingNudge intentResult={intent()} />);
+    fireEvent.click(screen.getByText("不用了，我自己逛"));
+    unmount();
+    render(<IntentOnboardingNudge intentResult={intent()} />);
     expect(screen.queryByText("直接開始創作")).toBeNull();
   });
 });
