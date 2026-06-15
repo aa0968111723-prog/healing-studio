@@ -136,8 +136,15 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | U-3 登入保留 cosmic（決議） | AIDV-93 | ✅ Done | #883 |
 | U-10 設計系統元件庫補齊（34 元件） | AIDV-101 | ✅ Done | #885 |
 | U-4 殼層 chrome 視覺實裝（flag-gated strangler） | AIDV-94 | 🔄 進行中（結構＋接資料＋ProjectSwitcher＋⌘K＋走查開關 5 片皆合併；Bruce 走查通過；旗標 `ENABLE_AIDV_CHROME` OFF。剩 ProviderChip/Toast 為選配 polish） | #886/#887/#888/#889 |
-| U-2 元件採用（umbrella）＋逐殼採用片 | AIDV-92 | 🔄 進行中（逐殼採用：①PanelState ②/video ReadinessChip ③/settings 設定列 ④/learn 積分小統計＝#889 已合併；⑤/learn 情報新聞 IntelItem＝#890 draft。旗標 OFF＝零變化） | #889／#890 |
-| U-5~U-9 各殼採用 | AIDV-95~99 | 📋 Backlog（U-5~U-8 依賴 U-4，已大致就緒） | — |
+| U-2 元件採用（umbrella）＋逐殼採用片 | AIDV-92 | 🔄 進行中（逐殼採用片：①PanelState ②/video ReadinessChip ③/settings 設定列 ④/learn 積分小統計＝#889 已併；⑤/learn 情報新聞 IntelItem ⑥/learn 研究來源 SourceCite＝#890。旗標 OFF＝零變化） | #889／#890 |
+| U-5 /video 視覺實裝 | AIDV-95 | ✅ 已併 main（NotesPanel→Card・PromptsPanel→PromptBlock・ShotPanel；旗標 OFF＝零變化） | #891／#897 |
+| U-6 /social 視覺實裝 | AIDV-96 | ✅ 已併 main（P5 社群殼 greenfield＋SocialNav 接 design-kit；範圍校正為 `components/social/`，原 `shells/social/` 不存在） | #894 |
+| U-8 /settings 視覺實裝 | AIDV-98 | ✅ 已併 main（ObservabilityPanel 系統概覽 StatCard；旗標 OFF＝零變化） | #896 |
+| U-7 /learn 視覺實裝 | AIDV-97 | 🔄 進行中（隨 U-2 /learn 片推進：IntelItem＋SourceCite） | #890 |
+| U-9 共用 PromptVault 採用 | AIDV-99 | 📋 Backlog | — |
+| H1 CI 自動把關（PR gate） | AIDV-56 | ✅ workflow 已併 main（`.github/workflows/pr-gate.yml`）。⚠️ 本 repo 未指派 hosted runner（runner_id 0／2 秒即敗／無 log）＝**Actions 用量未啟用**環境問題，待 Bruce 於 Settings→Actions／Billing 啟用後才真正執行 | #892 |
+
+> **2026-06-15 平行開發備註（整合窗對帳）**：本日多視窗平行跑 Wave U（背景代理＋另開視窗），Bruce 快速合併。已發生並收斂的重複：CI 重複 PR #895（與 #892 撞 `pr-gate.yml`）已關。協作止血規則：**一軌一主**（一條軌只由一個視窗/owner 施工，進度寫進該 Jira 卡工作表當同步點）；本框定位＝**/learn ＋ 整合窗**（收尾鏡像、抓重複、對帳）。
 
 ### 2.5c 看板治理（2026-06-15，Bruce 指示「規劃 Jira 工作細節＋建立專屬開放工作流程」）
 
