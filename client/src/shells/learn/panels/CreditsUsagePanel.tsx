@@ -16,6 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時小統計改用 design-kit 亮色暖光 StatCard
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝零變化。
+// 設計門（ui-ux-pro-max --domain ux）命中「Number Formatting：千分位」→ 數值由呼叫端 toLocaleString 格式化後傳入，原樣保留。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, StatCard as DkStatCard } from "@/components/design-kit";
 
 export function CreditsUsagePanel() {
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { retry: false });
@@ -109,7 +114,15 @@ export function CreditsUsagePanel() {
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
+/** 小統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF＝既有版＝零變化。value 由呼叫端先格式化。 */
+export function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkStatCard label={label} value={value} />
+      </AidvKit>
+    );
+  }
   return (
     <div className="rounded-lg border p-2 text-center">
       <div className="text-[10px] text-muted-foreground">{label}</div>
