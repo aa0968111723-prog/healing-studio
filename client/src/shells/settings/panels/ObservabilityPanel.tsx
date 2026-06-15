@@ -19,6 +19,7 @@ import { PanelError } from "@/shells/_shared/PanelState";
 //（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝線上零變化。value 由呼叫端先格式化後傳入，原樣保留。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, StatCard as DkStatCard } from "@/components/design-kit";
+import { StatusPill } from "../StatusPill";
 
 export function ObservabilityPanel() {
   const role = useRole();
@@ -79,18 +80,13 @@ export function ObservabilityPanel() {
             <div className="text-xs text-muted-foreground py-6 text-center">無背景任務。</div>
           ) : (
             <div className="max-h-72 overflow-auto divide-y">
-              {jobs.map((j, i) => {
-                const status = j.status ?? "—";
-                const variant = status === "done" || status === "completed" ? "secondary"
-                  : status === "failed" ? "destructive" : "outline";
-                return (
-                  <div key={j.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
-                    <span className="flex-1 truncate">{j.label ?? j.kind ?? j.type ?? "任務"}</span>
-                    <Badge variant={variant as any} className="text-[10px]">{status}</Badge>
-                    <span className="text-[10px] text-muted-foreground">{j.createdAt ? new Date(j.createdAt).toLocaleDateString("zh-TW") : ""}</span>
-                  </div>
-                );
-              })}
+              {jobs.map((j, i) => (
+                <div key={j.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
+                  <span className="flex-1 truncate">{j.label ?? j.kind ?? j.type ?? "任務"}</span>
+                  <StatusPill status={j.status ?? "—"} />
+                  <span className="text-[10px] text-muted-foreground">{j.createdAt ? new Date(j.createdAt).toLocaleDateString("zh-TW") : ""}</span>
+                </div>
+              ))}
             </div>
           )}
         </Card>
