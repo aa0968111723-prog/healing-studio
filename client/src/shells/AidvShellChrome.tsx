@@ -13,8 +13,8 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
-  AidvKit, Rail, TopBar, MobileNav, CommandPalette,
-  type DkShellDef, type DkCommandItem,
+  AidvKit, Rail, TopBar, MobileNav, CommandPalette, ProjectSwitcher,
+  type DkShellDef, type DkCommandItem, type DkProjectLite,
 } from "@/components/design-kit";
 import { SHELL_META } from "@/config/shells";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -35,13 +35,14 @@ export function AidvShellChrome() {
   const [location, navigate] = useLocation();
   const isMobile = useIsMobile();
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [psOpen, setPsOpen] = useState(false);
   const active = shellFromPath(location);
   const activeMeta = SHELL_META.find((s) => s.id === active) ?? SHELL_META[0];
 
-  // U-4 第二片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
-  const { activeProjectId } = useCreativeProject();
+  // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
+  const world = useCreativeProject();
   const projectsQ = trpc.creativeProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
-  const projectName = projectsQ.data?.find((p) => String(p.id) === String(activeProjectId))?.title;
+  const projectList: DkProjectLite[] = (projectsQ.data ?? []).map((p) => ({ id: String(p.id), name: p.title }));
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const credits = typeof balanceQ.data?.remaining === "number" ? balanceQ.data.remaining : undefined;
 
@@ -76,8 +77,16 @@ export function AidvShellChrome() {
       <div className={cn("fixed right-0 top-0 z-30", isMobile ? "left-0" : "left-[76px]")}>
         <TopBar
           shell={{ id: activeMeta.id, emoji: activeMeta.emoji, name: activeMeta.zh }}
-          projectName={projectName}
-          onProjectClick={() => navigate("/create")}
+          projectSlot={
+            <ProjectSwitcher
+              projects={projectList}
+              activeId={world.activeProjectId != null ? String(world.activeProjectId) : undefined}
+              onSelect={(id) => world.setActiveProjectId(Number(id))}
+              onCreate={() => navigate("/create")}
+              open={psOpen}
+              onToggle={() => setPsOpen((v) => !v)}
+            />
+          }
           credits={credits}
           onCmdK={() => setCmdkOpen(true)}
         />
