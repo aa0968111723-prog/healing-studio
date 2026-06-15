@@ -23,6 +23,7 @@ import { evaluateBrandGate } from "@/social/brandKit";
 import { SocialNav } from "@/components/social/SocialNav";
 import { TemplatePicker } from "@/components/social/TemplatePicker";
 import { SocialNewsList } from "@/components/social/SocialNewsList";
+import { BrandLockBadge } from "@/components/social/BrandLockBadge";
 import type { NewsItem } from "@/spine/types";
 
 export default function SocialCockpitPage() {
@@ -93,9 +94,7 @@ export default function SocialCockpitPage() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-semibold">{brand.kit.name}</span>
-              <Badge variant={brand.locked ? "default" : "secondary"} className={brand.locked ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
-                {brand.locked ? "已鎖定" : brand.kit.lockState}
-              </Badge>
+              <BrandLockBadge locked={brand.locked} lockState={brand.kit.lockState} />
             </div>
             <div className="flex flex-wrap gap-1.5">
               {brand.kit.palette.map((s) => (
