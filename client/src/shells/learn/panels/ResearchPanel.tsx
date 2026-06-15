@@ -16,6 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { useSpine } from "@/providers/SpineProvider";
 import { createResearchAdapter, type ResearchEvent } from "@/adapters/research";
 import type { ResearchResult } from "@/spine/types";
+// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時引用來源列改用 design-kit 亮色暖光 SourceCite
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有外連卡＝零變化。
+// 外連行為兩版皆保留：ON 版把 SourceCite 包在原本的 <a target=_blank rel=noreferrer> 內。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SourceCite as DkSourceCite } from "@/components/design-kit";
 
 type RunState = "idle" | "loading" | "done" | "error";
 
@@ -138,28 +143,47 @@ export function ResearchPanel() {
           </div>
           <div className="space-y-2">
             {res.sources.map((src, i) => (
-              <a
-                key={i}
-                href={src.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] text-primary">
-                    {i + 1}
-                  </span>
-                  {src.title}
-                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-1 truncate">{src.url}</div>
-                {src.snip && <div className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{src.snip}</div>}
-              </a>
+              <SourceItem key={i} src={src} index={i} />
             ))}
           </div>
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * 單筆引用來源：旗標 ON 時改用 design-kit 亮色暖光 SourceCite（標題＋摘要＋來源網址），
+ * 仍包在原本的外連 <a target=_blank rel=noreferrer> 內保留「點擊開原文」；
+ * OFF（預設）＝既有外連卡（含序號徽章）＝逐像素零變化。
+ */
+export function SourceItem({ src, index }: { src: { title: string; url: string; snip?: string }; index: number }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <a href={src.url} target="_blank" rel="noreferrer" className="block">
+        <AidvKit>
+          <DkSourceCite title={src.title} url={src.url} snippet={src.snip} />
+        </AidvKit>
+      </a>
+    );
+  }
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] text-primary">
+          {index + 1}
+        </span>
+        {src.title}
+        <ExternalLink className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-1 truncate">{src.url}</div>
+      {src.snip && <div className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{src.snip}</div>}
+    </a>
   );
 }
 
