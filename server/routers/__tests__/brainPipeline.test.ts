@@ -158,7 +158,10 @@ describe("brainPipeline graph builder", () => {
     const groups = g.nodes.filter(n => n.kind === "page-group");
     expect(groups.length).toBeGreaterThan(1);
     expect(groups.some(n => n.id === "page-group:create")).toBe(true);
-    expect(groups.some(n => n.id === "page-group:admin")).toBe(true);
+    // admin 頁（admin / admin-api-usage / admin-brain-pipeline）目前刻意併入
+    // settings 分組（appRegistry 的 group 欄位），故驗 settings 容器存在即可；
+    // 型別雖保留 "admin" group，但目前無頁面使用（如未來獨立再改回）。
+    expect(groups.some(n => n.id === "page-group:settings")).toBe(true);
 
     // Every group's children should resolve to real page nodes,
     // and every page's parentId should point at one of these groups.
@@ -292,6 +295,8 @@ describe("brainPipeline graph builder", () => {
       "teamData", // M4：資料來源存取規則 CRUD，純資料持久化，不觸發 AI
       "dataConnections", // M4/M5：外部來源連接 CRUD + 健檢，純資料持久化，不觸發 AI
       "teamTraining", // M 訓練 track：團隊治理包裝，沿用 loraTrainer 的 Replicate 流程；graph 已由 loraTrainer 呈現
+      "creativeProject", // 創作專案 CRUD — 純資料持久化，不觸發 AI
+      "realEarth", // 真實地球研究紀錄 CRUD — 純資料持久化，不呼外部 provider
     ]);
 
     const inGraph = new Set(
@@ -357,6 +362,8 @@ describe("brainPipeline graph builder", () => {
       "/lora-trainer", // registry: /models
       "/calendar", // 行事曆功能尚未在 registry 中（可未來補上）
       "/animation/:storyboardId", // registry: /animation （動畫分鏡細節頁 — 動態路由，靠 base /animation 進入）
+      "/worldbuilding", // 世界觀架構器尚未在 registry 中（可未來補上）
+      "/worldbuilding/:storyboardId", // 世界觀細節頁 — 動態路由，靠 base /worldbuilding 進入
     ]);
 
     const registryPaths = new Set(APP_PAGE_REGISTRY.map(p => p.path));
