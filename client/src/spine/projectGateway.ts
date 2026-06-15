@@ -72,6 +72,10 @@ export interface ProjectGateway {
   createProject(input: ProjectCreateInput): Promise<{ id: string }>;
   /** 🔧 worldStoryboard.createFromSegments — 引導式拆解結果批寫分鏡。 */
   ingestStoryboard(input: StoryboardIngestInput): Promise<void>;
+  /** creativeProject.link — 連結（或傳 null 解綁）世界觀 framework 到專案（I-6 Phase 2b / AIDV-100）。 */
+  linkWorld(projectId: string, worldFrameworkId: number | null): Promise<void>;
+  /** worldbuilding.list — 使用者的世界清單（給嚮導世界選單）。 */
+  listWorlds(): Promise<{ id: number; name: string }[]>;
 }
 
 // ============================================================================
@@ -202,10 +206,25 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
     });
   }
 
+  async function linkWorld(projectId: string, worldFrameworkId: number | null): Promise<void> {
+    // creativeProject.link 已支援設/解綁 worldFrameworkId（零新後端，AIDV-100）。
+    await client.creativeProject.link.mutate({ id: num(projectId), worldFrameworkId });
+  }
+
+  async function listWorlds(): Promise<{ id: number; name: string }[]> {
+    // worldbuilding.list 回 rowToData 列（含 id / name）。
+    const rows = await client.worldbuilding.list.query();
+    return (Array.isArray(rows) ? rows : []).map((r: any) => ({
+      id: Number(r.id),
+      name: String(r.name ?? r.title ?? `世界 #${r.id}`),
+    }));
+  }
+
   return {
     mode: "trpc",
     listProjects, loadProject, recompilePacket,
     saveVaultState, saveCharacterEdit, createNote, createPromptBlock, createProject, ingestStoryboard,
+    linkWorld, listWorlds,
   };
 }
 
@@ -354,6 +373,19 @@ export function makeProjectGatewayMock(): ProjectGateway {
     async createPromptBlock() { await delay(40); },
     async createProject(input) { await delay(60); return { id: uid("p") }; },
     async ingestStoryboard() { await delay(60); },
+    async linkWorld(projectId, worldFrameworkId) {
+      await delay(60);
+      const p = find(projectId);
+      if (p) p.worldFrameworkId = worldFrameworkId; // 種子本地 patch，離線可驗 UI
+    },
+    async listWorlds() {
+      await delay(60);
+      // 離線示範世界清單（真實模式走 worldbuilding.list）。
+      return [
+        { id: 7, name: "雪山密勒日巴（示範世界）" },
+        { id: 8, name: "療癒森林（示範世界）" },
+      ];
+    },
   };
 }
 

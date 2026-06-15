@@ -38,7 +38,7 @@ function ConsoleInner() {
 
       <CockpitColumns
         showSidecar={console_.showSidecar}
-        spine={<StorySpineColumn />}
+        spine={<StorySpineColumn onGuided={() => setGuided(true)} />}
         canvas={<CreationCanvas onGuided={() => setGuided(true)} />}
         context={<ContextSidecar />}
       />

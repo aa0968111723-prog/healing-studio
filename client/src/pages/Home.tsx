@@ -67,6 +67,7 @@ import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
+import { IntentOnboardingNudge } from "@/components/home/IntentOnboardingNudge";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
 import OrbCreationStage from "@/components/home/OrbCreationStage";
 import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
@@ -112,6 +113,8 @@ const HOME_FEATURE_FLAGS = {
   showOrbCreationStage: false,
   /** Intent inference 低語卡。資訊量太密，先隱藏。 */
   showIntentWhisper: false,
+  /** I-9 意圖個人化引導卡（AIDV-87）：依推論意圖給「下一步去哪」CTA。預設 OFF＝零行為改變。 */
+  showIntentOnboarding: false,
   /** IntelBentoGrid（情報站）。 */
   showIntelBento: false,
   /** ShowcaseMasonry（精選作品瀑布流）。 */
@@ -1563,6 +1566,11 @@ ${profileSnippet}`;
       {/* OrbCreationStage now subsumes the former OrbNarrativeBridge: the
           merged stage above carries the "從一個念頭開始" narrative AND the
           interactive prompt → live generation experience in one panel. */}
+
+      {/* ── I-9 意圖個人化引導（AIDV-87，旗標 showIntentOnboarding 預設 OFF） ── */}
+      {HOME_FEATURE_FLAGS.showIntentOnboarding && (
+        <IntentOnboardingNudge intentResult={intentResult} />
+      )}
 
       {/* ── Intent Inference Whisper (意圖推論低語) ── */}
       {HOME_FEATURE_FLAGS.showIntentWhisper && intentResult && intentResult.confidence > 0.4 && (

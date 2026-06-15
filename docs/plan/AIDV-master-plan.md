@@ -122,7 +122,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 
 - **Wave H 營運與安全硬化**（Epic AIDV-55＋AIDV-56~73，06-13 全啟動）：H5 鎖門已隨 #870 完成；H6 的活案例＝AIDV-76 P0。Railway MCP 接入＝AIDV-77（官方遠端版已寫入本機設定，待 Bruce OAuth）。
 - **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。**06-15 盤點完成（U-0/AIDV-75 三欄對照表已貼、轉 In Progress）＋全站換膚開工**，依 Bruce「設計套件接上工作表」指示把 ⑦ 設計 6 大區/37 畫面排成卡：U-1 設計系統落地(AIDV-91，亮色暖光 tokens 全站套用、登入除外，🔄 PR #883)／U-2 元件採用 umbrella(AIDV-92)／U-3 登入保留 cosmic 決議(AIDV-93，decision-resolved)／U-4 殼層 chrome(AIDV-94)／U-5 /video 六步(AIDV-95)／U-6 /social 九步(AIDV-96)／U-7 /learn 學習中心(AIDV-97)／U-8 /settings 設定(AIDV-98)／U-9 共用 PromptVault 採用(AIDV-99)／U-10 設計系統 51 元件補齊(AIDV-101)。既有覆蓋不重複開卡：W1-4 Flow TV(AIDV-37)／W1-5 遊樂場(AIDV-38)／W1-6 設定面板(AIDV-39)／W1-9 手機導演台(AIDV-42) ✅ Done；W4-E 影院次模式(AIDV-53) 📋 延後。Jira 為準。
-- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**🔄 開發中（#881）**：I-7 角色 LoRA 一致性(AIDV-85)＝唯讀 Phase 1（狀態面板；自動套用 loraUrl/loraScale＝Phase 2 待擴生成合約）；I-3 劇本→分鏡骨架(AIDV-81)＝座艙 ScriptCanvas 一鍵 worldStoryboard.seedSkeleton 產生與段落數一致的空白分鏡（worldId 取脊椎 worldFrameworkId、純使用者觸發）。其餘 I-6(AIDV-84，依賴 I-2/I-3)／I-9(AIDV-87) To Do。Jira 為準。
+- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**：I-7 角色 LoRA 一致性(AIDV-85)＝唯讀 Phase 1（狀態面板；自動套用 loraUrl/loraScale＝Phase 2 待擴生成合約，Jira 留言待 Bruce 拆卡決定）；I-3 劇本→分鏡骨架(AIDV-81)＝座艙 ScriptCanvas 一鍵 worldStoryboard.seedSkeleton 產生與段落數一致的空白分鏡（worldId 取脊椎 worldFrameworkId、純使用者觸發）。**🔄 開發中（本批，分支 claude/loving-lamport-iexyoe）**：I-6 Creative Projects 工作流主入口(AIDV-84，依賴 I-2/I-3 皆已 Done)＝Phase 1 創作流程嚮導 `ProjectFlowGuide`（Story Spine 頂端**五步脊椎**「世界觀→劇本→分鏡→生成→成片」（對映 stageIndex 0..4＝北極星 logline→成片），狀態由既有專案資料即時推導；旗標 `ENABLE_PROJECT_HUB` 預設 OFF、零後端、可回滾。**Phase 2a 動作化已落地**：當前步主鈕直接動作（劇本/分鏡→開引導式創作 onGuided、生成→一鍵排程就緒鏡 spine.scheduleGeneration 走既有確認門＋先估成本）；Codex P2 修正＝生成完成判定改「無就緒剩鏡」，避免部分生成誤標完成。**Phase 2b 世界自動連結已落地**（AIDV-100，**首張照《開發工作流／工作表 SOP》跑**：重用既有 `creativeProject.link`＋`worldbuilding.list`、零新後端，嚮導世界步未連結時內嵌世界選單→一鍵連結→步驟打勾；spine/gateway 加 linkWorld/listWorlds，mock 離線可驗）；**成片匯出**＝Wave 2 待金鑰）；I-9 Sense 意圖個人化引導(AIDV-87)＝Phase 1 同批（首頁 `IntentOnboardingNudge` 依既有 sense.inferIntent 推論意圖給「下一步去哪」CTA：選擇困難→/director、目標導向→/create、明顯美學→/playground、找靈感/探索→/studio；旗標 `HOME_FEATURE_FLAGS.showIntentOnboarding` 預設 OFF、純前端唯讀消費、可按「不用了」關閉個人化）。**Wave I 九張廣度收尾**（I-6 Phase 1+2a+2b〔世界連結〕＋I-9 Phase 1 落地於 #882；I-6 僅餘成片匯出＝Wave 2 needs-key）。Jira 為準。
 
 ### 2.6 已拍板決策（label `decision-resolved`）
 
@@ -210,6 +210,8 @@ AI Director 影片系統（空間首頁＝①）
 ---
 
 ## 5. 維運 SOP（之後維護）
+
+> **作業流程展開＝[`docs/plan/AIDV-dev-workflow.md`](./AIDV-dev-workflow.md)（AIDV 開發工作流／工作表 SOP）**：每張卡照九階流水線、過三道門（設計門／驗證門／審查門）；2026-06-15 起一律照工作表跑。
 
 1. **每 PR 合併/狀態變更** → 更新對應 Jira issue 狀態＋留言記 PR 連結（Atlassian 未連前：更新本檔第 2 節）。
 2. **每完成一 Wave** → Confluence「變更紀錄」加一節；被取代的 legacy 頁移 Archive（不刪）。

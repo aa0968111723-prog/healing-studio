@@ -66,12 +66,21 @@ export const ENABLE_DIRECTOR_CONSOLE: boolean = readFlag("VITE_ENABLE_DIRECTOR_C
  */
 export const ENABLE_WORLD_STYLE_INJECTION: boolean = readFlag("VITE_ENABLE_WORLD_STYLE_INJECTION", false);
 
+/**
+ * I-6 創作工作流主入口（AIDV-84）。**預設 OFF**＝零行為改變：關閉時 Story Spine 不渲染
+ * 「創作流程嚮導」。開啟（VITE_ENABLE_PROJECT_HUB=1）後，Story Spine 頂端顯示
+ * 世界觀→劇本→分鏡→生成 四步脊椎，狀態由既有專案資料即時推導、一鍵切中欄畫布（Phase 1
+ * 唯讀導航；Phase 2 待 Bruce 拍板才把「新專案→選世界→自動分鏡→預載世界上下文」串成單一動作鏈）。
+ */
+export const ENABLE_PROJECT_HUB: boolean = readFlag("VITE_ENABLE_PROJECT_HUB", false);
+
 /** 集中匯出，方便偵錯面板/驗收一次讀取。 */
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
   VIDEO_SPINE_MOCK,
   ENABLE_DIRECTOR_CONSOLE,
   ENABLE_WORLD_STYLE_INJECTION,
+  ENABLE_PROJECT_HUB,
 } as const;
 
 export type VideoFlagKey = keyof typeof VIDEO_FLAGS;
