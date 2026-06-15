@@ -477,6 +477,14 @@ const ROUTER_TO_PROVIDERS: Array<{
       "server/services/orbTaskOrchestrator.ts",
     ],
   },
+  {
+    id: "router:worldbuildingGeneration",
+    label: "worldbuildingGeneration（世界觀生成）",
+    description:
+      "generateCharacter / generateScene 透過 invokeLLM 產生結構化世界觀內容",
+    providers: ["gemini", "vertex", "openrouter"],
+    files: ["server/services/worldbuildingGeneration.ts"],
+  },
   // ── 純服務 router（無外部 provider，僅 DB / 內部資料） ─────────────────
   // 這些 router 不直接呼外部 AI；放進圖裡是為了讓 page → router 連線完整，
   // 並讓 admin 能在同一畫面看到所有後端入口的錯誤累積狀況。
@@ -1254,6 +1262,18 @@ const CRON_JOBS: CronJobMeta[] = [
     ],
     downstream: ["ext:perplexity", "router:aiModels"],
     envKey: "PERPLEXITY_API_KEY",
+  },
+  {
+    id: "cron:media-archival",
+    label: "媒體資產歸檔掃描（每 5 分鐘）",
+    schedule: "*/5 * * * *",
+    description:
+      "掃描資產庫 / 歷史中 archivedAt IS NULL 的外部 provider URL，趁 presigned link 過期前拉回自家儲存（靠 archivedAt 達成 idempotency）",
+    files: [
+      "server/jobs/mediaArchivalCron.ts",
+      "server/services/mediaArchivalService.ts",
+    ],
+    downstream: ["db:main", "storage:assets"],
   },
 ];
 
