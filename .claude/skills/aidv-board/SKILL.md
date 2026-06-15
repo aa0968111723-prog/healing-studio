@@ -50,10 +50,9 @@ description: AIDV 看板治理工作流（可重複運作）— 由「智能助�
 5. **冪等**：先查再改，不重複建、不刪。
 
 ### `/aidv-board calendar`
-把「完成」記上 Jira 行事曆：
-1. `editJiraIssue` 設 `{"duedate":"YYYY-MM-DD"}`（當天）→ 卡會出現在看板「行事曆」分頁。
-2. `addCommentToJiraIssue` 留「🗓️ 完成紀錄」：任務／完成時間（Asia/Taipei UTC+8）／產出清單，署名 — 智能助手 🤖。
-（預設記在 AIDV-102；若是某張卡的收尾，記在該卡。）
+把「完成」記上 Jira 行事曆（行事曆分頁依 `duedate` 排）：
+1. **回填所有完成卡**：JQL `statusCategory = Done`，逐卡把 `duedate` 設成它的 `resolutiondate`（完成日）→ 每張完成卡落在它真正完成的那天。冪等：已等於完成日的跳過。
+2. **本次收尾**：把當前任務記在 hub（預設 AIDV-102）或該收尾卡：`editJiraIssue` 設 `{"duedate":"今天"}` ＋ `addCommentToJiraIssue` 留「🗓️ 完成紀錄」（任務／完成時間 Asia/Taipei UTC+8／產出清單），署名 — 智能助手 🤖。
 
 ### `/aidv-board sync`
 鏡像進 repo：更新 `AIDV-dev-workflow.md` §4.1 與 `AIDV-master-plan.md` §2.5c → commit（中文 conventional）→ `git push -u`（失敗指數退避重試 2/4/8/16s）→ 無 PR 則開 **draft** PR。
