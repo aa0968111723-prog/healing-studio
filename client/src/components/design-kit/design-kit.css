@@ -1,0 +1,38 @@
+/* ════════════════════════════════════════════════════════════════════════
+   AI Director · 設計套件元件 — 範圍化 token 別名（.aidv-kit）
+   ----------------------------------------------------------------------------
+   設計套件元件（primitives / GateCard / ShotCard / PromptVault /
+   WorkflowBuilder）綁的是設計系統「短別名」（--surface / --line / --text /
+   --muted＝次級文字）。其中幾個名稱與 app 既有 shadcn token「同名不同義」：
+
+     · --muted     app＝淺色表面(#F1EADF)；設計套件＝次級灰文字(#897F70)
+     · --surface-2 app＝半透明玻璃層；設計套件＝不透明暖白(#F7F1E8)
+     · --surface-3 app＝半透明玻璃層；設計套件＝不透明暖白(#FBF7F0)
+
+   為避免污染全站，這些只在 .aidv-kit 子樹內重新綁定。其餘平台色（clay/gold/
+   ok/bad/info/陰影/動效…）已在 client/src/index.css 的 :root 全站提供，元件
+   直接沿用。用法：把元件包在 <AidvKit>（會掛 .aidv-kit class）內，或自行加
+   className="aidv-kit"。來源：docs/4shell-handoff/AI-Director-UIUX設計 (rev L1)。
+   ════════════════════════════════════════════════════════════════════════ */
+
+.aidv-kit {
+  /* 不透明暖白表面（元件預設背景；非全站玻璃層） */
+  --surface: #fdfbf7;
+  --surface-2: #f7f1e8;
+  --surface-3: #fbf7f0;
+
+  /* 文字色階（短別名） */
+  --text: #2b2620;
+  --text-soft: #5a5145;
+  --text-mute: #897f70;
+  --muted: #897f70; /* 設計套件語意：--muted＝次級灰文字（覆蓋 app 表面義） */
+
+  /* 邊框短別名（與全站 --line 同值，明確列出以防漂移） */
+  --line: #e4daca;
+
+  /* 設計套件 small 陰影（全站 :root 未提供此別名） */
+  --shadow-sm: 0 2px 8px -3px rgba(86, 66, 42, 0.1), 0 1px 2px rgba(86, 66, 42, 0.05);
+
+  color: var(--text);
+  font-family: var(--font-sans);
+}
