@@ -121,7 +121,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 ### 2.5b 平行軌（Jira 為準，此處僅鏡像索引）
 
 - **Wave H 營運與安全硬化**（Epic AIDV-55＋AIDV-56~73，06-13 全啟動）：H5 鎖門已隨 #870 完成；H6 的活案例＝AIDV-76 P0。Railway MCP 接入＝AIDV-77（官方遠端版已寫入本機設定，待 Bruce OAuth）。
-- **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。
+- **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。**06-15 盤點完成（U-0/AIDV-75 三欄對照表已貼、轉 In Progress）＋全站換膚開工**，依 Bruce「設計套件接上工作表」指示把 ⑦ 設計 6 大區/37 畫面排成卡：U-1 設計系統落地(AIDV-91，亮色暖光 tokens 全站套用、登入除外，🔄 PR #883)／U-2 元件採用 umbrella(AIDV-92)／U-3 登入保留 cosmic 決議(AIDV-93，decision-resolved)／U-4 殼層 chrome(AIDV-94)／U-5 /video 六步(AIDV-95)／U-6 /social 九步(AIDV-96)／U-7 /learn 學習中心(AIDV-97)／U-8 /settings 設定(AIDV-98)／U-9 共用 PromptVault 採用(AIDV-99)／U-10 設計系統 51 元件補齊(AIDV-101)。既有覆蓋不重複開卡：W1-4 Flow TV(AIDV-37)／W1-5 遊樂場(AIDV-38)／W1-6 設定面板(AIDV-39)／W1-9 手機導演台(AIDV-42) ✅ Done；W4-E 影院次模式(AIDV-53) 📋 延後。Jira 為準。
 - **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**🔄 開發中（#881）**：I-7 角色 LoRA 一致性(AIDV-85)＝唯讀 Phase 1（狀態面板；自動套用 loraUrl/loraScale＝Phase 2 待擴生成合約）；I-3 劇本→分鏡骨架(AIDV-81)＝座艙 ScriptCanvas 一鍵 worldStoryboard.seedSkeleton 產生與段落數一致的空白分鏡（worldId 取脊椎 worldFrameworkId、純使用者觸發）。其餘 I-6(AIDV-84，依賴 I-2/I-3)／I-9(AIDV-87) To Do。Jira 為準。
 
 ### 2.6 已拍板決策（label `decision-resolved`）
