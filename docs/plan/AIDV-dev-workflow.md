@@ -58,6 +58,29 @@ npx vitest run <新測> <鄰測>     # 新元件 + 受影響鄰居
 
 ---
 
+## 2.5 UI/UX 一致性（ui-ux-pro-max 設計智庫）
+
+> 目的：讓「任何會改變介面**長相／手感／移動／互動**」的卡，都用**同一套設計智庫**做決策與自檢，避免各殼各頁風格漂移。智庫已內嵌於 `.claude/skills/ui-ux-pro-max/`（第三方 MIT，離線 CSV 檢索）。
+>
+> **SSOT 邊界（重要）**：本專案**鎖定的設計系統＝design-kit 亮色暖光（黏土／珊瑚橘，AIDV-74／U-1）**為 token／配色／品牌的**唯一真相**。ui-ux-pro-max 提供的是**通用 UX 守則、互動／動效、可及性、圖表選型與交付前檢查表**，用來「補強與驗收」，**不覆蓋**專案既定 token／品牌色。兩者衝突時 **一律以 design-kit 為準**。
+
+**何時必用**（同 skill「When to Apply」）：新頁面／元件、改互動或動效、選色／字體／間距／版面、做 RWD／深色模式、加圖表、或審查 UI 一致性與可及性。純後端／API／DevOps 不需。
+
+**接點 ①——設計門（階 1→2）**：UI 卡在範圍設計時先查一次，把回傳的 pattern／互動／動效／反模式對照 design-kit token 落進工作表：
+```
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<產品型 產業 關鍵詞>" --design-system -f markdown
+```
+
+**接點 ②——驗證門（階 3→4）**：UI 卡在 tsc／routes／navigation／vitest 全綠後，加一輪「交付前檢查表」自檢（取自 SKILL.md，App／Web 擇用）：
+- **可及性**：對比 ≥4.5:1、icon-only 有 `aria-label`、焦點環可見、色彩非唯一資訊。
+- **觸控／互動**：命中區 ≥44pt、按下回饋 ≤150ms、動效 150–300ms、尊重 `prefers-reduced-motion`。
+- **設計一致**：用語意 token（design-kit）非硬編色、SVG 圖示非 emoji、深／淺色對比各自驗。
+- **三態**：載入／空／錯誤皆有出口（對應全站共用 `_shared/PanelState`）。
+
+**Jira 連動**：UI 卡的工作表必填「UI/UX 一致性」欄（設計門查詢摘要＋交付前檢查 N 項過）；看板↔九階對照見 Epic **AIDV-102**；本接入工作項目＝**AIDV-103**（label `workflow`＋`ui-ux`）。
+
+---
+
 ## 3. 工作表模板（每張卡填這張，貼進 Jira 卡描述）
 
 ```
@@ -72,6 +95,7 @@ npx vitest run <新測> <鄰測>     # 新元件 + 受影響鄰居
 - 驗收：<可觀察的通過條件>
 - 風險/避雷：<…>
 - Phase：<本卡做到哪 / 下一 Phase 待什麼（後端/金鑰/拍板）>
+- UI/UX 一致性：<僅 UI 卡：ui-ux-pro-max 設計門查詢摘要 / 交付前檢查 N 項過；token 衝突以 design-kit 為準>
 - 驗證：tsc / routes / navigation / 測試 <案數>
 - PR / commit：<連結>
 ```
@@ -80,7 +104,7 @@ npx vitest run <新測> <鄰測>     # 新元件 + 受影響鄰居
 
 ## 4. 狀態與標籤詞彙（同 master-plan 鐵律 4）
 - 狀態（看板四欄 ↔ 九階對照，見 Jira Epic **AIDV-102**）：`Backlog`（階0–1）→ `Selected for Development`（就緒：設計門過、下一棒）→ `進行中`（階2–3、6）→ `完成`（階8）。Blocked 以 label 表示，板上無欄。
-- 標籤：`decision`(待拍板)／`decision-resolved`／`needs-key`(缺金鑰)／`caution`(避雷)／`待議`／`integration`／`wave-i`／`workflow`／`workflow-pilot`／`aidisc-*`。
+- 標籤：`decision`(待拍板)／`decision-resolved`／`needs-key`(缺金鑰)／`caution`(避雷)／`待議`／`integration`／`wave-i`／`workflow`／`workflow-pilot`／`ui-ux`／`aidisc-*`。
 
 ### 4.1 優先順序分級（2026-06-15 建立；讓看板「優先順序細分」圖有意義）
 | 優先序 | 給誰 | 範例 |
