@@ -18,6 +18,8 @@ import {
 } from "@/components/design-kit";
 import { SHELL_META } from "@/config/shells";
 import { useIsMobile } from "@/hooks/useMobile";
+import { trpc } from "@/lib/trpc";
+import { useCreativeProject } from "@/spine/useCreativeProject";
 import type { ShellId } from "@/spine/types";
 
 const SHELLS: DkShellDef[] = SHELL_META.map((s) => ({ id: s.id, emoji: s.emoji, name: s.zh, enabled: s.enabled }));
@@ -35,6 +37,13 @@ export function AidvShellChrome() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const active = shellFromPath(location);
   const activeMeta = SHELL_META.find((s) => s.id === active) ?? SHELL_META[0];
+
+  // U-4 第二片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
+  const { activeProjectId } = useCreativeProject();
+  const projectsQ = trpc.creativeProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  const projectName = projectsQ.data?.find((p) => String(p.id) === String(activeProjectId))?.title;
+  const balanceQ = trpc.credits.myBalance.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
+  const credits = typeof balanceQ.data?.remaining === "number" ? balanceQ.data.remaining : undefined;
 
   // ⌘K / Ctrl+K 開關命令面板（全站快捷）。
   useEffect(() => {
@@ -61,11 +70,17 @@ export function AidvShellChrome() {
     <AidvKit>
       {!isMobile && (
         <div className="fixed left-0 top-0 z-40 h-svh">
-          <Rail shells={SHELLS} active={active} onSelect={goShell} onHome={() => navigate("/")} onCmdK={() => setCmdkOpen(true)} />
+          <Rail shells={SHELLS} active={active} onSelect={goShell} credits={credits} onHome={() => navigate("/")} onCmdK={() => setCmdkOpen(true)} />
         </div>
       )}
       <div className={cn("fixed right-0 top-0 z-30", isMobile ? "left-0" : "left-[76px]")}>
-        <TopBar shell={{ id: activeMeta.id, emoji: activeMeta.emoji, name: activeMeta.zh }} onCmdK={() => setCmdkOpen(true)} />
+        <TopBar
+          shell={{ id: activeMeta.id, emoji: activeMeta.emoji, name: activeMeta.zh }}
+          projectName={projectName}
+          onProjectClick={() => navigate("/create")}
+          credits={credits}
+          onCmdK={() => setCmdkOpen(true)}
+        />
       </div>
       {isMobile && (
         <div className="fixed inset-x-0 bottom-0 z-40">

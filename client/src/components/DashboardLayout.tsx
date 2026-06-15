@@ -915,7 +915,7 @@ function DashboardLayoutContent({
           } ${ENABLE_AIDV_CHROME ? "pt-[58px] md:pl-[76px] pb-[64px] md:pb-0" : dockPadClass} pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
           data-scroll-area
           style={{
-            paddingTop: `calc(${settings.compactMode ? "0.75rem" : "1rem"} + env(safe-area-inset-top, 0px))`,
+            paddingTop: `calc(${ENABLE_AIDV_CHROME ? "58px + " : ""}${settings.compactMode ? "0.75rem" : "1rem"} + env(safe-area-inset-top, 0px))`,
             paddingBottom: settings.compactMode
               ? "calc(1rem + env(safe-area-inset-bottom, 0px))"
               : "calc(2rem + env(safe-area-inset-bottom, 0px))",

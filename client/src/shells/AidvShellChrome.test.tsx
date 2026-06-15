@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * AidvShellChrome（U-4 殼層 chrome 視覺實裝，AIDV-94 · flag-gated）行為測試。
- * 守住：路徑→shell 推導、Rail 選殼導航、⌘K 開命令面板並導航。純前端、design-kit 組合。
+ * 守住：路徑→shell 推導、Rail 選殼導航、⌘K 開命令面板並導航、接真實資料（當前專案名＋積分）。
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
@@ -9,6 +9,15 @@ import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 const h = vi.hoisted(() => ({ navigate: vi.fn() }));
 vi.mock("wouter", () => ({ useLocation: () => ["/video/director", h.navigate] }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/spine/useCreativeProject", () => ({
+  useCreativeProject: () => ({ activeProjectId: 1, activeProject: null, setActiveProjectId: vi.fn() }),
+}));
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    creativeProject: { list: { useQuery: () => ({ data: [{ id: 1, title: "雪山專案" }] }) } },
+    credits: { myBalance: { useQuery: () => ({ data: { remaining: 500 } }) } },
+  },
+}));
 
 import { AidvShellChrome, shellFromPath } from "./AidvShellChrome";
 
@@ -36,5 +45,13 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
     fireEvent.click(screen.getByText("前往 學習文件"));
     expect(h.navigate).toHaveBeenCalledWith("/learn");
+  });
+
+  it("接真實資料：TopBar 顯示當前專案名＋積分；點專案 → /create", () => {
+    render(<AidvShellChrome />);
+    expect(screen.getByText("雪山專案")).toBeTruthy();
+    expect(screen.getByText("500 點")).toBeTruthy(); // TopBar 積分（Rail 為 "500"）
+    fireEvent.click(screen.getByText("雪山專案"));
+    expect(h.navigate).toHaveBeenCalledWith("/create");
   });
 });
