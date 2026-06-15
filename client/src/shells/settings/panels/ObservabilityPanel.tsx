@@ -15,6 +15,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時系統概覽小統計改用 design-kit 亮色暖光 StatCard
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝線上零變化。value 由呼叫端先格式化後傳入，原樣保留。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, StatCard as DkStatCard } from "@/components/design-kit";
 
 export function ObservabilityPanel() {
   const role = useRole();
@@ -97,7 +101,15 @@ export function ObservabilityPanel() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+/** 系統概覽小統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF＝既有版＝零變化。value 由呼叫端先格式化。 */
+export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkStatCard label={label} value={value} />
+      </AidvKit>
+    );
+  }
   return (
     <div className="rounded-lg border p-2.5 text-center">
       <div className="text-[10px] text-muted-foreground">{label}</div>
