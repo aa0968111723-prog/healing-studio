@@ -1,0 +1,60 @@
+# PR Gate（AIDV-56 / H1 CI 自動把關）
+#
+# 目的：每個對 main 的 PR 在合併前自動跑專案既有的把關指令，作為驗證門。
+#
+# 硬門（必過，否則擋下 PR）— 這三項在 main 是綠的：
+#   - npx tsc --noEmit            （型別檢查）
+#   - npm run check:routes        （scripts/scan-routes.mjs）
+#   - npm run check:navigation    （scripts/check-internal-navigation.mjs）
+#
+# 資訊性步驟（不擋 PR）：
+#   - npx vitest run              （main baseline 約有 13 個既有失敗，
+#                                  jsdom29 + vitest2，見 AIDV-29，故設
+#                                  continue-on-error: true 僅供觀察，不當硬門）
+
+name: PR Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一 PR 連續推送時，取消前一輪尚未完成的執行，節省資源。
+concurrency:
+  group: pr-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: tsc / routes / navigation 硬門
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 優先用 lockfile 的可重現安裝；lockfile 有問題時退而求其次 npm install。
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      # ---- 硬門：以下三項任一失敗即擋下 PR ----
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Check routes
+        run: npm run check:routes
+
+      - name: Check navigation
+        run: npm run check:navigation
+
+      # ---- 資訊性：不擋 PR ----
+      # main baseline 有約 13 個既有失敗（jsdom29 + vitest2，見 AIDV-29），
+      # 因此全量 vitest 僅作資訊性執行，continue-on-error 確保不會擋死 PR。
+      - name: Vitest (informational, non-blocking)
+        continue-on-error: true
+        run: npx vitest run
