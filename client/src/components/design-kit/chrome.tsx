@@ -130,9 +130,9 @@ export function Rail({
 
 /* ================= TopBar（上 58px）================= */
 export function TopBar({
-  shell, projectName, onProjectClick, provider, providerStatus, credits, onCmdK,
+  shell, projectName, onProjectClick, projectSlot, provider, providerStatus, credits, onCmdK,
 }: {
-  shell: DkShellDef; projectName?: string; onProjectClick?: () => void;
+  shell: DkShellDef; projectName?: string; onProjectClick?: () => void; projectSlot?: React.ReactNode;
   provider?: string; providerStatus?: DkProviderStatus; credits?: number; onCmdK?: () => void;
 }) {
   return (
@@ -141,12 +141,12 @@ export function TopBar({
         <span>{shell.emoji}</span>
         <span className="font-semibold text-[var(--text)]" style={{ fontFamily: "var(--font-serif)" }}>{shell.name}</span>
       </div>
-      {projectName != null && (
+      {projectSlot ?? (projectName != null && (
         <button type="button" onClick={onProjectClick} className="flex items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3 py-1 text-[12px] text-[var(--text-soft)] hover:border-[var(--clay-soft)]">
           <span className="truncate max-w-[160px]">{projectName}</span>
           <span className="text-[var(--muted-2)]">▾</span>
         </button>
-      )}
+      ))}
       <div className="ml-auto flex items-center gap-2">
         {provider && <ProviderChip provider={provider} status={providerStatus} />}
         {typeof credits === "number" && <Pill kind={credits < 120 ? "bad" : "default"}>{credits} 點</Pill>}
