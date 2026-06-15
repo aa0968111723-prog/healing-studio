@@ -15,6 +15,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-8（AIDV-98 / 傘卡 U-2·AIDV-92）逐殼採用 · /settings：旗標 ON 時系統概覽的統計卡改用
+// design-kit 亮色暖光 StatCard（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝零變化。
+// 純展示、label/value 1:1 忠實對映、無控制項＝零功能損失（與 /learn CreditsUsagePanel·MiniStat 同寫法）。
+// 設計門（ui-ux-pro-max --domain ux）命中「Number Formatting：數值由呼叫端格式化後傳入」→ 兩版皆原樣呈現。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, StatCard as DkStatCard } from "@/components/design-kit";
 
 export function ObservabilityPanel() {
   const role = useRole();
@@ -97,7 +103,15 @@ export function ObservabilityPanel() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+/** 統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF（預設）＝既有版＝零變化。value 由呼叫端先格式化。 */
+export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkStatCard label={label} value={value} />
+      </AidvKit>
+    );
+  }
   return (
     <div className="rounded-lg border p-2.5 text-center">
       <div className="text-[10px] text-muted-foreground">{label}</div>
