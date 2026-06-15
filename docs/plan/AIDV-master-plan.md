@@ -134,8 +134,9 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | U-0 盤點（46 頁↔卡 對照） | AIDV-75 | 🔄 進行中 | — |
 | U-1 設計系統落地（亮色暖光 tokens） | AIDV-91 | ✅ Done | #883 |
 | U-3 登入保留 cosmic（決議） | AIDV-93 | ✅ Done | #883 |
-| U-10 設計系統元件庫補齊 | AIDV-101 | 🔄 4 批齊備（State 4 ✅ · Chrome 8 ✅ · Cockpit ✅ · Shell-specific 13 ✅），待 #885 合併轉 Done | #885 |
-| U-2 元件採用／U-4 殼層 chrome／U-5~U-9 各殼採用 | AIDV-92/94/95~99 | 📋 To Do | — |
+| U-10 設計系統元件庫補齊（34 元件） | AIDV-101 | ✅ Done | #885 |
+| U-4 殼層 chrome 視覺實裝（flag-gated strangler） | AIDV-94 | 🔄 進行中（Rail/TopBar/MobileNav/⌘K 第一片；旗標 `ENABLE_AIDV_CHROME` OFF） | #886 |
+| U-2 元件採用（umbrella）／U-5~U-9 各殼採用 | AIDV-92/95~99 | 📋 Selected/Backlog（U-2 High·就緒；U-5~U-8 依賴 U-4） | — |
 
 ### 2.5c 看板治理（2026-06-15，Bruce 指示「規劃 Jira 工作細節＋建立專屬開放工作流程」）
 
