@@ -211,6 +211,8 @@ AI Director 影片系統（空間首頁＝①）
 
 ## 5. 維運 SOP（之後維護）
 
+> **作業流程展開＝[`docs/plan/AIDV-dev-workflow.md`](./AIDV-dev-workflow.md)（AIDV 開發工作流／工作表 SOP）**：每張卡照九階流水線、過三道門（設計門／驗證門／審查門）；2026-06-15 起一律照工作表跑。
+
 1. **每 PR 合併/狀態變更** → 更新對應 Jira issue 狀態＋留言記 PR 連結（Atlassian 未連前：更新本檔第 2 節）。
 2. **每完成一 Wave** → Confluence「變更紀錄」加一節；被取代的 legacy 頁移 Archive（不刪）。
 3. **每週** → 給 Bruce 摘要：完成／進行中／待決策（Blocked+decision）／卡住（needs-key）。
