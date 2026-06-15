@@ -79,8 +79,19 @@ npx vitest run <新測> <鄰測>     # 新元件 + 受影響鄰居
 ---
 
 ## 4. 狀態與標籤詞彙（同 master-plan 鐵律 4）
-- 狀態：`待辦` → `進行中` → `完成`（Blocked 以 label 表示，板上無欄）。
-- 標籤：`decision`(待拍板)／`decision-resolved`／`needs-key`(缺金鑰)／`caution`(避雷)／`待議`／`integration`／`wave-i`／`aidisc-*`。
+- 狀態（看板四欄 ↔ 九階對照，見 Jira Epic **AIDV-102**）：`Backlog`（階0–1）→ `Selected for Development`（就緒：設計門過、下一棒）→ `進行中`（階2–3、6）→ `完成`（階8）。Blocked 以 label 表示，板上無欄。
+- 標籤：`decision`(待拍板)／`decision-resolved`／`needs-key`(缺金鑰)／`caution`(避雷)／`待議`／`integration`／`wave-i`／`workflow`／`workflow-pilot`／`aidisc-*`。
+
+### 4.1 優先順序分級（2026-06-15 建立；讓看板「優先順序細分」圖有意義）
+| 優先序 | 給誰 | 範例 |
+|---|---|---|
+| **Highest** | 生產 P0／安全外洩 | AIDV-90 |
+| **High** | 進行中 Wave＋可立即解鎖的下一棒 | AIDV-8/9/12/17/56/75/85/88/92/94 |
+| **Medium** | 一般 Backlog（預設） | 多數 Wave 2／Wave H |
+| **Low** | 被金鑰/決策卡住、需等拍板 | AIDV-13/16/19（needs-key） |
+| **Lowest** | 遠期 Wave 3/4、strangler 收尾刪除 | AIDV-18/20/21/22/23/24/25/48–54 |
+> 規則：**完成的卡維持 Medium 不動**（不回頭改歷史）；新卡照此表設優先序。
+> 依賴連結（Jira「Blocks」）：AIDV-13→18、13→19、44→50。
 
 ## 5. 定錨（不動）
 四殼一脊椎＋Wave 0–4＋平行軌（H/U/I）方向定錨；北極星 DoD＝一句話 logline→成片匯出六步，最終驗收＝惹瓊巴 30 秒成片。**要改方向先在討論區與 Bruce 確認**。
