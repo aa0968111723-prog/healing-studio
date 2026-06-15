@@ -146,6 +146,16 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 
 > **2026-06-15 平行開發備註（整合窗對帳）**：本日多視窗平行跑 Wave U（背景代理＋另開視窗），Bruce 快速合併。已發生並收斂的重複：CI 重複 PR #895（與 #892 撞 `pr-gate.yml`）已關。協作止血規則：**一軌一主**（一條軌只由一個視窗/owner 施工，進度寫進該 Jira 卡工作表當同步點）；本框定位＝**/learn ＋ 整合窗**（收尾鏡像、抓重複、對帳）。
 
+### 2.5d 線上開啟政策（2026-06-15 Bruce 拍板：「慢慢開啟線上變動，改善現在網站很亂」）
+
+> **背景**：Wave U 至此全躲在 `ENABLE_AIDV_CHROME` 旗標後、預設 OFF＝線上零變化（純打底）。Bruce 要把累積的亮色暖光新設計**真的推上線**，取代目前線上偏亂的舊樣子。**此舉＝改既有 prod 行為，已由 Bruce 拍板。**
+>
+> **採用方式：整套一次上（走查後）**（Bruce 於 2.5d 選定）——維持單一總旗標 `ENABLE_AIDV_CHROME`，不拆子旗標。
+> - **開關＝Railway 環境變數 `VITE_ENABLE_AIDV_CHROME`**（鐵律 3：只 Bruce 貼 Railway，不入 repo）。設 `=1`＝新殼層 chrome（Rail/TopBar/⌘K）＋全部面板採用一起上；清掉/設 `=0`＝秒回滾舊樣。
+> - **上線門＝Bruce 走查**：以 `?aidvchrome=1`（單瀏覽器即時預覽、不影響他人）把各殼新設計走過一遍滿意 → 才設 Railway env 全站上。
+> - **整合窗已驗證上線就緒（pre-flip）**：`VITE_ENABLE_AIDV_CHROME=1` production build 綠（`✓ built in 34s`、tsc 0）；各採用片皆有 ON-path 單測。剩餘＝視覺走查（人工）。
+> - **之後的工作表**：採用片仍可繼續做（旗標 OFF 進 main 零風險）；待 Bruce 一次切 env 後，新片即「一上線就生效」，故各片合併前的 ON-path 自評/走查更重要。
+
 ### 2.5c 看板治理（2026-06-15，Bruce 指示「規劃 Jira 工作細節＋建立專屬開放工作流程」）
 
 - **優先順序分級上線**：先前 101 卡優先序全 Medium（看板「優先順序細分」圖無意義）。已依 §2.5c 表分級：Highest=AIDV-90；High=AIDV-8/9/12/17/56/75/85/88/92/94；Low=AIDV-13/16/19（needs-key）；Lowest=AIDV-18/20/21/22/23/24/25/48–54（Wave3/4＋strangler）；其餘 Medium。**完成卡維持 Medium 不動**。詳見 `AIDV-dev-workflow.md` §4.1。
