@@ -15,6 +15,10 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時人格選擇列改用 design-kit 亮色暖光 SettingRow
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝線上零變化。人格分段按鈕群（控制項）兩版皆保留。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SettingRow as DkSettingRow } from "@/components/design-kit";
 
 const PERSONAS = [{ v: "calm", l: "平靜" }, { v: "creative", l: "創意" }, { v: "technical", l: "技術" }];
 
@@ -49,8 +53,7 @@ export function AgentPrefsPanel() {
           <div className="flex items-center gap-2 text-sm font-semibold"><Brain className="h-4 w-4" />代理偏好</div>
           <span className="text-[11px] text-muted-foreground">agent_preferences · agent_model_picks</span>
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <div><div className="text-sm font-medium">預設導演人格</div><div className="text-[11px] text-muted-foreground">Calm / Creative / Technical（orbStore 思考球）</div></div>
+        <PersonaRow label="預設導演人格" desc="Calm / Creative / Technical（orbStore 思考球）">
           <div className="inline-flex rounded-lg border p-0.5">
             {PERSONAS.map((p) => (
               <button key={p.v} onClick={() => setPersona(p.v)} disabled={update.isPending}
@@ -59,7 +62,7 @@ export function AgentPrefsPanel() {
               </button>
             ))}
           </div>
-        </div>
+        </PersonaRow>
         {update.isPending && <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />更新中…</div>}
 
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground pt-1">六代理層狀態</div>
@@ -97,6 +100,23 @@ export function AgentPrefsPanel() {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+/** 人格選擇列：旗標 ON 時改用 design-kit 亮色暖光 SettingRow；OFF＝既有列＝零變化。人格分段按鈕群兩版皆在。 */
+export function PersonaRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkSettingRow label={label} hint={desc}>{children}</DkSettingRow>
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div><div className="text-sm font-medium">{label}</div>{desc && <div className="text-[11px] text-muted-foreground">{desc}</div>}</div>
+      {children}
     </div>
   );
 }
