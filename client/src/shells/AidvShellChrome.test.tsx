@@ -51,6 +51,13 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
     expect(h.navigate).toHaveBeenCalledWith("/learn");
   });
 
+  it("⌘K 分組指令：點『導演企劃台』→ /director", () => {
+    render(<AidvShellChrome />);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getByText("導演企劃台"));
+    expect(h.navigate).toHaveBeenCalledWith("/director");
+  });
+
   it("接真實資料：TopBar 顯示當前專案名＋積分", () => {
     render(<AidvShellChrome />);
     expect(screen.getByText("雪山專案")).toBeTruthy();

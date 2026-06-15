@@ -63,9 +63,15 @@ export function AidvShellChrome() {
     if (meta) navigate(meta.path);
   };
 
-  const cmdItems: DkCommandItem[] = SHELL_META.map((s) => ({
-    id: s.id, label: `前往 ${s.zh}`, group: "導航", hint: s.path, onRun: () => goShell(s.id),
-  }));
+  const cmdItems: DkCommandItem[] = [
+    ...SHELL_META.map((s) => ({ id: `shell-${s.id}`, label: `前往 ${s.zh}`, group: "導航", hint: s.path, onRun: () => goShell(s.id) })),
+    { id: "create", label: "創作中樞", group: "創作", hint: "/create", onRun: () => navigate("/create") },
+    { id: "director", label: "導演企劃台", group: "創作", hint: "/director", onRun: () => navigate("/director") },
+    { id: "playground", label: "單模型遊樂場", group: "創作", hint: "/playground", onRun: () => navigate("/playground") },
+    { id: "new-project", label: "新建專案", group: "專案", hint: "/create", onRun: () => navigate("/create") },
+    { id: "switch-project", label: "切換專案", group: "專案", onRun: () => setPsOpen(true) },
+    { id: "go-settings", label: "設定", group: "設定", hint: "/settings", onRun: () => navigate("/settings") },
+  ];
 
   return (
     <AidvKit>
