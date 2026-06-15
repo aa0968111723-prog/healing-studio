@@ -18,6 +18,10 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Inbox, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+// U-2（AIDV-92）元件採用：旗標 ON 時，空/錯誤態改用 design-kit 亮色暖光元件（與 chrome 同一個
+// ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有 shadcn 版本＝零變化。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, EmptyState as DkEmptyState, ErrorState as DkErrorState } from "@/components/design-kit";
 
 /** 載入骨架：a11y 報讀「載入中」，視覺維持既有 Skeleton 風格。 */
 export function PanelLoading({
@@ -53,6 +57,17 @@ export function PanelEmpty({
   hint?: ReactNode;
   className?: string;
 }) {
+  // 旗標 ON：改用 design-kit 亮色暖光 EmptyState（須包 <AidvKit> 範圍 token 才解析）。
+  // 不傳 icon 時讓 design-kit 用其原生 ✦ 字符；維持 role="status"（DkEmptyState 為中性提示）。
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <div role="status">
+          <DkEmptyState icon={icon ?? undefined} title={title} hint={hint} className={className} />
+        </div>
+      </AidvKit>
+    );
+  }
   return (
     <div
       role="status"
@@ -81,6 +96,7 @@ export function PanelError({
   compact?: boolean;
 }) {
   if (compact) {
+    // compact 為單行 inline 版（嵌在既有面板列內）；維持原樣不切設計套件，避免破版。
     return (
       <div role="alert" className="flex items-center gap-2 text-xs text-destructive">
         <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -91,6 +107,14 @@ export function PanelError({
           </button>
         ) : null}
       </div>
+    );
+  }
+  // 旗標 ON（非 compact）：改用 design-kit 亮色暖光 ErrorState（內建 role="alert" 與重試鈕）。
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkErrorState message={message} onRetry={onRetry} />
+      </AidvKit>
     );
   }
   return (

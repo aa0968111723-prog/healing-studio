@@ -18,6 +18,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時設定列改用 design-kit 亮色暖光 SettingRow
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝零變化。
+// 設計門（ui-ux-pro-max --domain ux）命中「Input Labels(High)：控制項需有可見標籤」→ 兩版皆標籤可見。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SettingRow as DkSettingRow } from "@/components/design-kit";
 
 const THEMES = [{ v: "system", l: "跟隨系統" }, { v: "light", l: "淺色（溫潤大地）" }, { v: "dark", l: "深色（深藍宇宙）" }];
 const FONT = [{ v: "small", l: "小" }, { v: "medium", l: "中" }, { v: "large", l: "大" }];
@@ -52,35 +57,35 @@ export function GeneralSettingsPanel() {
       {/* 外觀 */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2 text-sm font-semibold"><Palette className="h-4 w-4" />外觀</div>
-        <Row label="主題" desc="深藍宇宙（暗）／溫潤大地（淺，次要色調）">
+        <SettingsRow label="主題" desc="深藍宇宙（暗）／溫潤大地（淺，次要色調）">
           <select value={d.uiTheme ?? "system"} onChange={(e) => set("uiTheme", e.target.value)}
             className="h-9 rounded-md border bg-background px-2 text-xs">
             {THEMES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
           </select>
-        </Row>
-        <Row label="字級" desc="介面字體縮放">
+        </SettingsRow>
+        <SettingsRow label="字級" desc="介面字體縮放">
           <select value={d.fontScale ?? "medium"} onChange={(e) => set("fontScale", e.target.value)}
             className="h-9 rounded-md border bg-background px-2 text-xs">
             {FONT.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
           </select>
-        </Row>
-        <Row label="降低動態效果" desc="reduced motion（無障礙）">
+        </SettingsRow>
+        <SettingsRow label="降低動態效果" desc="reduced motion（無障礙）">
           <Switch checked={!!d.reducedMotion} onCheckedChange={(v) => set("reducedMotion", v)} />
-        </Row>
+        </SettingsRow>
       </Card>
 
       {/* 通知 */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2 text-sm font-semibold"><Bell className="h-4 w-4" />通知</div>
-        <Row label="Email 通知" desc="重要事件以 email 通知">
+        <SettingsRow label="Email 通知" desc="重要事件以 email 通知">
           <Switch checked={!!d.emailNotifications} onCheckedChange={(v) => set("emailNotifications", v)} />
-        </Row>
-        <Row label="生成完成通知" desc="生成任務完成時通知">
+        </SettingsRow>
+        <SettingsRow label="生成完成通知" desc="生成任務完成時通知">
           <Switch checked={!!d.generationCompleteNotify} onCheckedChange={(v) => set("generationCompleteNotify", v)} />
-        </Row>
-        <Row label="每週摘要" desc="每週用量 / 進度摘要">
+        </SettingsRow>
+        <SettingsRow label="每週摘要" desc="每週用量 / 進度摘要">
           <Switch checked={!!d.weeklyDigestEnabled} onCheckedChange={(v) => set("weeklyDigestEnabled", v)} />
-        </Row>
+        </SettingsRow>
       </Card>
 
       {/* 帳號 */}
@@ -110,7 +115,15 @@ export function GeneralSettingsPanel() {
   );
 }
 
-function Row({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+/** 設定列：旗標 ON 時改用 design-kit 亮色暖光 SettingRow（label/hint/控制項分欄）；OFF＝既有版＝零變化。 */
+export function SettingsRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkSettingRow label={label} hint={desc}>{children}</DkSettingRow>
+      </AidvKit>
+    );
+  }
   return (
     <div className="flex items-center justify-between gap-4 py-1">
       <div><div className="text-sm font-medium">{label}</div>{desc && <div className="text-[11px] text-muted-foreground">{desc}</div>}</div>
