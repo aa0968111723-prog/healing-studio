@@ -56,11 +56,19 @@ export const SHELL_SOCIAL: boolean = readFlag("VITE_SHELL_SOCIAL", false);
  */
 export const SHELL_LEARN: boolean = readFlag("VITE_SHELL_LEARN", true);
 
+/**
+ * U-4 殼層 chrome 視覺實裝（AIDV-94，Wave U）。**預設 OFF**＝線上零變化（沿用現有 AppleDock）。
+ * ON（VITE_ENABLE_AIDV_CHROME=1）→ 改用 design-kit 亮色暖光 Rail/TopBar/MobileNav/⌘K chrome
+ * （strangler：大範圍視覺改動先旗標化，Bruce 真站走查滿意後再 default ON）。
+ */
+export const ENABLE_AIDV_CHROME: boolean = readFlag("VITE_ENABLE_AIDV_CHROME", false);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
   SHELL_SOCIAL,
   SHELL_LEARN,
+  ENABLE_AIDV_CHROME,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

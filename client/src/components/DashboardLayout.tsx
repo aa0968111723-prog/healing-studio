@@ -46,6 +46,8 @@ import AppleDock, {
   type DockDensity,
   type DockVariant,
 } from "./AppleDock";
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvShellChrome } from "@/shells/AidvShellChrome";
 
 const DOCK_POSITION_KEY = "apple-dock-position";
 const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
@@ -864,29 +866,34 @@ function DashboardLayoutContent({
         favoriteSpirits={favoriteSpiritsForBus}
         eventActions={eventActions}
       />
-      {/* ── Apple-style floating dock (all viewports) ── */}
-      <AppleDock
-        entries={visibleSidebarStructure}
-        activePath={location}
-        onNavigate={setLocation}
-        user={user}
-        displayName={displayName}
-        displayInitial={displayInitial}
-        isAdmin={isAdmin}
-        onLogout={logout}
-        onRestartTour={handleRestartWelcomeTour}
-        position={dockPosition}
-        onCyclePosition={cycleDockPosition}
-        onSetPosition={setDockPosition}
-        minimized={dockMinimized}
-        onToggleMinimized={toggleDockMinimized}
-        immersive={dockImmersive}
-        onToggleImmersive={toggleDockImmersive}
-        density={dockDensity}
-        onSetDensity={setDockDensity}
-        variant={dockVariant}
-        onSetVariant={setDockVariantSafe}
-      />
+      {/* ── 殼層 chrome：旗標 ON 用 design-kit 亮色暖光 Rail/TopBar/⌘K（U-4/AIDV-94，
+           strangler）；OFF（預設）沿用既有 AppleDock＝線上零變化。 ── */}
+      {ENABLE_AIDV_CHROME ? (
+        <AidvShellChrome />
+      ) : (
+        <AppleDock
+          entries={visibleSidebarStructure}
+          activePath={location}
+          onNavigate={setLocation}
+          user={user}
+          displayName={displayName}
+          displayInitial={displayInitial}
+          isAdmin={isAdmin}
+          onLogout={logout}
+          onRestartTour={handleRestartWelcomeTour}
+          position={dockPosition}
+          onCyclePosition={cycleDockPosition}
+          onSetPosition={setDockPosition}
+          minimized={dockMinimized}
+          onToggleMinimized={toggleDockMinimized}
+          immersive={dockImmersive}
+          onToggleImmersive={toggleDockImmersive}
+          density={dockDensity}
+          onSetDensity={setDockDensity}
+          variant={dockVariant}
+          onSetVariant={setDockVariantSafe}
+        />
+      )}
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">
         {/* ── Workspace ambient background decorations ── */}
@@ -905,7 +912,7 @@ function DashboardLayoutContent({
           tabIndex={-1}
           className={`relative flex-1 overflow-y-auto ${
             settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
-          } ${dockPadClass} pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
+          } ${ENABLE_AIDV_CHROME ? "pt-[58px] md:pl-[76px] pb-[64px] md:pb-0" : dockPadClass} pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
           data-scroll-area
           style={{
             paddingTop: `calc(${settings.compactMode ? "0.75rem" : "1rem"} + env(safe-area-inset-top, 0px))`,
