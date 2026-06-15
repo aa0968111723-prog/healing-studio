@@ -13,6 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 4 片：
+//   品牌閘門旗標列（缺 logo／色票不足／對比未達 AA…）旗標 ON 時改用 design-kit Pill，
+//   OFF（預設）＝沿用既有 Badge＝零變化（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, Pill } from "@/components/design-kit";
 import type { UseBrandKitResult } from "@/social/useBrandKit";
 import type { BrandGateFlag } from "@/social/brandKit";
 
@@ -23,6 +28,36 @@ const FLAG_LABEL: Record<BrandGateFlag, string> = {
   low_contrast: "對比未達 AA（可覆寫）",
   superseded: "版本已被取代",
 };
+
+/**
+ * 品牌閘門旗標列（缺件/對比警告）。U-6/AIDV-96 逐殼採用第 4 片：
+ *   旗標 ON＝design-kit Pill（low_contrast＝warn 金、其餘＝bad 珊瑚紅，帶狀態點）；
+ *   OFF（預設）＝既有 Badge＝零變化。純展示、props 驅動＝零後端、可回滾。
+ *   設計門 ui-ux-pro-max「色彩非唯一資訊(High)」：兩版皆有文字標籤，不單靠顏色。
+ */
+export function BrandGateFlags({ flags }: { flags: BrandGateFlag[] }) {
+  if (flags.length === 0) return null;
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit as="div" className="flex flex-wrap gap-1.5">
+        {flags.map((f) => (
+          <Pill key={f} kind={f === "low_contrast" ? "warn" : "bad"} dot>
+            {FLAG_LABEL[f]}
+          </Pill>
+        ))}
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {flags.map((f) => (
+        <Badge key={f} variant={f === "low_contrast" ? "secondary" : "destructive"} className="text-[10px]">
+          {FLAG_LABEL[f]}
+        </Badge>
+      ))}
+    </div>
+  );
+}
 
 interface BrandKitPanelProps {
   brand: UseBrandKitResult;
@@ -72,15 +107,7 @@ export function BrandKitPanel({ brand, affectedPosts = 0, className }: BrandKitP
       </div>
 
       {/* 閘門旗標 */}
-      {gate.flags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {gate.flags.map((f) => (
-            <Badge key={f} variant={f === "low_contrast" ? "secondary" : "destructive"} className="text-[10px]">
-              {FLAG_LABEL[f]}
-            </Badge>
-          ))}
-        </div>
-      )}
+      <BrandGateFlags flags={gate.flags} />
 
       <Separator />
 

@@ -12,6 +12,11 @@ import { Download, DownloadCloud, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 2 片：
+//   匯出尺寸的「群組濾鏡列」（社群/限動/訊息/印刷）旗標 ON 時改用 design-kit SubTabs，
+//   OFF（預設）＝沿用既有 pill 按鈕＝零變化（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SubTabs } from "@/components/design-kit";
 import {
   SIZE_PRESETS, GROUP_LABEL, presetsByGroup, getPreset, aspectRatio,
   type PresetGroup, type SizePreset,
@@ -41,6 +46,43 @@ interface SizeExportGridProps extends BaseReq {
 
 const GROUPS: PresetGroup[] = ["social", "story", "messaging", "print"];
 
+/**
+ * 匯出尺寸的群組濾鏡列（社群/限動/訊息/印刷）。U-6/AIDV-96 逐殼採用第 2 片：
+ *   旗標 ON＝design-kit SubTabs（殼內子分頁語意，自帶 tablist/tab + aria-selected）；
+ *   OFF（預設）＝既有 pill 按鈕＝零變化。純展示、純選取（無導覽、無後端）＝可回滾。
+ *   設計門 ui-ux-pro-max「色彩非唯一資訊(High)」：兩版皆保留文字標籤＋選取態語意。
+ */
+export function ExportGroupTabs({ group, onSelect }: { group: PresetGroup; onSelect: (g: PresetGroup) => void }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit as="div">
+        <SubTabs
+          tabs={GROUPS.map((g) => ({ id: g, label: GROUP_LABEL[g] }))}
+          active={group}
+          onSelect={(id) => onSelect(id as PresetGroup)}
+        />
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {GROUPS.map((g) => (
+        <button
+          key={g}
+          type="button"
+          onClick={() => onSelect(g)}
+          className={cn(
+            "rounded-full px-3 py-1 text-xs transition",
+            group === g ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+          )}
+        >
+          {GROUP_LABEL[g]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function SizeExportGrid({
   selected, onToggle, onExport, disabled, disabledReason, className, ...base
 }: SizeExportGridProps) {
@@ -68,21 +110,7 @@ export function SizeExportGrid({
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1">
-          {GROUPS.map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setGroup(g)}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs transition",
-                group === g ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
-              )}
-            >
-              {GROUP_LABEL[g]}
-            </button>
-          ))}
-        </div>
+        <ExportGroupTabs group={group} onSelect={setGroup} />
         <Button size="sm" variant="secondary" onClick={exportSelected} disabled={disabled || selected.length === 0}>
           <DownloadCloud className="h-4 w-4" /> 匯出已選 {selected.length} 個
         </Button>
