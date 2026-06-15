@@ -15,6 +15,11 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { computeGate, countGate, type GateReason } from "@/spine/gate";
+// U-2（AIDV-92）逐殼採用 · /video S5：旗標 ON 時改用 design-kit 亮色暖光 GateCard
+// （與 ReadinessChip／ShotPanel 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有 Tailwind 版＝零變化。
+// 設計門依 ui-ux-pro-max「色彩非唯一資訊（High）」：兩版皆保留三態文字標籤與鐵則文案。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, GateCard as DkGateCard } from "@/components/design-kit";
 
 interface AggReason extends GateReason {
   shots: string[]; // 受影響鏡號
@@ -41,6 +46,22 @@ export function ConfirmGate() {
   }, [p]);
 
   const allReady = reasons.length === 0;
+
+  // 旗標 ON：薄 adapter（Shot→ShotLite／Character→CharacterLite）後改渲 design-kit GateCard。
+  // 待補角色的「上傳參考照」接回同一個 spine.uploadReference（與下方既有版同一真實接點）。
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkGateCard
+          shots={p.shots.map((s) => ({ id: s.id, route: s.route, characterIds: s.characterIds }))}
+          characters={p.characters.map((c) => ({
+            id: c.id, name: c.name, sourceGrade: c.sourceGrade, locked: c.locked,
+          }))}
+          onUploadReference={(charId) => spine.uploadReference(charId)}
+        />
+      </AidvKit>
+    );
+  }
 
   return (
     <div className="rounded-xl border bg-card/60 p-3">
