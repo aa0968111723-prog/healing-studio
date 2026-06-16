@@ -16,6 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
 import { METHODOLOGY_DOCS, LEARN_DIFFICULTIES } from "../learnContent";
+// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時文件卡改用 design-kit 亮色暖光 ArticleCard
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有卡＝零變化。
+// 設計門已拍板（2026-06-16）：接受 design-kit ArticleCard 刻意較精簡（僅 category＋title）。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, ArticleCard as DkArticleCard } from "@/components/design-kit";
 
 // 中文難度 ↔ 後端 enum
 const DIFF_MAP: Record<string, "beginner" | "intermediate" | "advanced"> = {
@@ -89,22 +94,37 @@ export function LearnDocsPanel() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {items.map((d) => (
-            <div key={d.id} className="rounded-xl border p-3 hover:bg-muted/40 transition-colors">
-              <div className="flex items-start justify-between gap-1">
-                <b className="text-xs leading-tight">{d.title}</b>
-                {d.featured && <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-1.5 line-clamp-2">{d.summary}</div>
-              <div className="flex flex-wrap gap-1 mt-2">
-                {d.category && <Badge variant="outline" className="text-[10px]">{d.category}</Badge>}
-                {d.difficulty && <Badge variant="secondary" className="text-[10px]">{d.difficulty}</Badge>}
-              </div>
-            </div>
-          ))}
+          {items.map((d) => <DocCard key={d.id} doc={d} />)}
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * 學習文件卡：旗標 ON 時改用 design-kit 亮色暖光 ArticleCard（category＋title，設計刻意精簡）；
+ * OFF（預設）＝既有卡（標題＋精選星＋摘要＋分類/難度徽章）＝逐像素零變化。
+ */
+export function DocCard({ doc }: { doc: any }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkArticleCard title={doc.title} category={doc.category} />
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="rounded-xl border p-3 hover:bg-muted/40 transition-colors">
+      <div className="flex items-start justify-between gap-1">
+        <b className="text-xs leading-tight">{doc.title}</b>
+        {doc.featured && <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-1.5 line-clamp-2">{doc.summary}</div>
+      <div className="flex flex-wrap gap-1 mt-2">
+        {doc.category && <Badge variant="outline" className="text-[10px]">{doc.category}</Badge>}
+        {doc.difficulty && <Badge variant="secondary" className="text-[10px]">{doc.difficulty}</Badge>}
+      </div>
+    </div>
   );
 }
 
