@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
-import { AidvOrbMount, orbStateToMood, pathToPageLabel } from "./AidvOrbMount";
+import { AidvOrbMount, orbStateToMood, pathToPageLabel, toOrbChatMsgs } from "./AidvOrbMount";
 
 afterEach(() => cleanup());
 
@@ -27,6 +27,19 @@ describe("AidvOrbMount adapter 純對應（U-11 / AIDV-114 第4片）", () => {
     expect(pathToPageLabel("/video/director")).toBe("影片工作室");
     expect(pathToPageLabel("/settings")).toBe("設定");
     expect(pathToPageLabel("/unknown")).toBe("本頁");
+  });
+
+  it("toOrbChatMsgs：orb→agent 對應、取最近 N 筆", () => {
+    const src = Array.from({ length: 25 }, (_, i) => ({
+      role: (i % 2 === 0 ? "user" : "orb") as "user" | "orb",
+      text: `m${i}`,
+      at: i,
+    }));
+    const out = toOrbChatMsgs(src, 20);
+    expect(out).toHaveLength(20);
+    expect(out[0].text).toBe("m5"); // 最近 20 筆 = m5..m24
+    expect(out[0].role).toBe("agent"); // m5 role=orb→agent
+    expect(out[out.length - 1].role).toBe("user"); // m24 role=user
   });
 });
 

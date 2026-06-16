@@ -10,7 +10,7 @@
 import * as React from "react";
 import { cn, type Persona } from "./tokens";
 import { Button, Eyebrow } from "./primitives";
-import { PersonaSwitch, OrbBubble, MemoryDBTabs } from "./cockpit";
+import { PersonaSwitch, OrbBubble, MemoryDBTabs, ChatBubble } from "./cockpit";
 import { VaultBrowser } from "./PromptVault";
 import { FlowBar, type WorkflowStep } from "./WorkflowBuilder";
 import { EmptyState, LoadingState, ErrorState } from "./states";
@@ -212,6 +212,21 @@ export function OrbPageTab({
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/* ================= 「對話」分頁：近期往來泡泡（純呈現）================= */
+export interface OrbChatMsg { id?: string; role: "user" | "agent"; text: React.ReactNode }
+export function OrbChatTab({ messages = [], emptyHint }: { messages?: OrbChatMsg[]; emptyHint?: React.ReactNode }) {
+  if (messages.length === 0) {
+    return <EmptyState icon="💬" title="還沒有對話" hint={emptyHint ?? "到導演對話跟光球說說你想做的影片，這裡會顯示最近的往來。"} />;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {messages.map((m, i) => (
+        <ChatBubble key={m.id ?? i} role={m.role}>{m.text}</ChatBubble>
+      ))}
     </div>
   );
 }

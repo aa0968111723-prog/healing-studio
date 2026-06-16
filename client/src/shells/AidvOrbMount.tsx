@@ -1,6 +1,6 @@
 // ============================================================================
 // shells/AidvOrbMount.tsx — U-11 OrbAssistant 真站掛載＋唯讀資料 adapter
-//   （AIDV-114 第3片＝掛載；第4片＝唯讀 adapter）
+//   （AIDV-114 第3片＝掛載；第4片＝心情/本頁 adapter；第5片＝對話分頁 adapter）
 // ----------------------------------------------------------------------------
 // 把 design-kit 的新光球（OrbAssistant，亮色暖光「另一種型態」）掛進全站 chrome，
 // 並以**唯讀**方式接既有前端 orb 狀態（不碰後端、不寫狀態）。
@@ -18,7 +18,8 @@
 // ============================================================================
 import { useLocation } from "wouter";
 import { useOrbState, type OrbState } from "@/contexts/OrbStateContext";
-import { OrbAssistant, VIDEO_DEFAULT, type OrbMood } from "@/components/design-kit";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import { OrbAssistant, OrbChatTab, VIDEO_DEFAULT, type OrbChatMsg, type OrbMood } from "@/components/design-kit";
 
 /** 全站光球活動狀態 → 新光球心情（純對應，可單測）。 */
 export function orbStateToMood(s: OrbState): OrbMood {
@@ -55,15 +56,29 @@ export function pathToPageLabel(path: string): string {
 /** 視覺走查用的靜態示範分頁內容（提示詞庫/對話/積分/筆記真實資料＝後續片）。 */
 const DEMO_FLOW = { id: "f1", name: "成片工作流（示範）", steps: VIDEO_DEFAULT, current: 1 };
 
+/** 全站光球對話訊息（user/orb）→ 設計套件對話泡泡（取最近 N 筆，純對應）。 */
+export function toOrbChatMsgs(
+  messages: { role: "user" | "orb"; text: string; at: number }[],
+  limit = 20,
+): OrbChatMsg[] {
+  return messages.slice(-limit).map((m, i) => ({
+    id: `${m.at}-${i}`,
+    role: m.role === "user" ? "user" : "agent",
+    text: m.text,
+  }));
+}
+
 export function AidvOrbMount() {
   const orb = useOrbState();
+  const chat = useGlobalOrbChat();
   const [location] = useLocation();
   const mood = orbStateToMood(orb.state);
   const pageLabel = pathToPageLabel(location);
+  const chatMsgs = toOrbChatMsgs(chat.messages ?? []);
 
   const hints = [
     { id: "h1", icon: "💡", text: `你正在「${pageLabel}」——點上方分頁看本頁提示、提示詞庫與專注流。` },
-    { id: "h2", icon: "✦", text: "光球心情已接全站狀態（待命／思考／工作／完成）；分頁資料為視覺示範，尚未接真實來源。" },
+    { id: "h2", icon: "✦", text: "心情已接全站狀態、對話分頁已接近期往來；提示詞庫/積分/筆記分頁仍為示範，待後續片接真實來源。" },
   ];
 
   return (
@@ -80,6 +95,7 @@ export function AidvOrbMount() {
       }}
       pageContext={{ pageLabel, hints, flows: [DEMO_FLOW] }}
       promptVault={{ state: "empty" }}
+      tabContent={{ chat: <OrbChatTab messages={chatMsgs} /> }}
     />
   );
 }
