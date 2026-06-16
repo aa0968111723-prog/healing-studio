@@ -142,7 +142,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | U-8 /settings 視覺實裝 | AIDV-98 | ✅ 已併 main（ObservabilityPanel 系統概覽 StatCard；旗標 OFF＝零變化） | #896 |
 | U-7 /learn 視覺實裝 | AIDV-97 | 🔄 進行中（隨 U-2 /learn 片推進：IntelItem＋SourceCite） | #890 |
 | U-9 共用 PromptVault 採用 | AIDV-99 | 📋 Backlog | — |
-| U-11 OrbAssistant 光球助手視覺實裝 | AIDV-114 | 🔄 進行中（第1片：design-kit 脊椎視覺骨架 `orb.tsx`＝FAB＋面板＋6 分頁＋主動泡泡＋人格/心情頭＋四態＝#905 已併；第2片：`OrbPageTab`＝本頁情境提示＋Flow 展示牆一鍵重跑＝#906。重用 cockpit/PromptVault/WorkflowBuilder/states；未掛 spine＝零變化。下一片＝四殼掛載待 U-4 旗標＋adapter 接資料·四殼掛載與既有 ProactiveOrbWidget 共存/取代待 Bruce 拍板） | #905／#906 |
+| U-11 OrbAssistant 光球助手視覺實裝 | AIDV-114 | 🔄 進行中（第1片：design-kit 脊椎視覺骨架 `orb.tsx`＝FAB＋面板＋6 分頁＋主動泡泡＋人格/心情頭＋四態＝#905 已併；第2片：`OrbPageTab`＝本頁情境提示＋Flow 展示牆一鍵重跑；第3片：`AidvOrbMount` 真站掛進 DashboardLayout，`ENABLE_AIDV_CHROME` 旗標 gate＝OFF 不掛/零變化、ON 左下並存舊光球（Bruce 6/16 拍板「另一種型態·同時存在」，視覺實裝靜態示範·未接 spine）＝#906。重用 cockpit/PromptVault/WorkflowBuilder/states。下一片＝orb_*/spiritRouter/memoryManager adapter 接資料） | #905／#906 |
 | H1 CI 自動把關（PR gate） | AIDV-56 | ✅ workflow 已併 main（`.github/workflows/pr-gate.yml`）。⚠️ 本 repo 未指派 hosted runner（runner_id 0／2 秒即敗／無 log）＝**Actions 用量未啟用**環境問題，待 Bruce 於 Settings→Actions／Billing 啟用後才真正執行 | #892 |
 
 > **2026-06-15 平行開發備註（整合窗對帳）**：本日多視窗平行跑 Wave U（背景代理＋另開視窗），Bruce 快速合併。已發生並收斂的重複：CI 重複 PR #895（與 #892 撞 `pr-gate.yml`）已關。協作止血規則：**一軌一主**（一條軌只由一個視窗/owner 施工，進度寫進該 Jira 卡工作表當同步點）；本框定位＝**/learn ＋ 整合窗**（收尾鏡像、抓重複、對帳）。
