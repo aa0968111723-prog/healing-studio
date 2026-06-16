@@ -15,8 +15,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
-// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時系統概覽小統計改用 design-kit 亮色暖光 StatCard
-//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝線上零變化。value 由呼叫端先格式化後傳入，原樣保留。
+// U-8（AIDV-98 / 傘卡 U-2·AIDV-92）逐殼採用 · /settings：旗標 ON 時系統概覽的統計卡改用
+// design-kit 亮色暖光 StatCard（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝零變化。
+// 純展示、label/value 1:1 忠實對映、無控制項＝零功能損失（與 /learn CreditsUsagePanel·MiniStat 同寫法）。
+// 設計門（ui-ux-pro-max --domain ux）命中「Number Formatting：數值由呼叫端格式化後傳入」→ 兩版皆原樣呈現。
+// 背景任務狀態徽章（旗標 ON）改用共用 StatusPill（design-kit Pill）；OFF＝既有 Badge＝零變化。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, StatCard as DkStatCard } from "@/components/design-kit";
 import { StatusPill } from "../StatusPill";
@@ -97,7 +100,7 @@ export function ObservabilityPanel() {
   );
 }
 
-/** 系統概覽小統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF＝既有版＝零變化。value 由呼叫端先格式化。 */
+/** 系統概覽統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF（預設）＝既有版＝零變化。value 由呼叫端先格式化。 */
 export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   if (ENABLE_AIDV_CHROME) {
     return (

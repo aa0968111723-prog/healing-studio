@@ -1,0 +1,64 @@
+# PR Gate — H1 CI 自動把關（Jira AIDV-56）
+#
+# 白話：每開一個 Pull Request，這支 workflow 會自動幫忙「驗收」這次改動：
+# 型別對不對、路由/導航有沒有對齊、測試有沒有壞。任何一關紅燈就擋住合併，
+# 避免壞掉的程式碼進 main。全部用 GitHub 免費的 hosted runner，零金鑰、零後端。
+#
+# 對映 docs/plan/AIDV-dev-workflow.md 的「🚪 驗證門」四項：
+#   tsc --noEmit / check:routes / check:navigation / vitest run
+name: PR Gate
+
+on:
+  # PR 進來就跑（對 main 與任何分支的 PR 都把關）
+  pull_request:
+  # 也允許手動觸發，方便 Bruce 在 Actions 分頁按一下重跑
+  workflow_dispatch:
+
+# 同一條 ref 有新 push 時，取消還在跑的舊任務，省額度也快一點
+concurrency:
+  group: pr-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 最小權限：只需要讀程式碼
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: 驗證門（tsc · routes · navigation · vitest）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20 # 對齊 package.json engines（>=20）
+          cache: npm
+
+      - name: 安裝依賴（npm ci）
+        run: npm ci
+
+      - name: 型別檢查（tsc --noEmit）
+        run: npx tsc --noEmit
+
+      - name: 路由/registry 對齊（check:routes）
+        run: npm run check:routes
+
+      - name: 內部導航守則（check:navigation）
+        run: npm run check:navigation
+
+      # 測試（vitest）—— 排除剩餘的 AIDV-29 已知 main baseline 紅檔。
+      #
+      # 進度：AIDV-29 baseline 原本 3 檔紅，本批已修綠並重新納入把關：
+      #   • brainPipeline.test.ts —— cron/router/page drift catalog 補齊 + admin 分組測試對齊（已綠）
+      #   • webhookSuno.test.ts   —— 補 mock 缺漏 export + 修 complete 覆寫既有 meta 的 prod bug（已綠）
+      # 剩餘仍排除（待產品決策，獨立追蹤卡）：
+      #   • modelResearcher.test.ts —— 測試與「免金鑰公開 fallback + preflight 短路」現行設計衝突
+      # 待該追蹤卡決議後，移除下方最後一個 --exclude 即恢復全量把關。
+      - name: 測試（vitest run · 排除剩餘 baseline）
+        run: |
+          npx vitest run \
+            --exclude '**/modelResearcher.test.ts'

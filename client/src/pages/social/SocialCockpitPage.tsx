@@ -22,6 +22,8 @@ import { useBrandKit } from "@/social/useBrandKit";
 import { evaluateBrandGate } from "@/social/brandKit";
 import { SocialNav } from "@/components/social/SocialNav";
 import { TemplatePicker } from "@/components/social/TemplatePicker";
+import { SocialNewsList } from "@/components/social/SocialNewsList";
+import { BrandLockBadge } from "@/components/social/BrandLockBadge";
 import type { NewsItem } from "@/spine/types";
 
 export default function SocialCockpitPage() {
@@ -64,6 +66,11 @@ export default function SocialCockpitPage() {
 
   const goStudio = () => navigate("/social/studio");
 
+  const cite = (n: NewsItem) => {
+    setBrief((b) => `${b}\n蹭熱點：「${n.title}」轉成品牌口吻。`);
+    toast.message("已帶入選題", { description: n.title });
+  };
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 p-4 sm:p-6">
       <SocialNav />
@@ -87,9 +94,7 @@ export default function SocialCockpitPage() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-semibold">{brand.kit.name}</span>
-              <Badge variant={brand.locked ? "default" : "secondary"} className={brand.locked ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
-                {brand.locked ? "已鎖定" : brand.kit.lockState}
-              </Badge>
+              <BrandLockBadge locked={brand.locked} lockState={brand.kit.lockState} />
             </div>
             <div className="flex flex-wrap gap-1.5">
               {brand.kit.palette.map((s) => (
@@ -147,16 +152,7 @@ export default function SocialCockpitPage() {
             ) : news.length === 0 ? (
               <p className="text-sm text-muted-foreground">目前無情報。可在 /learn 維護新聞來源（脊椎共用）。</p>
             ) : (
-              <ul className="space-y-2">
-                {news.slice(0, 4).map((n) => (
-                  <li key={n.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate">{n.title}</span>
-                    <Button size="sm" variant="ghost" onClick={() => { setBrief((b) => `${b}\n蹭熱點：「${n.title}」轉成品牌口吻。`); toast.message("已帶入選題", { description: n.title }); }}>
-                      引用
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+              <SocialNewsList news={news.slice(0, 4)} onCite={cite} />
             )}
           </CardContent>
         </Card>

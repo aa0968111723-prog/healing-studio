@@ -1,0 +1,82 @@
+// @vitest-environment jsdom
+/**
+ * ShotPanel（U-2 / AIDV-92 逐殼採用 · /video S5）行為測試。
+ * 守住兩條路徑：
+ *   · 旗標 OFF（預設）＝既有 Tailwind 分鏡卡＝零變化（不進 .aidv-kit 範圍）。
+ *   · 旗標 ON       ＝design-kit 亮色暖光 ShotCard（進 .aidv-kit 範圍、保留 gate/狀態文字標籤）。
+ * 並驗 gate×status 動作（生成）兩版皆接回真實 spine.generateShot。
+ * 設計門依據（ui-ux-pro-max）：狀態不可只靠顏色——兩版皆保留文字標籤。
+ */
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import type { Shot } from "@/spine/types";
+
+const flags = vi.hoisted(() => ({ chrome: false }));
+vi.mock("@/config/featureFlags", () => ({
+  get ENABLE_AIDV_CHROME() { return flags.chrome; },
+}));
+
+const spy = vi.hoisted(() => ({
+  generateShot: vi.fn(() => Promise.resolve()),
+  approveShot: vi.fn(() => Promise.resolve()),
+  shots: [] as Shot[],
+}));
+vi.mock("@/spine/ProjectSpineProvider", () => ({
+  useProjectSpine: () => ({
+    project: { shots: spy.shots, characters: [], scenes: [] },
+    generateShot: spy.generateShot,
+    approveShot: spy.approveShot,
+  }),
+}));
+
+import { ShotPanel } from "./ShotPanel";
+
+function shot(over: Partial<Shot> = {}): Shot {
+  return {
+    id: "s1", no: "S01", act: 1, title: "晨光開場", route: "text",
+    characterIds: [], sceneId: null, seed: 7, approval: "pending", stale: false,
+    gen: { status: "idle", variant: 0 },
+    ...over,
+  };
+}
+
+beforeEach(() => { spy.shots = [shot()]; });
+afterEach(() => { cleanup(); flags.chrome = false; spy.generateShot.mockClear(); spy.approveShot.mockClear(); });
+
+describe("ShotPanel（U-2 / AIDV-92 · /video S5）", () => {
+  it("空態：無分鏡時顯示引導文案", () => {
+    spy.shots = [];
+    render(<ShotPanel />);
+    expect(screen.getByText("尚無分鏡")).toBeTruthy();
+  });
+
+  it("旗標 OFF（預設）：既有 Tailwind 分鏡卡，鏡號/標題在、未進設計套件範圍", () => {
+    flags.chrome = false;
+    const { container } = render(<ShotPanel />);
+    expect(screen.getByText("S01")).toBeTruthy();
+    expect(screen.getByText("晨光開場")).toBeTruthy();
+    expect(container.querySelector(".aidv-kit")).toBeNull();
+  });
+
+  it("旗標 ON：改用 design-kit ShotCard（進 .aidv-kit 範圍、保留 gate 文字標籤）", () => {
+    flags.chrome = true;
+    const { container } = render(<ShotPanel />);
+    expect(screen.getByText("S01")).toBeTruthy();
+    expect(screen.getByText("可量產")).toBeTruthy(); // text 路徑 → ready
+    expect(container.querySelector(".aidv-kit")).not.toBeNull();
+  });
+
+  it("旗標 OFF：ready+idle 點『生成』→ 觸發 spine.generateShot", () => {
+    flags.chrome = false;
+    render(<ShotPanel />);
+    fireEvent.click(screen.getByText("生成"));
+    expect(spy.generateShot).toHaveBeenCalledWith("s1");
+  });
+
+  it("旗標 ON：ready+idle 點『生成』→ 觸發同一個 spine.generateShot（行為一致）", () => {
+    flags.chrome = true;
+    render(<ShotPanel />);
+    fireEvent.click(screen.getByText("生成"));
+    expect(spy.generateShot).toHaveBeenCalledWith("s1");
+  });
+});

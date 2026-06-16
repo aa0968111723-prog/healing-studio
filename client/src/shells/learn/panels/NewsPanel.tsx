@@ -14,6 +14,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時情報新聞列改用 design-kit 亮色暖光 IntelItem
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有外連卡＝零變化。
+// 設計門依 ui-ux-pro-max「外連可辨識」：兩版皆於新分頁開啟原文（noopener）、來源/日期/標籤可見。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, IntelItem as DkIntelItem } from "@/components/design-kit";
 
 export function NewsPanel() {
   const [limit] = useState(20);
@@ -44,34 +49,55 @@ export function NewsPanel() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map((n, i) => {
-            const title = n.title ?? n.headline ?? "未命名";
-            const source = n.source ?? n.publisher ?? n.category ?? "—";
-            const ts = n.publishedAt ?? n.ts ?? n.createdAt;
-            const tag = n.tag ?? n.category;
-            const url = n.url ?? n.link ?? "#";
-            return (
-              <a
-                key={n.id ?? i}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Newspaper className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  {title}
-                  {url !== "#" && <ExternalLink className="h-3 w-3 text-muted-foreground" />}
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-1">
-                  {source}{ts ? ` · ${new Date(ts).toLocaleDateString("zh-TW")}` : ""}{tag ? ` · #${tag}` : ""}
-                </div>
-              </a>
-            );
-          })}
+          {items.map((n, i) => <NewsItem key={n.id ?? i} item={n} />)}
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * 單則情報新聞列：旗標 ON 時改用 design-kit 亮色暖光 IntelItem（title＋來源/日期行＋#tag chip），
+ * 點擊以新分頁開原文；OFF（預設）＝既有外連卡＝逐像素零變化。欄位容錯沿用既有多鍵 fallback。
+ */
+export function NewsItem({ item }: { item: any }) {
+  const title = item.title ?? item.headline ?? "未命名";
+  const source = item.source ?? item.publisher ?? item.category ?? "—";
+  const ts = item.publishedAt ?? item.ts ?? item.createdAt;
+  const tag = item.tag ?? item.category;
+  const url = item.url ?? item.link ?? "#";
+  const dateStr = ts ? ` · ${new Date(ts).toLocaleDateString("zh-TW")}` : "";
+
+  if (ENABLE_AIDV_CHROME) {
+    // 來源行＝來源＋日期（與 OFF 版同資訊）；標籤以 IntelItem 右側 Tag chip 呈現。
+    return (
+      <AidvKit>
+        <DkIntelItem
+          title={title}
+          source={`${source}${dateStr}`}
+          tag={tag ? `#${tag}` : undefined}
+          onClick={url !== "#" ? () => window.open(url, "_blank", "noopener,noreferrer") : undefined}
+        />
+      </AidvKit>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Newspaper className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        {title}
+        {url !== "#" && <ExternalLink className="h-3 w-3 text-muted-foreground" />}
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-1">
+        {source}{dateStr}{tag ? ` · #${tag}` : ""}
+      </div>
+    </a>
   );
 }
 

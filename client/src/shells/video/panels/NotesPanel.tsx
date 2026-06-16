@@ -8,6 +8,14 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
+// U-5（AIDV-95）逐殼採用 · /video：旗標 ON 時筆記列改用 design-kit 亮色暖光 Card；
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）OFF（預設）＝既有版＝零變化。
+// 純展示列（文字＋時間/鏡號 meta，無功能控制項）＝可 1:1 忠實對映、零資訊損失。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, Card as DkCard } from "@/components/design-kit";
+// U-5（AIDV-95）/video 四態：空態改用共用 Empty（→ PanelEmpty，旗標 ON 時為 design-kit EmptyState），
+// 與 Shot/Character/Scene 面板一致；座艙在 ENABLE_4SHELL（預設 OFF）之下＝線上零變化。
+import { Empty } from "./ShotPanel";
 
 export function NotesPanel() {
   const spine = useProjectSpine();
@@ -36,15 +44,33 @@ export function NotesPanel() {
         </Button>
       </div>
       {p.notes.length === 0 ? (
-        <div className="py-6 text-center text-xs text-muted-foreground">尚無筆記</div>
+        <Empty icon="📝" title="尚無筆記" desc="專案筆記會綁在這個專案上。" />
       ) : (
         p.notes.map((n) => (
-          <div key={n.id} className="rounded-xl border p-2.5">
-            <div className="text-xs">{n.text}</div>
-            <div className="mt-1 text-[10px] text-muted-foreground">{n.ts}{n.shotNo ? ` · ${n.shotNo}` : ""}</div>
-          </div>
+          <NoteRow key={n.id} text={n.text} ts={n.ts} shotNo={n.shotNo} />
         ))
       )}
+    </div>
+  );
+}
+
+/** 單筆筆記列（純展示）。旗標 ON＝design-kit 亮色暖光 Card；OFF（預設）＝既有版＝零變化。 */
+export function NoteRow({ text, ts, shotNo }: { text: string; ts: string; shotNo?: string }) {
+  const meta = `${ts}${shotNo ? ` · ${shotNo}` : ""}`;
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkCard pad className="!p-2.5">
+          <div className="text-xs text-[var(--text)]">{text}</div>
+          <div className="mt-1 text-[10px] text-[var(--muted)]">{meta}</div>
+        </DkCard>
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="rounded-xl border p-2.5">
+      <div className="text-xs">{text}</div>
+      <div className="mt-1 text-[10px] text-muted-foreground">{meta}</div>
     </div>
   );
 }

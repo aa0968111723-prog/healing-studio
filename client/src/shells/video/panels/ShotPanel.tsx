@@ -16,6 +16,11 @@ import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { computeGate, GATE_STATE_LABEL } from "@/spine/gate";
 import { frameStyle } from "@/spine/seedVisual";
 import type { Shot } from "@/spine/types";
+// U-2（AIDV-92）逐殼採用 · /video S5：旗標 ON 時改用 design-kit 亮色暖光 ShotCard
+// （與 ReadinessChip 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有 Tailwind 版＝零變化。
+// 設計門依 ui-ux-pro-max「色彩非唯一資訊（High）」：兩版皆保留 gate/狀態文字標籤。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, ShotCard as DkShotCard, type ShotVM } from "@/components/design-kit";
 
 export function ShotPanel() {
   const spine = useProjectSpine();
@@ -37,6 +42,29 @@ function ShotCard({ shot }: { shot: Shot }) {
   const gen = shot.gen;
   const blocked = g.reasons[0];
   const gateTone = g.state === "ready" ? "secondary" : g.state === "partial" ? "outline" : "destructive";
+
+  // 旗標 ON：薄 adapter（Shot → design-kit ShotVM；字面值同源、型別安全）後改渲 design-kit ShotCard。
+  // 動作 gate×status（生成/核准/同 seed 重生/過期重生/重試）與下方既有版一一對映、行為一致。
+  if (ENABLE_AIDV_CHROME) {
+    const vm: ShotVM = {
+      id: shot.id, no: shot.no, title: shot.title, route: shot.route,
+      seed: shot.seed, approved: shot.approval === "approved", stale: shot.stale,
+      status: gen.status, provider: gen.provider, variant: gen.variant,
+    };
+    return (
+      <AidvKit>
+        <DkShotCard
+          shot={vm}
+          gate={g.state}
+          blockedCharName={blocked?.refName}
+          onGenerate={() => spine.generateShot(shot.id)}
+          onApprove={() => spine.approveShot(shot.id)}
+          onRegen={() => spine.generateShot(shot.id, { regen: true })}
+          onRetry={() => spine.generateShot(shot.id)}
+        />
+      </AidvKit>
+    );
+  }
 
   return (
     <div className={cn("overflow-hidden rounded-xl border", shot.stale && "border-amber-500/40", gen.status === "error" && "border-destructive/40")}>

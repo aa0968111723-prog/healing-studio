@@ -11,6 +11,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { countGate } from "@/spine/gate";
+// U-5（AIDV-95）/video 視覺實裝 · S2：旗標 ON 時五階段條改用 design-kit 亮色暖光 FlowBar
+//（與 CreationFlowBar 同源、同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有 <ol>＝零變化。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, FlowBar as DkFlowBar } from "@/components/design-kit";
 
 const STAGES = ["世界觀", "腳本", "分鏡", "生成", "成片"];
 
@@ -26,30 +30,41 @@ export function StageBar({ onGuided }: { onGuided: () => void }) {
   return (
     <Card className="glass-card-static">
       <CardContent className="flex flex-wrap items-center gap-3 py-3">
-        <ol className="flex flex-1 flex-wrap items-center gap-1">
-          {STAGES.map((st, i) => {
-            const done = i < p.stageIndex;
-            const cur = i === p.stageIndex;
-            return (
-              <li key={st} className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-healing",
-                    done && "bg-primary/15 text-primary",
-                    cur && "bg-primary text-primary-foreground shadow-sm",
-                    !done && !cur && "bg-muted text-muted-foreground",
-                  )}
-                >
-                  <span className="inline-flex size-4 items-center justify-center rounded-full bg-background/30 text-[10px]">
-                    {done ? <Check className="size-3" /> : i + 1}
+        {ENABLE_AIDV_CHROME ? (
+          // 旗標 ON：五階段條改渲 design-kit FlowBar（display-only：不帶 onJump，與既有非互動 span 對齊）。
+          // 薄 adapter STAGES→DkWorkflowStep[]（皆 required/enabled）；current＝stageIndex。
+          <AidvKit className="flex flex-1">
+            <DkFlowBar
+              steps={STAGES.map((name, i) => ({ id: `stage-${i}`, name, required: true, enabled: true }))}
+              current={p.stageIndex}
+            />
+          </AidvKit>
+        ) : (
+          <ol className="flex flex-1 flex-wrap items-center gap-1">
+            {STAGES.map((st, i) => {
+              const done = i < p.stageIndex;
+              const cur = i === p.stageIndex;
+              return (
+                <li key={st} className="flex items-center gap-1">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-healing",
+                      done && "bg-primary/15 text-primary",
+                      cur && "bg-primary text-primary-foreground shadow-sm",
+                      !done && !cur && "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <span className="inline-flex size-4 items-center justify-center rounded-full bg-background/30 text-[10px]">
+                      {done ? <Check className="size-3" /> : i + 1}
+                    </span>
+                    {st}
                   </span>
-                  {st}
-                </span>
-                {i < STAGES.length - 1 && <span className="mx-0.5 h-px w-4 bg-border" aria-hidden />}
-              </li>
-            );
-          })}
-        </ol>
+                  {i < STAGES.length - 1 && <span className="mx-0.5 h-px w-4 bg-border" aria-hidden />}
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onGuided}>

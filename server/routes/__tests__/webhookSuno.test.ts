@@ -37,6 +37,11 @@ vi.mock("../../services/postGenActions.js", () => ({
     runPostGenForJobMock(...(args as [number])),
   refundJobIfBilled: (...args: unknown[]) =>
     refundJobIfBilledMock(...(args as [number])),
+  // 真實 handler 會呼叫 unifiedAssetPrefix 組統一前綴；mock 模組必須一併提供，
+  // 否則 complete 成功路徑會丟 TypeError（被 try/catch 吞掉）→ updateBackgroundJob
+  // 永遠不會被呼叫，導致這兩個 complete 測試假性失敗。
+  unifiedAssetPrefix: (opts: { userId: number; source: string; modelId: string }) =>
+    `generated/studio/${opts.userId}/${opts.source}/${opts.modelId}`,
 }));
 
 import { sunoWebhookRouter } from "../webhookSuno";

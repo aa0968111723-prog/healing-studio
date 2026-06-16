@@ -235,14 +235,20 @@ sunoWebhookRouter.post(
         progress: 100,
         progressMessage: "生成完成",
         resultJson: {
+          // studioType/modelId/sourceStudio 只是「沒有既有 meta 時」的後備值，
+          // 必須放在 spread 之前，讓 proStudio.generateMusicSuno 寫入的精確值
+          // （如 modelId="suno-v3.5"、sourceStudio="music-studio"）勝出 —— 否則
+          // runPostGenForJob 認不出來源 studio/model，資產就不會落進資產庫/歷史
+          // （即註解所述「生成後都找不到東西」的 bug）。
+          studioType: "audio",
+          modelId: "suno",
+          sourceStudio: "pro",
           ...existingMeta,
+          // 以下為 webhook 權威欄位，永遠以本次回呼為準。
           sunoTaskId: taskId,
           mediaType: "audio",
           audioUrl: resultUrl,
           resultUrl,
-          studioType: "audio",
-          modelId: "suno",
-          sourceStudio: "pro",
           clips: localized.clips,
           completedAt: new Date().toISOString(),
         } as any,

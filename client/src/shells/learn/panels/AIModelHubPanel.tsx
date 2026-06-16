@@ -17,6 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BRAIN_ROLES, BRAIN_ELIGIBLE_MODALITY, type BrainRole } from "../learnContent";
+// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時系統概覽統計卡改用 design-kit 亮色暖光 StatCard
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有 Card 版＝零變化。
+// icon 折進 label（design-kit StatCard 的 label 為 ReactNode）以零資訊損失保留圖示。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, StatCard as DkStatCard, ModelCard as DkModelCard } from "@/components/design-kit";
 
 const MODALITIES = ["all", "llm", "image", "video", "audio", "search", "embed", "agent"];
 const TIERS = ["all", "frontier", "balanced", "lightweight", "open-source"];
@@ -137,7 +142,15 @@ export function AIModelHubPanel() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+/** 系統概覽統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard（icon 折進 label 保留）；OFF＝既有 Card＝零變化。 */
+export function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkStatCard label={<span className="inline-flex items-center gap-1.5">{icon}{label}</span>} value={value} />
+      </AidvKit>
+    );
+  }
   return (
     <Card className="p-4">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon}{label}</div>
@@ -146,13 +159,21 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function ModelCard({ m }: { m: any }) {
+export function ModelCard({ m }: { m: any }) {
   const label = field<string>(m, "label", "name", "modelId", "id") ?? "未命名";
   const provider = field<string>(m, "provider") ?? "—";
   const modality = field<string>(m, "modality") ?? "";
   const tier = field<string>(m, "tier") ?? "";
   const featured = Boolean(field(m, "featured", "isFeatured"));
   const ctx = field<number>(m, "contextTokens", "contextWindow");
+  // 旗標 ON：design-kit 亮色暖光 ModelCard（name＋vendor＋kind；設計刻意精簡，tier/脈絡/精選星不另顯）。
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkModelCard model={{ id: String(field(m, "modelId", "id") ?? label), name: label, vendor: provider, kind: modality || tier || "—" }} />
+      </AidvKit>
+    );
+  }
   return (
     <div className="rounded-xl border p-3 hover:bg-muted/40 transition-colors">
       <div className="flex items-start justify-between gap-1">

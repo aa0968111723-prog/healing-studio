@@ -115,3 +115,6 @@ temp/
 .webdev/
 frame*.jpg
 video_frames/
+
+# Claude Code background-agent git worktrees (ephemeral, auto-cleaned)
+.claude/worktrees/

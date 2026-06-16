@@ -135,8 +135,27 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | U-1 設計系統落地（亮色暖光 tokens） | AIDV-91 | ✅ Done | #883 |
 | U-3 登入保留 cosmic（決議） | AIDV-93 | ✅ Done | #883 |
 | U-10 設計系統元件庫補齊（34 元件） | AIDV-101 | ✅ Done | #885 |
-| U-4 殼層 chrome 視覺實裝（flag-gated strangler） | AIDV-94 | 🔄 進行中（Rail/TopBar/MobileNav/⌘K 第一片；旗標 `ENABLE_AIDV_CHROME` OFF） | #886 |
-| U-2 元件採用（umbrella）／U-5~U-9 各殼採用 | AIDV-92/95~99 | 📋 Selected/Backlog（U-2 High·就緒；U-5~U-8 依賴 U-4） | — |
+| U-4 殼層 chrome 視覺實裝（flag-gated strangler） | AIDV-94 | 🔄 進行中（結構＋接資料＋ProjectSwitcher＋⌘K＋走查開關 5 片皆合併；Bruce 走查通過；旗標 `ENABLE_AIDV_CHROME` OFF。剩 ProviderChip/Toast 為選配 polish） | #886/#887/#888/#889 |
+| U-2 元件採用（umbrella）＋逐殼採用片 | AIDV-92 | 🔄 進行中（逐殼採用片：①PanelState ②/video ReadinessChip ③/settings 設定列 ④/learn 積分小統計＝#889 已併；⑤/learn 情報新聞 IntelItem ⑥/learn 研究來源 SourceCite＝#890。旗標 OFF＝零變化） | #889／#890 |
+| U-5 /video 視覺實裝 | AIDV-95 | ✅ 已併 main（NotesPanel→Card・PromptsPanel→PromptBlock・ShotPanel；旗標 OFF＝零變化） | #891／#897 |
+| U-6 /social 視覺實裝 | AIDV-96 | ✅ 已併 main（P5 社群殼 greenfield＋SocialNav 接 design-kit；範圍校正為 `components/social/`，原 `shells/social/` 不存在） | #894 |
+| U-8 /settings 視覺實裝 | AIDV-98 | ✅ 已併 main（ObservabilityPanel 系統概覽 StatCard；旗標 OFF＝零變化） | #896 |
+| U-7 /learn 視覺實裝 | AIDV-97 | 🔄 進行中（隨 U-2 /learn 片推進：IntelItem＋SourceCite） | #890 |
+| U-9 共用 PromptVault 採用 | AIDV-99 | 📋 Backlog | — |
+| U-11 OrbAssistant 光球助手視覺實裝 | AIDV-114 | 🔄 進行中（第1片：design-kit 脊椎視覺骨架 `orb.tsx`＝FAB＋面板＋6 分頁＋主動泡泡＋人格/心情頭＋四態＝#905 已併；第2片：`OrbPageTab`＝本頁情境提示＋Flow 展示牆一鍵重跑；第3片：`AidvOrbMount` 真站掛進 DashboardLayout，`ENABLE_AIDV_CHROME` 旗標 gate＝OFF 不掛/零變化、ON 左下並存舊光球（Bruce 6/16 拍板「另一種型態·同時存在」，視覺實裝靜態示範·未接 spine）；第4片：唯讀 adapter＝心情接 `useOrbState`、本頁標籤接 `useLocation`（未寫狀態/未碰後端）＝#906。重用 cockpit/PromptVault/WorkflowBuilder/states。下一片＝6 分頁真實資料 adapter（提示詞庫/對話/積分/筆記·語音 Gateway 後端＝AIDV-120）） | #905／#906 |
+| H1 CI 自動把關（PR gate） | AIDV-56 | ✅ workflow 已併 main（`.github/workflows/pr-gate.yml`）。⚠️ 本 repo 未指派 hosted runner（runner_id 0／2 秒即敗／無 log）＝**Actions 用量未啟用**環境問題，待 Bruce 於 Settings→Actions／Billing 啟用後才真正執行 | #892 |
+
+> **2026-06-15 平行開發備註（整合窗對帳）**：本日多視窗平行跑 Wave U（背景代理＋另開視窗），Bruce 快速合併。已發生並收斂的重複：CI 重複 PR #895（與 #892 撞 `pr-gate.yml`）已關。協作止血規則：**一軌一主**（一條軌只由一個視窗/owner 施工，進度寫進該 Jira 卡工作表當同步點）；本框定位＝**/learn ＋ 整合窗**（收尾鏡像、抓重複、對帳）。
+
+### 2.5d 線上開啟政策（2026-06-15 Bruce 拍板：「慢慢開啟線上變動，改善現在網站很亂」）
+
+> **背景**：Wave U 至此全躲在 `ENABLE_AIDV_CHROME` 旗標後、預設 OFF＝線上零變化（純打底）。Bruce 要把累積的亮色暖光新設計**真的推上線**，取代目前線上偏亂的舊樣子。**此舉＝改既有 prod 行為，已由 Bruce 拍板。**
+>
+> **採用方式：整套一次上（走查後）**（Bruce 於 2.5d 選定）——維持單一總旗標 `ENABLE_AIDV_CHROME`，不拆子旗標。
+> - **開關＝Railway 環境變數 `VITE_ENABLE_AIDV_CHROME`**（鐵律 3：只 Bruce 貼 Railway，不入 repo）。設 `=1`＝新殼層 chrome（Rail/TopBar/⌘K）＋全部面板採用一起上；清掉/設 `=0`＝秒回滾舊樣。
+> - **上線門＝Bruce 走查**：以 `?aidvchrome=1`（單瀏覽器即時預覽、不影響他人）把各殼新設計走過一遍滿意 → 才設 Railway env 全站上。
+> - **整合窗已驗證上線就緒（pre-flip）**：`VITE_ENABLE_AIDV_CHROME=1` production build 綠（`✓ built in 34s`、tsc 0）；各採用片皆有 ON-path 單測。剩餘＝視覺走查（人工）。
+> - **之後的工作表**：採用片仍可繼續做（旗標 OFF 進 main 零風險）；待 Bruce 一次切 env 後，新片即「一上線就生效」，故各片合併前的 ON-path 自評/走查更重要。
 
 ### 2.5c 看板治理（2026-06-15，Bruce 指示「規劃 Jira 工作細節＋建立專屬開放工作流程」）
 

@@ -11,6 +11,7 @@ export * from "./primitives";
 export * from "./states";
 export * from "./chrome";
 export * from "./cockpit";
+export * from "./orb";
 export * from "./shellkit";
 export * from "./GateCard";
 export * from "./ShotCard";

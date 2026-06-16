@@ -6,6 +6,9 @@
 // ============================================================================
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import type { AssetRow } from "@/spine/types";
+// U-5（AIDV-95）/video S3 四態：空態改用共用 Empty（→ PanelEmpty，旗標 ON 時為 design-kit
+// 亮色暖光 EmptyState），與 Shot/Character/Scene 面板一致；座艙在 ENABLE_4SHELL（預設 OFF）之下＝線上零變化。
+import { Empty } from "./ShotPanel";
 
 function assetIcon(kind: AssetRow["kind"]) {
   if (kind === "video") return "🎬";
@@ -16,7 +19,9 @@ function assetIcon(kind: AssetRow["kind"]) {
 export function AssetsPanel() {
   const spine = useProjectSpine();
   const p = spine.project!;
-  if (p.assets.length === 0) return <div className="py-6 text-center text-xs text-muted-foreground">尚無資產</div>;
+  if (p.assets.length === 0) {
+    return <Empty icon="🗂" title="尚無資產" desc="生成或上傳後，產出會自動回寫到這裡。" />;
+  }
   return (
     <div className="space-y-2">
       {p.assets.map((a) => (
