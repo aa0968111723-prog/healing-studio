@@ -13,7 +13,7 @@ const flags = vi.hoisted(() => ({ chrome: false }));
 vi.mock("@/config/featureFlags", () => ({ get ENABLE_AIDV_CHROME() { return flags.chrome; } }));
 vi.mock("@/lib/trpc", () => ({ trpc: {} }));
 
-import { StatCard } from "./AIModelHubPanel";
+import { StatCard, ModelCard } from "./AIModelHubPanel";
 
 afterEach(() => { cleanup(); flags.chrome = false; });
 
@@ -32,6 +32,27 @@ describe("AIModelHubPanel · StatCard（U-2 / AIDV-92 · /learn）", () => {
     expect(screen.getByText("模型總數")).toBeTruthy();
     expect(screen.getByText("128")).toBeTruthy();
     expect(screen.getByTestId("ic")).toBeTruthy();
+    expect(container.querySelector(".aidv-kit")).not.toBeNull();
+  });
+});
+
+const MODEL = { modelId: "gpt-x", label: "GPT-X", provider: "OpenAI", modality: "llm", tier: "frontier" };
+
+describe("AIModelHubPanel · ModelCard（U-2 / AIDV-92 · /learn）", () => {
+  it("旗標 OFF（預設）：既有卡，名稱/供應商在、未進設計套件範圍", () => {
+    flags.chrome = false;
+    const { container } = render(<ModelCard m={MODEL} />);
+    expect(screen.getByText("GPT-X")).toBeTruthy();
+    expect(screen.getByText(/OpenAI/)).toBeTruthy();
+    expect(container.querySelector(".aidv-kit")).toBeNull();
+  });
+
+  it("旗標 ON：改用 design-kit ModelCard（進 .aidv-kit；name/vendor/kind 保留）", () => {
+    flags.chrome = true;
+    const { container } = render(<ModelCard m={MODEL} />);
+    expect(screen.getByText("GPT-X")).toBeTruthy();
+    expect(screen.getByText("OpenAI")).toBeTruthy();
+    expect(screen.getByText("llm")).toBeTruthy();
     expect(container.querySelector(".aidv-kit")).not.toBeNull();
   });
 });

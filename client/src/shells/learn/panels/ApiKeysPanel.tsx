@@ -15,6 +15,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時平台金鑰狀態列改用 design-kit 亮色暖光 KeyRow
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有卡＝零變化。
+// 設計門已拍板（2026-06-16）：接受 design-kit KeyRow 刻意較精簡（name＋狀態點，module 不另顯）。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, KeyRow as DkKeyRow } from "@/components/design-kit";
 
 export function ApiKeysPanel() {
   const { user } = useAuth();
@@ -58,24 +63,39 @@ export function ApiKeysPanel() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {keys.map((k) => (
-                <div key={k.name} className="flex items-center gap-2 rounded-lg border p-2.5">
-                  {k.isSet
-                    ? <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
-                    : <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />}
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium truncate">{k.label}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{k.module}</div>
-                  </div>
-                  <Badge variant={k.isSet ? "secondary" : "outline"} className="ml-auto text-[10px]">
-                    {k.isSet ? "已設定" : "未設定"}
-                  </Badge>
-                </div>
-              ))}
+              {keys.map((k) => <KeyStatusRow key={k.name} k={k} />)}
             </div>
           )}
         </Card>
       )}
+    </div>
+  );
+}
+
+/**
+ * 平台金鑰狀態列：旗標 ON 時改用 design-kit 亮色暖光 KeyRow（name＋狀態點，設計刻意精簡）；
+ * OFF（預設）＝既有卡（盾牌圖示＋label＋module＋已設定/未設定徽章）＝逐像素零變化。
+ */
+export function KeyStatusRow({ k }: { k: any }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkKeyRow name={k.label} status={k.isSet ? "ok" : "idle"} />
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 rounded-lg border p-2.5">
+      {k.isSet
+        ? <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+        : <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />}
+      <div className="min-w-0">
+        <div className="text-xs font-medium truncate">{k.label}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{k.module}</div>
+      </div>
+      <Badge variant={k.isSet ? "secondary" : "outline"} className="ml-auto text-[10px]">
+        {k.isSet ? "已設定" : "未設定"}
+      </Badge>
     </div>
   );
 }
