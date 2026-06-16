@@ -1,7 +1,8 @@
 // ============================================================================
 // featureFlags.ts — P0 4-shell restructure feature flags (build-time, Vite env)
 // ----------------------------------------------------------------------------
-// 單一真相源：所有 4-shell 相關旗標都從這裡讀。預設全部 OFF → 行為 == 線上現狀。
+// 單一真相源：所有 4-shell 相關旗標都從這裡讀。多數預設 OFF；例外見各旗標說明
+//（SHELL_LEARN 預設 ON＝既有 /learn 可達；ENABLE_AIDV_CHROME 自 2026-06-16 預設 ON＝Wave U 新設計上線）。
 // 旗標來自 Vite 的 import.meta.env（建置時注入），可被 .env / 部署環境變數覆寫。
 //
 //   ENABLE_4SHELL=OFF（預設）→ App.tsx 的 <Router> 完全照舊；不掛任何 /video|/social|
@@ -76,13 +77,38 @@ export function readRuntimeToggle(key: string): boolean {
 }
 
 /**
- * U-4 殼層 chrome 視覺實裝（AIDV-94，Wave U）。**預設 OFF**＝線上零變化（沿用現有 AppleDock）。
- * 開啟方式（任一）：① 建置期 `VITE_ENABLE_AIDV_CHROME=1`（全站，部署後生效）；
- * ② 真站走查 `?aidvchrome=1`（單一瀏覽器、即時、可 `?aidvchrome=0` 關，不動其他人）。
- * strangler：大範圍視覺改動先旗標化，Bruce 走查滿意後再 default ON。
+ * 執行期三態覆寫：明確設了才回 true/false，沒設回 null（交給建置預設決定）。
+ * 這讓「預設 ON」仍能被 `?aidvchrome=0`（單瀏覽器）明確關閉。
+ */
+export function readRuntimeOverride(key: string): boolean | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search).get(key);
+    if (q === "1" || q === "0") {
+      try { window.localStorage.setItem(`flag:${key}`, q); } catch { /* 私密模式忽略 */ }
+      return q === "1";
+    }
+    const ls = window.localStorage.getItem(`flag:${key}`);
+    if (ls === "1") return true;
+    if (ls === "0") return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * U-4 殼層 chrome ＋ Wave U design-kit 全站採用總開關（AIDV-94/92，Wave U）。
+ * **2026-06-16 Bruce 拍板「預設全部打開」→ default ON**（§2.5d 整套一次上）：
+ * 亮色暖光新設計（Rail/TopBar/⌘K ＋ 各殼面板採用）成為線上預設樣貌。
+ *
+ * 關閉退路（任一，皆不需改碼）：
+ *   ① 全站秒回滾：部署環境設 `VITE_ENABLE_AIDV_CHROME=0`（Railway），重新部署。
+ *   ② 單一瀏覽器：網址 `?aidvchrome=0`（即時、存 localStorage、不影響他人）。
+ * 優先序：執行期覆寫（?aidvchrome=0/1）> 建置旗標（VITE_ENABLE_AIDV_CHROME）> 預設 ON。
  */
 export const ENABLE_AIDV_CHROME: boolean =
-  readFlag("VITE_ENABLE_AIDV_CHROME", false) || readRuntimeToggle("aidvchrome");
+  readRuntimeOverride("aidvchrome") ?? readFlag("VITE_ENABLE_AIDV_CHROME", true);
 
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
