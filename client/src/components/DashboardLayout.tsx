@@ -48,6 +48,7 @@ import AppleDock, {
 } from "./AppleDock";
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvShellChrome } from "@/shells/AidvShellChrome";
+import { AidvOrbMount } from "@/shells/AidvOrbMount";
 
 const DOCK_POSITION_KEY = "apple-dock-position";
 const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
@@ -944,6 +945,11 @@ function DashboardLayoutContent({
           onNavigate={path => setLocation(path)}
         />
       )}
+      {/* U-11 OrbAssistant 新光球（design-kit「另一種型態」，AIDV-114 第3片）。
+          旗標 ENABLE_AIDV_CHROME gate＝OFF（線上預設）時不掛＝零變化、舊光球照舊；
+          ON 時於左下並存（Bruce 2026-06-16 拍板「另一種型態·同時存在」）。視覺實裝，
+          尚未接 spine 資料（adapter＝後續片）。 */}
+      {ENABLE_AIDV_CHROME && user && location !== "/agent" && <AidvOrbMount />}
       {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
       {user && <AgentIntentPreview />}
       {/* 光球「看這裡」視覺聚焦（focusElement 動作的畫面層） */}
