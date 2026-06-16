@@ -4,7 +4,7 @@
 // 一體成形主軸：頂部創作流程列／Story Spine／光球都透過 canvasMode 驅動此處的工作面，
 //   平順過渡、不整頁離場。模式：導演對話 / 腳本(2-1) / 分鏡(2-3) / 素材(2-3) / 配音環境(2-5) / 配樂(2-6)。
 // ============================================================================
-import { MessageSquare, FileText, Film, ImagePlus, Mic, Music } from "lucide-react";
+import { MessageSquare, FileText, Film, ImagePlus, Clapperboard, Mic, Music } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDirectorConsole, type CanvasMode } from "../DirectorConsoleProvider";
@@ -12,6 +12,7 @@ import { DirectorChatCanvas } from "../canvas/DirectorChatCanvas";
 import { ScriptCanvas } from "../canvas/ScriptCanvas";
 import { ShotDetailCanvas } from "../canvas/ShotDetailCanvas";
 import { AssetGenCanvas } from "../canvas/AssetGenCanvas";
+import { RoughCutCanvas } from "../canvas/RoughCutCanvas";
 import { VoiceAmbientCanvas } from "../canvas/VoiceAmbientCanvas";
 import { MusicCanvas } from "../canvas/MusicCanvas";
 
@@ -20,6 +21,7 @@ const MODES: { id: CanvasMode; label: string; icon: typeof Film }[] = [
   { id: "script", label: "腳本", icon: FileText },
   { id: "shot", label: "分鏡", icon: Film },
   { id: "asset", label: "素材", icon: ImagePlus },
+  { id: "rough-cut", label: "初剪", icon: Clapperboard },
   { id: "voice", label: "配音環境", icon: Mic },
   { id: "music", label: "配樂", icon: Music },
 ];
@@ -57,6 +59,7 @@ export function CreationCanvas({ onGuided }: { onGuided: () => void }) {
           {mode === "script" && <ScriptCanvas onGuided={onGuided} />}
           {mode === "shot" && <ShotDetailCanvas />}
           {mode === "asset" && <AssetGenCanvas />}
+          {mode === "rough-cut" && <RoughCutCanvas />}
           {mode === "voice" && <VoiceAmbientCanvas />}
           {mode === "music" && <MusicCanvas />}
         </div>

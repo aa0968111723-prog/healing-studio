@@ -28,6 +28,7 @@ export type CanvasMode =
   | "script" // 2-1 腳本意圖（director.*）
   | "shot" // 2-3 分鏡 GATE / ShotCard（聚焦單鏡修復）
   | "asset" // 2-3 多模態素材生成（generation seam → fal）
+  | "rough-cut" // 2-4 初剪打包（S4：時間軸總覽 + 未核准 banner + zip_export 估算）
   | "voice" // 2-5 配音 / 環境音（proStudio.qwenTTS / elevenLabsTTS / soundEffects）
   | "music"; // 2-6 配樂（proStudio.textToMusic）
 
