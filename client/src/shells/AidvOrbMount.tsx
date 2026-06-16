@@ -1,6 +1,6 @@
 // ============================================================================
 // shells/AidvOrbMount.tsx — U-11 OrbAssistant 真站掛載＋唯讀資料 adapter
-//   （AIDV-114 第3片＝掛載；第4片＝心情/本頁 adapter；第5片＝對話分頁 adapter）
+//   （AIDV-114 第3片＝掛載；第4片＝心情/本頁；第5片＝對話分頁；第6片＝筆記分頁開抽屜）
 // ----------------------------------------------------------------------------
 // 把 design-kit 的新光球（OrbAssistant，亮色暖光「另一種型態」）掛進全站 chrome，
 // 並以**唯讀**方式接既有前端 orb 狀態（不碰後端、不寫狀態）。
@@ -19,7 +19,7 @@
 import { useLocation } from "wouter";
 import { useOrbState, type OrbState } from "@/contexts/OrbStateContext";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
-import { OrbAssistant, OrbChatTab, VIDEO_DEFAULT, type OrbChatMsg, type OrbMood } from "@/components/design-kit";
+import { OrbAssistant, OrbChatTab, EmptyState, VIDEO_DEFAULT, type OrbChatMsg, type OrbMood } from "@/components/design-kit";
 
 /** 全站光球活動狀態 → 新光球心情（純對應，可單測）。 */
 export function orbStateToMood(s: OrbState): OrbMood {
@@ -76,9 +76,18 @@ export function AidvOrbMount() {
   const pageLabel = pathToPageLabel(location);
   const chatMsgs = toOrbChatMsgs(chat.messages ?? []);
 
+  // 筆記分頁：沿用既有「筆記抽屜」CustomEvent 契約（與舊光球同一條），純前端、零後端。
+  const openNotesDrawer = () => {
+    try {
+      window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+    } catch {
+      /* SSR / 無 window 安全略過 */
+    }
+  };
+
   const hints = [
     { id: "h1", icon: "💡", text: `你正在「${pageLabel}」——點上方分頁看本頁提示、提示詞庫與專注流。` },
-    { id: "h2", icon: "✦", text: "心情已接全站狀態、對話分頁已接近期往來；提示詞庫/積分/筆記分頁仍為示範，待後續片接真實來源。" },
+    { id: "h2", icon: "✦", text: "心情接全站狀態、對話接近期往來、筆記可開抽屜；提示詞庫/積分需讀後端，待拍板後接。" },
   ];
 
   return (
@@ -95,7 +104,24 @@ export function AidvOrbMount() {
       }}
       pageContext={{ pageLabel, hints, flows: [DEMO_FLOW] }}
       promptVault={{ state: "empty" }}
-      tabContent={{ chat: <OrbChatTab messages={chatMsgs} /> }}
+      tabContent={{
+        chat: <OrbChatTab messages={chatMsgs} />,
+        notes: (
+          <EmptyState
+            icon="📝"
+            title="筆記在側邊抽屜裡"
+            hint="點下方開啟筆記抽屜；在各處用「存到筆記」收藏的內容都會進到那裡。"
+            action={{ label: "開啟筆記抽屜", onClick: openNotesDrawer }}
+          />
+        ),
+        credits: (
+          <EmptyState
+            icon="◈"
+            title="積分餘額待接"
+            hint="積分餘額需讀後端（credits），屬碰後端讀取——待 Bruce 拍板後接（同提示詞庫）。"
+          />
+        ),
+      }}
     />
   );
 }

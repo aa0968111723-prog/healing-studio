@@ -5,7 +5,7 @@
  * 純對應 orbStateToMood / pathToPageLabel。
  * 旗標 gate（ENABLE_AIDV_CHROME）由 DashboardLayout 控制，非本元件職責。
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { AidvOrbMount, orbStateToMood, pathToPageLabel, toOrbChatMsgs } from "./AidvOrbMount";
 
@@ -58,5 +58,23 @@ describe("AidvOrbMount 掛載（U-11 / AIDV-114 第3片）", () => {
     expect(screen.getByText(/點上方分頁看本頁提示/)).toBeTruthy();
     expect(screen.getByText("Flow 展示牆")).toBeTruthy();
     expect(screen.getByText("成片工作流（示範）")).toBeTruthy();
+  });
+
+  it("筆記分頁：開啟筆記抽屜 → 派發既有 open-notes-drawer 事件", () => {
+    const spy = vi.fn();
+    window.addEventListener("open-notes-drawer", spy);
+    render(<AidvOrbMount />);
+    fireEvent.click(screen.getByRole("button", { name: "光球助手" }));
+    fireEvent.click(screen.getByRole("tab", { name: /筆記/ }));
+    fireEvent.click(screen.getByText("開啟筆記抽屜"));
+    expect(spy).toHaveBeenCalledTimes(1);
+    window.removeEventListener("open-notes-drawer", spy);
+  });
+
+  it("積分分頁：未拍板 → 顯示待接後端占位（不呼叫後端）", () => {
+    render(<AidvOrbMount />);
+    fireEvent.click(screen.getByRole("button", { name: "光球助手" }));
+    fireEvent.click(screen.getByRole("tab", { name: /積分/ }));
+    expect(screen.getByText("積分餘額待接")).toBeTruthy();
   });
 });
