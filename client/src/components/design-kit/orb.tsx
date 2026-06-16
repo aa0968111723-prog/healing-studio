@@ -9,9 +9,10 @@
  * rev. U-11 · 2026-06-16 */
 import * as React from "react";
 import { cn, type Persona } from "./tokens";
-import { Button } from "./primitives";
+import { Button, Eyebrow } from "./primitives";
 import { PersonaSwitch, OrbBubble, MemoryDBTabs } from "./cockpit";
 import { VaultBrowser } from "./PromptVault";
+import { FlowBar, type WorkflowStep } from "./WorkflowBuilder";
 import { EmptyState, LoadingState, ErrorState } from "./states";
 
 /* ================= 6 情境分頁 ================= */
@@ -142,6 +143,79 @@ export function OrbMoodHead({
   );
 }
 
+/* ================= 「本頁」分頁：情境提示＋Flow 展示牆（一鍵重跑）=================
+ * 純呈現：情境提示＝隨頁面變化的提醒/捷徑；Flow 展示牆＝近期工作流，一鍵重跑。 */
+export interface OrbContextHint {
+  id: string;
+  icon?: React.ReactNode;
+  text: React.ReactNode;
+  cta?: string;
+  onCta?: () => void;
+}
+export interface OrbFlowItem {
+  id: string;
+  name: string;
+  steps: WorkflowStep[];
+  current?: number;
+  onRerun?: () => void;
+}
+export function OrbPageTab({
+  pageLabel = "本頁", hints = [], flows = [], onRerun,
+}: {
+  pageLabel?: React.ReactNode;
+  hints?: OrbContextHint[];
+  flows?: OrbFlowItem[];
+  onRerun?: (flow: OrbFlowItem) => void;
+}) {
+  if (hints.length === 0 && flows.length === 0) {
+    return <EmptyState icon="✦" title="這個頁面還沒有情境提示" hint="開始操作後，光球會在這裡給你本頁的提醒與可一鍵重跑的工作流。" />;
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 情境提示 */}
+      {hints.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <Eyebrow>本頁 · {pageLabel}</Eyebrow>
+          <ul className="flex flex-col gap-1.5">
+            {hints.map((h) => (
+              <li key={h.id} className="flex items-start gap-2 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-2.5 py-2">
+                <span className="text-[15px] leading-none">{h.icon ?? "💡"}</span>
+                <span className="min-w-0 flex-1 text-[12px] leading-relaxed text-[var(--text-soft)]">{h.text}</span>
+                {h.cta && h.onCta && (
+                  <button type="button" onClick={h.onCta} className="flex-none rounded-[8px] px-2 py-0.5 text-[11px] font-medium text-[var(--clay)] hover:bg-[var(--surface-2)]">
+                    {h.cta}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Flow 展示牆 */}
+      {flows.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <Eyebrow>Flow 展示牆</Eyebrow>
+            <span className="text-[10px] text-[var(--muted)]">一鍵重跑</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {flows.map((f) => (
+              <div key={f.id} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-2">
+                <div className="mb-1 flex items-center gap-2 px-1">
+                  <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[var(--text)]">{f.name}</span>
+                  <Button size="xs" variant="primary" onClick={() => (f.onRerun ?? (() => onRerun?.(f)))()}>↻ 重跑</Button>
+                </div>
+                <FlowBar steps={f.steps} current={f.current ?? f.steps.length} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 /* ================= 分頁四態內容 ================= */
 function OrbTabContent({
   state = "content", children, onRetry, emptyHint,
@@ -178,6 +252,8 @@ export interface OrbAssistantProps {
   tabContent?: Partial<Record<OrbTabId, React.ReactNode>>;
   /** 提示詞分頁直接掛 VaultBrowser（自帶四態） */
   promptVault?: React.ComponentProps<typeof VaultBrowser>;
+  /** 「本頁」分頁直接掛 OrbPageTab（情境提示＋Flow 展示牆，自帶空態） */
+  pageContext?: React.ComponentProps<typeof OrbPageTab>;
   /** 當前分頁四態（提示詞分頁由 VaultBrowser 自管，不受此控） */
   state?: "content" | "loading" | "error" | "empty";
   onRetry?: () => void;
@@ -190,7 +266,7 @@ export function OrbAssistant({
   open, defaultOpen = false, onOpenChange,
   activeTab, defaultTab = "page", onTabChange,
   persona = "calm", onPersonaChange, mood = "idle", name = "光球助手",
-  proactive, tabContent, promptVault, state = "content", onRetry, emptyHint,
+  proactive, tabContent, promptVault, pageContext, state = "content", onRetry, emptyHint,
   position = "br",
 }: OrbAssistantProps) {
   const [openU, setOpenU] = React.useState(defaultOpen);
@@ -215,9 +291,9 @@ export function OrbAssistant({
   };
 
   const tabNode =
-    tab === "prompts" && promptVault
-      ? <VaultBrowser {...promptVault} />
-      : <OrbTabContent state={state} onRetry={onRetry} emptyHint={emptyHint}>{tabContent?.[tab]}</OrbTabContent>;
+    tab === "prompts" && promptVault ? <VaultBrowser {...promptVault} />
+    : tab === "page" && pageContext ? <OrbPageTab {...pageContext} />
+    : <OrbTabContent state={state} onRetry={onRetry} emptyHint={emptyHint}>{tabContent?.[tab]}</OrbTabContent>;
 
   return (
     <div ref={fabRef} className="aidv-kit">
