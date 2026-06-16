@@ -106,9 +106,14 @@ export function readRuntimeOverride(key: string): boolean | null {
  *   ① 全站秒回滾：部署環境設 `VITE_ENABLE_AIDV_CHROME=0`（Railway），重新部署。
  *   ② 單一瀏覽器：網址 `?aidvchrome=0`（即時、存 localStorage、不影響他人）。
  * 優先序：執行期覆寫（?aidvchrome=0/1）> 建置旗標（VITE_ENABLE_AIDV_CHROME）> 預設 ON。
+ *
+ * **依賴 `ENABLE_4SHELL`（必要前提）**：chrome 的 Rail/⌘K 導向 SHELL_META 路徑（/video…），
+ * 這些路由只有 `ENABLE_4SHELL && shellRoutes()` 才註冊（App.tsx）。故 chrome 必須在 4-shell
+ * 之下才有作用——`ENABLE_4SHELL` OFF 時強制 OFF（沿用既有 AppleDock＝含登出，零破壞），
+ * 避免預設 chrome 把使用者導到 NotFound。上線新設計＝Railway 同時設 `VITE_ENABLE_4SHELL=1`。
  */
 export const ENABLE_AIDV_CHROME: boolean =
-  readRuntimeOverride("aidvchrome") ?? readFlag("VITE_ENABLE_AIDV_CHROME", true);
+  ENABLE_4SHELL && (readRuntimeOverride("aidvchrome") ?? readFlag("VITE_ENABLE_AIDV_CHROME", true));
 
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {

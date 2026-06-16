@@ -7,9 +7,10 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 
-const h = vi.hoisted(() => ({ navigate: vi.fn(), setActive: vi.fn() }));
+const h = vi.hoisted(() => ({ navigate: vi.fn(), setActive: vi.fn(), logout: vi.fn() }));
 vi.mock("wouter", () => ({ useLocation: () => ["/video/director", h.navigate] }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ logout: h.logout }) }));
 vi.mock("@/spine/useCreativeProject", () => ({
   useCreativeProject: () => ({ activeProjectId: 1, activeProject: null, setActiveProjectId: h.setActive }),
 }));
@@ -25,6 +26,7 @@ import { AidvShellChrome, shellFromPath } from "./AidvShellChrome";
 beforeEach(() => {
   h.navigate.mockReset();
   h.setActive.mockReset();
+  h.logout.mockReset();
 });
 afterEach(() => cleanup());
 
@@ -56,6 +58,13 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     fireEvent.click(screen.getByText("導演企劃台"));
     expect(h.navigate).toHaveBeenCalledWith("/director");
+  });
+
+  it("⌘K 帳號指令：點『登出』→ 呼叫 logout（P1 修：chrome 取代 AppleDock 後保留登出）", () => {
+    render(<AidvShellChrome />);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getByText("登出"));
+    expect(h.logout).toHaveBeenCalledTimes(1);
   });
 
   it("接真實資料：TopBar 顯示當前專案名＋積分", () => {

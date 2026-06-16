@@ -20,6 +20,7 @@ import { SHELL_META } from "@/config/shells";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import { useCreativeProject } from "@/spine/useCreativeProject";
+import { useAuth } from "@/_core/hooks/useAuth";
 import type { ShellId } from "@/spine/types";
 
 const SHELLS: DkShellDef[] = SHELL_META.map((s) => ({ id: s.id, emoji: s.emoji, name: s.zh, enabled: s.enabled }));
@@ -41,6 +42,8 @@ export function AidvShellChrome() {
 
   // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
   const world = useCreativeProject();
+  // P1（Codex 審查）：chrome 取代 AppleDock 後須保留登出出口；經 ⌘K「登出」指令呼叫真實 logout。
+  const { logout } = useAuth();
   const projectsQ = trpc.creativeProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
   const projectList: DkProjectLite[] = (projectsQ.data ?? []).map((p) => ({ id: String(p.id), name: p.title }));
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
@@ -71,6 +74,7 @@ export function AidvShellChrome() {
     { id: "new-project", label: "新建專案", group: "專案", hint: "/create", onRun: () => navigate("/create") },
     { id: "switch-project", label: "切換專案", group: "專案", onRun: () => setPsOpen(true) },
     { id: "go-settings", label: "設定", group: "設定", hint: "/settings", onRun: () => navigate("/settings") },
+    { id: "logout", label: "登出", group: "帳號", hint: "結束登入", onRun: () => logout() },
   ];
 
   return (
