@@ -13,6 +13,9 @@ import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 // 純展示列（文字＋時間/鏡號 meta，無功能控制項）＝可 1:1 忠實對映、零資訊損失。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, Card as DkCard } from "@/components/design-kit";
+// U-5（AIDV-95）/video 四態：空態改用共用 Empty（→ PanelEmpty，旗標 ON 時為 design-kit EmptyState），
+// 與 Shot/Character/Scene 面板一致；座艙在 ENABLE_4SHELL（預設 OFF）之下＝線上零變化。
+import { Empty } from "./ShotPanel";
 
 export function NotesPanel() {
   const spine = useProjectSpine();
@@ -41,7 +44,7 @@ export function NotesPanel() {
         </Button>
       </div>
       {p.notes.length === 0 ? (
-        <div className="py-6 text-center text-xs text-muted-foreground">尚無筆記</div>
+        <Empty icon="📝" title="尚無筆記" desc="專案筆記會綁在這個專案上。" />
       ) : (
         p.notes.map((n) => (
           <NoteRow key={n.id} text={n.text} ts={n.ts} shotNo={n.shotNo} />

@@ -13,9 +13,14 @@ vi.mock("@/config/featureFlags", () => ({
   get ENABLE_AIDV_CHROME() { return flags.chrome; },
 }));
 
-import { NoteRow } from "./NotesPanel";
+const h = vi.hoisted(() => ({ notes: [] as Record<string, unknown>[], addNote: vi.fn() }));
+vi.mock("@/spine/ProjectSpineProvider", () => ({
+  useProjectSpine: () => ({ project: { notes: h.notes }, addNote: h.addNote }),
+}));
 
-afterEach(() => { cleanup(); flags.chrome = false; });
+import { NoteRow, NotesPanel } from "./NotesPanel";
+
+afterEach(() => { cleanup(); flags.chrome = false; h.notes = []; });
 
 describe("NoteRow（U-5 / AIDV-95 · /video）", () => {
   it("旗標 OFF（預設）：既有 Tailwind 筆記列，文字＋meta 在、未進設計套件範圍", () => {
@@ -45,5 +50,22 @@ describe("NoteRow（U-5 / AIDV-95 · /video）", () => {
     const on = render(<NoteRow text="筆記" ts="06-15" />);
     expect(on.container.textContent).toContain("06-15");
     expect(on.container.querySelector(".aidv-kit")).not.toBeNull();
+  });
+});
+
+describe("NotesPanel 空狀態（U-5 / AIDV-95 · /video 四態）", () => {
+  it("旗標 OFF（預設）：空態用共用 Empty（role=status、'尚無筆記'）、未進設計套件範圍", () => {
+    flags.chrome = false;
+    const { container } = render(<NotesPanel />);
+    expect(screen.getByText("尚無筆記")).toBeTruthy();
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    expect(container.querySelector(".aidv-kit")).toBeNull();
+  });
+
+  it("旗標 ON：空態改用 design-kit EmptyState（進 .aidv-kit、保留文字）", () => {
+    flags.chrome = true;
+    const { container } = render(<NotesPanel />);
+    expect(screen.getByText("尚無筆記")).toBeTruthy();
+    expect(container.querySelector(".aidv-kit")).not.toBeNull();
   });
 });
