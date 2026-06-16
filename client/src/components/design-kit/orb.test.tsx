@@ -6,9 +6,16 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
-import { OrbAssistant, ORB_TABS, ProactiveBubble } from "./orb";
+import { OrbAssistant, ORB_TABS, ProactiveBubble, OrbPageTab, type OrbFlowItem } from "./orb";
+import type { WorkflowStep } from "./WorkflowBuilder";
 
 afterEach(() => cleanup());
+
+const STEPS: WorkflowStep[] = [
+  { id: "s1", name: "世界觀", required: true, enabled: true },
+  { id: "s2", name: "劇本", required: true, enabled: true },
+  { id: "s3", name: "分鏡", required: false, enabled: true },
+];
 
 describe("design-kit OrbAssistant（U-11 / AIDV-114）", () => {
   it("FAB：預設收合、aria-expanded=false；點擊 → 開面板＋onOpenChange(true)", () => {
@@ -85,5 +92,35 @@ describe("design-kit OrbAssistant（U-11 / AIDV-114）", () => {
     render(<ProactiveBubble text="完成囉" name="導演腦" />);
     const status = screen.getByRole("status");
     expect(status.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("OrbPageTab：空（無提示無 flow）→ 空態文案", () => {
+    render(<OrbPageTab />);
+    expect(screen.getByText("這個頁面還沒有情境提示")).toBeTruthy();
+  });
+
+  it("OrbPageTab：情境提示 CTA → onCta；Flow 一鍵重跑 → onRerun", () => {
+    const onCta = vi.fn();
+    const onRerun = vi.fn();
+    const flows: OrbFlowItem[] = [{ id: "f1", name: "成片工作流", steps: STEPS, current: 1 }];
+    render(
+      <OrbPageTab
+        pageLabel="導演台"
+        hints={[{ id: "h1", text: "提示詞太短", cta: "幫我補寫", onCta }]}
+        flows={flows}
+        onRerun={onRerun}
+      />,
+    );
+    expect(screen.getByText("Flow 展示牆")).toBeTruthy();
+    expect(screen.getByText("成片工作流")).toBeTruthy();
+    fireEvent.click(screen.getByText("幫我補寫"));
+    expect(onCta).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("↻ 重跑"));
+    expect(onRerun).toHaveBeenCalledWith(flows[0]);
+  });
+
+  it("本頁分頁：active=page＋pageContext → 掛 OrbPageTab", () => {
+    render(<OrbAssistant defaultOpen activeTab="page" pageContext={{ hints: [{ id: "h1", text: "本頁提示一句" }] }} />);
+    expect(screen.getByText("本頁提示一句")).toBeTruthy();
   });
 });
