@@ -15,18 +15,23 @@ import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 // 設計門依 ui-ux-pro-max「no-emoji-icons」：ON 版改由 design-kit 以文字 Tag 呈現使用次數、不帶 emoji。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, PromptBlock as DkPromptBlock } from "@/components/design-kit";
+// U-9（AIDV-99）第1片 · 旗標 ON 時補上「重用」半邊：真實提示詞庫瀏覽器（讀 promptLibrary.list）。
+import { VaultBrowserPanel } from "./VaultBrowserPanel";
 
 export function PromptsPanel() {
   const spine = useProjectSpine();
   const p = spine.project!;
   const [label, setLabel] = useState("");
   const [text, setText] = useState("");
+  // U-9：存庫後遞增 → 讓旗標 ON 的瀏覽器即時重列（「存 → 出現在庫」可見）。
+  const [reloadToken, setReloadToken] = useState(0);
 
   const submit = () => {
     if (!label.trim()) return;
     void spine.addPromptBlock(label.trim(), text.trim());
     setLabel("");
     setText("");
+    setReloadToken((n) => n + 1);
   };
 
   return (
@@ -42,9 +47,14 @@ export function PromptsPanel() {
         </Button>
       </div>
 
-      {p.promptBlocks.map((pb) => (
-        <PromptBlockRow key={pb.id} kind={pb.kind} label={pb.label} text={pb.text} uses={pb.uses} />
-      ))}
+      {/* 旗標 ON（預設 OFF）：真實提示詞庫瀏覽器（搜尋 + 重用三動作）；OFF＝既有本地積木列＝零變化。 */}
+      {ENABLE_AIDV_CHROME ? (
+        <VaultBrowserPanel reloadToken={reloadToken} onReuse={(prompt) => setText(prompt)} />
+      ) : (
+        p.promptBlocks.map((pb) => (
+          <PromptBlockRow key={pb.id} kind={pb.kind} label={pb.label} text={pb.text} uses={pb.uses} />
+        ))
+      )}
     </div>
   );
 }
