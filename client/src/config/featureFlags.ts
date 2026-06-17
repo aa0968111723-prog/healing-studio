@@ -2,12 +2,13 @@
 // featureFlags.ts — P0 4-shell restructure feature flags (build-time, Vite env)
 // ----------------------------------------------------------------------------
 // 單一真相源：所有 4-shell 相關旗標都從這裡讀。多數預設 OFF；例外見各旗標說明
-//（SHELL_LEARN 預設 ON＝既有 /learn 可達；ENABLE_AIDV_CHROME 自 2026-06-16 預設 ON＝Wave U 新設計上線）。
+//（SHELL_LEARN 預設 ON＝既有 /learn 可達；ENABLE_4SHELL 與 ENABLE_AIDV_CHROME 自 2026-06-16
+//  預設 ON＝Wave U 新設計上線，SOP §2 線上開啟政策，保留秒回滾退路）。
 // 旗標來自 Vite 的 import.meta.env（建置時注入），可被 .env / 部署環境變數覆寫。
 //
-//   ENABLE_4SHELL=OFF（預設）→ App.tsx 的 <Router> 完全照舊；不掛任何 /video|/social|
-//                              /learn|/settings shell、不啟用任何舊→新相容導向。
-//   ENABLE_4SHELL=ON         → ShellRoutes() 注入四個 shell 掛載點 + 舊路徑相容導向。
+//   ENABLE_4SHELL=ON（預設）→ ShellRoutes() 注入四個 shell 掛載點 + 舊路徑相容導向。
+//   ENABLE_4SHELL=OFF（VITE_ENABLE_4SHELL=0 秒回滾）→ App.tsx 的 <Router> 完全照舊；
+//                              不掛任何 /video|/social|/learn|/settings shell、不啟用相容導向。
 //
 // 為什麼用 import.meta.env 而非 system_settings 表：P0 是「純前端、零後端改動」，
 // 旗標必須在「不碰 server / 不碰 DB」的前提下可切換。日後（/settings admin 治理）可
@@ -40,10 +41,13 @@ function readFlag(key: string, fallback = false): boolean {
 }
 
 /**
- * 4-shell 總開關。OFF（預設）時整個 shell routing 層不存在，零行為改變。
- * 對應 .env：VITE_ENABLE_4SHELL=1
+ * 4-shell 總開關。**自 2026-06-16 預設 ON**（SOP §2 線上開啟政策：之後任務預設 ON、
+ * 線上即有變動）→ ShellRoutes() 注入四殼掛載點＋舊路徑相容導向；chrome 與 /settings
+ * 富殼亦隨之生效（ENABLE_AIDV_CHROME 自身已預設 ON，受本旗標守門）。
+ * 秒回滾退路：部署環境（Railway）設 `VITE_ENABLE_4SHELL=0`，重新部署＝整層退回既有 <Router>＝零行為。
+ * 對應 .env：VITE_ENABLE_4SHELL=0 可關。
  */
-export const ENABLE_4SHELL: boolean = readFlag("VITE_ENABLE_4SHELL", false);
+export const ENABLE_4SHELL: boolean = readFlag("VITE_ENABLE_4SHELL", true);
 
 /**
  * /social shell 顯示開關（模擬 SHELL_META 已預留）。OFF 時 /social 顯示「已關閉」佔位。

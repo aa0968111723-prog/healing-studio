@@ -1,12 +1,12 @@
 // ============================================================================
-// route-parity.test.tsx — 證明「ENABLE_4SHELL=OFF 時行為 == 線上」+「ON 時零路由遺失」
+// route-parity.test.tsx — 證明「ENABLE_4SHELL 預設 ON 時零路由遺失」+「OFF 秒回滾 == 線上」
 // ----------------------------------------------------------------------------
 // 放到 repo：client/src/__tests__/route-parity.test.tsx，以既有 vitest 跑：`npm run test`。
 //
 // 設計成「輕量、無需 render 整個 App」：只驗證旗標預設值 + 路由表不變式（deterministic）。
-// 這已足以證明 P0 的兩條核心保證：
-//   (1) 預設建置 ENABLE_4SHELL=false → ShellRoutes() 自身 `if(!ENABLE_4SHELL) return []`
-//       → <Switch> 不被注入任何節點 → 路由集合與線上完全一致。
+// 這已足以證明兩條核心保證：
+//   (1) 自 2026-06-16（SOP §2 線上開啟政策）ENABLE_4SHELL 預設 ON → ShellRoutes() 注入四殼掛載點；
+//       秒回滾退路＝VITE_ENABLE_4SHELL=0 → `if(!ENABLE_4SHELL) return []` → 路由集合與既有線上一致。
 //   (2) 旗標 ON 時，每條被收編的舊路徑都有對應的 canonical shell sub-route（舊連結不 404）。
 // ============================================================================
 import { describe, it, expect } from "vitest";
@@ -40,10 +40,11 @@ function canonicalSubPaths(): string[] {
   );
 }
 
-describe("P0 flag default = online parity", () => {
-  it("ENABLE_4SHELL defaults to false (no shell routes injected in default build)", () => {
-    // 預設未設 VITE_ENABLE_4SHELL → false → ShellRoutes() 回 []，Switch 與線上一致。
-    expect(ENABLE_4SHELL).toBe(false);
+describe("旗標預設策略（SOP §2 線上開啟政策）", () => {
+  it("ENABLE_4SHELL 自 2026-06-16 預設 ON（線上即有變動；秒回滾＝VITE_ENABLE_4SHELL=0）", () => {
+    // SOP §2：之後任務預設 ON、線上即有變動，保留 VITE_ENABLE_4SHELL=0 秒回滾退路。
+    // 預設未設 VITE_ENABLE_4SHELL → true → ShellRoutes() 注入四殼掛載點＋舊路徑相容導向。
+    expect(ENABLE_4SHELL).toBe(true);
   });
 
   it("baseline still enumerates the 54 live routes (+catch-all) untouched by this patch", () => {
