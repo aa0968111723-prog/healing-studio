@@ -25,6 +25,11 @@ import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { frameStyle } from "@/spine/seedVisual";
 import { trpc } from "@/lib/trpc";
 import type { GenResult } from "@/adapters/types";
+// U-5（AIDV-95）採用片 · /video S2-3 生成：旗標 ON 時生成結果/載入/錯誤/待後端改用 design-kit
+// 亮色暖光四態（LoadingState/ErrorState/EmptyState）+ Pill + Card；OFF（預設）＝既有 shadcn 版＝零變化。
+// 動作接點（run / saveToVault / 切 tab）完全一致，僅換視覺殼。
+import { ENABLE_VIDEO_GATE_KIT } from "@/config/videoFlags";
+import { AidvKit, Card, Pill, LoadingState, ErrorState, EmptyState } from "@/components/design-kit";
 
 const IMAGE_MODELS = ["nano-banana-2", "seedream-v4", "imagen4", "flux-pro/v1.1"];
 
@@ -133,40 +138,94 @@ export function AssetGenCanvas() {
             </Button>
           </div>
 
+          {/* 旗標 ON：生成中 / 失敗用 design-kit 四態（載入/錯誤）；OFF＝既有 toast 流程不另呈現。 */}
+          {ENABLE_VIDEO_GATE_KIT && status === "running" && (
+            <AidvKit><LoadingState label="生成中…先估成本 · 先扣後生成 · 失敗全額退還" /></AidvKit>
+          )}
+          {ENABLE_VIDEO_GATE_KIT && status === "error" && (
+            <AidvKit>
+              <ErrorState
+                title="生成失敗"
+                message="全部 provider 皆失敗，積分已退還。可調整提示詞後重試。"
+                onRetry={() => void run()}
+              />
+            </AidvKit>
+          )}
+
           {result && status === "done" && (
-            <div className="flex gap-3 rounded-xl border bg-card/60 p-3">
-              <div className="size-24 shrink-0 rounded-lg" style={{ background: frameStyle(result.seedUsed, 0) }} />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold">生成完成</div>
-                <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                  {result.model} · seed {result.seedUsed} · {result.provider} · ${result.costUsd.toFixed(3)}
-                </div>
-                <div className="mt-2 flex gap-1.5">
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={saveToVault} disabled={savePrompt.isPending}>
-                    <Save className="size-3.5" /> 存入提示詞庫
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setResult(null); setStatus("idle"); }}>
-                    再生一張
-                  </Button>
+            ENABLE_VIDEO_GATE_KIT ? (
+              <AidvKit>
+                <Card className="flex gap-3 p-3">
+                  <div className="size-24 shrink-0 rounded-[12px] border border-[var(--line)]" style={{ background: frameStyle(result.seedUsed, 0) }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-semibold text-[var(--text)]">生成完成</span>
+                      <Pill kind="ok">已寫回資產庫</Pill>
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-[var(--muted)]">
+                      {result.model} · seed {result.seedUsed} · {result.provider} · ${result.costUsd.toFixed(3)}
+                    </div>
+                    <div className="mt-2 flex gap-1.5">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={saveToVault} disabled={savePrompt.isPending}>
+                        <Save className="size-3.5" /> 存入提示詞庫
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setResult(null); setStatus("idle"); }}>
+                        再生一張
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </AidvKit>
+            ) : (
+              <div className="flex gap-3 rounded-xl border bg-card/60 p-3">
+                <div className="size-24 shrink-0 rounded-lg" style={{ background: frameStyle(result.seedUsed, 0) }} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold">生成完成</div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                    {result.model} · seed {result.seedUsed} · {result.provider} · ${result.costUsd.toFixed(3)}
+                  </div>
+                  <div className="mt-2 flex gap-1.5">
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={saveToVault} disabled={savePrompt.isPending}>
+                      <Save className="size-3.5" /> 存入提示詞庫
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setResult(null); setStatus("idle"); }}>
+                      再生一張
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )
           )}
         </>
       )}
 
       {tab !== "gen" && (
-        <div className="rounded-xl border border-dashed bg-card/40 p-5 text-center">
-          <Badge variant="outline" className="mb-2 text-[10px]">待後端</Badge>
-          <div className="text-sm font-medium">
-            {tab === "upload" ? "上傳自有素材" : "外部 AI 帶入"}
+        ENABLE_VIDEO_GATE_KIT ? (
+          <AidvKit>
+            <Card className="p-5">
+              <div className="mb-3 flex justify-center"><Pill kind="mute">待後端</Pill></div>
+              <EmptyState
+                icon={tab === "upload" ? <Upload className="size-5" aria-hidden /> : <Link2 className="size-5" aria-hidden />}
+                title={tab === "upload" ? "上傳自有素材" : "外部 AI 帶入"}
+                hint={tab === "upload"
+                  ? "正式上傳 procedure 待後端（現況走 R2/S3 直傳；digital_asset_library 尚無 upload sourceStudio 值）。"
+                  : "外部匯入 procedure 待後端（digital_asset_library 尚無 external sourceStudio 值）。外部素材不扣積分、進分鏡仍走確認門。"}
+              />
+            </Card>
+          </AidvKit>
+        ) : (
+          <div className="rounded-xl border border-dashed bg-card/40 p-5 text-center">
+            <Badge variant="outline" className="mb-2 text-[10px]">待後端</Badge>
+            <div className="text-sm font-medium">
+              {tab === "upload" ? "上傳自有素材" : "外部 AI 帶入"}
+            </div>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
+              {tab === "upload"
+                ? "正式上傳 procedure 待後端（現況走 R2/S3 直傳；digital_asset_library 尚無 upload sourceStudio 值）。"
+                : "外部匯入 procedure 待後端（digital_asset_library 尚無 external sourceStudio 值）。外部素材不扣積分、進分鏡仍走確認門。"}
+            </p>
           </div>
-          <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
-            {tab === "upload"
-              ? "正式上傳 procedure 待後端（現況走 R2/S3 直傳；digital_asset_library 尚無 upload sourceStudio 值）。"
-              : "外部匯入 procedure 待後端（digital_asset_library 尚無 external sourceStudio 值）。外部素材不扣積分、進分鏡仍走確認門。"}
-          </p>
-        </div>
+        )
       )}
     </div>
   );

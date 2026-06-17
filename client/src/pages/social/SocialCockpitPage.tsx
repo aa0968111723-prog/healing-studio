@@ -21,6 +21,8 @@ import { useCreativeProject } from "@/spine/useCreativeProject";
 import { useBrandKit } from "@/social/useBrandKit";
 import { evaluateBrandGate } from "@/social/brandKit";
 import { SocialNav } from "@/components/social/SocialNav";
+import { SocialJourneyStepper } from "@/components/social/SocialJourneyStepper";
+import { SOCIAL_JOURNEY_STEPPER } from "@/social/socialFlags";
 import { TemplatePicker } from "@/components/social/TemplatePicker";
 import { SocialNewsList } from "@/components/social/SocialNewsList";
 import { BrandLockBadge } from "@/components/social/BrandLockBadge";
@@ -66,6 +68,10 @@ export default function SocialCockpitPage() {
 
   const goStudio = () => navigate("/social/studio");
 
+  // 由 cockpit 既有狀態推導旅程目前步（S1–S9，純展示；旗標 OFF 時不掛載）：
+  //   套品牌(S2)→有文案/選題(S3/4)→選版型(S5)→進圖像台前止於 S5；後段（生成/尺寸/發佈）在他頁。
+  const journeyStep = copy ? (template ? 5 : 3) : 2;
+
   const cite = (n: NewsItem) => {
     setBrief((b) => `${b}\n蹭熱點：「${n.title}」轉成品牌口吻。`);
     toast.message("已帶入選題", { description: n.title });
@@ -79,6 +85,11 @@ export default function SocialCockpitPage() {
         <div>
           <h1 className="text-xl font-semibold">社群工作台</h1>
           <p className="text-sm text-muted-foreground">意圖 → 套品牌 → 文案/選題 → 生成 → 多尺寸 → 發佈</p>
+          {/* U-6/AIDV-96：旗標 ON 時，純文字旅程升級為 design-kit 九步步進指示（目前第幾步/就緒態）。
+              OFF（預設）＝不掛載＝零變化。 */}
+          {SOCIAL_JOURNEY_STEPPER && (
+            <SocialJourneyStepper current={journeyStep} className="mt-2 max-w-3xl" />
+          )}
         </div>
         <Badge variant="outline" className="gap-1">
           <FolderOpen className="h-3.5 w-3.5" /> {active?.activeProject?.name ?? "未選專案（脊椎共用）"}
