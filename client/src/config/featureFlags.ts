@@ -26,7 +26,7 @@ function truthy(v: unknown): boolean {
 
 /**
  * 安全讀取 Vite 環境變數。SSR / 測試環境中 import.meta.env 可能不存在，故包 try。
- * 預設值一律 false（OFF），確保「沒設＝照舊」。
+ * 預設值由呼叫端的 fallback 決定（多數旗標傳 false／OFF＝「沒設＝照舊」；少數如 SHELL_LEARN 傳 true／ON）。
  */
 function readFlag(key: string, fallback = false): boolean {
   try {
