@@ -9,8 +9,8 @@
  * rev. U-11 · 2026-06-16 */
 import * as React from "react";
 import { cn, type Persona } from "./tokens";
-import { Button, Eyebrow } from "./primitives";
-import { PersonaSwitch, OrbBubble, MemoryDBTabs, ChatBubble } from "./cockpit";
+import { Button, Eyebrow, Meter } from "./primitives";
+import { PersonaSwitch, OrbBubble, MemoryDBTabs, ChatBubble, PromptBlock } from "./cockpit";
 import { VaultBrowser } from "./PromptVault";
 import { FlowBar, type WorkflowStep } from "./WorkflowBuilder";
 import { EmptyState, LoadingState, ErrorState } from "./states";
@@ -227,6 +227,54 @@ export function OrbChatTab({ messages = [], emptyHint }: { messages?: OrbChatMsg
       {messages.map((m, i) => (
         <ChatBubble key={m.id ?? i} role={m.role}>{m.text}</ChatBubble>
       ))}
+    </div>
+  );
+}
+
+/* ================= 「提示詞」分頁：我的提示詞庫（純呈現，四態）================= */
+export interface OrbPromptItem { id: string; title: string; content: string; uses?: number }
+export function OrbPromptsTab({
+  state = "ready", items = [], onInsert, onRetry,
+}: {
+  state?: "ready" | "loading" | "error" | "empty";
+  items?: OrbPromptItem[];
+  onInsert?: (it: OrbPromptItem) => void;
+  onRetry?: () => void;
+}) {
+  if (state === "loading") return <LoadingState label="載入提示詞庫…" />;
+  if (state === "error") return <ErrorState message="提示詞庫載入失敗" onRetry={onRetry} />;
+  if (state === "empty" || items.length === 0) {
+    return <EmptyState icon="📚" title="提示詞庫是空的" hint="在各處生成後按「存入提示詞庫」，這裡就會出現可重用的提示詞。" />;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {items.map((it) => (
+        <PromptBlock key={it.id} label={it.title} text={it.content} uses={it.uses} onInsert={onInsert ? () => onInsert(it) : undefined} />
+      ))}
+    </div>
+  );
+}
+
+/* ================= 「積分」分頁：剩餘積分＋用量（純呈現，三態）================= */
+export function OrbCreditsTab({
+  state = "ready", remaining, usedPct = 0, topModel, onRetry,
+}: {
+  state?: "ready" | "loading" | "error";
+  remaining?: number;
+  usedPct?: number;
+  topModel?: string | null;
+  onRetry?: () => void;
+}) {
+  if (state === "loading") return <LoadingState label="讀取積分…" />;
+  if (state === "error") return <ErrorState message="積分讀取失敗" onRetry={onRetry} />;
+  return (
+    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3.5">
+      <div className="flex items-end justify-between">
+        <span className="text-[12px] text-[var(--muted)]">剩餘積分</span>
+        <span className="text-[22px] font-semibold text-[var(--text)]">{typeof remaining === "number" ? remaining : "—"}</span>
+      </div>
+      <div className="mt-2"><Meter pct={usedPct} /></div>
+      <div className="mt-1 text-[11px] text-[var(--muted)]">已用 {usedPct}%{topModel ? ` · 高耗模型：${topModel}` : ""}</div>
     </div>
   );
 }
