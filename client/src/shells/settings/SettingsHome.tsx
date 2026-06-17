@@ -7,7 +7,7 @@
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
 import { useSearch } from "wouter";
-import { Settings, Hand, Brain, Gauge, Shield } from "lucide-react";
+import { Settings, Hand, Brain, Gauge, Shield, Plug } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 // U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時分頁條改用 design-kit 亮色暖光 SubTabs；
 //（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有 TabsList＝線上零變化。
@@ -19,16 +19,18 @@ import { GeneralSettingsPanel } from "./panels/GeneralSettingsPanel";
 import { ProviderPanel } from "./panels/ProviderPanel";
 import { AgentPrefsPanel } from "./panels/AgentPrefsPanel";
 import { ObservabilityPanel } from "./panels/ObservabilityPanel";
+import { ConnectionsPanel } from "./panels/ConnectionsPanel";
 import { AdminPanel } from "./panels/AdminPanel";
 
 const BASE_TABS = [
   { key: "general", label: "一般", icon: Settings },
   { key: "provider", label: "生成引擎", icon: Hand },
   { key: "agent", label: "代理偏好", icon: Brain },
+  { key: "connections", label: "連接器", icon: Plug },
   { key: "obs", label: "觀測", icon: Gauge },
 ] as const;
 
-type TabKey = "general" | "provider" | "agent" | "obs" | "admin";
+type TabKey = "general" | "provider" | "agent" | "connections" | "obs" | "admin";
 
 function readSub(search: string, allowed: string[], fallback: TabKey): TabKey {
   const v = new URLSearchParams(search).get("sub");
@@ -69,6 +71,7 @@ export function SettingsHome({ initial = "general" }: { initial?: TabKey }) {
         <TabsContent value="general" className="mt-4"><GeneralSettingsPanel /></TabsContent>
         <TabsContent value="provider" className="mt-4"><ProviderPanel /></TabsContent>
         <TabsContent value="agent" className="mt-4"><AgentPrefsPanel /></TabsContent>
+        <TabsContent value="connections" className="mt-4"><ConnectionsPanel /></TabsContent>
         <TabsContent value="obs" className="mt-4"><ObservabilityPanel /></TabsContent>
         {showAdmin && <TabsContent value="admin" className="mt-4"><AdminPanel /></TabsContent>}
       </Tabs>
