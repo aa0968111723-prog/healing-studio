@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
-import { OrbAssistant, ORB_TABS, ProactiveBubble, OrbPageTab, type OrbFlowItem } from "./orb";
+import { OrbAssistant, ORB_TABS, ProactiveBubble, OrbPageTab, OrbChatTab, type OrbFlowItem } from "./orb";
 import type { WorkflowStep } from "./WorkflowBuilder";
 
 afterEach(() => cleanup());
@@ -122,5 +122,25 @@ describe("design-kit OrbAssistant（U-11 / AIDV-114）", () => {
   it("本頁分頁：active=page＋pageContext → 掛 OrbPageTab", () => {
     render(<OrbAssistant defaultOpen activeTab="page" pageContext={{ hints: [{ id: "h1", text: "本頁提示一句" }] }} />);
     expect(screen.getByText("本頁提示一句")).toBeTruthy();
+  });
+
+  it("OrbChatTab：空 → 空態；有訊息 → 依序渲染泡泡", () => {
+    const { rerender } = render(<OrbChatTab messages={[]} />);
+    expect(screen.getByText("還沒有對話")).toBeTruthy();
+    rerender(
+      <OrbChatTab messages={[
+        { id: "m1", role: "user", text: "我想做一支療癒短片" },
+        { id: "m2", role: "agent", text: "好的，先從世界觀開始吧" },
+      ]} />,
+    );
+    expect(screen.getByText("我想做一支療癒短片")).toBeTruthy();
+    expect(screen.getByText("好的，先從世界觀開始吧")).toBeTruthy();
+  });
+
+  it("對話分頁：active=chat＋tabContent.chat → 掛 OrbChatTab", () => {
+    render(
+      <OrbAssistant defaultOpen activeTab="chat" tabContent={{ chat: <OrbChatTab messages={[{ id: "m1", role: "agent", text: "嗨，我是光球" }]} /> }} />,
+    );
+    expect(screen.getByText("嗨，我是光球")).toBeTruthy();
   });
 });

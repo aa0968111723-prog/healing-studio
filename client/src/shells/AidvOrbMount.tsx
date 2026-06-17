@@ -1,6 +1,6 @@
 // ============================================================================
 // shells/AidvOrbMount.tsx — U-11 OrbAssistant 真站掛載＋唯讀資料 adapter
-//   （AIDV-114 第3片＝掛載；第4片＝唯讀 adapter）
+//   （AIDV-114 第3片＝掛載；第4片＝心情/本頁；第5片＝對話分頁；第6片＝筆記分頁開抽屜）
 // ----------------------------------------------------------------------------
 // 把 design-kit 的新光球（OrbAssistant，亮色暖光「另一種型態」）掛進全站 chrome，
 // 並以**唯讀**方式接既有前端 orb 狀態（不碰後端、不寫狀態）。
@@ -18,7 +18,8 @@
 // ============================================================================
 import { useLocation } from "wouter";
 import { useOrbState, type OrbState } from "@/contexts/OrbStateContext";
-import { OrbAssistant, VIDEO_DEFAULT, type OrbMood } from "@/components/design-kit";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import { OrbAssistant, OrbChatTab, EmptyState, VIDEO_DEFAULT, type OrbChatMsg, type OrbMood } from "@/components/design-kit";
 
 /** 全站光球活動狀態 → 新光球心情（純對應，可單測）。 */
 export function orbStateToMood(s: OrbState): OrbMood {
@@ -55,15 +56,38 @@ export function pathToPageLabel(path: string): string {
 /** 視覺走查用的靜態示範分頁內容（提示詞庫/對話/積分/筆記真實資料＝後續片）。 */
 const DEMO_FLOW = { id: "f1", name: "成片工作流（示範）", steps: VIDEO_DEFAULT, current: 1 };
 
+/** 全站光球對話訊息（user/orb）→ 設計套件對話泡泡（取最近 N 筆，純對應）。 */
+export function toOrbChatMsgs(
+  messages: { role: "user" | "orb"; text: string; at: number }[],
+  limit = 20,
+): OrbChatMsg[] {
+  return messages.slice(-limit).map((m, i) => ({
+    id: `${m.at}-${i}`,
+    role: m.role === "user" ? "user" : "agent",
+    text: m.text,
+  }));
+}
+
 export function AidvOrbMount() {
   const orb = useOrbState();
+  const chat = useGlobalOrbChat();
   const [location] = useLocation();
   const mood = orbStateToMood(orb.state);
   const pageLabel = pathToPageLabel(location);
+  const chatMsgs = toOrbChatMsgs(chat.messages ?? []);
+
+  // 筆記分頁：沿用既有「筆記抽屜」CustomEvent 契約（與舊光球同一條），純前端、零後端。
+  const openNotesDrawer = () => {
+    try {
+      window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+    } catch {
+      /* SSR / 無 window 安全略過 */
+    }
+  };
 
   const hints = [
     { id: "h1", icon: "💡", text: `你正在「${pageLabel}」——點上方分頁看本頁提示、提示詞庫與專注流。` },
-    { id: "h2", icon: "✦", text: "光球心情已接全站狀態（待命／思考／工作／完成）；分頁資料為視覺示範，尚未接真實來源。" },
+    { id: "h2", icon: "✦", text: "心情接全站狀態、對話接近期往來、筆記可開抽屜；提示詞庫/積分需讀後端，待拍板後接。" },
   ];
 
   return (
@@ -80,6 +104,24 @@ export function AidvOrbMount() {
       }}
       pageContext={{ pageLabel, hints, flows: [DEMO_FLOW] }}
       promptVault={{ state: "empty" }}
+      tabContent={{
+        chat: <OrbChatTab messages={chatMsgs} />,
+        notes: (
+          <EmptyState
+            icon="📝"
+            title="筆記在側邊抽屜裡"
+            hint="點下方開啟筆記抽屜；在各處用「存到筆記」收藏的內容都會進到那裡。"
+            action={{ label: "開啟筆記抽屜", onClick: openNotesDrawer }}
+          />
+        ),
+        credits: (
+          <EmptyState
+            icon="◈"
+            title="積分餘額待接"
+            hint="積分餘額需讀後端（credits），屬碰後端讀取——待 Bruce 拍板後接（同提示詞庫）。"
+          />
+        ),
+      }}
     />
   );
 }
