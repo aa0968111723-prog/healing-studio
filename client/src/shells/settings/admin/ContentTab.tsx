@@ -16,6 +16,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時內容治理卡的統計列改用 design-kit 亮色暖光 SettingRow＋Pill
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有 label＋Badge＝線上零變化。數值原樣保留。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SettingRow as DkSettingRow, Pill } from "@/components/design-kit";
 
 export function ContentTab() {
   const [, navigate] = useLocation();
@@ -79,18 +83,30 @@ function ContentCard({ icon, title, rows, footer, onOpen }: {
     <Card className="p-5 space-y-3">
       <div className="flex items-center gap-2 text-sm font-semibold">{icon}{title}</div>
       <div className="space-y-1.5">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">{k}</span>
-            <Badge variant="outline">{v}</Badge>
-          </div>
-        ))}
+        {rows.map(([k, v]) => <StatRow key={k} label={k} value={v} />)}
       </div>
       <div className="text-[11px] text-muted-foreground">{footer}</div>
       <Button size="sm" variant="outline" className="w-full" onClick={onOpen}>
         <ExternalLink className="h-3.5 w-3.5 mr-1.5" />前往管理
       </Button>
     </Card>
+  );
+}
+
+/** 內容治理統計列：旗標 ON 時改用 design-kit 亮色暖光 SettingRow＋Pill；OFF＝既有 label＋Badge＝零變化。數值原樣保留。 */
+export function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkSettingRow label={label}><Pill kind="mute">{value}</Pill></DkSettingRow>
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <Badge variant="outline">{value}</Badge>
+    </div>
   );
 }
 

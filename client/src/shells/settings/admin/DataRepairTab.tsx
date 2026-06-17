@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /settings：任務狀態徽章旗標 ON 時改用 design-kit Pill（共用 StatusPill）；OFF＝既有 Badge。
+import { StatusPill } from "../StatusPill";
 
 export function DataRepairTab() {
   const jobsQ = trpc.admin.allBackgroundJobs.useQuery({ limit: 100 }, { retry: false });
@@ -71,7 +73,7 @@ export function DataRepairTab() {
             {stuck.map((j, i) => (
               <div key={j.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
                 <span className="flex-1 truncate">{j.label ?? j.kind ?? "任務"}</span>
-                <Badge variant={String(j.status) === "failed" ? "destructive" : "outline"} className="text-[10px]">{j.status}</Badge>
+                <StatusPill status={j.status} />
                 <span className="text-[10px] text-muted-foreground">{j.createdAt ? new Date(j.createdAt).toLocaleDateString("zh-TW") : ""}</span>
               </div>
             ))}

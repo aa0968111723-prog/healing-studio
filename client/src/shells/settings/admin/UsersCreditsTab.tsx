@@ -17,6 +17,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時使用者身分（名稱/email/角色）改用 design-kit AdminUserRow
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝線上零變化。
+// 僅取其身分顯示；積分（千分位）span 與 +500/-100/角色下拉等功能控制項照舊，一個都不掉。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, AdminUserRow } from "@/components/design-kit";
 
 const ROLES = ["user", "leader", "admin"] as const;
 
@@ -65,10 +70,7 @@ export function UsersCreditsTab() {
             const uRole = u.role ?? "user";
             return (
               <div key={u.id} className="flex flex-wrap items-center gap-2 py-2">
-                <div className="flex-1 min-w-[160px]">
-                  <div className="text-xs font-semibold">{u.name ?? u.displayName ?? `#${u.id}`} <span className="text-muted-foreground font-normal">· {uRole}</span></div>
-                  <div className="text-[11px] text-muted-foreground truncate">{u.email ?? "—"}</div>
-                </div>
+                <UserIdentity name={u.name ?? u.displayName ?? `#${u.id}`} email={u.email ?? "—"} role={uRole} />
                 <span className="font-mono text-xs text-amber-600 w-16 text-right tabular-nums">{credits.toLocaleString()}</span>
                 <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={quota.isPending} onClick={() => adjust(u, 500)}>+500</Button>
                 <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={quota.isPending} onClick={() => adjust(u, -100)}>-100</Button>
@@ -96,6 +98,24 @@ export function UsersCreditsTab() {
         <p className="text-[11px] text-muted-foreground">你是 <b>{role}</b>：可看清單與調配額；<b>更改角色（updateRole）</b>為 admin 專屬。</p>
       )}
     </Card>
+  );
+}
+
+/** 使用者身分顯示：旗標 ON 時改用 design-kit AdminUserRow（名稱/email/角色 Pill）；OFF＝既有版＝零變化。
+ *  僅取身分顯示；積分與配額/角色控制項由呼叫端保留在同列，不丟。 */
+export function UserIdentity({ name, email, role }: { name: string; email: string; role: string }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <div className="flex-1 min-w-[160px]"><AdminUserRow name={name} email={email} role={role} /></div>
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex-1 min-w-[160px]">
+      <div className="text-xs font-semibold">{name} <span className="text-muted-foreground font-normal">· {role}</span></div>
+      <div className="text-[11px] text-muted-foreground truncate">{email}</div>
+    </div>
   );
 }
 

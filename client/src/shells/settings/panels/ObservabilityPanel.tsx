@@ -19,8 +19,10 @@ import { PanelError } from "@/shells/_shared/PanelState";
 // design-kit 亮色暖光 StatCard（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝零變化。
 // 純展示、label/value 1:1 忠實對映、無控制項＝零功能損失（與 /learn CreditsUsagePanel·MiniStat 同寫法）。
 // 設計門（ui-ux-pro-max --domain ux）命中「Number Formatting：數值由呼叫端格式化後傳入」→ 兩版皆原樣呈現。
+// 背景任務狀態徽章（旗標 ON）改用共用 StatusPill（design-kit Pill）；OFF＝既有 Badge＝零變化。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, StatCard as DkStatCard } from "@/components/design-kit";
+import { StatusPill } from "../StatusPill";
 
 export function ObservabilityPanel() {
   const role = useRole();
@@ -81,18 +83,13 @@ export function ObservabilityPanel() {
             <div className="text-xs text-muted-foreground py-6 text-center">無背景任務。</div>
           ) : (
             <div className="max-h-72 overflow-auto divide-y">
-              {jobs.map((j, i) => {
-                const status = j.status ?? "—";
-                const variant = status === "done" || status === "completed" ? "secondary"
-                  : status === "failed" ? "destructive" : "outline";
-                return (
-                  <div key={j.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
-                    <span className="flex-1 truncate">{j.label ?? j.kind ?? j.type ?? "任務"}</span>
-                    <Badge variant={variant as any} className="text-[10px]">{status}</Badge>
-                    <span className="text-[10px] text-muted-foreground">{j.createdAt ? new Date(j.createdAt).toLocaleDateString("zh-TW") : ""}</span>
-                  </div>
-                );
-              })}
+              {jobs.map((j, i) => (
+                <div key={j.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
+                  <span className="flex-1 truncate">{j.label ?? j.kind ?? j.type ?? "任務"}</span>
+                  <StatusPill status={j.status ?? "—"} />
+                  <span className="text-[10px] text-muted-foreground">{j.createdAt ? new Date(j.createdAt).toLocaleDateString("zh-TW") : ""}</span>
+                </div>
+              ))}
             </div>
           )}
         </Card>
@@ -103,7 +100,7 @@ export function ObservabilityPanel() {
   );
 }
 
-/** 統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF（預設）＝既有版＝零變化。value 由呼叫端先格式化。 */
+/** 系統概覽統計卡：旗標 ON 時改用 design-kit 亮色暖光 StatCard；OFF（預設）＝既有版＝零變化。value 由呼叫端先格式化。 */
 export function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   if (ENABLE_AIDV_CHROME) {
     return (

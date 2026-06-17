@@ -13,6 +13,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 const flags = vi.hoisted(() => ({ chrome: false }));
 vi.mock("@/config/featureFlags", () => ({ get ENABLE_AIDV_CHROME() { return flags.chrome; } }));
 vi.mock("@/lib/trpc", () => ({ trpc: {} }));
+vi.mock("../rbac", () => ({ useRole: () => "user", roleAtLeast: () => false }));
 
 import { Stat } from "./ObservabilityPanel";
 

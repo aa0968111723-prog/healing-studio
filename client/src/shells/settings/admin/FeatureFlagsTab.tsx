@@ -19,6 +19,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時執行時功能開關列改用 design-kit 亮色暖光 SettingRow
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有版＝線上零變化。Switch 控制項兩版皆保留。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SettingRow as DkSettingRow } from "@/components/design-kit";
 
 // 執行時治理旗標（存 settings.extraSettings.featureFlags）。
 const RUNTIME_FLAGS: { key: string; label: string; desc: string }[] = [
@@ -77,14 +81,30 @@ export function FeatureFlagsTab() {
           <PanelError compact message="讀取現有功能開關失敗（需管理員）；以下為預設值。" onRetry={() => getQ.refetch()} />
         )}
         {RUNTIME_FLAGS.map((f) => (
-          <div key={f.key} className="flex items-center justify-between gap-4 py-1">
-            <div><div className="text-sm font-medium">{f.label}</div><div className="text-[11px] text-muted-foreground">{f.desc}</div></div>
+          <FlagRow key={f.key} label={f.label} desc={f.desc}>
             <Switch checked={!!runtime[f.key]} onCheckedChange={() => toggle(f.key)} disabled={update.isPending} />
-          </div>
+          </FlagRow>
         ))}
         {update.isPending && <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />寫入中…</div>}
         <p className="text-[11px] text-muted-foreground">註：站台級（全使用者）治理待 P3 把旗標來源移到 `system_settings`；目前 extraSettings 為使用者級草案。</p>
       </Card>
+    </div>
+  );
+}
+
+/** 執行時功能開關列：旗標 ON 時改用 design-kit 亮色暖光 SettingRow；OFF＝既有列＝零變化。Switch 控制項兩版皆在。 */
+export function FlagRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkSettingRow label={label} hint={desc}>{children}</DkSettingRow>
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between gap-4 py-1">
+      <div><div className="text-sm font-medium">{label}</div>{desc && <div className="text-[11px] text-muted-foreground">{desc}</div>}</div>
+      {children}
     </div>
   );
 }
