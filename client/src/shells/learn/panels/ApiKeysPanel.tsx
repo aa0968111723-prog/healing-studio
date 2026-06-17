@@ -15,6 +15,35 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
+// U-7（AIDV-97）：旗標 ON 時平台金鑰列改用 design-kit KeyRow（亮色暖光、唯讀無 test/delete）；
+// OFF（預設）＝既有 border+Badge 格＝線上零變化。資料源（admin.apiKeysStatus）不動。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, KeyRow as DkKeyRow } from "@/components/design-kit";
+
+/** 平台金鑰狀態列：ON＝design-kit KeyRow（isSet→已連/未設→未測）；OFF＝既有圖示+Badge 格。 */
+export function KeyStatusRow({ name, label, module, isSet }: { name: string; label: string; module?: string; isSet?: boolean }) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkKeyRow name={label || name} status={isSet ? "ok" : "idle"} />
+      </AidvKit>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 rounded-lg border p-2.5">
+      {isSet
+        ? <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+        : <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />}
+      <div className="min-w-0">
+        <div className="text-xs font-medium truncate">{label}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{module}</div>
+      </div>
+      <Badge variant={isSet ? "secondary" : "outline"} className="ml-auto text-[10px]">
+        {isSet ? "已設定" : "未設定"}
+      </Badge>
+    </div>
+  );
+}
 
 export function ApiKeysPanel() {
   const { user } = useAuth();
@@ -59,18 +88,7 @@ export function ApiKeysPanel() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {keys.map((k) => (
-                <div key={k.name} className="flex items-center gap-2 rounded-lg border p-2.5">
-                  {k.isSet
-                    ? <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
-                    : <ShieldOff className="h-4 w-4 text-muted-foreground shrink-0" />}
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium truncate">{k.label}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{k.module}</div>
-                  </div>
-                  <Badge variant={k.isSet ? "secondary" : "outline"} className="ml-auto text-[10px]">
-                    {k.isSet ? "已設定" : "未設定"}
-                  </Badge>
-                </div>
+                <KeyStatusRow key={k.name} name={k.name} label={k.label} module={k.module} isSet={k.isSet} />
               ))}
             </div>
           )}
