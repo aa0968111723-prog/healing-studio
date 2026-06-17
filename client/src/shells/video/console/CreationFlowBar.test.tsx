@@ -22,6 +22,7 @@ const h = vi.hoisted(() => ({
   openDrawer: vi.fn(),
   toast: vi.fn(),
   canvasMode: "chat" as string,
+  steps: null as unknown[] | null,
 }));
 vi.mock("sonner", () => ({ toast: (...a: unknown[]) => h.toast(...a) }));
 vi.mock("@/spine/ProjectSpineProvider", () => ({
@@ -34,7 +35,7 @@ vi.mock("@/spine/ProjectSpineProvider", () => ({
 }));
 vi.mock("../DirectorConsoleProvider", () => ({
   useDirectorConsole: () => ({
-    steps: freshDefaultWorkflow(),
+    steps: h.steps ?? freshDefaultWorkflow(),
     canvasMode: h.canvasMode,
     setCanvasMode: h.setCanvasMode,
     openDrawer: h.openDrawer,
@@ -44,7 +45,7 @@ vi.mock("../DirectorConsoleProvider", () => ({
 import { CreationFlowBar } from "./CreationFlowBar";
 
 beforeEach(() => {
-  h.setCanvasMode.mockReset(); h.toast.mockReset(); h.canvasMode = "chat";
+  h.setCanvasMode.mockReset(); h.toast.mockReset(); h.canvasMode = "chat"; h.steps = null;
 });
 afterEach(() => { cleanup(); flags.chrome = false; });
 
@@ -73,10 +74,18 @@ describe("CreationFlowBar（U-2 / AIDV-92 · /video S2）", () => {
     expect(h.setCanvasMode).toHaveBeenCalledWith("asset");
   });
 
-  it("旗標 ON：點待後端步『打包初剪』→ 提示 toast 且不切畫布", () => {
+  it("旗標 ON：點『打包初剪』→ 切初剪畫布（setCanvasMode('rough-cut')，S4 已接）", () => {
     flags.chrome = true;
     render(<CreationFlowBar onGuided={vi.fn()} />);
     fireEvent.click(screen.getByText("打包初剪"));
+    expect(h.setCanvasMode).toHaveBeenCalledWith("rough-cut");
+  });
+
+  it("旗標 ON：點待後端步（pending）→ 提示 toast 且不切畫布", () => {
+    flags.chrome = true;
+    h.steps = [{ id: "pend", name: "待後端步", required: false, enabled: true, canvasMode: "chat", pending: true }];
+    render(<CreationFlowBar onGuided={vi.fn()} />);
+    fireEvent.click(screen.getByText("待後端步"));
     expect(h.toast).toHaveBeenCalledTimes(1);
     expect(h.setCanvasMode).not.toHaveBeenCalled();
   });
