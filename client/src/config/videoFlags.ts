@@ -74,6 +74,18 @@ export const ENABLE_WORLD_STYLE_INJECTION: boolean = readFlag("VITE_ENABLE_WORLD
  */
 export const ENABLE_PROJECT_HUB: boolean = readFlag("VITE_ENABLE_PROJECT_HUB", false);
 
+/**
+ * U-5 六步工作流座艙視覺實裝（AIDV-95）。**預設 OFF**＝零行為改變：關閉時 /video 中欄畫布
+ * （生成 / 初剪）維持既有 shadcn/Tailwind 呈現，一字不動。
+ * 開啟（VITE_ENABLE_VIDEO_GATE_KIT=1）後，採用片畫布改用 design-kit 亮色暖光元件：
+ *   · 初剪畫布（RoughCutCanvas）頂部出 design-kit 確認門摘要（可打包/待核准/未生成
+ *     ＝ready/partial/blocked 三態大數字 + Pill），把「未核准不打包」的品管脊椎視覺化。
+ *   · 生成畫布（AssetGenCanvas）結果/載入/錯誤改用 design-kit 四態（LoadingState/
+ *     ErrorState/EmptyState）+ Pill + Card，統一暖光語彙。
+ * 兩版動作接點（spine/setQueued/run）完全一致，僅換視覺殼 → 可第三人驗收、可即時回滾。
+ */
+export const ENABLE_VIDEO_GATE_KIT: boolean = readFlag("VITE_ENABLE_VIDEO_GATE_KIT", false);
+
 /** 集中匯出，方便偵錯面板/驗收一次讀取。 */
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
@@ -81,6 +93,7 @@ export const VIDEO_FLAGS = {
   ENABLE_DIRECTOR_CONSOLE,
   ENABLE_WORLD_STYLE_INJECTION,
   ENABLE_PROJECT_HUB,
+  ENABLE_VIDEO_GATE_KIT,
 } as const;
 
 export type VideoFlagKey = keyof typeof VIDEO_FLAGS;
