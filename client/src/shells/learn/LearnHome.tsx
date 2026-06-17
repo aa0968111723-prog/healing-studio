@@ -9,6 +9,11 @@ import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import { Globe, Cpu, BookOpen, Coins, KeyRound, Newspaper } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+// U-7（AIDV-97）逐殼採用 · /learn：旗標 ON 時分頁條改用 design-kit 亮色暖光 SubTabs；
+//（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有 TabsList＝線上零變化。
+// 內容切換仍由 radix Tabs 的 value/TabsContent 負責；?sub= 深連結邏輯不動。
+import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { AidvKit, SubTabs as DkSubTabs } from "@/components/design-kit";
 import { ResearchPanel } from "./panels/ResearchPanel";
 import { AIModelHubPanel } from "./panels/AIModelHubPanel";
 import { LearnDocsPanel } from "./panels/LearnDocsPanel";
@@ -58,13 +63,7 @@ export function LearnHome({ initial = "research" }: { initial?: TabKey }) {
       </div>
 
       <Tabs value={sub} onValueChange={onChange} className="w-full">
-        <TabsList className="flex flex-wrap h-auto">
-          {TABS.map((t) => (
-            <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
-              <t.icon className="h-3.5 w-3.5" />{t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <TabStrip tabs={TABS} active={sub} onSelect={onChange} />
 
         <TabsContent value="research" className="mt-4"><ResearchPanel /></TabsContent>
         <TabsContent value="models" className="mt-4"><AIModelHubPanel /></TabsContent>
@@ -74,6 +73,29 @@ export function LearnHome({ initial = "research" }: { initial?: TabKey }) {
         <TabsContent value="news" className="mt-4"><NewsPanel /></TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/** 分頁條：旗標 ON 時改用 design-kit 亮色暖光 SubTabs（自帶 role=tablist/aria-selected）；
+ *  OFF＝既有 radix TabsList＝零變化。兩版皆呼叫同一 onSelect（同步 ?sub= 深連結）。 */
+export function TabStrip(
+  { tabs, active, onSelect }: { tabs: readonly { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[]; active: string; onSelect: (v: string) => void },
+) {
+  if (ENABLE_AIDV_CHROME) {
+    return (
+      <AidvKit>
+        <DkSubTabs tabs={tabs.map((t) => ({ id: t.key, label: t.label }))} active={active} onSelect={onSelect} />
+      </AidvKit>
+    );
+  }
+  return (
+    <TabsList className="flex flex-wrap h-auto">
+      {tabs.map((t) => (
+        <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+          <t.icon className="h-3.5 w-3.5" />{t.label}
+        </TabsTrigger>
+      ))}
+    </TabsList>
   );
 }
 
