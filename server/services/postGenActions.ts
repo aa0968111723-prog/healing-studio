@@ -125,6 +125,13 @@ export interface PostGenParams {
    * 新增；舊 schema 下會被 ORM 忽略。
    */
   backgroundJobId?: number;
+  /**
+   * prompt↔asset 關聯類型（prompt_assets.relation enum：derived/variant/rewrite/extended）。
+   * 座艙重骰=variant、改寫=rewrite、延長=extended；預設 derived（生成完成的衍生關聯）。
+   * 僅在 ENABLE_PROMPT_ASSET_LINKS=ON 且 promptId+assetId 都有時實際寫入；
+   * 寫入仍走 (promptId, assetId, relation) 唯一鍵＝冪等。
+   */
+  relation?: "derived" | "variant" | "rewrite" | "extended";
 }
 
 /**
@@ -146,6 +153,7 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
     thumbnailUrl,
     costCredits,
     backgroundJobId,
+    relation,
   } = params;
   const promptText = (prompt ?? "").trim();
   const historyCostCredits =
@@ -238,7 +246,8 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
 
       // 1-3a-2. prompt ↔ asset 關聯（prompt_assets junction, migration 0075）。
       // 旗標 ENABLE_PROMPT_ASSET_LINKS 預設 OFF；ON 時把 1-2 剛寫的提示詞列
-      // 與本資產列連起來（relation=derived）。(promptId, assetId, relation)
+      // 與本資產列連起來。relation 由呼叫端帶入（座艙重骰/改寫/延長＝
+      // variant/rewrite/extended），預設 derived。(promptId, assetId, relation)
       // 唯一鍵保證 webhook+polling 雙路徑重跑冪等；失敗吞錯不影響主流程。
       const linkAssetId = Number(newAssetId);
       if (
@@ -251,7 +260,7 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
           await db.createPromptAssetLink({
             promptId: savedPromptId,
             assetId: linkAssetId,
-            relation: "derived",
+            relation: relation ?? "derived",
           });
         } catch {
           // 靜默忽略 — 關聯失敗不能擋資產/歷史寫入
