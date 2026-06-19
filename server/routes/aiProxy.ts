@@ -17,6 +17,7 @@ import { verifyToken } from "../middleware/verifyToken";
 import { rateLimiters } from "../_core/rateLimiter";
 import { getAdapter } from "../services/ai-adapters/registry";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
+import { extractUsageCostUsd } from "../services/usageCost";
 import {
   resolveProviderBaseUrl,
   type FacadeProvider,
@@ -322,6 +323,10 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   let status: "success" | "failed" | "timeout" = "success";
   let errorMessage: string | undefined;
   let upstreamStatus = 200;
+  // AIDV-14：真實 USD 成本（DECIMAL(12,6) 字串）。預設 "0"，僅在成功且回應
+  // body 帶有 OpenRouter 風格 usage.cost 時被覆寫。所有計算都在 res.send
+  // 之後（請求熱路徑之外），且擷取函式 pure / 永不 throw。
+  let costUsd = "0";
 
   const requestBody: BodyInit | undefined =
     req.method === "GET" || req.method === "HEAD"
@@ -430,6 +435,17 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     const buffer = await upstreamRes.arrayBuffer();
     const payload = Buffer.from(buffer);
     res.send(payload);
+
+    // ── AIDV-14：res.send 之後再算成本 ────────────────────────────────────
+    // 此處在回應已 flush 給 client 之後執行，不在請求熱路徑上、不新增任何
+    // res.send 之前的 await，且 extractUsageCostUsd 為 pure 同步函式、永不
+    // throw。只有成功回應才嘗試擷取；失敗/錯誤 body 自然回 "0"。
+    if (status === "success") {
+      costUsd = extractUsageCostUsd(
+        payload,
+        upstreamRes.headers.get("content-type"),
+      );
+    }
   }
 
   const latencyMs = Date.now() - startMs;
@@ -456,7 +472,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
           userId: userId ?? null,
           status,
           latencyMs,
-          costUsd: "0",
+          costUsd,
           errorMessage,
         });
       }
