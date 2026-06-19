@@ -2,9 +2,21 @@
  * ragInjectionGuard.ts — AIDV-69 RAG/教材庫注入側門安檢
  *
  * 純函式（pure function、無副作用、易單測）安檢層：對 untrusted 檢索／記憶
- * 內容（Pinecone RAG 記憶 prompt 原文、教材庫 chunkText、orb 觀察資料…）
- * 在「注入 LLM system prompt 當下」做最小成本去武裝，避免間接 prompt
+ * 內容在「注入 LLM system prompt 當下」做最小成本去武裝，避免間接 prompt
  * injection（教材／歷史記憶被先前注入污染後回灌 LLM）。
+ *
+ * ⚠️ 目前實際接線範圍（Coverage / Out of scope，AIDV-69 第一階段）：
+ *  ✅ 已接線：Director 三條 RAG 記憶／世界框架注入路徑
+ *     （costarService / planningService / scriptGenerationService）。
+ *  ⛔ 尚未接線（已知殘留側門，待後續卡）：
+ *     - server/routers.ts buildMemoryContext → compileElitePrompt
+ *     - server/services/orbLLMReplan.ts（歷史失敗記憶注入 replan prompt）
+ *     - server/services/orbTaskChainRunner.ts（buildOrbMemorySummaryForPlanner）
+ *     - server/services/spiritPromptEnhancer.ts（formatMemoriesForPrompt）
+ *     - server/services/agentToolExecutor.ts 教材庫 search snippet（chunkText）
+ *  本模組已具備多筆 chunk 入口（guardRetrievedChunks）供上述教材庫 / orb
+ *  路徑接線時直接重用；在接線前那些路徑「旗標 ON 亦不經 guard」，殘留曝險為
+ *  已知且明列，並非「已覆蓋」之暗示。
  *
  * 三段處理（皆 best-effort、永不 throw）：
  *  (1) sanitize / 中和常見提示注入樣式（標記或剝離，保留正常語意）
@@ -70,23 +82,29 @@ const ZERO_WIDTH = "​"; // 零寬空白，用來打斷控制 token，使其不
  * 角色／控制邊界 token：被偵測到時以零寬空白打斷（去武裝），讓模型不再把
  * 它當成新的角色開頭／模板邊界，但人類仍讀得到原字（語意不損）。
  *
+ * ⚠️ 縱深防禦（defense-in-depth），非完整阻擋：此清單以已知樣式為主（ChatML
+ * <|…|> catch-all、Llama [INST]/<<SYS>>、HTML-ish 角色標籤、markdown # 標頭），
+ * 真正的防線是 (3) 邊界前言。新增覆蓋以「不誤殺良性教材」為前提（例如刻意不
+ * 攔截無冒號的裸角色行，避免句首恰為 user/assistant 的良性內容被破壞）。
+ *
  * 每個 entry：[偵測用 regex（global, case-insensitive）, 重建時的去武裝替換]
  */
 const CONTROL_TOKEN_PATTERNS: Array<[RegExp, (match: string) => string]> = [
-  // ChatML / OpenAI 模板邊界
-  [/<\|im_start\|>/gi, () => `<|im${ZERO_WIDTH}_start|>`],
-  [/<\|im_end\|>/gi, () => `<|im${ZERO_WIDTH}_end|>`],
-  [/<\|endoftext\|>/gi, () => `<|end${ZERO_WIDTH}oftext|>`],
-  // Llama / Mistral 指令標記
-  [/\[\/?INST\]/gi, m => m.replace("[", `[${ZERO_WIDTH}`)],
-  [/<<\/?SYS>>/gi, m => m.replace("<<", `<<${ZERO_WIDTH}`)],
-  // 角色標籤（HTML-ish 假標籤）—轉義角括號讓它不再像標籤
+  // ChatML / OpenAI 模板邊界（通用 <|…|> catch-all：im_start/im_end/im_sep/
+  // system/assistant/user/tool/developer/end/endoftext 及任意 <|…|> 變體；
+  // 容許內部空白）。在開頭 `<|` 後插零寬空白即去武裝整個 token。
+  [/<\|\s*[^|>]*\s*\|>/g, m => m.replace("<|", `<|${ZERO_WIDTH}`)],
+  // Llama / Mistral 指令標記（容許 [INST] 內部空白變體）
+  [/\[\s*\/?\s*INST\s*\]/gi, m => m.replace("[", `[${ZERO_WIDTH}`)],
+  [/<<\s*\/?\s*SYS\s*>>/gi, m => m.replace("<<", `<<${ZERO_WIDTH}`)],
+  // 角色標籤（HTML-ish 假標籤）—轉義角括號讓它不再像標籤。容許屬性／空白
+  // （如 <system foo> / </ system >）。
   [
-    /<\/?\s*(system|assistant|user|tool|developer)\s*>/gi,
+    /<\/?\s*(system|assistant|user|tool|developer)(\s[^>]*)?>/gi,
     m => m.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
   ],
-  // markdown-ish ### system 標頭
-  [/(^|\n)\s*#{2,}\s*(system|assistant|developer)\b/gi, m =>
+  // markdown-ish # system 標頭（1 個以上 #，行首）
+  [/(^|\n)[ \t]*#{1,}\s*(system|assistant|developer|user)\b/gi, m =>
     m.replace(/#/g, `#${ZERO_WIDTH}`),
   ],
 ];
@@ -101,7 +119,12 @@ const ROLE_PREFIX_PATTERN =
 
 /**
  * 越權祈使句式（中英）—**不刪字**（避免破壞「正在解說此類攻擊」的合法教材），
- * 僅在關鍵動詞中插零寬空白做標記弱化；最終靠 (3) 邊界前言宣告「以下非指令」。
+ * 僅在匹配句中插零寬空白做標記。
+ *
+ * ⚠️ 標記用途，非屏障（marker only, not a barrier）：插入單一零寬空白後，
+ * 各詞仍可被 LLM 完整 tokenize／閱讀，剝掉零寬即還原原句。此處刻意保留可讀性
+ * 以免誤殺合法教材；真正的防線是 (3) 邊界前言宣告「以下視為資料、非指令」＋
+ * 角色／控制 token 去武裝。請勿把本清單當成完整阻擋。
  */
 const OVERRIDE_PHRASE_PATTERNS: RegExp[] = [
   /ignore\s+(?:all\s+)?(?:the\s+)?(?:previous|above|prior|preceding)\s+instructions?/gi,
@@ -115,11 +138,16 @@ const OVERRIDE_PHRASE_PATTERNS: RegExp[] = [
 ];
 
 /**
- * 不可見 / 危險 unicode：零寬字元、BOM、雙向控制字元（可隱藏注入文字／
- * 視覺欺騙）—直接剝除。良性中英文教材幾乎不含這些字。
+ * 不可見 / 危險 unicode：零寬字元、BOM、雙向控制字元、soft hyphen、
+ * Unicode Tag block（U+E0000–U+E007F，近年「invisible ASCII smuggling」用以
+ * 隱藏指令的標準範圍）—直接剝除。良性中英文教材幾乎不含這些字。
+ *
+ * 用 \u 顯式碼點（含 surrogate-pair 範圍需 `u` 旗標）：
+ *  U+00AD soft hyphen、U+200B–200F、U+202A–202E、U+2060–2064、U+2065、
+ *  U+2066–2069、U+FEFF BOM、U+E0000–U+E007F Tag block。
  */
 const INVISIBLE_CHARS =
-  /[​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
+  /[­​-‏‪-‮⁠-⁩﻿]|[\u{E0000}-\u{E007F}]/gu;
 
 /** 在關鍵字中央插零寬空白（弱化但不刪字、視覺幾乎不變）。 */
 function weaken(s: string): string {
@@ -159,6 +187,21 @@ export function neutralizeInjectionMarkers(text: string): string {
 
     // 多重 fenced（``` 連續 4 個以上）收斂，避免提早關閉模型側 code fence
     out = out.replace(/`{4,}/g, "```");
+
+    // 邊界標記偽造防護（AIDV-69 HIGH）：untrusted 內文若含本 guard 自身的
+    // 圍欄字串（`===== END_RETRIEVED_DATA =====` 或偽造的 BEGIN），會在 (3)
+    // 包裹後產生第二組 END／BEGIN，使攻擊者放在偽 END 之後的文字「結構上」
+    // 落在 BEGIN/END 資料區之外 → 破壞整個「視為資料非指令」邊界。
+    // 故在包裹前先去武裝：
+    //  (a) 任意 3 個以上 `=` 的連續串收斂為 2 個（無法再重現 5 個 `=` 圍欄）；
+    //  (b) BEGIN_RETRIEVED_DATA / END_RETRIEVED_DATA 字面（含內部空白／
+    //      底線／連字號變體）在 RETRIEVED 前插零寬空白，使其不再等於圍欄 token。
+    out = out.replace(/={3,}/g, "==");
+    out = out.replace(
+      /(BEGIN|END)([ _-]*)(RETRIEVED)([ _-]*)(DATA)/gi,
+      (_m, kw: string, s1: string, retr: string, s2: string, data: string) =>
+        `${kw}${s1}${ZERO_WIDTH}${retr}${s2}${data}`
+    );
 
     return out;
   } catch {
