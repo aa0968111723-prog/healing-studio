@@ -26,14 +26,34 @@ export function makeCommanderTrpc(_deps: AdapterDeps): CommanderAdapter {
   async function directorReply(input: DirectorReplyInput): Promise<DirectorReply> {
     try {
       // ✅ director.chat — CO-STAR 雙引擎 × RAG × 三人格（LLM 走伺服器端 OpenRouter→Claude）
+      //
+      // AIDV-152：契約對齊。server director.chat 的 input schema 是
+      // { messages: [{role,content}], saveToNotes, personality, projectId? }，
+      // 而非舊的 { persona, message }。修正前送舊欄位會被 Zod 擋下，projectId
+      // 永遠到不了 server，世界框架注入路徑形同死碼。此處把單則 message 包成
+      // messages 陣列、persona 對映 personality（兩者皆 calm|creative|technical），
+      // 並原樣帶上 active projectId（旗標 ENABLE_DIRECTOR_WORLD_CONTEXT 在
+      // server 端 gate；旗標 OFF 時 projectId 純被忽略，零行為改變）。
       const r = await client.director.chat.mutate({
-        persona: input.persona, message: input.message, projectId: input.projectId ?? undefined,
+        messages: [{ role: "user", content: input.message }],
+        saveToNotes: false,
+        personality: input.persona,
+        projectId: input.projectId ?? undefined,
       });
+      // server 回傳 { research, script, personality }。對話文字取 research；
+      // 舊的 text/reply/message 欄位保留向後相容（mock 或未來 shape 變動）。
+      const r2 = r as Record<string, unknown> | null | undefined;
+      const text =
+        (typeof r2?.text === "string" && r2.text) ||
+        (typeof r2?.reply === "string" && r2.reply) ||
+        (typeof r2?.message === "string" && r2.message) ||
+        (typeof r2?.research === "string" && r2.research) ||
+        "";
       return {
         role: "ai",
         persona: input.persona,
-        text: String(r?.text ?? r?.reply ?? r?.message ?? ""),
-        agent: String(r?.agent ?? "director"),
+        text: String(text),
+        agent: String(r2?.agent ?? "director"),
       };
     } catch (err) {
       throw new AdapterError("directorReply failed", { seam: "commander", procedure: "director.chat", cause: err });

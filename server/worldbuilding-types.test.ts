@@ -145,6 +145,51 @@ describe("worldbuilding-types", () => {
     expect(summary).toContain("環境變化：黃昏起霧");
   });
 
+  it("summarizeFrameworkForPrompt 不傳 maxChars 時不截斷（位元相同）", () => {
+    const base = {
+      name: "未截斷世界",
+      genre: "奇幻",
+      characters: [],
+      scenes: [],
+    };
+    const a = summarizeFrameworkForPrompt(base);
+    const b = summarizeFrameworkForPrompt(base, undefined);
+    expect(a).toBe(b);
+    expect(a).not.toContain("已截斷");
+  });
+
+  it("summarizeFrameworkForPrompt 傳 maxChars 時截斷並補標記（AIDV-152 token 預算）", () => {
+    // 用大量角色把摘要撐到遠超預算。
+    const characters = Array.from({ length: 60 }, (_, i) => ({
+      id: `c${i}`,
+      name: `角色${i}`,
+      role: "supporting" as const,
+      appearance: "深綠瞳長髮披風斗篷高大魁梧的角色描述用來灌長字串".repeat(4),
+      personality: "溫柔細膩重情義".repeat(4),
+    }));
+    const full = summarizeFrameworkForPrompt({
+      name: "巨型世界",
+      genre: "奇幻",
+      characters,
+      scenes: [],
+    });
+    expect(full.length).toBeGreaterThan(2000);
+
+    const capped = summarizeFrameworkForPrompt(
+      {
+        name: "巨型世界",
+        genre: "奇幻",
+        characters,
+        scenes: [],
+      },
+      2000
+    );
+    expect(capped.length).toBeLessThanOrEqual(2000);
+    expect(capped).toContain("已截斷");
+    // 開頭內容仍在（截斷只發生在尾端）。
+    expect(capped).toContain("# 世界觀：巨型世界");
+  });
+
   it("exposes the role label map", () => {
     expect(CHARACTER_ROLE_LABELS.protagonist).toBe("主角");
     expect(CHARACTER_ROLE_LABELS.supporting).toBe("配角");
