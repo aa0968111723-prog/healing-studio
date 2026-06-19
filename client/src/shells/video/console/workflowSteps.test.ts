@@ -93,12 +93,26 @@ describe("workflowSteps · AIDV-12 配音/配樂工作流（旗標 gate）", () 
     expect(existing).toEqual(["intent", "entry", "asset", "rough", "gate", "done"]);
   });
 
-  it("旗標 ON：STEP_LIBRARY 不再重覆列 voice/music（避免 WorkflowBuilder 加入鈕永遠灰掉）", async () => {
+  it("旗標 ON：STEP_LIBRARY 仍含 voice/music（刪除後可單獨從步驟庫加回，不留單向死路）", async () => {
     flag.on = true;
     const m = await loadModule();
     const ids = m.STEP_LIBRARY.map((s) => s.id);
-    expect(ids).not.toContain("voice");
-    expect(ids).not.toContain("music");
+    expect(ids).toContain("voice");
+    expect(ids).toContain("music");
+  });
+
+  it("旗標 ON：WorkflowBuilder 刪除 voice 後，STEP_LIBRARY 仍含 voice 且該加入鈕回復可用", async () => {
+    flag.on = true;
+    const m = await loadModule();
+    // 模擬：旗標 ON → 預設工作流含 voice；使用者於 WorkflowBuilder 用垃圾桶刪掉 voice（required:false 可刪）。
+    let steps = m.freshDefaultWorkflow();
+    expect(steps.map((s) => s.id)).toContain("voice");
+    steps = steps.filter((s) => s.id !== "voice"); // ConsoleDrawers remove(i) 的等價行為
+    // 復原路徑：voice 仍在步驟庫，且「加入」鈕的 disabled 條件（steps.some(id===)）此時為 false → 可重新加入。
+    const lib = m.STEP_LIBRARY.find((s) => s.id === "voice");
+    expect(lib).toBeDefined();
+    const addDisabled = steps.some((s) => s.id === "voice"); // 等同 ConsoleDrawers.tsx disabled={...}
+    expect(addDisabled).toBe(false);
   });
 
   it("旗標 ON：回傳是深複製，就地改動不污染下一次取得", async () => {

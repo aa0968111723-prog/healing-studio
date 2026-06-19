@@ -48,18 +48,16 @@ const MUSIC_STEP: WorkflowStep = { id: "music", name: "配樂", required: false,
 
 /**
  * 可加入的步驟庫（設計系統 §14.2）。
- * 旗標 ON 時 voice/music 已進 DEFAULT_WORKFLOW（見 freshDefaultWorkflow），故不重覆列入步驟庫，
- * 避免 WorkflowBuilder 的「加入」按鈕對已在流程中的步驟永遠灰掉。旗標 OFF 時仍可從步驟庫手動加入。
+ * voice/music 無條件保留於步驟庫（旗標 ON/OFF 皆然），確保「刪除後可單獨從步驟庫加回」的復原路徑。
+ * 旗標 ON 時這兩步雖已進 DEFAULT_WORKFLOW，但 WorkflowBuilder 的「加入」鈕／add() 守衛
+ *   （ConsoleDrawers.tsx：disabled={steps.some(id===)} 與 add() 同條件）只在「已在流程中」時灰掉；
+ *   一旦使用者刪掉該步，鈕即自動恢復可點 → 不會「刪了回不來」、也不會「永遠灰掉」。
  */
 export const STEP_LIBRARY: { id: string; name: string; canvasMode?: CanvasMode; pending?: boolean }[] = [
   { id: "world", name: "世界觀設定", canvasMode: "chat" },
   { id: "lora", name: "角色 LoRA 訓練", canvasMode: "chat", pending: true },
-  ...(ENABLE_VOICE_MUSIC_WORKFLOW
-    ? []
-    : [
-        { id: "voice", name: "配音/環境音", canvasMode: "voice" as CanvasMode },
-        { id: "music", name: "配樂", canvasMode: "music" as CanvasMode },
-      ]),
+  { id: "voice", name: "配音/環境音", canvasMode: "voice" },
+  { id: "music", name: "配樂", canvasMode: "music" },
   { id: "publish", name: "發佈/精選", canvasMode: "chat", pending: true },
   { id: "review", name: "同儕審閱", canvasMode: "chat", pending: true },
 ];
