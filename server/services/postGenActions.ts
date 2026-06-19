@@ -62,7 +62,12 @@ export type PostGenModality = "image" | "video" | "audio" | "voice";
  *   - category ：存的是 modality（image/video/audio/voice）。同一句話拿去生圖
  *                vs 生影是不同用途、modelHint/下游語意不同 → 納入鍵分開。
  *   - content  ：完整提示詞全文比對（不截斷、不做大小寫/unicode 正規化；
- *                呼叫端已 trim 過頭尾空白）。
+ *                呼叫端已 trim 過頭尾空白）。content 欄位的 TEXT 預設 collation
+ *                是 utf8mb4_unicode_ci（大小寫/重音/尾空白皆 INsensitive），會把
+ *                'A cute cat'/'a cute cat'、'café'/'cafe'、'foo'/'foo   ' 誤併成
+ *                同一列。為符合「完整全文、原樣比對」語意，content 的等值比對改用
+ *                BINARY（位元組級、case/accent/trailing-space 全 sensitive），讓
+ *                只差大小寫/重音/尾空白的提示詞保持為不同列、不被誤併。
  *
  * HARD SAFETY：
  *   - 非破壞性：只讀既有列＋新插，不 UPDATE/DELETE 任何既有列、不做資料遷移。
@@ -83,6 +88,7 @@ export interface FindOrCreatePromptParams {
   dbConn: {
     select: (...args: any[]) => any;
     insert: (...args: any[]) => any;
+    update: (...args: any[]) => any;
   };
   userId: number;
   /** 提示詞全文（呼叫端已 trim）。 */
@@ -100,9 +106,11 @@ export async function findOrCreatePromptByContent(
   const { dbConn, userId, content, category, title, modelHint } = params;
 
   // (1) 先以 (userId, category, content) 查既有列 — 命中則重用，永不重插。
+  // content 用 BINARY 等值比對（避開 utf8mb4_unicode_ci 的 case/accent/trailing-
+  // space 折疊，符合「完整全文原樣比對」語意，不誤併僅大小寫/重音/尾空白不同的列）。
   // SELECT 失敗時整段吞錯往下走 fallback insert（best-effort，不阻斷生成鏈）。
   try {
-    const { and, eq, asc } = await import("drizzle-orm");
+    const { and, eq, asc, sql } = await import("drizzle-orm");
     const existing = await dbConn
       .select({ id: promptLibrary.id })
       .from(promptLibrary)
@@ -110,7 +118,8 @@ export async function findOrCreatePromptByContent(
         and(
           eq(promptLibrary.userId, userId),
           eq(promptLibrary.category, category),
-          eq(promptLibrary.content, content)
+          // BINARY 位元組級比對 — case/accent/trailing-space 全 sensitive。
+          sql`BINARY ${promptLibrary.content} = ${content}`
         )
       )
       // 歷史上（去重上線前）同 content 可能已有多列 → 取最小 id 穩定收斂。
@@ -118,7 +127,19 @@ export async function findOrCreatePromptByContent(
       .limit(1);
     const hitRaw = Number(existing?.[0]?.id);
     if (Number.isFinite(hitRaw) && hitRaw > 0) {
-      return hitRaw; // 命中既有列 → 重用 id，不 insert。
+      // 命中既有列 → 重用 id，不 insert。同時 useCount += 1 讓「重用」真正累計，
+      // 使 search_prompts / promptLibrary.list 的 useCount desc 熱門排序反映實際
+      // 生成重用次數（與 promptLibrary.incrementUseCount 同 SQL）。
+      // 累計失敗吞錯：絕不能讓 useCount 寫入弄壞生成鏈或丟掉已命中的 id。
+      try {
+        await dbConn
+          .update(promptLibrary)
+          .set({ useCount: sql`${promptLibrary.useCount} + 1` })
+          .where(eq(promptLibrary.id, hitRaw));
+      } catch {
+        // useCount 累計失敗不影響重用 — 仍回傳命中的 id。
+      }
+      return hitRaw;
     }
   } catch {
     // SELECT 失敗：安全 fallback 成原本的 insert（下方），絕不讓去重弄壞生成鏈。

@@ -86,7 +86,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | Confluence MCP 連線啟用＋頁面樹/變更紀錄/討論區補建（AIDV-88） | ⛔ Blocked（待 Bruce 開 Confluence＋重連授權） | — | getConfluenceSpaces 能列空間；鐵律⑨補跑；舊 token 撤銷 | Bruce |
 | junction follow-up A：backfill 在真 DB 實跑＋數字核對 | 📋 To Do | admin 呼叫 `promptLibrary.backfillAssetLinks` | totalLinked 數字合理、可重跑冪等 | #864、DATABASE_URL 環境 |
 | junction follow-up B：variant/rewrite/extended 寫入點（座艙重骰/改寫/延長） | 📋 To Do | — | 三種 relation 有實際寫入 | #864、導演台流程 |
-| junction follow-up C：prompt_library content 去重策略（每次生成新插一列） | ⛔ Blocked `decision` `待議` | — | 拍板 upsert-by-content 或保持現狀 | — |
+| junction follow-up C：prompt_library content 去重策略（每次生成新插一列） | ✅ Done `decision-resolved`（AIDV-10 拍板 upsert-by-content，scope=userId+category+content；content 走 BINARY 比對；命中累計 useCount） | 生成鏈 `findOrCreatePromptByContent` query-before-insert（非破壞性、不動 migration） | 同 content 生成 N 次→一列 prompt、N asset 連同一列；重用累計 useCount | feat/aidv-10-prompt-dedup |
 | 統一供應商門面＋免費 Cloudflare AI Gateway | 📋 To Do | Notion: 統一供應商門面 + Cloudflare AI Gateway | 所有生成呼叫過門面；Gateway 快取/觀測啟用 | — |
 | 其餘可接子系統接真實 procedure（18 子系統矩陣的 ✅8） | 🔄 部分 Done（在 #862） | [#862](https://github.com/aa0968111723-prog/healing-studio/pull/862) | 各子系統列實際 procedure 名 | #862 |
 
