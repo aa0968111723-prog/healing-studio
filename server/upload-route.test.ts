@@ -23,9 +23,58 @@ const {
   ABSOLUTE_MAX_BYTES,
   INLINE_BASE64_THRESHOLD,
   STORAGE_ONLY_KIND_PREFIXES,
+  ALLOWED_MIME_TYPES,
   inferKind,
+  looksLikeMarkup,
   classifyInlineEligibility,
 } = __uploadRouteInternals;
+
+describe("AIDV-64: upload security — SVG removal + markup-disguise guard", () => {
+  it("image/svg+xml is no longer allowed (stored-XSS vector removed)", () => {
+    expect(ALLOWED_MIME_TYPES.has("image/svg+xml")).toBe(false);
+    // legitimate raster image types remain allowed
+    expect(ALLOWED_MIME_TYPES.has("image/png")).toBe(true);
+    expect(ALLOWED_MIME_TYPES.has("image/jpeg")).toBe(true);
+    expect(ALLOWED_MIME_TYPES.has("image/webp")).toBe(true);
+  });
+
+  it("looksLikeMarkup: real binary signatures are NOT flagged", () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+    const gif = Buffer.from("GIF89a");
+    const pdf = Buffer.from("%PDF-1.7\n");
+    expect(looksLikeMarkup(png)).toBe(false);
+    expect(looksLikeMarkup(jpeg)).toBe(false);
+    expect(looksLikeMarkup(gif)).toBe(false);
+    expect(looksLikeMarkup(pdf)).toBe(false);
+  });
+
+  it("looksLikeMarkup: SVG/HTML/XML disguised content IS flagged", () => {
+    expect(
+      looksLikeMarkup(
+        Buffer.from(
+          '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+        )
+      )
+    ).toBe(true);
+    expect(looksLikeMarkup(Buffer.from("<!DOCTYPE html><html></html>"))).toBe(true);
+    expect(looksLikeMarkup(Buffer.from('<?xml version="1.0"?><svg/>'))).toBe(true);
+  });
+
+  it("looksLikeMarkup: ignores leading whitespace and a UTF-8/UTF-16 BOM", () => {
+    expect(looksLikeMarkup(Buffer.from("   \n\t  <svg/>"))).toBe(true);
+    // UTF-8 BOM + '<'
+    expect(looksLikeMarkup(Buffer.from([0xef, 0xbb, 0xbf, 0x3c]))).toBe(true);
+    // UTF-16 LE BOM + '<'
+    expect(looksLikeMarkup(Buffer.from([0xff, 0xfe, 0x3c, 0x00]))).toBe(true);
+  });
+
+  it("looksLikeMarkup: ordinary non-markup content is not flagged", () => {
+    expect(looksLikeMarkup(Buffer.from("hello world"))).toBe(false);
+    expect(looksLikeMarkup(Buffer.from(""))).toBe(false);
+    expect(looksLikeMarkup(Buffer.from("text, angle bracket < not at start"))).toBe(false);
+  });
+});
 
 describe("uploadRoute size + inline policy (Issue #178)", () => {
   describe("constants", () => {
