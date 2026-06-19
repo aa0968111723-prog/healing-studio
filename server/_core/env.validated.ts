@@ -133,10 +133,10 @@ function selfRepairEnv(): void {
       varName: "JWT_ACCESS_TOKEN_EXPIRES_IN",
       action: "reset_to_default",
       before: ttl,
-      after: "31536000",
-      reason: "TTL 必須是整數秒數；偵測到非數字，已還原預設 31536000 秒（1 年）",
+      after: "2592000",
+      reason: "TTL 必須是整數秒數；偵測到非數字，已還原預設 2592000 秒（30 天，AIDV-59）",
     });
-    env.JWT_ACCESS_TOKEN_EXPIRES_IN = "31536000";
+    env.JWT_ACCESS_TOKEN_EXPIRES_IN = "2592000";
   }
 
   // 4) GOOGLE_APPLICATION_CREDENTIALS_JSON 必須是合法 JSON
@@ -257,7 +257,9 @@ const coreSchema = z.object({
   PORT: z.string().optional().default("3000"),
   BASE_URL: z.string().optional().default(""),
   JWT_SECRET: z.string().min(1).optional().default(""),
-  JWT_ACCESS_TOKEN_EXPIRES_IN: z.string().optional().default("31536000"),
+  // AIDV-59（H4 JWT 硬化）：新發 token 預設壽命 30 天（2592000 秒），由 ~1 年縮短而來。
+  // 已簽發舊 token 各自帶 exp，不受此變更影響（不會大規模登出）。
+  JWT_ACCESS_TOKEN_EXPIRES_IN: z.string().optional().default("2592000"),
   PASSWORD_HASH_ALGORITHM: z
     .enum(["scrypt", "bcrypt", "argon2"])
     .default("scrypt"),

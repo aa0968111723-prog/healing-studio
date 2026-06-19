@@ -28,19 +28,63 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 const DEV_FALLBACK_SECRET = "healing-studio-dev-fallback-secret-NOT-FOR-PRODUCTION";
 
+/**
+ * AIDV-59（H4 JWT 硬化）：session 簽章密鑰的最小長度。
+ * `openssl rand -base64 32` 產生約 44 字元，遠高於此門檻。
+ */
+export const MIN_JWT_SECRET_LENGTH = 16;
+
+/**
+ * 解析並驗證 JWT 簽章密鑰（fail-fast）。
+ *
+ * 讀取順序：`process.env.JWT_SECRET`（含 AUTH_SECRET 別名於 env.validated 已映射）
+ * → `ENV.cookieSecret`（同樣是 JWT_SECRET）。
+ *
+ * 硬化規則：
+ * - 正式環境（NODE_ENV==="production"）若密鑰缺失／空白／< 16 字元 → 直接 throw，
+ *   絕不靜默使用弱／空密鑰或開發用 fallback（避免用 in-repo 公開常數簽章 1 年 token）。
+ * - 非正式環境（dev/test）保留開發用 fallback，讓本機與測試在未設密鑰時仍可運作。
+ *
+ * 注意：密鑰會先 `.trim()` 再做長度檢查與簽章，確保「簽」與「驗」用同一個正規化值，
+ * 且純空白不會被當成有效熵。
+ */
 function getJwtSecret(): Uint8Array {
   // Read from process.env directly to avoid ESM module evaluation order issues
-  const secret = process.env.JWT_SECRET || ENV.cookieSecret;
-  if (!secret) {
+  const raw = process.env.JWT_SECRET || ENV.cookieSecret || "";
+  const secret = raw.trim();
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (secret.length < MIN_JWT_SECRET_LENGTH) {
+    if (isProduction) {
+      throw new Error(
+        secret.length === 0
+          ? "[Auth] JWT_SECRET（或別名 AUTH_SECRET）未設定。正式環境必須設定，" +
+              "請用 `openssl rand -base64 32` 產生後設定 JWT_SECRET。"
+          : `[Auth] JWT_SECRET 太短（${secret.length} 字元），正式環境至少需 ${MIN_JWT_SECRET_LENGTH} 字元。` +
+              "請用 `openssl rand -base64 32` 重新產生。"
+      );
+    }
+    // 非正式環境：保留開發用 fallback（dev/test 可在未設密鑰時運作）。
     if (process.env.NODE_ENV !== "test") {
       logger.warn(
-        "[Auth] ⚠️  JWT_SECRET 未設定，使用開發用暫時密鑰。" +
+        "[Auth] ⚠️  JWT_SECRET 未設定或太短，使用開發用暫時密鑰。" +
           "請在正式環境設定 JWT_SECRET（openssl rand -base64 32）！"
       );
     }
     return new TextEncoder().encode(DEV_FALLBACK_SECRET);
   }
   return new TextEncoder().encode(secret);
+}
+
+/**
+ * AIDV-59：開機期顯式驗證 JWT 密鑰（fail-fast at boot）。
+ *
+ * 由 server 啟動流程呼叫；正式環境若密鑰缺失／太弱會直接 throw，讓部署「響亮地」失敗，
+ * 而不是先啟動再用弱密鑰簽 token。dev/test 不會崩潰（沿用 getJwtSecret 的 fallback 分支）。
+ */
+export function assertJwtSecretReady(): void {
+  // 透過 getJwtSecret() 觸發同一套檢查；正式環境弱密鑰會在此 throw。
+  getJwtSecret();
 }
 
 export type SessionPayload = {

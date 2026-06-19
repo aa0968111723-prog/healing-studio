@@ -1,4 +1,4 @@
-import { ONE_YEAR_MS, type UserRole } from "@shared/const";
+import { THIRTY_DAYS_MS, type UserRole } from "@shared/const";
 import { ENV } from "../../_core/env";
 import { getPasswordHasher, verifyPassword } from "./passwordHasher";
 import { userAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
@@ -49,7 +49,8 @@ export class AuthFacade {
 
   private getTokenLifetimeMs(): number {
     const sec = Number(ENV.jwtAccessTokenExpiresIn);
-    return Number.isFinite(sec) && sec > 0 ? sec * 1000 : ONE_YEAR_MS;
+    // AIDV-59：env 無效時退回 30 天預設（非 ~1 年）。
+    return Number.isFinite(sec) && sec > 0 ? sec * 1000 : THIRTY_DAYS_MS;
   }
 
   async registerWithPassword(input: {

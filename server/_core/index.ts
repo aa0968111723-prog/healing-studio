@@ -8,6 +8,7 @@ import compression from "compression";
 import helmet from "helmet";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { assertJwtSecretReady } from "./googleAuth";
 import { googleAuthRouter } from "../routes/googleAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -239,6 +240,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // AIDV-59（H4 JWT 硬化）：開機即驗證 session 簽章密鑰。
+  // 正式環境若 JWT_SECRET（或別名 AUTH_SECRET）缺失／太弱會在此 throw，
+  // 讓部署「響亮地」失敗，而不是先啟動再用弱密鑰簽 1 年 token。
+  assertJwtSecretReady();
   installFetchGuard();
   bootstrapAiAdapters();
   runOrbToolExecutorStartupSelfCheck();

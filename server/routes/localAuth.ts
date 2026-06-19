@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-import { COOKIE_NAME, ONE_YEAR_MS, type UserRole } from "@shared/const";
+import { COOKIE_NAME, THIRTY_DAYS_MS, type UserRole } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { ENV } from "../_core/env";
 import { verifyToken } from "../middleware/verifyToken";
@@ -108,7 +108,8 @@ function isAdminEmail(email: string): boolean {
 function getAccessTokenLifetimeMs(): number {
   const raw = ENV.jwtAccessTokenExpiresIn;
   const sec = Number(raw);
-  if (!Number.isFinite(sec) || sec <= 0) return ONE_YEAR_MS;
+  // AIDV-59：env 無效時退回 30 天預設（非 ~1 年）。
+  if (!Number.isFinite(sec) || sec <= 0) return THIRTY_DAYS_MS;
   return Math.floor(sec * 1000);
 }
 

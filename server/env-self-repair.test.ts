@@ -34,6 +34,8 @@ const ENV_KEYS_TO_RESET = [
   "JWT_ACCESS_TOKEN_EXPIRES_IN",
   "GOOGLE_APPLICATION_CREDENTIALS_JSON",
   "DATABASE_URL",
+  "AUTH_SECRET",
+  "JWT_SECRET",
 ];
 
 describe("env.validated self-repair", () => {
@@ -102,7 +104,7 @@ describe("env.validated self-repair", () => {
   it("resets non-numeric JWT_ACCESS_TOKEN_EXPIRES_IN to default", async () => {
     process.env.JWT_ACCESS_TOKEN_EXPIRES_IN = "di36v2fgooyicr4yx80ec6po82jw1blj";
     const mod = await import("./_core/env.validated");
-    expect(mod.serverEnv.JWT_ACCESS_TOKEN_EXPIRES_IN).toBe("31536000");
+    expect(mod.serverEnv.JWT_ACCESS_TOKEN_EXPIRES_IN).toBe("2592000");
     const log = mod.getEnvSelfRepairLog();
     expect(log.some(l => l.varName === "JWT_ACCESS_TOKEN_EXPIRES_IN" && l.action === "reset_to_default")).toBe(true);
   });
@@ -111,6 +113,25 @@ describe("env.validated self-repair", () => {
     process.env.JWT_ACCESS_TOKEN_EXPIRES_IN = "3600";
     const mod = await import("./_core/env.validated");
     expect(mod.serverEnv.JWT_ACCESS_TOKEN_EXPIRES_IN).toBe("3600");
+  });
+
+  // AIDV-59（H4 JWT 硬化）：AUTH_SECRET → JWT_SECRET 別名解析
+  it("maps AUTH_SECRET alias to JWT_SECRET when JWT_SECRET is unset", async () => {
+    delete process.env.JWT_SECRET;
+    process.env.AUTH_SECRET = "alias-strong-secret-0123456789";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.JWT_SECRET).toBe("alias-strong-secret-0123456789");
+    const log = mod.getEnvSelfRepairLog();
+    expect(
+      log.some(l => l.varName === "AUTH_SECRET" && l.action === "renamed")
+    ).toBe(true);
+  });
+
+  it("keeps explicit JWT_SECRET and ignores AUTH_SECRET when both set", async () => {
+    process.env.JWT_SECRET = "canonical-strong-secret-0123456789";
+    process.env.AUTH_SECRET = "alias-should-be-ignored-0123456789";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.JWT_SECRET).toBe("canonical-strong-secret-0123456789");
   });
 
   it("clears GOOGLE_APPLICATION_CREDENTIALS_JSON when value is not JSON", async () => {
