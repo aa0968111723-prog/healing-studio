@@ -136,10 +136,24 @@ function isDirectorWorldContextEnabled(): boolean {
 }
 
 /**
+ * AIDV-152：注入 chat system prompt 的世界框架摘要字元上限。
+ *
+ * 大型世界觀（schema 允許最多 100 角色／100 場景／200 物件，每角色再帶
+ * appearance／三視圖／outfits／expressions／voiceProfile…數十巢狀欄位）
+ * 的完整摘要可達數千 token；且 runDirectorAI 會把同一段 worldSection 同時
+ * 注入「研究」與「創作」兩階段 system prompt（每輪計費兩次）。此處對注入
+ * chat 的摘要設硬上限（約 5000 字元 ≈ 數千 token 量級），避免單輪 token／
+ * 延遲爆量、也降低把 90s 研究階段推向 context 上限的風險。video 腳本等
+ * 其他呼叫者不傳 maxChars，行為與改動前位元相同。
+ */
+const DIRECTOR_CHAT_WORLD_CONTEXT_MAX_CHARS = 5000;
+
+/**
  * AIDV-152：best-effort 載入專案的世界框架摘要。
  *
  * 流程：projectId → getCreativeProject（擁有權比對）→ project.worldFrameworkId
- * → getWorldbuildingFramework（擁有權比對）→ summarizeFrameworkForPrompt。
+ * → getWorldbuildingFramework（擁有權比對）→ summarizeFrameworkForPrompt（帶
+ * 字元預算上限，控制 token／成本）。
  *
  * **絕不 throw**：任何環節查無/出錯一律回 undefined（吞錯＋log），讓 chat
  * 照常運作、不因脈絡載入失敗而 500。
@@ -170,7 +184,7 @@ async function loadProjectWorldContext(
         : undefined,
       tags: Array.isArray(wb.tags) ? (wb.tags as string[]) : undefined,
       isActive: wb.isActive,
-    });
+    }, DIRECTOR_CHAT_WORLD_CONTEXT_MAX_CHARS);
   } catch (err) {
     // best-effort：載入/摘要失敗絕不阻擋 chat，吞錯並記錄。
     console.warn(
