@@ -73,12 +73,25 @@ export async function runDirectorAI(
     temperature: number;
     topP: number;
     systemPrompt: string | null;
-  }
+  },
+  /**
+   * AIDV-152：可選的世界框架摘要。由 caller（director.chat）在旗標開啟且
+   * 成功載入專案/世界觀時組好字串傳入；未傳入時行為與既往位元相同（系統
+   * 提示詞不變、回應路徑不變）。
+   */
+  worldContext?: string
 ) {
   const persona =
     DIRECTOR_PERSONALITY_PROMPTS[personality] ??
     DIRECTOR_PERSONALITY_PROMPTS.creative;
   const fullDirectorPrompt = buildDirectorSystemPrompt(personality);
+
+  // AIDV-152：世界框架脈絡段落。未傳 worldContext 時 = 空字串，下方
+  // 字串模板原樣等於改動前（位元相同）。
+  const worldSection =
+    worldContext && worldContext.trim()
+      ? `\n\n【世界框架一致性】\n${worldContext}\n請讓所有建議與上述世界框架（角色／場景／風格／時代）保持一致。`
+      : "";
 
   // Build RAG memory context for this user (gracefully degrade if unavailable)
   let memoryContext = "";
@@ -147,7 +160,7 @@ export async function runDirectorAI(
 你深入了解 Healing Studio 平台所有生成模型和工具：
 ${GENERATION_MODALITIES_KNOWLEDGE}
 ${WORKFLOW_KNOWLEDGE}
-${memorySection}
+${memorySection}${worldSection}
 
 【即時靈感調查任務】
 回答時若涉及：
@@ -188,7 +201,7 @@ ${memorySection}
       messages: [
         {
           role: "system",
-          content: `${fullDirectorPrompt}
+          content: `${fullDirectorPrompt}${worldSection}
 
 基於以下研究資料，創作一個結構化的 JSON 腳本：
 ${researchContent}

@@ -115,6 +115,72 @@ export function isDirectorSessionNote(note: {
   return Array.isArray(note.tags) && note.tags.includes("director-session");
 }
 
+/**
+ * AIDV-152：Director chat 自動載入世界框架的伺服器端聚焦旗標。
+ *
+ * **預設 OFF**＝零行為改變：未開啟時，即使 chat 帶了 projectId 也不會載入
+ * 世界框架、不會注入 system prompt，chat 行為與改動前位元相同。
+ *
+ * 不能重用 client 端的 `ENABLE_WORLD_STYLE_INJECTION`（`VITE_` 前綴、走
+ * `import.meta.env`，server 讀不到；且語意是「圖像提示詞 prepend 視覺風格」，
+ * 與「LLM 對話注入世界框架文字脈絡」不同）。故新增 server 端聚焦旗標，
+ * 仿 perplexityThrottle 既有 `process.env` 慣例。
+ *
+ * 設 ENABLE_DIRECTOR_WORLD_CONTEXT=1（或 true/on/yes）開啟。
+ */
+function isDirectorWorldContextEnabled(): boolean {
+  const raw = process.env.ENABLE_DIRECTOR_WORLD_CONTEXT;
+  if (!raw) return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on" || v === "yes";
+}
+
+/**
+ * AIDV-152：best-effort 載入專案的世界框架摘要。
+ *
+ * 流程：projectId → getCreativeProject（擁有權比對）→ project.worldFrameworkId
+ * → getWorldbuildingFramework（擁有權比對）→ summarizeFrameworkForPrompt。
+ *
+ * **絕不 throw**：任何環節查無/出錯一律回 undefined（吞錯＋log），讓 chat
+ * 照常運作、不因脈絡載入失敗而 500。
+ */
+async function loadProjectWorldContext(
+  userId: number,
+  projectId: number
+): Promise<string | undefined> {
+  try {
+    const project = await db.getCreativeProject(projectId);
+    if (!project || project.userId !== userId) return undefined;
+    if (!project.worldFrameworkId) return undefined;
+
+    const wb = await db.getWorldbuildingFramework(project.worldFrameworkId);
+    if (!wb || wb.userId !== userId) return undefined;
+
+    return summarizeFrameworkForPrompt({
+      name: wb.name,
+      description: wb.description ?? undefined,
+      genre: wb.genre ?? undefined,
+      era: wb.era ?? undefined,
+      characters: Array.isArray(wb.charactersJson)
+        ? (wb.charactersJson as never)
+        : [],
+      scenes: Array.isArray(wb.scenesJson) ? (wb.scenesJson as never) : [],
+      objects: Array.isArray(wb.objectsJson)
+        ? (wb.objectsJson as never)
+        : undefined,
+      tags: Array.isArray(wb.tags) ? (wb.tags as string[]) : undefined,
+      isActive: wb.isActive,
+    });
+  } catch (err) {
+    // best-effort：載入/摘要失敗絕不阻擋 chat，吞錯並記錄。
+    console.warn(
+      "[director.chat] world context load failed; continuing without injection",
+      err
+    );
+    return undefined;
+  }
+}
+
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 export const directorRouter = router({
@@ -132,10 +198,28 @@ export const directorRouter = router({
         personality: z
           .enum(["calm", "creative", "technical"])
           .default("creative"),
+        /**
+         * AIDV-152：可選的當前 active project id。向後相容（optional）—
+         * 既有呼叫者不傳即行為與改動前位元相同。只有「有傳 projectId」且
+         * 「ENABLE_DIRECTOR_WORLD_CONTEXT 旗標開啟」時，才會 best-effort
+         * 載入該專案的世界框架摘要並注入 system prompt。
+         */
+        projectId: z.number().int().positive().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const director = ctx.brain.getBrain("director");
+
+      // AIDV-152：旗標 gate ＋ best-effort 注入。旗標 OFF 或未傳 projectId
+      // 時 worldContext 為 undefined，runDirectorAI 行為與改動前位元相同。
+      let worldContext: string | undefined;
+      if (isDirectorWorldContextEnabled() && input.projectId) {
+        worldContext = await loadProjectWorldContext(
+          ctx.user.id,
+          input.projectId
+        );
+      }
+
       return runDirectorAI(
         input.messages,
         input.saveToNotes,
@@ -146,7 +230,8 @@ export const directorRouter = router({
           temperature: director.temperature,
           topP: director.topP,
           systemPrompt: director.systemPrompt,
-        }
+        },
+        worldContext
       );
     }),
 
