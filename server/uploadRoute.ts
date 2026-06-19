@@ -12,7 +12,8 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/gif",
   "image/webp",
-  "image/svg+xml",
+  // image/svg+xml intentionally NOT allowed (AIDV-64): SVG can embed
+  // <script>/<foreignObject> → stored XSS when the asset URL is opened.
   "image/avif",
   // Audio
   "audio/mpeg",
@@ -88,6 +89,52 @@ function inferKind(mimeType: string): FileKind {
   return "pdf"; // legacy fallback — preserves existing behaviour for anything that slipped past the allowlist
 }
 
+// ── AIDV-64: content/MIME mismatch guard (magic-byte sanity) ────────────────
+// A binary media kind (image/audio/video/pdf) must never actually be markup.
+// SVG / HTML / XML disguised as an image (or pdf, etc.) is the stored-XSS
+// vector: an "image" that is really `<svg><script>…`. Real binary media never
+// starts with `<`, so checking for a leading `<` (after BOM + whitespace)
+// closes the disguise vector with effectively zero false positives. Document
+// kinds (txt/md/rtf/office) are excluded — they are served as non-rendered
+// downloads and may legitimately begin with markup-ish text.
+const BINARY_MEDIA_KINDS: ReadonlySet<FileKind> = new Set([
+  "image",
+  "audio",
+  "video",
+  "pdf",
+]);
+
+function looksLikeMarkup(buffer: Buffer): boolean {
+  let i = 0;
+  if (
+    // UTF-8 BOM
+    buffer.length >= 3 &&
+    buffer[0] === 0xef &&
+    buffer[1] === 0xbb &&
+    buffer[2] === 0xbf
+  ) {
+    i = 3;
+  } else if (
+    // UTF-16 LE / BE BOM
+    buffer.length >= 2 &&
+    ((buffer[0] === 0xff && buffer[1] === 0xfe) ||
+      (buffer[0] === 0xfe && buffer[1] === 0xff))
+  ) {
+    i = 2;
+  }
+  // skip leading ASCII whitespace (space, tab, LF, CR)
+  while (
+    i < buffer.length &&
+    (buffer[i] === 0x20 ||
+      buffer[i] === 0x09 ||
+      buffer[i] === 0x0a ||
+      buffer[i] === 0x0d)
+  ) {
+    i++;
+  }
+  return i < buffer.length && buffer[i] === 0x3c; // '<'
+}
+
 export interface UploadResponseBody {
   success: true;
   url: string;
@@ -151,6 +198,17 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
     // orbAttachmentGuard's per-kind limits — leading to "uploaded fine but
     // rejected at chat time" UX bugs.
     const kind = inferKind(mimeType);
+
+    // AIDV-64: reject binary media whose actual bytes are markup
+    // (SVG/HTML/XML disguised as image/pdf/etc. = stored-XSS vector).
+    if (BINARY_MEDIA_KINDS.has(kind) && looksLikeMarkup(buffer)) {
+      res.status(415).json({
+        error:
+          "File content does not match its declared type (looks like markup, not a binary file).",
+      });
+      return;
+    }
+
     const perKindLimit = PER_KIND_MAX_BYTES[kind];
     if (buffer.length > perKindLimit || buffer.length > ABSOLUTE_MAX_BYTES) {
       const limitMb = Math.floor(perKindLimit / (1024 * 1024));
@@ -237,7 +295,10 @@ export const __uploadRouteInternals = {
   ABSOLUTE_MAX_BYTES,
   INLINE_BASE64_THRESHOLD,
   STORAGE_ONLY_KIND_PREFIXES,
+  ALLOWED_MIME_TYPES,
+  BINARY_MEDIA_KINDS,
   inferKind,
+  looksLikeMarkup,
   /**
    * Pure helper that mirrors the inlineEligible / inlineRecommendation
    * decision the route makes. Same input → same output, no Express coupling.
