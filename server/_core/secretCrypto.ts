@@ -1,7 +1,11 @@
 /**
  * secretCrypto — 對稱加密小工具，用於後端保存外部來源憑證（如 Notion API token）。
  * ────────────────────────────────────────────────────────────────────────────
- * AES-256-GCM；金鑰以 scrypt 從 CREDENTIAL_ENCRYPTION_KEY（或回退 JWT_SECRET）導出。
+ * AES-256-GCM；金鑰以 scrypt 從 CREDENTIAL_ENCRYPTION_KEY 導出，未設定時回退到
+ * JWT_SECRET。回退時優先採用「未 trim 的原始值」JWT_SECRET_RAW（AIDV-59 follow-up）：
+ * selfRepairEnv 只在偵測到前後空白時才設定 JWT_SECRET_RAW，否則它不存在 ⇒ 一般情況
+ * 等同直接用 JWT_SECRET（無行為變化）；當密鑰帶空白時則用原值派生金鑰，與部署前一致，
+ * 保住既有用 secretCrypto 加密的第三方憑證（如 Notion token）仍可解開。
  * 輸出格式：`v1:<ivB64>:<tagB64>:<cipherB64>`。
  *
  * 安全用途：credential 一律只在後端加密保存（data_source_connections
@@ -19,8 +23,15 @@ let cachedKey: Buffer | null = null;
 
 function getKey(): Buffer {
   if (cachedKey) return cachedKey;
+  // AIDV-59 follow-up：回退鏈優先用未 trim 的 JWT_SECRET_RAW，再退到 trim 後的
+  // JWT_SECRET。JWT_SECRET_RAW 只在 selfRepairEnv 偵測到空白時才存在，故常態 =
+  // JWT_SECRET（無行為變化）；密鑰帶空白時用原值 → 與部署前派生同一把 AES 金鑰，
+  // 既有加密憑證不會因正規化（trim）而解不開。
   const secret =
-    process.env.CREDENTIAL_ENCRYPTION_KEY || process.env.JWT_SECRET || "";
+    process.env.CREDENTIAL_ENCRYPTION_KEY ||
+    process.env.JWT_SECRET_RAW ||
+    process.env.JWT_SECRET ||
+    "";
   if (secret.length < 16) {
     throw new Error(
       "secretCrypto: 需要 CREDENTIAL_ENCRYPTION_KEY 或 JWT_SECRET（>=16 字元）才能加密憑證"
