@@ -14,7 +14,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { Request } from "express";
 import { parse as parseCookie } from "cookie";
 import { ENV } from "./env";
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, THIRTY_DAYS_MS } from "@shared/const";
 import * as db from "../db";
 import { logger } from "./logger";
 
@@ -45,10 +45,12 @@ export const MIN_JWT_SECRET_LENGTH = 16;
  *   絕不靜默使用弱／空密鑰或開發用 fallback（避免用 in-repo 公開常數簽章 1 年 token）。
  * - 非正式環境（dev/test）保留開發用 fallback，讓本機與測試在未設密鑰時仍可運作。
  *
- * 注意：密鑰會先 `.trim()` 再做長度檢查與簽章，確保「簽」與「驗」用同一個正規化值，
- * 且純空白不會被當成有效熵。
+ * 注意：JWT_SECRET 的 `.trim()` 正規化已集中於 env.validated.selfRepairEnv（開機期），
+ * 因此 process.env.JWT_SECRET / ENV.cookieSecret 自始即為 trim 後的單一真值，
+ * 所有下游（webhookTokens、sdk、secretCrypto）一致。此處仍對讀到的值再 trim 一次，
+ * 作為防禦性保險（測試直接覆寫 process.env.JWT_SECRET、未經 selfRepairEnv 時亦正確）。
  */
-function getJwtSecret(): Uint8Array {
+export function getJwtSecret(): Uint8Array {
   // Read from process.env directly to avoid ESM module evaluation order issues
   const raw = process.env.JWT_SECRET || ENV.cookieSecret || "";
   const secret = raw.trim();
@@ -77,6 +79,23 @@ function getJwtSecret(): Uint8Array {
 }
 
 /**
+ * AIDV-59（非破壞性相容）：取得「未 trim 的原始密鑰」供既有 session token 驗證 fallback。
+ *
+ * 背景：舊版（main）以未 trim 的 JWT_SECRET 簽 token；本版集中正規化（trim）後簽/驗。
+ * 若正式環境的 JWT_SECRET 帶前後空白，舊 token 以「原值」簽、新程式以「trim 後值」驗 →
+ * 簽章不符 → 既有 session 全失效（大規模登出）。為避免此邊界破壞，selfRepairEnv 會在
+ * 偵測到空白時把原值保留於 JWT_SECRET_RAW；驗證失敗時用此原值再驗一次（雙金鑰過渡）。
+ *
+ * 回傳 null 代表「沒有與 trim 後不同的原值」（常態：JWT_SECRET 本就無空白），此時無需 fallback。
+ */
+function getRawJwtSecretForCompat(): Uint8Array | null {
+  const raw = process.env.JWT_SECRET_RAW;
+  if (!raw) return null;
+  if (raw.trim() === raw) return null; // 與 trim 後相同 → fallback 無意義
+  return new TextEncoder().encode(raw);
+}
+
+/**
  * AIDV-59：開機期顯式驗證 JWT 密鑰（fail-fast at boot）。
  *
  * 由 server 啟動流程呼叫；正式環境若密鑰缺失／太弱會直接 throw，讓部署「響亮地」失敗，
@@ -100,7 +119,8 @@ export async function createSessionToken(
   opts: { name: string; email?: string; expiresInMs?: number }
 ): Promise<string> {
   const secret = getJwtSecret();
-  const expiresInSecs = Math.floor((opts.expiresInMs ?? ONE_YEAR_MS) / 1000);
+  // AIDV-59：安全短壽命（30 天）為簽章邊界的預設值，不依賴每個呼叫端記得覆寫。
+  const expiresInSecs = Math.floor((opts.expiresInMs ?? THIRTY_DAYS_MS) / 1000);
 
   return new SignJWT({ sub: googleSub, name: opts.name, email: opts.email })
     .setProtectedHeader({ alg: "HS256" })
@@ -117,6 +137,18 @@ export async function verifySessionToken(
     const { payload } = await jwtVerify(token, secret);
     return payload as SessionPayload;
   } catch {
+    // AIDV-59 非破壞性 fallback：若以 trim 後密鑰驗證失敗，且存在「未 trim 的原值」
+    // （JWT_SECRET 曾帶空白），用原值再驗一次，讓舊版（main）以原值簽的既有 session
+    // 仍能通過 → 不會因密鑰正規化而大規模登出。此為過渡相容，數週後可移除。
+    const rawSecret = getRawJwtSecretForCompat();
+    if (rawSecret) {
+      try {
+        const { payload } = await jwtVerify(token, rawSecret);
+        return payload as SessionPayload;
+      } catch {
+        return null;
+      }
+    }
     return null;
   }
 }

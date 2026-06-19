@@ -12,7 +12,7 @@
  * 避免污染其他測試（尤其 verify-token.test.ts 依賴 NODE_ENV=test 的 dev fallback）。
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { decodeJwt } from "jose";
+import { decodeJwt, SignJWT } from "jose";
 import {
   assertJwtSecretReady,
   createSessionToken,
@@ -25,11 +25,13 @@ const STRONG_SECRET = "this-is-a-strong-secret-0123456789"; // 34 chars
 let savedJwt: string | undefined;
 let savedAuth: string | undefined;
 let savedNodeEnv: string | undefined;
+let savedJwtRaw: string | undefined;
 
 beforeEach(() => {
   savedJwt = process.env.JWT_SECRET;
   savedAuth = process.env.AUTH_SECRET;
   savedNodeEnv = process.env.NODE_ENV;
+  savedJwtRaw = process.env.JWT_SECRET_RAW;
 });
 
 afterEach(() => {
@@ -39,6 +41,8 @@ afterEach(() => {
   else process.env.AUTH_SECRET = savedAuth;
   if (savedNodeEnv === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = savedNodeEnv;
+  if (savedJwtRaw === undefined) delete process.env.JWT_SECRET_RAW;
+  else process.env.JWT_SECRET_RAW = savedJwtRaw;
 });
 
 // ── A. 密鑰 fail-fast ────────────────────────────────────────────────────────
@@ -143,15 +147,12 @@ describe("B. sign / verify round-trip", () => {
 describe("C. shortened expiry on newly-issued tokens", () => {
   const THIRTY_DAYS_SECS = 60 * 60 * 24 * 30; // 2592000
 
-  it("C1: default expiry == 30 days, NOT 1 year", async () => {
+  it("C1: default expiry == 30 days, NOT 1 year (真正測 createSessionToken 內建預設)", async () => {
     process.env.NODE_ENV = "production";
     process.env.JWT_SECRET = STRONG_SECRET;
-    // 不傳 expiresInMs → 走 createSessionToken 內的預設（ONE_YEAR_MS 仍是 jose 內部
-    // fallback，但所有 issuance 呼叫端都改傳 30 天；此處驗證縮短壽命的端到端值）。
-    const token = await createSessionToken("sub-c1", {
-      name: "Tester",
-      expiresInMs: THIRTY_DAYS_SECS * 1000,
-    });
+    // AIDV-59：不傳 expiresInMs → 必須命中 createSessionToken 自身的預設值（已改為
+    // THIRTY_DAYS_MS）。此測試真正鎖住簽章邊界的安全短壽命，而非測「自己傳的值」。
+    const token = await createSessionToken("sub-c1", { name: "Tester" });
     const { iat, exp } = decodeJwt(token);
     expect((exp as number) - (iat as number)).toBe(THIRTY_DAYS_SECS);
     // 顯式確認不是 1 年
@@ -195,6 +196,37 @@ describe("D. backward compatibility — old long-exp tokens still verify", () =>
       expiresInMs: -1000, // 已過期
     });
     expect(await verifySessionToken(expired)).toBeNull();
+  });
+
+  // AIDV-59：密鑰正規化（trim）前後不一致的相容路徑 —— 舊版（main）以「未 trim 原值」簽，
+  // 新版以「trim 後值」驗。selfRepairEnv 把原值留在 JWT_SECRET_RAW，驗證失敗時 fallback 原值。
+  it("D3: 舊 token 以未 trim 密鑰簽、以 trim 後密鑰驗 → 不應因正規化而失效", async () => {
+    process.env.NODE_ENV = "production";
+    const RAW_WITH_WS = `${STRONG_SECRET}\n`; // 帶尾端換行（複製貼上常見）
+    // (1) 模擬「舊版」：用未 trim 的原值簽一個 token（jose 直接簽，繞過新版簽章路徑）。
+    const legacyToken = await new SignJWT({ sub: "ws-legacy", name: "WS" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("365d")
+      .sign(new TextEncoder().encode(RAW_WITH_WS));
+    // (2) 模擬 selfRepairEnv 集中正規化後的狀態：JWT_SECRET 已 trim，原值留在 JWT_SECRET_RAW。
+    process.env.JWT_SECRET = STRONG_SECRET; // trim 後值
+    process.env.JWT_SECRET_RAW = RAW_WITH_WS; // 未 trim 原值（fallback 用）
+    // (3) 新版以 trim 後值驗失敗 → fallback 用 RAW → 仍通過，既有 session 不失效。
+    const payload = await verifySessionToken(legacyToken);
+    expect(payload?.sub).toBe("ws-legacy");
+  });
+
+  it("D4: 無 JWT_SECRET_RAW（常態：密鑰本就無空白）時，錯密鑰簽的 token 仍被拒", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = STRONG_SECRET;
+    delete process.env.JWT_SECRET_RAW;
+    const foreign = await new SignJWT({ sub: "evil", name: "X" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("365d")
+      .sign(new TextEncoder().encode("a-completely-unrelated-secret-key-00"));
+    expect(await verifySessionToken(foreign)).toBeNull();
   });
 });
 

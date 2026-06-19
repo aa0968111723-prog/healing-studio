@@ -36,6 +36,7 @@ const ENV_KEYS_TO_RESET = [
   "DATABASE_URL",
   "AUTH_SECRET",
   "JWT_SECRET",
+  "JWT_SECRET_RAW",
 ];
 
 describe("env.validated self-repair", () => {
@@ -132,6 +133,29 @@ describe("env.validated self-repair", () => {
     process.env.AUTH_SECRET = "alias-should-be-ignored-0123456789";
     const mod = await import("./_core/env.validated");
     expect(mod.serverEnv.JWT_SECRET).toBe("canonical-strong-secret-0123456789");
+  });
+
+  // AIDV-59：JWT_SECRET 含前後空白 → 集中 trim 正規化，原值留在 JWT_SECRET_RAW（相容 fallback）。
+  it("trims surrounding whitespace on JWT_SECRET and preserves the raw value", async () => {
+    process.env.JWT_SECRET = "  spacey-strong-secret-0123456789\n";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.JWT_SECRET).toBe("spacey-strong-secret-0123456789");
+    expect(process.env.JWT_SECRET).toBe("spacey-strong-secret-0123456789");
+    // 原始（未 trim）值保留，供既有 session token 向後相容驗證。
+    expect(process.env.JWT_SECRET_RAW).toBe("  spacey-strong-secret-0123456789\n");
+    const log = mod.getEnvSelfRepairLog();
+    expect(
+      log.some(l => l.varName === "JWT_SECRET" && l.action === "sanitized")
+    ).toBe(true);
+  });
+
+  it("leaves a clean JWT_SECRET untouched and sets no JWT_SECRET_RAW", async () => {
+    process.env.JWT_SECRET = "clean-strong-secret-0123456789";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.JWT_SECRET).toBe("clean-strong-secret-0123456789");
+    expect(process.env.JWT_SECRET_RAW).toBeUndefined();
+    const log = mod.getEnvSelfRepairLog();
+    expect(log.find(l => l.varName === "JWT_SECRET")).toBeUndefined();
   });
 
   it("clears GOOGLE_APPLICATION_CREDENTIALS_JSON when value is not JSON", async () => {
