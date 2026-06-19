@@ -2175,7 +2175,15 @@ export type WorldbuildingFrameworkInput = z.infer<
  * 全域物件、畫面風格設定、配樂主題、製作目標。
  */
 export function summarizeFrameworkForPrompt(
-  framework: WorldbuildingFrameworkData
+  framework: WorldbuildingFrameworkData,
+  /**
+   * AIDV-152：可選的字元預算上限。未傳（undefined）時不截斷 —— 既有
+   * 呼叫者（generateVideoScript / Studio / 動畫管線）行為與改動前位元
+   * 相同。傳入時，產出的純文字超過 maxChars 會被截到 maxChars 並補上
+   * 「…（已截斷以控制 token 成本）」標記，避免把整份大型世界觀（最多
+   * 100 角色 × 數十巢狀欄位）灌進 LLM system prompt 造成 token/延遲爆量。
+   */
+  maxChars?: number
 ): string {
   const lines: string[] = [];
   lines.push(`# 世界觀：${framework.name}`);
@@ -2590,7 +2598,14 @@ export function summarizeFrameworkForPrompt(
     }
   }
 
-  return lines.join("\n");
+  const out = lines.join("\n");
+  // AIDV-152：只有顯式傳入 maxChars 時才截斷；未傳時 out 原樣回傳（位元相同）。
+  if (typeof maxChars === "number" && maxChars > 0 && out.length > maxChars) {
+    const marker = "\n…（已截斷以控制 token 成本）";
+    const budget = Math.max(0, maxChars - marker.length);
+    return out.slice(0, budget) + marker;
+  }
+  return out;
 }
 
 // ─── 動畫一致性 helpers ─────────────────────────────────────────────────────
