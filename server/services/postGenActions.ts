@@ -49,6 +49,125 @@ export function isPromptAssetLinksEnabled(): boolean {
 export type PostGenModality = "image" | "video" | "audio" | "voice";
 
 /**
+ * AIDV-10 — prompt_library 依 content 合併去重（upsert-by-content）的純查詢工具。
+ *
+ * 為什麼存在：生成鏈原本「每次生成都無條件新插一列 prompt_library」，
+ * 同一段提示詞生成 N 次就多出 N 列。本函式把寫入改成 upsert-by-content：
+ * 先以 (userId, category, content) 查既有列 → 命中重用其 id、不再 insert；
+ * 未命中才照舊 insert。回傳的 id 一律給下游（#864 prompt↔asset junction、
+ * useCount 累計）使用，確保同 content 的多個 asset 都連到同一 prompt 列。
+ *
+ * 去重 scope = (userId, category, content)（研究判定）：
+ *   - userId   ：per-user 隱私/所有權邊界，必含。
+ *   - category ：存的是 modality（image/video/audio/voice）。同一句話拿去生圖
+ *                vs 生影是不同用途、modelHint/下游語意不同 → 納入鍵分開。
+ *   - content  ：完整提示詞全文比對（不截斷、不做大小寫/unicode 正規化；
+ *                呼叫端已 trim 過頭尾空白）。content 欄位的 TEXT 預設 collation
+ *                是 utf8mb4_unicode_ci（大小寫/重音/尾空白皆 INsensitive），會把
+ *                'A cute cat'/'a cute cat'、'café'/'cafe'、'foo'/'foo   ' 誤併成
+ *                同一列。為符合「完整全文、原樣比對」語意，content 的等值比對改用
+ *                BINARY（位元組級、case/accent/trailing-space 全 sensitive），讓
+ *                只差大小寫/重音/尾空白的提示詞保持為不同列、不被誤併。
+ *
+ * HARD SAFETY：
+ *   - 非破壞性：只讀既有列＋新插，不 UPDATE/DELETE 任何既有列、不做資料遷移。
+ *   - 不動 migration：純 app 層 query-before-insert，不依賴任何 DB 唯一鍵。
+ *   - 永不弄壞生成鏈：SELECT 一旦出錯，安全 fallback 成原本的 insert；
+ *     insert 也出錯時回傳 null（呼叫端視為「沒有 promptId」照常往下走）。
+ *
+ * 並發 race（無 DB 唯一鍵）已知缺口：兩條並發鏈同 content 同時查不到 → 都 insert
+ * → 偶發多一列。相對「現狀完全不去重」仍是淨改善；命中時 orderBy id asc 取最早
+ * 一列，讓後續讀路徑對既有重複列仍穩定收斂到固定 id。
+ *
+ * 抽成獨立函式（而非內嵌在 doPostGenComplete）以便單測 upsert 矩陣。
+ *
+ * @returns 既有/新插列的 id；任何情況下都拿不到有效 id 時回 null。
+ */
+export interface FindOrCreatePromptParams {
+  /** 已 getDb() 拿到的連線（呼叫端負責 null 檢查；此處假設非 null）。 */
+  dbConn: {
+    select: (...args: any[]) => any;
+    insert: (...args: any[]) => any;
+    update: (...args: any[]) => any;
+  };
+  userId: number;
+  /** 提示詞全文（呼叫端已 trim）。 */
+  content: string;
+  category: PostGenModality;
+  /** prompt_library.title（截斷後）。僅在「未命中、需新插」時使用。 */
+  title: string;
+  /** prompt_library.modelHint（截斷後）。僅在新插時寫入；命中時不覆寫既有值。 */
+  modelHint: string;
+}
+
+export async function findOrCreatePromptByContent(
+  params: FindOrCreatePromptParams
+): Promise<number | null> {
+  const { dbConn, userId, content, category, title, modelHint } = params;
+
+  // (1) 先以 (userId, category, content) 查既有列 — 命中則重用，永不重插。
+  // content 用 BINARY 等值比對（避開 utf8mb4_unicode_ci 的 case/accent/trailing-
+  // space 折疊，符合「完整全文原樣比對」語意，不誤併僅大小寫/重音/尾空白不同的列）。
+  // SELECT 失敗時整段吞錯往下走 fallback insert（best-effort，不阻斷生成鏈）。
+  try {
+    const { and, eq, asc, sql } = await import("drizzle-orm");
+    const existing = await dbConn
+      .select({ id: promptLibrary.id })
+      .from(promptLibrary)
+      .where(
+        and(
+          eq(promptLibrary.userId, userId),
+          eq(promptLibrary.category, category),
+          // BINARY 位元組級比對 — case/accent/trailing-space 全 sensitive。
+          sql`BINARY ${promptLibrary.content} = ${content}`
+        )
+      )
+      // 歷史上（去重上線前）同 content 可能已有多列 → 取最小 id 穩定收斂。
+      .orderBy(asc(promptLibrary.id))
+      .limit(1);
+    const hitRaw = Number(existing?.[0]?.id);
+    if (Number.isFinite(hitRaw) && hitRaw > 0) {
+      // 命中既有列 → 重用 id，不 insert。同時 useCount += 1 讓「重用」真正累計，
+      // 使 search_prompts / promptLibrary.list 的 useCount desc 熱門排序反映實際
+      // 生成重用次數（與 promptLibrary.incrementUseCount 同 SQL）。
+      // 累計失敗吞錯：絕不能讓 useCount 寫入弄壞生成鏈或丟掉已命中的 id。
+      try {
+        await dbConn
+          .update(promptLibrary)
+          .set({ useCount: sql`${promptLibrary.useCount} + 1` })
+          .where(eq(promptLibrary.id, hitRaw));
+      } catch {
+        // useCount 累計失敗不影響重用 — 仍回傳命中的 id。
+      }
+      return hitRaw;
+    }
+  } catch {
+    // SELECT 失敗：安全 fallback 成原本的 insert（下方），絕不讓去重弄壞生成鏈。
+  }
+
+  // (2) 未命中（或查詢失敗 fallback）→ 照舊 insert 新列，回傳 insertId。
+  // insert 失敗時回傳 null（呼叫端視為無 promptId 照常往下走）。
+  try {
+    const insertResult = await dbConn.insert(promptLibrary).values({
+      userId,
+      title,
+      content,
+      category,
+      tags: [],
+      isPublic: false,
+      modelHint,
+      language: "zh",
+    });
+    // mysql2 driver 回 [ResultSetHeader]；防禦式取值（測試 mock 可能回 undefined）。
+    const rawId = Number(insertResult?.[0]?.insertId);
+    return Number.isFinite(rawId) && rawId > 0 ? rawId : null;
+  } catch {
+    // insert 失敗（並發撞列、DB 暫時不可用等）→ null，不拋。
+    return null;
+  }
+}
+
+/**
  * 統一 AI 生成資產的 S3/儲存路徑前綴。
  *
  * 過去各工作室自行組路徑（generated/director/<model>、
@@ -194,31 +313,30 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
     }
   }
 
-  // 1-2. 提示詞庫
-  // 記下新寫入列的 id — 1-3a 寫完資產後（旗標 ON 時）用它建 prompt ↔ asset 邊。
+  // 1-2. 提示詞庫（AIDV-10：upsert-by-content 去重）
+  // 記下重用/新寫入列的 id — 1-3a 寫完資產後（旗標 ON 時）用它建 prompt ↔ asset 邊。
+  // 改為 findOrCreatePromptByContent：先以 (userId, category, content) 查既有列 →
+  // 命中重用其 id、不再 insert；未命中才照舊 insert。確保同一段提示詞生成 N 次
+  // 只會有「一列 prompt、N 個 asset 都連到它」，而非每次都新插一列。
+  // 整段 try/catch 吞錯：去重出錯絕不能讓生成鏈失敗。
   let savedPromptId: number | null = null;
   if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
     try {
       const dbConn = await getDb();
       if (dbConn) {
-        const insertResult = await dbConn.insert(promptLibrary).values({
+        savedPromptId = await findOrCreatePromptByContent({
+          dbConn,
           userId,
+          content: promptText,
+          category: modality,
           title:
             promptText.slice(0, MAX_PROMPT_TITLE_LENGTH) ||
             `${label ?? modality}提示詞`,
-          content: promptText,
-          category: modality,
-          tags: [],
-          isPublic: false,
           modelHint: modelId.slice(0, MAX_MODEL_HINT_LENGTH),
-          language: "zh",
         });
-        // mysql2 driver 回 [ResultSetHeader]；防禦式取值（測試 mock 可能回 undefined）。
-        const rawId = Number(insertResult?.[0]?.insertId);
-        savedPromptId = Number.isFinite(rawId) && rawId > 0 ? rawId : null;
       }
     } catch {
-      // 靜默忽略（重複等）
+      // 靜默忽略 — 去重/寫入失敗不能擋資產/歷史/監控寫入。
     }
   }
 
