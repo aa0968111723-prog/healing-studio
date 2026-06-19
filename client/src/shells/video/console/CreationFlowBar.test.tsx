@@ -81,6 +81,22 @@ describe("CreationFlowBar（U-2 / AIDV-92 · /video S2）", () => {
     expect(h.setCanvasMode).toHaveBeenCalledWith("rough-cut");
   });
 
+  it("旗標 ON：點『配音/環境音』（AIDV-12）→ 切配音畫布（setCanvasMode('voice')）", () => {
+    flags.chrome = true;
+    h.steps = [{ id: "voice", name: "配音/環境音", required: false, enabled: true, canvasMode: "voice" }];
+    render(<CreationFlowBar onGuided={vi.fn()} />);
+    fireEvent.click(screen.getByText("配音/環境音"));
+    expect(h.setCanvasMode).toHaveBeenCalledWith("voice");
+  });
+
+  it("旗標 ON：點『配樂』（AIDV-12）→ 切配樂畫布（setCanvasMode('music')）", () => {
+    flags.chrome = true;
+    h.steps = [{ id: "music", name: "配樂", required: false, enabled: true, canvasMode: "music" }];
+    render(<CreationFlowBar onGuided={vi.fn()} />);
+    fireEvent.click(screen.getByText("配樂"));
+    expect(h.setCanvasMode).toHaveBeenCalledWith("music");
+  });
+
   it("旗標 ON：點待後端步（pending）→ 提示 toast 且不切畫布", () => {
     flags.chrome = true;
     h.steps = [{ id: "pend", name: "待後端步", required: false, enabled: true, canvasMode: "chat", pending: true }];

@@ -86,6 +86,16 @@ export const ENABLE_PROJECT_HUB: boolean = readFlag("VITE_ENABLE_PROJECT_HUB", f
  */
 export const ENABLE_VIDEO_GATE_KIT: boolean = readFlag("VITE_ENABLE_VIDEO_GATE_KIT", false);
 
+/**
+ * AIDV-12 配音/配樂工作流步驟。**預設 OFF**＝零行為改變：關閉時導演台 DEFAULT_WORKFLOW
+ * 與既有六步、順序、渲染完全相同（位元相同）。
+ * 開啟（VITE_ENABLE_VOICE_MUSIC_WORKFLOW=1）後，於「打包初剪（rough）」之後、「確認修改（gate）」
+ * 之前插入兩步：配音/環境音（canvasMode "voice" → VoiceAmbientCanvas，已接 proStudio.qwenTTS /
+ * elevenLabsTTS / soundEffects）與 配樂（canvasMode "music" → MusicCanvas，已接 proStudio.textToMusic），
+ * 讓使用者能從頂部創作流程列走到這兩個已實裝的中欄畫布。純前端加法，零後端、零 migration。
+ */
+export const ENABLE_VOICE_MUSIC_WORKFLOW: boolean = readFlag("VITE_ENABLE_VOICE_MUSIC_WORKFLOW", false);
+
 /** 集中匯出，方便偵錯面板/驗收一次讀取。 */
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
@@ -94,6 +104,7 @@ export const VIDEO_FLAGS = {
   ENABLE_WORLD_STYLE_INJECTION,
   ENABLE_PROJECT_HUB,
   ENABLE_VIDEO_GATE_KIT,
+  ENABLE_VOICE_MUSIC_WORKFLOW,
 } as const;
 
 export type VideoFlagKey = keyof typeof VIDEO_FLAGS;

@@ -12,6 +12,7 @@
 // 成為串起子系統的主軸（一體成形：點階段 → 切畫布，不整頁離場）。
 // ============================================================================
 import type { CanvasMode } from "../DirectorConsoleProvider";
+import { ENABLE_VOICE_MUSIC_WORKFLOW } from "@/config/videoFlags";
 
 /** 工作流步驟（對齊設計系統 §14.2 WorkflowStep）。 */
 export interface WorkflowStep {
@@ -37,17 +38,42 @@ export const DEFAULT_WORKFLOW: WorkflowStep[] = [
   { id: "done", name: "完成專案", required: true, enabled: true, canvasMode: "chat" },
 ];
 
-/** 可加入的步驟庫（設計系統 §14.2）。 */
+/**
+ * AIDV-12 配音/配樂兩步（已實裝，接真實 proStudio.*）。旗標 ON 時插進預設工作流。
+ * 屬「初剪階段」之後、「確認修改」之前的創作順序（初剪 → 配音/配樂 → 確認）。
+ * required:false（非必經，可在 WorkflowBuilder 刪/停）、enabled:true（出現在創作流程列）。
+ */
+const VOICE_STEP: WorkflowStep = { id: "voice", name: "配音/環境音", required: false, enabled: true, canvasMode: "voice" };
+const MUSIC_STEP: WorkflowStep = { id: "music", name: "配樂", required: false, enabled: true, canvasMode: "music" };
+
+/**
+ * 可加入的步驟庫（設計系統 §14.2）。
+ * 旗標 ON 時 voice/music 已進 DEFAULT_WORKFLOW（見 freshDefaultWorkflow），故不重覆列入步驟庫，
+ * 避免 WorkflowBuilder 的「加入」按鈕對已在流程中的步驟永遠灰掉。旗標 OFF 時仍可從步驟庫手動加入。
+ */
 export const STEP_LIBRARY: { id: string; name: string; canvasMode?: CanvasMode; pending?: boolean }[] = [
   { id: "world", name: "世界觀設定", canvasMode: "chat" },
   { id: "lora", name: "角色 LoRA 訓練", canvasMode: "chat", pending: true },
-  { id: "voice", name: "配音/環境音", canvasMode: "voice" },
-  { id: "music", name: "配樂", canvasMode: "music" },
+  ...(ENABLE_VOICE_MUSIC_WORKFLOW
+    ? []
+    : [
+        { id: "voice", name: "配音/環境音", canvasMode: "voice" as CanvasMode },
+        { id: "music", name: "配樂", canvasMode: "music" as CanvasMode },
+      ]),
   { id: "publish", name: "發佈/精選", canvasMode: "chat", pending: true },
   { id: "review", name: "同儕審閱", canvasMode: "chat", pending: true },
 ];
 
-/** 深複製一份預設範本（避免共用參照被就地修改）。 */
+/**
+ * 深複製一份預設範本（避免共用參照被就地修改）。
+ * 旗標 ENABLE_VOICE_MUSIC_WORKFLOW（預設 OFF）OFF 時 → 與既有六步位元相同（零行為改變）。
+ * ON 時 → 在「打包初剪（rough）」之後插入 配音/環境音、配樂 兩步（接 VoiceAmbientCanvas / MusicCanvas）。
+ */
 export function freshDefaultWorkflow(): WorkflowStep[] {
-  return DEFAULT_WORKFLOW.map((s) => ({ ...s }));
+  const base = DEFAULT_WORKFLOW.map((s) => ({ ...s }));
+  if (!ENABLE_VOICE_MUSIC_WORKFLOW) return base;
+  const at = base.findIndex((s) => s.id === "rough");
+  const insertAt = at >= 0 ? at + 1 : base.length;
+  base.splice(insertAt, 0, { ...VOICE_STEP }, { ...MUSIC_STEP });
+  return base;
 }
