@@ -21,9 +21,32 @@ const updateBackgroundJobMock = vi.fn(async () => undefined);
 const refundUserPointsMock = vi.fn(async () => undefined);
 // dedupe 前檢 — doPostGenComplete 會用 generation_history.compiledPrompt
 // 做存在檢查；mock 預設回空陣列代表「沒查到 → 繼續寫入」。
+// 鏈形狀：select().from().where().limit()（無 orderBy）。
 const selectFromDedupeMock = vi.fn(async () => [] as Array<{ id: number }>);
+// AIDV-10 upsert-by-content 查既有 prompt_library 列 —
+// 鏈形狀：select().from().where().orderBy().limit()（有 orderBy）。
+// mock 預設回空陣列代表「沒查到 → 走 insert」。
+const selectPromptMock = vi.fn(async () => [] as Array<{ id: number }>);
 const insertMock = vi.fn(async () => undefined);
 const getDbMock = vi.fn();
+
+// 共用的 getDb() mock 工廠：
+//   - dedupe 前檢走 where().limit()（直接命中 selectFromDedupeMock）
+//   - upsert 查詢走 where().orderBy().limit()（命中 selectPromptMock）
+// 兩條 select 用「有沒有 orderBy」區分，與生產程式碼一致。
+function makeDbMock() {
+  return {
+    insert: () => ({ values: insertMock }),
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: selectFromDedupeMock,
+          orderBy: () => ({ limit: selectPromptMock }),
+        }),
+      }),
+    }),
+  };
+}
 const addGenerationLogMock = vi.fn();
 
 vi.mock("../../db", () => ({
@@ -43,7 +66,14 @@ vi.mock("../../db", () => ({
 }));
 
 vi.mock("../../../drizzle/schema", () => ({
-  promptLibrary: { __mocked: true },
+  // AIDV-10 upsert 查詢用到 promptLibrary.id / userId / category / content。
+  promptLibrary: {
+    __mocked: true,
+    id: "pl.id",
+    userId: "pl.userId",
+    category: "pl.category",
+    content: "pl.content",
+  },
   // doPostGenComplete 的 dedupe 前檢用 generation_history.compiledPrompt
   // 做 SELECT；mock object 隨意，drizzle-orm 比較會走 mocked and()/eq()。
   generationHistory: { id: "gh.id", userId: "gh.userId", compiledPrompt: "gh.cp" },
@@ -52,6 +82,7 @@ vi.mock("../../../drizzle/schema", () => ({
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => ({ __and: args }),
   eq: (col: unknown, val: unknown) => ({ __eq: [col, val] }),
+  asc: (col: unknown) => ({ __asc: col }),
 }));
 
 vi.mock("../brainAutoRepair", () => ({
@@ -64,6 +95,7 @@ import {
   runPostGenForJob,
   refundJobIfBilled,
   unifiedAssetPrefix,
+  findOrCreatePromptByContent,
 } from "../postGenActions";
 
 describe("doPostGenComplete", () => {
@@ -80,16 +112,7 @@ describe("doPostGenComplete", () => {
     getDbMock.mockReset();
     selectFromDedupeMock.mockReset();
     selectFromDedupeMock.mockResolvedValue([]);
-    getDbMock.mockReturnValue({
-      insert: () => ({ values: insertMock }),
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: selectFromDedupeMock,
-          }),
-        }),
-      }),
-    });
+    getDbMock.mockReturnValue(makeDbMock());
     delete process.env.ENABLE_PROMPT_ASSET_LINKS;
   });
 
@@ -322,16 +345,7 @@ describe("runPostGenForJob", () => {
     getDbMock.mockReset();
     selectFromDedupeMock.mockReset();
     selectFromDedupeMock.mockResolvedValue([]);
-    getDbMock.mockReturnValue({
-      insert: () => ({ values: insertMock }),
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: selectFromDedupeMock,
-          }),
-        }),
-      }),
-    });
+    getDbMock.mockReturnValue(makeDbMock());
   });
 
   afterEach(() => {
@@ -591,16 +605,7 @@ describe("doPostGenComplete with caller-supplied dedupe / parameter snapshot", (
     getDbMock.mockReset();
     selectFromDedupeMock.mockReset();
     selectFromDedupeMock.mockResolvedValue([]);
-    getDbMock.mockReturnValue({
-      insert: () => ({ values: insertMock }),
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: selectFromDedupeMock,
-          }),
-        }),
-      }),
-    });
+    getDbMock.mockReturnValue(makeDbMock());
   });
 
   it("uses dedupeMarker as compiledPrompt so per-request dedupe still works", async () => {
@@ -770,16 +775,7 @@ describe("doPostGenComplete dedupe pre-check (Codex P1 review fix)", () => {
     addGenerationLogMock.mockReset();
     selectFromDedupeMock.mockReset();
     getDbMock.mockReset();
-    getDbMock.mockReturnValue({
-      insert: () => ({ values: insertMock }),
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: selectFromDedupeMock,
-          }),
-        }),
-      }),
-    });
+    getDbMock.mockReturnValue(makeDbMock());
   });
 
   it("short-circuits writes when dedupeMarker already exists in generation_history", async () => {
@@ -851,6 +847,391 @@ describe("doPostGenComplete dedupe pre-check (Codex P1 review fix)", () => {
       dedupeMarker: "[imageStudio:fal-ai/nano-banana-2:req-abc]",
     });
 
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// AIDV-10 — prompt_library upsert-by-content 去重
+// ════════════════════════════════════════════════════════════════════════
+
+describe("findOrCreatePromptByContent (AIDV-10 pure helper)", () => {
+  beforeEach(() => {
+    insertMock.mockReset();
+    insertMock.mockResolvedValue([{ insertId: 100 }]);
+    selectPromptMock.mockReset();
+    selectPromptMock.mockResolvedValue([]);
+  });
+
+  const baseParams = {
+    userId: 7,
+    content: "a cute cat sitting on the moon",
+    category: "image" as const,
+    title: "a cute cat sitting on the moon",
+    modelHint: "fal-ai/nano-banana-2",
+  };
+
+  it("C1 命中既有列 → 重用既有 id，完全不 insert", async () => {
+    selectPromptMock.mockResolvedValueOnce([{ id: 42 }]);
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      ...baseParams,
+    });
+
+    expect(id).toBe(42);
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(selectPromptMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("C2 未命中 → insert 新列，回傳 insertId", async () => {
+    selectPromptMock.mockResolvedValueOnce([]);
+    insertMock.mockResolvedValueOnce([{ insertId: 77 }]);
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      ...baseParams,
+    });
+
+    expect(id).toBe(77);
+    expect(selectPromptMock).toHaveBeenCalledTimes(1);
+    expect(insertMock).toHaveBeenCalledTimes(1);
+    // insert 的 values 帶完整 content（非截斷 title）與 category。
+    const values = insertMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(values.content).toBe("a cute cat sitting on the moon");
+    expect(values.category).toBe("image");
+    expect(values.userId).toBe(7);
+  });
+
+  it("C3 命中多列（歷史髒資料）→ orderBy id asc 取最小 id（第一筆）", async () => {
+    // 生產程式碼用 orderBy(asc(id)).limit(1)，DB 只回最小 id 那筆；
+    // 這裡模擬 DB 已套用排序＋limit，回單一最早列。
+    selectPromptMock.mockResolvedValueOnce([{ id: 11 }]);
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      ...baseParams,
+    });
+
+    expect(id).toBe(11);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("A3 極長 content：用完整 content 查/寫，title 才截斷（兩者解耦）", async () => {
+    const longContent = "x".repeat(5000);
+    selectPromptMock.mockResolvedValueOnce([]);
+    insertMock.mockResolvedValueOnce([{ insertId: 5 }]);
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      userId: 7,
+      content: longContent,
+      category: "image",
+      title: longContent.slice(0, 80), // 呼叫端截斷後的 title
+      modelHint: "fal-ai/nano-banana-2",
+    });
+
+    expect(id).toBe(5);
+    const values = insertMock.mock.calls[0][0] as Record<string, unknown>;
+    // content 完整、title 截斷 → 兩個前 80 字相同、後文不同的提示詞不會被誤併。
+    expect((values.content as string).length).toBe(5000);
+    expect((values.title as string).length).toBe(80);
+  });
+
+  it("A4 unicode content（中文+emoji）原樣比對，不做正規化", async () => {
+    const unicodeContent = "貓咪在月球上🌙🐱 variation selector";
+    selectPromptMock.mockResolvedValueOnce([{ id: 88 }]);
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      userId: 7,
+      content: unicodeContent,
+      category: "image",
+      title: unicodeContent.slice(0, 80),
+      modelHint: "m",
+    });
+
+    expect(id).toBe(88);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("E1 SELECT 拋錯 → 安全 fallback 成 insert（never blocks）", async () => {
+    selectPromptMock.mockRejectedValueOnce(new Error("DB down on select"));
+    insertMock.mockResolvedValueOnce([{ insertId: 33 }]);
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      ...baseParams,
+    });
+
+    // 查詢失敗不拋、不阻斷 → 退回 insert 取得新 id。
+    expect(id).toBe(33);
+    expect(insertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("E2/E3 SELECT 與 INSERT 皆拋錯 → 回 null，不向上拋", async () => {
+    selectPromptMock.mockRejectedValueOnce(new Error("select boom"));
+    insertMock.mockRejectedValueOnce(new Error("insert boom"));
+
+    const id = await findOrCreatePromptByContent({
+      dbConn: makeDbMock(),
+      ...baseParams,
+    });
+
+    expect(id).toBeNull();
+  });
+
+  it("E5 insertId 異常（undefined/0/NaN）→ 回 null", async () => {
+    selectPromptMock.mockResolvedValue([]);
+
+    insertMock.mockResolvedValueOnce(undefined as never);
+    expect(
+      await findOrCreatePromptByContent({ dbConn: makeDbMock(), ...baseParams })
+    ).toBeNull();
+
+    insertMock.mockResolvedValueOnce([{ insertId: 0 }] as never);
+    expect(
+      await findOrCreatePromptByContent({ dbConn: makeDbMock(), ...baseParams })
+    ).toBeNull();
+
+    insertMock.mockResolvedValueOnce([{ insertId: NaN }] as never);
+    expect(
+      await findOrCreatePromptByContent({ dbConn: makeDbMock(), ...baseParams })
+    ).toBeNull();
+  });
+});
+
+describe("doPostGenComplete upsert-by-content integration (AIDV-10)", () => {
+  beforeEach(() => {
+    createDigitalAssetMock.mockReset();
+    createDigitalAssetMock.mockResolvedValue(1);
+    createHistoryEntryMock.mockReset();
+    createHistoryEntryMock.mockResolvedValue(1);
+    createPromptAssetLinkMock.mockReset();
+    createPromptAssetLinkMock.mockResolvedValue(1);
+    insertMock.mockReset();
+    insertMock.mockResolvedValue([{ insertId: 100 }]);
+    addGenerationLogMock.mockReset();
+    getDbMock.mockReset();
+    selectFromDedupeMock.mockReset();
+    selectFromDedupeMock.mockResolvedValue([]);
+    selectPromptMock.mockReset();
+    selectPromptMock.mockResolvedValue([]);
+    getDbMock.mockReturnValue(makeDbMock());
+    delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+  });
+
+  it("命中既有 content → 重用 id 建邊，不再 insert prompt_library", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    selectPromptMock.mockResolvedValueOnce([{ id: 500 }]); // 既有列
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    // 重用既有列：prompt_library insert 0 次
+    expect(insertMock).not.toHaveBeenCalled();
+    // junction 邊用「重用的既有 promptId=500」＋新 assetId=99
+    expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+      promptId: 500,
+      assetId: 99,
+      relation: "derived",
+    });
+  });
+
+  it("D1 連兩次同 content → 只有一列 prompt、兩 asset 都連同一 prompt", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+
+    // 第一次：未命中 → insert，回 insertId=300
+    selectPromptMock.mockResolvedValueOnce([]);
+    insertMock.mockResolvedValueOnce([{ insertId: 300 }]);
+    createDigitalAssetMock.mockResolvedValueOnce(901); // 第一個 asset
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "ocean waves at sunset",
+      resultUrl: "https://cdn.example.com/a.png",
+    });
+
+    // 第二次：同 content → 命中第一次那列（id=300），不 insert
+    selectPromptMock.mockResolvedValueOnce([{ id: 300 }]);
+    createDigitalAssetMock.mockResolvedValueOnce(902); // 第二個 asset
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "ocean waves at sunset",
+      resultUrl: "https://cdn.example.com/b.png",
+    });
+
+    // 整個流程 prompt_library 只 insert 一次（第一次）。
+    expect(insertMock).toHaveBeenCalledTimes(1);
+    // 兩條 junction 邊：同 promptId=300、不同 assetId。
+    expect(createPromptAssetLinkMock).toHaveBeenCalledTimes(2);
+    expect(createPromptAssetLinkMock).toHaveBeenNthCalledWith(1, {
+      promptId: 300,
+      assetId: 901,
+      relation: "derived",
+    });
+    expect(createPromptAssetLinkMock).toHaveBeenNthCalledWith(2, {
+      promptId: 300,
+      assetId: 902,
+      relation: "derived",
+    });
+  });
+
+  it("A1/A2 content 過短（< 4 字元）→ 完全不查不寫，無 promptId", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "貓", // < MIN_PROMPT_LENGTH_FOR_LIBRARY
+      resultUrl: "https://cdn.example.com/x.png",
+    });
+
+    expect(selectPromptMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
+    // 資產照常寫入 — 去重不影響其他寫入路徑。
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("E1 upsert 查詢拋錯 → fallback insert，生成鏈其餘照常", async () => {
+    selectPromptMock.mockRejectedValueOnce(new Error("select exploded"));
+    insertMock.mockResolvedValueOnce([{ insertId: 44 }]);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/x.png",
+    });
+
+    // SELECT 失敗 → 退回 insert
+    expect(insertMock).toHaveBeenCalledTimes(1);
+    // 資產 / 歷史 / 監控全照常
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+    expect(addGenerationLogMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("E2 upsert insert 拋錯 → savedPromptId=null，資產/歷史/監控不中斷、不建邊", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    selectPromptMock.mockResolvedValueOnce([]); // 未命中
+    insertMock.mockRejectedValueOnce(new Error("insert exploded"));
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await expect(
+      doPostGenComplete({
+        userId: 7,
+        modality: "image",
+        modelId: "fal-ai/nano-banana-2",
+        prompt: "a cute cat sitting on the moon",
+        resultUrl: "https://cdn.example.com/x.png",
+      })
+    ).resolves.toBeUndefined();
+
+    // 無有效 promptId → 不建邊
+    expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
+    // 其餘寫入照常
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+    expect(addGenerationLogMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("F1 同輸入重跑 N 次 → prompt_library 收斂為一列（首次 insert，其後命中重用）", async () => {
+    // 首次未命中 insert
+    selectPromptMock.mockResolvedValueOnce([]);
+    insertMock.mockResolvedValueOnce([{ insertId: 700 }]);
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling",
+      prompt: "a recurring prompt text",
+      resultUrl: "https://cdn.example.com/1.mp4",
+    });
+    // 第二、三次都命中既有列
+    selectPromptMock.mockResolvedValue([{ id: 700 }]);
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling",
+      prompt: "a recurring prompt text",
+      resultUrl: "https://cdn.example.com/2.mp4",
+    });
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling",
+      prompt: "a recurring prompt text",
+      resultUrl: "https://cdn.example.com/3.mp4",
+    });
+
+    expect(insertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("B2 同 content 不同 category（image vs video）→ 各自查，scope 含 category", async () => {
+    // category 納入 upsert 鍵：同一句話生圖 vs 生影分開。這裡驗證 select
+    // 的 where 條件帶 category（透過 selectPromptMock 被呼叫 + insert 行為）。
+    selectPromptMock.mockResolvedValueOnce([]); // image 未命中
+    insertMock.mockResolvedValueOnce([{ insertId: 1 }]);
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "m",
+      prompt: "same words different modality",
+      resultUrl: "https://cdn.example.com/i.png",
+    });
+    selectPromptMock.mockResolvedValueOnce([]); // video 也未命中（scope 含 category）
+    insertMock.mockResolvedValueOnce([{ insertId: 2 }]);
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "m",
+      prompt: "same words different modality",
+      resultUrl: "https://cdn.example.com/v.mp4",
+    });
+
+    // 兩個 modality 各 insert 一列。
+    expect(insertMock).toHaveBeenCalledTimes(2);
+    const cats = insertMock.mock.calls.map(
+      c => (c[0] as Record<string, unknown>).category
+    );
+    expect(cats).toEqual(["image", "video"]);
+  });
+
+  it("E4 getDb 回 null → 跳過整個提示詞庫，savedPromptId=null，其餘照走", async () => {
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    getDbMock.mockReturnValue(null);
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/x.png",
+    });
+
+    expect(selectPromptMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
     expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
   });
 });
