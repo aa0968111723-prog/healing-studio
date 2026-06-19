@@ -178,6 +178,29 @@ describe("doPostGenComplete", () => {
     });
   });
 
+  it("writes the caller-provided relation (variant) instead of the default derived", async () => {
+    // AIDV-9：座艙重骰/改寫/延長要帶 variant/rewrite/extended。預設仍 derived。
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+    insertMock.mockResolvedValue([{ insertId: 55 }] as never);
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling-video/v2.1",
+      prompt: "ocean waves at sunset — re-rolled variant",
+      resultUrl: "https://cdn.example.com/variant.mp4",
+      relation: "variant",
+    });
+
+    expect(createPromptAssetLinkMock).toHaveBeenCalledTimes(1);
+    expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+      promptId: 55,
+      assetId: 99,
+      relation: "variant",
+    });
+  });
+
   it("does NOT link when the flag is off (default) even with both ids available", async () => {
     // 旗標未設（預設 OFF）
     insertMock.mockResolvedValue([{ insertId: 55 }] as never);
