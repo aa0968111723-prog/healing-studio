@@ -359,7 +359,17 @@ async function startServer() {
     if (!fs.existsSync(localUploadsPath)) {
       fs.mkdirSync(localUploadsPath, { recursive: true });
     }
-    app.use("/uploads", express.static(localUploadsPath));
+    // AIDV-64: serve user uploads with nosniff so the browser never
+    // content-type-sniffs an uploaded body into executable HTML/SVG (defence
+    // in depth alongside the upload-time content guard + safe storage ext).
+    app.use(
+      "/uploads",
+      express.static(localUploadsPath, {
+        setHeaders: res => {
+          res.setHeader("X-Content-Type-Options", "nosniff");
+        },
+      })
+    );
   }
   // SSE for real-time generation events
   app.use(sseRouter);
