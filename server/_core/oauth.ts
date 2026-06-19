@@ -9,10 +9,11 @@
  *   POST /api/oauth/logout       → 清除 Session Cookie
  */
 
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, THIRTY_DAYS_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import { parse as parseCookie } from "cookie";
 import * as db from "../db";
+import { ENV } from "./env";
 import { getSessionCookieOptions } from "./cookies";
 import {
   buildGoogleAuthUrl,
@@ -34,6 +35,19 @@ import { decodeOAuthState, encodeOAuthState } from "./oauthState";
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
   return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * AIDV-59（H4 JWT 硬化）：解析 session token 壽命（毫秒）。
+ *
+ * 改為遵循 JWT_ACCESS_TOKEN_EXPIRES_IN（秒，預設 2592000 = 30 天），與 localAuth /
+ * AuthFacade 一致；移除原本 Google／demo 流程硬寫死 ONE_YEAR_MS 的不一致。
+ * env 無效（非數字／<=0）時退回 30 天，而非 1 年。
+ */
+function getAccessTokenLifetimeMs(): number {
+  const sec = Number(ENV.jwtAccessTokenExpiresIn);
+  if (!Number.isFinite(sec) || sec <= 0) return THIRTY_DAYS_MS;
+  return Math.floor(sec * 1000);
 }
 
 function getRedirectFromState(state?: string): string {
@@ -241,10 +255,12 @@ export function registerOAuthRoutes(app: Express) {
       // 建立 JWT Session Token
       stage = "session";
       console.info("[OAuth] Creating session token...");
+      // AIDV-59：壽命改由 env 決定（預設 30 天），不再硬寫死 1 年。
+      const sessionLifetimeMs = getAccessTokenLifetimeMs();
       const sessionToken = await createSessionToken(userInfo.sub, {
         name: userInfo.name || "",
         email: userInfo.email,
-        expiresInMs: ONE_YEAR_MS,
+        expiresInMs: sessionLifetimeMs,
       });
 
       // 設定 Session Cookie
@@ -252,11 +268,11 @@ export function registerOAuthRoutes(app: Express) {
       console.info("[OAuth] Setting session cookie", {
         cookieOptions,
         cookieName: COOKIE_NAME,
-        maxAge: ONE_YEAR_MS,
+        maxAge: sessionLifetimeMs,
       });
       res.cookie(COOKIE_NAME, sessionToken, {
         ...cookieOptions,
-        maxAge: ONE_YEAR_MS,
+        maxAge: sessionLifetimeMs,
       });
 
       // 解碼 state 取得重定向路徑（僅允許安全的相對路徑，防止 Open Redirect 攻擊）
@@ -367,15 +383,17 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
     try {
+      // AIDV-59：demo 流程同樣改用 env 壽命（預設 30 天）。
+      const sessionLifetimeMs = getAccessTokenLifetimeMs();
       const sessionToken = await createSessionToken(DEMO_USER.openId, {
         name: DEMO_USER.name || "訪客創作者",
         email: DEMO_USER.email,
-        expiresInMs: ONE_YEAR_MS,
+        expiresInMs: sessionLifetimeMs,
       });
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, {
         ...cookieOptions,
-        maxAge: ONE_YEAR_MS,
+        maxAge: sessionLifetimeMs,
       });
       res.redirect(302, "/studio?welcome=1");
     } catch (error) {

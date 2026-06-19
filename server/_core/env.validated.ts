@@ -109,6 +109,29 @@ function selfRepairEnv(): void {
     }
   }
 
+  // 1b) JWT_SECRET 正規化（AIDV-59，H4 JWT 硬化）：去除前後空白。
+  //     env 值是逐字存的，複製貼上常帶尾端換行（Railway/.env 常見），
+  //     若不集中正規化，session 層、webhookTokens、sdk、secretCrypto 會對
+  //     「同一密鑰」有不同解讀（trim 與否派生出不同簽章/加密金鑰）。
+  //     在 zod 解析前就地 trim，讓 serverEnv.JWT_SECRET / process.env.JWT_SECRET
+  //     自始即為單一真值，所有下游一致；同時把原始（未 trim）值保留在
+  //     JWT_SECRET_RAW，供 session 驗證做向後相容 fallback（見 googleAuth）。
+  const jwtRaw = env.JWT_SECRET;
+  if (jwtRaw && jwtRaw !== jwtRaw.trim()) {
+    // 保留原值供驗證 fallback；只在實際有差異時設定，避免污染無空白的常態。
+    env.JWT_SECRET_RAW = jwtRaw;
+    env.JWT_SECRET = jwtRaw.trim();
+    selfRepairLog.push({
+      varName: "JWT_SECRET",
+      action: "sanitized",
+      before: `(${jwtRaw.length} chars, 含前後空白)`,
+      after: `(${env.JWT_SECRET.length} chars, 已 trim)`,
+      reason:
+        "JWT_SECRET 含前後空白，已正規化（trim）以統一所有下游簽章/加密；" +
+        "原值保留於 JWT_SECRET_RAW 供既有 session token 向後相容驗證（AIDV-59）",
+    });
+  }
+
   // 2) Pinecone 索引名只允許 [a-z0-9-]；若含非法字元就強制重設預設值
   const idx = env.PINECONE_INDEX_NAME;
   if (idx && idx.trim().length > 0) {
@@ -133,10 +156,10 @@ function selfRepairEnv(): void {
       varName: "JWT_ACCESS_TOKEN_EXPIRES_IN",
       action: "reset_to_default",
       before: ttl,
-      after: "31536000",
-      reason: "TTL 必須是整數秒數；偵測到非數字，已還原預設 31536000 秒（1 年）",
+      after: "2592000",
+      reason: "TTL 必須是整數秒數；偵測到非數字，已還原預設 2592000 秒（30 天，AIDV-59）",
     });
-    env.JWT_ACCESS_TOKEN_EXPIRES_IN = "31536000";
+    env.JWT_ACCESS_TOKEN_EXPIRES_IN = "2592000";
   }
 
   // 4) GOOGLE_APPLICATION_CREDENTIALS_JSON 必須是合法 JSON
@@ -257,7 +280,9 @@ const coreSchema = z.object({
   PORT: z.string().optional().default("3000"),
   BASE_URL: z.string().optional().default(""),
   JWT_SECRET: z.string().min(1).optional().default(""),
-  JWT_ACCESS_TOKEN_EXPIRES_IN: z.string().optional().default("31536000"),
+  // AIDV-59（H4 JWT 硬化）：新發 token 預設壽命 30 天（2592000 秒），由 ~1 年縮短而來。
+  // 已簽發舊 token 各自帶 exp，不受此變更影響（不會大規模登出）。
+  JWT_ACCESS_TOKEN_EXPIRES_IN: z.string().optional().default("2592000"),
   PASSWORD_HASH_ALGORITHM: z
     .enum(["scrypt", "bcrypt", "argon2"])
     .default("scrypt"),

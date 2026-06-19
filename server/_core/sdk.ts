@@ -1,4 +1,4 @@
-import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { AXIOS_TIMEOUT_MS, COOKIE_NAME, THIRTY_DAYS_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -7,6 +7,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+import { getJwtSecret } from "./googleAuth";
 import type {
   ExchangeTokenRequest,
   ExchangeTokenResponse,
@@ -155,8 +156,9 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
-    return new TextEncoder().encode(secret);
+    // AIDV-59：共用 googleAuth.getJwtSecret —— 同一套 fail-fast（正式環境弱/空密鑰 throw）、
+    // trim 正規化與 ≥16 長度門檻，避免本平行路徑成為未硬化的後門簽發器。
+    return getJwtSecret();
   }
 
   /**
@@ -183,7 +185,8 @@ class SDKServer {
     options: { expiresInMs?: number } = {}
   ): Promise<string> {
     const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    // AIDV-59：預設壽命 30 天（與 googleAuth/localAuth/AuthFacade 一致），不再簽 1 年 token。
+    const expiresInMs = options.expiresInMs ?? THIRTY_DAYS_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 

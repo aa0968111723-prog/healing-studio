@@ -21,6 +21,10 @@ openssl rand -base64 32
 ```
 
 > 💡 也可改用別名 `AUTH_SECRET`（self-repair 會自動 rename 成 `JWT_SECRET`），任設一個即可。
+>
+> 🔒 **AIDV-59（H4 JWT 硬化）**：正式環境（`NODE_ENV=production`）必填且至少 16 字元。
+> 若缺失／空白／太弱，server 會在**開機時 fail-fast（throw）**，不會靜默退回弱／空密鑰。
+> 正確設定 32+ 字元密鑰的部署不受影響。
 
 ---
 
@@ -188,7 +192,7 @@ Railway 部署完成後填入 Google Cloud Console：
 | `NVIDA_API` | rename → `NVIDIA_API` |
 | `FAL_KEY` | rename → `FAL_API_KEY` |
 | `PINECONE_INDEX_NAME` 含非法字元 | sanitize 為小寫英數連字號 |
-| `JWT_ACCESS_TOKEN_EXPIRES_IN` 非數字 | 還原預設 31536000 |
+| `JWT_ACCESS_TOKEN_EXPIRES_IN` 非數字 | 還原預設 2592000（30 天，AIDV-59）|
 | `GOOGLE_APPLICATION_CREDENTIALS_JSON` 非合法 JSON | 視為未設定 |
 | `LANGSMITH_API_KEY` 非 `lsv2_*` 格式 | 視為未設定 |
 | 範本字串（`your-xxx-api-key` 等） | 視為未設定 |
