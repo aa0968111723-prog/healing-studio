@@ -2084,6 +2084,59 @@ export const costAggregations = mysqlTable(
 export type CostAggregation = typeof costAggregations.$inferSelect;
 export type InsertCostAggregation = typeof costAggregations.$inferInsert;
 
+// ─── Cost Ledger（AIDV-153 append-only 雙分錄成本帳本）────────────────────────
+//
+// 現況（待升級的反型樣）：餘額＝users.remainingGenerations 單一可變整數，扣款/
+// 退款都「就地 mutate」（server/db.ts deductUserPoints/refundUserPoints），無不可
+// 變交易 log；cost_aggregations 由 SUM(ai_usage_events.costUsd) 聚合、某些路徑偶現
+// $0.00。本表是「基礎版」：一張 append-only（只 INSERT，永不 UPDATE/DELETE 既有列）
+// 的雙分錄帳本，餘額由 log 加總「算出來」、不就地改任何欄位。
+//
+// 設計（基礎版，旗標 ENABLE_COST_LEDGER 預設 OFF＝零行為變化、純並行寫）：
+//   accountKey     : 帳戶鍵（科目維度），格式 "<type>:<id>"，type ∈ project/member/
+//                    workflow（雙分錄科目定義待 Bruce 拍板，故先存自由字串鍵）。
+//   entryType      : debit（借）/ credit（貸）。基礎版約定：消耗成本記 debit、
+//                    退款/沖銷記 credit；computeBalance = SUM(credit) - SUM(debit)。
+//   amount         : DECIMAL(12,6) 正值（方向由 entryType 表達，金額本身永遠 ≥ 0）。
+//   status         : pending（hold 預留）→ posted（正式入帳）/ archived（沖銷作廢）。
+//                    hold 生命週期：先以 pending 預留額度，成功轉 posted、失敗轉
+//                    archived（不計入餘額）。
+//   idempotencyKey : 唯一鍵。同一 key 重複 postEntry 不重複入帳（冪等保證）。
+//   refType/refId  : 來源憑證（如 ai_usage_event / generation_job），供對帳追溯。
+//
+// 並行於現有 cost_aggregations、不取代、不改既有餘額寫法（HARD SAFETY ②純加法）。
+const LEDGER_ENTRY_TYPES = ["debit", "credit"] as const;
+const LEDGER_STATUSES = ["pending", "posted", "archived"] as const;
+
+export const costLedger = mysqlTable(
+  "cost_ledger",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    accountKey: varchar("accountKey", { length: 128 }).notNull(),
+    entryType: mysqlEnum("entryType", LEDGER_ENTRY_TYPES).notNull(),
+    amount: decimal("amount", { precision: 12, scale: 6 }).default("0").notNull(),
+    status: mysqlEnum("status", LEDGER_STATUSES).default("posted").notNull(),
+    idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+    refType: varchar("refType", { length: 64 }),
+    refId: varchar("refId", { length: 128 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    idempotencyKeyUnique: uniqueIndex("cl_idempotencyKey_unique").on(
+      table.idempotencyKey
+    ),
+    accountKeyStatusIdx: index("cl_accountKey_status_idx").on(
+      table.accountKey,
+      table.status
+    ),
+    refIdx: index("cl_ref_idx").on(table.refType, table.refId),
+    createdAtIdx: index("cl_createdAt_idx").on(table.createdAt),
+  })
+);
+
+export type CostLedgerEntry = typeof costLedger.$inferSelect;
+export type InsertCostLedgerEntry = typeof costLedger.$inferInsert;
+
 // ─── Rate Limit Rules（速率限制規則）───────────────────────────────────────
 export const rateLimitRules = mysqlTable("rate_limit_rules", {
   id: int("id").autoincrement().primaryKey(),

@@ -128,12 +128,59 @@ export function Rail({
   );
 }
 
+/* ================= AccountMenu（TopBar 右側可見帳號/登出入口）=================
+ * chrome 取代 AppleDock 後，登出不可只藏在 ⌘K（行動裝置無實體 ⌘K、桌機使用者也未必知道）。
+ * 此 avatar 選單給「可見、可點」的登出出口；純呈現、props 驅動、內建 a11y（aria-expanded/role=menu）。
+ * 點頭像展開，含「登出」（呼叫 onLogout）＋可選「設定」（onSettings）。 */
+export function AccountMenu({
+  label, onLogout, onSettings, open, onToggle,
+}: {
+  /** 顯示名（取首字當 avatar）；未提供時用通用人像。 */
+  label?: string;
+  onLogout: () => void;
+  onSettings?: () => void;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const initial = label?.trim()?.[0]?.toUpperCase();
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="帳號選單"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={label ? `${label}・帳號` : "帳號"}
+        onClick={onToggle}
+        className="flex size-8 items-center justify-center rounded-full bg-[linear-gradient(120deg,var(--clay-bright),var(--clay))] text-[12px] font-semibold text-[var(--on-clay)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--clay-ring)]"
+      >
+        {initial ?? "👤"}
+      </button>
+      {open && (
+        <div role="menu" aria-label="帳號" className="absolute right-0 top-[calc(100%+6px)] z-40 w-[200px] rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[var(--shadow-lift)]">
+          {label && <div className="truncate px-2 py-1.5 text-[12px] text-[var(--muted)]">{label}</div>}
+          {onSettings && (
+            <button type="button" role="menuitem" onClick={onSettings} className="flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[13px] text-[var(--text-soft)] hover:bg-[var(--surface-2)]">
+              <span>⚙</span><span>設定</span>
+            </button>
+          )}
+          <button type="button" role="menuitem" onClick={onLogout} className="flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[13px] text-[var(--bad)] hover:bg-[var(--surface-2)]">
+            <span>⏻</span><span>登出</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ================= TopBar（上 58px）================= */
 export function TopBar({
-  shell, projectName, onProjectClick, projectSlot, provider, providerStatus, credits, onCmdK,
+  shell, projectName, onProjectClick, projectSlot, provider, providerStatus, credits, onCmdK, accountSlot,
 }: {
   shell: DkShellDef; projectName?: string; onProjectClick?: () => void; projectSlot?: React.ReactNode;
   provider?: string; providerStatus?: DkProviderStatus; credits?: number; onCmdK?: () => void;
+  /** 右側帳號/登出入口（通常傳 <AccountMenu />）。可見出口，避免登出只藏在 ⌘K。 */
+  accountSlot?: React.ReactNode;
 }) {
   return (
     <header className="flex h-[58px] items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-4">
@@ -153,6 +200,7 @@ export function TopBar({
         <button type="button" aria-label="命令面板" onClick={onCmdK} className="flex items-center gap-1 rounded-[10px] border border-[var(--line)] px-2 py-1 text-[var(--muted)] hover:bg-[var(--surface-2)]">
           <Kbd>⌘K</Kbd>
         </button>
+        {accountSlot}
       </div>
     </header>
   );
@@ -270,8 +318,10 @@ export function CommandPalette({
 
 /* ================= MobileNav（≤780 底部 FAB 列）================= */
 export function MobileNav({
-  shells, active, onSelect, onCmdK,
-}: { shells: DkShellDef[]; active: DkShellId; onSelect: (id: DkShellId) => void; onCmdK?: () => void }) {
+  shells, active, onSelect, onCmdK, onLogout,
+}: { shells: DkShellDef[]; active: DkShellId; onSelect: (id: DkShellId) => void; onCmdK?: () => void;
+  /** 行動版可見登出入口（avatar/⏻）；行動裝置無實體 ⌘K，登出不可只藏在命令面板。 */
+  onLogout?: () => void }) {
   const half = Math.ceil(shells.length / 2);
   const render = (s: DkShellDef) => {
     const on = s.id === active;
@@ -287,6 +337,12 @@ export function MobileNav({
       {shells.slice(0, half).map(render)}
       <button type="button" aria-label="命令面板" onClick={onCmdK} className="flex size-12 flex-none items-center justify-center rounded-full bg-[linear-gradient(120deg,var(--clay-bright),var(--clay))] text-[var(--on-clay)] shadow-[var(--shadow-lift)]">◎</button>
       {shells.slice(half).map(render)}
+      {onLogout && (
+        <button type="button" aria-label="登出" onClick={onLogout}
+          className="flex flex-none flex-col items-center gap-0.5 px-1.5 py-1.5 text-[10px] text-[var(--bad)]">
+          <span className="text-[18px]">⏻</span>登出
+        </button>
+      )}
     </nav>
   );
 }
