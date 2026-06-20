@@ -62,7 +62,8 @@
 
 1. Railway Dashboard → App 服務 → **Deployments** 分頁。
 2. 找出**上一個** status 是綠色 / `SUCCESS` 的部署（通常是壞掉那次的前一筆）。
-3. 點該筆右側的 **⋮（三個點）→ Redeploy**（有些版本叫 **Rollback / Restore**）。
+3. 點該筆右側的 **⋮（三個點）→ Redeploy**（部署詳情頁也可能叫 **Rollback / Roll back to here**）。
+   - 註：別跟 **Restore** 搞混——Railway 的 Restore 是「還原已刪除的服務／環境」，不是回滾部署。
    - 這會用「那一版的舊 image」重新啟動容器——舊版的 `dist/` 與 `drizzle/` 都原封不動，安全。
 4. 等 1–2 分鐘，回到第 1 節 B 確認 `/api/health` 變回 ok、log 沒有 `Migration failed`。
 
@@ -84,7 +85,7 @@
 | --- | --- | --- |
 | `You have an error in your SQL syntax` | migration SQL 寫錯 | 改 `drizzle/00xx_*.sql`，本機先用 Docker MySQL 跑過再 push |
 | `Duplicate column` / `Table already exists` | 同一段結構被重複建 | 用 `information_schema` 先判斷存在與否再建（既有 migration 都這樣守門）|
-| `orphaned migration SQL files …` | SQL 檔沒登記到 `drizzle/meta/_journal.json` | 補上 journal 條目；沒登記的檔 drizzle **不會執行**（歷史上 0024–0027 就是這樣漏掉）|
+| `orphaned migration SQL files …` | SQL 檔沒登記到 `drizzle/meta/_journal.json` | 補上 journal 條目；沒登記的檔 drizzle **不會執行**（歷史上 0071–0074 就是這樣漏掉，已於 AIDV-17 補登記 journal）|
 | 啟動卡住 / 一直逾時 | migration 註解或內容讓 driver 卡死 | 見第 5 節「真實案例」 |
 
 ---
