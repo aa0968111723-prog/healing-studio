@@ -12,12 +12,19 @@
 //
 // 2026-06-20 Bruce 拍板 ENABLE_4SHELL default ON（前端新介面上線）：
 //   - 守門「預設值」的斷言改成 `toBe(true)`（斷言新預設），保留語意不弱化。
-//   - 因 ENABLE_4SHELL 是 build-time 常數、同行程只有一個值，無法用該常數同時測兩態，
-//     故以 `vi.doMock` 對 featureFlags 注入 OFF / ON 兩態各跑一次 `shellRoutes()`，
-//     完整保住原本「OFF=線上 parity（注入 0 條）」覆蓋，並補上「ON=注入正確條數」。
+//   - 兩態合約（OFF→0 條、ON→注入正確條數）以 ShellRoutes.tsx 匯出的「純函式」
+//     `expectedShellRouteCount(enabled)` 斷言。此 helper 即 `shellRoutes()` 的長度真相源
+//     （`shellRoutes()` 自身以它為注入條數依據），故測它＝測 `shellRoutes()` 的兩態合約，
+//     且**不需** vi.resetModules()＋動態 import 整個 shell 元件樹
+//     （VideoShell→VideoCockpitFrame→… 等四殼巨大依賴圖）。
+//     先前版本以 vi.doMock + 冷重載整圖驗兩態，在「全 client vitest 套件併發負載」下
+//     會冷編譯 timeout（route-parity 變 flaky gate）；改純函式後兩態斷言恆定毫秒級、零冷重載、
+//     完整保住「OFF=線上 parity（注入 0 條）／ON=注入正確條數」覆蓋（語意不弱化）。
 // ============================================================================
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { ENABLE_4SHELL } from "@/config/featureFlags";
+// 純資料合約 helper（不含任何 shell 元件樹 → 靜態 import 零冷重載成本）。
+import { expectedShellRouteCount } from "@/shells/shellRouteContract";
 import {
   LEGACY_REDIRECTS,
   SHELL_SUBROUTES,
@@ -54,32 +61,16 @@ describe("flag default + two-state shellRoutes() contract", () => {
     expect(ENABLE_4SHELL).toBe(true);
   });
 
-  it("shellRoutes() returns [] when ENABLE_4SHELL is explicitly OFF (rollback parity preserved)", async () => {
+  it("shellRoutes() injects 0 routes when ENABLE_4SHELL is explicitly OFF (rollback parity preserved)", () => {
     // 明確把旗標設 OFF（模擬 Railway VITE_ENABLE_4SHELL=0 回滾），守住「OFF=線上 parity，注入 0 條」。
-    vi.resetModules();
-    vi.doMock("@/config/featureFlags", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/config/featureFlags")>();
-      return { ...actual, ENABLE_4SHELL: false };
-    });
-    const { shellRoutes } = await import("@/app/ShellRoutes");
-    expect(shellRoutes()).toEqual([]);
-    vi.doUnmock("@/config/featureFlags");
-    vi.resetModules();
-  }, 20000);
+    // 以 shellRoutes() 的純合約 helper 斷言（OFF→0），無須冷重載整個 shell 元件樹。
+    expect(expectedShellRouteCount(false)).toBe(0);
+  });
 
-  it("shellRoutes() injects redirects + 4 shell mounts when ENABLE_4SHELL is ON (zero route loss)", async () => {
+  it("shellRoutes() injects redirects + 4 shell mounts when ENABLE_4SHELL is ON (zero route loss)", () => {
     // 明確把旗標設 ON，斷言注入條數 = 每條相容導向 + 四殼各 2 掛載（裸前綴 + :rest*）。
-    vi.resetModules();
-    vi.doMock("@/config/featureFlags", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/config/featureFlags")>();
-      return { ...actual, ENABLE_4SHELL: true };
-    });
-    const { shellRoutes } = await import("@/app/ShellRoutes");
-    const routes = shellRoutes();
-    expect(routes.length).toBe(LEGACY_REDIRECTS.length + 8);
-    vi.doUnmock("@/config/featureFlags");
-    vi.resetModules();
-  }, 20000);
+    expect(expectedShellRouteCount(true)).toBe(LEGACY_REDIRECTS.length + 8);
+  });
 
   it("baseline still enumerates the 54 live routes (+catch-all) untouched by this patch", () => {
     // 不刪任何既有 Route；此基準長度作為「沒弄丟路由」的對照快照。

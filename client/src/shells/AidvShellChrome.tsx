@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
-  AidvKit, Rail, TopBar, MobileNav, CommandPalette, ProjectSwitcher,
+  AidvKit, Rail, TopBar, MobileNav, CommandPalette, ProjectSwitcher, AccountMenu,
   type DkShellDef, type DkCommandItem, type DkProjectLite,
 } from "@/components/design-kit";
 import { SHELL_META } from "@/config/shells";
@@ -37,13 +37,21 @@ export function AidvShellChrome() {
   const isMobile = useIsMobile();
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [psOpen, setPsOpen] = useState(false);
+  const [acctOpen, setAcctOpen] = useState(false);
   const active = shellFromPath(location);
   const activeMeta = SHELL_META.find((s) => s.id === active) ?? SHELL_META[0];
 
   // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
   const world = useCreativeProject();
-  // P1（Codex 審查）：chrome 取代 AppleDock 後須保留登出出口；經 ⌘K「登出」指令呼叫真實 logout。
-  const { logout } = useAuth();
+  // P1（Codex 審查）：chrome 取代 AppleDock 後須保留登出出口。
+  // 登出出口有三：① TopBar 右側 AccountMenu（桌機可見）② MobileNav ⏻（行動可見）③ ⌘K「登出」（快捷）。
+  // 不可只藏在 ⌘K——行動裝置無實體 ⌘K、桌機使用者也未必知道要按。三處皆呼叫同一真實 logout()。
+  const { logout, user } = useAuth();
+  const accountLabel =
+    (user && typeof user === "object"
+      ? ((user as { name?: string; email?: string }).name ?? (user as { email?: string }).email)
+      : undefined) ?? undefined;
+  const doLogout = () => { setAcctOpen(false); void logout(); };
   const projectsQ = trpc.creativeProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
   const projectList: DkProjectLite[] = (projectsQ.data ?? []).map((p) => ({ id: String(p.id), name: p.title }));
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
@@ -74,7 +82,7 @@ export function AidvShellChrome() {
     { id: "new-project", label: "新建專案", group: "專案", hint: "/create", onRun: () => navigate("/create") },
     { id: "switch-project", label: "切換專案", group: "專案", onRun: () => setPsOpen(true) },
     { id: "go-settings", label: "設定", group: "設定", hint: "/settings", onRun: () => navigate("/settings") },
-    { id: "logout", label: "登出", group: "帳號", hint: "結束登入", onRun: () => logout() },
+    { id: "logout", label: "登出", group: "帳號", hint: "結束登入", onRun: () => void logout() },
   ];
 
   return (
@@ -99,11 +107,20 @@ export function AidvShellChrome() {
           }
           credits={credits}
           onCmdK={() => setCmdkOpen(true)}
+          accountSlot={
+            <AccountMenu
+              label={accountLabel}
+              onLogout={doLogout}
+              onSettings={() => { setAcctOpen(false); navigate("/settings"); }}
+              open={acctOpen}
+              onToggle={() => setAcctOpen((v) => !v)}
+            />
+          }
         />
       </div>
       {isMobile && (
         <div className="fixed inset-x-0 bottom-0 z-40">
-          <MobileNav shells={SHELLS} active={active} onSelect={goShell} onCmdK={() => setCmdkOpen(true)} />
+          <MobileNav shells={SHELLS} active={active} onSelect={goShell} onCmdK={() => setCmdkOpen(true)} onLogout={doLogout} />
         </div>
       )}
       <CommandPalette open={cmdkOpen} items={cmdItems} onClose={() => setCmdkOpen(false)} />
