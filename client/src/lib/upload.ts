@@ -9,9 +9,89 @@ export function shortErrorMsg(raw: unknown, maxLen = 60): string {
 }
 
 /**
- * Shared file upload helper — uploads a File to S3 via /api/upload
+ * AIDV-15：嘗試走 signed-URL 直傳（presign → 直接 PUT 到 R2 → finalize）。
+ *
+ * 大檔位元組完全不經過 tRPC/HTTP body（不再 base64、不打爆 Railway 記憶體）。
+ * 回傳 null 代表「signed-URL 路徑不可用」（旗標 OFF / 無 R2 設定 / demo），呼叫端
+ * 應回退既有 base64 `/api/upload`。任何「上傳真的失敗」（非回退情境）則直接 throw。
+ *
+ * @param onProgress 可選；以 0..100 回報「PUT 到 R2」的真實進度（XHR upload 事件）。
  */
-export async function uploadFileToS3(
+async function trySignedUrlUpload(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<{ url: string; fileKey: string } | null> {
+  // ① presign — 向伺服器要 scoped、短效、限型別/大小的 PUT URL。
+  const presignResp = await fetch("/api/upload/presign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+    }),
+  });
+
+  if (presignResp.status === 503 || presignResp.status === 404) {
+    // 旗標 OFF / 無 R2 / 端點不存在（舊伺服器）→ 回退 base64。
+    return null;
+  }
+  if (!presignResp.ok) {
+    // 400/413/415：明確的拒絕（缺欄位 / 太大 / 不允許型別）→ 直接報錯，不回退。
+    const err = await presignResp.json().catch(() => ({ error: "上傳失敗" }));
+    if (err?.fallback === "base64") return null;
+    throw new Error(err.error || "上傳失敗");
+  }
+
+  const presigned = (await presignResp.json()) as {
+    putUrl: string;
+    fileKey: string;
+    contentType: string;
+  };
+
+  // ② 直接 PUT 到 R2 —— 檔案 body 不經過我們的 Node 伺服器。
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", presigned.putUrl, true);
+    // Content-Type 必須與簽名時鎖定的 contentType 完全一致，否則簽名不符（403）。
+    xhr.setRequestHeader("Content-Type", presigned.contentType);
+    if (onProgress) {
+      xhr.upload.onprogress = e => {
+        if (!e.lengthComputable) return;
+        // map 0..100 of PUT → 40..90 of overall progress
+        onProgress(40 + Math.round((e.loaded / e.total) * 50));
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`直傳失敗（${xhr.status}）`));
+    };
+    xhr.onerror = () => reject(new Error("網路錯誤，上傳中斷"));
+    xhr.send(file);
+  });
+
+  // ③ finalize — 伺服器 HeadObject 驗證物件已上傳、大小合規，落回標準回應形狀。
+  const finalizeResp = await fetch("/api/upload/finalize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      fileKey: presigned.fileKey,
+      mimeType: file.type,
+      fileName: file.name,
+    }),
+  });
+  if (!finalizeResp.ok) {
+    const err = await finalizeResp.json().catch(() => ({ error: "上傳失敗" }));
+    throw new Error(err.error || "上傳失敗");
+  }
+  const result = await finalizeResp.json();
+  return { url: result.url, fileKey: result.fileKey };
+}
+
+/** base64 → /api/upload 回退路徑（signed-URL 不可用時使用）。 */
+async function uploadFileToS3Base64(
   file: File
 ): Promise<{ url: string; fileKey: string }> {
   const reader = new FileReader();
@@ -46,6 +126,19 @@ export async function uploadFileToS3(
 }
 
 /**
+ * Shared file upload helper — AIDV-15：優先走 signed-URL 直傳（大檔不過 body），
+ * signed-URL 不可用（旗標 OFF / 無 R2 / demo / 舊伺服器）時自動回退 base64
+ * `/api/upload`。對所有既有呼叫端透明——回傳形狀不變 `{ url, fileKey }`。
+ */
+export async function uploadFileToS3(
+  file: File
+): Promise<{ url: string; fileKey: string }> {
+  const signed = await trySignedUrlUpload(file);
+  if (signed) return signed;
+  return uploadFileToS3Base64(file);
+}
+
+/**
  * 給「批次上傳」用的進度版本。本端點吃的是 base64 JSON，沒有 multipart
  * stream 可以攔，所以進度只能切成幾個離散階段：
  *   0%   reading (FileReader → base64)
@@ -59,6 +152,14 @@ export async function uploadFileToS3WithProgress(
   onProgress: (percent: number) => void
 ): Promise<{ url: string; fileKey: string }> {
   onProgress(5);
+
+  // AIDV-15：先試 signed-URL 直傳（進度來自真實的 PUT-to-R2 XHR 事件）。
+  // 不可用時回退既有 base64 路徑（onProgress 沿用離散階段）。
+  const signed = await trySignedUrlUpload(file, onProgress);
+  if (signed) {
+    onProgress(100);
+    return signed;
+  }
 
   const reader = new FileReader();
   const base64 = await new Promise<string>((resolve, reject) => {

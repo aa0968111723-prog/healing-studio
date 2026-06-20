@@ -575,6 +575,208 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AIDV-15: Signed-URL 直傳（廢 base64）— presign + finalize 兩段式 HTTP 路由
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 大檔不再把 base64 灌進 HTTP/tRPC body（不過 express.json、不 Buffer.from）。
+// 流程：① POST /api/upload/presign → 拿 scoped、短效、限型別/大小的 PUT URL；
+//      ② 前端 fetch(PUT, { body: file }) **直傳 R2**（位元組完全不經過 Node）；
+//      ③ POST /api/upload/finalize → 伺服器 HeadObject 驗證物件已上傳、大小合規，
+//        回傳與 /api/upload 完全相同的 `{ url, fileKey, ... }` 形狀。
+//
+// 旗標 ENABLE_SIGNED_URL_UPLOAD 預設 ON；OFF / 無 R2 設定 / demo 時兩個端點回
+// 503，client 自動回退既有 base64 `/api/upload`（既有上傳零破壞）。
+//
+// 注意：presign/finalize 的純邏輯（驗證 + 簽名 + Head）抽到 server/signedUpload.ts
+// 方便單元測試，避免 uploadRoute ↔ signedUpload 形成載入循環時段路由處才動態 import。
+
+uploadRouter.post("/api/upload/presign", async (req: Request, res: Response) => {
+  try {
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const {
+      isSignedUploadAvailable,
+      validatePresignRequest,
+      presignPutUpload,
+    } = await import("./signedUpload");
+
+    // 旗標 OFF / 無 R2 / demo → 503，client 回退 base64。
+    if (!isSignedUploadAvailable()) {
+      res
+        .status(503)
+        .json({ error: "Signed-URL upload unavailable", fallback: "base64" });
+      return;
+    }
+
+    const { fileName, mimeType, sizeBytes } = req.body as {
+      fileName?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    };
+    if (!fileName || !mimeType || typeof sizeBytes !== "number") {
+      res
+        .status(400)
+        .json({ error: "Missing fileName, mimeType, or sizeBytes" });
+      return;
+    }
+
+    // 安全把關前移：MIME allowlist + per-kind/絕對大小上限（直傳繞過 buffer 檢查）。
+    const invalid = validatePresignRequest({ mimeType, sizeBytes });
+    if (invalid) {
+      res.status(invalid.status).json({ error: invalid.message });
+      return;
+    }
+
+    // key 強制 scoped 到 user.id（命名空間隔離）；簽 PUT URL（鎖 content-type/size、
+    // 5 分鐘效期）。
+    const presigned = await presignPutUpload({
+      userId: user.id,
+      fileName,
+      mimeType,
+      sizeBytes,
+    });
+
+    res.json({
+      success: true,
+      putUrl: presigned.putUrl,
+      fileKey: presigned.fileKey,
+      fileName: presigned.safeName,
+      contentType: presigned.contentType,
+      maxSizeBytes: presigned.maxSizeBytes,
+      expiresInSeconds: presigned.expiresInSeconds,
+    });
+  } catch (error: any) {
+    console.error("[Upload/presign] Error:", error);
+    if (
+      error?.message?.includes("authenticate") ||
+      error?.message?.includes("Unauthorized")
+    ) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    // presign 失敗也讓 client 知道可回退 base64。
+    res
+      .status(503)
+      .json({ error: "Presign failed", fallback: "base64" });
+  }
+});
+
+uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) => {
+  try {
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const {
+      isSignedUploadAvailable,
+      verifyUploadedObject,
+      buildPublicUrl,
+      isKeyOwnedByUser,
+    } = await import("./signedUpload");
+
+    if (!isSignedUploadAvailable()) {
+      res
+        .status(503)
+        .json({ error: "Signed-URL upload unavailable", fallback: "base64" });
+      return;
+    }
+
+    const { fileKey, mimeType, fileName } = req.body as {
+      fileKey?: string;
+      mimeType?: string;
+      fileName?: string;
+    };
+    if (!fileKey || !mimeType) {
+      res.status(400).json({ error: "Missing fileKey or mimeType" });
+      return;
+    }
+
+    // scope 守門：只能 finalize 自己命名空間（uploads/<userId>/…）下的 key。
+    if (!isKeyOwnedByUser(fileKey, user.id)) {
+      res.status(403).json({ error: "Forbidden: key not owned by user" });
+      return;
+    }
+
+    // MIME allowlist 再驗一次（防 client 在 finalize 階段宣稱別的型別）。
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+      res.status(415).json({ error: `Unsupported file type: ${mimeType}` });
+      return;
+    }
+
+    // HeadObject 驗證物件確實已上傳（前端宣稱直傳成功，伺服器核實）。
+    let verified;
+    try {
+      verified = await verifyUploadedObject(fileKey);
+    } catch {
+      res
+        .status(409)
+        .json({ error: "Uploaded object not found — upload may have failed" });
+      return;
+    }
+
+    // 用實際物件大小（HeadObject 回的）做最終 per-kind/絕對上限把關。
+    const kind = inferKind(mimeType);
+    const perKindLimit = PER_KIND_MAX_BYTES[kind];
+    if (
+      verified.sizeBytes > perKindLimit ||
+      verified.sizeBytes > ABSOLUTE_MAX_BYTES
+    ) {
+      const limitMb = Math.floor(perKindLimit / (1024 * 1024));
+      res.status(413).json({
+        error: `File too large for ${kind} uploads. Maximum size is ${limitMb} MB.`,
+      });
+      return;
+    }
+
+    const url = buildPublicUrl(fileKey);
+
+    // inline 政策沿用既有分類（與 /api/upload 回傳同形狀）。
+    const storageOnlyKind = STORAGE_ONLY_KIND_PREFIXES.some(prefix =>
+      mimeType.startsWith(prefix)
+    );
+    const tooLargeToInline = verified.sizeBytes > INLINE_BASE64_THRESHOLD;
+    const inlineEligible = !storageOnlyKind && !tooLargeToInline;
+    const inlineRecommendation: UploadResponseBody["inlineRecommendation"] =
+      storageOnlyKind
+        ? "use-storage-url-required"
+        : tooLargeToInline
+          ? "use-storage-url"
+          : "inline-ok";
+
+    const responseBody: UploadResponseBody = {
+      success: true,
+      url,
+      fileKey,
+      fileName: fileName || fileKey.split("/").pop() || "file",
+      mimeType,
+      fileSizeBytes: verified.sizeBytes,
+      inlineEligible,
+      storageBacked: true,
+      inlineRecommendation,
+    };
+    res.json(responseBody);
+  } catch (error: any) {
+    console.error("[Upload/finalize] Error:", error);
+    if (
+      error?.message?.includes("authenticate") ||
+      error?.message?.includes("Unauthorized")
+    ) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    res
+      .status(500)
+      .json({ error: "Finalize failed: " + (error?.message || "Unknown error") });
+  }
+});
+
 // Exported for unit tests so we don't have to spin up a real Express app to
 // assert the inline-vs-storage decision policy.
 export const __uploadRouteInternals = {
