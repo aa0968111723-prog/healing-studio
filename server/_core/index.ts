@@ -37,7 +37,7 @@ import {
   stopBraveLearnFetcherCron,
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
-import { closeDb, runMigrations } from "../db";
+import { closeDb, runMigrations, isMigrationFailClosed } from "../db";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
@@ -305,6 +305,23 @@ async function startServer() {
   try {
     await runMigrations();
   } catch (err) {
+    // AIDV-61（H6）：fail-closed 開機門。
+    // 預設 OFF（MIGRATION_FAIL_CLOSED!=="true"）：維持現狀 — 只記錄錯誤、繼續啟動
+    //   （fail-open；對現有 prod 零行為改變）。注意 OFF 時 applyMigrations 的 catch
+    //   根本不會 rethrow，這個 catch 平時不會被觸發。
+    // ON（MIGRATION_FAIL_CLOSED==="true"）：migration 真實 apply 失敗會 rethrow 到此，
+    //   印致命 log 後 process.exit(1) 擋啟動（對齊本檔上方 ORB_TOOL_ALLOWED_ORIGINS
+    //   的 fatal 模式），令 /api/health 失敗、Railway 偵測不健康後自動重啟或人工回滾。
+    // demo / 無 DATABASE_URL 不會進到這裡：runMigrations→getDb 回 null，從不拋錯。
+    if (isMigrationFailClosed()) {
+      logger.error(
+        "[FATAL] DB migration failed on startup and MIGRATION_FAIL_CLOSED is enabled — refusing to boot. " +
+          "Roll back to the last healthy Railway deploy and fix the failing migration. " +
+          "See docs/guides/MIGRATION_FAILURE_SOP.md.",
+        { err }
+      );
+      process.exit(1);
+    }
     logger.error("[Server] DB migration failed on startup — server will continue", { err });
   }
   // Reload persisted orb scheduled jobs from the DB and seed env-defined

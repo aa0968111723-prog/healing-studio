@@ -346,6 +346,20 @@ const coreSchema = z.object({
   // demo（getDb()===null）一律安全降級，不受此旗標影響。
   SSE_OWNERSHIP_LOCKDOWN: z.string().optional().default("true"),
 
+  // ── Migration fail-closed 開機門（AIDV-61 H6）─────────────────────────────
+  // 預設「OFF = fail-open，維持現狀」（風險最低）：migration「真的套用失敗」時
+  //   記錄 [Database] Migration failed 後照常服務（現有 prod 行為，零變化）。
+  // 設為 "true"/"1"/"on"/"yes" → fail-closed ON：migration 真實 apply 失敗時印出
+  //   清楚的致命 log（含哪個 migration、錯誤）後 **擋啟動**（throw 往上傳，由
+  //   bootstrap fatal handler process.exit(1)），讓 /api/health 失敗、Railway
+  //   偵測不健康 → 自動重啟（restartPolicyMaxRetries）或人工回滾到上一個正常版本。
+  // demo / 無 DATABASE_URL 完全不受影響：該情境本就跳過 runMigrations（getDb()
+  //   回 null、applyMigrations 不被呼叫），fail-closed 只在「真的嘗試套用且失敗」
+  //   時才生效，旗標 ON 也絕不會讓 demo 開不了機。
+  // fail-closed 只對「真實 apply 錯誤」生效，不對「冪等重跑/已套用」誤判（既有
+  //   migration 都用 information_schema 守門、重跑會成功，不進 catch）。
+  MIGRATION_FAIL_CLOSED: z.string().optional().default("false"),
+
   // ── API 用量告警（沒設則靜默跳過）─────────────────────────
   // ALERT_SLACK_WEBHOOK：Slack incoming webhook URL，每 15 分鐘 cron 觸發
   // ALERT_EMAIL_RECIPIENTS：逗號分隔，目前 cron 只實作 Slack；保留欄位以便未來擴充
