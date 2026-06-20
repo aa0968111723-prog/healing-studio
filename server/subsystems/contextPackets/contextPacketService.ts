@@ -15,6 +15,7 @@ import * as db from "../../db";
 import { getTeamMembership } from "../../db";
 import { teamDataAdapter } from "./adapters/teamDataAdapter";
 import { createDriveAdapter, createNotionAdapter } from "./adapters/external";
+import { sanitizeContextPacketField } from "../../services/security/ragInjectionGuard";
 import {
   ContextPacketAccessError,
   type CompileProjectContextPacketInput,
@@ -117,9 +118,18 @@ function buildSummaryMarkdown(
   if (refs.length === 0) {
     return `# ${project.title} · 可用資料來源\n\n（目前沒有可用的內部資料來源。可在資料庫上傳團隊資料，或為此專案設定資料存取規則。）`;
   }
-  const lines = refs.map(
-    r => `- 「${r.title}」（${r.kind} · ${r.accessLevel}）：${r.snippet ?? ""}`
-  );
+  const lines = refs.map(r => {
+    // AIDV-69：untrusted（kind !== "team_data"，Drive / Notion 等外部來源）的
+    // title / snippet 在拼進 summaryMarkdown 前過 neutralize（中和注入樣式）。
+    // 旗標 OFF＝原樣（位元相同）；team_data 受信任 → 不過 guard。
+    // **只 neutralize、不 fence**：summaryMarkdown 只進 UI，fence 標記會污染顯示。
+    const untrusted = r.kind !== "team_data";
+    const title = untrusted ? sanitizeContextPacketField(r.title) : r.title;
+    const snip = untrusted
+      ? sanitizeContextPacketField(r.snippet ?? "")
+      : (r.snippet ?? "");
+    return `- 「${title}」（${r.kind} · ${r.accessLevel}）：${snip}`;
+  });
   // TODO(training-track): 之後可在此把 deterministic 拼接換成 cheap-LLM（如
   // gemini-flash）摘要，並把 createdByModel 填上模型 id。
   return `# ${project.title} · 可用資料來源\n\n${lines.join("\n")}`;

@@ -407,6 +407,28 @@ export function buildReplanMemorySection(joinedMemories: string): string {
     : "\n\n**Historical Context (similar failures):**\n" + joinedMemories;
 }
 
+/**
+ * sanitizeContextPacketField — contextPackets summaryMarkdown 內 untrusted 欄位
+ * （`kind !== "team_data"` 來源的 title / snippet）的接線形狀（AIDV-69 最後切片）。
+ *
+ * ⚠️ 此路徑 summaryMarkdown 目前**只進前端 UI render**（TeamDataSourcesPanel 的
+ * <p whitespace-pre-wrap>{packet.summaryMarkdown}</p> 與截斷版 teamDataSummary），
+ * **不進任何 LLM prompt**。依「fence 只屬餵模型那一刻、不可污染存下/給 UI 的內容」
+ * 鐵則：此處**只做 neutralize（中和注入樣式），絕不加邊界 fence**（wrapUntrustedContext
+ * 的 BEGIN/END 前言會原樣顯示給使用者 → 污染 UI）。
+ *
+ * 旗標 ON＝過 neutralizeInjectionMarkers 中和；旗標 OFF / 空字串＝原樣回傳
+ * （與接線前**位元相同**）。best-effort，永不 throw（neutralize 內部已吞錯 fallback）。
+ *
+ * 未來若新增「把 summaryMarkdown 拼進 LLM prompt」的真實路徑，才於該真實注入點
+ * 改呼叫 guardRetrievedContext（含 fence）；在此編譯端加 fence 會漏進 UI。
+ */
+export function sanitizeContextPacketField(field: string): string {
+  return field && isRagInjectionGuardEnabled()
+    ? neutralizeInjectionMarkers(field)
+    : field;
+}
+
 /** 測試用 internals export（不對 production 邏輯造成副作用）。 */
 export const __ragInjectionGuardInternals = {
   ZERO_WIDTH,
