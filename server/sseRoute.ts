@@ -12,8 +12,20 @@ import { Router, Request, Response } from "express";
 import { generationBus, type GenerationEvent } from "./generationEvents";
 import { authenticateRequest, isDemoMode } from "./_core/googleAuth";
 import { getBackgroundJob, getFineTunedModel } from "./db";
+import { serverEnv } from "./_core/env.validated";
 
 export const sseRouter = Router();
+
+/**
+ * AIDV-58（H3）：SSE 擁有權鎖門旗標——預設「安全 = ON」。
+ * 鎖門 ON（預設／留空／"true"/"1"）：訂閱前比對 job/model.userId === user.id，非擁有者 403（修 IDOR）。
+ * 鎖門 OFF（明確設 "false"/"0"）：緊急回退用——仍要求登入（未登入 401），只略過擁有權比對。
+ * 不論旗標如何，登入仍是必要條件；demo 模式一律安全降級（見各路由）。
+ */
+function isOwnershipLockdownEnabled(): boolean {
+  const raw = serverEnv.SSE_OWNERSHIP_LOCKDOWN.trim().toLowerCase();
+  return raw !== "false" && raw !== "0" && raw !== "off" && raw !== "no";
+}
 
 /** Maximum SSE connection lifetime (5 minutes). Prevents stale connections. */
 const SSE_MAX_LIFETIME_MS = 5 * 60 * 1000;
@@ -57,16 +69,20 @@ sseRouter.get(
       }
 
       // 1) 驗證登入：authenticateRequest 從 same-origin cookie 取 user，失敗回 null（不 throw）。
+      //    無論鎖門旗標如何，登入都是必要條件——回退旗標只放鬆擁有權、不放鬆登入。
       const user = await authenticateRequest(req);
       if (!user) {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
-      // 2) 擁有權檢查：job 不存在或非本人 → 403（避免洩漏 id 是否存在）。
-      const job = await getBackgroundJob(jobId);
-      if (!job || job.userId !== user.id) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
+      // 2) 擁有權檢查（鎖門 ON＝預設）：job 不存在或非本人 → 403（避免洩漏 id 是否存在）。
+      //    鎖門 OFF（緊急回退）時略過此比對，但已登入要求仍在。
+      if (isOwnershipLockdownEnabled()) {
+        const job = await getBackgroundJob(jobId);
+        if (!job || job.userId !== user.id) {
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
       }
     } catch (err) {
       console.error("[SSE] generation-events pre-stream error:", err);
@@ -166,10 +182,13 @@ sseRouter.get(
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
-      const model = await getFineTunedModel(modelId);
-      if (!model || model.userId !== user.id) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
+      // 擁有權檢查（鎖門 ON＝預設）；鎖門 OFF 時只略過比對，登入要求仍在。
+      if (isOwnershipLockdownEnabled()) {
+        const model = await getFineTunedModel(modelId);
+        if (!model || model.userId !== user.id) {
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
       }
     } catch (err) {
       console.error("[SSE] model-training-events pre-stream error:", err);

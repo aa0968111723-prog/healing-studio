@@ -29,6 +29,15 @@ vi.mock("./db", () => ({
   getFineTunedModel: (...args: unknown[]) => getFineTunedModelMock(...args),
 }));
 
+// SSE_OWNERSHIP_LOCKDOWN 旗標：用 vi.hoisted 建立可變物件（vi.mock 工廠會被提升到檔頭，
+// 不能引用一般 top-level 變數，必須走 hoisted）。預設 "true"（鎖門 ON＝安全預設）。
+const { sseEnvMock } = vi.hoisted(() => ({
+  sseEnvMock: { SSE_OWNERSHIP_LOCKDOWN: "true" },
+}));
+vi.mock("./_core/env.validated", () => ({
+  serverEnv: sseEnvMock,
+}));
+
 import { sseRouter } from "./sseRoute";
 
 async function startTestServer() {
@@ -60,6 +69,8 @@ beforeEach(() => {
   isDemoModeMock.mockReset();
   // 預設非 demo 模式：跑正常 auth + 擁有權路徑（對齊 NODE_ENV=test 下 isDemoMode()===false）。
   isDemoModeMock.mockReturnValue(false);
+  // 預設鎖門 ON（安全預設）。
+  sseEnvMock.SSE_OWNERSHIP_LOCKDOWN = "true";
 });
 
 afterEach(() => {
@@ -248,6 +259,43 @@ describe("SSE /api/model-training-events/:modelId — IDOR 修補", () => {
     expect(getFineTunedModelMock).not.toHaveBeenCalled();
     const chunk = await readFirstChunk(res);
     expect(chunk).toContain('"type":"connected"');
+    server.close();
+  });
+});
+
+describe("SSE 鎖門回退旗標 SSE_OWNERSHIP_LOCKDOWN=false", () => {
+  it("回退時：未登入仍 → 401（旗標只放鬆擁有權、不放鬆登入）", async () => {
+    sseEnvMock.SSE_OWNERSHIP_LOCKDOWN = "false";
+    authenticateRequestMock.mockResolvedValue(null);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/generation-events/123`);
+    expect(res.status).toBe(401);
+    // 回退時不應再查 job（已略過擁有權）
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("回退時：已登入的非擁有者 → 200（略過擁有權比對，不查 job）", async () => {
+    sseEnvMock.SSE_OWNERSHIP_LOCKDOWN = "false";
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/generation-events/123`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    // 略過擁有權 → 不打 DB 查 job
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
+    const chunk = await readFirstChunk(res);
+    expect(chunk).toContain('"type":"connected"');
+    server.close();
+  });
+
+  it("回退時：model-training 已登入非擁有者 → 200（略過擁有權）", async () => {
+    sseEnvMock.SSE_OWNERSHIP_LOCKDOWN = "false";
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/model-training-events/456`);
+    expect(res.status).toBe(200);
+    expect(getFineTunedModelMock).not.toHaveBeenCalled();
     server.close();
   });
 });

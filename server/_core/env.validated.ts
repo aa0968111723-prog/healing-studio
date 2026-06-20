@@ -328,6 +328,24 @@ const coreSchema = z.object({
   // ── 健康巡檢警報（沒設則靜默跳過）────────────────────────
   DISCORD_WEBHOOK_URL: z.string().optional().default(""),
 
+  // ── 錯誤追蹤 Sentry（AIDV-58 H3；未設 = 完全 no-op，不報錯、不阻塞）────────
+  // SENTRY_DSN：Sentry 專案 DSN（https://<key>@<org>.ingest.sentry.io/<project>）。
+  //   留空 → 不初始化 Sentry client，錯誤只走既有 logger / globalErrorHandler。
+  // SENTRY_ENVIRONMENT：上報時標記的環境（production/staging/development）；留空時退回 NODE_ENV。
+  // SENTRY_TRACES_SAMPLE_RATE：效能追蹤取樣率字串，預設 "0.1"（10%）；下游 parseFloat 後使用。
+  // 注意：@sentry/node 為「選用」相依——若 Railway 未安裝該套件，errorTracking.ts
+  //   會 catch 動態 import 失敗並 no-op，不影響開機與請求路徑。
+  SENTRY_DSN: z.string().optional().default(""),
+  SENTRY_ENVIRONMENT: z.string().optional().default(""),
+  SENTRY_TRACES_SAMPLE_RATE: z.string().optional().default("0.1"),
+
+  // ── SSE 訂閱鎖門開關（AIDV-58 H3）──────────────────────────────────────────
+  // 預設「安全 = ON」：SSE generation/training 事件訂閱前強制登入＋擁有權檢查（修 IDOR）。
+  // 僅當鎖門意外擋到合法擁有者、需緊急回退時，把此值設為 "false"/"0" 暫時放行
+  //   （仍保留登入要求，只略過擁有權比對）。預設與留空皆為鎖門 ON。
+  // demo（getDb()===null）一律安全降級，不受此旗標影響。
+  SSE_OWNERSHIP_LOCKDOWN: z.string().optional().default("true"),
+
   // ── API 用量告警（沒設則靜默跳過）─────────────────────────
   // ALERT_SLACK_WEBHOOK：Slack incoming webhook URL，每 15 分鐘 cron 觸發
   // ALERT_EMAIL_RECIPIENTS：逗號分隔，目前 cron 只實作 Slack；保留欄位以便未來擴充

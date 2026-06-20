@@ -22,3 +22,13 @@ export type UserRole = (typeof USER_ROLES)[number];
 export function isLeaderOrAdmin(role: UserRole | string | undefined | null): boolean {
   return role === "admin" || role === "leader";
 }
+
+/**
+ * 唯一的 admin 判定（單一真實來源）。
+ * AIDV-58（H3 監控鎖門）：tRPC adminProcedure 與 raw Express 的 /api/metrics 守門
+ * 都共用此函式，避免兩處各自手寫 `role === "admin"` 而漂移。
+ * 注意：admin 嚴格只認 "admin"，leader 不算（積分/成本給 leader，監控洩漏只給 admin）。
+ */
+export function isAdmin(role: UserRole | string | undefined | null): boolean {
+  return role === "admin";
+}
