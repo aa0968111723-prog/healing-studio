@@ -1,4 +1,4 @@
--- 0077: resource_shares — 跨表「顯式共享」SSOT（AIDV-121 RBAC 基礎版）
+-- 0078: resource_shares — 跨表「顯式共享」SSOT（AIDV-121 RBAC 基礎版）
 --
 -- 統一記錄「某資源被顯式共享給哪個成員 / 團隊、以什麼角色」。不在各資源表
 -- 硬塞欄位，改用一張泛型 junction 表表達「擁有權之外的授權」。
