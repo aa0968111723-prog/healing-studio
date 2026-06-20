@@ -18,6 +18,7 @@
 // 容器（讀 hooks/tRPC → 餵 View）。
 // ============================================================================
 import { useLocation } from "wouter";
+import { ORB_SMILEY_ONLY } from "@/config/featureFlags";
 import { useOrbState, type OrbState } from "@/contexts/OrbStateContext";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { trpc } from "@/lib/trpc";
@@ -98,9 +99,15 @@ export interface AidvOrbViewProps {
   prompts: React.ComponentProps<typeof OrbPromptsTab>;
   credits: React.ComponentProps<typeof OrbCreditsTab>;
   onOpenNotes: () => void;
+  /**
+   * 是否主動冒出「我在這裡…」提示泡泡。預設 true＝保留原行為；
+   * 「光球只留笑臉光球」時由容器傳 false＝光球本體仍在（點開才用），但不主動彈泡泡，
+   * 避免第二顆光球的主動提示干擾「只留笑臉光球」的乾淨畫面。
+   */
+  proactiveBubble?: boolean;
 }
 
-export function AidvOrbView({ mood, pageLabel, chatMsgs, prompts, credits, onOpenNotes }: AidvOrbViewProps) {
+export function AidvOrbView({ mood, pageLabel, chatMsgs, prompts, credits, onOpenNotes, proactiveBubble = true }: AidvOrbViewProps) {
   const hints = [
     { id: "h1", icon: "💡", text: `你正在「${pageLabel}」——點上方分頁看本頁提示、提示詞庫與專注流。` },
     { id: "h2", icon: "✦", text: "心情/對話/提示詞庫/積分/筆記皆已接真實來源；本頁示範工作流仍為展示。" },
@@ -111,7 +118,9 @@ export function AidvOrbView({ mood, pageLabel, chatMsgs, prompts, credits, onOpe
       name="光球助手"
       persona="calm"
       mood={mood}
-      proactive={{ emoji: "✨", name: "光球助手", text: "我在這裡——點開看本頁提示、提示詞庫與專注流。", level: "hint" }}
+      {...(proactiveBubble
+        ? { proactive: { emoji: "✨", name: "光球助手", text: "我在這裡——點開看本頁提示、提示詞庫與專注流。", level: "hint" as const } }
+        : {})}
       pageContext={{ pageLabel, hints, flows: [{ id: "f1", name: "成片工作流（示範）", steps: VIDEO_DEFAULT, current: 1 }] }}
       tabContent={{
         chat: <OrbChatTab messages={chatMsgs} />,
@@ -174,6 +183,8 @@ export function AidvOrbMount() {
         onRetry: () => void creditsQ.refetch(),
       }}
       onOpenNotes={openNotesDrawer}
+      // 「光球只留笑臉光球」(預設 ON)：第二顆光球本體保留（點開可用），但不主動冒泡泡。
+      proactiveBubble={!ORB_SMILEY_ONLY}
     />
   );
 }

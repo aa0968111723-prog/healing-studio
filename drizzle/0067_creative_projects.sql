@@ -10,7 +10,7 @@
 --   worldStoryboardId  → world_storyboards.id
 --
 -- 冪等修復版：原版 (a) 用了 MySQL 不支援的 CREATE INDEX IF NOT EXISTS、
--- (b) 五個語句沒以 --> statement-breakpoint 分段（mysql2 migrator 一個
+-- (b) 五個語句沒以「statement-breakpoint」標記分段（mysql2 migrator 一個
 -- chunk 只能跑一句）——這正是生產 migration 卡死的起點。索引改走
 -- information_schema.statistics 守門，逐句分段，可安全重跑。
 

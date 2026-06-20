@@ -1,6 +1,6 @@
 -- Ensure creative_projects exists in environments that missed 0067.
 -- 冪等修復版（同 0067）：索引走 information_schema.statistics 守門、
--- 逐句 --> statement-breakpoint 分段、不用 MySQL 不支援的
+-- 逐句「statement-breakpoint」標記分段、不用 MySQL 不支援的
 -- CREATE INDEX IF NOT EXISTS。可安全重跑。
 
 CREATE TABLE IF NOT EXISTS `creative_projects` (
