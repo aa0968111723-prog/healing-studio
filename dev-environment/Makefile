@@ -18,8 +18,16 @@ down:            ## 停本機服務（保留資料）
 install:         ## 安裝相依（legacy-peer-deps，repo 慣例）
 	npm install --legacy-peer-deps
 
-env:             ## 從範本建立 .env（若不存在）
-	@test -f .env || cp dev-environment/.env.dev.example .env && echo "已建立 .env（記得填 JWT_SECRET / 金鑰）"
+env:             ## 從範本建立 .env（若不存在）並產生 JWT_SECRET
+	@if [ -f .env ]; then \
+		echo ".env 已存在，略過（未覆蓋既有檔案）"; \
+	else \
+		cp dev-environment/.env.dev.example .env; \
+		SECRET="$$( (openssl rand -base64 32 2>/dev/null) || node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"; \
+		if sed --version >/dev/null 2>&1; then sed -i "s|__GENERATED_BY_SETUP__|$${SECRET}|" .env; \
+		else sed -i '' "s|__GENERATED_BY_SETUP__|$${SECRET}|" .env; fi; \
+		echo "已建立 .env 並產生 JWT_SECRET（其餘金鑰留空＝OARS 警告、不崩潰）"; \
+	fi
 
 migrate:         ## 套用 drizzle migration（需 DATABASE_URL）
 	npm run db:push
