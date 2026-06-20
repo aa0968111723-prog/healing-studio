@@ -512,6 +512,62 @@
       "when": 1779050000083,
       "tag": "0079_cost_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "5",
+      "when": 1779050000084,
+      "tag": "0033_add_plan_status_to_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "5",
+      "when": 1779050000085,
+      "tag": "0039_orb_long_term_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "5",
+      "when": 1779050000086,
+      "tag": "0040_orb_intent_clarification",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "5",
+      "when": 1779050000087,
+      "tag": "0041_orb_feature_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "5",
+      "when": 1779050000088,
+      "tag": "0042_orb_workflow_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "5",
+      "when": 1779050000089,
+      "tag": "0043_orb_system_monitoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "5",
+      "when": 1779050000090,
+      "tag": "0044_orb_template_ratings_and_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "5",
+      "when": 1779050000091,
+      "tag": "0067_repair_worldbuilding_v4_columns",
+      "breakpoints": true
     }
   ]
 }
