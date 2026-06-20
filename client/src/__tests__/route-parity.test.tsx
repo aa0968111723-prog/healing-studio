@@ -1,15 +1,22 @@
 // ============================================================================
-// route-parity.test.tsx — 證明「ENABLE_4SHELL=OFF 時行為 == 線上」+「ON 時零路由遺失」
+// route-parity.test.tsx — 證明「ENABLE_4SHELL 兩態合約」+「ON 時零路由遺失」
 // ----------------------------------------------------------------------------
 // 放到 repo：client/src/__tests__/route-parity.test.tsx，以既有 vitest 跑：`npm run test`。
 //
 // 設計成「輕量、無需 render 整個 App」：只驗證旗標預設值 + 路由表不變式（deterministic）。
-// 這已足以證明 P0 的兩條核心保證：
-//   (1) 預設建置 ENABLE_4SHELL=false → ShellRoutes() 自身 `if(!ENABLE_4SHELL) return []`
-//       → <Switch> 不被注入任何節點 → 路由集合與線上完全一致。
+// 這已足以證明兩條核心保證：
+//   (1) 旗標兩態合約：ENABLE_4SHELL=OFF → ShellRoutes() 自身 `if(!ENABLE_4SHELL) return []`
+//       → <Switch> 不被注入任何節點 → 路由集合與舊線上完全一致（回滾退路有效）；
+//       ENABLE_4SHELL=ON → 注入 LEGACY_REDIRECTS.length + 8（4 殼 × 2 掛載）條路由。
 //   (2) 旗標 ON 時，每條被收編的舊路徑都有對應的 canonical shell sub-route（舊連結不 404）。
+//
+// 2026-06-20 Bruce 拍板 ENABLE_4SHELL default ON（前端新介面上線）：
+//   - 守門「預設值」的斷言改成 `toBe(true)`（斷言新預設），保留語意不弱化。
+//   - 因 ENABLE_4SHELL 是 build-time 常數、同行程只有一個值，無法用該常數同時測兩態，
+//     故以 `vi.doMock` 對 featureFlags 注入 OFF / ON 兩態各跑一次 `shellRoutes()`，
+//     完整保住原本「OFF=線上 parity（注入 0 條）」覆蓋，並補上「ON=注入正確條數」。
 // ============================================================================
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ENABLE_4SHELL } from "@/config/featureFlags";
 import {
   LEGACY_REDIRECTS,
@@ -40,14 +47,42 @@ function canonicalSubPaths(): string[] {
   );
 }
 
-describe("P0 flag default = online parity", () => {
-  it("ENABLE_4SHELL defaults to false (no shell routes injected in default build)", () => {
-    // 預設未設 VITE_ENABLE_4SHELL → false → ShellRoutes() 回 []，Switch 與線上一致。
-    expect(ENABLE_4SHELL).toBe(false);
+describe("flag default + two-state shellRoutes() contract", () => {
+  it("ENABLE_4SHELL defaults to true (2026-06-20 Bruce go-live: shell routes injected by default)", () => {
+    // 翻 default 後，沒有 env 覆寫的環境（dev/測試）預設新介面 → shellRoutes() 注入路由。
+    // 回滾退路（Railway VITE_ENABLE_4SHELL=0 / 瀏覽器 ?aidvchrome=0）見下方 OFF-state 測試與 docstring。
+    expect(ENABLE_4SHELL).toBe(true);
   });
 
+  it("shellRoutes() returns [] when ENABLE_4SHELL is explicitly OFF (rollback parity preserved)", async () => {
+    // 明確把旗標設 OFF（模擬 Railway VITE_ENABLE_4SHELL=0 回滾），守住「OFF=線上 parity，注入 0 條」。
+    vi.resetModules();
+    vi.doMock("@/config/featureFlags", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/config/featureFlags")>();
+      return { ...actual, ENABLE_4SHELL: false };
+    });
+    const { shellRoutes } = await import("@/app/ShellRoutes");
+    expect(shellRoutes()).toEqual([]);
+    vi.doUnmock("@/config/featureFlags");
+    vi.resetModules();
+  }, 20000);
+
+  it("shellRoutes() injects redirects + 4 shell mounts when ENABLE_4SHELL is ON (zero route loss)", async () => {
+    // 明確把旗標設 ON，斷言注入條數 = 每條相容導向 + 四殼各 2 掛載（裸前綴 + :rest*）。
+    vi.resetModules();
+    vi.doMock("@/config/featureFlags", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/config/featureFlags")>();
+      return { ...actual, ENABLE_4SHELL: true };
+    });
+    const { shellRoutes } = await import("@/app/ShellRoutes");
+    const routes = shellRoutes();
+    expect(routes.length).toBe(LEGACY_REDIRECTS.length + 8);
+    vi.doUnmock("@/config/featureFlags");
+    vi.resetModules();
+  }, 20000);
+
   it("baseline still enumerates the 54 live routes (+catch-all) untouched by this patch", () => {
-    // P0 不刪任何既有 Route；此基準長度作為「沒弄丟路由」的對照快照。
+    // 不刪任何既有 Route；此基準長度作為「沒弄丟路由」的對照快照。
     expect(BASELINE_APP_ROUTES.length).toBe(54);
   });
 });
