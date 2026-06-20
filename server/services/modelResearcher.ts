@@ -400,7 +400,14 @@ export async function discoverNewAIReleases(
   }
 
   if (!payload || !providerUsed) {
-    const reason = errors.join(" | ") || "All discovery providers failed";
+    let reason = errors.join(" | ") || "All discovery providers failed";
+    // 主要（需金鑰）provider 從未被嘗試 —— 兩支金鑰都沒設定，整輪只靠公開來源
+    // 兜底。把這點點名寫進錯誤，讓營運端知道真正的修法是補金鑰，而非誤以為公開
+    // 來源壞掉（與 researchAndFactCheckModel / *AllModels 的「點名缺哪支金鑰」
+    // 錯誤一致）。仍保留 baseReason 子字串供 isTransientResearchError 分類。
+    if (!providers.perplexity && !providers.openrouter) {
+      reason = `${reason}（PERPLEXITY_API_KEY 與 OPENROUTER_API_KEY 皆未設定，僅嘗試公開來源）`;
+    }
     discoveryStats.lastRunAt = new Date().toISOString();
     discoveryStats.lastRunDurationMs = Date.now() - start;
     discoveryStats.lastRunCount = 0;
