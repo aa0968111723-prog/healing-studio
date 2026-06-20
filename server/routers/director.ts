@@ -1762,6 +1762,36 @@ ${segmentSummaries}
       const userId = ctx.user.id;
       const { segments, generationOptions } = input;
 
+      // ── Duplicate-submission lock (AIDV-20) ─────────────────────────────────
+      // Guard against the same user firing the *same* generation batch twice
+      // concurrently (double-click, retry storm). Lock key = userId + payload
+      // hash, so different payloads (different segments/options) still run in
+      // parallel; only the identical concurrent submit is rejected.
+      // Fail-open by design: if the lock backend is unavailable/slow/errors, the
+      // helper returns a token and we proceed — availability over dedup.
+      const {
+        generationLock,
+        buildGenerationLockKey,
+      } = await import("../_core/generationLock");
+      const lockKey = buildGenerationLockKey(userId, {
+        op: "autoGenerateFromSegments",
+        segments,
+        generationOptions,
+      });
+      const acquired = await generationLock.acquire(lockKey);
+      if (typeof acquired !== "string") {
+        // GENERATION_LOCKED sentinel → another submission is in progress.
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "此生成正在進行中，請勿重複提交。請等待目前的生成完成後再試。",
+        });
+      }
+      // Narrowed to string after the guard; capture for the finally below.
+      const lockToken: string = acquired;
+
+      try {
+
       // Import necessary dependencies
       const { getDb } = await import("../db");
       const { userAiBrain } = await import("../../drizzle/schema");
@@ -2046,6 +2076,12 @@ ${segmentSummaries}
         totalPoints,
         totalTasks: generationTasks.length,
       };
+      } finally {
+        // Always release our lock once the submission has been planned (or has
+        // thrown). CAS-del only removes the lock if we still hold it, so a lock
+        // re-acquired by a later attempt after TTL expiry is never deleted.
+        await generationLock.release(lockKey, lockToken);
+      }
     }),
 
   /**
