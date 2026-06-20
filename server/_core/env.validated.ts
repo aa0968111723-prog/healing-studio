@@ -368,6 +368,24 @@ const coreSchema = z.object({
   //   migration 都用 information_schema 守門、重跑會成功，不進 catch）。
   MIGRATION_FAIL_CLOSED: z.string().optional().default("false"),
 
+  // ── 內容審核 fail-closed 安全門（AIDV-65）─────────────────────────────────
+  // 預設「ON = fail-closed」（safety > availability）：checkSafety（server/routers.ts
+  //   的 LLM 內容審核）在「逾時／錯誤／無法可靠解析」時 **擋下** 內容（回
+  //   { safe:false, reason }），不放行未經審核的內容；fal 生成呼叫的
+  //   enable_safety_checker 在唯一 live 注入點（videoStudio.wanTextToVideo）開回 true。
+  // 與一般可用性鎖（預設 OFF）方向相反：這是內容審核**安全控制**，刻意預設 fail-closed。
+  // 緊急回退是「明確人工決定」而非預設：明確設為 "false"/"0"/"off"/"no" 才回退 fail-open
+  //   （checkSafety 失敗放行、fal enable_safety_checker 維持現值），其餘（含留空、未設、
+  //   "true"/"1"/"on"/"yes"）皆為 fail-closed ON。
+  // 與 LLM 不可用的交互（誠實揭露 — 勿再寫成「無新增負面影響」）：checkSafety 透過
+  //   invokeLLM 走同一條 LLM 路由，LLM 無額度／金鑰失效時必然逾時/錯誤 → fail-closed
+  //   會擋下 generate.multimodal / submitMultimodalAsync 的生成。注意其**下游**
+  //   compileElitePrompt 對 LLM 故障是 graceful fallback（回退原始 prompt 後**照樣產圖**），
+  //   故舊 fail-open 在 LLM 掛掉時仍會出圖；fail-closed **確實新增**擋下這兩端點的生成
+  //   ——這是刻意的安全取捨（不放行未審內容），**非無影響**。合理 timeout＋一次重試避免
+  //   「審核服務一抖動就永久卡死所有生成」；緊急回退設 CONTENT_SAFETY_FAIL_CLOSED=false。
+  CONTENT_SAFETY_FAIL_CLOSED: z.string().optional().default("true"),
+
   // ── API 用量告警（沒設則靜默跳過）─────────────────────────
   // ALERT_SLACK_WEBHOOK：Slack incoming webhook URL，每 15 分鐘 cron 觸發
   // ALERT_EMAIL_RECIPIENTS：逗號分隔，目前 cron 只實作 Slack；保留欄位以便未來擴充
