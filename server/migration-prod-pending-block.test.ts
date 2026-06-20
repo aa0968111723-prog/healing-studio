@@ -36,6 +36,7 @@ const PENDING_BLOCK = [
   "0076_global_audit_log",
   "0077_cost_ledger",
   "0078_resource_shares",
+  "0079_cost_attribution",
 ];
 
 function readSql(tag: string): string {

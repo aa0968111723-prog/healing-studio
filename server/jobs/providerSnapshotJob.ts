@@ -15,6 +15,8 @@ import {
   AI_PROVIDERS,
 } from "../../drizzle/schema.js";
 import { sql, eq, gte, and } from "drizzle-orm";
+import { getTwdPerUsd } from "../services/cost/costAttribution.js";
+import { usdToTwd } from "../../shared/currency.js";
 
 let cronTask: cron.ScheduledTask | null = null;
 let isRunning = false;
@@ -152,6 +154,10 @@ async function runSnapshotAndAggregation(): Promise<void> {
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
 
+      // AIDV-14：當下生效匯率（TWD_PER_USD→USD_TO_TWD_RATE→default），落帳當下凍結
+      // 寫入 exchangeRate 欄位以利稽核回溯；totalCostTwd = totalCostUsd × rate。
+      const twdRate = getTwdPerUsd();
+
       // Get today's events grouped by provider + endpoint
       const aggregated = await db
         .select({
@@ -166,6 +172,10 @@ async function runSnapshotAndAggregation(): Promise<void> {
         .groupBy(aiUsageEvents.provider, aiUsageEvents.endpoint);
 
       for (const row of aggregated) {
+        // AIDV-14：真實價（SUM(costUsd)）→ TWD 凍結換算。$0.00 根因（#924 前 costUsd
+        // 硬編 "0"）已上游修掉；此處只負責把真實 USD 彙總成 TWD 呈現。
+        const totalCostTwd = usdToTwd(Number(row.totalCostUsd), twdRate);
+
         // Upsert: try update first, insert if not exists
         const existing = await db
           .select()
@@ -186,6 +196,8 @@ async function runSnapshotAndAggregation(): Promise<void> {
               callCount: Number(row.callCount),
               totalUnits: String(row.totalUnits),
               totalCostUsd: String(row.totalCostUsd),
+              totalCostTwd: totalCostTwd.toFixed(4),
+              exchangeRate: twdRate.toFixed(6),
             })
             .where(eq(costAggregations.id, existing[0].id));
         } else {
@@ -196,6 +208,8 @@ async function runSnapshotAndAggregation(): Promise<void> {
             callCount: Number(row.callCount),
             totalUnits: String(row.totalUnits),
             totalCostUsd: String(row.totalCostUsd),
+            totalCostTwd: totalCostTwd.toFixed(4),
+            exchangeRate: twdRate.toFixed(6),
           });
         }
       }

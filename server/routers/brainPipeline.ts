@@ -1225,6 +1225,26 @@ const CRON_JOBS: CronJobMeta[] = [
     downstream: ["db:main"],
   },
   {
+    id: "cron:cost-ledger-reconcile",
+    label: "成本帳本對帳（每 30 分鐘）",
+    schedule: "*/30 * * * *",
+    description:
+      "比對 cost_ledger posted debit 與 cost_aggregations 總額，偵測 drift 並 Slack 告警（AIDV-153，基礎版只偵測不自動修）",
+    files: ["server/jobs/costLedgerReconcileJob.ts"],
+    downstream: ["db:main", "ext:slack-alerts"],
+    envKey: "ENABLE_COST_LEDGER",
+  },
+  {
+    id: "cron:cost-attribution-outbox",
+    label: "成本歸屬 outbox 補帳（每 2 分鐘）",
+    schedule: "*/2 * * * *",
+    description:
+      "把 cost_attribution_outbox 的 pending 落帳意圖重放成 cost_ledger 多維歸屬（project/member/workflow，以 TWD），失敗重試/超上限標 dead（AIDV-14，不漏帳）",
+    files: ["server/jobs/costAttributionOutboxJob.ts"],
+    downstream: ["db:main"],
+    envKey: "ENABLE_COST_ATTRIBUTION",
+  },
+  {
     id: "cron:api-usage-alert",
     label: "用量告警（每 15 分鐘）",
     schedule: "*/15 * * * *",

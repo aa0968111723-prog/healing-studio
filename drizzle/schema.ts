@@ -2074,6 +2074,10 @@ export const costAggregations = mysqlTable(
     callCount: int("callCount").default(0).notNull(),
     totalUnits: decimal("totalUnits", { precision: 14, scale: 4 }).default("0"),
     totalCostUsd: decimal("totalCostUsd", { precision: 14, scale: 6 }).default("0"),
+    // ── AIDV-14（migration 0079）：彙總的 TWD 呈現 + 稽核匯率 ────────────────────
+    // totalCostTwd = totalCostUsd × exchangeRate（聚合 job 換算時凍結匯率以利回溯）。
+    totalCostTwd: decimal("totalCostTwd", { precision: 16, scale: 4 }).default("0"),
+    exchangeRate: decimal("exchangeRate", { precision: 12, scale: 6 }),
   },
   table => ({
     providerDateIdx: index("ca_provider_date_idx").on(table.provider, table.date),
@@ -2114,12 +2118,33 @@ export const costLedger = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     accountKey: varchar("accountKey", { length: 128 }).notNull(),
     entryType: mysqlEnum("entryType", LEDGER_ENTRY_TYPES).notNull(),
+    // amount：保留為「原始幣別」金額（預設 USD，真實呼叫價）。AIDV-14 不改其語義
+    // 與既有 #940 寫法，故 sourceCurrency 預設 USD、amount 仍是 USD（向後相容）。
     amount: decimal("amount", { precision: 12, scale: 6 }).default("0").notNull(),
     status: mysqlEnum("status", LEDGER_STATUSES).default("posted").notNull(),
     idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
     refType: varchar("refType", { length: 64 }),
     refId: varchar("refId", { length: 128 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
+    // ── AIDV-14 內部成本歸屬可視（migration 0079）───────────────────────────────
+    // 歸屬維度（拿不到的誠實留 null）：member 由 accountKey 承載；project/workflow
+    // 額外存欄位以利彙總查詢與多維歸屬。
+    projectId: varchar("projectId", { length: 128 }),
+    workflowId: varchar("workflowId", { length: 128 }),
+    // 稽核回溯（不可只存換完數字而丟來源）：原始幣別 + 所用匯率 + 換算後 TWD。
+    // amount=原始幣別金額（預設 USD 真實價）；sourceCurrency 標示其幣別；
+    // exchangeRate=所用 TWD/USD 匯率；amountTwd=amount×exchangeRate（落帳當下凍結）。
+    sourceCurrency: varchar("sourceCurrency", { length: 8 }).default("USD"),
+    exchangeRate: decimal("exchangeRate", { precision: 12, scale: 6 }),
+    amountTwd: decimal("amountTwd", { precision: 14, scale: 4 }),
+    // provider / model（誰花的成本來自哪個供應商/模型，供成本拆解）。
+    provider: varchar("provider", { length: 32 }),
+    model: varchar("model", { length: 128 }),
+    // costSource：成本數字的來源標記，供稽核區分。
+    //   "provider"＝上游回應實際計費（usage.cost，最準）；
+    //   "catalog" ＝modelPricing 目錄真實單位價後援（次準，線上四家供應商無 usage.cost
+    //               時用以讓成本可視）。null＝舊資料/未標。
+    costSource: varchar("costSource", { length: 16 }),
   },
   table => ({
     idempotencyKeyUnique: uniqueIndex("cl_idempotencyKey_unique").on(
@@ -2131,11 +2156,58 @@ export const costLedger = mysqlTable(
     ),
     refIdx: index("cl_ref_idx").on(table.refType, table.refId),
     createdAtIdx: index("cl_createdAt_idx").on(table.createdAt),
+    projectIdx: index("cl_projectId_idx").on(table.projectId),
+    workflowIdx: index("cl_workflowId_idx").on(table.workflowId),
   })
 );
 
 export type CostLedgerEntry = typeof costLedger.$inferSelect;
 export type InsertCostLedgerEntry = typeof costLedger.$inferInsert;
+
+// ─── Cost Attribution Outbox（AIDV-14 不漏帳 outbox）──────────────────────────
+//
+// 為什麼需要 outbox：#940 在 aiProxy 的 setImmediate 內「best-effort」寫 ledger，
+// 失敗只 console.warn 吞掉 → ledger 缺一筆、無重試＝漏帳。AIDV-14 改成：成本歸屬
+// 落帳前先把「落帳意圖（payload）」原子寫入本 outbox（pending），再由 drain 流程
+// 重試 postTransaction，成功才標 done。drain 失敗會留 pending 等下輪重試（attempts++），
+// 故 ledger 不漏帳；冪等鍵（idempotencyKey）確保重送不雙重入帳。
+//
+// status：pending（待落帳）→ done（已落帳）/ dead（重試上限放棄，留人工查）。
+// payloadJson：postTransaction 所需的完整參數快照（幣別/匯率/維度一併凍結）。
+// HARD SAFETY：旗標 ENABLE_COST_ATTRIBUTION 預設 ON、demo/無 DB（getDb()===null）跳過；
+// 寫入與 drain 皆 try/catch 不阻塞生成熱路徑（比照 #940 ledger/audit log 型樣）。
+const ATTRIBUTION_OUTBOX_STATUSES = ["pending", "done", "dead"] as const;
+
+export const costAttributionOutbox = mysqlTable(
+  "cost_attribution_outbox",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    // 冪等基準鍵（通常 = aue:<usageEventId>）；UNIQUE 擋同一事件重複入 outbox。
+    idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+    status: mysqlEnum("status", ATTRIBUTION_OUTBOX_STATUSES)
+      .default("pending")
+      .notNull(),
+    // postAttributedCost 所需參數快照（JSON）。drain 時據此重放落帳。
+    payloadJson: json("payloadJson").$type<Record<string, unknown>>().notNull(),
+    attempts: int("attempts").default(0).notNull(),
+    lastError: text("lastError"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    idempotencyKeyUnique: uniqueIndex("cao_idempotencyKey_unique").on(
+      table.idempotencyKey
+    ),
+    statusCreatedAtIdx: index("cao_status_createdAt_idx").on(
+      table.status,
+      table.createdAt
+    ),
+  })
+);
+
+export type CostAttributionOutbox = typeof costAttributionOutbox.$inferSelect;
+export type InsertCostAttributionOutbox =
+  typeof costAttributionOutbox.$inferInsert;
 
 // ─── Rate Limit Rules（速率限制規則）───────────────────────────────────────
 export const rateLimitRules = mysqlTable("rate_limit_rules", {

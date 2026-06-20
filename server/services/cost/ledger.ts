@@ -134,6 +134,26 @@ export interface PostEntryInput {
   refId?: string | null;
 }
 
+/**
+ * AIDV-14：歸屬 + 稽核欄位（可選）。隨複式分錄一併凍結寫入，供「依 project/member/
+ * workflow 彙總、以 TWD 呈現」且保留原始幣別＋匯率以利稽核回溯。全部 optional，
+ * 不傳＝沿用 #940 既有行為（純 USD、無維度），故對既有 caller 完全向後相容。
+ */
+export interface LedgerEntryMeta {
+  projectId?: string | null;
+  workflowId?: string | null;
+  /** 原始幣別（amount 的幣別），預設 "USD"。 */
+  sourceCurrency?: string | null;
+  /** 落帳當下凍結的 TWD/USD 匯率。 */
+  exchangeRate?: number | string | null;
+  /** amount × exchangeRate（換算後 TWD，落帳當下凍結）。 */
+  amountTwd?: number | string | null;
+  provider?: string | null;
+  model?: string | null;
+  /** 成本數字來源："provider"＝上游真實計費；"catalog"＝目錄真實單位價後援。 */
+  costSource?: string | null;
+}
+
 /** 實際 insert 進 DB 的 row（amount 已正規化為字串）。 */
 interface InsertLedgerInput {
   accountKey: string;
@@ -143,6 +163,15 @@ interface InsertLedgerInput {
   idempotencyKey: string;
   refType: string | null;
   refId: string | null;
+  // AIDV-14 歸屬 + 稽核欄位（可選，不傳則 undefined＝drizzle 用欄位 default/null）。
+  projectId?: string | null;
+  workflowId?: string | null;
+  sourceCurrency?: string | null;
+  exchangeRate?: string | null;
+  amountTwd?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  costSource?: string | null;
 }
 
 export interface PostEntryResult {
@@ -243,6 +272,8 @@ export interface PostTransactionInput {
   status?: LedgerStatus;
   refType?: string | null;
   refId?: string | null;
+  /** AIDV-14：歸屬 + 稽核欄位（可選），借/貸兩腳一併凍結寫入。 */
+  meta?: LedgerEntryMeta;
 }
 
 export interface PostTransactionResult {
@@ -291,6 +322,8 @@ export async function postTransaction(
 
   const refType = input.refType ?? null;
   const refId = input.refId ?? null;
+  // AIDV-14：把 meta 正規化為 insert 欄位（數值欄轉字串，沿用 DECIMAL 定點字串約定）。
+  const metaCols = normalizeLedgerMeta(input.meta);
   try {
     await db.insert(costLedger).values([
       {
@@ -301,6 +334,7 @@ export async function postTransaction(
         idempotencyKey: debitKey,
         refType,
         refId,
+        ...metaCols,
       },
       {
         accountKey: input.toAccount,
@@ -310,6 +344,7 @@ export async function postTransaction(
         idempotencyKey: creditKey,
         refType,
         refId,
+        ...metaCols,
       },
     ]);
     return { outcome: "inserted" };
@@ -317,6 +352,52 @@ export async function postTransaction(
     if (isDuplicateKeyError(err)) return { outcome: "duplicate" };
     throw err;
   }
+}
+
+/**
+ * 純函式：把 LedgerEntryMeta 正規化為 insert 欄位片段。數值（exchangeRate/amountTwd）
+ * 轉為定點字串（與 amount 同約定，避免浮點漂移進 DECIMAL）；非法/空值留 undefined
+ * （drizzle 不帶該欄＝用 DB default/null）。借＋貸兩腳共用同一份 meta（同一筆成本）。
+ */
+export function normalizeLedgerMeta(
+  meta: LedgerEntryMeta | undefined
+): Partial<InsertLedgerInput> {
+  if (!meta) return {};
+  const out: Partial<InsertLedgerInput> = {};
+  if (meta.projectId != null && String(meta.projectId).trim() !== "") {
+    out.projectId = String(meta.projectId).trim();
+  }
+  if (meta.workflowId != null && String(meta.workflowId).trim() !== "") {
+    out.workflowId = String(meta.workflowId).trim();
+  }
+  if (meta.sourceCurrency != null && String(meta.sourceCurrency).trim() !== "") {
+    out.sourceCurrency = String(meta.sourceCurrency).trim().toUpperCase();
+  }
+  const rate = toDecimalStringOrNull(meta.exchangeRate, 6);
+  if (rate !== null) out.exchangeRate = rate;
+  const twd = toDecimalStringOrNull(meta.amountTwd, 4);
+  if (twd !== null) out.amountTwd = twd;
+  if (meta.provider != null && String(meta.provider).trim() !== "") {
+    out.provider = String(meta.provider).trim();
+  }
+  if (meta.model != null && String(meta.model).trim() !== "") {
+    out.model = String(meta.model).trim();
+  }
+  if (meta.costSource != null && String(meta.costSource).trim() !== "") {
+    out.costSource = String(meta.costSource).trim();
+  }
+  return out;
+}
+
+/** 把候選值轉成 scale 位定點字串；非有限/≤0 → null（不寫該欄）。 */
+function toDecimalStringOrNull(
+  value: number | string | null | undefined,
+  scale: number
+): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n.toFixed(scale);
 }
 
 // ─── hold 生命週期轉態（append-only 補償列）──────────────────────────────────

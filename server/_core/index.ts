@@ -61,6 +61,10 @@ import {
   stopCostLedgerReconcileCron,
 } from "../jobs/costLedgerReconcileJob";
 import {
+  initCostAttributionOutboxCron,
+  stopCostAttributionOutboxCron,
+} from "../jobs/costAttributionOutboxJob";
+import {
   initUserAutoCreditCron,
   stopUserAutoCreditCron,
 } from "../jobs/userAutoCreditJob";
@@ -154,6 +158,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "costLedgerReconcileJob",
     start: initCostLedgerReconcileCron,
     stop: stopCostLedgerReconcileCron,
+  },
+  {
+    name: "costAttributionOutboxJob",
+    start: initCostAttributionOutboxCron,
+    stop: stopCostAttributionOutboxCron,
   },
   {
     name: "userAutoCreditJob",

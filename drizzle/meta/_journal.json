@@ -505,6 +505,13 @@
       "when": 1779050000082,
       "tag": "0078_resource_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "5",
+      "when": 1779050000083,
+      "tag": "0079_cost_attribution",
+      "breakpoints": true
     }
   ]
 }
