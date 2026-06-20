@@ -321,8 +321,14 @@ const coreSchema = z.object({
   // ── 管理員信箱（逗號分隔，登入時自動設為 admin）─────────
   ADMIN_EMAILS: z.string().optional().default(""),
 
-  // ── 分散式快取 / 排程鎖（沒設則 fallback 到記憶體版）─────
+  // ── 分散式快取 / 鎖（沒設則 fallback 到記憶體版）──────────
+  // AIDV-20：REDIS_URL 一旦設定（Railway Redis 服務注入），開機時
+  //   initGenerationLockBackend() 會把「生成防重複鎖」從 per-process 記憶體版
+  //   升級為跨實例的 Redis 版（SET NX PX + Lua CAS-del），多 replica 也能防重複。
+  //   未設＝維持記憶體版（單機正確、零行為改變）。Redis 不可用一律 fail-open。
+  //   cache.ts / rateLimiter.ts 目前仍是記憶體版，可日後共用同一 client 升級。
   REDIS_URL: z.string().optional().default(""),
+  // 鎖鍵會再前綴此值（例 healing-studio:gen-lock:...），與專案 Redis 命名空間共存。
   REDIS_KEY_PREFIX: z.string().optional().default("healing-studio:"),
 
   // ── 生成防重複提交鎖（AIDV-20）────────────────────────────

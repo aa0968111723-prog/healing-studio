@@ -23,29 +23,34 @@
  *       equals `token` (Lua CAS-del). This guarantees we never delete a lock
  *       that a *subsequent* legitimate attempt acquired after our TTL lapsed.
  *
- * Backend (and its scope limit — read this before relying on the lock)
- * ─────────────────────────────────────────────────────────────────────
- * The project has no Redis client wired (REDIS_URL is declared but no
- * ioredis/node-redis is instantiated — see _core/cache.ts and _core/rateLimiter.ts,
- * both pure in-memory). The env doc for REDIS_URL itself states "沒設則 fallback
- * 到記憶體版" (falls back to the in-memory version when unset). So the active
- * backend here is an in-memory store with correct single-instance semantics
- * (token-compare delete + TTL auto-expiry). A `GenerationLockStore` seam is
- * exposed so a Redis-backed store can be dropped in later (SET NX PX / Lua
- * CAS-del map 1:1 onto these methods) without touching any call site.
+ * Backend (the active store depends on REDIS_URL — read this before relying on it)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The store is selected at boot via the `GenerationLockStore` seam:
+ *   - REDIS_URL unset  → `InMemoryGenerationLockStore` (the default). Correct
+ *     single-instance semantics (token-compare delete + TTL auto-expiry), but
+ *     **per-process only**. Two identical submits landing on different replicas
+ *     would BOTH acquire, and a restart drops all locks. This robustly covers
+ *     the dominant case (one user, one browser, double-click / retry storm →
+ *     same process) and degrades gracefully (fail-open) otherwise.
+ *   - REDIS_URL set    → `RedisGenerationLockStore` (see redisGenerationLockStore.ts),
+ *     swapped in at boot by `initGenerationLockBackend()`. `setNxPx` → `SET key
+ *     token NX PX ttl`, `casDel` → the Lua get-compare-del script. This makes
+ *     the dedup guarantee **cross-instance**: contending submits on different
+ *     replicas hit the same Redis key, so only one acquires. Call sites never
+ *     change — they use the `generationLock` singleton, whose store is swapped.
  *
- * ⚠ This means the dedup guarantee is **per-process only**. Railway can run
- * more than one instance, and even a single instance loses all locks on
- * restart. Two identical submits that land on different instances will BOTH
- * acquire. Do NOT represent this as a cross-instance guarantee. It robustly
- * covers the dominant case (one user, one browser, double-click / retry storm
- * → same process) and degrades gracefully (fail-open) otherwise.
+ * Either way the lock is fail-open: if the backend is unavailable/slow/errors,
+ * generation proceeds (availability > dedup). A down Redis therefore degrades
+ * cross-instance dedup back to best-effort; it can never block a user.
  *
- * Follow-up (tracked): when REDIS_URL is actually instantiated, implement a
- * `GenerationLockStore` over the shared client — `setNxPx` → `SET key token NX
- * PX ttl`, `casDel` → the Lua get-compare-del script — and pass it to the
- * `GenerationLockService` constructor. No call site changes. Until then this
- * is in-process best-effort, not a distributed lock.
+ * Late-write self-heal (Redis edge case)
+ * ──────────────────────────────────────
+ * A slow `setNxPx` can land on Redis *after* our op timeout already fired and we
+ * failed open. That would leave a lock nobody is tracking. On every fail-open
+ * acquire we therefore schedule a best-effort CAS-del on our own token to
+ * neutralize such a late-landed write (see `scheduleSelfHeal`). It only ever
+ * deletes a lock whose value equals our unique token, so it can never delete
+ * another caller's lock.
  *
  * Hot-path safety
  * ───────────────
@@ -117,7 +122,16 @@ export const DEFAULT_TASK_LOCK_TTL_MS = 60_000;
 /** Short timeout on each backend op so a slow/hung backend never blocks the hot path. */
 const STORE_OP_TIMEOUT_MS = 200;
 
-/** Key namespace prefix (kept under the project's REDIS_KEY_PREFIX umbrella for a future Redis backend). */
+/**
+ * Self-heal of a *late-landed* lock (see the doc block). After a fail-open
+ * acquire we re-attempt CAS-del on our own token a few times, spaced out, to
+ * catch a `setNxPx` that lands shortly after the op timeout fired. Bounded and
+ * best-effort: a handful of attempts over <1s, all errors swallowed.
+ */
+const DEFAULT_SELF_HEAL_ATTEMPTS = 3;
+const DEFAULT_SELF_HEAL_INTERVAL_MS = 150;
+
+/** Key namespace prefix (the Redis backend further prepends REDIS_KEY_PREFIX). */
 const KEY_PREFIX = "gen-lock";
 
 // ─── Store seam ──────────────────────────────────────────────────────────────
@@ -317,18 +331,42 @@ export interface GenerationLockStats {
   released: number;
   /** Times acquire() failed open (backend error/timeout) and allowed generation. */
   failOpen: number;
+  /** Times the late-write self-heal CAS-deleted an orphaned lock after a fail-open. */
+  selfHealed: number;
+}
+
+/** Tunables for the service (self-heal cadence). All optional with safe defaults. */
+export interface GenerationLockServiceOptions {
+  selfHealAttempts?: number;
+  selfHealIntervalMs?: number;
 }
 
 class GenerationLockService {
-  private readonly store: GenerationLockStore;
-  private readonly memStore: InMemoryGenerationLockStore | null;
+  private store: GenerationLockStore;
+  private memStore: InMemoryGenerationLockStore | null;
 
   private acquired = 0;
   private blocked = 0;
   private released = 0;
   private failOpen = 0;
+  private selfHealed = 0;
 
-  constructor(store?: GenerationLockStore) {
+  private readonly selfHealAttempts: number;
+  private readonly selfHealIntervalMs: number;
+  /**
+   * In-flight self-heal sleeps. destroy() clears each timer AND resolves its
+   * promise so the awaiting runSelfHeal unblocks, observes `destroyed`, and
+   * returns (otherwise a cleared timer would leave the promise pending forever).
+   */
+  private readonly healWaiters = new Set<{
+    handle: ReturnType<typeof setTimeout>;
+    resolve: () => void;
+  }>();
+  /** In-flight self-heal promises (so tests can await completion). */
+  private readonly healPromises = new Set<Promise<void>>();
+  private destroyed = false;
+
+  constructor(store?: GenerationLockStore, opts?: GenerationLockServiceOptions) {
     if (store) {
       this.store = store;
       this.memStore = store instanceof InMemoryGenerationLockStore ? store : null;
@@ -337,6 +375,24 @@ class GenerationLockService {
       this.store = mem;
       this.memStore = mem;
     }
+    this.selfHealAttempts = opts?.selfHealAttempts ?? DEFAULT_SELF_HEAL_ATTEMPTS;
+    this.selfHealIntervalMs =
+      opts?.selfHealIntervalMs ?? DEFAULT_SELF_HEAL_INTERVAL_MS;
+  }
+
+  /**
+   * Swap the backing store (used at boot to upgrade the singleton from the
+   * in-memory default to the Redis-backed store once REDIS_URL is known). Tears
+   * down the previous auto-created in-memory store's sweep timer if we're
+   * replacing it. Call sites are unaffected — they hold the service, not the store.
+   */
+  setStore(store: GenerationLockStore): void {
+    if (store === this.store) return;
+    if (this.memStore && this.memStore !== store) {
+      this.memStore.destroy();
+    }
+    this.store = store;
+    this.memStore = store instanceof InMemoryGenerationLockStore ? store : null;
   }
 
   /**
@@ -380,12 +436,61 @@ class GenerationLockService {
     } catch (err) {
       // Backend unavailable/slow/errored → FAIL OPEN. Availability over dedup.
       this.failOpen++;
+      // The setNxPx may still land on the backend after this race gave up (slow
+      // ack). Schedule a best-effort CAS-del on our own token to neutralize such
+      // a late-landed lock so it can't wrongly block a later legitimate attempt.
+      this.scheduleSelfHeal(key, token);
       logger.warn("[GenerationLock] acquire failed, proceeding without lock (fail-open)", {
         key,
         err: err instanceof Error ? err.message : String(err),
       });
       return token;
     }
+  }
+
+  /**
+   * Best-effort neutralization of a late-landed lock (see the doc block). Runs
+   * detached: a few CAS-del attempts on our token, spaced by selfHealIntervalMs,
+   * stopping as soon as one removes the orphan. CAS-del only matches our unique
+   * token, so this can never delete another caller's lock. All errors swallowed.
+   */
+  private scheduleSelfHeal(key: string, token: string): void {
+    if (this.destroyed || this.selfHealAttempts <= 0) return;
+    const p = this.runSelfHeal(key, token).finally(() => {
+      this.healPromises.delete(p);
+    });
+    this.healPromises.add(p);
+  }
+
+  private async runSelfHeal(key: string, token: string): Promise<void> {
+    for (let i = 0; i < this.selfHealAttempts && !this.destroyed; i++) {
+      await this.sleep(this.selfHealIntervalMs);
+      if (this.destroyed) return;
+      try {
+        const removed = await withOpTimeout(this.store.casDel(key, token), "selfHeal");
+        if (removed) {
+          this.selfHealed++;
+          return;
+        }
+      } catch {
+        // Backend still unavailable — try again on the next tick (best-effort).
+      }
+    }
+  }
+
+  /** Cancelable sleep whose timer is tracked so destroy() can clear + resolve it. */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => {
+      const waiter = {
+        handle: setTimeout(() => {
+          this.healWaiters.delete(waiter);
+          resolve();
+        }, ms),
+        resolve,
+      };
+      if (typeof waiter.handle.unref === "function") waiter.handle.unref();
+      this.healWaiters.add(waiter);
+    });
   }
 
   /**
@@ -440,6 +545,7 @@ class GenerationLockService {
       blocked: this.blocked,
       released: this.released,
       failOpen: this.failOpen,
+      selfHealed: this.selfHealed,
     };
   }
 
@@ -448,8 +554,20 @@ class GenerationLockService {
     return this.memStore?.isHeld(key) ?? false;
   }
 
-  /** Graceful shutdown / test teardown. */
+  /** Test-only: await all in-flight self-heal attempts to settle. */
+  async _drainSelfHeals(): Promise<void> {
+    await Promise.allSettled(Array.from(this.healPromises));
+  }
+
+  /** Graceful shutdown / test teardown. Cancels pending self-heal timers. */
   destroy(): void {
+    this.destroyed = true;
+    for (const w of this.healWaiters) {
+      clearTimeout(w.handle);
+      // Unblock the awaiting runSelfHeal so it can observe `destroyed` and exit.
+      w.resolve();
+    }
+    this.healWaiters.clear();
     this.memStore?.destroy();
   }
 }

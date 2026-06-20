@@ -103,6 +103,10 @@ import { featureFlags } from "./featureFlags";
 import { rateLimiters, rateLimitContextMiddleware } from "./rateLimiter";
 import { initErrorTracking, errorTrackingExpressErrorHandler } from "./errorTracking";
 import { metricsRouter } from "./metricsRoute";
+import {
+  initGenerationLockBackend,
+  closeGenerationLockBackend,
+} from "./redisGenerationLockStore";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -271,6 +275,11 @@ async function startServer() {
   bootstrapAiAdapters();
   runOrbToolExecutorStartupSelfCheck();
   featureFlags.logStartupState();
+  // AIDV-20: upgrade the generation dedup lock to its Redis backend when
+  // REDIS_URL is configured (cross-instance dedup for multi-replica). No
+  // REDIS_URL → keeps the in-memory store (single-instance, zero change).
+  // Never throws; a Redis problem leaves the in-memory store in place.
+  initGenerationLockBackend();
   const elevenLabsHealthy = await checkElevenLabsHealth();
   setElevenLabsAvailability(elevenLabsHealthy);
   if (!elevenLabsHealthy) {
@@ -711,6 +720,9 @@ async function startServer() {
       // Release in-process resources
       cache.destroy();
       metrics.destroy();
+      // AIDV-20: stop the generation-lock self-heal/sweep timers and close the
+      // shared Redis client (no-op when REDIS_URL is unset).
+      await closeGenerationLockBackend();
       logger.info("[Server] All resources released. Exiting.");
       process.exit(0);
     });
