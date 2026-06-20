@@ -27,6 +27,7 @@ import type { AgentWorkflowStep } from "../../shared/agent-actions";
 import type { OrbTask } from "../../shared/orb-agent-contract";
 import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
 import { searchOrbMemoriesWithRag } from "./orbMemory";
+import { buildReplanMemorySection } from "./security/ragInjectionGuard";
 
 export interface OrbLLMReplanInput {
   /** The original task context */
@@ -199,8 +200,13 @@ export async function orbLLMReplan(
           degradeOnError: true,
         });
         if (memories.length > 0) {
-          memoryContext = "\n\n**Historical Context (similar failures):**\n" +
-            memories.map(m => `- ${m.summary}`).join("\n");
+          // AIDV-69：m.summary 來自 RAG 檢索的歷史失敗記憶（由先前使用者 prompt
+          // 衍生、untrusted、可能被注入污染後回灌）。旗標 ON 時對「記憶段」過 guard
+          // 包裹；buildReplanPrompt 內其他欄位（failedStep / observation / tool
+          // registry）是內部受信任狀態，不在此包。旗標 OFF＝字串與現狀位元相同。
+          // 接線形狀收斂在 buildReplanMemorySection（單一真實來源、與測試共用）。
+          const joinedMemories = memories.map(m => `- ${m.summary}`).join("\n");
+          memoryContext = buildReplanMemorySection(joinedMemories);
         }
       } catch (err) {
         console.warn("[orbLLMReplan] memory retrieval failed:", err);
