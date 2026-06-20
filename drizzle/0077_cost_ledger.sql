@@ -1,4 +1,4 @@
--- 0076: cost_ledger — AIDV-153 append-only 雙分錄成本帳本（基礎版）
+-- 0077: cost_ledger — AIDV-153 append-only 雙分錄成本帳本（基礎版）
 --
 -- 現況（待升級的反型樣）：餘額＝users.remainingGenerations 單一可變整數，扣款/退款
 -- 都「就地 mutate」（server/db.ts deductUserPoints/refundUserPoints），無不可變交易
