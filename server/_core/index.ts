@@ -37,7 +37,7 @@ import {
   stopBraveLearnFetcherCron,
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
-import { closeDb, runMigrations, getDrizzlePoolStats, checkDrizzleHealth } from "../db";
+import { closeDb, runMigrations } from "../db";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
@@ -86,7 +86,7 @@ import { toolsModelsRouter } from "../routes/toolsModels";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
-import { closeDatabaseManager, getDatabaseManager } from "./DatabaseManager";
+import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
 import { serverEnv } from "./env.validated";
@@ -101,6 +101,8 @@ import { cache } from "./cache";
 import { metrics } from "./metrics";
 import { featureFlags } from "./featureFlags";
 import { rateLimiters, rateLimitContextMiddleware } from "./rateLimiter";
+import { initErrorTracking, errorTrackingExpressErrorHandler } from "./errorTracking";
+import { metricsRouter } from "./metricsRoute";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -262,6 +264,9 @@ async function startServer() {
   // 正式環境若 JWT_SECRET（或別名 AUTH_SECRET）缺失／太弱會在此 throw，
   // 讓部署「響亮地」失敗，而不是先啟動再用弱密鑰簽 1 年 token。
   assertJwtSecretReady();
+  // AIDV-58（H3）：錯誤追蹤接線——依 serverEnv.SENTRY_DSN env-gated。
+  // 未設 DSN（最常見）→ 完全 no-op，不報錯、不阻塞開機；@sentry/node 缺席亦安全降級。
+  await initErrorTracking();
   installFetchGuard();
   bootstrapAiAdapters();
   runOrbToolExecutorStartupSelfCheck();
@@ -576,78 +581,23 @@ async function startServer() {
 
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
-  app.get("/api/health", async (_req, res) => {
-    const storageBackend = detectStorageBackend();
-
-    // Collect database health from both connection systems
-    let dbHealth: Record<string, unknown> | null = null;
-    try {
-      const drizzleHealthy = await checkDrizzleHealth();
-      const drizzlePool = getDrizzlePoolStats();
-      let managerHealth: Record<string, unknown> | null = null;
-      try {
-        managerHealth = getDatabaseManager().getConnectionHealth() as unknown as Record<
-          string,
-          unknown
-        >;
-      } catch {
-        // DatabaseManager may not be initialised if DATABASE_URL is absent
-      }
-      dbHealth = {
-        drizzle: { healthy: drizzleHealthy, poolStats: drizzlePool },
-        manager: managerHealth,
-      };
-    } catch {
-      // Never let a DB check crash the health endpoint
-    }
-
-    res.json({ ok: true, ts: Date.now(), storage: storageBackend, database: dbHealth });
+  //
+  // AIDV-58（維運鏡審查）：此端點無 auth、對整個網際網路可見，故只回最小存活訊號。
+  // 不再外洩 DB 內部狀態（manager.lastError / failureCount / circuitOpen，原始 DB 錯誤字串
+  // 可能含 host/driver/連線細節）與 drizzle poolStats（active/idle/queued/total 連線數），
+  // 也不外洩具體 storage backend 類型——只回布林（是否已設定後端）。
+  // 詳細 dbHealth 移到 admin-only 的 /api/health/detail（與 /api/metrics 同源守門）。
+  app.get("/api/health", (_req, res) => {
+    // storage:boolean — 「是否已設定後端」而非具體類型（s3/gcs/manus）。
+    // 'none' = 生產未設定任何雲端儲存；dev 預設 'local' 仍視為已設定。
+    const storageConfigured = detectStorageBackend() !== "none";
+    res.json({ ok: true, ts: Date.now(), storage: storageConfigured });
   });
 
-  // ── Performance metrics endpoint ─────────────────────────────────────────
-  // Returns in-process latency, error rates, cache stats, and feature flags.
-  // AIDV-58 (H3): admin-only. 原本零 auth → 對外洩漏延遲/錯誤率/feature flags。
-  // 改為需登入且 role === "admin"（authenticateRequest 從 same-origin cookie 取 user、
-  // 失敗回 null；DB 短暫錯誤 → fail-closed）。demo 模式 DEMO_USER.role="user" → 403，
-  // 等於在無 DB 部署關閉此洩漏（app 內無任何 /api/metrics 呼叫者，故零破壞）。
-  // 註：若要給外部監控（UptimeRobot）抓取，改採 token/IP allowlist 由 Bruce 拍板（PR 留言）。
-  app.get("/api/metrics", async (req, res) => {
-    let user: Awaited<ReturnType<typeof authenticateRequest>> = null;
-    try {
-      user = await authenticateRequest(req);
-    } catch {
-      // 認證/查 user 期間的短暫錯誤 → fail-closed，不開放
-    }
-    if (!user) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-    if (user.role !== "admin") {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    // Refresh database metrics in the collector before responding
-    try {
-      const manager = getDatabaseManager();
-      metrics.setDatabaseMetrics({
-        connections: manager.getPoolStats(),
-        health: manager.getConnectionHealth(),
-        performance: manager.getPerformanceStats(),
-      });
-    } catch {
-      // DatabaseManager may not be initialised (no DATABASE_URL)
-    }
-
-    const snap = metrics.getSnapshot();
-    const cacheStats = cache.getStats();
-    const flags = featureFlags.getAllStatuses();
-    res.json({
-      ok: true,
-      metrics: snap,
-      cache: cacheStats,
-      featureFlags: flags,
-    });
-  });
+  // ── Performance metrics endpoint（AIDV-58 H3：admin-only）────────────────
+  // 守門邏輯抽到 _core/metricsRoute.ts（沿用 @shared/const 單一 isAdmin、可單元測試）。
+  // 未登入 → 401；非 admin → 403（fail-closed）。demo（role=user）→ 403。
+  app.use(metricsRouter);
   app.use("/api/webhooks", webhooksRouter);
 
   // tRPC API
@@ -664,6 +614,10 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+  // AIDV-58（H3）：Sentry error 中介層必須排在 globalErrorHandler 之前——
+  // 先把錯誤上報（env-gated；無 DSN 時為透傳 no-op），再交給既有 handler 回應 client。
+  // 此中介層只 next(err)、不改回應，故不影響既有行為與 aiProxy 路徑。
+  app.use(errorTrackingExpressErrorHandler());
   app.use(globalErrorHandler);
 
   // In production (Railway), always use the PORT env var directly and bind 0.0.0.0

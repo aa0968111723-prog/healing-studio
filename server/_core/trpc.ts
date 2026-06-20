@@ -1,4 +1,5 @@
 import {
+  isAdmin,
   isLeaderOrAdmin,
   NOT_ADMIN_ERR_MSG,
   NOT_LEADER_ERR_MSG,
@@ -44,7 +45,7 @@ export const adminProcedure = t.procedure.use(
       throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
     }
 
-    if (ctx.user.role !== "admin") {
+    if (!isAdmin(ctx.user.role)) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
