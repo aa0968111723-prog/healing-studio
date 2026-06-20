@@ -82,6 +82,10 @@ import { modelWishesRouter } from "./routers/modelWishesRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
+import {
+  isRagInjectionGuardEnabled,
+  guardRetrievedContext,
+} from "./services/security/ragInjectionGuard";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
 import { executeGenerateImage, executeOrbTask } from "./services/orbTaskExecutor";
@@ -2042,6 +2046,17 @@ export const appRouter = router({
             ]);
           } catch {
             // RAG 失敗靜默降級
+          }
+
+          // AIDV-69：RAG 注入安檢（預設 OFF）。memoryContext = buildMemoryContext
+          // 回傳的單段字串，內含使用者歷史 prompt 原文（m.prompt，untrusted，可能
+          // 先前已被注入污染後回灌）。旗標 ON 時先過 guard 包裹再注入 compileElitePrompt；
+          // 旗標 OFF 時 memoryContext 原樣傳入，與現狀**位元相同**。
+          // 與 costarService.ts:125-128 對同一個 buildMemoryContext 結果的接法一致。
+          if (memoryContext && isRagInjectionGuardEnabled()) {
+            memoryContext = guardRetrievedContext(memoryContext, {
+              label: "歷史創作記憶",
+            });
           }
 
           // Compile elite prompt with reference image awareness

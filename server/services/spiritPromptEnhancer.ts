@@ -9,6 +9,22 @@ import type { AgentRole } from "../../shared/orb-agent-roles";
 import { getRoleSystemPromptSlice } from "../../shared/orb-agent-roles";
 import { SpiritMemoryManager } from "./spiritMemoryManager";
 import { logger } from "../_core/logger";
+import {
+  isRagInjectionGuardEnabled,
+  guardRetrievedContext,
+} from "./security/ragInjectionGuard";
+
+/**
+ * AIDV-69：對精靈記憶段（memorySection）做注入安檢。memorySection 內含
+ * m.memoryValue（源自 recordFeedback 的 userFeedback / learnUserPreference 的
+ * 使用者輸入，untrusted）。旗標 ON 時過 guard 包裹；旗標 OFF 時原樣回傳，與現狀
+ * **位元相同**。**只包記憶段，絕不包 basePrompt/orchestrator 固定系統指令**。
+ */
+function guardSpiritMemorySection(memorySection: string): string {
+  return memorySection && isRagInjectionGuardEnabled()
+    ? guardRetrievedContext(memorySection, { label: "精靈記憶" })
+    : memorySection;
+}
 
 export interface PromptEnhancementContext {
   userId?: number;
@@ -40,9 +56,9 @@ export async function getEnhancedSpiritPrompt(
       role
     );
 
-    // Inject memory section if available
+    // Inject memory section if available（AIDV-69：記憶段過 guard，base 不動）
     if (memorySection) {
-      return `${basePrompt}\n\n${memorySection}`;
+      return `${basePrompt}\n\n${guardSpiritMemorySection(memorySection)}`;
     }
 
     return basePrompt;
@@ -123,8 +139,9 @@ export function getChiefOrchestratorEnhancedPrompt(memorySection?: string): stri
     "- **絕對不要光說不做**：說「我會分派給 X」就要真的呼叫 `delegateTask`，否則只是空話",
   ].join("\n");
 
+  // AIDV-69：傳入的記憶段過 guard，base orchestrator 固定指令不動。
   if (memorySection) {
-    return `${basePrompt}\n\n${memorySection}`;
+    return `${basePrompt}\n\n${guardSpiritMemorySection(memorySection)}`;
   }
 
   return basePrompt;

@@ -5,18 +5,27 @@
  * 內容在「注入 LLM system prompt 當下」做最小成本去武裝，避免間接 prompt
  * injection（教材／歷史記憶被先前注入污染後回灌 LLM）。
  *
- * ⚠️ 目前實際接線範圍（Coverage / Out of scope，AIDV-69 第一階段）：
- *  ✅ 已接線：Director 三條 RAG 記憶／世界框架注入路徑
+ * ⚠️ 目前實際接線範圍（Coverage / Out of scope）：
+ *  ✅ 已接線（AIDV-69 第一階段）：Director 三條 RAG 記憶／世界框架注入路徑
  *     （costarService / planningService / scriptGenerationService）。
- *  ⛔ 尚未接線（已知殘留側門，待後續卡）：
+ *  ✅ 已接線（AIDV-69 follow-up，本批）：四條真 untrusted 記憶注入側門
  *     - server/routers.ts buildMemoryContext → compileElitePrompt
- *     - server/services/orbLLMReplan.ts（歷史失敗記憶注入 replan prompt）
- *     - server/services/orbTaskChainRunner.ts（buildOrbMemorySummaryForPlanner）
- *     - server/services/spiritPromptEnhancer.ts（formatMemoriesForPrompt）
- *     - server/services/agentToolExecutor.ts 教材庫 search snippet（chunkText）
- *  本模組已具備多筆 chunk 入口（guardRetrievedChunks）供上述教材庫 / orb
- *  路徑接線時直接重用；在接線前那些路徑「旗標 ON 亦不經 guard」，殘留曝險為
- *  已知且明列，並非「已覆蓋」之暗示。
+ *       （memoryContext = 使用者歷史 prompt 原文，注入點 guardRetrievedContext）
+ *     - server/services/orbLLMReplan.ts（RAG 歷史失敗記憶 m.summary 注入 replan
+ *       system prompt；只包記憶段，buildReplanPrompt 受信任欄位不包）
+ *     - server/services/orbTaskChainRunner.ts（buildOrbMemorySummaryForPlanner 的
+ *       memoryContext.summary 注入 planner；buildReplanRecapMessage 受信任不包）
+ *     - server/services/spiritPromptEnhancer.ts（formatMemoriesForPrompt 的
+ *       memorySection；basePrompt / orchestrator 固定系統指令不包）
+ *  🚫 不接線（誠實判定：非 prompt 注入面，接了反而誤包／汙染）：
+ *     - server/services/agentToolExecutor.ts 教材庫 search snippet（chunkText）：
+ *       該 case（teachingArchive.search）只把 snippet 當 tool result data 回傳給
+ *       前端 OrbSearchCard render，**不進任何 LLM prompt**（已對碼確認下游 replan
+ *       recap 僅序列化受信任執行狀態、不含教材 snippet）。在此接 guard 等於空轉，
+ *       且會把邊界標記混入回給 UI 的 snippet 造成髒污 → 違反「不誤包」鐵則，故不接。
+ *       若日後新增「把教材 snippet 拼進 LLM prompt」的真實路徑，再於該下游點接
+ *       guardRetrievedChunks（多筆入口已備好）。
+ *  本模組多筆 chunk 入口（guardRetrievedChunks）保留供未來教材庫真實注入路徑重用。
  *
  * 三段處理（皆 best-effort、永不 throw）：
  *  (1) sanitize / 中和常見提示注入樣式（標記或剝離，保留正常語意）
