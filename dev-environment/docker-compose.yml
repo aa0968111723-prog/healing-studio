@@ -2,9 +2,10 @@
 # AIDV / healing-studio — 本機開發用基礎服務
 # 用途：一鍵起 dev 需要的資料庫與佇列
 #   - mysql  : 主庫（必需；boot 時 runMigrations 會套 drizzle/*.sql）
-#   - redis  : Wave 2/3 先備（AIDV-13 BullMQ 任務耐久化、AIDV-20 生成鎖）
-#              ⚠ 現行 main 程式碼「尚未」使用 Redis（grep ioredis/bullmq = 0），
-#              先起好是為了接 AIDV-13 時零摩擦；不想跑可註解掉。
+#   - redis  : AIDV-20 生成防重複鎖（跨實例）已接 ioredis；AIDV-13 BullMQ 先備
+#              ✅ 本機 .env 設 REDIS_URL=redis://127.0.0.1:6379 後，生成鎖自動升級
+#                 為 Redis 版（SET NX PX + Lua CAS-del）；不設＝記憶體版（單機正確）。
+#              驗證： REDIS_URL=redis://127.0.0.1:6379 npx tsx scripts/verify-redis-generation-lock.ts
 # 啟動：  docker compose up -d
 # 連線：  mysql://hs:hs_dev_pw@127.0.0.1:3306/healing_studio
 #         redis://127.0.0.1:6379

@@ -345,3 +345,102 @@ describe("withLock — 便利包裝", () => {
     expect(svc._isHeld(key)).toBe(false);
   });
 });
+
+describe("setStore — 開機時把後端從記憶體換成 Redis（call-site 不變）", () => {
+  it("換 store 後 acquire/release 改走新 store", async () => {
+    const svc = new GenerationLockService(new InMemoryGenerationLockStore());
+    const calls: string[] = [];
+    const fakeRedis: GenerationLockStore = {
+      setNxPx: (k) => {
+        calls.push(`set:${k}`);
+        return Promise.resolve(true);
+      },
+      casDel: (k) => {
+        calls.push(`del:${k}`);
+        return Promise.resolve(true);
+      },
+    };
+    svc.setStore(fakeRedis);
+    const token = (await svc.acquire("gen-lock:1:abc")) as string;
+    expect(typeof token).toBe("string");
+    await svc.release("gen-lock:1:abc", token);
+    expect(calls).toEqual(["set:gen-lock:1:abc", "del:gen-lock:1:abc"]);
+    svc.destroy();
+  });
+
+  it("換成相同實例 → no-op（不會把它 destroy 掉）", async () => {
+    const mem = new InMemoryGenerationLockStore();
+    const svc = new GenerationLockService(mem);
+    svc.setStore(mem);
+    // 仍可正常上鎖（沒被誤 destroy）
+    expect(await svc.acquire("gen-lock:1:abc")).not.toBe(GENERATION_LOCKED);
+    svc.destroy();
+  });
+});
+
+describe("self-heal — fail-open 後補刪「晚到的鎖」（修 latent orphan 坑）", () => {
+  // 模擬：acquire 的 setNxPx race 已 timeout/err（立即 reject），但寫入其實晚一拍
+  // 才真的落到後端 → 留下一把沒人追蹤的鎖。self-heal 應以自己的 token 補刪。
+  class LateLandingStore implements GenerationLockStore {
+    held = new Map<string, string>();
+    casDelTokens: string[] = [];
+    setNxPx(key: string, token: string): Promise<boolean> {
+      setTimeout(() => this.held.set(key, token), 5);
+      return Promise.reject(new Error("slow ack"));
+    }
+    casDel(key: string, token: string): Promise<boolean> {
+      this.casDelTokens.push(token);
+      if (this.held.get(key) === token) {
+        this.held.delete(key);
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(false);
+    }
+  }
+
+  it("acquire 放行後，self-heal 用自己的 token CAS-del 掉晚到的鎖", async () => {
+    const store = new LateLandingStore();
+    const svc = new GenerationLockService(store, {
+      selfHealAttempts: 5,
+      selfHealIntervalMs: 10,
+    });
+    const key = "gen-lock:1:abc";
+    const token = (await svc.acquire(key)) as string;
+    expect(typeof token).toBe("string"); // 放行（fail-open）
+    expect(svc.getStats().failOpen).toBe(1);
+
+    await svc._drainSelfHeals();
+    expect(store.held.has(key)).toBe(false); // 晚到的鎖已被補刪
+    expect(store.casDelTokens).toContain(token); // 用「自己的」token 刪
+    expect(svc.getStats().selfHealed).toBe(1);
+    svc.destroy();
+  });
+
+  it("後端持續不可用（連 casDel 都 reject）→ 不 throw、selfHealed=0、仍放行", async () => {
+    const downStore: GenerationLockStore = {
+      setNxPx: () => Promise.reject(new Error("down")),
+      casDel: () => Promise.reject(new Error("down")),
+    };
+    const svc = new GenerationLockService(downStore, {
+      selfHealAttempts: 2,
+      selfHealIntervalMs: 5,
+    });
+    const token = await svc.acquire("gen-lock:1:abc");
+    expect(token).not.toBe(GENERATION_LOCKED);
+    await svc._drainSelfHeals();
+    expect(svc.getStats().selfHealed).toBe(0);
+    svc.destroy();
+  });
+
+  it("destroy() 會取消還沒跑完的 self-heal（不外洩 timer）", async () => {
+    const store = new LateLandingStore();
+    const svc = new GenerationLockService(store, {
+      selfHealAttempts: 10,
+      selfHealIntervalMs: 50,
+    });
+    await svc.acquire("gen-lock:1:abc"); // 觸發 self-heal（首次 sleep 50ms 內）
+    svc.destroy(); // 立刻拆除
+    await svc._drainSelfHeals(); // 應很快結束，不會跑滿 10 次
+    expect(svc.getStats().selfHealed).toBe(0);
+  });
+});
