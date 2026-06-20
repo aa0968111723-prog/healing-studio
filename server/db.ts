@@ -94,6 +94,7 @@ import {
   type InsertResourceShare,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { serverEnv } from "./_core/env.validated";
 import type { UserRole } from "@shared/const";
 
 /**
@@ -180,6 +181,23 @@ function logOrphanedMigrationFiles(): void {
 }
 
 /**
+ * AIDV-61（H6）：Migration fail-closed 開機門判定 — 純函式以利測試。
+ *
+ * 預設 OFF（fail-open，維持現狀）：只接受明確的 truthy 字串才開啟。
+ *   ON  = "true" / "1" / "on" / "yes"（大小寫不拘、前後空白不拘）。
+ *   其餘（含空字串、未設定、"false"/"0"）= OFF。
+ *
+ * 此判定不碰 DB、不看 DATABASE_URL：是否「真的嘗試套用 migration」由
+ * applyMigrations 的執行路徑決定（demo / 無 DATABASE_URL 根本不會走到
+ * 套用流程，故 ON/OFF 都不影響 demo 開機）。fail-closed 僅在「真實 apply
+ * 失敗」的 catch 內被諮詢。
+ */
+export function isMigrationFailClosed(): boolean {
+  const raw = (serverEnv.MIGRATION_FAIL_CLOSED ?? "").trim().toLowerCase();
+  return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
+}
+
+/**
  * Internal: applies pending migrations against an already-connected db.
  * Uses a singleton in-flight promise so concurrent callers wait for the
  * same run rather than triggering multiple simultaneous migrations.
@@ -215,6 +233,27 @@ async function applyMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
       _migrationsLastFailedAt = Date.now();
       console.error("[Database] Migration failed:", error);
       // Leave _migrationsDone false so the next startup attempt will retry.
+      // AIDV-61（H6）：fail-closed 開機門。預設 OFF＝維持上一行的「log 後照常
+      // 服務」現狀（對現有 prod 零行為改變）。設 MIGRATION_FAIL_CLOSED=true 時，
+      // 印出清楚的致命 log（含底層錯誤）後 rethrow，讓錯誤一路傳到 bootstrap
+      // 的 fatal handler（runMigrations → getDb → applyMigrations 都會把這個
+      // rejection 往上拋），由其 process.exit(1) 擋啟動、令 /api/health 失敗、
+      // Railway 偵測不健康後自動重啟或人工回滾。
+      // 注意：此 catch 只在 migrate() 真的拋錯（真實 apply 失敗）時進入；冪等
+      // 重跑 / 已套用不會進來，故 fail-closed 不會誤判既有已套用的 migration。
+      if (isMigrationFailClosed()) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error(
+          "[Database][FATAL] Migration apply failed and MIGRATION_FAIL_CLOSED is enabled — " +
+            "refusing to start. Roll back to the last healthy deploy and inspect the failing " +
+            "migration in drizzle/ before redeploying. See docs/guides/MIGRATION_FAILURE_SOP.md. " +
+            `Underlying error: ${detail}`
+        );
+        // rethrow synchronously inside the IIFE so the awaited promise rejects.
+        throw error instanceof Error
+          ? error
+          : new Error(`[Database] Migration apply failed (fail-closed): ${detail}`);
+      }
     } finally {
       _migrationsInFlight = null;
     }
@@ -240,6 +279,9 @@ export async function getDb() {
   }
 
   if (!_db) {
+    // Connection establishment is best-effort: a transient connect failure
+    // must NOT be treated as a fail-closed migration failure — it leaves _db
+    // null and the next request retries. Keep this catch scoped to connect only.
     try {
       // Use drizzle's built-in connection pooling with explicit pool configuration
       _db = drizzle({
@@ -253,11 +295,19 @@ export async function getDb() {
           keepAliveInitialDelay: 30_000,
         },
       });
-      await applyMigrations(_db);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
+  }
+
+  // AIDV-61（H6）：applyMigrations 刻意放在連線 try/catch **之外**。
+  // 連線成功後若 migration 真的套用失敗，且 MIGRATION_FAIL_CLOSED=ON，
+  // applyMigrations 會 reject——必須讓它一路傳出 getDb()（→ runMigrations →
+  // bootstrap fatal handler process.exit(1)），不能被「連線失敗」的 catch 吞掉。
+  // OFF（預設）時 applyMigrations 不會 reject（catch 吞掉），此處等同舊行為。
+  if (_db) {
+    await applyMigrations(_db);
   }
   return _db;
 }

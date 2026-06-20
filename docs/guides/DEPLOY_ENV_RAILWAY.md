@@ -135,6 +135,12 @@ openssl rand -base64 32
 | `ADMIN_EMAILS`          | 逗號分隔，登入時自動設為 admin                          |
 | `NVIDIA_API`            | MiniMax M2.7 via NVIDIA NIM                            |
 | `GEMINI_LIVE_API_KEY`   | Gemini Live Voice 即時對話                              |
+| `MIGRATION_FAIL_CLOSED` | DB migration 失敗時是否擋啟動。預設 `false`＝fail-open（log 後照常服務，維持現狀）；設 `true` 時 migration 真實套用失敗會 `process.exit(1)` 擋啟動、令 `/api/health` 失敗讓 Railway 偵測不健康。詳見 [`MIGRATION_FAILURE_SOP.md`](./MIGRATION_FAILURE_SOP.md)（AIDV-61 H6）|
+
+> 🔁 **`MIGRATION_FAIL_CLOSED`（AIDV-61 H6）**：預設關＝**對現有 prod 零行為改變**。
+> demo / 沒設 `DATABASE_URL` 不受影響（沒 DB 就不跑 migration，旗標 ON 也不會讓 demo 開不了機）。
+> 旗標只在「真的去套用某個 migration 而失敗」時才擋啟動，冪等重跑不誤判。
+> 何時該開、失敗怎麼判讀、Railway 怎麼回滾 → 看 [Migration 失敗判讀與回滾 SOP](./MIGRATION_FAILURE_SOP.md)。
 
 ---
 
