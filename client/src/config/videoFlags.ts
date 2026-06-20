@@ -96,6 +96,19 @@ export const ENABLE_VIDEO_GATE_KIT: boolean = readFlag("VITE_ENABLE_VIDEO_GATE_K
  */
 export const ENABLE_VOICE_MUSIC_WORKFLOW: boolean = readFlag("VITE_ENABLE_VOICE_MUSIC_WORKFLOW", false);
 
+/**
+ * AIDV-12 其餘可接子系統接真實既有 procedure。**預設 OFF＝零行為改變（位元相同）**：
+ * 關閉時 AssetsPanel／PromptsPanel 維持既有「讀脊椎本地集合（p.assets / p.promptBlocks）」
+ * 的呈現，一字不動（且仍在 ENABLE_4SHELL 傘下才可達，線上預設不可達＝雙重保障）。
+ * 開啟（VITE_ENABLE_SUBSYSTEM_REAL_DATA=1）後，這兩個面板改以**已存在**的 tRPC procedure
+ * 直連真實資料（零新後端、零 migration、零金鑰）：
+ *   · AssetsPanel  → assets.myAssets（digital_asset_library 唯讀清單）
+ *   · PromptsPanel → blockCombos.list（block_combos 積木 combo，補旗標關閉時 promptBlocks 死空的支線）
+ * 四態鐵律：載入中／錯誤一律回退既有脊椎本地集合（additive，不刪既有 fallback）；procedure
+ * 不可用時 query 失敗 → 沿用既有空集合渲染，與現狀無異。
+ */
+export const ENABLE_SUBSYSTEM_REAL_DATA: boolean = readFlag("VITE_ENABLE_SUBSYSTEM_REAL_DATA", false);
+
 /** 集中匯出，方便偵錯面板/驗收一次讀取。 */
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
@@ -105,6 +118,7 @@ export const VIDEO_FLAGS = {
   ENABLE_PROJECT_HUB,
   ENABLE_VIDEO_GATE_KIT,
   ENABLE_VOICE_MUSIC_WORKFLOW,
+  ENABLE_SUBSYSTEM_REAL_DATA,
 } as const;
 
 export type VideoFlagKey = keyof typeof VIDEO_FLAGS;
