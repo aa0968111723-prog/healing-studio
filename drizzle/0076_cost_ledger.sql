@@ -10,7 +10,9 @@
 --   accountKey     : 帳戶鍵（科目維度）"<type>:<id>"，type ∈ project/member/workflow
 --   entryType      : debit（借，消耗成本）/ credit（貸，退款沖銷）
 --   amount         : DECIMAL(12,6) 正值（方向由 entryType 表達，金額永遠 ≥ 0）
---   status         : pending（hold 預留）→ posted（正式入帳）/ archived（沖銷作廢）
+--   status         : pending（hold 預留）→ posted（正式入帳）/ archived（沖銷作廢）。
+--                    因 append-only，轉態不 UPDATE pending 列，而是 append 補償列
+--                    （postHold 寫 posted 列／archiveHold 寫 archived 列）。
 --   idempotencyKey : 唯一鍵 — 同 key 重複入帳被擋＝冪等保證（DB 層，重啟不失）
 --   refType/refId  : 來源憑證（ai_usage_event / generation_job 等），供對帳追溯
 --

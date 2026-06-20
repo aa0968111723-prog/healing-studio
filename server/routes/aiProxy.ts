@@ -20,8 +20,9 @@ import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { extractUsageCostUsd } from "../services/usageCost";
 import {
   isCostLedgerEnabled,
-  postEntry,
+  postTransaction,
   makeAccountKey,
+  EXPENSE_AI_COST_ACCOUNT,
   type LedgerDb,
 } from "../services/cost/ledger";
 import {
@@ -472,7 +473,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     try {
       const db = await getDb();
       if (db) {
-        await db.insert(aiUsageEvents).values({
+        const insertResult = await db.insert(aiUsageEvents).values({
           provider: providerKey,
           endpoint,
           userId: userId ?? null,
@@ -481,24 +482,35 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
           costUsd,
           errorMessage,
         });
+        // mysql2 driver 回 [{ insertId }]；取該 usage event 的自增 PK 當 ledger
+        // 的天然唯一鍵（穩定識別「邏輯帳務事件」，而非每次 HTTP 執行）。
+        const usageEventId =
+          (insertResult as unknown as Array<{ insertId?: number }>)?.[0]
+            ?.insertId ?? null;
 
-        // ── AIDV-153：旗標 ON 時「額外」寫一筆 cost_ledger 帳目（並行於
-        // cost_aggregations，不取代、不改既有任何寫法）。旗標 OFF＝此 if 整段
-        // 不進入＝完全不寫 ledger、現有 usage event insert 位元相同（HARD
-        // SAFETY ①）。idempotencyKey 用 provider+endpoint+user+startMs+latency
-        // 組合鍵（同一次代理請求穩定且唯一），重複入帳被 UNIQUE 擋＝冪等。
+        // ── AIDV-153：旗標 ON 時「額外」寫一筆【平衡的複式分錄】（debit member /
+        // credit expense:ai-cost），並行於 cost_aggregations、不取代、不改既有任何
+        // 寫法。旗標 OFF＝此 if 整段不進入＝完全不寫 ledger、現有 usage event insert
+        // 位元相同（HARD SAFETY ①）。
+        //
+        // idempotencyKey：用該 usage event 的自增 PK（`aue:<eventId>`）作交易冪等
+        // 基準鍵——穩定對應一個邏輯帳務事件，而非 startMs/latencyMs 這種每次執行都
+        // 變的計時值；故同一邏輯事件重試不會雙重入帳，且不同事件不會撞鍵丟帳
+        // （解決 anon 同毫秒併發碰撞）。同時把 refId 補成 eventId 恢復對帳可追溯。
         // 失敗吞錯不影響主流程。
-        if (isCostLedgerEnabled() && status === "success") {
+        if (
+          isCostLedgerEnabled() &&
+          status === "success" &&
+          usageEventId != null
+        ) {
           try {
-            const idempotencyKey = `aue:${providerKey}:${endpoint}:${userId ?? "anon"}:${startMs}:${latencyMs}`;
-            // 成本記 debit（消耗）；accountKey 以 member 維度（科目定義待拍板）。
-            await postEntry(db as unknown as LedgerDb, {
-              accountKey: makeAccountKey("member", userId ?? "anon"),
-              entryType: "debit",
+            await postTransaction(db as unknown as LedgerDb, {
+              fromAccount: makeAccountKey("member", userId ?? "anon"),
+              toAccount: EXPENSE_AI_COST_ACCOUNT,
               amount: costUsd,
-              idempotencyKey,
+              idempotencyKey: `aue:${usageEventId}`,
               refType: "ai_usage_event",
-              refId: null,
+              refId: String(usageEventId),
             });
           } catch (ledgerErr) {
             console.warn("[AI Proxy] cost_ledger write failed:", ledgerErr);

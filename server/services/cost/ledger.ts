@@ -1,17 +1,25 @@
 /**
- * ledger.ts — AIDV-153 append-only 雙分錄成本帳本服務（基礎版）
+ * ledger.ts — AIDV-153 append-only 複式（雙分錄）成本帳本服務（基礎版）
  * ──────────────────────────────────────────────────────────────────────────
  * 現況反型樣：餘額＝users.remainingGenerations 單一可變整數，扣款/退款都「就地
  * mutate」（server/db.ts deductUserPoints/refundUserPoints），無不可變交易 log。
  * 本服務提供「log 即真相、餘額由 log 算出來」的基礎：
  *
- *   - postEntry(db, entry)        : 寫一筆 append-only 帳目；idempotencyKey 重複
- *                                   入帳被擋（冪等不重複入帳）。永不 UPDATE/DELETE
- *                                   既有列。
- *   - computeBalance(db, account) : 由 log 加總算餘額（不就地改任何欄位）。
+ *   - postEntry(db, entry)        : 寫【單腳】append-only 帳目（低階原語）；
+ *                                   idempotencyKey 重複入帳被擋（冪等）。永不
+ *                                   UPDATE/DELETE 既有列。
+ *   - postTransaction(db, t)      : 寫【一對平衡的借＋貸】（真正的複式分錄）：
+ *                                   debit fromAccount + credit toAccount，金額相等、
+ *                                   共用 transactionId、同批寫入。這才是「全域
+ *                                   SUM(credit)-SUM(debit)==0」不變式的來源。
+ *   - computeBalance(db, account) : 由 log 加總算單一帳戶餘額（不改任何欄位）。
  *                                   約定：posted 的 SUM(credit) - SUM(debit)。
+ *   - assertGlobalBalanced(db)    : 對帳完整性檢查——所有 posted 列的 SUM(credit)
+ *                                   - SUM(debit) 應 ==0（複式分錄的核心不變式）。
  *   - hold 生命週期                : holdEntry → postHold / archiveHold
- *                                   （pending → posted / archived）。
+ *                                   （pending → posted / archived）。因表為
+ *                                   append-only，轉態【不 UPDATE pending 列】，而是
+ *                                   append 補償列（settle/cancel）達成狀態遷移。
  *
  * 純函式區（normalizeAmount / makeAccountKey / isCostLedgerEnabled / summarize）
  * 不碰 DB，可單測；DB 操作一律以「傳入的 db」執行（依賴注入），無 db＝demo/無 DB
@@ -20,8 +28,26 @@
  * HARD SAFETY：本服務只在旗標 ENABLE_COST_LEDGER=ON 時被接線端呼叫；OFF 時接線端
  * 完全不進入本模組，故零行為變化。本服務並行於 cost_aggregations、不改既有餘額。
  */
+import { createHash } from "node:crypto";
 import { sql, and, eq } from "drizzle-orm";
 import { costLedger } from "../../../drizzle/schema";
+
+/**
+ * 對手科目（counter-account）：成本消耗的平衡貸方。每筆 member debit 的對手是
+ * 一筆 expense:ai-cost credit，使全域 SUM(credit)-SUM(debit) 恆為 0（不變式＝
+ * 對帳完整性檢查）。正式科目表待 Bruce 拍板，先以此固定字串作基準對手科目。
+ */
+export const EXPENSE_AI_COST_ACCOUNT = "expense:ai-cost";
+
+/**
+ * 把任意長度的組合字串雜湊成有界長度的 idempotencyKey（sha256 hex=64 字元），
+ * 永遠安全落入 varchar(191)，避免使用者/endpoint 可控長度無界流入唯一鍵造成
+ * MySQL 靜默截斷（非嚴格模式撞鍵丟帳）或報錯。前綴 prefix 便於人眼辨識來源。
+ */
+export function hashIdempotencyKey(prefix: string, composite: string): string {
+  const digest = createHash("sha256").update(composite).digest("hex");
+  return `${prefix}:${digest}`;
+}
 
 /** 帳戶鍵維度（科目維度）。雙分錄正式科目定義待 Bruce 拍板，先存自由字串鍵。 */
 export type LedgerAccountType = "project" | "member" | "workflow";
@@ -81,10 +107,11 @@ export function makeAccountKey(type: LedgerAccountType, id: string | number): st
   return `${type}:${String(id).trim()}`;
 }
 
-/** 最小 drizzle 介面：只用到 insert / select。用結構型別避免綁死 mysql2 具體型別。 */
+/** 最小 drizzle 介面：只用到 insert / select。用結構型別避免綁死 mysql2 具體型別。
+ *  values 接受單列或多列（複式分錄的借＋貸成對同批寫入時傳陣列）。 */
 export interface LedgerDb {
   insert: (table: typeof costLedger) => {
-    values: (v: InsertLedgerInput) => Promise<unknown>;
+    values: (v: InsertLedgerInput | InsertLedgerInput[]) => Promise<unknown>;
   };
   select: (cols?: unknown) => {
     from: (table: typeof costLedger) => {
@@ -201,6 +228,156 @@ export async function holdEntry(
   return postEntry(db, { ...input, status: "pending" });
 }
 
+// ─── 複式分錄：成對借＋貸（postTransaction）────────────────────────────────────
+
+/** postTransaction 的輸入：一筆交易＝從 fromAccount 借出、貸入 toAccount，金額相等。 */
+export interface PostTransactionInput {
+  /** 借方科目（debit）—— 例如 member:<userId>（成本歸屬到誰）。 */
+  fromAccount: string;
+  /** 貸方科目（credit）—— 例如 expense:ai-cost（對手科目）。 */
+  toAccount: string;
+  /** 金額（會被 normalizeAmount clamp 成合法 DECIMAL(12,6) ≥ 0）。 */
+  amount: number | string;
+  /** 交易冪等基準鍵 —— 借/貸兩腳由此衍生出各自的 idempotencyKey。 */
+  idempotencyKey: string;
+  status?: LedgerStatus;
+  refType?: string | null;
+  refId?: string | null;
+}
+
+export interface PostTransactionResult {
+  /** "inserted"＝借＋貸成對入帳；"duplicate"＝此交易已入帳（冪等）；
+   *  "skipped"＝無 db；"invalid"＝金額正規化後為 0、未入帳。 */
+  outcome: "inserted" | "duplicate" | "skipped" | "invalid";
+}
+
+/**
+ * 寫一筆【平衡的複式分錄】：debit fromAccount + credit toAccount，金額相等、共用
+ * 衍生 transactionId、同批 insert（單一 .values([...]) 呼叫＝同一 SQL，原子）。
+ *
+ * 這是 ledger 之所以是「帳本」的核心：每筆交易借貸成對，故全域
+ * SUM(credit)-SUM(debit) 恆 ==0，assertGlobalBalanced 可據此做完整性檢查。
+ *
+ * 冪等：兩腳各自帶 `${idempotencyKey}:debit` / `${idempotencyKey}:credit` 唯一鍵；
+ * 重複呼叫整批 insert 撞 UNIQUE → 回 duplicate（不重複入帳）。先查快路徑避免多數
+ * 重複的 insert 嘗試。無 db → skipped；金額為 0 → invalid（不入帳）。永不 throw 自身
+ * 邏輯錯誤以外的東西（DB 非重複鍵錯誤仍上拋，交由呼叫端吞）。
+ */
+export async function postTransaction(
+  db: LedgerDb | null | undefined,
+  input: PostTransactionInput
+): Promise<PostTransactionResult> {
+  if (!db) return { outcome: "skipped" };
+
+  const amount = normalizeAmount(input.amount);
+  if (amount === "0") return { outcome: "invalid" };
+
+  const status: LedgerStatus = input.status ?? "posted";
+  const debitKey = `${input.idempotencyKey}:debit`;
+  const creditKey = `${input.idempotencyKey}:credit`;
+
+  // 快路徑：debit 腳已存在＝此交易已入帳。
+  try {
+    const existing = await db
+      .select({ id: sql`1` })
+      .from(costLedger)
+      .where(eq(costLedger.idempotencyKey, debitKey));
+    if (Array.isArray(existing) && existing.length > 0) {
+      return { outcome: "duplicate" };
+    }
+  } catch {
+    // 查詢失敗不致命 —— 交給 UNIQUE 約束兜底。
+  }
+
+  const refType = input.refType ?? null;
+  const refId = input.refId ?? null;
+  try {
+    await db.insert(costLedger).values([
+      {
+        accountKey: input.fromAccount,
+        entryType: "debit",
+        amount,
+        status,
+        idempotencyKey: debitKey,
+        refType,
+        refId,
+      },
+      {
+        accountKey: input.toAccount,
+        entryType: "credit",
+        amount,
+        status,
+        idempotencyKey: creditKey,
+        refType,
+        refId,
+      },
+    ]);
+    return { outcome: "inserted" };
+  } catch (err) {
+    if (isDuplicateKeyError(err)) return { outcome: "duplicate" };
+    throw err;
+  }
+}
+
+// ─── hold 生命週期轉態（append-only 補償列）──────────────────────────────────
+
+/**
+ * postHold：把一筆 pending hold 結算為 posted。因表 append-only，【不 UPDATE pending
+ * 列】，而是 append 一筆 posted 列（正式入帳）。idempotencyKey 由 hold 的 key 衍生
+ * （`${holdKey}:posted`）確保冪等。原 pending 列保留為歷史軌跡（computeBalance 只計
+ * posted，故 pending 自然不計、posted 開始計入）。
+ *
+ * @param holdKey 原 holdEntry 用的 idempotencyKey
+ */
+export async function postHold(
+  db: LedgerDb | null | undefined,
+  input: {
+    accountKey: string;
+    entryType: LedgerEntryType;
+    amount: number | string;
+    holdKey: string;
+    refType?: string | null;
+    refId?: string | null;
+  }
+): Promise<PostEntryResult> {
+  return postEntry(db, {
+    accountKey: input.accountKey,
+    entryType: input.entryType,
+    amount: input.amount,
+    idempotencyKey: `${input.holdKey}:posted`,
+    status: "posted",
+    refType: input.refType ?? null,
+    refId: input.refId ?? null,
+  });
+}
+
+/**
+ * archiveHold：把一筆 pending hold 作廢。因表 append-only，append 一筆 archived 列
+ * 標記取消（idempotencyKey `${holdKey}:archived`）。archived 不計入餘額，故等效於
+ * 釋放預留額度。原 pending 列保留為歷史。
+ */
+export async function archiveHold(
+  db: LedgerDb | null | undefined,
+  input: {
+    accountKey: string;
+    entryType: LedgerEntryType;
+    amount: number | string;
+    holdKey: string;
+    refType?: string | null;
+    refId?: string | null;
+  }
+): Promise<PostEntryResult> {
+  return postEntry(db, {
+    accountKey: input.accountKey,
+    entryType: input.entryType,
+    amount: input.amount,
+    idempotencyKey: `${input.holdKey}:archived`,
+    status: "archived",
+    refType: input.refType ?? null,
+    refId: input.refId ?? null,
+  });
+}
+
 /**
  * 餘額由 log 加總算出（不就地改任何欄位）。
  * 約定：只計 status=posted；balance = SUM(credit.amount) - SUM(debit.amount)。
@@ -249,4 +426,46 @@ export function summarizeBalance(
   }
   // 以 6 位小數收斂浮點誤差。
   return Number((credit - debit).toFixed(SCALE));
+}
+
+// ─── 複式分錄完整性不變式：全域 SUM(credit)-SUM(debit) == 0 ────────────────────
+
+/**
+ * 純函式：對【全部 posted 列、不分帳戶】加總，回 SUM(credit)-SUM(debit)。
+ * 複式分錄下每筆交易借貸成對、金額相等，故此全域和應恆 ==0；非 0 即帳本破損
+ * （遺漏單腳/手動單腳寫入），本身就是一個對帳完整性檢查。
+ */
+export function summarizeGlobalBalance(
+  rows: Array<{ entryType: LedgerEntryType; amount: string | number }>
+): number {
+  return summarizeBalance(rows);
+}
+
+/**
+ * 對帳完整性檢查：讀所有 posted 列，驗證 SUM(credit)-SUM(debit) ≈ 0。
+ * 回 { balanced, delta }。無 db → 回 balanced（demo/無 DB 安全），永不 throw。
+ * 注意：本檢查只在「全部交易皆以 postTransaction 成對寫入」時為真；若仍有歷史
+ * 單腳 postEntry（基礎版接線升級前），delta 會反映尚未配對的單腳，屬已知預期。
+ */
+export async function assertGlobalBalanced(
+  db: LedgerDb | null | undefined,
+  epsilon = 1e-6
+): Promise<{ balanced: boolean; delta: number }> {
+  if (!db) return { balanced: true, delta: 0 };
+  try {
+    const rows = (await db
+      .select({
+        entryType: costLedger.entryType,
+        amount: costLedger.amount,
+      })
+      .from(costLedger)
+      .where(eq(costLedger.status, "posted"))) as Array<{
+      entryType: LedgerEntryType;
+      amount: string;
+    }>;
+    const delta = summarizeGlobalBalance(rows);
+    return { balanced: Math.abs(delta) <= epsilon, delta };
+  } catch {
+    return { balanced: true, delta: 0 };
+  }
 }

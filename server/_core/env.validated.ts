@@ -497,11 +497,25 @@ const multimodalSchema = z.object({
   // 此旗標影響，空表回空陣列，先跑 migration 後開旗標是安全順序。
   ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("false"),
 
-  // ── 成本帳本（AIDV-153 cost_ledger append-only 雙分錄, migration 0076）────
-  // 寫入開關：ON 時在現有落帳點（aiProxy usage event）「額外」寫一筆 ledger
-  // 帳目，並行於 cost_aggregations、不取代、不改既有餘額/聚合寫法。預設 OFF —
-  // OFF＝完全不寫 cost_ledger、現有成本流程位元相同（零行為變化）。先跑 migration
-  // 0076 後開旗標是安全順序（空表時對帳 job 回 drift=0、讀取無副作用）。
+  // ── 成本帳本（AIDV-153 cost_ledger append-only 複式分錄, migration 0076）────
+  // 寫入開關：ON 時在現有落帳點（aiProxy usage event）「額外」寫一筆【平衡的複式
+  // 分錄】（debit member:<id> / credit expense:ai-cost），並行於 cost_aggregations、
+  // 不取代、不改既有餘額/聚合寫法。預設 OFF — OFF＝完全不寫 cost_ledger、現有成本
+  // 流程位元相同（零行為變化）。先跑 migration 0076 後開旗標是安全順序。
+  //
+  // 首次啟用的對帳基準差（誠實揭露）：cost_aggregations 由 providerSnapshotJob 對
+  // 「歷來所有 aiUsageEvents」SUM（無啟用時間界），而 cost_ledger 自旗標啟用當下才
+  // 累積、且無 backfill。對帳 job 已用「ledger 最早寫入日」把 aggregations 限縮到
+  // 同一日期窗比較以消除此結構性差；若要更嚴謹的歷史對齊，需另補 backfill。
+  //
+  // OPEN DECISIONS（待 Bruce 拍板，本基礎版尚未實作）：
+  //   1) 切權威時機：ledger 何時取代 users.remainingGenerations 成為「餘額真相」。
+  //      需先補 hold/credit 全流程接線與一致性保證後才能切（目前 ledger 僅為旁觀
+  //      帳本，不參與實際扣點/授權）。
+  //   2) 退款接線：refundUserPoints（server/db.ts）目前【未接 ledger】，production
+  //      不會寫出任何 credit 列（holdEntry/postTransaction credit/computeBalance 已
+  //      有碼有測但生產零接線）。接線前需先定義單位換算：ledger 記 USD、
+  //      remainingGenerations 記點數，單位不同，須先定換算或拆兩本帳。
   ENABLE_COST_LEDGER: z.string().optional().default("false"),
 
   // ── 姿勢估測 ─────────────────────────────────────────────

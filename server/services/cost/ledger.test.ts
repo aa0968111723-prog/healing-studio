@@ -12,9 +12,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   postEntry,
+  postTransaction,
   holdEntry,
+  postHold,
+  archiveHold,
   computeBalance,
   summarizeBalance,
+  assertGlobalBalanced,
+  hashIdempotencyKey,
+  EXPENSE_AI_COST_ACCOUNT,
   normalizeAmount,
   makeAccountKey,
   isCostLedgerEnabled,
@@ -57,17 +63,24 @@ function makeFakeDb(opts?: { failSelect?: boolean }) {
     },
     insert() {
       return {
-        async values(v: FakeRow) {
-          if (rows.some(r => r.idempotencyKey === v.idempotencyKey)) {
-            const err = new Error("Duplicate entry") as Error & {
-              code: string;
-              errno: number;
-            };
-            err.code = "ER_DUP_ENTRY";
-            err.errno = 1062;
-            throw err;
+        async values(v: FakeRow | FakeRow[]) {
+          // 支援單列或多列（複式分錄成對寫入）。整批 atomic：任一腳撞鍵則整批 throw。
+          const batch = Array.isArray(v) ? v : [v];
+          for (const row of batch) {
+            if (
+              rows.some(r => r.idempotencyKey === row.idempotencyKey) ||
+              batch.filter(b => b.idempotencyKey === row.idempotencyKey).length > 1
+            ) {
+              const err = new Error("Duplicate entry") as Error & {
+                code: string;
+                errno: number;
+              };
+              err.code = "ER_DUP_ENTRY";
+              err.errno = 1062;
+              throw err;
+            }
           }
-          rows.push({ ...v });
+          for (const row of batch) rows.push({ ...row });
           return undefined;
         },
       };
@@ -269,5 +282,190 @@ describe("hold 生命週期", () => {
     });
     expect(r.outcome).toBe("inserted");
     expect(db._rows[0].status).toBe("pending");
+  });
+
+  it("pending → posted（postHold append posted 列，pending 保留為歷史；餘額前後反映）", async () => {
+    const db = makeFakeDb();
+    const acct = "member:hold-flow";
+    // 起點：pending hold（不計入餘額）。
+    db._setSelectFilter(r => r.idempotencyKey === "hk-1");
+    await holdEntry(db, {
+      accountKey: acct,
+      entryType: "debit",
+      amount: 5,
+      idempotencyKey: "hk-1",
+    });
+    // 結算前 balance（只計 posted）＝0。
+    db._setSelectFilter(r => r.accountKey === acct && r.status === "posted");
+    expect(await computeBalance(db, acct)).toBe(0);
+
+    // postHold：append posted 列（idempotencyKey 衍生為 hk-1:posted）。
+    db._setSelectFilter(r => r.idempotencyKey === "hk-1:posted");
+    const posted = await postHold(db, {
+      accountKey: acct,
+      entryType: "debit",
+      amount: 5,
+      holdKey: "hk-1",
+    });
+    expect(posted.outcome).toBe("inserted");
+
+    // pending 列仍在（append-only，未被 UPDATE）。
+    expect(db._rows.filter(r => r.status === "pending")).toHaveLength(1);
+    // 結算後 balance＝ -5（debit posted）。
+    db._setSelectFilter(r => r.accountKey === acct && r.status === "posted");
+    expect(await computeBalance(db, acct)).toBe(-5);
+  });
+
+  it("pending → archived（archiveHold append archived 列，不計入餘額）", async () => {
+    const db = makeFakeDb();
+    const acct = "member:hold-cancel";
+    db._setSelectFilter(r => r.idempotencyKey === "hk-2");
+    await holdEntry(db, {
+      accountKey: acct,
+      entryType: "debit",
+      amount: 8,
+      idempotencyKey: "hk-2",
+    });
+    db._setSelectFilter(r => r.idempotencyKey === "hk-2:archived");
+    const archived = await archiveHold(db, {
+      accountKey: acct,
+      entryType: "debit",
+      amount: 8,
+      holdKey: "hk-2",
+    });
+    expect(archived.outcome).toBe("inserted");
+    // archived 不計入 posted 餘額 → 仍 0（額度等效釋放）。
+    db._setSelectFilter(r => r.accountKey === acct && r.status === "posted");
+    expect(await computeBalance(db, acct)).toBe(0);
+    expect(db._rows.filter(r => r.status === "archived")).toHaveLength(1);
+  });
+});
+
+// ─── postTransaction：複式分錄成對借＋貸 ─────────────────────────────────────
+
+describe("postTransaction — 平衡的複式分錄（debit from + credit to）", () => {
+  it("寫成對 debit/credit，金額相等、全域 SUM(credit)-SUM(debit)==0", async () => {
+    const db = makeFakeDb();
+    db._setSelectFilter(r => r.idempotencyKey === "tx-1:debit");
+    const r = await postTransaction(db, {
+      fromAccount: "member:1",
+      toAccount: EXPENSE_AI_COST_ACCOUNT,
+      amount: 0.0024,
+      idempotencyKey: "tx-1",
+    });
+    expect(r.outcome).toBe("inserted");
+    expect(db._rows).toHaveLength(2);
+    const debit = db._rows.find(x => x.entryType === "debit")!;
+    const credit = db._rows.find(x => x.entryType === "credit")!;
+    expect(debit.accountKey).toBe("member:1");
+    expect(credit.accountKey).toBe(EXPENSE_AI_COST_ACCOUNT);
+    expect(debit.amount).toBe(credit.amount);
+
+    // 全域不變式：所有 posted 的 SUM(credit) - SUM(debit) == 0。
+    db._setSelectFilter(r => r.status === "posted");
+    const { balanced, delta } = await assertGlobalBalanced(db);
+    expect(balanced).toBe(true);
+    expect(delta).toBe(0);
+  });
+
+  it("同 idempotencyKey 第二次 → duplicate，不重複入帳（仍只 2 列）", async () => {
+    const db = makeFakeDb();
+    db._setSelectFilter(r => r.idempotencyKey === "tx-dup:debit");
+    const input = {
+      fromAccount: "member:1",
+      toAccount: EXPENSE_AI_COST_ACCOUNT,
+      amount: 1,
+      idempotencyKey: "tx-dup",
+    };
+    expect((await postTransaction(db, input)).outcome).toBe("inserted");
+    expect((await postTransaction(db, input)).outcome).toBe("duplicate");
+    expect(db._rows).toHaveLength(2);
+  });
+
+  it("金額 0 → invalid（不入帳）；無 db → skipped", async () => {
+    const db = makeFakeDb();
+    const inv = await postTransaction(db, {
+      fromAccount: "member:1",
+      toAccount: EXPENSE_AI_COST_ACCOUNT,
+      amount: 0,
+      idempotencyKey: "tx-zero",
+    });
+    expect(inv.outcome).toBe("invalid");
+    expect(db._rows).toHaveLength(0);
+    expect(
+      (
+        await postTransaction(null, {
+          fromAccount: "member:1",
+          toAccount: EXPENSE_AI_COST_ACCOUNT,
+          amount: 1,
+          idempotencyKey: "tx-skip",
+        })
+      ).outcome
+    ).toBe("skipped");
+  });
+
+  it(">191 字元 endpoint：用 hashIdempotencyKey 後兩個不同事件都成功入帳（不撞鍵丟帳）", async () => {
+    const db = makeFakeDb();
+    const longEndpoint = "fal-ai/" + "x".repeat(500); // 遠超 varchar(191)
+    // 接線端應改用穩定事件鍵；此處驗證若必須含 endpoint，hash 後長度有界且唯一。
+    const key1 = hashIdempotencyKey("aue", `${longEndpoint}:event-1`);
+    const key2 = hashIdempotencyKey("aue", `${longEndpoint}:event-2`);
+    expect(key1.length).toBeLessThanOrEqual(191);
+    expect(key2.length).toBeLessThanOrEqual(191);
+    expect(key1).not.toBe(key2);
+
+    db._setSelectFilter(r => r.idempotencyKey === `${key1}:debit`);
+    expect((await postTransaction(db, {
+      fromAccount: "member:anon",
+      toAccount: EXPENSE_AI_COST_ACCOUNT,
+      amount: 0.01,
+      idempotencyKey: key1,
+    })).outcome).toBe("inserted");
+
+    db._setSelectFilter(r => r.idempotencyKey === `${key2}:debit`);
+    expect((await postTransaction(db, {
+      fromAccount: "member:anon",
+      toAccount: EXPENSE_AI_COST_ACCOUNT,
+      amount: 0.01,
+      idempotencyKey: key2,
+    })).outcome).toBe("inserted");
+
+    // 兩個不同事件都落帳（各 2 列）＝沒有靜默丟帳。
+    expect(db._rows).toHaveLength(4);
+  });
+});
+
+describe("assertGlobalBalanced — 完整性不變式", () => {
+  it("成對交易 → balanced=true；混入單腳 postEntry → 偵測 delta≠0", async () => {
+    const db = makeFakeDb();
+    db._setSelectFilter(r => r.idempotencyKey === "bal-1:debit");
+    await postTransaction(db, {
+      fromAccount: "member:1",
+      toAccount: EXPENSE_AI_COST_ACCOUNT,
+      amount: 10,
+      idempotencyKey: "bal-1",
+    });
+    db._setSelectFilter(r => r.status === "posted");
+    expect((await assertGlobalBalanced(db)).balanced).toBe(true);
+
+    // 故意寫一個未配對的單腳 debit → 破壞平衡。
+    db._setSelectFilter(r => r.idempotencyKey === "orphan");
+    await postEntry(db, {
+      accountKey: "member:2",
+      entryType: "debit",
+      amount: 3,
+      idempotencyKey: "orphan",
+    });
+    db._setSelectFilter(r => r.status === "posted");
+    const after = await assertGlobalBalanced(db);
+    expect(after.balanced).toBe(false);
+    expect(after.delta).toBe(-3); // credit(10) - debit(10+3)
+  });
+
+  it("無 db → balanced=true（demo/無 DB 安全）", async () => {
+    expect(await assertGlobalBalanced(null)).toEqual({
+      balanced: true,
+      delta: 0,
+    });
   });
 });

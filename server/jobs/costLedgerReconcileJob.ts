@@ -35,11 +35,20 @@ const DRIFT_EPSILON_USD = 0.000001;
 const driftDedup = new Map<string, number>();
 const DEDUP_INTERVAL_MS = 60 * 60 * 1000;
 
-function shouldAlert(key: string): boolean {
+/**
+ * 告警去重：同一 key 在 DEDUP_INTERVAL_MS（1h）內最多觸發一次。匯出供測試驗證
+ * 「1 小時內第二次不重複告警」。
+ */
+export function shouldAlert(key: string): boolean {
   const last = driftDedup.get(key);
   if (last && Date.now() - last < DEDUP_INTERVAL_MS) return false;
   driftDedup.set(key, Date.now());
   return true;
+}
+
+/** 測試輔助：清空去重狀態（讓各測試彼此獨立）。 */
+export function _resetAlertDedup(): void {
+  driftDedup.clear();
 }
 
 async function sendSlackAlert(message: string): Promise<void> {
@@ -71,15 +80,49 @@ export function computeDrift(
 }
 
 /**
- * 跑一次對帳。基礎版只偵測 + log drift，不修任何資料。
- * 回傳結果物件方便測試（無 db / 旗標 OFF 時回 skipped）。
+ * 對帳結果型別（runReconcile 與可注入薄殼 reconcileWith 共用）。
  */
-export async function runReconcile(): Promise<{
+export type ReconcileResult = {
   status: "ok" | "drift" | "skipped";
   ledgerSum?: number;
   aggregationsSum?: number;
   drift?: number;
-}> {
+};
+
+/**
+ * 可注入、可單測的對帳薄殼：給定已取好的兩個 SUM（ledger posted debit 與
+ * aggregations 同窗總額），算 drift、決定 status、去重後告警。把「取數的 SQL」與
+ * 「比對/告警邏輯」分離，使 drift 偵測路徑可用 fake 數值完整覆蓋（不需真 DB）。
+ *
+ * 預期 drift 來源（已知、非異常）——本薄殼只在【同一時間窗】比較以消除其中之一：
+ *   (a) 啟用前歷史：aggregations SUM 全時段、ledger 僅旗標啟用後才有列。runReconcile
+ *       會把 aggregations 也限縮到 ledger 已寫入的日期窗（見下），消除此結構性差。
+ *   (b) normalizeAmount 邊界：ledger 對 costUsd==0 不入帳、>DECIMAL 上限 clamp。
+ *       零成本不動 SUM；clamp 僅極端值，屬已知有界差，記在告警訊息供人判讀。
+ */
+export function reconcileWith(
+  ledgerSum: number,
+  aggregationsSum: number
+): { result: ReconcileResult; alert: string | null } {
+  const { drift, hasDrift } = computeDrift(ledgerSum, aggregationsSum);
+  if (hasDrift) {
+    const msg = `drift 偵測：ledger(posted debit)=${ledgerSum.toFixed(6)} vs aggregations(同窗)=${aggregationsSum.toFixed(6)}，差額=${drift.toFixed(6)} USD（基礎版只偵測不自動修；已知有界差：clamp/零成本邊界；修復策略待拍板）`;
+    return {
+      result: { status: "drift", ledgerSum, aggregationsSum, drift },
+      alert: msg,
+    };
+  }
+  return {
+    result: { status: "ok", ledgerSum, aggregationsSum, drift },
+    alert: null,
+  };
+}
+
+/**
+ * 跑一次對帳。基礎版只偵測 + log drift，不修任何資料。
+ * 回傳結果物件方便測試（無 db / 旗標 OFF 時回 skipped）。
+ */
+export async function runReconcile(): Promise<ReconcileResult> {
   if (isRunning) return { status: "skipped" };
   isRunning = true;
   try {
@@ -92,10 +135,13 @@ export async function runReconcile(): Promise<{
       return { status: "skipped" };
     }
 
-    // (A) cost_ledger：posted debit 總額。
+    // (A) cost_ledger：posted debit 總額（＋ ledger 已寫入的最早日期，作為對帳窗起點）。
     const ledgerRows = await db
       .select({
         total: sql<number>`COALESCE(SUM(${costLedger.amount}), 0)`,
+        // ledger 最早一筆的日期（無列時為 NULL）。用來把 aggregations 限縮到同一窗，
+        // 消除「啟用前歷史」結構性 drift（aggregations 全時段 vs ledger 僅啟用後）。
+        sinceDate: sql<string | null>`DATE(MIN(${costLedger.createdAt}))`,
       })
       .from(costLedger)
       .where(
@@ -105,28 +151,38 @@ export async function runReconcile(): Promise<{
         )
       );
     const ledgerSum = Number(ledgerRows[0]?.total ?? 0);
+    const sinceDate = ledgerRows[0]?.sinceDate ?? null;
 
-    // (B) cost_aggregations：totalCostUsd 總額。
+    // ledger 尚無任何 posted debit（剛啟用、還沒落帳）→ 無對帳對象，視為一致 skip，
+    // 避免拿「ledger=0 vs aggregations=全歷史」狂刷負 drift（首次啟用結構性假 drift）。
+    if (!sinceDate) {
+      console.log(
+        "[CostLedgerReconcile] ledger 尚無 posted debit（啟用後尚未落帳），skip"
+      );
+      return { status: "skipped" };
+    }
+
+    // (B) cost_aggregations：totalCostUsd 總額——【限縮到 ledger 已啟用的日期窗】
+    // （date >= ledger 最早日），與 ledger 同窗比較才是 apples-to-apples。
     const aggRows = await db
       .select({
         total: sql<number>`COALESCE(SUM(${costAggregations.totalCostUsd}), 0)`,
       })
-      .from(costAggregations);
+      .from(costAggregations)
+      .where(sql`${costAggregations.date} >= ${sinceDate}`);
     const aggregationsSum = Number(aggRows[0]?.total ?? 0);
 
-    const { drift, hasDrift } = computeDrift(ledgerSum, aggregationsSum);
+    const { result, alert } = reconcileWith(ledgerSum, aggregationsSum);
 
-    if (hasDrift) {
-      const msg = `drift 偵測：ledger(posted debit)=${ledgerSum.toFixed(6)} vs aggregations=${aggregationsSum.toFixed(6)}，差額=${drift.toFixed(6)} USD（基礎版只偵測不自動修；修復策略待拍板）`;
-      console.warn(`[CostLedgerReconcile] ${msg}`);
-      if (shouldAlert("ledger-vs-aggregations")) await sendSlackAlert(msg);
-      return { status: "drift", ledgerSum, aggregationsSum, drift };
+    if (alert) {
+      console.warn(`[CostLedgerReconcile] ${alert}`);
+      if (shouldAlert("ledger-vs-aggregations")) await sendSlackAlert(alert);
+    } else {
+      console.log(
+        `[CostLedgerReconcile] OK — ledger=${ledgerSum.toFixed(6)} aggregations(同窗)=${aggregationsSum.toFixed(6)}（一致）`
+      );
     }
-
-    console.log(
-      `[CostLedgerReconcile] OK — ledger=${ledgerSum.toFixed(6)} aggregations=${aggregationsSum.toFixed(6)}（一致）`
-    );
-    return { status: "ok", ledgerSum, aggregationsSum, drift };
+    return result;
   } catch (err) {
     console.error("[CostLedgerReconcile] Reconcile error:", err);
     return { status: "skipped" };
