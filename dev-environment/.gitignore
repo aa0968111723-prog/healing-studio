@@ -1,0 +1,13 @@
+# dev-environment 本機產物：絕不入庫
+# 所有 log（setup / dev server / tsc / vitest / db push 等）
+*.log
+*.txt
+
+# 個人自動化腳本（硬寫本機 D:/C: 路徑、非通用）
+auto-setup-watcher.ps1
+start-dev.ps1
+dev-shell.ps1
+dev-shell.cmd
+
+# setup 可能在此產生的本機 .env（範本是 .env.dev.example，已入庫）
+.env

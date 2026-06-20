@@ -1,0 +1,58 @@
+# =============================================================================
+# AIDV / healing-studio — 本機開發用基礎服務
+# 用途：一鍵起 dev 需要的資料庫與佇列
+#   - mysql  : 主庫（必需；boot 時 runMigrations 會套 drizzle/*.sql）
+#   - redis  : Wave 2/3 先備（AIDV-13 BullMQ 任務耐久化、AIDV-20 生成鎖）
+#              ⚠ 現行 main 程式碼「尚未」使用 Redis（grep ioredis/bullmq = 0），
+#              先起好是為了接 AIDV-13 時零摩擦；不想跑可註解掉。
+# 啟動：  docker compose up -d
+# 連線：  mysql://hs:hs_dev_pw@127.0.0.1:3306/healing_studio
+#         redis://127.0.0.1:6379
+# 停止：  docker compose down        （保留資料）
+# 清空：  docker compose down -v      （連資料一起刪）
+# =============================================================================
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: aidv-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_dev_pw
+      MYSQL_DATABASE: healing_studio
+      MYSQL_USER: hs
+      MYSQL_PASSWORD: hs_dev_pw
+    # utf8mb4：與 schema 慣例一致（避免中文/emoji 截斷）
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # 注意：--default-authentication-plugin 在 MySQL 8.4 已移除（會導致 mysqld abort）。
+      # 8.4 預設即 caching_sha2_password，毋需指定。
+    ports:
+      - "3306:3306"
+    volumes:
+      - aidv_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uhs", "-phs_dev_pw"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: aidv-redis
+    restart: unless-stopped
+    # BullMQ 要求 noeviction（任務鍵不能被淘汰）
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - aidv_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  aidv_mysql_data:
+  aidv_redis_data:
