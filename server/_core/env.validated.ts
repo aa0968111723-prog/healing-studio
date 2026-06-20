@@ -325,6 +325,14 @@ const coreSchema = z.object({
   REDIS_URL: z.string().optional().default(""),
   REDIS_KEY_PREFIX: z.string().optional().default("healing-studio:"),
 
+  // ── 生成防重複提交鎖（AIDV-20）────────────────────────────
+  // ENABLE_GENERATION_LOCK：預設 ON（"" / 任何非 "false"/"0" 皆視為開啟）。
+  // 這是「防同一使用者把同一個生成請求重複併發提交」的便利鎖，不是安全控制。
+  // fail-open：鎖後端（目前記憶體版，沒接 Redis）不可用 / 逾時 / 出錯時一律放行
+  // 生成、只記 warning——絕不能因為鎖有問題讓使用者無法生成。設 "false" 完全停用
+  // （行為等同永遠放行）。詳見 server/_core/generationLock.ts。
+  ENABLE_GENERATION_LOCK: z.string().optional().default("true"),
+
   // ── 健康巡檢警報（沒設則靜默跳過）────────────────────────
   DISCORD_WEBHOOK_URL: z.string().optional().default(""),
 
