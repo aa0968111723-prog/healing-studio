@@ -8,7 +8,7 @@ import compression from "compression";
 import helmet from "helmet";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
-import { assertJwtSecretReady } from "./googleAuth";
+import { assertJwtSecretReady, authenticateRequest } from "./googleAuth";
 import { googleAuthRouter } from "../routes/googleAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -572,8 +572,26 @@ async function startServer() {
 
   // ── Performance metrics endpoint ─────────────────────────────────────────
   // Returns in-process latency, error rates, cache stats, and feature flags.
-  // Restricted to internal/admin use — not rate-limited by the API limiter.
-  app.get("/api/metrics", (_req, res) => {
+  // AIDV-58 (H3): admin-only. 原本零 auth → 對外洩漏延遲/錯誤率/feature flags。
+  // 改為需登入且 role === "admin"（authenticateRequest 從 same-origin cookie 取 user、
+  // 失敗回 null；DB 短暫錯誤 → fail-closed）。demo 模式 DEMO_USER.role="user" → 403，
+  // 等於在無 DB 部署關閉此洩漏（app 內無任何 /api/metrics 呼叫者，故零破壞）。
+  // 註：若要給外部監控（UptimeRobot）抓取，改採 token/IP allowlist 由 Bruce 拍板（PR 留言）。
+  app.get("/api/metrics", async (req, res) => {
+    let user: Awaited<ReturnType<typeof authenticateRequest>> = null;
+    try {
+      user = await authenticateRequest(req);
+    } catch {
+      // 認證/查 user 期間的短暫錯誤 → fail-closed，不開放
+    }
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (user.role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     // Refresh database metrics in the collector before responding
     try {
       const manager = getDatabaseManager();
