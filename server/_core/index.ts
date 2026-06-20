@@ -57,6 +57,10 @@ import {
   stopApiUsageAlertCron,
 } from "../jobs/apiUsageAlertJob";
 import {
+  initCostLedgerReconcileCron,
+  stopCostLedgerReconcileCron,
+} from "../jobs/costLedgerReconcileJob";
+import {
   initUserAutoCreditCron,
   stopUserAutoCreditCron,
 } from "../jobs/userAutoCreditJob";
@@ -145,6 +149,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "apiUsageAlertJob",
     start: initApiUsageAlertCron,
     stop: stopApiUsageAlertCron,
+  },
+  {
+    name: "costLedgerReconcileJob",
+    start: initCostLedgerReconcileCron,
+    stop: stopCostLedgerReconcileCron,
   },
   {
     name: "userAutoCreditJob",

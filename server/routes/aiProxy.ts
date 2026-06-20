@@ -19,6 +19,12 @@ import { getAdapter } from "../services/ai-adapters/registry";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { extractUsageCostUsd } from "../services/usageCost";
 import {
+  isCostLedgerEnabled,
+  postEntry,
+  makeAccountKey,
+  type LedgerDb,
+} from "../services/cost/ledger";
+import {
   resolveProviderBaseUrl,
   type FacadeProvider,
 } from "../_core/providerFacade";
@@ -475,6 +481,29 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
           costUsd,
           errorMessage,
         });
+
+        // ── AIDV-153：旗標 ON 時「額外」寫一筆 cost_ledger 帳目（並行於
+        // cost_aggregations，不取代、不改既有任何寫法）。旗標 OFF＝此 if 整段
+        // 不進入＝完全不寫 ledger、現有 usage event insert 位元相同（HARD
+        // SAFETY ①）。idempotencyKey 用 provider+endpoint+user+startMs+latency
+        // 組合鍵（同一次代理請求穩定且唯一），重複入帳被 UNIQUE 擋＝冪等。
+        // 失敗吞錯不影響主流程。
+        if (isCostLedgerEnabled() && status === "success") {
+          try {
+            const idempotencyKey = `aue:${providerKey}:${endpoint}:${userId ?? "anon"}:${startMs}:${latencyMs}`;
+            // 成本記 debit（消耗）；accountKey 以 member 維度（科目定義待拍板）。
+            await postEntry(db as unknown as LedgerDb, {
+              accountKey: makeAccountKey("member", userId ?? "anon"),
+              entryType: "debit",
+              amount: costUsd,
+              idempotencyKey,
+              refType: "ai_usage_event",
+              refId: null,
+            });
+          } catch (ledgerErr) {
+            console.warn("[AI Proxy] cost_ledger write failed:", ledgerErr);
+          }
+        }
       }
     } catch (err) {
       console.warn("[AI Proxy] Failed to log usage event:", err);

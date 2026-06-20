@@ -497,6 +497,13 @@ const multimodalSchema = z.object({
   // 此旗標影響，空表回空陣列，先跑 migration 後開旗標是安全順序。
   ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("false"),
 
+  // ── 成本帳本（AIDV-153 cost_ledger append-only 雙分錄, migration 0076）────
+  // 寫入開關：ON 時在現有落帳點（aiProxy usage event）「額外」寫一筆 ledger
+  // 帳目，並行於 cost_aggregations、不取代、不改既有餘額/聚合寫法。預設 OFF —
+  // OFF＝完全不寫 cost_ledger、現有成本流程位元相同（零行為變化）。先跑 migration
+  // 0076 後開旗標是安全順序（空表時對帳 job 回 drift=0、讀取無副作用）。
+  ENABLE_COST_LEDGER: z.string().optional().default("false"),
+
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
 
