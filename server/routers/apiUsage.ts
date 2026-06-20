@@ -19,10 +19,16 @@ import {
   aiUsageEvents,
   providerSnapshots,
   costAggregations,
+  costLedger,
   rateLimitRules,
   alertConfigs,
   AI_PROVIDERS,
 } from "../../drizzle/schema";
+import {
+  summarizeAttribution,
+  getTwdPerUsd,
+  type LedgerRowForSummary,
+} from "../services/cost/costAttribution";
 import { TRPCError } from "@trpc/server";
 import { serverEnv } from "../_core/env.validated";
 import {
@@ -580,5 +586,53 @@ export const apiUsageRouter = router({
         .where(eq(providerSnapshots.provider, input.provider))
         .orderBy(desc(providerSnapshots.snapshotAt))
         .limit(input.limit);
+    }),
+
+  // ── AIDV-14：成本歸屬彙總（唯讀，以 TWD）───────────────────────────────────
+  // 依 project / member / workflow 維度彙總 cost_ledger 的 posted debit 真實成本，
+  // 以 TWD 呈現（優先用列上凍結的 amountTwd，舊資料 fallback 現算）。dimension 不傳
+  // ＝全部維度。純彙總邏輯在 summarizeAttribution（已單測）。
+  costAttribution: adminProcedure
+    .input(
+      z
+        .object({
+          dimension: z.enum(["project", "member", "workflow"]).optional(),
+          limit: z.number().int().min(1).max(500).default(100),
+        })
+        .optional()
+    )
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const rate = getTwdPerUsd();
+      const rows = (await db
+        .select({
+          accountKey: costLedger.accountKey,
+          entryType: costLedger.entryType,
+          amount: costLedger.amount,
+          amountTwd: costLedger.amountTwd,
+          provider: costLedger.provider,
+          model: costLedger.model,
+        })
+        .from(costLedger)
+        .where(
+          and(
+            eq(costLedger.status, "posted"),
+            eq(costLedger.entryType, "debit")
+          )
+        )) as LedgerRowForSummary[];
+
+      const summary = summarizeAttribution(rows, rate, input?.dimension);
+      const limited = summary.slice(0, input?.limit ?? 100);
+      return {
+        rate,
+        dimension: input?.dimension ?? "all",
+        totalCostTwd: Number(
+          limited.reduce((s, r) => s + r.costTwd, 0).toFixed(4)
+        ),
+        totalCostUsd: Number(
+          limited.reduce((s, r) => s + r.costUsd, 0).toFixed(6)
+        ),
+        rows: limited,
+      };
     }),
 });

@@ -4,10 +4,29 @@ import {
   POINTS_PER_USD,
   formatTwd,
   parseUsdToTwdRate,
+  resolveTwdPerUsd,
   safeSharePct,
   usdToPoints,
   usdToTwd,
 } from "@shared/currency";
+
+describe("resolveTwdPerUsd — AIDV-14 匯率來源優先序", () => {
+  it("TWD_PER_USD 優先（規格名）", () => {
+    expect(resolveTwdPerUsd("32", "31.5")).toBe(32);
+  });
+  it("TWD_PER_USD 未設 → 退回 USD_TO_TWD_RATE", () => {
+    expect(resolveTwdPerUsd("", "30")).toBe(30);
+    expect(resolveTwdPerUsd(undefined, "30")).toBe(30);
+    expect(resolveTwdPerUsd(null, "30")).toBe(30);
+  });
+  it("兩者皆未設 → 退回 default 31.5", () => {
+    expect(resolveTwdPerUsd(undefined, undefined)).toBe(DEFAULT_USD_TO_TWD_RATE);
+  });
+  it("TWD_PER_USD 非法 → 退回 USD_TO_TWD_RATE（再退 default）", () => {
+    expect(resolveTwdPerUsd("0", "33")).toBe(33);
+    expect(resolveTwdPerUsd("99999", "abc")).toBe(DEFAULT_USD_TO_TWD_RATE);
+  });
+});
 
 describe("shared/currency — USD ↔ Points ↔ TWD 換算", () => {
   it("空/壞值都退回 default 匯率", () => {

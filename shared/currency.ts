@@ -36,6 +36,31 @@ export function parseUsdToTwdRate(
   return n;
 }
 
+/**
+ * AIDV-14：解析「實際生效的 TWD/USD 匯率」，含 env 來源優先序。
+ *
+ * 優先序（前者有效就用前者）：
+ *   1. TWD_PER_USD（規格名，AIDV-14 新增）
+ *   2. USD_TO_TWD_RATE（既有；teamCostSummary 等沿用，避免兩套漂移）
+ *   3. DEFAULT_USD_TO_TWD_RATE（fallback 31.5）
+ *
+ * 每一層都經 parseUsdToTwdRate 防呆（1~1000 合法、否則往下退）。pure、無 side-effect，
+ * 由 caller 傳入兩個 env 原值（server 端讀 process.env、不在 shared 直接碰 env，
+ * 避免前端/測試耦合）。架構上保留日後改接即時匯率：只要把 resolved rate 換成即時
+ * 來源即可，落帳/彙總已在當下凍結匯率寫稽核欄位。
+ */
+export function resolveTwdPerUsd(
+  twdPerUsd: string | number | undefined | null,
+  usdToTwdRate: string | number | undefined | null,
+  fallback: number = DEFAULT_USD_TO_TWD_RATE
+): number {
+  // TWD_PER_USD 有合法值就用；否則退回 USD_TO_TWD_RATE；再否則 fallback。
+  if (twdPerUsd !== undefined && twdPerUsd !== null && String(twdPerUsd).trim() !== "") {
+    return parseUsdToTwdRate(twdPerUsd, parseUsdToTwdRate(usdToTwdRate, fallback));
+  }
+  return parseUsdToTwdRate(usdToTwdRate, fallback);
+}
+
 /** USD → 平台積分（四捨五入到整數，因為 DB 的 generationsDeducted 是 int） */
 export function usdToPoints(usd: number): number {
   if (!Number.isFinite(usd) || usd <= 0) return 0;

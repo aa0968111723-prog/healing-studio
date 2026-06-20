@@ -527,6 +527,21 @@ const multimodalSchema = z.object({
   //      remainingGenerations 記點數，單位不同，須先定換算或拆兩本帳。
   ENABLE_COST_LEDGER: z.string().optional().default("false"),
 
+  // ── 內部成本歸屬可視（AIDV-14 cost attribution, migration 0079）────────────
+  // 旗標：ENABLE_COST_ATTRIBUTION。預設 ON（fallback=true）— 與 #940 ledger 旗標
+  // （預設 OFF）不同：本卡是「內部用、不對使用者收費」的觀測能力，預設開啟才能讓
+  // cost_aggregations 立刻有真實 TWD 數字、ledger 帶 project/member/workflow 維度。
+  // demo-safe-skip：getDb()===null（demo/無 DB）時歸屬落帳整段跳過＝線上現況零破壞。
+  // 落帳為生成/用量結果產出後的 best-effort 後置副作用（try/catch 不阻塞請求路徑、
+  // 失敗走 outbox 補），不改既有扣款/餘額、不對使用者收費。
+  ENABLE_COST_ATTRIBUTION: z.string().optional().default("true"),
+
+  // 匯率：USD → TWD。新增 TWD_PER_USD（規格名，預設約 32）。讀取時與既有
+  // USD_TO_TWD_RATE 對齊（見 shared/currency.ts resolveTwdPerUsd）：TWD_PER_USD 優先，
+  // 未設時退回 USD_TO_TWD_RATE，再退回 DEFAULT_USD_TO_TWD_RATE。架構上保留日後接
+  // 即時匯率的空間（落帳/彙總時凍結當下匯率寫入稽核欄位）。
+  TWD_PER_USD: z.string().optional().default(""),
+
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
 

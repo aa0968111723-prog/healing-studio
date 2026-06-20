@@ -26,6 +26,12 @@ import {
   type LedgerDb,
 } from "../services/cost/ledger";
 import {
+  isCostAttributionEnabled,
+  enqueueAttribution,
+  getTwdPerUsd,
+  type OutboxDb,
+} from "../services/cost/costAttribution";
+import {
   resolveProviderBaseUrl,
   type FacadeProvider,
 } from "../_core/providerFacade";
@@ -514,6 +520,42 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
             });
           } catch (ledgerErr) {
             console.warn("[AI Proxy] cost_ledger write failed:", ledgerErr);
+          }
+        }
+
+        // ── AIDV-14：成本歸屬可視（旗標 ENABLE_COST_ATTRIBUTION 預設 ON）─────────
+        // best-effort 後置：只把「落帳意圖」原子寫入 outbox（不在此同步等待 ledger
+        // 寫入），drain job 後續重試→不漏帳。歸屬維度：member 必有；project/workflow
+        // 由可選 header（x-aidv-project-id / x-aidv-workflow-id）帶入——aiProxy 是通用
+        // 轉送門，request body 不含這些 id，故拿不到時誠實留空（只歸 member）。
+        // db==null（demo/無 DB）→ enqueueAttribution 內部回 skipped＝零破壞。
+        if (
+          isCostAttributionEnabled() &&
+          status === "success" &&
+          usageEventId != null
+        ) {
+          try {
+            const projectId =
+              (typeof req.headers["x-aidv-project-id"] === "string" &&
+                req.headers["x-aidv-project-id"]) ||
+              null;
+            const workflowId =
+              (typeof req.headers["x-aidv-workflow-id"] === "string" &&
+                req.headers["x-aidv-workflow-id"]) ||
+              null;
+            await enqueueAttribution(db as unknown as OutboxDb, {
+              costUsd,
+              userId: userId ?? null,
+              projectId,
+              workflowId,
+              provider: providerKey,
+              model: String(inferredModel) || null,
+              idempotencyKey: `aue:${usageEventId}`,
+              refType: "ai_usage_event",
+              refId: String(usageEventId),
+            });
+          } catch (attrErr) {
+            console.warn("[AI Proxy] cost attribution enqueue failed:", attrErr);
           }
         }
       }
