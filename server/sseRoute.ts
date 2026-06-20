@@ -10,6 +10,8 @@
 
 import { Router, Request, Response } from "express";
 import { generationBus, type GenerationEvent } from "./generationEvents";
+import { authenticateRequest } from "./_core/googleAuth";
+import { getBackgroundJob, getFineTunedModel } from "./db";
 
 export const sseRouter = Router();
 
@@ -18,10 +20,24 @@ const SSE_MAX_LIFETIME_MS = 5 * 60 * 1000;
 
 sseRouter.get(
   "/api/generation-events/:jobId",
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const jobId = parseInt(req.params.jobId, 10);
     if (isNaN(jobId)) {
       res.status(400).json({ error: "Invalid jobId" });
+      return;
+    }
+
+    // ── AIDV-58: 在開串流之前驗證登入＋擁有權，修補 IDOR ──
+    // 1) 驗證登入：authenticateRequest 從 same-origin cookie 取 user，失敗回 null（不 throw）。
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    // 2) 擁有權檢查：job 不存在或非本人 → 403（避免洩漏 id 是否存在）。
+    const job = await getBackgroundJob(jobId);
+    if (!job || job.userId !== user.id) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
@@ -92,10 +108,22 @@ sseRouter.get(
 // 與 /api/generation-events/:jobId 結構相同，差別在 channel 是 model-training:*
 sseRouter.get(
   "/api/model-training-events/:modelId",
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const modelId = parseInt(req.params.modelId, 10);
     if (isNaN(modelId)) {
       res.status(400).json({ error: "Invalid modelId" });
+      return;
+    }
+
+    // ── AIDV-58: 在開串流之前驗證登入＋擁有權，修補 IDOR ──
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const model = await getFineTunedModel(modelId);
+    if (!model || model.userId !== user.id) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
