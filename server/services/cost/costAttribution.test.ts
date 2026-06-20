@@ -40,6 +40,7 @@ interface LedgerRow {
   sourceCurrency?: string | null;
   provider?: string | null;
   model?: string | null;
+  costSource?: string | null;
 }
 
 interface OutboxRow {
@@ -432,18 +433,21 @@ describe("summarizeAttribution — 依維度彙總、以 TWD、非 $0", () => {
     { accountKey: "member:1", entryType: "debit", amount: "0.10", amountTwd: "3.2" },
     { accountKey: "member:1", entryType: "debit", amount: "0.05", amountTwd: "1.6" },
     { accountKey: "project:p1", entryType: "debit", amount: "0.10", amountTwd: "3.2" },
-    // credit（退款沖銷）不計入 debit 彙總
+    // credit（退款沖銷）→ 從同維度 debit 扣除算淨額
     { accountKey: "member:1", entryType: "credit", amount: "0.10", amountTwd: "3.2" },
     // 對手科目不是歸屬維度，略過
     { accountKey: "expense:ai-cost", entryType: "debit", amount: "0.10" },
   ];
 
-  it("依 accountKey 維度加總 USD + TWD（真實數字、非 $0）", () => {
+  it("依 accountKey 維度加總 USD + TWD（淨額＝debit − 退款 credit、非 $0）", () => {
     const all = summarizeAttribution(rows, 32);
     const member = all.find(r => r.id === "1" && r.type === "member");
-    expect(member?.costUsd).toBeCloseTo(0.15, 6);
-    expect(member?.costTwd).toBeCloseTo(4.8, 4); // 3.2 + 1.6
+    // 淨額 = (0.10 + 0.05) − 0.10 退款 = 0.05 USD
+    expect(member?.costUsd).toBeCloseTo(0.05, 6);
+    expect(member?.costTwd).toBeCloseTo(1.6, 4); // (3.2 + 1.6) − 3.2
     expect(member?.costTwd).toBeGreaterThan(0); // 修好 $0.00
+    // entries 只計 debit 筆數（2 筆消耗）
+    expect(member?.entries).toBe(2);
     const project = all.find(r => r.type === "project");
     expect(project?.costTwd).toBeCloseTo(3.2, 4);
     // expense:ai-cost 不出現
@@ -462,5 +466,115 @@ describe("summarizeAttribution — 依維度彙總、以 TWD、非 $0", () => {
     ];
     const out = summarizeAttribution(legacy, 32);
     expect(out[0].costTwd).toBeCloseTo(3.2, 4); // 0.10 × 32 現算
+  });
+
+  it("同維度退款 credit 從 debit 扣除算淨額（不再高估毛額）", () => {
+    const withRefund: LedgerRowForSummary[] = [
+      { accountKey: "project:px", entryType: "debit", amount: "0.10", amountTwd: "3.2" },
+      { accountKey: "project:px", entryType: "debit", amount: "0.10", amountTwd: "3.2" },
+      // 退款沖銷一筆
+      { accountKey: "project:px", entryType: "credit", amount: "0.10", amountTwd: "3.2" },
+    ];
+    const out = summarizeAttribution(withRefund, 32, "project");
+    expect(out).toHaveLength(1);
+    // 淨額 = 0.20 − 0.10 = 0.10 USD；3.2 TWD
+    expect(out[0].costUsd).toBeCloseTo(0.1, 6);
+    expect(out[0].costTwd).toBeCloseTo(3.2, 4);
+    // entries 只計 debit 筆數
+    expect(out[0].entries).toBe(2);
+  });
+
+  it("退款 ≥ 消耗 → 淨額 clamp 至 0、不出現負成本污染前台", () => {
+    const overRefund: LedgerRowForSummary[] = [
+      { accountKey: "member:9", entryType: "debit", amount: "0.10", amountTwd: "3.2" },
+      { accountKey: "member:9", entryType: "credit", amount: "0.10", amountTwd: "3.2" },
+      { accountKey: "member:9", entryType: "credit", amount: "0.05", amountTwd: "1.6" },
+    ];
+    const out = summarizeAttribution(overRefund, 32);
+    const member = out.find(r => r.id === "9");
+    // 有消耗事件（entries=1）故列仍在，但淨額 clamp 至 0（不出現負數）
+    expect(member?.entries).toBe(1);
+    expect(member?.costUsd).toBe(0);
+    expect(member?.costTwd).toBe(0);
+    // 永不負數
+    expect(member?.costUsd).toBeGreaterThanOrEqual(0);
+    expect(member?.costTwd).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─── 匯率凍結（成本發生當下，非 drain 當下）──────────────────────────────────
+
+describe("匯率凍結 — enqueue 當下凍進 payload，drain 重放用之", () => {
+  it("enqueueAttribution 把當下 rate 寫進 payload.frozenRate", async () => {
+    const db = makeFakeDb();
+    await enqueueAttribution(
+      db,
+      { costUsd: "0.10", userId: 1, idempotencyKey: "aue:rate1" },
+      32
+    );
+    expect(db._outbox[0].payloadJson.frozenRate).toBe(32);
+  });
+
+  it("drain 用 payload 凍結匯率，而非 drain 當下傳入的 rate", async () => {
+    const db = makeFakeDb();
+    // 成本發生當下匯率 = 30，凍進 payload。
+    await enqueueAttribution(
+      db,
+      { costUsd: "0.10", userId: 1, idempotencyKey: "aue:rate2" },
+      30
+    );
+    (db as unknown as { _updId?: number })._updId = db._outbox[0].id;
+    // drain 當下 admin 改了匯率到 99（傳入 rate=99）；落帳仍應用凍結的 30。
+    await drainAttributionOutbox(db, 99);
+    const debit = db._ledger.find(l => l.accountKey === "member:1");
+    expect(debit?.exchangeRate).toBe("30.000000"); // 凍結值，非 99
+    expect(debit?.amountTwd).toBe("3.0000"); // 0.10 × 30
+  });
+
+  it("postAttributedCost：payload 自帶 frozenRate 優先於傳入 rate", async () => {
+    const db = makeFakeDb();
+    await postAttributedCost(
+      db,
+      { costUsd: "0.10", userId: 2, frozenRate: 28, idempotencyKey: "aue:rate3" },
+      99
+    );
+    const debit = db._ledger.find(l => l.accountKey === "member:2");
+    expect(debit?.exchangeRate).toBe("28.000000");
+  });
+});
+
+// ─── costSource 標記（稽核區分 provider vs catalog）──────────────────────────
+
+describe("costSource — 來源標記凍入 ledger meta", () => {
+  it("buildAttributionEntries 把 costSource 寫進 meta", () => {
+    const entries = buildAttributionEntries(
+      {
+        costUsd: "0.04",
+        userId: 1,
+        provider: "fal_ai",
+        model: "fal-ai/flux-pro/v1.1",
+        costSource: "catalog",
+        idempotencyKey: "aue:cs1",
+      },
+      32
+    );
+    expect(entries[0].meta?.costSource).toBe("catalog");
+  });
+
+  it("postAttributedCost 落帳時 costSource 進 ledger 欄", async () => {
+    const db = makeFakeDb();
+    await postAttributedCost(
+      db,
+      {
+        costUsd: "0.04",
+        userId: 3,
+        provider: "fal_ai",
+        costSource: "catalog",
+        idempotencyKey: "aue:cs2",
+      },
+      32
+    );
+    const debit = db._ledger.find(l => l.accountKey === "member:3");
+    expect(debit?.costSource).toBe("catalog");
   });
 });

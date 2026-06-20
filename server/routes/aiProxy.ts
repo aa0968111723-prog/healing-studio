@@ -19,6 +19,11 @@ import { getAdapter } from "../services/ai-adapters/registry";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { extractUsageCostUsd } from "../services/usageCost";
 import {
+  resolveCostUsdWithCatalog,
+  extractCatalogSignals,
+  type CostSource,
+} from "../services/cost/catalogCostFallback";
+import {
   isCostLedgerEnabled,
   postTransaction,
   makeAccountKey,
@@ -340,6 +345,9 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   // body 帶有 OpenRouter 風格 usage.cost 時被覆寫。所有計算都在 res.send
   // 之後（請求熱路徑之外），且擷取函式 pure / 永不 throw。
   let costUsd = "0";
+  // AIDV-14：成本數字來源標記（"provider"＝上游真實計費 usage.cost；"catalog"＝
+  // modelPricing 目錄真實單位價後援；null＝無真實價，留空不落 $0 髒列）。供稽核區分。
+  let costSource: CostSource | null = null;
 
   const requestBody: BodyInit | undefined =
     req.method === "GET" || req.method === "HEAD"
@@ -475,6 +483,24 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     (typeof bodyObj.model_id === "string" && bodyObj.model_id) ||
     endpoint.split("/").find(p => p.includes("fal-ai/")) ||
     "";
+
+  // ── AIDV-14：真實價後援（catalog → USD）─────────────────────────────────────
+  // 線上四家供應商（fal_ai/gemini/elevenlabs/suno）回應都無 OpenRouter 風格
+  // usage.cost，故 extractUsageCostUsd 恆回 "0" → 歸屬/TWD 彙總對在用供應商全為 0。
+  // 補上 modelPricing 目錄真實單位價後援：costUsd==="0" 且供應商非 OpenRouter 時，
+  // 用 inferredModel ＋（可得的）請求 metadata 推算真實價，並標 costSource=catalog。
+  // pure / 永不 throw；只在成功回應時推（失敗本就 costUsd="0"、不歸屬）。
+  if (status === "success") {
+    const resolved = resolveCostUsdWithCatalog({
+      providerCostUsd: costUsd,
+      provider: providerKey,
+      modelId: String(inferredModel),
+      signals: extractCatalogSignals(bodyObj),
+    });
+    costUsd = resolved.costUsd;
+    costSource = resolved.costSource;
+  }
+
   setImmediate(async () => {
     try {
       const db = await getDb();
@@ -517,6 +543,8 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
               idempotencyKey: `aue:${usageEventId}`,
               refType: "ai_usage_event",
               refId: String(usageEventId),
+              // AIDV-14：標成本來源（provider 上游真實計費 / catalog 目錄真實單位價後援）。
+              meta: costSource ? { costSource } : undefined,
             });
           } catch (ledgerErr) {
             console.warn("[AI Proxy] cost_ledger write failed:", ledgerErr);
@@ -543,17 +571,23 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
               (typeof req.headers["x-aidv-workflow-id"] === "string" &&
                 req.headers["x-aidv-workflow-id"]) ||
               null;
-            await enqueueAttribution(db as unknown as OutboxDb, {
-              costUsd,
-              userId: userId ?? null,
-              projectId,
-              workflowId,
-              provider: providerKey,
-              model: String(inferredModel) || null,
-              idempotencyKey: `aue:${usageEventId}`,
-              refType: "ai_usage_event",
-              refId: String(usageEventId),
-            });
+            await enqueueAttribution(
+              db as unknown as OutboxDb,
+              {
+                costUsd,
+                userId: userId ?? null,
+                projectId,
+                workflowId,
+                provider: providerKey,
+                model: String(inferredModel) || null,
+                costSource,
+                idempotencyKey: `aue:${usageEventId}`,
+                refType: "ai_usage_event",
+                refId: String(usageEventId),
+              },
+              // 把「成本發生當下」匯率凍進 outbox payload，drain 重放用此值（非補帳當下）。
+              getTwdPerUsd()
+            );
           } catch (attrErr) {
             console.warn("[AI Proxy] cost attribution enqueue failed:", attrErr);
           }

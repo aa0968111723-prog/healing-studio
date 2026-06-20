@@ -604,6 +604,9 @@ export const apiUsageRouter = router({
     .query(async ({ input }) => {
       const db = await requireDb();
       const rate = getTwdPerUsd();
+      // AIDV-14：取 posted 的 debit ＋ credit 兩種 entryType——summarizeAttribution 會把
+      // 同維度 credit（退款沖銷）從 debit 扣除算「淨額」，避免有退款時前台高估成本（毛額）。
+      // 對手科目 expense:ai-cost 的 credit 不是歸屬維度、會被 summarize 自動略過。
       const rows = (await db
         .select({
           accountKey: costLedger.accountKey,
@@ -614,12 +617,7 @@ export const apiUsageRouter = router({
           model: costLedger.model,
         })
         .from(costLedger)
-        .where(
-          and(
-            eq(costLedger.status, "posted"),
-            eq(costLedger.entryType, "debit")
-          )
-        )) as LedgerRowForSummary[];
+        .where(eq(costLedger.status, "posted"))) as LedgerRowForSummary[];
 
       const summary = summarizeAttribution(rows, rate, input?.dimension);
       const limited = summary.slice(0, input?.limit ?? 100);

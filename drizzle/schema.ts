@@ -2140,6 +2140,11 @@ export const costLedger = mysqlTable(
     // provider / model（誰花的成本來自哪個供應商/模型，供成本拆解）。
     provider: varchar("provider", { length: 32 }),
     model: varchar("model", { length: 128 }),
+    // costSource：成本數字的來源標記，供稽核區分。
+    //   "provider"＝上游回應實際計費（usage.cost，最準）；
+    //   "catalog" ＝modelPricing 目錄真實單位價後援（次準，線上四家供應商無 usage.cost
+    //               時用以讓成本可視）。null＝舊資料/未標。
+    costSource: varchar("costSource", { length: 16 }),
   },
   table => ({
     idempotencyKeyUnique: uniqueIndex("cl_idempotencyKey_unique").on(

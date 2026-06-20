@@ -150,6 +150,8 @@ export interface LedgerEntryMeta {
   amountTwd?: number | string | null;
   provider?: string | null;
   model?: string | null;
+  /** 成本數字來源："provider"＝上游真實計費；"catalog"＝目錄真實單位價後援。 */
+  costSource?: string | null;
 }
 
 /** 實際 insert 進 DB 的 row（amount 已正規化為字串）。 */
@@ -169,6 +171,7 @@ interface InsertLedgerInput {
   amountTwd?: string | null;
   provider?: string | null;
   model?: string | null;
+  costSource?: string | null;
 }
 
 export interface PostEntryResult {
@@ -379,6 +382,9 @@ export function normalizeLedgerMeta(
   }
   if (meta.model != null && String(meta.model).trim() !== "") {
     out.model = String(meta.model).trim();
+  }
+  if (meta.costSource != null && String(meta.costSource).trim() !== "") {
+    out.costSource = String(meta.costSource).trim();
   }
   return out;
 }

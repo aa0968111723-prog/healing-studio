@@ -4,7 +4,8 @@
 -- 成本，以「真實呼叫價（USD）」換算「台幣 TWD」呈現，並保留原始幣別＋所用匯率以利
 -- 稽核回溯。本 migration 做三件事：
 --   (A) cost_ledger 加歸屬維度欄（projectId/workflowId）＋稽核欄（sourceCurrency/
---       exchangeRate/amountTwd）＋拆解欄（provider/model）＋兩條索引。
+--       exchangeRate/amountTwd）＋拆解欄（provider/model）＋成本來源欄（costSource）
+--       ＋兩條索引。
 --   (B) cost_aggregations 加 TWD 呈現欄（totalCostTwd）＋稽核匯率欄（exchangeRate）。
 --   (C) 新建 cost_attribution_outbox 表（不漏帳 outbox）＋兩條索引。
 --
@@ -19,7 +20,7 @@
 --   ALTER TABLE `cost_ledger`
 --     DROP COLUMN `projectId`, DROP COLUMN `workflowId`, DROP COLUMN `sourceCurrency`,
 --     DROP COLUMN `exchangeRate`, DROP COLUMN `amountTwd`, DROP COLUMN `provider`,
---     DROP COLUMN `model`;
+--     DROP COLUMN `model`, DROP COLUMN `costSource`;
 --   ALTER TABLE `cost_aggregations`
 --     DROP COLUMN `totalCostTwd`, DROP COLUMN `exchangeRate`;
 --   DROP TABLE IF EXISTS `cost_attribution_outbox`;
@@ -143,6 +144,24 @@ SET @stmt := IF(
   ),
   'SELECT 1',
   'ALTER TABLE `cost_ledger` ADD COLUMN `model` varchar(128)'
+);
+--> statement-breakpoint
+PREPARE cl_stmt FROM @stmt;
+--> statement-breakpoint
+EXECUTE cl_stmt;
+--> statement-breakpoint
+DEALLOCATE PREPARE cl_stmt;
+--> statement-breakpoint
+
+SET @stmt := IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'cost_ledger'
+      AND column_name = 'costSource'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `cost_ledger` ADD COLUMN `costSource` varchar(16)'
 );
 --> statement-breakpoint
 PREPARE cl_stmt FROM @stmt;

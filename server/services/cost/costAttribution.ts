@@ -89,6 +89,14 @@ export interface UsageAttributionInput {
   workflowId?: number | string | null;
   provider?: string | null;
   model?: string | null;
+  /** 成本數字來源："provider"＝上游真實計費；"catalog"＝目錄真實單位價後援。稽核用。 */
+  costSource?: string | null;
+  /**
+   * AIDV-14：成本發生（呼叫/enqueue）當下凍結的 TWD/USD 匯率。enqueueAttribution
+   * 會自動把當下 rate 寫入；drain 重放時優先用此凍結值，而非 drain 當下匯率，確保
+   * ledger 的 exchangeRate/amountTwd 反映成本發生當下而非補帳當下（稽核回溯正確）。
+   */
+  frozenRate?: number | null;
   /** 冪等基準鍵（通常 = aue:<usageEventId>）。各維度由此衍生不同子鍵。 */
   idempotencyKey: string;
   refType?: string | null;
@@ -126,6 +134,7 @@ export function buildAttributionEntries(
     amountTwd,
     provider: input.provider ?? null,
     model: input.model ?? null,
+    costSource: input.costSource ?? null,
   };
 
   const dims: Array<{
@@ -199,6 +208,9 @@ export interface PostAttributedCostResult {
  * 把一筆 usage 事件的多維歸屬「直接」寫進 cost_ledger（不經 outbox）。drain job 與
  * 單測用。db==null → skipped；無真實價 → empty。各維度 postTransaction 冪等，故重放
  * 安全。任一維度 throw（非重複鍵）會上拋給 caller（drain 會據此 attempts++ 重試）。
+ *
+ * AIDV-14：匯率優先用 input.frozenRate（成本發生當下凍結，由 enqueueAttribution 寫入），
+ * 拿不到才退回傳入 rate（drain 當下）。確保稽核欄位反映成本發生當下而非補帳當下。
  */
 export async function postAttributedCost(
   db: LedgerDb | null | undefined,
@@ -206,7 +218,11 @@ export async function postAttributedCost(
   rate: number
 ): Promise<PostAttributedCostResult> {
   if (!db) return { outcome: "skipped", posted: 0 };
-  const entries = buildAttributionEntries(input, rate);
+  const effectiveRate =
+    input.frozenRate != null && Number.isFinite(input.frozenRate)
+      ? input.frozenRate
+      : rate;
+  const entries = buildAttributionEntries(input, effectiveRate);
   if (entries.length === 0) return { outcome: "empty", posted: 0 };
   let posted = 0;
   for (const entry of entries) {
@@ -255,18 +271,30 @@ export interface EnqueueResult {
  * 把落帳意圖原子寫入 outbox（pending）。這是「不漏帳」的關鍵：呼叫端在熱路徑外
  * 只做這一次輕量 insert（永不同步等待 ledger 寫入），ledger 實際落帳交給 drain 重試。
  *
+ * AIDV-14：在此「成本發生當下」就把生效匯率凍進 payload（frozenRate）。drain 重放
+ * 時優先用此凍結值，而非補帳當下的 getTwdPerUsd()，確保 ledger 的 exchangeRate/
+ * amountTwd 反映成本發生當下而非 drain 當下（即使 admin 期間調整 TWD_PER_USD 也不漂）。
+ * 若呼叫端已自帶 input.frozenRate 則沿用，否則用傳入 rate（預設 getTwdPerUsd()）。
+ *
  * db==null → skipped（demo/無 DB 安全）；idempotencyKey 已存在 → duplicate（冪等）。
  * 永不 throw 非預期錯誤以外的東西（DB 非重複鍵錯誤上拋，由呼叫端 try/catch 吞）。
  */
 export async function enqueueAttribution(
   db: OutboxDb | null | undefined,
-  input: UsageAttributionInput
+  input: UsageAttributionInput,
+  rate: number = getTwdPerUsd()
 ): Promise<EnqueueResult> {
   if (!db) return { outcome: "skipped" };
+  // 凍結成本發生當下的匯率（已自帶就沿用，避免覆寫呼叫端更精準的值）。
+  const frozen =
+    input.frozenRate != null && Number.isFinite(input.frozenRate)
+      ? input.frozenRate
+      : rate;
+  const payload: UsageAttributionInput = { ...input, frozenRate: frozen };
   const row: InsertCostAttributionOutbox = {
     idempotencyKey: input.idempotencyKey,
     status: "pending",
-    payloadJson: input as unknown as Record<string, unknown>,
+    payloadJson: payload as unknown as Record<string, unknown>,
     attempts: 0,
   };
   try {
@@ -385,12 +413,17 @@ export interface AttributionSummaryRow {
 }
 
 /**
- * pure：把 posted debit 列依「accountKey 的維度前綴」分組彙總成 USD/TWD 金額。
- * 只計 entryType=debit（消耗成本；credit 是退款沖銷，淨額由 caller 視需要扣減）。
+ * pure：把 posted 列依「accountKey 的維度前綴」分組彙總成「淨額」USD/TWD 金額。
+ *
+ * AIDV-14：debit（消耗成本）加總、credit（退款沖銷）扣減，回「淨額」＝SUM(debit) −
+ * SUM(同維度 credit)。故一旦有退款/回沖落帳，前台呈現的是淨成本而非毛額（不再高估）。
+ * 淨額 clamp 到 ≥0（避免退款多於消耗時出現負成本污染前台；理論上同維度不該超扣）。
+ *
  * dimension 過濾："project" / "member" / "workflow"（不傳＝全部維度）。
  *
  * costTwd 優先用列上凍結的 amountTwd（落帳當下匯率，稽核準）；該列無 amountTwd（如
  * #940 舊資料）時 fallback 用傳入 rate 現算，確保彙總永遠有 TWD 數字（不 $0）。
+ * entries 只計 debit 筆數（消耗事件數；credit 是沖銷不另計筆）。
  */
 export function summarizeAttribution(
   rows: LedgerRowForSummary[],
@@ -399,7 +432,7 @@ export function summarizeAttribution(
 ): AttributionSummaryRow[] {
   const acc = new Map<string, AttributionSummaryRow>();
   for (const r of rows) {
-    if (r.entryType !== "debit") continue;
+    if (r.entryType !== "debit" && r.entryType !== "credit") continue;
     const sep = r.accountKey.indexOf(":");
     if (sep < 0) continue;
     const type = r.accountKey.slice(0, sep);
@@ -417,10 +450,20 @@ export function summarizeAttribution(
 
     const key = r.accountKey;
     const cur = acc.get(key) ?? { type, id, costUsd: 0, costTwd: 0, entries: 0 };
-    cur.costUsd = Number((cur.costUsd + usd).toFixed(6));
-    cur.costTwd = Number((cur.costTwd + twdFrozen).toFixed(4));
-    cur.entries += 1;
+    // debit 加、credit（退款沖銷）減 → 淨額。
+    const sign = r.entryType === "credit" ? -1 : 1;
+    cur.costUsd = Number((cur.costUsd + sign * usd).toFixed(6));
+    cur.costTwd = Number((cur.costTwd + sign * twdFrozen).toFixed(4));
+    if (r.entryType === "debit") cur.entries += 1;
     acc.set(key, cur);
   }
-  return Array.from(acc.values()).sort((a, b) => b.costTwd - a.costTwd);
+  // 淨額 clamp 到 ≥0，並濾掉全額退掉（淨額為 0）的維度列。
+  const out: AttributionSummaryRow[] = [];
+  for (const cur of acc.values()) {
+    cur.costUsd = Number(Math.max(0, cur.costUsd).toFixed(6));
+    cur.costTwd = Number(Math.max(0, cur.costTwd).toFixed(4));
+    if (cur.entries === 0 && cur.costUsd === 0 && cur.costTwd === 0) continue;
+    out.push(cur);
+  }
+  return out.sort((a, b) => b.costTwd - a.costTwd);
 }
