@@ -65,6 +65,7 @@ import { teamTrainingRouter } from "./subsystems/trainingTrack/trainingTrackRout
 import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
+import { rbacRouter } from "./routers/rbac";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
@@ -76,6 +77,8 @@ import {
   recordAuditEvent,
   extractRequestSource,
 } from "./services/audit/auditLog";
+import { isDataRbacEnabled } from "./services/authz/resourceAccess";
+import { canAccessResource } from "./services/authz/resourceAccessResolver";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
 import { agentModelPicksRouter } from "./routers/agentModelPicksRouter";
@@ -4075,6 +4078,12 @@ export const appRouter = router({
   // 拆開以便其他功能（共筆、共享 prompts 等）日後復用。
   teams: teamsRouter,
 
+  // ─── RBAC（AIDV-121：資料層權限邊界 — 共享/撤銷/移轉）────────────────────
+  // 顯式共享 SSOT（resource_shares）的生命週期 mutation。寫入純加法、不受
+  // ENABLE_DATA_RBAC 旗標 gate；enforcement（旗標 ON 時 canAccess 過濾讀取）
+  // 在各讀取 procedure 內。
+  rbac: rbacRouter,
+
   // ─── Spirit invocation ───────────────────────────────────────────────────
   // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …
   // 入口在 server/services/spiritDispatcher.ts。
@@ -4197,10 +4206,35 @@ export const appRouter = router({
           })
           .optional()
       )
-      .query(async ({ ctx: _ctx, input }) => {
+      .query(async ({ ctx, input }) => {
         try {
           const all = await db.getTeamSharedAssets();
           let result = all;
+
+          // ── AIDV-121 enforcement（旗標 gate）──────────────────────────
+          // 旗標 OFF（預設）= 完全保持現狀：回全站 team_shared 資產（既有
+          //   行為，含已知 cross-tenant 洩漏；本 PR 刻意不在 OFF 時改它）。
+          // 旗標 ON = 經 canAccess 過濾，只留 ctx.user 真正能看到的（owner /
+          //   被顯式共享 / team_shared 池成員），A 看不到 B 未共享的資產。
+          if (isDataRbacEnabled()) {
+            const visible: typeof result = [];
+            for (const asset of result) {
+              const ok = await canAccessResource(
+                "asset",
+                asset.id,
+                {
+                  ownerId: asset.userId,
+                  visibility: asset.visibility,
+                  teamId: null, // digital_asset_library 尚無 teamId 欄；靠顯式共享授權
+                },
+                ctx.user.id,
+                "view"
+              );
+              if (ok) visible.push(asset);
+            }
+            result = visible;
+          }
+
           if (input?.assetType && input.assetType !== "all") {
             result = result.filter(a => a.assetType === input.assetType);
           }
@@ -4365,6 +4399,13 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.deleteDigitalAsset(input.id);
+        // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源
+        // 不會 cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。
+        try {
+          await db.deleteAllSharesForResource("asset", input.id);
+        } catch {
+          /* 清孤兒失敗不應擋刪除 */
+        }
         recordAuditEvent({
           actorUserId: ctx.user.id,
           actorRole: ctx.user.role,

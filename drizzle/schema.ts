@@ -4110,3 +4110,71 @@ export const globalAuditLog = mysqlTable(
 
 export type GlobalAuditLog = typeof globalAuditLog.$inferSelect;
 export type InsertGlobalAuditLog = typeof globalAuditLog.$inferInsert;
+
+// ─── Resource Shares — 跨表「顯式共享」SSOT（AIDV-121 RBAC 基礎版）──────────
+//
+// 統一記錄「某個資源（專案 / 資產 / 提示詞 / 教材）被顯式共享給誰」的關係表。
+// 不在每張資源表硬塞 teamId/sharedWith 欄位（那會碰到 digital_asset_library
+// 的 team_shared 孤兒 enum、creative_projects 完全沒共享欄等不一致），而是用
+// 一張泛型 junction 表把「擁有權之外的授權」集中表達。
+//
+//   resourceType    → "project" | "asset" | "prompt" | "material"
+//   resourceId      → 對應資源的數字 id（int，本站資源主鍵皆 int）
+//   sharedWithType  → "user"（分享給單一成員）| "team"（分享給整個團隊）
+//   sharedWithId    → user id 或 team id
+//   role            → "viewer"（唯讀）| "editor"（可讀寫，但不可刪/不可移轉）
+//   sharedByUserId  → 建立此共享關係的人（通常是資源 owner）
+//
+// 設計刻意「純加法」：本表存在 ≠ 行為改變。canAccess() 只有在
+// ENABLE_DATA_RBAC=ON 時才會去查這張表；旗標 OFF 時各 router 完全不碰它，
+// 行為與現狀位元相同。
+//
+// 唯一鍵 (resourceType, resourceId, sharedWithType, sharedWithId) 確保同一個
+// 對象對同一資源只有一筆共享記錄（重複 share 視為更新 role，而非新增）。
+export const resourceShares = mysqlTable(
+  "resource_shares",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** 資源型別：project / asset / prompt / material */
+    resourceType: mysqlEnum("resourceType", [
+      "project",
+      "asset",
+      "prompt",
+      "material",
+    ]).notNull(),
+    /** 資源 id（對應各資源表 int 主鍵） */
+    resourceId: int("resourceId").notNull(),
+    /** 共享對象型別：分享給單一 user 或整個 team */
+    sharedWithType: mysqlEnum("sharedWithType", ["user", "team"]).notNull(),
+    /** 共享對象 id（user id 或 team id） */
+    sharedWithId: int("sharedWithId").notNull(),
+    /** 授予的角色：viewer（唯讀）/ editor（可讀寫）。owner/delete/transfer 永遠只屬資源擁有者。 */
+    role: mysqlEnum("role", ["viewer", "editor"]).default("viewer").notNull(),
+    /** 建立此共享關係的人（稽核用，通常是資源 owner） */
+    sharedByUserId: int("sharedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // 同一對象對同一資源只一筆（重複 share = upsert role）
+    resourceTargetUk: uniqueIndex("rs_resource_target_uk").on(
+      table.resourceType,
+      table.resourceId,
+      table.sharedWithType,
+      table.sharedWithId
+    ),
+    // 「列出某資源被分享給誰」
+    resourceIdx: index("rs_resource_idx").on(
+      table.resourceType,
+      table.resourceId
+    ),
+    // 「列出某對象（user/team）能看到哪些資源」— canAccess 與清單過濾用
+    targetIdx: index("rs_target_idx").on(
+      table.sharedWithType,
+      table.sharedWithId
+    ),
+  })
+);
+
+export type ResourceShare = typeof resourceShares.$inferSelect;
+export type InsertResourceShare = typeof resourceShares.$inferInsert;

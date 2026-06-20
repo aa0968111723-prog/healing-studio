@@ -297,6 +297,8 @@ describe("brainPipeline graph builder", () => {
       "teamTraining", // M 訓練 track：團隊治理包裝，沿用 loraTrainer 的 Replicate 流程；graph 已由 loraTrainer 呈現
       "creativeProject", // 創作專案 CRUD — 純資料持久化，不觸發 AI
       "realEarth", // 真實地球研究紀錄 CRUD — 純資料持久化，不呼外部 provider
+      "auditLog", // AIDV-123：稽核軌跡 append-only 查詢 — 純資料持久化，不觸發 AI
+      "rbac", // AIDV-121：資料層共享/撤銷/移轉 CRUD — 純資料持久化，不觸發 AI
     ]);
 
     const inGraph = new Set(

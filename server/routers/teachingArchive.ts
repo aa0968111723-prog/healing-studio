@@ -369,6 +369,13 @@ export const teachingArchiveRouter = router({
       });
       logAccess(input.id, ctx.user.id, "delete");
       await db.deleteTeachingMaterial(input.id);
+      // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會
+      // cascade）。best-effort，不阻塞刪除主流程。
+      try {
+        await db.deleteAllSharesForResource("material", input.id);
+      } catch {
+        /* 清孤兒失敗不應擋刪除 */
+      }
       // 清掉 Pinecone 上的向量 — 失敗就 log 不擋（reconciler cron 之後可再清）
       deleteTeachingVectorsByMaterial(material.userId, input.id).catch(err => {
         console.warn(

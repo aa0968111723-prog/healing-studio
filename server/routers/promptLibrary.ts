@@ -16,13 +16,15 @@
 import { z } from "zod";
 import { eq, and, desc, like, inArray, sql } from "drizzle-orm";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
-import { getDb, getLinkedAssetsForPrompt } from "../db";
+import { getDb, getLinkedAssetsForPrompt, deleteAllSharesForResource } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 import {
   recordAuditEvent,
   extractRequestSource,
 } from "../services/audit/auditLog";
+import { isDataRbacEnabled } from "../services/authz/resourceAccess";
+import { canAccessResource } from "../services/authz/resourceAccessResolver";
 
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
 
@@ -157,20 +159,49 @@ export const promptLibraryRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
 
+      // ── AIDV-121 enforcement（旗標 gate）─────────────────────────────
+      // 旗標 OFF（預設）= 完全保持現狀：WHERE id=? AND userId=? → 只有 owner
+      //   拿得到（非 owner→NOT_FOUND）。
+      // 旗標 ON = 先 by-id 取，owner 仍可；額外允許被顯式共享給此 user/team 的
+      //   viewer/editor 讀到。OFF 路徑與原本 SQL 行為等價（owner-only）。
+      if (!isDataRbacEnabled()) {
+        const rows = await db
+          .select()
+          .from(promptLibrary)
+          .where(
+            and(
+              eq(promptLibrary.id, input.id),
+              eq(promptLibrary.userId, ctx.user.id)
+            )
+          )
+          .limit(1);
+        if (!rows[0])
+          throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
+        return rows[0];
+      }
+
       const rows = await db
         .select()
         .from(promptLibrary)
-        .where(
-          and(
-            eq(promptLibrary.id, input.id),
-            eq(promptLibrary.userId, ctx.user.id)
-          )
-        )
+        .where(eq(promptLibrary.id, input.id))
         .limit(1);
+      const row = rows[0];
+      if (!row)
+        throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
 
-      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
+      if (row.userId !== ctx.user.id) {
+        const allowed = await canAccessResource(
+          "prompt",
+          row.id,
+          { ownerId: row.userId, visibility: null, teamId: null },
+          ctx.user.id,
+          "view"
+        );
+        if (!allowed)
+          throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
+      }
 
-      return rows[0];
+      return row;
     }),
 
   // ── 新增提示詞 ──────────────────────────────────────────────────────────────
@@ -237,6 +268,14 @@ export const promptLibraryRouter = router({
       if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞或無權限刪除" });
 
       await db.delete(promptLibrary).where(eq(promptLibrary.id, input.id));
+
+      // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會
+      // cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。
+      try {
+        await deleteAllSharesForResource("prompt", input.id);
+      } catch {
+        /* 清孤兒失敗不應擋刪除 */
+      }
 
       recordAuditEvent({
         actorUserId: ctx.user.id,
