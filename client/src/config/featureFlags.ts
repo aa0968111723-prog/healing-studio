@@ -127,12 +127,32 @@ export function readRuntimeOverride(key: string): boolean | null {
 export const ENABLE_AIDV_CHROME: boolean =
   ENABLE_4SHELL && (readRuntimeOverride("aidvchrome") ?? readFlag("VITE_ENABLE_AIDV_CHROME", true));
 
+/**
+ * 「光球只留笑臉光球」總開關（Bruce 2026-06-20 拍板「光球只留笑臉光球」）。
+ * **預設 ON＝只保留右下笑臉助手光球（ProactiveOrbWidget）本身**，把「主動跳出的其他
+ * 精靈光球提示」全部靜音：
+ *   ① 右上主動精靈通知卡（ProactiveNotificationCenter＝守守/財財/巧巧…）整組不訂閱、不渲染。
+ *   ② 左下第二顆新光球（AidvOrbMount）的主動泡泡（proactive bubble）不再自動冒出；
+ *      光球本體＝點開才用，不主動彈。
+ * 笑臉光球本體（含它自己嘴上的到站建議氣泡）完全不受影響＝功能不動。
+ *
+ * 「主動跳出的精靈系統」底層邏輯（事件匯流排、觸發定義、偵測器、通知中心元件）全部保留，
+ * **只關它對外的 UI 呈現**＝可秒回滾、零後端：
+ *   ① 全站還原舊行為：部署環境設 `VITE_ORB_SMILEY_ONLY=0`（Railway），重新部署 →
+ *      主動精靈卡片＋第二顆光球泡泡回來。
+ *   ② 單一瀏覽器即時：網址 `?orbsmileyonly=0`（存 localStorage、不影響他人）還原。
+ * 優先序：執行期覆寫（?orbsmileyonly=0/1）> 建置旗標（VITE_ORB_SMILEY_ONLY）> 預設 ON。
+ */
+export const ORB_SMILEY_ONLY: boolean =
+  readRuntimeOverride("orbsmileyonly") ?? readFlag("VITE_ORB_SMILEY_ONLY", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
   SHELL_SOCIAL,
   SHELL_LEARN,
   ENABLE_AIDV_CHROME,
+  ORB_SMILEY_ONLY,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
