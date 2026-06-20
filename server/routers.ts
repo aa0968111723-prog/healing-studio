@@ -919,9 +919,24 @@ async function storeBase64Media(params: {
 
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
 
-async function checkSafety(
-  text: string
-): Promise<{ safe: boolean; reason?: string }> {
+/**
+ * 單次 LLM 安全審核嘗試的結果：
+ *  - kind:"verdict" → LLM 回了可靠判定（safe 為真 boolean），不需重試。
+ *  - kind:"unparseable" → 有回應但形狀不符（缺 safe boolean / null / 非物件），可重試。
+ *  - kind:"error" → 逾時或拋錯（含 LLM 不可用），可重試。
+ */
+type SafetyAttempt =
+  | { kind: "verdict"; safe: boolean; reason?: string }
+  | { kind: "unparseable" }
+  | { kind: "error" };
+
+/** 每次安全審核 LLM 呼叫的 timeout（毫秒）。 */
+const SAFETY_ATTEMPT_TIMEOUT_MS = 8_000;
+/** 安全審核總嘗試次數（1 次原始 + 1 次重試）。 */
+const SAFETY_MAX_ATTEMPTS = 2;
+
+/** 單次安全審核 LLM 呼叫＋解析。帶 per-attempt timeout，永不拋出（一律歸類回傳）。 */
+async function checkSafetyAttempt(text: string): Promise<SafetyAttempt> {
   try {
     const result = await withTimeout(
       invokeLLM({
@@ -954,7 +969,9 @@ async function checkSafety(
           },
         },
       }),
-      15_000,
+      // AIDV-65：per-attempt timeout 縮為 8s（原單次 15s）。配合一次重試，最壞
+      // 情況總等待 ~16s 與原本相當，但對「單次抖動」更有韌性、不致永久卡死。
+      SAFETY_ATTEMPT_TIMEOUT_MS,
       "安全檢查"
     );
     // Fence-tolerant parse — Gemini json_object mode occasionally wraps
@@ -968,7 +985,7 @@ async function checkSafety(
     ) as { safe?: unknown; reason?: unknown } | null;
     // AIDV-65：只有「可解析且 safe 為真 boolean」才算可靠判定。若 LLM 回了
     // 物件但缺 safe 欄位或型別不對（例如 `{}`、`{"reason":"..."}`），形狀不符＝
-    // 無法可靠判定，視同無法解析 → 走 fail-closed gate（resolveSafetyFallback），
+    // 無法可靠判定，視同無法解析 → unparseable（可重試／最終走 fail-closed gate），
     // 不再用 `parsed.safe !== false`（undefined !== false ⇒ true）誤判為 safe。
     if (
       parsed &&
@@ -976,24 +993,53 @@ async function checkSafety(
       typeof parsed.safe === "boolean"
     ) {
       return {
+        kind: "verdict",
         safe: parsed.safe,
-        ...(typeof parsed.reason === "string"
-          ? { reason: parsed.reason }
-          : {}),
+        ...(typeof parsed.reason === "string" ? { reason: parsed.reason } : {}),
       };
     }
-    // AIDV-65：LLM 回傳 null／非物件／形狀不符（缺 safe boolean）皆走此分支。
-    // OFF＝維持現行 fail-open（{ safe: true }）；ON＝fail-closed 擋下。
-    return resolveSafetyFallback(
-      "內容安全檢查無法解析結果，為安全起見暫不放行，請稍後再試"
-    );
+    return { kind: "unparseable" };
   } catch {
-    // AIDV-65：逾時或任何錯誤。OFF＝維持現行 fail-open（{ safe: true }，避免擋到使用者）；
-    // ON＝fail-closed 擋下（resolveSafetyFallback），由呼叫端以此 reason 回報。
-    return resolveSafetyFallback(
-      "內容安全檢查逾時或發生錯誤，為安全起見暫不放行，請稍後再試"
-    );
+    // 逾時或任何錯誤（含 LLM 無額度／金鑰失效）。歸類為可重試的 error。
+    return { kind: "error" };
   }
+}
+
+/**
+ * 內容安全審核（AIDV-65 fail-closed）。
+ *
+ * 行為：
+ *  - LLM 回可靠判定（safe boolean）→ 立即回傳該判定（不重試），safe/unsafe 都正常處理。
+ *  - 逾時／錯誤／無法解析 → 最多重試 SAFETY_MAX_ATTEMPTS 次；皆失敗後交給
+ *    resolveSafetyFallback：旗標 ON（**預設**）→ fail-closed 擋下（{ safe:false, reason }）；
+ *    旗標明確回退 OFF → fail-open 放行（{ safe:true }）。
+ *
+ * 與 LLM 不可用的交互：checkSafety 與生成關鍵路徑共用同一 LLM 路由，LLM 壞時兩者
+ *  皆失敗 → fail-closed 擋下這些生成「無新增」負面影響（生成本就跑不動）。
+ */
+async function checkSafety(
+  text: string
+): Promise<{ safe: boolean; reason?: string }> {
+  let sawError = false;
+  for (let attempt = 1; attempt <= SAFETY_MAX_ATTEMPTS; attempt++) {
+    const outcome = await checkSafetyAttempt(text);
+    if (outcome.kind === "verdict") {
+      // 可靠判定（safe 或 unsafe）→ 立即回傳，不需重試。
+      return {
+        safe: outcome.safe,
+        ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
+      };
+    }
+    if (outcome.kind === "error") sawError = true;
+    // unparseable / error → 若還有重試額度就再試一次，否則落到下方 fallback。
+  }
+  // AIDV-65：用盡重試仍逾時／錯誤／無法解析。旗標 ON（預設）→ fail-closed 擋下；
+  // 旗標明確回退 OFF → fail-open 放行。reason 區分「逾時/錯誤」與「無法解析」。
+  return resolveSafetyFallback(
+    sawError
+      ? "內容安全檢查暫時無法完成，請稍後重試"
+      : "內容安全檢查無法解析結果，為安全起見暫不放行，請稍後重試"
+  );
 }
 
 // ─── Elite Prompt Compiler ───────────────────────────────────────────────────
