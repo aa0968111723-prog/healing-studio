@@ -9,14 +9,26 @@
  *  ✅ 已接線（AIDV-69 第一階段）：Director 三條 RAG 記憶／世界框架注入路徑
  *     （costarService / planningService / scriptGenerationService）。
  *  ✅ 已接線（AIDV-69 follow-up，本批）：四條真 untrusted 記憶注入側門
+ *     接線形狀皆收斂成本檔下方的可測純函式（單一真實來源、production 與測試共用，
+ *     杜絕內聯副本與 production 脫鉤造成的回歸不可見）：
  *     - server/routers.ts buildMemoryContext → compileElitePrompt
- *       （memoryContext = 使用者歷史 prompt 原文，注入點 guardRetrievedContext）
+ *       （使用者歷史 prompt 原文；接線 helper：guardCreativeMemoryContext）
  *     - server/services/orbLLMReplan.ts（RAG 歷史失敗記憶 m.summary 注入 replan
- *       system prompt；只包記憶段，buildReplanPrompt 受信任欄位不包）
- *     - server/services/orbTaskChainRunner.ts（buildOrbMemorySummaryForPlanner 的
- *       memoryContext.summary 注入 planner；buildReplanRecapMessage 受信任不包）
+ *       system prompt；只包記憶段，buildReplanPrompt 受信任欄位不包；
+ *       接線 helper：buildReplanMemorySection）
+ *     - buildOrbMemorySummaryForPlanner 的 memoryContext.summary（接線 helper：
+ *       guardOrbMemorySummary）有**兩個同源注入消費端，兩處皆已接**：
+ *         (a) server/services/orbTaskChainRunner.ts replan 路徑（observation-loop
+ *             replan 才觸發）；
+ *         (b) server/routers.ts 主 per-turn planner 路徑（routers.ts
+ *             recentOrbMemorySummary，每回合命中、傳 runSchemaFirstAgentPlanner /
+ *             ...WithCritique 並 stash 給 continuation，最終於 agentPlanner.ts
+ *             contextBlock 以 role:'system' 注入）—此為主路徑、命中頻率高於 (a)。
+ *       buildReplanRecapMessage 拼的受信任執行狀態不在此包。
  *     - server/services/spiritPromptEnhancer.ts（formatMemoriesForPrompt 的
- *       memorySection；basePrompt / orchestrator 固定系統指令不包）
+ *       memorySection；basePrompt / orchestrator 固定系統指令不包；接線
+ *       helper：guardSpiritMemorySection，經真實 export getChiefOrchestratorEnhancedPrompt
+ *       直接單測）
  *  🚫 不接線（誠實判定：非 prompt 注入面，接了反而誤包／汙染）：
  *     - server/services/agentToolExecutor.ts 教材庫 search snippet（chunkText）：
  *       該 case（teachingArchive.search）只把 snippet 當 tool result data 回傳給
@@ -342,6 +354,57 @@ export function guardRetrievedChunks(
   } catch {
     return "";
   }
+}
+
+// ─── 側門接線 helper（單一真實來源；production 與測試共用，杜絕內聯漂移）──────
+//
+// AIDV-69 follow-up：以下兩個 helper 把「旗標 gate＋包裹形狀」收斂成可單測的
+// 純函式，避免各注入點各自內聯一份邏輯（內聯副本會與 production 脫鉤、改 label
+// 或拿掉 guard 呼叫時測試仍綠 → 回歸不可見）。production 注入點直接呼叫這裡，
+// 測試也呼叫同一份 → 真接線測試。兩者皆讀真 isRagInjectionGuardEnabled() 旗標。
+
+/**
+ * guardOrbMemorySummary — orb planner 記憶摘要（recentOrbMemorySummary）的接線形狀。
+ *
+ * 用於兩個同源消費端：
+ *  - server/routers.ts 主 per-turn planner 路徑（buildOrbMemorySummaryForPlanner）
+ *  - server/services/orbTaskChainRunner.ts replan 路徑（同一 summary 來源）
+ *
+ * summary 為 untrusted（由 RAG 檢索歷史記憶序列化、使用者衍生、可能被注入污染）。
+ * 旗標 ON＝過 guard 包裹（label「歷史記憶」）；旗標 OFF / 空字串＝原樣回傳（位元相同）。
+ */
+export function guardOrbMemorySummary(summary: string): string {
+  return summary && isRagInjectionGuardEnabled()
+    ? guardRetrievedContext(summary, { label: "歷史記憶" })
+    : summary;
+}
+
+/**
+ * guardCreativeMemoryContext — routers.ts buildMemoryContext → compileElitePrompt
+ * 路徑（側門1）的接線形狀。
+ *
+ * memoryContext 為 buildMemoryContext 回傳的單段字串，內含使用者歷史 prompt 原文
+ * （m.prompt、untrusted、可能先前已被注入污染後回灌）。旗標 ON＝過 guard 包裹
+ * （label「歷史創作記憶」）；旗標 OFF / 空字串＝原樣回傳（與現狀位元相同）。
+ */
+export function guardCreativeMemoryContext(memoryContext: string): string {
+  return memoryContext && isRagInjectionGuardEnabled()
+    ? guardRetrievedContext(memoryContext, { label: "歷史創作記憶" })
+    : memoryContext;
+}
+
+/**
+ * buildReplanMemorySection — orbLLMReplan 歷史失敗記憶段的接線形狀。
+ *
+ * joinedMemories 為已 join 的 untrusted 記憶條列（`- ${m.summary}` 逐行）。
+ * 旗標 ON＝對記憶段過 guard 包裹（label「歷史失敗記憶」），前綴兩個換行；
+ * 旗標 OFF＝legacy `\n\n**Historical Context (similar failures):**\n` + 條列
+ * （與接線前**位元相同**）。buildReplanPrompt 其他受信任欄位不在此包。
+ */
+export function buildReplanMemorySection(joinedMemories: string): string {
+  return isRagInjectionGuardEnabled()
+    ? "\n\n" + guardRetrievedContext(joinedMemories, { label: "歷史失敗記憶" })
+    : "\n\n**Historical Context (similar failures):**\n" + joinedMemories;
 }
 
 /** 測試用 internals export（不對 production 邏輯造成副作用）。 */

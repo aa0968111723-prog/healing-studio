@@ -54,10 +54,7 @@ import {
 import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
 import { buildOrbMemorySummaryForPlanner } from "./orbMemory";
-import {
-  isRagInjectionGuardEnabled,
-  guardRetrievedContext,
-} from "./security/ragInjectionGuard";
+import { guardOrbMemorySummary } from "./security/ragInjectionGuard";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
 import { emitGenerationEvent } from "../generationEvents";
 import {
@@ -213,10 +210,11 @@ async function tryReplanAndCreateTask(args: {
   // 檢索的歷史記憶序列化而成（使用者衍生、untrusted、可能被注入污染後回灌 planner
   // system prompt）。旗標 ON 時先過 guard 包裹；buildReplanRecapMessage 拼的執行
   // 狀態/觀察員輸出是內部受信任、另走 recap 不在此包。旗標 OFF＝賦值與現狀位元相同。
-  plannerInput.recentOrbMemorySummary =
-    memoryContext.summary && isRagInjectionGuardEnabled()
-      ? guardRetrievedContext(memoryContext.summary, { label: "歷史記憶" })
-      : memoryContext.summary;
+  // 接線形狀收斂在 guardOrbMemorySummary（與 routers.ts 主 planner 路徑共用同一
+  // 真實來源、與測試共用）。
+  plannerInput.recentOrbMemorySummary = guardOrbMemorySummary(
+    memoryContext.summary
+  );
 
   let plannerResult;
   try {

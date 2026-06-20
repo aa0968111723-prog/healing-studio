@@ -83,8 +83,8 @@ import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import {
-  isRagInjectionGuardEnabled,
-  guardRetrievedContext,
+  guardCreativeMemoryContext,
+  guardOrbMemorySummary,
 } from "./services/security/ragInjectionGuard";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
@@ -2053,11 +2053,8 @@ export const appRouter = router({
           // 先前已被注入污染後回灌）。旗標 ON 時先過 guard 包裹再注入 compileElitePrompt；
           // 旗標 OFF 時 memoryContext 原樣傳入，與現狀**位元相同**。
           // 與 costarService.ts:125-128 對同一個 buildMemoryContext 結果的接法一致。
-          if (memoryContext && isRagInjectionGuardEnabled()) {
-            memoryContext = guardRetrievedContext(memoryContext, {
-              label: "歷史創作記憶",
-            });
-          }
+          // 接線形狀收斂在 guardCreativeMemoryContext（單一真實來源、與測試共用）。
+          memoryContext = guardCreativeMemoryContext(memoryContext);
 
           // Compile elite prompt with reference image awareness
           // ── Compile step ──
@@ -6701,7 +6698,17 @@ export const appRouter = router({
         const memoryContext = orbLongTermMemoryEnabled
           ? await buildOrbMemorySummaryForPlanner({ userId: ctx.user.id, query: memoryQuery, limit: 10 })
           : { summary: "Long-term memory disabled.", memoryInjected: false };
-        const recentOrbMemorySummary = memoryContext.summary;
+        // AIDV-69：memoryContext.summary 由 buildOrbMemorySummaryForPlanner 從 RAG
+        // 檢索的歷史記憶序列化而成（使用者衍生、untrusted、可能被注入污染後回灌）。
+        // 此值同源於 orbTaskChainRunner.ts 的 replan 路徑（已接 guard），但這是**主**
+        // per-turn planner 路徑：下方傳入 runSchemaFirstAgentPlanner / ...WithCritique
+        // （routers.ts:7711）並 stash 給後續 continuation（8143），最終於
+        // agentPlanner.ts contextBlock 以 role:'system' 注入 LLM。旗標 ON 時先過 guard
+        // 包裹（與 orbTaskChainRunner.ts label「歷史記憶」一致）；旗標 OFF＝賦值與
+        // 現狀**位元相同**。
+        const recentOrbMemorySummary = guardOrbMemorySummary(
+          memoryContext.summary
+        );
         // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
         // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
         // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
