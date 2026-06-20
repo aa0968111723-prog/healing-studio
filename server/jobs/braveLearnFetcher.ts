@@ -20,12 +20,8 @@ import { invokeLLM, extractMessageText } from "../_core/llm";
 import { CircuitBreaker } from "./circuitBreaker";
 import { ENV } from "../_core/env";
 import { serverEnv } from "../_core/env.validated";
-import {
-  addLearnDoc,
-  hasLearnDoc,
-  type LearnDoc,
-  type DocCategory,
-} from "../routers/learnHub";
+import { addLearnDoc, hasLearnDoc } from "../routers/learnHub";
+import type { LearnDoc, DocCategory } from "../routers/learnHub.seed";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 

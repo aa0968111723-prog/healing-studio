@@ -21,12 +21,8 @@ import { invokeLLM, extractMessageText } from "../_core/llm";
 import { gte, desc, and, eq } from "drizzle-orm";
 import { CircuitBreaker } from "./circuitBreaker";
 import { serverEnv } from "../_core/env.validated";
-import {
-  addLearnDoc,
-  hasLearnDoc,
-  type LearnDoc,
-  type DocCategory,
-} from "../routers/learnHub";
+import { addLearnDoc, hasLearnDoc } from "../routers/learnHub";
+import type { LearnDoc, DocCategory } from "../routers/learnHub.seed";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
