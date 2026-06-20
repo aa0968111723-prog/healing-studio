@@ -20,7 +20,7 @@ Story,任務耐久化 BullMQ+Redis+可重連 SSE,"殺 5 分鐘 timeout。驗收�
 Story,真實成本落帳閉環,"估→原子扣→落帳/全退，outbox 模式。驗收：cost_aggregations 不再 $0.00。",To Do,,,,Wave 2 耐久任務/成本/血統
 Story,上傳改 signed URL/tus（廢 base64）,"大檔上傳不再過 tRPC body。",To Do,,,,Wave 2 耐久任務/成本/血統
 Story,fal.ai 雙層生影片,"草稿 Seedance/Kling/Wan＋精修 Veo 3.1。缺 FAL_KEY（貼 Railway）。注意：影片價以 fal 帳號頁為準。",Blocked,needs-key,caution,,Wave 2 耐久任務/成本/血統
-Story,migration 治理：孤兒 0071–0074 處置,"四個 .sql 未登記 journal（boot 警告 orphan、永不套用）。補登記會在下次部署突然套用 4 張表——需拍板：補登記或標廢棄。",Blocked,decision,待議,,Wave 2 耐久任務/成本/血統
+Story,migration 治理：孤兒 migration 全數處置（AIDV-17）,"剩餘孤兒 2026-06-21 補登記。Docker MySQL 對已登記 0000→0079 基準 schema 實跑判定：0033（agent_collaboration_sessions.planStatus/planData/plan_status_idx）+0039–0044（orb 系列 16 表）= 結構從未建立、真的漏了已補；0067 = 0062 已套之 no-op。八支全冪等（0033 裸 ALTER 改 information_schema 守門/PREPARE；orb=CREATE TABLE IF NOT EXISTS；0067 既有守門），通過乾淨套用+重跑 no-op+模擬 fail-closed 整段重跑三關，新增 PENDING_BLOCK+schema.ts 守門測試。drizzle/ 已無孤兒、boot orphan 警告消失。",Done,decision-resolved,,,Wave 2 耐久任務/成本/血統
 Story,M3 影片段落狀態機,"video_generation_sessions / segment_jobs；段落級重試/續跑。規模 XL。依賴 Wave 2 耐久化。",To Do,,,,Wave 3 重後端/基建/協作
 Story,MySQL→Supabase 遷移＋退役 Pinecone,"pg + pgvector halfvec(3072) + HNSW。注意：transaction pooler:6543、migration ledger 回填、enum/extension 衝突。已拍板排在任務耐久化之後。缺 Supabase keys（貼 Railway）。",Blocked,needs-key,caution,,Wave 3 重後端/基建/協作
 Story,presence＋Redis SET NX 生成鎖,"並發生成不互踩。依賴 Redis。",To Do,,,,Wave 3 重後端/基建/協作

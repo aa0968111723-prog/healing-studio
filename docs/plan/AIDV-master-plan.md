@@ -44,7 +44,7 @@ healing-studio（線上 director.today）影片系統整合進現有網站、收
 **UI 原則**：三欄導演台（Story Spine／創作畫布／Context Sidecar）、S0X 導航主軸、readiness chips、確認門＋成本常駐、drawer 不離場、光球 Ambient 四態無人格、漸進揭露。
 
 **重要 repo 機制（開發必讀）**：
-- migration 由 boot 時 `server/db.ts applyMigrations → drizzle migrate()` 依 `drizzle/meta/_journal.json` 套用；**未登記 journal 的 .sql 永遠不會跑**（boot 警告 orphan）。0071–0074 已補登記（#869，2026-06-13）；尚餘已知孤兒 0033_add_plan_status_to_sessions、0039–0044（orb 系列）、0067_repair_worldbuilding_v4_columns（`待議`，白名單在 server/orphan-migrations-journal.test.ts）。
+- migration 由 boot 時 `server/db.ts applyMigrations → drizzle migrate()` 依 `drizzle/meta/_journal.json` 套用；**未登記 journal 的 .sql 永遠不會跑**（boot 警告 orphan）。0071–0074 已補登記（#869，2026-06-13）；剩餘孤兒 0033_add_plan_status_to_sessions、0039–0044（orb 系列 16 表）、0067_repair_worldbuilding_v4_columns 已於 **AIDV-17 第二批補登記（2026-06-21）**——Docker MySQL 對「已登記 0000→0079 基準 schema」實跑判定：0033（planStatus/planData/plan_status_idx）與 0039–0044（orb 系列 16 表）= **結構從未建立、真的漏了，已補**；0067 = **0062 已套之 no-op**（researchEntriesJson/soundLibraryJson/uploadedAssetsJson 早已存在）。八支全數改/保持冪等（0033 裸 ALTER→information_schema 守門；orb=CREATE TABLE IF NOT EXISTS；0067 既有守門），並通過「乾淨套用＋重跑 no-op＋模擬 fail-closed 整段重跑」三關。**目前 drizzle/ 已無孤兒**。
 - **migration 三鐵則（06-13 P0 教訓，守門測試 server/migration-prod-pending-block.test.ts）**：①禁 MySQL 不支援的 `CREATE INDEX IF NOT EXISTS`；②每個 `--> statement-breakpoint` chunk 只能一句（mysql2 不開 multipleStatements）；③ALTER/CREATE INDEX 必須 information_schema 守門（裸寫重跑必爆＝卡死整個 runner）。drizzle 套用規則＝journal `when` 必須大於 DB 最後一筆 created_at，補登記要用更大的 when 追加。
 - 旗標慣例：前端 `client/src/config/*Flags.ts`（Vite env，階層在 ENABLE_4SHELL 之下）；後端 `server/_core/env.validated.ts` + lazy `process.env` 讀取。
 - schema.ts 慣例不寫 `references()`；FK 由 raw-SQL migration 補（0055 模式）。
@@ -75,7 +75,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | **合流 `feat/4-shell-restructure` → main**（聚合 #862+#863） | ✅ Done（06-12，AIDV-7） | [#866](https://github.com/aa0968111723-prog/healing-studio/pull/866) | main 含導演台+SSOT；旗標 OFF 線上零變化 | — |
 | W1-3 promptVault adapter 接縫（AIDV-36） | ✅ Done（06-12 合併 main） | [#867](https://github.com/aa0968111723-prog/healing-studio/pull/867) | promptLibrary.*＋junction 雙向查詢 | #864 |
 | W1-7 工程衛生（AIDV-40） | ✅ Done（06-13 合併 main） | [#868](https://github.com/aa0968111723-prog/healing-studio/pull/868) | scan 一鍵化；eval tsx；notes.create 蟲修 | — |
-| 0071–0074 journal 補登記（AIDV-17） | 🔄 In Progress（#869 已合併；#872 已合 → 下次部署生效） | [#869](https://github.com/aa0968111723-prog/healing-studio/pull/869) | 真站驗證四張表建立後關卡 | ~~#872~~ 已解 |
+| 孤兒 migration 全數補登記（AIDV-17） | ✅ Done（0071–0074 #869；第二批 0033／0039–0044／0067 於 2026-06-21，Docker 對基準 schema 實跑驗證後補登記） | [#869](https://github.com/aa0968111723-prog/healing-studio/pull/869) | drizzle/ 無孤兒、boot orphan 警告消失；八支冪等＋fail-closed 整段重跑綠；新增 PENDING_BLOCK 守門 | — |
 | W1-2 統一供應商門面＋H5 鎖門（AIDV-11+60） | ✅ Done（06-13 合併 main） | [#870](https://github.com/aa0968111723-prog/healing-studio/pull/870) | CF_AI_GATEWAY_* 未設＝零變化；/api/ai 401＋fail-closed＋限流掛載 | CF 帳號（啟用閘道用） |
 | W1-8 引導表單細修＋四態文案（AIDV-41） | ✅ Done（06-13 合併 main） | [#871](https://github.com/aa0968111723-prog/healing-studio/pull/871) | error 標真實 procedure；GuidedJourney 取消出口 | — |
 | 🔴 **P0 解卡生產 migration（AIDV-76）** | ✅ Done（06-12 合併 main） | [#872](https://github.com/aa0968111723-prog/healing-studio/pull/872) | 合併部署後 creative_projects 等表自動補建；**待真站瀏覽器驗證痊癒** | — |
@@ -98,7 +98,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | 真實成本落帳閉環（估→原子扣→落帳/全退，outbox） | 📋 To Do | Notion: 真實成本落帳閉環 | **cost_aggregations 不再 $0.00** | — |
 | 上傳改 signed URL/tus（廢 base64） | 📋 To Do | — | 大檔上傳不過 tRPC body | — |
 | fal.ai 雙層生影片（草稿 Seedance/Kling/Wan＋精修 Veo 3.1） | ⛔ Blocked `needs-key`（FAL_KEY） | `caution`：影片價以 fal 帳號頁為準 | 草稿→精修兩段流程可跑 | FAL_KEY→Railway |
-| migration 治理：孤兒 0071–0074 處置 | ⛔ Blocked `decision` `待議` `caution` | 補登記會在下次部署突然套用 4 張表 | 拍板：補登記或標廢棄 | — |
+| migration 治理：孤兒 migration 全數處置（AIDV-17） | ✅ Done `decision-resolved`（2026-06-21） | 0071–0074 已補（#869）；第二批 0033/0039–0044=漏建已補、0067=0062 之 no-op；八支全冪等＋Docker fail-closed 重跑驗證 | drizzle/ 無孤兒；下次部署套用 8 支（建 16 orb 表＋agent_collaboration_sessions.planStatus/planData/索引） | — |
 
 ### 2.4 EPIC Wave 3 — 重後端／基建／協作【To Do 📋】
 

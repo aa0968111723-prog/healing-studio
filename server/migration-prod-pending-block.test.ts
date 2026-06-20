@@ -37,6 +37,16 @@ const PENDING_BLOCK = [
   "0077_cost_ledger",
   "0078_resource_shares",
   "0079_cost_attribution",
+  // AIDV-17 補登記的孤兒：登記後 when 在 0079 之後，下次部署與上面同一輪跑，
+  // 故同屬「生產可能整段重跑」區，必須遵守同樣的可重跑鐵則。
+  "0033_add_plan_status_to_sessions",
+  "0039_orb_long_term_memory",
+  "0040_orb_intent_clarification",
+  "0041_orb_feature_usage",
+  "0042_orb_workflow_templates",
+  "0043_orb_system_monitoring",
+  "0044_orb_template_ratings_and_alerts",
+  "0067_repair_worldbuilding_v4_columns",
 ];
 
 function readSql(tag: string): string {
