@@ -71,6 +71,11 @@ import { promptLibraryRouter } from "./routers/promptLibrary";
 import { promptCollectionRouter } from "./routers/promptCollection";
 import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
+import { auditLogRouter } from "./routers/auditLog";
+import {
+  recordAuditEvent,
+  extractRequestSource,
+} from "./services/audit/auditLog";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
 import { agentModelPicksRouter } from "./routers/agentModelPicksRouter";
@@ -1109,6 +1114,7 @@ export const appRouter = router({
   promptCollection: promptCollectionRouter,
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
+  auditLog: auditLogRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
   agentModelPicks: agentModelPicksRouter,
@@ -4310,6 +4316,19 @@ export const appRouter = router({
             );
           }
         }
+        recordAuditEvent({
+          actorUserId: ctx.user.id,
+          actorRole: ctx.user.role,
+          action:
+            input.visibility === "team_shared" ? "asset.share" : "asset.unshare",
+          targetType: "asset",
+          targetId: input.id,
+          metadata: {
+            from: asset.visibility,
+            to: input.visibility,
+          },
+          ...extractRequestSource(ctx.req),
+        });
         return { success: true };
       }),
 
@@ -4321,6 +4340,15 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.deleteDigitalAsset(input.id);
+        recordAuditEvent({
+          actorUserId: ctx.user.id,
+          actorRole: ctx.user.role,
+          action: "asset.delete",
+          targetType: "asset",
+          targetId: input.id,
+          metadata: { title: asset.title },
+          ...extractRequestSource(ctx.req),
+        });
         return { success: true };
       }),
   }),

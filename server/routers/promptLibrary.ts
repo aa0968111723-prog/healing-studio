@@ -19,6 +19,10 @@ import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb, getLinkedAssetsForPrompt } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
+import {
+  recordAuditEvent,
+  extractRequestSource,
+} from "../services/audit/auditLog";
 
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
 
@@ -233,6 +237,15 @@ export const promptLibraryRouter = router({
       if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞或無權限刪除" });
 
       await db.delete(promptLibrary).where(eq(promptLibrary.id, input.id));
+
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "prompt.delete",
+        targetType: "prompt",
+        targetId: input.id,
+        ...extractRequestSource(ctx.req),
+      });
 
       return { success: true };
     }),

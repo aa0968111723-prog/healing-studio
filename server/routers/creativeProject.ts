@@ -14,6 +14,10 @@ import * as db from "../db";
 import type { CreativeProject } from "../../drizzle/schema";
 import { getProjectContextSummary } from "../subsystems/projectContext/projectContextService";
 import { ProjectContextAccessError } from "../subsystems/projectContext/contracts";
+import {
+  recordAuditEvent,
+  extractRequestSource,
+} from "../services/audit/auditLog";
 
 const projectStatusSchema = z.enum([
   "concept",
@@ -131,6 +135,15 @@ export const creativeProjectRouter = router({
           tags: input.tags ?? [],
           metadata: input.metadata ?? null,
         });
+        recordAuditEvent({
+          actorUserId: ctx.user.id,
+          actorRole: ctx.user.role,
+          action: "project.create",
+          targetType: "project",
+          targetId: id,
+          metadata: { title: input.title },
+          ...extractRequestSource(ctx.req),
+        });
         return { id };
       } catch (error) {
         const cause = (error as { cause?: { code?: string; message?: string } })
@@ -175,6 +188,15 @@ export const creativeProjectRouter = router({
         ...(p.tags !== undefined ? { tags: p.tags } : {}),
         ...(p.metadata !== undefined ? { metadata: p.metadata } : {}),
       });
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "project.update",
+        targetType: "project",
+        targetId: input.id,
+        metadata: { fields: Object.keys(p) },
+        ...extractRequestSource(ctx.req),
+      });
       return { ok: true };
     }),
 
@@ -187,6 +209,15 @@ export const creativeProjectRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await db.deleteCreativeProject(input.id);
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "project.delete",
+        targetType: "project",
+        targetId: input.id,
+        metadata: { title: existing.title },
+        ...extractRequestSource(ctx.req),
+      });
       return { ok: true };
     }),
 
