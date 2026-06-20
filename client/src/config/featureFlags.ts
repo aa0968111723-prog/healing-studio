@@ -1,13 +1,14 @@
 // ============================================================================
 // featureFlags.ts — P0 4-shell restructure feature flags (build-time, Vite env)
 // ----------------------------------------------------------------------------
-// 單一真相源：所有 4-shell 相關旗標都從這裡讀。多數預設 OFF；例外見各旗標說明
-//（SHELL_LEARN 預設 ON＝既有 /learn 可達；ENABLE_AIDV_CHROME 自 2026-06-16 預設 ON＝Wave U 新設計上線）。
+// 單一真相源：所有 4-shell 相關旗標都從這裡讀。預設見各旗標說明
+//（ENABLE_4SHELL 自 2026-06-20 預設 ON＝前端新介面上線；SHELL_LEARN 預設 ON＝既有 /learn 可達；
+//  ENABLE_AIDV_CHROME 自 2026-06-16 預設 ON＝Wave U 新設計，但被 ENABLE_4SHELL gate）。
 // 旗標來自 Vite 的 import.meta.env（建置時注入），可被 .env / 部署環境變數覆寫。
 //
-//   ENABLE_4SHELL=OFF（預設）→ App.tsx 的 <Router> 完全照舊；不掛任何 /video|/social|
+//   ENABLE_4SHELL=ON（自 2026-06-20 預設）→ ShellRoutes() 注入四個 shell 掛載點 + 舊路徑相容導向。
+//   ENABLE_4SHELL=OFF（回滾退路）→ App.tsx 的 <Router> 完全照舊；不掛任何 /video|/social|
 //                              /learn|/settings shell、不啟用任何舊→新相容導向。
-//   ENABLE_4SHELL=ON         → ShellRoutes() 注入四個 shell 掛載點 + 舊路徑相容導向。
 //
 // 為什麼用 import.meta.env 而非 system_settings 表：P0 是「純前端、零後端改動」，
 // 旗標必須在「不碰 server / 不碰 DB」的前提下可切換。日後（/settings admin 治理）可
@@ -40,10 +41,21 @@ function readFlag(key: string, fallback = false): boolean {
 }
 
 /**
- * 4-shell 總開關。OFF（預設）時整個 shell routing 層不存在，零行為改變。
- * 對應 .env：VITE_ENABLE_4SHELL=1
+ * 4-shell 總開關。ON 時 ShellRoutes() 注入四個 shell 掛載點 + 舊路徑相容導向；
+ * OFF 時整個 shell routing 層不存在，零行為改變（回滾退路）。
+ *
+ * **2026-06-20 Bruce 拍板「線上開前端新介面」→ default ON**：四殼導演台 UI
+ * （Rail/TopBar/⌘K ＋ /video|/social|/learn|/settings shell ＋ ENABLE_AIDV_CHROME 暖光設計）
+ * 成為線上預設樣貌。先前已於 .env.production 設 VITE_ENABLE_4SHELL=1（正式環境早已為新介面），
+ * 此處翻 default 讓「沒有 env 覆寫」的環境（本機 dev／測試）也預設新介面。
+ *
+ * 關閉退路（任一，皆不需改碼）：
+ *   ① 全站秒回滾：部署環境設 `VITE_ENABLE_4SHELL=0`（Railway），重新部署 →
+ *      shell routing 層消失、ENABLE_AIDV_CHROME 連帶強制 OFF（沿用既有 AppleDock）。
+ *   ② 單一瀏覽器：網址 `?aidvchrome=0`（即時、存 localStorage、不影響他人）關掉新 chrome。
+ * 優先序維持：建置旗標（VITE_ENABLE_4SHELL）> 預設 ON；run-time 覆寫見 ENABLE_AIDV_CHROME。
  */
-export const ENABLE_4SHELL: boolean = readFlag("VITE_ENABLE_4SHELL", false);
+export const ENABLE_4SHELL: boolean = readFlag("VITE_ENABLE_4SHELL", true);
 
 /**
  * /social shell 顯示開關（模擬 SHELL_META 已預留）。OFF 時 /social 顯示「已關閉」佔位。

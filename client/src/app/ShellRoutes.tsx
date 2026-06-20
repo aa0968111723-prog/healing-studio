@@ -20,6 +20,7 @@ import type { ReactElement } from "react";
 import { ENABLE_4SHELL } from "@/config/featureFlags";
 import { NavigateRedirect } from "@/app/navigation";
 import { LEGACY_REDIRECTS } from "@/shells/shellRouteTable";
+import { SHELL_IDS } from "@/shells/shellRouteContract";
 import { VideoShell } from "@/shells/VideoShell";
 import { SocialShell } from "@/shells/SocialShell";
 import { LearnShell } from "@/shells/LearnShell";
@@ -31,6 +32,13 @@ const SHELL_COMPONENTS = {
   learn: LearnShell,
   settings: SettingsShell,
 } as const;
+
+/**
+ * 兩態合約 helper（`expectedShellRouteCount`）已抽到不含 React 樹的純資料模組
+ * `@/shells/shellRouteContract`（route-parity 測試靜態 import 它，無須冷重載整個 shell 樹）。
+ * 此處再 export 一次以維持既有匯入路徑相容。
+ */
+export { expectedShellRouteCount } from "@/shells/shellRouteContract";
 
 /**
  * 回傳 4-shell 的 Route 陣列（相容導向 + shell 掛載）。
@@ -63,7 +71,8 @@ export function shellRoutes(): ReactElement[] {
   }
 
   // ② 四個 shell 掛載點：裸前綴 + 萬用子路徑（:rest* 攤平 0..n 段）
-  for (const id of Object.keys(SHELL_COMPONENTS) as (keyof typeof SHELL_COMPONENTS)[]) {
+  // 以 shellRouteContract 的 SHELL_IDS 迭代＝與 expectedShellRouteCount 同一 id 真相源（不漂移）。
+  for (const id of SHELL_IDS) {
     const Shell = SHELL_COMPONENTS[id];
     routes.push(
       <Route key={`mount:${id}`} path={`/${id}`}>

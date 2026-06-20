@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import {
-  ProviderChip, Rail, StateInspector, CommandPalette, MobileNav,
+  ProviderChip, Rail, StateInspector, CommandPalette, MobileNav, AccountMenu,
   type DkShellDef, type DkCommandItem,
 } from "./chrome";
 
@@ -86,5 +86,43 @@ describe("design-kit Chrome 元件（U-10 / AIDV-101）", () => {
     render(<MobileNav shells={shells} active="video" onSelect={onSelect} />);
     fireEvent.click(screen.getByLabelText("設定"));
     expect(onSelect).toHaveBeenCalledWith("settings");
+  });
+
+  it("MobileNav：給 onLogout → 顯示可見登出鈕並可點（行動可見出口，非只藏 ⌘K）", () => {
+    const onLogout = vi.fn();
+    render(<MobileNav shells={shells} active="video" onSelect={vi.fn()} onLogout={onLogout} />);
+    fireEvent.click(screen.getByLabelText("登出"));
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("MobileNav：未給 onLogout → 不渲染登出鈕（向後相容）", () => {
+    render(<MobileNav shells={shells} active="video" onSelect={vi.fn()} />);
+    expect(screen.queryByLabelText("登出")).toBeNull();
+  });
+
+  it("AccountMenu：closed 時不顯示登出；open 時顯示且點登出 → onLogout", () => {
+    const onLogout = vi.fn();
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <AccountMenu label="Bruce" onLogout={onLogout} open={false} onToggle={onToggle} />,
+    );
+    // 入口（avatar）一律可見，aria-expanded=false；登出項收合中不渲染。
+    const trigger = screen.getByLabelText("帳號選單");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("登出")).toBeNull();
+    fireEvent.click(trigger);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    // 展開後可見登出 → 點擊呼叫 onLogout。
+    rerender(<AccountMenu label="Bruce" onLogout={onLogout} open onToggle={onToggle} />);
+    expect(screen.getByLabelText("帳號選單").getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByText("登出"));
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("AccountMenu：有 onSettings → 顯示設定項並可點", () => {
+    const onSettings = vi.fn();
+    render(<AccountMenu label="Bruce" onLogout={vi.fn()} onSettings={onSettings} open onToggle={vi.fn()} />);
+    fireEvent.click(screen.getByText("設定"));
+    expect(onSettings).toHaveBeenCalledTimes(1);
   });
 });
