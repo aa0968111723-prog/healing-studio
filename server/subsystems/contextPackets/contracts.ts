@@ -8,14 +8,17 @@
  * 安全不變量：`kind !== "team_data"` 的來源內容一律視為 **untrusted** —— 不執行、
  * 進 summaryMarkdown 前需 escape/sanitize、日後餵模型時須 prompt-injection fence。
  *
- * 落實狀態（AIDV-69 最後切片）：
- *  ✅ sanitize：已於 contextPacketService.buildSummaryMarkdown 對 untrusted
- *     （kind !== "team_data"）的 title / snippet 套 sanitizeContextPacketField
- *     （ragInjectionGuard.neutralizeInjectionMarkers），旗標 ENABLE_RAG_INJECTION_GUARD
- *     gate、預設 OFF＝位元相同；team_data 受信任不過 guard。
- *  ⏳ fence：summaryMarkdown 目前**只進 UI**（TeamDataSourcesPanel / teamDataSummary），
- *     不進任何 LLM prompt → 依鐵則**不在此編譯端加 fence**（會污染 UI 顯示）。
- *     未來若新增「summaryMarkdown 進 LLM prompt」的真實路徑，才於該注入點改呼叫
+ * 落實狀態（AIDV-69）：
+ *  ✅ sanitize：已於 contextPacketService 的**資料層**（sanitizeUntrustedRefs，adapter
+ *     收集後一次到位）對 untrusted（kind !== "team_data"）ref 的 title / snippet 套
+ *     sanitizeContextPacketField（ragInjectionGuard.neutralizeInjectionMarkers）。持久化的
+ *     sourceRefsJson 與衍生的 summaryMarkdown **共用同一份已中和 refs** → UI chips
+ *     （ref.title / ref.snippet）、summaryMarkdown、未來讀 sourceRefs 的消費端皆繼承中和，
+ *     無未中和旁系副本。旗標 ENABLE_RAG_INJECTION_GUARD gate、預設 OFF＝位元相同；
+ *     team_data 受信任不過 guard。
+ *  ⏳ fence：summaryMarkdown / sourceRefs 目前**只進 UI**（TeamDataSourcesPanel /
+ *     teamDataSummary），不進任何 LLM prompt → 依鐵則**不在此編譯端加 fence**（會污染
+ *     UI 顯示）。未來若新增「進 LLM prompt」的真實路徑，才於該注入點改呼叫
  *     guardRetrievedContext（含 BEGIN/END 邊界 fence）。
  */
 
