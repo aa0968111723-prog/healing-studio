@@ -4042,3 +4042,71 @@ export const realEarthEntries = mysqlTable(
 
 export type RealEarthEntry = typeof realEarthEntries.$inferSelect;
 export type InsertRealEarthEntry = typeof realEarthEntries.$inferInsert;
+
+// ─── Global Audit Log（AIDV-123 全站操作稽核軌跡）──────────────────────────
+//
+// Append-only 稽核表：統一記錄全站「關鍵寫入」操作（登入、建立/修改/刪除
+// 專案・資產・提示詞・教材、共享/撤銷、生成、連接器授權、成本操作）。
+//
+// 設計原則：
+//   • Append-only / 不可竄改：只有 INSERT，沒有任何 update/delete 的 service
+//     或 router 出口；一般使用者沒有任何寫/改本表的端點。
+//   • Best-effort：寫入失敗（DB 掛、無 DATABASE_URL）絕不阻斷原操作。
+//   • 高頻 log → bigint PK、無 updatedAt（稽核紀錄一旦寫下不再變動）。
+//
+// 仿 teaching_material_access_log（既有 access-audit-log）形狀 + login_history
+// 的 actor/IP/device 欄位。
+export const globalAuditLog = mysqlTable(
+  "global_audit_log",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    /** 操作者（actor）user id；系統/匿名操作可為 null */
+    actorUserId: int("actorUserId"),
+    /** 操作者角色快照（admin/leader/user…），方便事後查驗權限脈絡 */
+    actorRole: varchar("actorRole", { length: 50 }),
+    /**
+     * 動作語意。用 varchar 而非 enum：稽核動作會隨功能不斷新增，
+     * varchar 讓「接新寫入點」是純加法、不需動 migration 改 enum。
+     * 命名慣例：<domain>.<verb>，如 project.create / asset.share / auth.login。
+     */
+    action: varchar("action", { length: 100 }).notNull(),
+    /** 目標物型別（project / asset / prompt / material / consent / user…） */
+    targetType: varchar("targetType", { length: 50 }),
+    /** 目標物 id（字串以相容 int / uuid / 複合 key） */
+    targetId: varchar("targetId", { length: 100 }),
+    /** 結果 */
+    result: mysqlEnum("result", ["success", "failure"])
+      .default("success")
+      .notNull(),
+    /** 來源 IP（IPv6-safe 長度） */
+    ipAddress: varchar("ipAddress", { length: 45 }),
+    /** 來源裝置 / User-Agent */
+    userAgent: text("userAgent"),
+    /** 附加 context（變更前後值、失敗原因、查詢字串等） */
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    // 依成員過濾 + 時間排序
+    actorCreatedAtIdx: index("gal_actor_createdAt_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+    // 依動作過濾 + 時間排序
+    actionCreatedAtIdx: index("gal_action_createdAt_idx").on(
+      table.action,
+      table.createdAt
+    ),
+    // 依目標物（專案/資產…）過濾 + 時間排序
+    targetCreatedAtIdx: index("gal_target_createdAt_idx").on(
+      table.targetType,
+      table.targetId,
+      table.createdAt
+    ),
+    // 純時間排序（全站時間軸瀏覽）
+    createdAtIdx: index("gal_createdAt_idx").on(table.createdAt),
+  })
+);
+
+export type GlobalAuditLog = typeof globalAuditLog.$inferSelect;
+export type InsertGlobalAuditLog = typeof globalAuditLog.$inferInsert;

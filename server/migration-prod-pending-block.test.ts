@@ -33,6 +33,7 @@ const PENDING_BLOCK = [
   "0069_creative_projects_worldview_script",
   "0070_orchestration_runs",
   "0075_prompt_assets",
+  "0076_global_audit_log",
 ];
 
 function readSql(tag: string): string {
@@ -64,7 +65,7 @@ describe("drizzle 全目錄：MySQL 語法地雷", () => {
   });
 });
 
-describe("生產待套用區段（0063–0075）可重跑鐵則", () => {
+describe("生產待套用區段（0063–0076）可重跑鐵則", () => {
   it("每個 chunk 只含一個語句（procedure 檔除外）", () => {
     for (const tag of PENDING_BLOCK) {
       const chunks = stripComments(readSql(tag)).split("--> statement-breakpoint");
