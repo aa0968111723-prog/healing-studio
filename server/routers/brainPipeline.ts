@@ -630,7 +630,7 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     description: "聚合 LLM 用量、錯誤計數、provider 健康指標（內部監控）",
     method: "GET",
     path: "/api/metrics",
-    files: ["server/_core/index.ts"],
+    files: ["server/_core/metricsRoute.ts", "server/_core/index.ts"],
     downstream: ["db:main"],
   },
   {

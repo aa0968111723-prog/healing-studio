@@ -89,6 +89,10 @@ function beforeSend(event: Record<string, unknown>): Record<string, unknown> {
     if ("headers" in req) req.headers = scrubHeaders(req.headers);
     if ("cookies" in req) req.cookies = "[redacted]";
     if ("data" in req) delete req.data; // 請求 body 可能含 token / PII
+    // 縱深防禦：即使本 app 只用 cookie 認證（query 不帶 secret），仍剝除 query_string
+    // 與 url 上的 query 片段，避免未來新增的帶參路由把 token/PII 帶進第三方。
+    if ("query_string" in req) req.query_string = "[redacted]";
+    if ("url" in req && typeof req.url === "string") req.url = req.url.split("?")[0];
   }
   if (event.user && typeof event.user === "object") {
     const user = event.user as Record<string, unknown>;
@@ -126,9 +130,16 @@ export async function initErrorTracking(): Promise<void> {
   })();
 
   try {
+    // release：以 Railway 注入的 commit SHA（或顯式 SENTRY_RELEASE）標記版本，
+    // 讓 Sentry 能按部署/版本分流錯誤、做 regression 偵測與 source-map 對應。
+    // 為選填 metadata 故直接讀 process.env（非驗證型設定），未設則省略。
+    const release =
+      (process.env.SENTRY_RELEASE || process.env.RAILWAY_GIT_COMMIT_SHA || "").trim() || undefined;
+
     client.init({
       dsn,
       environment: serverEnv.SENTRY_ENVIRONMENT.trim() || serverEnv.NODE_ENV,
+      release,
       tracesSampleRate,
       sendDefaultPii: false,
       beforeSend,
