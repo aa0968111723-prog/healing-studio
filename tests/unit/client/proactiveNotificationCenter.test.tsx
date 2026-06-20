@@ -34,6 +34,7 @@ vi.mock("sonner", () => {
 });
 
 import { ProactiveNotificationCenter } from "../../../client/src/lib/ProactiveNotificationCenter";
+import { ORB_SMILEY_ONLY } from "../../../client/src/config/featureFlags";
 import { toast as mockedToast } from "sonner";
 
 const TOAST_CALLS = (mockedToast as unknown as { __calls: Array<{ kind: string; opts?: Record<string, unknown> }> })
@@ -200,5 +201,30 @@ describe("ProactiveNotificationCenter — post-merge integration", () => {
     });
     expect(TOAST_CALLS.length).toBe(1);
     unmount();
+  });
+
+  // ──「光球只留笑臉光球」(ORB_SMILEY_ONLY) 整合契約 ──────────────────────────
+  // DashboardLayout 把 globallyEnabled 餵成 `proactiveGloballyEnabled &&
+  // !ORB_SMILEY_ONLY`。預設 ORB_SMILEY_ONLY=true → 整個運算式恆為 false →
+  // 走既有 kill-switch 分支：守守/財財/巧巧等主動精靈卡片一張都不出、連 toast
+  // 都不冒。這把「只留笑臉光球」的行為鎖在這個唯一渲染收斂點上。
+  describe("ORB_SMILEY_ONLY 整合契約", () => {
+    it("預設旗標 ON：只留笑臉光球", () => {
+      expect(ORB_SMILEY_ONLY).toBe(true);
+    });
+
+    it("以 DashboardLayout 的實際運算式 (proactiveGloballyEnabled && !ORB_SMILEY_ONLY) 掛載時，主動精靈卡片全靜音", () => {
+      const proactiveGloballyEnabled = true; // 即使使用者偏好開著主動建議
+      const effectiveEnabled = proactiveGloballyEnabled && !ORB_SMILEY_ONLY;
+      const { unmount } = renderCenter({ globallyEnabled: effectiveEnabled });
+      act(() => {
+        // 守守「提示詞庫沒用到」(feature_not_used) 與其他事件全部丟進來
+        ProactiveEventBus.publish("feature_not_used", { featureName: "提示詞庫" });
+        ProactiveEventBus.publish("prompt_too_short", { prompt: "森林", suggestedAddition: "氣氛" });
+      });
+      // 預設旗標 ON → effectiveEnabled=false → 不訂閱、不渲染、不 toast
+      expect(TOAST_CALLS).toEqual([]);
+      unmount();
+    });
   });
 });

@@ -46,7 +46,7 @@ import AppleDock, {
   type DockDensity,
   type DockVariant,
 } from "./AppleDock";
-import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { ENABLE_AIDV_CHROME, ORB_SMILEY_ONLY } from "@/config/featureFlags";
 import { AidvShellChrome } from "@/shells/AidvShellChrome";
 import { AidvOrbMount } from "@/shells/AidvOrbMount";
 
@@ -859,11 +859,15 @@ function DashboardLayoutContent({
       {/* 主動精靈通知中心 — 取代舊的 toast 直發。卡片必須打勾才會消失，
           per-event 開關 + 間隔走 agent_preferences.proactiveTriggerSettings。
           orbProactiveSuggestions=false 是全域 kill-switch，favoriteSpirits 把
-          被收藏的精靈事件升級成 ack 卡片。 */}
+          被收藏的精靈事件升級成 ack 卡片。
+          「光球只留笑臉光球」(ORB_SMILEY_ONLY，預設 ON)：把 globallyEnabled 強制壓成
+          false，走元件既有「不訂閱任何事件＋清空佇列＋render null」安全分支＝守守/財財/
+          巧巧等主動精靈卡片整組不再跳出，笑臉光球本體完全不受影響。底層精靈系統保留，
+          設 VITE_ORB_SMILEY_ONLY=0 或 ?orbsmileyonly=0 即秒回滾。 */}
       <ProactiveNotificationCenter
         mutedSpirits={mutedSpiritsForBus}
         triggerSettings={triggerSettingsForBus}
-        globallyEnabled={proactiveGloballyEnabled}
+        globallyEnabled={proactiveGloballyEnabled && !ORB_SMILEY_ONLY}
         favoriteSpirits={favoriteSpiritsForBus}
         eventActions={eventActions}
       />
