@@ -4399,6 +4399,13 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.deleteDigitalAsset(input.id);
+        // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源
+        // 不會 cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。
+        try {
+          await db.deleteAllSharesForResource("asset", input.id);
+        } catch {
+          /* 清孤兒失敗不應擋刪除 */
+        }
         recordAuditEvent({
           actorUserId: ctx.user.id,
           actorRole: ctx.user.role,

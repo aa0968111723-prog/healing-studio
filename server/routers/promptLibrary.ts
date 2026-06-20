@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { eq, and, desc, like, inArray, sql } from "drizzle-orm";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
-import { getDb, getLinkedAssetsForPrompt } from "../db";
+import { getDb, getLinkedAssetsForPrompt, deleteAllSharesForResource } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 import {
@@ -268,6 +268,14 @@ export const promptLibraryRouter = router({
       if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞或無權限刪除" });
 
       await db.delete(promptLibrary).where(eq(promptLibrary.id, input.id));
+
+      // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會
+      // cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。
+      try {
+        await deleteAllSharesForResource("prompt", input.id);
+      } catch {
+        /* 清孤兒失敗不應擋刪除 */
+      }
 
       recordAuditEvent({
         actorUserId: ctx.user.id,

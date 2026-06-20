@@ -229,6 +229,13 @@ export const creativeProjectRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       await db.deleteCreativeProject(input.id);
+      // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會
+      // cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。
+      try {
+        await db.deleteAllSharesForResource("project", input.id);
+      } catch {
+        /* 清孤兒失敗不應擋刪除 */
+      }
       recordAuditEvent({
         actorUserId: ctx.user.id,
         actorRole: ctx.user.role,
