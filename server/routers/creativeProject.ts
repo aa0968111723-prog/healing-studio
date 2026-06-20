@@ -18,6 +18,8 @@ import {
   recordAuditEvent,
   extractRequestSource,
 } from "../services/audit/auditLog";
+import { isDataRbacEnabled } from "../services/authz/resourceAccess";
+import { canAccessResource } from "../services/authz/resourceAccessResolver";
 
 const projectStatusSchema = z.enum([
   "concept",
@@ -79,8 +81,26 @@ export const creativeProjectRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const row = await db.getCreativeProject(input.id);
-      if (!row || row.userId !== ctx.user.id) {
+      if (!row) {
         throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      // ── AIDV-121 enforcement（旗標 gate）─────────────────────────────
+      // 旗標 OFF（預設）= 完全保持現狀：只有 owner 看得到（非 owner→NOT_FOUND）。
+      // 旗標 ON = owner 仍可，且額外允許「被顯式共享給此 user/team 的」viewer/
+      //   editor 看到（A 看得到 B 顯式共享給 A 的專案）。OFF 路徑位元相同。
+      if (row.userId !== ctx.user.id) {
+        const allowed =
+          isDataRbacEnabled() &&
+          (await canAccessResource(
+            "project",
+            row.id,
+            { ownerId: row.userId, visibility: null, teamId: null },
+            ctx.user.id,
+            "view"
+          ));
+        if (!allowed) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
       }
       const data = rowToData(row);
 

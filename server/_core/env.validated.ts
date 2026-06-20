@@ -458,6 +458,15 @@ const multimodalSchema = z.object({
   ENABLE_GLOBAL_AGENT_TOOL_REGISTRY: z.string().optional().default("true"),
 
   /**
+   * AIDV-121 資料層 RBAC enforcement 旗標。預設 "false"（OFF）＝零行為變化：
+   * 所有 query/mutation 與現狀位元相同，canAccess 完全不在資料路徑被呼叫。
+   * 設為 "true"（ON）時，被接線的讀取 procedure（如 assets.teamAssets）會
+   * 經統一授權層 canAccess 過濾，A 看不到 B 未共享的資源。先在代表性接點
+   * 示範，全站接線為後續卡範圍。
+   */
+  ENABLE_DATA_RBAC: z.string().optional().default("false"),
+
+  /**
    * File path where the in-memory orb task store flushes its tasks/timeline.
    * When set, OrbTaskStore loads on boot and writes on every mutation, so
    * in-flight long workflows survive a server restart. Leave blank in test

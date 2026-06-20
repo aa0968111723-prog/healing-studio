@@ -89,6 +89,9 @@ import {
   realEarthEntries,
   type RealEarthEntry,
   type InsertRealEarthEntry,
+  resourceShares,
+  type ResourceShare,
+  type InsertResourceShare,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import type { UserRole } from "@shared/const";
@@ -3574,6 +3577,271 @@ export async function listTeamMembers(
     .from(teamMemberships)
     .where(eq(teamMemberships.teamId, teamId))
     .orderBy(teamMemberships.joinedAt);
+}
+
+// ─── Resource shares — 顯式共享 SSOT（AIDV-121 RBAC）─────────────────────────
+//
+// 純 CRUD helper，全部 demo/無 DB 安全（getDb()===null 時讀回空、寫 throw）。
+// canAccess 的「使用者側事實」由 resourceAccessResolver.ts 用這些 helper 組裝。
+
+type ResourceShareType = ResourceShare["resourceType"];
+type ResourceShareWith = ResourceShare["sharedWithType"];
+type ResourceShareRole = ResourceShare["role"];
+
+/** 列出某資源被分享給誰（資源 owner 的「共享管理」面板用）。 */
+export async function listSharesForResource(
+  resourceType: ResourceShareType,
+  resourceId: number
+): Promise<ResourceShare[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        eq(resourceShares.resourceId, resourceId)
+      )
+    )
+    .orderBy(desc(resourceShares.createdAt));
+}
+
+/**
+ * 取某使用者對「某資源」命中的所有顯式共享記錄（user 直接共享 + 其所屬 team
+ * 共享）。canAccess resolver 會把這些合併取最高權限。
+ */
+export async function getSharesForUserOnResource(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  userId: number,
+  userTeamIds: number[]
+): Promise<ResourceShare[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const targetConds = [
+    and(
+      eq(resourceShares.sharedWithType, "user"),
+      eq(resourceShares.sharedWithId, userId)
+    ),
+  ];
+  if (userTeamIds.length > 0) {
+    targetConds.push(
+      and(
+        eq(resourceShares.sharedWithType, "team"),
+        inArray(resourceShares.sharedWithId, userTeamIds)
+      )
+    );
+  }
+  return db
+    .select()
+    .from(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        eq(resourceShares.resourceId, resourceId),
+        or(...targetConds)
+      )
+    );
+}
+
+/**
+ * 列出某使用者（含其團隊）被顯式共享的「某型別資源 id 集合」。清單過濾用
+ * （旗標 ON 時：A 的清單 = 自己的 ∪ 被共享給 A 的）。
+ */
+export async function listSharedResourceIdsForUser(
+  resourceType: ResourceShareType,
+  userId: number,
+  userTeamIds: number[]
+): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const targetConds = [
+    and(
+      eq(resourceShares.sharedWithType, "user"),
+      eq(resourceShares.sharedWithId, userId)
+    ),
+  ];
+  if (userTeamIds.length > 0) {
+    targetConds.push(
+      and(
+        eq(resourceShares.sharedWithType, "team"),
+        inArray(resourceShares.sharedWithId, userTeamIds)
+      )
+    );
+  }
+  const rows = await db
+    .select({ resourceId: resourceShares.resourceId })
+    .from(resourceShares)
+    .where(
+      and(eq(resourceShares.resourceType, resourceType), or(...targetConds))
+    );
+  return [...new Set(rows.map(r => r.resourceId))];
+}
+
+/**
+ * 建立或更新一筆共享（同一對象對同一資源 upsert role）。回傳影響筆數無意義，
+ * 用 unique key 衝突即更新 role。
+ */
+export async function upsertResourceShare(
+  data: InsertResourceShare
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(resourceShares)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: { role: data.role, sharedByUserId: data.sharedByUserId },
+    });
+}
+
+/** 撤銷一筆共享（依資源 + 對象）。找不到視為 no-op。 */
+export async function revokeResourceShare(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  sharedWithType: ResourceShareWith,
+  sharedWithId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        eq(resourceShares.resourceId, resourceId),
+        eq(resourceShares.sharedWithType, sharedWithType),
+        eq(resourceShares.sharedWithId, sharedWithId)
+      )
+    );
+}
+
+/** 刪除某資源的全部共享記錄（資源被刪除 / 移轉清理時用，避免孤兒）。 */
+export async function deleteAllSharesForResource(
+  resourceType: ResourceShareType,
+  resourceId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        eq(resourceShares.resourceId, resourceId)
+      )
+    );
+}
+
+/** 移轉某資源擁有權（更新 owner 欄位）。各資源表 owner 欄位皆為 userId。 */
+export async function transferResourceOwnership(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  newOwnerUserId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  switch (resourceType) {
+    case "project":
+      await db
+        .update(creativeProjects)
+        .set({ userId: newOwnerUserId })
+        .where(eq(creativeProjects.id, resourceId));
+      return;
+    case "asset":
+      await db
+        .update(digitalAssetLibrary)
+        .set({ userId: newOwnerUserId })
+        .where(eq(digitalAssetLibrary.id, resourceId));
+      return;
+    case "prompt":
+      await db
+        .update(promptLibrary)
+        .set({ userId: newOwnerUserId })
+        .where(eq(promptLibrary.id, resourceId));
+      return;
+    case "material":
+      await db
+        .update(teachingMaterials)
+        .set({ userId: newOwnerUserId })
+        .where(eq(teachingMaterials.id, resourceId));
+      return;
+    default: {
+      const _exhaustive: never = resourceType;
+      throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+/**
+ * 讀某資源的 owner facts（{ ownerId, visibility, teamId }），給 canAccess /
+ * share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位略異，這裡
+ * 投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
+ */
+export async function getResourceOwnerFacts(
+  resourceType: ResourceShareType,
+  resourceId: number
+): Promise<{ ownerId: number; visibility: string | null; teamId: number | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  switch (resourceType) {
+    case "project": {
+      const rows = await db
+        .select({ ownerId: creativeProjects.userId })
+        .from(creativeProjects)
+        .where(eq(creativeProjects.id, resourceId))
+        .limit(1);
+      return rows[0]
+        ? { ownerId: rows[0].ownerId, visibility: null, teamId: null }
+        : null;
+    }
+    case "asset": {
+      const rows = await db
+        .select({
+          ownerId: digitalAssetLibrary.userId,
+          visibility: digitalAssetLibrary.visibility,
+        })
+        .from(digitalAssetLibrary)
+        .where(eq(digitalAssetLibrary.id, resourceId))
+        .limit(1);
+      return rows[0]
+        ? { ownerId: rows[0].ownerId, visibility: rows[0].visibility, teamId: null }
+        : null;
+    }
+    case "prompt": {
+      const rows = await db
+        .select({ ownerId: promptLibrary.userId })
+        .from(promptLibrary)
+        .where(eq(promptLibrary.id, resourceId))
+        .limit(1);
+      return rows[0]
+        ? { ownerId: rows[0].ownerId, visibility: null, teamId: null }
+        : null;
+    }
+    case "material": {
+      const rows = await db
+        .select({
+          ownerId: teachingMaterials.userId,
+          visibility: teachingMaterials.visibility,
+          teamId: teachingMaterials.teamId,
+        })
+        .from(teachingMaterials)
+        .where(eq(teachingMaterials.id, resourceId))
+        .limit(1);
+      return rows[0]
+        ? {
+            ownerId: rows[0].ownerId,
+            visibility: rows[0].visibility,
+            teamId: rows[0].teamId,
+          }
+        : null;
+    }
+    default: {
+      const _exhaustive: never = resourceType;
+      throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+    }
+  }
 }
 
 // ─── Teaching material access — audit log ────────────────────────────────
