@@ -958,16 +958,24 @@ async function checkSafety(
       result.choices[0]?.message?.content,
       extractJsonObjectFromText
     ) as { safe?: unknown; reason?: unknown } | null;
-    if (parsed && typeof parsed === "object") {
+    // AIDV-65：只有「可解析且 safe 為真 boolean」才算可靠判定。若 LLM 回了
+    // 物件但缺 safe 欄位或型別不對（例如 `{}`、`{"reason":"..."}`），形狀不符＝
+    // 無法可靠判定，視同無法解析 → 走 fail-closed gate（resolveSafetyFallback），
+    // 不再用 `parsed.safe !== false`（undefined !== false ⇒ true）誤判為 safe。
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.safe === "boolean"
+    ) {
       return {
-        safe: parsed.safe !== false,
+        safe: parsed.safe,
         ...(typeof parsed.reason === "string"
           ? { reason: parsed.reason }
           : {}),
       };
     }
-    // AIDV-65：LLM 回傳無法解析。OFF＝維持現行 fail-open（{ safe: true }）；
-    // ON＝fail-closed 擋下（resolveSafetyFallback）。
+    // AIDV-65：LLM 回傳 null／非物件／形狀不符（缺 safe boolean）皆走此分支。
+    // OFF＝維持現行 fail-open（{ safe: true }）；ON＝fail-closed 擋下。
     return resolveSafetyFallback(
       "內容安全檢查無法解析結果，為安全起見暫不放行，請稍後再試"
     );
@@ -1870,21 +1878,27 @@ export const appRouter = router({
         const safetyResult = await checkSafety(input.prompt);
         stepTimestamps.safetyDone = Date.now();
         const safetyMs = stepTimestamps.safetyDone - stepTimestamps.start;
-        generationBus.emit(jobId, {
-          type: "thought-update",
-          node: {
-            id: "safety",
-            label: "安全檢查",
-            status: "passed",
-            detail: `內容安全檢查通過（${safetyMs}ms）`,
-            timestamp: stepTimestamps.safetyDone,
-          },
-        });
-        generationBus.emit(jobId, {
-          type: "progress",
-          progress: 10,
-          message: "安全檢查通過",
-        });
+        // AIDV-65：只有「確認 safe」才宣告通過。先前無條件 emit passed／通過，
+        // 在 fail-closed（旗標 ON＋逾時／錯誤／無法解析回 safe:false）時，前端會
+        // 先收到「安全檢查通過」再立刻收到 error 節點，自相矛盾、洩漏錯誤狀態。
+        // 把 passed 兩個 emit 移到 safe 確認之後。
+        if (safetyResult.safe) {
+          generationBus.emit(jobId, {
+            type: "thought-update",
+            node: {
+              id: "safety",
+              label: "安全檢查",
+              status: "passed",
+              detail: `內容安全檢查通過（${safetyMs}ms）`,
+              timestamp: stepTimestamps.safetyDone,
+            },
+          });
+          generationBus.emit(jobId, {
+            type: "progress",
+            progress: 10,
+            message: "安全檢查通過",
+          });
+        }
         if (!safetyResult.safe) {
           // Emit error via SSE before throwing
           generationBus.emit(jobId, {
