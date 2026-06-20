@@ -34,6 +34,7 @@ const PENDING_BLOCK = [
   "0070_orchestration_runs",
   "0075_prompt_assets",
   "0076_global_audit_log",
+  "0077_cost_ledger",
   "0078_resource_shares",
 ];
 
