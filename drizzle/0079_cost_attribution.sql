@@ -9,7 +9,7 @@
 --   (B) cost_aggregations 加 TWD 呈現欄（totalCostTwd）＋稽核匯率欄（exchangeRate）。
 --   (C) 新建 cost_attribution_outbox 表（不漏帳 outbox）＋兩條索引。
 --
--- 三鐵則：禁 CREATE INDEX IF NOT EXISTS；一句一 --> statement-breakpoint；
+-- 三鐵則：禁 CREATE INDEX IF NOT EXISTS；一句一「statement-breakpoint」標記；
 -- ALTER/CREATE INDEX 走 information_schema 守門、CREATE TABLE 用 IF NOT EXISTS。
 -- 可安全重跑（欄位/索引/表已存在則 SELECT 1）。
 --
