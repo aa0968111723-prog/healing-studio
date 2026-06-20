@@ -545,6 +545,166 @@ describe("runPostGenForJob", () => {
     >;
     expect(historyEntry.costCredits).toBe(35);
   });
+
+  // ── AIDV-9：非同步 fal 路徑（webhook + polling 共用 runPostGenForJob）
+  //    讀回 resultJson.relation 並透傳給 doPostGenComplete，使座艙
+  //    重骰/改寫/延長在非同步路徑也能標對 relation。
+  describe("AIDV-9 relation read-back from resultJson", () => {
+    beforeEach(() => {
+      createPromptAssetLinkMock.mockReset();
+      createPromptAssetLinkMock.mockResolvedValue(1);
+      insertMock.mockReset();
+      // prompt_library 寫入回 insertId=55，讓 1-2 取得 savedPromptId
+      insertMock.mockResolvedValue([{ insertId: 55 }] as never);
+      createDigitalAssetMock.mockReset();
+      createDigitalAssetMock.mockResolvedValue(99);
+      delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+    });
+
+    afterEach(() => {
+      delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+    });
+
+    it.each([
+      ["variant", "重骰", "https://cdn.example.com/reroll.png"],
+      ["rewrite", "改寫", "https://cdn.example.com/rewrite.png"],
+      ["extended", "延長", "https://cdn.example.com/extend.mp4"],
+    ] as const)(
+      "flag ON：%s（%s）→ junction 寫對 relation 連新資產→母提示詞",
+      async (relation, _label, resultUrl) => {
+        process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+        getBackgroundJobMock.mockResolvedValueOnce({
+          id: 4242,
+          userId: 7,
+          jobType: relation === "extended" ? "video" : "image",
+          status: "completed",
+          resultJson: {
+            studioType: relation === "extended" ? "video" : "image",
+            modelId: "fal-ai/nano-banana-2",
+            prompt: "a derived asset prompt long enough for the library",
+            resultUrl,
+            relation,
+          },
+        });
+
+        const ran = await runPostGenForJob(4242);
+        expect(ran).toBe(true);
+        expect(createPromptAssetLinkMock).toHaveBeenCalledTimes(1);
+        expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+          promptId: 55,
+          assetId: 99,
+          relation,
+        });
+      }
+    );
+
+    it("flag OFF（預設）：即使 resultJson.relation=variant 也完全不寫 junction（線上行為位元相同）", async () => {
+      // 旗標未設＝OFF
+      getBackgroundJobMock.mockResolvedValueOnce({
+        id: 4243,
+        userId: 7,
+        jobType: "image",
+        status: "completed",
+        resultJson: {
+          studioType: "image",
+          modelId: "fal-ai/nano-banana-2",
+          prompt: "a derived asset prompt long enough for the library",
+          resultUrl: "https://cdn.example.com/reroll.png",
+          relation: "variant",
+        },
+      });
+
+      const ran = await runPostGenForJob(4243);
+      expect(ran).toBe(true);
+      // 旗標 OFF → 不碰 junction 表
+      expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
+      // 既有生成寫入完全不受影響
+      expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+      expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("flag ON 但 resultJson 無 relation：退回預設 derived（與既有 #864 行為相同）", async () => {
+      process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+      getBackgroundJobMock.mockResolvedValueOnce({
+        id: 4244,
+        userId: 7,
+        jobType: "image",
+        status: "completed",
+        resultJson: {
+          studioType: "image",
+          modelId: "fal-ai/nano-banana-2",
+          prompt: "a derived asset prompt long enough for the library",
+          resultUrl: "https://cdn.example.com/result.png",
+          // 無 relation 欄位
+        },
+      });
+
+      const ran = await runPostGenForJob(4244);
+      expect(ran).toBe(true);
+      expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+        promptId: 55,
+        assetId: 99,
+        relation: "derived",
+      });
+    });
+
+    it("flag ON 但 resultJson.relation 非法值：當作未帶 → 退回 derived（防髒資料）", async () => {
+      process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+      getBackgroundJobMock.mockResolvedValueOnce({
+        id: 4245,
+        userId: 7,
+        jobType: "image",
+        status: "completed",
+        resultJson: {
+          studioType: "image",
+          modelId: "fal-ai/nano-banana-2",
+          prompt: "a derived asset prompt long enough for the library",
+          resultUrl: "https://cdn.example.com/result.png",
+          relation: "bogus-not-an-enum",
+        },
+      });
+
+      const ran = await runPostGenForJob(4245);
+      expect(ran).toBe(true);
+      expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+        promptId: 55,
+        assetId: 99,
+        relation: "derived",
+      });
+    });
+
+    it("flag ON：junction 寫入失敗被吞，不影響生成落庫（best-effort）", async () => {
+      process.env.ENABLE_PROMPT_ASSET_LINKS = "true";
+      createPromptAssetLinkMock.mockRejectedValueOnce(
+        new Error("junction insert exploded")
+      );
+      getBackgroundJobMock.mockResolvedValueOnce({
+        id: 4246,
+        userId: 7,
+        jobType: "image",
+        status: "completed",
+        resultJson: {
+          studioType: "image",
+          modelId: "fal-ai/nano-banana-2",
+          prompt: "a derived asset prompt long enough for the library",
+          resultUrl: "https://cdn.example.com/reroll.png",
+          relation: "variant",
+        },
+      });
+
+      const ran = await runPostGenForJob(4246);
+      // junction 失敗不擋主流程：仍回 true、資產/歷史照寫、旗標照設
+      expect(ran).toBe(true);
+      expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+      expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+      expect(updateBackgroundJobMock).toHaveBeenCalledWith(
+        4246,
+        expect.objectContaining({
+          resultJson: expect.objectContaining({ postGenComplete: true }),
+        })
+      );
+    });
+  });
 });
 
 describe("refundJobIfBilled", () => {

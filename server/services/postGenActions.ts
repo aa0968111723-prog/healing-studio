@@ -520,6 +520,21 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
   const costCredits =
     typeof costPointsRaw === "number" ? costPointsRaw : undefined;
 
+  // AIDV-9：prompt↔asset relation 讀回。座艙重骰/改寫/延長走非同步 fal 任務時，
+  // 上游在送任務時把 relation marker stash 進 backgroundJob.resultJson.relation
+  // （variant/rewrite/extended）；webhook + polling 兩條路徑都共用本進入點，
+  // 這裡讀回並透傳給 doPostGenComplete，否則 relation 會在非同步路徑掉成預設 derived。
+  // 缺值（今日多數任務）＝undefined → doPostGenComplete 端維持原行為（旗標 ON 才寫、
+  // 預設 derived）；旗標 OFF 則完全不碰 junction 表＝線上行為位元相同。
+  const relationRaw = meta.relation;
+  const relation =
+    relationRaw === "derived" ||
+    relationRaw === "variant" ||
+    relationRaw === "rewrite" ||
+    relationRaw === "extended"
+      ? relationRaw
+      : undefined;
+
   await doPostGenComplete({
     userId: job.userId,
     modality: studioType as PostGenModality,
@@ -530,6 +545,7 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
     sourceStudio,
     costCredits,
     backgroundJobId: jobId,
+    relation,
   });
 
   // 寫旗標。失敗時不重試 — 若 doPostGenComplete 已成功插入，重複呼叫的
