@@ -1762,11 +1762,16 @@ ${segmentSummaries}
       const userId = ctx.user.id;
       const { segments, generationOptions } = input;
 
-      // ── Duplicate-submission lock (AIDV-20) ─────────────────────────────────
-      // Guard against the same user firing the *same* generation batch twice
-      // concurrently (double-click, retry storm). Lock key = userId + payload
-      // hash, so different payloads (different segments/options) still run in
-      // parallel; only the identical concurrent submit is rejected.
+      // ── Planning-debounce lock (AIDV-20) ────────────────────────────────────
+      // This call only PLANS tasks (builds descriptors + checks the point
+      // balance); it does NOT deduct points or dispatch — that is
+      // executeGenerationTask, which carries its OWN per-task lock (see below).
+      // So this lock just debounces a concurrent identical *plan* (double-click
+      // of the batch button → same payload → same key → second plan rejected).
+      // It is NOT the dedup boundary for paid generation; the per-task lock in
+      // executeGenerationTask is. For the primary double-click this still helps,
+      // because the client fans out to executeGenerationTask only inside this
+      // call's onSuccess — blocking the plan blocks the whole fan-out.
       // Fail-open by design: if the lock backend is unavailable/slow/errors, the
       // helper returns a token and we proceed — availability over dedup.
       const {
@@ -2106,6 +2111,50 @@ ${segmentSummaries}
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
 
+      // ── Per-task duplicate-execution lock (AIDV-20) ─────────────────────────
+      // THIS is the lock that actually prevents duplicate *paid* generation.
+      // executeGenerationTask is where points are deducted and the fal job is
+      // dispatched, and the client calls it once PER TASK — and again on the
+      // per-task retry button, or from a second browser tab. Without a lock here
+      // a double-fire of the *same* task would deduct points + create a fal job
+      // twice. We key on the stable per-task identity (segmentId + modality +
+      // modelId + prompt + params) so:
+      //   - the exact same task fired twice concurrently → second is rejected
+      //     BEFORE any deduction (CONFLICT, not a 500, no duplicate charge);
+      //   - a retry of a task that already finished its submit (lock released in
+      //     finally) → allowed; a different task → different key → parallel.
+      // Fail-open by design: backend unavailable/slow/errors → acquire returns a
+      // token and we proceed (availability over dedup); TTL auto-releases so a
+      // crash mid-submit never wedges the user out of re-running the task.
+      const {
+        generationLock,
+        buildGenerationTaskLockKey,
+        DEFAULT_TASK_LOCK_TTL_MS,
+      } = await import("../_core/generationLock");
+      const taskLockKey = buildGenerationTaskLockKey(userId, {
+        segmentId: input.segmentId,
+        modality: input.modality,
+        modelId: input.modelId,
+        prompt: input.prompt,
+        params: input.params,
+      });
+      const taskLock = await generationLock.acquire(
+        taskLockKey,
+        DEFAULT_TASK_LOCK_TTL_MS
+      );
+      if (typeof taskLock !== "string") {
+        // GENERATION_LOCKED → this exact task is already in flight. Reject
+        // before deducting any points / dispatching a duplicate fal job.
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "此生成任務正在進行中，請勿重複提交。請等待目前的生成完成後再試。",
+        });
+      }
+      const taskLockToken: string = taskLock;
+
+      try {
+
       // Import dependencies — go through dispatchFalQueueTask so the
       // director's auto-generation pipeline gets the same fallback chain
       // protection as Studio (a stale modelId degrades to the category's
@@ -2327,6 +2376,14 @@ ${segmentSummaries}
             error instanceof Error ? error.message : "生成任務失敗",
         });
         throw error;
+      }
+      } finally {
+        // Release the per-task lock once the submit has completed (or thrown).
+        // The fal job continues in the background under its own jobId — it is
+        // NOT held by this lock. CAS-del only removes the lock if we still hold
+        // it, so a lock re-acquired by a later attempt after TTL expiry is never
+        // deleted by this late releaser.
+        await generationLock.release(taskLockKey, taskLockToken);
       }
     }),
 

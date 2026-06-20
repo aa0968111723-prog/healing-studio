@@ -18,7 +18,9 @@ import {
   InMemoryGenerationLockStore,
   GENERATION_LOCKED,
   buildGenerationLockKey,
+  buildGenerationTaskLockKey,
   hashGenerationPayload,
+  DEFAULT_TASK_LOCK_TTL_MS,
   type GenerationLockStore,
 } from "./generationLock";
 
@@ -64,6 +66,82 @@ describe("hashGenerationPayload / buildGenerationLockKey", () => {
     const diff = buildGenerationLockKey(7, { segments: [2] });
     expect(same1).toBe(same2);
     expect(same1).not.toBe(diff);
+  });
+});
+
+describe("buildGenerationTaskLockKey — 單任務執行鎖 key（防重複付費生成）", () => {
+  const task = {
+    segmentId: "seg-1",
+    modality: "image",
+    modelId: "fal-ai/flux/dev",
+    prompt: "a cat",
+    params: { aspect_ratio: "16:9" },
+  };
+
+  it("相同 task identity → 相同 key（同任務雙擊互斥）", () => {
+    const a = buildGenerationTaskLockKey(1, task);
+    const b = buildGenerationTaskLockKey(1, { ...task });
+    expect(a).toBe(b);
+  });
+
+  it("任一欄位不同（modelId / prompt / params / modality / segmentId）→ 不同 key（可並行）", () => {
+    const base = buildGenerationTaskLockKey(1, task);
+    expect(buildGenerationTaskLockKey(1, { ...task, modelId: "fal-ai/flux/schnell" })).not.toBe(base);
+    expect(buildGenerationTaskLockKey(1, { ...task, prompt: "a dog" })).not.toBe(base);
+    expect(buildGenerationTaskLockKey(1, { ...task, modality: "video" })).not.toBe(base);
+    expect(buildGenerationTaskLockKey(1, { ...task, segmentId: "seg-2" })).not.toBe(base);
+    expect(buildGenerationTaskLockKey(1, { ...task, params: { aspect_ratio: "9:16" } })).not.toBe(base);
+  });
+
+  it("同 task 不同 user → 不同 key（各自獨立的付費生成）", () => {
+    expect(buildGenerationTaskLockKey(1, task)).not.toBe(buildGenerationTaskLockKey(2, task));
+  });
+
+  it("task key 與 planning key 命名空間不相撞（:task: 區隔）", () => {
+    const taskKey = buildGenerationTaskLockKey(1, task);
+    const planKey = buildGenerationLockKey(1, task);
+    expect(taskKey).not.toBe(planKey);
+    expect(taskKey.startsWith("gen-lock:task:1:")).toBe(true);
+    expect(planKey.startsWith("gen-lock:1:")).toBe(true);
+  });
+
+  it("DEFAULT_TASK_LOCK_TTL_MS 為正數且短於 planning TTL（任務鎖窗口較緊）", () => {
+    expect(DEFAULT_TASK_LOCK_TTL_MS).toBeGreaterThan(0);
+    expect(DEFAULT_TASK_LOCK_TTL_MS).toBeLessThan(180_000);
+  });
+});
+
+describe("per-task 執行鎖 — 端到端互斥 / 重試放行（模擬 executeGenerationTask）", () => {
+  let svc: GenerationLockService;
+  const task = {
+    segmentId: "seg-1",
+    modality: "image",
+    modelId: "fal-ai/flux/dev",
+    prompt: "a cat",
+    params: {},
+  };
+
+  beforeEach(() => {
+    svc = new GenerationLockService(new InMemoryGenerationLockStore());
+  });
+  afterEach(() => svc.destroy());
+
+  it("同任務併發第二次提交 → GENERATION_LOCKED（在扣點前就被擋）", async () => {
+    const key = buildGenerationTaskLockKey(42, task);
+    const first = await svc.acquire(key, DEFAULT_TASK_LOCK_TTL_MS);
+    expect(first).not.toBe(GENERATION_LOCKED);
+    const second = await svc.acquire(key, DEFAULT_TASK_LOCK_TTL_MS);
+    expect(second).toBe(GENERATION_LOCKED);
+  });
+
+  it("失敗任務先 release（finally）後重試 → 可重新取得鎖（合法重試不被擋）", async () => {
+    const key = buildGenerationTaskLockKey(42, task);
+    const token = (await svc.acquire(key, DEFAULT_TASK_LOCK_TTL_MS)) as string;
+    // 原任務 submit 結束（finally release）
+    await svc.release(key, token);
+    // 使用者按重試
+    const retry = await svc.acquire(key, DEFAULT_TASK_LOCK_TTL_MS);
+    expect(retry).not.toBe(GENERATION_LOCKED);
   });
 });
 

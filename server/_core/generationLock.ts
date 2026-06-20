@@ -23,8 +23,8 @@
  *       equals `token` (Lua CAS-del). This guarantees we never delete a lock
  *       that a *subsequent* legitimate attempt acquired after our TTL lapsed.
  *
- * Backend
- * ───────
+ * Backend (and its scope limit — read this before relying on the lock)
+ * ─────────────────────────────────────────────────────────────────────
  * The project has no Redis client wired (REDIS_URL is declared but no
  * ioredis/node-redis is instantiated — see _core/cache.ts and _core/rateLimiter.ts,
  * both pure in-memory). The env doc for REDIS_URL itself states "沒設則 fallback
@@ -33,6 +33,19 @@
  * (token-compare delete + TTL auto-expiry). A `GenerationLockStore` seam is
  * exposed so a Redis-backed store can be dropped in later (SET NX PX / Lua
  * CAS-del map 1:1 onto these methods) without touching any call site.
+ *
+ * ⚠ This means the dedup guarantee is **per-process only**. Railway can run
+ * more than one instance, and even a single instance loses all locks on
+ * restart. Two identical submits that land on different instances will BOTH
+ * acquire. Do NOT represent this as a cross-instance guarantee. It robustly
+ * covers the dominant case (one user, one browser, double-click / retry storm
+ * → same process) and degrades gracefully (fail-open) otherwise.
+ *
+ * Follow-up (tracked): when REDIS_URL is actually instantiated, implement a
+ * `GenerationLockStore` over the shared client — `setNxPx` → `SET key token NX
+ * PX ttl`, `casDel` → the Lua get-compare-del script — and pass it to the
+ * `GenerationLockService` constructor. No call site changes. Until then this
+ * is in-process best-effort, not a distributed lock.
  *
  * Hot-path safety
  * ───────────────
@@ -74,16 +87,32 @@ export const GENERATION_LOCKED = Symbol("GENERATION_LOCKED");
 export type AcquireResult = string | typeof GENERATION_LOCKED;
 
 /**
- * Default TTL for a generation lock (ms).
+ * Default TTL for the *planning* lock (ms) on autoGenerateFromSegments.
  *
- * Sized to the longest single generation latency plus buffer so a crashed
- * holder never wedges the resource: video ~60–120s is the slowest modality;
- * image ~30s, audio ~20s, voice ~10s, sfx ~15s. 180s (3 min) covers the worst
- * case with a comfortable margin. The lock only guards the *submission* path
- * (building tasks / point checks), which is far shorter than the actual
- * generation, so this is deliberately generous on the safe side.
+ * The planning call only builds task descriptors + checks the point balance
+ * (a few fast DB reads); it does NOT deduct points or dispatch. So this TTL
+ * just needs to debounce a concurrent identical *plan*. 180s is far more than
+ * planning ever takes — it is deliberately generous so a crashed planner never
+ * wedges the resource (the lock auto-expires either way).
  */
 export const DEFAULT_LOCK_TTL_MS = 180_000;
+
+/**
+ * TTL for the *per-task* execution lock (ms) on executeGenerationTask.
+ *
+ * THIS is the lock that actually prevents duplicate *paid* generation: it is
+ * held across the point deduction + fal queue submit (the money + dispatch
+ * path). The held critical section is short — a couple of DB writes plus one
+ * fal `submit` HTTP round-trip that returns a request_id quickly (the long
+ * generation itself happens later via separate polling, NOT under this lock).
+ *
+ * 60s bounds a hung submit with comfortable margin while keeping the dedup
+ * window tight: a genuine retry of a *failed* task (which released its lock in
+ * finally) is never blocked, but a true concurrent double-fire of the same task
+ * is. As with every lock here it auto-expires, so a crash mid-submit cannot
+ * wedge the user out of re-running that task.
+ */
+export const DEFAULT_TASK_LOCK_TTL_MS = 60_000;
 
 /** Short timeout on each backend op so a slow/hung backend never blocks the hot path. */
 const STORE_OP_TIMEOUT_MS = 200;
@@ -217,6 +246,46 @@ export function buildGenerationLockKey(
   payload: unknown
 ): string {
   return `${KEY_PREFIX}:${userId}:${hashGenerationPayload(payload)}`;
+}
+
+/** Stable identity of a single generation task (the unit that spends points). */
+export interface GenerationTaskIdentity {
+  segmentId: string;
+  modality: string;
+  modelId: string;
+  prompt: string;
+  params: Record<string, unknown>;
+}
+
+/**
+ * Build a lock key for a single *execution* task (executeGenerationTask).
+ *
+ * This is the dedup boundary that matters for money: executeGenerationTask is
+ * the procedure that deducts points + dispatches to fal, and the client calls
+ * it once PER TASK (and again on per-task retry / from a second tab). Keying on
+ * the stable per-task identity means:
+ *   - The exact same task fired twice concurrently (double-fire of the retry
+ *     button, two tabs, or the autoGenerate fan-out racing a manual retry)
+ *     → same key → the second is rejected BEFORE any points are deducted.
+ *   - A retry of a task that already *finished* its submit (lock released in
+ *     finally) → free key → allowed (legitimate retry of a failed task).
+ *   - Different segment/modality/model/prompt/params → different key → parallel.
+ *
+ * A separate `:task:` segment namespaces these apart from the planning-lock
+ * keys so the two locks can never collide on the same string.
+ */
+export function buildGenerationTaskLockKey(
+  userId: number | string,
+  task: GenerationTaskIdentity
+): string {
+  const hash = hashGenerationPayload({
+    segmentId: task.segmentId,
+    modality: task.modality,
+    modelId: task.modelId,
+    prompt: task.prompt,
+    params: task.params,
+  });
+  return `${KEY_PREFIX}:task:${userId}:${hash}`;
 }
 
 // ─── Timeout guard ───────────────────────────────────────────────────────────
