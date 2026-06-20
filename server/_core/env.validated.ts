@@ -506,6 +506,16 @@ const multimodalSchema = z.object({
   // 此旗標影響，空表回空陣列，先跑 migration 後開旗標是安全順序。
   ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("false"),
 
+  // ── Signed-URL 直傳（AIDV-15：廢 base64，大檔不再過 tRPC/HTTP body）────────
+  // ON（預設）時 client 大檔上傳改走「presign → 直接 PUT 到 R2 → finalize 落庫」
+  // 三段式流程，檔案位元組完全不進 Node 記憶體（不過 express.json body-parser，
+  // 不 Buffer.from(base64)），解決 Railway 記憶體被 ~1.33× base64 膨脹打爆的問題。
+  // OFF，或 presign 不可用（無 R2 env / demo / getDb 為 null）時，自動回退既有
+  // base64 `/api/upload` 路徑——既有上傳零破壞、位元相容。presign 端點 auth-gated、
+  // key 以 userId 命名空間隔離、限 content-type/size、短期效期（5 分鐘），杜絕
+  // 未授權上傳/覆寫。不新增金鑰：重用 storage.ts / r2SnapshotJob 既有的 S3_* 設定。
+  ENABLE_SIGNED_URL_UPLOAD: z.string().optional().default("true"),
+
   // ── 成本帳本（AIDV-153 cost_ledger append-only 複式分錄, migration 0076）────
   // 寫入開關：ON 時在現有落帳點（aiProxy usage event）「額外」寫一筆【平衡的複式
   // 分錄】（debit member:<id> / credit expense:ai-cost），並行於 cost_aggregations、

@@ -575,6 +575,272 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AIDV-15: Signed-URL 直傳（廢 base64）— presign + finalize 兩段式 HTTP 路由
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 大檔不再把 base64 灌進 HTTP/tRPC body（不過 express.json、不 Buffer.from）。
+// 流程：① POST /api/upload/presign → 拿 scoped、短效、限型別/大小的 PUT URL；
+//      ② 前端 fetch(PUT, { body: file }) **直傳 R2**（位元組完全不經過 Node）；
+//      ③ POST /api/upload/finalize → 伺服器 HeadObject 驗證物件已上傳、大小合規，
+//        回傳與 /api/upload 完全相同的 `{ url, fileKey, ... }` 形狀。
+//
+// 旗標 ENABLE_SIGNED_URL_UPLOAD 預設 ON；OFF / 無 R2 設定 / demo 時兩個端點回
+// 503，client 自動回退既有 base64 `/api/upload`（既有上傳零破壞）。
+//
+// 注意：presign/finalize 的純邏輯（驗證 + 簽名 + Head）抽到 server/signedUpload.ts
+// 方便單元測試，避免 uploadRoute ↔ signedUpload 形成載入循環時段路由處才動態 import。
+
+uploadRouter.post("/api/upload/presign", async (req: Request, res: Response) => {
+  try {
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const {
+      isSignedUploadAvailable,
+      validatePresignRequest,
+      presignPutUpload,
+    } = await import("./signedUpload");
+
+    // 旗標 OFF / 無 R2 / demo → 503，client 回退 base64。
+    if (!isSignedUploadAvailable()) {
+      res
+        .status(503)
+        .json({ error: "Signed-URL upload unavailable", fallback: "base64" });
+      return;
+    }
+
+    const { fileName, mimeType, sizeBytes } = req.body as {
+      fileName?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    };
+    if (!fileName || !mimeType || typeof sizeBytes !== "number") {
+      res
+        .status(400)
+        .json({ error: "Missing fileName, mimeType, or sizeBytes" });
+      return;
+    }
+
+    // 安全把關前移：MIME allowlist + per-kind/絕對大小上限（直傳繞過 buffer 檢查）。
+    const invalid = validatePresignRequest({ mimeType, sizeBytes });
+    if (invalid) {
+      res.status(invalid.status).json({ error: invalid.message });
+      return;
+    }
+
+    // key 強制 scoped 到 user.id（命名空間隔離）；簽 PUT URL（鎖 content-type/size、
+    // 5 分鐘效期）。
+    const presigned = await presignPutUpload({
+      userId: user.id,
+      fileName,
+      mimeType,
+      sizeBytes,
+    });
+
+    res.json({
+      success: true,
+      putUrl: presigned.putUrl,
+      fileKey: presigned.fileKey,
+      fileName: presigned.safeName,
+      contentType: presigned.contentType,
+      maxSizeBytes: presigned.maxSizeBytes,
+      expiresInSeconds: presigned.expiresInSeconds,
+    });
+  } catch (error: any) {
+    console.error("[Upload/presign] Error:", error);
+    if (
+      error?.message?.includes("authenticate") ||
+      error?.message?.includes("Unauthorized")
+    ) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    // presign 失敗也讓 client 知道可回退 base64。
+    res
+      .status(503)
+      .json({ error: "Presign failed", fallback: "base64" });
+  }
+});
+
+uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) => {
+  try {
+    const user = await authenticateRequest(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const {
+      isSignedUploadAvailable,
+      verifyUploadedObject,
+      buildPublicUrl,
+      isKeyOwnedByUser,
+      fetchObjectHeadBytes,
+      deleteUploadedObject,
+    } = await import("./signedUpload");
+
+    if (!isSignedUploadAvailable()) {
+      res
+        .status(503)
+        .json({ error: "Signed-URL upload unavailable", fallback: "base64" });
+      return;
+    }
+
+    const { fileKey, mimeType, fileName } = req.body as {
+      fileKey?: string;
+      mimeType?: string;
+      fileName?: string;
+    };
+    if (!fileKey || !mimeType) {
+      res.status(400).json({ error: "Missing fileKey or mimeType" });
+      return;
+    }
+
+    // scope 守門：只能 finalize 自己命名空間（uploads/<userId>/…）下的 key。
+    if (!isKeyOwnedByUser(fileKey, user.id)) {
+      res.status(403).json({ error: "Forbidden: key not owned by user" });
+      return;
+    }
+
+    // MIME allowlist 再驗一次（防 client 在 finalize 階段宣稱別的型別）。
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+      res.status(415).json({ error: `Unsupported file type: ${mimeType}` });
+      return;
+    }
+
+    // HeadObject 驗證物件確實已上傳（前端宣稱直傳成功，伺服器核實）。
+    let verified;
+    try {
+      verified = await verifyUploadedObject(fileKey);
+    } catch {
+      res
+        .status(409)
+        .json({ error: "Uploaded object not found — upload may have failed" });
+      return;
+    }
+
+    // ── Content-Type 權威性把關（presign 簽死的 Content-Type 一路貫穿到落庫）──
+    // presign 階段把 Content-Type 簽進 PUT URL，R2 以該值儲存物件並回給 HeadObject。
+    // 若 client 在 finalize 階段改宣稱別的 mimeType（例如 presign image/png、PUT
+    // 一個 10MB 檔，再宣稱 video/mp4 想套 40MB 上限），會造成 (a) 套到錯誤 kind 的
+    // per-kind 上限、(b) 落庫 asset.mimeType 與 R2 物件真實 Content-Type 脫鉤、下游
+    // 信任 asset.mimeType 即型別錯亂。對策：以 HeadObject 回的 verified.contentType
+    // 為權威——存在且與 client 宣稱不符或不在 allowlist 即 415；並一律用
+    // verified.contentType（而非 client mimeType）推導 kind / per-kind 上限 / 落庫
+    // mimeType。verified.contentType 缺失（極少數 R2 未回）時退回 client mimeType。
+    const authoritativeMime = verified.contentType || mimeType;
+    if (verified.contentType) {
+      if (!ALLOWED_MIME_TYPES.has(verified.contentType)) {
+        res.status(415).json({
+          error: `Stored object Content-Type not allowed: ${verified.contentType}`,
+        });
+        return;
+      }
+      if (verified.contentType !== mimeType) {
+        res.status(415).json({
+          error: `Declared mimeType (${mimeType}) does not match the stored object Content-Type (${verified.contentType}).`,
+        });
+        return;
+      }
+    }
+
+    // 用權威 Content-Type 推導 kind（per-kind 上限以此為準，杜絕 finalize 型別掉包）。
+    const kind = inferKind(authoritativeMime);
+
+    // ── AIDV-64 parity：magic-byte 內容嗅探（縱深防禦）─────────────────────────
+    // 直傳路徑的位元組不經過 Node，base64 路徑的 detectMimeMismatch 在此缺席。補回：
+    // 對 binary media kind（image/audio/video/pdf）用 Range:bytes=0-63 取前 64 bytes
+    // 跑既有 detectMimeMismatch；偵測到 disguise（markup/executable/跨類）即刪物件 + 415。
+    // 只抓 64 bytes，保留「整檔位元組不進 Node」的核心好處。嗅探失敗（取不到 bytes）
+    // 不阻擋上傳（HeadObject 已證物件存在），僅記 log——避免暫時性 R2 抖動誤殺正常上傳。
+    if (BINARY_MEDIA_KINDS.has(kind)) {
+      let headBytes: Buffer | null = null;
+      try {
+        headBytes = await fetchObjectHeadBytes(fileKey);
+      } catch (sniffErr) {
+        console.warn(
+          "[Upload/finalize] content sniff GET failed (allowing upload):",
+          (sniffErr as any)?.message
+        );
+      }
+      if (headBytes) {
+        const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
+        if (mismatch.reject) {
+          // 偵測到偽裝：刪除已直傳的物件（best-effort），回 415。
+          try {
+            await deleteUploadedObject(fileKey);
+          } catch (delErr) {
+            console.warn(
+              "[Upload/finalize] failed to delete disguised object:",
+              (delErr as any)?.message
+            );
+          }
+          res.status(415).json({ error: mismatch.reason });
+          return;
+        }
+      }
+    }
+
+    // 用實際物件大小（HeadObject 回的）做最終 per-kind/絕對上限把關。
+    const perKindLimit = PER_KIND_MAX_BYTES[kind];
+    if (
+      verified.sizeBytes > perKindLimit ||
+      verified.sizeBytes > ABSOLUTE_MAX_BYTES
+    ) {
+      const limitMb = Math.floor(perKindLimit / (1024 * 1024));
+      res.status(413).json({
+        error: `File too large for ${kind} uploads. Maximum size is ${limitMb} MB.`,
+      });
+      return;
+    }
+
+    const url = buildPublicUrl(fileKey);
+
+    // inline 政策沿用既有分類（與 /api/upload 回傳同形狀），用權威 mime 判斷。
+    const storageOnlyKind = STORAGE_ONLY_KIND_PREFIXES.some(prefix =>
+      authoritativeMime.startsWith(prefix)
+    );
+    const tooLargeToInline = verified.sizeBytes > INLINE_BASE64_THRESHOLD;
+    const inlineEligible = !storageOnlyKind && !tooLargeToInline;
+    const inlineRecommendation: UploadResponseBody["inlineRecommendation"] =
+      storageOnlyKind
+        ? "use-storage-url-required"
+        : tooLargeToInline
+          ? "use-storage-url"
+          : "inline-ok";
+
+    const responseBody: UploadResponseBody = {
+      success: true,
+      url,
+      fileKey,
+      fileName: fileName || fileKey.split("/").pop() || "file",
+      // 落庫 mimeType 用權威 Content-Type（與 R2 物件真實型別一致）。
+      mimeType: authoritativeMime,
+      fileSizeBytes: verified.sizeBytes,
+      inlineEligible,
+      storageBacked: true,
+      inlineRecommendation,
+    };
+    res.json(responseBody);
+  } catch (error: any) {
+    console.error("[Upload/finalize] Error:", error);
+    if (
+      error?.message?.includes("authenticate") ||
+      error?.message?.includes("Unauthorized")
+    ) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    res
+      .status(500)
+      .json({ error: "Finalize failed: " + (error?.message || "Unknown error") });
+  }
+});
+
 // Exported for unit tests so we don't have to spin up a real Express app to
 // assert the inline-vs-storage decision policy.
 export const __uploadRouteInternals = {
