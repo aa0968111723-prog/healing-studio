@@ -4297,6 +4297,20 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const asset = await db.getDigitalAsset(input.id);
         if (!asset || asset.userId !== ctx.user.id) {
+          // 失敗/越權探測也要留痕（NOT_FOUND 涵蓋「不存在」與「非本人」）。
+          recordAuditEvent({
+            actorUserId: ctx.user.id,
+            actorRole: ctx.user.role,
+            action:
+              input.visibility === "team_shared"
+                ? "asset.share"
+                : "asset.unshare",
+            targetType: "asset",
+            targetId: input.id,
+            result: "failure",
+            metadata: { reason: "not_found_or_forbidden" },
+            ...extractRequestSource(ctx.req),
+          });
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.updateDigitalAsset(input.id, { visibility: input.visibility });
@@ -4337,6 +4351,17 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const asset = await db.getDigitalAsset(input.id);
         if (!asset || asset.userId !== ctx.user.id) {
+          // 失敗/越權刪除嘗試也要留痕（攻擊者探測不屬於自己的資產）。
+          recordAuditEvent({
+            actorUserId: ctx.user.id,
+            actorRole: ctx.user.role,
+            action: "asset.delete",
+            targetType: "asset",
+            targetId: input.id,
+            result: "failure",
+            metadata: { reason: "not_found_or_forbidden" },
+            ...extractRequestSource(ctx.req),
+          });
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.deleteDigitalAsset(input.id);

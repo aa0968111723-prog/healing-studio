@@ -15,7 +15,9 @@
  *     modelConsents.ts 既有 x-forwarded-for → req.ip 慣例）。
  *   • queryAuditEvents() / countAuditEvents()：admin 唯讀查詢（依 actor /
  *     action / targetType / 時間過濾 + 分頁），給 router 與匯出用。
- *   • 代表性接線 6 處（見各 router 的 recordAuditEvent 呼叫）。
+ *   • 代表性接線 6 處（見各 router 的 recordAuditEvent 呼叫）；其中 assets
+ *     toggleVisibility/delete 的 NOT_FOUND/越權路徑也記 result='failure'，
+ *     讓越權探測留痕。其餘寫入點的失敗留痕為後續卡範圍（見下「待拍板 2」）。
  *
  * ── 設計決策 ───────────────────────────────────────────────────────────
  *   • Append-only / 不可竄改：本服務只提供 INSERT 與 SELECT，沒有任何
@@ -155,6 +157,8 @@ export interface AuditQueryFilter {
   actorUserId?: number;
   action?: string;
   targetType?: string;
+  /** 目標物 id（字串儲存；數字會轉成字串比對）。配合 gal_target_createdAt_idx。 */
+  targetId?: string | number;
   /** ISO date（YYYY-MM-DD）起 */
   startDate?: string;
   /** ISO date（YYYY-MM-DD）迄（含當日） */
@@ -170,6 +174,9 @@ function buildConditions(filter: AuditQueryFilter) {
   if (filter.action) conditions.push(eq(globalAuditLog.action, filter.action));
   if (filter.targetType)
     conditions.push(eq(globalAuditLog.targetType, filter.targetType));
+  if (filter.targetId !== undefined && filter.targetId !== null)
+    // targetId 以 varchar 儲存，數字一律轉字串比對（對齊 writeAuditEvent 的 String()）。
+    conditions.push(eq(globalAuditLog.targetId, String(filter.targetId)));
   if (filter.startDate)
     conditions.push(gte(globalAuditLog.createdAt, new Date(filter.startDate)));
   if (filter.endDate) {

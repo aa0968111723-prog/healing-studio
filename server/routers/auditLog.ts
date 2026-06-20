@@ -2,7 +2,7 @@
  * auditLog.ts — Admin 稽核軌跡查詢 tRPC Router（AIDV-123）
  * ──────────────────────────────────────────────────────────────────────────
  * 全 adminProcedure、**唯讀**。提供：
- *   - events  : 依 actor / action / targetType / 時間過濾 + 分頁查詢
+ *   - events  : 依 actor / action / targetType / targetId / 時間過濾 + 分頁查詢
  *   - export  : 同過濾條件、回扁平 rows 給前端組 CSV（無分頁上限放寬）
  *
  * 不可竄改：本 router 沒有任何 mutation（無寫/改/刪稽核的端點）。
@@ -19,6 +19,8 @@ const filterSchema = z
     actorUserId: z.number().int().positive().optional(),
     action: z.string().min(1).max(100).optional(),
     targetType: z.string().min(1).max(50).optional(),
+    // 依特定目標物過濾（如「專案 42 發生過的所有事」），對應 gal_target_createdAt_idx。
+    targetId: z.string().min(1).max(100).optional(),
     startDate: dateStr.optional(),
     endDate: dateStr.optional(),
   })
