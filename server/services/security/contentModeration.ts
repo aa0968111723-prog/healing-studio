@@ -40,13 +40,23 @@
  *  enable_safety_checker（fal 內建）與 checkSafety（LLM 審核）是兩套各自獨立、互不補位
  *  的機制，本卡的 LLM fail-closed 僅限 routers.ts checkSafety 兩個呼叫端。
  *
- * ⚠️ 與 LLM 不可用的交互（HARD SAFETY 必讀）：
+ * ⚠️ 與 LLM 不可用的交互（HARD SAFETY 必讀 — 勿再寫成「無新增負面影響」）：
  *  checkSafety 透過 invokeLLM 走同一條 LLM 路由（Anthropic/OpenRouter/Gemini/…）。
- *  當 LLM 無額度／金鑰失效時 checkSafety 必然逾時或錯誤 → fail-closed 會擋下這些生成。
- *  但生成關鍵路徑（compileElitePrompt 等）本就依賴同一 LLM、在 LLM 壞時也跑不動，
- *  故 fail-closed **無新增**負面影響（只是把「LLM 一旦壞掉就漏審放行」修正為「審核
- *  失敗就擋」）。為避免「審核服務一抖動就把所有生成永久卡死」，checkSafety 端帶
- *  合理 timeout＋一次重試（見 server/routers.ts），且本旗標可被明確回退到 fail-open。
+ *  當 LLM 無額度／金鑰失效時 checkSafety 必然逾時或錯誤 → fail-closed 會擋下
+ *  generate.multimodal / submitMultimodalAsync 這兩條有 prompt 的生成（含 demo 模式，
+ *  因 checkSafety 不受 demoMode 短路）。
+ *
+ *  ⚠️ 校正先前誤導論述：checkSafety **下游**的 compileElitePrompt（server/routers.ts
+ *  的提示詞編譯）對 LLM 故障是**刻意 graceful fallback**——catch 後回退原始 prompt
+ *  並**繼續走 fal／圖像生成**（見該函式註解「LLM unavailable … gracefully fall back」）。
+ *  也就是說：**舊行為（fail-open）在 LLM 掛掉時仍會略過提示詞增強、照樣產圖**；
+ *  新行為（fail-closed）在安全門就擋死。故 fail-closed 在 LLM 不可用時**確實會新增**
+ *  擋下這兩個端點的生成——這是**刻意的安全取捨（不放行未審內容）**，**並非「無新增
+ *  負面影響」**。請勿在卡片／PR／Jira／本檔註解重述「因生成本就跑不動所以無影響」。
+ *
+ *  為避免「審核服務一抖動就把所有生成永久卡死」，checkSafety 端帶合理 timeout＋
+ *  一次重試（見 server/routers.ts），且本旗標可被明確回退到 fail-open（緊急用、
+ *  明確人工決定：CONTENT_SAFETY_FAIL_CLOSED=false）。
  */
 
 import { serverEnv } from "../../_core/env.validated";

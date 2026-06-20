@@ -377,11 +377,13 @@ const coreSchema = z.object({
   // 緊急回退是「明確人工決定」而非預設：明確設為 "false"/"0"/"off"/"no" 才回退 fail-open
   //   （checkSafety 失敗放行、fal enable_safety_checker 維持現值），其餘（含留空、未設、
   //   "true"/"1"/"on"/"yes"）皆為 fail-closed ON。
-  // 與 LLM 不可用的交互（誠實揭露）：checkSafety 透過 invokeLLM 走同一條 LLM 路由，
-  //   當 LLM 無額度／金鑰失效時 checkSafety 必然逾時/錯誤 → fail-closed 會擋下這些生成；
-  //   但生成關鍵路徑（compileElitePrompt 等）本就依賴同一 LLM、在 LLM 壞時也跑不動，
-  //   故 fail-closed **無新增**負面影響（只是把「漏審放行」修正為「審核失敗就擋」）。
-  //   合理 timeout＋一次重試避免「審核服務一抖動就永久卡死所有生成」。
+  // 與 LLM 不可用的交互（誠實揭露 — 勿再寫成「無新增負面影響」）：checkSafety 透過
+  //   invokeLLM 走同一條 LLM 路由，LLM 無額度／金鑰失效時必然逾時/錯誤 → fail-closed
+  //   會擋下 generate.multimodal / submitMultimodalAsync 的生成。注意其**下游**
+  //   compileElitePrompt 對 LLM 故障是 graceful fallback（回退原始 prompt 後**照樣產圖**），
+  //   故舊 fail-open 在 LLM 掛掉時仍會出圖；fail-closed **確實新增**擋下這兩端點的生成
+  //   ——這是刻意的安全取捨（不放行未審內容），**非無影響**。合理 timeout＋一次重試避免
+  //   「審核服務一抖動就永久卡死所有生成」；緊急回退設 CONTENT_SAFETY_FAIL_CLOSED=false。
   CONTENT_SAFETY_FAIL_CLOSED: z.string().optional().default("true"),
 
   // ── API 用量告警（沒設則靜默跳過）─────────────────────────

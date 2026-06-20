@@ -1014,8 +1014,12 @@ async function checkSafetyAttempt(text: string): Promise<SafetyAttempt> {
  *    resolveSafetyFallback：旗標 ON（**預設**）→ fail-closed 擋下（{ safe:false, reason }）；
  *    旗標明確回退 OFF → fail-open 放行（{ safe:true }）。
  *
- * 與 LLM 不可用的交互：checkSafety 與生成關鍵路徑共用同一 LLM 路由，LLM 壞時兩者
- *  皆失敗 → fail-closed 擋下這些生成「無新增」負面影響（生成本就跑不動）。
+ * 與 LLM 不可用的交互（勿再寫成「無新增負面影響」）：checkSafety 與下游 compileElitePrompt
+ *  共用同一 LLM 路由，但兩者對 LLM 故障的處置**相反**——checkSafety 此處 fail-closed
+ *  擋下；compileElitePrompt（見下方 ~1138）對 LLM 故障是 graceful fallback（回退原始
+ *  prompt 後**照樣產圖**）。故 LLM 不可用時，fail-closed **確實會新增**擋下
+ *  generate.multimodal / submitMultimodalAsync 的生成（舊 fail-open 會略過提示詞增強
+ *  仍出圖）——這是刻意的安全取捨，非無影響。緊急回退：CONTENT_SAFETY_FAIL_CLOSED=false。
  */
 async function checkSafety(
   text: string
