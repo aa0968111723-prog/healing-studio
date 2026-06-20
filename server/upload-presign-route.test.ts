@@ -26,6 +26,8 @@ const presignPutUploadMock = vi.fn();
 const verifyUploadedObjectMock = vi.fn();
 const buildPublicUrlMock = vi.fn();
 const isKeyOwnedByUserMock = vi.fn();
+const fetchObjectHeadBytesMock = vi.fn();
+const deleteUploadedObjectMock = vi.fn();
 
 vi.mock("./signedUpload", () => ({
   isSignedUploadAvailable: (...a: unknown[]) => isSignedUploadAvailableMock(...a),
@@ -34,6 +36,8 @@ vi.mock("./signedUpload", () => ({
   verifyUploadedObject: (...a: unknown[]) => verifyUploadedObjectMock(...a),
   buildPublicUrl: (...a: unknown[]) => buildPublicUrlMock(...a),
   isKeyOwnedByUser: (...a: unknown[]) => isKeyOwnedByUserMock(...a),
+  fetchObjectHeadBytes: (...a: unknown[]) => fetchObjectHeadBytesMock(...a),
+  deleteUploadedObject: (...a: unknown[]) => deleteUploadedObjectMock(...a),
 }));
 
 import { uploadRouter } from "./uploadRoute";
@@ -65,10 +69,17 @@ beforeEach(() => {
   verifyUploadedObjectMock.mockReset();
   buildPublicUrlMock.mockReset();
   isKeyOwnedByUserMock.mockReset();
+  fetchObjectHeadBytesMock.mockReset();
+  deleteUploadedObjectMock.mockReset();
   // 預設：可用、驗證通過、key 屬於 user
   isSignedUploadAvailableMock.mockReturnValue(true);
   validatePresignRequestMock.mockReturnValue(null);
   isKeyOwnedByUserMock.mockReturnValue(true);
+  // 預設：嗅探取到一個合法 PNG 標頭（不會誤判為 disguise）。
+  fetchObjectHeadBytesMock.mockResolvedValue(
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  );
+  deleteUploadedObjectMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -249,6 +260,123 @@ describe("POST /api/upload/finalize — auth + scope + Head 驗證", () => {
       mimeType: "image/png",
     });
     expect(res.status).toBe(413);
+    server.close();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// AIDV-15 加固：Content-Type 權威性 + magic-byte parity
+describe("POST /api/upload/finalize — Content-Type 權威性把關", () => {
+  it("client 宣稱 mimeType 與 R2 物件真實 Content-Type 不符 → 415（杜絕型別掉包）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    // presign 簽死 image/png（R2 存成 image/png），finalize 卻宣稱 video/mp4
+    // 想套 video 的 40MB 上限——用權威 contentType 擋下。
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 15 * 1024 * 1024, // 對 image 太大、對 video 合法
+      contentType: "image/png",
+    });
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.png",
+      mimeType: "video/mp4",
+    });
+    expect(res.status).toBe(415);
+    server.close();
+  });
+
+  it("R2 物件 Content-Type 不在 allowlist → 415", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 1024,
+      contentType: "image/svg+xml", // 被禁的型別
+    });
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.svg",
+      mimeType: "image/svg+xml",
+    });
+    expect(res.status).toBe(415);
+    server.close();
+  });
+
+  it("落庫 mimeType 用權威 Content-Type（與 R2 物件真實型別一致）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 2048,
+      contentType: "image/png",
+    });
+    buildPublicUrlMock.mockReturnValue("https://pub.r2.dev/uploads/1/x.png");
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.png",
+      mimeType: "image/png",
+      fileName: "x.png",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mimeType).toBe("image/png");
+    server.close();
+  });
+});
+
+describe("POST /api/upload/finalize — AIDV-64 magic-byte parity", () => {
+  it("宣稱 image 但物件位元組是 markup（<svg>）→ 415 + 刪除物件", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 1024,
+      contentType: "image/png",
+    });
+    // 嗅探回 '<svg' 開頭 → markup disguised as image → reject。
+    fetchObjectHeadBytesMock.mockResolvedValue(Buffer.from("<svg><script>"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/evil.png",
+      mimeType: "image/png",
+    });
+    expect(res.status).toBe(415);
+    // 偵測到偽裝後刪除已直傳的物件。
+    expect(deleteUploadedObjectMock).toHaveBeenCalledWith("uploads/1/evil.png");
+    server.close();
+  });
+
+  it("嗅探 GET 失敗 → 不阻擋上傳（HeadObject 已證物件存在）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 2048,
+      contentType: "image/png",
+    });
+    buildPublicUrlMock.mockReturnValue("https://pub.r2.dev/uploads/1/x.png");
+    fetchObjectHeadBytesMock.mockRejectedValue(new Error("R2 jitter"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.png",
+      mimeType: "image/png",
+    });
+    expect(res.status).toBe(200);
+    expect(deleteUploadedObjectMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("document kind（text/plain）不跑 binary-media 嗅探（不呼叫 fetchObjectHeadBytes）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 2048,
+      contentType: "text/plain",
+    });
+    buildPublicUrlMock.mockReturnValue("https://pub.r2.dev/uploads/1/x.txt");
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.txt",
+      mimeType: "text/plain",
+    });
+    expect(res.status).toBe(200);
+    expect(fetchObjectHeadBytesMock).not.toHaveBeenCalled();
     server.close();
   });
 });

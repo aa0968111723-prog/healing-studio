@@ -37,6 +37,18 @@ vi.mock("@aws-sdk/client-s3", () => ({
       this.input = input;
     }
   },
+  GetObjectCommand: class {
+    input: any;
+    constructor(input: any) {
+      this.input = input;
+    }
+  },
+  DeleteObjectCommand: class {
+    input: any;
+    constructor(input: any) {
+      this.input = input;
+    }
+  },
 }));
 
 import { serverEnv } from "./_core/env.validated";
@@ -267,5 +279,47 @@ describe("AIDV-15 finalize 物件驗證（HeadObject）", () => {
   it("物件不存在（HeadObject throw）→ 往上拋（路由轉 409）", async () => {
     sendMock.mockRejectedValue(new Error("NotFound"));
     await expect(signed.verifyUploadedObject("uploads/3/missing.png")).rejects.toThrow();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// AIDV-64 parity：finalize 內容嗅探用的 ranged GET + 刪除 helper
+describe("AIDV-15 fetchObjectHeadBytes（Range GET 取前 64 bytes 供嗅探）", () => {
+  beforeEach(() => {
+    (serverEnv as any).ENABLE_SIGNED_URL_UPLOAD = "true";
+    setR2(true);
+  });
+
+  it("送 GetObjectCommand 帶 Range:bytes=0-63，回傳取到的前綴 Buffer", async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    sendMock.mockResolvedValue({
+      Body: { transformToByteArray: async () => new Uint8Array(png) },
+    });
+    const out = await signed.fetchObjectHeadBytes("uploads/3/x.png");
+    expect(Buffer.isBuffer(out)).toBe(true);
+    expect(out.equals(png)).toBe(true);
+    const cmd = sendMock.mock.calls[0][0];
+    expect(cmd.input.Range).toBe("bytes=0-63");
+    expect(cmd.input.Key).toBe("uploads/3/x.png");
+  });
+
+  it("取不到 bytes（GET throw）→ 往上拋（路由 catch 後放行不阻擋）", async () => {
+    sendMock.mockRejectedValue(new Error("R2 down"));
+    await expect(signed.fetchObjectHeadBytes("uploads/3/x.png")).rejects.toThrow();
+  });
+});
+
+describe("AIDV-15 deleteUploadedObject（偵測偽裝後刪物件）", () => {
+  beforeEach(() => {
+    (serverEnv as any).ENABLE_SIGNED_URL_UPLOAD = "true";
+    setR2(true);
+  });
+
+  it("送 DeleteObjectCommand（去掉前導斜線）", async () => {
+    sendMock.mockResolvedValue({});
+    await signed.deleteUploadedObject("/uploads/3/evil.png");
+    const cmd = sendMock.mock.calls[0][0];
+    expect(cmd.input.Bucket).toBe("my-bucket");
+    expect(cmd.input.Key).toBe("uploads/3/evil.png");
   });
 });

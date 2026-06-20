@@ -679,6 +679,8 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
       verifyUploadedObject,
       buildPublicUrl,
       isKeyOwnedByUser,
+      fetchObjectHeadBytes,
+      deleteUploadedObject,
     } = await import("./signedUpload");
 
     if (!isSignedUploadAvailable()) {
@@ -721,8 +723,69 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
       return;
     }
 
+    // ── Content-Type 權威性把關（presign 簽死的 Content-Type 一路貫穿到落庫）──
+    // presign 階段把 Content-Type 簽進 PUT URL，R2 以該值儲存物件並回給 HeadObject。
+    // 若 client 在 finalize 階段改宣稱別的 mimeType（例如 presign image/png、PUT
+    // 一個 10MB 檔，再宣稱 video/mp4 想套 40MB 上限），會造成 (a) 套到錯誤 kind 的
+    // per-kind 上限、(b) 落庫 asset.mimeType 與 R2 物件真實 Content-Type 脫鉤、下游
+    // 信任 asset.mimeType 即型別錯亂。對策：以 HeadObject 回的 verified.contentType
+    // 為權威——存在且與 client 宣稱不符或不在 allowlist 即 415；並一律用
+    // verified.contentType（而非 client mimeType）推導 kind / per-kind 上限 / 落庫
+    // mimeType。verified.contentType 缺失（極少數 R2 未回）時退回 client mimeType。
+    const authoritativeMime = verified.contentType || mimeType;
+    if (verified.contentType) {
+      if (!ALLOWED_MIME_TYPES.has(verified.contentType)) {
+        res.status(415).json({
+          error: `Stored object Content-Type not allowed: ${verified.contentType}`,
+        });
+        return;
+      }
+      if (verified.contentType !== mimeType) {
+        res.status(415).json({
+          error: `Declared mimeType (${mimeType}) does not match the stored object Content-Type (${verified.contentType}).`,
+        });
+        return;
+      }
+    }
+
+    // 用權威 Content-Type 推導 kind（per-kind 上限以此為準，杜絕 finalize 型別掉包）。
+    const kind = inferKind(authoritativeMime);
+
+    // ── AIDV-64 parity：magic-byte 內容嗅探（縱深防禦）─────────────────────────
+    // 直傳路徑的位元組不經過 Node，base64 路徑的 detectMimeMismatch 在此缺席。補回：
+    // 對 binary media kind（image/audio/video/pdf）用 Range:bytes=0-63 取前 64 bytes
+    // 跑既有 detectMimeMismatch；偵測到 disguise（markup/executable/跨類）即刪物件 + 415。
+    // 只抓 64 bytes，保留「整檔位元組不進 Node」的核心好處。嗅探失敗（取不到 bytes）
+    // 不阻擋上傳（HeadObject 已證物件存在），僅記 log——避免暫時性 R2 抖動誤殺正常上傳。
+    if (BINARY_MEDIA_KINDS.has(kind)) {
+      let headBytes: Buffer | null = null;
+      try {
+        headBytes = await fetchObjectHeadBytes(fileKey);
+      } catch (sniffErr) {
+        console.warn(
+          "[Upload/finalize] content sniff GET failed (allowing upload):",
+          (sniffErr as any)?.message
+        );
+      }
+      if (headBytes) {
+        const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
+        if (mismatch.reject) {
+          // 偵測到偽裝：刪除已直傳的物件（best-effort），回 415。
+          try {
+            await deleteUploadedObject(fileKey);
+          } catch (delErr) {
+            console.warn(
+              "[Upload/finalize] failed to delete disguised object:",
+              (delErr as any)?.message
+            );
+          }
+          res.status(415).json({ error: mismatch.reason });
+          return;
+        }
+      }
+    }
+
     // 用實際物件大小（HeadObject 回的）做最終 per-kind/絕對上限把關。
-    const kind = inferKind(mimeType);
     const perKindLimit = PER_KIND_MAX_BYTES[kind];
     if (
       verified.sizeBytes > perKindLimit ||
@@ -737,9 +800,9 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
 
     const url = buildPublicUrl(fileKey);
 
-    // inline 政策沿用既有分類（與 /api/upload 回傳同形狀）。
+    // inline 政策沿用既有分類（與 /api/upload 回傳同形狀），用權威 mime 判斷。
     const storageOnlyKind = STORAGE_ONLY_KIND_PREFIXES.some(prefix =>
-      mimeType.startsWith(prefix)
+      authoritativeMime.startsWith(prefix)
     );
     const tooLargeToInline = verified.sizeBytes > INLINE_BASE64_THRESHOLD;
     const inlineEligible = !storageOnlyKind && !tooLargeToInline;
@@ -755,7 +818,8 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
       url,
       fileKey,
       fileName: fileName || fileKey.split("/").pop() || "file",
-      mimeType,
+      // 落庫 mimeType 用權威 Content-Type（與 R2 物件真實型別一致）。
+      mimeType: authoritativeMime,
       fileSizeBytes: verified.sizeBytes,
       inlineEligible,
       storageBacked: true,

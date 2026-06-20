@@ -37,6 +37,12 @@ async function trySignedUrlUpload(
     // 旗標 OFF / 無 R2 / 端點不存在（舊伺服器）→ 回退 base64。
     return null;
   }
+  // 429（撞限流）/ 其他 5xx：signed 路徑「暫時不可用」而非乾淨拒絕——回退 base64
+  // （與 503 同處理），避免把限流錯誤直接丟給使用者、整條 signed 路徑無聲故障。
+  // express-rate-limit 的 429 body 不帶 fallback 欄位，所以這裡用狀態碼判斷。
+  if (presignResp.status === 429 || presignResp.status >= 500) {
+    return null;
+  }
   if (!presignResp.ok) {
     // 400/413/415：明確的拒絕（缺欄位 / 太大 / 不允許型別）→ 直接報錯，不回退。
     const err = await presignResp.json().catch(() => ({ error: "上傳失敗" }));
@@ -72,18 +78,38 @@ async function trySignedUrlUpload(
   });
 
   // ③ finalize — 伺服器 HeadObject 驗證物件已上傳、大小合規，落回標準回應形狀。
-  const finalizeResp = await fetch("/api/upload/finalize", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({
-      fileKey: presigned.fileKey,
-      mimeType: file.type,
-      fileName: file.name,
-    }),
-  });
+  //
+  // 此時 PUT 已成功、物件已在 R2。若 finalize 撞短暫狀況（409 read-after-write
+  // 抖動 / 429 限流 / 5xx），重試一次；仍失敗才報錯——且因物件「已經上傳成功」，
+  // 給「已上傳，請重整」這種明確訊息，而非誤導的「上傳失敗」。明確的 4xx 拒絕
+  // （400/403/413/415，例如型別/大小/scope 不合）不重試，直接報該錯誤。
+  const RETRYABLE = (s: number) => s === 409 || s === 429 || s >= 500;
+  const finalizeOnce = () =>
+    fetch("/api/upload/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        fileKey: presigned.fileKey,
+        mimeType: file.type,
+        fileName: file.name,
+      }),
+    });
+
+  let finalizeResp = await finalizeOnce();
+  if (!finalizeResp.ok && RETRYABLE(finalizeResp.status)) {
+    // 一次重試（給 read-after-write / 限流抖動一點時間）。
+    await new Promise(r => setTimeout(r, 600));
+    finalizeResp = await finalizeOnce();
+  }
   if (!finalizeResp.ok) {
     const err = await finalizeResp.json().catch(() => ({ error: "上傳失敗" }));
+    if (RETRYABLE(finalizeResp.status)) {
+      // 物件確實已直傳到 R2，只是 finalize 對帳暫時失敗——不要報「上傳失敗」。
+      throw new Error(
+        err.error || "檔案已上傳，但確認逾時，請重新整理後再試。"
+      );
+    }
     throw new Error(err.error || "上傳失敗");
   }
   const result = await finalizeResp.json();

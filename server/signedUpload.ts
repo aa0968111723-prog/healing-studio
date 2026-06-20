@@ -25,7 +25,13 @@
  * 注意：本檔案是純邏輯（驗證 + 簽名 + Head 驗證），不耦合 Express，方便單元測試。
  */
 
-import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  HeadObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nanoid } from "nanoid";
 import { serverEnv } from "./_core/env.validated";
@@ -260,4 +266,59 @@ export async function verifyUploadedObject(fileKey: string): Promise<VerifiedObj
  */
 export function isKeyOwnedByUser(fileKey: string, userId: number | string): boolean {
   return fileKey.replace(/^\/+/, "").startsWith(`uploads/${userId}/`);
+}
+
+/**
+ * AIDV-64 parity（縱深防禦）：signed-URL 直傳路徑的位元組不經過 Node，base64
+ * 路徑跑得到的 magic-byte 內容嗅探（detectMimeMismatch）在直傳側缺席。為了補回
+ * 這層防護，finalize 在落庫前用 Range:bytes=0-63 對 R2 物件做一次極小的 GET，
+ * 只取前 64 bytes 給 detectMimeMismatch 判斷「宣稱型別 vs 實際內容」是否衝突。
+ * 只抓 64 bytes —— 保留「大檔位元組不灌進 Node」的核心好處（不是把整檔讀回來）。
+ *
+ * 回傳取到的前綴 Buffer（可能 < 64 bytes）。物件不存在 / 取不到 → throw（由
+ * 呼叫端決定如何處理，與 verifyUploadedObject 一致）。
+ */
+export const CONTENT_SNIFF_BYTES = 64;
+
+export async function fetchObjectHeadBytes(
+  fileKey: string,
+  byteCount: number = CONTENT_SNIFF_BYTES
+): Promise<Buffer> {
+  const res = await getR2Client().send(
+    new GetObjectCommand({
+      Bucket: serverEnv.S3_BUCKET_NAME,
+      Key: fileKey.replace(/^\/+/, ""),
+      Range: `bytes=0-${Math.max(0, byteCount - 1)}`,
+    })
+  );
+  const body = res.Body as
+    | { transformToByteArray?: () => Promise<Uint8Array> }
+    | undefined;
+  if (body && typeof body.transformToByteArray === "function") {
+    const arr = await body.transformToByteArray();
+    return Buffer.from(arr);
+  }
+  // Node stream fallback（理論上 SDK v3 在 Node 一定有 transformToByteArray，
+  // 但保險起見也支援可讀串流）。
+  const chunks: Buffer[] = [];
+  for await (const chunk of body as unknown as AsyncIterable<Buffer>) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    // 只需前 byteCount bytes，夠了就停。
+    if (Buffer.concat(chunks).length >= byteCount) break;
+  }
+  return Buffer.concat(chunks).subarray(0, byteCount);
+}
+
+/**
+ * finalize 補償：偵測到內容/型別不符（disguise）時，刪除已直傳到 R2 的物件，
+ * 避免留下一個「宣稱是 image 但其實是 markup/executable」的垃圾/危險物件。
+ * 刪除失敗只記 log，不讓它擋住 finalize 的 415 回應（物件至少不會被落庫引用）。
+ */
+export async function deleteUploadedObject(fileKey: string): Promise<void> {
+  await getR2Client().send(
+    new DeleteObjectCommand({
+      Bucket: serverEnv.S3_BUCKET_NAME,
+      Key: fileKey.replace(/^\/+/, ""),
+    })
+  );
 }

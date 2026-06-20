@@ -351,7 +351,23 @@ async function startServer() {
   // 路由內建 auth 重構時一併處理。
   // （llm／llmPerUser 兩個限流器掛在 aiProxyRouter 內、verifyToken 之後，
   //   見 routes/aiProxy.ts —— 在那裡才拿得到 req.user 做 per-user key。）
-  app.use("/api/upload", rateLimiters.upload);
+  //
+  // AIDV-15 限流對等：嚴格 upload 限流器（20/15min）只計「真正承載成本」的端點——
+  //   • base64 全量上傳 POST /api/upload（單次上傳=1 請求）
+  //   • signed-URL 取簽 POST /api/upload/presign（單次上傳=1 請求）
+  // finalize 只做一次 HeadObject（外加可選的 64-byte ranged GET），成本極低，
+  // 故放行到較寬的 /api/ 限流器（300/15min），避免 signed 流程每次上傳吃掉 2 個
+  // upload 配額、把每 IP 有效上傳數從 20 砍半成 ~10（批次/大檔場景最先撞 429）。
+  // 結果：不論走 base64 還是 signed，一次成功上傳都只消耗 1 個 upload 配額。
+  app.use("/api/upload", (req, res, next) => {
+    // 掛在 "/api/upload" 之下，req.path 已去前綴：finalize 端點 = "/finalize"。
+    // finalize 只做 HeadObject(+可選 64-byte GET)，成本極低 → 放行到較寬的 api
+    // 限流（下方 /api/ 那道），不吃嚴格 upload 配額。
+    if (req.path === "/finalize") {
+      return next();
+    }
+    return (rateLimiters.upload as express.RequestHandler)(req, res, next);
+  });
   app.use("/api/", rateLimiters.api);
 
   // Configure body parser with larger size limit for file uploads.
