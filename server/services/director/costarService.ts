@@ -14,6 +14,10 @@ import { invokeLLM, extractMessageText } from "../../_core/llm";
 import * as db from "../../db";
 import { buildMemoryContext } from "../ragMemory";
 import {
+  guardRetrievedContext,
+  isRagInjectionGuardEnabled,
+} from "../security/ragInjectionGuard";
+import {
   buildDirectorSystemPrompt,
   GENERATION_MODALITIES_KNOWLEDGE,
   WORKFLOW_KNOWLEDGE,
@@ -86,11 +90,22 @@ export async function runDirectorAI(
     DIRECTOR_PERSONALITY_PROMPTS.creative;
   const fullDirectorPrompt = buildDirectorSystemPrompt(personality);
 
+  // AIDV-69：RAG 注入安檢旗標（預設 OFF）。旗標 OFF 時下方所有 untrusted
+  // 內容（worldContext / memoryContext）不經 guard，組出的字串與現狀位元相同。
+  const guardOn = isRagInjectionGuardEnabled();
+
   // AIDV-152：世界框架脈絡段落。未傳 worldContext 時 = 空字串，下方
   // 字串模板原樣等於改動前（位元相同）。
-  const worldSection =
+  // AIDV-69：旗標 ON 時，worldContext（使用者自填、untrusted）先過 guard 包裹。
+  const guardedWorldContext =
     worldContext && worldContext.trim()
-      ? `\n\n【世界框架一致性】\n${worldContext}\n請讓所有建議與上述世界框架（角色／場景／風格／時代）保持一致。`
+      ? guardOn
+        ? guardRetrievedContext(worldContext, { label: "世界框架資料" })
+        : worldContext
+      : worldContext;
+  const worldSection =
+    guardedWorldContext && guardedWorldContext.trim()
+      ? `\n\n【世界框架一致性】\n${guardedWorldContext}\n請讓所有建議與上述世界框架（角色／場景／風格／時代）保持一致。`
       : "";
 
   // Build RAG memory context for this user (gracefully degrade if unavailable)
@@ -105,8 +120,15 @@ export async function runDirectorAI(
     // RAG unavailable — continue without memory
   }
 
-  const memorySection = memoryContext
-    ? `\n\n【用戶歷史偏好記憶】\n${memoryContext}\n請參考用戶的歷史偏好來調整建議。`
+  // AIDV-69：旗標 ON 時，memoryContext（RAG 記憶＝使用者歷史 prompt 原文、
+  // 可能被先前注入污染、untrusted）先過 guard。旗標 OFF＝位元相同。
+  const guardedMemoryContext =
+    memoryContext && guardOn
+      ? guardRetrievedContext(memoryContext, { label: "歷史創作記憶" })
+      : memoryContext;
+
+  const memorySection = guardedMemoryContext
+    ? `\n\n【用戶歷史偏好記憶】\n${guardedMemoryContext}\n請參考用戶的歷史偏好來調整建議。`
     : "";
 
   // Step 1: Factual grounding with personality-aware research style + full platform knowledge

@@ -13,6 +13,10 @@
 
 import { invokeLLM, extractMessageText } from "../../_core/llm";
 import { buildMemoryContext } from "../ragMemory";
+import {
+  guardRetrievedContext,
+  isRagInjectionGuardEnabled,
+} from "../security/ragInjectionGuard";
 import { buildDirectorSystemPrompt } from "../siteKnowledge";
 import { DIRECTOR_PERSONALITY_PROMPTS } from "./personality";
 import { withTimeout, extractMessageJson } from "./templates";
@@ -246,7 +250,12 @@ export async function discussPlanningPhase(
     try {
       const mem = await buildMemoryContext(userId, userMessage);
       if (mem) {
-        memorySection = `\n\n【用戶歷史偏好記憶】\n${mem}\n請參考用戶的歷史偏好來調整規劃建議。`;
+        // AIDV-69：旗標 ON 時，mem（RAG 記憶＝使用者歷史 prompt 原文、untrusted）
+        // 先過 guard 包裹；旗標 OFF＝注入內容與現狀位元相同。
+        const guardedMem = isRagInjectionGuardEnabled()
+          ? guardRetrievedContext(mem, { label: "歷史創作記憶" })
+          : mem;
+        memorySection = `\n\n【用戶歷史偏好記憶】\n${guardedMem}\n請參考用戶的歷史偏好來調整規劃建議。`;
       }
     } catch {
       // RAG 不可用就靜默

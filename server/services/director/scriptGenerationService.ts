@@ -19,6 +19,10 @@
 
 import { invokeLLM } from "../../_core/llm";
 import type { ScriptSegment } from "../../../shared/types";
+import {
+  guardRetrievedContext,
+  isRagInjectionGuardEnabled,
+} from "../security/ragInjectionGuard";
 import { DIRECTOR_PERSONALITY_PROMPTS } from "./personality";
 import { withTimeout, extractMessageJson } from "./templates";
 
@@ -135,8 +139,16 @@ export async function generateVideoScriptFromBrief(
     input.targetDurationSec ?? profile.defaultTotalDurationSec;
   const avgSegmentSec = Math.max(2, Math.round(targetDuration / targetCount));
 
-  const worldBlock = input.worldContext?.trim()
-    ? `\n\n【當前世界觀（請優先遵循其角色 / 場景 / 風格設定）】\n${input.worldContext.trim()}`
+  // AIDV-69：world context（使用者自填世界觀、untrusted）旗標 ON 時先過
+  // guard 包裹；旗標 OFF＝注入內容與現狀位元相同。
+  const trimmedWorld = input.worldContext?.trim();
+  const guardedWorld = trimmedWorld
+    ? isRagInjectionGuardEnabled()
+      ? guardRetrievedContext(trimmedWorld, { label: "世界觀資料" })
+      : trimmedWorld
+    : undefined;
+  const worldBlock = guardedWorld
+    ? `\n\n【當前世界觀（請優先遵循其角色 / 場景 / 風格設定）】\n${guardedWorld}`
     : "";
 
   const referenceBlock =
