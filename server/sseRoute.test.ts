@@ -17,9 +17,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const authenticateRequestMock = vi.fn();
 const getBackgroundJobMock = vi.fn();
 const getFineTunedModelMock = vi.fn();
+const isDemoModeMock = vi.fn();
 
 vi.mock("./_core/googleAuth", () => ({
   authenticateRequest: (...args: unknown[]) => authenticateRequestMock(...args),
+  isDemoMode: (...args: unknown[]) => isDemoModeMock(...args),
 }));
 
 vi.mock("./db", () => ({
@@ -55,6 +57,9 @@ beforeEach(() => {
   authenticateRequestMock.mockReset();
   getBackgroundJobMock.mockReset();
   getFineTunedModelMock.mockReset();
+  isDemoModeMock.mockReset();
+  // 預設非 demo 模式：跑正常 auth + 擁有權路徑（對齊 NODE_ENV=test 下 isDemoMode()===false）。
+  isDemoModeMock.mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -112,6 +117,47 @@ describe("SSE /api/generation-events/:jobId — IDOR 修補", () => {
     expect(chunk).toContain('"jobId":123');
     server.close();
   });
+
+  it("超過 MySQL signed INT 上限的 jobId → 400（不打 DB，不被當 NaN 放行）", async () => {
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/generation-events/999999999999999999`);
+    expect(res.status).toBe(400);
+    expect(authenticateRequestMock).not.toHaveBeenCalled();
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("auth reject（DB down）→ 500，不 hang、不開串流", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("DB connection error"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/generation-events/123`);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).not.toContain("text/event-stream");
+    server.close();
+  });
+
+  it("getBackgroundJob reject（out-of-range/連線錯誤）→ 500，不 hang", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    getBackgroundJobMock.mockRejectedValue(new Error("out of range value"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/generation-events/123`);
+    expect(res.status).toBe(500);
+    server.close();
+  });
+
+  it("demo 模式 → 跳過擁有權檢查直接開串流（demo 部署不被 403）", async () => {
+    isDemoModeMock.mockReturnValue(true);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/generation-events/123`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    // demo 不做 auth/擁有權查詢
+    expect(authenticateRequestMock).not.toHaveBeenCalled();
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
+    const chunk = await readFirstChunk(res);
+    expect(chunk).toContain('"type":"connected"');
+    server.close();
+  });
 });
 
 describe("SSE /api/model-training-events/:modelId — IDOR 修補", () => {
@@ -162,6 +208,46 @@ describe("SSE /api/model-training-events/:modelId — IDOR 修補", () => {
     const chunk = await readFirstChunk(res);
     expect(chunk).toContain('"type":"connected"');
     expect(chunk).toContain('"modelId":456');
+    server.close();
+  });
+
+  it("超過 MySQL signed INT 上限的 modelId → 400（不打 DB）", async () => {
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/model-training-events/999999999999999999`);
+    expect(res.status).toBe(400);
+    expect(authenticateRequestMock).not.toHaveBeenCalled();
+    expect(getFineTunedModelMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("auth reject → 500，不 hang、不開串流", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("DB connection error"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/model-training-events/456`);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).not.toContain("text/event-stream");
+    server.close();
+  });
+
+  it("getFineTunedModel reject → 500，不 hang", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    getFineTunedModelMock.mockRejectedValue(new Error("out of range value"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/model-training-events/456`);
+    expect(res.status).toBe(500);
+    server.close();
+  });
+
+  it("demo 模式 → 跳過擁有權檢查直接開串流（demo 部署不被 403）", async () => {
+    isDemoModeMock.mockReturnValue(true);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/model-training-events/456`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    expect(authenticateRequestMock).not.toHaveBeenCalled();
+    expect(getFineTunedModelMock).not.toHaveBeenCalled();
+    const chunk = await readFirstChunk(res);
+    expect(chunk).toContain('"type":"connected"');
     server.close();
   });
 });
