@@ -15,6 +15,7 @@ import * as db from "../../db";
 import { getTeamMembership } from "../../db";
 import { teamDataAdapter } from "./adapters/teamDataAdapter";
 import { createDriveAdapter, createNotionAdapter } from "./adapters/external";
+import { sanitizeContextPacketField } from "../../services/security/ragInjectionGuard";
 import {
   ContextPacketAccessError,
   type CompileProjectContextPacketInput,
@@ -109,7 +110,34 @@ function buildQuery(project: {
   return desc ? `${project.title} ${desc}` : project.title;
 }
 
-/** Deterministic 摘要拼接（不呼叫模型）。 */
+/**
+ * AIDV-69：在「資料層」中和 untrusted（kind !== "team_data"，Drive / Notion 等
+ * 外部來源）ref 的 title / snippet —— 收集後、拼摘要 / 寫 sourceRefsJson 前一次到位，
+ * 讓 summaryMarkdown 與持久化的 sourceRefsJson 一致（不再只中和 markdown 旁系副本，
+ * 避免 chips / 未來讀 sourceRefs 的消費端拿到未中和的注入字串）。
+ *
+ * HARD SAFETY：
+ *  - 旗標 OFF / 空字串：sanitizeContextPacketField 原樣回傳 → refs **位元相同**。
+ *  - 只動 untrusted（team_data 受信任 → 不過 guard、逐字保留）。
+ *  - **只 neutralize、不 fence**：refs 同時進 UI（summaryMarkdown / chips），
+ *    fence 邊界標記會污染顯示。
+ *  - best-effort：sanitizeContextPacketField 內部吞錯 fallback 原內容。
+ * 回傳新陣列（不就地變異 adapter 產物），未變動欄位逐字保留。
+ */
+function sanitizeUntrustedRefs(refs: ContextSourceRef[]): ContextSourceRef[] {
+  return refs.map(r => {
+    if (r.kind === "team_data") return r; // 受信任 → 不過 guard
+    return {
+      ...r,
+      title: sanitizeContextPacketField(r.title),
+      ...(r.snippet !== undefined
+        ? { snippet: sanitizeContextPacketField(r.snippet) }
+        : {}),
+    };
+  });
+}
+
+/** Deterministic 摘要拼接（不呼叫模型）。refs 應已過 sanitizeUntrustedRefs。 */
 function buildSummaryMarkdown(
   project: { title: string },
   refs: ContextSourceRef[]
@@ -117,9 +145,10 @@ function buildSummaryMarkdown(
   if (refs.length === 0) {
     return `# ${project.title} · 可用資料來源\n\n（目前沒有可用的內部資料來源。可在資料庫上傳團隊資料，或為此專案設定資料存取規則。）`;
   }
-  const lines = refs.map(
-    r => `- 「${r.title}」（${r.kind} · ${r.accessLevel}）：${r.snippet ?? ""}`
-  );
+  const lines = refs.map(r => {
+    const snip = r.snippet ?? "";
+    return `- 「${r.title}」（${r.kind} · ${r.accessLevel}）：${snip}`;
+  });
   // TODO(training-track): 之後可在此把 deterministic 拼接換成 cheap-LLM（如
   // gemini-flash）摘要，並把 createdByModel 填上模型 id。
   return `# ${project.title} · 可用資料來源\n\n${lines.join("\n")}`;
@@ -183,7 +212,7 @@ export async function compileProjectContextPacket(
   const query = input.query?.trim() || buildQuery(project);
 
   // 合併所有 adapter 的來源（各自已套用自己的 ACL）。
-  const refs: ContextSourceRef[] = [];
+  const collected: ContextSourceRef[] = [];
   const adapters = await getEnabledAdaptersForProject(
     input.userId,
     input.projectId
@@ -196,8 +225,13 @@ export async function compileProjectContextPacket(
       limit: SOURCE_LIMIT,
       mode: input.mode,
     });
-    refs.push(...got);
+    collected.push(...got);
   }
+
+  // AIDV-69：資料層中和 untrusted 來源 title / snippet（單一 chokepoint）。
+  // 旗標 OFF＝位元相同。summaryMarkdown 與下方 sourceRefsJson 共用同一份已中和 refs，
+  // 確保 chips（TeamDataSourcesPanel）與未來讀 sourceRefs 的消費端皆繼承中和。
+  const refs = sanitizeUntrustedRefs(collected);
 
   const summaryMarkdown = buildSummaryMarkdown(project, refs);
   const tokenEstimate = Math.ceil(summaryMarkdown.length / 4);
