@@ -12,6 +12,7 @@
 
 import { callFalModel } from "../services/falModels";
 import { storagePut } from "../storage";
+import { resolveFalSafetyChecker } from "../services/security/contentModeration";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -49,7 +50,8 @@ export async function generateImage(
   const falInput: Record<string, unknown> = {
     prompt: options.prompt,
     num_images: 1,
-    enable_safety_checker: false,
+    // AIDV-65：OFF＝維持現行值（false）；ON＝開回 fal safety checker（true）。
+    enable_safety_checker: resolveFalSafetyChecker(false),
   };
 
   if (options.aspectRatio) {

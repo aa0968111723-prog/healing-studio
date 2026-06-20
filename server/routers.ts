@@ -26,6 +26,7 @@ import {
 } from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
 import { featureFlags } from "./_core/featureFlags";
+import { resolveSafetyFallback } from "./services/security/contentModeration";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
@@ -965,10 +966,17 @@ async function checkSafety(
           : {}),
       };
     }
-    return { safe: true };
+    // AIDV-65：LLM 回傳無法解析。OFF＝維持現行 fail-open（{ safe: true }）；
+    // ON＝fail-closed 擋下（resolveSafetyFallback）。
+    return resolveSafetyFallback(
+      "內容安全檢查無法解析結果，為安全起見暫不放行，請稍後再試"
+    );
   } catch {
-    // On timeout or error, default to safe to avoid blocking user
-    return { safe: true };
+    // AIDV-65：逾時或任何錯誤。OFF＝維持現行 fail-open（{ safe: true }，避免擋到使用者）；
+    // ON＝fail-closed 擋下（resolveSafetyFallback），由呼叫端以此 reason 回報。
+    return resolveSafetyFallback(
+      "內容安全檢查逾時或發生錯誤，為安全起見暫不放行，請稍後再試"
+    );
   }
 }
 
