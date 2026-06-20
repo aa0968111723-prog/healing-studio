@@ -49,6 +49,8 @@ export async function generateImage(
   const falInput: Record<string, unknown> = {
     prompt: options.prompt,
     num_images: 1,
+    // ⚠️ AIDV-65 不涵蓋此檔：本檔為 dead/legacy（無 production 呼叫端，見檔頭），
+    // 故不在此假裝是受旗標控制的注入點。維持原硬寫值 false。
     enable_safety_checker: false,
   };
 

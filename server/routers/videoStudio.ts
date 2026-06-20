@@ -39,6 +39,7 @@ import {
   type CameraModeId,
   type VideoBlock,
 } from "../services/videoCompiler";
+import { resolveFalSafetyChecker } from "../services/security/contentModeration";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式；base URL 來自 providerFacade）───
 
@@ -528,7 +529,8 @@ export const videoStudioRouter = router({
         num_frames: input.numFrames,
         resolution: input.resolution,
         aspect_ratio: input.aspectRatio,
-        enable_safety_checker: input.enableSafety,
+        // AIDV-65：OFF＝維持現行值（input.enableSafety）；ON＝開回 fal safety checker（true）。
+        enable_safety_checker: resolveFalSafetyChecker(input.enableSafety),
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
