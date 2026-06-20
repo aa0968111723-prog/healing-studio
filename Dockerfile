@@ -28,6 +28,12 @@ WORKDIR /app
 # Set production mode so Express serves static files and skips Vite dev server
 ENV NODE_ENV=production
 
+# AIDV-57：每日 DB 備份 cron（server/jobs/dbSnapshotJob.ts）在 runtime 透過
+# spawn("mysqldump") 對正式庫做一致性快照（--single-transaction，唯讀、不鎖表）。
+# mariadb-client 提供 Alpine 上的 mysqldump binary（與 MySQL 8 相容），約 +3MB。
+# 注意：apk 套件不會從 builder 階段繼承到 runner，必須在「runner」階段安裝。
+RUN apk add --no-cache mariadb-client
+
 # Copy node_modules from builder (already compiled, avoids re-compilation issues)
 COPY --from=builder /app/node_modules ./node_modules
 
