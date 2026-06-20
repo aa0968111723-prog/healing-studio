@@ -37,7 +37,7 @@ import {
   stopBraveLearnFetcherCron,
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
-import { closeDb, runMigrations, getDrizzlePoolStats, checkDrizzleHealth } from "../db";
+import { closeDb, runMigrations } from "../db";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
@@ -86,7 +86,7 @@ import { toolsModelsRouter } from "../routes/toolsModels";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
-import { closeDatabaseManager, getDatabaseManager } from "./DatabaseManager";
+import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
 import { serverEnv } from "./env.validated";
@@ -581,32 +581,17 @@ async function startServer() {
 
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
-  app.get("/api/health", async (_req, res) => {
-    const storageBackend = detectStorageBackend();
-
-    // Collect database health from both connection systems
-    let dbHealth: Record<string, unknown> | null = null;
-    try {
-      const drizzleHealthy = await checkDrizzleHealth();
-      const drizzlePool = getDrizzlePoolStats();
-      let managerHealth: Record<string, unknown> | null = null;
-      try {
-        managerHealth = getDatabaseManager().getConnectionHealth() as unknown as Record<
-          string,
-          unknown
-        >;
-      } catch {
-        // DatabaseManager may not be initialised if DATABASE_URL is absent
-      }
-      dbHealth = {
-        drizzle: { healthy: drizzleHealthy, poolStats: drizzlePool },
-        manager: managerHealth,
-      };
-    } catch {
-      // Never let a DB check crash the health endpoint
-    }
-
-    res.json({ ok: true, ts: Date.now(), storage: storageBackend, database: dbHealth });
+  //
+  // AIDV-58（維運鏡審查）：此端點無 auth、對整個網際網路可見，故只回最小存活訊號。
+  // 不再外洩 DB 內部狀態（manager.lastError / failureCount / circuitOpen，原始 DB 錯誤字串
+  // 可能含 host/driver/連線細節）與 drizzle poolStats（active/idle/queued/total 連線數），
+  // 也不外洩具體 storage backend 類型——只回布林（是否已設定後端）。
+  // 詳細 dbHealth 移到 admin-only 的 /api/health/detail（與 /api/metrics 同源守門）。
+  app.get("/api/health", (_req, res) => {
+    // storage:boolean — 「是否已設定後端」而非具體類型（s3/gcs/manus）。
+    // 'none' = 生產未設定任何雲端儲存；dev 預設 'local' 仍視為已設定。
+    const storageConfigured = detectStorageBackend() !== "none";
+    res.json({ ok: true, ts: Date.now(), storage: storageConfigured });
   });
 
   // ── Performance metrics endpoint（AIDV-58 H3：admin-only）────────────────
