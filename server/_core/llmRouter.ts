@@ -94,6 +94,17 @@ interface CircuitBreakerEntry {
   overrideCooldownMs?: number;
   /** 最近一次失敗的分類（permanent_auth / permanent_quota / transient），供 health endpoint 顯示 */
   lastFailureReason?: string;
+  /**
+   * 「模型無效」(invalid_model / permanent_model) 的累積次數。
+   *
+   * 這類失敗是「這一次呼叫帶的模型 id 對這個引擎無效」，引擎本身完全健康
+   * （換個有效模型就會成功）。因此它**絕對不能**累進 `failures` 去觸發
+   * CIRCUIT_FAILURE_THRESHOLD 斷路 — 否則某 brain 設了一個無效 model id 反覆
+   * 觸發 invalid_model 時，會把其實健康的引擎錯誤地斷路 OPEN，連帶擋掉所有
+   * 用有效模型的呼叫。這個獨立計數器只做觀測（health endpoint / debug），
+   * 不參與任何斷路判斷，且任何一次成功都會歸零。
+   */
+  modelInvalidCount: number;
 }
 
 /** 連續失敗幾次後斷路 */
@@ -126,6 +137,7 @@ function getCircuit(engine: LLMEngine): CircuitBreakerEntry {
       trips: 0,
       avgLatencyMs: 0,
       samples: 0,
+      modelInvalidCount: 0,
     });
   }
   return circuitBreakers.get(engine)!;
@@ -178,6 +190,8 @@ export function recordEngineSuccess(engine: LLMEngine, latencyMs?: number): void
   // 一旦成功，清除永久錯誤覆蓋與失敗分類 — 之後若再失敗按 transient 規則重新評估。
   cb.overrideCooldownMs = undefined;
   cb.lastFailureReason = undefined;
+  // 成功代表引擎健康，把「模型無效」觀測計數歸零（與 failures 同步重置）。
+  cb.modelInvalidCount = 0;
 
   if (typeof latencyMs === "number" && latencyMs > 0 && Number.isFinite(latencyMs)) {
     if (cb.samples === 0) {
@@ -196,12 +210,31 @@ export function recordEngineSuccess(engine: LLMEngine, latencyMs?: number): void
  * 永久錯誤（permanent=true，例如 401/403/402、credit balance too low、invalid api key）：
  *   立即斷路並設定 10 分鐘長冷卻 — 因為這類錯誤不會自然恢復，繼續重試只會
  *   讓 fallback 鏈每次都先撞到壞掉的引擎再降級，浪費延遲與 token 預算。
+ * 模型無效（modelInvalid=true，例如 4xx invalid_model / permanent_model）：
+ *   **完全不影響引擎健康訊號** — 不累進 failures、不開斷路器、不動 trips。
+ *   這類失敗只代表「這一次的模型 id 對這個引擎無效」，引擎本身健康（換個有效
+ *   模型即成功）。若把它當 transient 累進 failures，某 brain 設了無效 model id
+ *   反覆觸發 invalid_model（中間無任何成功）時，會在第 3 次把其實健康的引擎
+ *   錯誤地斷路 OPEN，連帶擋掉所有用有效模型的呼叫 — 違反「invalid_model 不斷路」
+ *   的承諾。所以這裡只記一個獨立觀測計數器 + 失敗時間/分類，立刻 return，
+ *   永遠不會累積觸發 CIRCUIT_FAILURE_THRESHOLD。
  */
 export function recordEngineFailure(
   engine: LLMEngine,
-  options?: { permanent?: boolean; reason?: string }
+  options?: { permanent?: boolean; modelInvalid?: boolean; reason?: string }
 ): void {
   const cb = getCircuit(engine);
+
+  // ── 模型無效路徑 — 在累進 failures 之前攔截，確保絕不貢獻斷路 ──────────
+  if (options?.modelInvalid) {
+    cb.modelInvalidCount++;
+    cb.lastFailureAt = Date.now();
+    if (options.reason) cb.lastFailureReason = options.reason;
+    // 刻意不動 cb.failures / cb.state / cb.trips / overrideCooldownMs：
+    // 引擎健康訊號完全不受「模型 id 無效」影響。
+    return;
+  }
+
   cb.failures++;
   cb.lastFailureAt = Date.now();
   if (options?.reason) cb.lastFailureReason = options.reason;
@@ -257,6 +290,7 @@ export function getCircuitBreakerStatus(): Record<
     trips: number;
     lastFailureReason?: string;
     cooldownMs: number;
+    modelInvalidCount: number;
   }
 > {
   const result: Record<
@@ -269,6 +303,7 @@ export function getCircuitBreakerStatus(): Record<
       trips: number;
       lastFailureReason?: string;
       cooldownMs: number;
+      modelInvalidCount: number;
     }
   > = {};
   for (const [engine, cb] of Array.from(circuitBreakers.entries())) {
@@ -280,6 +315,7 @@ export function getCircuitBreakerStatus(): Record<
       trips: cb.trips,
       lastFailureReason: cb.lastFailureReason,
       cooldownMs: effectiveCooldownMs(cb),
+      modelInvalidCount: cb.modelInvalidCount,
     };
   }
   return result;
@@ -301,6 +337,7 @@ export function __unsafeResetCircuitForTests(engine: LLMEngine): void {
     samples: 0,
     overrideCooldownMs: undefined,
     lastFailureReason: undefined,
+    modelInvalidCount: 0,
   });
 }
 

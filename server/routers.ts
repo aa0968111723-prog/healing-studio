@@ -850,6 +850,9 @@ function classifyOrbChatErrorReply(err: unknown, errorMsg: string): string {
     if (err.reason === "permanent_quota") {
       return `🌿 抱歉，AI 服務商回報額度／餘額不足（${err.status}）。請到對應供應商儀表板補額度，或先切換到還有額度的引擎。${settingsHint}`;
     }
+    if (err.reason === "permanent_model") {
+      return `🌿 抱歉，目前選用的模型 ID 不被 AI 服務商接受（${err.status} invalid_model）。請到 /ai-brain-settings 確認各大腦的模型設定為有效值（例如 perplexity/sonar-pro、anthropic/claude-opus-4.7）。${settingsHint}`;
+    }
   }
 
   if (err instanceof TRPCError && err.code === "SERVICE_UNAVAILABLE") {
