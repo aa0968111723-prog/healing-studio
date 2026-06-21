@@ -873,11 +873,57 @@ const OPENROUTER_CATALOG_REMAP: Record<string, string> = {
   "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
 };
 
-function normalizeModelForEngine(model: string, engineName: string): string {
+/**
+ * Perplexity 原生 API（https://api.perplexity.ai/chat/completions）只接受
+ * 「裸」Sonar 模型名（不帶任何 provider 前綴）。以官方現行清單為準：
+ *   - sonar                  輕量 web-grounded 搜尋
+ *   - sonar-pro              旗艦 web-grounded 搜尋（含 follow-up）
+ *   - sonar-reasoning        帶 CoT 推理的搜尋
+ *   - sonar-reasoning-pro    精準 CoT 推理
+ *   - sonar-deep-research    深度研究（多輪檢索 + 報告）
+ * 來源：https://docs.perplexity.ai/getting-started/models
+ *
+ * catalog / DB brain 設定使用帶前綴的 canonical id（例如 "perplexity/sonar-pro"，
+ * 見 user_ai_brain.analystModel 預設與 DEFAULT_REASONING_BRAINS.analyst），
+ * 以便同一個 id 能同時被 OpenRouter（保留前綴）與原生 API（去前綴）使用。
+ * normalizeModelForEngine 在路由到原生 Perplexity 引擎時負責把前綴剝掉。
+ */
+const PERPLEXITY_NATIVE_MODELS = new Set<string>([
+  "sonar",
+  "sonar-pro",
+  "sonar-reasoning",
+  "sonar-reasoning-pro",
+  "sonar-deep-research",
+]);
+
+/**
+ * 把任意 catalog/OpenRouter 風格的 Sonar id 正規化成原生 Perplexity API
+ * 接受的裸模型名。已停用或無法辨識的名稱安全降級到 "sonar-pro"。
+ */
+function normalizePerplexityNativeModel(model: string): string {
+  // 去掉 "perplexity/" 前綴（catalog / OpenRouter canonical id 帶前綴；
+  // 原生 API 一律 400 invalid_model 拒絕帶前綴的 id）
+  const bare = model.startsWith("perplexity/")
+    ? model.slice("perplexity/".length)
+    : model;
+  if (PERPLEXITY_NATIVE_MODELS.has(bare)) return bare;
+  // 舊別名 / 已停用模型（例如 sonar-medium-online、pplx-* 等）→ 安全降級到
+  // 現行旗艦 sonar-pro，避免把無效 id 直送原生 API 觸發 400。
+  return "sonar-pro";
+}
+
+export function normalizeModelForEngine(
+  model: string,
+  engineName: string
+): string {
   const isGeminiEndpoint =
     engineName.includes("Gemini") || engineName.includes("Vertex");
   const isAnthropicEndpoint = engineName.includes("Anthropic");
   const isOpenRouterEndpoint = engineName.includes("OpenRouter");
+  // 原生 Perplexity 引擎名稱為 "Perplexity (Sonar)"（見 llmRouter
+  // resolveSpecificEngine case "perplexity"）。OpenRouter 走的是含 "OpenRouter"
+  // 的引擎名，已在上面的 isOpenRouterEndpoint 分支處理，兩者不會誤判。
+  const isPerplexityEndpoint = engineName.includes("Perplexity");
 
   if (isOpenRouterEndpoint) {
     // 1) 顯式重映射（解決 nvidia/、vertex/ 等不被 OpenRouter 接受的 prefix）
@@ -899,6 +945,13 @@ function normalizeModelForEngine(model: string, engineName: string): string {
     if (/^sonar(-|$)/.test(model)) return `perplexity/${model}`;
     // 未知裸模型名 → 預設安全選擇（最新 Sonnet），避免送出去被 OpenRouter 直接 400
     return "anthropic/claude-sonnet-4.6";
+  }
+
+  if (isPerplexityEndpoint) {
+    // 原生 Perplexity API 只接受裸 Sonar 名稱。把 "perplexity/sonar-pro"
+    // 這類 catalog/OpenRouter canonical id 的前綴剝掉，並驗證落在現行清單內，
+    // 否則安全降級到 sonar-pro（避免 400 invalid_model）。
+    return normalizePerplexityNativeModel(model);
   }
 
   if (isAnthropicEndpoint) {
@@ -1343,9 +1396,33 @@ const PERMANENT_AUTH_PATTERNS = [
   "no auth credentials",
 ];
 
+// 「模型無效 / 不存在」類錯誤：重試同一引擎永遠不會好（模型名稱本身就不被
+// 該 provider 接受），唯一的修復是換成有效模型或交棒給其他 provider。
+// 把它標成 permanent 可以：①跳過 3 次無謂重試的尾延遲；②立刻觸發 fallback
+// 鏈降級到次選 provider，而不是整個功能 500。
+//
+// 涵蓋各家 provider 的 invalid-model 用語：
+//   - Perplexity 原生：{"error":{"type":"invalid_model", ...}}（送了帶
+//     "perplexity/" 前綴的 id 時）
+//   - OpenRouter："xxx is not a valid model id"
+//   - OpenAI 風格："The model `xxx` does not exist"
+//   - 泛用：model_not_found / unknown model / unsupported model
+const PERMANENT_MODEL_PATTERNS = [
+  "invalid_model",
+  "invalid model",
+  "is not a valid model",
+  "not a valid model",
+  "model_not_found",
+  "model not found",
+  "does not exist",
+  "unknown model",
+  "unsupported model",
+  "no such model",
+];
+
 export type LLMErrorClassification = {
   permanent: boolean;
-  reason: "permanent_quota" | "permanent_auth" | "transient";
+  reason: "permanent_quota" | "permanent_auth" | "permanent_model" | "transient";
 };
 
 export function classifyLLMError(
@@ -1372,6 +1449,18 @@ export function classifyLLMError(
   // body 出現典型 auth 字眼
   if (PERMANENT_AUTH_PATTERNS.some(p => lower.includes(p))) {
     return { permanent: true, reason: "permanent_auth" };
+  }
+
+  // 模型無效（invalid_model / 不存在 / 不支援）→ permanent_model。
+  // 僅限 4xx 客戶端錯誤：5xx 即使 body 偶然含 "model" 字眼也應視為 transient
+  // （server 端暫時故障，重試/換引擎可能恢復），避免誤殺。重試同一引擎不會修好
+  // 模型名稱問題，所以標 permanent 讓它跳過重試、立刻 fallback 到次選 provider。
+  if (
+    status >= 400 &&
+    status < 500 &&
+    PERMANENT_MODEL_PATTERNS.some(p => lower.includes(p))
+  ) {
+    return { permanent: true, reason: "permanent_model" };
   }
 
   return { permanent: false, reason: "transient" };
@@ -1651,13 +1740,30 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       recordEngineSuccess(engineConfig.engine, latencyMs);
       return result;
     } catch (err) {
-      // 永久錯誤（401/403/402、credit balance too low、invalid api key 等）→
-      // 立即斷路 10 分鐘，不再讓 fallback 鏈每次都先撞到這個壞掉的引擎。
       if (isPermanentLLMError(err)) {
-        recordEngineFailure(engineConfig.engine, {
-          permanent: true,
-          reason: err.reason,
-        });
+        if (err.reason === "permanent_model") {
+          // 「模型無效」是「這一次呼叫的模型名稱對這個引擎無效」，引擎本身是
+          // 健康的。所以**不**開斷路器（否則會錯誤地讓其他用有效模型的呼叫
+          // 也被擋 10 分鐘），只記一次普通失敗 + warning，讓 fallback 鏈立刻
+          // 交棒到次選 provider。原始錯誤照常往上拋，不會被吞掉/遮蔽。
+          recordEngineFailure(engineConfig.engine);
+          logger.warn(
+            "[LLM] 引擎拒絕模型 ID（invalid_model）→ 交棒至次選 provider（不斷路）",
+            {
+              runName,
+              engine: engineConfig.engine,
+              status: err.status,
+              error: err.message.slice(0, 300),
+            }
+          );
+        } else {
+          // 永久錯誤（401/403/402、credit balance too low、invalid api key 等）→
+          // 立即斷路 10 分鐘，不再讓 fallback 鏈每次都先撞到這個壞掉的引擎。
+          recordEngineFailure(engineConfig.engine, {
+            permanent: true,
+            reason: err.reason,
+          });
+        }
       } else {
         recordEngineFailure(engineConfig.engine);
       }
@@ -1730,9 +1836,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           }
         }
       }
-      // 多引擎全部因 permanent 錯誤失敗時，包成 aggregate 訊息，把運營者
-      // 直接指向「補額度 / 換金鑰」的修復路徑。單引擎強制路徑（沒有 fallback）
-      // 維持原始 LLMPermanentError 拋出，呼叫端可用 instanceof 判斷。
+      // 多引擎全部因 permanent 錯誤失敗時，包成 aggregate 訊息。修復路徑依
+      // 失敗原因而定：全是金鑰／額度問題 → 指向補額度 / 換金鑰；若混入
+      // permanent_model（模型 ID 無效）則改用通用訊息，不誤導運營者去查金鑰，
+      // 且原始錯誤一律附在訊息尾端（不吞掉 / 不遮蔽真實錯誤）。
+      // 單引擎強制路徑（沒有 fallback）維持原始 LLMPermanentError 拋出，
+      // 呼叫端可用 instanceof 判斷。
       if (
         engineConfigs.length > 1 &&
         permanentReasons.length === engineConfigs.length &&
@@ -1741,8 +1850,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         const summary = permanentReasons
           .map(r => `${r.engine}（${r.reason}）`)
           .join("、");
+        const allKeyOrQuota = permanentReasons.every(
+          r => r.reason === "permanent_auth" || r.reason === "permanent_quota"
+        );
         const aggregate = new Error(
-          `[LLM] 所有可用引擎皆因金鑰／額度問題失敗：${summary}。請檢查環境變數 OPENROUTER_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 是否仍有效，或前往對應供應商儀表板補額度。原始錯誤：${lastError.message.slice(0, 200)}`
+          allKeyOrQuota
+            ? `[LLM] 所有可用引擎皆因金鑰／額度問題失敗：${summary}。請檢查環境變數 OPENROUTER_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY 是否仍有效，或前往對應供應商儀表板補額度。原始錯誤：${lastError.message.slice(0, 200)}`
+            : `[LLM] 所有可用引擎皆永久性失敗：${summary}。原始錯誤：${lastError.message.slice(0, 200)}`
         );
         throw aggregate;
       }
