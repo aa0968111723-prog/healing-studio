@@ -54,6 +54,107 @@ const MessageInputSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+type AppendMessageInput = z.infer<typeof MessageInputSchema>;
+type OrbConversationRow = typeof orbConversations.$inferSelect;
+type OrbDb = Awaited<ReturnType<typeof getDbOrThrow>>;
+
+/**
+ * AIDV-157:把「找不到對話就 throw」換成「scoped + idempotent 的 lazy create」。
+ *
+ * 回傳一定屬於 caller 的 conversation 列。三種情形:
+ *   1. 列已存在且 userId === caller → 原樣回傳(既有正常路徑,行為不變)。
+ *   2. 列已存在但 userId !== caller → 丟 FORBIDDEN(防 IDOR,絕不附加到別人對話)。
+ *   3. 列不存在 → 為 caller 建立一列(尊重 per-user 上限),回傳新列。
+ *
+ * **Idempotent**:conversationId 是主鍵。情形 3 與另一個併發請求競態時,後到者的
+ * insert 會撞主鍵;此處吞掉重複鍵錯誤並回讀,保證最終只有一列、且必屬於先寫入者。
+ * 若回讀後該列屬於別人(理論上幾乎不可能,client id 帶 Date.now()+random),
+ * 一樣以 FORBIDDEN 收尾,不洩漏也不污染他人資料。
+ */
+async function loadOrLazyCreateConversation(
+  db: OrbDb,
+  conversationId: string,
+  userId: number,
+  messages: AppendMessageInput[]
+): Promise<OrbConversationRow> {
+  // 以 PK 查列(不帶 userId)以同時涵蓋「我的」與「別人占用同 id」兩種情形。
+  const readByPk = async (): Promise<OrbConversationRow | undefined> => {
+    const [row] = await db
+      .select()
+      .from(orbConversations)
+      .where(eq(orbConversations.conversationId, conversationId))
+      .limit(1);
+    return row;
+  };
+
+  const existing = await readByPk();
+  if (existing) {
+    if (existing.userId !== userId) {
+      // 防 IDOR:別人的對話,絕不附加。typed error,而非裸 500。
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Conversation not found",
+      });
+    }
+    return existing;
+  }
+
+  // 列不存在 → lazy create。先檢查 per-user 上限,避免 runaway client 灌爆表。
+  const [{ count }] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(orbConversations)
+    .where(eq(orbConversations.userId, userId));
+  if (Number(count) >= MAX_CONVERSATIONS_PER_USER) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `已達對話數量上限（${MAX_CONVERSATIONS_PER_USER}），請先刪除或封存舊對話。`,
+    });
+  }
+
+  // 標題:用第一則 user 訊息前 24 字當名稱,否則用預設占位符(沿用 appendMessages
+  // 既有 auto-title 規則,讓 lazy-create 出來的列名稱與正常建立一致)。
+  const firstUserMsg = messages.find(m => m.role === "user");
+  const derivedTitle =
+    firstUserMsg && firstUserMsg.text.trim()
+      ? firstUserMsg.text.trim().replace(/\s+/g, " ").slice(0, 24)
+      : "新對話";
+
+  try {
+    await db.insert(orbConversations).values({
+      conversationId,
+      userId,
+      title: derivedTitle,
+      pinned: false,
+      archivedAt: null,
+      lastMessageAt: null,
+      messageCount: 0,
+    });
+  } catch {
+    // Idempotent:併發競態下另一請求已建立同 PK 列,insert 撞主鍵。吞掉並回讀。
+    const raced = await readByPk();
+    if (!raced) throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to create conversation",
+    });
+    if (raced.userId !== userId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Conversation not found",
+      });
+    }
+    return raced;
+  }
+
+  const created = await readByPk();
+  if (!created) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to create conversation",
+    });
+  }
+  return created;
+}
+
 export const orbConversationsRouter = router({
   /**
    * List the user's conversations, newest-updated first. Archived rows are
@@ -297,6 +398,21 @@ export const orbConversationsRouter = router({
    * Updates the parent row's `lastMessageAt`, `messageCount`, and (when the
    * title is still the default placeholder) auto-derives a title from the
    * first user turn.
+   *
+   * AIDV-157 修復:**append 時若 conversation 列不存在,自動建立(lazy create)**。
+   *
+   * 根因:client 端(GlobalOrbChatContext)在使用者尚無任何 server 對話時,會用
+   * client 端 `conv_*` id 先樂觀建立本地 tab(bootstrap / 舊版 migration 路徑),
+   * 但這個 id 從未跑過 server `create`。隨後 persist effect 會對這個「只存在於本地」
+   * 的 id 呼叫 appendMessages → 舊版直接丟 `NOT_FOUND "Conversation not found"`,
+   * 對使用者表現為「打字送出後 AI 永遠不回 + console 連兩筆 500」(載入一筆、送出一筆)。
+   *
+   * 修法:把「找不到就 throw」改成「找不到就 scoped 到 user+conversationId 自動建立」。
+   *   - **Scoped(防 IDOR)**:conversationId 是 PK。先以 PK 查列;若已被「別的 user」
+   *     占用,絕不附加到別人的對話,改丟 FORBIDDEN(typed error,非裸 500)。
+   *   - **Idempotent**:重送 / 併發兩個 mutation 時,PK 唯一性保證只會有一列;
+   *     insert 撞 PK 一律當「已被建立」吞掉並回讀。
+   *   - 既有正常路徑(列已存在且屬於 caller)行為與改動前完全相同。
    */
   appendMessages: protectedProcedure
     .input(
@@ -308,22 +424,12 @@ export const orbConversationsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
 
-      const [conv] = await db
-        .select()
-        .from(orbConversations)
-        .where(
-          and(
-            eq(orbConversations.conversationId, input.conversationId),
-            eq(orbConversations.userId, ctx.user.id)
-          )
-        )
-        .limit(1);
-      if (!conv) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Conversation not found",
-        });
-      }
+      const conv = await loadOrLazyCreateConversation(
+        db,
+        input.conversationId,
+        ctx.user.id,
+        input.messages
+      );
 
       // L14 修復:重試 / 雙擊送出時 client 會把同一批訊息再 push 一次,
       // 沒去重的話 DB 留兩份。schema 沒 unique constraint(避開 migration),

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { uid } from "@/spine/spineUtil";
 
-interface ChatMsg { id: string; role: "me" | "ai"; text: string; agent?: string }
+interface ChatMsg { id: string; role: "me" | "ai"; text: string; agent?: string; error?: boolean }
 
 export function DirectorChatCanvas() {
   const spine = useProjectSpine();
@@ -25,7 +25,13 @@ export function DirectorChatCanvas() {
       text: `已載入《${p.name}》上下文。對話→腳本→世界觀→分鏡→生成，全部在這頁完成。鐵則：角色未定版不進分鏡、關鍵影格未核准不跑 i2v、媒體生成前先估成本。`,
     },
   ]);
-  const endRef = useRef<HTMLDivElement>(null);
+  // AIDV-157 捲動修復:scrollIntoView 目標改成「最新訊息列」而非列表底部的空 div。
+  // 舊版捲到底部 padding，把最新訊息＋錯誤推出畫面，看似一片空白。
+  const lastMsgRef = useRef<HTMLDivElement>(null);
+  const scrollToLatest = () =>
+    requestAnimationFrame(() =>
+      lastMsgRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    );
 
   const send = async () => {
     const q = input.trim();
@@ -33,14 +39,22 @@ export function DirectorChatCanvas() {
     setMsgs((m) => [...m, { id: uid("m"), role: "me", text: q }]);
     setInput("");
     setTyping(true);
+    scrollToLatest();
     try {
       const ai = await spine.directorReply(q);
       setMsgs((m) => [...m, { id: uid("m"), role: "ai", text: ai.text || "（無回覆）", agent: ai.agent }]);
-    } catch (err) {
-      setMsgs((m) => [...m, { id: uid("m"), role: "ai", text: `導演台連線中斷：${err instanceof Error ? err.message : "director.chat 無回應"}`, agent: "system" }]);
+    } catch {
+      // AIDV-157 ① 白話化:不再外洩「directorReply failed」開發字串。
+      //          ② 保留既有訊息:這裡是 append（不清空對話），使用者已送出的
+      //             訊息與歷史都還在；並把使用者剛打的字回填輸入框，一鍵可重送。
+      setMsgs((m) => [...m, {
+        id: uid("m"), role: "ai", agent: "system", error: true,
+        text: "導演暫時連不上，請稍後再試。你的訊息已保留，可直接重新送出。",
+      }]);
+      setInput(q);
     } finally {
       setTyping(false);
-      requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: "smooth" }));
+      scrollToLatest();
     }
   };
 
@@ -51,15 +65,23 @@ export function DirectorChatCanvas() {
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border bg-card/40 p-3">
-        {msgs.map((m) => (
-          <div key={m.id} className={cn("flex gap-2", m.role === "me" && "flex-row-reverse")}>
-            <span className="mt-0.5 text-base leading-none">{m.role === "me" ? "🧑" : "🧠"}</span>
+        {msgs.map((m, i) => (
+          <div
+            key={m.id}
+            ref={i === msgs.length - 1 ? lastMsgRef : undefined}
+            className={cn("flex gap-2", m.role === "me" && "flex-row-reverse")}
+          >
+            <span className="mt-0.5 text-base leading-none">{m.role === "me" ? "🧑" : m.error ? "⚠️" : "🧠"}</span>
             <div className={cn("min-w-0", m.role === "me" && "text-right")}>
               <div className="text-[10px] text-muted-foreground">{m.role === "me" ? "你" : m.agent || "AI"}</div>
               <div
                 className={cn(
                   "mt-0.5 inline-block whitespace-pre-line rounded-2xl px-3 py-2 text-xs",
-                  m.role === "me" ? "bg-primary text-primary-foreground" : "bg-muted",
+                  m.role === "me"
+                    ? "bg-primary text-primary-foreground"
+                    : m.error
+                      ? "border border-destructive/40 bg-destructive/10 text-destructive"
+                      : "bg-muted",
                 )}
               >
                 {m.text}
@@ -73,7 +95,6 @@ export function DirectorChatCanvas() {
             <Loader2 className="size-4 animate-spin" />
           </div>
         )}
-        <div ref={endRef} />
       </div>
 
       <div className="flex items-end gap-2">
