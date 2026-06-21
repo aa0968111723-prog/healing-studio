@@ -339,6 +339,11 @@ const coreSchema = z.object({
   // （行為等同永遠放行）。詳見 server/_core/generationLock.ts。
   ENABLE_GENERATION_LOCK: z.string().optional().default("true"),
 
+  // AIDV-67：刪資產時連動刪掉 R2/儲存物件（避免孤兒長期占空間）。預設 ON。
+  // best-effort：刪物件失敗只記 log、不阻塞刪除（最壞退回「留孤兒」舊行為）。
+  // 設 "false"/"0"/"off" 可即時關（無需重部署）。詳見 routers asset.delete。
+  ENABLE_ASSET_R2_CASCADE_DELETE: z.string().optional().default("true"),
+
   // ── 健康巡檢警報（沒設則靜默跳過）────────────────────────
   DISCORD_WEBHOOK_URL: z.string().optional().default(""),
 

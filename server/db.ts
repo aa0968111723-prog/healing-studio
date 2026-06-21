@@ -1186,6 +1186,53 @@ export async function deleteDigitalAsset(id: number) {
   await db.delete(digitalAssetLibrary).where(eq(digitalAssetLibrary.id, id));
 }
 
+/**
+ * 數出「除了 excludeId 之外」還有幾列共用同一個 fileKey（AIDV-67）。
+ * 用途：刪資產要連動刪 R2 物件前，先確認沒有其他資產（例如公開回收複製、團隊
+ * 共享複製）仍指向同一個 storage key——有就不刪物件，免得刪一列害其他列壞圖。
+ * fileKey 空字串一律回 0（無 key 無從共用）。
+ */
+export async function countOtherDigitalAssetsByFileKey(
+  fileKey: string,
+  excludeId: number
+): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  if (!fileKey || !fileKey.trim()) return 0;
+  const rows = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        eq(digitalAssetLibrary.fileKey, fileKey),
+        ne(digitalAssetLibrary.id, excludeId)
+      )
+    );
+  return Number(rows[0]?.count ?? 0);
+}
+
+/**
+ * 取出已過保留期（expiresAt < asOf）的資產，給 TTL 清理 job 用（AIDV-67）。
+ * 只選清理需要的欄位（id / fileKey）。expiresAt 為 NULL（無到期）的列因
+ * `NULL < x` 在 SQL 為 unknown 而天然被排除，不會被選到。
+ */
+export async function listExpiredDigitalAssets(
+  limit: number,
+  asOf: Date = new Date()
+): Promise<Array<{ id: number; fileKey: string | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: digitalAssetLibrary.id,
+      fileKey: digitalAssetLibrary.fileKey,
+    })
+    .from(digitalAssetLibrary)
+    .where(lt(digitalAssetLibrary.expiresAt, asOf))
+    .orderBy(asc(digitalAssetLibrary.expiresAt))
+    .limit(limit);
+}
+
 // ─── Project Notes Calendar ─────────────────────────────────────────────────
 
 export async function createProjectNote(data: InsertProjectNote) {

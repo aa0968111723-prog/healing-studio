@@ -489,3 +489,185 @@ export async function storageGet(relKey: string): Promise<StorageResult> {
   if (ENV.forgeApiUrl && ENV.forgeApiKey) return manusGetUrl(relKey);
   return localGetUrl(relKey);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 刪除（AIDV-67：與 storagePut 對應的反向操作，供「刪資產連動刪物件」＋ TTL 清理）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * AWS Signature v4 DELETE — 刪除單一物件（Cloudflare R2 / AWS S3 / 任何 S3 相容）。
+ * 冪等：S3/R2 對「DELETE 不存在的 key」回 204；部分相容實作回 404——兩者都視為
+ * 「物件已不存在」＝成功，不 throw。只有 403/5xx 等真正失敗才 throw。
+ */
+async function s3DeleteObject(params: {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  key: string;
+}): Promise<void> {
+  const { endpoint, bucket, region, accessKeyId, secretAccessKey, key } = params;
+
+  const now = new Date();
+  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+  const amzDate = now.toISOString().replace(/[:\-]|\.\d{3}/g, ""); // YYYYMMDDTHHmmssZ
+  const service = "s3";
+
+  const baseEndpoint = endpoint.replace(/\/+$/, "");
+  const deleteUrl = `${baseEndpoint}/${bucket}/${key}`;
+
+  // DELETE 無 body：x-amz-content-sha256 必須是「空 payload」的 sha256。
+  const bodyHash = await sha256Hex("");
+
+  const headers: Record<string, string> = {
+    host: new URL(baseEndpoint).host,
+    "x-amz-content-sha256": bodyHash,
+    "x-amz-date": amzDate,
+  };
+
+  const sortedHeaders = Object.keys(headers).sort();
+  const canonicalHeaders = sortedHeaders
+    .map(k => `${k}:${headers[k]}\n`)
+    .join("");
+  const signedHeaders = sortedHeaders.join(";");
+
+  const canonicalRequest = [
+    "DELETE",
+    `/${bucket}/${key}`,
+    "", // no query string
+    canonicalHeaders,
+    signedHeaders,
+    bodyHash,
+  ].join("\n");
+
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    await sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const kDate = await hmacSha256(
+    new TextEncoder().encode("AWS4" + secretAccessKey),
+    dateStamp
+  );
+  const kRegion = await hmacSha256(kDate, region);
+  const kService = await hmacSha256(kRegion, service);
+  const kSigning = await hmacSha256(kService, "aws4_request");
+  const signature = toHex(await hmacSha256(kSigning, stringToSign));
+
+  const authHeader = [
+    `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}`,
+    `SignedHeaders=${signedHeaders}`,
+    `Signature=${signature}`,
+  ].join(", ");
+
+  const response = await fetch(deleteUrl, {
+    method: "DELETE",
+    headers: {
+      ...headers,
+      Authorization: authHeader,
+    },
+  });
+
+  // 204=已刪、404=本就不存在 → 皆視為成功（冪等）。其餘才 throw。
+  if (!response.ok && response.status !== 404) {
+    const errText = await response.text().catch(() => response.statusText);
+    throw new Error(`S3 delete failed (${response.status}): ${errText}`);
+  }
+}
+
+async function s3Delete(relKey: string): Promise<void> {
+  const endpoint = serverEnv.S3_ENDPOINT!;
+  const bucket = serverEnv.S3_BUCKET_NAME!;
+  const region = serverEnv.S3_REGION || "auto";
+  const accessKeyId = serverEnv.S3_ACCESS_KEY_ID!;
+  const secretAccessKey = serverEnv.S3_SECRET_ACCESS_KEY!;
+  const key = relKey.replace(/^\/+/, "");
+  return s3DeleteObject({
+    endpoint,
+    bucket,
+    region,
+    accessKeyId,
+    secretAccessKey,
+    key,
+  });
+}
+
+async function gcsDelete(relKey: string): Promise<void> {
+  const bucketName = serverEnv.GCS_BUCKET_NAME;
+  const credJson = serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (!bucketName) throw new Error("GCS_BUCKET_NAME 未設定");
+  if (!credJson) throw new Error("GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定");
+
+  const credentials = JSON.parse(credJson) as {
+    client_email: string;
+    private_key: string;
+  };
+  const accessToken = await getGcsAccessToken(credentials);
+  const key = relKey.replace(/^\/+/, "");
+  const deleteUrl = `https://storage.googleapis.com/storage/v1/b/${bucketName}/o/${encodeURIComponent(key)}`;
+
+  const response = await fetch(deleteUrl, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  // 404=本就不存在 → 視為成功（冪等）。
+  if (!response.ok && response.status !== 404) {
+    const err = await response.text().catch(() => response.statusText);
+    throw new Error(`GCS delete failed: ${response.status} — ${err}`);
+  }
+}
+
+async function manusDelete(relKey: string): Promise<void> {
+  const { baseUrl, apiKey } = getManusStorageConfig();
+  const key = relKey.replace(/^\/+/, "");
+  const deleteApiUrl = new URL("v1/storage/delete", `${baseUrl}/`);
+  deleteApiUrl.searchParams.set("path", key);
+  const response = await fetch(deleteApiUrl, {
+    method: "DELETE",
+    headers: buildManusAuthHeaders(apiKey),
+  });
+  if (!response.ok && response.status !== 404) {
+    const msg = await response.text().catch(() => response.statusText);
+    throw new Error(`Storage delete failed (${response.status}): ${msg}`);
+  }
+}
+
+function localDelete(relKey: string): void {
+  const key = relKey.replace(/^\/+/, "");
+  const fileName = key.replace(/\//g, "_");
+  const filePath = path.join(LOCAL_UPLOADS_DIR, fileName);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+}
+
+/**
+ * 刪除一個已上傳物件。後端自動偵測（與 storagePut 同優先序）。
+ * 冪等：物件不存在不算錯。空 key 直接略過。
+ * 回傳實際嘗試刪除的後端；backend="none" 代表 prod 未設定任何雲端儲存
+ * （理論上不會發生，呼叫端多以 best-effort 包覆，刪不到也不致命）。
+ */
+export async function storageDelete(
+  relKey: string
+): Promise<{ backend: "s3" | "gcs" | "manus" | "local" | "none" }> {
+  if (!relKey || !relKey.trim()) return { backend: "none" };
+  if (useS3()) {
+    await s3Delete(relKey);
+    return { backend: "s3" };
+  }
+  if (useGCS()) {
+    await gcsDelete(relKey);
+    return { backend: "gcs" };
+  }
+  if (ENV.forgeApiUrl && ENV.forgeApiKey) {
+    await manusDelete(relKey);
+    return { backend: "manus" };
+  }
+  if (process.env.NODE_ENV !== "production") {
+    localDelete(relKey);
+    return { backend: "local" };
+  }
+  return { backend: "none" };
+}
