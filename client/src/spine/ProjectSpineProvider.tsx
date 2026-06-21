@@ -25,6 +25,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useSpine } from "@/providers/SpineProvider";
+import { isCostBlockedError } from "@/adapters/genErrorToast";
 import { useCreativeProject } from "@/spine/useCreativeProject";
 import { VIDEO_SPINE_MOCK, ENABLE_WORLD_STYLE_INJECTION } from "@/config/videoFlags";
 import { makeProjectGateway, type ProjectGateway } from "@/spine/projectGateway";
@@ -178,8 +179,15 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
         (e) => {
           if (e.type === "estimate") toast(`先估成本：$${e.costUsd.toFixed(3)}`, { description: `${shot.no} ${shot.title}` });
           else if (e.type === "fail") toast.warning(`${e.provider} 生成失敗`, { description: `${e.error.msg}（HTTP ${e.error.http}）` });
-          else if (e.type === "fallback") toast(`自動回退 provider`, { description: `${e.provider} → ${e.next}` });
-          else if (e.type === "success") fellBack = e.fellBack;
+          else if (e.type === "fallback") {
+            toast(`自動回退引擎：${e.provider} → ${e.next}`, {
+              // AIDV-160：白話說明跨到哪個 provider、是否扣點。
+              description: e.crossesToPaid ? `改用付費引擎 ${e.next}（會扣點）` : `改用同層引擎 ${e.next}（計費方式不變）`,
+            });
+          } else if (e.type === "cost-blocked") {
+            // AIDV-160：免費引擎不可用，守門不無聲跨付費扣點 → 明確告知、不扣點。
+            toast.error("免費引擎暫時無法使用 · 未扣點", { description: e.reason });
+          } else if (e.type === "success") fellBack = e.fellBack;
         },
       );
 
@@ -209,6 +217,13 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
         description: `${res.model}${fellBack ? `（已回退 ${res.provider}）` : ` · ${res.provider}`} · 約 ${cost} 積分`,
       });
     } catch (err) {
+      // AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」
+      // toast 已於事件處理器顯示。鏡頭未生成也未失敗 → 回 idle（非紅色 error 態），
+      // 且**不**再 fire 通用「{shot} 生成失敗」toast，避免雙 toast（恰好一個冷靜 toast）。
+      if (isCostBlockedError(err)) {
+        patchShot(shot.id, (s) => ({ ...s, gen: { ...s.gen, status: "idle" } }));
+        return;
+      }
       patchShot(shot.id, (s) => ({ ...s, gen: { ...s.gen, status: "error" } }));
       toast.error(`${shot.no} 生成失敗`, { description: err instanceof Error ? err.message : "全部 provider 皆失敗，請重試或切換 provider" });
     }

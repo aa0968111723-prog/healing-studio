@@ -18,15 +18,45 @@
 import type {
   AdapterDeps, GenerationAdapter, GenRequest, GenResult, GenEvent, GenError,
 } from "./types";
-import { AdapterError, AdapterPendingError } from "./types";
+import { AdapterError, AdapterPendingError, AdapterCostBlockedError } from "./types";
 import type { ProviderId } from "@/spine/types";
 import { getTrpcClient } from "./trpcClient";
+import {
+  ENABLE_COST_CONSENT_GUARD, providerCostTier, isFreeProvider, isPaidProvider,
+} from "./costTier";
 
 const FALLBACK_CHAIN: ProviderId[] = ["hf", "gemini", "fal", "mock"];
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 180_000;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * 成本層級感知的回退鏈（AIDV-160 成本同意原則）。
+ *
+ * 守門 ON（預設）時：
+ *   - preferred 為 **免費**（mock）→ 回退候選只保留其他「免費」provider（今天只有 mock 一個 →
+ *     沒有同層替代）。**絕不把付費 provider 接到免費引擎後面**，杜絕「免費引擎失敗 →
+ *     無聲換 hf 生成扣點」。
+ *   - preferred 為 **付費**（hf/gemini/fal）→ 回退候選只保留其他「付費」provider，
+ *     維持 hf↔gemini↔fal 既有便利；剔除尾端 mock（避免付費任務莫名落到 prod 不可用的免費兜底）。
+ *
+ * 守門 OFF（VITE_ENABLE_COST_CONSENT_GUARD=0）→ 回到舊行為：preferred + 全鏈（含跨層）。
+ *
+ * 不論開關，preferred 永遠是鏈首（使用者選定的引擎一定先嘗試）。
+ */
+export function buildProviderChain(
+  preferred: ProviderId,
+  fullChain: ProviderId[] = FALLBACK_CHAIN,
+): ProviderId[] {
+  const tail = fullChain.filter((p) => p !== preferred);
+  if (!ENABLE_COST_CONSENT_GUARD) {
+    return [preferred, ...tail];
+  }
+  // 同成本層級才允許自動回退（免費只回退免費；付費只回退付費）。
+  const sameTier = tail.filter((p) => providerCostTier(p) === providerCostTier(preferred));
+  return [preferred, ...sameTier];
+}
 
 function toGenError(provider: ProviderId, err: unknown): GenError {
   const anyErr = err as { message?: string; data?: { httpStatus?: number } };
@@ -129,18 +159,44 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
     try { const est = await estimateCost(req); onEvent({ type: "estimate", costUsd: est.costUsd }); } catch { /* noop */ }
 
     const preferred = req.provider ?? deps.getProvider();
-    const chain = [preferred, ...FALLBACK_CHAIN.filter((p) => p !== preferred)];
+    // 🔒 成本層級感知回退鏈（AIDV-160）：免費只回退免費、付費只回退付費；
+    //    免費引擎絕不無聲跨界回退到付費 provider 扣點。守門 OFF 才回到舊全鏈行為。
+    const chain = buildProviderChain(preferred, FALLBACK_CHAIN);
     const faults = deps.getFaults();
     let lastErr: unknown = null;
 
+    /**
+     * 守門中止：使用者選定的免費引擎失敗/不可用，且鏈內無同層（免費）替代 →
+     * 不跨界、不生成、不扣點，丟 AdapterCostBlockedError。fail 方向永遠是「不扣費」。
+     */
+    const blockIfFreeExhausted = (provider: ProviderId): never => {
+      const reason =
+        "您選的免費引擎暫時無法使用。為避免在未經同意下改用付費引擎並扣點，已停止生成（不扣點）。請改選其他引擎或稍後再試。";
+      onEvent({ type: "cost-blocked", provider, reason });
+      throw new AdapterCostBlockedError(reason, {
+        seam: "generation", provider, procedure: "generate.submitStudioJob",
+      });
+    };
+
     for (let i = 0; i < chain.length; i++) {
       const provider = chain[i];
+      const next = chain[i + 1];
+      const isLast = i === chain.length - 1;
       if (faults[provider]) {
         // 故障注入（demo/測試）：視同該 provider 失敗，直接回退。
         const error = { provider, code: "FAULT_INJECTED", http: 503, msg: `${provider} 故障注入` };
         onEvent({ type: "fail", provider, error });
-        if (chain[i + 1]) onEvent({ type: "fallback", provider, next: chain[i + 1] });
         lastErr = new AdapterError(error.msg, { seam: "generation", provider });
+        // 守門：免費引擎失敗且已無同層替代（鏈尾）→ 不跨界扣點，明確中止。
+        if (ENABLE_COST_CONSENT_GUARD && isFreeProvider(preferred) && isLast) {
+          blockIfFreeExhausted(provider);
+        }
+        if (next) {
+          onEvent({
+            type: "fallback", provider, next,
+            crossesToPaid: isPaidProvider(next) && isFreeProvider(provider),
+          });
+        }
         continue;
       }
       onEvent({ type: "attempt", provider, step: i });
@@ -152,7 +208,16 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
         if (err instanceof AdapterPendingError) throw err; // 缺口錯誤不該被回退吞掉
         lastErr = err;
         onEvent({ type: "fail", provider, error: toGenError(provider, err) });
-        if (chain[i + 1]) onEvent({ type: "fallback", provider, next: chain[i + 1] });
+        // 守門：免費引擎失敗且已無同層替代（鏈尾）→ 不跨界扣點，明確中止。
+        if (ENABLE_COST_CONSENT_GUARD && isFreeProvider(preferred) && isLast) {
+          blockIfFreeExhausted(provider);
+        }
+        if (next) {
+          onEvent({
+            type: "fallback", provider, next,
+            crossesToPaid: isPaidProvider(next) && isFreeProvider(provider),
+          });
+        }
       }
     }
     throw new AdapterError("全部 provider 皆失敗", { seam: "generation", procedure: "generate.submitStudioJob", cause: lastErr });

@@ -23,6 +23,9 @@ import { trpc } from "@/lib/trpc";
 import { useSpine } from "@/providers/SpineProvider";
 import { frameStyle } from "@/spine/seedVisual";
 import { PanelEmpty, PanelError } from "@/shells/_shared/PanelState";
+// AIDV-160：成本守門中止（免費引擎不可用、不無聲跨界扣付費點）非硬失敗 → 顯示冷靜的
+// 「未扣點」toast 而非紅色「試生成失敗」，與其他生成入口一致。
+import { isCostBlockedError } from "@/adapters/genErrorToast";
 import {
   ModelCard, DOMAIN_META, type CatalogModelView, type ModelDomainId, type ModelIntel,
 } from "@/shells/_shared/ModelCard";
@@ -123,6 +126,11 @@ export function ModelCatalogBody() {
       setSeed(res.seedUsed);
       toast.success("試生成完成", { description: `${res.model} · seed ${res.seedUsed} · ${res.provider}` });
     } catch (e) {
+      // AIDV-160：免費引擎不可用 → 守門中止（不扣點），不是硬失敗 → 冷靜提示、不紅。
+      if (isCostBlockedError(e)) {
+        toast.error("免費引擎暫時無法使用 · 未扣點", { description: e.message });
+        return;
+      }
       toast.error("試生成失敗（generation 接縫）", { description: e instanceof Error ? e.message : "無回應" });
     } finally {
       setBusy(false);

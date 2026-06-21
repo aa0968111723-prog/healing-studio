@@ -21,6 +21,9 @@ import { cn } from "@/lib/utils";
 import { useSpine } from "@/providers/SpineProvider";
 import type { GenEvent, GenResult } from "@/adapters/types";
 import type { ProviderId, GenKind } from "@/spine/types";
+// AIDV-160：mock（免費離線兜底）在 prod 不可用 → 選擇器 disable，不「顯示可選卻偷換付費」。
+import { isMockProviderAvailable } from "@/adapters/costTier";
+import { isCostBlockedError } from "@/adapters/genErrorToast";
 
 const PROVIDERS: { id: ProviderId; label: string }[] = [
   { id: "hf", label: "Hugging Face" },
@@ -54,7 +57,16 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
         (e) => {
           setEvents((prev) => [...prev, e]);
           if (e.type === "estimate") setEstCost(e.costUsd);
-          if (e.type === "fallback") toast.message("自動回退 provider", { description: `${e.provider} → ${e.next}` });
+          if (e.type === "fallback") {
+            toast.message(`自動回退引擎：${e.provider} → ${e.next}`, {
+              // AIDV-160：白話說明跨到哪個 provider、是否扣點。
+              description: e.crossesToPaid ? `改用付費引擎 ${e.next}（會扣點）` : `改用同層引擎 ${e.next}（計費方式不變）`,
+            });
+          }
+          if (e.type === "cost-blocked") {
+            // AIDV-160：免費引擎不可用，守門不無聲跨付費扣點 → 明確告知、不扣點。
+            toast.error("免費引擎暫時無法使用 · 未扣點", { description: e.reason });
+          }
           if (e.type === "fail") toast.warning(`${e.provider} 生成失敗`, { description: `${e.error.msg}（HTTP ${e.error.http}）` });
         },
       );
@@ -64,6 +76,10 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
         description: `${res.model} · $${res.costUsd.toFixed(3)}${res.provider !== spine.provider ? `（回退 ${res.provider}）` : ""}`,
       });
     } catch (err) {
+      // AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」
+      // toast 已於事件處理器顯示，事件列表也已記錄 cost-blocked 一行。回 idle（請改選
+      // 引擎，而非重試同一個免費引擎），且**不**再 fire 通用「生成失敗」toast → 恰好一個。
+      if (isCostBlockedError(err)) { setStatus("idle"); return; }
       setStatus("error");
       toast.error("生成失敗", { description: (err as Error)?.message ?? "全部 provider 皆失敗，請重試或切換 provider" });
     }
@@ -77,11 +93,14 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PROVIDERS.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.label}
-              </SelectItem>
-            ))}
+            {PROVIDERS.map((p) => {
+              const disabled = p.id === "mock" && !isMockProviderAvailable();
+              return (
+                <SelectItem key={p.id} value={p.id} disabled={disabled}>
+                  {p.label}{disabled ? "（正式環境不可用）" : ""}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
 
@@ -148,7 +167,9 @@ function describe(e: GenEvent): string {
     case "fail":
       return `${e.provider} 失敗 · ${e.error.code}`;
     case "fallback":
-      return `回退 ${e.provider} → ${e.next}`;
+      return `回退 ${e.provider} → ${e.next}${e.crossesToPaid ? "（付費，會扣點）" : ""}`;
+    case "cost-blocked":
+      return `已停止：${e.provider} 免費引擎不可用 · 未扣點`;
     case "success":
       return `成功 ${e.provider} · ${e.res.model}${e.fellBack ? "（回退）" : ""}`;
     default:

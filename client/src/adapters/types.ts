@@ -47,6 +47,18 @@ export class AdapterPendingError extends AdapterError {
   }
 }
 
+/**
+ * 成本同意守門中止（AIDV-160）：免費/使用者選定的免費引擎不可用，且守門不允許無聲
+ * 跨界到付費 provider 扣點 → 中止、不生成、不扣點。caller 可 `instanceof` 偵測以顯示
+ * 「請改選其他引擎或稍後再試」而非「全部 provider 皆失敗」。
+ */
+export class AdapterCostBlockedError extends AdapterError {
+  constructor(message: string, meta: { seam: string; provider?: ProviderId; procedure?: string }) {
+    super(message, { seam: meta.seam, provider: meta.provider, procedure: meta.procedure });
+    this.name = "AdapterCostBlockedError";
+  }
+}
+
 // ─── 1) DataStore（DATA_STORE）── creativeProject / aiModels / news / showcase ──
 
 export interface DataStoreAdapter {
@@ -93,7 +105,12 @@ export type GenEvent =
   | { type: "queued"; jobId: string; provider: ProviderId }
   | { type: "poll"; jobId: string; status: string }
   | { type: "fail"; provider: ProviderId; error: GenError }
-  | { type: "fallback"; provider: ProviderId; next: ProviderId }
+  | { type: "fallback"; provider: ProviderId; next: ProviderId; crossesToPaid?: boolean }
+  /**
+   * 成本同意守門（AIDV-160）：免費/使用者選定的免費引擎不可用、且無同層（免費）替代時，
+   * 守門「不跨界到付費 provider 扣點」而中止。UI 據此顯示明確錯誤、不生成、不扣點。
+   */
+  | { type: "cost-blocked"; provider: ProviderId; reason: string }
   | { type: "success"; provider: ProviderId; res: GenResult; fellBack: boolean };
 
 export interface GenerationAdapter {

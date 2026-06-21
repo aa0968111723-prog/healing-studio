@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useSpine } from "@/providers/SpineProvider";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
+import { isCostBlockedError } from "@/adapters/genErrorToast";
 import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { frameStyle } from "@/spine/seedVisual";
 import { trpc } from "@/lib/trpc";
@@ -66,13 +67,27 @@ export function AssetGenCanvas() {
         (e) => {
           if (e.type === "estimate") toast(`先估成本：$${e.costUsd.toFixed(3)}`, { description: "先扣後生成 · 失敗全額退還" });
           else if (e.type === "fail") toast.warning(`${e.provider} 生成失敗`, { description: `HTTP ${e.error.http} · 自動回退` });
-          else if (e.type === "fallback") toast(`自動回退 provider`, { description: `${e.provider} → ${e.next}` });
+          else if (e.type === "fallback") {
+            toast(`自動回退引擎：${e.provider} → ${e.next}`, {
+              // AIDV-160：白話說明跨到哪個 provider、是否扣點（同付費層回退才會走到這裡）。
+              description: e.crossesToPaid
+                ? `改用付費引擎 ${e.next}（會扣點）`
+                : `改用同層引擎 ${e.next}（同付費層，計費方式不變）`,
+            });
+          } else if (e.type === "cost-blocked") {
+            // AIDV-160：免費引擎不可用，守門不無聲跨付費 → 明確告知、不扣點。
+            toast.error("免費引擎暫時無法使用 · 未扣點", { description: e.reason });
+          }
         },
       );
       setResult({ ...res, prompt: prompt.trim() });
       setStatus("done");
       toast.success("生成完成 · 已寫回資產庫", { description: `${res.model} · seed ${res.seedUsed} · ${res.provider}` });
     } catch (err) {
+      // AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」
+      // toast 已於上方事件處理器顯示。回 idle（可改選引擎重試），且**不**再 fire
+      // 通用「生成失敗」toast，避免雙 toast 與矛盾的硬失敗語氣（恰好一個冷靜 toast）。
+      if (isCostBlockedError(err)) { setStatus("idle"); return; }
       setStatus("error");
       toast.error("生成失敗", { description: err instanceof Error ? err.message : "全部 provider 皆失敗，積分已退還" });
     }
