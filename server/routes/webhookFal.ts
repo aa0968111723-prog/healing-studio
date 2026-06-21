@@ -23,8 +23,23 @@ import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
 import { runPostGenForJob, refundJobIfBilled, unifiedAssetPrefix } from "../services/postGenActions.js";
 import { extractFalMediaUrl } from "../services/falQueueAwaiter.js";
+import {
+  verifyWebhookToken,
+  isWebhookTokenEnforced,
+} from "../_core/webhookTokens";
 
 export const falWebhookRouter = Router();
+
+// ─── AIDV-158：嚴格模式總開關（FAL_WEBHOOK_FAIL_CLOSED，預設 ON）───────────────
+// 明確設為 falsy（"false"/"0"/"off"/"no"）才回退寬鬆（緊急人工決定）；其餘（含留空、
+// 未設、真值）皆為 fail-closed ON。詳見 env.validated.ts 的欄位註解。
+function isFalWebhookFailClosed(): boolean {
+  const raw = serverEnv.FAL_WEBHOOK_FAIL_CLOSED?.trim().toLowerCase();
+  if (raw === "false" || raw === "0" || raw === "off" || raw === "no") {
+    return false;
+  }
+  return true;
+}
 
 // ─── Webhook 簽名驗證（可選，HMAC-SHA256 共享密鑰）─────────────────────────
 // 注意：fal.ai 官方 webhook 用 Ed25519 + JWKS（見 https://fal.ai/docs/private-serverless-models/webhooks）。
@@ -37,15 +52,33 @@ export const falWebhookRouter = Router();
 // 與原始位元組相同，HMAC 會失敗。
 function verifyFalSignature(req: Request): boolean {
   const secret = serverEnv.FAL_WEBHOOK_SECRET;
-  // 若未設定 secret，跳過驗證（開發期間可接受）
-  if (!secret) return true;
+  if (!secret) {
+    // AIDV-158：未設共享密鑰時不再無條件放行（舊的 fail-open footgun）。
+    //  - production + fail-closed ON（預設）→ 拒絕（無法驗章＝不信任）。
+    //  - 非 production，或旗標明確關閉 → 維持 skip，讓本機/自測無密鑰也能跑。
+    // 註：prod 已設 FAL_WEBHOOK_SECRET，此分支在 prod 不會觸發，故不影響現狀。
+    if (serverEnv.NODE_ENV === "production" && isFalWebhookFailClosed()) {
+      console.warn(
+        "[WebhookFal] FAL_WEBHOOK_SECRET 未設定（production）— fail-closed 拒絕。"
+      );
+      return false;
+    }
+    return true;
+  }
 
   const signature = req.headers["x-fal-signature"] as string | undefined;
   if (!signature) return false;
 
-  const rawBody =
-    (req as Request & { rawBody?: Buffer }).rawBody ??
-    Buffer.from(JSON.stringify(req.body ?? {}));
+  // HMAC 必須對「上游簽章時的原始位元組」計算。express.json 的 verify 鉤子把原始
+  // buffer 掛在 req.rawBody；缺它時不可退回 JSON.stringify(req.body)（鍵序/空白會
+  // 與原始位元組不同，算出的 HMAC 必錯）— 直接 fail-closed 拒絕。
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  if (!rawBody || rawBody.length === 0) {
+    console.warn(
+      "[WebhookFal] 缺少 rawBody，無法驗證簽章 — 拒絕（fail-closed）。"
+    );
+    return false;
+  }
   const expected = crypto
     .createHmac("sha256", secret)
     .update(rawBody)
@@ -60,20 +93,63 @@ function verifyFalSignature(req: Request): boolean {
   );
 }
 
+// ─── Per-job capability token 驗證（比照 Suno/Replicate）──────────────────────
+// 只有 URL 上「被簽過」的綁定才算數：
+//   • `?jobId=<n>`  → 簽 `fal:<jobId>`（routers / director / videoStudio 有 jobId 的入口）
+//   • `?fnonce=<n>` → 簽 `fal:n:<nonce>`（imageStudio / proStudio / videoStudio 無 jobId 入口）
+// extractJobId 還會用 request_id 正則 / payload.jobId 反查 job，但那些「不是簽過的綁定」，
+// 不能拿來當 token 主體 —— 否則攻擊者只要在 body 帶對 request_id 就繞過。
+// 回傳 false ＝呼叫端應回 4xx 並丟棄 payload。
+function verifyFalWebhookToken(req: Request): boolean {
+  // 緊急回退：旗標明確關閉時完全跳過 token 強制（回到舊的 lookup-only 行為）。
+  if (!isFalWebhookFailClosed()) return true;
+
+  const token = typeof req.query.token === "string" ? req.query.token : null;
+
+  const jobIdRaw = req.query.jobId;
+  const jobIdFromQuery =
+    typeof jobIdRaw === "string" && /^\d+$/.test(jobIdRaw)
+      ? parseInt(jobIdRaw, 10)
+      : null;
+  const fnonce =
+    typeof req.query.fnonce === "string" && req.query.fnonce.length > 0
+      ? req.query.fnonce
+      : null;
+
+  if (jobIdFromQuery !== null) {
+    return verifyWebhookToken("fal", jobIdFromQuery, token);
+  }
+  if (fnonce) {
+    return verifyWebhookToken("fal", `n:${fnonce}`, token);
+  }
+  // URL 上沒有任何「簽過的綁定」：只有在 token 驗證未啟用（dev / 無 JWT_SECRET）時放行；
+  // production（JWT_SECRET 已設）下這是偽造或舊版無 token 的回呼 → 拒絕。
+  return !isWebhookTokenEnforced();
+}
+
 // ─── POST /api/webhook/fal ─────────────────────────────────────────────────
 falWebhookRouter.post(
   "/api/webhook/fal",
   async (req: Request, res: Response) => {
-    // 1. 立即回 200，避免 fal.ai 重試
+    // ── 認證閘門（同步，在回 200 之前；失敗回 4xx 且絕不碰 DB）──────────────
+    // 1a. 簽章驗證（自家 HMAC 共享密鑰；prod 未設密鑰時 fail-closed）。
+    if (!verifyFalSignature(req)) {
+      res.status(401).json({ error: "invalid signature" });
+      return;
+    }
+    // 1b. per-job capability token（防偽造回呼用攻擊者可控 URL 標完成別人的 job）。
+    if (!verifyFalWebhookToken(req)) {
+      console.warn(
+        "[WebhookFal] ⚠️  Invalid/missing capability token, rejecting (401)."
+      );
+      res.status(401).json({ error: "invalid token" });
+      return;
+    }
+
+    // 2. 認證通過 → 立即回 200，避免 fal.ai 重試；其餘為 best-effort 非同步處理。
     res.status(200).json({ received: true });
 
     try {
-      // 2. 簽名驗證
-      if (!verifyFalSignature(req)) {
-        console.warn("[WebhookFal] ⚠️  Invalid signature, ignoring payload.");
-        return;
-      }
-
       const payload = req.body as FalWebhookPayload;
       const orbTraceId = (req.headers["x-orb-trace-id"] as string | undefined) || payload.orbTraceId || payload.request_id;
 
@@ -106,6 +182,21 @@ falWebhookRouter.post(
       const job = await getBackgroundJob(jobId);
       if (!job) {
         console.warn(`[WebhookFal] No job found for id=${jobId}`);
+        return;
+      }
+
+      // 3.5 Idempotency / replay 守門：只允許 (queued|processing) → 終態。
+      //     job 已是終態（completed/failed/cancelled）就短路 —— 重送的 OK payload
+      //     不重跑 runPostGenForJob（資產重複入庫）、不重覆 refund、也不覆寫結果。
+      //     fal 對同一事件可能重試多次，這條保證 post-gen 只跑一次。
+      if (
+        job.status === "completed" ||
+        job.status === "failed" ||
+        job.status === "cancelled"
+      ) {
+        console.log(
+          `[WebhookFal] Job ${jobId} already ${job.status}, ignoring duplicate/late webhook`
+        );
         return;
       }
 

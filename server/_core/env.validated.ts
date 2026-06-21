@@ -453,6 +453,17 @@ const multimodalSchema = z.object({
   // Fal.ai Webhook 簽章共享密鑰（HMAC-SHA256 驗證 webhook payload）
   // 必須與 FAL_API_KEY 不同；建議用 `openssl rand -hex 32` 生成獨立隨機值
   FAL_WEBHOOK_SECRET: z.string().optional().default(""),
+  // AIDV-158（FAL webhook 資安硬化）：/api/webhook/fal 的「嚴格模式」總開關。
+  // **預設 ON＝fail-closed**（safety > availability），與 CONTENT_SAFETY_FAIL_CLOSED 同向。
+  // 旗標 ON（預設／留空／"true"/"1"/"on"/"yes"）時：
+  //   1. per-job capability token 強制驗證（缺/錯 token 一律 4xx 拒絕）— 防偽造回呼
+  //      用攻擊者可控的 URL 把別人的 job 標 completed。token 由 JWT_SECRET 簽，
+  //      JWT_SECRET 未設（純本機 dev）時 token 驗證自動 skip，不影響本機自測。
+  //   2. FAL_WEBHOOK_SECRET 在 production 未設時，簽章驗證 fail-closed 拒絕
+  //      （而非舊的 fail-open 放行）。prod 已設 FAL_WEBHOOK_SECRET，故不影響現狀。
+  // 緊急回退（明確人工決定）：設 "false"/"0"/"off"/"no" → token 強制與簽章 fail-closed
+  //   都退回寬鬆（緊急用，例如部署當下有舊版「無 token」的 in-flight 回呼被擋時）。
+  FAL_WEBHOOK_FAIL_CLOSED: z.string().optional().default("true"),
   REPLICATE_API_TOKEN: z.string().min(1).optional().default(""),
 
   // ── 音訊 / 語音生成 ──────────────────────────────────────

@@ -26,6 +26,7 @@ import {
 } from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
 import { featureFlags } from "./_core/featureFlags";
+import { signWebhookToken } from "./_core/webhookTokens";
 import { resolveSafetyFallback } from "./services/security/contentModeration";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut, storageDelete } from "./storage";
@@ -3466,10 +3467,13 @@ export const appRouter = router({
           }
 
           // 若設定 VITE_SITE_URL，組出帶 jobId 的 webhook URL；fal.ai 完成時
-          // 會主動 POST 到 /api/webhook/fal?jobId=<id>，瀏覽器關閉也能持久化結果
+          // 會主動 POST 到 /api/webhook/fal?jobId=<id>，瀏覽器關閉也能持久化結果。
+          // AIDV-158：附帶 per-job capability token，handler 端會驗（缺/錯 token 一律 4xx），
+          // 防偽造回呼用攻擊者可控 URL 把別人的 job 標完成。
           const siteUrl = process.env.VITE_SITE_URL?.trim();
+          const falToken = signWebhookToken("fal", jobId);
           const falWebhookUrl = siteUrl
-            ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
+            ? `${siteUrl}/api/webhook/fal?jobId=${jobId}${falToken ? `&token=${falToken}` : ""}`
             : undefined;
 
           // 使用 dispatchFalQueueTask 而非裸 submitToFalQueue:

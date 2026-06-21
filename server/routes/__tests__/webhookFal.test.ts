@@ -22,6 +22,20 @@ const findProcessingJobByRequestIdMock = vi.fn();
 const runPostGenForJobMock = vi.fn(async () => true);
 const refundJobIfBilledMock = vi.fn(async () => false);
 
+// AIDV-158：用可控 mock 取代真 webhookTokens，讓 token 強制行為與環境 JWT_SECRET 脫鉤。
+//   預設 enforced=false + verify=true → 重現「prod 之前」行為，既有測試照常 200。
+//   個別新測試再切 enforced=true / verify=false 來驗 401 與放行兩端。
+const verifyWebhookTokenMock = vi.fn(() => true);
+const isWebhookTokenEnforcedMock = vi.fn(() => false);
+
+vi.mock("../../_core/webhookTokens", () => ({
+  verifyWebhookToken: (...args: unknown[]) =>
+    verifyWebhookTokenMock(...(args as [])),
+  isWebhookTokenEnforced: () => isWebhookTokenEnforcedMock(),
+  signWebhookToken: () => "tok",
+  signFalWebhookNonce: () => ({ nonce: "n", token: "tok" }),
+}));
+
 vi.mock("../../db.js", () => ({
   getBackgroundJob: (...args: unknown[]) => getBackgroundJobMock(...(args as [number])),
   updateBackgroundJob: (...args: unknown[]) =>
@@ -87,6 +101,10 @@ describe("webhookFal /api/webhook/fal", () => {
     runPostGenForJobMock.mockResolvedValue(true);
     refundJobIfBilledMock.mockReset();
     refundJobIfBilledMock.mockResolvedValue(false);
+    verifyWebhookTokenMock.mockReset();
+    verifyWebhookTokenMock.mockReturnValue(true);
+    isWebhookTokenEnforcedMock.mockReset();
+    isWebhookTokenEnforcedMock.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -375,6 +393,158 @@ describe("webhookFal /api/webhook/fal", () => {
     // 拿不到結果 URL → 使用者沒成品,必須退回預扣的點數
     expect(refundJobIfBilledMock).toHaveBeenCalledWith(55);
     unsubscribe();
+    server.close();
+  });
+
+  // ─── AIDV-158：per-job capability token 強制 ──────────────────────────────
+  it("token 強制開啟、URL 無任何簽過綁定 → 401 且完全不碰 DB", async () => {
+    // production 模擬：token 驗證啟用。偽造者 POST 無 jobId / fnonce / token 的回呼。
+    isWebhookTokenEnforcedMock.mockReturnValue(true);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/fal`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "forged-uuid",
+        status: "OK",
+        images: [{ url: "https://evil.example/x.png" }],
+      }),
+    });
+    expect(res.status).toBe(401);
+    await new Promise(r => setTimeout(r, 30));
+    // 認證前就回 4xx：DB 不能被觸碰（不查 job、不更新、不反查 request_id）。
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    expect(findProcessingJobByRequestIdMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("帶 jobId 但 token 不符 → 401 且不更新 DB", async () => {
+    verifyWebhookTokenMock.mockReturnValue(false);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/fal?jobId=42&token=deadbeef`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-uuid",
+        status: "OK",
+        images: [{ url: "https://evil.example/x.png" }],
+      }),
+    });
+    expect(res.status).toBe(401);
+    await new Promise(r => setTimeout(r, 30));
+    expect(verifyWebhookTokenMock).toHaveBeenCalledWith("fal", 42, "deadbeef");
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("帶正確 token（jobId 流程）→ 放行 200 並標 completed", async () => {
+    verifyWebhookTokenMock.mockReturnValue(true);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/fal?jobId=42&token=good`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-uuid",
+        status: "OK",
+        images: [{ url: "https://fal.media/ok.png" }],
+      }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 30));
+    expect(verifyWebhookTokenMock).toHaveBeenCalledWith("fal", 42, "good");
+    const [, patch] = updateBackgroundJobMock.mock.calls[0] as [
+      number,
+      Record<string, unknown>,
+    ];
+    expect(patch.status).toBe("completed");
+    server.close();
+  });
+
+  it("帶正確 nonce token（imageStudio/proStudio 無 jobId 流程）→ 放行並用 request_id 反查", async () => {
+    findProcessingJobByRequestIdMock.mockResolvedValue({
+      id: 77,
+      userId: 50,
+      status: "processing",
+      resultJson: { requestId: "fal-real-uuid" },
+    } as any);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(
+      `${baseUrl}/api/webhook/fal?fnonce=abc123&token=good`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          request_id: "fal-real-uuid",
+          status: "COMPLETED",
+          video: { url: "https://fal.media/v.mp4" },
+        }),
+      }
+    );
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 30));
+    // nonce 流程：以 fal:n:<nonce> 為主體驗證。
+    expect(verifyWebhookTokenMock).toHaveBeenCalledWith("fal", "n:abc123", "good");
+    expect(findProcessingJobByRequestIdMock).toHaveBeenCalledWith("fal-real-uuid");
+    const [jobId, patch] = updateBackgroundJobMock.mock.calls[0] as [
+      number,
+      Record<string, unknown>,
+    ];
+    expect(jobId).toBe(77);
+    expect(patch.status).toBe("completed");
+    server.close();
+  });
+
+  // ─── AIDV-158：replay / idempotency 終態守門 ──────────────────────────────
+  it("重送已完成的 job：短路，不重跑 post-gen、不覆寫結果（200）", async () => {
+    // job 已是終態（completed）→ 重送的 OK payload 不得再寫 DB / 再跑 post-gen / 再 refund。
+    getBackgroundJobMock.mockResolvedValue({
+      id: 42,
+      userId: 99,
+      status: "completed",
+      resultJson: { resultUrl: "https://fal.media/already.png" },
+    } as any);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/fal?jobId=42&token=good`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-uuid",
+        status: "OK",
+        images: [{ url: "https://fal.media/dup.png" }],
+      }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 30));
+    expect(getBackgroundJobMock).toHaveBeenCalledWith(42);
+    // 終態守門：不得有任何 mutation / post-gen / refund。
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    expect(runPostGenForJobMock).not.toHaveBeenCalled();
+    expect(refundJobIfBilledMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("重送已失敗的 job：終態守門短路，不重複 refund（200）", async () => {
+    getBackgroundJobMock.mockResolvedValue({
+      id: 42,
+      userId: 99,
+      status: "failed",
+      resultJson: {},
+    } as any);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/fal?jobId=42&token=good`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-uuid",
+        status: "ERROR",
+        error: "boom",
+      }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    expect(refundJobIfBilledMock).not.toHaveBeenCalled();
     server.close();
   });
 });

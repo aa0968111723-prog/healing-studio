@@ -24,6 +24,7 @@ import { z } from "zod";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
+import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
@@ -71,12 +72,22 @@ async function falQueueSubmit(
   // 一旦 polling 端某條 modelId 路徑（例如 Kling Pro/i2v 深巢狀 modelId）
   // 命不中 fal queue endpoint,影片就只剩「processing 30 分鐘 → 超時失敗」
   // 一條路 — 或更糟,完成卻沒寫入 URL,UI 顯示完成卻無預覽/無下載。
+  // AIDV-158：附帶 per-job capability token（handler 端會驗，缺/錯 token 一律 4xx）。
+  //  - 有 jobId → 簽 fal:<jobId>。
+  //  - 無 jobId（靠 request_id 反查的入口）→ 簽一次性 server-origin nonce（fal:n:<nonce>）。
   const siteUrl = process.env.VITE_SITE_URL?.trim();
-  const webhookUrl = siteUrl
-    ? jobId
-      ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
-      : `${siteUrl}/api/webhook/fal`
-    : undefined;
+  let webhookUrl: string | undefined;
+  if (siteUrl) {
+    if (jobId) {
+      const falToken = signWebhookToken("fal", jobId);
+      webhookUrl = `${siteUrl}/api/webhook/fal?jobId=${jobId}${falToken ? `&token=${falToken}` : ""}`;
+    } else {
+      const falSigned = signFalWebhookNonce();
+      webhookUrl = falSigned
+        ? `${siteUrl}/api/webhook/fal?fnonce=${falSigned.nonce}&token=${falSigned.token}`
+        : `${siteUrl}/api/webhook/fal`;
+    }
+  }
 
   try {
     const result = await dispatchFalQueueTask({
