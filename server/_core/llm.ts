@@ -1744,9 +1744,17 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         if (err.reason === "permanent_model") {
           // 「模型無效」是「這一次呼叫的模型名稱對這個引擎無效」，引擎本身是
           // 健康的。所以**不**開斷路器（否則會錯誤地讓其他用有效模型的呼叫
-          // 也被擋 10 分鐘），只記一次普通失敗 + warning，讓 fallback 鏈立刻
-          // 交棒到次選 provider。原始錯誤照常往上拋，不會被吞掉/遮蔽。
-          recordEngineFailure(engineConfig.engine);
+          // 也被擋 10 分鐘），只記一個獨立的觀測計數 + warning，讓 fallback 鏈
+          // 立刻交棒到次選 provider。原始錯誤照常往上拋，不會被吞掉/遮蔽。
+          //
+          // 關鍵：用 { modelInvalid: true } 而非裸呼叫 —— 裸呼叫會走 transient
+          // 路徑累進 cb.failures，連續 3 次 invalid_model（中間無 success）就會
+          // 在 CIRCUIT_FAILURE_THRESHOLD 把這個其實健康的引擎錯誤斷路 OPEN。
+          // modelInvalid 路徑不碰 failures / state / trips，永不斷路。
+          recordEngineFailure(engineConfig.engine, {
+            modelInvalid: true,
+            reason: err.reason,
+          });
           logger.warn(
             "[LLM] 引擎拒絕模型 ID（invalid_model）→ 交棒至次選 provider（不斷路）",
             {

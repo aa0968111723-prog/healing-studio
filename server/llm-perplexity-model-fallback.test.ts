@@ -36,6 +36,8 @@ import {
   __unsafeResetCircuitForTests,
   getCircuitBreakerStatus,
   isEngineAvailable,
+  recordEngineFailure,
+  recordEngineSuccess,
   type LLMEngine,
 } from "./_core/llmRouter";
 
@@ -295,5 +297,122 @@ describe("invokeLLM — Perplexity invalid_model 自動回退到次選 provider"
     expect((captured as LLMPermanentError).status).toBe(400);
     // permanent_model 不開斷路器（引擎健康，只是這次模型名對它無效）
     expect(getCircuitBreakerStatus().perplexity.state).not.toBe("OPEN");
+  });
+});
+
+describe("invalid_model 連續多次仍不斷路（不累積觸發 CIRCUIT_FAILURE_THRESHOLD）", () => {
+  beforeEach(() => {
+    resetAll();
+    vi.unstubAllGlobals();
+  });
+
+  // CIRCUIT_FAILURE_THRESHOLD === 3（見 llmRouter.ts）。漏洞情境：某 brain 設了
+  // 一個無效 model id，反覆觸發 invalid_model，中間沒有任何成功。舊行為走
+  // recordEngineFailure(engine) 的 transient 路徑會 cb.failures++，第 3 次就把
+  // 其實健康的引擎錯誤斷路 OPEN —— 連帶擋掉所有用有效模型的呼叫，違反
+  // 「invalid_model 永不斷路」承諾。
+  const THRESHOLD = 3;
+
+  it("recordEngineFailure({ modelInvalid:true }) 連續 5 次（無 success）→ 引擎仍 !== OPEN、failures 不增", () => {
+    for (let i = 0; i < THRESHOLD + 2; i++) {
+      recordEngineFailure("perplexity", {
+        modelInvalid: true,
+        reason: "permanent_model",
+      });
+    }
+    const cb = getCircuitBreakerStatus().perplexity;
+    // 引擎健康訊號完全不受影響
+    expect(cb.state).not.toBe("OPEN");
+    expect(isEngineAvailable("perplexity")).toBe(true);
+    // failures（驅動斷路的計數）始終為 0，trips 不增
+    expect(cb.failures).toBe(0);
+    expect(cb.trips).toBe(0);
+    // 只有獨立觀測計數器會累加
+    expect(cb.modelInvalidCount).toBe(THRESHOLD + 2);
+    expect(cb.lastFailureReason).toBe("permanent_model");
+  });
+
+  it("對照組：同一引擎連續 3 次 transient 失敗（無 success）確實會 OPEN", () => {
+    for (let i = 0; i < THRESHOLD; i++) {
+      recordEngineFailure("openrouter");
+    }
+    // 確認門檻邏輯本身仍有效 —— 證明上面的 modelInvalid 不 OPEN 是「分類」造成，
+    // 而不是門檻壞了。
+    expect(getCircuitBreakerStatus().openrouter.state).toBe("OPEN");
+    expect(isEngineAvailable("openrouter")).toBe(false);
+  });
+
+  it("一次成功會清掉 modelInvalidCount（回到乾淨狀態）", () => {
+    recordEngineFailure("perplexity", {
+      modelInvalid: true,
+      reason: "permanent_model",
+    });
+    recordEngineFailure("perplexity", {
+      modelInvalid: true,
+      reason: "permanent_model",
+    });
+    expect(getCircuitBreakerStatus().perplexity.modelInvalidCount).toBe(2);
+    recordEngineSuccess("perplexity", 300);
+    const cb = getCircuitBreakerStatus().perplexity;
+    expect(cb.modelInvalidCount).toBe(0);
+    expect(cb.lastFailureReason).toBeUndefined();
+    expect(cb.state).toBe("CLOSED");
+  });
+
+  it("端到端：同一引擎連續 3 次 invalid_model（中間無 success）後 perplexity 仍 !== OPEN", async () => {
+    // 每次都讓 Perplexity 回 invalid_model、Gemini 成功承接。連跑 3 輪，模擬某
+    // brain 反覆用無效 model id 打 director.chat / generateVideoScript。
+    let perplexityCalls = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("api.perplexity.ai")) {
+        perplexityCalls++;
+        return new Response(
+          JSON.stringify({
+            error: {
+              type: "invalid_model",
+              message: "Invalid model. Permitted models: sonar, sonar-pro, ...",
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (u.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            id: "gen_x",
+            model: "gemini-2.5-flash",
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: "ok from gemini" },
+                finish_reason: "stop",
+              },
+            ],
+            usage: { prompt_tokens: 4, completion_tokens: 3, total_tokens: 7 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response("nope", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let round = 0; round < THRESHOLD; round++) {
+      const result = await invokeLLM({
+        model: "perplexity/sonar-pro",
+        messages: [{ role: "user", content: `round ${round}` }],
+      });
+      // 每輪都靠 Gemini 成功回，不 500
+      expect(result.choices[0].message.content).toContain("ok from gemini");
+    }
+
+    // Perplexity 每輪各被打 1 次（permanent_model → 不重試），共 3 次
+    expect(perplexityCalls).toBe(THRESHOLD);
+    // 連續 3 次 invalid_model 後，Perplexity 引擎依然健康、未被錯誤斷路
+    const cb = getCircuitBreakerStatus().perplexity;
+    expect(cb.state).not.toBe("OPEN");
+    expect(isEngineAvailable("perplexity")).toBe(true);
+    expect(cb.failures).toBe(0);
   });
 });
