@@ -28,7 +28,7 @@ import { serverEnv } from "./_core/env.validated";
 import { featureFlags } from "./_core/featureFlags";
 import { resolveSafetyFallback } from "./services/security/contentModeration";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
-import { storagePut } from "./storage";
+import { storagePut, storageDelete } from "./storage";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import {
@@ -4452,6 +4452,28 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.deleteDigitalAsset(input.id);
+        // AIDV-67：刪資產時連動刪掉 R2/儲存物件，避免孤兒物件長期占用空間。
+        //   - 旗標 ENABLE_ASSET_R2_CASCADE_DELETE 預設 ON，可即時關（無需重部署）。
+        //   - 僅當此資產有 fileKey 且「沒有其他資產列共用同一 key」（公開回收 /
+        //     團隊共享複製）才刪物件，免得刪一列害其他列壞圖。
+        //   - 全程 best-effort：刪物件失敗只吞掉，不 throw、不阻塞刪除主流程
+        //     （最壞退回今日「DB 列已刪、留下孤兒物件」的行為，零退步）。
+        if (
+          isFlagEnabled(serverEnv.ENABLE_ASSET_R2_CASCADE_DELETE, true) &&
+          asset.fileKey
+        ) {
+          try {
+            const sharedCount = await db.countOtherDigitalAssetsByFileKey(
+              asset.fileKey,
+              input.id
+            );
+            if (sharedCount === 0) {
+              await storageDelete(asset.fileKey);
+            }
+          } catch {
+            /* 刪儲存物件失敗不擋刪除——留孤兒可由 TTL 清理 job 後續處理 */
+          }
+        }
         // AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源
         // 不會 cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。
         try {

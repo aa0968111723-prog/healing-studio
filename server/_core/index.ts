@@ -80,6 +80,10 @@ import {
   initDbBackupCron,
   stopDbBackupCron,
 } from "../jobs/dbSnapshotJob";
+import {
+  initAssetCleanupCron,
+  stopAssetCleanupCron,
+} from "../jobs/assetCleanupJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -193,6 +197,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "dbSnapshotJob",
     start: initDbBackupCron,
     stop: stopDbBackupCron,
+  },
+  {
+    name: "assetCleanupJob",
+    start: initAssetCleanupCron,
+    stop: stopAssetCleanupCron,
   },
 ];
 
