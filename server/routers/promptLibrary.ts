@@ -14,7 +14,7 @@
  */
 
 import { z } from "zod";
-import { eq, and, desc, like, inArray, sql } from "drizzle-orm";
+import { eq, and, or, desc, like, inArray, sql } from "drizzle-orm";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb, getLinkedAssetsForPrompt, deleteAllSharesForResource } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
@@ -190,15 +190,22 @@ export const promptLibraryRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
 
       if (row.userId !== ctx.user.id) {
-        const allowed = await canAccessResource(
-          "prompt",
-          row.id,
-          { ownerId: row.userId, visibility: null, teamId: null },
-          ctx.user.id,
-          "view"
-        );
-        if (!allowed)
-          throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
+        // AIDV-184：公開提示詞（listPublic 已對所有登入者供）→ 任何登入者皆可
+        //   by-id 取得，與廣場列表一致。修「list 看得到、detail 卻 NOT_FOUND」
+        //   的不一致；不新增曝光面（該 row 本就公開）。
+        // 註：canAccessResource 的 visibility 僅認得 "team_shared"，無 "public"
+        //   放行路徑，故此處短路而非傳 visibility:"public"。
+        if (!row.isPublic) {
+          const allowed = await canAccessResource(
+            "prompt",
+            row.id,
+            { ownerId: row.userId, visibility: null, teamId: null },
+            ctx.user.id,
+            "view"
+          );
+          if (!allowed)
+            throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞" });
+        }
       }
 
       return row;
@@ -313,9 +320,31 @@ export const promptLibraryRouter = router({
   // ── 使用次數 +1 ─────────────────────────────────────────────────────────────
   incrementUseCount: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return { success: false };
+
+      // AIDV-184：只有「本人擁有」或「公開」的提示詞才允許計數。
+      //   原本無 userId/visibility 述詞＝任何登入者可灌任何 prompt（含他人私有）
+      //   的 useCount，扭曲 listPublic 的 desc(useCount) 排序（IDOR）。
+      //   以 owner-or-public 述詞先確認，再依命中與否回真實 success（非無條件
+      //   success:true 的靜默 no-op）。公開 prompt 才是廣場排序計數的對象，
+      //   故用 `OR isPublic` 而非僅 owner。
+      const rows = await db
+        .select({ id: promptLibrary.id })
+        .from(promptLibrary)
+        .where(
+          and(
+            eq(promptLibrary.id, input.id),
+            or(
+              eq(promptLibrary.userId, ctx.user.id),
+              eq(promptLibrary.isPublic, true)
+            )
+          )
+        )
+        .limit(1);
+
+      if (!rows[0]) return { success: false };
 
       await db
         .update(promptLibrary)
