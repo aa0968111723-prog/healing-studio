@@ -109,10 +109,24 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
   const projRef = useRef<CreativeProject | null>(project);
   projRef.current = project;
 
+  // ── pending 去重（防雙擊/連點把同一寫入動作重複觸發）──
+  // 以 ref 同步把關：兩次極快連點時 state 非同步更新來不及擋，ref 立即生效。
+  // 同一 key 的動作進行中 → 後續觸發直接忽略（回已解析的 Promise），避免重複扣點/重複寫入。
+  const pendingRef = useRef<Set<string>>(new Set());
+  const runExclusive = useCallback(async (key: string, fn: () => Promise<void>): Promise<void> => {
+    if (pendingRef.current.has(key)) return; // 進行中 → 去重
+    pendingRef.current.add(key);
+    try {
+      await fn();
+    } finally {
+      pendingRef.current.delete(key);
+    }
+  }, []);
+
   // ── 載入專案清單（切換器用）──
   useEffect(() => {
     let alive = true;
-    gateway.listProjects().then((ps) => { if (alive) setProjects(ps); }).catch(() => { /* 清單失敗不阻斷主流程 */ });
+    gateway.listProjects().then((ps) => { if (alive) setProjects(ps); }).catch((e) => { console.error("[spine] listProjects 失敗（不阻斷主流程）", e); });
     return () => { alive = false; };
   }, [gateway]);
 
@@ -210,7 +224,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
           kind: shot.route === "text" ? "image" : "keyframe",
           provider: res.provider, model: res.model, costUsd: res.costUsd, seed: shot.seed, assetUrl: res.assetUrl,
         });
-      } catch { /* 由 Storage seam / 背景修復補償 */ }
+      } catch (e) { console.error("[spine] recordGenResult 回寫失敗（由 Storage seam / 背景修復補償）", e); }
 
       const cost = creditsForCost(res.costUsd);
       toast.success(`${shot.no} ${opts.regen ? "已重生" : "已生成"}`, {
@@ -229,23 +243,25 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     }
   }, [spine, patchShot, patchProject]);
 
-  const generateShot = useCallback(async (shotId: string, opts: { regen?: boolean } = {}) => {
-    const p = projRef.current; if (!p) return;
-    const shot = p.shots.find((x) => x.id === shotId); if (!shot) return;
-    await genOne(shot, opts);
-  }, [genOne]);
+  // 去重鍵以 shotId 區隔：同一鏡生成中再次點擊→忽略（防重複扣點），不同鏡仍可並行觸發。
+  const generateShot = useCallback((shotId: string, opts: { regen?: boolean } = {}) =>
+    runExclusive(`generate:${shotId}`, async () => {
+      const p = projRef.current; if (!p) return;
+      const shot = p.shots.find((x) => x.id === shotId); if (!shot) return;
+      await genOne(shot, opts);
+    }), [genOne, runExclusive]);
 
-  const scheduleGeneration = useCallback(async () => {
+  const scheduleGeneration = useCallback(() => runExclusive("schedule", async () => {
     const p = projRef.current; if (!p) return;
     const ready = p.shots.filter((sh) => isShotGeneratable(sh, p.characters, p.scenes) && sh.gen.status !== "done");
     if (ready.length === 0) { toast.warning("沒有可排程的鏡頭", { description: "就緒鏡都已生成，或先解鎖待補角色/場景" }); return; }
     toast(`已排程生成`, { description: `${ready.length} 個就緒鏡進入背景佇列` });
     for (const sh of ready) { await genOne(sh); await delay(250); }
     toast.success("批次生成完成", { description: `${ready.length} 鏡已回寫資產庫` });
-  }, [genOne]);
+  }), [genOne, runExclusive]);
 
   // ── 確認門流程 ──
-  const uploadReference = useCallback(async (charId: string) => {
+  const uploadReference = useCallback((charId: string) => runExclusive(`uploadReference:${charId}`, async () => {
     const p = projRef.current; if (!p) return;
     patchProject((pp) => ({
       ...pp,
@@ -256,14 +272,18 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
         : c),
     }));
     const c = p.characters.find((x) => x.id === charId);
-    toast.success("參考圖已上傳 · 角色升級", { description: `${c?.name ?? "角色"} → ✅ 精準、鎖臉啟用，相關鏡頭已解鎖` });
     try {
+      // 先 await 回寫成功，再報成功（避免「先報成功、回寫卻失敗」的競態）。
       await gateway.saveVaultState({
         projectId: p.id, characterId: charId, sourceGrade: "precise", locked: true,
         locks: { face: true, hair: true, costume: true, accessory: true },
       });
-    } catch { toast.warning("參考圖已套用（本地）", { description: "vault.update 回寫稍後重試" }); }
-  }, [gateway, patchProject]);
+      toast.success("參考圖已上傳 · 角色升級", { description: `${c?.name ?? "角色"} → ✅ 精準、鎖臉啟用，相關鏡頭已解鎖` });
+    } catch (e) {
+      console.error("[spine] uploadReference saveVaultState 回寫失敗", e);
+      toast.warning("參考圖已套用（本地）", { description: "vault.update 回寫稍後重試" });
+    }
+  }), [gateway, patchProject, runExclusive]);
 
   const changeCharacterSetting = useCallback(async (charId: string) => {
     const p = projRef.current; if (!p) return;
@@ -276,7 +296,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     toast.warning(`${c?.name ?? "角色"} 已改設定`, { description: `${affected} 個既有鏡標記為「過期待重生」` });
     // AIDV-162：worldbuilding.update 以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。
     try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: charId, worldFrameworkId: p.worldFrameworkId }); }
-    catch { /* 級聯由後端落實；本地已標 stale */ }
+    catch (e) { console.error("[spine] changeCharacterSetting 回寫失敗（級聯由後端落實；本地已標 stale）", e); }
   }, [gateway, patchProject]);
 
   const toggleLock = useCallback(async (charId: string, key: keyof Character["locks"]) => {
@@ -296,19 +316,22 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       if (nextChar) await gateway.saveVaultState({
         projectId: p.id, characterId: charId, sourceGrade: nextChar.sourceGrade, locked: nextChar.locked, locks: nextChar.locks,
       });
-    } catch { /* 本地已更新；回寫稍後重試 */ }
+    } catch (e) { console.error("[spine] toggleLock 回寫失敗（本地已更新；回寫稍後重試）", e); }
   }, [gateway, patchProject]);
 
-  const approveShot = useCallback(async (shotId: string) => {
+  const approveShot = useCallback((shotId: string) => runExclusive(`approveShot:${shotId}`, async () => {
     const p = projRef.current; if (!p) return;
     patchShot(shotId, (s) => ({ ...s, approval: "approved" }));
-    toast.success("已核准關鍵影格", { description: "可進入 image-to-video 階段" });
     const shot = p.shots.find((x) => x.id === shotId);
     try {
-      // approval 走 vault.update payload（無專屬 setApproval）。
+      // approval 走 vault.update payload（無專屬 setApproval）；先 await 回寫成功再報成功。
       await gateway.saveVaultState({ projectId: p.id, characterId: shot?.characterIds[0] ?? shotId });
-    } catch { /* 本地已核准 */ }
-  }, [gateway, patchShot]);
+      toast.success("已核准關鍵影格", { description: "可進入 image-to-video 階段" });
+    } catch (e) {
+      console.error("[spine] approveShot saveVaultState 回寫失敗", e);
+      toast.warning("已核准（本地）· 回寫稍後重試", { description: "vault.update 回寫稍後重試" });
+    }
+  }), [gateway, patchShot, runExclusive]);
 
   const toggleSceneLock = useCallback(async (sceneId: string) => {
     const p = projRef.current; if (!p) return;
@@ -324,35 +347,43 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     // 場景鎖定走 worldbuilding.update（scenesJson）；本地已更新，回寫 best-effort。
     // AIDV-162：以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。
     try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: sceneId, worldFrameworkId: p.worldFrameworkId }); }
-    catch { /* 本地已更新 */ }
+    catch (e) { console.error("[spine] toggleSceneLock 回寫失敗（本地已更新）", e); }
   }, [gateway, patchProject]);
 
   // ── 資料庫寫入 ──
-  const addNote = useCallback(async (text: string, shotNo?: string) => {
+  const addNote = useCallback((text: string, shotNo?: string) => runExclusive(`addNote:${shotNo ?? "_"}:${text}`, async () => {
     const p = projRef.current; if (!p) return;
     patchProject((pp) => ({ ...pp, notes: [{ id: uid("n"), ts: now(), text, shotNo }, ...pp.notes] }));
     try { await gateway.createNote({ projectId: p.id, text, shotNo }); }
-    catch { toast.warning("筆記已新增（本地）", { description: "notes.create 回寫稍後重試" }); }
-  }, [gateway, patchProject]);
+    catch (e) {
+      console.error("[spine] addNote createNote 回寫失敗", e);
+      toast.warning("筆記已新增（本地）", { description: "notes.create 回寫稍後重試" });
+    }
+  }), [gateway, patchProject, runExclusive]);
 
-  const addPromptBlock = useCallback(async (label: string, text: string) => {
+  const addPromptBlock = useCallback((label: string, text: string) => runExclusive(`addPromptBlock:${label}`, async () => {
     const p = projRef.current; if (!p) return;
     patchProject((pp) => ({ ...pp, promptBlocks: [{ id: uid("pb"), label, text, kind: "custom", uses: 0 }, ...pp.promptBlocks] }));
-    toast.success("已存入提示詞庫", { description: label });
-    try { await gateway.createPromptBlock({ projectId: p.id, label, text }); }
-    catch { /* 本地已加入 */ }
-  }, [gateway, patchProject]);
+    try {
+      // 先 await 回寫成功再報成功（原本先報成功再 await，回寫失敗仍謊報已存）。
+      await gateway.createPromptBlock({ projectId: p.id, label, text });
+      toast.success("已存入提示詞庫", { description: label });
+    } catch (e) {
+      console.error("[spine] addPromptBlock createPromptBlock 回寫失敗", e);
+      toast.warning("提示詞已加入（本地）", { description: "promptLibrary.create 回寫稍後重試" });
+    }
+  }), [gateway, patchProject, runExclusive]);
 
   // ── Context Packet ──
-  const rebuildPacket = useCallback(async () => {
+  const rebuildPacket = useCallback(() => runExclusive("rebuildPacket", async () => {
     const p = projRef.current; if (!p) return;
     const packet = await gateway.recompilePacket(p); // 真實 compileProject；失敗回退本地
     patchProject((pp) => ({ ...pp, packet }));
     toast.success("Context Packet 已重建", { description: "Deterministic→Cache→RAG 重新壓縮" });
-  }, [gateway, patchProject]);
+  }), [gateway, patchProject, runExclusive]);
 
   // ── 引導式拆解寫入 ──
-  const ingestBreakdown = useCallback(async (name: string, b: ScriptBreakdown, opts: { newProject?: boolean } = {}) => {
+  const ingestBreakdown = useCallback((name: string, b: ScriptBreakdown, opts: { newProject?: boolean } = {}) => runExclusive(`ingestBreakdown:${name}`, async () => {
     let target = projRef.current;
     if (opts.newProject) {
       const id = await createProjectImpl(name || "引導式新專案", "影片");
@@ -384,18 +415,22 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       const np: CreativeProject = { ...base, name: name || base.name, characters, scenes, shots, stageIndex: 2, updatedAt: Date.now() };
       return { ...np, packet: compileContextPacket(np) };
     });
-    toast.success("腳本拆解完成", { description: `${shots.length} 鏡 · ${characters.length} 角色 · ${scenes.length} 場景 已寫入專案` });
     // AIDV-162：createFromSegments 需 worldId（連結的世界觀）+ name；未連結則 gateway 跳過回寫。
     try {
+      // 先 await 回寫成功再報「拆解完成」（原本先報成功再 await，回寫失敗仍謊報）。
       await gateway.ingestStoryboard({
         projectId: target.id,
         worldFrameworkId: target.worldFrameworkId,
         name: name || target.name,
         characters, scenes, shots,
       });
+      toast.success("腳本拆解完成", { description: `${shots.length} 鏡 · ${characters.length} 角色 · ${scenes.length} 場景 已寫入專案` });
     }
-    catch { toast.warning("分鏡已寫入（本地）", { description: "worldStoryboard.createFromSegments 回寫稍後重試" }); }
-  }, [gateway]);
+    catch (e) {
+      console.error("[spine] ingestBreakdown ingestStoryboard 回寫失敗", e);
+      toast.warning("分鏡已寫入（本地）", { description: "worldStoryboard.createFromSegments 回寫稍後重試" });
+    }
+  }), [gateway, runExclusive]);
 
   async function createProjectImpl(name: string, type: CreativeProject["type"]): Promise<string> {
     const { id } = await gateway.createProject({ name, type });
@@ -418,7 +453,8 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       toast.success(worldFrameworkId == null ? "已解除世界連結" : "已連結世界", {
         description: "後續自動分鏡與生成會帶入該世界的風格與角色一致性",
       });
-    } catch {
+    } catch (e) {
+      console.error("[spine] linkWorld creativeProject.link 回寫失敗", e);
       toast.warning("世界連結已套用（本地）", { description: "creativeProject.link 回寫稍後重試" });
     }
   }, [gateway, patchProject]);

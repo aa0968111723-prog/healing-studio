@@ -182,8 +182,9 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
       };
       const r = await typed.contextPacket.compileProject.mutate(input);
       return toPacket(r) ?? compileContextPacket(project);
-    } catch {
-      // 伺服器無回應 → 本地決定性重編（UI 仍即時更新）。
+    } catch (e) {
+      // 伺服器無回應 → 本地決定性重編（UI 仍即時更新）；留痕以利診斷（不改回退控制流）。
+      console.error("[spine] recompilePacket compileProject 失敗，回退本地重編", e);
       return compileContextPacket(project);
     }
   }
