@@ -76,6 +76,10 @@ import {
   initMediaArchivalCron,
   stopMediaArchivalCron,
 } from "../jobs/mediaArchivalCron";
+import {
+  initDbBackupCron,
+  stopDbBackupCron,
+} from "../jobs/dbSnapshotJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -184,6 +188,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "mediaArchivalCron",
     start: initMediaArchivalCron,
     stop: stopMediaArchivalCron,
+  },
+  {
+    name: "dbSnapshotJob",
+    start: initDbBackupCron,
+    stop: stopDbBackupCron,
   },
 ];
 
