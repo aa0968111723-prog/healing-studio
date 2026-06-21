@@ -41,6 +41,7 @@ import { z } from "zod";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
+import { signFalWebhookNonce } from "../_core/webhookTokens";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { localizeResultUrls } from "../services/internalMedia";
 import { traceToolRun } from "../services/langsmithTracer";
@@ -71,9 +72,17 @@ async function falQueueSubmit(
   input: Record<string, unknown>
 ): Promise<{ request_id: string }> {
   // 帶 fal.ai webhook 回呼，瀏覽器關閉時 webhookFal 會以 request_id 反查
-  // resultJson.requestId 對應的 backgroundJob 並寫回結果（不依賴前端輪詢）
+  // resultJson.requestId 對應的 backgroundJob 並寫回結果（不依賴前端輪詢）。
+  // AIDV-158：此流程在送 fal 時尚無 jobId（job 由前端後建、靠 request_id 反查），
+  // 無法簽 fal:<jobId>，改簽一次性 server-origin nonce（fal:n:<nonce>），證明回呼 URL
+  // 由持有 JWT_SECRET 的自家伺服器所鑄；handler 端會驗（缺/錯 token 一律 4xx）。
   const siteUrl = process.env.VITE_SITE_URL?.trim();
-  const webhookUrl = siteUrl ? `${siteUrl}/api/webhook/fal` : undefined;
+  const falSigned = signFalWebhookNonce();
+  const webhookUrl = siteUrl
+    ? falSigned
+      ? `${siteUrl}/api/webhook/fal?fnonce=${falSigned.nonce}&token=${falSigned.token}`
+      : `${siteUrl}/api/webhook/fal`
+    : undefined;
 
   try {
     const result = await dispatchFalQueueTask({

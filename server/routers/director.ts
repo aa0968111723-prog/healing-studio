@@ -18,6 +18,7 @@ import { gzipSync, gunzipSync } from "node:zlib";
 import { router, brainProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM, extractMessageText } from "../_core/llm";
+import { signWebhookToken } from "../_core/webhookTokens";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import {
@@ -2295,9 +2296,11 @@ ${segmentSummaries}
                 : "text-to-speech";
         // 若設定 VITE_SITE_URL，組出帶 jobId 的 webhook URL，
         // 完成時 fal.ai 主動推送結果到 /api/webhook/fal?jobId=<id>。
+        // AIDV-158：附帶 per-job capability token（handler 端會驗，缺/錯 token 一律 4xx）。
         const siteUrl = process.env.VITE_SITE_URL?.trim();
+        const falToken = signWebhookToken("fal", jobId);
         const falWebhookUrl = siteUrl
-          ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
+          ? `${siteUrl}/api/webhook/fal?jobId=${jobId}${falToken ? `&token=${falToken}` : ""}`
           : undefined;
         const queueModalityForTrace =
           input.modality === "sfx" ? "audio" : input.modality;
