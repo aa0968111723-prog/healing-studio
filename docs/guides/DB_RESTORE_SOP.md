@@ -233,7 +233,7 @@ docker exec aidv-mysql mysql -uroot -proot_dev_pw -e \
 | `mysqldump exited with code 2` + `Access denied` | DB 帳密錯 / 權限不足 | 檢查 `DATABASE_URL`；備份帳號至少要 `SELECT`, `LOCK TABLES`(可免), `SHOW VIEW`, `TRIGGER`, `EVENT` |
 | `mysqldump ... ENOENT` / `spawn mysqldump` | 容器內沒有 mysqldump | 確認 Dockerfile runner 階段有 `apk add mariadb-client mariadb-connector-c`（本卡已加） |
 | `backup file is empty (0 bytes)` | dump 沒輸出 | 通常伴隨上一行的真正錯誤；看 `mysqldump exited ...` 那段 stderr |
-| `Authentication plugin 'caching_sha2_password' cannot be loaded` | MariaDB client 缺認證 plugin | 確認 Dockerfile 有裝 **`mariadb-connector-c`**（補上 MySQL 8 預設認證 plugin；本卡已加） |
+| `error 1045 ... Plugin caching_sha2_password could not be loaded`（載不到 `caching_sha2_password.so`） | Alpine MariaDB client 缺 MySQL 8 預設認證 plugin | 確認 Dockerfile 有裝 **`mariadb-connector-c`**（該套件提供 `caching_sha2_password.so`；本卡已加） |
 | `unknown variable 'set-gtid-purged...'` / `'column-statistics...'`，exit 7、0-byte | 帶了 MySQL-8-client 專屬旗標、MariaDB mysqldump 不認 | **不要**把這兩個旗標加回 `buildMysqldumpArgs`（它們正是本卡修掉的失敗主因，見第 5.1 節） |
 | R2 上傳相關（`PutObject` / 連線錯誤） | R2 金鑰失效 / 網路 / bucket 不存在 | 對齊 Railway 的 `S3_*` 變數；確認 bucket 存在 |
 

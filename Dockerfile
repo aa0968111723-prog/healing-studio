@@ -33,7 +33,8 @@ ENV NODE_ENV=production
 # mariadb-client 提供 Alpine 上的 mysqldump binary，約 +3MB。
 #   ⚠️ mariadb-connector-c 一定要一起裝：MySQL 8 server 預設用 caching_sha2_password
 #   認證，而 Alpine mariadb-client 自身不含該 auth plugin——少了 connector-c 會在
-#   連線階段就 "Authentication plugin 'caching_sha2_password' cannot be loaded" 而失敗，
+#   連線階段就以 error 1045 "Plugin caching_sha2_password could not be loaded"
+#   （載不到 /usr/lib/mariadb/plugin/caching_sha2_password.so）而失敗，
 #   dump 直接 0-byte（備份等於壞掉）。connector-c 補上該 plugin，讓 MariaDB client
 #   能正常認證到 MySQL 8。約再 +1MB。
 # 注意：apk 套件不會從 builder 階段繼承到 runner，必須在「runner」階段安裝。
