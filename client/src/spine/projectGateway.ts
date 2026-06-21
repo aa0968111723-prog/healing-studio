@@ -5,8 +5,9 @@
 //   並寬鬆 cast，是「休眠 stub」。真正的「隨身脈絡包」（characters/scenes/shots/notes/assets/
 //   packet）需要聚合多個 procedure（adapter 對應表 §5）。P1 把這個聚合補成真實：
 //
-//     loadProject ← creativeProject.get + worldbuilding.get + worldStoryboard.list
+//     loadProject ← creativeProject.get + worldbuilding.get + worldStoryboard.listByWorld
 //                   + vault.list + notes.list + contextPacket.getLatest   （全部已驗證存在）
+//   （分鏡用 listByWorld({ worldId }) 依當前專案世界觀過濾，不用會回 user 全部分鏡的 list — AIDV-161）
 //
 // 【為什麼放 spine/ 而非改 P0 adapters】維持「只加不改」：P0 的五接縫一行不動；本閘道是
 //   **加法的第六面**，專供 /video 座艙的脊椎讀寫，重用 P0 的 getTrpcClient（同一 vanilla
@@ -105,17 +106,27 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
     if (projectId === null || projectId === undefined) return null;
     const id = num(projectId);
 
-    // 並行聚合「隨身脈絡」（adapter 對應表 §5：多 procedure 組 CreativeProjectContext）。
-    // 任一子查詢失敗都不讓整頁壞：個別 catch → 空集合，骨幹（creativeProject.get）為必要。
-    const [base, world, board, vault, notes, packet] = await Promise.all([
-      client.creativeProject.get.query({ id }).catch(() => null),
+    // 【AIDV-161 跨專案資料混入修補】骨幹 creativeProject.get 必須**先**取得，因為分鏡要依
+    // 「當前專案連結的世界觀」過濾——base.worldFrameworkId 是過濾鍵。先 await base、再並行其餘。
+    // 任一子查詢失敗都不讓整頁壞：個別 catch → null；骨幹缺失（base 取不到）才整體回 null。
+    const base = await client.creativeProject.get.query({ id }).catch(() => null);
+    if (!base) return null;
+
+    // 分鏡改用 ownership-scoped 的 worldStoryboard.listByWorld({ worldId })，取代會回「該使用者
+    // 全部分鏡」、忽略輸入的 worldStoryboard.list（server: list 不吃 projectId，回 user 全部）。
+    // 未連結世界觀（worldFrameworkId 為 null）的專案＝無分鏡來源，直接跳過查詢（避免誤載別專案）。
+    const worldId = base.worldFrameworkId != null ? num(base.worldFrameworkId) : null;
+
+    // 並行聚合「隨身脈絡」其餘面向（adapter 對應表 §5：多 procedure 組 CreativeProjectContext）。
+    const [world, board, vault, notes, packet] = await Promise.all([
       client.worldbuilding.get.query({ projectId: id }).catch(() => null),
-      client.worldStoryboard.list.query({ projectId: id }).catch(() => null),
+      worldId != null
+        ? client.worldStoryboard.listByWorld.query({ worldId }).catch(() => null)
+        : Promise.resolve(null),
       client.vault.list.query({ projectId: id }).catch(() => null),
       client.notes.list.query({ projectId: id }).catch(() => null),
       client.contextPacket.getLatest.query({ projectId: id }).catch(() => null),
     ]);
-    if (!base) return null;
 
     return assembleProject(id, base, world, board, vault, notes, packet);
   }
