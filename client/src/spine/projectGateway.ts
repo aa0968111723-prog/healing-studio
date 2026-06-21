@@ -20,6 +20,8 @@
 //   呼真實 procedure；回寫失敗只告警、不回滾（preparation 階段，欄位由 Code session 收斂）。
 //   每個寫入方法標註對映 procedure 與 GitNexus 校正狀態（🔧 = 已對齊真實 call graph）。
 // ============================================================================
+import type { inferRouterInputs } from "@trpc/server";
+import type { AppRouter } from "../../../server/routers";
 import type {
   CreativeProject, CreativeProjectSummary, Character, Scene, Shot, Note, AssetRow,
   PromptBlock, ContextPacket, SourceGrade,
@@ -30,21 +32,45 @@ import { buildWorldStylePrefix } from "@/spine/worldStyle";
 import { MOCK_PROJECTS, DEFAULT_MOCK_PROJECT_ID } from "@/spine/mockProjects";
 import { uid, delay } from "@/spine/spineUtil";
 
+// ─── 具名 tRPC 輸入型別（AIDV-162：取代 as any，tsc 抓形狀不符）──────────────────
+// inferRouterInputs<AppRouter> 是型別來源地（server/routers 的 AppRouter）的權威推導；
+// 各方法送出的物件以這些 alias 標註，編譯期即驗證對齊真實 procedure 的 zod input。
+type RouterInputs = inferRouterInputs<AppRouter>;
+type VaultUpdateInput = RouterInputs["vault"]["update"];
+type WorldbuildingUpdateInput = RouterInputs["worldbuilding"]["update"];
+type WorldbuildingGetInput = RouterInputs["worldbuilding"]["get"];
+type CompileProjectInput = RouterInputs["contextPacket"]["compileProject"];
+type CreateFromSegmentsInput = RouterInputs["worldStoryboard"]["createFromSegments"];
+
+/** compileProject 的 mode（COMPILE_MODES）——導演台重編預設用 "director"。 */
+type CompileMode = CompileProjectInput["mode"];
+
 // ─── 共用輸入型別 ─────────────────────────────────────────────────────────────
 
 export interface VaultSaveInput {
   projectId: string;
   characterId: string;
+  /** 對映的保險庫項目數值 id（vault.update 需 z.number()）；無時跳過回寫（best-effort）。 */
+  vaultItemId?: number | null;
   sourceGrade?: SourceGrade;
   locked?: boolean;
   locks?: Character["locks"];
 }
-export interface CharacterEditInput { projectId: string; characterId: string }
+export interface CharacterEditInput {
+  projectId: string;
+  characterId: string;
+  /** 連結的世界觀 framework id（worldbuilding.update 需 id）；無時跳過回寫（best-effort）。 */
+  worldFrameworkId?: number | null;
+}
 export interface NoteCreateInput { projectId: string; text: string; shotNo?: string }
 export interface PromptBlockCreateInput { projectId: string; label: string; text: string }
 export interface ProjectCreateInput { name: string; type: CreativeProject["type"] }
 export interface StoryboardIngestInput {
   projectId: string;
+  /** 寫入目標世界觀 framework id（createFromSegments 需 worldId）；無時跳過回寫（best-effort）。 */
+  worldFrameworkId?: number | null;
+  /** 分鏡集名稱（createFromSegments 需 name）；無時以專案/預設名生成。 */
+  name?: string;
   characters: Character[];
   scenes: Scene[];
   shots: Shot[];
@@ -83,13 +109,18 @@ export interface ProjectGateway {
 // 真實 tRPC 實作（預設）
 // ============================================================================
 export function makeProjectGatewayTrpc(): ProjectGateway {
-  // 【W1-7 typed 化開跑】typed＝createTRPCClient<AppRouter>，tsc 可抓 input/output 不符；
-  // 已轉 typed：listProjects / createProject / createPromptBlock / createNote（後兩者
-  // 都曾因 any-cast 讓「缺必填 title」靜默失敗——typed 化即此類蟲的根治）。
-  // client（any）僅供尚未收斂的聚合方法（loadProject 等）過渡使用，後續卡逐方法遷移。
+  // 【AIDV-162 完成 typed 化】typed＝createTRPCClient<AppRouter>，tsc 可抓 input/output 不符。
+  // 不再有 `as unknown as any` 旁路——全部讀寫方法都走 typed，送出形狀對齊真實 procedure
+  // 的 zod input（vault.update / worldbuilding.update / worldStoryboard.createFromSegments /
+  // worldbuilding.get / contextPacket.compileProject）。tsc 綠＝形狀對。
   const typed = getTrpcClient();
-  const client = getTrpcClient() as unknown as any;
   const num = (id: string | number) => (typeof id === "number" ? id : Number(id));
+  /** 解析 id 為有限數值（vault/world id 須 z.number）；非數值（uid 後援）回 null → 跳過回寫。 */
+  const numOrNull = (id: string | number | null | undefined): number | null => {
+    if (id === null || id === undefined) return null;
+    const n = typeof id === "number" ? id : Number(id);
+    return Number.isFinite(n) ? n : null;
+  };
 
   async function listProjects(): Promise<CreativeProjectSummary[]> {
     // ✅ typed：creativeProject.list 的列＝rowToData 投影（title 為名稱欄；無 emoji/type 欄，
@@ -109,23 +140,32 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
     // 【AIDV-161 跨專案資料混入修補】骨幹 creativeProject.get 必須**先**取得，因為分鏡要依
     // 「當前專案連結的世界觀」過濾——base.worldFrameworkId 是過濾鍵。先 await base、再並行其餘。
     // 任一子查詢失敗都不讓整頁壞：個別 catch → null；骨幹缺失（base 取不到）才整體回 null。
-    const base = await client.creativeProject.get.query({ id }).catch(() => null);
+    const base = await typed.creativeProject.get.query({ id }).catch(() => null);
     if (!base) return null;
 
     // 分鏡改用 ownership-scoped 的 worldStoryboard.listByWorld({ worldId })，取代會回「該使用者
     // 全部分鏡」、忽略輸入的 worldStoryboard.list（server: list 不吃 projectId，回 user 全部）。
     // 未連結世界觀（worldFrameworkId 為 null）的專案＝無分鏡來源，直接跳過查詢（避免誤載別專案）。
-    const worldId = base.worldFrameworkId != null ? num(base.worldFrameworkId) : null;
+    // （AIDV-161 修正：本卡保留 ownership-scoped listByWorld，不回歸。）
+    const worldId = numOrNull(base.worldFrameworkId);
 
     // 並行聚合「隨身脈絡」其餘面向（adapter 對應表 §5：多 procedure 組 CreativeProjectContext）。
+    // 【AIDV-162 typed 對齊】
+    //  - worldbuilding.get 真實輸入＝{ id }（世界觀 id，非 projectId）；用 worldId 取，
+    //    未連結世界觀則跳過（原本送 { projectId: id } 永遠收 undefined → 回 null）。
+    //  - vault.list / notes.list 真實輸入皆**不含 projectId**（user 級；只吃過濾欄，均可選），
+    //    原本送 { projectId: id } 是 any-cast 藏掉的形狀錯；改為不帶輸入。
+    //  - contextPacket.getLatest 真實輸入＝{ projectId }（已正確，保留）。
     const [world, board, vault, notes, packet] = await Promise.all([
-      client.worldbuilding.get.query({ projectId: id }).catch(() => null),
       worldId != null
-        ? client.worldStoryboard.listByWorld.query({ worldId }).catch(() => null)
+        ? typed.worldbuilding.get.query({ id: worldId } satisfies WorldbuildingGetInput).catch(() => null)
         : Promise.resolve(null),
-      client.vault.list.query({ projectId: id }).catch(() => null),
-      client.notes.list.query({ projectId: id }).catch(() => null),
-      client.contextPacket.getLatest.query({ projectId: id }).catch(() => null),
+      worldId != null
+        ? typed.worldStoryboard.listByWorld.query({ worldId }).catch(() => null)
+        : Promise.resolve(null),
+      typed.vault.list.query().catch(() => null),
+      typed.notes.list.query().catch(() => null),
+      typed.contextPacket.getLatest.query({ projectId: id }).catch(() => null),
     ]);
 
     return assembleProject(id, base, world, board, vault, notes, packet);
@@ -133,8 +173,14 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
 
   async function recompilePacket(project: CreativeProject): Promise<ContextPacket> {
     try {
-      // 🔧 contextPacket.compileProject（伺服器 Deterministic→Cache→RAG，為權威）。
-      const r = await client.contextPacket.compileProject.mutate({ projectId: num(project.id) });
+      // 🔧 contextPacket.compileProject。真實 zod 輸入＝{ projectId, mode（必填）, query?, forceRefresh? }。
+      // 原本只送 { projectId } → 缺必填 mode；any-cast 旁路 zod，後端走空、永遠回退本地卻謊報成功。
+      // 導演台重編走 "director" 模式（COMPILE_MODES 之一，對齊 orchestration mode）。
+      const input: CompileProjectInput = {
+        projectId: num(project.id),
+        mode: "director" satisfies CompileMode,
+      };
+      const r = await typed.contextPacket.compileProject.mutate(input);
       return toPacket(r) ?? compileContextPacket(project);
     } catch {
       // 伺服器無回應 → 本地決定性重編（UI 仍即時更新）。
@@ -143,22 +189,32 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
   }
 
   async function saveVaultState(input: VaultSaveInput): Promise<void> {
-    // 🔧 vault.update（approval/locks/grade 走 payload；vault 僅 CRUD + exportToAssets）。
-    await client.vault.update.mutate({
-      id: input.characterId,
-      projectId: num(input.projectId),
-      sourceGrade: input.sourceGrade,
-      locked: input.locked,
-      locks: input.locks,
-    });
+    // 🔧 vault.update。真實 zod 輸入＝{ id: z.number(), name?, tags?, imageUrl?,
+    // metadata?: z.record(string, unknown) }——**無 projectId / sourceGrade / locked / locks 頂層欄**。
+    // 原本送那 4 個未定義欄＋字串 id，是 any-cast 藏掉的形狀錯。對齊：鎖/grade/approval 屬
+    // 角色定版狀態，落 metadata（保險庫項目的自由欄位）；id 須為保險庫項目數值 id。
+    // vaultItemId 為對映的保險庫項目 id；無（uid 後援/尚未建項）→ 跳過回寫（best-effort，UI 已樂觀更新）。
+    const id = numOrNull(input.vaultItemId ?? input.characterId);
+    if (id == null) return;
+    const metadata: Record<string, unknown> = {};
+    if (input.sourceGrade !== undefined) metadata.sourceGrade = input.sourceGrade;
+    if (input.locked !== undefined) metadata.locked = input.locked;
+    if (input.locks !== undefined) metadata.locks = input.locks;
+    const payload: VaultUpdateInput = { id, metadata };
+    await typed.vault.update.mutate(payload);
   }
 
   async function saveCharacterEdit(input: CharacterEditInput): Promise<void> {
-    // 🔧 worldbuilding.update（改設定 → 後端觸發既有鏡 stale 級聯）。
-    await client.worldbuilding.update.mutate({
-      projectId: num(input.projectId),
-      characterId: input.characterId,
-    });
+    // 🔧 worldbuilding.update。真實 zod 輸入＝{ id: 世界觀 id, patch: frameworkInput.partial() }
+    // ——編輯整個世界觀 framework，**非單個角色**；無 projectId / characterId 頂層欄。
+    // 原本送 { projectId, characterId } 是 any-cast 藏掉的形狀錯。對齊：以連結的世界觀 id 觸發
+    // 後端的「世界觀變更 → 既有鏡 stale 級聯」（座艙的真實邊由 Provider 注入 worldFrameworkId）；
+    // 此處不夾帶角色 diff（過渡），送空 patch（全欄 optional，後端做存在權限檢查 + no-op 更新）。
+    // 未連結世界觀 → 無回寫目標，跳過（best-effort，UI 已本地標 stale）。
+    const id = numOrNull(input.worldFrameworkId);
+    if (id == null) return;
+    const payload: WorldbuildingUpdateInput = { id, patch: {} };
+    await typed.worldbuilding.update.mutate(payload);
   }
 
   async function createNote(input: NoteCreateInput): Promise<void> {
@@ -205,29 +261,62 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
   }
 
   async function ingestStoryboard(input: StoryboardIngestInput): Promise<void> {
-    // 🔧 worldStoryboard.createFromSegments（依 director.breakdown 過渡結果批寫分鏡）。
-    await client.worldStoryboard.createFromSegments.mutate({
-      projectId: num(input.projectId),
-      segments: input.shots.map((sh) => ({
-        shotNumber: sh.no, act: sh.act, title: sh.title, route: sh.route,
-        characterIds: sh.characterIds, sceneId: sh.sceneId, seed: sh.seed,
-      })),
-      characters: input.characters.map((c) => ({ name: c.name, sourceGrade: c.sourceGrade })),
-      scenes: input.scenes.map((s) => ({ name: s.name, kind: s.kind })),
+    // 🔧 worldStoryboard.createFromSegments。真實 zod 輸入＝{ worldId（必填，非 projectId）,
+    // name（必填）, segments: [{ rawText?, storyboard:{sceneHeading,visualDescription,dialogue,
+    // soundDesign,cameraDirection,duration,mood}, characters: string[], locations: string[] }],
+    // aspectRatio?, fps?, sourceScriptId? }。原本送 { projectId, segments:[Shot 形狀], characters,
+    // scenes } 全不符——any-cast 藏掉的形狀錯。對齊：
+    //  - worldId 取自連結的世界觀（無 → 跳過回寫，best-effort；UI 已本地寫入分鏡）。
+    //  - 每個 Shot → 一個 segment：把 Shot 欄位投到 storyboard 子物件；characterIds/sceneId
+    //    解析為**名稱字串陣列**（server 以名稱比對 framework.characters / locations）。
+    if (input.shots.length === 0) return;
+    const worldId = numOrNull(input.worldFrameworkId);
+    if (worldId == null) return;
+
+    const charNameById = new Map(input.characters.map((c) => [c.id, c.name]));
+    const sceneNameById = new Map(input.scenes.map((s) => [s.id, s.name]));
+
+    const segments: CreateFromSegmentsInput["segments"] = input.shots.map((sh) => {
+      const characters = sh.characterIds
+        .map((cid) => charNameById.get(cid))
+        .filter((n): n is string => typeof n === "string");
+      const locationName = sh.sceneId != null ? sceneNameById.get(sh.sceneId) : undefined;
+      const locations = locationName ? [locationName] : [];
+      return {
+        rawText: sh.title || undefined,
+        storyboard: {
+          sceneHeading: sh.no,
+          visualDescription: sh.title,
+          dialogue: "",
+          soundDesign: "",
+          cameraDirection: "",
+          duration: "5s",
+          mood: "",
+        },
+        characters,
+        locations,
+      };
     });
+
+    const payload: CreateFromSegmentsInput = {
+      worldId,
+      name: input.name?.trim() || `導演台分鏡 · 專案 ${input.projectId}`,
+      segments,
+    };
+    await typed.worldStoryboard.createFromSegments.mutate(payload);
   }
 
   async function linkWorld(projectId: string, worldFrameworkId: number | null): Promise<void> {
     // creativeProject.link 已支援設/解綁 worldFrameworkId（零新後端，AIDV-100）。
-    await client.creativeProject.link.mutate({ id: num(projectId), worldFrameworkId });
+    await typed.creativeProject.link.mutate({ id: num(projectId), worldFrameworkId });
   }
 
   async function listWorlds(): Promise<{ id: number; name: string }[]> {
     // worldbuilding.list 回 rowToData 列（含 id / name）。
-    const rows = await client.worldbuilding.list.query();
-    return (Array.isArray(rows) ? rows : []).map((r: any) => ({
+    const rows = await typed.worldbuilding.list.query();
+    return (Array.isArray(rows) ? rows : []).map((r) => ({
       id: Number(r.id),
-      name: String(r.name ?? r.title ?? `世界 #${r.id}`),
+      name: String(r.name ?? `世界 #${r.id}`),
     }));
   }
 

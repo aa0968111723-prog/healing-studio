@@ -259,7 +259,8 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     }));
     const c = p.characters.find((x) => x.id === charId);
     toast.warning(`${c?.name ?? "角色"} 已改設定`, { description: `${affected} 個既有鏡標記為「過期待重生」` });
-    try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: charId }); }
+    // AIDV-162：worldbuilding.update 以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。
+    try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: charId, worldFrameworkId: p.worldFrameworkId }); }
     catch { /* 級聯由後端落實；本地已標 stale */ }
   }, [gateway, patchProject]);
 
@@ -306,7 +307,8 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       }),
     }));
     // 場景鎖定走 worldbuilding.update（scenesJson）；本地已更新，回寫 best-effort。
-    try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: sceneId }); }
+    // AIDV-162：以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。
+    try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: sceneId, worldFrameworkId: p.worldFrameworkId }); }
     catch { /* 本地已更新 */ }
   }, [gateway, patchProject]);
 
@@ -368,7 +370,15 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       return { ...np, packet: compileContextPacket(np) };
     });
     toast.success("腳本拆解完成", { description: `${shots.length} 鏡 · ${characters.length} 角色 · ${scenes.length} 場景 已寫入專案` });
-    try { await gateway.ingestStoryboard({ projectId: target.id, characters, scenes, shots }); }
+    // AIDV-162：createFromSegments 需 worldId（連結的世界觀）+ name；未連結則 gateway 跳過回寫。
+    try {
+      await gateway.ingestStoryboard({
+        projectId: target.id,
+        worldFrameworkId: target.worldFrameworkId,
+        name: name || target.name,
+        characters, scenes, shots,
+      });
+    }
     catch { toast.warning("分鏡已寫入（本地）", { description: "worldStoryboard.createFromSegments 回寫稍後重試" }); }
   }, [gateway]);
 
