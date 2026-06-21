@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useSpine } from "@/providers/SpineProvider";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
+import { isCostBlockedError } from "@/adapters/genErrorToast";
 import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { frameStyle } from "@/spine/seedVisual";
 import { trpc } from "@/lib/trpc";
@@ -83,6 +84,10 @@ export function AssetGenCanvas() {
       setStatus("done");
       toast.success("生成完成 · 已寫回資產庫", { description: `${res.model} · seed ${res.seedUsed} · ${res.provider}` });
     } catch (err) {
+      // AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」
+      // toast 已於上方事件處理器顯示。回 idle（可改選引擎重試），且**不**再 fire
+      // 通用「生成失敗」toast，避免雙 toast 與矛盾的硬失敗語氣（恰好一個冷靜 toast）。
+      if (isCostBlockedError(err)) { setStatus("idle"); return; }
       setStatus("error");
       toast.error("生成失敗", { description: err instanceof Error ? err.message : "全部 provider 皆失敗，積分已退還" });
     }

@@ -23,6 +23,7 @@ import type { GenEvent, GenResult } from "@/adapters/types";
 import type { ProviderId, GenKind } from "@/spine/types";
 // AIDV-160：mock（免費離線兜底）在 prod 不可用 → 選擇器 disable，不「顯示可選卻偷換付費」。
 import { isMockProviderAvailable } from "@/adapters/costTier";
+import { isCostBlockedError } from "@/adapters/genErrorToast";
 
 const PROVIDERS: { id: ProviderId; label: string }[] = [
   { id: "hf", label: "Hugging Face" },
@@ -75,6 +76,10 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
         description: `${res.model} · $${res.costUsd.toFixed(3)}${res.provider !== spine.provider ? `（回退 ${res.provider}）` : ""}`,
       });
     } catch (err) {
+      // AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」
+      // toast 已於事件處理器顯示，事件列表也已記錄 cost-blocked 一行。回 idle（請改選
+      // 引擎，而非重試同一個免費引擎），且**不**再 fire 通用「生成失敗」toast → 恰好一個。
+      if (isCostBlockedError(err)) { setStatus("idle"); return; }
       setStatus("error");
       toast.error("生成失敗", { description: (err as Error)?.message ?? "全部 provider 皆失敗，請重試或切換 provider" });
     }
