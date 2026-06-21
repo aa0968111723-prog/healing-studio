@@ -1665,18 +1665,30 @@ ${segmentSummaries}
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const ids: number[] = [];
-      for (const m of input.milestones) {
-        const id = await db.createProjectNote({
-          userId: ctx.user.id,
-          title: `[規劃里程碑] ${input.planningTitle} — ${m.title}`,
-          content: `規劃階段：${m.phase}\n來自長腳本規劃：${input.planningTitle}`,
-          noteType: "calendar_event",
-          scheduledDate: new Date(m.targetDate),
-          tags: ["planning-milestone", m.phase],
-        });
-        ids.push(id);
-      }
+      // 有界並發批寫，取代逐筆序列 await 的 N+1（里程碑數多時逐筆往返放大延遲）。
+      // concurrency 上限 5：兼顧吞吐與 DB 連線池上限（避免一次性 Promise.all 打爆連線）。
+      // 寫入語意不變（同一 createProjectNote payload）；ids 依輸入順序回填；
+      // 錯誤處理不變（任一筆失敗 → worker 拋出 → Promise.all reject → 整體 mutation 失敗，與原序列版一致）。
+      const CONCURRENCY = 5;
+      const ids: number[] = new Array<number>(input.milestones.length);
+      let cursor = 0;
+      const worker = async (): Promise<void> => {
+        while (cursor < input.milestones.length) {
+          const i = cursor++;
+          const m = input.milestones[i];
+          ids[i] = await db.createProjectNote({
+            userId: ctx.user.id,
+            title: `[規劃里程碑] ${input.planningTitle} — ${m.title}`,
+            content: `規劃階段：${m.phase}\n來自長腳本規劃：${input.planningTitle}`,
+            noteType: "calendar_event",
+            scheduledDate: new Date(m.targetDate),
+            tags: ["planning-milestone", m.phase],
+          });
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, input.milestones.length) }, () => worker())
+      );
       return { ids };
     }),
 

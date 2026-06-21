@@ -49,7 +49,7 @@ export function ProductionPackagePreview({ world, storyboards, readinessPercent,
               <span>{label}：{Number(count)} 個</span>
               <div className="flex gap-1">
                 <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => copy(`${label}\n` + JSON.stringify(taskList, null, 2), "任務清單")}>複製任務清單</Button>
-                <Button size="sm" disabled className="h-6 text-[11px]" onClick={() => toast("即將支援：從製作包建立圖像、影片、配音、配樂與發布任務。")}>建立任務（即將支援）</Button>
+                <Button size="sm" disabled className="h-6 text-[11px]">建立任務（即將支援）</Button>
               </div>
             </div>
           ))}
