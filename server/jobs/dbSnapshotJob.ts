@@ -101,11 +101,19 @@ export function parseMysqlConnection(databaseUrl: string): MysqlConnection | nul
  *   --quick               逐列串流、不在 dump 端緩衝整表（記憶體恆定）
  *   --lock-tables=false   InnoDB best practice（與 single-transaction 並用）
  *   --routines --triggers --events  完整結構（stored proc / trigger / event）
- *   --set-gtid-purged=OFF 還原到「新空庫」時不要求對齊來源 GTID（演練/異地還原友善）
  *   --no-tablespaces      不需 PROCESS 權限即可 dump（最小權限帳號也能跑）
- *   --column-statistics=0 關掉 8.0 client 預設會查 information_schema 直方圖的行為，
- *                         避免對某些 server 版本噴 Unknown column（相容性）
  * 只 dump 指定 database（單庫），不用 --all-databases：最小範圍、避免誤抓系統庫。
+ *
+ * ⚠️ 為何「不」帶 --set-gtid-purged=OFF / --column-statistics=0（曾經有、已移除）：
+ *   runtime（Dockerfile runner 階段）裝的是 Alpine 的 mariadb-client，其 mysqldump
+ *   是 MariaDB fork，**不認得**這兩個 MySQL-8-client 專屬旗標——帶了會直接 exit 7、
+ *   產出 0-byte dump（＝備份壞掉）。兩者對我們也都非必要：
+ *     • --column-statistics 是 MySQL 8.0 client 才有的東西（會去查 column_statistics
+ *       直方圖）；MariaDB client 根本不做這件事，旗標既多餘又會報錯。
+ *     • --set-gtid-purged 是 MySQL 專屬；MariaDB client 不支援，且我們本就還原到
+ *       「新空庫」、不依賴 GTID 對齊。
+ *   （MariaDB client 能連 MySQL 8 server 的 caching_sha2_password 認證，靠 Dockerfile
+ *    另裝的 mariadb-connector-c plugin——見 Dockerfile runner 階段。）
  */
 export function buildMysqldumpArgs(conn: MysqlConnection): string[] {
   return [
@@ -118,9 +126,7 @@ export function buildMysqldumpArgs(conn: MysqlConnection): string[] {
     "--routines",
     "--triggers",
     "--events",
-    "--set-gtid-purged=OFF",
     "--no-tablespaces",
-    "--column-statistics=0",
     "--default-character-set=utf8mb4",
     conn.database,
   ];

@@ -179,27 +179,47 @@ docker exec aidv-mysql mysql -uroot -proot_dev_pw -e \
 
 ---
 
-## 5. 還原演練結果（本卡實際在 Docker 跑過一次，下面是真實數據）
+## 5. 還原演練結果（用「正式環境的真 binary」實跑，下面是真實數據）
 
-> 這不是紙上談兵：AIDV-57 用上面第 3 節的流程，在本機 Docker（`aidv-mysql`, mysql:8.4）
-> 實際跑了一次「dump → gzip → 還原到 scratch 庫 → 對數」。
+> 這不是紙上談兵，而且**這次刻意用 prod 真正會用的 binary 重跑**：在一個全新的
+> `node:20-alpine` 容器裡，照 `Dockerfile` runner 階段裝
+> **`apk add mariadb-client mariadb-connector-c`**，再用**與 `buildMysqldumpArgs`
+> 完全一致的旗標**對活著的 MySQL 8.4（`aidv-mysql`）做 dump → gzip → 還原到一個
+> 全新的 MySQL 8.4 scratch 庫 → 對表數 / 對列數。
+>
+> ⚠️ 為什麼要用「真 binary」重跑：早先的演練是在 `db` 容器內用 MySQL 8 自帶的
+> mysqldump 跑的——那**不是** prod 的執行環境（prod 是 Alpine 的 **MariaDB**
+> mysqldump），會給出「假綠」。用對 binary 後才抓到並修掉了兩個會讓備份整個壞掉的問題
+> （見下方「踩到的雷」）。
 
 | 項目 | 結果 |
 |---|---|
-| dump 指令 | 與 `dbSnapshotJob.ts` 的 `buildMysqldumpArgs` 完全一致（`--single-transaction --quick --lock-tables=false --routines --triggers --events ...`） |
+| dump binary | `mysqldump`（Alpine `mariadb-client` 提供，實為 **MariaDB 11.4.12 mariadb-dump**）；`which mysqldump` = `/usr/bin/mysqldump`，故 prod 的 `spawn("mysqldump")` 解析得到 |
+| MySQL 8 認證 | ✅ 通過。MySQL 8.4 預設 `caching_sha2_password`；裝了 **`mariadb-connector-c`** 後 MariaDB client 才連得上（少了它會在連線階段就掛、dump 0-byte） |
+| dump 指令 | 與 `dbSnapshotJob.ts` 的 `buildMysqldumpArgs` **逐字一致**（`--single-transaction --quick --lock-tables=false --routines --triggers --events --no-tablespaces --default-character-set=utf8mb4`，密碼走 `MYSQL_PWD`） |
 | dump 是否鎖表 / 寫入來源 | 否（`--single-transaction` 唯讀一致快照）；演練後來源庫資料未被更動 |
-| gzip 後大小 | 14,840 bytes（測試庫 70 張表、其中 `users` 預先塞了 7 筆測試列） |
-| 密碼是否外洩到 dump / log | **否**（grep `hs_dev_pw` 於 dump 內 = 0 次；密碼走 `MYSQL_PWD`，不進 argv） |
-| 還原到 scratch 庫 | exit 0，無錯誤 |
-| 表數對比 | 來源 **70** ＝ 還原 **70** ✅ |
-| 關鍵表列數對比（`users`，精確 `COUNT(*)`） | 來源 **7** ＝ 還原 **7** ✅，且抽樣列（`drill-001` / `d1@example.com`）正確還原 |
-| 全表「是否有表在還原後消失」 | 0 張消失（70 張全到齊） |
-| 清理 | scratch 庫已 `DROP`、測試列已刪、暫存檔已移除（環境回到演練前狀態） |
+| dump 大小 | 117,725 bytes（未壓）→ **14,708 bytes（gzip）**；非空、有實際內容 |
+| 密碼是否外洩到 dump | **否**（`grep hs_dev_pw` 於 dump 內 = 0 次；密碼走 `MYSQL_PWD`，不進 argv） |
+| 還原到 MySQL 8.4 scratch 庫 | **exit 0，無錯誤**（MariaDB 產的 dump 灌回 MySQL 8.4 乾淨還原） |
+| 表數對比（`BASE TABLE`，精確） | 來源 **70** ＝ 還原 **70** ✅ |
+| 關鍵表列數對比（`provider_snapshots`，精確 `COUNT(*)`） | 來源 **56** ＝ 還原 **56** ✅ |
+| 清理 | scratch 庫已 `DROP`、暫存檔已移除（環境回到演練前狀態） |
 
-**結論：dump→還原→驗證 全流程通過。** 備份檔可用、還原可行、來源庫不受影響。
+**結論：用 prod 真 binary 跑的 dump→還原→對數 全流程通過。** 備份檔可用、還原可行、來源庫不受影響。
+
+### 5.1 踩到的雷（這次修掉的兩個「會讓備份壞掉」的問題）
+
+1. **mysqldump 旗標不相容**：舊版 `buildMysqldumpArgs` 帶了 `--set-gtid-purged=OFF`
+   與 `--column-statistics=0`——這兩個是 **MySQL 8 client 專屬**旗標，Alpine 的
+   **MariaDB** mysqldump 不認得。實跑（負向對照）證實：帶這兩個旗標 →
+   `mysqldump: unknown variable 'set-gtid-purged=OFF'` / `unknown variable
+   'column-statistics=0'`，**exit 7、0-byte dump（備份整個壞掉）**。已移除。
+2. **MySQL 8 認證 plugin**：只裝 `mariadb-client` 連不上 MySQL 8 的
+   `caching_sha2_password`；`Dockerfile` runner 階段補裝 **`mariadb-connector-c`** 後解決。
 
 > 註：演練的來源是「本機 Docker 庫」而非正式 Railway 庫（安全鐵則：演練只在 scratch/Docker，
-> 絕不對 prod 還原）。正式庫的還原走第 4 節、由 Bruce 在維運時段操作。
+> 絕不對 prod 還原）。但這次的 **dump binary、connector、旗標都與 prod 一致**，故結論可外推到 prod。
+> 正式庫的還原走第 4 節、由 Bruce 在維運時段操作。
 
 ---
 
@@ -211,10 +231,11 @@ docker exec aidv-mysql mysql -uroot -proot_dev_pw -e \
 | log 訊息片段 | 可能原因 | 處理 |
 |---|---|---|
 | `mysqldump exited with code 2` + `Access denied` | DB 帳密錯 / 權限不足 | 檢查 `DATABASE_URL`；備份帳號至少要 `SELECT`, `LOCK TABLES`(可免), `SHOW VIEW`, `TRIGGER`, `EVENT` |
-| `mysqldump ... ENOENT` / `spawn mysqldump` | 容器內沒有 mysqldump | 確認 Dockerfile runner 階段有 `apk add mariadb-client`（本卡已加） |
+| `mysqldump ... ENOENT` / `spawn mysqldump` | 容器內沒有 mysqldump | 確認 Dockerfile runner 階段有 `apk add mariadb-client mariadb-connector-c`（本卡已加） |
 | `backup file is empty (0 bytes)` | dump 沒輸出 | 通常伴隨上一行的真正錯誤；看 `mysqldump exited ...` 那段 stderr |
+| `Authentication plugin 'caching_sha2_password' cannot be loaded` | MariaDB client 缺認證 plugin | 確認 Dockerfile 有裝 **`mariadb-connector-c`**（補上 MySQL 8 預設認證 plugin；本卡已加） |
+| `unknown variable 'set-gtid-purged...'` / `'column-statistics...'`，exit 7、0-byte | 帶了 MySQL-8-client 專屬旗標、MariaDB mysqldump 不認 | **不要**把這兩個旗標加回 `buildMysqldumpArgs`（它們正是本卡修掉的失敗主因，見第 5.1 節） |
 | R2 上傳相關（`PutObject` / 連線錯誤） | R2 金鑰失效 / 網路 / bucket 不存在 | 對齊 Railway 的 `S3_*` 變數；確認 bucket 存在 |
-| `column-statistics` 之類相容性錯 | server/client 版本差異 | 指令已帶 `--column-statistics=0` 規避；若仍出現，回報以調整 |
 
 ---
 
