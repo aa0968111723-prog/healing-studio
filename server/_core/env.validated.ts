@@ -410,9 +410,17 @@ const coreSchema = z.object({
   MAX_CONCURRENT_LLM_CALLS: z.string().optional().default("5"),
   SENSE_INTENT_TIMEOUT_SECONDS: z.string().optional().default("45"),
 
-  // ── Stripe 收款（沒設則跳過 webhook 簽章驗證 / 不建立訂單）─
+  // ── Stripe 收款 ─────────────────────────────────────────
+  // STRIPE_SECRET_KEY：Stripe API 私鑰（建立訂單／訂閱）。
+  // STRIPE_WEBHOOK_SECRET：webhook 簽章用 signing secret（whsec_...），驗 HMAC。
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
+  // AIDV-159：STRIPE_WEBHOOK_SECRET 未設定時是否 fail-closed（拒絕未驗證的 webhook）。
+  //   只管「密鑰留空」這個情境；密鑰有設時簽章不符一律拒絕，與此旗標無關。
+  //   留空／未設（預設）→ 只有 production fail-closed；dev/test 放行骨架以利本機開發。
+  //   明確 "false"/"0"/"off"/"no" → 一律 fail-open（緊急回退，連 prod 也放行）。
+  //   明確 "true"/"1"/"on"/"yes"  → 一律 fail-closed（連 dev 也拒絕，方便 staging 演練）。
+  STRIPE_WEBHOOK_FAIL_CLOSED: z.string().optional().default(""),
 
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   VITE_APP_ID: z.string().optional().default(""),

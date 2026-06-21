@@ -126,7 +126,8 @@ openssl rand -base64 32
 | 變數名稱                | 用途                                                    |
 | ----------------------- | ------------------------------------------------------- |
 | `STRIPE_SECRET_KEY`     | Stripe 收款（`sk_live_*`）                              |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook 驗章（`whsec_*`）                        |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook 驗章（`whsec_*`）；**prod 未設→webhook 一律 503 拒絕（fail-closed）** |
+| `STRIPE_WEBHOOK_FAIL_CLOSED` | 覆寫上述：`true`=一律拒絕、`false`=一律放行骨架（留空＝prod 拒絕、dev 放行） |
 | `REDIS_URL`             | 分散式快取/排程鎖（單機可不設，多機必填）              |
 | `DISCORD_WEBHOOK_URL`   | 健康巡檢告警                                            |
 | `ALERT_SLACK_WEBHOOK`   | API 用量告警（每 15 分鐘 cron）                         |
