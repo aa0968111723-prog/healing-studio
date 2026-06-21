@@ -178,8 +178,15 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
         (e) => {
           if (e.type === "estimate") toast(`先估成本：$${e.costUsd.toFixed(3)}`, { description: `${shot.no} ${shot.title}` });
           else if (e.type === "fail") toast.warning(`${e.provider} 生成失敗`, { description: `${e.error.msg}（HTTP ${e.error.http}）` });
-          else if (e.type === "fallback") toast(`自動回退 provider`, { description: `${e.provider} → ${e.next}` });
-          else if (e.type === "success") fellBack = e.fellBack;
+          else if (e.type === "fallback") {
+            toast(`自動回退引擎：${e.provider} → ${e.next}`, {
+              // AIDV-160：白話說明跨到哪個 provider、是否扣點。
+              description: e.crossesToPaid ? `改用付費引擎 ${e.next}（會扣點）` : `改用同層引擎 ${e.next}（計費方式不變）`,
+            });
+          } else if (e.type === "cost-blocked") {
+            // AIDV-160：免費引擎不可用，守門不無聲跨付費扣點 → 明確告知、不扣點。
+            toast.error("免費引擎暫時無法使用 · 未扣點", { description: e.reason });
+          } else if (e.type === "success") fellBack = e.fellBack;
         },
       );
 
