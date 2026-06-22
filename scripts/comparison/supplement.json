@@ -1,0 +1,309 @@
+{
+ "tests": {
+  "total": 368,
+  "by_top": {
+   "server": 268,
+   "client": 98,
+   "shared": 2
+  },
+  "server": 268,
+  "client": 98,
+  "shared": 2,
+  "themes": {
+   "agent/orb": 105,
+   "cost/credit": 15,
+   "auth/security": 20,
+   "migration/db": 9,
+   "generation": 32,
+   "ui/shell": 51
+  }
+ },
+ "spirits": {
+  "tool_namespaces": [
+   "accountant",
+   "anatomySpecialist",
+   "chain",
+   "companion",
+   "critic",
+   "haystack",
+   "imageSpecialist",
+   "inspirationSpecialist",
+   "intentSummary",
+   "learningSpecialist",
+   "muted",
+   "qualityCoach",
+   "reasons",
+   "recent",
+   "settingsDetail",
+   "sources",
+   "text",
+   "tokens",
+   "trainingSpecialist",
+   "when"
+  ],
+  "ns_count": 20,
+  "registry_ids": [],
+  "registry_names": [
+   "navigate"
+  ],
+  "file_lines": 2885
+ },
+ "fks": [
+  {
+   "from": "",
+   "col": "user_id",
+   "to": "users",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0027_agent_collaboration_persistence.sql"
+  },
+  {
+   "from": "",
+   "col": "collaboration_id",
+   "to": "agent_collaboration_sessions",
+   "ref": "collaboration_id",
+   "cascade": true,
+   "mig": "0027_agent_collaboration_persistence.sql"
+  },
+  {
+   "from": "",
+   "col": "fromMemoryId",
+   "to": "orb_long_term_memories",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0039_orb_long_term_memory.sql"
+  },
+  {
+   "from": "",
+   "col": "toMemoryId",
+   "to": "orb_long_term_memories",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0039_orb_long_term_memory.sql"
+  },
+  {
+   "from": "",
+   "col": "intentLogId",
+   "to": "orb_intent_logs",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0040_orb_intent_clarification.sql"
+  },
+  {
+   "from": "",
+   "col": "templateId",
+   "to": "orb_workflow_templates",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0042_orb_workflow_templates.sql"
+  },
+  {
+   "from": "",
+   "col": "executionId",
+   "to": "orb_workflow_executions",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0042_orb_workflow_templates.sql"
+  },
+  {
+   "from": "teams",
+   "col": "ownerId",
+   "to": "users",
+   "ref": "id",
+   "cascade": false,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "team_memberships",
+   "col": "teamId",
+   "to": "teams",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "team_memberships",
+   "col": "userId",
+   "to": "users",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "team_memberships",
+   "col": "invitedBy",
+   "to": "users",
+   "ref": "id",
+   "cascade": false,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "teaching_materials",
+   "col": "userId",
+   "to": "users",
+   "ref": "id",
+   "cascade": false,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "teaching_materials",
+   "col": "teamId",
+   "to": "teams",
+   "ref": "id",
+   "cascade": false,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "teaching_material_access_log",
+   "col": "materialId",
+   "to": "teaching_materials",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "teaching_material_access_log",
+   "col": "userId",
+   "to": "users",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0055_teaching_archive_fk.sql"
+  },
+  {
+   "from": "prompt_assets",
+   "col": "promptId",
+   "to": "prompt_library",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0075_prompt_assets.sql"
+  },
+  {
+   "from": "prompt_assets",
+   "col": "assetId",
+   "to": "digital_asset_library",
+   "ref": "id",
+   "cascade": true,
+   "mig": "0075_prompt_assets.sql"
+  }
+ ],
+ "fk_count": 17,
+ "jobs": [
+  {
+   "file": "apiHealthMonitor.ts",
+   "desc": "apiHealthMonitor.ts — API 健康巡檢背景任務"
+  },
+  {
+   "file": "apiUsageAlertJob.ts",
+   "desc": "apiUsageAlertJob.ts — 每 15 分鐘檢查 AI API 用量告警"
+  },
+  {
+   "file": "assetCleanupJob.ts",
+   "desc": "assetCleanupJob.ts — AIDV-67 / M4 儲存清理 cron（過期資產 → 刪 R2 物件＋DB 列）。"
+  },
+  {
+   "file": "braveLearnFetcher.ts",
+   "desc": "braveLearnFetcher.ts — 每日自動使用 Brave Search 搜尋 AI 相關文章"
+  },
+  {
+   "file": "circuitBreaker.ts",
+   "desc": "Circuit Breaker — Resilience pattern for background jobs."
+  },
+  {
+   "file": "costAttributionOutboxJob.ts",
+   "desc": "costAttributionOutboxJob.ts — AIDV-14 成本歸屬 outbox drain job（不漏帳）"
+  },
+  {
+   "file": "costLedgerReconcileJob.ts",
+   "desc": "costLedgerReconcileJob.ts — AIDV-153 成本帳本對帳 job（基礎版：先偵測不自動修）"
+  },
+  {
+   "file": "dbSnapshotJob.ts",
+   "desc": "dbSnapshotJob.ts — AIDV-57 每日 MySQL 資料庫備份（dump → gzip → Cloudflare R2）"
+  },
+  {
+   "file": "learnDocSyncer.ts",
+   "desc": "learnDocSyncer.ts — 學習文件自動同步排程"
+  },
+  {
+   "file": "mediaArchivalCron.ts",
+   "desc": "mediaArchivalCron.ts — 把資產庫裡還沒歸檔的外部 URL 拉回自家儲存的背景掃描。"
+  },
+  {
+   "file": "modelCatalogResearchJob.ts",
+   "desc": "modelCatalogResearchJob.ts — AI 模型情報專區的週期性自動研究"
+  },
+  {
+   "file": "modelTrainingWorker.ts",
+   "desc": "modelTrainingWorker.ts — 模型訓練背景任務消費者 Worker"
+  },
+  {
+   "file": "newsFetcher.ts",
+   "desc": "newsFetcher.ts — 首頁新聞雙活備援排程 + OARS NLP 柔化器"
+  },
+  {
+   "file": "providerSnapshotJob.ts",
+   "desc": "providerSnapshotJob.ts — 每 15 分鐘輪詢 AI 供應商配額/餘額，寫入快照 + 聚合費用"
+  },
+  {
+   "file": "r2SnapshotJob.ts",
+   "desc": "r2SnapshotJob.ts — 每日 Cloudflare R2 儲存空間快照"
+  },
+  {
+   "file": "teachingArchiveIngestionWorker.ts",
+   "desc": "teachingArchiveIngestionWorker.ts — 資料庫抽文 / 轉文字 背景任務 Worker"
+  },
+  {
+   "file": "userAutoCreditJob.ts",
+   "desc": ""
+  }
+ ],
+ "prompts": {
+  "promptReferenceLibrary_lines": 2012,
+  "slash_commands": [
+   "/auto",
+   "/plan",
+   "/nav",
+   "/ask",
+   "/go",
+   "/home",
+   "/agent",
+   "/settings",
+   "/search",
+   "/export",
+   "/share",
+   "/memory",
+   "/forget",
+   "/new",
+   "/clear",
+   "/help",
+   "/spirits",
+   "/codex"
+  ]
+ },
+ "perf_env": [
+  [
+   "JWT_ACCESS_TOKEN_EXPIRES_IN",
+   "2592000"
+  ],
+  [
+   "CACHE_TTL_SECONDS",
+   "300"
+  ],
+  [
+   "LLM_TIMEOUT_SECONDS",
+   "60"
+  ],
+  [
+   "MAX_CONCURRENT_LLM_CALLS",
+   "5"
+  ],
+  [
+   "SENSE_INTENT_TIMEOUT_SECONDS",
+   "45"
+  ],
+  [
+   "REDIS_KEY_PREFIX",
+   "healing-studio:"
+  ]
+ ]
+}

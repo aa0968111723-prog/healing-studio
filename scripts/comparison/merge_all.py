@@ -12,6 +12,7 @@ parts=[
  ("docs/reports/ai-uiux-integrated-architecture.pdf","深入附錄三：AI 底層邏輯結構 × UIUX 結構系統 整合架構"),
  ("docs/reports/deep-logic-dive.pdf","深入附錄四：底層邏輯深挖 — 核心演算法逐一拆解"),
  ("docs/reports/api-call-cost-twd.pdf","深入附錄五：每個 API 呼叫 -> 真實台幣 換算表（200 模型）"),
+ ("docs/reports/supplement-12-gaps.pdf","深入附錄六：補遺合輯 — 12 個未收錄面向（資安/測試/精靈/世界觀/ER/治理/整合/可觀測/影片/提示詞/詞彙/效能）"),
 ]
 lens=[len(PdfReader(p).pages) for p,_ in parts]
 
