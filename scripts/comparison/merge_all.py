@@ -11,6 +11,7 @@ parts=[
  ("docs/reports/ai-tech-architecture-comparison.pdf","深入附錄二：AI 技術底層邏輯與技術選型/SOTA 比對"),
  ("docs/reports/ai-uiux-integrated-architecture.pdf","深入附錄三：AI 底層邏輯結構 × UIUX 結構系統 整合架構"),
  ("docs/reports/deep-logic-dive.pdf","深入附錄四：底層邏輯深挖 — 核心演算法逐一拆解"),
+ ("docs/reports/api-call-cost-twd.pdf","深入附錄五：每個 API 呼叫 -> 真實台幣 換算表（200 模型）"),
 ]
 lens=[len(PdfReader(p).pages) for p,_ in parts]
 
