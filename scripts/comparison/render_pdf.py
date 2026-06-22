@@ -20,6 +20,7 @@ proc_infer=J("scripts/comparison/proc_infer.json")
 core_doc=J("scripts/comparison/core_doc.json")
 existing=J("scripts/comparison/existing.json")
 future=J("scripts/comparison/future.json")
+recon=J("scripts/comparison/recon.json")
 
 class PDF(FPDF):
     def header(self):
@@ -136,7 +137,7 @@ pdf.ln(4)
 pdf.set_font("wqy",size=9); pdf.set_text_color(70,70,70)
 prov=("資料來源與方法（scripts/comparison/ 解析器自動萃取）——"
  "①任務卡＝直接連線 live Atlassian Jira（aa0968111723.atlassian.net 專案 AIDV，Rovo MCP），全量 323 張，"
- "逐卡含描述/狀態/型別/優先/labels/父卡；②程式碼＝全 repo 程式碼盤點（1,700+ 檔逐目錄/行數）＋"
+ "逐卡含描述/狀態/型別/優先/labels/父卡；②程式碼＝全 repo 程式碼盤點（1,738 檔 / 587,080 行逐目錄）＋"
  "server/client/shared 的 router/procedure/旗標 enumerate＋對每張卡 grep 卡號取 file:line 行級錨點；"
  "③資料庫＝drizzle/schema.ts（87 表逐欄位）＋drizzle/*.sql migration＋_journal.json 登記核對；"
  "④Railway/部署＝repo 部署產物（railway.toml／nixpacks／Dockerfile）＋.env.example 環境變數目錄（僅名稱）。\n"
@@ -187,6 +188,20 @@ findings=[
  f"⑥有表無卡 {sum(1 for t in xref if xref[t]['doc_mentions']==0)}、有表無碼 {sum(1 for t in xref if xref[t]['code_files']==0)}（Part E）。",
 ]
 for f in findings: P(f,9,1.5)
+
+# ── 資料口徑校對（最真實數據） ──
+pdf.add_page()
+H("資料口徑校對 — SSOT/簡報『宣稱』 vs 本報告『實測』",15,2,(25,40,75))
+P("以下每一項規模數字，左為規劃文件/簡報所載（master-plan §1 等），右為本報告對 repo HEAD 實測；"
+  "差異欄與備註據實說明來源（多為簡報採早期快照、或估算口徑不同）。報告全篇一律採『實測』值。",9,2,(90,90,90))
+rows=[]
+for r in recon:
+    rows.append([r["item"], str(r["claimed"]), str(r["measured"]), str(r["diff"]) or "—", r["note"]])
+table(["量測項目","宣稱","實測","差","差異/口徑說明"],rows,[36,12,14,8,52],fs=7.4,head_fill=(120,40,40))
+pdf.ln(2)
+P("重點校正：①資料表 82→87（新表已入 main）；②資料欄位＝1161（本報告修正解析器漏抓帶 JSDoc 註解欄位後之真實全量，"
+  "前版誤為 908）；③procedure 簡報估 ~565、實測 424（含 server/routers.ts appRouter inline 122；routers/ 內為 284）；"
+  "④任務卡 315（口述）→323（live Jira JQL 實拉）。",8.5,1.5,(150,30,30))
 
 
 # ============ PART A : 任務卡逐卡（live Jira AIDV 全量 323） ============
@@ -331,7 +346,9 @@ H("D.0b　最大單檔（前 40）",11,2,(35,55,90),top=2)
 brows=[[f"{loc:,}",p] for loc,p in census["biggest"]]
 table(["行數","檔案"],brows,[14,90],fs=7)
 H("D.1　tRPC Router × Procedure",12,2,(35,55,90),top=3)
-P(f"server/routers/ 全 {len(routers)} router、合計 {sum(r['n'] for r in routers)} procedure。",9,1.5,(90,90,90))
+_proc_all=next((r["measured"] for r in recon if "全 server 實測" in r["item"]), sum(r['n'] for r in routers))
+P(f"server/routers/ 全 {len(routers)} router、合計 {sum(r['n'] for r in routers)} procedure（此為 routers/ 目錄內）；"
+  f"全 server 實測 procedure 總數＝{_proc_all}（含 server/routers.ts appRouter inline）。簡報所載 ~565 為估算口徑，見『資料口徑校對』。",9,1.5,(90,90,90))
 rows=[[r["file"], str(r["lines"]), str(r["n"]), ", ".join(r["procedures"])[:130] or "—"] for r in routers]
 table(["router 檔","行數","proc 數","procedure 名（節錄）"],rows,[26,10,10,64],fs=7)
 H("D.2　Feature Flag / 旗標",12,2,(35,55,90),top=3)
