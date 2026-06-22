@@ -12,6 +12,7 @@ routers=J("scripts/comparison/routers.json")
 flags=J("scripts/comparison/flags.json")
 xref=J("scripts/comparison/table_xref.json")
 jira=J("scripts/comparison/jira_cards.json")
+pr_meta=J("scripts/comparison/pr_meta.json")
 
 class PDF(FPDF):
     def header(self):
@@ -226,13 +227,19 @@ for c in jira:
             if para.strip(): P("　"+para.strip(),7.6,0.3,(40,40,40))
     if c.get("prs"):
         P("關聯 PR（實際改動 commit）： "+", ".join("#"+p for p in c["prs"]),7.6,0.3,(70,70,110))
+        for p in c["prs"]:
+            m=pr_meta.get(p)
+            if not m: continue
+            P(f"　PR #{p}　{m['title']}",7.6,0.2,(40,60,110))
+            P(f"　　改動明細： {m['files']} 檔　+{m['add']}／-{m['del']} 行　·　合併 {m['merged']}",7.4,0.2,(90,90,90))
+            P("　　技術摘要： "+m["sum"],7.4,0.4,(55,55,55))
     if c.get("tables"):
         P("動到的資料表（"+str(len(c["tables"]))+"）： "+", ".join(c["tables"]),7.6,0.3,(20,90,90))
     if c.get("migs"):
         P("相關 migration： "+", ".join(c["migs"]),7.6,0.3,(120,80,20))
     if c.get("code"):
         P("對站台的改動落點（檔案:行號 │ 該行程式碼/註解）"+f"——共 {len(c['code'])} 處：",7.6,0.2,(120,30,30))
-        for r in c["code"][:30]:
+        for r in c["code"][:80]:
             ref=r["ref"] if isinstance(r,dict) else str(r)
             line=r.get("line","") if isinstance(r,dict) else ""
             pdf.set_font("wqy",size=7); pdf.set_text_color(20,40,90)
@@ -241,7 +248,7 @@ for c in jira:
                 pdf.set_text_color(80,80,80)
                 pdf.multi_cell(EPW,3.5,S("      │ "+line),new_x="LMARGIN",new_y="NEXT")
         pdf.set_text_color(0)
-        if len(c["code"])>30: P(f"  …另 {len(c['code'])-30} 處（同卡號錨點）",7,0.2,(120,120,120))
+        if len(c["code"])>80: P(f"  ...另 {len(c['code'])-80} 處（同卡號錨點）",7,0.2,(120,120,120))
     else:
         P("對站台的改動落點：本卡碼中未留卡號註記（多為 Backlog／規劃／決策卡，尚未進入實作）。",7.6,0.2,(150,150,150))
     pdf.set_draw_color(225); pdf.line(pdf.l_margin,pdf.get_y()+0.5,pdf.w-pdf.r_margin,pdf.get_y()+0.5)
