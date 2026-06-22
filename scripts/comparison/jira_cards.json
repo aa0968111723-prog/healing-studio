@@ -152,7 +152,10 @@
    "864"
   ],
   "code": [
-   "client/src/shells/video/drawers/VideoSettings.tsx:141"
+   {
+    "ref": "client/src/shells/video/drawers/VideoSettings.tsx:141",
+    "line": "偏好備忘（per session）：<span className=\"font-medium\">目前不影響生成</span>，生成仍走系統預設（brain）。接線到生成＝後端待補（G10／AIDV-9 之後）。"
+   }
   ]
  },
  {
@@ -172,8 +175,14 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/services/postGenActions.ts:52",
-   "server/services/postGenActions.ts:316"
+   {
+    "ref": "server/services/postGenActions.ts:52",
+    "line": "* AIDV-10 — prompt_library 依 content 合併去重（upsert-by-content）的純查詢工具。"
+   },
+   {
+    "ref": "server/services/postGenActions.ts:316",
+    "line": "// 1-2. 提示詞庫（AIDV-10：upsert-by-content 去重）"
+   }
   ]
  },
  {
@@ -189,8 +198,14 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/_core/providerFacade.ts:2",
-   "server/provider-facade.test.ts:2"
+   {
+    "ref": "server/_core/providerFacade.ts:2",
+    "line": "* providerFacade.ts — 統一供應商門面（W1-2／AIDV-11）"
+   },
+   {
+    "ref": "server/provider-facade.test.ts:2",
+    "line": "* provider-facade.test.ts — 統一供應商門面（W1-2／AIDV-11）"
+   }
   ]
  },
  {
@@ -208,21 +223,66 @@
    "862"
   ],
   "code": [
-   "client/src/shells/video/panels/AssetsPanel.tsx:7",
-   "client/src/shells/video/panels/AssetsPanel.tsx:17",
-   "client/src/shells/video/panels/PromptsPanel.real.test.tsx:3",
-   "client/src/shells/video/panels/PromptsPanel.real.test.tsx:46",
-   "client/src/shells/video/panels/AssetsPanel.real.test.tsx:3",
-   "client/src/shells/video/panels/AssetsPanel.real.test.tsx:43",
-   "client/src/shells/video/panels/PromptsPanel.tsx:20",
-   "client/src/shells/video/panels/PromptsPanel.tsx:108",
-   "client/src/shells/video/console/workflowSteps.test.ts:2",
-   "client/src/shells/video/console/workflowSteps.test.ts:27",
-   "client/src/shells/video/console/workflowSteps.ts:42",
-   "client/src/shells/video/console/CreationFlowBar.test.tsx:84",
-   "client/src/shells/video/console/CreationFlowBar.test.tsx:92",
-   "client/src/config/videoFlags.ts:90",
-   "client/src/config/videoFlags.ts:100"
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.tsx:7",
+    "line": "// AIDV-12（其餘可接子系統接真實 procedure）："
+   },
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.tsx:17",
+    "line": "// AIDV-12：旗標 ON 才走真實 procedure；trpc useQuery 與既有面板（AgentCatalog/FlowTv）同型樣。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.real.test.tsx:3",
+    "line": "* PromptsPanel 積木 combo 接真實 procedure（AIDV-12）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.real.test.tsx:46",
+    "line": "describe(\"PromptsPanel 積木 combo 接真實 procedure（AIDV-12）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.real.test.tsx:3",
+    "line": "* AssetsPanel 真實 procedure 接線（AIDV-12）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.real.test.tsx:43",
+    "line": "describe(\"AssetsPanel 真實 procedure（AIDV-12）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.tsx:20",
+    "line": "// AIDV-12（其餘可接子系統接真實 procedure）：補旗標關閉（chrome OFF）時 promptBlocks 死空的"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.tsx:108",
+    "line": "// AIDV-12：chrome OFF 但本卡旗標 ON → 補真實積木 combo 庫（blockCombos.list）；"
+   },
+   {
+    "ref": "client/src/shells/video/console/workflowSteps.test.ts:2",
+    "line": "* workflowSteps（AIDV-12 配音/配樂工作流）測試。"
+   },
+   {
+    "ref": "client/src/shells/video/console/workflowSteps.test.ts:27",
+    "line": "describe(\"workflowSteps · AIDV-12 配音/配樂工作流（旗標 gate）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/console/workflowSteps.ts:42",
+    "line": "* AIDV-12 配音/配樂兩步（已實裝，接真實 proStudio.*）。旗標 ON 時插進預設工作流。"
+   },
+   {
+    "ref": "client/src/shells/video/console/CreationFlowBar.test.tsx:84",
+    "line": "it(\"旗標 ON：點『配音/環境音』（AIDV-12）→ 切配音畫布（setCanvasMode('voice')）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/console/CreationFlowBar.test.tsx:92",
+    "line": "it(\"旗標 ON：點『配樂』（AIDV-12）→ 切配樂畫布（setCanvasMode('music')）\", () => {"
+   },
+   {
+    "ref": "client/src/config/videoFlags.ts:90",
+    "line": "* AIDV-12 配音/配樂工作流步驟。**預設 OFF**＝零行為改變：關閉時導演台 DEFAULT_WORKFLOW"
+   },
+   {
+    "ref": "client/src/config/videoFlags.ts:100",
+    "line": "* AIDV-12 其餘可接子系統接真實既有 procedure。**預設 OFF＝零行為改變（位元相同）**："
+   }
   ]
  },
  {
@@ -257,37 +317,130 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/jobs/costAttributionOutboxJob.test.ts:2",
-   "server/jobs/costAttributionOutboxJob.ts:2",
-   "server/jobs/providerSnapshotJob.ts:157",
-   "server/jobs/providerSnapshotJob.ts:175",
-   "server/jobs/costLedgerReconcileJob.ts:6",
-   "server/services/usageCost.ts:2",
-   "server/services/cost/costAttribution.ts:2",
-   "server/services/cost/costAttribution.ts:95",
-   "server/services/cost/costAttribution.ts:212",
-   "server/services/cost/costAttribution.ts:274",
-   "server/services/cost/costAttribution.ts:418",
-   "server/services/cost/catalogCostFallback.ts:2",
-   "server/services/cost/catalogCostFallback.test.ts:2",
-   "server/services/cost/ledger.ts:138",
-   "server/services/cost/ledger.ts:166",
-   "server/services/cost/ledger.ts:275",
-   "server/services/cost/ledger.ts:325",
-   "server/services/cost/costAttribution.test.ts:2",
-   "server/routers/brainPipeline.ts:1242",
-   "server/routers/apiUsage.ts:591",
-   "server/routers/apiUsage.ts:607",
-   "server/_core/env.validated.ts:628",
-   "server/currency-conversion.test.ts:13",
-   "server/routes/aiProxy.ts:344",
-   "server/routes/aiProxy.ts:348",
-   "server/routes/aiProxy.ts:460",
-   "server/routes/aiProxy.ts:487",
-   "server/routes/aiProxy.ts:546",
-   "server/routes/aiProxy.ts:554",
-   "shared/currency.ts:40",
-   "shared/currency.ts:43"
+   {
+    "ref": "server/jobs/costAttributionOutboxJob.test.ts:2",
+    "line": "* costAttributionOutboxJob.test.ts — AIDV-14 drain job HARD SAFETY 測試"
+   },
+   {
+    "ref": "server/jobs/costAttributionOutboxJob.ts:2",
+    "line": "* costAttributionOutboxJob.ts — AIDV-14 成本歸屬 outbox drain job（不漏帳）"
+   },
+   {
+    "ref": "server/jobs/providerSnapshotJob.ts:157",
+    "line": "// AIDV-14：當下生效匯率（TWD_PER_USD→USD_TO_TWD_RATE→default），落帳當下凍結"
+   },
+   {
+    "ref": "server/jobs/providerSnapshotJob.ts:175",
+    "line": "// AIDV-14：真實價（SUM(costUsd)）→ TWD 凍結換算。$0.00 根因（#924 前 costUsd"
+   },
+   {
+    "ref": "server/jobs/costLedgerReconcileJob.ts:6",
+    "line": "* (B) cost_aggregations 的 totalCostUsd 總額（SUM(ai_usage_events.costUsd)，AIDV-14）"
+   },
+   {
+    "ref": "server/services/usageCost.ts:2",
+    "line": "* usageCost.ts — AIDV-14 真實 USD 成本擷取"
+   },
+   {
+    "ref": "server/services/cost/costAttribution.ts:2",
+    "line": "* costAttribution.ts — AIDV-14 內部成本歸屬可視（建在 #940 cost_ledger 上）"
+   },
+   {
+    "ref": "server/services/cost/costAttribution.ts:95",
+    "line": "* AIDV-14：成本發生（呼叫/enqueue）當下凍結的 TWD/USD 匯率。enqueueAttribution"
+   },
+   {
+    "ref": "server/services/cost/costAttribution.ts:212",
+    "line": "* AIDV-14：匯率優先用 input.frozenRate（成本發生當下凍結，由 enqueueAttribution 寫入），"
+   },
+   {
+    "ref": "server/services/cost/costAttribution.ts:274",
+    "line": "* AIDV-14：在此「成本發生當下」就把生效匯率凍進 payload（frozenRate）。drain 重放"
+   },
+   {
+    "ref": "server/services/cost/costAttribution.ts:418",
+    "line": "* AIDV-14：debit（消耗成本）加總、credit（退款沖銷）扣減，回「淨額」＝SUM(debit) −"
+   },
+   {
+    "ref": "server/services/cost/catalogCostFallback.ts:2",
+    "line": "* catalogCostFallback.ts — AIDV-14 真實價後援（catalog → USD），補 usage.cost 缺口"
+   },
+   {
+    "ref": "server/services/cost/catalogCostFallback.test.ts:2",
+    "line": "* catalogCostFallback.test.ts — AIDV-14 真實價後援（catalog → USD）"
+   },
+   {
+    "ref": "server/services/cost/ledger.ts:138",
+    "line": "* AIDV-14：歸屬 + 稽核欄位（可選）。隨複式分錄一併凍結寫入，供「依 project/member/"
+   },
+   {
+    "ref": "server/services/cost/ledger.ts:166",
+    "line": "// AIDV-14 歸屬 + 稽核欄位（可選，不傳則 undefined＝drizzle 用欄位 default/null）。"
+   },
+   {
+    "ref": "server/services/cost/ledger.ts:275",
+    "line": "/** AIDV-14：歸屬 + 稽核欄位（可選），借/貸兩腳一併凍結寫入。 */"
+   },
+   {
+    "ref": "server/services/cost/ledger.ts:325",
+    "line": "// AIDV-14：把 meta 正規化為 insert 欄位（數值欄轉字串，沿用 DECIMAL 定點字串約定）。"
+   },
+   {
+    "ref": "server/services/cost/costAttribution.test.ts:2",
+    "line": "* costAttribution.test.ts — AIDV-14 內部成本歸屬可視測試"
+   },
+   {
+    "ref": "server/routers/brainPipeline.ts:1242",
+    "line": "\"把 cost_attribution_outbox 的 pending 落帳意圖重放成 cost_ledger 多維歸屬（project/member/workflow，以 TWD），失敗重試/超上限標 dead（AIDV-14，不漏帳）\","
+   },
+   {
+    "ref": "server/routers/apiUsage.ts:591",
+    "line": "// ── AIDV-14：成本歸屬彙總（唯讀，以 TWD）───────────────────────────────────"
+   },
+   {
+    "ref": "server/routers/apiUsage.ts:607",
+    "line": "// AIDV-14：取 posted 的 debit ＋ credit 兩種 entryType——summarizeAttribution 會把"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:628",
+    "line": "// ── 內部成本歸屬可視（AIDV-14 cost attribution, migration 0079）────────────"
+   },
+   {
+    "ref": "server/currency-conversion.test.ts:13",
+    "line": "describe(\"resolveTwdPerUsd — AIDV-14 匯率來源優先序\", () => {"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:344",
+    "line": "// AIDV-14：真實 USD 成本（DECIMAL(12,6) 字串）。預設 \"0\"，僅在成功且回應"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:348",
+    "line": "// AIDV-14：成本數字來源標記（\"provider\"＝上游真實計費 usage.cost；\"catalog\"＝"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:460",
+    "line": "// ── AIDV-14：res.send 之後再算成本 ────────────────────────────────────"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:487",
+    "line": "// ── AIDV-14：真實價後援（catalog → USD）─────────────────────────────────────"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:546",
+    "line": "// AIDV-14：標成本來源（provider 上游真實計費 / catalog 目錄真實單位價後援）。"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:554",
+    "line": "// ── AIDV-14：成本歸屬可視（旗標 ENABLE_COST_ATTRIBUTION 預設 ON）─────────"
+   },
+   {
+    "ref": "shared/currency.ts:40",
+    "line": "* AIDV-14：解析「實際生效的 TWD/USD 匯率」，含 env 來源優先序。"
+   },
+   {
+    "ref": "shared/currency.ts:43",
+    "line": "* 1. TWD_PER_USD（規格名，AIDV-14 新增）"
+   }
   ]
  },
  {
@@ -303,24 +456,78 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/signedUpload.ts:2",
-   "server/upload-presign-route.test.ts:2",
-   "server/upload-presign-route.test.ts:268",
-   "server/_core/index.ts:404",
-   "server/_core/env.validated.ts:597",
-   "server/uploadRoute.ts:579",
-   "server/signed-upload.test.ts:2",
-   "server/signed-upload.test.ts:106",
-   "server/signed-upload.test.ts:143",
-   "server/signed-upload.test.ts:175",
-   "server/signed-upload.test.ts:207",
-   "server/signed-upload.test.ts:246",
-   "server/signed-upload.test.ts:265",
-   "server/signed-upload.test.ts:287",
-   "server/signed-upload.test.ts:312",
-   "client/src/lib/upload.ts:12",
-   "client/src/lib/upload.ts:155",
-   "client/src/lib/upload.ts:182"
+   {
+    "ref": "server/signedUpload.ts:2",
+    "line": "* signedUpload.ts — AIDV-15：Signed-URL 直傳（廢 base64）"
+   },
+   {
+    "ref": "server/upload-presign-route.test.ts:2",
+    "line": "* upload-presign-route.test.ts — AIDV-15：presign / finalize 端點路由測試"
+   },
+   {
+    "ref": "server/upload-presign-route.test.ts:268",
+    "line": "// AIDV-15 加固：Content-Type 權威性 + magic-byte parity"
+   },
+   {
+    "ref": "server/_core/index.ts:404",
+    "line": "// AIDV-15 限流對等：嚴格 upload 限流器（20/15min）只計「真正承載成本」的端點——"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:597",
+    "line": "// ── Signed-URL 直傳（AIDV-15：廢 base64，大檔不再過 tRPC/HTTP body）────────"
+   },
+   {
+    "ref": "server/uploadRoute.ts:579",
+    "line": "// AIDV-15: Signed-URL 直傳（廢 base64）— presign + finalize 兩段式 HTTP 路由"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:2",
+    "line": "* signed-upload.test.ts — AIDV-15：Signed-URL 直傳（廢 base64）核心邏輯測試"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:106",
+    "line": "describe(\"AIDV-15 旗標 / 可用性閘門（回退安全）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:143",
+    "line": "describe(\"AIDV-15 presign 驗證（型別 / 大小把關前移）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:175",
+    "line": "describe(\"AIDV-15 key scope（userId 命名空間隔離）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:207",
+    "line": "describe(\"AIDV-15 presignPutUpload（簽名 + scope + 限制）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:246",
+    "line": "describe(\"AIDV-15 公開 URL 形狀（與 storagePut 一致）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:265",
+    "line": "describe(\"AIDV-15 finalize 物件驗證（HeadObject）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:287",
+    "line": "describe(\"AIDV-15 fetchObjectHeadBytes（Range GET 取前 64 bytes 供嗅探）\", () => {"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:312",
+    "line": "describe(\"AIDV-15 deleteUploadedObject（偵測偽裝後刪物件）\", () => {"
+   },
+   {
+    "ref": "client/src/lib/upload.ts:12",
+    "line": "* AIDV-15：嘗試走 signed-URL 直傳（presign → 直接 PUT 到 R2 → finalize）。"
+   },
+   {
+    "ref": "client/src/lib/upload.ts:155",
+    "line": "* Shared file upload helper — AIDV-15：優先走 signed-URL 直傳（大檔不過 body），"
+   },
+   {
+    "ref": "client/src/lib/upload.ts:182",
+    "line": "// AIDV-15：先試 signed-URL 直傳（進度來自真實的 PUT-to-R2 XHR 事件）。"
+   }
   ]
  },
  {
@@ -360,10 +567,22 @@
   ],
   "prs": [],
   "code": [
-   "server/migration-prod-pending-block.test.ts:40",
-   "server/orphan-migrations-journal.test.ts:2",
-   "server/orphan-migrations-journal.test.ts:11",
-   "server/orphan-migrations-journal.test.ts:82"
+   {
+    "ref": "server/migration-prod-pending-block.test.ts:40",
+    "line": "// AIDV-17 補登記的孤兒：登記後 when 在 0079 之後，下次部署與上面同一輪跑，"
+   },
+   {
+    "ref": "server/orphan-migrations-journal.test.ts:2",
+    "line": "* orphan-migrations-journal.test.ts — 孤兒 migration 補登記（AIDV-17）"
+   },
+   {
+    "ref": "server/orphan-migrations-journal.test.ts:11",
+    "line": "* 第二批（本批，AIDV-17 後續清掉開機 log 列出的剩餘孤兒）："
+   },
+   {
+    "ref": "server/orphan-migrations-journal.test.ts:82",
+    "line": "describe(\"orphan migrations journal registration (AIDV-17)\", () => {"
+   }
   ]
  },
  {
@@ -411,13 +630,34 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/routers/director.ts:1778",
-   "server/routers/director.ts:2127",
-   "server/_core/index.ts:296",
-   "server/_core/index.ts:741",
-   "server/_core/generationLock.test.ts:2",
-   "server/_core/env.validated.ts:325",
-   "server/_core/env.validated.ts:334"
+   {
+    "ref": "server/routers/director.ts:1778",
+    "line": "// ── Planning-debounce lock (AIDV-20) ────────────────────────────────────"
+   },
+   {
+    "ref": "server/routers/director.ts:2127",
+    "line": "// ── Per-task duplicate-execution lock (AIDV-20) ─────────────────────────"
+   },
+   {
+    "ref": "server/_core/index.ts:296",
+    "line": "// AIDV-20: upgrade the generation dedup lock to its Redis backend when"
+   },
+   {
+    "ref": "server/_core/index.ts:741",
+    "line": "// AIDV-20: stop the generation-lock self-heal/sweep timers and close the"
+   },
+   {
+    "ref": "server/_core/generationLock.test.ts:2",
+    "line": "* generationLock.test.ts — AIDV-20 生成防重複提交鎖"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:325",
+    "line": "// AIDV-20：REDIS_URL 一旦設定（Railway Redis 服務注入），開機時"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:334",
+    "line": "// ── 生成防重複提交鎖（AIDV-20）────────────────────────────"
+   }
   ]
  },
  {
@@ -996,8 +1236,14 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/jobs/dbSnapshotJob.test.ts:2",
-   "server/jobs/dbSnapshotJob.ts:2"
+   {
+    "ref": "server/jobs/dbSnapshotJob.test.ts:2",
+    "line": "* dbSnapshotJob.test.ts — AIDV-57 每日 DB 備份 job 測試"
+   },
+   {
+    "ref": "server/jobs/dbSnapshotJob.ts:2",
+    "line": "* dbSnapshotJob.ts — AIDV-57 每日 MySQL 資料庫備份（dump → gzip → Cloudflare R2）"
+   }
   ]
  },
  {
@@ -1015,23 +1261,74 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/_core/errorTracking.ts:2",
-   "server/_core/index.ts:289",
-   "server/_core/index.ts:629",
-   "server/_core/index.ts:641",
-   "server/_core/index.ts:661",
-   "server/_core/env.validated.ts:350",
-   "server/_core/env.validated.ts:361",
-   "server/_core/metricsRoute.ts:2",
-   "server/_core/metricsRoute.ts:80",
-   "server/_core/metricsRoute.test.ts:2",
-   "server/_core/errorTracking.test.ts:2",
-   "server/sseRoute.ts:20",
-   "server/sseRoute.ts:57",
-   "server/sseRoute.ts:172",
-   "server/sseRoute.test.ts:2",
-   "shared/const.test.ts:2",
-   "shared/const.ts:28"
+   {
+    "ref": "server/_core/errorTracking.ts:2",
+    "line": "* errorTracking.ts — AIDV-58（H3 監控鎖門）錯誤追蹤接線（Sentry，env-gated）"
+   },
+   {
+    "ref": "server/_core/index.ts:289",
+    "line": "// AIDV-58（H3）：錯誤追蹤接線——依 serverEnv.SENTRY_DSN env-gated。"
+   },
+   {
+    "ref": "server/_core/index.ts:629",
+    "line": "// AIDV-58（維運鏡審查）：此端點無 auth、對整個網際網路可見，故只回最小存活訊號。"
+   },
+   {
+    "ref": "server/_core/index.ts:641",
+    "line": "// ── Performance metrics endpoint（AIDV-58 H3：admin-only）────────────────"
+   },
+   {
+    "ref": "server/_core/index.ts:661",
+    "line": "// AIDV-58（H3）：Sentry error 中介層必須排在 globalErrorHandler 之前——"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:350",
+    "line": "// ── 錯誤追蹤 Sentry（AIDV-58 H3；未設 = 完全 no-op，不報錯、不阻塞）────────"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:361",
+    "line": "// ── SSE 訂閱鎖門開關（AIDV-58 H3）──────────────────────────────────────────"
+   },
+   {
+    "ref": "server/_core/metricsRoute.ts:2",
+    "line": "* metricsRoute.ts — AIDV-58（H3 監控鎖門）：/api/metrics 的 admin-only 守門。"
+   },
+   {
+    "ref": "server/_core/metricsRoute.ts:80",
+    "line": "* /api/health/detail — admin-only 詳細資料庫健康（AIDV-58 維運鏡審查）。"
+   },
+   {
+    "ref": "server/_core/metricsRoute.test.ts:2",
+    "line": "* AIDV-58（H3 / 維運鏡審查）— /api/metrics 與 /api/health/detail admin-only 守門測試"
+   },
+   {
+    "ref": "server/_core/errorTracking.test.ts:2",
+    "line": "* AIDV-58（H3）— 錯誤追蹤 env-gated no-op 測試"
+   },
+   {
+    "ref": "server/sseRoute.ts:20",
+    "line": "* AIDV-58（H3）：SSE 擁有權鎖門旗標——預設「安全 = ON」。"
+   },
+   {
+    "ref": "server/sseRoute.ts:57",
+    "line": "// ── AIDV-58: 在開串流之前驗證登入＋擁有權，修補 IDOR ──"
+   },
+   {
+    "ref": "server/sseRoute.ts:172",
+    "line": "// ── AIDV-58: 在開串流之前驗證登入＋擁有權，修補 IDOR（try/catch 見上方說明）──"
+   },
+   {
+    "ref": "server/sseRoute.test.ts:2",
+    "line": "* AIDV-58 — SSE IDOR 修補測試"
+   },
+   {
+    "ref": "shared/const.test.ts:2",
+    "line": "* AIDV-58（H3）— isAdmin 單一判定契約測試"
+   },
+   {
+    "ref": "shared/const.ts:28",
+    "line": "* AIDV-58（H3 監控鎖門）：tRPC adminProcedure 與 raw Express 的 /api/metrics 守門"
+   }
   ]
  },
  {
@@ -1049,35 +1346,122 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/jwt-hardening.test.ts:2",
-   "server/jwt-hardening.test.ts:153",
-   "server/jwt-hardening.test.ts:201",
-   "server/secret-crypto-key-source.test.ts:2",
-   "server/secret-crypto-key-source.test.ts:4",
-   "server/secret-crypto-key-source.test.ts:54",
-   "server/secret-crypto-key-source.test.ts:65",
-   "server/services/auth/AuthFacade.ts:52",
-   "server/_core/oauth.ts:41",
-   "server/_core/oauth.ts:258",
-   "server/_core/oauth.ts:386",
-   "server/_core/googleAuth.ts:32",
-   "server/_core/googleAuth.ts:82",
-   "server/_core/googleAuth.ts:99",
-   "server/_core/googleAuth.ts:122",
-   "server/_core/googleAuth.ts:140",
-   "server/_core/index.ts:285",
-   "server/_core/env.validated.ts:112",
-   "server/_core/env.validated.ts:131",
-   "server/_core/env.validated.ts:160",
-   "server/_core/env.validated.ts:283",
-   "server/_core/sdk.ts:159",
-   "server/_core/sdk.ts:188",
-   "server/_core/secretCrypto.ts:5",
-   "server/_core/secretCrypto.ts:26",
-   "server/env-self-repair.test.ts:119",
-   "server/env-self-repair.test.ts:138",
-   "server/routes/localAuth.ts:111",
-   "shared/const.ts:4"
+   {
+    "ref": "server/jwt-hardening.test.ts:2",
+    "line": "* jwt-hardening.test.ts — AIDV-59（H4 JWT 硬化）測試矩陣"
+   },
+   {
+    "ref": "server/jwt-hardening.test.ts:153",
+    "line": "// AIDV-59：不傳 expiresInMs → 必須命中 createSessionToken 自身的預設值（已改為"
+   },
+   {
+    "ref": "server/jwt-hardening.test.ts:201",
+    "line": "// AIDV-59：密鑰正規化（trim）前後不一致的相容路徑 —— 舊版（main）以「未 trim 原值」簽，"
+   },
+   {
+    "ref": "server/secret-crypto-key-source.test.ts:2",
+    "line": "* secret-crypto-key-source.test.ts — AIDV-59 follow-up（憑證加密金鑰來源相容性）"
+   },
+   {
+    "ref": "server/secret-crypto-key-source.test.ts:4",
+    "line": "* 背景：AIDV-59 在 env.validated.selfRepairEnv() 集中對 JWT_SECRET 做 trim 正規化，"
+   },
+   {
+    "ref": "server/secret-crypto-key-source.test.ts:54",
+    "line": "describe(\"secretCrypto 金鑰來源相容性（AIDV-59 follow-up）\", () => {"
+   },
+   {
+    "ref": "server/secret-crypto-key-source.test.ts:65",
+    "line": "// (2) 模擬「部署後」AIDV-59 + 本修補後的狀態：JWT_SECRET 已被 trim，原值留在"
+   },
+   {
+    "ref": "server/services/auth/AuthFacade.ts:52",
+    "line": "// AIDV-59：env 無效時退回 30 天預設（非 ~1 年）。"
+   },
+   {
+    "ref": "server/_core/oauth.ts:41",
+    "line": "* AIDV-59（H4 JWT 硬化）：解析 session token 壽命（毫秒）。"
+   },
+   {
+    "ref": "server/_core/oauth.ts:258",
+    "line": "// AIDV-59：壽命改由 env 決定（預設 30 天），不再硬寫死 1 年。"
+   },
+   {
+    "ref": "server/_core/oauth.ts:386",
+    "line": "// AIDV-59：demo 流程同樣改用 env 壽命（預設 30 天）。"
+   },
+   {
+    "ref": "server/_core/googleAuth.ts:32",
+    "line": "* AIDV-59（H4 JWT 硬化）：session 簽章密鑰的最小長度。"
+   },
+   {
+    "ref": "server/_core/googleAuth.ts:82",
+    "line": "* AIDV-59（非破壞性相容）：取得「未 trim 的原始密鑰」供既有 session token 驗證 fallback。"
+   },
+   {
+    "ref": "server/_core/googleAuth.ts:99",
+    "line": "* AIDV-59：開機期顯式驗證 JWT 密鑰（fail-fast at boot）。"
+   },
+   {
+    "ref": "server/_core/googleAuth.ts:122",
+    "line": "// AIDV-59：安全短壽命（30 天）為簽章邊界的預設值，不依賴每個呼叫端記得覆寫。"
+   },
+   {
+    "ref": "server/_core/googleAuth.ts:140",
+    "line": "// AIDV-59 非破壞性 fallback：若以 trim 後密鑰驗證失敗，且存在「未 trim 的原值」"
+   },
+   {
+    "ref": "server/_core/index.ts:285",
+    "line": "// AIDV-59（H4 JWT 硬化）：開機即驗證 session 簽章密鑰。"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:112",
+    "line": "// 1b) JWT_SECRET 正規化（AIDV-59，H4 JWT 硬化）：去除前後空白。"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:131",
+    "line": "\"原值保留於 JWT_SECRET_RAW 供既有 session token 向後相容驗證（AIDV-59）\","
+   },
+   {
+    "ref": "server/_core/env.validated.ts:160",
+    "line": "reason: \"TTL 必須是整數秒數；偵測到非數字，已還原預設 2592000 秒（30 天，AIDV-59）\","
+   },
+   {
+    "ref": "server/_core/env.validated.ts:283",
+    "line": "// AIDV-59（H4 JWT 硬化）：新發 token 預設壽命 30 天（2592000 秒），由 ~1 年縮短而來。"
+   },
+   {
+    "ref": "server/_core/sdk.ts:159",
+    "line": "// AIDV-59：共用 googleAuth.getJwtSecret —— 同一套 fail-fast（正式環境弱/空密鑰 throw）、"
+   },
+   {
+    "ref": "server/_core/sdk.ts:188",
+    "line": "// AIDV-59：預設壽命 30 天（與 googleAuth/localAuth/AuthFacade 一致），不再簽 1 年 token。"
+   },
+   {
+    "ref": "server/_core/secretCrypto.ts:5",
+    "line": "* JWT_SECRET。回退時優先採用「未 trim 的原始值」JWT_SECRET_RAW（AIDV-59 follow-up）："
+   },
+   {
+    "ref": "server/_core/secretCrypto.ts:26",
+    "line": "// AIDV-59 follow-up：回退鏈優先用未 trim 的 JWT_SECRET_RAW，再退到 trim 後的"
+   },
+   {
+    "ref": "server/env-self-repair.test.ts:119",
+    "line": "// AIDV-59（H4 JWT 硬化）：AUTH_SECRET → JWT_SECRET 別名解析"
+   },
+   {
+    "ref": "server/env-self-repair.test.ts:138",
+    "line": "// AIDV-59：JWT_SECRET 含前後空白 → 集中 trim 正規化，原值留在 JWT_SECRET_RAW（相容 fallback）。"
+   },
+   {
+    "ref": "server/routes/localAuth.ts:111",
+    "line": "// AIDV-59：env 無效時退回 30 天預設（非 ~1 年）。"
+   },
+   {
+    "ref": "shared/const.ts:4",
+    "line": "* AIDV-59（H4 JWT 硬化）：新發 session token 的預設壽命。"
+   }
   ]
  },
  {
@@ -1095,10 +1479,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/_core/index.ts:398",
-   "server/ai-proxy-auth.test.ts:2",
-   "server/routes/aiProxy.ts:118",
-   "server/routes/aiProxy.ts:230"
+   {
+    "ref": "server/_core/index.ts:398",
+    "line": "// H5（AIDV-60）：upload 限流器寫好後從未掛載——補掛。此處在 auth 中介層"
+   },
+   {
+    "ref": "server/ai-proxy-auth.test.ts:2",
+    "line": "* ai-proxy-auth.test.ts — H5（AIDV-60）AI 閘道鎖門"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:118",
+    "line": "* H5（AIDV-60）改為 fail-closed：查不到 DB 或查詢爆炸時一律「擋」，"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:230",
+    "line": "// H5（AIDV-60）鎖門："
+   }
   ]
  },
  {
@@ -1116,12 +1512,30 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/db.ts:184",
-   "server/db.ts:236",
-   "server/db.ts:304",
-   "server/_core/index.ts:335",
-   "server/_core/env.validated.ts:368",
-   "server/migration-fail-closed.test.ts:2"
+   {
+    "ref": "server/db.ts:184",
+    "line": "* AIDV-61（H6）：Migration fail-closed 開機門判定 — 純函式以利測試。"
+   },
+   {
+    "ref": "server/db.ts:236",
+    "line": "// AIDV-61（H6）：fail-closed 開機門。預設 OFF＝維持上一行的「log 後照常"
+   },
+   {
+    "ref": "server/db.ts:304",
+    "line": "// AIDV-61（H6）：applyMigrations 刻意放在連線 try/catch **之外**。"
+   },
+   {
+    "ref": "server/_core/index.ts:335",
+    "line": "// AIDV-61（H6）：fail-closed 開機門。"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:368",
+    "line": "// ── Migration fail-closed 開機門（AIDV-61 H6）─────────────────────────────"
+   },
+   {
+    "ref": "server/migration-fail-closed.test.ts:2",
+    "line": "* AIDV-61（H6）— Migration fail-closed 開機門測試"
+   }
   ]
  },
  {
@@ -1142,7 +1556,10 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/drawers/PromptWorkbench.tsx:197"
+   {
+    "ref": "client/src/shells/video/drawers/PromptWorkbench.tsx:197",
+    "line": "use-count／評分排序回饋（接 AIDV-62 H8b）＝Phase 2 後端待補。"
+   }
   ]
  },
  {
@@ -1178,22 +1595,70 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/signedUpload.ts:165",
-   "server/signedUpload.ts:272",
-   "server/upload-presign-route.test.ts:325",
-   "server/_core/index.ts:450",
-   "server/upload-route.test.ts:36",
-   "server/upload-route.test.ts:136",
-   "server/upload-route.test.ts:355",
-   "server/uploadRoute.ts:15",
-   "server/uploadRoute.ts:55",
-   "server/uploadRoute.ts:133",
-   "server/uploadRoute.ts:186",
-   "server/uploadRoute.ts:363",
-   "server/uploadRoute.ts:487",
-   "server/uploadRoute.ts:513",
-   "server/uploadRoute.ts:754",
-   "server/signed-upload.test.ts:286"
+   {
+    "ref": "server/signedUpload.ts:165",
+    "line": "* 驗證後的 mime 推導（AIDV-64：不採信使用者 filename，杜絕 .html/.svg 被當"
+   },
+   {
+    "ref": "server/signedUpload.ts:272",
+    "line": "* AIDV-64 parity（縱深防禦）：signed-URL 直傳路徑的位元組不經過 Node，base64"
+   },
+   {
+    "ref": "server/upload-presign-route.test.ts:325",
+    "line": "describe(\"POST /api/upload/finalize — AIDV-64 magic-byte parity\", () => {"
+   },
+   {
+    "ref": "server/_core/index.ts:450",
+    "line": "// AIDV-64: serve user uploads with nosniff so the browser never"
+   },
+   {
+    "ref": "server/upload-route.test.ts:36",
+    "line": "describe(\"AIDV-64 hardening: ftyp ambiguity fix + safe storage extension\", () => {"
+   },
+   {
+    "ref": "server/upload-route.test.ts:136",
+    "line": "describe(\"AIDV-64: upload security — SVG removal + markup-disguise guard\", () => {"
+   },
+   {
+    "ref": "server/upload-route.test.ts:355",
+    "line": "describe(\"AIDV-64: full per-format magic-byte validation (detectMimeMismatch)\", () => {"
+   },
+   {
+    "ref": "server/uploadRoute.ts:15",
+    "line": "// image/svg+xml intentionally NOT allowed (AIDV-64): SVG can embed"
+   },
+   {
+    "ref": "server/uploadRoute.ts:55",
+    "line": "// ── AIDV-64: storage extension is derived from the VALIDATED mime, never from"
+   },
+   {
+    "ref": "server/uploadRoute.ts:133",
+    "line": "// ── AIDV-64: content/MIME mismatch guard (magic-byte sanity) ────────────────"
+   },
+   {
+    "ref": "server/uploadRoute.ts:186",
+    "line": "// ── AIDV-64: per-format magic-byte content sniffing ─────────────────────────"
+   },
+   {
+    "ref": "server/uploadRoute.ts:363",
+    "line": "* AIDV-64 full per-format guard. Decides whether the actual bytes contradict"
+   },
+   {
+    "ref": "server/uploadRoute.ts:487",
+    "line": "// AIDV-64: full per-format magic-byte guard. Rejects clear, security-"
+   },
+   {
+    "ref": "server/uploadRoute.ts:513",
+    "line": "// AIDV-64: extension comes from the validated mime, NOT the user filename —"
+   },
+   {
+    "ref": "server/uploadRoute.ts:754",
+    "line": "// ── AIDV-64 parity：magic-byte 內容嗅探（縱深防禦）─────────────────────────"
+   },
+   {
+    "ref": "server/signed-upload.test.ts:286",
+    "line": "// AIDV-64 parity：finalize 內容嗅探用的 ranged GET + 刪除 helper"
+   }
   ]
  },
  {
@@ -1211,25 +1676,82 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/services/__tests__/contentModeration.test.ts:2",
-   "server/services/__tests__/contentModeration.test.ts:139",
-   "server/services/__tests__/contentModerationWiring.test.ts:2",
-   "server/services/__tests__/contentModerationWiring.test.ts:117",
-   "server/services/__tests__/contentModerationWiring.test.ts:147",
-   "server/services/__tests__/contentModerationWiring.test.ts:188",
-   "server/services/__tests__/contentModerationWiring.test.ts:232",
-   "server/services/__tests__/contentModerationWiring.test.ts:298",
-   "server/services/security/contentModeration.ts:2",
-   "server/services/security/contentModeration.ts:34",
-   "server/services/security/contentModeration.ts:75",
-   "server/routers/videoStudio.ts:543",
-   "server/_core/env.validated.ts:382",
-   "server/_core/imageGeneration.ts:52",
-   "server/routers.ts:976",
-   "server/routers.ts:990",
-   "server/routers.ts:1013",
-   "server/routers.ts:1044",
-   "server/routers.ts:1944"
+   {
+    "ref": "server/services/__tests__/contentModeration.test.ts:2",
+    "line": "* contentModeration.test.ts — AIDV-65 內容審核 fail-closed 旗標測試矩陣"
+   },
+   {
+    "ref": "server/services/__tests__/contentModeration.test.ts:139",
+    "line": "describe(\"AIDV-65 — (d) 不誤擋 / 不退化\", () => {"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:2",
+    "line": "* contentModerationWiring.test.ts — AIDV-65 production wiring 測試"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:117",
+    "line": "describe(\"AIDV-65 wiring — checkSafety catch 分支（invokeLLM 拋錯/逾時）\", () => {"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:147",
+    "line": "describe(\"AIDV-65 wiring — checkSafety parse-fail 分支（缺 safe boolean）\", () => {"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:188",
+    "line": "describe(\"AIDV-65 wiring — checkSafety 正常 safe 判定（不誤擋）\", () => {"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:232",
+    "line": "describe(\"AIDV-65 wiring — fail-closed 真實影響面（compileElitePrompt graceful fallback 對照）\", () => {"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:298",
+    "line": "describe(\"AIDV-65 wiring — videoStudio.wanTextToVideo fal payload\", () => {"
+   },
+   {
+    "ref": "server/services/security/contentModeration.ts:2",
+    "line": "* contentModeration.ts — AIDV-65 內容審核 fail-closed 安全門"
+   },
+   {
+    "ref": "server/services/security/contentModeration.ts:34",
+    "line": "* 後再注入），不在 AIDV-65 範圍。"
+   },
+   {
+    "ref": "server/services/security/contentModeration.ts:75",
+    "line": "* AIDV-65：內容審核 fail-closed 安全門。**預設 ON＝fail-closed**（safety > availability）。"
+   },
+   {
+    "ref": "server/routers/videoStudio.ts:543",
+    "line": "// AIDV-65：OFF＝維持現行值（input.enableSafety）；ON＝開回 fal safety checker（true）。"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:382",
+    "line": "// ── 內容審核 fail-closed 安全門（AIDV-65）─────────────────────────────────"
+   },
+   {
+    "ref": "server/_core/imageGeneration.ts:52",
+    "line": "// ⚠️ AIDV-65 不涵蓋此檔：本檔為 dead/legacy（無 production 呼叫端，見檔頭），"
+   },
+   {
+    "ref": "server/routers.ts:976",
+    "line": "// AIDV-65：per-attempt timeout 縮為 8s（原單次 15s）。配合一次重試，最壞"
+   },
+   {
+    "ref": "server/routers.ts:990",
+    "line": "// AIDV-65：只有「可解析且 safe 為真 boolean」才算可靠判定。若 LLM 回了"
+   },
+   {
+    "ref": "server/routers.ts:1013",
+    "line": "* 內容安全審核（AIDV-65 fail-closed）。"
+   },
+   {
+    "ref": "server/routers.ts:1044",
+    "line": "// AIDV-65：用盡重試仍逾時／錯誤／無法解析。旗標 ON（預設）→ fail-closed 擋下；"
+   },
+   {
+    "ref": "server/routers.ts:1944",
+    "line": "// AIDV-65：只有「確認 safe」才宣告通過。先前無條件 emit passed／通過，"
+   }
   ]
  },
  {
@@ -1263,15 +1785,42 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/jobs/assetCleanupJob.test.ts:2",
-   "server/jobs/assetCleanupJob.ts:2",
-   "server/services/assetCleanupService.test.ts:2",
-   "server/services/assetCleanupService.ts:2",
-   "server/storage.ts:494",
-   "server/db.ts:1190",
-   "server/db.ts:1215",
-   "server/_core/env.validated.ts:342",
-   "server/routers.ts:4459"
+   {
+    "ref": "server/jobs/assetCleanupJob.test.ts:2",
+    "line": "* assetCleanupJob.test.ts — AIDV-67 儲存清理 cron 旗標與「OFF＝零行為」測試。"
+   },
+   {
+    "ref": "server/jobs/assetCleanupJob.ts:2",
+    "line": "* assetCleanupJob.ts — AIDV-67 / M4 儲存清理 cron（過期資產 → 刪 R2 物件＋DB 列）。"
+   },
+   {
+    "ref": "server/services/assetCleanupService.test.ts:2",
+    "line": "* assetCleanupService.test.ts — AIDV-67 儲存清理核心邏輯測試（純函式、假相依）。"
+   },
+   {
+    "ref": "server/services/assetCleanupService.ts:2",
+    "line": "* assetCleanupService.ts — AIDV-67 儲存清理核心邏輯（純函式、相依可注入，便於單測）。"
+   },
+   {
+    "ref": "server/storage.ts:494",
+    "line": "// 刪除（AIDV-67：與 storagePut 對應的反向操作，供「刪資產連動刪物件」＋ TTL 清理）"
+   },
+   {
+    "ref": "server/db.ts:1190",
+    "line": "* 數出「除了 excludeId 之外」還有幾列共用同一個 fileKey（AIDV-67）。"
+   },
+   {
+    "ref": "server/db.ts:1215",
+    "line": "* 取出已過保留期（expiresAt < asOf）的資產，給 TTL 清理 job 用（AIDV-67）。"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:342",
+    "line": "// AIDV-67：刪資產時連動刪掉 R2/儲存物件（避免孤兒長期占空間）。預設 ON。"
+   },
+   {
+    "ref": "server/routers.ts:4459",
+    "line": "// AIDV-67：刪資產時連動刪掉 R2/儲存物件，避免孤兒物件長期占用空間。"
+   }
   ]
  },
  {
@@ -1307,33 +1856,114 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/context-packet-sanitize.test.ts:2",
-   "server/services/spiritPromptEnhancer.ts:18",
-   "server/services/spiritPromptEnhancer.ts:59",
-   "server/services/spiritPromptEnhancer.ts:142",
-   "server/services/__tests__/ragGuardSidedoorWiring.test.ts:2",
-   "server/services/__tests__/ragInjectionGuard.test.ts:2",
-   "server/services/__tests__/contentModerationWiring.test.ts:4",
-   "server/services/orbTaskChainRunner.ts:209",
-   "server/services/orbLLMReplan.ts:203",
-   "server/services/security/ragInjectionGuard.ts:2",
-   "server/services/security/ragInjectionGuard.ts:9",
-   "server/services/security/ragInjectionGuard.ts:11",
-   "server/services/security/ragInjectionGuard.ts:47",
-   "server/services/security/ragInjectionGuard.ts:61",
-   "server/services/security/ragInjectionGuard.ts:212",
-   "server/services/security/ragInjectionGuard.ts:361",
-   "server/services/security/ragInjectionGuard.ts:412",
-   "server/services/director/planningService.ts:253",
-   "server/services/director/scriptGenerationService.ts:142",
-   "server/services/director/costarService.ts:93",
-   "server/services/director/costarService.ts:99",
-   "server/services/director/costarService.ts:123",
-   "server/routers.ts:2136",
-   "server/routers.ts:6896",
-   "server/subsystems/contextPackets/contextPacketService.ts:114",
-   "server/subsystems/contextPackets/contextPacketService.ts:231",
-   "server/subsystems/contextPackets/contracts.ts:11"
+   {
+    "ref": "server/context-packet-sanitize.test.ts:2",
+    "line": "* context-packet-sanitize.test.ts — AIDV-69 最後切片"
+   },
+   {
+    "ref": "server/services/spiritPromptEnhancer.ts:18",
+    "line": "* AIDV-69：對精靈記憶段（memorySection）做注入安檢。memorySection 內含"
+   },
+   {
+    "ref": "server/services/spiritPromptEnhancer.ts:59",
+    "line": "// Inject memory section if available（AIDV-69：記憶段過 guard，base 不動）"
+   },
+   {
+    "ref": "server/services/spiritPromptEnhancer.ts:142",
+    "line": "// AIDV-69：傳入的記憶段過 guard，base orchestrator 固定指令不動。"
+   },
+   {
+    "ref": "server/services/__tests__/ragGuardSidedoorWiring.test.ts:2",
+    "line": "* ragGuardSidedoorWiring.test.ts — AIDV-69 follow-up：剩餘 RAG 注入側門接線測試"
+   },
+   {
+    "ref": "server/services/__tests__/ragInjectionGuard.test.ts:2",
+    "line": "* ragInjectionGuard.test.ts — AIDV-69 RAG/教材庫注入側門安檢 窮盡測試矩陣"
+   },
+   {
+    "ref": "server/services/__tests__/contentModerationWiring.test.ts:4",
+    "line": "* 為何需要這檔（對照姊妹卡 AIDV-69 ragGuardSidedoorWiring.test.ts）："
+   },
+   {
+    "ref": "server/services/orbTaskChainRunner.ts:209",
+    "line": "// AIDV-69：memoryContext.summary 由 buildOrbMemorySummaryForPlanner 從 RAG"
+   },
+   {
+    "ref": "server/services/orbLLMReplan.ts:203",
+    "line": "// AIDV-69：m.summary 來自 RAG 檢索的歷史失敗記憶（由先前使用者 prompt"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:2",
+    "line": "* ragInjectionGuard.ts — AIDV-69 RAG/教材庫注入側門安檢"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:9",
+    "line": "* ✅ 已接線（AIDV-69 第一階段）：Director 三條 RAG 記憶／世界框架注入路徑"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:11",
+    "line": "* ✅ 已接線（AIDV-69 follow-up，本批）：四條真 untrusted 記憶注入側門"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:47",
+    "line": "* ⚠️ HARD SAFETY（AIDV-69）："
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:61",
+    "line": "* AIDV-69：RAG 注入安檢旗標。**預設 OFF＝零行為改變**：未開啟時所有注入點"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:212",
+    "line": "// 邊界標記偽造防護（AIDV-69 HIGH）：untrusted 內文若含本 guard 自身的"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:361",
+    "line": "// AIDV-69 follow-up：以下兩個 helper 把「旗標 gate＋包裹形狀」收斂成可單測的"
+   },
+   {
+    "ref": "server/services/security/ragInjectionGuard.ts:412",
+    "line": "* 來源的 title / snippet）的接線形狀（AIDV-69）。"
+   },
+   {
+    "ref": "server/services/director/planningService.ts:253",
+    "line": "// AIDV-69：旗標 ON 時，mem（RAG 記憶＝使用者歷史 prompt 原文、untrusted）"
+   },
+   {
+    "ref": "server/services/director/scriptGenerationService.ts:142",
+    "line": "// AIDV-69：world context（使用者自填世界觀、untrusted）旗標 ON 時先過"
+   },
+   {
+    "ref": "server/services/director/costarService.ts:93",
+    "line": "// AIDV-69：RAG 注入安檢旗標（預設 OFF）。旗標 OFF 時下方所有 untrusted"
+   },
+   {
+    "ref": "server/services/director/costarService.ts:99",
+    "line": "// AIDV-69：旗標 ON 時，worldContext（使用者自填、untrusted）先過 guard 包裹。"
+   },
+   {
+    "ref": "server/services/director/costarService.ts:123",
+    "line": "// AIDV-69：旗標 ON 時，memoryContext（RAG 記憶＝使用者歷史 prompt 原文、"
+   },
+   {
+    "ref": "server/routers.ts:2136",
+    "line": "// AIDV-69：RAG 注入安檢（預設 OFF）。memoryContext = buildMemoryContext"
+   },
+   {
+    "ref": "server/routers.ts:6896",
+    "line": "// AIDV-69：memoryContext.summary 由 buildOrbMemorySummaryForPlanner 從 RAG"
+   },
+   {
+    "ref": "server/subsystems/contextPackets/contextPacketService.ts:114",
+    "line": "* AIDV-69：在「資料層」中和 untrusted（kind !== \"team_data\"，Drive / Notion 等"
+   },
+   {
+    "ref": "server/subsystems/contextPackets/contextPacketService.ts:231",
+    "line": "// AIDV-69：資料層中和 untrusted 來源 title / snippet（單一 chokepoint）。"
+   },
+   {
+    "ref": "server/subsystems/contextPackets/contracts.ts:11",
+    "line": "* 落實狀態（AIDV-69）："
+   }
   ]
  },
  {
@@ -1367,8 +1997,14 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/routers/learnHub.seed.test.ts:4",
-   "server/routers/learnHub.seed.ts:1"
+   {
+    "ref": "server/routers/learnHub.seed.test.ts:4",
+    "line": "// AIDV-71：learnHub.ts 抽出 SEED 資料＋型別至 learnHub.seed.ts。"
+   },
+   {
+    "ref": "server/routers/learnHub.seed.ts:1",
+    "line": "// ─── 靜態種子資料與型別（自 learnHub.ts 抽出，AIDV-71）─────────────────────────"
+   }
   ]
  },
  {
@@ -1419,10 +2055,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/design-kit/index.ts:3",
-   "client/src/components/design-kit/README.md:6",
-   "client/src/index.css:90",
-   "client/src/index.css:219"
+   {
+    "ref": "client/src/components/design-kit/index.ts:3",
+    "line": "* 視覺基準：亮色暖光（黏土／珊瑚橘）。Wave U / AIDV-74 設計系統落地。"
+   },
+   {
+    "ref": "client/src/components/design-kit/README.md:6",
+    "line": "- **Jira**：Wave U「UIUX 視覺實裝」Epic `AIDV-74`（落地卡見下）"
+   },
+   {
+    "ref": "client/src/index.css:90",
+    "line": "/* ── AI Director · 亮色暖光（黏土／珊瑚橘）— Wave U 設計系統落地（AIDV-74）──"
+   },
+   {
+    "ref": "client/src/index.css:219",
+    "line": "AI Director · 設計套件「亮色暖光」平台擴充 token（Wave U / AIDV-74）"
+   }
   ]
  },
  {
@@ -1523,10 +2171,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/drawers/AgentCatalog.test.tsx:3",
-   "client/src/shells/video/drawers/AgentCatalog.test.tsx:56",
-   "client/src/shells/video/drawers/AgentCatalog.tsx:2",
-   "client/src/shells/video/DirectorConsoleProvider.tsx:42"
+   {
+    "ref": "client/src/shells/video/drawers/AgentCatalog.test.tsx:3",
+    "line": "* AgentCatalog（I-1 光球精靈能力＋成本目錄，AIDV-79 Phase 1）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/AgentCatalog.test.tsx:56",
+    "line": "describe(\"AgentCatalog（I-1 / AIDV-79 Phase 1）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/AgentCatalog.tsx:2",
+    "line": "// shells/video/drawers/AgentCatalog.tsx — I-1 光球接精靈：能力＋成本目錄（AIDV-79）"
+   },
+   {
+    "ref": "client/src/shells/video/DirectorConsoleProvider.tsx:42",
+    "line": "| \"agents\" // I-1 光球精靈能力＋成本目錄（spirit.listModels / estimateSegmentCost 唯讀；AIDV-79）"
+   }
   ]
  },
  {
@@ -1546,12 +2206,30 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/config/videoFlags.ts:62",
-   "client/src/spine/worldStyle.test.ts:2",
-   "client/src/spine/worldStyle.ts:2",
-   "client/src/spine/ProjectSpineProvider.tsx:189",
-   "client/src/spine/projectGateway.ts:438",
-   "client/src/spine/types.ts:104"
+   {
+    "ref": "client/src/config/videoFlags.ts:62",
+    "line": "* I-2 世界風格自動注入（AIDV-80）。**預設 OFF**＝零行為改變：關閉時生成提示詞一字不動。"
+   },
+   {
+    "ref": "client/src/spine/worldStyle.test.ts:2",
+    "line": "* worldStyle（I-2 世界風格注入，AIDV-80）純函式測試。"
+   },
+   {
+    "ref": "client/src/spine/worldStyle.ts:2",
+    "line": "// spine/worldStyle.ts — I-2 世界風格注入（AIDV-80）的純函式核心"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:189",
+    "line": "// I-2（AIDV-80）：旗標開時 prepend 世界風格前綴；關（預設）時原樣＝零行為改變。"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:438",
+    "line": "// I-2（AIDV-80）：從已抓到的 world 預計算精簡風格前綴；旗標關時不會被使用（零行為改變）。"
+   },
+   {
+    "ref": "client/src/spine/types.ts:104",
+    "line": "/** I-2（AIDV-80）：選定世界的預設 style profile 精簡前綴；生成時旗標開才 prepend。可無。 */"
+   }
   ]
  },
  {
@@ -1571,11 +2249,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/canvas/ScriptCanvas.test.tsx:3",
-   "client/src/shells/video/canvas/ScriptCanvas.test.tsx:68",
-   "client/src/shells/video/canvas/ScriptCanvas.tsx:11",
-   "client/src/spine/projectGateway.ts:440",
-   "client/src/spine/types.ts:106"
+   {
+    "ref": "client/src/shells/video/canvas/ScriptCanvas.test.tsx:3",
+    "line": "* ScriptCanvas（I-3 劇本→自動分鏡骨架，AIDV-81）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/ScriptCanvas.test.tsx:68",
+    "line": "describe(\"ScriptCanvas（I-3 / AIDV-81 劇本→分鏡骨架）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/ScriptCanvas.tsx:11",
+    "line": "// I-3（AIDV-81）劇本→自動分鏡骨架：腳本有 N 段 → 一鍵 worldStoryboard.seedSkeleton 產生"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:440",
+    "line": "// I-3（AIDV-81）：連結世界觀 id，供「劇本→自動分鏡骨架」當 seedSkeleton 的 worldId。"
+   },
+   {
+    "ref": "client/src/spine/types.ts:106",
+    "line": "/** I-3（AIDV-81）：連結的世界觀 framework id（creative_projects.worldFrameworkId）；自動分鏡骨架的 worldId。可無。 */"
+   }
   ]
  },
  {
@@ -1595,10 +2288,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/drawers/TeachingArchiveGrounding.tsx:2",
-   "client/src/shells/video/drawers/TeachingArchiveGrounding.test.tsx:3",
-   "client/src/shells/video/drawers/TeachingArchiveGrounding.test.tsx:79",
-   "client/src/shells/video/DirectorConsoleProvider.tsx:43"
+   {
+    "ref": "client/src/shells/video/drawers/TeachingArchiveGrounding.tsx:2",
+    "line": "// shells/video/drawers/TeachingArchiveGrounding.tsx — I-4 教材庫接地（AIDV-82）"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/TeachingArchiveGrounding.test.tsx:3",
+    "line": "* TeachingArchiveGrounding（I-4 教材庫接地，AIDV-82 Phase 1）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/TeachingArchiveGrounding.test.tsx:79",
+    "line": "describe(\"TeachingArchiveGrounding（I-4 / AIDV-82 Phase 1）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/DirectorConsoleProvider.tsx:43",
+    "line": "| \"grounding\" // I-4 教材庫接地（teachingArchive.search 唯讀；AIDV-82）"
+   }
   ]
  },
  {
@@ -1618,10 +2323,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/drawers/RealEarthResearch.tsx:2",
-   "client/src/shells/video/drawers/RealEarthResearch.test.tsx:3",
-   "client/src/shells/video/drawers/RealEarthResearch.test.tsx:83",
-   "client/src/shells/video/DirectorConsoleProvider.tsx:40"
+   {
+    "ref": "client/src/shells/video/drawers/RealEarthResearch.tsx:2",
+    "line": "// shells/video/drawers/RealEarthResearch.tsx — I-5 真實地球研究面板（AIDV-83）"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/RealEarthResearch.test.tsx:3",
+    "line": "* RealEarthResearch（I-5 真實地球研究面板，AIDV-83 Phase 1）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/RealEarthResearch.test.tsx:83",
+    "line": "describe(\"RealEarthResearch（I-5 / AIDV-83 Phase 1）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/DirectorConsoleProvider.tsx:40",
+    "line": "| \"research\" // I-5 真實地球研究面板（realEarth.* 唯讀查詢；AIDV-83）"
+   }
   ]
  },
  {
@@ -1641,11 +2358,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/console/ProjectFlowGuide.test.tsx:3",
-   "client/src/shells/video/console/ProjectFlowGuide.test.tsx:55",
-   "client/src/shells/video/console/ProjectFlowGuide.tsx:2",
-   "client/src/shells/video/console/StorySpineColumn.tsx:64",
-   "client/src/config/videoFlags.ts:70"
+   {
+    "ref": "client/src/shells/video/console/ProjectFlowGuide.test.tsx:3",
+    "line": "* ProjectFlowGuide（I-6 創作流程嚮導，AIDV-84）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/console/ProjectFlowGuide.test.tsx:55",
+    "line": "describe(\"ProjectFlowGuide（I-6 / AIDV-84）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/console/ProjectFlowGuide.tsx:2",
+    "line": "// shells/video/console/ProjectFlowGuide.tsx — I-6 創作流程嚮導（AIDV-84）"
+   },
+   {
+    "ref": "client/src/shells/video/console/StorySpineColumn.tsx:64",
+    "line": "{/* I-6 創作流程嚮導（AIDV-84，旗標 ENABLE_PROJECT_HUB 預設 OFF） */}"
+   },
+   {
+    "ref": "client/src/config/videoFlags.ts:70",
+    "line": "* I-6 創作工作流主入口（AIDV-84）。**預設 OFF**＝零行為改變：關閉時 Story Spine 不渲染"
+   }
   ]
  },
  {
@@ -1665,10 +2397,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/drawers/LoraCharacters.tsx:2",
-   "client/src/shells/video/drawers/LoraCharacters.test.tsx:3",
-   "client/src/shells/video/drawers/LoraCharacters.test.tsx:44",
-   "client/src/shells/video/DirectorConsoleProvider.tsx:44"
+   {
+    "ref": "client/src/shells/video/drawers/LoraCharacters.tsx:2",
+    "line": "// shells/video/drawers/LoraCharacters.tsx — I-7 角色 LoRA 一致性（唯讀 Phase 1，AIDV-85）"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/LoraCharacters.test.tsx:3",
+    "line": "* LoraCharacters（I-7 角色 LoRA 一致性，AIDV-85 唯讀 Phase 1）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/LoraCharacters.test.tsx:44",
+    "line": "describe(\"LoraCharacters（I-7 / AIDV-85 唯讀 Phase 1）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/DirectorConsoleProvider.tsx:44",
+    "line": "| \"lora\" // I-7 角色 LoRA 一致性（worldbuilding.linkableModels 唯讀；AIDV-85）"
+   }
   ]
  },
  {
@@ -1694,10 +2438,22 @@
   ],
   "prs": [],
   "code": [
-   "client/src/shells/video/drawers/PromptWorkbench.test.tsx:3",
-   "client/src/shells/video/drawers/PromptWorkbench.test.tsx:70",
-   "client/src/shells/video/drawers/PromptWorkbench.tsx:2",
-   "client/src/shells/video/DirectorConsoleProvider.tsx:41"
+   {
+    "ref": "client/src/shells/video/drawers/PromptWorkbench.test.tsx:3",
+    "line": "* PromptWorkbench（I-8 提示詞跨庫組合，AIDV-86 Phase 1）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/PromptWorkbench.test.tsx:70",
+    "line": "describe(\"PromptWorkbench（I-8 / AIDV-86 Phase 1）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/PromptWorkbench.tsx:2",
+    "line": "// shells/video/drawers/PromptWorkbench.tsx — I-8 提示詞跨庫組合（AIDV-86）"
+   },
+   {
+    "ref": "client/src/shells/video/DirectorConsoleProvider.tsx:41",
+    "line": "| \"prompts\" // I-8 提示詞跨庫組合（promptLibrary/Collection 唯讀；AIDV-86）"
+   }
   ]
  },
  {
@@ -1717,11 +2473,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/home/IntentOnboardingNudge.tsx:2",
-   "client/src/components/home/IntentOnboardingNudge.test.tsx:3",
-   "client/src/components/home/IntentOnboardingNudge.test.tsx:41",
-   "client/src/pages/Home.tsx:116",
-   "client/src/pages/Home.tsx:1570"
+   {
+    "ref": "client/src/components/home/IntentOnboardingNudge.tsx:2",
+    "line": "// components/home/IntentOnboardingNudge.tsx — I-9 意圖個人化引導（AIDV-87 · Phase 1）"
+   },
+   {
+    "ref": "client/src/components/home/IntentOnboardingNudge.test.tsx:3",
+    "line": "* IntentOnboardingNudge（I-9 Sense 意圖個人化引導，AIDV-87 · Phase 1）行為測試。"
+   },
+   {
+    "ref": "client/src/components/home/IntentOnboardingNudge.test.tsx:41",
+    "line": "describe(\"IntentOnboardingNudge（I-9 / AIDV-87）\", () => {"
+   },
+   {
+    "ref": "client/src/pages/Home.tsx:116",
+    "line": "/** I-9 意圖個人化引導卡（AIDV-87）：依推論意圖給「下一步去哪」CTA。預設 OFF＝零行為改變。 */"
+   },
+   {
+    "ref": "client/src/pages/Home.tsx:1570",
+    "line": "{/* ── I-9 意圖個人化引導（AIDV-87，旗標 showIntentOnboarding 預設 OFF） ── */}"
+   }
   ]
  },
  {
@@ -1820,79 +2591,298 @@
    "883"
   ],
   "code": [
-   "client/src/components/social/BrandKitPanel.test.tsx:3",
-   "client/src/components/social/SocialNewsList.tsx:6",
-   "client/src/components/social/SocialJourneyStepper.tsx:8",
-   "client/src/components/social/SocialNewsList.test.tsx:3",
-   "client/src/components/social/SocialNav.tsx:7",
-   "client/src/components/social/SocialNav.test.tsx:3",
-   "client/src/components/social/SizeExportGrid.test.tsx:3",
-   "client/src/components/social/BrandLockBadge.tsx:6",
-   "client/src/components/social/BrandLockBadge.test.tsx:3",
-   "client/src/components/social/BrandKitPanel.tsx:16",
-   "client/src/components/social/SizeExportGrid.tsx:15",
-   "client/src/shells/settings/StatusPill.tsx:2",
-   "client/src/shells/settings/admin/FeatureFlagsTab.tsx:22",
-   "client/src/shells/settings/admin/DataRepairTab.tsx:18",
-   "client/src/shells/settings/admin/FeatureFlagsTab.test.tsx:3",
-   "client/src/shells/settings/admin/FeatureFlagsTab.test.tsx:24",
-   "client/src/shells/settings/admin/ContentTab.tsx:19",
-   "client/src/shells/settings/admin/ContentTab.test.tsx:3",
-   "client/src/shells/settings/admin/ContentTab.test.tsx:21",
-   "client/src/shells/settings/admin/UsersCreditsTab.tsx:20",
-   "client/src/shells/settings/admin/UsersCreditsTab.test.tsx:3",
-   "client/src/shells/settings/admin/UsersCreditsTab.test.tsx:22",
-   "client/src/shells/settings/panels/ProviderPanel.test.tsx:3",
-   "client/src/shells/settings/panels/ProviderPanel.test.tsx:22",
-   "client/src/shells/settings/panels/ProviderPanel.tsx:19",
-   "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:3",
-   "client/src/shells/settings/panels/ObservabilityPanel.tsx:18",
-   "client/src/shells/settings/panels/AdminPanel.tsx:16",
-   "client/src/shells/settings/panels/AgentPrefsPanel.tsx:18",
-   "client/src/shells/settings/panels/AdminPanel.test.tsx:3",
-   "client/src/shells/settings/panels/AdminPanel.test.tsx:26",
-   "client/src/shells/settings/panels/GeneralSettingsPanel.test.tsx:3",
-   "client/src/shells/settings/panels/GeneralSettingsPanel.test.tsx:23",
-   "client/src/shells/settings/panels/GeneralSettingsPanel.tsx:21",
-   "client/src/shells/settings/panels/AgentPrefsPanel.test.tsx:3",
-   "client/src/shells/settings/panels/AgentPrefsPanel.test.tsx:21",
-   "client/src/shells/settings/SettingsHome.test.tsx:3",
-   "client/src/shells/settings/SettingsHome.test.tsx:26",
-   "client/src/shells/settings/SettingsHome.tsx:12",
-   "client/src/shells/settings/StatusPill.test.tsx:3",
-   "client/src/shells/settings/StatusPill.test.tsx:19",
-   "client/src/shells/learn/panels/LearnDocsPanel.test.tsx:3",
-   "client/src/shells/learn/panels/LearnDocsPanel.test.tsx:20",
-   "client/src/shells/learn/panels/LearnDocsPanel.tsx:19",
-   "client/src/shells/learn/panels/ResearchPanel.test.tsx:3",
-   "client/src/shells/learn/panels/ResearchPanel.test.tsx:22",
-   "client/src/shells/learn/panels/NewsPanel.tsx:17",
-   "client/src/shells/learn/panels/NewsPanel.test.tsx:3",
-   "client/src/shells/learn/panels/NewsPanel.test.tsx:23",
-   "client/src/shells/learn/panels/ResearchPanel.tsx:19",
-   "client/src/shells/learn/panels/CreditsUsagePanel.test.tsx:3",
-   "client/src/shells/learn/panels/CreditsUsagePanel.test.tsx:21",
-   "client/src/shells/learn/panels/CreditsUsagePanel.tsx:19",
-   "client/src/shells/learn/panels/AIModelHubPanel.tsx:20",
-   "client/src/shells/learn/panels/AIModelHubPanel.test.tsx:3",
-   "client/src/shells/learn/panels/AIModelHubPanel.test.tsx:20",
-   "client/src/shells/learn/panels/AIModelHubPanel.test.tsx:41",
-   "client/src/shells/video/ConfirmGate.tsx:18",
-   "client/src/shells/video/panels/ShotPanel.tsx:19",
-   "client/src/shells/video/panels/ShotPanel.test.tsx:3",
-   "client/src/shells/video/panels/ShotPanel.test.tsx:46",
-   "client/src/shells/video/ConfirmGate.test.tsx:3",
-   "client/src/shells/video/ConfirmGate.test.tsx:53",
-   "client/src/shells/video/console/ReadinessChip.tsx:13",
-   "client/src/shells/video/console/CreationFlowBar.tsx:19",
-   "client/src/shells/video/console/ReadinessChip.test.tsx:3",
-   "client/src/shells/video/console/ReadinessChip.test.tsx:21",
-   "client/src/shells/video/console/CreationFlowBar.test.tsx:3",
-   "client/src/shells/video/console/CreationFlowBar.test.tsx:52",
-   "client/src/shells/_shared/PanelState.test.tsx:3",
-   "client/src/shells/_shared/PanelState.test.tsx:22",
-   "client/src/shells/_shared/PanelState.tsx:21",
-   "client/src/social/socialFlags.ts:4"
+   {
+    "ref": "client/src/components/social/BrandKitPanel.test.tsx:3",
+    "line": "* BrandKitPanel · BrandGateFlags（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 4 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/SocialNewsList.tsx:6",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 3 片："
+   },
+   {
+    "ref": "client/src/components/social/SocialJourneyStepper.tsx:8",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 九步旅程視覺實裝："
+   },
+   {
+    "ref": "client/src/components/social/SocialNewsList.test.tsx:3",
+    "line": "* SocialNewsList · cockpit 時事選題列（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 3 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/SocialNav.tsx:7",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 1 片："
+   },
+   {
+    "ref": "client/src/components/social/SocialNav.test.tsx:3",
+    "line": "* SocialNav · 子導覽列（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 1 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/SizeExportGrid.test.tsx:3",
+    "line": "* SizeExportGrid · ExportGroupTabs（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 2 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/BrandLockBadge.tsx:6",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 5 片："
+   },
+   {
+    "ref": "client/src/components/social/BrandLockBadge.test.tsx:3",
+    "line": "* BrandLockBadge · 品牌鎖定狀態徽章（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 5 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/BrandKitPanel.tsx:16",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 4 片："
+   },
+   {
+    "ref": "client/src/components/social/SizeExportGrid.tsx:15",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 2 片："
+   },
+   {
+    "ref": "client/src/shells/settings/StatusPill.tsx:2",
+    "line": "// shells/settings/StatusPill.tsx — 任務狀態徽章（U-2 / AIDV-92 逐殼採用 · /settings）"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/FeatureFlagsTab.tsx:22",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時執行時功能開關列改用 design-kit 亮色暖光 SettingRow"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/DataRepairTab.tsx:18",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：任務狀態徽章旗標 ON 時改用 design-kit Pill（共用 StatusPill）；OFF＝既有 Badge。"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/FeatureFlagsTab.test.tsx:3",
+    "line": "* FeatureFlagsTab · FlagRow（U-2 / AIDV-92 逐殼採用 · /settings · Admin RBAC）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/FeatureFlagsTab.test.tsx:24",
+    "line": "describe(\"FeatureFlagsTab · FlagRow（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/ContentTab.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時內容治理卡的統計列改用 design-kit 亮色暖光 SettingRow＋Pill"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/ContentTab.test.tsx:3",
+    "line": "* ContentTab · StatRow（U-2 / AIDV-92 逐殼採用 · /settings · Admin RBAC）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/ContentTab.test.tsx:21",
+    "line": "describe(\"ContentTab · StatRow（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/UsersCreditsTab.tsx:20",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時使用者身分（名稱/email/角色）改用 design-kit AdminUserRow"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/UsersCreditsTab.test.tsx:3",
+    "line": "* UsersCreditsTab · UserIdentity（U-2 / AIDV-92 逐殼採用 · /settings · Admin RBAC）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/admin/UsersCreditsTab.test.tsx:22",
+    "line": "describe(\"UsersCreditsTab · UserIdentity（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.test.tsx:3",
+    "line": "* ProviderPanel · ProviderChoice / Row（U-2 / AIDV-92 逐殼採用 · /settings）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.test.tsx:22",
+    "line": "describe(\"ProviderPanel · ProviderChoice（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時生成引擎卡改用 design-kit ProviderOption、"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:3",
+    "line": "* ObservabilityPanel · Stat（U-8 / AIDV-98 逐殼採用 · /settings；傘卡 U-2 / AIDV-92）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ObservabilityPanel.tsx:18",
+    "line": "// U-8（AIDV-98 / 傘卡 U-2·AIDV-92）逐殼採用 · /settings：旗標 ON 時系統概覽的統計卡改用"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/AdminPanel.tsx:16",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時後台子分頁條改用 design-kit 亮色暖光 SubTabs；"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/AgentPrefsPanel.tsx:18",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時人格選擇列改用 design-kit 亮色暖光 SettingRow"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/AdminPanel.test.tsx:3",
+    "line": "* AdminPanel · AdminTabStrip（U-2 / AIDV-92 逐殼採用 · /settings · Admin RBAC）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/AdminPanel.test.tsx:26",
+    "line": "describe(\"AdminPanel · AdminTabStrip（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/GeneralSettingsPanel.test.tsx:3",
+    "line": "* GeneralSettingsPanel · SettingsRow（U-2 / AIDV-92 逐殼採用 · /settings）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/GeneralSettingsPanel.test.tsx:23",
+    "line": "describe(\"GeneralSettingsPanel · SettingsRow（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/GeneralSettingsPanel.tsx:21",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時設定列改用 design-kit 亮色暖光 SettingRow"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/AgentPrefsPanel.test.tsx:3",
+    "line": "* AgentPrefsPanel · PersonaRow（U-2 / AIDV-92 逐殼採用 · /settings）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/AgentPrefsPanel.test.tsx:21",
+    "line": "describe(\"AgentPrefsPanel · PersonaRow（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/SettingsHome.test.tsx:3",
+    "line": "* SettingsHome · TabStrip（U-2 / AIDV-92 逐殼採用 · /settings）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/SettingsHome.test.tsx:26",
+    "line": "describe(\"SettingsHome · TabStrip（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/SettingsHome.tsx:12",
+    "line": "// U-2（AIDV-92）逐殼採用 · /settings：旗標 ON 時分頁條改用 design-kit 亮色暖光 SubTabs；"
+   },
+   {
+    "ref": "client/src/shells/settings/StatusPill.test.tsx:3",
+    "line": "* StatusPill（U-2 / AIDV-92 逐殼採用 · /settings）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/StatusPill.test.tsx:19",
+    "line": "describe(\"StatusPill（U-2 / AIDV-92 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/LearnDocsPanel.test.tsx:3",
+    "line": "* LearnDocsPanel · DocCard（U-2 / AIDV-92 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/LearnDocsPanel.test.tsx:20",
+    "line": "describe(\"LearnDocsPanel · DocCard（U-2 / AIDV-92 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/LearnDocsPanel.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時文件卡改用 design-kit 亮色暖光 ArticleCard"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/ResearchPanel.test.tsx:3",
+    "line": "* ResearchPanel · SourceItem（U-2 / AIDV-92 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/ResearchPanel.test.tsx:22",
+    "line": "describe(\"ResearchPanel · SourceItem（U-2 / AIDV-92 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/NewsPanel.tsx:17",
+    "line": "// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時情報新聞列改用 design-kit 亮色暖光 IntelItem"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/NewsPanel.test.tsx:3",
+    "line": "* NewsPanel · NewsItem（U-2 / AIDV-92 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/NewsPanel.test.tsx:23",
+    "line": "describe(\"NewsPanel · NewsItem（U-2 / AIDV-92 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/ResearchPanel.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時引用來源列改用 design-kit 亮色暖光 SourceCite"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/CreditsUsagePanel.test.tsx:3",
+    "line": "* CreditsUsagePanel · MiniStat（U-2 / AIDV-92 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/CreditsUsagePanel.test.tsx:21",
+    "line": "describe(\"CreditsUsagePanel · MiniStat（U-2 / AIDV-92 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/CreditsUsagePanel.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時小統計改用 design-kit 亮色暖光 StatCard"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/AIModelHubPanel.tsx:20",
+    "line": "// U-2（AIDV-92）逐殼採用 · /learn：旗標 ON 時系統概覽統計卡改用 design-kit 亮色暖光 StatCard"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/AIModelHubPanel.test.tsx:3",
+    "line": "* AIModelHubPanel · StatCard（U-2 / AIDV-92 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/AIModelHubPanel.test.tsx:20",
+    "line": "describe(\"AIModelHubPanel · StatCard（U-2 / AIDV-92 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/AIModelHubPanel.test.tsx:41",
+    "line": "describe(\"AIModelHubPanel · ModelCard（U-2 / AIDV-92 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/ConfirmGate.tsx:18",
+    "line": "// U-2（AIDV-92）逐殼採用 · /video S5：旗標 ON 時改用 design-kit 亮色暖光 GateCard"
+   },
+   {
+    "ref": "client/src/shells/video/panels/ShotPanel.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /video S5：旗標 ON 時改用 design-kit 亮色暖光 ShotCard"
+   },
+   {
+    "ref": "client/src/shells/video/panels/ShotPanel.test.tsx:3",
+    "line": "* ShotPanel（U-2 / AIDV-92 逐殼採用 · /video S5）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/ShotPanel.test.tsx:46",
+    "line": "describe(\"ShotPanel（U-2 / AIDV-92 · /video S5）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/ConfirmGate.test.tsx:3",
+    "line": "* ConfirmGate（U-2 / AIDV-92 逐殼採用 · /video S5）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/ConfirmGate.test.tsx:53",
+    "line": "describe(\"ConfirmGate（U-2 / AIDV-92 · /video S5）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/console/ReadinessChip.tsx:13",
+    "line": "// U-2（AIDV-92）逐殼採用 · /video：旗標 ON 時改用 design-kit 亮色暖光 ReadinessChip / Pill"
+   },
+   {
+    "ref": "client/src/shells/video/console/CreationFlowBar.tsx:19",
+    "line": "// U-2（AIDV-92）逐殼採用 · /video S2：旗標 ON 時頂部創作流程列改用 design-kit 亮色暖光 FlowBar"
+   },
+   {
+    "ref": "client/src/shells/video/console/ReadinessChip.test.tsx:3",
+    "line": "* ReadinessChip（U-2 / AIDV-92 逐殼採用 · /video）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/console/ReadinessChip.test.tsx:21",
+    "line": "describe(\"ReadinessChip（U-2 / AIDV-92 · /video）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/console/CreationFlowBar.test.tsx:3",
+    "line": "* CreationFlowBar（U-2 / AIDV-92 逐殼採用 · /video S2）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/console/CreationFlowBar.test.tsx:52",
+    "line": "describe(\"CreationFlowBar（U-2 / AIDV-92 · /video S2）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/_shared/PanelState.test.tsx:3",
+    "line": "* PanelState（U-2 / AIDV-92「元件採用」）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/_shared/PanelState.test.tsx:22",
+    "line": "describe(\"PanelState（U-2 / AIDV-92 元件採用）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/_shared/PanelState.tsx:21",
+    "line": "// U-2（AIDV-92）元件採用：旗標 ON 時，空/錯誤態改用 design-kit 亮色暖光元件（與 chrome 同一個"
+   },
+   {
+    "ref": "client/src/social/socialFlags.ts:4",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 九步旅程（S1–S9）視覺實裝。"
+   }
   ]
  },
  {
@@ -1931,11 +2921,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/DashboardLayout.tsx:874",
-   "client/src/shells/AidvShellChrome.tsx:2",
-   "client/src/shells/AidvShellChrome.test.tsx:3",
-   "client/src/shells/AidvShellChrome.test.tsx:33",
-   "client/src/config/featureFlags.ts:113"
+   {
+    "ref": "client/src/components/DashboardLayout.tsx:874",
+    "line": "{/* ── 殼層 chrome：旗標 ON 用 design-kit 亮色暖光 Rail/TopBar/⌘K（U-4/AIDV-94，"
+   },
+   {
+    "ref": "client/src/shells/AidvShellChrome.tsx:2",
+    "line": "// shells/AidvShellChrome.tsx — U-4 殼層 chrome 視覺實裝（AIDV-94 · Wave U · flag-gated）"
+   },
+   {
+    "ref": "client/src/shells/AidvShellChrome.test.tsx:3",
+    "line": "* AidvShellChrome（U-4 殼層 chrome 視覺實裝，AIDV-94 · flag-gated）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/AidvShellChrome.test.tsx:33",
+    "line": "describe(\"AidvShellChrome（U-4 / AIDV-94）\", () => {"
+   },
+   {
+    "ref": "client/src/config/featureFlags.ts:113",
+    "line": "* U-4 殼層 chrome ＋ Wave U design-kit 全站採用總開關（AIDV-94/92，Wave U）。"
+   }
   ]
  },
  {
@@ -1954,27 +2959,90 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/video/StageBar.test.tsx:3",
-   "client/src/shells/video/StageBar.test.tsx:33",
-   "client/src/shells/video/panels/NotesPanel.tsx:11",
-   "client/src/shells/video/panels/NotesPanel.tsx:16",
-   "client/src/shells/video/panels/AssetsPanel.tsx:14",
-   "client/src/shells/video/panels/AssetsPanel.test.tsx:3",
-   "client/src/shells/video/panels/AssetsPanel.test.tsx:27",
-   "client/src/shells/video/panels/PromptsPanel.tsx:12",
-   "client/src/shells/video/panels/PromptsPanel.test.tsx:3",
-   "client/src/shells/video/panels/PromptsPanel.test.tsx:20",
-   "client/src/shells/video/panels/NotesPanel.test.tsx:3",
-   "client/src/shells/video/panels/NotesPanel.test.tsx:25",
-   "client/src/shells/video/panels/NotesPanel.test.tsx:56",
-   "client/src/shells/video/StageBar.tsx:14",
-   "client/src/shells/video/canvas/RoughCutCanvas.test.tsx:3",
-   "client/src/shells/video/canvas/RoughCutCanvas.test.tsx:36",
-   "client/src/shells/video/canvas/AssetGenCanvas.tsx:29",
-   "client/src/shells/video/canvas/RoughCutCanvas.tsx:16",
-   "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:3",
-   "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:48",
-   "client/src/config/videoFlags.ts:78"
+   {
+    "ref": "client/src/shells/video/StageBar.test.tsx:3",
+    "line": "* StageBar（U-5 / AIDV-95 · /video S2）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/StageBar.test.tsx:33",
+    "line": "describe(\"StageBar（U-5 / AIDV-95 · /video S2）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/NotesPanel.tsx:11",
+    "line": "// U-5（AIDV-95）逐殼採用 · /video：旗標 ON 時筆記列改用 design-kit 亮色暖光 Card；"
+   },
+   {
+    "ref": "client/src/shells/video/panels/NotesPanel.tsx:16",
+    "line": "// U-5（AIDV-95）/video 四態：空態改用共用 Empty（→ PanelEmpty，旗標 ON 時為 design-kit EmptyState），"
+   },
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.tsx:14",
+    "line": "// U-5（AIDV-95）/video S3 四態：空態改用共用 Empty（→ PanelEmpty，旗標 ON 時為 design-kit"
+   },
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.test.tsx:3",
+    "line": "* AssetsPanel 空狀態（U-5 / AIDV-95 · /video S3 四態）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/AssetsPanel.test.tsx:27",
+    "line": "describe(\"AssetsPanel 空狀態（U-5 / AIDV-95 · /video S3 四態）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.tsx:12",
+    "line": "// U-5（AIDV-95）逐殼採用 · /video：旗標 ON 時提示詞積木列改用 design-kit 亮色暖光 PromptBlock；"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.test.tsx:3",
+    "line": "* PromptBlockRow（U-5 / AIDV-95 逐殼採用 · /video）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.test.tsx:20",
+    "line": "describe(\"PromptBlockRow（U-5 / AIDV-95 · /video）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/NotesPanel.test.tsx:3",
+    "line": "* NoteRow（U-5 / AIDV-95 逐殼採用 · /video）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/NotesPanel.test.tsx:25",
+    "line": "describe(\"NoteRow（U-5 / AIDV-95 · /video）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/NotesPanel.test.tsx:56",
+    "line": "describe(\"NotesPanel 空狀態（U-5 / AIDV-95 · /video 四態）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/StageBar.tsx:14",
+    "line": "// U-5（AIDV-95）/video 視覺實裝 · S2：旗標 ON 時五階段條改用 design-kit 亮色暖光 FlowBar"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/RoughCutCanvas.test.tsx:3",
+    "line": "* RoughCutCanvas（U-5 / AIDV-95 · /video S4 初剪打包）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/RoughCutCanvas.test.tsx:36",
+    "line": "describe(\"RoughCutCanvas（U-5 / AIDV-95 · /video S4）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.tsx:29",
+    "line": "// U-5（AIDV-95）採用片 · /video S2-3 生成：旗標 ON 時生成結果/載入/錯誤/待後端改用 design-kit"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/RoughCutCanvas.tsx:16",
+    "line": "// U-5（AIDV-95）採用片 · /video S4 初剪：旗標 ON 時頂部改用 design-kit 亮色暖光「確認門摘要」"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:3",
+    "line": "* AssetGenCanvas（U-5 / AIDV-95 · /video S2-3 多模態素材生成）採用片行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:48",
+    "line": "describe(\"AssetGenCanvas（U-5 / AIDV-95 · /video S2-3）\", () => {"
+   },
+   {
+    "ref": "client/src/config/videoFlags.ts:78",
+    "line": "* U-5 六步工作流座艙視覺實裝（AIDV-95）。**預設 OFF**＝零行為改變：關閉時 /video 中欄畫布"
+   }
   ]
  },
  {
@@ -1993,28 +3061,94 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/social/BrandKitPanel.test.tsx:3",
-   "client/src/components/social/BrandKitPanel.test.tsx:20",
-   "client/src/components/social/SocialJourneyStepper.test.tsx:3",
-   "client/src/components/social/SocialJourneyStepper.test.tsx:16",
-   "client/src/components/social/SocialNewsList.tsx:6",
-   "client/src/components/social/SocialJourneyStepper.tsx:8",
-   "client/src/components/social/SocialNewsList.test.tsx:3",
-   "client/src/components/social/SocialNewsList.test.tsx:26",
-   "client/src/components/social/SocialNav.tsx:7",
-   "client/src/components/social/SocialNav.test.tsx:3",
-   "client/src/components/social/SocialNav.test.tsx:27",
-   "client/src/components/social/SizeExportGrid.test.tsx:3",
-   "client/src/components/social/SizeExportGrid.test.tsx:23",
-   "client/src/components/social/BrandLockBadge.tsx:6",
-   "client/src/components/social/BrandLockBadge.test.tsx:3",
-   "client/src/components/social/BrandLockBadge.test.tsx:19",
-   "client/src/components/social/BrandKitPanel.tsx:16",
-   "client/src/components/social/BrandKitPanel.tsx:33",
-   "client/src/components/social/SizeExportGrid.tsx:15",
-   "client/src/components/social/SizeExportGrid.tsx:50",
-   "client/src/social/socialFlags.ts:4",
-   "client/src/pages/social/SocialCockpitPage.tsx:88"
+   {
+    "ref": "client/src/components/social/BrandKitPanel.test.tsx:3",
+    "line": "* BrandKitPanel · BrandGateFlags（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 4 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/BrandKitPanel.test.tsx:20",
+    "line": "describe(\"BrandKitPanel · BrandGateFlags（U-6 / AIDV-96 · /social 逐殼採用第 4 片）\", () => {"
+   },
+   {
+    "ref": "client/src/components/social/SocialJourneyStepper.test.tsx:3",
+    "line": "* SocialJourneyStepper · 九步旅程步進指示（U-6 / AIDV-96 · /social 視覺實裝）行為＋a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/social/SocialJourneyStepper.test.tsx:16",
+    "line": "describe(\"SocialJourneyStepper（U-6 / AIDV-96 · /social 九步旅程）\", () => {"
+   },
+   {
+    "ref": "client/src/components/social/SocialNewsList.tsx:6",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 3 片："
+   },
+   {
+    "ref": "client/src/components/social/SocialJourneyStepper.tsx:8",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 九步旅程視覺實裝："
+   },
+   {
+    "ref": "client/src/components/social/SocialNewsList.test.tsx:3",
+    "line": "* SocialNewsList · cockpit 時事選題列（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 3 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/SocialNewsList.test.tsx:26",
+    "line": "describe(\"SocialNewsList（U-6 / AIDV-96 · /social 逐殼採用第 3 片）\", () => {"
+   },
+   {
+    "ref": "client/src/components/social/SocialNav.tsx:7",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 1 片："
+   },
+   {
+    "ref": "client/src/components/social/SocialNav.test.tsx:3",
+    "line": "* SocialNav · 子導覽列（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 1 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/SocialNav.test.tsx:27",
+    "line": "describe(\"SocialNav（U-6 / AIDV-96 · /social 逐殼採用第 1 片）\", () => {"
+   },
+   {
+    "ref": "client/src/components/social/SizeExportGrid.test.tsx:3",
+    "line": "* SizeExportGrid · ExportGroupTabs（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 2 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/SizeExportGrid.test.tsx:23",
+    "line": "describe(\"SizeExportGrid · ExportGroupTabs（U-6 / AIDV-96 · /social 逐殼採用第 2 片）\", () => {"
+   },
+   {
+    "ref": "client/src/components/social/BrandLockBadge.tsx:6",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 5 片："
+   },
+   {
+    "ref": "client/src/components/social/BrandLockBadge.test.tsx:3",
+    "line": "* BrandLockBadge · 品牌鎖定狀態徽章（U-6 / AIDV-96，屬 U-2/AIDV-92 逐殼採用 · /social 第 5 片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/social/BrandLockBadge.test.tsx:19",
+    "line": "describe(\"BrandLockBadge（U-6 / AIDV-96 · /social 逐殼採用第 5 片）\", () => {"
+   },
+   {
+    "ref": "client/src/components/social/BrandKitPanel.tsx:16",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 4 片："
+   },
+   {
+    "ref": "client/src/components/social/BrandKitPanel.tsx:33",
+    "line": "* 品牌閘門旗標列（缺件/對比警告）。U-6/AIDV-96 逐殼採用第 4 片："
+   },
+   {
+    "ref": "client/src/components/social/SizeExportGrid.tsx:15",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 視覺實裝第 2 片："
+   },
+   {
+    "ref": "client/src/components/social/SizeExportGrid.tsx:50",
+    "line": "* 匯出尺寸的群組濾鏡列（社群/限動/訊息/印刷）。U-6/AIDV-96 逐殼採用第 2 片："
+   },
+   {
+    "ref": "client/src/social/socialFlags.ts:4",
+    "line": "// U-6（AIDV-96，屬 U-2/AIDV-92 逐殼採用）· /social 九步旅程（S1–S9）視覺實裝。"
+   },
+   {
+    "ref": "client/src/pages/social/SocialCockpitPage.tsx:88",
+    "line": "{/* U-6/AIDV-96：旗標 ON 時，純文字旅程升級為 design-kit 九步步進指示（目前第幾步/就緒態）。"
+   }
   ]
  },
  {
@@ -2033,12 +3167,30 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/learn/LearnHome.test.tsx:3",
-   "client/src/shells/learn/LearnHome.test.tsx:26",
-   "client/src/shells/learn/panels/ApiKeysPanel.tsx:18",
-   "client/src/shells/learn/panels/ApiKeysPanel.test.tsx:3",
-   "client/src/shells/learn/panels/ApiKeysPanel.test.tsx:18",
-   "client/src/shells/learn/LearnHome.tsx:12"
+   {
+    "ref": "client/src/shells/learn/LearnHome.test.tsx:3",
+    "line": "* LearnHome · TabStrip（U-7 / AIDV-97 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/LearnHome.test.tsx:26",
+    "line": "describe(\"LearnHome · TabStrip（U-7 / AIDV-97 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/ApiKeysPanel.tsx:18",
+    "line": "// U-7（AIDV-97）：旗標 ON 時平台金鑰列改用 design-kit KeyRow（亮色暖光、唯讀無 test/delete）；"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/ApiKeysPanel.test.tsx:3",
+    "line": "* ApiKeysPanel · KeyStatusRow（U-7 / AIDV-97 逐殼採用 · /learn）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/learn/panels/ApiKeysPanel.test.tsx:18",
+    "line": "describe(\"ApiKeysPanel · KeyStatusRow（U-7 / AIDV-97 · /learn）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/learn/LearnHome.tsx:12",
+    "line": "// U-7（AIDV-97）逐殼採用 · /learn：旗標 ON 時分頁條改用 design-kit 亮色暖光 SubTabs；"
+   }
   ]
  },
  {
@@ -2057,9 +3209,18 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:3",
-   "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:22",
-   "client/src/shells/settings/panels/ObservabilityPanel.tsx:18"
+   {
+    "ref": "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:3",
+    "line": "* ObservabilityPanel · Stat（U-8 / AIDV-98 逐殼採用 · /settings；傘卡 U-2 / AIDV-92）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:22",
+    "line": "describe(\"ObservabilityPanel · Stat（U-8 / AIDV-98 · /settings）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ObservabilityPanel.tsx:18",
+    "line": "// U-8（AIDV-98 / 傘卡 U-2·AIDV-92）逐殼採用 · /settings：旗標 ON 時系統概覽的統計卡改用"
+   }
   ]
  },
  {
@@ -2083,10 +3244,22 @@
    "883"
   ],
   "code": [
-   "client/src/shells/video/panels/VaultBrowserPanel.tsx:2",
-   "client/src/shells/video/panels/VaultBrowserPanel.test.tsx:3",
-   "client/src/shells/video/panels/VaultBrowserPanel.test.tsx:43",
-   "client/src/shells/video/panels/PromptsPanel.tsx:18"
+   {
+    "ref": "client/src/shells/video/panels/VaultBrowserPanel.tsx:2",
+    "line": "// shells/video/panels/VaultBrowserPanel.tsx — U-9（AIDV-99）共用 PromptVault 採用 · 第1片"
+   },
+   {
+    "ref": "client/src/shells/video/panels/VaultBrowserPanel.test.tsx:3",
+    "line": "* VaultBrowserPanel（U-9 / AIDV-99 · /video 提示詞庫採用 第1片）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/panels/VaultBrowserPanel.test.tsx:43",
+    "line": "describe(\"VaultBrowserPanel（U-9 / AIDV-99 · /video）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/video/panels/PromptsPanel.tsx:18",
+    "line": "// U-9（AIDV-99）第1片 · 旗標 ON 時補上「重用」半邊：真實提示詞庫瀏覽器（讀 promptLibrary.list）。"
+   }
   ]
  },
  {
@@ -2108,14 +3281,38 @@
    "882"
   ],
   "code": [
-   "client/src/shells/video/console/WorldLinkPicker.tsx:2",
-   "client/src/shells/video/console/ProjectFlowGuide.tsx:144",
-   "client/src/shells/video/console/WorldLinkPicker.test.tsx:3",
-   "client/src/shells/video/console/WorldLinkPicker.test.tsx:30",
-   "client/src/spine/ProjectSpineProvider.tsx:73",
-   "client/src/spine/ProjectSpineProvider.tsx:445",
-   "client/src/spine/projectGateway.ts:102",
-   "client/src/spine/projectGateway.ts:311"
+   {
+    "ref": "client/src/shells/video/console/WorldLinkPicker.tsx:2",
+    "line": "// shells/video/console/WorldLinkPicker.tsx — I-6 Phase 2b 世界連結選單（AIDV-100）"
+   },
+   {
+    "ref": "client/src/shells/video/console/ProjectFlowGuide.tsx:144",
+    "line": "{/* I-6 Phase 2b（AIDV-100）：世界步為當前步（未連結）時，內嵌世界連結選單 */}"
+   },
+   {
+    "ref": "client/src/shells/video/console/WorldLinkPicker.test.tsx:3",
+    "line": "* WorldLinkPicker（I-6 Phase 2b 世界連結，AIDV-100）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/console/WorldLinkPicker.test.tsx:30",
+    "line": "describe(\"WorldLinkPicker（I-6 Phase 2b / AIDV-100）\", () => {"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:73",
+    "line": "// ── I-6 Phase 2b（AIDV-100）：世界連結 ──"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:445",
+    "line": "// ── I-6 Phase 2b（AIDV-100）：連結世界觀 framework 到當前專案 ──"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:102",
+    "line": "/** creativeProject.link — 連結（或傳 null 解綁）世界觀 framework 到專案（I-6 Phase 2b / AIDV-100）。 */"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:311",
+    "line": "// creativeProject.link 已支援設/解綁 worldFrameworkId（零新後端，AIDV-100）。"
+   }
   ]
  },
  {
@@ -2134,18 +3331,54 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/design-kit/shellkit.test.tsx:3",
-   "client/src/components/design-kit/shellkit.test.tsx:12",
-   "client/src/components/design-kit/shellkit.tsx:1",
-   "client/src/components/design-kit/states.test.tsx:3",
-   "client/src/components/design-kit/states.test.tsx:12",
-   "client/src/components/design-kit/states.tsx:2",
-   "client/src/components/design-kit/cockpit.tsx:1",
-   "client/src/components/design-kit/chrome.tsx:1",
-   "client/src/components/design-kit/cockpit.test.tsx:3",
-   "client/src/components/design-kit/cockpit.test.tsx:13",
-   "client/src/components/design-kit/chrome.test.tsx:3",
-   "client/src/components/design-kit/chrome.test.tsx:23"
+   {
+    "ref": "client/src/components/design-kit/shellkit.test.tsx:3",
+    "line": "* design-kit Shell-specific 元件（U-10 / AIDV-101 第四批 · 收尾）行為測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/shellkit.test.tsx:12",
+    "line": "describe(\"design-kit Shell-specific 元件（U-10 / AIDV-101）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/shellkit.tsx:1",
+    "line": "/* AI Director · 設計系統 — 各殼專屬 Shell-specific 元件層（U-10 / AIDV-101 第四批 · 收尾）"
+   },
+   {
+    "ref": "client/src/components/design-kit/states.test.tsx:3",
+    "line": "* design-kit State 元件（U-10 / AIDV-101 「State 4」）行為測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/states.test.tsx:12",
+    "line": "describe(\"design-kit State 元件（U-10 / AIDV-101）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/states.tsx:2",
+    "line": "* U-10（AIDV-101）「State 4」：補齊 design-kit 缺的狀態元件層。"
+   },
+   {
+    "ref": "client/src/components/design-kit/cockpit.tsx:1",
+    "line": "/* AI Director · 設計系統 — 座艙 Cockpit 元件層（U-10 / AIDV-101 第三批）"
+   },
+   {
+    "ref": "client/src/components/design-kit/chrome.tsx:1",
+    "line": "/* AI Director · 設計系統 — 殼層 Chrome 8 元件層（U-10 / AIDV-101 第二批）"
+   },
+   {
+    "ref": "client/src/components/design-kit/cockpit.test.tsx:3",
+    "line": "* design-kit Cockpit 元件（U-10 / AIDV-101 第三批）行為測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/cockpit.test.tsx:13",
+    "line": "describe(\"design-kit Cockpit 元件（U-10 / AIDV-101）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/chrome.test.tsx:3",
+    "line": "* design-kit Chrome 8 元件（U-10 / AIDV-101 第二批）行為測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/chrome.test.tsx:23",
+    "line": "describe(\"design-kit Chrome 元件（U-10 / AIDV-101）\", () => {"
+   }
   ]
  },
  {
@@ -2360,14 +3593,38 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/design-kit/orb.test.tsx:3",
-   "client/src/components/design-kit/orb.test.tsx:20",
-   "client/src/components/design-kit/orb.tsx:1",
-   "client/src/components/DashboardLayout.tsx:952",
-   "client/src/shells/AidvOrbMount.tsx:3",
-   "client/src/shells/AidvOrbMount.test.tsx:3",
-   "client/src/shells/AidvOrbMount.test.tsx:25",
-   "client/src/shells/AidvOrbMount.test.tsx:69"
+   {
+    "ref": "client/src/components/design-kit/orb.test.tsx:3",
+    "line": "* design-kit OrbAssistant 光球助手（U-11 / AIDV-114 第1片）行為測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/orb.test.tsx:20",
+    "line": "describe(\"design-kit OrbAssistant（U-11 / AIDV-114）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/orb.tsx:1",
+    "line": "/* AI Director · 設計系統 — OrbAssistant 光球助手（U-11 / AIDV-114 第1片）"
+   },
+   {
+    "ref": "client/src/components/DashboardLayout.tsx:952",
+    "line": "{/* U-11 OrbAssistant 新光球（design-kit「另一種型態」，AIDV-114 第3片）。"
+   },
+   {
+    "ref": "client/src/shells/AidvOrbMount.tsx:3",
+    "line": "// （AIDV-114 第3片＝掛載；第4片＝心情/本頁；第5片＝對話；第6片＝筆記；第7片＝提示詞庫/積分）"
+   },
+   {
+    "ref": "client/src/shells/AidvOrbMount.test.tsx:3",
+    "line": "* AidvOrbView/AidvOrbMount（AIDV-114 第3–7片）— U-11 新光球純呈現 View ＋資料 adapter。"
+   },
+   {
+    "ref": "client/src/shells/AidvOrbMount.test.tsx:25",
+    "line": "describe(\"AidvOrbMount 純對應（U-11 / AIDV-114）\", () => {"
+   },
+   {
+    "ref": "client/src/shells/AidvOrbMount.test.tsx:69",
+    "line": "describe(\"AidvOrbView 純呈現（U-11 / AIDV-114）\", () => {"
+   }
   ]
  },
  {
@@ -2389,15 +3646,42 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/connectors/ConnectorsPanel.test.tsx:3",
-   "client/src/components/connectors/ConnectorsPanel.test.tsx:27",
-   "client/src/components/connectors/index.ts:2",
-   "client/src/components/connectors/ConnectorsPanel.tsx:3",
-   "client/src/components/connectors/connectorsFlags.ts:4",
-   "client/src/components/connectors/connectorsTypes.ts:4",
-   "client/src/shells/settings/panels/ConnectionsPanel.tsx:2",
-   "client/src/shells/settings/panels/ConnectionsPanel.test.tsx:3",
-   "client/src/shells/settings/panels/ConnectionsPanel.test.tsx:22"
+   {
+    "ref": "client/src/components/connectors/ConnectorsPanel.test.tsx:3",
+    "line": "* AIDV-115 / U-12：連接器治理面板（/settings/connections＋ACL＋BYOMCP）行為測試。"
+   },
+   {
+    "ref": "client/src/components/connectors/ConnectorsPanel.test.tsx:27",
+    "line": "describe(\"連接器治理面板（AIDV-115 / U-12）\", () => {"
+   },
+   {
+    "ref": "client/src/components/connectors/index.ts:2",
+    "line": "* AIDV-115 / U-12：連接器／個人資料庫 5 類治理面板視覺實裝"
+   },
+   {
+    "ref": "client/src/components/connectors/ConnectorsPanel.tsx:3",
+    "line": "AIDV-115 / U-12 · Wave U 視覺實裝。"
+   },
+   {
+    "ref": "client/src/components/connectors/connectorsFlags.ts:4",
+    "line": "// AIDV-115 / U-12：連接器／個人資料庫 5 類治理面板視覺實裝"
+   },
+   {
+    "ref": "client/src/components/connectors/connectorsTypes.ts:4",
+    "line": "// AIDV-115 / U-12：5 類治理面板的唯讀資料契約（純前端、props/mock 驅動）。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ConnectionsPanel.tsx:2",
+    "line": "// shells/settings/panels/ConnectionsPanel.tsx — U-12 連接器／個人資料庫治理（AIDV-115）"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ConnectionsPanel.test.tsx:3",
+    "line": "* ConnectionsPanel · ConnectorRow / PendingPill / CategoryCard（U-12 / AIDV-115 · /settings）行為測試。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ConnectionsPanel.test.tsx:22",
+    "line": "describe(\"ConnectionsPanel · ConnectorRow（U-12 / AIDV-115 · /settings）\", () => {"
+   }
   ]
  },
  {
@@ -2421,18 +3705,54 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/teams/index.ts:1",
-   "client/src/components/teams/DivisionBoard.tsx:1",
-   "client/src/components/teams/teamsFlags.ts:2",
-   "client/src/components/teams/TeamsBoard.test.tsx:3",
-   "client/src/components/teams/TeamsBoard.test.tsx:15",
-   "client/src/components/teams/teamsTypes.ts:1",
-   "client/src/components/teams/TeamCard.tsx:1",
-   "client/src/components/teams/TeamsBoard.tsx:1",
-   "client/src/components/teams/TeamAtoms.tsx:1",
-   "client/src/components/teams/TeamCard.test.tsx:3",
-   "client/src/components/teams/DivisionBoard.test.tsx:3",
-   "client/src/components/teams/TeamAtoms.test.tsx:3"
+   {
+    "ref": "client/src/components/teams/index.ts:1",
+    "line": "/* AI Director · 團隊協作視覺（barrel）— U-13 / AIDV-116"
+   },
+   {
+    "ref": "client/src/components/teams/DivisionBoard.tsx:1",
+    "line": "/* AI Director · 團隊協作視覺 — 分工看板（U-13 / AIDV-116）"
+   },
+   {
+    "ref": "client/src/components/teams/teamsFlags.ts:2",
+    "line": "// teams/teamsFlags.ts — 團隊協作視覺（U-13 / AIDV-116）專屬旗標"
+   },
+   {
+    "ref": "client/src/components/teams/TeamsBoard.test.tsx:3",
+    "line": "* TeamsBoard（U-13 / AIDV-116）四態 + 互動 + a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/teams/TeamsBoard.test.tsx:15",
+    "line": "describe(\"TeamsBoard（U-13 / AIDV-116）\", () => {"
+   },
+   {
+    "ref": "client/src/components/teams/teamsTypes.ts:1",
+    "line": "/* AI Director · 團隊協作視覺 — 型別與 mock（U-13 / AIDV-116）"
+   },
+   {
+    "ref": "client/src/components/teams/TeamCard.tsx:1",
+    "line": "/* AI Director · 團隊協作視覺 — 團隊清單卡（U-13 / AIDV-116）"
+   },
+   {
+    "ref": "client/src/components/teams/TeamsBoard.tsx:1",
+    "line": "/* AI Director · 團隊協作視覺 — 頂層組裝（U-13 / AIDV-116）"
+   },
+   {
+    "ref": "client/src/components/teams/TeamAtoms.tsx:1",
+    "line": "/* AI Director · 團隊協作視覺 — 小元件（U-13 / AIDV-116）"
+   },
+   {
+    "ref": "client/src/components/teams/TeamCard.test.tsx:3",
+    "line": "* TeamCard（U-13 / AIDV-116）render + a11y + 互動測試。"
+   },
+   {
+    "ref": "client/src/components/teams/DivisionBoard.test.tsx:3",
+    "line": "* DivisionBoard（U-13 / AIDV-116）render + a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/teams/TeamAtoms.test.tsx:3",
+    "line": "* TeamAtoms（U-13 / AIDV-116）render + a11y 測試。"
+   }
   ]
  },
  {
@@ -2454,11 +3774,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/flow-tv/index.ts:1",
-   "client/src/components/flow-tv/flowTvFlags.ts:4",
-   "client/src/components/flow-tv/FlowTv.test.tsx:3",
-   "client/src/components/flow-tv/FlowTv.test.tsx:35",
-   "client/src/components/flow-tv/FlowTv.tsx:1"
+   {
+    "ref": "client/src/components/flow-tv/index.ts:1",
+    "line": "/* AI Director · Flow TV 放映皮（barrel）— AIDV-117 / U-14"
+   },
+   {
+    "ref": "client/src/components/flow-tv/flowTvFlags.ts:4",
+    "line": "// AIDV-117 / U-14：Flow TV 全屏沉浸播放器（跨 /video /social 提示庫放映皮）。"
+   },
+   {
+    "ref": "client/src/components/flow-tv/FlowTv.test.tsx:3",
+    "line": "* Flow TV 全屏沉浸放映皮（AIDV-117 / U-14）行為測試。"
+   },
+   {
+    "ref": "client/src/components/flow-tv/FlowTv.test.tsx:35",
+    "line": "describe(\"FlowTvOverlay（AIDV-117 / U-14）\", () => {"
+   },
+   {
+    "ref": "client/src/components/flow-tv/FlowTv.tsx:1",
+    "line": "/* AI Director · Flow TV — 全屏沉浸放映皮（AIDV-117 / U-14）"
+   }
   ]
  },
  {
@@ -2496,16 +3831,46 @@
    "463"
   ],
   "code": [
-   "client/src/components/home/landingFlags.ts:4",
-   "client/src/components/home/LandingHero.tsx:4",
-   "client/src/components/home/LandingIconSet.tsx:4",
-   "client/src/components/home/LandingHero.test.tsx:3",
-   "client/src/components/home/LandingHero.test.tsx:13",
-   "client/src/components/home/LandingCalmOrb.test.tsx:3",
-   "client/src/components/home/LandingCalmOrb.test.tsx:13",
-   "client/src/components/home/LandingIconSet.test.tsx:3",
-   "client/src/components/home/LandingIconSet.test.tsx:13",
-   "client/src/components/home/LandingCalmOrb.tsx:4"
+   {
+    "ref": "client/src/components/home/landingFlags.ts:4",
+    "line": "// AIDV-119 / U-10：首頁 landing 視覺實裝（門面 KV／icon set／calm orb）。"
+   },
+   {
+    "ref": "client/src/components/home/LandingHero.tsx:4",
+    "line": "// AIDV-119 / U-10：greenfield 首頁 landing 門面。亮色暖光（黏土／珊瑚橘）主視覺："
+   },
+   {
+    "ref": "client/src/components/home/LandingIconSet.tsx:4",
+    "line": "// AIDV-119 / U-10：首頁 landing 的「能力 icon set」。把首頁敘事拆成四枚"
+   },
+   {
+    "ref": "client/src/components/home/LandingHero.test.tsx:3",
+    "line": "* LandingHero（U-10 / AIDV-119）首頁 landing 門面 KV render + 旗標 + a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/home/LandingHero.test.tsx:13",
+    "line": "describe(\"LandingHero（U-10 / AIDV-119）\", () => {"
+   },
+   {
+    "ref": "client/src/components/home/LandingCalmOrb.test.tsx:3",
+    "line": "* LandingCalmOrb（U-10 / AIDV-119）calm orb 平靜光球 render + a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/home/LandingCalmOrb.test.tsx:13",
+    "line": "describe(\"LandingCalmOrb（U-10 / AIDV-119）\", () => {"
+   },
+   {
+    "ref": "client/src/components/home/LandingIconSet.test.tsx:3",
+    "line": "* LandingIconSet（U-10 / AIDV-119）design-kit icon set 區塊 render + a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/home/LandingIconSet.test.tsx:13",
+    "line": "describe(\"LandingIconSet（U-10 / AIDV-119）\", () => {"
+   },
+   {
+    "ref": "client/src/components/home/LandingCalmOrb.tsx:4",
+    "line": "// AIDV-119 / U-10：首頁 landing 門面的「平靜光球」。亮色暖光（黏土／珊瑚橘）的"
+   }
   ]
  },
  {
@@ -2544,40 +3909,142 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/services/authz/resourceAccess.ts:2",
-   "server/services/authz/__tests__/resourceAccessResolver.test.ts:2",
-   "server/services/authz/__tests__/resourceAccessResolver.test.ts:44",
-   "server/services/authz/__tests__/resourceAccess.test.ts:2",
-   "server/services/authz/__tests__/resourceAccess.test.ts:46",
-   "server/services/authz/__tests__/resourceAccess.test.ts:136",
-   "server/services/authz/__tests__/resourceAccess.test.ts:159",
-   "server/routers/promptLibrary.ts:162",
-   "server/routers/promptLibrary.ts:279",
-   "server/routers/__tests__/brainPipeline.test.ts:301",
-   "server/routers/__tests__/teamAssetsEnforcement.test.ts:2",
-   "server/routers/__tests__/teamAssetsEnforcement.test.ts:65",
-   "server/routers/__tests__/promptLibraryEnforcement.test.ts:2",
-   "server/routers/__tests__/promptLibraryEnforcement.test.ts:94",
-   "server/routers/__tests__/creativeProjectEnforcement.test.ts:2",
-   "server/routers/__tests__/creativeProjectEnforcement.test.ts:55",
-   "server/routers/__tests__/rbac.test.ts:2",
-   "server/routers/__tests__/rbac.test.ts:88",
-   "server/routers/__tests__/rbac.test.ts:206",
-   "server/routers/__tests__/rbac.test.ts:232",
-   "server/routers/rbac.ts:2",
-   "server/routers/creativeProject.ts:87",
-   "server/routers/creativeProject.ts:232",
-   "server/routers/teachingArchive.ts:372",
-   "server/db.ts:3679",
-   "server/_core/env.validated.ts:549",
-   "server/routers.ts:4138",
-   "server/routers.ts:4271",
-   "server/routers.ts:4481",
-   "client/src/components/teams/teamsFlags.ts:14",
-   "client/src/components/teams/teamsTypes.ts:4",
-   "client/src/components/teams/teamsTypes.ts:9",
-   "client/src/components/teams/TeamsBoard.tsx:8",
-   "client/src/components/teams/TeamAtoms.tsx:6"
+   {
+    "ref": "server/services/authz/resourceAccess.ts:2",
+    "line": "* resourceAccess.ts — 資料層 RBAC 統一授權中樞（AIDV-121 基礎版）"
+   },
+   {
+    "ref": "server/services/authz/__tests__/resourceAccessResolver.test.ts:2",
+    "line": "* resourceAccessResolver.test.ts — AIDV-121 DB 橋接層測試"
+   },
+   {
+    "ref": "server/services/authz/__tests__/resourceAccessResolver.test.ts:44",
+    "line": "describe(\"AIDV-121 canAccessResource（DB 版）\", () => {"
+   },
+   {
+    "ref": "server/services/authz/__tests__/resourceAccess.test.ts:2",
+    "line": "* resourceAccess.test.ts — AIDV-121 資料層 RBAC 純函式測試"
+   },
+   {
+    "ref": "server/services/authz/__tests__/resourceAccess.test.ts:46",
+    "line": "describe(\"AIDV-121 canAccess 純函式 — 角色矩陣\", () => {"
+   },
+   {
+    "ref": "server/services/authz/__tests__/resourceAccess.test.ts:136",
+    "line": "describe(\"AIDV-121 roleCan 動作矩陣\", () => {"
+   },
+   {
+    "ref": "server/services/authz/__tests__/resourceAccess.test.ts:159",
+    "line": "describe(\"AIDV-121 isDataRbacEnabled 旗標（預設 OFF）\", () => {"
+   },
+   {
+    "ref": "server/routers/promptLibrary.ts:162",
+    "line": "// ── AIDV-121 enforcement（旗標 gate）─────────────────────────────"
+   },
+   {
+    "ref": "server/routers/promptLibrary.ts:279",
+    "line": "// AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會"
+   },
+   {
+    "ref": "server/routers/__tests__/brainPipeline.test.ts:301",
+    "line": "\"rbac\", // AIDV-121：資料層共享/撤銷/移轉 CRUD — 純資料持久化，不觸發 AI"
+   },
+   {
+    "ref": "server/routers/__tests__/teamAssetsEnforcement.test.ts:2",
+    "line": "* teamAssetsEnforcement.test.ts — AIDV-121 旗標 ON assets.teamAssets 過濾接線"
+   },
+   {
+    "ref": "server/routers/__tests__/teamAssetsEnforcement.test.ts:65",
+    "line": "describe(\"AIDV-121 assets.teamAssets 旗標 ON 過濾\", () => {"
+   },
+   {
+    "ref": "server/routers/__tests__/promptLibraryEnforcement.test.ts:2",
+    "line": "* promptLibraryEnforcement.test.ts — AIDV-121 旗標 ON getById IDOR 守護（最高優先）"
+   },
+   {
+    "ref": "server/routers/__tests__/promptLibraryEnforcement.test.ts:94",
+    "line": "describe(\"AIDV-121 promptLibrary.getById 旗標 ON IDOR 守護\", () => {"
+   },
+   {
+    "ref": "server/routers/__tests__/creativeProjectEnforcement.test.ts:2",
+    "line": "* creativeProjectEnforcement.test.ts — AIDV-121 旗標 ON 讀取 enforcement 接線測試"
+   },
+   {
+    "ref": "server/routers/__tests__/creativeProjectEnforcement.test.ts:55",
+    "line": "describe(\"AIDV-121 creativeProject.get 旗標 ON enforcement\", () => {"
+   },
+   {
+    "ref": "server/routers/__tests__/rbac.test.ts:2",
+    "line": "* rbac.test.ts — AIDV-121 共享 / 撤銷 / 移轉 router 測試"
+   },
+   {
+    "ref": "server/routers/__tests__/rbac.test.ts:88",
+    "line": "describe(\"AIDV-121 rbac.share\", () => {"
+   },
+   {
+    "ref": "server/routers/__tests__/rbac.test.ts:206",
+    "line": "describe(\"AIDV-121 rbac.revokeShare\", () => {"
+   },
+   {
+    "ref": "server/routers/__tests__/rbac.test.ts:232",
+    "line": "describe(\"AIDV-121 rbac.transferOwnership\", () => {"
+   },
+   {
+    "ref": "server/routers/rbac.ts:2",
+    "line": "* rbac.ts — 資料層 RBAC 共享 / 撤銷 / 移轉 Router（AIDV-121 基礎版）"
+   },
+   {
+    "ref": "server/routers/creativeProject.ts:87",
+    "line": "// ── AIDV-121 enforcement（旗標 gate）─────────────────────────────"
+   },
+   {
+    "ref": "server/routers/creativeProject.ts:232",
+    "line": "// AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會"
+   },
+   {
+    "ref": "server/routers/teachingArchive.ts:372",
+    "line": "// AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會"
+   },
+   {
+    "ref": "server/db.ts:3679",
+    "line": "// ─── Resource shares — 顯式共享 SSOT（AIDV-121 RBAC）─────────────────────────"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:549",
+    "line": "* AIDV-121 資料層 RBAC enforcement 旗標。預設 \"false\"（OFF）＝零行為變化："
+   },
+   {
+    "ref": "server/routers.ts:4138",
+    "line": "// ─── RBAC（AIDV-121：資料層權限邊界 — 共享/撤銷/移轉）────────────────────"
+   },
+   {
+    "ref": "server/routers.ts:4271",
+    "line": "// ── AIDV-121 enforcement（旗標 gate）──────────────────────────"
+   },
+   {
+    "ref": "server/routers.ts:4481",
+    "line": "// AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源"
+   },
+   {
+    "ref": "client/src/components/teams/teamsFlags.ts:14",
+    "line": "// 注意：真實 RBAC／後端＝AIDV-121，不在本卡；本卡純視覺，旗標只控渲染。"
+   },
+   {
+    "ref": "client/src/components/teams/teamsTypes.ts:4",
+    "line": "* · 本卡純視覺，資料用 props/mock 離線可驗；真實 RBAC／後端＝AIDV-121。"
+   },
+   {
+    "ref": "client/src/components/teams/teamsTypes.ts:9",
+    "line": "/** 團隊成員角色（RBAC 視覺分級；真實權限＝AIDV-121）。 */"
+   },
+   {
+    "ref": "client/src/components/teams/TeamsBoard.tsx:8",
+    "line": "* · 真實 RBAC／後端＝AIDV-121，不在本卡。"
+   },
+   {
+    "ref": "client/src/components/teams/TeamAtoms.tsx:6",
+    "line": "* · 純呈現、唯讀消費 props（真實 RBAC＝AIDV-121，不在本卡）。"
+   }
   ]
  },
  {
@@ -2616,11 +4083,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/services/audit/auditLog.ts:2",
-   "server/services/__tests__/auditLog.test.ts:2",
-   "server/routers/auditLog.ts:2",
-   "server/routers/__tests__/brainPipeline.test.ts:300",
-   "server/routers/rbac.ts:37"
+   {
+    "ref": "server/services/audit/auditLog.ts:2",
+    "line": "* auditLog.ts — 全站操作稽核軌跡服務（AIDV-123 基礎版）"
+   },
+   {
+    "ref": "server/services/__tests__/auditLog.test.ts:2",
+    "line": "* auditLog.test.ts — AIDV-123 全站操作稽核軌跡服務測試"
+   },
+   {
+    "ref": "server/routers/auditLog.ts:2",
+    "line": "* auditLog.ts — Admin 稽核軌跡查詢 tRPC Router（AIDV-123）"
+   },
+   {
+    "ref": "server/routers/__tests__/brainPipeline.test.ts:300",
+    "line": "\"auditLog\", // AIDV-123：稽核軌跡 append-only 查詢 — 純資料持久化，不觸發 AI"
+   },
+   {
+    "ref": "server/routers/rbac.ts:37",
+    "line": "* （沿用 AIDV-123 best-effort append-only 稽核，不阻塞）。"
+   }
   ]
  },
  {
@@ -2891,10 +4373,22 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/design-kit/StateInspector.tsx:3",
-   "client/src/components/design-kit/stateInspectorFlags.ts:4",
-   "client/src/components/design-kit/StateInspector.test.tsx:3",
-   "client/src/components/design-kit/StateInspector.test.tsx:14"
+   {
+    "ref": "client/src/components/design-kit/StateInspector.tsx:3",
+    "line": "* U-4f（AIDV-139）脊椎 chrome：用 segmented control 在「載入／空／錯誤／就緒」四態"
+   },
+   {
+    "ref": "client/src/components/design-kit/stateInspectorFlags.ts:4",
+    "line": "// U-4f（AIDV-139）· 脊椎 chrome StateInspector：用 segmented control 在「載入／空／"
+   },
+   {
+    "ref": "client/src/components/design-kit/StateInspector.test.tsx:3",
+    "line": "* StateInspector（U-4f / AIDV-139）行為 + a11y 測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/StateInspector.test.tsx:14",
+    "line": "describe(\"StateInspector（U-4f / AIDV-139）\", () => {"
+   }
   ]
  },
  {
@@ -2938,14 +4432,38 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/design-kit/atoms.tsx:2",
-   "client/src/components/design-kit/atoms.test.tsx:3",
-   "client/src/components/design-kit/atoms.test.tsx:25",
-   "client/src/components/design-kit/atoms.test.tsx:42",
-   "client/src/components/design-kit/atoms.test.tsx:61",
-   "client/src/components/design-kit/atoms.test.tsx:77",
-   "client/src/components/design-kit/atoms.test.tsx:96",
-   "client/src/components/design-kit/atoms.test.tsx:115"
+   {
+    "ref": "client/src/components/design-kit/atoms.tsx:2",
+    "line": "* U-SOP-3（AIDV-142）：統一 atom 入口＋補齊 primitives 缺的變體。"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:3",
+    "line": "* design-kit atom 元件庫（U-SOP-3 / AIDV-142）行為測試。"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:25",
+    "line": "describe(\"atom · btn（AIDV-142）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:42",
+    "line": "describe(\"atom · pill / tag（AIDV-142）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:61",
+    "line": "describe(\"atom · dot（AIDV-142）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:77",
+    "line": "describe(\"atom · meter（AIDV-142）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:96",
+    "line": "describe(\"atom · kbd（AIDV-142）\", () => {"
+   },
+   {
+    "ref": "client/src/components/design-kit/atoms.test.tsx:115",
+    "line": "describe(\"atom · 統一入口（AIDV-142）\", () => {"
+   }
   ]
  },
  {
@@ -3146,21 +4664,66 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/services/director/costarService.ts:82",
-   "server/services/director/costarService.ts:97",
-   "server/routers/director.ts:120",
-   "server/routers/director.ts:140",
-   "server/routers/director.ts:153",
-   "server/routers/director.ts:217",
-   "server/routers/director.ts:228",
-   "server/__tests__/director/world-context-injection.test.ts:2",
-   "server/__tests__/director/world-context-injection.test.ts:92",
-   "server/__tests__/director/world-context-gate.test.ts:2",
-   "server/__tests__/director/world-context-gate.test.ts:100",
-   "server/worldbuilding-types.test.ts:161",
-   "client/src/adapters/commander.trpc.ts:30",
-   "shared/worldbuilding-types.ts:2180",
-   "shared/worldbuilding-types.ts:2602"
+   {
+    "ref": "server/services/director/costarService.ts:82",
+    "line": "* AIDV-152：可選的世界框架摘要。由 caller（director.chat）在旗標開啟且"
+   },
+   {
+    "ref": "server/services/director/costarService.ts:97",
+    "line": "// AIDV-152：世界框架脈絡段落。未傳 worldContext 時 = 空字串，下方"
+   },
+   {
+    "ref": "server/routers/director.ts:120",
+    "line": "* AIDV-152：Director chat 自動載入世界框架的伺服器端聚焦旗標。"
+   },
+   {
+    "ref": "server/routers/director.ts:140",
+    "line": "* AIDV-152：注入 chat system prompt 的世界框架摘要字元上限。"
+   },
+   {
+    "ref": "server/routers/director.ts:153",
+    "line": "* AIDV-152：best-effort 載入專案的世界框架摘要。"
+   },
+   {
+    "ref": "server/routers/director.ts:217",
+    "line": "* AIDV-152：可選的當前 active project id。向後相容（optional）—"
+   },
+   {
+    "ref": "server/routers/director.ts:228",
+    "line": "// AIDV-152：旗標 gate ＋ best-effort 注入。旗標 OFF 或未傳 projectId"
+   },
+   {
+    "ref": "server/__tests__/director/world-context-injection.test.ts:2",
+    "line": "* world-context-injection.test.ts — AIDV-152"
+   },
+   {
+    "ref": "server/__tests__/director/world-context-injection.test.ts:92",
+    "line": "describe(\"AIDV-152 / runDirectorAI worldContext 注入\", () => {"
+   },
+   {
+    "ref": "server/__tests__/director/world-context-gate.test.ts:2",
+    "line": "* world-context-gate.test.ts — AIDV-152"
+   },
+   {
+    "ref": "server/__tests__/director/world-context-gate.test.ts:100",
+    "line": "describe(\"AIDV-152 / director.chat 旗標 gate ＋ best-effort\", () => {"
+   },
+   {
+    "ref": "server/worldbuilding-types.test.ts:161",
+    "line": "it(\"summarizeFrameworkForPrompt 傳 maxChars 時截斷並補標記（AIDV-152 token 預算）\", () => {"
+   },
+   {
+    "ref": "client/src/adapters/commander.trpc.ts:30",
+    "line": "// AIDV-152：契約對齊。server director.chat 的 input schema 是"
+   },
+   {
+    "ref": "shared/worldbuilding-types.ts:2180",
+    "line": "* AIDV-152：可選的字元預算上限。未傳（undefined）時不截斷 —— 既有"
+   },
+   {
+    "ref": "shared/worldbuilding-types.ts:2602",
+    "line": "// AIDV-152：只有顯式傳入 maxChars 時才截斷；未傳時 out 原樣回傳（位元相同）。"
+   }
   ]
  },
  {
@@ -3181,14 +4744,38 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/jobs/costLedgerReconcileJob.test.ts:2",
-   "server/jobs/costLedgerReconcileJob.ts:2",
-   "server/jobs/costLedgerReconcileJob.ts:5",
-   "server/services/cost/ledger.test.ts:2",
-   "server/services/cost/ledger.ts:2",
-   "server/routers/brainPipeline.ts:1232",
-   "server/_core/env.validated.ts:607",
-   "server/routes/aiProxy.ts:523"
+   {
+    "ref": "server/jobs/costLedgerReconcileJob.test.ts:2",
+    "line": "* costLedgerReconcileJob.test.ts — AIDV-153 對帳 job 測試"
+   },
+   {
+    "ref": "server/jobs/costLedgerReconcileJob.ts:2",
+    "line": "* costLedgerReconcileJob.ts — AIDV-153 成本帳本對帳 job（基礎版：先偵測不自動修）"
+   },
+   {
+    "ref": "server/jobs/costLedgerReconcileJob.ts:5",
+    "line": "* (A) cost_ledger 的 posted debit 總額（append-only 雙分錄帳本，AIDV-153）"
+   },
+   {
+    "ref": "server/services/cost/ledger.test.ts:2",
+    "line": "* ledger.test.ts — AIDV-153 成本帳本服務測試"
+   },
+   {
+    "ref": "server/services/cost/ledger.ts:2",
+    "line": "* ledger.ts — AIDV-153 append-only 複式（雙分錄）成本帳本服務（基礎版）"
+   },
+   {
+    "ref": "server/routers/brainPipeline.ts:1232",
+    "line": "\"比對 cost_ledger posted debit 與 cost_aggregations 總額，偵測 drift 並 Slack 告警（AIDV-153，基礎版只偵測不自動修）\","
+   },
+   {
+    "ref": "server/_core/env.validated.ts:607",
+    "line": "// ── 成本帳本（AIDV-153 cost_ledger append-only 複式分錄, migration 0076）────"
+   },
+   {
+    "ref": "server/routes/aiProxy.ts:523",
+    "line": "// ── AIDV-153：旗標 ON 時「額外」寫一筆【平衡的複式分錄】（debit member /"
+   }
   ]
  },
  {
@@ -3259,14 +4846,38 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/routers/__tests__/orbConversationsLazyCreate.test.ts:2",
-   "server/routers/__tests__/orbConversationsLazyCreate.test.ts:279",
-   "server/routers/orbConversationsRouter.ts:62",
-   "server/routers/orbConversationsRouter.ts:402",
-   "client/src/shells/video/canvas/DirectorChatCanvas.tsx:28",
-   "client/src/shells/video/canvas/DirectorChatCanvas.tsx:47",
-   "client/src/shells/video/canvas/DirectorChatCanvas.test.tsx:3",
-   "client/src/shells/video/canvas/DirectorChatCanvas.test.tsx:65"
+   {
+    "ref": "server/routers/__tests__/orbConversationsLazyCreate.test.ts:2",
+    "line": "* orbConversationsLazyCreate.test.ts — AIDV-157"
+   },
+   {
+    "ref": "server/routers/__tests__/orbConversationsLazyCreate.test.ts:279",
+    "line": "describe(\"AIDV-157 appendMessages — lazy create on missing conversation\", () => {"
+   },
+   {
+    "ref": "server/routers/orbConversationsRouter.ts:62",
+    "line": "* AIDV-157:把「找不到對話就 throw」換成「scoped + idempotent 的 lazy create」。"
+   },
+   {
+    "ref": "server/routers/orbConversationsRouter.ts:402",
+    "line": "* AIDV-157 修復:**append 時若 conversation 列不存在,自動建立(lazy create)**。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/DirectorChatCanvas.tsx:28",
+    "line": "// AIDV-157 捲動修復:scrollIntoView 目標改成「最新訊息列」而非列表底部的空 div。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/DirectorChatCanvas.tsx:47",
+    "line": "// AIDV-157 ① 白話化:不再外洩「directorReply failed」開發字串。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/DirectorChatCanvas.test.tsx:3",
+    "line": "* DirectorChatCanvas · AIDV-157 前端三項修補行為測試。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/DirectorChatCanvas.test.tsx:65",
+    "line": "describe(\"DirectorChatCanvas · AIDV-157\", () => {"
+   }
   ]
  },
  {
@@ -3288,18 +4899,54 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/routers/director.ts:2311",
-   "server/routers/proStudio.ts:110",
-   "server/routers/imageStudio.ts:76",
-   "server/routers/videoStudio.ts:75",
-   "server/_core/env.validated.ts:456",
-   "server/_core/webhookTokens.test.ts:2",
-   "server/routers.ts:3471",
-   "server/routes/webhookFal.ts:33",
-   "server/routes/webhookFal.ts:56",
-   "server/routes/__tests__/webhookFal.test.ts:25",
-   "server/routes/__tests__/webhookFal.test.ts:399",
-   "server/routes/__tests__/webhookFal.test.ts:498"
+   {
+    "ref": "server/routers/director.ts:2311",
+    "line": "// AIDV-158：附帶 per-job capability token（handler 端會驗，缺/錯 token 一律 4xx）。"
+   },
+   {
+    "ref": "server/routers/proStudio.ts:110",
+    "line": "// AIDV-158：此流程在送 fal 時尚無 jobId（job 由前端後建、靠 request_id 反查），"
+   },
+   {
+    "ref": "server/routers/imageStudio.ts:76",
+    "line": "// AIDV-158：此流程在送 fal 時尚無 jobId（job 由前端後建、靠 request_id 反查），"
+   },
+   {
+    "ref": "server/routers/videoStudio.ts:75",
+    "line": "// AIDV-158：附帶 per-job capability token（handler 端會驗，缺/錯 token 一律 4xx）。"
+   },
+   {
+    "ref": "server/_core/env.validated.ts:456",
+    "line": "// AIDV-158（FAL webhook 資安硬化）：/api/webhook/fal 的「嚴格模式」總開關。"
+   },
+   {
+    "ref": "server/_core/webhookTokens.test.ts:2",
+    "line": "* webhookTokens.test.ts — AIDV-158"
+   },
+   {
+    "ref": "server/routers.ts:3471",
+    "line": "// AIDV-158：附帶 per-job capability token，handler 端會驗（缺/錯 token 一律 4xx），"
+   },
+   {
+    "ref": "server/routes/webhookFal.ts:33",
+    "line": "// ─── AIDV-158：嚴格模式總開關（FAL_WEBHOOK_FAIL_CLOSED，預設 ON）───────────────"
+   },
+   {
+    "ref": "server/routes/webhookFal.ts:56",
+    "line": "// AIDV-158：未設共享密鑰時不再無條件放行（舊的 fail-open footgun）。"
+   },
+   {
+    "ref": "server/routes/__tests__/webhookFal.test.ts:25",
+    "line": "// AIDV-158：用可控 mock 取代真 webhookTokens，讓 token 強制行為與環境 JWT_SECRET 脫鉤。"
+   },
+   {
+    "ref": "server/routes/__tests__/webhookFal.test.ts:399",
+    "line": "// ─── AIDV-158：per-job capability token 強制 ──────────────────────────────"
+   },
+   {
+    "ref": "server/routes/__tests__/webhookFal.test.ts:498",
+    "line": "// ─── AIDV-158：replay / idempotency 終態守門 ──────────────────────────────"
+   }
   ]
  },
  {
@@ -3324,12 +4971,30 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/_core/env.validated.ts:423",
-   "server/routes/stripeWebhook.ts:5",
-   "server/routes/stripeWebhook.ts:15",
-   "server/routes/stripeWebhook.ts:47",
-   "server/routes/__tests__/stripeWebhook.test.ts:2",
-   "server/routes/__tests__/stripeWebhook.test.ts:85"
+   {
+    "ref": "server/_core/env.validated.ts:423",
+    "line": "// AIDV-159：STRIPE_WEBHOOK_SECRET 未設定時是否 fail-closed（拒絕未驗證的 webhook）。"
+   },
+   {
+    "ref": "server/routes/stripeWebhook.ts:5",
+    "line": "* AIDV-159：簽章驗證已從骨架（永遠 return true）改為真正的 HMAC-SHA256 驗證。"
+   },
+   {
+    "ref": "server/routes/stripeWebhook.ts:15",
+    "line": "// ─── Stripe 簽章驗證（AIDV-159：真 HMAC-SHA256，不引入 stripe 套件）────────────"
+   },
+   {
+    "ref": "server/routes/stripeWebhook.ts:47",
+    "line": "* AIDV-159：STRIPE_WEBHOOK_SECRET 未設定時是否 fail-closed（拒絕 webhook）。"
+   },
+   {
+    "ref": "server/routes/__tests__/stripeWebhook.test.ts:2",
+    "line": "* stripeWebhook.test.ts — AIDV-159：Stripe webhook 真 HMAC 簽章驗證"
+   },
+   {
+    "ref": "server/routes/__tests__/stripeWebhook.test.ts:85",
+    "line": "describe(\"stripeWebhook /api/webhooks/stripe — AIDV-159 簽章驗證\", () => {"
+   }
   ]
  },
  {
@@ -3350,34 +5015,118 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/components/social/GenerationConsole.tsx:24",
-   "client/src/components/social/GenerationConsole.tsx:62",
-   "client/src/components/social/GenerationConsole.tsx:67",
-   "client/src/components/social/GenerationConsole.tsx:79",
-   "client/src/shells/settings/panels/ProviderPanel.tsx:25",
-   "client/src/shells/settings/panels/ProviderPanel.tsx:47",
-   "client/src/shells/settings/panels/ProviderPanel.tsx:75",
-   "client/src/shells/settings/panels/ProviderPanel.tsx:108",
-   "client/src/shells/video/drawers/ModelCatalog.tsx:26",
-   "client/src/shells/video/drawers/ModelCatalog.tsx:129",
-   "client/src/shells/video/drawers/FlowTv.tsx:26",
-   "client/src/shells/video/drawers/FlowTv.tsx:99",
-   "client/src/shells/video/canvas/AssetGenCanvas.tsx:72",
-   "client/src/shells/video/canvas/AssetGenCanvas.tsx:78",
-   "client/src/shells/video/canvas/AssetGenCanvas.tsx:87",
-   "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:72",
-   "client/src/adapters/generation.guardOff.test.ts:2",
-   "client/src/adapters/costTier.ts:2",
-   "client/src/adapters/genErrorToast.ts:2",
-   "client/src/adapters/generation.costConsent.test.ts:2",
-   "client/src/adapters/genErrorToast.test.ts:2",
-   "client/src/adapters/generation.trpc.ts:35",
-   "client/src/adapters/generation.trpc.ts:162",
-   "client/src/adapters/types.ts:51",
-   "client/src/adapters/types.ts:110",
-   "client/src/spine/ProjectSpineProvider.tsx:198",
-   "client/src/spine/ProjectSpineProvider.tsx:202",
-   "client/src/spine/ProjectSpineProvider.tsx:234"
+   {
+    "ref": "client/src/components/social/GenerationConsole.tsx:24",
+    "line": "// AIDV-160：mock（免費離線兜底）在 prod 不可用 → 選擇器 disable，不「顯示可選卻偷換付費」。"
+   },
+   {
+    "ref": "client/src/components/social/GenerationConsole.tsx:62",
+    "line": "// AIDV-160：白話說明跨到哪個 provider、是否扣點。"
+   },
+   {
+    "ref": "client/src/components/social/GenerationConsole.tsx:67",
+    "line": "// AIDV-160：免費引擎不可用，守門不無聲跨付費扣點 → 明確告知、不扣點。"
+   },
+   {
+    "ref": "client/src/components/social/GenerationConsole.tsx:79",
+    "line": "// AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.tsx:25",
+    "line": "// AIDV-160：成本同意原則 — mock（免費離線兜底）在 prod 不可用（無 FAL_API_KEY 路由、無"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.tsx:47",
+    "line": "// AIDV-160：mock 在 prod 不可用 → 不允許選定（避免選了卻被偷換付費）。明確提示，不靜默。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.tsx:75",
+    "line": "// AIDV-160：mock 在 prod 不可用 → 標示且不可選（不偷換付費）。"
+   },
+   {
+    "ref": "client/src/shells/settings/panels/ProviderPanel.tsx:108",
+    "line": "* AIDV-160：unavailable=true（mock 在 prod）→ 灰階、aria-disabled、加「正式環境不可用」標示，"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/ModelCatalog.tsx:26",
+    "line": "// AIDV-160：成本守門中止（免費引擎不可用、不無聲跨界扣付費點）非硬失敗 → 顯示冷靜的"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/ModelCatalog.tsx:129",
+    "line": "// AIDV-160：免費引擎不可用 → 守門中止（不扣點），不是硬失敗 → 冷靜提示、不紅。"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/FlowTv.tsx:26",
+    "line": "// AIDV-160：成本守門中止（免費引擎不可用、不無聲跨界扣付費點）非硬失敗 → 顯示冷靜的"
+   },
+   {
+    "ref": "client/src/shells/video/drawers/FlowTv.tsx:99",
+    "line": "// AIDV-160：免費引擎不可用 → 守門中止（不扣點），不是硬失敗 → 冷靜提示、不紅。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.tsx:72",
+    "line": "// AIDV-160：白話說明跨到哪個 provider、是否扣點（同付費層回退才會走到這裡）。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.tsx:78",
+    "line": "// AIDV-160：免費引擎不可用，守門不無聲跨付費 → 明確告知、不扣點。"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.tsx:87",
+    "line": "// AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」"
+   },
+   {
+    "ref": "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:72",
+    "line": "// AIDV-160：cost-blocked 不可雙 toast。generate 先 emit cost-blocked 事件（caller 顯示"
+   },
+   {
+    "ref": "client/src/adapters/generation.guardOff.test.ts:2",
+    "line": "// generation.guardOff.test.ts — AIDV-160 守門 OFF（回滾退路）行為"
+   },
+   {
+    "ref": "client/src/adapters/costTier.ts:2",
+    "line": "// adapters/costTier.ts — 成本層級單一真相源（AIDV-160 成本同意原則）"
+   },
+   {
+    "ref": "client/src/adapters/genErrorToast.ts:2",
+    "line": "// adapters/genErrorToast.ts — 生成錯誤的單一 toast 契約（AIDV-160 後續修補）"
+   },
+   {
+    "ref": "client/src/adapters/generation.costConsent.test.ts:2",
+    "line": "// generation.costConsent.test.ts — AIDV-160 成本同意守門測試"
+   },
+   {
+    "ref": "client/src/adapters/genErrorToast.test.ts:2",
+    "line": "// genErrorToast.test.ts — isCostBlockedError 判斷契約（AIDV-160 雙 toast 修補）"
+   },
+   {
+    "ref": "client/src/adapters/generation.trpc.ts:35",
+    "line": "* 成本層級感知的回退鏈（AIDV-160 成本同意原則）。"
+   },
+   {
+    "ref": "client/src/adapters/generation.trpc.ts:162",
+    "line": "// 🔒 成本層級感知回退鏈（AIDV-160）：免費只回退免費、付費只回退付費；"
+   },
+   {
+    "ref": "client/src/adapters/types.ts:51",
+    "line": "* 成本同意守門中止（AIDV-160）：免費/使用者選定的免費引擎不可用，且守門不允許無聲"
+   },
+   {
+    "ref": "client/src/adapters/types.ts:110",
+    "line": "* 成本同意守門（AIDV-160）：免費/使用者選定的免費引擎不可用、且無同層（免費）替代時，"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:198",
+    "line": "// AIDV-160：白話說明跨到哪個 provider、是否扣點。"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:202",
+    "line": "// AIDV-160：免費引擎不可用，守門不無聲跨付費扣點 → 明確告知、不扣點。"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:234",
+    "line": "// AIDV-160：成本守門中止不是硬失敗——友善「免費引擎暫時無法使用 · 未扣點」"
+   }
   ]
  },
  {
@@ -3398,12 +5147,30 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/spine/__tests__/projectGateway.loadProject.test.ts:2",
-   "client/src/spine/__tests__/projectGateway.loadProject.test.ts:4",
-   "client/src/spine/__tests__/projectGateway.loadProject.test.ts:51",
-   "client/src/spine/projectGateway.ts:10",
-   "client/src/spine/projectGateway.ts:140",
-   "client/src/spine/projectGateway.ts:149"
+   {
+    "ref": "client/src/spine/__tests__/projectGateway.loadProject.test.ts:2",
+    "line": "// projectGateway.loadProject.test.ts — AIDV-161 跨專案分鏡混入回歸測試（node env；純邏輯）"
+   },
+   {
+    "ref": "client/src/spine/__tests__/projectGateway.loadProject.test.ts:4",
+    "line": "// 驗收（卡 AIDV-161）：loadProject 載入分鏡時必須依「當前專案連結的世界觀」過濾，"
+   },
+   {
+    "ref": "client/src/spine/__tests__/projectGateway.loadProject.test.ts:51",
+    "line": "describe(\"AIDV-161 loadProject 分鏡依專案世界觀過濾\", () => {"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:10",
+    "line": "// （分鏡用 listByWorld({ worldId }) 依當前專案世界觀過濾，不用會回 user 全部分鏡的 list — AIDV-161）"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:140",
+    "line": "// 【AIDV-161 跨專案資料混入修補】骨幹 creativeProject.get 必須**先**取得，因為分鏡要依"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:149",
+    "line": "// （AIDV-161 修正：本卡保留 ownership-scoped listByWorld，不回歸。）"
+   }
   ]
  },
  {
@@ -3424,15 +5191,42 @@
   "migs": [],
   "prs": [],
   "code": [
-   "client/src/spine/__tests__/projectGateway.shapes.test.ts:2",
-   "client/src/spine/__tests__/projectGateway.shapes.test.ts:4",
-   "client/src/spine/__tests__/projectGateway.shapes.test.ts:60",
-   "client/src/spine/ProjectSpineProvider.tsx:297",
-   "client/src/spine/ProjectSpineProvider.tsx:348",
-   "client/src/spine/ProjectSpineProvider.tsx:418",
-   "client/src/spine/projectGateway.ts:35",
-   "client/src/spine/projectGateway.ts:112",
-   "client/src/spine/projectGateway.ts:153"
+   {
+    "ref": "client/src/spine/__tests__/projectGateway.shapes.test.ts:2",
+    "line": "// projectGateway.shapes.test.ts — AIDV-162 五方法送出形狀對齊真實 zod 回歸測試"
+   },
+   {
+    "ref": "client/src/spine/__tests__/projectGateway.shapes.test.ts:4",
+    "line": "// 驗收（卡 AIDV-162）：移除 projectGateway 的 `as unknown as any` 後，5 個目標 procedure"
+   },
+   {
+    "ref": "client/src/spine/__tests__/projectGateway.shapes.test.ts:60",
+    "line": "describe(\"AIDV-162 五方法送出形狀對齊真實 zod\", () => {"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:297",
+    "line": "// AIDV-162：worldbuilding.update 以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:348",
+    "line": "// AIDV-162：以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。"
+   },
+   {
+    "ref": "client/src/spine/ProjectSpineProvider.tsx:418",
+    "line": "// AIDV-162：createFromSegments 需 worldId（連結的世界觀）+ name；未連結則 gateway 跳過回寫。"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:35",
+    "line": "// ─── 具名 tRPC 輸入型別（AIDV-162：取代 as any，tsc 抓形狀不符）──────────────────"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:112",
+    "line": "// 【AIDV-162 完成 typed 化】typed＝createTRPCClient<AppRouter>，tsc 可抓 input/output 不符。"
+   },
+   {
+    "ref": "client/src/spine/projectGateway.ts:153",
+    "line": "// 【AIDV-162 typed 對齊】"
+   }
   ]
  },
  {
@@ -3490,7 +5284,10 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/llm-perplexity-model-fallback.test.ts:2"
+   {
+    "ref": "server/llm-perplexity-model-fallback.test.ts:2",
+    "line": "* llm-perplexity-model-fallback.test.ts — AIDV-165 根因修回歸測試"
+   }
   ]
  },
  {
@@ -3876,11 +5673,26 @@
   "migs": [],
   "prs": [],
   "code": [
-   "server/routers/promptLibrary.ts:193",
-   "server/routers/promptLibrary.ts:327",
-   "server/routers/__tests__/promptLibraryIdor.test.ts:2",
-   "server/routers/__tests__/promptLibraryIdor.test.ts:93",
-   "server/routers/__tests__/promptLibraryIdor.test.ts:117"
+   {
+    "ref": "server/routers/promptLibrary.ts:193",
+    "line": "// AIDV-184：公開提示詞（listPublic 已對所有登入者供）→ 任何登入者皆可"
+   },
+   {
+    "ref": "server/routers/promptLibrary.ts:327",
+    "line": "// AIDV-184：只有「本人擁有」或「公開」的提示詞才允許計數。"
+   },
+   {
+    "ref": "server/routers/__tests__/promptLibraryIdor.test.ts:2",
+    "line": "* promptLibraryIdor.test.ts — AIDV-184 promptLibrary 可見性/IDOR 一致性"
+   },
+   {
+    "ref": "server/routers/__tests__/promptLibraryIdor.test.ts:93",
+    "line": "describe(\"AIDV-184 ① incrementUseCount IDOR + 真實 success\", () => {"
+   },
+   {
+    "ref": "server/routers/__tests__/promptLibraryIdor.test.ts:117",
+    "line": "describe(\"AIDV-184 ② getById 旗標 ON 公開 prompt 一致性\", () => {"
+   }
   ]
  },
  {

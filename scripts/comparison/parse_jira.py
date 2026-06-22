@@ -20,7 +20,11 @@ def grep_code(key):
     refs=[]
     for ln in out.splitlines():
         p=ln.split(":",2)
-        if len(p)>=2: refs.append(f"{p[0]}:{p[1]}")
+        if len(p)>=3:
+            content=re.sub(r"\s+"," ",p[2]).strip()
+            refs.append({"ref":f"{p[0]}:{p[1]}","line":content[:150]})
+        elif len(p)>=2:
+            refs.append({"ref":f"{p[0]}:{p[1]}","line":""})
     return refs
 
 cards=[]

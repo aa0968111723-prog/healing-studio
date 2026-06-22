@@ -38,7 +38,7 @@ _GLYPH={"✅":"[完成]","🔄":"[進行]","📋":"[待辦]","⛔":"[阻擋]",
  "🔴":"[P0]","⚠":"[注意]","️":"","🔒":"[鎖]","📥":"[補]",
  "⌘":"Cmd","•":"-","✔":"[v]","✘":"[x]","⌗":"#","↟":"(同)",
  "✓":"[v]","✗":"[x]","●":"*","🟢":"[綠]","🟡":"[黃]",
- "⭐":"[星]","⁉":"!?","→":"->","←":"<-","⏫":"[高]","↵":" ","−":"-","‌":"","​":"","⏫":"[高]","⬆":"[高]","⬇":"[低]"}
+ "⭐":"[星]","⁉":"!?","→":"->","←":"<-","⏫":"[高]","↵":" ","−":"-","‌":"","​":"","⏫":"[高]","⬆":"[高]","⬇":"[低]","⋯":"...","⚡":"[快]","…":"...","、":"、"}
 def S(x):
     if x is None: return ""
     x=str(x)
@@ -219,19 +219,31 @@ for c in jira:
     if c.get("labels"): meta+=" · labels "+",".join(c["labels"])
     P(meta,7.6,0.4,(90,90,90))
     if c.get("desc"):
-        d=re.sub(r"\s+"," ",c["desc"]).strip()[:480]
-        P("描述： "+d,7.8,0.4,(40,40,40))
-    if c.get("prs"): P("PR： "+", ".join("#"+p for p in c["prs"]),7.6,0.3,(70,70,110))
-    if c.get("tables"): P("連結資料表（"+str(len(c["tables"]))+"）： "+", ".join(c["tables"]),7.6,0.3,(20,90,90))
-    if c.get("migs"): P("Migration 編號： "+", ".join(c["migs"]),7.6,0.3,(120,80,20))
+        d=re.sub(r"[ \t]+"," ",c["desc"]).strip()
+        d=re.sub(r"\n{2,}","\n",d)[:2600]
+        P("技術說明／驗收（這張卡對網站的幫助與行為改變）：",7.8,0.2,(20,70,120))
+        for para in d.split("\n"):
+            if para.strip(): P("　"+para.strip(),7.6,0.3,(40,40,40))
+    if c.get("prs"):
+        P("關聯 PR（實際改動 commit）： "+", ".join("#"+p for p in c["prs"]),7.6,0.3,(70,70,110))
+    if c.get("tables"):
+        P("動到的資料表（"+str(len(c["tables"]))+"）： "+", ".join(c["tables"]),7.6,0.3,(20,90,90))
+    if c.get("migs"):
+        P("相關 migration： "+", ".join(c["migs"]),7.6,0.3,(120,80,20))
     if c.get("code"):
-        P("程式碼錨點（"+str(len(c["code"]))+"）：",7.6,0.2,(120,30,30))
-        pdf.set_font("wqy",size=7)
-        for r in c["code"][:40]:
-            pdf.multi_cell(EPW,3.6,S("  - "+r),new_x="LMARGIN",new_y="NEXT")
-        if len(c["code"])>40: P(f"  …另 {len(c['code'])-40} 處",7,0.2,(120,120,120))
+        P("對站台的改動落點（檔案:行號 │ 該行程式碼/註解）"+f"——共 {len(c['code'])} 處：",7.6,0.2,(120,30,30))
+        for r in c["code"][:30]:
+            ref=r["ref"] if isinstance(r,dict) else str(r)
+            line=r.get("line","") if isinstance(r,dict) else ""
+            pdf.set_font("wqy",size=7); pdf.set_text_color(20,40,90)
+            pdf.multi_cell(EPW,3.6,S("  • "+ref),new_x="LMARGIN",new_y="NEXT")
+            if line:
+                pdf.set_text_color(80,80,80)
+                pdf.multi_cell(EPW,3.5,S("      │ "+line),new_x="LMARGIN",new_y="NEXT")
+        pdf.set_text_color(0)
+        if len(c["code"])>30: P(f"  …另 {len(c['code'])-30} 處（同卡號錨點）",7,0.2,(120,120,120))
     else:
-        P("程式碼錨點：（碼中無 "+c["key"]+" 註記）",7.6,0.2,(150,150,150))
+        P("對站台的改動落點：本卡碼中未留卡號註記（多為 Backlog／規劃／決策卡，尚未進入實作）。",7.6,0.2,(150,150,150))
     pdf.set_draw_color(225); pdf.line(pdf.l_margin,pdf.get_y()+0.5,pdf.w-pdf.r_margin,pdf.get_y()+0.5)
     pdf.ln(2.2)
 
