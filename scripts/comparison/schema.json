@@ -70,6 +70,29 @@
     "is_index": false
    },
    {
+    "name": "twoFactorSecret",
+    "db": "twoFactorSecret",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "twoFactorSecret: varchar(\"twoFactorSecret\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "twoFactorEnabled",
+    "db": "twoFactorEnabled",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "twoFactorEnabled: boolean(\"twoFactorEnabled\").default(false).notNull()",
+    "is_index": false
+   },
+   {
     "name": "emailVerified",
     "db": "emailVerified",
     "type": "boolean",
@@ -107,6 +130,16 @@
      "admin"
     ],
     "raw": "role: mysqlEnum(\"role\", [\"user\", \"leader\", \"admin\"]) .default(\"user\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "quotaJson",
+    "db": "quotaJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "quotaJson: json(\"quotaJson\").$type<{ image: number; video: number; audio: number; voice: number; }>()",
     "is_index": false
    },
    {
@@ -192,6 +225,36 @@
     ],
     "enum": null,
     "raw": "onboardingDone: boolean(\"onboardingDone\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "avatarUrl",
+    "db": "avatarUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "avatarUrl: text(\"avatarUrl\")",
+    "is_index": false
+   },
+   {
+    "name": "icsFeedToken",
+    "db": "icsFeedToken",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "icsFeedToken: varchar(\"icsFeedToken\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "orbMemorySummary",
+    "db": "orbMemorySummary",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "orbMemorySummary: text(\"orbMemorySummary\")",
     "is_index": false
    },
    {
@@ -369,6 +432,19 @@
     "is_index": false
    },
    {
+    "name": "voiceEnabled",
+    "db": "voiceEnabled",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "voiceEnabled: boolean(\"voiceEnabled\").default(false).notNull()",
+    "is_index": false
+   },
+   {
     "name": "preferredVoiceName",
     "db": "preferredVoiceName",
     "type": "mysqlEnum",
@@ -401,6 +477,16 @@
     "is_index": false
    },
    {
+    "name": "orbAgentEnabled",
+    "db": "orbAgentEnabled",
+    "type": "boolean",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "orbAgentEnabled: boolean(\"orbAgentEnabled\")",
+    "is_index": false
+   },
+   {
     "name": "workflowsEnabled",
     "db": "workflowsEnabled",
     "type": "boolean",
@@ -408,6 +494,50 @@
     "flags": [],
     "enum": null,
     "raw": "workflowsEnabled: boolean(\"workflowsEnabled\")",
+    "is_index": false
+   },
+   {
+    "name": "disabledPageAgents",
+    "db": "disabledPageAgents",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT []"
+    ],
+    "enum": null,
+    "raw": "disabledPageAgents: json(\"disabledPageAgents\").$type<string[]>().default([]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "disabledActionsByPage",
+    "db": "disabledActionsByPage",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT {}"
+    ],
+    "enum": null,
+    "raw": "disabledActionsByPage: json(\"disabledActionsByPage\") .$type<Record<string, string[]>>() .default({}) .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "orbWidgetCorner",
+    "db": "orbWidgetCorner",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT bottom-right"
+    ],
+    "enum": [
+     "bottom-right",
+     "bottom-left",
+     "top-right",
+     "top-left"
+    ],
+    "raw": "orbWidgetCorner: mysqlEnum(\"orbWidgetCorner\", [ \"bottom-right\", \"bottom-left\", \"top-right\", \"top-left\", ]).default(\"bottom-right\").notNull()",
     "is_index": false
    },
    {
@@ -444,6 +574,18 @@
     ],
     "enum": null,
     "raw": "orbProactiveSuggestions: boolean(\"orbProactiveSuggestions\").default(true).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "costBudget",
+    "db": "costBudget",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "DEFAULT null"
+    ],
+    "enum": null,
+    "raw": "costBudget: json(\"costBudget\").$type<{ perWorkflowCap?: number | null; remainingCredits?: number | null; confirmAtTierOrAbove?: \"free\" | \"cheap\" | \"medium\" | \"expensive\" | \"premium\" | null; alwaysAllow?: boolean | null; } | null>().default(null)",
     "is_index": false
    },
    {
@@ -541,6 +683,16 @@
     "flags": [],
     "enum": null,
     "raw": "onboardingCompletedAt: timestamp(\"onboardingCompletedAt\")",
+    "is_index": false
+   },
+   {
+    "name": "preferredSpecialistAgent",
+    "db": "preferredSpecialistAgent",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "preferredSpecialistAgent: varchar(\"preferredSpecialistAgent\", { length: 64 })",
     "is_index": false
    },
    {
@@ -840,6 +992,23 @@
    }
   ],
   "indexes": [
+   {
+    "name": "mutedSpirits",
+    "db": "mutedSpirits",
+    "type": "json",
+    "length": "128",
+    "flags": [
+     "PK",
+     "AUTO_INC",
+     "NOT NULL",
+     "UNIQUE",
+     "DEFAULT now()",
+     "ON UPDATE now()"
+    ],
+    "enum": null,
+    "raw": "mutedSpirits: json(\"mutedSpirits\").$type<string[]>().default([]).notNull(), favoriteSpirits: json(\"favoriteSpirits\").$type<string[]>().default([]).notNull(), stayOnPageMode: boolean(\"stayOnPageMode\").default(false).notNull(), proactiveTriggerSettings: json(\"proactiveTriggerSettings\") .$type<Record<string, { enabled?: boolean; minIntervalMs?: number; requireAck?: boolean }>>() .default({}) .notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"agent_preferences_user_id_idx\").on(table.userId), }) ); export const orbScheduledJobs = mysqlTable( \"orb_scheduled_jobs\", { id: varchar(\"id\", { length: 128 }).primaryKey(), userId: int(\"userId\").notNull(), cronExpression: varchar(\"cronExpression\", { length: 128 }).notNull(), taskDescription: text(\"taskDescription\").notNull(), enabled: boolean(\"enabled\").default(true).notNull(), lastRunAt: timestamp(\"lastRunAt\"), lastError: text(\"lastError\"), lastResult: text(\"lastResult\"), lastRunStatus: varchar(\"lastRunStatus\", { length: 32 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"orb_scheduled_jobs_user_id_idx\").on(table.userId), }) ); export type OrbScheduledJobRow = typeof orbScheduledJobs.$inferSelect; export type InsertOrbScheduledJob = typeof orbScheduledJobs.$inferInsert; export const passwordResetTokens = mysqlTable( \"password_reset_tokens\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), tokenHash: varchar(\"tokenHash\", { length: 128 }).notNull().unique(), expiresAt: timestamp(\"expiresAt\").notNull(), used: boolean(\"used\").default(false).notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdIdx: index(\"prt_userId_idx\").on(table.userId), tokenHashIdx: index(\"prt_tokenHash_idx\").on(table.tokenHash), expiresAtIdx: index(\"prt_expiresAt_idx\").on(table.expiresAt), }) ); export type PasswordResetToken = typeof passwordResetTokens.$inferSelect; export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert; export const emailVerificationTokens = mysqlTable( \"email_verification_tokens\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), newEmail: varchar(\"newEmail\", { length: 320 }).notNull(), tokenHash: varchar(\"tokenHash\", { length: 128 }).notNull().unique(), expiresAt: timestamp(\"expiresAt\").notNull(), used: boolean(\"used\").default(false).notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdIdx: index(\"evt_userId_idx\").on(table.userId), tokenHashIdx: index(\"evt_tokenHash_idx\").on(table.tokenHash), expiresAtIdx: index(\"evt_expiresAt_idx\").on(table.expiresAt), }) ); export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect; export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert; export const loginHistory = mysqlTable( \"login_history\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), email: varchar(\"email\", { length: 320 }), success: boolean(\"success\").default(true).notNull(), ipAddress: varchar(\"ipAddress\", { length: 45 }), userAgent: text(\"userAgent\"), device: varchar(\"device\", { length: 100 }), browser: varchar(\"browser\", { length: 100 }), os: varchar(\"os\", { length: 100 }), country: varchar(\"country\", { length: 100 }), city: varchar(\"city\", { length: 100 }), failureReason: varchar(\"failureReason\", { length: 255 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdIdx: index(\"lh_userId_idx\").on(table.userId), userIdCreatedAtIdx: index(\"lh_userId_createdAt_idx\").on( table.userId, table.createdAt ), emailIdx: index(\"lh_email_idx\").on(table.email), }) ); export type LoginHistory = typeof loginHistory.$inferSelect; export type InsertLoginHistory = typeof loginHistory.$inferInsert; export const backgroundJobs = mysqlTable( \"background_jobs\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), jobType: mysqlEnum(\"jobType\", [ \"image\", \"video\", \"audio\", \"voice\", \"zip_export\", \"multimodal\", \"model_training\", \"teaching_archive_ingestion\", ]).notNull(), status: mysqlEnum(\"status\", [ \"queued\", \"processing\", \"completed\", \"failed\", \"cancelled\", ]) .default(\"queued\") .notNull(), progress: int(\"progress\").default(0).notNull(), progressMessage: text(\"progressMessage\"), resultJson: json(\"resultJson\"), errorMessage: text(\"errorMessage\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdStatusIdx: index(\"userId_status_idx\").on(table.userId, table.status), userIdCreatedAtIdx: index(\"userId_createdAt_idx\").on( table.userId, table.createdAt ), }) ); export type BackgroundJob = typeof backgroundJobs.$inferSelect; export type InsertBackgroundJob = typeof backgroundJobs.$inferInsert; export const digitalAssetLibrary = mysqlTable( \"digital_asset_library\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), title: varchar(\"title\", { length: 255 }).notNull(), description: text(\"description\"), assetType: mysqlEnum(\"assetType\", [ \"image\", \"video\", \"audio\", \"voice\", \"script\", \"zip_bundle\", ]).notNull(), fileUrl: text(\"fileUrl\"), fileKey: text(\"fileKey\"), thumbnailUrl: text(\"thumbnailUrl\"), mimeType: varchar(\"mimeType\", { length: 128 }), fileSizeBytes: int(\"fileSizeBytes\"), promptUsed: text(\"promptUsed\"), isPublicRecycled: boolean(\"isPublicRecycled\").default(false).notNull(), visibility: mysqlEnum(\"visibility\", [\"private\", \"team_shared\"]) .default(\"private\") .notNull(), rewardCredits: int(\"rewardCredits\").default(0).notNull(), tags: json(\"tags\").$type<string[]>(), category: varchar(\"category\", { length: 64 }), sourceStudio: varchar(\"sourceStudio\", { length: 32 }), modelId: varchar(\"modelId\", { length: 128 }), backgroundJobId: int(\"backgroundJobId\"), sourceUrl: text(\"sourceUrl\"), provider: varchar(\"provider\", { length: 32 }), archivedAt: timestamp(\"archivedAt\"), expiresAt: timestamp(\"expiresAt\"), archivalChecksum: varchar(\"archivalChecksum\", { length: 64 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"dal_userId_idx\").on(table.userId), userIdAssetTypeIdx: index(\"dal_userId_assetType_idx\").on( table.userId, table.assetType ), userIdCreatedAtIdx: index(\"dal_userId_createdAt_idx\").on( table.userId, table.createdAt ), userIdCategoryIdx: index(\"dal_userId_category_idx\").on( table.userId, table.category ), userIdSourceStudioIdx: index(\"dal_userId_sourceStudio_idx\").on( table.userId, table.sourceStudio ), archivedNullCreatedAtIdx: index(\"dal_archivedNull_createdAt_idx\").on( sql`(\\`archivedAt\\` IS NULL)`, table.createdAt ), }) ); export type DigitalAsset = typeof digitalAssetLibrary.$inferSelect; export type InsertDigitalAsset = typeof digitalAssetLibrary.$inferInsert; export const fineTunedModels = mysqlTable( \"fine_tuned_models\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), name: varchar(\"name\", { length: 255 }).notNull(), description: text(\"description\"), modelType: mysqlEnum(\"modelType\", [ \"image_subject\", \"voice_clone\", \"style_lora\", \"scene_lora\", \"video_lora\", \"portrait_lora\", ]).notNull(), status: mysqlEnum(\"status\", [\"pending\", \"training\", \"ready\", \"failed\"]) .default(\"pending\") .notNull(), fileUrl: text(\"fileUrl\"), fileKey: text(\"fileKey\"), trainedLoraUrl: text(\"trainedLoraUrl\"), replicatePredictionId: varchar(\"replicatePredictionId\", { length: 128 }), trainingEngine: mysqlEnum(\"trainingEngine\", [\"replicate\", \"fal\"]).default( \"replicate\" ), configJson: json(\"configJson\").$type<{ triggerWord?: string; epochs?: number; learningRate?: number; batchSize?: number; steps?: number; zipUrl?: string; predictionId?: string; falRequestId?: string; falModelId?: string; isStyle?: boolean; submittedAt?: number; completedAt?: number; datasetImages?: Array<{ url: string; fileKey: string; angle: string; caption?: string; }>; datasetVideos?: Array<{ url: string; fileKey: string; caption?: string }>; }>(), usageCount: int(\"usageCount\").default(0).notNull(), visibility: mysqlEnum(\"visibility\", [\"private\", \"team_shared\"]) .default(\"private\") .notNull(), teamId: int(\"teamId\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdStatusIdx: index(\"ftm_userId_status_idx\").on( table.userId, table.status ), userIdCreatedAtIdx: index(\"ftm_userId_createdAt_idx\").on( table.userId, table.createdAt ), teamIdIdx: index(\"ftm_teamId_idx\").on(table.teamId), }) ); export type FineTunedModel = typeof fineTunedModels.$inferSelect; export type InsertFineTunedModel = typeof fineTunedModels.$inferInsert; export const projectNotesCalendar = mysqlTable( \"project_notes_calendar\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), title: varchar(\"title\", { length: 255 }).notNull(), content: text(\"content\"), scriptJson: json(\"scriptJson\"), noteType: mysqlEnum(\"noteType\", [\"note\", \"script\", \"calendar_event\"]) .default(\"note\") .notNull(), status: mysqlEnum(\"status\", [\"todo\", \"in_progress\", \"done\"]) .default(\"todo\") .notNull(), scheduledDate: timestamp(\"scheduledDate\"), endDate: timestamp(\"endDate\"), reminderMinutes: int(\"reminderMinutes\"), location: json(\"location\").$type<{ name: string; address?: string; lat?: number; lng?: number; placeId?: string; }>(), meetingUrl: varchar(\"meetingUrl\", { length: 512 }), tags: json(\"tags\").$type<string[]>(), category: varchar(\"category\", { length: 64 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"pnc_userId_idx\").on(table.userId), userIdNoteTypeIdx: index(\"pnc_userId_noteType_idx\").on( table.userId, table.noteType ), userIdScheduledDateIdx: index(\"pnc_userId_scheduledDate_idx\").on( table.userId, table.scheduledDate ), userIdStatusIdx: index(\"pnc_userId_status_idx\").on( table.userId, table.status ), userIdCategoryIdx: index(\"pnc_userId_category_idx\").on( table.userId, table.category ), }) ); export type ProjectNote = typeof projectNotesCalendar.$inferSelect; export type InsertProjectNote = typeof projectNotesCalendar.$inferInsert; export const userGoogleOauthTokens = mysqlTable( \"user_google_oauth_tokens\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), purpose: varchar(\"purpose\", { length: 32 }).default(\"drive\").notNull(), accessToken: text(\"accessToken\").notNull(), refreshToken: text(\"refreshToken\"), scope: text(\"scope\").notNull(), tokenType: varchar(\"tokenType\", { length: 32 }).default(\"Bearer\").notNull(), expiresAt: timestamp(\"expiresAt\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdx: index(\"user_google_oauth_tokens_user_idx\").on(table.userId), userPurposeUk: uniqueIndex(\"user_google_oauth_tokens_user_purpose_uk\").on( table.userId, table.purpose ), }) ); export type UserGoogleOauthToken = typeof userGoogleOauthTokens.$inferSelect; export type InsertUserGoogleOauthToken = typeof userGoogleOauthTokens.$inferInsert; export const driveAssetLibraries = mysqlTable( \"drive_asset_libraries\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), label: varchar(\"label\", { length: 128 }).notNull(), kind: mysqlEnum(\"kind\", [\"shoot\", \"personal\", \"other\"]).default(\"shoot\").notNull(), driveFolderId: varchar(\"driveFolderId\", { length: 128 }).notNull(), driveFolderName: varchar(\"driveFolderName\", { length: 255 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdx: index(\"drive_asset_libraries_user_idx\").on(table.userId), userKindIdx: index(\"drive_asset_libraries_user_kind_idx\").on( table.userId, table.kind ), }) ); export type DriveAssetLibrary = typeof driveAssetLibraries.$inferSelect; export type InsertDriveAssetLibrary = typeof driveAssetLibraries.$inferInsert; export const userFeedbackReports = mysqlTable( \"user_feedback_reports\"",
+    "is_index": true
+   },
    {
     "name": "userIdProviderIdx",
     "db": "aul_userId_provider_idx",
@@ -1708,6 +1877,16 @@
     "is_index": false
    },
    {
+    "name": "tags",
+    "db": "tags",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
     "name": "category",
     "db": "category",
     "type": "varchar",
@@ -1715,6 +1894,16 @@
     "flags": [],
     "enum": null,
     "raw": "category: varchar(\"category\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "sourceStudio",
+    "db": "sourceStudio",
+    "type": "varchar",
+    "length": "32",
+    "flags": [],
+    "enum": null,
+    "raw": "sourceStudio: varchar(\"sourceStudio\", { length: 32 })",
     "is_index": false
    },
    {
@@ -1735,6 +1924,16 @@
     "flags": [],
     "enum": null,
     "raw": "backgroundJobId: int(\"backgroundJobId\")",
+    "is_index": false
+   },
+   {
+    "name": "sourceUrl",
+    "db": "sourceUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "sourceUrl: text(\"sourceUrl\")",
     "is_index": false
    },
    {
@@ -1937,6 +2136,51 @@
     "is_index": false
    },
    {
+    "name": "fileKey",
+    "db": "fileKey",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "fileKey: text(\"fileKey\")",
+    "is_index": false
+   },
+   {
+    "name": "trainedLoraUrl",
+    "db": "trainedLoraUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "trainedLoraUrl: text(\"trainedLoraUrl\")",
+    "is_index": false
+   },
+   {
+    "name": "replicatePredictionId",
+    "db": "replicatePredictionId",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "replicatePredictionId: varchar(\"replicatePredictionId\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "trainingEngine",
+    "db": "trainingEngine",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "DEFAULT replicate"
+    ],
+    "enum": [
+     "replicate",
+     "fal"
+    ],
+    "raw": "trainingEngine: mysqlEnum(\"trainingEngine\", [\"replicate\", \"fal\"]).default( \"replicate\" )",
+    "is_index": false
+   },
+   {
     "name": "configJson",
     "db": "configJson",
     "type": "json",
@@ -1944,6 +2188,19 @@
     "flags": [],
     "enum": null,
     "raw": "configJson: json(\"configJson\").$type<{ triggerWord?: string; epochs?: number; learningRate?: number; batchSize?: number; steps?: number; zipUrl?: string; predictionId?: string; falRequestId?: string; falModelId?: string; isStyle?: boolean; submittedAt?: number; completedAt?: number; datasetImages?: Array<{ url: string; fileKey: string; angle: string; caption?: string; }>; datasetVideos?: Array<{ url: string; fileKey: string; caption?: string }>; }>()",
+    "is_index": false
+   },
+   {
+    "name": "usageCount",
+    "db": "usageCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "usageCount: int(\"usageCount\").default(0).notNull()",
     "is_index": false
    },
    {
@@ -1960,6 +2217,16 @@
      "team_shared"
     ],
     "raw": "visibility: mysqlEnum(\"visibility\", [\"private\", \"team_shared\"]) .default(\"private\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "teamId",
+    "db": "teamId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "teamId: int(\"teamId\")",
     "is_index": false
    },
    {
@@ -2161,6 +2428,16 @@
     "flags": [],
     "enum": null,
     "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "category",
+    "db": "category",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "category: varchar(\"category\", { length: 64 })",
     "is_index": false
    },
    {
@@ -3618,6 +3895,18 @@
     "is_index": false
    },
    {
+    "name": "modality",
+    "db": "modality",
+    "type": "varchar",
+    "length": "32",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "modality: varchar(\"modality\", { length: 32 }).notNull()",
+    "is_index": false
+   },
+   {
     "name": "modelId",
     "db": "modelId",
     "type": "varchar",
@@ -3628,9 +3917,63 @@
     "enum": null,
     "raw": "modelId: varchar(\"modelId\", { length: 128 }).notNull()",
     "is_index": false
+   },
+   {
+    "name": "source",
+    "db": "source",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT other"
+    ],
+    "enum": [
+     "director_ai",
+     "global_orb",
+     "image_studio",
+     "video_studio",
+     "pro_studio",
+     "studio",
+     "history",
+     "shared_space",
+     "other"
+    ],
+    "raw": "source: mysqlEnum(\"source\", [ \"director_ai\", \"global_orb\", \"image_studio\", \"video_studio\", \"pro_studio\", \"studio\", \"history\", \"shared_space\", \"other\", ]) .default(\"other\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "accepted",
+    "db": "accepted",
+    "type": "boolean",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "accepted: boolean(\"accepted\")",
+    "is_index": false
    }
   ],
-  "indexes": []
+  "indexes": [
+   {
+    "name": "userIdModalityIdx",
+    "db": "cbc_userId_modality_idx",
+    "type": "index",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "userIdModalityIdx: index(\"cbc_userId_modality_idx\").on(table.userId, table.modality)",
+    "is_index": true
+   },
+   {
+    "name": "isCuratedPublicIdx",
+    "db": "cbc_isCurated_isPublic_idx",
+    "type": "index",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "isCuratedPublicIdx: index(\"cbc_isCurated_isPublic_idx\").on( table.isCurated, table.isPublic )",
+    "is_index": true
+   }
+  ]
  },
  {
   "var": "generationHistory",
@@ -3782,6 +4125,16 @@
     "flags": [],
     "enum": null,
     "raw": "durationMs: int(\"durationMs\")",
+    "is_index": false
+   },
+   {
+    "name": "sourceUrl",
+    "db": "sourceUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "sourceUrl: text(\"sourceUrl\")",
     "is_index": false
    },
    {
@@ -4137,6 +4490,23 @@
     "is_index": false
    },
    {
+    "name": "uiTheme",
+    "db": "uiTheme",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT system"
+    ],
+    "enum": [
+     "system",
+     "light",
+     "dark"
+    ],
+    "raw": "uiTheme: mysqlEnum(\"uiTheme\", [\"system\", \"light\", \"dark\"]) .default(\"system\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "accentColor",
     "db": "accentColor",
     "type": "varchar",
@@ -4192,6 +4562,19 @@
     "is_index": false
    },
    {
+    "name": "analyticsConsent",
+    "db": "analyticsConsent",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "analyticsConsent: boolean(\"analyticsConsent\").default(false).notNull()",
+    "is_index": false
+   },
+   {
     "name": "crashReportConsent",
     "db": "crashReportConsent",
     "type": "boolean",
@@ -4228,6 +4611,19 @@
     ],
     "enum": null,
     "raw": "showProfilePublicly: boolean(\"showProfilePublicly\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "autoBackupEnabled",
+    "db": "autoBackupEnabled",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT true"
+    ],
+    "enum": null,
+    "raw": "autoBackupEnabled: boolean(\"autoBackupEnabled\").default(true).notNull()",
     "is_index": false
    },
    {
@@ -4268,6 +4664,24 @@
     "flags": [],
     "enum": null,
     "raw": "lastBackupAt: timestamp(\"lastBackupAt\")",
+    "is_index": false
+   },
+   {
+    "name": "defaultModality",
+    "db": "defaultModality",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT image"
+    ],
+    "enum": [
+     "image",
+     "video",
+     "audio",
+     "voice"
+    ],
+    "raw": "defaultModality: mysqlEnum(\"defaultModality\", [ \"image\", \"video\", \"audio\", \"voice\", ]) .default(\"image\") .notNull()",
     "is_index": false
    },
    {
@@ -4314,6 +4728,19 @@
     "is_index": false
    },
    {
+    "name": "emailNotifications",
+    "db": "emailNotifications",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT true"
+    ],
+    "enum": null,
+    "raw": "emailNotifications: boolean(\"emailNotifications\").default(true).notNull()",
+    "is_index": false
+   },
+   {
     "name": "generationCompleteNotify",
     "db": "generationCompleteNotify",
     "type": "boolean",
@@ -4340,6 +4767,18 @@
     "is_index": false
    },
    {
+    "name": "locale",
+    "db": "locale",
+    "type": "varchar",
+    "length": "16",
+    "flags": [
+     "DEFAULT zh-TW"
+    ],
+    "enum": null,
+    "raw": "locale: varchar(\"locale\", { length: 16 }).default(\"zh-TW\")",
+    "is_index": false
+   },
+   {
     "name": "timezone",
     "db": "timezone",
     "type": "varchar",
@@ -4349,6 +4788,16 @@
     ],
     "enum": null,
     "raw": "timezone: varchar(\"timezone\", { length: 64 }).default(\"Asia/Taipei\")",
+    "is_index": false
+   },
+   {
+    "name": "extraSettings",
+    "db": "extraSettings",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "extraSettings: json(\"extraSettings\").$type<Record<string, unknown>>()",
     "is_index": false
    },
    {
@@ -4396,6 +4845,160 @@
     ],
     "enum": null,
     "raw": "id: int(\"id\").autoincrement().primaryKey()",
+    "is_index": false
+   },
+   {
+    "name": "title",
+    "db": "title",
+    "type": "varchar",
+    "length": "512",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "title: varchar(\"title\", { length: 512 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "oarsSummary",
+    "db": "oarsSummary",
+    "type": "text",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "oarsSummary: text(\"oarsSummary\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "bodyMarkdown",
+    "db": "bodyMarkdown",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "bodyMarkdown: text(\"bodyMarkdown\")",
+    "is_index": false
+   },
+   {
+    "name": "sourceName",
+    "db": "sourceName",
+    "type": "varchar",
+    "length": "256",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "sourceName: varchar(\"sourceName\", { length: 256 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sourceUrl",
+    "db": "sourceUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "sourceUrl: text(\"sourceUrl\")",
+    "is_index": false
+   },
+   {
+    "name": "coverImageUrl",
+    "db": "coverImageUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "coverImageUrl: text(\"coverImageUrl\")",
+    "is_index": false
+   },
+   {
+    "name": "category",
+    "db": "category",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT product_update"
+    ],
+    "enum": [
+     "product_update",
+     "community_highlight",
+     "tutorial",
+     "industry_news",
+     "tips_and_tricks"
+    ],
+    "raw": "category: mysqlEnum(\"category\", [ \"product_update\", \"community_highlight\", \"tutorial\", \"industry_news\", \"tips_and_tricks\", ]) .default(\"product_update\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "tags",
+    "db": "tags",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "isPinned",
+    "db": "isPinned",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "isPinned: boolean(\"isPinned\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "isPublished",
+    "db": "isPublished",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "isPublished: boolean(\"isPublished\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "publishedAt",
+    "db": "publishedAt",
+    "type": "timestamp",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "publishedAt: timestamp(\"publishedAt\")",
+    "is_index": false
+   },
+   {
+    "name": "authorUserId",
+    "db": "authorUserId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "authorUserId: int(\"authorUserId\")",
+    "is_index": false
+   },
+   {
+    "name": "viewCount",
+    "db": "viewCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "viewCount: int(\"viewCount\").default(0).notNull()",
     "is_index": false
    },
    {
@@ -4459,6 +5062,183 @@
     ],
     "enum": null,
     "raw": "id: int(\"id\").autoincrement().primaryKey()",
+    "is_index": false
+   },
+   {
+    "name": "generatedItemId",
+    "db": "generatedItemId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "generatedItemId: int(\"generatedItemId\")",
+    "is_index": false
+   },
+   {
+    "name": "title",
+    "db": "title",
+    "type": "varchar",
+    "length": "512",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "title: varchar(\"title\", { length: 512 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "description",
+    "db": "description",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "description: text(\"description\")",
+    "is_index": false
+   },
+   {
+    "name": "imageUrl",
+    "db": "imageUrl",
+    "type": "text",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "imageUrl: text(\"imageUrl\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "thumbnailUrl",
+    "db": "thumbnailUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "thumbnailUrl: text(\"thumbnailUrl\")",
+    "is_index": false
+   },
+   {
+    "name": "vibeParameters",
+    "db": "vibeParameters",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "vibeParameters: json(\"vibeParameters\").$type<{ warmth: number; energy: number; mystery: number; serenity: number; whimsy: number; intensity: number; dominantMood: string; }>()",
+    "is_index": false
+   },
+   {
+    "name": "completelyDeconstructedBlocks",
+    "db": "completelyDeconstructedBlocks",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "completelyDeconstructedBlocks: json(\"completelyDeconstructedBlocks\").$type<{ modality: \"image\" | \"video\" | \"audio\" | \"voice\"; vibeCards: string[]; selectedBlocks: Array<{ category: string; blockId: string; label: string; prompt: string; }>; customBlockIds: number[]; freeformPrompt: string; negativePrompt: string; compiledPrompt: string; parameters: Record<string, unknown>; }>()",
+    "is_index": false
+   },
+   {
+    "name": "originalPrompt",
+    "db": "originalPrompt",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "originalPrompt: text(\"originalPrompt\")",
+    "is_index": false
+   },
+   {
+    "name": "modality",
+    "db": "modality",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT image"
+    ],
+    "enum": [
+     "image",
+     "video",
+     "audio",
+     "voice"
+    ],
+    "raw": "modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"audio\", \"voice\"]) .default(\"image\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "curatorUserId",
+    "db": "curatorUserId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "curatorUserId: int(\"curatorUserId\")",
+    "is_index": false
+   },
+   {
+    "name": "sortWeight",
+    "db": "sortWeight",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "sortWeight: int(\"sortWeight\").default(0).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "isActive",
+    "db": "isActive",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT true"
+    ],
+    "enum": null,
+    "raw": "isActive: boolean(\"isActive\").default(true).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "likeCount",
+    "db": "likeCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "likeCount: int(\"likeCount\").default(0).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "forkCount",
+    "db": "forkCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "forkCount: int(\"forkCount\").default(0).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "commentCount",
+    "db": "commentCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "commentCount: int(\"commentCount\").default(0).notNull()",
     "is_index": false
    },
    {
@@ -4627,6 +5407,19 @@
     "is_index": false
    },
    {
+    "name": "directorModel",
+    "db": "directorModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT anthropic/claude-opus-4.7"
+    ],
+    "enum": null,
+    "raw": "directorModel: varchar(\"directorModel\", { length: 128 }) .default(\"anthropic/claude-opus-4.7\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "directorTemperature",
     "db": "directorTemperature",
     "type": "decimal",
@@ -4673,6 +5466,19 @@
     ],
     "enum": null,
     "raw": "directorEnabled: boolean(\"directorEnabled\").default(true).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "analystModel",
+    "db": "analystModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT perplexity/sonar-pro"
+    ],
+    "enum": null,
+    "raw": "analystModel: varchar(\"analystModel\", { length: 128 }) .default(\"perplexity/sonar-pro\") .notNull()",
     "is_index": false
    },
    {
@@ -4725,6 +5531,19 @@
     "is_index": false
    },
    {
+    "name": "storytellerModel",
+    "db": "storytellerModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT anthropic/claude-opus-4.7"
+    ],
+    "enum": null,
+    "raw": "storytellerModel: varchar(\"storytellerModel\", { length: 128 }) .default(\"anthropic/claude-opus-4.7\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "storytellerTemperature",
     "db": "storytellerTemperature",
     "type": "decimal",
@@ -4771,6 +5590,19 @@
     ],
     "enum": null,
     "raw": "storytellerEnabled: boolean(\"storytellerEnabled\").default(true).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "technicianModel",
+    "db": "technicianModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT anthropic/claude-opus-4.7"
+    ],
+    "enum": null,
+    "raw": "technicianModel: varchar(\"technicianModel\", { length: 128 }) .default(\"anthropic/claude-opus-4.7\") .notNull()",
     "is_index": false
    },
    {
@@ -4823,6 +5655,19 @@
     "is_index": false
    },
    {
+    "name": "curatorModel",
+    "db": "curatorModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT anthropic/claude-opus-4.7"
+    ],
+    "enum": null,
+    "raw": "curatorModel: varchar(\"curatorModel\", { length: 128 }) .default(\"anthropic/claude-opus-4.7\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "curatorTemperature",
     "db": "curatorTemperature",
     "type": "decimal",
@@ -4872,6 +5717,19 @@
     "is_index": false
    },
    {
+    "name": "imageEngine",
+    "db": "imageEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT fal-ai/flux-pro/v1.1"
+    ],
+    "enum": null,
+    "raw": "imageEngine: varchar(\"imageEngine\", { length: 128 }) .default(\"fal-ai/flux-pro/v1.1\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "imageEngineParams",
     "db": "imageEngineParams",
     "type": "json",
@@ -4892,6 +5750,19 @@
     ],
     "enum": null,
     "raw": "imageEngineEnabled: boolean(\"imageEngineEnabled\").default(true).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "videoEngine",
+    "db": "videoEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT fal-ai/wan-t2v"
+    ],
+    "enum": null,
+    "raw": "videoEngine: varchar(\"videoEngine\", { length: 128 }) .default(\"fal-ai/wan-t2v\") .notNull()",
     "is_index": false
    },
    {
@@ -4918,6 +5789,19 @@
     "is_index": false
    },
    {
+    "name": "audioEngine",
+    "db": "audioEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT fal-ai/ace-step"
+    ],
+    "enum": null,
+    "raw": "audioEngine: varchar(\"audioEngine\", { length: 128 }) .default(\"fal-ai/ace-step\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "audioEngineParams",
     "db": "audioEngineParams",
     "type": "json",
@@ -4941,6 +5825,19 @@
     "is_index": false
    },
    {
+    "name": "voiceEngine",
+    "db": "voiceEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT fal-ai/elevenlabs/tts/turbo-v2.5"
+    ],
+    "enum": null,
+    "raw": "voiceEngine: varchar(\"voiceEngine\", { length: 128 }) .default(\"fal-ai/elevenlabs/tts/turbo-v2.5\") .notNull()",
+    "is_index": false
+   },
+   {
     "name": "voiceEngineParams",
     "db": "voiceEngineParams",
     "type": "json",
@@ -4961,6 +5858,208 @@
     ],
     "enum": null,
     "raw": "voiceEngineEnabled: boolean(\"voiceEngineEnabled\").default(true).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "falImageTo3dEngine",
+    "db": "falImageTo3dEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/trellis"
+    ],
+    "enum": null,
+    "raw": "falImageTo3dEngine: varchar(\"falImageTo3dEngine\", { length: 128 }).default( \"fal-ai/trellis\" )",
+    "is_index": false
+   },
+   {
+    "name": "falImageToImageEngine",
+    "db": "falImageToImageEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/flux/dev/image-to-image"
+    ],
+    "enum": null,
+    "raw": "falImageToImageEngine: varchar(\"falImageToImageEngine\", { length: 128, }).default(\"fal-ai/flux/dev/image-to-image\")",
+    "is_index": false
+   },
+   {
+    "name": "falImageToJsonEngine",
+    "db": "falImageToJsonEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/any-llm"
+    ],
+    "enum": null,
+    "raw": "falImageToJsonEngine: varchar(\"falImageToJsonEngine\", { length: 128, }).default(\"fal-ai/any-llm\")",
+    "is_index": false
+   },
+   {
+    "name": "falImageToVideoEngine",
+    "db": "falImageToVideoEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/kling-video/v2.1/pro/image-to-vid"
+    ],
+    "enum": null,
+    "raw": "falImageToVideoEngine: varchar(\"falImageToVideoEngine\", { length: 128, }).default(\"fal-ai/kling-video/v2.1/pro/image-to-video\")",
+    "is_index": false
+   },
+   {
+    "name": "falJsonEngine",
+    "db": "falJsonEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/any-llm"
+    ],
+    "enum": null,
+    "raw": "falJsonEngine: varchar(\"falJsonEngine\", { length: 128 }).default( \"fal-ai/any-llm\" )",
+    "is_index": false
+   },
+   {
+    "name": "falLlmEngine",
+    "db": "falLlmEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/any-llm"
+    ],
+    "enum": null,
+    "raw": "falLlmEngine: varchar(\"falLlmEngine\", { length: 128 }).default( \"fal-ai/any-llm\" )",
+    "is_index": false
+   },
+   {
+    "name": "falTextTo3dEngine",
+    "db": "falTextTo3dEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/hyper3d/rodin"
+    ],
+    "enum": null,
+    "raw": "falTextTo3dEngine: varchar(\"falTextTo3dEngine\", { length: 128 }).default( \"fal-ai/hyper3d/rodin\" )",
+    "is_index": false
+   },
+   {
+    "name": "falTextToAudioEngine",
+    "db": "falTextToAudioEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/stable-audio"
+    ],
+    "enum": null,
+    "raw": "falTextToAudioEngine: varchar(\"falTextToAudioEngine\", { length: 128, }).default(\"fal-ai/stable-audio\")",
+    "is_index": false
+   },
+   {
+    "name": "falTextToImageEngine",
+    "db": "falTextToImageEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/flux-pro/v1.1"
+    ],
+    "enum": null,
+    "raw": "falTextToImageEngine: varchar(\"falTextToImageEngine\", { length: 128, }).default(\"fal-ai/flux-pro/v1.1\")",
+    "is_index": false
+   },
+   {
+    "name": "falTextToJsonEngine",
+    "db": "falTextToJsonEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/any-llm"
+    ],
+    "enum": null,
+    "raw": "falTextToJsonEngine: varchar(\"falTextToJsonEngine\", { length: 128 }).default( \"fal-ai/any-llm\" )",
+    "is_index": false
+   },
+   {
+    "name": "falTextToSpeechEngine",
+    "db": "falTextToSpeechEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/elevenlabs/tts/turbo-v2.5"
+    ],
+    "enum": null,
+    "raw": "falTextToSpeechEngine: varchar(\"falTextToSpeechEngine\", { length: 128, }).default(\"fal-ai/elevenlabs/tts/turbo-v2.5\")",
+    "is_index": false
+   },
+   {
+    "name": "falTextToVideoEngine",
+    "db": "falTextToVideoEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/kling-video/v2.1/pro/text-to-vide"
+    ],
+    "enum": null,
+    "raw": "falTextToVideoEngine: varchar(\"falTextToVideoEngine\", { length: 128, }).default(\"fal-ai/kling-video/v2.1/pro/text-to-video\")",
+    "is_index": false
+   },
+   {
+    "name": "falTrainingEngine",
+    "db": "falTrainingEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/flux-lora-fast-training"
+    ],
+    "enum": null,
+    "raw": "falTrainingEngine: varchar(\"falTrainingEngine\", { length: 128 }).default( \"fal-ai/flux-lora-fast-training\" )",
+    "is_index": false
+   },
+   {
+    "name": "falVideoToAudioEngine",
+    "db": "falVideoToAudioEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/mmaudio-v2/video-to-audio"
+    ],
+    "enum": null,
+    "raw": "falVideoToAudioEngine: varchar(\"falVideoToAudioEngine\", { length: 128, }).default(\"fal-ai/mmaudio-v2/video-to-audio\")",
+    "is_index": false
+   },
+   {
+    "name": "falVideoToTextEngine",
+    "db": "falVideoToTextEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/whisper"
+    ],
+    "enum": null,
+    "raw": "falVideoToTextEngine: varchar(\"falVideoToTextEngine\", { length: 128, }).default(\"fal-ai/whisper\")",
+    "is_index": false
+   },
+   {
+    "name": "falVideoToVideoEngine",
+    "db": "falVideoToVideoEngine",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "DEFAULT fal-ai/kling-video/v2.1/standard/video-t"
+    ],
+    "enum": null,
+    "raw": "falVideoToVideoEngine: varchar(\"falVideoToVideoEngine\", { length: 128, }).default(\"fal-ai/kling-video/v2.1/standard/video-to-video\")",
+    "is_index": false
+   },
+   {
+    "name": "globalPreferences",
+    "db": "globalPreferences",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "globalPreferences: json(\"globalPreferences\").$type<Record<string, unknown>>()",
     "is_index": false
    },
    {
@@ -5021,6 +6120,113 @@
     "enum": null,
     "raw": "userId: int(\"userId\").notNull()",
     "is_index": false
+   },
+   {
+    "name": "brainSlot",
+    "db": "brainSlot",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "director",
+     "analyst",
+     "storyteller",
+     "technician",
+     "curator",
+     "imageEngine",
+     "videoEngine",
+     "audioEngine",
+     "voiceEngine"
+    ],
+    "raw": "brainSlot: mysqlEnum(\"brainSlot\", [ \"director\", \"analyst\", \"storyteller\", \"technician\", \"curator\", \"imageEngine\", \"videoEngine\", \"audioEngine\", \"voiceEngine\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "fromModel",
+    "db": "fromModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "fromModel: varchar(\"fromModel\", { length: 128 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "toModel",
+    "db": "toModel",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "toModel: varchar(\"toModel\", { length: 128 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "fromParams",
+    "db": "fromParams",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "fromParams: json(\"fromParams\").$type<Record<string, unknown>>()",
+    "is_index": false
+   },
+   {
+    "name": "toParams",
+    "db": "toParams",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "toParams: json(\"toParams\").$type<Record<string, unknown>>()",
+    "is_index": false
+   },
+   {
+    "name": "reason",
+    "db": "reason",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "reason: text(\"reason\")",
+    "is_index": false
+   },
+   {
+    "name": "switchSource",
+    "db": "switchSource",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT manual"
+    ],
+    "enum": [
+     "manual",
+     "soul_recommendation",
+     "auto_fallback",
+     "ab_test"
+    ],
+    "raw": "switchSource: mysqlEnum(\"switchSource\", [ \"manual\", \"soul_recommendation\", \"auto_fallback\", \"ab_test\", ]) .default(\"manual\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "switchedAt",
+    "db": "switchedAt",
+    "type": "timestamp",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT now()"
+    ],
+    "enum": null,
+    "raw": "switchedAt: timestamp(\"switchedAt\").defaultNow().notNull()",
+    "is_index": false
    }
   ],
   "indexes": [
@@ -5063,6 +6269,250 @@
     ],
     "enum": null,
     "raw": "userId: int(\"userId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "name",
+    "db": "name",
+    "type": "varchar",
+    "length": "255",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "name: varchar(\"name\", { length: 255 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "description",
+    "db": "description",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "description: text(\"description\")",
+    "is_index": false
+   },
+   {
+    "name": "modality",
+    "db": "modality",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "image",
+     "video",
+     "audio",
+     "voice"
+    ],
+    "raw": "modality: mysqlEnum(\"modality\", [ \"image\", \"video\", \"audio\", \"voice\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "subjectBlock",
+    "db": "subjectBlock",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "subjectBlock: json(\"subjectBlock\").$type<{ blockId: string; label: string; prompt: string; emoji?: string; isCustom: boolean; customBlockId?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "styleBlock",
+    "db": "styleBlock",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "styleBlock: json(\"styleBlock\").$type<{ blockId: string; label: string; prompt: string; emoji?: string; isCustom: boolean; customBlockId?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "lightingBlock",
+    "db": "lightingBlock",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "lightingBlock: json(\"lightingBlock\").$type<{ blockId: string; label: string; prompt: string; emoji?: string; isCustom: boolean; customBlockId?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "cameraBlock",
+    "db": "cameraBlock",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "cameraBlock: json(\"cameraBlock\").$type<{ blockId: string; label: string; prompt: string; emoji?: string; isCustom: boolean; customBlockId?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "moodBlock",
+    "db": "moodBlock",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "moodBlock: json(\"moodBlock\").$type<{ blockId: string; label: string; prompt: string; emoji?: string; isCustom: boolean; customBlockId?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "extraBlocks",
+    "db": "extraBlocks",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "extraBlocks: json(\"extraBlocks\").$type< Array<{ category: string; blockId: string; label: string; prompt: string; emoji?: string; isCustom: boolean; customBlockId?: number; }> >()",
+    "is_index": false
+   },
+   {
+    "name": "vibeCardIds",
+    "db": "vibeCardIds",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "vibeCardIds: json(\"vibeCardIds\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "freeformPrompt",
+    "db": "freeformPrompt",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "freeformPrompt: text(\"freeformPrompt\")",
+    "is_index": false
+   },
+   {
+    "name": "negativePrompt",
+    "db": "negativePrompt",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "negativePrompt: text(\"negativePrompt\")",
+    "is_index": false
+   },
+   {
+    "name": "compiledPrompt",
+    "db": "compiledPrompt",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "compiledPrompt: text(\"compiledPrompt\")",
+    "is_index": false
+   },
+   {
+    "name": "parameterSnapshot",
+    "db": "parameterSnapshot",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "parameterSnapshot: json(\"parameterSnapshot\").$type<Record<string, unknown>>()",
+    "is_index": false
+   },
+   {
+    "name": "brainConfigSnapshot",
+    "db": "brainConfigSnapshot",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "brainConfigSnapshot: json(\"brainConfigSnapshot\").$type<{ reasoningBrain?: string; generationEngine?: string; temperature?: number; topP?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "previewImageUrl",
+    "db": "previewImageUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "previewImageUrl: text(\"previewImageUrl\")",
+    "is_index": false
+   },
+   {
+    "name": "isCurated",
+    "db": "isCurated",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "isCurated: boolean(\"isCurated\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "isPublic",
+    "db": "isPublic",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "isPublic: boolean(\"isPublic\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "forkCount",
+    "db": "forkCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "forkCount: int(\"forkCount\").default(0).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "likeCount",
+    "db": "likeCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "likeCount: int(\"likeCount\").default(0).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "useCount",
+    "db": "useCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "useCount: int(\"useCount\").default(0).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "tags",
+    "db": "tags",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "tags: json(\"tags\").$type<string[]>()",
     "is_index": false
    },
    {
@@ -5190,6 +6640,29 @@
     "is_index": false
    },
    {
+    "name": "category",
+    "db": "category",
+    "type": "varchar",
+    "length": "64",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT general"
+    ],
+    "enum": null,
+    "raw": "category: varchar(\"category\", { length: 64 }).default(\"general\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "tags",
+    "db": "tags",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
     "name": "isFavorite",
     "db": "isFavorite",
     "type": "boolean",
@@ -5239,6 +6712,19 @@
     "is_index": false
    },
    {
+    "name": "language",
+    "db": "language",
+    "type": "varchar",
+    "length": "8",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT zh"
+    ],
+    "enum": null,
+    "raw": "language: varchar(\"language\", { length: 8 }).default(\"zh\").notNull()",
+    "is_index": false
+   },
+   {
     "name": "generationMode",
     "db": "generationMode",
     "type": "varchar",
@@ -5246,6 +6732,19 @@
     "flags": [],
     "enum": null,
     "raw": "generationMode: varchar(\"generationMode\", { length: 32 })",
+    "is_index": false
+   },
+   {
+    "name": "createdAt",
+    "db": "createdAt",
+    "type": "timestamp",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT now()"
+    ],
+    "enum": null,
+    "raw": "createdAt: timestamp(\"createdAt\").defaultNow().notNull()",
     "is_index": false
    },
    {
@@ -5308,6 +6807,36 @@
     ],
     "enum": null,
     "raw": "promptId: int(\"promptId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "assetId",
+    "db": "assetId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "assetId: int(\"assetId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "relation",
+    "db": "relation",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT derived"
+    ],
+    "enum": [
+     "derived",
+     "variant",
+     "rewrite",
+     "extended"
+    ],
+    "raw": "relation: mysqlEnum(\"relation\", [\"derived\", \"variant\", \"rewrite\", \"extended\"]) .default(\"derived\") .notNull()",
     "is_index": false
    },
    {
@@ -5419,6 +6948,49 @@
     "is_index": false
    },
    {
+    "name": "notes",
+    "db": "notes",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "notes: text(\"notes\")",
+    "is_index": false
+   },
+   {
+    "name": "sourceType",
+    "db": "sourceType",
+    "type": "varchar",
+    "length": "32",
+    "flags": [
+     "NOT NULL",
+     "DEFAULT manual"
+    ],
+    "enum": null,
+    "raw": "sourceType: varchar(\"sourceType\", { length: 32 }) .default(\"manual\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sourceRef",
+    "db": "sourceRef",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "sourceRef: varchar(\"sourceRef\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "sourceLabel",
+    "db": "sourceLabel",
+    "type": "varchar",
+    "length": "256",
+    "flags": [],
+    "enum": null,
+    "raw": "sourceLabel: varchar(\"sourceLabel\", { length: 256 })",
+    "is_index": false
+   },
+   {
     "name": "visibility",
     "db": "visibility",
     "type": "mysqlEnum",
@@ -5432,6 +7004,16 @@
      "team_shared"
     ],
     "raw": "visibility: mysqlEnum(\"visibility\", [\"private\", \"team_shared\"]) .default(\"private\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "teamId",
+    "db": "teamId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "teamId: int(\"teamId\")",
     "is_index": false
    },
    {
@@ -5978,6 +7560,66 @@
     "is_index": false
    },
    {
+    "name": "pageId",
+    "db": "pageId",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "pageId: varchar(\"pageId\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "actionType",
+    "db": "actionType",
+    "type": "varchar",
+    "length": "32",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "actionType: varchar(\"actionType\", { length: 32 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "status",
+    "db": "status",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "accepted",
+     "edited",
+     "cancelled",
+     "completed",
+     "failed"
+    ],
+    "raw": "status: mysqlEnum(\"status\", [ \"accepted\", \"edited\", \"cancelled\", \"completed\", \"failed\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "note",
+    "db": "note",
+    "type": "varchar",
+    "length": "512",
+    "flags": [],
+    "enum": null,
+    "raw": "note: varchar(\"note\", { length: 512 })",
+    "is_index": false
+   },
+   {
+    "name": "actionSummary",
+    "db": "actionSummary",
+    "type": "varchar",
+    "length": "256",
+    "flags": [],
+    "enum": null,
+    "raw": "actionSummary: varchar(\"actionSummary\", { length: 256 })",
+    "is_index": false
+   },
+   {
     "name": "createdAt",
     "db": "createdAt",
     "type": "timestamp",
@@ -6388,6 +8030,18 @@
     "is_index": false
    },
    {
+    "name": "totalCostTwd",
+    "db": "totalCostTwd",
+    "type": "decimal",
+    "length": null,
+    "flags": [
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "totalCostTwd: decimal(\"totalCostTwd\", { precision: 16, scale: 4 }).default(\"0\")",
+    "is_index": false
+   },
+   {
     "name": "exchangeRate",
     "db": "exchangeRate",
     "type": "decimal",
@@ -6453,6 +8107,19 @@
     "is_index": false
    },
    {
+    "name": "amount",
+    "db": "amount",
+    "type": "decimal",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "amount: decimal(\"amount\", { precision: 12, scale: 6 }).default(\"0\").notNull()",
+    "is_index": false
+   },
+   {
     "name": "status",
     "db": "status",
     "type": "mysqlEnum",
@@ -6511,6 +8178,16 @@
     "is_index": false
    },
    {
+    "name": "projectId",
+    "db": "projectId",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "projectId: varchar(\"projectId\", { length: 128 })",
+    "is_index": false
+   },
+   {
     "name": "workflowId",
     "db": "workflowId",
     "type": "varchar",
@@ -6518,6 +8195,18 @@
     "flags": [],
     "enum": null,
     "raw": "workflowId: varchar(\"workflowId\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "sourceCurrency",
+    "db": "sourceCurrency",
+    "type": "varchar",
+    "length": "8",
+    "flags": [
+     "DEFAULT USD"
+    ],
+    "enum": null,
+    "raw": "sourceCurrency: varchar(\"sourceCurrency\", { length: 8 }).default(\"USD\")",
     "is_index": false
    },
    {
@@ -6541,6 +8230,16 @@
     "is_index": false
    },
    {
+    "name": "provider",
+    "db": "provider",
+    "type": "varchar",
+    "length": "32",
+    "flags": [],
+    "enum": null,
+    "raw": "provider: varchar(\"provider\", { length: 32 })",
+    "is_index": false
+   },
+   {
     "name": "model",
     "db": "model",
     "type": "varchar",
@@ -6548,6 +8247,16 @@
     "flags": [],
     "enum": null,
     "raw": "model: varchar(\"model\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "costSource",
+    "db": "costSource",
+    "type": "varchar",
+    "length": "16",
+    "flags": [],
+    "enum": null,
+    "raw": "costSource: varchar(\"costSource\", { length: 16 })",
     "is_index": false
    }
   ],
@@ -6602,6 +8311,18 @@
     "is_index": false
    },
    {
+    "name": "idempotencyKey",
+    "db": "idempotencyKey",
+    "type": "varchar",
+    "length": "191",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "idempotencyKey: varchar(\"idempotencyKey\", { length: 191 }).notNull()",
+    "is_index": false
+   },
+   {
     "name": "status",
     "db": "status",
     "type": "mysqlEnum",
@@ -6612,6 +8333,18 @@
     ],
     "enum": null,
     "raw": "status: mysqlEnum(\"status\", ATTRIBUTION_OUTBOX_STATUSES) .default(\"pending\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "payloadJson",
+    "db": "payloadJson",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "payloadJson: json(\"payloadJson\").$type<Record<string, unknown>>().notNull()",
     "is_index": false
    },
    {
@@ -6938,6 +8671,95 @@
     "is_index": false
    },
    {
+    "name": "userId",
+    "db": "userId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "userId: int(\"userId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "subjectType",
+    "db": "subjectType",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "self",
+     "real_person",
+     "copyrighted"
+    ],
+    "raw": "subjectType: mysqlEnum(\"subjectType\", [ \"self\", \"real_person\", \"copyrighted\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "consentType",
+    "db": "consentType",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT both"
+    ],
+    "enum": [
+     "portrait",
+     "photo_usage",
+     "both"
+    ],
+    "raw": "consentType: mysqlEnum(\"consentType\", [ \"portrait\", \"photo_usage\", \"both\", ]) .default(\"both\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "subjectName",
+    "db": "subjectName",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "subjectName: varchar(\"subjectName\", { length: 128 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "subjectEmail",
+    "db": "subjectEmail",
+    "type": "varchar",
+    "length": "320",
+    "flags": [],
+    "enum": null,
+    "raw": "subjectEmail: varchar(\"subjectEmail\", { length: 320 })",
+    "is_index": false
+   },
+   {
+    "name": "subjectIdLast4",
+    "db": "subjectIdLast4",
+    "type": "varchar",
+    "length": "8",
+    "flags": [],
+    "enum": null,
+    "raw": "subjectIdLast4: varchar(\"subjectIdLast4\", { length: 8 })",
+    "is_index": false
+   },
+   {
+    "name": "signerName",
+    "db": "signerName",
+    "type": "varchar",
+    "length": "128",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "signerName: varchar(\"signerName\", { length: 128 }).notNull()",
+    "is_index": false
+   },
+   {
     "name": "signerEmail",
     "db": "signerEmail",
     "type": "varchar",
@@ -6947,6 +8769,133 @@
     ],
     "enum": null,
     "raw": "signerEmail: varchar(\"signerEmail\", { length: 320 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "signerRelation",
+    "db": "signerRelation",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "self",
+     "guardian",
+     "copyright_holder",
+     "authorized_representative"
+    ],
+    "raw": "signerRelation: mysqlEnum(\"signerRelation\", [ \"self\", \"guardian\", \"copyright_holder\", \"authorized_representative\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "usageScope",
+    "db": "usageScope",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT training_only"
+    ],
+    "enum": [
+     "training_only",
+     "personal_output",
+     "public_display",
+     "commercial"
+    ],
+    "raw": "usageScope: mysqlEnum(\"usageScope\", [ \"training_only\", \"personal_output\", \"public_display\", \"commercial\", ]) .default(\"training_only\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "allowDerivative",
+    "db": "allowDerivative",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "allowDerivative: boolean(\"allowDerivative\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "validFrom",
+    "db": "validFrom",
+    "type": "timestamp",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT now()"
+    ],
+    "enum": null,
+    "raw": "validFrom: timestamp(\"validFrom\").defaultNow().notNull()",
+    "is_index": false
+   },
+   {
+    "name": "validUntil",
+    "db": "validUntil",
+    "type": "timestamp",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "validUntil: timestamp(\"validUntil\")",
+    "is_index": false
+   },
+   {
+    "name": "termsVersion",
+    "db": "termsVersion",
+    "type": "varchar",
+    "length": "32",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "termsVersion: varchar(\"termsVersion\", { length: 32 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "termsSnapshot",
+    "db": "termsSnapshot",
+    "type": "text",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "termsSnapshot: text(\"termsSnapshot\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "signatureDataUrl",
+    "db": "signatureDataUrl",
+    "type": "text",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "signatureDataUrl: text(\"signatureDataUrl\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "signedIp",
+    "db": "signedIp",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "signedIp: varchar(\"signedIp\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "signedUserAgent",
+    "db": "signedUserAgent",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "signedUserAgent: text(\"signedUserAgent\")",
     "is_index": false
    },
    {
@@ -6963,6 +8912,16 @@
     "is_index": false
    },
    {
+    "name": "proofFileUrl",
+    "db": "proofFileUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "proofFileUrl: text(\"proofFileUrl\")",
+    "is_index": false
+   },
+   {
     "name": "proofFileKey",
     "db": "proofFileKey",
     "type": "text",
@@ -6970,6 +8929,26 @@
     "flags": [],
     "enum": null,
     "raw": "proofFileKey: text(\"proofFileKey\")",
+    "is_index": false
+   },
+   {
+    "name": "coveredAssets",
+    "db": "coveredAssets",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "coveredAssets: json(\"coveredAssets\").$type< Array<{ url: string; fileKey?: string; kind: \"image\" | \"video\"; sha256?: string; }> >()",
+    "is_index": false
+   },
+   {
+    "name": "revokedAt",
+    "db": "revokedAt",
+    "type": "timestamp",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "revokedAt: timestamp(\"revokedAt\")",
     "is_index": false
    },
    {
@@ -8184,6 +10163,18 @@
     "is_index": false
    },
    {
+    "name": "at",
+    "db": "at",
+    "type": "bigint",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "at: bigint(\"at\", { mode: \"number\" }).notNull()",
+    "is_index": false
+   },
+   {
     "name": "createdAt",
     "db": "created_at",
     "type": "timestamp",
@@ -8266,6 +10257,18 @@
      "voice"
     ],
     "raw": "modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"music\", \"voice\"]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "payload",
+    "db": "payload",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "payload: json(\"payload\").$type<Record<string, unknown>>().notNull()",
     "is_index": false
    },
    {
@@ -8356,7 +10359,24 @@
     "is_index": false
    }
   ],
-  "indexes": []
+  "indexes": [
+   {
+    "name": "versionKey",
+    "db": "versionKey",
+    "type": "varchar",
+    "length": "64",
+    "flags": [
+     "PK",
+     "AUTO_INC",
+     "NOT NULL",
+     "DEFAULT now()",
+     "ON UPDATE now()"
+    ],
+    "enum": null,
+    "raw": "versionKey: varchar(\"versionKey\", { length: 64 }).notNull(), pinned: boolean(\"pinned\").default(false).notNull(), payload: json(\"payload\").$type<Record<string, unknown>>().notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdIdx: index(\"sv_userId_idx\").on(table.userId), userIdModalityIdx: index(\"sv_userId_modality_idx\").on( table.userId, table.modality ), userIdVersionKeyIdx: index(\"sv_userId_versionKey_idx\").on( table.userId, table.versionKey ), }) ); export type StudioVersion = typeof studioVersions.$inferSelect; export type InsertStudioVersion = typeof studioVersions.$inferInsert; export const orbLongTermMemories = mysqlTable( \"orb_long_term_memories\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), userId: int(\"userId\").notNull(), memoryType: mysqlEnum(\"memoryType\", [ \"user_fact\", \"user_preference\", \"skill_learned\", \"workflow_pattern\", \"error_solution\", \"success_recipe\", \"context_snippet\", ]).notNull(), content: text(\"content\").notNull(), importanceScore: decimal(\"importanceScore\", { precision: 3, scale: 2 }) .notNull() .default(\"0.50\"), embeddingVector: json(\"embeddingVector\").$type<number[]>(), sourceType: mysqlEnum(\"sourceType\", [ \"conversation\", \"action\", \"observation\", \"inference\", ]) .notNull() .default(\"conversation\"), sourceId: varchar(\"sourceId\", { length: 128 }), spiritId: varchar(\"spiritId\", { length: 64 }), metadata: json(\"metadata\").$type<Record<string, unknown>>(), accessCount: int(\"accessCount\").notNull().default(0), lastAccessedAt: timestamp(\"lastAccessedAt\"), expiresAt: timestamp(\"expiresAt\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdx: index(\"orb_ltm_user_idx\").on(table.userId), userTypeIdx: index(\"orb_ltm_user_type_idx\").on(table.userId, table.memoryType), importanceIdx: index(\"orb_ltm_importance_idx\").on( table.userId, table.importanceScore ), spiritIdx: index(\"orb_ltm_spirit_idx\").on(table.spiritId), accessedIdx: index(\"orb_ltm_accessed_idx\").on(table.lastAccessedAt), expiresIdx: index(\"orb_ltm_expires_idx\").on(table.expiresAt), }) ); export type OrbLongTermMemory = typeof orbLongTermMemories.$inferSelect; export type InsertOrbLongTermMemory = typeof orbLongTermMemories.$inferInsert; export const orbMemoryAssociations = mysqlTable( \"orb_memory_associations\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), fromMemoryId: bigint(\"fromMemoryId\", { mode: \"number\" }).notNull(), toMemoryId: bigint(\"toMemoryId\", { mode: \"number\" }).notNull(), associationType: mysqlEnum(\"associationType\", [ \"related_to\", \"caused_by\", \"part_of\", \"similar_to\", \"contradicts\", \"supersedes\", ]) .notNull() .default(\"related_to\"), strength: decimal(\"strength\", { precision: 3, scale: 2 }) .notNull() .default(\"0.50\"), createdBy: varchar(\"createdBy\", { length: 64 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ uniqueAssoc: uniqueIndex(\"orb_memory_assoc_uk\").on( table.fromMemoryId, table.toMemoryId, table.associationType ), fromIdx: index(\"orb_memory_assoc_from_idx\").on(table.fromMemoryId), toIdx: index(\"orb_memory_assoc_to_idx\").on(table.toMemoryId), strengthIdx: index(\"orb_memory_assoc_strength_idx\").on(table.strength), }) ); export type OrbMemoryAssociation = typeof orbMemoryAssociations.$inferSelect; export type InsertOrbMemoryAssociation = typeof orbMemoryAssociations.$inferInsert; export const orbIntentLogs = mysqlTable( \"orb_intent_logs\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), userId: int(\"userId\").notNull(), conversationId: varchar(\"conversationId\", { length: 128 }).notNull(), userInput: text(\"userInput\").notNull(), detectedIntents: json(\"detectedIntents\") .$type<Array<{ intent: string; confidence: number; category: string }>>() .notNull(), primaryIntent: varchar(\"primaryIntent\", { length: 128 }), intentConfidence: decimal(\"intentConfidence\", { precision: 3, scale: 2 }), ambiguityScore: decimal(\"ambiguityScore\", { precision: 3, scale: 2 }), needsClarification: boolean(\"needsClarification\").notNull().default(false), context: json(\"context\").$type<Record<string, unknown>>(), spiritAssigned: varchar(\"spiritAssigned\", { length: 64 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdx: index(\"orb_intent_user_idx\").on(table.userId), convIdx: index(\"orb_intent_conv_idx\").on(table.conversationId), primaryIdx: index(\"orb_intent_primary_idx\").on(table.primaryIntent), needsClarificationIdx: index(\"orb_intent_needs_clarification_idx\").on( table.needsClarification ), createdIdx: index(\"orb_intent_created_idx\").on(table.createdAt), }) ); export type OrbIntentLog = typeof orbIntentLogs.$inferSelect; export type InsertOrbIntentLog = typeof orbIntentLogs.$inferInsert; export const orbClarificationHistory = mysqlTable( \"orb_clarification_history\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), intentLogId: bigint(\"intentLogId\", { mode: \"number\" }).notNull(), userId: int(\"userId\").notNull(), conversationId: varchar(\"conversationId\", { length: 128 }).notNull(), clarificationQuestion: text(\"clarificationQuestion\").notNull(), questionType: mysqlEnum(\"questionType\", [ \"choice\", \"confirm\", \"parameter\", \"constraint\", \"preference\", \"context\", ]).notNull(), options: json(\"options\").$type< Array<{ value: string; label: string; description?: string }> >(), userAnswer: text(\"userAnswer\"), answeredAt: timestamp(\"answeredAt\"), resolvedIntent: varchar(\"resolvedIntent\", { length: 128 }), resolutionConfidence: decimal(\"resolutionConfidence\", { precision: 3, scale: 2, }), spiritAsked: varchar(\"spiritAsked\", { length: 64 }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ intentIdx: index(\"orb_clarif_intent_idx\").on(table.intentLogId), userIdx: index(\"orb_clarif_user_idx\").on(table.userId), convIdx: index(\"orb_clarif_conv_idx\").on(table.conversationId), typeIdx: index(\"orb_clarif_type_idx\").on(table.questionType), answeredIdx: index(\"orb_clarif_answered_idx\").on(table.answeredAt), }) ); export type OrbClarificationHistory = typeof orbClarificationHistory.$inferSelect; export type InsertOrbClarificationHistory = typeof orbClarificationHistory.$inferInsert; export const orbUserAnswerPatterns = mysqlTable( \"orb_user_answer_patterns\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), userId: int(\"userId\").notNull(), questionType: varchar(\"questionType\", { length: 64 }).notNull(), contextPattern: text(\"contextPattern\"), commonAnswers: json(\"commonAnswers\") .$type<Array<{ answer: string; frequency: number; lastUsed: string }>>() .notNull(), defaultPreference: text(\"defaultPreference\"), confidenceScore: decimal(\"confidenceScore\", { precision: 3, scale: 2 }) .notNull() .default(\"0.50\"), sampleCount: int(\"sampleCount\").notNull().default(0), lastUpdatedAt: timestamp(\"lastUpdatedAt\").defaultNow().onUpdateNow().notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdx: index(\"orb_answer_user_idx\").on(table.userId), confidenceIdx: index(\"orb_answer_confidence_idx\").on( table.userId, table.confidenceScore ), }) ); export type OrbUserAnswerPattern = typeof orbUserAnswerPatterns.$inferSelect; export type InsertOrbUserAnswerPattern = typeof orbUserAnswerPatterns.$inferInsert; export const orbFeatureUsageStats = mysqlTable( \"orb_feature_usage_stats\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), userId: int(\"userId\").notNull(), featureId: varchar(\"featureId\", { length: 128 }).notNull(), usageCount: int(\"usageCount\").notNull().default(0), successCount: int(\"successCount\").notNull().default(0), failureCount: int(\"failureCount\").notNull().default(0), avgDuration: decimal(\"avgDuration\", { precision: 10, scale: 2 }), lastUsedAt: timestamp(\"lastUsedAt\"), firstUsedAt: timestamp(\"firstUsedAt\").defaultNow().notNull(), proficiencyScore: decimal(\"proficiencyScore\", { precision: 3, scale: 2 }), metadata: json(\"metadata\").$type<Record<string, unknown>>(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ uniqueUserFeature: uniqueIndex(\"orb_feature_usage_uk\").on( table.userId, table.featureId ), userIdx: index(\"orb_feature_usage_user_idx\").on(table.userId), featureIdx: index(\"orb_feature_usage_feature_idx\").on(table.featureId), lastUsedIdx: index(\"orb_feature_usage_last_used_idx\").on( table.userId, table.lastUsedAt ), proficiencyIdx: index(\"orb_feature_usage_proficiency_idx\").on( table.userId, table.proficiencyScore ), }) ); export type OrbFeatureUsageStat = typeof orbFeatureUsageStats.$inferSelect; export type InsertOrbFeatureUsageStat = typeof orbFeatureUsageStats.$inferInsert; export const orbFeatureDiscoveryPaths = mysqlTable( \"orb_feature_discovery_paths\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), userId: int(\"userId\").notNull(), featureId: varchar(\"featureId\", { length: 128 }).notNull(), discoveryMethod: mysqlEnum(\"discoveryMethod\", [ \"orb_suggestion\", \"menu_exploration\", \"search\", \"tutorial\", \"friend_share\", \"documentation\", \"accident\", ]).notNull(), fromFeatureId: varchar(\"fromFeatureId\", { length: 128 }), context: text(\"context\"), timeToFirstUse: int(\"timeToFirstUse\"), discoveredAt: timestamp(\"discoveredAt\").defaultNow().notNull(), }, table => ({ userIdx: index(\"orb_discovery_user_idx\").on(table.userId), featureIdx: index(\"orb_discovery_feature_idx\").on(table.featureId), methodIdx: index(\"orb_discovery_method_idx\").on(table.discoveryMethod), fromIdx: index(\"orb_discovery_from_idx\").on(table.fromFeatureId), }) ); export type OrbFeatureDiscoveryPath = typeof orbFeatureDiscoveryPaths.$inferSelect; export type InsertOrbFeatureDiscoveryPath = typeof orbFeatureDiscoveryPaths.$inferInsert; export const orbFeatureRecommendations = mysqlTable( \"orb_feature_recommendations\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), userId: int(\"userId\").notNull(), featureId: varchar(\"featureId\", { length: 128 }).notNull(), reason: text(\"reason\").notNull(), relevanceScore: decimal(\"relevanceScore\", { precision: 3, scale: 2 }).notNull(), basedOnFeatures: json(\"basedOnFeatures\").$type<string[]>(), presentedAt: timestamp(\"presentedAt\").defaultNow().notNull(), clickedAt: timestamp(\"clickedAt\"), usedAt: timestamp(\"usedAt\"), dismissedAt: timestamp(\"dismissedAt\"), feedbackRating: int(\"feedbackRating\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ userIdx: index(\"orb_feature_rec_user_idx\").on(table.userId), featureIdx: index(\"orb_feature_rec_feature_idx\").on(table.featureId), presentedIdx: index(\"orb_feature_rec_presented_idx\").on(table.presentedAt), relevanceIdx: index(\"orb_feature_rec_relevance_idx\").on( table.userId, table.relevanceScore ), }) ); export type OrbFeatureRecommendation = typeof orbFeatureRecommendations.$inferSelect; export type InsertOrbFeatureRecommendation = typeof orbFeatureRecommendations.$inferInsert; export const orbWorkflowTemplates = mysqlTable( \"orb_workflow_templates\", { id: int(\"id\").autoincrement().primaryKey(), creatorUserId: int(\"creatorUserId\"), name: varchar(\"name\", { length: 255 }).notNull(), description: text(\"description\"), category: varchar(\"category\", { length: 64 }).notNull(), isPublic: boolean(\"isPublic\").notNull().default(false), isVerified: boolean(\"isVerified\").notNull().default(false), steps: json(\"steps\") .$type< Array<{ stepId: string; spiritId: string; toolName: string; parameters: Record<string, unknown>; conditions?: { skipIf?: string; retryOn?: string[]; maxRetries?: number; }; description?: string; }> >() .notNull(), inputSchema: json(\"inputSchema\").$type<Record<string, unknown>>(), outputSchema: json(\"outputSchema\").$type<Record<string, unknown>>(), estimatedDuration: int(\"estimatedDuration\"), difficulty: mysqlEnum(\"difficulty\", [\"beginner\", \"intermediate\", \"advanced\"]) .notNull() .default(\"beginner\"), tags: json(\"tags\").$type<string[]>(), usageCount: int(\"usageCount\").notNull().default(0), avgRating: decimal(\"avgRating\", { precision: 3, scale: 2 }), ratingCount: int(\"ratingCount\").notNull().default(0), version: varchar(\"version\", { length: 32 }).notNull().default(\"1.0.0\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ creatorIdx: index(\"orb_workflow_tmpl_creator_idx\").on(table.creatorUserId), categoryIdx: index(\"orb_workflow_tmpl_category_idx\").on(table.category), publicIdx: index(\"orb_workflow_tmpl_public_idx\").on( table.isPublic, table.avgRating ), usageIdx: index(\"orb_workflow_tmpl_usage_idx\").on(table.usageCount), }) ); export type OrbWorkflowTemplate = typeof orbWorkflowTemplates.$inferSelect; export type InsertOrbWorkflowTemplate = typeof orbWorkflowTemplates.$inferInsert; export const orbWorkflowExecutions = mysqlTable( \"orb_workflow_executions\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), templateId: int(\"templateId\").notNull(), userId: int(\"userId\").notNull(), conversationId: varchar(\"conversationId\", { length: 128 }), status: mysqlEnum(\"status\", [ \"pending\", \"running\", \"paused\", \"completed\", \"failed\", \"cancelled\", ]) .notNull() .default(\"pending\"), inputs: json(\"inputs\").$type<Record<string, unknown>>(), outputs: json(\"outputs\").$type<Record<string, unknown>>(), currentStepIndex: int(\"currentStepIndex\").notNull().default(0), totalSteps: int(\"totalSteps\").notNull(), startedAt: timestamp(\"startedAt\"), completedAt: timestamp(\"completedAt\"), durationSeconds: int(\"durationSeconds\"), error: text(\"error\"), metadata: json(\"metadata\").$type<Record<string, unknown>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ templateIdx: index(\"orb_workflow_exec_template_idx\").on(table.templateId), userIdx: index(\"orb_workflow_exec_user_idx\").on(table.userId), statusIdx: index(\"orb_workflow_exec_status_idx\").on( table.status, table.updatedAt ), convIdx: index(\"orb_workflow_exec_conv_idx\").on(table.conversationId), }) ); export type OrbWorkflowExecution = typeof orbWorkflowExecutions.$inferSelect; export type InsertOrbWorkflowExecution = typeof orbWorkflowExecutions.$inferInsert; export const orbWorkflowStepExecutions = mysqlTable( \"orb_workflow_step_executions\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), executionId: bigint(\"executionId\", { mode: \"number\" }).notNull(), stepIndex: int(\"stepIndex\").notNull(), stepId: varchar(\"stepId\", { length: 128 }).notNull(), spiritId: varchar(\"spiritId\", { length: 64 }).notNull(), toolName: varchar(\"toolName\", { length: 128 }).notNull(), status: mysqlEnum(\"status\", [ \"pending\", \"running\", \"completed\", \"failed\", \"skipped\", ]) .notNull() .default(\"pending\"), inputs: json(\"inputs\").$type<Record<string, unknown>>(), outputs: json(\"outputs\").$type<Record<string, unknown>>(), error: text(\"error\"), retryCount: int(\"retryCount\").notNull().default(0), startedAt: timestamp(\"startedAt\"), completedAt: timestamp(\"completedAt\"), durationSeconds: int(\"durationSeconds\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ uniqueExecutionStep: uniqueIndex(\"orb_workflow_step_uk\").on( table.executionId, table.stepIndex ), execIdx: index(\"orb_workflow_step_exec_idx\").on(table.executionId), statusIdx: index(\"orb_workflow_step_status_idx\").on(table.status), spiritIdx: index(\"orb_workflow_step_spirit_idx\").on(table.spiritId), }) ); export type OrbWorkflowStepExecution = typeof orbWorkflowStepExecutions.$inferSelect; export type InsertOrbWorkflowStepExecution = typeof orbWorkflowStepExecutions.$inferInsert; export const orbWorkflowTemplateRatings = mysqlTable( \"orb_workflow_template_ratings\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), templateId: int(\"templateId\").notNull(), userId: int(\"userId\").notNull(), rating: int(\"rating\").notNull(), comment: text(\"comment\"), wasHelpful: boolean(\"wasHelpful\"), completedSuccessfully: boolean(\"completedSuccessfully\"), metadata: json(\"metadata\").$type<Record<string, unknown>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ uniqueUserRating: uniqueIndex(\"orb_tmpl_rating_uk\").on( table.templateId, table.userId ), templateIdx: index(\"orb_tmpl_rating_template_idx\").on( table.templateId, table.rating ), userIdx: index(\"orb_tmpl_rating_user_idx\").on(table.userId), createdIdx: index(\"orb_tmpl_rating_created_idx\").on(table.createdAt), }) ); export type OrbWorkflowTemplateRating = typeof orbWorkflowTemplateRatings.$inferSelect; export type InsertOrbWorkflowTemplateRating = typeof orbWorkflowTemplateRatings.$inferInsert; export const orbSpiritCollaborationMetrics = mysqlTable( \"orb_spirit_collaboration_metrics\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), date: date(\"date\").notNull(), fromSpiritId: varchar(\"fromSpiritId\", { length: 64 }).notNull(), toSpiritId: varchar(\"toSpiritId\", { length: 64 }).notNull(), handoffCount: int(\"handoffCount\").notNull().default(0), avgHandoffTime: decimal(\"avgHandoffTime\", { precision: 10, scale: 2 }), successfulHandoffs: int(\"successfulHandoffs\").notNull().default(0), failedHandoffs: int(\"failedHandoffs\").notNull().default(0), userSatisfactionScore: decimal(\"userSatisfactionScore\", { precision: 3, scale: 2, }), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ uniqueCollabMetric: uniqueIndex(\"orb_collab_metrics_uk\").on( table.date, table.fromSpiritId, table.toSpiritId ), dateIdx: index(\"orb_collab_metrics_date_idx\").on(table.date), fromIdx: index(\"orb_collab_metrics_from_idx\").on(table.fromSpiritId), toIdx: index(\"orb_collab_metrics_to_idx\").on(table.toSpiritId), }) ); export type OrbSpiritCollaborationMetric = typeof orbSpiritCollaborationMetrics.$inferSelect; export type InsertOrbSpiritCollaborationMetric = typeof orbSpiritCollaborationMetrics.$inferInsert; export const orbSystemHealthMetrics = mysqlTable( \"orb_system_health_metrics\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), timestamp: timestamp(\"timestamp\").defaultNow().notNull(), metricType: mysqlEnum(\"metricType\", [ \"response_time\", \"error_rate\", \"tool_success_rate\", \"user_satisfaction\", \"memory_usage\", \"api_latency\", \"clarification_rate\", ]).notNull(), spiritId: varchar(\"spiritId\", { length: 64 }), value: decimal(\"value\", { precision: 10, scale: 2 }).notNull(), unit: varchar(\"unit\", { length: 32 }).notNull(), threshold: decimal(\"threshold\", { precision: 10, scale: 2 }), isHealthy: boolean(\"isHealthy\").notNull().default(true), metadata: json(\"metadata\").$type<Record<string, unknown>>(), }, table => ({ timestampIdx: index(\"orb_health_timestamp_idx\").on(table.timestamp), typeIdx: index(\"orb_health_type_idx\").on(table.metricType, table.timestamp), spiritIdx: index(\"orb_health_spirit_idx\").on(table.spiritId, table.timestamp), unhealthyIdx: index(\"orb_health_unhealthy_idx\").on( table.isHealthy, table.timestamp ), }) ); export type OrbSystemHealthMetric = typeof orbSystemHealthMetrics.$inferSelect; export type InsertOrbSystemHealthMetric = typeof orbSystemHealthMetrics.$inferInsert; export const orbCostAttribution = mysqlTable( \"orb_cost_attribution\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), date: date(\"date\").notNull(), userId: int(\"userId\").notNull(), spiritId: varchar(\"spiritId\", { length: 64 }).notNull(), toolName: varchar(\"toolName\", { length: 128 }).notNull(), usageCount: int(\"usageCount\").notNull().default(0), totalTokens: bigint(\"totalTokens\", { mode: \"number\" }), totalApiCalls: int(\"totalApiCalls\"), estimatedCostUsd: decimal(\"estimatedCostUsd\", { precision: 10, scale: 4 }), avgDuration: decimal(\"avgDuration\", { precision: 10, scale: 2 }), metadata: json(\"metadata\").$type<Record<string, unknown>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ uniqueCostAttr: uniqueIndex(\"orb_cost_attr_uk\").on( table.date, table.userId, table.spiritId, table.toolName ), dateIdx: index(\"orb_cost_date_idx\").on(table.date), userIdx: index(\"orb_cost_user_idx\").on(table.userId, table.date), spiritIdx: index(\"orb_cost_spirit_idx\").on(table.spiritId, table.date), amountIdx: index(\"orb_cost_amount_idx\").on(table.estimatedCostUsd), }) ); export type OrbCostAttribution = typeof orbCostAttribution.$inferSelect; export type InsertOrbCostAttribution = typeof orbCostAttribution.$inferInsert; export const orbSystemAlerts = mysqlTable( \"orb_system_alerts\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), alertType: mysqlEnum(\"alertType\", [ \"health_critical\", \"health_warning\", \"cost_spike\", \"performance_degradation\", \"error_rate_high\", \"system_overload\", ]).notNull(), severity: mysqlEnum(\"severity\", [\"low\", \"medium\", \"high\", \"critical\"]).notNull(), title: varchar(\"title\", { length: 255 }).notNull(), message: text(\"message\").notNull(), spiritId: varchar(\"spiritId\", { length: 64 }), metricType: varchar(\"metricType\", { length: 64 }), metricValue: decimal(\"metricValue\", { precision: 10, scale: 2 }), threshold: decimal(\"threshold\", { precision: 10, scale: 2 }), metadata: json(\"metadata\").$type<Record<string, unknown>>(), isResolved: boolean(\"isResolved\").notNull().default(false), resolvedAt: timestamp(\"resolvedAt\"), resolvedBy: int(\"resolvedBy\"), resolutionNotes: text(\"resolutionNotes\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ typeIdx: index(\"orb_alert_type_idx\").on( table.alertType, table.severity, table.createdAt ), resolvedIdx: index(\"orb_alert_resolved_idx\").on( table.isResolved, table.createdAt ), spiritIdx: index(\"orb_alert_spirit_idx\").on(table.spiritId), metricIdx: index(\"orb_alert_metric_idx\").on(table.metricType), }) ); export type OrbSystemAlert = typeof orbSystemAlerts.$inferSelect; export type InsertOrbSystemAlert = typeof orbSystemAlerts.$inferInsert; export const worldbuildingFrameworks = mysqlTable( \"worldbuilding_frameworks\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), name: varchar(\"name\", { length: 255 }).notNull(), description: text(\"description\"), genre: varchar(\"genre\", { length: 128 }), era: varchar(\"era\", { length: 128 }), charactersJson: json(\"charactersJson\") .$type<Array<Record<string, unknown>>>() .notNull(), scenesJson: json(\"scenesJson\") .$type<Array<Record<string, unknown>>>() .notNull(), objectsJson: json(\"objectsJson\").$type<Array<Record<string, unknown>>>(), linkedModelIds: json(\"linkedModelIds\").$type<number[]>(), styleProfilesJson: json(\"styleProfilesJson\").$type< Array<Record<string, unknown>> >(), musicThemesJson: json(\"musicThemesJson\").$type< Array<Record<string, unknown>> >(), defaultStyleProfileId: varchar(\"defaultStyleProfileId\", { length: 64 }), globalNegativePrompt: text(\"globalNegativePrompt\"), productionTargetsJson: json(\"productionTargetsJson\").$type<Record< string, unknown >>(), researchEntriesJson: json(\"researchEntriesJson\").$type< Array<Record<string, unknown>> >(), soundLibraryJson: json(\"soundLibraryJson\").$type< Array<Record<string, unknown>> >(), uploadedAssetsJson: json(\"uploadedAssetsJson\").$type< Array<Record<string, unknown>> >(), tags: json(\"tags\").$type<string[]>(), isActive: boolean(\"isActive\").default(true).notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"wf_userId_idx\").on(table.userId), userIdCreatedAtIdx: index(\"wf_userId_createdAt_idx\").on( table.userId, table.createdAt ), }) ); export type WorldbuildingFramework = typeof worldbuildingFrameworks.$inferSelect; export type InsertWorldbuildingFramework = typeof worldbuildingFrameworks.$inferInsert; export const worldStoryboards = mysqlTable( \"world_storyboards\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), worldId: int(\"worldId\").notNull(), name: varchar(\"name\", { length: 255 }).notNull(), totalDurationSec: int(\"totalDurationSec\").notNull(), fps: int(\"fps\").notNull().default(24), aspectRatio: varchar(\"aspectRatio\", { length: 16 }) .notNull() .default(\"16:9\"), scenesJson: json(\"scenesJson\") .$type<Array<Record<string, unknown>>>() .notNull(), sourceScriptId: varchar(\"sourceScriptId\", { length: 64 }), narration: text(\"narration\"), productionStatus: varchar(\"productionStatus\", { length: 32 }) .notNull() .default(\"planning\"), finalVideoUrl: varchar(\"finalVideoUrl\", { length: 2048 }), estimatedCostUsd: varchar(\"estimatedCostUsd\", { length: 32 }), pipelinePlanJson: json(\"pipelinePlanJson\").$type<Record<string, unknown>>(), jobsJson: json(\"jobsJson\").$type<Record<string, Record<string, unknown>>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"ws_userId_idx\").on(table.userId), worldIdIdx: index(\"ws_worldId_idx\").on(table.worldId), userIdCreatedAtIdx: index(\"ws_userId_createdAt_idx\").on( table.userId, table.createdAt ), }) ); export type WorldStoryboard = typeof worldStoryboards.$inferSelect; export type InsertWorldStoryboard = typeof worldStoryboards.$inferInsert; export const creativeProjects = mysqlTable( \"creative_projects\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), title: varchar(\"title\", { length: 255 }).notNull(), description: text(\"description\"), directorSessionId: int(\"directorSessionId\"), worldviewId: int(\"worldviewId\"), scriptId: int(\"scriptId\"), worldFrameworkId: int(\"worldFrameworkId\"), worldStoryboardId: int(\"worldStoryboardId\"), status: mysqlEnum(\"status\", [ \"concept\", \"production\", \"review\", \"complete\", ]) .default(\"concept\") .notNull(), coverImageUrl: varchar(\"coverImageUrl\", { length: 2048 }), tags: json(\"tags\").$type<string[]>(), metadata: json(\"metadata\").$type<Record<string, unknown>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"cp_userId_idx\").on(table.userId), userIdUpdatedAtIdx: index(\"cp_userId_updatedAt_idx\").on( table.userId, table.updatedAt ), worldFrameworkIdIdx: index(\"cp_worldFrameworkId_idx\").on( table.worldFrameworkId ), worldStoryboardIdIdx: index(\"cp_worldStoryboardId_idx\").on( table.worldStoryboardId ), }) ); export type CreativeProject = typeof creativeProjects.$inferSelect; export type InsertCreativeProject = typeof creativeProjects.$inferInsert; export const orchestrationRuns = mysqlTable( \"orchestration_runs\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), projectId: int(\"projectId\"), teamId: int(\"teamId\"), mode: mysqlEnum(\"mode\", [ \"create\", \"director\", \"video\", \"assets\", \"database\", ]).notNull(), intent: text(\"intent\").notNull(), status: mysqlEnum(\"status\", [ \"pending\", \"planned\", \"waiting_confirmation\", \"running\", \"completed\", \"failed\", \"cancelled\", ]) .default(\"pending\") .notNull(), commander: mysqlEnum(\"commander\", [ \"fallback\", \"perplexity\", \"subq\", \"orb\", \"codex\", \"claude\", ]), planJson: json(\"planJson\"), contextPacketIdsJson: json(\"contextPacketIdsJson\").$type<number[]>(), toolCallsJson: json(\"toolCallsJson\"), citationsJson: json(\"citationsJson\"), searchResultsJson: json(\"searchResultsJson\"), estimatedCostUsd: decimal(\"estimatedCostUsd\", { precision: 10, scale: 6 }), actualCostUsd: decimal(\"actualCostUsd\", { precision: 10, scale: 6 }), errorMessage: text(\"errorMessage\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"orun_userId_idx\").on(table.userId), projectIdIdx: index(\"orun_projectId_idx\").on(table.projectId), projectCreatedAtIdx: index(\"orun_projectId_createdAt_idx\").on( table.projectId, table.createdAt ), userCreatedAtIdx: index(\"orun_userId_createdAt_idx\").on( table.userId, table.createdAt ), }) ); export type OrchestrationRun = typeof orchestrationRuns.$inferSelect; export type InsertOrchestrationRun = typeof orchestrationRuns.$inferInsert; export const contextPackets = mysqlTable( \"context_packets\", { id: int(\"id\").autoincrement().primaryKey(), projectId: int(\"projectId\").notNull(), teamId: int(\"teamId\"), userId: int(\"userId\").notNull(), scope: mysqlEnum(\"scope\", [\"project\", \"team\", \"user\"]) .default(\"project\") .notNull(), sourceRefsJson: json(\"sourceRefsJson\").$type<unknown[]>(), summaryMarkdown: mediumtext(\"summaryMarkdown\"), tokenEstimate: int(\"tokenEstimate\"), createdByModel: varchar(\"createdByModel\", { length: 64 }), expiresAt: timestamp(\"expiresAt\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ projectIdIdx: index(\"cp_projectId_idx\").on(table.projectId), projectCreatedAtIdx: index(\"cp_projectId_createdAt_idx\").on( table.projectId, table.createdAt ), userIdIdx: index(\"cp_userId_idx\").on(table.userId), teamIdIdx: index(\"cp_teamId_idx\").on(table.teamId), expiresAtIdx: index(\"cp_expiresAt_idx\").on(table.expiresAt), }) ); export type ContextPacket = typeof contextPackets.$inferSelect; export type InsertContextPacket = typeof contextPackets.$inferInsert; export const projectDataAccessRules = mysqlTable( \"project_data_access_rules\", { id: int(\"id\").autoincrement().primaryKey(), teamId: int(\"teamId\").notNull(), projectId: int(\"projectId\"), materialId: int(\"materialId\"), connectionId: int(\"connectionId\"), collectionId: int(\"collectionId\"), accessLevel: mysqlEnum(\"accessLevel\", [ \"none\", \"summary_only\", \"chunk_access\", \"full_reference\", ]) .default(\"summary_only\") .notNull(), allowedModesJson: json(\"allowedModesJson\").$type<string[]>(), createdBy: int(\"createdBy\").notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ teamIdIdx: index(\"pdar_teamId_idx\").on(table.teamId), projectIdIdx: index(\"pdar_projectId_idx\").on(table.projectId), materialIdIdx: index(\"pdar_materialId_idx\").on(table.materialId), teamProjectIdx: index(\"pdar_teamId_projectId_idx\").on( table.teamId, table.projectId ), }) ); export type ProjectDataAccessRule = typeof projectDataAccessRules.$inferSelect; export type InsertProjectDataAccessRule = typeof projectDataAccessRules.$inferInsert; export const dataSourceConnections = mysqlTable( \"data_source_connections\", { id: int(\"id\").autoincrement().primaryKey(), ownerUserId: int(\"ownerUserId\").notNull(), teamId: int(\"teamId\"), projectId: int(\"projectId\"), kind: mysqlEnum(\"kind\", [ \"cloud\", \"notes\", \"mcp\", \"external_api\", ]).notNull(), provider: varchar(\"provider\", { length: 64 }).notNull(), authType: mysqlEnum(\"authType\", [\"oauth\", \"api_key\", \"none\"]) .default(\"api_key\") .notNull(), encryptedCredentialRef: text(\"encryptedCredentialRef\"), configJson: json(\"configJson\"), status: mysqlEnum(\"status\", [\"pending\", \"active\", \"disabled\", \"error\"]) .default(\"pending\") .notNull(), lastHealthCheckAt: timestamp(\"lastHealthCheckAt\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ ownerUserIdIdx: index(\"dsc_ownerUserId_idx\").on(table.ownerUserId), teamIdIdx: index(\"dsc_teamId_idx\").on(table.teamId), projectIdIdx: index(\"dsc_projectId_idx\").on(table.projectId), ownerProviderIdx: index(\"dsc_ownerUserId_provider_idx\").on( table.ownerUserId, table.provider ), }) ); export type DataSourceConnection = typeof dataSourceConnections.$inferSelect; export type InsertDataSourceConnection = typeof dataSourceConnections.$inferInsert; export const modelWishes = mysqlTable( \"model_wishes\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), modelName: varchar(\"modelName\", { length: 191 }).notNull(), provider: varchar(\"provider\", { length: 128 }), modality: mysqlEnum(\"modality\", [ \"text\", \"image\", \"video\", \"audio\", \"voice\", \"3d\", \"multimodal\", \"embedding\", \"other\", ]) .default(\"other\") .notNull(), reason: text(\"reason\"), referenceUrl: text(\"referenceUrl\"), voteCount: int(\"voteCount\").default(0).notNull(), status: mysqlEnum(\"status\", [ \"pending\", \"under_review\", \"planned\", \"added\", \"rejected\", ]) .default(\"pending\") .notNull(), adminNote: text(\"adminNote\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ statusIdx: index(\"mw_status_idx\").on(table.status), voteCountIdx: index(\"mw_vote_count_idx\").on(table.voteCount), userIdIdx: index(\"mw_user_idx\").on(table.userId), }) ); export type ModelWish = typeof modelWishes.$inferSelect; export type InsertModelWish = typeof modelWishes.$inferInsert; export const modelWishVotes = mysqlTable( \"model_wish_votes\", { id: int(\"id\").autoincrement().primaryKey(), wishId: int(\"wishId\").notNull(), userId: int(\"userId\").notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ wishUserUk: uniqueIndex(\"mw_votes_wish_user_uk\").on( table.wishId, table.userId ), userIdx: index(\"mw_votes_user_idx\").on(table.userId), }) ); export type ModelWishVote = typeof modelWishVotes.$inferSelect; export type InsertModelWishVote = typeof modelWishVotes.$inferInsert; export const teachingMaterials = mysqlTable( \"teaching_materials\", { id: int(\"id\").autoincrement().primaryKey(), userId: int(\"userId\").notNull(), teamId: int(\"teamId\"), title: varchar(\"title\", { length: 255 }).notNull(), description: text(\"description\"), mediaType: mysqlEnum(\"mediaType\", [ \"text\", \"pdf\", \"document\", \"image\", \"video\", \"audio\", \"presentation\", ]).notNull(), fileUrl: text(\"fileUrl\"), fileKey: text(\"fileKey\"), fileName: varchar(\"fileName\", { length: 255 }), mimeType: varchar(\"mimeType\", { length: 128 }), fileSizeBytes: int(\"fileSizeBytes\"), thumbnailUrl: text(\"thumbnailUrl\"), durationSeconds: int(\"durationSeconds\"), pageCount: int(\"pageCount\"), textContent: mediumtext(\"textContent\"), transcriptionStatus: mysqlEnum(\"transcriptionStatus\", [ \"not_applicable\", \"pending\", \"processing\", \"completed\", \"failed\", ]) .default(\"not_applicable\") .notNull(), lineage: varchar(\"lineage\", { length: 128 }), sourceType: mysqlEnum(\"sourceType\", [ \"discourse\", \"group_practice\", \"class\", \"ceremony\", \"publication\", \"interview\", \"other\", ]) .default(\"discourse\") .notNull(), sourceDate: date(\"sourceDate\"), sourceLocation: varchar(\"sourceLocation\", { length: 255 }), topic: varchar(\"topic\", { length: 128 }), speaker: varchar(\"speaker\", { length: 128 }), tags: json(\"tags\").$type<string[]>(), realEarthRefs: json(\"realEarthRefs\").$type<number[]>(), visibility: mysqlEnum(\"visibility\", [ \"private\", \"team_shared\", \"public_disciples\", ]) .default(\"private\") .notNull(), isFeatured: boolean(\"isFeatured\").default(false).notNull(), sortOrder: int(\"sortOrder\").default(0).notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ userIdIdx: index(\"tm_userId_idx\").on(table.userId), userIdMediaTypeIdx: index(\"tm_userId_mediaType_idx\").on( table.userId, table.mediaType ), userIdSourceTypeIdx: index(\"tm_userId_sourceType_idx\").on( table.userId, table.sourceType ), userIdLineageIdx: index(\"tm_userId_lineage_idx\").on( table.userId, table.lineage ), userIdTopicIdx: index(\"tm_userId_topic_idx\").on(table.userId, table.topic), userIdCreatedAtIdx: index(\"tm_userId_createdAt_idx\").on( table.userId, table.createdAt ), teamIdVisibilityIdx: index(\"tm_teamId_visibility_idx\").on( table.teamId, table.visibility ), visibilityIdx: index(\"tm_visibility_idx\").on(table.visibility), teamIdCreatedAtIdx: index(\"tm_teamId_createdAt_idx\").on( table.teamId, table.createdAt ), }) ); export type TeachingMaterial = typeof teachingMaterials.$inferSelect; export type InsertTeachingMaterial = typeof teachingMaterials.$inferInsert; export const teams = mysqlTable( \"teams\", { id: int(\"id\").autoincrement().primaryKey(), name: varchar(\"name\", { length: 128 }).notNull(), description: text(\"description\"), ownerId: int(\"ownerId\").notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ ownerIdIdx: index(\"teams_ownerId_idx\").on(table.ownerId), }) ); export type Team = typeof teams.$inferSelect; export type InsertTeam = typeof teams.$inferInsert; export const teamMemberships = mysqlTable( \"team_memberships\", { id: int(\"id\").autoincrement().primaryKey(), teamId: int(\"teamId\").notNull(), userId: int(\"userId\").notNull(), role: mysqlEnum(\"role\", [\"owner\", \"admin\", \"member\"]) .default(\"member\") .notNull(), invitedBy: int(\"invitedBy\"), joinedAt: timestamp(\"joinedAt\").defaultNow().notNull(), }, table => ({ teamUserUk: uniqueIndex(\"tm_teamId_userId_uk\").on( table.teamId, table.userId ), userIdIdx: index(\"tm_userId_idx\").on(table.userId), teamIdIdx: index(\"tm_teamId_idx\").on(table.teamId), }) ); export type TeamMembership = typeof teamMemberships.$inferSelect; export type InsertTeamMembership = typeof teamMemberships.$inferInsert; export const teachingMaterialAccessLog = mysqlTable( \"teaching_material_access_log\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), materialId: int(\"materialId\").notNull(), userId: int(\"userId\").notNull(), action: mysqlEnum(\"action\", [ \"view\", \"download\", \"search_hit\", \"reingest\", \"update\", \"delete\", ]).notNull(), metadata: json(\"metadata\").$type<Record<string, unknown>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ materialIdCreatedAtIdx: index(\"tmal_materialId_createdAt_idx\").on( table.materialId, table.createdAt ), userIdCreatedAtIdx: index(\"tmal_userId_createdAt_idx\").on( table.userId, table.createdAt ), actionCreatedAtIdx: index(\"tmal_action_createdAt_idx\").on( table.action, table.createdAt ), }) ); export type TeachingMaterialAccessLog = typeof teachingMaterialAccessLog.$inferSelect; export type InsertTeachingMaterialAccessLog = typeof teachingMaterialAccessLog.$inferInsert; export const realEarthEntries = mysqlTable( \"real_earth_entries\", { id: int(\"id\").autoincrement().primaryKey(), title: varchar(\"title\", { length: 500 }).notNull(), category: mysqlEnum(\"category\", [ \"history\", \"culture\", \"geography\", \"architecture\", \"language\", \"cuisine\", \"clothing\", \"art\", \"religion\", \"society\", \"economy\", \"politics\", \"military\", \"technology\", \"nature\", \"folklore\", \"education\", \"entertainment\", \"transportation\", \"people\", ]).notNull(), summary: text(\"summary\").notNull(), content: mediumtext(\"content\").notNull(), locationJson: json(\"locationJson\").$type<{ region?: string; gpsCoords?: { lat: number; lon: number }; address?: string; }>(), historicalPeriod: varchar(\"historicalPeriod\", { length: 200 }), yearRangeJson: json(\"yearRangeJson\").$type<{ start?: number; end?: number; }>(), imageUrls: json(\"imageUrls\").$type<string[]>(), externalLinksJson: json(\"externalLinksJson\").$type<Array<{ label: string; url: string; type?: string; }>>(), citationsJson: json(\"citationsJson\").$type<Array<{ author?: string; title: string; source: string; year?: number; url?: string; }>>(), tags: json(\"tags\").$type<string[]>(), relatedEntryIds: json(\"relatedEntryIds\").$type<string[]>(), qualityJson: json(\"qualityJson\").$type<{ credibility: \"low\" | \"medium\" | \"high\" | \"verified\"; sourceType?: string; lastVerified?: string; }>(), isTaiwanFocused: boolean(\"isTaiwanFocused\").default(false).notNull(), language: varchar(\"language\", { length: 10 }).default(\"zh-TW\"), metadata: json(\"metadata\").$type<Record<string, any>>(), createdBy: int(\"createdBy\"), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ categoryIdx: index(\"ree_category_idx\").on(table.category), taiwanFocusedIdx: index(\"ree_taiwanFocused_idx\").on(table.isTaiwanFocused), createdByIdx: index(\"ree_createdBy_idx\").on(table.createdBy), historicalPeriodIdx: index(\"ree_historicalPeriod_idx\").on(table.historicalPeriod), createdAtIdx: index(\"ree_createdAt_idx\").on(table.createdAt), titleSummaryFulltext: index(\"ree_title_summary_fulltext\").on(table.title, table.summary), }) ); export type RealEarthEntry = typeof realEarthEntries.$inferSelect; export type InsertRealEarthEntry = typeof realEarthEntries.$inferInsert; export const globalAuditLog = mysqlTable( \"global_audit_log\", { id: bigint(\"id\", { mode: \"number\" }).autoincrement().primaryKey(), actorUserId: int(\"actorUserId\"), actorRole: varchar(\"actorRole\", { length: 50 }), action: varchar(\"action\", { length: 100 }).notNull(), targetType: varchar(\"targetType\", { length: 50 }), targetId: varchar(\"targetId\", { length: 100 }), result: mysqlEnum(\"result\", [\"success\", \"failure\"]) .default(\"success\") .notNull(), ipAddress: varchar(\"ipAddress\", { length: 45 }), userAgent: text(\"userAgent\"), metadata: json(\"metadata\").$type<Record<string, unknown>>(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), }, table => ({ actorCreatedAtIdx: index(\"gal_actor_createdAt_idx\").on( table.actorUserId, table.createdAt ), actionCreatedAtIdx: index(\"gal_action_createdAt_idx\").on( table.action, table.createdAt ), targetCreatedAtIdx: index(\"gal_target_createdAt_idx\").on( table.targetType, table.targetId, table.createdAt ), createdAtIdx: index(\"gal_createdAt_idx\").on(table.createdAt), }) ); export type GlobalAuditLog = typeof globalAuditLog.$inferSelect; export type InsertGlobalAuditLog = typeof globalAuditLog.$inferInsert; export const resourceShares = mysqlTable( \"resource_shares\", { id: int(\"id\").autoincrement().primaryKey(), resourceType: mysqlEnum(\"resourceType\", [ \"project\", \"asset\", \"prompt\", \"material\", ]).notNull(), resourceId: int(\"resourceId\").notNull(), sharedWithType: mysqlEnum(\"sharedWithType\", [\"user\", \"team\"]).notNull(), sharedWithId: int(\"sharedWithId\").notNull(), role: mysqlEnum(\"role\", [\"viewer\", \"editor\"]).default(\"viewer\").notNull(), sharedByUserId: int(\"sharedByUserId\").notNull(), createdAt: timestamp(\"createdAt\").defaultNow().notNull(), updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(), }, table => ({ resourceTargetUk: uniqueIndex(\"rs_resource_target_uk\").on( table.resourceType, table.resourceId, table.sharedWithType, table.sharedWithId ), resourceIdx: index(\"rs_resource_idx\").on( table.resourceType, table.resourceId ), targetIdx: index(\"rs_target_idx\").on( table.sharedWithType, table.sharedWithId ), }) ); export type ResourceShare = typeof resourceShares.$inferSelect; export type InsertResourceShare = typeof resourceShares.$inferInse",
+    "is_index": true
+   }
+  ]
  },
  {
   "var": "orbLongTermMemories",
@@ -10403,6 +12423,16 @@
     "is_index": false
    },
    {
+    "name": "comment",
+    "db": "comment",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "comment: text(\"comment\")",
+    "is_index": false
+   },
+   {
     "name": "wasHelpful",
     "db": "wasHelpful",
     "type": "boolean",
@@ -11230,6 +13260,150 @@
     "is_index": false
    },
    {
+    "name": "genre",
+    "db": "genre",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "genre: varchar(\"genre\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "era",
+    "db": "era",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "era: varchar(\"era\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "charactersJson",
+    "db": "charactersJson",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "charactersJson: json(\"charactersJson\") .$type<Array<Record<string, unknown>>>() .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "scenesJson",
+    "db": "scenesJson",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "scenesJson: json(\"scenesJson\") .$type<Array<Record<string, unknown>>>() .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "objectsJson",
+    "db": "objectsJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "objectsJson: json(\"objectsJson\").$type<Array<Record<string, unknown>>>()",
+    "is_index": false
+   },
+   {
+    "name": "linkedModelIds",
+    "db": "linkedModelIds",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "linkedModelIds: json(\"linkedModelIds\").$type<number[]>()",
+    "is_index": false
+   },
+   {
+    "name": "styleProfilesJson",
+    "db": "styleProfilesJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "styleProfilesJson: json(\"styleProfilesJson\").$type< Array<Record<string, unknown>> >()",
+    "is_index": false
+   },
+   {
+    "name": "musicThemesJson",
+    "db": "musicThemesJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "musicThemesJson: json(\"musicThemesJson\").$type< Array<Record<string, unknown>> >()",
+    "is_index": false
+   },
+   {
+    "name": "defaultStyleProfileId",
+    "db": "defaultStyleProfileId",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "defaultStyleProfileId: varchar(\"defaultStyleProfileId\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "globalNegativePrompt",
+    "db": "globalNegativePrompt",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "globalNegativePrompt: text(\"globalNegativePrompt\")",
+    "is_index": false
+   },
+   {
+    "name": "productionTargetsJson",
+    "db": "productionTargetsJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "productionTargetsJson: json(\"productionTargetsJson\").$type<Record< string, unknown >>()",
+    "is_index": false
+   },
+   {
+    "name": "researchEntriesJson",
+    "db": "researchEntriesJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "researchEntriesJson: json(\"researchEntriesJson\").$type< Array<Record<string, unknown>> >()",
+    "is_index": false
+   },
+   {
+    "name": "soundLibraryJson",
+    "db": "soundLibraryJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "soundLibraryJson: json(\"soundLibraryJson\").$type< Array<Record<string, unknown>> >()",
+    "is_index": false
+   },
+   {
+    "name": "uploadedAssetsJson",
+    "db": "uploadedAssetsJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "uploadedAssetsJson: json(\"uploadedAssetsJson\").$type< Array<Record<string, unknown>> >()",
+    "is_index": false
+   },
+   {
     "name": "tags",
     "db": "tags",
     "type": "json",
@@ -11323,6 +13497,18 @@
     "is_index": false
    },
    {
+    "name": "worldId",
+    "db": "worldId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "worldId: int(\"worldId\").notNull()",
+    "is_index": false
+   },
+   {
     "name": "name",
     "db": "name",
     "type": "varchar",
@@ -11373,6 +13559,28 @@
     "is_index": false
    },
    {
+    "name": "scenesJson",
+    "db": "scenesJson",
+    "type": "json",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "scenesJson: json(\"scenesJson\") .$type<Array<Record<string, unknown>>>() .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sourceScriptId",
+    "db": "sourceScriptId",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "sourceScriptId: varchar(\"sourceScriptId\", { length: 64 })",
+    "is_index": false
+   },
+   {
     "name": "narration",
     "db": "narration",
     "type": "text",
@@ -11413,6 +13621,26 @@
     "flags": [],
     "enum": null,
     "raw": "estimatedCostUsd: varchar(\"estimatedCostUsd\", { length: 32 })",
+    "is_index": false
+   },
+   {
+    "name": "pipelinePlanJson",
+    "db": "pipelinePlanJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "pipelinePlanJson: json(\"pipelinePlanJson\").$type<Record<string, unknown>>()",
+    "is_index": false
+   },
+   {
+    "name": "jobsJson",
+    "db": "jobsJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "jobsJson: json(\"jobsJson\").$type<Record<string, Record<string, unknown>>>()",
     "is_index": false
    },
    {
@@ -11513,6 +13741,56 @@
     "is_index": false
    },
    {
+    "name": "directorSessionId",
+    "db": "directorSessionId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "directorSessionId: int(\"directorSessionId\")",
+    "is_index": false
+   },
+   {
+    "name": "worldviewId",
+    "db": "worldviewId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "worldviewId: int(\"worldviewId\")",
+    "is_index": false
+   },
+   {
+    "name": "scriptId",
+    "db": "scriptId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "scriptId: int(\"scriptId\")",
+    "is_index": false
+   },
+   {
+    "name": "worldFrameworkId",
+    "db": "worldFrameworkId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "worldFrameworkId: int(\"worldFrameworkId\")",
+    "is_index": false
+   },
+   {
+    "name": "worldStoryboardId",
+    "db": "worldStoryboardId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "worldStoryboardId: int(\"worldStoryboardId\")",
+    "is_index": false
+   },
+   {
     "name": "status",
     "db": "status",
     "type": "mysqlEnum",
@@ -11548,6 +13826,16 @@
     "flags": [],
     "enum": null,
     "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "metadata",
+    "db": "metadata",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "metadata: json(\"metadata\").$type<Record<string, unknown>>()",
     "is_index": false
    },
    {
@@ -11631,6 +13919,16 @@
     "is_index": false
    },
    {
+    "name": "projectId",
+    "db": "projectId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "projectId: int(\"projectId\")",
+    "is_index": false
+   },
+   {
     "name": "teamId",
     "db": "teamId",
     "type": "int",
@@ -11692,6 +13990,23 @@
     "is_index": false
    },
    {
+    "name": "commander",
+    "db": "commander",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [],
+    "enum": [
+     "fallback",
+     "perplexity",
+     "subq",
+     "orb",
+     "codex",
+     "claude"
+    ],
+    "raw": "commander: mysqlEnum(\"commander\", [ \"fallback\", \"perplexity\", \"subq\", \"orb\", \"codex\", \"claude\", ])",
+    "is_index": false
+   },
+   {
     "name": "planJson",
     "db": "planJson",
     "type": "json",
@@ -11739,6 +14054,16 @@
     "flags": [],
     "enum": null,
     "raw": "searchResultsJson: json(\"searchResultsJson\")",
+    "is_index": false
+   },
+   {
+    "name": "estimatedCostUsd",
+    "db": "estimatedCostUsd",
+    "type": "decimal",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "estimatedCostUsd: decimal(\"estimatedCostUsd\", { precision: 10, scale: 6 })",
     "is_index": false
    },
    {
@@ -11911,6 +14236,26 @@
     "is_index": false
    },
    {
+    "name": "createdByModel",
+    "db": "createdByModel",
+    "type": "varchar",
+    "length": "64",
+    "flags": [],
+    "enum": null,
+    "raw": "createdByModel: varchar(\"createdByModel\", { length: 64 })",
+    "is_index": false
+   },
+   {
+    "name": "expiresAt",
+    "db": "expiresAt",
+    "type": "timestamp",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "expiresAt: timestamp(\"expiresAt\")",
+    "is_index": false
+   },
+   {
     "name": "createdAt",
     "db": "createdAt",
     "type": "timestamp",
@@ -11982,6 +14327,46 @@
     "is_index": false
    },
    {
+    "name": "projectId",
+    "db": "projectId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "projectId: int(\"projectId\")",
+    "is_index": false
+   },
+   {
+    "name": "materialId",
+    "db": "materialId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "materialId: int(\"materialId\")",
+    "is_index": false
+   },
+   {
+    "name": "connectionId",
+    "db": "connectionId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "connectionId: int(\"connectionId\")",
+    "is_index": false
+   },
+   {
+    "name": "collectionId",
+    "db": "collectionId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "collectionId: int(\"collectionId\")",
+    "is_index": false
+   },
+   {
     "name": "accessLevel",
     "db": "accessLevel",
     "type": "mysqlEnum",
@@ -11997,6 +14382,16 @@
      "full_reference"
     ],
     "raw": "accessLevel: mysqlEnum(\"accessLevel\", [ \"none\", \"summary_only\", \"chunk_access\", \"full_reference\", ]) .default(\"summary_only\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "allowedModesJson",
+    "db": "allowedModesJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "allowedModesJson: json(\"allowedModesJson\").$type<string[]>()",
     "is_index": false
    },
    {
@@ -12129,6 +14524,18 @@
     "is_index": false
    },
    {
+    "name": "provider",
+    "db": "provider",
+    "type": "varchar",
+    "length": "64",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "provider: varchar(\"provider\", { length: 64 }).notNull()",
+    "is_index": false
+   },
+   {
     "name": "authType",
     "db": "authType",
     "type": "mysqlEnum",
@@ -12143,6 +14550,26 @@
      "none"
     ],
     "raw": "authType: mysqlEnum(\"authType\", [\"oauth\", \"api_key\", \"none\"]) .default(\"api_key\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "encryptedCredentialRef",
+    "db": "encryptedCredentialRef",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "encryptedCredentialRef: text(\"encryptedCredentialRef\")",
+    "is_index": false
+   },
+   {
+    "name": "configJson",
+    "db": "configJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "configJson: json(\"configJson\")",
     "is_index": false
    },
    {
@@ -12319,6 +14746,19 @@
     "is_index": false
    },
    {
+    "name": "voteCount",
+    "db": "voteCount",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT 0"
+    ],
+    "enum": null,
+    "raw": "voteCount: int(\"voteCount\").default(0).notNull()",
+    "is_index": false
+   },
+   {
     "name": "status",
     "db": "status",
     "type": "mysqlEnum",
@@ -12491,6 +14931,16 @@
     "is_index": false
    },
    {
+    "name": "teamId",
+    "db": "teamId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "teamId: int(\"teamId\")",
+    "is_index": false
+   },
+   {
     "name": "title",
     "db": "title",
     "type": "varchar",
@@ -12510,6 +14960,36 @@
     "flags": [],
     "enum": null,
     "raw": "description: text(\"description\")",
+    "is_index": false
+   },
+   {
+    "name": "mediaType",
+    "db": "mediaType",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "text",
+     "pdf",
+     "document",
+     "image",
+     "video",
+     "audio",
+     "presentation"
+    ],
+    "raw": "mediaType: mysqlEnum(\"mediaType\", [ \"text\", \"pdf\", \"document\", \"image\", \"video\", \"audio\", \"presentation\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "fileUrl",
+    "db": "fileUrl",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "fileUrl: text(\"fileUrl\")",
     "is_index": false
    },
    {
@@ -12563,6 +15043,36 @@
     "is_index": false
    },
    {
+    "name": "durationSeconds",
+    "db": "durationSeconds",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "durationSeconds: int(\"durationSeconds\")",
+    "is_index": false
+   },
+   {
+    "name": "pageCount",
+    "db": "pageCount",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "pageCount: int(\"pageCount\")",
+    "is_index": false
+   },
+   {
+    "name": "textContent",
+    "db": "textContent",
+    "type": "mediumtext",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "textContent: mediumtext(\"textContent\")",
+    "is_index": false
+   },
+   {
     "name": "transcriptionStatus",
     "db": "transcriptionStatus",
     "type": "mysqlEnum",
@@ -12582,6 +15092,77 @@
     "is_index": false
    },
    {
+    "name": "lineage",
+    "db": "lineage",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "lineage: varchar(\"lineage\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "sourceType",
+    "db": "sourceType",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT discourse"
+    ],
+    "enum": [
+     "discourse",
+     "group_practice",
+     "class",
+     "ceremony",
+     "publication",
+     "interview",
+     "other"
+    ],
+    "raw": "sourceType: mysqlEnum(\"sourceType\", [ \"discourse\", \"group_practice\", \"class\", \"ceremony\", \"publication\", \"interview\", \"other\", ]) .default(\"discourse\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sourceDate",
+    "db": "sourceDate",
+    "type": "date",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "sourceDate: date(\"sourceDate\")",
+    "is_index": false
+   },
+   {
+    "name": "sourceLocation",
+    "db": "sourceLocation",
+    "type": "varchar",
+    "length": "255",
+    "flags": [],
+    "enum": null,
+    "raw": "sourceLocation: varchar(\"sourceLocation\", { length: 255 })",
+    "is_index": false
+   },
+   {
+    "name": "topic",
+    "db": "topic",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "topic: varchar(\"topic\", { length: 128 })",
+    "is_index": false
+   },
+   {
+    "name": "speaker",
+    "db": "speaker",
+    "type": "varchar",
+    "length": "128",
+    "flags": [],
+    "enum": null,
+    "raw": "speaker: varchar(\"speaker\", { length: 128 })",
+    "is_index": false
+   },
+   {
     "name": "tags",
     "db": "tags",
     "type": "json",
@@ -12589,6 +15170,33 @@
     "flags": [],
     "enum": null,
     "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "realEarthRefs",
+    "db": "realEarthRefs",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "realEarthRefs: json(\"realEarthRefs\").$type<number[]>()",
+    "is_index": false
+   },
+   {
+    "name": "visibility",
+    "db": "visibility",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT private"
+    ],
+    "enum": [
+     "private",
+     "team_shared",
+     "public_disciples"
+    ],
+    "raw": "visibility: mysqlEnum(\"visibility\", [ \"private\", \"team_shared\", \"public_disciples\", ]) .default(\"private\") .notNull()",
     "is_index": false
    },
    {
@@ -12733,6 +15341,18 @@
     "is_index": false
    },
    {
+    "name": "ownerId",
+    "db": "ownerId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "ownerId: int(\"ownerId\").notNull()",
+    "is_index": false
+   },
+   {
     "name": "createdAt",
     "db": "createdAt",
     "type": "timestamp",
@@ -12807,6 +15427,23 @@
     ],
     "enum": null,
     "raw": "userId: int(\"userId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "role",
+    "db": "role",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT member"
+    ],
+    "enum": [
+     "owner",
+     "admin",
+     "member"
+    ],
+    "raw": "role: mysqlEnum(\"role\", [\"owner\", \"admin\", \"member\"]) .default(\"member\") .notNull()",
     "is_index": false
    },
    {
@@ -12912,6 +15549,16 @@
     "is_index": false
    },
    {
+    "name": "metadata",
+    "db": "metadata",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "metadata: json(\"metadata\").$type<Record<string, unknown>>()",
+    "is_index": false
+   },
+   {
     "name": "createdAt",
     "db": "createdAt",
     "type": "timestamp",
@@ -12958,6 +15605,210 @@
     ],
     "enum": null,
     "raw": "id: int(\"id\").autoincrement().primaryKey()",
+    "is_index": false
+   },
+   {
+    "name": "title",
+    "db": "title",
+    "type": "varchar",
+    "length": "500",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "title: varchar(\"title\", { length: 500 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "category",
+    "db": "category",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "history",
+     "culture",
+     "geography",
+     "architecture",
+     "language",
+     "cuisine",
+     "clothing",
+     "art",
+     "religion",
+     "society",
+     "economy",
+     "politics",
+     "military",
+     "technology",
+     "nature",
+     "folklore",
+     "education",
+     "entertainment",
+     "transportation",
+     "people"
+    ],
+    "raw": "category: mysqlEnum(\"category\", [ \"history\", \"culture\", \"geography\", \"architecture\", \"language\", \"cuisine\", \"clothing\", \"art\", \"religion\", \"society\", \"economy\", \"politics\", \"military\", \"technology\", \"nature\", \"folklore\", \"education\", \"entertainment\", \"transportation\", \"people\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "summary",
+    "db": "summary",
+    "type": "text",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "summary: text(\"summary\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "content",
+    "db": "content",
+    "type": "mediumtext",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "content: mediumtext(\"content\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "locationJson",
+    "db": "locationJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "locationJson: json(\"locationJson\").$type<{ region?: string; gpsCoords?: { lat: number; lon: number }; address?: string; }>()",
+    "is_index": false
+   },
+   {
+    "name": "historicalPeriod",
+    "db": "historicalPeriod",
+    "type": "varchar",
+    "length": "200",
+    "flags": [],
+    "enum": null,
+    "raw": "historicalPeriod: varchar(\"historicalPeriod\", { length: 200 })",
+    "is_index": false
+   },
+   {
+    "name": "yearRangeJson",
+    "db": "yearRangeJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "yearRangeJson: json(\"yearRangeJson\").$type<{ start?: number; end?: number; }>()",
+    "is_index": false
+   },
+   {
+    "name": "imageUrls",
+    "db": "imageUrls",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "imageUrls: json(\"imageUrls\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "externalLinksJson",
+    "db": "externalLinksJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "externalLinksJson: json(\"externalLinksJson\").$type<Array<{ label: string; url: string; type?: string; }>>()",
+    "is_index": false
+   },
+   {
+    "name": "citationsJson",
+    "db": "citationsJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "citationsJson: json(\"citationsJson\").$type<Array<{ author?: string; title: string; source: string; year?: number; url?: string; }>>()",
+    "is_index": false
+   },
+   {
+    "name": "tags",
+    "db": "tags",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "tags: json(\"tags\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "relatedEntryIds",
+    "db": "relatedEntryIds",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "relatedEntryIds: json(\"relatedEntryIds\").$type<string[]>()",
+    "is_index": false
+   },
+   {
+    "name": "qualityJson",
+    "db": "qualityJson",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "qualityJson: json(\"qualityJson\").$type<{ credibility: \"low\" | \"medium\" | \"high\" | \"verified\"; sourceType?: string; lastVerified?: string; }>()",
+    "is_index": false
+   },
+   {
+    "name": "isTaiwanFocused",
+    "db": "isTaiwanFocused",
+    "type": "boolean",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT false"
+    ],
+    "enum": null,
+    "raw": "isTaiwanFocused: boolean(\"isTaiwanFocused\").default(false).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "language",
+    "db": "language",
+    "type": "varchar",
+    "length": "10",
+    "flags": [
+     "DEFAULT zh-TW"
+    ],
+    "enum": null,
+    "raw": "language: varchar(\"language\", { length: 10 }).default(\"zh-TW\")",
+    "is_index": false
+   },
+   {
+    "name": "metadata",
+    "db": "metadata",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "metadata: json(\"metadata\").$type<Record<string, any>>()",
+    "is_index": false
+   },
+   {
+    "name": "createdBy",
+    "db": "createdBy",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "createdBy: int(\"createdBy\")",
     "is_index": false
    },
    {
@@ -13039,6 +15890,104 @@
     "is_index": false
    },
    {
+    "name": "actorUserId",
+    "db": "actorUserId",
+    "type": "int",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "actorUserId: int(\"actorUserId\")",
+    "is_index": false
+   },
+   {
+    "name": "actorRole",
+    "db": "actorRole",
+    "type": "varchar",
+    "length": "50",
+    "flags": [],
+    "enum": null,
+    "raw": "actorRole: varchar(\"actorRole\", { length: 50 })",
+    "is_index": false
+   },
+   {
+    "name": "action",
+    "db": "action",
+    "type": "varchar",
+    "length": "100",
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "action: varchar(\"action\", { length: 100 }).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "targetType",
+    "db": "targetType",
+    "type": "varchar",
+    "length": "50",
+    "flags": [],
+    "enum": null,
+    "raw": "targetType: varchar(\"targetType\", { length: 50 })",
+    "is_index": false
+   },
+   {
+    "name": "targetId",
+    "db": "targetId",
+    "type": "varchar",
+    "length": "100",
+    "flags": [],
+    "enum": null,
+    "raw": "targetId: varchar(\"targetId\", { length: 100 })",
+    "is_index": false
+   },
+   {
+    "name": "result",
+    "db": "result",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT success"
+    ],
+    "enum": [
+     "success",
+     "failure"
+    ],
+    "raw": "result: mysqlEnum(\"result\", [\"success\", \"failure\"]) .default(\"success\") .notNull()",
+    "is_index": false
+   },
+   {
+    "name": "ipAddress",
+    "db": "ipAddress",
+    "type": "varchar",
+    "length": "45",
+    "flags": [],
+    "enum": null,
+    "raw": "ipAddress: varchar(\"ipAddress\", { length: 45 })",
+    "is_index": false
+   },
+   {
+    "name": "userAgent",
+    "db": "userAgent",
+    "type": "text",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "userAgent: text(\"userAgent\")",
+    "is_index": false
+   },
+   {
+    "name": "metadata",
+    "db": "metadata",
+    "type": "json",
+    "length": null,
+    "flags": [],
+    "enum": null,
+    "raw": "metadata: json(\"metadata\").$type<Record<string, unknown>>()",
+    "is_index": false
+   },
+   {
     "name": "createdAt",
     "db": "createdAt",
     "type": "timestamp",
@@ -13090,6 +16039,90 @@
     ],
     "enum": null,
     "raw": "id: int(\"id\").autoincrement().primaryKey()",
+    "is_index": false
+   },
+   {
+    "name": "resourceType",
+    "db": "resourceType",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "project",
+     "asset",
+     "prompt",
+     "material"
+    ],
+    "raw": "resourceType: mysqlEnum(\"resourceType\", [ \"project\", \"asset\", \"prompt\", \"material\", ]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "resourceId",
+    "db": "resourceId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "resourceId: int(\"resourceId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sharedWithType",
+    "db": "sharedWithType",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": [
+     "user",
+     "team"
+    ],
+    "raw": "sharedWithType: mysqlEnum(\"sharedWithType\", [\"user\", \"team\"]).notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sharedWithId",
+    "db": "sharedWithId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "sharedWithId: int(\"sharedWithId\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "role",
+    "db": "role",
+    "type": "mysqlEnum",
+    "length": null,
+    "flags": [
+     "NOT NULL",
+     "DEFAULT viewer"
+    ],
+    "enum": [
+     "viewer",
+     "editor"
+    ],
+    "raw": "role: mysqlEnum(\"role\", [\"viewer\", \"editor\"]).default(\"viewer\").notNull()",
+    "is_index": false
+   },
+   {
+    "name": "sharedByUserId",
+    "db": "sharedByUserId",
+    "type": "int",
+    "length": null,
+    "flags": [
+     "NOT NULL"
+    ],
+    "enum": null,
+    "raw": "sharedByUserId: int(\"sharedByUserId\").notNull()",
     "is_index": false
    },
    {

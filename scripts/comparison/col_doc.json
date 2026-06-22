@@ -9,9 +9,7 @@
  },
  "agent_preferences": {
   "orbAgentEnabled": "null = follow env flag; true/false = explicit user override.",
-  "mutedSpirits": "Spirits the user has muted (skipped during selectRoleForIntent routing) and the ones they've starred. Both are AgentRole id arrays (e.g. [\"accountant\", \"inspector\"]). Empty defaults — feature is additive, existing rows keep working without ",
-  "stayOnPageMode": "When true the orb auto-approves tasked plans and drives them entirely server-side instead of navigating the user. Defaults to false so existing rows keep the legacy navigate-and-fillPrompt UX.",
-  "proactiveTriggerSettings": "主動精靈通知設定 — 每個 ProactiveTriggerEvent 的 enable / interval / requireAck override；空 object 等於每個事件都套 DEFAULT_PROACTIVE_TRIGGER_SETTINGS （全開、5 分鐘間隔、需要打勾才消失）。新增 trigger event 不需 migrate。"
+  "mutedSpirits": "Spirits the user has muted (skipped during selectRoleForIntent routing) and the ones they've starred. Both are AgentRole id arrays (e.g. [\"accountant\", \"inspector\"]). Empty defaults — feature is additive, existing rows keep working without "
  },
  "orb_scheduled_jobs": {},
  "password_reset_tokens": {},
@@ -21,10 +19,10 @@
  "digital_asset_library": {
   "tags": "0045: notes-curator (記記) tagging / category — both nullable to keep existing rows valid; populated through notesCurator.tagAssets and notesCurator.categorizeAsset.",
   "sourceStudio": "0047: AI 生成來源追蹤 — sourceStudio / modelId 標註資產來自哪個工作室 與哪個 AI 模型，讓「我的資產」可依工作室分類；backgroundJobId 連回原 始任務記錄。皆為 nullable 以相容手動上傳與舊資料。",
-  "sourceUrl": "0058: archival / source provenance tracking — sourceUrl 保留原始外部 URL（從第三方匯入時用）、provider 標註資產實際儲存供應商（s3 / r2 gcs 等），archivedAt / expiresAt 支援冷儲存與保留期管理， archivalChecksum 存歸檔當下的 sha256 hash，回溯校驗用。"
+  "sourceUrl": "0058: archival / source provenance tracking — sourceUrl 保留原始外部 URL（從第三方匯入時用）、provider 標註資產實際儲存供應商（s3 / r2 / gcs 等），archivedAt / expiresAt 支援冷儲存與保留期管理， archivalChecksum 存歸檔當下的 sha256 hash，回溯校驗用。"
  },
  "fine_tuned_models": {
-  "fileUrl": "訓練資料 ZIP 或原始資料集 URL",
+  "fileKey": "訓練資料 ZIP 或原始資料集 URL",
   "trainedLoraUrl": "訓練完成後由 Replicate / Fal.ai 回傳的 LoRA weights URL (.safetensors / .tar)",
   "replicatePredictionId": "Replicate prediction ID 或 Fal.ai request ID，用於狀態追蹤",
   "trainingEngine": "訓練引擎：replicate 或 fal（新增以區分不同 API 來源）",
@@ -46,8 +44,7 @@
  "agent_model_picks": {
   "modality": "image / video / audio / voice / sfx / text — kept loose because the studio surfaces add new modalities (e.g. \"music\") faster than schema migrations can ship. Read-side defensively normalizes.",
   "source": "Where the pick happened so the distiller can weight by surface (director picks usually carry more intent than a one-click history re-run).",
-  "accepted": "Tracks whether the pick led to an accepted generation. Updated post-hoc when the studio records success/failure so we can demote models with high reject ratios.",
-  "context": "Optional context — prompt fingerprint, page id, batch size — kept small so the table doesn't grow into a generation log."
+  "accepted": "Tracks whether the pick led to an accepted generation. Updated post-hoc when the studio records success/failure so we can demote models with high reject ratios."
  },
  "generation_history": {
   "sourceUrl": "0058: archival / source provenance tracking — 同 digital_asset_library 的設計：sourceUrl 紀錄原始外部來源、provider 為實際儲存供應商、 archivedAt / expiresAt 支援冷儲存與保留期、archivalChecksum 為歸檔 當下的 sha256 hash。"
@@ -151,14 +148,14 @@
   "tags": "標籤"
  },
  "prompt_library": {
-  "content": "完整提示詞內容",
-  "category": "image/video/audio/voice/general",
-  "modelHint": "建議使用的模型 ID",
-  "generationMode": "\"lightning\" | \"deep_precision\" | null"
+  "category": "完整提示詞內容",
+  "tags": "image/video/audio/voice/general",
+  "language": "建議使用的模型 ID",
+  "createdAt": "\"lightning\" | \"deep_precision\" | null"
  },
  "prompt_assets": {
-  "promptId": "→ prompt_library.id",
-  "assetId": "→ digital_asset_library.id"
+  "assetId": "→ prompt_library.id",
+  "relation": "→ digital_asset_library.id"
  },
  "prompt_collection": {
   "notes": "使用者收集時加註的「為何想保留 / 想怎麼用」。",
@@ -223,15 +220,13 @@
  "agent_performance_metrics": {},
  "orb_conversations": {},
  "orb_conversation_messages": {
-  "at": "Client-side message timestamp (ms since epoch) — used for ordering.",
-  "metadata": "Optional structured metadata: attachments, intent, actions, sources."
+  "at": "Client-side message timestamp (ms since epoch) — used for ordering."
  },
  "studio_recipes": {
-  "payload": "Full SavedRecipe payload — blocks / thoughtIslands / advancedPrompt references / promptStrength / generationParams. We keep it as JSON rather than splitting into columns because the shape is owned by client/src/stores/workspaceStore.ts and "
+  "payload": "Full SavedRecipe payload — blocks / thoughtIslands / advancedPrompt / references / promptStrength / generationParams. We keep it as JSON rather than splitting into columns because the shape is owned by client/src/stores/workspaceStore.ts an"
  },
  "studio_versions": {
-  "versionKey": "Client-supplied stable id (matches VersionEntry.id) so the frontend's pinnedVersionId / restore flow keeps working without a server round-trip.",
-  "payload": "Full VersionEntry payload (blocks / thoughtIslands / compiledPrompt changedFields / generationSettings / outputUrl / actionMode)."
+  "versionKey": "Client-supplied stable id (matches VersionEntry.id) so the frontend's pinnedVersionId / restore flow keeps working without a server round-trip."
  },
  "orb_long_term_memories": {},
  "orb_memory_associations": {},
@@ -245,7 +240,7 @@
  "orb_workflow_executions": {},
  "orb_workflow_step_executions": {},
  "orb_workflow_template_ratings": {
-  "rating": "1-5 stars"
+  "comment": "1-5 stars"
  },
  "orb_spirit_collaboration_metrics": {},
  "orb_system_health_metrics": {},

@@ -14,7 +14,9 @@ xref=J("scripts/comparison/table_xref.json")
 jira=J("scripts/comparison/jira_cards.json")
 pr_meta=J("scripts/comparison/pr_meta.json")
 col_doc=J("scripts/comparison/col_doc.json")
+col_infer=J("scripts/comparison/col_infer.json")
 proc_doc=J("scripts/comparison/proc_doc.json")
+proc_infer=J("scripts/comparison/proc_infer.json")
 core_doc=J("scripts/comparison/core_doc.json")
 existing=J("scripts/comparison/existing.json")
 future=J("scripts/comparison/future.json")
@@ -286,15 +288,19 @@ for ti,t in enumerate(schema):
         for ix in t["indexes"]:
             pdf.multi_cell(EPW,3.6,S(f"  # {ix.get('name','')}: {ix.get('raw','')}"),new_x="LMARGIN",new_y="NEXT")
         pdf.set_text_color(0)
-    docs=col_doc.get(t["table"],{})
-    if docs:
-        pdf.ln(0.5); P("　逐欄說明（取自 schema.ts 原始註解）：",7.4,0.3,(20,70,110))
-        for col in t["columns"]:
-            d=docs.get(col["name"])
-            if d:
-                pdf.set_font("wqy",size=7); pdf.set_text_color(60,60,60)
-                pdf.multi_cell(EPW,3.5,S(f"   - {col['name']}（{col['type']}）：{d}"),new_x="LMARGIN",new_y="NEXT")
-        pdf.set_text_color(0)
+    docs=col_doc.get(t["table"],{}); inf=col_infer.get(t["table"],{})
+    pdf.ln(0.5); P("　逐欄說明（原碼註解；無註解者標 [推斷]）：",7.4,0.3,(20,70,110))
+    for col in t["columns"]:
+        a=docs.get(col["name"])
+        pdf.set_font("wqy",size=7)
+        if a:
+            pdf.set_text_color(55,55,55)
+            pdf.multi_cell(EPW,3.5,S(f"   - {col['name']}（{col['type']}）：{a}"),new_x="LMARGIN",new_y="NEXT")
+        else:
+            d=inf.get(col["name"]) or f"{col['type']} 欄位"
+            pdf.set_text_color(120,120,120)
+            pdf.multi_cell(EPW,3.5,S(f"   - {col['name']}（{col['type']}）：[推斷] {d}"),new_x="LMARGIN",new_y="NEXT")
+    pdf.set_text_color(0)
     pdf.ln(2.5)
 
 # ============ PART C : Migration 對帳 ============
@@ -343,8 +349,12 @@ for rf in sorted(proc_doc):
     need(16)
     pdf.set_font("wqy",size=9.5); pdf.set_text_color(15,35,70)
     pdf.multi_cell(EPW,5,S(f"{rf}　（{len(items)} procedure）"),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
-    rows=[[it["name"], it["kind"], it["op"] or "—", it["input"] or "—", it["doc"] or ""] for it in items]
-    table(["procedure","權限","型別","輸入","用途（原碼註解）"],rows,[24,14,12,12,62],fs=6.8)
+    inf=proc_infer.get(rf,{})
+    rows=[]
+    for it in items:
+        doc=it["doc"] or ("[推斷] "+inf.get(it["name"],"") if inf.get(it["name"]) else "")
+        rows.append([it["name"], it["kind"], it["op"] or "—", it["input"] or "—", doc])
+    table(["procedure","權限","型別","輸入","用途（原碼註解／[推斷]）"],rows,[24,14,12,12,62],fs=6.8)
     pdf.ln(1.5)
 
 # D.4 核心檔逐行註解走讀

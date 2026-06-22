@@ -72,6 +72,12 @@ for m in re.finditer(r"export const (\w+)\s*=\s*mysqlTable\(", text):
     for ent in split_top_level(cols_src):
         e = ent.strip()
         if not e: continue
+        # strip leading JSDoc/line comments so columns with /** */ docs are not skipped
+        while True:
+            e2 = re.sub(r"^/\*.*?\*/\s*", "", e, flags=re.S)
+            e2 = re.sub(r"^//[^\n]*\n\s*", "", e2)
+            if e2 == e: break
+            e = e2.strip()
         cm = re.match(r"^(\w+)\s*:\s*(.*)$", e, flags=re.S)
         if not cm: continue
         cname, val = cm.group(1), cm.group(2)
