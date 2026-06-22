@@ -13,6 +13,11 @@ flags=J("scripts/comparison/flags.json")
 xref=J("scripts/comparison/table_xref.json")
 jira=J("scripts/comparison/jira_cards.json")
 pr_meta=J("scripts/comparison/pr_meta.json")
+col_doc=J("scripts/comparison/col_doc.json")
+proc_doc=J("scripts/comparison/proc_doc.json")
+core_doc=J("scripts/comparison/core_doc.json")
+existing=J("scripts/comparison/existing.json")
+future=J("scripts/comparison/future.json")
 
 class PDF(FPDF):
     def header(self):
@@ -133,7 +138,8 @@ prov=("資料來源與方法（scripts/comparison/ 解析器自動萃取）—�
  "server/client/shared 的 router/procedure/旗標 enumerate＋對每張卡 grep 卡號取 file:line 行級錨點；"
  "③資料庫＝drizzle/schema.ts（87 表逐欄位）＋drizzle/*.sql migration＋_journal.json 登記核對；"
  "④Railway/部署＝repo 部署產物（railway.toml／nixpacks／Dockerfile）＋.env.example 環境變數目錄（僅名稱）。\n"
- "章節：A 任務卡逐卡 · B 資料庫逐欄位 · C Migration 對帳 · D 全碼盤點 · E 三方一致性 · F Railway/部署。\n"
+ "章節：A 任務卡逐卡 · B 資料庫逐欄位（含逐欄說明）· C Migration 對帳 · D 全碼盤點（含逐 API／核心檔逐行註解）· "
+ "E 三方一致性 · F Railway/部署 · G 現有網站功能 · H 未來功能/程式碼/資料庫。\n"
  "Railway live MCP 註記：本 session 未連上 Railway MCP（待 AIDV-77 Bruce OAuth），Part F 以 repo 產物盤點。")
 pdf.multi_cell(EPW,5,S(prov),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
 
@@ -280,6 +286,15 @@ for ti,t in enumerate(schema):
         for ix in t["indexes"]:
             pdf.multi_cell(EPW,3.6,S(f"  # {ix.get('name','')}: {ix.get('raw','')}"),new_x="LMARGIN",new_y="NEXT")
         pdf.set_text_color(0)
+    docs=col_doc.get(t["table"],{})
+    if docs:
+        pdf.ln(0.5); P("　逐欄說明（取自 schema.ts 原始註解）：",7.4,0.3,(20,70,110))
+        for col in t["columns"]:
+            d=docs.get(col["name"])
+            if d:
+                pdf.set_font("wqy",size=7); pdf.set_text_color(60,60,60)
+                pdf.multi_cell(EPW,3.5,S(f"   - {col['name']}（{col['type']}）：{d}"),new_x="LMARGIN",new_y="NEXT")
+        pdf.set_text_color(0)
     pdf.ln(2.5)
 
 # ============ PART C : Migration 對帳 ============
@@ -316,6 +331,39 @@ table(["router 檔","行數","proc 數","procedure 名（節錄）"],rows,[26,10
 H("D.2　Feature Flag / 旗標",12,2,(35,55,90),top=3)
 rows=[[t[0],t[1]] for t in flags]
 table(["旗標 token","定義檔"],rows,[55,30],fs=7.5)
+
+# D.3 逐 Procedure 解釋
+pdf.add_page()
+H("D.3　逐 API（Procedure）解釋",13,2,(35,55,90))
+P("server/routers/ 全 "+str(sum(len(v) for v in proc_doc.values()))+" 個 tRPC procedure，逐一列：名稱 · 權限"
+  "（public/protected/admin）· 型別（query 讀 / mutation 寫）· 輸入 · 用途（取自原始碼緊鄰註解）。"
+  "此即 API 層『逐項解釋』——前端每個資料讀寫動作對應哪支後端能力。",8,2,(90,90,90))
+for rf in sorted(proc_doc):
+    items=proc_doc[rf]
+    need(16)
+    pdf.set_font("wqy",size=9.5); pdf.set_text_color(15,35,70)
+    pdf.multi_cell(EPW,5,S(f"{rf}　（{len(items)} procedure）"),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
+    rows=[[it["name"], it["kind"], it["op"] or "—", it["input"] or "—", it["doc"] or ""] for it in items]
+    table(["procedure","權限","型別","輸入","用途（原碼註解）"],rows,[24,14,12,12,62],fs=6.8)
+    pdf.ln(1.5)
+
+# D.4 核心檔逐行註解走讀
+pdf.add_page()
+H("D.4　核心檔逐行註解走讀",13,2,(35,55,90))
+P("挑選 7 個關鍵核心檔，逐行擷取原始碼中的『行內註解（行號 │ 註解）』——這是作者親寫的逐行說明，"
+  "等同程式碼逐行解釋（涵蓋成本治理、生成鎖、供應商門面、生成後處理、計畫安全、創作專案等關鍵路徑）。",8,2,(90,90,90))
+for f in core_doc:
+    info=core_doc[f]
+    need(16)
+    pdf.set_font("wqy",size=9.5); pdf.set_text_color(15,35,70)
+    pdf.multi_cell(EPW,5,S(f"{f}　（{info['loc']} 行，擷取註解 {len(info['comments'])}）"),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
+    pdf.set_font("wqy",size=6.8)
+    for lineno,c in info["comments"]:
+        pdf.set_text_color(150,150,150); pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(14,3.4,S(f"L{lineno}"),new_x="RIGHT",new_y="TOP")
+        pdf.set_text_color(60,60,60)
+        pdf.multi_cell(EPW-14,3.4,S("│ "+c),new_x="LMARGIN",new_y="NEXT")
+    pdf.set_text_color(0); pdf.ln(2)
 
 # ============ PART E : 三方一致性核對 ============
 pdf.add_page()
@@ -371,6 +419,62 @@ P(f"共 {len(railway['env'])} 個環境變數（其中 {sum(1 for e in railway['
   "『金鑰類』欄＝是；『範例值』欄僅表示 .env.example 是否附非敏感示範值，實際值一律貼 Railway 環境變數。",8,1.5,(90,90,90))
 rows=[[e["name"], "是" if e["secret"] else "", e["section"][:34], e["example_present"]] for e in railway["env"]]
 table(["環境變數名稱","金鑰類","分區/用途","範例值"],rows,[46,10,40,12],fs=7)
+
+# ============ PART G : 現有網站功能盤點 ============
+pdf.add_page()
+H("Part G — 現有網站功能盤點（已上線/已完成）",18,2,(25,40,75))
+_done_n=sum(len(v) for v in existing["done_by_epic"].values())
+P(f"以『完成』卡（{_done_n} 張）"
+  f"＋前端頁面（{len(existing['pages'])}）＋殼層（{len(existing['shells'])}）為據，盤點目前 director.today 實際具備的功能。"
+  "依 Epic（Wave）分組，每項標卡號、PR、動到的資料表。",9,2,(90,90,90))
+for epic_key, cards_ in existing["done_by_epic"].items():
+    if not cards_: continue
+    ename=existing["epics"].get(epic_key, epic_key)
+    need(16)
+    pdf.set_font("wqy",size=10); pdf.set_text_color(20,60,40)
+    pdf.multi_cell(EPW,5.2,S(f"◆ {epic_key}　{ename}　（{len(cards_)} 項已完成）"),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
+    rows=[[c["key"], c["summary"][:54],
+           ",".join("#"+p for p in c["prs"][:2]) or "—",
+           ",".join(c["tables"][:3]) or "—"] for c in cards_]
+    table(["卡號","功能","PR","資料表"],rows,[14,54,16,30],fs=6.8)
+    pdf.ln(1.5)
+H("G.x　前端頁面與殼層",12,2,(35,55,90),top=2)
+P("頁面（client/src/pages，"+str(len(existing["pages"]))+"）："+"、".join(existing["pages"]),8,1.2,(60,60,60))
+P("殼層（client/src/shells，"+str(len(existing["shells"]))+"）："+"、".join(existing["shells"]),8,1.2,(60,60,60))
+
+# ============ PART H : 未來功能/程式碼/資料庫 ============
+pdf.add_page()
+H("Part H — 未來增加：功能 / 程式碼 / 資料庫（路線圖）",18,2,(25,40,75))
+nf=sum(len(v["inprog"])+len(v["backlog"]) for v in future["by_epic"].values())
+P(f"以『進行中』＋『Backlog』卡（共 {nf} 張）為據，依 Epic（Wave）分組，呈現未來要加的功能；"
+  "並彙整『未來程式碼』（卡述明待接/待後端/缺金鑰者）與『未來資料庫』（規劃中/未接線的表）。",9,2,(90,90,90))
+H("H.1　未來功能（依 Epic / Wave）",12,2,(35,55,90))
+for epic_key, info in future["by_epic"].items():
+    items=info["inprog"]+info["backlog"]
+    if not items: continue
+    ename=info["epic"] or epic_key
+    need(16)
+    pdf.set_font("wqy",size=10); pdf.set_text_color(80,50,20)
+    pdf.multi_cell(EPW,5.2,S(f"◆ {epic_key}　{ename}　（進行中 {len(info['inprog'])}／Backlog {len(info['backlog'])}）"),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
+    rows=[[c["key"], ("進行中" if c in info["inprog"] else "Backlog"), c["type"][:4],
+           c["summary"][:52], ",".join(c["tables"][:2]) or "—"] for c in items]
+    table(["卡號","狀態","型","未來功能","牽涉表"],rows,[14,12,8,52,24],fs=6.6)
+    pdf.ln(1.5)
+H("H.2　未來程式碼（卡述明 待接/待後端/缺金鑰）",12,2,(150,80,20),top=2)
+P("以下卡在描述中明確標出尚未實作的程式碼接點（待接、待後端、待補、待 G10、Phase 2、needs-key…），"
+  "即未來要寫的程式。",8,1.5,(90,90,90))
+rows=[[c["key"], c["status"][:6], ",".join(c["hits"][:3]), c["snip"][:120]] for c in future["future_code"]]
+table(["卡號","狀態","關鍵字","待實作內容（節錄）"],rows,[14,12,18,66],fs=6.8,head_fill=(150,90,40))
+H("H.3　未來資料庫",12,2,(150,80,20),top=2)
+P("(a) 規劃中/未接線的表——schema 已定義但 server/shared/client 以 var 名查無引用（"+str(len(future["planned_tables"]))+" 張），"
+  "多為待接線或由 raw SQL 操作；(b) 未來卡牽涉的資料表。",8,1.5,(90,90,90))
+rows=[[t, ",".join(future["future_tables_from_cards"].get(t,[])[:4]) or "—"] for t in future["planned_tables"]]
+table(["規劃中/未接線資料表","被哪些未來卡牽涉"],rows,[40,55],fs=8,head_fill=(150,90,40))
+ft=[(t,ks) for t,ks in future["future_tables_from_cards"].items() if t not in future["planned_tables"]]
+if ft:
+    P("其餘已存在、被未來卡再度牽涉的表（擴充/接線方向）：",8,1.2,(90,90,90))
+    rows=[[t, ",".join(ks[:5])] for t,ks in sorted(ft)]
+    table(["資料表","未來卡"],rows,[40,55],fs=7.5,head_fill=(120,90,50))
 
 out="docs/reports/task-card-code-db-comparison.pdf"
 os.makedirs("docs/reports",exist_ok=True)

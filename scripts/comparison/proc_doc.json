@@ -1,0 +1,2060 @@
+{
+ "adminRouter.ts": [
+  {
+   "name": "runAgentEval",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "agentCollaborationRouter.ts": [
+  {
+   "name": "startCollaboration",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getCollaborationStatus",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listUserCollaborations",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "cancelCollaboration",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getCollaborationMessages",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "startAutoDiscussion",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "executeProtocolHandoff",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getProtocolHandoffsFor",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "agentModelPicksRouter.ts": [
+  {
+   "name": "recordPick",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "markAcceptance",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getPreferredForModality",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getPreferredByModalities",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getRecent",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "agentPreferencesRouter.ts": [
+  {
+   "name": "getPreferences",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "updatePreferences",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listAvailableTools",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getDistilledProfile",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getRecentActivity",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "aiModels.ts": [
+  {
+   "name": "list",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getById",
+   "kind": "public",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "researchStats",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "refreshOne",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "refreshAll",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "refreshStale",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "discoveries",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runDiscovery",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "setSchedule",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "apiUsage.ts": [
+  {
+   "name": "list",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "upsert",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "list",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "upsert",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "providerReadiness",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "overview",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "usageByProvider",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "usageEvents",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "billing",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "deepCost",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": "為 admin 後台的「深度成本」面板提供進階拆解： • 模態（LLM / TTS / 圖片 / 影片 / 訓練 …） • Top-N 端點 / 使用者 • 狀態（success / failed / timeout / rate_limited） • 延遲統計（p50 / p95 / p99） • 7×24 熱力圖 "
+  },
+  {
+   "name": "snapshots",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "costAttribution",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": "依 project / member / workflow 維度彙總 cost_ledger 的 posted debit 真實成本， 以 TWD 呈現（優先用列上凍結的 amountTwd，舊資料 fallback 現算）。dimension 不傳 ＝全部維度。純彙總邏輯在 summarizeAttribution（"
+  }
+ ],
+ "auditLog.ts": [
+  {
+   "name": "events",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "export",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "brain.ts": [
+  {
+   "name": "catalog",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "upsert",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "switchModel",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "pricingSummary",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "healthStatus",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "orbVoicePreview",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "pingProviders",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "monitorSummary",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "autoRepairConfig",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "toggleAutoRepair",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "setMonitorInterval",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "alerts",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "dismissAlert",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "errorTraces",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "reportError",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "resolveError",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "diagnoseError",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "errorCategoryLabels",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "proposals",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "createProposal",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "approveProposal",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "rejectProposal",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "webSearch",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "researchResults",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "addResearchToLearnHub",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "accuracyTests",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runAccuracyTest",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runAllAccuracyTests",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runFullSiteResearch",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runCodeScan",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "lastCodeScan",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "githubConfigStatus",
+   "kind": "admin",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "testGithubConnection",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "retryGithubIssue",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "generationLogs",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "brainPipeline.ts": [
+  {
+   "name": "getGraph",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getMyGraph",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getSummary",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runPatrol",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "creativeProject.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "getContextSummary",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "link",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "externalServices.ts": [
+  {
+   "name": "list",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "summary",
+   "kind": "admin",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "upsert",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "updateApiKeyStatus",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "seedDefaults",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "imageStudio.ts": [
+  {
+   "name": "checkApiKey",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "langsmith.ts": [
+  {
+   "name": "status",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "stats",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "listRuns",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getRun",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "healthStats",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "createFeedback",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listFeedback",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "listDatasets",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "addRunToDataset",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "modelComparison",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "exportFineTuningData",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "learnHub.ts": [
+  {
+   "name": "list",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getById",
+   "kind": "public",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "categories",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "importDocs",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "videoList",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "videoGetById",
+   "kind": "public",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "videoCreate",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "videoUpdate",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "videoDelete",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "quizList",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "quizGetById",
+   "kind": "public",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "quizCreate",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "quizUpdate",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "quizDelete",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "loraTrainer.ts": [
+  {
+   "name": "stats",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "replicateStatus",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "trainingHistory",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "trainWithReplicate",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "replicateTrainingStatus",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "trainingDetail",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "modelConsents.ts": [
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "revoke",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "modelWishesRouter.ts": [
+  {
+   "name": "list",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "vote",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "unvote",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "updateStatus",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "news.ts": [
+  {
+   "name": "list",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getById",
+   "kind": "public",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "pinned",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "categories",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "byTag",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "orbCapabilitiesRouter.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "suggestImageEditModels",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "orbConversationsRouter.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "getMessages",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "appendMessages",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "clearMessages",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "orbProxyRouter.ts": [
+  {
+   "name": "getRememberedPreferences",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "removePreferenceValue",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "clearAllPreferenceMemory",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "persistClarificationPicks",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "unifiedSearch",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "orbSchedulerRouter.ts": [
+  {
+   "name": "scheduleJob",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "unscheduleJob",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "setEnabled",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "runNow",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "listJobs",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "previewCron",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "proStudio.ts": [
+  {
+   "name": "checkApiKey",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "musicModels",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "sfxModels",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "promptCollection.ts": [
+  {
+   "name": "siteCatalog",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listMine",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listTeam",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "collect",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "toggleFavorite",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "incrementUseCount",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "setVisibility",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "promptLibrary.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listPublic",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getById",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "toggleFavorite",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "incrementUseCount",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "linkedAssets",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": "讀取不掛 ENABLE_PROMPT_ASSET_LINKS 旗標 — 旗標只管生成鏈的寫入端； 表空（旗標未開、尚未 backfill）時回空陣列，前端相容。"
+  },
+  {
+   "name": "backfillAssetLinks",
+   "kind": "admin",
+   "op": "mutation",
+   "input": "",
+   "doc": "把既有 inline 提示詞文字對回 prompt_library 建關聯，只做「完全等值」匹配 （同 userId、content 與 promptUsed/generation_history.prompt 完全相同）， 對不上的略過、不亂猜；同 user 同 content 多列時取最早一列（MIN(id)， 決"
+  },
+  {
+   "name": "adminSeed",
+   "kind": "admin",
+   "op": "",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "rbac.ts": [
+  {
+   "name": "listShares",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "share",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "revokeShare",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "transferOwnership",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "realEarth.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "search",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "taiwanHighlights",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "stats",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "getRelated",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "seedData",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "needsInit",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "getLinkedMaterials",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "sense.ts": [
+  {
+   "name": "inferIntent",
+   "kind": "public",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "showcase.ts": [
+  {
+   "name": "list",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getById",
+   "kind": "public",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "trending",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "byModality",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "byAesthetics",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "promote",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "myItems",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "removeItem",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "listComments",
+   "kind": "public",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "addComment",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "deleteComment",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "stats",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "spiritRouter.ts": [
+  {
+   "name": "listModels",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "invoke",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "plan",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "run",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "status",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "control",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "replan",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listRuns",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "runStep",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "teachingArchive.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "logView",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "triggerIngestion",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "accessLog",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "lineages",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "topics",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "search",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "linkRealEarthEntry",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "unlinkRealEarthEntry",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "getRealEarthLinks",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "teams.ts": [
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "members",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "addMember",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "removeMember",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "leave",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  }
+ ],
+ "videoStudio.ts": [
+  {
+   "name": "checkApiKey",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "modelAvailability",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listCameraModes",
+   "kind": "public",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "worldStoryboard.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "listByWorld",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "seedSkeleton",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "validate",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "planPipeline",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "updateJob",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "summarizeForPrompt",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "createFromSegments",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "exportShotList",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  }
+ ],
+ "worldbuilding.ts": [
+  {
+   "name": "list",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "get",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "create",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "update",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "delete",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "linkableModels",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "linkableVoices",
+   "kind": "protected",
+   "op": "query",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "summarizeForPrompt",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "queryEntities",
+   "kind": "protected",
+   "op": "",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "exportFull",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "importFull",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listTimelineFrames",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "uploadTimelineFrame",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "deleteTimelineFrame",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "number",
+   "doc": ""
+  },
+  {
+   "name": "checkConsistency",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "listCompositions",
+   "kind": "protected",
+   "op": "query",
+   "input": "object",
+   "doc": ""
+  },
+  {
+   "name": "saveComposition",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  },
+  {
+   "name": "deleteComposition",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "number",
+   "doc": ""
+  },
+  {
+   "name": "getCompositionSuggestions",
+   "kind": "protected",
+   "op": "mutation",
+   "input": "",
+   "doc": ""
+  }
+ ]
+}
