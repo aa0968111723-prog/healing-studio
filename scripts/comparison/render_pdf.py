@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json, datetime, os, re
+import json, datetime, os, re, statistics
 from fpdf import FPDF
 
 FONT="/tmp/report_assets/wqy.ttf"
@@ -21,6 +21,7 @@ core_doc=J("scripts/comparison/core_doc.json")
 existing=J("scripts/comparison/existing.json")
 future=J("scripts/comparison/future.json")
 recon=J("scripts/comparison/recon.json")
+pricing=J("scripts/comparison/pricing.json")
 
 class PDF(FPDF):
     def header(self):
@@ -33,7 +34,7 @@ class PDF(FPDF):
     def footer(self):
         if self.page_no()==1: return
         self.set_y(-12); self.set_font("wqy",size=7); self.set_text_color(150)
-        self.cell(0,8,f"第 {self.page_no()} 頁  ·  產出 {datetime.date.today().isoformat()}  ·  本檔為 git/repo 實證自動產出",align="C")
+        self.cell(0,8,f"第 {self.page_no()} 頁  ·  動態資料快照 {datetime.date.today().isoformat()}（持續新增/更新）  ·  git/repo 實證自動產出",align="C")
         self.set_text_color(0)
 
 pdf=PDF(orientation="P",unit="mm",format="A4")
@@ -122,7 +123,9 @@ pdf.set_font("wqy",size=26); pdf.set_text_color(25,40,75)
 pdf.multi_cell(EPW,12,S("任務卡 × 程式碼 × 資料庫\n三方逐項對比報告"),align="C",new_x="LMARGIN",new_y="NEXT")
 pdf.ln(2); pdf.set_font("wqy",size=12); pdf.set_text_color(90,90,90)
 pdf.multi_cell(EPW,7,"逐卡級 · 逐行級 · 逐欄位級  —  細部細節完整核對",align="C",new_x="LMARGIN",new_y="NEXT")
-pdf.ln(8); pdf.set_text_color(0)
+pdf.ln(3); pdf.set_font("wqy",size=10); pdf.set_text_color(150,30,30)
+pdf.multi_cell(EPW,5.5,S(f"◆ 動態資料（持續新增/更新）· 本版快照 {datetime.date.today().isoformat()} · 重跑解析器即刷新 ◆"),align="C",new_x="LMARGIN",new_y="NEXT")
+pdf.ln(6); pdf.set_text_color(0)
 pdf.set_font("wqy",size=11)
 meta=[
  ("專案","healing-studio　AI Director / Healing Studio 影片製作系統"),
@@ -130,7 +133,8 @@ meta=[
  ("真實棧","React 19 + Vite + tRPC v11 + Drizzle/MySQL + Express；生成=fal/replicate/Gemini/ElevenLabs"),
  ("分支","claude/task-card-comparison-pdf-bnw89n"),
  ("產出日期",datetime.date.today().isoformat()),
- ("資料來源","repo 實檔（git 實證），非轉述"),
+ ("資料來源","repo 實檔（git 實證）＋ live Jira ＋ 2026 網路實價，非轉述"),
+ ("資料性質","動態資料（living）— 隨 repo/Jira/價格持續新增與更新；每次重跑解析器即刷新"),
 ]
 table(["項目","內容"],meta,[20,80],fs=10,zebra=True,head_fill=(60,80,120))
 pdf.ln(4)
@@ -142,7 +146,8 @@ prov=("資料來源與方法（scripts/comparison/ 解析器自動萃取）—�
  "③資料庫＝drizzle/schema.ts（87 表逐欄位）＋drizzle/*.sql migration＋_journal.json 登記核對；"
  "④Railway/部署＝repo 部署產物（railway.toml／nixpacks／Dockerfile）＋.env.example 環境變數目錄（僅名稱）。\n"
  "章節：A 任務卡逐卡 · B 資料庫逐欄位（含逐欄說明）· C Migration 對帳 · D 全碼盤點（含逐 API／核心檔逐行註解）· "
- "E 三方一致性 · F Railway/部署 · G 現有網站功能 · H 未來功能/程式碼/資料庫。\n"
+ "E 三方一致性 · F Railway/部署 · G 現有網站功能 · H 未來功能/程式碼/資料庫 · "
+ "I AI 底層邏輯結構 · J UIUX 結構系統 · K AI x UIUX 整合接點 · L 全站費用與成本 · M 技術選型與 SOTA 比對。\n"
  "Railway live MCP 註記：本 session 未連上 Railway MCP（待 AIDV-77 Bruce OAuth），Part F 以 repo 產物盤點。")
 pdf.multi_cell(EPW,5,S(prov),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
 
@@ -502,6 +507,128 @@ if ft:
     P("其餘已存在、被未來卡再度牽涉的表（擴充/接線方向）：",8,1.2,(90,90,90))
     rows=[[t, ",".join(ks[:5])] for t,ks in sorted(ft)]
     table(["資料表","未來卡"],rows,[40,55],fs=7.5,head_fill=(120,90,50))
+
+# ============ PART I : AI 底層邏輯結構 ============
+pdf.add_page()
+H("Part I — AI 底層邏輯結構",18,2,(25,40,75))
+P("這站的 AI 不是『丟給 LLM 直接答』，而是一條有守門的代理流水線。代理軸由內到外四圈：契約層/規劃層/守門層/執行層。",9,2,(90,90,90))
+H("I.1　9 階代理流水線（每輪一次）",12,2,(35,55,90))
+loop=[
+ ["1 意圖","ai.chat 多步 planner 抽 intent/限制/引用（orb-reasoning 思考步驟面板）","不直接答，先理解"],
+ ["2 產計畫","LLM 產 RunWorkflowAction（AgentPlan V3：steps+dependsOn+decisionMode+risk）","結構化可審查"],
+ ["3 安全閘","agent-plan-safety：風險(low/med/high)/能力(hasCapabilityForPage)/已知動作 三檢","擋越權/未知動作"],
+ ["4 批判精修","orb-plan-critic：draft->critique->refine；抓未解 ${stepN.key}/參數漂移/缺前置/依賴環","語意層把關"],
+ ["5 成本閘","orb-cost-governor：pre-flight 估 credits/時長/風險 tier，超預算先擋","先估後扣紅線"],
+ ["6 排程","orb-dag-scheduler：拓撲分批 Promise.all；同 path 強制串接避免同頁競態；偵測環退循序","防 UI race"],
+ ["7 執行+驗證","逐步派發 -> verifyToolResult 檢查工具輸出","工具結果可信"],
+ ["8 自省","orb-self-reflection：慢/可疑過小/重複失敗 -> verdict 寫回 orbMemory","Reflexion 學習"],
+ ["9 感知+重規劃","orb-perception-loop：執行後抓 PageAgentSnapshot diff -> proceed/retry/replan/abort","關掉『以為成功』缺口"],
+]
+table(["階段","運作（repo 模組）","解決什麼"],loop,[16,68,22],fs=7,head_fill=(120,40,40))
+H("I.2　16 種白名單動作 + 風險閘",12,2,(35,55,90),top=2)
+P("LLM 只能產出白名單動作（各有 zod schema 與風險）：navigate/setTab/setMode/setModality/fillPrompt/type/"
+  "setModel/setParam/applyPreset/toggleSetting/focusElement/openDialog/search/reset/submit/runWorkflow。"
+  "高風險（submit/runWorkflow/刪除/權限）一律要人類核准（actionRequiresApproval）。",9,1.5)
+H("I.3　記憶三層 + 狀態機",12,2,(35,55,90),top=1)
+P("記憶：Tier A 任務暫存（in-RAM+選擇性 DB）/ Tier B 會話+RAG 索引+per-user 摘要 / Tier C 跨會話 per-spirit 語意學習。"
+  "狀態機：planned->running->(waiting_human 停下等人)->done/failed/cancelled。RAG 失敗顯式浮出（非吞錯）+ "
+  "ENABLE_RAG_INJECTION_GUARD 防注入。向量＝Pinecone halfvec(3072)+HNSW（規劃遷 pgvector）。",9,1.5)
+
+# ============ PART J : UIUX 結構系統 ============
+pdf.add_page()
+H("Part J — UIUX 結構系統",18,2,(25,40,75))
+H("J.1　設計 Token 五層（CSS 變數為單一真相）",12,2,(35,55,90))
+P("①全站 :root（shadcn 語意色換亮色暖光）②平台擴充色 --clay/--gold/--teal/--ok/warn/bad/info ③玻璃分層 "
+  "--surface-1/2/3（oklch 半透明）④暖色陰影 --shadow-healing ⑤字體 --font-serif(Fraunces/Noto Serif TC)+圓角 --radius 1rem。"
+  "主強調＝黏土/珊瑚橘 #C2613F(=--primary)。design-kit 元件用短別名 token，須包在 .aidv-kit scope；登入 .login-cosmic carve-out。",9,1.5)
+H("J.2　元件階梯 + 四態鐵律",12,2,(35,55,90),top=1)
+ui=[
+ ["primitives","Button/Pill/Tag/Kbd/Eyebrow/Toggle/Meter/Spinner/Card/Input","最小積木"],
+ ["states/PanelState","四態：載入(role=status,aria-busy)/空(role=status)/錯誤(role=alert+重試)/就緒","狀態可視一致"],
+ ["GateCard","確認門卡+computeGate/countGate","成本/風險關卡"],
+ ["ShotCard / PromptVault / WorkflowBuilder","分鏡狀態機 / 生成->存庫->重用 / 可設定工作流","領域元件"],
+ ["orb.tsx","FAB+面板+6 分頁+主動泡泡+人格/心情頭+四態","代理化身（見 Part K）"],
+]
+table(["元件","內容","定位"],ui,[28,52,20],fs=7)
+P("四殼一脊椎：ShellFrame + Video/Social/Learn/Settings 四殼，shellRouteTable 統一路由；脊椎＝Story Spine（S0X 導航+readiness chip）。"
+  "AIDV-118 一致性查核：26 面板 25 有錯誤態出口、首頁 15 動畫 14 守 reduced-motion、四殼斷點全對齊 768/1024/1280；"
+  "a11y 基線 focus-visible/sr-only/role/aria-busy/aria-live（對比度/鍵序/真機破版＝Phase 2 人工）。",9,1.5)
+
+# ============ PART K : AI x UIUX 整合接點 ============
+pdf.add_page()
+H("Part K — AI x UIUX 整合接點（同一頁面，兩種觀者）",17,2,(25,40,75))
+P("命題：UI 同時是『人看的介面』與『代理可讀寫的狀態機』。兩軸共用同一份頁面狀態，靠下列接點縫合：",9,2,(90,90,90))
+integ=[
+ ["頁面註冊表","APP_PAGE_REGISTRY","頁面/能力單一登記","代理知道哪頁能做這動作"],
+ ["跨頁狀態圖","orb-page-state-graph","哪頁處理某 action、到目標頁最短路徑","setModality 只在 /studio -> 先導航"],
+ ["動作派發","PageAgentContext.dispatch","代理把 16 動作打進真實頁面","fillPrompt->Input、submit->GateCard"],
+ ["頁面快照","PageAgentSnapshot","代理讀頁面真實狀態","perception-loop diff 判『真的變了沒』=ground truth"],
+ ["思考可視","orb-reasoning","planner intent/plan/warnings 攤在 orb 面板","代理怎麼想可見，非黑箱"],
+ ["光球心情","OrbMood idle/thinking/working/done","綁代理執行狀態","以色彩區分(calm orb 無臉)"],
+ ["四態 ambient","silent/hint/collab/critical","綁代理主張強度","關鍵才 critical 介入"],
+ ["主動泡泡","orb 主動泡泡(aria-live)","自省/記憶->主動建議","學到的變『下一步』CTA"],
+ ["成本閘可視","cost-governor<->GateCard+成本階梯","預算閘畫成確認門","高成本 submit 前可見可否決"],
+ ["脊椎=計畫","Story Spine S0X<->AgentPlan steps","計畫步驟對映脊椎","readiness chip=該步就緒度"],
+ ["狀態一致","verifyToolResult/四態<->PanelState","後端狀態<->前端四態","人與代理看同一真相"],
+]
+table(["接點","模組/元件","作用","具體例子"],integ,[16,28,28,44],fs=6.9,head_fill=(40,90,55))
+P("一句話：UIUX 是代理的 I/O 介面——dispatch(寫)+snapshot(讀)做對，代理才能可靠操作；四態/確認門做對，人與代理才共享真相。"
+  "多數產品 UI 與 Agent 脫節，本站用 PageAgent 把兩者縫在同一份狀態上。",9,1.5,(20,70,120))
+
+# ============ PART L : 全站費用與成本 ============
+pdf.add_page()
+H("Part L — 全站費用與成本（repo 成本碼＋2026 實價）",17,2,(25,40,75))
+H("L.1　付費服務一覽",12,2,(35,55,90))
+svc=[
+ ["Railway 主機","$20/vCPU·月+$10/GB RAM·月+egress $0.05/GB+磁碟 $0.15/GB","[有]"],
+ ["Cloudflare R2","儲存 $0.015/GB·月、egress 免費、Class A $4.50/百萬","[有]"],
+ ["Pinecone 向量","~$0.33/GB·月、月最低 $50（遷 pgvector 可省）","[有]"],
+ ["OpenRouter/Anthropic","Haiku $1/$5、Sonnet $3/$15、Opus4.8 $5/$25（每百萬 token）；OpenRouter +5.5%","[有]"],
+ ["fal.ai（151 模型）","圖 $0.003–0.06、影片 $0.10–0.80、訓練 $1–5/次","缺金鑰"],
+ ["Perplexity","$1–15/百萬 token + 每千次請求 $5–14","[進行]"],
+ ["ElevenLabs/Suno","語音 API Pro $99/月；音樂無官方 API","缺金鑰"],
+ ["Supabase（規劃）","Pro $25/月含 250GB egress","[待]"],
+ ["MySQL/Redis/Stripe/Sentry/網域","DB 用量・Redis $5–10・Stripe 2.9%+$0.30・Sentry $0–26・網域 $20–30/年","混"],
+]
+table(["服務","2026 現行價","狀態"],svc,[26,58,14],fs=7)
+H("L.2　API 生成成本依類別（200 模型）",12,2,(35,55,90),top=1)
+bycat={}
+for e in pricing: bycat.setdefault(e["category"],[]).append(e["baseCostUsd"])
+CN={"text-to-video":"文字生影片","image-to-video":"圖生影片","training":"模型訓練","text-to-3d":"文字生 3D","image-to-3d":"圖生 3D","video-to-video":"影片轉影片","text-to-image":"文字生圖","image-to-image":"圖生圖","text-to-speech":"語音 TTS","text-to-audio":"音樂音效","reasoning":"推理","llm":"LLM","video-to-audio":"影片配音","audio-to-text":"語音轉文字","image-to-json":"圖像理解","video-to-text":"影片轉文字"}
+rows=[]
+for c in sorted(bycat,key=lambda k:-statistics.median(bycat[k])):
+    v=sorted(bycat[c]); rows.append([CN.get(c,c),str(len(v)),f"${min(v):.3f}–${max(v):.3f}",f"${statistics.median(v):.3f}"])
+table(["類別","模型數","USD 區間/次","中位"],rows,[28,12,28,14],fs=7.5,head_fill=(40,70,55))
+H("L.3　你可能沒想到的隱藏成本（重點）",12,2,(150,30,30),top=1)
+for t in [
+ "失敗仍付費：失敗/部分生成全額退點給用戶，但供應商常已收費＝淨損漏帳。",
+ "LLM 重試疊加 / Perplexity 每千次請求費 / OpenRouter +5.5% / 多代理 token 乘數。",
+ "Pinecone 月最低 $50（幾乎沒用也付）；halfvec(3072) 單筆~6KB 隨記憶成長。",
+ "R2 操作費（上傳=Class A、magic-byte 檢查=Class B）；容器多 cron 無法縮零 24/7。",
+ "免費 50 生成×多帳號＝補貼破口；FX 匯率風險；Stripe 每筆 $0.30；遷移期雙庫並存。",
+]: P("[!] "+t,8.5,0.9,(150,30,30))
+P("固定底盤概估 ~$115/月（Railway+Pinecone 為大宗）；影片是頭號成本中心，單項可蓋過所有基礎設施。詳見獨立成本報告。",8.5,1,(20,90,40))
+
+# ============ PART M : 技術選型比對 ============
+pdf.add_page()
+H("Part M — 技術選型與 SOTA 比對",17,2,(25,40,75))
+cmp=[
+ ["API","tRPC v11","REST/GraphQL/gRPC","端到端型別、零 schema 重複；全 TS 最佳適配"],
+ ["ORM","Drizzle","Prisma/TypeORM","SQL-first 輕、無引擎程序；可控 raw migration"],
+ ["路由","Wouter","React Router/Next.js","~1.5KB 極輕；SPA 殼不要 SSR 重量"],
+ ["向量","Pinecone->pgvector","Qdrant/Weaviate/Milvus","遷 pgvector 併庫省月最低 $50"],
+ ["LLM 接入","OpenRouter+門面","直連 SDK/LiteLLM","一支金鑰多家+可降級；代價 +5.5%"],
+ ["代理框架","自建","LangGraph/CrewAI/AutoGen","完全可控、緊貼 UI 派發+成本閘+頁面感知"],
+ ["認證","自建 JWT","Auth0/Clerk/Supabase Auth","無月費無鎖定可控（已拍板）"],
+ ["併發鎖","Redis SET NX PX","DB advisory/BullMQ","跨實例快；耐久化規劃上 BullMQ"],
+ ["部署","Railway","Vercel/Fly/Render","容器+cron 適合常駐；非 serverless"],
+ ["儲存","Cloudflare R2","S3/Supabase Storage","零 egress 是媒體站殺手鐧"],
+]
+table(["層","本站","業界替代","取捨（為什麼）"],cmp,[12,24,28,46],fs=7,head_fill=(40,55,90))
+H("M.x　與 SOTA 代理範式對映",12,2,(35,55,90),top=2)
+P("本站代理＝Plan-and-Execute（骨）+ Critic/Reflexion（腦）+ Grounded-Perception（眼，少見）+ Cost-governor（閘，少見）"
+  "+ 受限 Tool-use（手）+ Multi-agent handoff（團隊）。其中『頁面感知驗證』與『成本內建守門』兩點比多數開源框架更實戰；"
+  "MCP（BYOMCP 權限/稽核）為 Wave 4 未來方向。詳見獨立技術架構報告。",9,1.5,(20,70,120))
 
 out="docs/reports/task-card-code-db-comparison.pdf"
 os.makedirs("docs/reports",exist_ok=True)
