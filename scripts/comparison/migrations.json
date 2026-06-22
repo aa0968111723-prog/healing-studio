@@ -1,0 +1,1099 @@
+[
+ {
+  "file": "0000_giant_reptil.sql",
+  "tag": "0000_giant_reptil",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 483
+ },
+ {
+  "file": "0001_panoramic_night_thrasher.sql",
+  "tag": "0001_panoramic_night_thrasher",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE api_usage_logs",
+   "CREATE TABLE background_jobs",
+   "CREATE TABLE digital_asset_library",
+   "CREATE TABLE fine_tuned_models",
+   "CREATE TABLE project_notes_calendar",
+   "CREATE TABLE user_feedback_reports",
+   "ALTER TABLE users"
+  ],
+  "n_break": 6,
+  "bytes": 3890
+ },
+ {
+  "file": "0002_flat_dorian_gray.sql",
+  "tag": "0002_flat_dorian_gray",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE ai_director_preferences",
+   "CREATE TABLE consistency_vault",
+   "CREATE TABLE generation_history",
+   "CREATE TABLE subscription_plans",
+   "ALTER TABLE background_jobs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE api_usage_logs",
+   "ALTER TABLE users",
+   "ALTER TABLE users"
+  ],
+  "n_break": 13,
+  "bytes": 2880
+ },
+ {
+  "file": "0003_gorgeous_stone_men.sql",
+  "tag": "0003_gorgeous_stone_men",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE block_combos",
+   "CREATE TABLE custom_blocks"
+  ],
+  "n_break": 1,
+  "bytes": 825
+ },
+ {
+  "file": "0004_past_pandemic.sql",
+  "tag": "0004_past_pandemic",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE system_settings"
+  ],
+  "n_break": 0,
+  "bytes": 1580
+ },
+ {
+  "file": "0005_nasty_anita_blake.sql",
+  "tag": "0005_nasty_anita_blake",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE featured_showcase",
+   "CREATE TABLE news_articles"
+  ],
+  "n_break": 1,
+  "bytes": 1476
+ },
+ {
+  "file": "0006_remarkable_starfox.sql",
+  "tag": "0006_remarkable_starfox",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE custom_blocks_combo",
+   "CREATE TABLE user_ai_brain",
+   "CREATE TABLE user_model_switch_logs"
+  ],
+  "n_break": 2,
+  "bytes": 3711
+ },
+ {
+  "file": "0007_tidy_thunderbird.sql",
+  "tag": "0007_tidy_thunderbird",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE external_service_subscriptions",
+   "CREATE TABLE prompt_library",
+   "CREATE TABLE r2_storage_snapshots",
+   "CREATE TABLE user_subscriptions",
+   "ALTER TABLE fine_tuned_models",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE fine_tuned_models",
+   "ALTER TABLE fine_tuned_models",
+   "ALTER TABLE fine_tuned_models",
+   "ALTER TABLE fine_tuned_models",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "CREATE INDEX pl_userId_idx",
+   "CREATE INDEX pl_category_idx",
+   "CREATE INDEX aul_userId_createdAt_idx",
+   "CREATE INDEX aul_userId_provider_idx",
+   "CREATE INDEX userId_status_idx",
+   "CREATE INDEX userId_createdAt_idx",
+   "CREATE INDEX cv_userId_idx",
+   "CREATE INDEX cv_userId_itemType_idx",
+   "CREATE INDEX cb_userId_modality_idx",
+   "CREATE INDEX dal_userId_idx",
+   "CREATE INDEX dal_userId_assetType_idx"
+  ],
+  "n_break": 51,
+  "bytes": 7929
+ },
+ {
+  "file": "0008_admin_api_usage.sql",
+  "tag": "0008_admin_api_usage",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE ai_usage_events",
+   "CREATE TABLE provider_snapshots",
+   "CREATE TABLE cost_aggregations",
+   "CREATE TABLE rate_limit_rules",
+   "CREATE TABLE alert_configs"
+  ],
+  "n_break": 4,
+  "bytes": 2842
+ },
+ {
+  "file": "0008_numerous_mother_askani.sql",
+  "tag": "0008_numerous_mother_askani",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_feedback_events",
+   "CREATE INDEX ofe_userId_createdAt_idx",
+   "CREATE INDEX ofe_userId_actionType_idx"
+  ],
+  "n_break": 2,
+  "bytes": 622
+ },
+ {
+  "file": "0009_prompt_library_generation_mode.sql",
+  "tag": "0009_prompt_library_generation_mode",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE prompt_library"
+  ],
+  "n_break": 0,
+  "bytes": 205
+ },
+ {
+  "file": "0010_add_generationMode_index.sql",
+  "tag": "0010_add_generationMode_index",
+  "registered": true,
+  "statements": [
+   "CREATE INDEX pl_generationMode_idx"
+  ],
+  "n_break": 0,
+  "bytes": 229
+ },
+ {
+  "file": "0011_user_auto_credit_policy.sql",
+  "tag": "0011_user_auto_credit_policy",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users",
+   "CREATE INDEX users_auto_credit_due_idx"
+  ],
+  "n_break": 1,
+  "bytes": 421
+ },
+ {
+  "file": "0012_local_auth_password_hash.sql",
+  "tag": "0012_local_auth_password_hash",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 62
+ },
+ {
+  "file": "0013_password_reset_tokens.sql",
+  "tag": "0013_password_reset_tokens",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE password_reset_tokens",
+   "CREATE INDEX prt_userId_idx",
+   "CREATE INDEX prt_tokenHash_idx",
+   "CREATE INDEX prt_expiresAt_idx"
+  ],
+  "n_break": 3,
+  "bytes": 692
+ },
+ {
+  "file": "0014_email_verification_tokens.sql",
+  "tag": "0014_email_verification_tokens",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE email_verification_tokens",
+   "CREATE INDEX evt_userId_idx",
+   "CREATE INDEX evt_tokenHash_idx",
+   "CREATE INDEX evt_expiresAt_idx"
+  ],
+  "n_break": 3,
+  "bytes": 752
+ },
+ {
+  "file": "0015_add_email_verification_fields.sql",
+  "tag": "0015_add_email_verification_fields",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 128
+ },
+ {
+  "file": "0016_login_history.sql",
+  "tag": "0016_login_history",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE login_history",
+   "CREATE INDEX lh_userId_idx",
+   "CREATE INDEX lh_userId_createdAt_idx",
+   "CREATE INDEX lh_email_idx"
+  ],
+  "n_break": 3,
+  "bytes": 738
+ },
+ {
+  "file": "0017_agent_preferences_extend.sql",
+  "tag": "0017_agent_preferences_extend",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE migration",
+   "CREATE TABLE agent_preferences",
+   "ALTER TABLE below",
+   "ALTER TABLE agent_preferences"
+  ],
+  "n_break": 1,
+  "bytes": 1899
+ },
+ {
+  "file": "0018_agent_preferences_per_action.sql",
+  "tag": "0018_agent_preferences_per_action",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE agent_preferences"
+  ],
+  "n_break": 0,
+  "bytes": 389
+ },
+ {
+  "file": "0019_orb_scheduled_jobs.sql",
+  "tag": "0019_orb_scheduled_jobs",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_scheduled_jobs"
+  ],
+  "n_break": 0,
+  "bytes": 775
+ },
+ {
+  "file": "0020_user_two_factor.sql",
+  "tag": "0020_user_two_factor",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 128
+ },
+ {
+  "file": "0021_align_voice_engine_default.sql",
+  "tag": "0021_align_voice_engine_default",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain"
+  ],
+  "n_break": 3,
+  "bytes": 1097
+ },
+ {
+  "file": "0022_model_training_consents.sql",
+  "tag": "0022_model_training_consents",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE model_training_consents",
+   "CREATE TABLE fine_tuned_model_consents"
+  ],
+  "n_break": 1,
+  "bytes": 2310
+ },
+ {
+  "file": "0023_agent_preferences_phase_d.sql",
+  "tag": "0023_agent_preferences_phase_d",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE agent_preferences"
+  ],
+  "n_break": 0,
+  "bytes": 975
+ },
+ {
+  "file": "0024_orb_scheduled_jobs_results.sql",
+  "tag": "0024_orb_scheduled_jobs_results",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE orb_scheduled_jobs"
+  ],
+  "n_break": 0,
+  "bytes": 815
+ },
+ {
+  "file": "0025_specialized_agent_memory.sql",
+  "tag": "0025_specialized_agent_memory",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE specialized_agent_memory"
+  ],
+  "n_break": 0,
+  "bytes": 862
+ },
+ {
+  "file": "0027_agent_collaboration_persistence.sql",
+  "tag": "0027_agent_collaboration_persistence",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE agent_collaboration_sessions",
+   "CREATE TABLE agent_collaboration_steps",
+   "CREATE TABLE agent_collaboration_messages",
+   "CREATE TABLE agent_collaboration_handoffs",
+   "CREATE TABLE agent_performance_metrics"
+  ],
+  "n_break": 4,
+  "bytes": 6065
+ },
+ {
+  "file": "0028_user_avatar_url.sql",
+  "tag": "0028_user_avatar_url",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 279
+ },
+ {
+  "file": "0029_orb_conversations.sql",
+  "tag": "0029_orb_conversations",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_conversations",
+   "CREATE TABLE orb_conversation_messages"
+  ],
+  "n_break": 1,
+  "bytes": 1615
+ },
+ {
+  "file": "0030_studio_recipes_versions.sql",
+  "tag": "0030_studio_recipes_versions",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE studio_recipes",
+   "CREATE TABLE studio_versions"
+  ],
+  "n_break": 1,
+  "bytes": 1500
+ },
+ {
+  "file": "0031_specialized_agent_interactions.sql",
+  "tag": "0031_specialized_agent_interactions",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE specialized_agent_interactions"
+  ],
+  "n_break": 0,
+  "bytes": 703
+ },
+ {
+  "file": "0032_agent_preferences_specialist_columns.sql",
+  "tag": "0032_agent_preferences_specialist_columns",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences"
+  ],
+  "n_break": 20,
+  "bytes": 3228
+ },
+ {
+  "file": "0033_add_plan_status_to_sessions.sql",
+  "tag": "0033_add_plan_status_to_sessions",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE agent_collaboration_sessions",
+   "ALTER TABLE agent_collaboration_sessions",
+   "ALTER TABLE agent_collaboration_sessions"
+  ],
+  "n_break": 11,
+  "bytes": 1943
+ },
+ {
+  "file": "0033_agent_model_picks.sql",
+  "tag": "0033_agent_model_picks",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE agent_model_picks"
+  ],
+  "n_break": 0,
+  "bytes": 803
+ },
+ {
+  "file": "0034_project_notes_status.sql",
+  "tag": "0034_project_notes_status",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE project_notes_calendar",
+   "CREATE INDEX pnc_userId_status_idx"
+  ],
+  "n_break": 3,
+  "bytes": 1339
+ },
+ {
+  "file": "0036_schedule_calendar_extensions.sql",
+  "tag": "0036_schedule_calendar_extensions",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE project_notes_calendar",
+   "ALTER TABLE users",
+   "CREATE UNIQUE INDEX users_icsFeedToken_idx"
+  ],
+  "n_break": 2,
+  "bytes": 845
+ },
+ {
+  "file": "0037_drive_asset_library.sql",
+  "tag": "0037_drive_asset_library",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE user_google_oauth_tokens",
+   "CREATE TABLE drive_asset_libraries"
+  ],
+  "n_break": 1,
+  "bytes": 1481
+ },
+ {
+  "file": "0038_users_orb_memory_summary.sql",
+  "tag": "0038_users_orb_memory_summary",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users"
+  ],
+  "n_break": 3,
+  "bytes": 688
+ },
+ {
+  "file": "0039_orb_long_term_memory.sql",
+  "tag": "0039_orb_long_term_memory",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_long_term_memories",
+   "CREATE TABLE orb_memory_associations"
+  ],
+  "n_break": 1,
+  "bytes": 2787
+ },
+ {
+  "file": "0040_orb_intent_clarification.sql",
+  "tag": "0040_orb_intent_clarification",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_intent_logs",
+   "CREATE TABLE orb_clarification_history",
+   "CREATE TABLE orb_user_answer_patterns"
+  ],
+  "n_break": 2,
+  "bytes": 3151
+ },
+ {
+  "file": "0041_orb_feature_usage.sql",
+  "tag": "0041_orb_feature_usage",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_feature_usage_stats",
+   "CREATE TABLE orb_feature_discovery_paths",
+   "CREATE TABLE orb_feature_recommendations"
+  ],
+  "n_break": 2,
+  "bytes": 3187
+ },
+ {
+  "file": "0042_orb_workflow_templates.sql",
+  "tag": "0042_orb_workflow_templates",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_workflow_templates",
+   "CREATE TABLE orb_workflow_executions",
+   "CREATE TABLE orb_workflow_step_executions"
+  ],
+  "n_break": 2,
+  "bytes": 4080
+ },
+ {
+  "file": "0043_orb_system_monitoring.sql",
+  "tag": "0043_orb_system_monitoring",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_spirit_collaboration_metrics",
+   "CREATE TABLE orb_system_health_metrics",
+   "CREATE TABLE orb_cost_attribution"
+  ],
+  "n_break": 2,
+  "bytes": 3123
+ },
+ {
+  "file": "0044_orb_template_ratings_and_alerts.sql",
+  "tag": "0044_orb_template_ratings_and_alerts",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orb_workflow_template_ratings",
+   "CREATE TABLE orb_system_alerts"
+  ],
+  "n_break": 1,
+  "bytes": 2308
+ },
+ {
+  "file": "0045_notes_curator_enhancements.sql",
+  "tag": "0045_notes_curator_enhancements",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE project_notes_calendar",
+   "CREATE INDEX dal_userId_category_idx",
+   "CREATE INDEX pnc_userId_category_idx"
+  ],
+  "n_break": 7,
+  "bytes": 2453
+ },
+ {
+  "file": "0046_agent_preferences_15_spirits_phase3.sql",
+  "tag": "0046_agent_preferences_15_spirits_phase3",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences",
+   "ALTER TABLE agent_preferences"
+  ],
+  "n_break": 6,
+  "bytes": 3398
+ },
+ {
+  "file": "0047_featured_showcase_comments.sql",
+  "tag": "0047_featured_showcase_comments",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE featured_showcase_comments",
+   "ALTER TABLE featured_showcase"
+  ],
+  "n_break": 1,
+  "bytes": 737
+ },
+ {
+  "file": "0048_worldbuilding_frameworks.sql",
+  "tag": "0048_worldbuilding_frameworks",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE worldbuilding_frameworks"
+  ],
+  "n_break": 0,
+  "bytes": 985
+ },
+ {
+  "file": "0049_worldbuilding_era.sql",
+  "tag": "0049_worldbuilding_era",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE worldbuilding_frameworks"
+  ],
+  "n_break": 3,
+  "bytes": 941
+ },
+ {
+  "file": "0050_align_brain_defaults_to_latest.sql",
+  "tag": "0050_align_brain_defaults_to_latest",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain",
+   "ALTER TABLE user_ai_brain"
+  ],
+  "n_break": 14,
+  "bytes": 3504
+ },
+ {
+  "file": "0051_model_wishes.sql",
+  "tag": "0051_model_wishes",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE model_wishes",
+   "CREATE TABLE model_wish_votes"
+  ],
+  "n_break": 1,
+  "bytes": 1496
+ },
+ {
+  "file": "0052_role_leader.sql",
+  "tag": "0052_role_leader",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 382
+ },
+ {
+  "file": "0053_teaching_materials.sql",
+  "tag": "0053_teaching_materials",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE teaching_materials"
+  ],
+  "n_break": 0,
+  "bytes": 2248
+ },
+ {
+  "file": "0054_teams_and_audit.sql",
+  "tag": "0054_teams_and_audit",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE teams",
+   "CREATE TABLE team_memberships",
+   "CREATE TABLE teaching_material_access_log",
+   "ALTER TABLE ADD",
+   "ALTER TABLE teaching_materials"
+  ],
+  "n_break": 3,
+  "bytes": 2789
+ },
+ {
+  "file": "0055_teaching_archive_fk.sql",
+  "tag": "0055_teaching_archive_fk",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE teams",
+   "ALTER TABLE team_memberships",
+   "ALTER TABLE team_memberships",
+   "ALTER TABLE team_memberships",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE teaching_material_access_log",
+   "ALTER TABLE teaching_material_access_log"
+  ],
+  "n_break": 7,
+  "bytes": 2376
+ },
+ {
+  "file": "0056_jobtype_teaching_ingestion.sql",
+  "tag": "0056_jobtype_teaching_ingestion",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE background_jobs"
+  ],
+  "n_break": 0,
+  "bytes": 485
+ },
+ {
+  "file": "0057_digital_asset_library_source_tracking.sql",
+  "tag": "0057_digital_asset_library_source_tracking",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "CREATE INDEX dal_userId_sourceStudio_idx"
+  ],
+  "n_break": 3,
+  "bytes": 2043
+ },
+ {
+  "file": "0058_asset_history_archival_fields.sql",
+  "tag": "0058_asset_history_archival_fields",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE digital_asset_library",
+   "ALTER TABLE generation_history",
+   "ALTER TABLE generation_history",
+   "ALTER TABLE generation_history",
+   "ALTER TABLE generation_history",
+   "ALTER TABLE generation_history",
+   "CREATE INDEX 缺乏",
+   "CREATE INDEX dal_archivedNull_createdAt_idx",
+   "CREATE INDEX gh_archivedNull_createdAt_idx"
+  ],
+  "n_break": 7,
+  "bytes": 4924
+ },
+ {
+  "file": "0059_media_archival_fields.sql",
+  "tag": "0059_media_archival_fields",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE drive_asset_libraries",
+   "ALTER TABLE drive_asset_libraries",
+   "ALTER TABLE drive_asset_libraries",
+   "ALTER TABLE drive_asset_libraries",
+   "ALTER TABLE drive_asset_libraries",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE teaching_materials",
+   "ALTER TABLE consistency_vault",
+   "ALTER TABLE consistency_vault",
+   "ALTER TABLE consistency_vault",
+   "ALTER TABLE consistency_vault",
+   "ALTER TABLE consistency_vault",
+   "ALTER TABLE r2_storage_snapshots",
+   "ALTER TABLE r2_storage_snapshots",
+   "ALTER TABLE r2_storage_snapshots",
+   "ALTER TABLE r2_storage_snapshots",
+   "ALTER TABLE r2_storage_snapshots",
+   "CREATE INDEX 缺乏",
+   "CREATE INDEX darl_archivedNull_createdAt_idx",
+   "CREATE INDEX tm_archivedNull_createdAt_idx",
+   "CREATE INDEX cv_archivedNull_createdAt_idx",
+   "CREATE INDEX r2ss_archivedNull_createdAt_idx"
+  ],
+  "n_break": 15,
+  "bytes": 9920
+ },
+ {
+  "file": "0060_worldbuilding_animation_extensions.sql",
+  "tag": "0060_worldbuilding_animation_extensions",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE world_storyboards",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks"
+  ],
+  "n_break": 20,
+  "bytes": 4497
+ },
+ {
+  "file": "0061_repair_worldbuilding_columns.sql",
+  "tag": "0061_repair_worldbuilding_columns",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks"
+  ],
+  "n_break": 23,
+  "bytes": 3663
+ },
+ {
+  "file": "0062_worldbuilding_v4_research_sound_assets.sql",
+  "tag": "0062_worldbuilding_v4_research_sound_assets",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE ADD",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks"
+  ],
+  "n_break": 11,
+  "bytes": 1915
+ },
+ {
+  "file": "0063_prompt_collection.sql",
+  "tag": "0063_prompt_collection",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE prompt_collection",
+   "CREATE INDEX pc_userId_idx",
+   "CREATE INDEX pc_userId_visibility_idx",
+   "CREATE INDEX pc_teamId_visibility_idx",
+   "CREATE INDEX pc_sourceType_idx",
+   "CREATE UNIQUE INDEX pc_user_source_uk"
+  ],
+  "n_break": 3,
+  "bytes": 2472
+ },
+ {
+  "file": "0064_timeline_frames_and_compositions.sql",
+  "tag": "0064_timeline_frames_and_compositions",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE timeline_frames",
+   "CREATE TABLE scene_compositions"
+  ],
+  "n_break": 1,
+  "bytes": 1999
+ },
+ {
+  "file": "0065_real_earth_information_system.sql",
+  "tag": "0065_real_earth_information_system",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE real_earth_entries",
+   "CREATE INDEX ree_category_idx",
+   "CREATE INDEX ree_taiwanFocused_idx",
+   "CREATE INDEX ree_createdBy_idx",
+   "CREATE INDEX ree_historicalPeriod_idx",
+   "CREATE INDEX ree_createdAt_idx"
+  ],
+  "n_break": 27,
+  "bytes": 4261
+ },
+ {
+  "file": "0066_teaching_materials_real_earth_refs.sql",
+  "tag": "0066_teaching_materials_real_earth_refs",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE teaching_materials"
+  ],
+  "n_break": 3,
+  "bytes": 707
+ },
+ {
+  "file": "0067_creative_projects.sql",
+  "tag": "0067_creative_projects",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE creative_projects",
+   "CREATE INDEX IF",
+   "CREATE INDEX cp_userId_idx",
+   "CREATE INDEX cp_userId_updatedAt_idx",
+   "CREATE INDEX cp_worldFrameworkId_idx",
+   "CREATE INDEX cp_worldStoryboardId_idx"
+  ],
+  "n_break": 17,
+  "bytes": 3175
+ },
+ {
+  "file": "0067_repair_worldbuilding_v4_columns.sql",
+  "tag": "0067_repair_worldbuilding_v4_columns",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE 直接新增",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks",
+   "ALTER TABLE worldbuilding_frameworks"
+  ],
+  "n_break": 11,
+  "bytes": 1806
+ },
+ {
+  "file": "0068_creative_projects_bootstrap.sql",
+  "tag": "0068_creative_projects_bootstrap",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE creative_projects",
+   "CREATE INDEX IF",
+   "CREATE INDEX cp_userId_idx",
+   "CREATE INDEX cp_userId_updatedAt_idx",
+   "CREATE INDEX cp_worldFrameworkId_idx",
+   "CREATE INDEX cp_worldStoryboardId_idx"
+  ],
+  "n_break": 17,
+  "bytes": 2604
+ },
+ {
+  "file": "0069_creative_projects_worldview_script.sql",
+  "tag": "0069_creative_projects_worldview_script",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE creative_projects",
+   "ALTER TABLE creative_projects",
+   "CREATE INDEX 且無",
+   "CREATE INDEX cp_worldviewId_idx",
+   "CREATE INDEX cp_scriptId_idx"
+  ],
+  "n_break": 16,
+  "bytes": 1966
+ },
+ {
+  "file": "0070_orchestration_runs.sql",
+  "tag": "0070_orchestration_runs",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE orchestration_runs",
+   "CREATE INDEX orun_userId_idx",
+   "CREATE INDEX orun_projectId_idx",
+   "CREATE INDEX orun_projectId_createdAt_idx",
+   "CREATE INDEX orun_userId_createdAt_idx"
+  ],
+  "n_break": 19,
+  "bytes": 3238
+ },
+ {
+  "file": "0071_context_packets.sql",
+  "tag": "0071_context_packets",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE context_packets",
+   "CREATE INDEX cp_projectId_idx",
+   "CREATE INDEX cp_projectId_createdAt_idx",
+   "CREATE INDEX cp_userId_idx",
+   "CREATE INDEX cp_teamId_idx",
+   "CREATE INDEX cp_expiresAt_idx"
+  ],
+  "n_break": 23,
+  "bytes": 3124
+ },
+ {
+  "file": "0072_project_data_access_rules.sql",
+  "tag": "0072_project_data_access_rules",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE project_data_access_rules",
+   "CREATE INDEX pdar_teamId_idx",
+   "CREATE INDEX pdar_projectId_idx",
+   "CREATE INDEX pdar_materialId_idx",
+   "CREATE INDEX pdar_teamId_projectId_idx"
+  ],
+  "n_break": 19,
+  "bytes": 3071
+ },
+ {
+  "file": "0073_data_source_connections.sql",
+  "tag": "0073_data_source_connections",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE data_source_connections",
+   "CREATE INDEX dsc_ownerUserId_idx",
+   "CREATE INDEX dsc_teamId_idx",
+   "CREATE INDEX dsc_projectId_idx",
+   "CREATE INDEX dsc_ownerUserId_provider_idx"
+  ],
+  "n_break": 19,
+  "bytes": 3176
+ },
+ {
+  "file": "0074_fine_tuned_models_team.sql",
+  "tag": "0074_fine_tuned_models_team",
+  "registered": true,
+  "statements": [
+   "ALTER TABLE fine_tuned_models",
+   "CREATE INDEX ftm_teamId_idx"
+  ],
+  "n_break": 7,
+  "bytes": 1029
+ },
+ {
+  "file": "0075_prompt_assets.sql",
+  "tag": "0075_prompt_assets",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE prompt_assets",
+   "ALTER TABLE prompt_assets",
+   "ALTER TABLE prompt_assets",
+   "ALTER TABLE prompt_assets",
+   "ALTER TABLE prompt_assets",
+   "CREATE INDEX pa_promptId_idx",
+   "CREATE INDEX pa_assetId_idx",
+   "CREATE UNIQUE INDEX pa_prompt_asset_rel_unique",
+   "DROP TABLE IF"
+  ],
+  "n_break": 23,
+  "bytes": 4142
+ },
+ {
+  "file": "0076_global_audit_log.sql",
+  "tag": "0076_global_audit_log",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE global_audit_log",
+   "CREATE INDEX gal_actor_createdAt_idx",
+   "CREATE INDEX gal_action_createdAt_idx",
+   "CREATE INDEX gal_target_createdAt_idx",
+   "CREATE INDEX gal_createdAt_idx",
+   "DROP TABLE IF"
+  ],
+  "n_break": 19,
+  "bytes": 3720
+ },
+ {
+  "file": "0077_cost_ledger.sql",
+  "tag": "0077_cost_ledger",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE cost_ledger",
+   "CREATE INDEX cl_accountKey_status_idx",
+   "CREATE INDEX cl_ref_idx",
+   "CREATE INDEX cl_createdAt_idx",
+   "CREATE UNIQUE INDEX cl_idempotencyKey_unique",
+   "DROP TABLE IF"
+  ],
+  "n_break": 19,
+  "bytes": 3788
+ },
+ {
+  "file": "0078_resource_shares.sql",
+  "tag": "0078_resource_shares",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE resource_shares",
+   "CREATE INDEX rs_resource_idx",
+   "CREATE INDEX rs_target_idx",
+   "CREATE UNIQUE INDEX rs_resource_target_uk",
+   "DROP TABLE IF"
+  ],
+  "n_break": 15,
+  "bytes": 3130
+ },
+ {
+  "file": "0079_cost_attribution.sql",
+  "tag": "0079_cost_attribution",
+  "registered": true,
+  "statements": [
+   "CREATE TABLE 用",
+   "CREATE TABLE cost_attribution_outbox",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_aggregations",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_ledger",
+   "ALTER TABLE cost_aggregations",
+   "ALTER TABLE cost_aggregations",
+   "CREATE INDEX IF",
+   "CREATE INDEX 走",
+   "CREATE INDEX cl_projectId_idx",
+   "CREATE INDEX cl_workflowId_idx",
+   "CREATE INDEX cao_status_createdAt_idx",
+   "CREATE UNIQUE INDEX cao_idempotencyKey_unique",
+   "DROP TABLE IF"
+  ],
+  "n_break": 60,
+  "bytes": 8717
+ },
+ {
+  "file": "20260510_add_orb_memory_summary.ts",
+  "tag": "20260510_add_orb_memory_summary.ts",
+  "registered": false,
+  "statements": [
+   "ALTER TABLE statement",
+   "ALTER TABLE users"
+  ],
+  "n_break": 0,
+  "bytes": 702
+ }
+]

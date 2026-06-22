@@ -1,0 +1,308 @@
+[
+ {
+  "Issue Type": "Epic",
+  "Summary": "Wave 0 前端骨架/導演台",
+  "Description": "四殼一脊椎前端骨架＋三欄導演台。全部完成（PR #852–#862）。",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "Wave 0 前端骨架/導演台",
+  "Epic Link": ""
+ },
+ {
+  "Issue Type": "Epic",
+  "Summary": "Wave 1 SSOT+接線",
+  "Description": "假資料換真資料、prompt↔asset 關聯、供應商門面。進行中。",
+  "Status": "In Progress",
+  "Labels": "",
+  "Epic Name": "Wave 1 SSOT+接線",
+  "Epic Link": ""
+ },
+ {
+  "Issue Type": "Epic",
+  "Summary": "Wave 2 耐久任務/成本/血統",
+  "Description": "任務耐久化、成本落帳閉環、上傳、fal 雙層生影片。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "Wave 2 耐久任務/成本/血統",
+  "Epic Link": ""
+ },
+ {
+  "Issue Type": "Epic",
+  "Summary": "Wave 3 重後端/基建/協作",
+  "Description": "M3 段落狀態機、Supabase 遷移、生成鎖、即時協作、XState 收斂。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "Wave 3 重後端/基建/協作",
+  "Epic Link": ""
+ },
+ {
+  "Issue Type": "Epic",
+  "Summary": "Wave 4 代理建置區/BYOMCP",
+  "Description": "可觀察/可審核/半唯讀 builder → BYOMCP 權限稽核 → orchestrator+worker。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "Wave 4 代理建置區/BYOMCP",
+  "Epic Link": ""
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "4-shell 重構（flag-gated）",
+  "Description": "PR #852–#861 已合併 main（2026-06-06/07）。ENABLE_4SHELL 預設 OFF。驗收：tsc/scan/測試綠、旗標 OFF 零行為改變。https://github.com/aa0968111723-prog/healing-studio/pull/852",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 0 前端骨架/導演台"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "Wave 0 三欄導演台正式碼",
+  "Description": "PR #862 已於 2026-06-11 合併 feat/4-shell-restructure（尚未回流 main）。驗收：tsc/scan/測試綠、旗標 OFF 逐像素一致。https://github.com/aa0968111723-prog/healing-studio/pull/862",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 0 前端骨架/導演台"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "互動原型（三欄導演台）",
+  "Description": "bruce882-ai-director-video-proto.static.hf.space",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 0 前端骨架/導演台"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "技術簡報（落地路線圖）",
+  "Description": "bruce882-ai-director-video-brief.static.hf.space（活文件）",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 0 前端骨架/導演台"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "Project SSOT：MOCK→真 creative_projects",
+  "Description": "PR #863 已於 2026-06-12 合併 feat/4-shell-restructure。ENABLE_PROJECT_SSOT 旗標（4SHELL 之下預設 ON、線上 OFF）；active id 歸 WorldContext。依賴 #862。https://github.com/aa0968111723-prog/healing-studio/pull/863",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "prompt_assets junction 表",
+  "Description": "PR #864 已於 2026-06-12 合併 main。migration 0075 冪等可回滾；ENABLE_PROMPT_ASSET_LINKS 預設 OFF；讀取 procedure：promptLibrary.linkedAssets / assets.linkedPrompts；admin backfill 已備。https://github.com/aa0968111723-prog/healing-studio/pull/864",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "合流 feat/4-shell-restructure → main",
+  "Description": "聚合 #862（導演台）+ #863（SSOT）回流 main。驗收：旗標 OFF 線上零變化、CI 綠。依賴 #862 #863。下一步建議。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "junction backfill 真 DB 實跑",
+  "Description": "admin 呼叫 promptLibrary.backfillAssetLinks 並核對 totalLinked；可重跑冪等。依賴 #864 與 DATABASE_URL 環境。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "junction relation 寫入點（variant/rewrite/extended）",
+  "Description": "座艙重骰/改寫/延長流程接上三種 relation。依賴 #864 與導演台流程。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "prompt_library content 去重策略",
+  "Description": "已於 AIDV-10 拍板 upsert-by-content（scope=userId+category+content；content 走 BINARY 比對避免 _ci 折疊；命中重用累計 useCount）。生成鏈 findOrCreatePromptByContent query-before-insert，非破壞性、不動 migration。同 content 生成 N 次→一列 prompt、N asset 連同一列。",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "統一供應商門面＋Cloudflare AI Gateway",
+  "Description": "所有生成呼叫過統一門面；免費 Cloudflare AI Gateway 做快取/觀測。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "其餘可接子系統接真實 procedure",
+  "Description": "18 子系統矩陣的 ✅8 可接項；部分已在 #862 完成。逐項列實際 procedure 名。",
+  "Status": "In Progress",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "任務耐久化 BullMQ+Redis+可重連 SSE",
+  "Description": "殺 5 分鐘 timeout。驗收：任務跨重啟存活、SSE 斷線重連續傳。缺 Redis 金鑰（貼 Railway、勿寫頁面）。",
+  "Status": "Blocked",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 2 耐久任務/成本/血統"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "真實成本落帳閉環",
+  "Description": "估→原子扣→落帳/全退，outbox 模式。驗收：cost_aggregations 不再 $0.00。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 2 耐久任務/成本/血統"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "上傳改 signed URL/tus（廢 base64）",
+  "Description": "大檔上傳不再過 tRPC body。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 2 耐久任務/成本/血統"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "fal.ai 雙層生影片",
+  "Description": "草稿 Seedance/Kling/Wan＋精修 Veo 3.1。缺 FAL_KEY（貼 Railway）。注意：影片價以 fal 帳號頁為準。",
+  "Status": "Blocked",
+  "Labels": "caution",
+  "Epic Name": "",
+  "Epic Link": "Wave 2 耐久任務/成本/血統"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "migration 治理：孤兒 migration 全數處置（AIDV-17）",
+  "Description": "剩餘孤兒 2026-06-21 補登記。Docker MySQL 對已登記 0000→0079 基準 schema 實跑判定：0033（agent_collaboration_sessions.planStatus/planData/plan_status_idx）+0039–0044（orb 系列 16 表）= 結構從未建立、真的漏了已補；0067 = 0062 已套之 no-op。八支全冪等（0033 裸 ALTER 改 information_schema 守門/PREPARE；orb=CREATE TABLE IF NOT EXISTS；0067 既有守門），通過乾淨套用+重跑 no-op+模擬 fail-closed 整段重跑三關，新增 PENDING_BLOCK+schema.ts 守門測試。drizzle/ 已無孤兒、boot orphan 警告消失。",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 2 耐久任務/成本/血統"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "M3 影片段落狀態機",
+  "Description": "video_generation_sessions / segment_jobs；段落級重試/續跑。規模 XL。依賴 Wave 2 耐久化。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 3 重後端/基建/協作"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "MySQL→Supabase 遷移＋退役 Pinecone",
+  "Description": "pg + pgvector halfvec(3072) + HNSW。注意：transaction pooler:6543、migration ledger 回填、enum/extension 衝突。已拍板排在任務耐久化之後。缺 Supabase keys（貼 Railway）。",
+  "Status": "Blocked",
+  "Labels": "caution",
+  "Epic Name": "",
+  "Epic Link": "Wave 3 重後端/基建/協作"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "presence＋Redis SET NX 生成鎖",
+  "Description": "並發生成不互踩。依賴 Redis。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 3 重後端/基建/協作"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "Yjs/Hocuspocus（腳本）＋tRPC subscription（Shot JSON）",
+  "Description": "雙人即時編輯不丟字。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 3 重後端/基建/協作"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "XState 收斂",
+  "Description": "只留段落/鏡號狀態機，其餘移除。依賴 M3。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 3 重後端/基建/協作"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "可觀察/可審核/半唯讀 builder",
+  "Description": "代理建置區第一階段。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 4 代理建置區/BYOMCP"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "BYOMCP 權限/稽核",
+  "Description": "使用者自帶 MCP 的權限模型與稽核。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 4 代理建置區/BYOMCP"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "orchestrator＋專責 worker",
+  "Description": "代理編排與專責 worker。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 4 代理建置區/BYOMCP"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "決策紀錄：prompt↔asset=junction",
+  "Description": "已拍板並落地（PR #864、migration 0075）。",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "決策紀錄：LoRA 改走 fal.ai",
+  "Description": "保留 Replicate 備援。已拍板。",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 2 耐久任務/成本/血統"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "決策紀錄：halfvec(3072)+HNSW／自建 JWT／Supabase 排後",
+  "Description": "後端方向已拍板：向量 halfvec(3072)+HNSW；維持自建 JWT；Supabase 排任務耐久化之後。",
+  "Status": "Done",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 3 重後端/基建/協作"
+ },
+ {
+  "Issue Type": "Story",
+  "Summary": "避雷備忘",
+  "Description": "Sora 2 已停用勿用；OpenAI 可重用 prompt 物件 2026-11-30 下線勿硬綁；影片價以 fal 帳號頁為準；本機 jsdom29+vitest2 localStorage 失效（main baseline 13 failed 為既有問題）。",
+  "Status": "To Do",
+  "Labels": "",
+  "Epic Name": "",
+  "Epic Link": "Wave 1 SSOT+接線"
+ }
+]

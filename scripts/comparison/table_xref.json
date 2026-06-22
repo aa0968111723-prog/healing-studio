@@ -1,0 +1,761 @@
+{
+ "users": {
+  "doc_mentions": 48,
+  "code_files": 89,
+  "var": "users",
+  "code_sample": [
+   "server/orb-stage-25-spirits.test.ts",
+   "server/site-code-scanner.test.ts",
+   "server/middleware/brainContext.ts"
+  ]
+ },
+ "agent_preferences": {
+  "doc_mentions": 10,
+  "code_files": 27,
+  "var": "agentPreferences",
+  "code_sample": [
+   "server/services/spiritTools/settingsDetailTools.ts",
+   "server/services/agentPreferenceService.ts",
+   "server/services/__tests__/orbTaskOrchestrator.test.ts"
+  ]
+ },
+ "orb_scheduled_jobs": {
+  "doc_mentions": 13,
+  "code_files": 3,
+  "var": "orbScheduledJobs",
+  "code_sample": [
+   "server/services/orbDatabaseTools.ts",
+   "server/services/orbScheduler.ts",
+   "server/routers/orbSchedulerRouter.ts"
+  ]
+ },
+ "password_reset_tokens": {
+  "doc_mentions": 2,
+  "code_files": 1,
+  "var": "passwordResetTokens",
+  "code_sample": [
+   "server/routers/brainPipeline.ts"
+  ]
+ },
+ "email_verification_tokens": {
+  "doc_mentions": 4,
+  "code_files": 0,
+  "var": "emailVerificationTokens",
+  "code_sample": []
+ },
+ "login_history": {
+  "doc_mentions": 14,
+  "code_files": 4,
+  "var": "loginHistory",
+  "code_sample": [
+   "server/local-auth.test.ts",
+   "server/routers/brainPipeline.ts",
+   "server/routes/localAuth.ts"
+  ]
+ },
+ "background_jobs": {
+  "doc_mentions": 44,
+  "code_files": 18,
+  "var": "backgroundJobs",
+  "code_sample": [
+   "server/jobs/teachingArchiveIngestionWorker.ts",
+   "server/services/spiritTools/trainingSpecialistTools.ts",
+   "server/services/teachingArchiveIngest.ts"
+  ]
+ },
+ "digital_asset_library": {
+  "doc_mentions": 85,
+  "code_files": 8,
+  "var": "digitalAssetLibrary",
+  "code_sample": [
+   "server/services/mediaArchivalService.ts",
+   "server/services/spiritTools/notesCuratorTools.ts",
+   "server/services/__tests__/mediaArchivalService.test.ts"
+  ]
+ },
+ "fine_tuned_models": {
+  "doc_mentions": 5,
+  "code_files": 10,
+  "var": "fineTunedModels",
+  "code_sample": [
+   "server/services/spiritTools/trainingSpecialistTools.ts",
+   "server/services/orbDatabaseTools.ts",
+   "server/routers/brainPipeline.ts"
+  ]
+ },
+ "project_notes_calendar": {
+  "doc_mentions": 17,
+  "code_files": 5,
+  "var": "projectNotesCalendar",
+  "code_sample": [
+   "server/services/spiritTools/notesCuratorTools.ts",
+   "server/services/orbDatabaseTools.ts",
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "user_google_oauth_tokens": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "userGoogleOauthTokens",
+  "code_sample": [
+   "server/db.ts",
+   "server/subsystems/contextPackets/connectionService.ts"
+  ]
+ },
+ "drive_asset_libraries": {
+  "doc_mentions": 0,
+  "code_files": 1,
+  "var": "driveAssetLibraries",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "user_feedback_reports": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "userFeedbackReports",
+  "code_sample": [
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "api_usage_logs": {
+  "doc_mentions": 8,
+  "code_files": 6,
+  "var": "apiUsageLogs",
+  "code_sample": [
+   "server/services/spiritTools/accountantTools.ts",
+   "server/routers/brainPipeline.ts",
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "consistency_vault": {
+  "doc_mentions": 36,
+  "code_files": 2,
+  "var": "consistencyVault",
+  "code_sample": [
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "subscription_plans": {
+  "doc_mentions": 5,
+  "code_files": 2,
+  "var": "subscriptionPlans",
+  "code_sample": [
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "ai_director_preferences": {
+  "doc_mentions": 5,
+  "code_files": 2,
+  "var": "aiDirectorPreferences",
+  "code_sample": [
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "specialized_agent_memory": {
+  "doc_mentions": 4,
+  "code_files": 1,
+  "var": "specializedAgentMemory",
+  "code_sample": [
+   "server/repositories/mysql/SpiritMemoryRepository.mysql.ts"
+  ]
+ },
+ "specialized_agent_interactions": {
+  "doc_mentions": 7,
+  "code_files": 1,
+  "var": "specializedAgentInteractions",
+  "code_sample": [
+   "server/services/specializedAgentMemoryStore.ts"
+  ]
+ },
+ "agent_model_picks": {
+  "doc_mentions": 10,
+  "code_files": 14,
+  "var": "agentModelPicks",
+  "code_sample": [
+   "server/services/agentModelPicks.ts",
+   "server/services/siteKnowledge.ts",
+   "server/services/postGenActions.ts"
+  ]
+ },
+ "generation_history": {
+  "doc_mentions": 18,
+  "code_files": 10,
+  "var": "generationHistory",
+  "code_sample": [
+   "server/services/mediaArchivalService.ts",
+   "server/services/__tests__/mediaArchivalService.test.ts",
+   "server/services/__tests__/postGenActions.test.ts"
+  ]
+ },
+ "custom_blocks": {
+  "doc_mentions": 7,
+  "code_files": 6,
+  "var": "customBlocks",
+  "code_sample": [
+   "server/phase11-custom-blocks.test.ts",
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "block_combos": {
+  "doc_mentions": 41,
+  "code_files": 13,
+  "var": "blockCombos",
+  "code_sample": [
+   "server/phase11-custom-blocks.test.ts",
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "system_settings": {
+  "doc_mentions": 12,
+  "code_files": 2,
+  "var": "systemSettings",
+  "code_sample": [
+   "server/routers/learnHub.seed.ts",
+   "server/db.ts"
+  ]
+ },
+ "news_articles": {
+  "doc_mentions": 16,
+  "code_files": 5,
+  "var": "newsArticles",
+  "code_sample": [
+   "server/jobs/learnDocSyncer.ts",
+   "server/jobs/newsFetcher.ts",
+   "server/routers/brainPipeline.ts"
+  ]
+ },
+ "featured_showcase": {
+  "doc_mentions": 28,
+  "code_files": 2,
+  "var": "featuredShowcase",
+  "code_sample": [
+   "server/routers/showcase.ts",
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "featured_showcase_comments": {
+  "doc_mentions": 0,
+  "code_files": 1,
+  "var": "featuredShowcaseComments",
+  "code_sample": [
+   "server/routers/showcase.ts"
+  ]
+ },
+ "user_ai_brain": {
+  "doc_mentions": 18,
+  "code_files": 11,
+  "var": "userAiBrain",
+  "code_sample": [
+   "server/middleware/brainContext.ts",
+   "server/services/falDispatcher.ts",
+   "server/services/orbDatabaseTools.ts"
+  ]
+ },
+ "user_model_switch_logs": {
+  "doc_mentions": 3,
+  "code_files": 2,
+  "var": "userModelSwitchLogs",
+  "code_sample": [
+   "server/routers/brain.ts",
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "custom_blocks_combo": {
+  "doc_mentions": 2,
+  "code_files": 1,
+  "var": "customBlocksCombo",
+  "code_sample": [
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "prompt_library": {
+  "doc_mentions": 28,
+  "code_files": 39,
+  "var": "promptLibrary",
+  "code_sample": [
+   "server/services/__tests__/postGenActions.test.ts",
+   "server/services/orbDatabaseTools.ts",
+   "server/services/postGenActions.ts"
+  ]
+ },
+ "prompt_assets": {
+  "doc_mentions": 6,
+  "code_files": 1,
+  "var": "promptAssets",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "prompt_collection": {
+  "doc_mentions": 6,
+  "code_files": 8,
+  "var": "promptCollection",
+  "code_sample": [
+   "server/routers/brainPipeline.ts",
+   "server/routers/promptCollection.ts",
+   "server/routers.ts"
+  ]
+ },
+ "external_service_subscriptions": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "externalServiceSubscriptions",
+  "code_sample": [
+   "server/routers/externalServices.ts",
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "r2_storage_snapshots": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "r2StorageSnapshots",
+  "code_sample": [
+   "server/jobs/r2SnapshotJob.ts",
+   "server/routers/learnHub.seed.ts"
+  ]
+ },
+ "user_subscriptions": {
+  "doc_mentions": 3,
+  "code_files": 3,
+  "var": "userSubscriptions",
+  "code_sample": [
+   "server/routers/brainPipeline.ts",
+   "server/routers/learnHub.seed.ts",
+   "server/routes/stripeWebhook.ts"
+  ]
+ },
+ "orb_feedback_events": {
+  "doc_mentions": 2,
+  "code_files": 1,
+  "var": "orbFeedbackEvents",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "ai_usage_events": {
+  "doc_mentions": 6,
+  "code_files": 9,
+  "var": "aiUsageEvents",
+  "code_sample": [
+   "server/jobs/apiUsageAlertJob.ts",
+   "server/jobs/providerSnapshotJob.ts",
+   "server/services/usageCost.ts"
+  ]
+ },
+ "provider_snapshots": {
+  "doc_mentions": 3,
+  "code_files": 4,
+  "var": "providerSnapshots",
+  "code_sample": [
+   "server/jobs/apiUsageAlertJob.ts",
+   "server/jobs/providerSnapshotJob.ts",
+   "server/services/costAnalytics.ts"
+  ]
+ },
+ "cost_aggregations": {
+  "doc_mentions": 5,
+  "code_files": 4,
+  "var": "costAggregations",
+  "code_sample": [
+   "server/jobs/apiUsageAlertJob.ts",
+   "server/jobs/providerSnapshotJob.ts",
+   "server/jobs/costLedgerReconcileJob.ts"
+  ]
+ },
+ "cost_ledger": {
+  "doc_mentions": 1,
+  "code_files": 3,
+  "var": "costLedger",
+  "code_sample": [
+   "server/jobs/costLedgerReconcileJob.ts",
+   "server/services/cost/ledger.ts",
+   "server/routers/apiUsage.ts"
+  ]
+ },
+ "cost_attribution_outbox": {
+  "doc_mentions": 0,
+  "code_files": 1,
+  "var": "costAttributionOutbox",
+  "code_sample": [
+   "server/services/cost/costAttribution.ts"
+  ]
+ },
+ "rate_limit_rules": {
+  "doc_mentions": 2,
+  "code_files": 2,
+  "var": "rateLimitRules",
+  "code_sample": [
+   "server/routers/apiUsage.ts",
+   "server/routes/aiProxy.ts"
+  ]
+ },
+ "alert_configs": {
+  "doc_mentions": 4,
+  "code_files": 1,
+  "var": "alertConfigs",
+  "code_sample": [
+   "server/routers/apiUsage.ts"
+  ]
+ },
+ "model_training_consents": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "modelTrainingConsents",
+  "code_sample": [
+   "server/db.ts",
+   "server/routers.ts"
+  ]
+ },
+ "fine_tuned_model_consents": {
+  "doc_mentions": 0,
+  "code_files": 1,
+  "var": "fineTunedModelConsents",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "agent_collaboration_sessions": {
+  "doc_mentions": 12,
+  "code_files": 2,
+  "var": "agentCollaborationSessions",
+  "code_sample": [
+   "server/services/agentCollaborationOrchestrator.ts",
+   "server/routers/agentCollaborationRouter.ts"
+  ]
+ },
+ "agent_collaboration_steps": {
+  "doc_mentions": 3,
+  "code_files": 0,
+  "var": "agentCollaborationSteps",
+  "code_sample": []
+ },
+ "agent_collaboration_messages": {
+  "doc_mentions": 1,
+  "code_files": 0,
+  "var": "agentCollaborationMessages",
+  "code_sample": []
+ },
+ "agent_collaboration_handoffs": {
+  "doc_mentions": 1,
+  "code_files": 1,
+  "var": "agentCollaborationHandoffs",
+  "code_sample": [
+   "server/services/agentCollaborationOrchestrator.ts"
+  ]
+ },
+ "agent_performance_metrics": {
+  "doc_mentions": 4,
+  "code_files": 0,
+  "var": "agentPerformanceMetrics",
+  "code_sample": []
+ },
+ "orb_conversations": {
+  "doc_mentions": 1,
+  "code_files": 6,
+  "var": "orbConversations",
+  "code_sample": [
+   "server/routers/__tests__/brainPipeline.test.ts",
+   "server/routers/__tests__/orbConversationsLazyCreate.test.ts",
+   "server/routers/__tests__/orbAttributionGuards.test.ts"
+  ]
+ },
+ "orb_conversation_messages": {
+  "doc_mentions": 2,
+  "code_files": 2,
+  "var": "orbConversationMessages",
+  "code_sample": [
+   "server/routers/__tests__/orbConversationsLazyCreate.test.ts",
+   "server/routers/orbConversationsRouter.ts"
+  ]
+ },
+ "studio_recipes": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "studioRecipes",
+  "code_sample": [
+   "server/db.ts",
+   "server/routers.ts"
+  ]
+ },
+ "studio_versions": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "studioVersions",
+  "code_sample": [
+   "server/db.ts",
+   "server/routers.ts"
+  ]
+ },
+ "orb_long_term_memories": {
+  "doc_mentions": 11,
+  "code_files": 1,
+  "var": "orbLongTermMemories",
+  "code_sample": [
+   "server/services/orbLongTermMemory.ts"
+  ]
+ },
+ "orb_memory_associations": {
+  "doc_mentions": 8,
+  "code_files": 1,
+  "var": "orbMemoryAssociations",
+  "code_sample": [
+   "server/services/orbLongTermMemory.ts"
+  ]
+ },
+ "orb_intent_logs": {
+  "doc_mentions": 6,
+  "code_files": 1,
+  "var": "orbIntentLogs",
+  "code_sample": [
+   "server/services/orbClarificationEngine.ts"
+  ]
+ },
+ "orb_clarification_history": {
+  "doc_mentions": 6,
+  "code_files": 1,
+  "var": "orbClarificationHistory",
+  "code_sample": [
+   "server/services/orbClarificationEngine.ts"
+  ]
+ },
+ "orb_user_answer_patterns": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbUserAnswerPatterns",
+  "code_sample": [
+   "server/services/orbClarificationEngine.ts"
+  ]
+ },
+ "orb_feature_usage_stats": {
+  "doc_mentions": 7,
+  "code_files": 1,
+  "var": "orbFeatureUsageStats",
+  "code_sample": [
+   "server/services/orbFeatureDiscovery.ts"
+  ]
+ },
+ "orb_feature_discovery_paths": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbFeatureDiscoveryPaths",
+  "code_sample": [
+   "server/services/orbFeatureDiscovery.ts"
+  ]
+ },
+ "orb_feature_recommendations": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbFeatureRecommendations",
+  "code_sample": [
+   "server/services/orbFeatureDiscovery.ts"
+  ]
+ },
+ "orb_workflow_templates": {
+  "doc_mentions": 12,
+  "code_files": 1,
+  "var": "orbWorkflowTemplates",
+  "code_sample": [
+   "server/services/orbWorkflowEngine.ts"
+  ]
+ },
+ "orb_workflow_executions": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbWorkflowExecutions",
+  "code_sample": [
+   "server/services/orbWorkflowEngine.ts"
+  ]
+ },
+ "orb_workflow_step_executions": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbWorkflowStepExecutions",
+  "code_sample": [
+   "server/services/orbWorkflowEngine.ts"
+  ]
+ },
+ "orb_workflow_template_ratings": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbWorkflowTemplateRatings",
+  "code_sample": [
+   "server/services/orbWorkflowEngine.ts"
+  ]
+ },
+ "orb_spirit_collaboration_metrics": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbSpiritCollaborationMetrics",
+  "code_sample": [
+   "server/services/orbSystemMonitor.ts"
+  ]
+ },
+ "orb_system_health_metrics": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "orbSystemHealthMetrics",
+  "code_sample": [
+   "server/services/orbSystemMonitor.ts"
+  ]
+ },
+ "orb_cost_attribution": {
+  "doc_mentions": 6,
+  "code_files": 1,
+  "var": "orbCostAttribution",
+  "code_sample": [
+   "server/services/orbSystemMonitor.ts"
+  ]
+ },
+ "orb_system_alerts": {
+  "doc_mentions": 7,
+  "code_files": 1,
+  "var": "orbSystemAlerts",
+  "code_sample": [
+   "server/services/orbSystemMonitor.ts"
+  ]
+ },
+ "worldbuilding_frameworks": {
+  "doc_mentions": 7,
+  "code_files": 2,
+  "var": "worldbuildingFrameworks",
+  "code_sample": [
+   "server/db.ts",
+   "client/src/contexts/WorldContextContext.tsx"
+  ]
+ },
+ "world_storyboards": {
+  "doc_mentions": 10,
+  "code_files": 1,
+  "var": "worldStoryboards",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "creative_projects": {
+  "doc_mentions": 27,
+  "code_files": 2,
+  "var": "creativeProjects",
+  "code_sample": [
+   "server/db.ts",
+   "server/subsystems/contextPackets/contextPacketService.ts"
+  ]
+ },
+ "orchestration_runs": {
+  "doc_mentions": 12,
+  "code_files": 1,
+  "var": "orchestrationRuns",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "context_packets": {
+  "doc_mentions": 6,
+  "code_files": 15,
+  "var": "contextPackets",
+  "code_sample": [
+   "server/context-packet-sanitize.test.ts",
+   "server/context-packet-compile.test.ts",
+   "server/services/security/ragInjectionGuard.ts"
+  ]
+ },
+ "project_data_access_rules": {
+  "doc_mentions": 6,
+  "code_files": 1,
+  "var": "projectDataAccessRules",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "data_source_connections": {
+  "doc_mentions": 2,
+  "code_files": 1,
+  "var": "dataSourceConnections",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "model_wishes": {
+  "doc_mentions": 2,
+  "code_files": 6,
+  "var": "modelWishes",
+  "code_sample": [
+   "server/routers/__tests__/modelWishesRouter.test.ts",
+   "server/routers/__tests__/brainPipeline.test.ts",
+   "server/routers/modelWishesRouter.ts"
+  ]
+ },
+ "model_wish_votes": {
+  "doc_mentions": 0,
+  "code_files": 1,
+  "var": "modelWishVotes",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "teaching_materials": {
+  "doc_mentions": 1,
+  "code_files": 1,
+  "var": "teachingMaterials",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "teams": {
+  "doc_mentions": 16,
+  "code_files": 20,
+  "var": "teams",
+  "code_sample": [
+   "server/routers/__tests__/brainPipeline.test.ts",
+   "server/routers/teams.ts",
+   "server/db.ts"
+  ]
+ },
+ "team_memberships": {
+  "doc_mentions": 0,
+  "code_files": 2,
+  "var": "teamMemberships",
+  "code_sample": [
+   "server/routers/promptCollection.ts",
+   "server/db.ts"
+  ]
+ },
+ "teaching_material_access_log": {
+  "doc_mentions": 1,
+  "code_files": 1,
+  "var": "teachingMaterialAccessLog",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "real_earth_entries": {
+  "doc_mentions": 0,
+  "code_files": 1,
+  "var": "realEarthEntries",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ },
+ "global_audit_log": {
+  "doc_mentions": 3,
+  "code_files": 1,
+  "var": "globalAuditLog",
+  "code_sample": [
+   "server/services/audit/auditLog.ts"
+  ]
+ },
+ "resource_shares": {
+  "doc_mentions": 5,
+  "code_files": 1,
+  "var": "resourceShares",
+  "code_sample": [
+   "server/db.ts"
+  ]
+ }
+}
