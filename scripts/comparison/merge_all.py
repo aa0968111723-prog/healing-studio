@@ -10,6 +10,7 @@ parts=[
  ("docs/reports/website-cost-analysis.pdf","深入附錄一：全站費用盤點與成本深度研究"),
  ("docs/reports/ai-tech-architecture-comparison.pdf","深入附錄二：AI 技術底層邏輯與技術選型/SOTA 比對"),
  ("docs/reports/ai-uiux-integrated-architecture.pdf","深入附錄三：AI 底層邏輯結構 × UIUX 結構系統 整合架構"),
+ ("docs/reports/deep-logic-dive.pdf","深入附錄四：底層邏輯深挖 — 核心演算法逐一拆解"),
 ]
 lens=[len(PdfReader(p).pages) for p,_ in parts]
 
