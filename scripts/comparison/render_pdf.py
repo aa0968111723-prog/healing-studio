@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json, datetime, os
+import json, datetime, os, re
 from fpdf import FPDF
 
 FONT="/tmp/report_assets/wqy.ttf"
@@ -11,6 +11,7 @@ csv_cards=J("scripts/comparison/csv_cards.json")
 routers=J("scripts/comparison/routers.json")
 flags=J("scripts/comparison/flags.json")
 xref=J("scripts/comparison/table_xref.json")
+jira=J("scripts/comparison/jira_cards.json")
 
 class PDF(FPDF):
     def header(self):
@@ -37,7 +38,7 @@ _GLYPH={"✅":"[完成]","🔄":"[進行]","📋":"[待辦]","⛔":"[阻擋]",
  "🔴":"[P0]","⚠":"[注意]","️":"","🔒":"[鎖]","📥":"[補]",
  "⌘":"Cmd","•":"-","✔":"[v]","✘":"[x]","⌗":"#","↟":"(同)",
  "✓":"[v]","✗":"[x]","●":"*","🟢":"[綠]","🟡":"[黃]",
- "⭐":"[星]","⁉":"!?","→":"->","←":"<-"}
+ "⭐":"[星]","⁉":"!?","→":"->","←":"<-","⏫":"[高]","↵":" ","−":"-","‌":"","​":"","⏫":"[高]","⬆":"[高]","⬇":"[低]"}
 def S(x):
     if x is None: return ""
     x=str(x)
@@ -125,12 +126,14 @@ meta=[
 table(["項目","內容"],meta,[20,80],fs=10,zebra=True,head_fill=(60,80,120))
 pdf.ln(4)
 pdf.set_font("wqy",size=9); pdf.set_text_color(70,70,70)
-prov=("資料來源與方法：本報告由 scripts/comparison/ 下的解析器對 repo 實檔自動萃取產生——"
- "①任務卡＝docs/plan/jira-import.csv（Wave 0–4 看板原始卡）＋docs/plan/AIDV-master-plan.md（SSOT）＋"
- "docs/ 下全部 .md 內的 AIDV-NN 卡；②程式碼＝server/client/shared（router/procedure/旗標 enumerate＋"
- "對每張卡 grep AIDV-NN 取得 file:line 行級佐證）；③資料庫＝drizzle/schema.ts（87 表逐欄位）＋drizzle/*.sql "
- "migration＋drizzle/meta/_journal.json 登記核對。\n注意：本 cloud 容器 network egress 擋掉 atlassian.net，"
- "無法連線 live Jira；故『任務卡』以 repo 內 SSOT 鏡像為準（與 Jira 專案 AIDV 對應）。")
+prov=("資料來源與方法（scripts/comparison/ 解析器自動萃取）——"
+ "①任務卡＝直接連線 live Atlassian Jira（aa0968111723.atlassian.net 專案 AIDV，Rovo MCP），全量 323 張，"
+ "逐卡含描述/狀態/型別/優先/labels/父卡；②程式碼＝全 repo 程式碼盤點（1,700+ 檔逐目錄/行數）＋"
+ "server/client/shared 的 router/procedure/旗標 enumerate＋對每張卡 grep 卡號取 file:line 行級錨點；"
+ "③資料庫＝drizzle/schema.ts（87 表逐欄位）＋drizzle/*.sql migration＋_journal.json 登記核對；"
+ "④Railway/部署＝repo 部署產物（railway.toml／nixpacks／Dockerfile）＋.env.example 環境變數目錄（僅名稱）。\n"
+ "章節：A 任務卡逐卡 · B 資料庫逐欄位 · C Migration 對帳 · D 全碼盤點 · E 三方一致性 · F Railway/部署。\n"
+ "Railway live MCP 註記：本 session 未連上 Railway MCP（待 AIDV-77 Bruce OAuth），Part F 以 repo 產物盤點。")
 pdf.multi_cell(EPW,5,S(prov),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
 
 # ============ SUMMARY ============
@@ -139,13 +142,19 @@ H("摘要儀表板 — 三方規模與覆蓋",16,3,(25,40,75))
 tot_cols=sum(len(t["columns"]) for t in schema)
 tot_idx=sum(len(t["indexes"]) for t in schema)
 tot_proc=sum(r["n"] for r in routers)
-done_cards=[c for c in cards if c["status"]=="Done"]
-cards_with_code=[c for c in cards if c.get("code_refs")]
+def cstat(v): return sum(1 for c in jira if c["status"]==v)
+def ctype(v): return sum(1 for c in jira if c["type"]==v)
+jira_code=[c for c in jira if c.get("code")]
+jira_db=[c for c in jira if c.get("tables")]
 summ=[
- ["任務卡 (AIDV-NN，全 docs)",len(cards),"Part A"],
- ["　其中標記 Done",len(done_cards),"Part A"],
- ["　其中有程式碼行級佐證",len(cards_with_code),"Part A/E"],
- ["看板原始卡 (CSV：Epic+Story)",len(csv_cards),"Part A.1"],
+ ["Jira 任務卡（專案 AIDV·live 全量）",len(jira),"Part A"],
+ ["　完成",cstat("完成"),"Part A"],
+ ["　進行中",cstat("進行中"),"Part A"],
+ ["　Selected for Development",cstat("Selected for Development"),"Part A"],
+ ["　Backlog",cstat("Backlog"),"Part A"],
+ ["　型別：故事 / 大型工作 / 漏洞 / 任務",f"{ctype('故事')}/{ctype('大型工作')}/{ctype('漏洞')}/{ctype('任務')}","Part A"],
+ ["　有程式碼行級錨點 (file:line)",len(jira_code),"Part A/E"],
+ ["　有資料表連結（卡文提及表）",len(jira_db),"Part A/E"],
  ["資料表 (mysqlTable)",len(schema),"Part B"],
  ["資料欄位 (逐欄)",tot_cols,"Part B"],
  ["索引/約束",tot_idx,"Part B"],
@@ -157,57 +166,74 @@ summ=[
  ["表：無任何卡/文件提及",sum(1 for t in xref if xref[t]['doc_mentions']==0),"Part E"],
  ["表：程式碼(var)零引用",sum(1 for t in xref if xref[t]['code_files']==0),"Part E"],
 ]
-table(["量測項目","數值","章節"],summ,[60,18,16],fs=9,head_fill=(35,55,90))
+table(["量測項目","數值","章節"],summ,[66,18,16],fs=9,head_fill=(35,55,90))
 pdf.ln(3)
 H("關鍵發現",12,2,(150,30,30))
 findings=[
- "①Migration 治理乾淨：82 支 migration 全部登記於 _journal.json，0 孤兒（AIDV-17 已收尾，boot 不再出現 orphan 警告）。",
- f"②資料庫共 {len(schema)} 表 / {tot_cols} 欄 / {tot_idx} 索引，逐欄已於 Part B 完整列出（含型別、長度、NOT NULL/PK/UNIQUE/DEFAULT、enum 值）。",
- f"③{len(cards_with_code)} 張任務卡可在程式碼中找到 AIDV-NN 行級錨點（Part A 逐卡列 file:line）；其餘卡多為純文件/決策卡或前端視覺卡。",
- f"④{sum(1 for t in xref if xref[t]['doc_mentions']==0)} 張表未被任何任務卡/文件提及（Part E.1 列出），屬潛在『有碼無卡』需補卡項。",
- f"⑤{sum(1 for t in xref if xref[t]['code_files']==0)} 張表在 server/shared/client 以 drizzle var 名查無引用（Part E.2），需確認是否殘留或僅由 raw SQL 使用。",
+ f"①任務卡來源已校正：本版直接連線 live Jira（專案 AIDV），全量 {len(jira)} 張（前一版僅 77 張＝repo 鏡像，嚴重低估，已棄用）。逐卡見 Part A。",
+ f"②卡 ↔ 程式碼：{len(jira_code)}/{len(jira)} 張卡可在 server/client/shared 找到 {{KEY}} 行級錨點（Part A.3 逐卡列 file:line）；其餘多為 Backlog／決策／純規劃卡，碼中未留卡號註記。",
+ f"③卡 ↔ 資料庫：{len(jira_db)}/{len(jira)} 張卡的摘要/描述提及具體資料表或 migration（Part A.3 逐卡列出連結之表與 migration 編號）。",
+ f"④資料庫共 {len(schema)} 表 / {tot_cols} 欄 / {tot_idx} 索引，逐欄已於 Part B 完整列出（型別/長度/NOT NULL/PK/UNIQUE/DEFAULT/enum）。",
+ "⑤Migration 治理乾淨：82 支全登記於 _journal.json，0 孤兒（AIDV-17 收尾）。",
+ f"⑥有表無卡 {sum(1 for t in xref if xref[t]['doc_mentions']==0)}、有表無碼 {sum(1 for t in xref if xref[t]['code_files']==0)}（Part E）。",
 ]
 for f in findings: P(f,9,1.5)
 
 
-# ============ PART A : 任務卡逐卡 ============
+# ============ PART A : 任務卡逐卡（live Jira AIDV 全量 323） ============
 pdf.add_page()
-H("Part A — 任務卡逐卡對比",18,2,(25,40,75))
-P("『逐卡級』：先列看板原始卡（CSV），再列全 docs 萃取的 AIDV-NN 卡索引，最後逐卡展開狀態 / PR / "
-  "程式碼行級佐證 / 牽涉資料表。",9,2,(90,90,90))
+H("Part A — 任務卡逐卡對比（live Jira · 專案 AIDV 全量）",17,2,(25,40,75))
+P(f"資料來源＝直接連線 Atlassian Jira（aa0968111723.atlassian.net，專案 AIDV），全量 {len(jira)} 張卡。"
+  "『逐卡級』：A.1 看板分佈→A.2 全卡索引→A.3 逐卡展開（狀態/型別/優先/labels/父卡/描述＋PR＋程式碼 file:line＋連結資料表＋migration）。",9,2,(90,90,90))
 
-H("A.1　看板原始卡（jira-import.csv：Epic + Story）",12,2,(35,55,90),top=1)
+H("A.1　看板分佈（狀態 × 型別）",12,2,(35,55,90),top=1)
+strows=[[s,str(cstat(s))] for s in ["完成","進行中","Selected for Development","Backlog"]]
+strows+=[["—— 型別 ——",""]]
+strows+=[[t,str(ctype(t))] for t in ["大型工作(Epic)","故事(Story)","任務(Task)","漏洞(Bug)"]]
+# map display->actual
+for r in strows:
+    if r[0].endswith(")"):
+        key=r[0].split("(")[0]; r[1]=str(ctype(key))
+table(["狀態 / 型別","張數"],strows,[60,18],fs=9,head_fill=(35,55,90))
+
+H("A.2　全卡索引（依卡號；碼=程式碼錨點數，表=連結資料表數）",12,2,(35,55,90),top=3)
 rows=[]
-for c in csv_cards:
-    rows.append([c.get("Issue Type",""), c.get("Summary",""), c.get("Status",""),
-                 c.get("Epic Link","") or c.get("Epic Name",""),
-                 (c.get("Description","")[:160])])
-table(["型別","摘要","狀態","Epic","描述（節錄）"],rows,[10,30,12,22,40],fs=7)
+for c in jira:
+    rows.append([c["key"], c["type"][:4], c["status"][:6], (c["priority"] or "")[:4],
+                 c["summary"][:46], "#"+",".join(c["prs"][:2]) if c["prs"] else "—",
+                 str(len(c["code"])), str(len(c["tables"]))])
+table(["卡號","型","狀態","優先","摘要","PR","碼","表"],rows,[14,8,12,9,52,14,7,7],fs=6.6)
 
-H("A.2　AIDV-NN 卡索引（全 docs，依卡號）",12,2,(35,55,90),top=3)
-rows=[]
-for c in cards:
-    rows.append([c["num"], c["title"][:40], c["status"] or "—",
-                 ",".join("#"+p for p in c.get("prs",[])[:4]) or "—",
-                 str(len(c.get("code_refs",[]))), c.get("note","")[:90]])
-table(["卡號","標題","狀態","PR","碼錨","備註（節錄）"],rows,[14,34,14,22,8,60],fs=7)
-
-H("A.3　逐卡展開（有程式碼行級佐證者：file:line）",12,2,(35,55,90),top=3)
-P("以下每張卡列出在 server/client/shared 內出現 AIDV-NN 的確切『檔案:行號』，即該卡的程式碼行級落點。",8,2,(90,90,90))
-for c in cards:
-    refs=c.get("code_refs",[])
-    if not refs: continue
-    need(20)
-    pdf.set_font("wqy",size=10); pdf.set_text_color(20,40,80)
-    pdf.multi_cell(EPW,5.2,S(f"{c['num']}　{c['title']}  〔{c['status'] or '狀態未標'}〕"),new_x="LMARGIN",new_y="NEXT")
+H("A.3　逐卡展開（全 323 張：描述＋程式碼 file:line＋資料表＋migration）",12,2,(35,55,90),top=3)
+P("每張卡完整列出：摘要、型別/狀態/優先/labels/父卡、描述全文（節錄至約 480 字）、提及 PR、"
+  "在 server/client/shared 的程式碼錨點（檔案:行號）、卡文連結之資料表、以及 migration 編號。",8,2,(90,90,90))
+STC={"完成":(20,110,40),"進行中":(180,110,10),"Backlog":(110,110,110),"Selected for Development":(150,60,150)}
+for c in jira:
+    need(24)
+    col=STC.get(c["status"],(20,40,80))
+    pdf.set_font("wqy",size=9.6); pdf.set_text_color(*col)
+    pdf.multi_cell(EPW,4.9,S(f"{c['key']}　{c['summary']}"),new_x="LMARGIN",new_y="NEXT")
     pdf.set_text_color(0)
-    if c.get("prs"): P("PR： "+", ".join("#"+p for p in c["prs"]),8,0.5,(70,70,70))
-    if c.get("note"): P("備註： "+c["note"],8,0.5,(70,70,70))
-    P("程式碼錨點（"+str(len(refs))+"）：",8,0.3,(120,30,30))
-    pdf.set_font("wqy",size=7.5)
-    for r in refs:
-        pdf.multi_cell(EPW,3.8,S("  - "+r),new_x="LMARGIN",new_y="NEXT")
-    pdf.ln(2)
+    meta=f"{c['type']} · {c['status']} · 優先 {c['priority'] or '—'}"
+    if c.get("parent"): meta+=f" · 父卡 {c['parent']}"
+    if c.get("labels"): meta+=" · labels "+",".join(c["labels"])
+    P(meta,7.6,0.4,(90,90,90))
+    if c.get("desc"):
+        d=re.sub(r"\s+"," ",c["desc"]).strip()[:480]
+        P("描述： "+d,7.8,0.4,(40,40,40))
+    if c.get("prs"): P("PR： "+", ".join("#"+p for p in c["prs"]),7.6,0.3,(70,70,110))
+    if c.get("tables"): P("連結資料表（"+str(len(c["tables"]))+"）： "+", ".join(c["tables"]),7.6,0.3,(20,90,90))
+    if c.get("migs"): P("Migration 編號： "+", ".join(c["migs"]),7.6,0.3,(120,80,20))
+    if c.get("code"):
+        P("程式碼錨點（"+str(len(c["code"]))+"）：",7.6,0.2,(120,30,30))
+        pdf.set_font("wqy",size=7)
+        for r in c["code"][:40]:
+            pdf.multi_cell(EPW,3.6,S("  - "+r),new_x="LMARGIN",new_y="NEXT")
+        if len(c["code"])>40: P(f"  …另 {len(c['code'])-40} 處",7,0.2,(120,120,120))
+    else:
+        P("程式碼錨點：（碼中無 "+c["key"]+" 註記）",7.6,0.2,(150,150,150))
+    pdf.set_draw_color(225); pdf.line(pdf.l_margin,pdf.get_y()+0.5,pdf.w-pdf.r_margin,pdf.get_y()+0.5)
+    pdf.ln(2.2)
 
 # ============ PART B : 資料庫逐欄位 ============
 pdf.add_page()
@@ -250,9 +276,21 @@ for m in migs:
 table(["檔名","journal","句斷","DDL 摘要（去重）"],rows,[26,16,8,60],fs=7)
 
 # ============ PART D : 程式碼結構 / 行級索引 ============
+census=J("scripts/comparison/census.json")
 pdf.add_page()
-H("Part D — 程式碼結構與行級索引",18,2,(25,40,75))
-H("D.1　tRPC Router × Procedure",12,2,(35,55,90))
+H("Part D — 全程式碼盤點與結構索引",18,2,(25,40,75))
+H("D.0　全碼盤點（所有原始碼，依目錄）",12,2,(35,55,90))
+P(f"全 repo 原始碼（排除 node_modules/dist/lock）：{census['total_files']} 檔、{census['total_loc']:,} 行、"
+  f"{census['test_files']} 個測試檔。下表依第一/二層目錄彙總檔數與行數（{len(census['areas'])} 個目錄桶，列前 50 大）。",9,1.5,(90,90,90))
+arows=[]
+for area,a in list(census["areas"].items())[:50]:
+    exts=", ".join(f"{k}:{v}" for k,v in sorted(a["by_ext"].items(),key=lambda kv:-kv[1])[:5])
+    arows.append([area, str(a["files"]), f"{a['loc']:,}", exts])
+table(["目錄","檔數","行數","副檔分佈（前5）"],arows,[40,12,16,50],fs=7)
+H("D.0b　最大單檔（前 40）",11,2,(35,55,90),top=2)
+brows=[[f"{loc:,}",p] for loc,p in census["biggest"]]
+table(["行數","檔案"],brows,[14,90],fs=7)
+H("D.1　tRPC Router × Procedure",12,2,(35,55,90),top=3)
 P(f"server/routers/ 全 {len(routers)} router、合計 {sum(r['n'] for r in routers)} procedure。",9,1.5,(90,90,90))
 rows=[[r["file"], str(r["lines"]), str(r["n"]), ", ".join(r["procedures"])[:130] or "—"] for r in routers]
 table(["router 檔","行數","proc 數","procedure 名（節錄）"],rows,[26,10,10,64],fs=7)
@@ -275,18 +313,45 @@ H("E.3　Migration ↔ Journal 一致性",12,2,(35,90,55),top=3)
 orph=[m["file"] for m in migs if not m["registered"] and m["file"].startswith("0")]
 P(("✔ 全數一致：drizzle/*.sql 全部登記於 _journal.json，無孤兒。" if not orph else
    "✘ 發現孤兒（不會被套用）："+", ".join(orph)),9,1.5,(20,110,40) if not orph else (150,30,30))
-H("E.4　任務卡 ↔ 程式碼 覆蓋",12,2,(35,55,90),top=3)
-done=[c for c in cards if c["status"]=="Done"]
-done_code=[c for c in done if c.get("code_refs")]
-P(f"Done 卡 {len(done)} 張，其中 {len(done_code)} 張有程式碼 AIDV 錨點；{len(done)-len(done_code)} 張無（多屬決策卡/"
-  f"純文件卡/前端視覺卡，碼中未留 AIDV-NN 註記——非缺陷，但若需嚴格追溯可補註記）。",9,1.5)
-rows=[[c["num"], c["title"][:34], "有碼" if c.get("code_refs") else "無碼錨",
+H("E.4　完成卡 ↔ 程式碼 覆蓋（live Jira，狀態＝完成）",12,2,(35,55,90),top=3)
+done=[c for c in jira if c["status"]=="完成"]
+done_code=[c for c in done if c.get("code")]
+P(f"完成卡 {len(done)} 張，其中 {len(done_code)} 張有程式碼 {{KEY}} 行級錨點；{len(done)-len(done_code)} 張無"
+  "（多屬決策卡/規劃卡/前端視覺卡，碼中未留卡號註記——非缺陷，但若需嚴格追溯可於 PR 補註卡號）。",9,1.5)
+rows=[[c["key"], c["summary"][:36], "有碼" if c.get("code") else "無碼錨",
+       str(len(c.get("tables",[]))),
        ",".join("#"+p for p in c.get("prs",[])[:3]) or "—"] for c in done]
-table(["卡號","標題","碼錨","PR"],rows,[14,40,12,24],fs=7)
+table(["卡號","摘要","碼錨","表","PR"],rows,[14,40,10,7,22],fs=7)
 H("E.5　覆蓋率小結",12,2,(35,55,90),top=3)
 covd=sum(1 for t in xref if xref[t]["doc_mentions"]>0)
 covc=sum(1 for t in xref if xref[t]["code_files"]>0)
-P(f"資料表被文件/卡覆蓋：{covd}/{len(schema)}（{covd*100//len(schema)}%）；被程式碼覆蓋：{covc}/{len(schema)}（{covc*100//len(schema)}%）。",9,1.5)
+P(f"資料表被文件/卡覆蓋：{covd}/{len(schema)}（{covd*100//len(schema)}%）；被程式碼覆蓋：{covc}/{len(schema)}（{covc*100//len(schema)}%）。",9,1.2)
+P(f"任務卡（{len(jira)} 張）：有程式碼錨點 {len(jira_code)}（{len(jira_code)*100//len(jira)}%）、有資料表連結 {len(jira_db)}（{len(jira_db)*100//len(jira)}%）。"
+  "其餘多為 Backlog／規劃／決策卡（尚未進入實作，故碼/庫無對應＝預期）。",9,1.2)
+
+# ============ PART F : RAILWAY / 部署 / 環境變數 盤點 ============
+railway=J("scripts/comparison/railway.json")
+pdf.add_page()
+H("Part F — Railway / 部署 / 環境變數 盤點",18,2,(25,40,75))
+P("狀態說明：本 session 未連上 Railway live MCP（搜尋無 railway/gitnexus 工具；對應卡 AIDV-77＝官方遠端 MCP 已寫入"
+  "設定、待 Bruce OAuth 才生效）。故本章自 repo 部署產物盤點：railway.toml／.nixpacks.toml／Dockerfile／"
+  ".dockerignore＋.env.example 環境變數目錄。所有金鑰一律只列『名稱』，不含任何值（依鐵律 3）。",9,2,(150,30,30))
+H("F.1　部署設定檔（repo 原文）",12,2,(35,55,90))
+for fn in ["railway.toml",".nixpacks.toml","Dockerfile",".dockerignore"]:
+    body=railway["files"].get(fn)
+    if not body: continue
+    need(16)
+    pdf.set_font("wqy",size=9.4); pdf.set_text_color(20,40,80)
+    pdf.multi_cell(EPW,5,S(fn),new_x="LMARGIN",new_y="NEXT"); pdf.set_text_color(0)
+    pdf.set_font("wqy",size=7)
+    for line in body.split("\n"):
+        pdf.multi_cell(EPW,3.5,S("  "+line.replace("\t","  ")) or " ",new_x="LMARGIN",new_y="NEXT")
+    pdf.ln(2)
+H("F.2　環境變數目錄（.env.example，僅名稱·無值）",12,2,(35,55,90),top=2)
+P(f"共 {len(railway['env'])} 個環境變數（其中 {sum(1 for e in railway['env'] if e['secret'])} 個屬金鑰類 KEY/SECRET/TOKEN/URL）。"
+  "『金鑰類』欄＝是；『範例值』欄僅表示 .env.example 是否附非敏感示範值，實際值一律貼 Railway 環境變數。",8,1.5,(90,90,90))
+rows=[[e["name"], "是" if e["secret"] else "", e["section"][:34], e["example_present"]] for e in railway["env"]]
+table(["環境變數名稱","金鑰類","分區/用途","範例值"],rows,[46,10,40,12],fs=7)
 
 out="docs/reports/task-card-code-db-comparison.pdf"
 os.makedirs("docs/reports",exist_ok=True)
