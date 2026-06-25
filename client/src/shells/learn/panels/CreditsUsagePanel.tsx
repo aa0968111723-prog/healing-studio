@@ -43,7 +43,7 @@ export function CreditsUsagePanel() {
           <Skeleton className="h-12 w-32" />
         ) : (
           <div>
-            <div className={`text-4xl font-bold ${remaining < 120 ? "text-destructive" : "text-amber-500"}`}>
+            <div className={`text-4xl font-bold ${remaining < 120 ? "text-destructive" : "text-warn"}`}>
               {Number(remaining).toLocaleString()}
             </div>
             <div className="text-xs text-muted-foreground mt-1">可用積分 · pts</div>
@@ -99,7 +99,7 @@ export function CreditsUsagePanel() {
                     {ts ? new Date(ts).toLocaleDateString("zh-TW") : "—"}
                   </span>
                   <span className="flex-1 truncate">{kind}{model ? <span className="text-muted-foreground"> · {model}</span> : null}</span>
-                  <span className="text-amber-600 tabular-nums">${cost.toFixed(3)}</span>
+                  <span className="text-warn tabular-nums">${cost.toFixed(3)}</span>
                 </div>
               );
             })}

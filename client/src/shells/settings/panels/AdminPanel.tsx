@@ -52,7 +52,7 @@ export function AdminPanel() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm">
-        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+        <ShieldCheck className="h-4 w-4 text-ok" />
         <span className="font-semibold">管理後台</span>
         <Badge variant="secondary" className="text-[10px]">{role}</Badge>
         <span className="text-[11px] text-muted-foreground">管理使用者配額、角色權限、內容、功能開關、修復與稽核</span>

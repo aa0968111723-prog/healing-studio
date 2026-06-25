@@ -179,7 +179,7 @@ export function ConnectorRow({
   }
   return (
     <div className="flex items-center gap-2 rounded-lg border p-2.5">
-      <span className={`size-2 rounded-full shrink-0 ${healthy ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+      <span className={`size-2 rounded-full shrink-0 ${healthy ? "bg-ok" : "bg-muted-foreground"}`} />
       <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
       <Badge variant={healthy ? "secondary" : "outline"} className="text-[10px]">{connectionStatusLabel(status ?? "pending")}</Badge>
       <button type="button" disabled={busy} onClick={onTest} className="text-[11px] text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50">測試</button>

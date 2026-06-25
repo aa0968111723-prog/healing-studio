@@ -44,9 +44,9 @@ export const DOMAIN_META: Record<ModelDomainId, { emoji: string; label: string }
 const TIER_LABEL: Record<string, string> = { fast: "極速", standard: "標準", premium: "旗艦" };
 
 const FRESHNESS_LABEL: Record<string, { label: string; cls: string }> = {
-  verified: { label: "已查證", cls: "text-emerald-600 dark:text-emerald-400" },
-  "auto-checked": { label: "自動查核", cls: "text-emerald-600 dark:text-emerald-400" },
-  stale: { label: "情報待更新", cls: "text-amber-600 dark:text-amber-400" },
+  verified: { label: "已查證", cls: "text-ok" },
+  "auto-checked": { label: "自動查核", cls: "text-ok" },
+  stale: { label: "情報待更新", cls: "text-warn" },
   pending: { label: "情報待補", cls: "text-muted-foreground" },
   error: { label: "查核失敗", cls: "text-destructive" },
 };
