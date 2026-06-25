@@ -1,5 +1,6 @@
 import { storagePut } from "../storage";
 import { serverEnv } from "../_core/env.validated";
+import { assertSafeExternalUrl, SsrfBlockedError } from "../_core/ssrfGuard";
 
 type PersistOptions = {
   category: "image" | "video" | "audio" | "voice" | "binary";
@@ -45,12 +46,29 @@ function inferExtension(contentType: string, url: string, category: string): str
   return "bin";
 }
 
+// 10 MB cap on downloaded media to bound memory usage.
+const PERSIST_MAX_BYTES = 10 * 1024 * 1024;
+
 export async function persistExternalMediaUrl(
   url: string,
   options: PersistOptions
 ): Promise<string> {
   if (!url || isInternalUrl(url)) return url;
-  const resp = await fetch(url, { signal: AbortSignal.timeout(90_000) });
+  // Throw early if the URL targets a private/loopback/IMDS host (AIDV-262).
+  try {
+    assertSafeExternalUrl(url, process.env.NODE_ENV !== "production");
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) throw err;
+    throw err;
+  }
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(90_000),
+    redirect: "error",
+  });
+  const rawLength = Number(resp.headers.get("content-length") ?? "0");
+  if (rawLength > PERSIST_MAX_BYTES) {
+    throw new Error(`外部媒體過大（${rawLength} bytes > ${PERSIST_MAX_BYTES}）`);
+  }
   if (!resp.ok) throw new Error(`下載外部媒體失敗（${resp.status}）`);
   const arrayBuffer = await resp.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
