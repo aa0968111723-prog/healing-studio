@@ -1932,6 +1932,28 @@ export const r2StorageSnapshots = mysqlTable("r2_storage_snapshots", {
 export type R2StorageSnapshot = typeof r2StorageSnapshots.$inferSelect;
 export type InsertR2StorageSnapshot = typeof r2StorageSnapshots.$inferInsert;
 
+// ─── R2 Object Catalog（AIDV-66 M3 媒體快照：per-object 記錄）────────────────
+export const r2ObjectCatalog = mysqlTable(
+  "r2_object_catalog",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    snapshotId: int("snapshotId").notNull(),
+    objectKey: varchar("objectKey", { length: 1024 }).notNull(),
+    fileSizeBytes: bigint("fileSizeBytes", { mode: "number" }).notNull().default(0),
+    etag: varchar("etag", { length: 64 }),
+    category: varchar("category", { length: 32 }),
+    lastModified: timestamp("lastModified"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    snapshotIdIdx: index("r2oc_snapshotId_idx").on(table.snapshotId),
+    objectKeyIdx: index("r2oc_objectKey_idx").on(table.objectKey),
+  })
+);
+
+export type R2ObjectCatalogEntry = typeof r2ObjectCatalog.$inferSelect;
+export type InsertR2ObjectCatalogEntry = typeof r2ObjectCatalog.$inferInsert;
+
 // ─── User Subscriptions（用戶訂閱，Stripe 用）────────────────────────────────
 export const userSubscriptions = mysqlTable(
   "user_subscriptions",
