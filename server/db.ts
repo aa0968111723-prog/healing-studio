@@ -480,52 +480,6 @@ export async function softDeleteUser(userId: number): Promise<void> {
     .where(eq(users.id, userId));
 }
 
-export async function exportUserData(userId: number): Promise<Record<string, unknown> | null> {
-  const db = await getDb();
-  if (!db) return null;
-  const [user] = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      role: users.role,
-      createdAt: users.createdAt,
-      lastSignedIn: users.lastSignedIn,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!user) return null;
-
-  const [projects, promptCount, modelWishCount] = await Promise.all([
-    db
-      .select({ id: creativeProjects.id, title: creativeProjects.title, createdAt: creativeProjects.createdAt })
-      .from(creativeProjects)
-      .where(eq(creativeProjects.userId, userId))
-      .limit(200),
-    db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(promptLibrary)
-      .where(eq(promptLibrary.userId, userId))
-      .then(r => r[0]?.count ?? 0),
-    db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(modelWishes)
-      .where(eq(modelWishes.userId, userId))
-      .then(r => r[0]?.count ?? 0),
-  ]);
-
-  return {
-    exportedAt: new Date().toISOString(),
-    profile: user,
-    creativeProjects: projects,
-    summary: {
-      promptLibraryCount: promptCount,
-      modelWishCount,
-    },
-  };
-}
-
 export async function purgeOldLoginHistory(daysToKeep = 90): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
