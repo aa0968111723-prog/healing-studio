@@ -5477,6 +5477,7 @@ export default function AnimationStudio() {
               productionTargets: latest.productionTargets,
               researchEntries: latest.researchEntries,
               soundLibrary: latest.soundLibrary,
+              uploadedAssets: latest.uploadedAssets,
               tags: latest.tags,
             },
           });
@@ -5491,6 +5492,9 @@ export default function AnimationStudio() {
   const generateCharacterMutation = trpc.worldbuildingGeneration.generateCharacter.useMutation({
     onSuccess: (data) => {
       toast.success(`角色「${data.character.name}」已生成`);
+      // Merge into local draft so subsequent debounced saves include the new character.
+      // Without this, the next edit would overwrite the server with the stale draft (AIDV-198).
+      setDraft(prev => prev ? { ...prev, characters: [...(prev.characters ?? []), data.character] } : prev);
       utils.worldbuilding.list.invalidate();
     },
     onError: (e) => toast.error(`生成失敗：${e.message}`),
@@ -5499,6 +5503,8 @@ export default function AnimationStudio() {
   const generateSceneMutation = trpc.worldbuildingGeneration.generateScene.useMutation({
     onSuccess: (data) => {
       toast.success(`場景「${data.scene.name}」已生成`);
+      // Same stale-write guard as generateCharacterMutation above (AIDV-198).
+      setDraft(prev => prev ? { ...prev, scenes: [...(prev.scenes ?? []), data.scene] } : prev);
       utils.worldbuilding.list.invalidate();
     },
     onError: (e) => toast.error(`生成失敗：${e.message}`),
