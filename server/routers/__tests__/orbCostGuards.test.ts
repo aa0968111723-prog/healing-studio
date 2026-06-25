@@ -20,11 +20,12 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(__dirname, "../../..");
 
+const routersSrc = readFileSync(
+  path.join(repoRoot, "server/routers.ts"),
+  "utf8"
+);
+
 describe("H2: runOrbWebResearch 必須帶 userId", () => {
-  const routersSrc = readFileSync(
-    path.join(repoRoot, "server/routers.ts"),
-    "utf8"
-  );
 
   it("ai.chat 處 runOrbWebResearch 呼叫帶 userId: ctx.user.id", () => {
     // 抓 runOrbWebResearch( ... ) 整個 call expression(可能跨多行),
@@ -34,6 +35,33 @@ describe("H2: runOrbWebResearch 必須帶 userId", () => {
     );
     expect(match).not.toBeNull();
     expect(match![0]).toMatch(/userId\s*:\s*ctx\.user\.id/);
+  });
+});
+
+describe("H4 (AIDV-215): ai.chat 必須有 per-user 20 RPM 限流", () => {
+  const limiterSrc = readFileSync(
+    path.join(repoRoot, "server/_core/rateLimiter.ts"),
+    "utf8"
+  );
+
+  it("rateLimiter.ts 匯出 tryConsumeChatToken 函式", () => {
+    expect(limiterSrc).toMatch(/export\s+function\s+tryConsumeChatToken/);
+  });
+
+  it("CHAT_RATE_LIMIT_MAX 設為 20 RPM", () => {
+    expect(limiterSrc).toMatch(/CHAT_RATE_LIMIT_MAX\s*=\s*20/);
+  });
+
+  it("ai.chat handler 呼叫 tryConsumeChatToken(ctx.user.id)", () => {
+    expect(routersSrc).toMatch(/tryConsumeChatToken\s*\(\s*ctx\.user\.id\s*\)/);
+  });
+
+  it("rate limit 超限拋 TRPCError code: TOO_MANY_REQUESTS", () => {
+    // 找 tryConsumeChatToken 呼叫後 300 字內有 TOO_MANY_REQUESTS。
+    const idx = routersSrc.indexOf("tryConsumeChatToken(ctx.user.id)");
+    expect(idx).toBeGreaterThan(-1);
+    const window = routersSrc.slice(idx, idx + 300);
+    expect(window).toMatch(/TOO_MANY_REQUESTS/);
   });
 });
 

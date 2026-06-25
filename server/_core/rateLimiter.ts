@@ -193,6 +193,36 @@ export function rateLimitContextMiddleware(
   next();
 }
 
+// ─── Per-User Chat Rate Limiter (in-process, tRPC-layer) ─────────────────────
+//
+// express-rate-limit runs before tRPC auth, so req.user is unavailable at the
+// Express middleware layer for tRPC routes. This in-process bucket gives a true
+// per-user 20 RPM guard on ai.chat — call tryConsumeChatToken inside the
+// mutation handler, after brainProcedure has verified ctx.user.
+
+const _chatRateLimitStore = new Map<number, { count: number; resetAt: number }>();
+
+export const CHAT_RATE_LIMIT_MAX = 20;          // requests per window
+export const CHAT_RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+
+/**
+ * Consume one token from the caller's per-user chat bucket.
+ * Returns true when the request should proceed, false when it should be
+ * rejected (429). Test environments always return true.
+ */
+export function tryConsumeChatToken(userId: number): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  const now = Date.now();
+  const entry = _chatRateLimitStore.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    _chatRateLimitStore.set(userId, { count: 1, resetAt: now + CHAT_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= CHAT_RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 // ─── Singleton Exports ─────────────────────────────────────────────────────
 
 export const rateLimiters = {

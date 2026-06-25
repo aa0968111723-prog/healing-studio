@@ -26,6 +26,7 @@ import {
 } from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
 import { featureFlags } from "./_core/featureFlags";
+import { tryConsumeChatToken } from "./_core/rateLimiter";
 import { signWebhookToken } from "./_core/webhookTokens";
 import { resolveSafetyFallback } from "./services/security/contentModeration";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
@@ -6434,6 +6435,16 @@ export const appRouter = router({
           if (status === "in-progress") {
             return { status: "in-progress", message: "Request is already being processed" };
           }
+        }
+
+        // AIDV-215: per-user 20 RPM guard — express-rate-limit can't see
+        // ctx.user at the Express middleware layer for tRPC routes, so we
+        // enforce the limit here, after brainProcedure has authenticated.
+        if (!tryConsumeChatToken(ctx.user.id)) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: "Too many chat requests. Please wait 1 minute before sending more messages.",
+          });
         }
 
         // 進度時間軸的第一站。需要在精靈挑選 / 網路研究之前就發,否則時間
