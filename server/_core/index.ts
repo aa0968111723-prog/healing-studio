@@ -15,6 +15,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
+import { agentEventsRouter } from "../agentEventsRoute";
 import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import {
   initModelTrainingWorkerCron,
@@ -470,6 +471,8 @@ async function startServer() {
   }
   // SSE for real-time generation events
   app.use(sseRouter);
+  // SSE for multi-agent collaboration state broadcast (AIDV-331)
+  app.use(agentEventsRouter);
   // (LangSmith stats moved to tRPC: trpc.langsmith.stats)
   app.use(falWebhookRouter);
   app.use(sunoWebhookRouter);

@@ -2435,6 +2435,8 @@ export const agentDynamicRegistry = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     agentId: varchar("agentId", { length: 64 }).notNull().unique(),
     capabilities: json("capabilities").notNull().$type<string[]>(),
+    /** Agent Scope allowlist（AIDV-331）：允許的端點 scope，e.g. ["read:project","write:script"] */
+    allowedEndpoints: json("allowedEndpoints").$type<string[]>(),
     costPerToken: decimal("costPerToken", { precision: 16, scale: 10 }).notNull().default("0"),
     currentLoad: decimal("currentLoad", { precision: 5, scale: 4 }).notNull().default("0"),
     isActive: boolean("isActive").notNull().default(true),
@@ -3581,6 +3583,8 @@ export const orchestrationRuns = mysqlTable(
     toolCallsJson: json("toolCallsJson"),
     citationsJson: json("citationsJson"),
     searchResultsJson: json("searchResultsJson"),
+    /** 任務優先序（AIDV-331 Priority Queue）：urgent = 插隊、background = 低優先 */
+    priority: mysqlEnum("priority", ["urgent", "normal", "background"]).notNull().default("normal"),
     /** 預估成本（USD）；第一版為 null，欄位先保留。 */
     estimatedCostUsd: decimal("estimatedCostUsd", { precision: 10, scale: 6 }),
     actualCostUsd: decimal("actualCostUsd", { precision: 10, scale: 6 }),

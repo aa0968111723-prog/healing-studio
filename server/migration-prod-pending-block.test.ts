@@ -49,6 +49,8 @@ const PENDING_BLOCK = [
   "0067_repair_worldbuilding_v4_columns",
   // AIDV-323：多代理路由基礎層（樂觀鎖 + 動態能力登記）
   "0080_agent_concurrency_registry",
+  // AIDV-331：優先佇列 + Agent Scope 欄位
+  "0081_orchestration_priority_scope",
 ];
 
 function readSql(tag: string): string {
