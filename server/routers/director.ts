@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { gzipSync, gunzipSync } from "node:zlib";
-import { router, brainProcedure } from "../_core/trpc";
+import { router, brainProcedure, aiChatProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM, extractMessageText } from "../_core/llm";
 import { signWebhookToken } from "../_core/webhookTokens";
@@ -201,7 +201,7 @@ async function loadProjectWorldContext(
 
 export const directorRouter = router({
   /** Main chat endpoint — runs dual-engine Director AI */
-  chat: brainProcedure
+  chat: aiChatProcedure
     .input(
       z.object({
         messages: z.array(
@@ -294,7 +294,7 @@ export const directorRouter = router({
             },
             {
               role: "user",
-              content: `現有腳本：\n${JSON.stringify(input.script, null, 2)}\n\n修改指示：${input.instruction}`,
+              content: `現有腳本：\n${JSON.stringify(input.script, null, 2)}\n\n修改指示：\n<user_instruction>\n${input.instruction}\n</user_instruction>`,
             },
           ],
           response_format: {
@@ -531,7 +531,7 @@ export const directorRouter = router({
    * 以自動把當前世界觀的角色 / 場景 / 風格設定注入系統提示，讓生成的腳本
    * 與既有世界觀保持一致。
    */
-  generateVideoScript: brainProcedure
+  generateVideoScript: aiChatProcedure
     .input(
       z.object({
         brief: z.string().min(1).max(20_000),
@@ -910,6 +910,7 @@ export const directorRouter = router({
 
 根據以下分鏡段落資訊，生成完整的 CO-STAR 腳本結構。
 
+<user_storyboard>
 分鏡資訊：
 - 場景：${input.segment.storyboard.sceneHeading}
 - 視覺：${input.segment.storyboard.visualDescription}
@@ -921,6 +922,7 @@ export const directorRouter = router({
 
 原始文本：${input.segment.rawText}
 ${discussionInsights}
+</user_storyboard>
 
 ${persona.proactiveHint}
 
@@ -1141,7 +1143,7 @@ ${persona.proactiveHint}
     }),
 
   /** Analyze the full script holistically — themes, arcs, pacing, character/location distribution */
-  analyzeScriptOverview: brainProcedure
+  analyzeScriptOverview: aiChatProcedure
     .input(
       z.object({
         segments: z.array(
@@ -1199,7 +1201,9 @@ ${persona.proactiveHint}
 你是一位專業的腳本分析師。請對整部腳本進行全局分析。
 
 分鏡列表：
+<user_segments>
 ${segmentSummaries}
+</user_segments>
 
 總時長估算：${totalMin}分${totalSec}秒 / 共 ${input.segments.length} 個分鏡
 

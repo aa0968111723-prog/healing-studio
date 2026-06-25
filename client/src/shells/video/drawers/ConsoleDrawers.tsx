@@ -28,6 +28,7 @@ import { PromptWorkbenchBody } from "./PromptWorkbench";
 import { AgentCatalogBody } from "./AgentCatalog";
 import { TeachingArchiveGroundingBody } from "./TeachingArchiveGrounding";
 import { LoraCharactersBody } from "./LoraCharacters";
+import { AgentOpsPanelBody } from "./AgentOpsPanel";
 
 export function ConsoleDrawers() {
   const console_ = useDirectorConsole();
@@ -54,6 +55,7 @@ export function ConsoleDrawers() {
       {wrap("agents", "精靈能力 · 成本預估 · I-1", "選精靈 → 看可用 fal 模型＋預估成本（唯讀、不觸發生成）。Phase 1 零後端。", <AgentCatalogBody />, true)}
       {wrap("grounding", "教材庫接地 · I-4", "搜尋你的教材（向量＋關鍵字）→ 複製參照為這段劇本接地。Phase 1 零後端。", <TeachingArchiveGroundingBody />, true)}
       {wrap("lora", "角色 LoRA 一致性 · I-7", "看本專案角色的 LoRA 狀態＋你的模型庫（唯讀）；自動套用＝Phase 2。", <LoraCharactersBody />, true)}
+      {wrap("agent_ops", "代理操作面板 · W3-D", "commander run 觀測：orchestration_runs 視覺化（唯讀）。步驟確認留 Wave 4。", <AgentOpsPanelBody />, true)}
       {wrap("settings", "影片系統設定 · 2-18", "生成引擎＋各模態 per-引擎預設（2-16）＋個人化（帳號層）＋鐵則。", <VideoSettingsBody />)}
     </>
   );

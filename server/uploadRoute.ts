@@ -145,6 +145,29 @@ const BINARY_MEDIA_KINDS: ReadonlySet<FileKind> = new Set([
   "pdf",
 ]);
 
+/**
+ * Fetches the first bytes of an R2 object with exponential-backoff retry.
+ * Returns null only when all attempts are exhausted (caller treats this as
+ * fail-closed and must reject the request).
+ * Accepts a `fetchFn` so the logic can be unit-tested without real R2.
+ */
+async function fetchBytesWithRetry(
+  fileKey: string,
+  fetchFn: (key: string) => Promise<Buffer>,
+  maxAttempts = 3
+): Promise<Buffer | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fetchFn(fileKey);
+    } catch {
+      if (attempt < maxAttempts - 1) {
+        await new Promise(r => setTimeout(r, 200 * 2 ** attempt));
+      }
+    }
+  }
+  return null;
+}
+
 function looksLikeMarkup(buffer: Buffer): boolean {
   let i = 0;
   let utf16be = false;
@@ -756,62 +779,28 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
     // 對 binary media kind（image/audio/video/pdf）用 Range:bytes=0-63 取前 64 bytes
     // 跑既有 detectMimeMismatch；偵測到 disguise（markup/executable/跨類）即刪物件 + 415。
     // 只抓 64 bytes，保留「整檔位元組不進 Node」的核心好處。
-    // AIDV-182：嗅探失敗改為 fail-closed（1 次退避重試後仍失敗→刪物件＋415）。
-    // 退路：UPLOAD_SNIFF_FAIL_CLOSED=0 可秒關回原始 fail-open 行為。
+    // AIDV-203 fix: fail-closed。Range GET 失敗最多重試 3 次（指數退避 200/400/800ms），
+    // 全失敗 → 400 拒絕 finalize，不再靜默放行惡意偽裝檔案。
     if (BINARY_MEDIA_KINDS.has(kind)) {
-      let headBytes: Buffer | null = null;
-      let sniffErr: unknown = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          headBytes = await fetchObjectHeadBytes(fileKey);
-          sniffErr = null;
-          break;
-        } catch (err) {
-          sniffErr = err;
-          if (attempt === 0) {
-            await new Promise(resolve => setTimeout(resolve, 400));
-          }
-        }
+      const headBytes = await fetchBytesWithRetry(fileKey, fetchObjectHeadBytes);
+      if (headBytes === null) {
+        console.warn("[Upload/finalize] content sniff exhausted retries (fail-closed):", fileKey);
+        res.status(400).json({ error: "Content inspection failed — please retry the upload." });
+        return;
       }
-      if (headBytes) {
-        const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
-        if (mismatch.reject) {
-          // 偵測到偽裝：刪除已直傳的物件（best-effort），回 415。
-          try {
-            await deleteUploadedObject(fileKey);
-          } catch (delErr) {
-            console.warn(
-              "[Upload/finalize] failed to delete disguised object:",
-              delErr instanceof Error ? delErr.message : String(delErr)
-            );
-          }
-          res.status(415).json({ error: mismatch.reason });
-          return;
-        }
-      } else if (process.env.UPLOAD_SNIFF_FAIL_CLOSED !== "0") {
-        // AIDV-182：嗅探重試失敗 → fail-closed（刪物件＋415），防偽裝檔繞過縱深防禦。
-        console.warn(
-          "[Upload/finalize] content sniff failed after retry, failing closed:",
-          sniffErr instanceof Error ? sniffErr.message : String(sniffErr)
-        );
+      const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
+      if (mismatch.reject) {
+        // 偵測到偽裝：刪除已直傳的物件（best-effort），回 415。
         try {
           await deleteUploadedObject(fileKey);
         } catch (delErr) {
           console.warn(
-            "[Upload/finalize] failed to delete after sniff failure:",
-            delErr instanceof Error ? delErr.message : String(delErr)
+            "[Upload/finalize] failed to delete disguised object:",
+            (delErr as any)?.message
           );
         }
-        res.status(415).json({
-          error: "Content inspection failed. Please retry your upload.",
-        });
+        res.status(415).json({ error: mismatch.reason });
         return;
-      } else {
-        // 明確 opt-out（UPLOAD_SNIFF_FAIL_CLOSED=0）：沿用 fail-open。
-        console.warn(
-          "[Upload/finalize] content sniff failed (allowed by UPLOAD_SNIFF_FAIL_CLOSED=0):",
-          sniffErr instanceof Error ? sniffErr.message : String(sniffErr)
-        );
       }
     }
 
@@ -911,6 +900,9 @@ export const __uploadRouteInternals = {
           : "inline-ok",
     };
   },
+  /** Exposed for unit tests: retry helper used by the finalize route's
+   *  fail-closed content-sniff path (AIDV-203). */
+  fetchBytesWithRetry,
 };
 
 export { uploadRouter };

@@ -246,7 +246,21 @@ export class OrbClarificationEngine {
         createdAt: new Date(),
       };
 
-      // TODO: Insert into database
+      // Persist to DB so recordAnswer() can look it up by integer PK.
+      const db = await getDb();
+      if (db) {
+        const insertData: InsertOrbClarificationHistory = {
+          intentLogId: Number(intentLog.id),
+          userId: intentLog.userId,
+          conversationId: intentLog.conversationId,
+          clarificationQuestion: question.clarificationQuestion,
+          questionType: question.questionType,
+          options: question.options ? (JSON.stringify(question.options) as any) : undefined,
+          spiritAsked: intentLog.spiritAssigned,
+        };
+        const [dbResult] = await db.insert(orbClarificationHistory).values(insertData);
+        question.id = String(dbResult.insertId);
+      }
 
       logger.info("orb_clarification_generated", {
         clarificationId: question.id,
@@ -383,11 +397,60 @@ export class OrbClarificationEngine {
     clarification: ClarificationQuestion
   ): Promise<void> {
     try {
-      // TODO: Implement pattern learning logic:
-      // 1. Find or create pattern record
-      // 2. Update frequency counts
-      // 3. Recalculate confidence score
-      // 4. Update default preference if confidence high enough
+      if (!clarification.userAnswer) return;
+      const db = await getDb();
+      if (!db) return;
+
+      const existing = await db
+        .select()
+        .from(orbUserAnswerPatterns)
+        .where(
+          and(
+            eq(orbUserAnswerPatterns.userId, clarification.userId),
+            eq(orbUserAnswerPatterns.questionType, clarification.questionType)
+          )
+        )
+        .orderBy(desc(orbUserAnswerPatterns.confidenceScore))
+        .limit(1);
+
+      const answer = clarification.userAnswer;
+      const now = new Date().toISOString();
+
+      if (existing[0]) {
+        const currentAnswers: Array<{ answer: string; frequency: number; lastUsed: string }> =
+          JSON.parse(existing[0].commonAnswers as any);
+        const idx = currentAnswers.findIndex(a => a.answer === answer);
+        if (idx >= 0) {
+          currentAnswers[idx].frequency++;
+          currentAnswers[idx].lastUsed = now;
+        } else {
+          currentAnswers.push({ answer, frequency: 1, lastUsed: now });
+        }
+        const newSampleCount = existing[0].sampleCount + 1;
+        const newConfidence = Math.min(0.99, newSampleCount / 10).toFixed(2);
+        const totalFreq = currentAnswers.reduce((s, a) => s + a.frequency, 0);
+        const sorted = [...currentAnswers].sort((a, b) => b.frequency - a.frequency);
+        const defaultPreference =
+          sorted[0] && sorted[0].frequency / totalFreq > 0.5 ? sorted[0].answer : null;
+        await db
+          .update(orbUserAnswerPatterns)
+          .set({
+            commonAnswers: JSON.stringify(currentAnswers) as any,
+            sampleCount: newSampleCount,
+            confidenceScore: newConfidence as any,
+            defaultPreference,
+          })
+          .where(eq(orbUserAnswerPatterns.id, existing[0].id));
+      } else {
+        await db.insert(orbUserAnswerPatterns).values({
+          userId: clarification.userId,
+          questionType: clarification.questionType,
+          commonAnswers: JSON.stringify([{ answer, frequency: 1, lastUsed: now }]) as any,
+          sampleCount: 1,
+          confidenceScore: "0.10" as any,
+          defaultPreference: null,
+        });
+      }
 
       logger.debug("orb_answer_pattern_updated", {
         userId: clarification.userId,
@@ -410,11 +473,31 @@ export class OrbClarificationEngine {
     limit = 20
   ): Promise<ClarificationQuestion[]> {
     try {
-      // TODO: Query database
-
-      const history: ClarificationQuestion[] = [];
-
-      return history;
+      const db = await getDb();
+      if (!db) throw new Error("Database is not configured");
+      const rows = await db
+        .select()
+        .from(orbClarificationHistory)
+        .where(eq(orbClarificationHistory.conversationId, conversationId))
+        .orderBy(desc(orbClarificationHistory.createdAt))
+        .limit(limit);
+      return rows.map(row => ({
+        id: String(row.id),
+        intentLogId: String(row.intentLogId),
+        userId: row.userId,
+        conversationId: row.conversationId,
+        clarificationQuestion: row.clarificationQuestion,
+        questionType: row.questionType,
+        options: row.options ? JSON.parse(row.options as any) : undefined,
+        userAnswer: row.userAnswer ?? undefined,
+        answeredAt: row.answeredAt ?? undefined,
+        resolvedIntent: row.resolvedIntent ?? undefined,
+        resolutionConfidence: row.resolutionConfidence
+          ? parseFloat(row.resolutionConfidence)
+          : undefined,
+        spiritAsked: row.spiritAsked ?? undefined,
+        createdAt: row.createdAt,
+      }));
     } catch (error) {
       logger.error("orb_get_clarification_history_failed", {
         conversationId,

@@ -25,6 +25,10 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { PanelEmpty, PanelError, PanelLoading } from "@/shells/_shared/PanelState";
+// U-5 續（AIDV-149）採用片 · /video S1 腳本意圖：旗標 ON 時生成結果改用 design-kit 亮色暖光 Card
+// （暖金邊框 + 漸層背景 + Pill 段數）；OFF（預設）＝沿用既有 shadcn 版＝零變化。
+import { ENABLE_VIDEO_GATE_KIT } from "@/config/videoFlags";
+import { AidvKit, Card as DkCard, Pill } from "@/components/design-kit";
 
 export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
   const { project } = useProjectSpine();
@@ -191,28 +195,53 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
 
       {/* 結果 */}
       {result && (
-        <div className="rounded-xl border bg-card/60 p-3">
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-sm font-semibold">{result.title}</span>
-            <Badge variant="secondary" className="text-[10px]">{result.segments} 段</Badge>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="ml-auto h-7 px-2 text-xs"
-              onClick={runSkeleton}
-              disabled={seedSkeleton.isPending || !result.segments}
-              title={worldFrameworkId ? undefined : "此專案尚未連結世界觀"}
-            >
-              {seedSkeleton.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <LayoutGrid className="size-3.5" />} 自動分鏡骨架（{result.segments} 格）
-            </Button>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={runSave} disabled={saveSession.isPending}>
-              <Save className="size-3.5" /> 存為腳本專案
-            </Button>
+        ENABLE_VIDEO_GATE_KIT ? (
+          <AidvKit>
+            <DkCard className="overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(160deg,var(--gold-tint),var(--surface-3))]" role="status" aria-label="腳本生成結果">
+              <div className="flex items-center gap-2 px-[14px] py-[10px] text-[12.5px] font-semibold text-[var(--gold-deep)] border-b border-[rgba(200,146,47,.22)]">
+                <FileText className="size-4" aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{result.title}</span>
+                <Pill kind="ok">{result.segments} 段</Pill>
+              </div>
+              <div className="p-[14px]">
+                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-[var(--text-soft)]">
+                  {result.rawContent}
+                </pre>
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--line-strong)] pt-3">
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={runSkeleton} disabled={seedSkeleton.isPending || !result.segments} title={worldFrameworkId ? undefined : "此專案尚未連結世界觀"}>
+                    {seedSkeleton.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <LayoutGrid className="size-3.5" />} 自動分鏡骨架（{result.segments} 格）
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={runSave} disabled={saveSession.isPending}>
+                    <Save className="size-3.5" /> 存為腳本專案
+                  </Button>
+                </div>
+              </div>
+            </DkCard>
+          </AidvKit>
+        ) : (
+          <div className="rounded-xl border bg-card/60 p-3">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-sm font-semibold">{result.title}</span>
+              <Badge variant="secondary" className="text-[10px]">{result.segments} 段</Badge>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto h-7 px-2 text-xs"
+                onClick={runSkeleton}
+                disabled={seedSkeleton.isPending || !result.segments}
+                title={worldFrameworkId ? undefined : "此專案尚未連結世界觀"}
+              >
+                {seedSkeleton.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <LayoutGrid className="size-3.5" />} 自動分鏡骨架（{result.segments} 格）
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={runSave} disabled={saveSession.isPending}>
+                <Save className="size-3.5" /> 存為腳本專案
+              </Button>
+            </div>
+            <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
+              {result.rawContent}
+            </pre>
           </div>
-          <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
-            {result.rawContent}
-          </pre>
-        </div>
+        )
       )}
 
       {/* 腳本專案資料庫 */}

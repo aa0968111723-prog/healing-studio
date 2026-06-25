@@ -7,6 +7,7 @@ import {
   orbConversations,
   orbConversationMessages,
 } from "../../drizzle/schema";
+import { orbConversationEnhancer } from "../services/orbConversationEnhancer";
 
 async function getDbOrThrow() {
   const db = await getDb();
@@ -463,25 +464,31 @@ export const orbConversationsRouter = router({
       }
 
       const lastAt = Math.max(...input.messages.map(m => m.at));
-      // AIDV-192: atomic increment avoids read-modify-write race under concurrent appends
-      const estimatedCount = (conv.messageCount ?? 0) + rows.length;
-      const updates: Record<string, unknown> = {
-        lastMessageAt: new Date(lastAt),
-        messageCount: sql`message_count + ${rows.length}`,
-      };
+      // Snapshot before the update — the update mutates the conv object in tests.
+      const prevCount = conv.messageCount ?? 0;
 
-      // Auto-title: if the row still uses the default placeholder, take the
-      // first user turn's first ~24 chars as the conversation name.
+      // Auto-title: derive from already-fetched conv; safe pre-check before update.
+      let autoTitle: string | undefined;
       if (conv.title === "新對話") {
         const firstUserMsg = input.messages.find(m => m.role === "user");
-        if (firstUserMsg && firstUserMsg.text.trim()) {
-          const cleaned = firstUserMsg.text.trim().replace(/\s+/g, " ");
-          updates.title = cleaned.slice(0, 24);
+        if (firstUserMsg?.text.trim()) {
+          autoTitle = firstUserMsg.text.trim().replace(/\s+/g, " ").slice(0, 24);
         }
+      }
+
+      // Atomic SQL increment prevents concurrent-write race on messageCount.
+      const setFields: Record<string, unknown> = {
+        lastMessageAt: new Date(lastAt),
+      };
+      if (rows.length > 0) {
+        setFields.messageCount = sql`${orbConversations.messageCount} + ${rows.length}`;
+      }
+      if (autoTitle !== undefined) {
+        setFields.title = autoTitle;
       }
       await db
         .update(orbConversations)
-        .set(updates)
+        .set(setFields)
         .where(
           and(
             eq(orbConversations.conversationId, input.conversationId),
@@ -489,7 +496,22 @@ export const orbConversationsRouter = router({
           )
         );
 
-      return { ok: true as const, messageCount: estimatedCount };
+      // Fire-and-forget: extract memories and learn from this turn.
+      // Never blocks the client response; errors stay silent.
+      const lastUserMsg = [...input.messages].reverse().find(m => m.role === "user");
+      if (lastUserMsg) {
+        const lastAsstMsg = [...input.messages].reverse().find(m => m.role === "orb");
+        orbConversationEnhancer.processConversationTurn({
+          userId: ctx.user.id,
+          conversationId: input.conversationId,
+          userInput: lastUserMsg.text,
+          orbResponse: lastAsstMsg?.text,
+        }).catch((e: unknown) => {
+          console.warn("[orbConversations] enhancer bg failed:", e instanceof Error ? e.message : e);
+        });
+      }
+
+      return { ok: true as const, messageCount: prevCount + rows.length };
     }),
 
   /** Wipe every message in one conversation but keep the row (and tab) alive. */

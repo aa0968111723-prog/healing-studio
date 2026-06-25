@@ -115,7 +115,7 @@ ${formatInstruction}
         },
         {
           role: "user",
-          content: `請分析以下腳本並拆分為分鏡段落：\n\n${truncatedContent}`,
+          content: `請分析以下腳本並拆分為分鏡段落：\n\n<user_script>\n${truncatedContent}\n</user_script>`,
         },
       ],
       response_format: {
@@ -340,7 +340,9 @@ export async function discussSegmentWithAI(
 
 你正在與使用者逐段討論一份長腳本的分鏡。你的角色是專業的導演 AI，幫助使用者優化每個分鏡段落。
 
+<user_storyboard_context>
 ${contextParts.join("\n")}
+</user_storyboard_context>
 
 回覆規則：
 1. 根據使用者的指示提供具體、可執行的建議

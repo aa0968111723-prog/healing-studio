@@ -8,6 +8,9 @@
 // ============================================================================
 import { useState } from "react";
 import { Music, Loader2, Coins, CircleCheck } from "lucide-react";
+// U-5 續（AIDV-149）採用片 · /video S6 配樂：旗標 ON 時送出成功態改用 design-kit 暖光 Card + Pill；OFF＝沿用原版。
+import { ENABLE_VIDEO_GATE_KIT } from "@/config/videoFlags";
+import { AidvKit, Card as DkCard, Pill } from "@/components/design-kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,13 +118,29 @@ export function MusicCanvas() {
       </div>
 
       {submitted && (
-        <div className="flex items-center gap-2 rounded-xl border bg-card/60 p-3 text-xs">
-          <CircleCheck className="size-4 text-emerald-500" />
-          <span className="flex-1">
-            已送出佇列 · <span className="font-mono text-[10px] text-muted-foreground">{submitted.requestId.slice(0, 18)}…</span>
-            <span className="ml-1 text-muted-foreground">已扣 {submitted.credits} pts · 完成後在資產庫</span>
-          </span>
-        </div>
+        ENABLE_VIDEO_GATE_KIT ? (
+          <AidvKit>
+            <DkCard className="border-[rgba(92,138,85,.26)] bg-[var(--ok-tint)]" role="status" aria-label="配樂送出成功">
+              <div className="flex items-center gap-2 px-[14px] py-[10px] text-[12px]">
+                <CircleCheck className="size-4 text-[var(--ok)] shrink-0" aria-hidden />
+                <span className="flex-1 min-w-0">
+                  <span className="font-medium text-[var(--ok)]">已送出佇列</span>
+                  <span className="ml-1 font-mono text-[10px] text-[var(--text-mute)]">{submitted.requestId.slice(0, 18)}…</span>
+                </span>
+                <Pill kind="ok">已扣 {submitted.credits} pts</Pill>
+              </div>
+              <p className="px-[14px] pb-[10px] font-mono text-[9.5px] text-[var(--muted-2)]">完成後輸出至資產庫 · 失敗全額退還</p>
+            </DkCard>
+          </AidvKit>
+        ) : (
+          <div className="flex items-center gap-2 rounded-xl border bg-card/60 p-3 text-xs">
+            <CircleCheck className="size-4 text-emerald-500" />
+            <span className="flex-1">
+              已送出佇列 · <span className="font-mono text-[10px] text-muted-foreground">{submitted.requestId.slice(0, 18)}…</span>
+              <span className="ml-1 text-muted-foreground">已扣 {submitted.credits} pts · 完成後在資產庫</span>
+            </span>
+          </div>
+        )
       )}
     </div>
   );

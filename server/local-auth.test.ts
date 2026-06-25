@@ -11,6 +11,7 @@ const mockFacade = {
 
 const mockHistory = {
   getFailedAttemptsByEmail: vi.fn().mockResolvedValue(0),
+  getFailedAttemptsByEmailAndIp: vi.fn().mockResolvedValue(0),
   recordLoginAttempt: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -21,6 +22,7 @@ afterEach(async () => {
   mockFacade.loginWithPassword.mockReset();
   mockFacade.findUserByEmail.mockReset();
   mockHistory.getFailedAttemptsByEmail.mockReset().mockResolvedValue(0);
+  mockHistory.getFailedAttemptsByEmailAndIp.mockReset().mockResolvedValue(0);
   mockHistory.recordLoginAttempt.mockReset().mockResolvedValue(undefined);
   if (closeServer) {
     await closeServer();
@@ -126,8 +128,8 @@ describe("localAuth routes", () => {
   });
 
   it("returns 429 when account has too many recent failed attempts", async () => {
-    // Simulate 5 recent failures for this email
-    mockHistory.getFailedAttemptsByEmail.mockResolvedValueOnce(5);
+    // Simulate 5 recent failures for this email+IP (AIDV-264: lockout is now per-email+IP)
+    mockHistory.getFailedAttemptsByEmailAndIp.mockResolvedValueOnce(5);
 
     const base = await startTestServer();
     const res = await fetch(`${base}/api/auth/login`, {
@@ -185,7 +187,7 @@ describe("localAuth routes", () => {
   });
 
   it("returns ACCOUNT_LOCKED with retryAfterMinutes when locked out", async () => {
-    mockHistory.getFailedAttemptsByEmail.mockResolvedValueOnce(5);
+    mockHistory.getFailedAttemptsByEmailAndIp.mockResolvedValueOnce(5);
 
     const base = await startTestServer();
     const res = await fetch(`${base}/api/auth/login`, {
@@ -259,9 +261,32 @@ describe("localAuth routes", () => {
     expect(payload.linkedExisting).toBe(true);
   });
 
+  it("attacker IP lockout does not affect victim login from different IP (AIDV-264)", async () => {
+    // The lockout is scoped to (email+IP), so the victim's IP has 0 failures
+    // even if the attacker's IP has 5. The route falls back to per-email check only
+    // when ip is falsy; here the mock returns 0 for the victim's IP combo.
+    mockHistory.getFailedAttemptsByEmailAndIp.mockResolvedValueOnce(0);
+    mockFacade.loginWithPassword.mockResolvedValueOnce({
+      token: "jwt-token",
+      userId: 7,
+      user: { openId: "local:victim@example.com", email: "victim@example.com", name: "Victim" },
+    });
+
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "victim@example.com", password: "AnyPass1!" }),
+    });
+
+    // Victim's own IP is clean → login succeeds
+    expect(res.status).toBe(200);
+    expect(mockFacade.loginWithPassword).toHaveBeenCalledOnce();
+  });
+
   it("proceeds normally when history DB is unavailable during login", async () => {
-    // Simulate DB failure in the brute-force check
-    mockHistory.getFailedAttemptsByEmail.mockRejectedValueOnce(new Error("DB down"));
+    // Simulate DB failure in the brute-force check (AIDV-264: IP-scoped method is called first)
+    mockHistory.getFailedAttemptsByEmailAndIp.mockRejectedValueOnce(new Error("DB down"));
     mockFacade.loginWithPassword.mockResolvedValueOnce({
       token: "jwt-token",
       userId: 99,

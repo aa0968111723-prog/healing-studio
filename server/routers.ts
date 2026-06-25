@@ -76,6 +76,7 @@ import { promptCollectionRouter } from "./routers/promptCollection";
 import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { auditLogRouter } from "./routers/auditLog";
+import { workflowRouter } from "./routers/workflow";
 import {
   recordAuditEvent,
   extractRequestSource,
@@ -92,6 +93,7 @@ import { adminRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
+import { orchestrationRunsRouter } from "./routers/orchestrationRunsRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -1175,6 +1177,7 @@ export const appRouter = router({
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
   auditLog: auditLogRouter,
+  workflow: workflowRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
   agentModelPicks: agentModelPicksRouter,
@@ -1184,6 +1187,7 @@ export const appRouter = router({
   agentCollaboration: agentCollaborationRouter,
   agentCapability: agentCapabilityRouter,
   modelWishes: modelWishesRouter,
+  orchestrationRuns: orchestrationRunsRouter,
   adminEval: adminRouter,
 
   // ─── Orb Agent Observability ─────────────────────────────────────────────
@@ -4236,6 +4240,14 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "找不到此資產" });
         }
         return db.getLinkedPromptsForAsset(ctx.user.id, input.assetId);
+      }),
+
+    // ── 最近 N 個資產的 prompt 血統（W3-F AIDV-51，一次 join）─────────────────
+    // 旗標：無（讀取不掛旗標；表空時回空陣列，前端相容）
+    recentLineage: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(10) }).optional())
+      .query(async ({ ctx, input }) => {
+        return db.getRecentAssetLineage(ctx.user.id, input?.limit ?? 5);
       }),
 
     teamAssets: protectedProcedure
@@ -9760,6 +9772,17 @@ export const appRouter = router({
         await db.updateUserOnboarding(ctx.user.id, input.done);
         return { success: true };
       }),
+
+    deleteAccount: protectedProcedure
+      .input(z.object({ confirmation: z.literal("DELETE MY ACCOUNT") }))
+      .mutation(async ({ ctx }) => {
+        await db.deleteUserAccount(ctx.user.id);
+        return { success: true };
+      }),
+
+    exportData: protectedProcedure.query(async ({ ctx }) => {
+      return db.exportUserData(ctx.user.id);
+    }),
   }),
 
   // ─── System Settings ──────────────────────────────────────────────────────

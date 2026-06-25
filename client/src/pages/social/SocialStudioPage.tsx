@@ -32,6 +32,8 @@ import { TemplatePicker } from "@/components/social/TemplatePicker";
 import { GenerationConsole } from "@/components/social/GenerationConsole";
 import { PosterPreview } from "@/components/social/PosterPreview";
 import { SizeExportGrid } from "@/components/social/SizeExportGrid";
+import { PromptVaultAdoption } from "@/components/promptVault";
+import { ENABLE_PROMPT_VAULT } from "@/config/promptVaultFlags";
 
 export default function SocialStudioPage() {
   const spine = useSpine();
@@ -167,6 +169,13 @@ export default function SocialStudioPage() {
               />
             </CardContent>
           </Card>
+          {ENABLE_PROMPT_VAULT && (
+            <PromptVaultAdoption
+              sourceWorkflow="social"
+              payload={post.brief ? { title: "社群 Brief", content: post.brief, category: "social" } : null}
+              onApply={(entry) => postState.setBrief(entry.prompt)}
+            />
+          )}
         </div>
 
         {/* 右欄：預覽 + 核准 + STEP 4 匯出 */}

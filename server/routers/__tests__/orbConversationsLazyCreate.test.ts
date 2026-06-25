@@ -98,7 +98,19 @@ vi.mock("drizzle-orm", () => ({
   asc: (c: Col) => ({ __order: "asc", col: c }),
   desc: (c: Col) => ({ __order: "desc", col: c }),
   lt: (): Pred => ({ kind: "true" }),
-  sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ __sql: strings.join(""), __sqlVal: vals[0] }),
+  // Supports tagged-template sql expressions used in .set() — evaluates at update time.
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    __isSql: true,
+    evaluate(row: Record<string, unknown>) {
+      // Pattern: sql`${col} + ${n}` — atomic numeric increment
+      if (values.length === 2 && strings[1]?.trim() === "+") {
+        const col = values[0] as Col;
+        const n = Number(values[1]);
+        return (Number(row[col.__field]) || 0) + n;
+      }
+      return strings.join("");
+    },
+  }),
 }));
 
 vi.mock("../../../drizzle/schema", () => {
@@ -231,18 +243,19 @@ function makeDb() {
           return {
             async where(pred: Pred) {
               let affected = 0;
-              for (const row of store.convs) {
-                if (rowMatches(row as unknown as Record<string, unknown>, pred)) {
+              for (const c of store.convs) {
+                if (rowMatches(c as unknown as Record<string, unknown>, pred)) {
+                  const resolved: Record<string, unknown> = {};
                   for (const [k, v] of Object.entries(updates)) {
-                    if (v && typeof v === "object" && "__sqlVal" in v) {
-                      // sql`` expression — evaluate as current + increment
-                      (row as Record<string, unknown>)[k] =
-                        ((row as Record<string, unknown>)[k] as number ?? 0) +
-                        Number((v as { __sqlVal: unknown }).__sqlVal);
+                    if (v && typeof v === "object" && "__isSql" in (v as Record<string, unknown>)) {
+                      resolved[k] = (v as { evaluate(r: Record<string, unknown>): unknown }).evaluate(
+                        c as unknown as Record<string, unknown>
+                      );
                     } else {
-                      (row as Record<string, unknown>)[k] = v;
+                      resolved[k] = v;
                     }
                   }
+                  Object.assign(c, resolved);
                   affected++;
                 }
               }

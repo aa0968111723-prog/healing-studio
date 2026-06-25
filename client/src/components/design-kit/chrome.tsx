@@ -13,6 +13,7 @@ export type DkShellId = "video" | "social" | "learn" | "settings";
 export interface DkShellDef { id: DkShellId; emoji: string; name: string; enabled?: boolean }
 export type DkProviderStatus = "ok" | "down" | "idle";
 export type DkToastKind = "ok" | "warn" | "bad" | "info";
+export interface DkProviderEntry { id: string; label: string; cost: number; status?: DkProviderStatus }
 
 /* ================= ProviderChip ================= */
 const PROVIDER_PILL: Record<DkProviderStatus, "ok" | "bad" | "mute"> = { ok: "ok", down: "bad", idle: "mute" };
@@ -26,6 +27,82 @@ export function ProviderChip({
       {inner}
     </button>
   ) : inner;
+}
+
+/* ================= ProviderSwitcher（pill ＋ 下拉切換）================= */
+export function ProviderSwitcher({
+  activeId, entries, open, onToggle, onSwitch, onSettings,
+}: {
+  activeId: string;
+  entries: DkProviderEntry[];
+  open: boolean;
+  onToggle: () => void;
+  onSwitch?: (id: string) => void;
+  onSettings?: () => void;
+}) {
+  const active = entries.find((e) => e.id === activeId);
+  const st: DkProviderStatus = active?.status ?? "ok";
+  const pillKind = PROVIDER_PILL[st];
+  return (
+    <div className="relative hidden sm:block">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={onToggle}
+        title={`生成引擎：${active?.label ?? activeId}（${st}）`}
+        className="rounded-full focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--clay-ring)]"
+      >
+        <Pill kind={pillKind} dot>
+          {active?.label ?? activeId}{st === "down" && " · 異常"}
+          <span className="ml-0.5 text-[var(--muted-2)]">▾</span>
+        </Pill>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="生成 Provider"
+          className="absolute right-0 top-[calc(100%+6px)] z-40 w-[220px] rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-lift)]"
+        >
+          <div className="mb-1 px-1 font-mono text-[10px] uppercase tracking-[.18em] text-[var(--muted-2)]">生成 Provider</div>
+          <ul>
+            {entries.map((e) => {
+              const isActive = e.id === activeId;
+              const eKind = PROVIDER_PILL[e.status ?? "ok"];
+              return (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    onClick={() => { onSwitch?.(e.id); onToggle(); }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[12px]",
+                      isActive ? "bg-[var(--clay-tint)] text-[var(--clay)]" : "text-[var(--text-soft)] hover:bg-[var(--surface-2)]",
+                    )}
+                  >
+                    <i className={cn("inline-block h-[6px] w-[6px] shrink-0 rounded-full", eKind === "ok" ? "bg-[var(--ok)]" : eKind === "bad" ? "bg-[var(--bad)]" : "bg-[var(--muted-2)]")} />
+                    <span className="min-w-0 flex-1 truncate">{e.label}</span>
+                    <span className="text-[10px] text-[var(--muted-2)]">${e.cost === 0 ? "0" : e.cost.toFixed(3)}</span>
+                    {isActive && <span className="text-[var(--clay)] text-[10px]">✓</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {onSettings && (
+            <button
+              type="button"
+              onClick={() => { onSettings(); onToggle(); }}
+              className="mt-1 flex w-full items-center justify-center gap-1 rounded-[10px] border border-dashed border-[var(--line-strong)] px-2 py-1.5 text-[12px] text-[var(--muted)] hover:bg-[var(--surface-2)]"
+            >
+              ⚙ 詳細設定
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ================= Toast ================= */
@@ -175,10 +252,13 @@ export function AccountMenu({
 
 /* ================= TopBar（上 58px）================= */
 export function TopBar({
-  shell, projectName, onProjectClick, projectSlot, provider, providerStatus, credits, onCmdK, accountSlot,
+  shell, projectName, onProjectClick, projectSlot, provider, providerStatus, providerSlot, credits, onCmdK, accountSlot,
 }: {
   shell: DkShellDef; projectName?: string; onProjectClick?: () => void; projectSlot?: React.ReactNode;
-  provider?: string; providerStatus?: DkProviderStatus; credits?: number; onCmdK?: () => void;
+  provider?: string; providerStatus?: DkProviderStatus;
+  /** 覆蓋預設 ProviderChip（傳入已配置好的 ProviderSwitcher 等）；有此 slot 時忽略 provider/providerStatus。 */
+  providerSlot?: React.ReactNode;
+  credits?: number; onCmdK?: () => void;
   /** 右側帳號/登出入口（通常傳 <AccountMenu />）。可見出口，避免登出只藏在 ⌘K。 */
   accountSlot?: React.ReactNode;
 }) {
@@ -195,7 +275,7 @@ export function TopBar({
         </button>
       ))}
       <div className="ml-auto flex items-center gap-2">
-        {provider && <ProviderChip provider={provider} status={providerStatus} />}
+        {providerSlot ?? (provider && <ProviderChip provider={provider} status={providerStatus} />)}
         {typeof credits === "number" && <Pill kind={credits < 120 ? "bad" : "default"}>{credits} 點</Pill>}
         <button type="button" aria-label="命令面板" onClick={onCmdK} className="flex items-center gap-1 rounded-[10px] border border-[var(--line)] px-2 py-1 text-[var(--muted)] hover:bg-[var(--surface-2)]">
           <Kbd>⌘K</Kbd>

@@ -52,6 +52,9 @@ import {
 
 const CreditsInfoPage = lazy(() => import("./CreditsInfoPage"));
 const LangSmithPage = lazy(() => import("./LangSmithPage"));
+// U-10 Phase 2（AIDV-147）：landing 門面掛載進首頁。旗標 ON 時顯示亮色暖光 KV＋icon set＋calm orb；
+// LandingHero 自身讀 LANDING_KV_ENABLED/LANDING_CALM_ORB_ENABLED，旗標 OFF＝return null，零回歸。
+import { LandingHero } from "@/components/home/LandingHero";
 
 // ─── Section Tabs ────────────────────────────────────────────────────────────
 type SectionId = "dashboard" | "credits" | "langsmith";
@@ -403,6 +406,11 @@ export default function DashboardPage() {
 
       {/* ─── 使用統計（主內容） ────────────────────────────────────────────── */}
       {section === "dashboard" && (<>
+      {/* landing 門面（AIDV-147）：LandingHero 自身守 LANDING_KV_ENABLED，OFF=null，零回歸 */}
+      <LandingHero
+        onPrimary={() => setLocation("/create")}
+        onSecondary={() => setLocation("/studio")}
+      />
       <PageHeader title="儀表板" subtitle="以任務目標檢視創作進度、用量與下一步。" />
 
       <header className="page-header">

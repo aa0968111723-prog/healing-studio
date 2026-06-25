@@ -15,12 +15,13 @@
 //   先以本地狀態頂住；切換專案不重置（per session）。見 console/workflowSteps.ts。
 // ============================================================================
 import {
-  createContext, useCallback, useContext, useMemo, useState, type ReactNode,
+  createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
 } from "react";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { countGate } from "@/spine/gate";
 import { freshDefaultWorkflow, type WorkflowStep } from "./console/workflowSteps";
 import type { Shot } from "@/spine/types";
+import { trpc } from "@/lib/trpc";
 
 /** 中欄「創作畫布」模式（對映子系統）。 */
 export type CanvasMode =
@@ -42,6 +43,7 @@ export type DrawerId =
   | "agents" // I-1 光球精靈能力＋成本目錄（spirit.listModels / estimateSegmentCost 唯讀；AIDV-79）
   | "grounding" // I-4 教材庫接地（teachingArchive.search 唯讀；AIDV-82）
   | "lora" // I-7 角色 LoRA 一致性（worldbuilding.linkableModels 唯讀；AIDV-85）
+  | "agent_ops" // W3-D 代理操作面板（orchestration_runs 唯讀視覺化；AIDV-49）
   | "settings"; // 2-18 影片系統設定
 
 /** 光球 Ambient Copilot 四態（移除人格預設）。 */
@@ -118,6 +120,24 @@ export function DirectorConsoleProvider({ children }: { children: ReactNode }) {
   const [autoSaveDraft, setAutoSaveDraft] = useState(false);
   const [enginePrefs, setEnginePrefs] = useState<Partial<Record<EngineModality, string>>>({});
   const [steps, setSteps] = useState<WorkflowStep[]>(() => freshDefaultWorkflow());
+
+  // 從 DB 水合工作流步驟（AIDV-43）。DB 無記錄或離線時 fallback 到 freshDefaultWorkflow。
+  const { data: savedWorkflow } = trpc.workflow.getDefault.useQuery(undefined, {
+    staleTime: Infinity,
+    retry: false,
+  });
+  useEffect(() => {
+    if (savedWorkflow?.stepsJson) {
+      setSteps(savedWorkflow.stepsJson as WorkflowStep[]);
+    }
+  }, [savedWorkflow]);
+
+  const saveMutation = trpc.workflow.save.useMutation();
+
+  const setStepsAndSave = useCallback((s: WorkflowStep[]) => {
+    setSteps(s);
+    saveMutation.mutate({ steps: s });
+  }, [saveMutation]);
 
   // per-引擎偏好備忘：傳 null 清除回「用系統預設」。
   const setEnginePref = useCallback((modality: EngineModality, modelId: string | null) => {
@@ -210,7 +230,7 @@ export function DirectorConsoleProvider({ children }: { children: ReactNode }) {
     showSidecar, setShowSidecar,
     autoSaveDraft, setAutoSaveDraft,
     enginePrefs, setEnginePref,
-    steps, setSteps,
+    steps, setSteps: setStepsAndSave,
     deepLinkToShot,
     orb, orbOpen, setOrbOpen, dismissBubble,
   };

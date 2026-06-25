@@ -8,6 +8,18 @@ import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
 import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
+import {
+  hashSessionToken,
+  isRefreshTokenRotationEnabled,
+  createSessionToken,
+  verifySessionToken,
+} from "../_core/googleAuth";
+import {
+  insertRefreshToken,
+  revokeRefreshToken,
+  isRefreshTokenActive,
+  getUserByOpenId,
+} from "../db";
 
 // ── Auth-specific rate limiters ────────────────────────────────────────────
 // Stricter than the global /api/ limiter (300/15min). Built per-router so that
@@ -116,6 +128,7 @@ function getAccessTokenLifetimeMs(): number {
 /** Minimal contract for login history operations used by this router */
 interface LoginHistoryGateway {
   getFailedAttemptsByEmail(email: string, withinMinutes: number): Promise<number>;
+  getFailedAttemptsByEmailAndIp(email: string, ipAddress: string, withinMinutes: number): Promise<number>;
   recordLoginAttempt(attempt: { userId: number; email?: string; success: boolean; ipAddress?: string; userAgent?: string; failureReason?: string }): Promise<void>;
 }
 
@@ -170,10 +183,21 @@ export function createLocalAuthRouter(
       });
 
       const cookieOptions = getSessionCookieOptions(req);
+      const sessionLifetimeMs = getAccessTokenLifetimeMs();
       res.cookie(COOKIE_NAME, result.token, {
         ...cookieOptions,
-        maxAge: getAccessTokenLifetimeMs(),
+        maxAge: sessionLifetimeMs,
       });
+
+      // AIDV-230: record token in DB when rotation is enabled
+      if (isRefreshTokenRotationEnabled() && result.userId) {
+        const expiresAt = new Date(Date.now() + sessionLifetimeMs);
+        insertRefreshToken({
+          tokenHash: hashSessionToken(result.token),
+          userId: result.userId,
+          expiresAt,
+        }).catch(err => logger.error("[LocalAuth] Failed to record refresh token on register", { err }));
+      }
 
       res.status(201).json({
         success: true,
@@ -222,15 +246,16 @@ export function createLocalAuthRouter(
     const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress;
     const userAgent = req.headers["user-agent"];
 
-    // ── Per-email brute-force check ──────────────────────────────────────
-    // Query the login_history table for recent failures. If the DB is down
-    // this call will throw; we catch and allow the request through so a DB
-    // hiccup never locks out legitimate users.
+    // ── Per-email-AND-IP brute-force check (AIDV-264) ────────────────────
+    // Key by (email, IP) so a remote attacker cannot lock out the victim's
+    // account: only the attacker's IP is throttled; the victim's own IP
+    // (where failure count is 0) can still authenticate.
+    // DB errors → fail-open (never lock out on infrastructure failure).
     try {
-      const recentFailures = await history.getFailedAttemptsByEmail(
-        email,
-        LOCKOUT_WINDOW_MINUTES
-      );
+      const ip = ipAddress ?? "";
+      const recentFailures = ip
+        ? await history.getFailedAttemptsByEmailAndIp(email, ip, LOCKOUT_WINDOW_MINUTES)
+        : await history.getFailedAttemptsByEmail(email, LOCKOUT_WINDOW_MINUTES);
       if (recentFailures >= MAX_FAILED_ATTEMPTS) {
         res.status(429).json({
           error: "Too many failed login attempts. Please try again later or reset your password.",
@@ -270,10 +295,21 @@ export function createLocalAuthRouter(
       }).catch(err => logger.error("[LocalAuth] Failed to record login history", { err }));
 
       const cookieOptions = getSessionCookieOptions(req);
+      const loginLifetimeMs = getAccessTokenLifetimeMs();
       res.cookie(COOKIE_NAME, result.token, {
         ...cookieOptions,
-        maxAge: getAccessTokenLifetimeMs(),
+        maxAge: loginLifetimeMs,
       });
+
+      // AIDV-230: record token in DB when rotation is enabled
+      if (isRefreshTokenRotationEnabled() && result.userId) {
+        const expiresAt = new Date(Date.now() + loginLifetimeMs);
+        insertRefreshToken({
+          tokenHash: hashSessionToken(result.token),
+          userId: result.userId,
+          expiresAt,
+        }).catch(err => logger.error("[LocalAuth] Failed to record refresh token on login", { err }));
+      }
 
       res.json({
         success: true,
@@ -425,6 +461,72 @@ export function createLocalAuthRouter(
       logger.error("[LocalAuth] 2fa disable failed", { err });
       res.status(500).json({ error: "Failed to disable 2FA" });
     }
+  });
+
+  // ── AIDV-230: Token rotation — POST /api/auth/refresh ─────────────────────
+  // Verifies the current session token exists in refresh_tokens (active) →
+  // revokes it → issues a new token → stores the new token.
+  // Only functional when ENABLE_REFRESH_TOKEN_ROTATION=true; returns 403 otherwise.
+  router.post("/api/auth/refresh", async (req: Request, res: Response) => {
+    if (!isRefreshTokenRotationEnabled()) {
+      res.status(403).json({ error: "Token rotation is not enabled" });
+      return;
+    }
+
+    const cookies = Object.fromEntries(
+      (req.headers.cookie || "").split(";").map(c => {
+        const idx = c.indexOf("=");
+        return idx < 0 ? [c.trim(), ""] : [c.slice(0, idx).trim(), c.slice(idx + 1).trim()];
+      })
+    );
+    const oldToken = cookies[COOKIE_NAME] || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7).trim() : "");
+
+    if (!oldToken) {
+      res.status(401).json({ error: "No session token provided" });
+      return;
+    }
+
+    // Cryptographic verification first
+    const payload = await verifySessionToken(oldToken);
+    if (!payload?.sub) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+
+    // Server-side revocation check
+    const oldHash = hashSessionToken(oldToken);
+    const active = await isRefreshTokenActive(oldHash);
+    if (!active) {
+      res.status(401).json({ error: "Token has been revoked" });
+      return;
+    }
+
+    // Issue new token
+    const newLifetimeMs = getAccessTokenLifetimeMs();
+    const newToken = await createSessionToken(payload.sub, {
+      name: payload.name,
+      email: payload.email,
+      expiresInMs: newLifetimeMs,
+    });
+
+    // Fetch userId for DB record
+    const user = await getUserByOpenId(payload.sub);
+    if (!user) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    // Rotate: revoke old, store new (both fire-and-forget to avoid blocking)
+    const newHash = hashSessionToken(newToken);
+    const newExpiresAt = new Date(Date.now() + newLifetimeMs);
+    await Promise.all([
+      revokeRefreshToken(oldHash),
+      insertRefreshToken({ tokenHash: newHash, userId: user.id, expiresAt: newExpiresAt }),
+    ]);
+
+    const cookieOptions = getSessionCookieOptions(req);
+    res.cookie(COOKIE_NAME, newToken, { ...cookieOptions, maxAge: newLifetimeMs });
+    res.json({ success: true, token: newToken });
   });
 
   return router;

@@ -55,6 +55,12 @@ const PENDING_BLOCK = [
   "0082_learn_modules",
   // AIDV-63：H9 個資出口 — 帳號軟刪除、資料匯出、日誌保留
   "0083_users_soft_delete",
+  // AIDV-230 補登記：refresh_tokens 表（JWT 旋轉），登記後 when 在 0083 之後。
+  "0080_refresh_tokens",
+  // AIDV-43 補登記：user_workflows 表（工作流持久化），登記後 when 在 0080 之後。
+  "0081_user_workflows",
+  // AIDV-68 補登記：data_source_connections 到期欄位，登記後 when 在 0081 之後。
+  "0082_data_source_expiry",
 ];
 
 function readSql(tag: string): string {

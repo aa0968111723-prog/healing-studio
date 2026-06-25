@@ -19,7 +19,7 @@ describe("secretCrypto", () => {
     const plain = "secret_notion_token_abc123";
     const enc = encryptSecret(plain);
     expect(enc).not.toContain(plain);
-    expect(enc.startsWith("v1:")).toBe(true);
+    expect(enc.startsWith("v2:k1:")).toBe(true);
     expect(decryptSecret(enc)).toBe(plain);
   });
 

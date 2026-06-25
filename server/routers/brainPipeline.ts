@@ -583,6 +583,13 @@ const ROUTER_TO_PROVIDERS: Array<{
       "server/services/agentCommunicationBus.ts",
     ],
   },
+  {
+    id: "router:orchestrationRuns",
+    label: "orchestrationRuns（代理操作面板）",
+    description: "orchestration_runs 唯讀視覺化（W3-D AIDV-49）",
+    providers: [],
+    files: ["server/routers/orchestrationRunsRouter.ts"],
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1336,6 +1343,23 @@ const CRON_JOBS: CronJobMeta[] = [
     description:
       "刪除 login_history 與 global_audit_log 90 天以前的紀錄（AIDV-63 H9 個資出口保留政策；ENABLE_AUDIT_LOG_PURGE=true 才生效）",
     files: ["server/jobs/auditLogPurgeJob.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "cron:login-history-purge",
+    label: "登入記錄清理（每日 03:00 UTC）",
+    schedule: "0 3 * * *",
+    description: "刪除 login_history 中 90 天以上的舊記錄（AIDV-63 GDPR 資料最小化）",
+    files: ["server/jobs/loginHistoryPurgeJob.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "cron:credential-expiry-alert",
+    label: "外部服務憑證到期預警（每日 09:00 UTC）",
+    schedule: "0 9 * * *",
+    description:
+      "掃描 data_source_connections.expiresAt，對 30 天內即將到期的連接發出 console.warn 警告（AIDV-68 M5 key versioning）",
+    files: ["server/jobs/credentialExpiryAlertJob.ts"],
     downstream: ["db:main"],
   },
 ];

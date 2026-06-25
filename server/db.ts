@@ -92,9 +92,16 @@ import {
   resourceShares,
   type ResourceShare,
   type InsertResourceShare,
+  refreshTokens,
+  type RefreshToken,
+  userWorkflows,
+  type UserWorkflow,
+  type InsertUserWorkflow,
+  loginHistory,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
+import { getDatabaseManager } from "./_core/DatabaseManager";
 import type { UserRole } from "@shared/const";
 
 /**
@@ -1239,6 +1246,36 @@ export async function getLinkedPromptsForAsset(userId: number, assetId: number) 
       )
     )
     .orderBy(desc(promptAssets.createdAt));
+}
+
+/** W3-F 血統檢視：最近 N 個有 prompt 連結的資產（一次 join，不做 N+1）。 */
+export async function getRecentAssetLineage(userId: number, limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      assetId: digitalAssetLibrary.id,
+      assetTitle: digitalAssetLibrary.title,
+      assetType: digitalAssetLibrary.assetType,
+      sourceStudio: digitalAssetLibrary.sourceStudio,
+      modelId: digitalAssetLibrary.modelId,
+      assetCreatedAt: digitalAssetLibrary.createdAt,
+      relation: promptAssets.relation,
+      promptId: promptLibrary.id,
+      promptTitle: promptLibrary.title,
+      promptContent: promptLibrary.content,
+    })
+    .from(digitalAssetLibrary)
+    .innerJoin(promptAssets, eq(promptAssets.assetId, digitalAssetLibrary.id))
+    .innerJoin(promptLibrary, eq(promptAssets.promptId, promptLibrary.id))
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        eq(promptLibrary.userId, userId),
+      )
+    )
+    .orderBy(desc(digitalAssetLibrary.createdAt))
+    .limit(limit);
 }
 
 export async function getTeamSharedAssets() {
@@ -4403,4 +4440,252 @@ export async function findTeachingMaterialsByRealEarthRef(
     .orderBy(desc(teachingMaterials.createdAt));
 
   return rows;
+}
+
+// ─── Refresh Tokens (AIDV-230) ─────────────────────────────────────────────
+
+export async function insertRefreshToken(data: {
+  tokenHash: string;
+  userId: number;
+  expiresAt: Date;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(refreshTokens).values({
+    tokenHash: data.tokenHash,
+    userId: data.userId,
+    status: "active",
+    expiresAt: data.expiresAt,
+  });
+}
+
+export async function revokeRefreshToken(tokenHash: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(refreshTokens)
+    .set({ status: "revoked" })
+    .where(eq(refreshTokens.tokenHash, tokenHash));
+}
+
+export async function revokeAllUserRefreshTokens(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(refreshTokens)
+    .set({ status: "revoked" })
+    .where(
+      and(
+        eq(refreshTokens.userId, userId),
+        eq(refreshTokens.status, "active")
+      )
+    );
+}
+
+/** Returns true if the token exists and is active (not revoked, not expired). */
+export async function isRefreshTokenActive(tokenHash: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return true; // fail-open when DB unavailable so we don't lock everyone out
+  const rows = await db
+    .select({ status: refreshTokens.status, expiresAt: refreshTokens.expiresAt })
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, tokenHash))
+    .limit(1);
+  if (rows.length === 0) return false;
+  const row = rows[0];
+  if (row.status !== "active") return false;
+  if (row.expiresAt < new Date()) return false;
+  return true;
+}
+
+export type { RefreshToken };
+
+// ─── User Workflows (AIDV-43) ──────────────────────────────────────────────
+
+export async function getUserWorkflow(userId: number): Promise<UserWorkflow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(userWorkflows)
+    .where(eq(userWorkflows.userId, userId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertUserWorkflow(
+  userId: number,
+  stepsJson: InsertUserWorkflow["stepsJson"]
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(userWorkflows)
+    .values({ userId, stepsJson })
+    .onDuplicateKeyUpdate({ set: { stepsJson, updatedAt: new Date() } });
+}
+
+export type { UserWorkflow };
+
+// ─── Account Deletion (AIDV-63) ────────────────────────────────────────────
+
+// Tables that carry personal data and must be wiped before (or alongside)
+// the users row. Order does not matter because we disable FK checks for the
+// duration of the transaction; the list covers every table with a userId FK.
+const USER_OWNED_TABLES = [
+  "login_history",
+  "agent_preferences",
+  "orb_scheduled_jobs",
+  "password_reset_tokens",
+  "email_verification_tokens",
+  "background_jobs",
+  "digital_asset_library",
+  "fine_tuned_models",
+  "project_notes_calendar",
+  "user_google_oauth_tokens",
+  "drive_asset_libraries",
+  "user_feedback_reports",
+  "api_usage_logs",
+  "ai_director_preferences",
+  "specialized_agent_memory",
+  "specialized_agent_interactions",
+  "agent_model_picks",
+  "generation_history",
+  "custom_blocks",
+  "block_combos",
+  "system_settings",
+  "user_ai_brain",
+  "user_model_switch_logs",
+  "custom_blocks_combo",
+  "prompt_library",
+  "prompt_assets",
+  "prompt_collection",
+  "external_service_subscriptions",
+  "user_subscriptions",
+  "orb_feedback_events",
+  "ai_usage_events",
+  "cost_aggregations",
+  "cost_ledger",
+  "cost_attribution_outbox",
+  "alert_configs",
+  "model_training_consents",
+  "fine_tuned_model_consents",
+  "agent_collaboration_sessions",
+  "orb_conversations",
+  "orb_long_term_memories",
+  "orb_intent_logs",
+  "orb_clarification_history",
+  "orb_user_answer_patterns",
+  "orb_feature_usage_stats",
+  "orb_feature_discovery_paths",
+  "orb_feature_recommendations",
+  "orb_workflow_executions",
+  "orb_spirit_collaboration_metrics",
+  "orb_cost_attribution",
+  "orb_system_alerts",
+  "worldbuilding_frameworks",
+  "world_storyboards",
+  "creative_projects",
+  "orchestration_runs",
+  "context_packets",
+  "data_source_connections",
+  "team_memberships",
+  "real_earth_entries",
+  "refresh_tokens",
+  "user_workflows",
+  "studio_recipes",
+] as const;
+
+/**
+ * Hard-delete a user and all their personal data (GDPR right to erasure).
+ *
+ * Disables FK checks for the duration of the transaction so children can be
+ * deleted in any order and so the users row itself can be removed without
+ * having to enumerate every possible child relationship first.
+ */
+export async function deleteUserAccount(userId: number): Promise<void> {
+  const manager = getDatabaseManager();
+  await manager.executeTransaction(async (conn) => {
+    // Disable FK checks for this connection only
+    await conn.execute("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      // Delete personal data from every owned table
+      for (const table of USER_OWNED_TABLES) {
+        await conn.execute(`DELETE FROM \`${table}\` WHERE userId = ?`, [userId]);
+      }
+      // Delete the user row itself
+      await conn.execute("DELETE FROM users WHERE id = ?", [userId]);
+    } finally {
+      await conn.execute("SET FOREIGN_KEY_CHECKS = 1");
+    }
+  });
+}
+
+// ─── Data Export (AIDV-63) ─────────────────────────────────────────────────
+
+/**
+ * Collect the user's personal data for a GDPR data-export download.
+ * Returns a plain object that can be serialised to JSON.
+ */
+export async function exportUserData(userId: number): Promise<Record<string, unknown>> {
+  const drizzleDb = await getDb();
+  if (!drizzleDb) return { error: "database_unavailable" };
+
+  const [profileRows, generationRows, loginRows, assetRows] = await Promise.all([
+    drizzleDb
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        loginMethod: users.loginMethod,
+        role: users.role,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+        lastSignedIn: users.lastSignedIn,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1),
+
+    drizzleDb
+      .select({
+        id: generationHistory.id,
+        modality: generationHistory.modality,
+        prompt: generationHistory.prompt,
+        createdAt: generationHistory.createdAt,
+      })
+      .from(generationHistory)
+      .where(eq(generationHistory.userId, userId))
+      .orderBy(desc(generationHistory.createdAt))
+      .limit(200),
+
+    drizzleDb
+      .select({
+        success: loginHistory.success,
+        ipAddress: loginHistory.ipAddress,
+        device: loginHistory.device,
+        browser: loginHistory.browser,
+        os: loginHistory.os,
+        createdAt: loginHistory.createdAt,
+      })
+      .from(loginHistory)
+      .where(eq(loginHistory.userId, userId))
+      .orderBy(desc(loginHistory.createdAt))
+      .limit(100),
+
+    drizzleDb
+      .select({ id: digitalAssetLibrary.id, title: digitalAssetLibrary.title, createdAt: digitalAssetLibrary.createdAt })
+      .from(digitalAssetLibrary)
+      .where(eq(digitalAssetLibrary.userId, userId))
+      .orderBy(desc(digitalAssetLibrary.createdAt))
+      .limit(200),
+  ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    profile: profileRows[0] ?? null,
+    generations: generationRows,
+    loginHistory: loginRows,
+    assets: assetRows,
+  };
 }

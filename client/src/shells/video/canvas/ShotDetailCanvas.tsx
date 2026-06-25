@@ -14,6 +14,11 @@ import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { computeGate } from "@/spine/gate";
 import { frameStyle } from "@/spine/seedVisual";
 import { ReadinessChip, ApprovedChip } from "../console/ReadinessChip";
+// U-5（AIDV-95）採用片 · /video S5 分鏡：旗標 ON 時分鏡詳細畫布改用 design-kit 亮色暖光 ShotCard
+// （thumb 狀態機 + gate pill + 核准/重生/重試動作）；OFF（預設）＝沿用既有 shadcn 版＝零變化。
+// 動作接點（generateShot/approveShot/uploadReference）完全一致，僅換視覺殼。
+import { ENABLE_VIDEO_GATE_KIT } from "@/config/videoFlags";
+import { AidvKit, ShotCard, type ShotVM } from "@/components/design-kit";
 
 export function ShotDetailCanvas() {
   const spine = useProjectSpine();
@@ -33,6 +38,58 @@ export function ShotDetailCanvas() {
 
   const g = computeGate(shot, p.characters, p.scenes);
   const gen = shot.gen;
+
+  if (ENABLE_VIDEO_GATE_KIT) {
+    const vm: ShotVM = {
+      id: shot.id,
+      no: shot.no,
+      title: shot.title,
+      route: shot.route,
+      seed: shot.seed,
+      approved: shot.approval === "approved",
+      stale: shot.stale,
+      status: shot.gen.status,
+      provider: shot.gen.provider,
+      variant: shot.gen.variant,
+    };
+    const blockedCharName = g.reasons.find((r) => r.kind !== "scene-missing-location")?.refName;
+    return (
+      <div className="flex h-full flex-col gap-3 overflow-y-auto">
+        <AidvKit>
+          <ShotCard
+            shot={vm}
+            gate={g.state}
+            blockedCharName={blockedCharName}
+            onGenerate={() => void spine.generateShot(shot.id)}
+            onApprove={() => void spine.approveShot(shot.id)}
+            onRegen={() => void spine.generateShot(shot.id, { regen: true })}
+            onRetry={() => void spine.generateShot(shot.id)}
+          />
+        </AidvKit>
+        {g.reasons.length > 0 && (
+          <div className="space-y-1.5 rounded-xl border bg-card/60 p-2.5">
+            <div className="text-xs font-medium">確認門待補（{g.reasons.length}）</div>
+            {g.reasons.map((r) => (
+              <div key={`${r.kind}:${r.refId}`} className="flex items-center gap-2 rounded-lg bg-muted/50 px-2.5 py-1.5">
+                {r.kind === "scene-missing-location" ? <MapPin className="size-4 shrink-0 text-amber-500" /> : <Upload className="size-4 shrink-0 text-amber-500" />}
+                <span className="min-w-0 flex-1 text-xs">
+                  <span className="font-medium">{r.refName}</span>
+                  <Badge variant="outline" className="ml-1.5 align-middle text-[10px]">{r.label}</Badge>
+                </span>
+                {r.unlockable ? (
+                  <Button size="sm" variant="secondary" className="h-7 shrink-0 px-2 text-xs" onClick={() => void spine.uploadReference(r.refId)}>
+                    <Upload className="size-3" /> 上傳參考照
+                  </Button>
+                ) : (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">場景頁鎖定實景</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto">

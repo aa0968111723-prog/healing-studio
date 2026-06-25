@@ -3,11 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Lock, ArrowLeft, CheckCircle2, Shield, Monitor } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { User, Lock, ArrowLeft, CheckCircle2, Shield, Monitor, Download, Trash2 } from "lucide-react";
 import TwoFactorSettings from "@/components/TwoFactorSettings";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type { AgentAction, AgentActionResult, AgentCapability } from "@/contexts/PageAgentContext";
+import { trpc } from "@/lib/trpc";
 
 const ACCOUNT_TAB_IDS = ["profile", "security", "activity"] as const;
 type AccountTabId = (typeof ACCOUNT_TAB_IDS)[number];
@@ -51,6 +60,39 @@ export default function AccountSettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  // Delete account state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  // Export data state
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const trpcUtils = trpc.useUtils();
+
+  const deleteAccountMutation = trpc.profile.deleteAccount.useMutation({
+    onSuccess: () => {
+      window.location.href = "/";
+    },
+  });
+
+  const handleExportData = async () => {
+    setExportLoading(true);
+    try {
+      const data = await trpcUtils.profile.exportData.fetch();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `healing-studio-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   // Hydrate local form state from useAuth's user data; this avoids the
   // duplicate REST round-trip to /api/auth/me that previously surfaced as
@@ -375,6 +417,22 @@ export default function AccountSettingsPage() {
                     {profileLoading ? "更新中..." : "儲存變更"}
                   </Button>
                 </form>
+
+                <div className="pt-6 mt-6 border-t border-destructive/20">
+                  <h3 className="text-sm font-medium text-destructive mb-1">危險區域</h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    刪除帳號後，您的所有資料將永久移除且無法恢復。
+                  </p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    刪除帳號
+                  </Button>
+                </div>
               </TabsContent>
 
               <TabsContent value="security" className="space-y-4 mt-6">
@@ -538,12 +596,73 @@ export default function AccountSettingsPage() {
                       <li>定期檢查您的登入記錄以確保帳號安全</li>
                     </ul>
                   </div>
+
+                  <div className="pt-4 mt-4 border-t border-border/40">
+                    <h3 className="text-sm font-medium mb-1">匯出個人資料</h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      下載您的個人資料、生成記錄與登入歷史（JSON 格式）。
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportData}
+                      disabled={exportLoading}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      {exportLoading ? "準備中..." : "下載資料匯出"}
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">確認刪除帳號</DialogTitle>
+            <DialogDescription>
+              此操作無法撤銷。您的所有個人資料、生成記錄、資產及設定將永久刪除。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              請輸入 <span className="font-mono font-bold text-foreground">DELETE MY ACCOUNT</span> 以確認：
+            </p>
+            <Input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE MY ACCOUNT"
+              disabled={deleteAccountMutation.isPending}
+            />
+            {deleteAccountMutation.isError && (
+              <p className="text-xs text-destructive">刪除失敗，請稍後再試。</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setDeleteConfirmText("");
+              }}
+              disabled={deleteAccountMutation.isPending}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteConfirmText !== "DELETE MY ACCOUNT" || deleteAccountMutation.isPending}
+              onClick={() => deleteAccountMutation.mutate({ confirmation: "DELETE MY ACCOUNT" })}
+            >
+              {deleteAccountMutation.isPending ? "刪除中..." : "永久刪除帳號"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

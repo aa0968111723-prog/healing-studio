@@ -12,6 +12,7 @@ import {
   buildBrainContext,
   type BrainContext,
 } from "../middleware/brainContext";
+import { checkTrpcRateLimit } from "./trpcRateLimit";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -120,3 +121,23 @@ const requireBrain = t.middleware(async opts => {
  * ```
  */
 export const brainProcedure = t.procedure.use(requireBrain);
+
+// ─── Rate-limited Brain Procedures (AIDV-211) ─────────────────────────────
+// AI chat / director LLM calls: 20 req / 60s per user.
+const requireAiChatLimit = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  checkTrpcRateLimit(ctx.user.id, { limit: 20, windowMs: 60_000, label: "aichat" });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+// Image / video generation calls: 5 req / 60s per user (shared bucket across studios).
+const requireGenerationLimit = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  checkTrpcRateLimit(ctx.user.id, { limit: 5, windowMs: 60_000, label: "gen" });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+/** brainProcedure + 20 req/min per-user limit — for director.chat / LLM planning. */
+export const aiChatProcedure = brainProcedure.use(requireAiChatLimit);
+/** brainProcedure + 5 req/min per-user limit — for imageStudio/videoStudio generation. */
+export const generationProcedure = brainProcedure.use(requireGenerationLimit);

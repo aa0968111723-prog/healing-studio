@@ -18,10 +18,6 @@ import {
   DEFAULT_AGENT_PREFERENCES,
   type AgentPreferences,
 } from "../../shared/agent-preferences";
-import {
-  ensureAgentPreferencesSchema,
-  isUnknownColumnError,
-} from "./agentPreferencesSchemaEnsure";
 
 export async function loadAgentPreferencesForUser(
   userId: number
@@ -32,32 +28,11 @@ export async function loadAgentPreferencesForUser(
   try {
     const db = await getDb();
     if (!db) return fallback;
-    // Self-heal on schema drift: if a column declared in drizzle/schema.ts
-    // is missing from this environment's DB, the SELECT throws
-    // ER_BAD_FIELD_ERROR. Without this retry the AI-agent runtime would
-    // silently fall back to DEFAULT_AGENT_PREFERENCES forever — drifting
-    // from whatever the user actually saved in 代理設定. Catch that one
-    // signal, run the shared schema-ensure helper (same one the settings
-    // router uses), and retry. Any other failure still falls through to
-    // the outer catch and returns defaults so the planner never blocks.
-    const runSelect = () =>
-      db
-        .select()
-        .from(agentPreferencesTable)
-        .where(eq(agentPreferencesTable.userId, userId))
-        .limit(1);
-    let rows;
-    try {
-      rows = await runSelect();
-    } catch (err) {
-      if (!isUnknownColumnError(err)) throw err;
-      console.warn(
-        "[agentPreferenceService] schema drift detected, running ensureAgentPreferencesSchema and retrying:",
-        err instanceof Error ? err.message : String(err),
-      );
-      await ensureAgentPreferencesSchema(db);
-      rows = await runSelect();
-    }
+    const rows = await db
+      .select()
+      .from(agentPreferencesTable)
+      .where(eq(agentPreferencesTable.userId, userId))
+      .limit(1);
     const row = rows[0];
     if (!row) return fallback;
 

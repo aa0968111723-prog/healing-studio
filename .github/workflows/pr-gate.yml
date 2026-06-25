@@ -50,15 +50,11 @@ jobs:
       - name: 內部導航守則（check:navigation）
         run: npm run check:navigation
 
-      # 測試（vitest）—— 排除剩餘的 AIDV-29 已知 main baseline 紅檔。
+      # 測試（vitest）—— 全量把關（AIDV-104 完成：modelResearcher 測試已全綠）
       #
-      # 進度：AIDV-29 baseline 原本 3 檔紅，本批已修綠並重新納入把關：
-      #   • brainPipeline.test.ts —— cron/router/page drift catalog 補齊 + admin 分組測試對齊（已綠）
-      #   • webhookSuno.test.ts   —— 補 mock 缺漏 export + 修 complete 覆寫既有 meta 的 prod bug（已綠）
-      # 剩餘仍排除（待產品決策，獨立追蹤卡）：
-      #   • modelResearcher.test.ts —— 測試與「免金鑰公開 fallback + preflight 短路」現行設計衝突
-      # 待該追蹤卡決議後，移除下方最後一個 --exclude 即恢復全量把關。
-      - name: 測試（vitest run · 排除剩餘 baseline）
-        run: |
-          npx vitest run \
-            --exclude '**/modelResearcher.test.ts'
+      # 進度：AIDV-29 baseline 原本 3 檔紅，全部已修綠：
+      #   • brainPipeline.test.ts —— cron/router/page drift catalog 補齊 + admin 分組測試對齊
+      #   • webhookSuno.test.ts   —— 補 mock 缺漏 export + 修 complete 覆寫既有 meta 的 prod bug
+      #   • modelResearcher.test.ts —— 測試與現行 prod 設計（免金鑰公開 fallback + preflight 短路）已對齊（AIDV-104）
+      - name: 測試（vitest run · 全量把關）
+        run: npx vitest run

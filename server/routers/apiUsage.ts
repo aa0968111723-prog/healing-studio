@@ -13,7 +13,7 @@
 
 import { z } from "zod";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
-import { router, adminProcedure } from "../_core/trpc";
+import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
   aiUsageEvents,
@@ -197,7 +197,7 @@ const alertConfigRouter = router({
 
 export const apiUsageRouter = router({
   providerReadiness: adminProcedure.query(async () => {
-    return AI_PROVIDERS.map(provider => {
+    const mediaProviders = AI_PROVIDERS.map(provider => {
       const envVar = PROVIDER_ENV_MAP[provider];
       const value = serverEnv[envVar];
       const configured = typeof value === "string" && value.trim().length > 0;
@@ -208,6 +208,30 @@ export const apiUsageRouter = router({
         applyGuideUrl: PROVIDER_APPLY_GUIDE[provider],
       };
     });
+    const textLlmProviders = [
+      {
+        provider: "openrouter",
+        envVar: "OPENROUTER_API_KEY",
+        configured: typeof serverEnv.OPENROUTER_API_KEY === "string" && serverEnv.OPENROUTER_API_KEY.trim().length > 0,
+        applyGuideUrl: "https://openrouter.ai/keys",
+      },
+      {
+        provider: "anthropic",
+        envVar: "ANTHROPIC_API_KEY",
+        configured: typeof serverEnv.ANTHROPIC_API_KEY === "string" && serverEnv.ANTHROPIC_API_KEY.trim().length > 0,
+        applyGuideUrl: "https://console.anthropic.com/",
+      },
+    ];
+    return { mediaProviders, textLlmProviders };
+  }),
+
+  /** 給一般創作者（非 admin）查文字 LLM 是否在線的輕量端點。 */
+  textLlmStatus: protectedProcedure.query(() => {
+    const orConfigured = typeof serverEnv.OPENROUTER_API_KEY === "string" && serverEnv.OPENROUTER_API_KEY.trim().length > 0;
+    const anConfigured = typeof serverEnv.ANTHROPIC_API_KEY === "string" && serverEnv.ANTHROPIC_API_KEY.trim().length > 0;
+    const status: "online" | "degraded" | "offline" =
+      orConfigured ? "online" : anConfigured ? "degraded" : "offline";
+    return { status, openrouter: orConfigured, anthropic: anConfigured };
   }),
 
   // ── Overview KPIs + chart data ────────────────────────────────────────────

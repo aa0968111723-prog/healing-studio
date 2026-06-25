@@ -9,10 +9,6 @@ import { distillPreferenceProfile } from "../../shared/orb-preference-distiller"
 import { getRecentOrbMemories } from "../services/orbMemory";
 import { getAggregatedPicksForPrompt } from "../services/agentModelPicks";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
-import {
-  ensureAgentPreferencesSchema,
-  isUnknownColumnError,
-} from "../services/agentPreferencesSchemaEnsure";
 
 const CostBudgetSchema = z
   .object({
@@ -96,34 +92,9 @@ const UpdateSchema = z.object({
 async function ensurePreferences(userId: number) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-  // Schema check is shared with `loadAgentPreferencesForUser` so the AI
-  // agent runtime sees the same columns the settings UI does. Best-effort:
-  // a thrown error gets logged and we still try the SELECT — the SELECT
-  // below has its own self-heal retry on UnknownColumn errors.
-  try {
-    await ensureAgentPreferencesSchema(db);
-  } catch (err) {
-    console.warn(
-      "[agentPreferencesRouter] best-effort schema check failed; continuing:",
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-
-  // Self-healing SELECT: if schema-ensure raced or partially failed, the
-  // first SELECT may hit "Unknown column 'mutedSpirits'" etc. Run the
-  // migration synchronously on that signal and retry once. Surfaces a
-  // clean error to the user if the retry still fails (e.g. DB user lacks
-  // ALTER privileges and the deploy migration has not run yet).
   const selectExisting = () =>
     db.select().from(agentPreferences).where(eq(agentPreferences.userId, userId)).limit(1);
-  let existing;
-  try {
-    existing = await selectExisting();
-  } catch (err) {
-    if (!isUnknownColumnError(err)) throw err;
-    await ensureAgentPreferencesSchema(db);
-    existing = await selectExisting();
-  }
+  const existing = await selectExisting();
   if (existing[0]) return existing[0];
 
   await db.insert(agentPreferences).values({ userId, ...DEFAULT_AGENT_PREFERENCES });
@@ -148,21 +119,8 @@ export const agentPreferencesRouter = router({
       db.update(agentPreferences).set(patch).where(and(eq(agentPreferences.userId, ctx.user.id)));
     const runSelect = () =>
       db.select().from(agentPreferences).where(eq(agentPreferences.userId, ctx.user.id)).limit(1);
-    try {
-      await runUpdate();
-    } catch (err) {
-      if (!isUnknownColumnError(err)) throw err;
-      await ensureAgentPreferencesSchema(db);
-      await runUpdate();
-    }
-    let rows;
-    try {
-      rows = await runSelect();
-    } catch (err) {
-      if (!isUnknownColumnError(err)) throw err;
-      await ensureAgentPreferencesSchema(db);
-      rows = await runSelect();
-    }
+    await runUpdate();
+    const rows = await runSelect();
     return rows[0];
   }),
 

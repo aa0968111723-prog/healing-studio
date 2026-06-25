@@ -9,15 +9,24 @@
 
 import { Router, Request, Response } from "express";
 import { serverEnv } from "../_core/env.validated";
+import { verifyToken } from "../middleware/verifyToken";
+import { isExactOriginAllowed } from "../_core/ssrfGuard";
+
+type AuthedReq = Request & {
+  user?: { id: number; openId: string; email: string | null };
+};
 
 export const mediaDownloadRouter = Router();
 
+// 50 MB hard cap on proxied downloads.
+const DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024;
+
 function isAllowedOrigin(url: string): boolean {
-  const s3Public = serverEnv.S3_PUBLIC_URL || serverEnv.S3_PUBLIC_DOMAIN;
-  if (s3Public && url.startsWith(s3Public.replace(/\/+$/, ""))) return true;
-  const forgeUrl = serverEnv.BUILT_IN_FORGE_API_URL;
-  if (forgeUrl && url.startsWith(forgeUrl.replace(/\/+$/, ""))) return true;
-  return false;
+  return isExactOriginAllowed(url, [
+    serverEnv.S3_PUBLIC_URL,
+    serverEnv.S3_PUBLIC_DOMAIN,
+    serverEnv.BUILT_IN_FORGE_API_URL,
+  ]);
 }
 
 function guessContentType(url: string): string {
@@ -36,7 +45,12 @@ function guessContentType(url: string): string {
 
 mediaDownloadRouter.get(
   "/api/media/download",
-  async (req: Request, res: Response) => {
+  verifyToken,
+  async (req: AuthedReq, res: Response) => {
+    if (!req.user) {
+      res.status(401).json({ error: "請先登入" });
+      return;
+    }
     const rawUrl = req.query["url"] as string | undefined;
     const filename = (req.query["filename"] as string | undefined) ?? "download";
 
@@ -64,6 +78,7 @@ mediaDownloadRouter.get(
     try {
       const upstream = await fetch(decoded, {
         signal: AbortSignal.timeout(60_000),
+        redirect: "error",
       });
       if (!upstream.ok) {
         res.status(502).json({ error: `上游回應 ${upstream.status}` });
@@ -73,6 +88,10 @@ mediaDownloadRouter.get(
       const contentType =
         upstream.headers.get("content-type") || guessContentType(decoded);
       const contentLength = upstream.headers.get("content-length");
+      if (contentLength && Number(contentLength) > DOWNLOAD_MAX_BYTES) {
+        res.status(413).json({ error: "檔案過大" });
+        return;
+      }
 
       res.setHeader("Content-Type", contentType);
       res.setHeader(

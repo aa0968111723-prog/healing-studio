@@ -38,7 +38,7 @@
  */
 
 import { z } from "zod";
-import { brainProcedure, publicProcedure, router } from "../_core/trpc";
+import { generationProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
 import { signFalWebhookNonce } from "../_core/webhookTokens";
@@ -375,7 +375,7 @@ export const imageStudioRouter = router({
    *    支援 aspect_ratio: auto | 1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 4:1 | 1:4 | 8:1 | 1:8
    *    支援 image_urls[] 多圖參考（最多 14 張）
    */
-  nanoBanana2: brainProcedure
+  nanoBanana2: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -409,7 +409,7 @@ export const imageStudioRouter = router({
    * 2. fal-ai/nano-banana-pro — Gemini 3 Pro Image（最高品質）
    *    支援文字生圖 + 多圖參考（最多 14 張）
    */
-  nanoBananaPro: brainProcedure
+  nanoBananaPro: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -443,7 +443,7 @@ export const imageStudioRouter = router({
    * 3. fal-ai/bytedance/seedream/v4/text-to-image — SeeDream v4
    *    ByteDance 高品質文字生圖，支援中文提示詞
    */
-  seedreamV4: brainProcedure
+  seedreamV4: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -477,7 +477,7 @@ export const imageStudioRouter = router({
    * 4. fal-ai/imagen4/preview — Google Imagen 4 Preview
    *    Google 最新圖片生成模型，高真實感
    */
-  imagen4: brainProcedure
+  imagen4: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -513,7 +513,7 @@ export const imageStudioRouter = router({
    * 5. fal-ai/nano-banana-pro/edit — Gemini 3 Pro 圖片編輯
    *    多圖輸入，語意式局部/全局編輯（不需 mask）
    */
-  nanoBananaProEdit: brainProcedure
+  nanoBananaProEdit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -549,7 +549,7 @@ export const imageStudioRouter = router({
   /**
    * 6. fal-ai/nano-banana/edit — Gemini 2.0 Flash Image 編輯（較快）
    */
-  nanoBananaEdit: brainProcedure
+  nanoBananaEdit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -574,7 +574,7 @@ export const imageStudioRouter = router({
    * 7. fal-ai/bytedance/seedream/v4.5/edit — SeeDream v4.5 編輯
    *    ByteDance 高品質圖片語意編輯
    */
-  seedreamV45Edit: brainProcedure
+  seedreamV45Edit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -610,7 +610,7 @@ export const imageStudioRouter = router({
    * 8. fal-ai/bytedance/seedream/v5/lite/edit — SeeDream v5 Lite 編輯
    *    更快速的 v5 輕量版編輯
    */
-  seedreamV5LiteEdit: brainProcedure
+  seedreamV5LiteEdit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -646,7 +646,7 @@ export const imageStudioRouter = router({
    * 9. xai/grok-imagine-image/edit — xAI Grok 圖片編輯
    *    Grok 原生多模態圖片編輯
    */
-  grokEdit: brainProcedure
+  grokEdit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -673,7 +673,7 @@ export const imageStudioRouter = router({
    * 10. fal-ai/gpt-image-1.5/edit — GPT Image 1.5 圖片編輯
    *     OpenAI GPT Image 1.5，支援 mask（可選），高語意理解
    */
-  gptImage15Edit: brainProcedure
+  gptImage15Edit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -710,7 +710,7 @@ export const imageStudioRouter = router({
    *     BFL 最新上下文感知圖片編輯，精準局部修改
    *     支援 guidance_scale, num_inference_steps, seed
    */
-  fluxKontext: brainProcedure
+  fluxKontext: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -750,7 +750,7 @@ export const imageStudioRouter = router({
    * 7-NEW. fal-ai/nano-banana-2/edit — Gemini 3.1 Flash Image 編輯
    *   image_urls[]（必填）+ prompt + aspect_ratio + resolution（0.5K/1K/2K/4K）
    */
-  nanoBanana2Edit: brainProcedure
+  nanoBanana2Edit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -804,7 +804,7 @@ export const imageStudioRouter = router({
    * 13-NEW. fal-ai/flux-2-pro/edit — FLUX 2 Pro 圖片編輯
    *   image_urls[]（必填）+ prompt；image_size 可選
    */
-  flux2ProEdit: brainProcedure
+  flux2ProEdit: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -853,7 +853,7 @@ export const imageStudioRouter = router({
    * 14-NEW. fal-ai/seedvr/upscale/image — SeedVR 影像放大
    *   支援 factor 模式（×2/×4）或 target 模式（720p/1080p/1440p/2160p）
    */
-  seedVRUpscale: brainProcedure
+  seedVRUpscale: generationProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -895,7 +895,7 @@ export const imageStudioRouter = router({
    *   輸入人物圖片，輸出骨骼姿勢圖（可用於 ControlNet 生圖）
    *   draw_mode: full-pose | body-pose | face-pose | hand-pose | ...
    */
-  dwPose: brainProcedure
+  dwPose: generationProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -935,7 +935,7 @@ export const imageStudioRouter = router({
    *   支援 ControlNet（傳入 control_image_url + path）、LoRA（loras[]）、IP-Adapter
    *   image_size: square_hd | square | portrait_4_3 | portrait_16_9 | landscape_4_3 | landscape_16_9
    */
-  stableDiffusion35: brainProcedure
+  stableDiffusion35: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -1003,7 +1003,7 @@ export const imageStudioRouter = router({
    * 17-NEW. fal-ai/fast-sdxl — SDXL 快速文字生圖
    *   支援 negative_prompt、image_size、LoRA、IP-Adapter
    */
-  fastSdxl: brainProcedure
+  fastSdxl: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -1049,7 +1049,7 @@ export const imageStudioRouter = router({
    * 18-NEW. fal-ai/lora — Stable Diffusion + LoRA 生圖
    *   支援任意 HuggingFace LoRA URL，image_size、negative_prompt
    */
-  sdLora: brainProcedure
+  sdLora: generationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -1112,7 +1112,7 @@ export const imageStudioRouter = router({
    *   image_url（必填）；resolution 512/1024/1536；texture_size 1024/2048/4096
    *   輸出：model_glb.url
    */
-  trellis2: brainProcedure
+  trellis2: generationProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -1151,7 +1151,7 @@ export const imageStudioRouter = router({
    *   image_url + 可選 prompt（文字描述要偵測的物件）
    *   輸出：model_glb.url, gaussian_splat.url, artifacts_zip.url
    */
-  sam3dObjects: brainProcedure
+  sam3dObjects: generationProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -1192,7 +1192,7 @@ export const imageStudioRouter = router({
    *   enable_pbr, generate_type (Normal/LowPoly/Geometry), face_count
    *   輸出：model_glb.url + model_urls（glb/obj/usdz/fbx）
    */
-  hunyuan3d: brainProcedure
+  hunyuan3d: generationProcedure
     .input(
       z.object({
         input_image_url: z.string().url(),
@@ -1255,7 +1255,7 @@ export const imageStudioRouter = router({
    *   geometry_file_format: glb/usdz/fbx/obj/stl
    *   輸出：model_mesh.url + textures[]
    */
-  rodin3d: brainProcedure
+  rodin3d: generationProcedure
     .input(
       z.object({
         prompt: z.string().optional().default(""),
@@ -1304,7 +1304,7 @@ export const imageStudioRouter = router({
    *   image_url + labels_fg1 + labels_fg2 + classes（全部必填）
    *   輸出：world_file.url（.drc 或其他格式）
    */
-  hunyuanWorld: brainProcedure
+  hunyuanWorld: generationProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -1335,11 +1335,11 @@ export const imageStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════
 
   /** 非同步任務狀態查詢 */
-  jobStatus: brainProcedure
+  jobStatus: generationProcedure
     .input(z.object({ request_id: z.string(), model: z.string() }))
     .query(async ({ input }) => falQueueStatus(input.request_id, input.model)),
 
-  jobResult: brainProcedure
+  jobResult: generationProcedure
     .input(z.object({ request_id: z.string(), model: z.string() }))
     .query(async ({ ctx, input }) => {
       const raw = await falQueueResult(input.request_id, input.model);
@@ -1357,7 +1357,7 @@ export const imageStudioRouter = router({
    * 通用圖片輪詢 API：每 3 秒輪詢一次直到完成
    * 支援所有 imageStudio 的异步任務（包括 3D, SD, 圖片編輯等）
    */
-  checkImageStatus: brainProcedure
+  checkImageStatus: generationProcedure
     .input(
       z.object({
         requestId: z.string().min(1),

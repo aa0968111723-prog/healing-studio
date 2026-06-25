@@ -13,14 +13,16 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
-  AidvKit, Rail, TopBar, MobileNav, CommandPalette, ProjectSwitcher, AccountMenu,
-  type DkShellDef, type DkCommandItem, type DkProjectLite,
+  AidvKit, Rail, TopBar, MobileNav, CommandPalette, ProjectSwitcher, ProviderSwitcher, AccountMenu,
+  type DkShellDef, type DkCommandItem, type DkProjectLite, type DkProviderEntry,
 } from "@/components/design-kit";
 import { SHELL_META } from "@/config/shells";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import { useCreativeProject } from "@/spine/useCreativeProject";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useSpine } from "@/providers/SpineProvider";
+import { PROVIDER_META, type ProviderId } from "@/components/design-kit/tokens";
 import type { ShellId } from "@/spine/types";
 
 const SHELLS: DkShellDef[] = SHELL_META.map((s) => ({ id: s.id, emoji: s.emoji, name: s.zh, enabled: s.enabled }));
@@ -38,11 +40,13 @@ export function AidvShellChrome() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [psOpen, setPsOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
+  const [provOpen, setProvOpen] = useState(false);
   const active = shellFromPath(location);
   const activeMeta = SHELL_META.find((s) => s.id === active) ?? SHELL_META[0];
 
   // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
   const world = useCreativeProject();
+  const spine = useSpine();
   // P1（Codex 審查）：chrome 取代 AppleDock 後須保留登出出口。
   // 登出出口有三：① TopBar 右側 AccountMenu（桌機可見）② MobileNav ⏻（行動可見）③ ⌘K「登出」（快捷）。
   // 不可只藏在 ⌘K——行動裝置無實體 ⌘K、桌機使用者也未必知道要按。三處皆呼叫同一真實 logout()。
@@ -74,6 +78,14 @@ export function AidvShellChrome() {
     if (meta) navigate(meta.path);
   };
 
+  // U-4b ProviderSwitcher — build entries from PROVIDER_META + fault-injection for down status.
+  const providerEntries: DkProviderEntry[] = (["hf", "gemini", "fal", "mock"] as ProviderId[]).map((id) => ({
+    id,
+    label: PROVIDER_META[id].label,
+    cost: PROVIDER_META[id].cost,
+    status: spine.faults[`provider.${id}`] ? "down" : "ok",
+  }));
+
   const cmdItems: DkCommandItem[] = [
     ...SHELL_META.map((s) => ({ id: `shell-${s.id}`, label: `前往 ${s.zh}`, group: "導航", hint: s.path, onRun: () => goShell(s.id) })),
     { id: "create", label: "創作中樞", group: "創作", hint: "/create", onRun: () => navigate("/create") },
@@ -81,6 +93,7 @@ export function AidvShellChrome() {
     { id: "playground", label: "單模型遊樂場", group: "創作", hint: "/playground", onRun: () => navigate("/playground") },
     { id: "new-project", label: "新建專案", group: "專案", hint: "/create", onRun: () => navigate("/create") },
     { id: "switch-project", label: "切換專案", group: "專案", onRun: () => setPsOpen(true) },
+    { id: "switch-provider", label: "切換生成 Provider", group: "生成", onRun: () => setProvOpen(true) },
     { id: "go-settings", label: "設定", group: "設定", hint: "/settings", onRun: () => navigate("/settings") },
     { id: "logout", label: "登出", group: "帳號", hint: "結束登入", onRun: () => void logout() },
   ];
@@ -103,6 +116,16 @@ export function AidvShellChrome() {
               onCreate={() => navigate("/create")}
               open={psOpen}
               onToggle={() => setPsOpen((v) => !v)}
+            />
+          }
+          providerSlot={
+            <ProviderSwitcher
+              activeId={spine.provider}
+              entries={providerEntries}
+              open={provOpen}
+              onToggle={() => setProvOpen((v) => !v)}
+              onSwitch={(id) => spine.setProvider(id as ProviderId)}
+              onSettings={() => navigate("/settings/provider")}
             />
           }
           credits={credits}
