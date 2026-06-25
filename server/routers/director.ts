@@ -14,6 +14,7 @@
  */
 
 import { z } from "zod";
+import { safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { router, brainProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -2117,8 +2118,8 @@ ${segmentSummaries}
         voiceText: z.string().optional(),
         params: z.record(z.string(), z.unknown()),
         mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
-        firstFrameUrl: z.string().optional(), // For video with image dependency (i2v)
-        sourceVideoUrl: z.string().optional(), // For v2v / enhance pipeline (來源影片)
+        firstFrameUrl: safeExternalUrlOptional, // For video with image dependency (i2v)
+        sourceVideoUrl: safeExternalUrlOptional, // For v2v / enhance pipeline (來源影片)
       })
     )
     .mutation(async ({ ctx, input }) => {

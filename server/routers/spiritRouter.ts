@@ -11,6 +11,7 @@
  */
 
 import { z } from "zod";
+import { safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { router, protectedProcedure } from "../_core/trpc";
 import { invokeSpiritModel } from "../services/spiritDispatcher";
 import { getFalModelsForSpirit } from "../services/falModels";
@@ -42,9 +43,9 @@ const invokeInputSchema = z.object({
    */
   modelId: z.string().min(1).optional(),
   prompt: z.string().optional(),
-  imageUrl: z.string().url().optional(),
-  videoUrl: z.string().url().optional(),
-  audioUrl: z.string().url().optional(),
+  imageUrl: safeExternalUrlOptional,
+  videoUrl: safeExternalUrlOptional,
+  audioUrl: safeExternalUrlOptional,
   negativePrompt: z.string().optional(),
   seed: z.number().int().optional(),
   numInferenceSteps: z.number().int().positive().optional(),
@@ -53,7 +54,7 @@ const invokeInputSchema = z.object({
   aspectRatio: z.string().optional(),
   durationSec: z.number().positive().optional(),
   strength: z.number().min(0).max(1).optional(),
-  loraUrl: z.string().url().optional(),
+  loraUrl: safeExternalUrlOptional,
   loraScale: z.number().optional(),
   numFrames: z.number().int().positive().optional(),
   fps: z.number().positive().optional(),
