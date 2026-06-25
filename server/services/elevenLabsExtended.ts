@@ -15,6 +15,7 @@ import {
   resolveProviderBaseUrl,
   providerGatewayHeaders,
 } from "../_core/providerFacade";
+import { withExponentialBackoff } from "../utils/withExponentialBackoff";
 
 // ─── Models & Voices Catalog ─────────────────────────────────────────────
 
@@ -247,25 +248,38 @@ export class ElevenLabsExtendedClient {
     options: RequestInit = {}
   ): Promise<Response> {
     if (!this.apiKey) throw new Error("ELEVENLABS_API_KEY 未設定");
+    const apiKey = this.apiKey;
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers: {
-        "xi-api-key": this.apiKey,
-        ...providerGatewayHeaders("elevenlabs"),
-        ...(options.body && typeof options.body === "string"
-          ? { "Content-Type": "application/json" }
-          : {}),
-        ...options.headers,
+    return withExponentialBackoff(
+      async () => {
+        const res = await fetch(`${this.baseUrl}${path}`, {
+          ...options,
+          headers: {
+            "xi-api-key": apiKey,
+            ...providerGatewayHeaders("elevenlabs"),
+            ...(options.body && typeof options.body === "string"
+              ? { "Content-Type": "application/json" }
+              : {}),
+            ...options.headers,
+          },
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(`ElevenLabs API ${res.status}: ${errText.slice(0, 300)}`);
+        }
+
+        return res;
       },
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`ElevenLabs API ${res.status}: ${errText.slice(0, 300)}`);
-    }
-
-    return res;
+      {
+        maxRetries: 3,
+        base: 500,
+        shouldRetry: (err) => {
+          if (!(err instanceof Error)) return false;
+          return /ElevenLabs API (429|5\d\d):/.test(err.message);
+        },
+      }
+    );
   }
 
   // ── TTS V3（最新，支援情感標籤） ────────────────────────────────────────
