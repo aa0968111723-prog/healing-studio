@@ -60,7 +60,7 @@ function ShotCard({ shot }: { shot: Shot }) {
           onGenerate={() => spine.generateShot(shot.id)}
           onApprove={() => spine.approveShot(shot.id)}
           onRegen={() => spine.generateShot(shot.id, { regen: true })}
-          onRetry={() => spine.generateShot(shot.id)}
+          onRetry={() => spine.retrySingleShot(shot.id)}
         />
       </AidvKit>
     );
@@ -133,7 +133,7 @@ function ShotCard({ shot }: { shot: Shot }) {
             </Button>
           )}
           {gen.status === "error" && (
-            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => spine.generateShot(shot.id)}>
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => spine.retrySingleShot(shot.id)}>
               <RefreshCw className="size-3" /> 重試
             </Button>
           )}
