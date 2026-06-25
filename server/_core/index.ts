@@ -84,6 +84,10 @@ import {
   initAssetCleanupCron,
   stopAssetCleanupCron,
 } from "../jobs/assetCleanupJob";
+import {
+  initStaleJobCheckerCron,
+  stopStaleJobCheckerCron,
+} from "../jobs/staleJobChecker";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -202,6 +206,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "assetCleanupJob",
     start: initAssetCleanupCron,
     stop: stopAssetCleanupCron,
+  },
+  {
+    name: "staleJobChecker",
+    start: initStaleJobCheckerCron,
+    stop: stopStaleJobCheckerCron,
   },
 ];
 

@@ -1295,6 +1295,31 @@ const CRON_JOBS: CronJobMeta[] = [
     ],
     downstream: ["db:main", "storage:assets"],
   },
+  {
+    id: "cron:db-backup",
+    label: "DB 快照備份（每日 03:00）",
+    schedule: "0 3 * * *",
+    description: "每天備份主要資料庫表到物件儲存（容災 / PITR）",
+    files: ["server/jobs/dbSnapshotJob.ts"],
+    downstream: ["db:main", "storage:assets"],
+  },
+  {
+    id: "cron:asset-cleanup",
+    label: "數位資產 TTL 清理（每小時）",
+    schedule: "0 * * * *",
+    description: "掃描 digital_assets 表找過期資產並刪除（含雲端物件），旗標 ENABLE_ASSET_TTL_CLEANUP 控制開關",
+    files: ["server/jobs/assetCleanupJob.ts"],
+    downstream: ["db:main", "storage:assets"],
+  },
+  {
+    id: "cron:stale-job-checker",
+    label: "背景任務容錯 DLQ（每 1 分鐘）",
+    schedule: "* * * * *",
+    description:
+      "掃描 background_jobs 中 processing 超過 5 分鐘的卡住任務，retryCount < 3 重新排隊，≥ 3 標 failed 並廣播 SSE job_failed（AIDV-332）",
+    files: ["server/jobs/staleJobChecker.ts"],
+    downstream: ["db:main"],
+  },
 ];
 
 /**
