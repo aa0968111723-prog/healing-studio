@@ -41,6 +41,7 @@ type WorldbuildingUpdateInput = RouterInputs["worldbuilding"]["update"];
 type WorldbuildingGetInput = RouterInputs["worldbuilding"]["get"];
 type CompileProjectInput = RouterInputs["contextPacket"]["compileProject"];
 type CreateFromSegmentsInput = RouterInputs["worldStoryboard"]["createFromSegments"];
+type CreativeProjectUpdateInput = RouterInputs["creativeProject"]["update"];
 
 /** compileProject 的 mode（COMPILE_MODES）——導演台重編預設用 "director"。 */
 type CompileMode = CompileProjectInput["mode"];
@@ -75,6 +76,7 @@ export interface StoryboardIngestInput {
   scenes: Scene[];
   shots: Shot[];
 }
+export interface ShotsReorderInput { projectId: string; orderedIds: string[] }
 
 // ─── 閘道介面 ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +105,8 @@ export interface ProjectGateway {
   linkWorld(projectId: string, worldFrameworkId: number | null): Promise<void>;
   /** worldbuilding.list — 使用者的世界清單（給嚮導世界選單）。 */
   listWorlds(): Promise<{ id: number; name: string }[]>;
+  /** creativeProject.update(metadata.shotOrder) — 持久化分鏡排序（AIDV-239，best-effort）。 */
+  reorderShots(input: ShotsReorderInput): Promise<void>;
 }
 
 // ============================================================================
@@ -321,11 +325,23 @@ export function makeProjectGatewayTrpc(): ProjectGateway {
     }));
   }
 
+  async function reorderShots(input: ShotsReorderInput): Promise<void> {
+    // AIDV-239：把排序後的 shot id 陣列存入 creativeProject.metadata.shotOrder。
+    // 無需 migration——metadata 為既有 JSON 欄位；loadProject 的 assembleProject 讀取並套用此排序。
+    const id = numOrNull(input.projectId);
+    if (id == null) return;
+    const payload: CreativeProjectUpdateInput = {
+      id,
+      patch: { metadata: { shotOrder: input.orderedIds } },
+    };
+    await typed.creativeProject.update.mutate(payload);
+  }
+
   return {
     mode: "trpc",
     listProjects, loadProject, recompilePacket,
     saveVaultState, saveCharacterEdit, createNote, createPromptBlock, createProject, ingestStoryboard,
-    linkWorld, listWorlds,
+    linkWorld, listWorlds, reorderShots,
   };
 }
 
@@ -399,6 +415,16 @@ function assembleProject(
     assetUrl: sh.assetUrl ?? undefined,
   }));
 
+  // AIDV-239：若 metadata.shotOrder 存在，依存儲順序重排；否則保持來源陣列順序。
+  const shotOrderIds = Array.isArray(base.metadata?.shotOrder) ? (base.metadata.shotOrder as string[]) : null;
+  const orderedShots = shotOrderIds
+    ? [...shots].sort((a, b) => {
+        const ai = shotOrderIds.indexOf(a.id);
+        const bi = shotOrderIds.indexOf(b.id);
+        return (ai < 0 ? shots.length : ai) - (bi < 0 ? shots.length : bi);
+      })
+    : shots;
+
   const noteList: Note[] = noteRows.map((n: any): Note => ({
     id: String(n.id ?? uid("n")),
     ts: String(n.ts ?? n.createdAt ?? ""),
@@ -434,7 +460,7 @@ function assembleProject(
     logline: String(base.logline ?? ""),
     styleBible: String(base.styleBible ?? ""),
     stageIndex: Number(base.stageIndex ?? 0),
-    characters, scenes, shots, notes: noteList, assets, promptBlocks,
+    characters, scenes, shots: orderedShots, notes: noteList, assets, promptBlocks,
     packet: toPacket(packet) ?? { summaryMarkdown: "", sourceRefs: [], tokenEstimate: 0, ttlSec: 0, permissions: "擁有者可讀寫" },
     // I-2（AIDV-80）：從已抓到的 world 預計算精簡風格前綴；旗標關時不會被使用（零行為改變）。
     worldStyle: buildWorldStylePrefix(world) || undefined,
@@ -488,6 +514,8 @@ export function makeProjectGatewayMock(): ProjectGateway {
         { id: 8, name: "療癒森林（示範世界）" },
       ];
     },
+    // AIDV-239：mock 排序不需回寫（patchProject 已更新本地狀態）。
+    async reorderShots() { await delay(30); },
   };
 }
 

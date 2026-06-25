@@ -20,6 +20,7 @@ const spy = vi.hoisted(() => ({
   generateShot: vi.fn(() => Promise.resolve()),
   retrySingleShot: vi.fn(() => Promise.resolve()),
   approveShot: vi.fn(() => Promise.resolve()),
+  reorderShots: vi.fn(() => Promise.resolve()),
   shots: [] as Shot[],
 }));
 vi.mock("@/spine/ProjectSpineProvider", () => ({
@@ -28,6 +29,7 @@ vi.mock("@/spine/ProjectSpineProvider", () => ({
     generateShot: spy.generateShot,
     retrySingleShot: spy.retrySingleShot,
     approveShot: spy.approveShot,
+    reorderShots: spy.reorderShots,
   }),
 }));
 
@@ -43,7 +45,7 @@ function shot(over: Partial<Shot> = {}): Shot {
 }
 
 beforeEach(() => { spy.shots = [shot()]; });
-afterEach(() => { cleanup(); flags.chrome = false; spy.generateShot.mockClear(); spy.retrySingleShot.mockClear(); spy.approveShot.mockClear(); });
+afterEach(() => { cleanup(); flags.chrome = false; spy.generateShot.mockClear(); spy.retrySingleShot.mockClear(); spy.approveShot.mockClear(); spy.reorderShots.mockClear(); });
 
 describe("ShotPanel（U-2 / AIDV-92 · /video S5）", () => {
   it("空態：無分鏡時顯示引導文案", () => {
@@ -98,5 +100,35 @@ describe("ShotPanel（U-2 / AIDV-92 · /video S5）", () => {
     render(<ShotPanel />);
     fireEvent.click(screen.getByText("重試"));
     expect(spy.retrySingleShot).toHaveBeenCalledWith("s1");
+  });
+
+  // AIDV-239：拖曳重排序——拖曳手把可見＋鍵盤 ArrowUp/Down（WCAG 2.1 AA）
+  it("AIDV-239：多鏡時每鏡顯示拖曳手把", () => {
+    spy.shots = [shot({ id: "s1" }), shot({ id: "s2", no: "S02", title: "第二鏡" })];
+    render(<ShotPanel />);
+    expect(screen.getAllByLabelText("拖曳重排").length).toBe(2);
+  });
+
+  it("AIDV-239：鍵盤 ArrowDown 在第一鏡 → reorderShots(['s2', 's1'])", () => {
+    spy.shots = [shot({ id: "s1" }), shot({ id: "s2", no: "S02", title: "第二鏡" })];
+    render(<ShotPanel />);
+    const handles = screen.getAllByLabelText("拖曳重排");
+    fireEvent.keyDown(handles[0], { key: "ArrowDown" });
+    expect(spy.reorderShots).toHaveBeenCalledWith(["s2", "s1"]);
+  });
+
+  it("AIDV-239：鍵盤 ArrowUp 在最後一鏡 → reorderShots(['s2', 's1'])", () => {
+    spy.shots = [shot({ id: "s1" }), shot({ id: "s2", no: "S02", title: "第二鏡" })];
+    render(<ShotPanel />);
+    const handles = screen.getAllByLabelText("拖曳重排");
+    fireEvent.keyDown(handles[1], { key: "ArrowUp" });
+    expect(spy.reorderShots).toHaveBeenCalledWith(["s2", "s1"]);
+  });
+
+  it("AIDV-239：單鏡時 ArrowDown 不觸發 reorderShots（無下一鏡）", () => {
+    spy.shots = [shot()];
+    render(<ShotPanel />);
+    fireEvent.keyDown(screen.getByLabelText("拖曳重排"), { key: "ArrowDown" });
+    expect(spy.reorderShots).not.toHaveBeenCalled();
   });
 });
