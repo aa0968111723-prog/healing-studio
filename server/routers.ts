@@ -9463,7 +9463,7 @@ export const appRouter = router({
 
   customBlocks: router({
     list: protectedProcedure
-      .input(z.object({ modality: z.string().optional() }).optional())
+      .input(z.object({ modality: z.enum(["image", "video", "audio", "voice"]).optional() }).optional())
       .query(async ({ ctx, input }) => {
         return db.getCustomBlocksByUser(ctx.user.id, input?.modality);
       }),
@@ -9502,7 +9502,7 @@ export const appRouter = router({
 
   blockCombos: router({
     list: protectedProcedure
-      .input(z.object({ modality: z.string().optional() }).optional())
+      .input(z.object({ modality: z.enum(["image", "video", "audio", "voice"]).optional() }).optional())
       .query(async ({ ctx, input }) => {
         return db.getBlockCombosByUser(ctx.user.id, input?.modality);
       }),
