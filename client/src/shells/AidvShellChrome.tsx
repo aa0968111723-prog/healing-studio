@@ -24,6 +24,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useSpine } from "@/providers/SpineProvider";
 import { PROVIDER_META, type ProviderId } from "@/components/design-kit/tokens";
 import type { ShellId } from "@/spine/types";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const SHELLS: DkShellDef[] = SHELL_META.map((s) => ({ id: s.id, emoji: s.emoji, name: s.zh, enabled: s.enabled }));
 
@@ -51,6 +52,7 @@ export function AidvShellChrome() {
   // 登出出口有三：① TopBar 右側 AccountMenu（桌機可見）② MobileNav ⏻（行動可見）③ ⌘K「登出」（快捷）。
   // 不可只藏在 ⌘K——行動裝置無實體 ⌘K、桌機使用者也未必知道要按。三處皆呼叫同一真實 logout()。
   const { logout, user } = useAuth();
+  const { setAppearanceMode } = useTheme();
   const accountLabel =
     (user && typeof user === "object"
       ? ((user as { name?: string; email?: string }).name ?? (user as { email?: string }).email)
@@ -87,13 +89,29 @@ export function AidvShellChrome() {
   }));
 
   const cmdItems: DkCommandItem[] = [
-    ...SHELL_META.map((s) => ({ id: `shell-${s.id}`, label: `前往 ${s.zh}`, group: "導航", hint: s.path, onRun: () => goShell(s.id) })),
+    // 前往 group（首頁/四殼層）
+    { id: "go-home", label: "前往 首頁", group: "前往", hint: "/", onRun: () => navigate("/") },
+    ...SHELL_META.map((s) => ({ id: `shell-${s.id}`, label: `前往 ${s.zh}`, group: "前往", hint: s.path, onRun: () => goShell(s.id) })),
+    // 創作 group
     { id: "create", label: "創作中樞", group: "創作", hint: "/create", onRun: () => navigate("/create") },
     { id: "director", label: "導演企劃台", group: "創作", hint: "/director", onRun: () => navigate("/director") },
     { id: "playground", label: "單模型遊樂場", group: "創作", hint: "/playground", onRun: () => navigate("/playground") },
-    { id: "new-project", label: "新建專案", group: "專案", hint: "/create", onRun: () => navigate("/create") },
-    { id: "switch-project", label: "切換專案", group: "專案", onRun: () => setPsOpen(true) },
-    { id: "switch-provider", label: "切換生成 Provider", group: "生成", onRun: () => setProvOpen(true) },
+    // 代理動作 group（AIDV-136：排程生成/重建 Context Packet/i2v 研究/自訂工作流）
+    { id: "agent-schedule", label: "排程生成所有就緒鏡", group: "代理動作", hint: "/video", onRun: () => navigate("/video") },
+    { id: "agent-ctx", label: "重建 Context Packet", group: "代理動作", hint: "/video/director", onRun: () => navigate("/video/director") },
+    { id: "agent-i2v", label: "研究 i2v 一致性", group: "代理動作", hint: "/video/director", onRun: () => navigate("/video/director") },
+    { id: "agent-workflow", label: "自訂工作流", group: "代理動作", hint: "/create", onRun: () => navigate("/create") },
+    // 切換專案 group
+    { id: "new-project", label: "新建專案", group: "切換專案", hint: "/create", onRun: () => navigate("/create") },
+    { id: "switch-project", label: "切換專案", group: "切換專案", onRun: () => setPsOpen(true) },
+    // 生成 Provider group
+    { id: "switch-provider", label: "切換生成 Provider", group: "生成 Provider", onRun: () => setProvOpen(true) },
+    // 主題 group（AIDV-136）
+    { id: "theme-light", label: "淺色主題", group: "主題", onRun: () => setAppearanceMode("light") },
+    { id: "theme-dark", label: "深色主題", group: "主題", onRun: () => setAppearanceMode("dark") },
+    { id: "theme-system", label: "跟隨系統", group: "主題", onRun: () => setAppearanceMode("system") },
+    { id: "theme-auto", label: "自動（情境）", group: "主題", onRun: () => setAppearanceMode("auto") },
+    // 設定 / 帳號
     { id: "go-settings", label: "設定", group: "設定", hint: "/settings", onRun: () => navigate("/settings") },
     { id: "logout", label: "登出", group: "帳號", hint: "結束登入", onRun: () => void logout() },
   ];

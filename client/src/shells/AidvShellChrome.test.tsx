@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 
-const h = vi.hoisted(() => ({ navigate: vi.fn(), setActive: vi.fn(), logout: vi.fn(), setProvider: vi.fn() }));
+const h = vi.hoisted(() => ({ navigate: vi.fn(), setActive: vi.fn(), logout: vi.fn(), setProvider: vi.fn(), setAppearanceMode: vi.fn() }));
 vi.mock("wouter", () => ({ useLocation: () => ["/video/director", h.navigate] }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ logout: h.logout }) }));
@@ -16,6 +16,9 @@ vi.mock("@/spine/useCreativeProject", () => ({
 }));
 vi.mock("@/providers/SpineProvider", () => ({
   useSpine: () => ({ provider: "hf", setProvider: h.setProvider, faults: {}, flags: {} }),
+}));
+vi.mock("@/contexts/ThemeContext", () => ({
+  useTheme: () => ({ setAppearanceMode: h.setAppearanceMode, appearanceMode: "system", theme: "light", switchable: true }),
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -30,6 +33,7 @@ beforeEach(() => {
   h.navigate.mockReset();
   h.setActive.mockReset();
   h.logout.mockReset();
+  h.setAppearanceMode.mockReset();
 });
 afterEach(() => cleanup());
 
@@ -81,5 +85,29 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
     fireEvent.click(screen.getByText("雪山專案")); // collapsed pill → 展開下拉
     fireEvent.click(screen.getByText("森林專案")); // 選另一個專案
     expect(h.setActive).toHaveBeenCalledWith(2);
+  });
+
+  // AIDV-136：⌘K 代理動作群組（排程生成所有就緒鏡/重建 Context Packet/研究 i2v 一致性/自訂工作流）
+  it("⌘K 代理動作群組：顯示『排程生成所有就緒鏡』且點擊後導航到影片殼層", () => {
+    render(<AidvShellChrome />);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    expect(screen.getByText("排程生成所有就緒鏡")).toBeTruthy();
+    fireEvent.click(screen.getByText("排程生成所有就緒鏡"));
+    expect(h.navigate).toHaveBeenCalledWith("/video");
+  });
+
+  // AIDV-136：⌘K 主題群組（淺色/深色/跟隨系統/自動）
+  it("⌘K 主題群組：點『深色主題』→ setAppearanceMode('dark')", () => {
+    render(<AidvShellChrome />);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getByText("深色主題"));
+    expect(h.setAppearanceMode).toHaveBeenCalledWith("dark");
+  });
+
+  it("⌘K 主題群組：點『跟隨系統』→ setAppearanceMode('system')", () => {
+    render(<AidvShellChrome />);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getByText("跟隨系統"));
+    expect(h.setAppearanceMode).toHaveBeenCalledWith("system");
   });
 });
