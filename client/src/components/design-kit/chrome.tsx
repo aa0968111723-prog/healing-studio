@@ -340,6 +340,7 @@ export function CommandPalette({
   const [q, setQ] = React.useState("");
   const [idx, setIdx] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   const filtered = React.useMemo(
     () => (q.trim() ? items.filter((it) => (it.label + it.group).toLowerCase().includes(q.trim().toLowerCase())) : items),
@@ -360,17 +361,31 @@ export function CommandPalette({
     else if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(0, i - 1)); }
     else if (e.key === "Enter") { e.preventDefault(); flat[idx]?.onRun(); onClose(); }
     else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    else if (e.key === "Tab") {
+      if (!containerRef.current) return;
+      const focusable = Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>("input, button")
+      ).filter((el) => !(el as HTMLButtonElement | HTMLInputElement).disabled);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
   };
 
   let running = -1;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[18vh]" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="命令面板" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}
+      <div ref={containerRef} role="dialog" aria-modal="true" aria-label="命令面板" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}
         className="w-[min(560px,92vw)] overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-lift)]">
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} aria-label="命令搜尋"
           className="w-full border-b border-[var(--line)] bg-transparent px-4 py-3 text-[14px] text-[var(--text)] outline-none placeholder:text-[var(--muted-2)]" />
         <ul role="listbox" className="max-h-[44vh] overflow-y-auto p-2">
-          {flat.length === 0 && <li className="px-2 py-6 text-center text-[12px] text-[var(--muted)]">沒有符合的指令</li>}
+          {flat.length === 0 && <li className="px-2 py-6 text-center text-[12px] text-[var(--muted)]">找不到指令 · 試試…</li>}
           {Object.entries(groups).map(([group, its]) => (
             <li key={group}>
               <div className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[.18em] text-[var(--muted-2)]">{group}</div>

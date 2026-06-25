@@ -49,7 +49,7 @@ describe("design-kit Chrome 元件（U-10 / AIDV-101）", () => {
     expect(container.firstChild).toBeNull();
     rerender(<CommandPalette open items={[]} onClose={() => {}} />);
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("沒有符合的指令")).toBeTruthy();
+    expect(screen.getByText("找不到指令 · 試試…")).toBeTruthy();
   });
 
   it("CommandPalette：↓↵ 選第二項 → 執行其 onRun 並關閉", () => {
