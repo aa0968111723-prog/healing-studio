@@ -76,6 +76,7 @@ import { promptCollectionRouter } from "./routers/promptCollection";
 import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { auditLogRouter } from "./routers/auditLog";
+import { workflowRouter } from "./routers/workflow";
 import {
   recordAuditEvent,
   extractRequestSource,
@@ -1175,6 +1176,7 @@ export const appRouter = router({
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
   auditLog: auditLogRouter,
+  workflow: workflowRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
   agentModelPicks: agentModelPicksRouter,

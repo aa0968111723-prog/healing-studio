@@ -94,6 +94,9 @@ import {
   type InsertResourceShare,
   refreshTokens,
   type RefreshToken,
+  userWorkflows,
+  type UserWorkflow,
+  type InsertUserWorkflow,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
@@ -4464,3 +4467,30 @@ export async function isRefreshTokenActive(tokenHash: string): Promise<boolean> 
 }
 
 export type { RefreshToken };
+
+// ─── User Workflows (AIDV-43) ──────────────────────────────────────────────
+
+export async function getUserWorkflow(userId: number): Promise<UserWorkflow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(userWorkflows)
+    .where(eq(userWorkflows.userId, userId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertUserWorkflow(
+  userId: number,
+  stepsJson: InsertUserWorkflow["stepsJson"]
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(userWorkflows)
+    .values({ userId, stepsJson })
+    .onDuplicateKeyUpdate({ set: { stepsJson, updatedAt: new Date() } });
+}
+
+export type { UserWorkflow };

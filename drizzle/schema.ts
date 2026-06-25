@@ -4339,3 +4339,24 @@ export const refreshTokens = mysqlTable(
 
 export type RefreshToken = typeof refreshTokens.$inferSelect;
 export type InsertRefreshToken = typeof refreshTokens.$inferInsert;
+
+// ─── User Workflows (AIDV-43) ──────────────────────────────────────────────
+// 單表設計（D11 建議）：每位使用者只一筆，stepsJson 存整個工作流步驟陣列。
+// 跨裝置持久化，不依附任何 spirit/agent。
+export const userWorkflows = mysqlTable("user_workflows", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  stepsJson: json("stepsJson").$type<Array<{
+    id: string;
+    name: string;
+    required: boolean;
+    enabled: boolean;
+    canvasMode?: string;
+    pending?: boolean;
+  }>>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserWorkflow = typeof userWorkflows.$inferSelect;
+export type InsertUserWorkflow = typeof userWorkflows.$inferInsert;

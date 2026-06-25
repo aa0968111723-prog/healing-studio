@@ -57,6 +57,8 @@ const PENDING_BLOCK = [
   "0083_users_soft_delete",
   // AIDV-230 補登記：refresh_tokens 表（JWT 旋轉），登記後 when 在 0083 之後。
   "0080_refresh_tokens",
+  // AIDV-43 補登記：user_workflows 表（工作流持久化），登記後 when 在 0080 之後。
+  "0081_user_workflows",
 ];
 
 function readSql(tag: string): string {
