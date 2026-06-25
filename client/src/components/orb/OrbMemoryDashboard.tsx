@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, X, Sparkles, Layers, Target, Cpu, RefreshCw } from "lucide-react";
+import { Brain, X, Sparkles, Layers, Target, Cpu, RefreshCw, BookOpen } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 interface RowProps {
@@ -68,6 +68,10 @@ export default function OrbMemoryDashboard({ compact }: Props) {
   const memoryQuery = trpc.orbProxy.getRememberedPreferences.useQuery(undefined, {
     refetchOnWindowFocus: false,
     staleTime: 30_000,
+  });
+  const patternsQuery = trpc.orbProxy.listLearnedPatterns.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
   const removeOne = trpc.orbProxy.removePreferenceValue.useMutation({
     onSuccess: () => {
@@ -207,6 +211,28 @@ export default function OrbMemoryDashboard({ compact }: Props) {
           onRemove={value => removeOne.mutate({ key: "models", value })}
         />
       </div>
+
+      {(patternsQuery.data?.patterns.length ?? 0) > 0 && (
+        <div className="mt-2 pt-2 border-t border-border/50">
+          <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <BookOpen className="w-3 h-3" />
+            已從回答學習
+          </div>
+          <div className="flex flex-col gap-1">
+            {patternsQuery.data!.patterns.map(p => (
+              <div key={p.id} className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">{p.questionType}</span>
+                {p.defaultPreference && (
+                  <span className="text-[11px] font-medium text-foreground/80 truncate">{p.defaultPreference}</span>
+                )}
+                <span className="text-[10px] text-muted-foreground/60 shrink-0">
+                  {Math.round(p.confidenceScore * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <p className="mt-2 text-[10px] text-muted-foreground/70 leading-snug">
         每次選了風格、平台、用途，光球會偷偷記下來。隨時點 ✕ 移除單一偏好，或按右上「重置」全部清掉。

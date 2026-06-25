@@ -10,7 +10,9 @@
  */
 
 import { z } from "zod";
+import { desc, eq } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
 import { orbUnifiedSearch } from "../services/orbUnifiedSearch";
 import {
   recordOrbMemory,
@@ -23,6 +25,7 @@ import {
   buildClarificationPickMemory,
   CLARIFICATION_DIMENSION_SCHEMA,
 } from "../../shared/orb-clarification-memory";
+import { orbUserAnswerPatterns } from "../../drizzle/schema";
 
 const SEARCH_KIND_SCHEMA = z.enum(["asset", "note", "history", "tutorial"]);
 const PREFERENCE_KEY_SCHEMA = z.enum(["styles", "platforms", "outputs", "models"]);
@@ -121,6 +124,35 @@ export const orbProxyRouter = router({
         captured: draft.metadata,
       };
     }),
+
+  /**
+   * Expose learned answer patterns so the settings inspector can show
+   * "光球已從你的回答學到這些" — one row per questionType, sorted by confidence.
+   */
+  listLearnedPatterns: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { patterns: [] };
+    const rows = await db
+      .select()
+      .from(orbUserAnswerPatterns)
+      .where(eq(orbUserAnswerPatterns.userId, ctx.user.id))
+      .orderBy(desc(orbUserAnswerPatterns.confidenceScore))
+      .limit(20);
+    return {
+      patterns: rows.map(row => ({
+        id: String(row.id),
+        questionType: row.questionType,
+        commonAnswers: JSON.parse(row.commonAnswers as any) as Array<{
+          answer: string;
+          frequency: number;
+          lastUsed: string;
+        }>,
+        defaultPreference: row.defaultPreference ?? null,
+        confidenceScore: parseFloat(row.confidenceScore),
+        sampleCount: row.sampleCount,
+      })),
+    };
+  }),
 
   unifiedSearch: protectedProcedure
     .input(

@@ -7,6 +7,7 @@ import {
   orbConversations,
   orbConversationMessages,
 } from "../../drizzle/schema";
+import { orbConversationEnhancer } from "../services/orbConversationEnhancer";
 
 async function getDbOrThrow() {
   const db = await getDb();
@@ -494,6 +495,21 @@ export const orbConversationsRouter = router({
             eq(orbConversations.userId, ctx.user.id)
           )
         );
+
+      // Fire-and-forget: extract memories and learn from this turn.
+      // Never blocks the client response; errors stay silent.
+      const lastUserMsg = [...input.messages].reverse().find(m => m.role === "user");
+      if (lastUserMsg) {
+        const lastAsstMsg = [...input.messages].reverse().find(m => m.role === "orb");
+        orbConversationEnhancer.processConversationTurn({
+          userId: ctx.user.id,
+          conversationId: input.conversationId,
+          userInput: lastUserMsg.text,
+          orbResponse: lastAsstMsg?.text,
+        }).catch((e: unknown) => {
+          console.warn("[orbConversations] enhancer bg failed:", e instanceof Error ? e.message : e);
+        });
+      }
 
       return { ok: true as const, messageCount: prevCount + rows.length };
     }),
