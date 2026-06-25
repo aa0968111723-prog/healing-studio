@@ -6,7 +6,7 @@
 // 流程列反映「可設定工作流」當前啟用步驟集（console_.steps）。
 // ============================================================================
 import { useMemo } from "react";
-import { Wand2, Zap, Wrench, Check, Coins } from "lucide-react";
+import { Wand2, Zap, Wrench, Check, Coins, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { countGate, isShotGeneratable } from "@/spine/gate";
 import { ReadinessChip } from "./ReadinessChip";
 import type { ProviderId } from "@/spine/types";
+import { trpc } from "@/lib/trpc";
 // U-2（AIDV-92）逐殼採用 · /video S2：旗標 ON 時頂部創作流程列改用 design-kit 亮色暖光 FlowBar
 // （與 ReadinessChip／ShotPanel／ConfirmGate 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有版＝零變化。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
@@ -28,6 +29,25 @@ const PROVIDER_LADDER: { id: ProviderId; label: string; cost: number }[] = [
   { id: "fal", label: "fal", cost: 0.04 },
   { id: "mock", label: "Mock", cost: 0 },
 ];
+
+function AiBrainChip() {
+  const { data } = trpc.apiUsage.textLlmStatus.useQuery(undefined, { staleTime: 60_000, retry: false });
+  const status = data?.status ?? "offline";
+  return (
+    <span
+      title={status === "online" ? "OpenRouter 已設定" : status === "degraded" ? "僅 Anthropic 備援" : "文字 LLM 未設定"}
+      className={cn(
+        "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        status === "online" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        status === "degraded" && "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        status === "offline" && "border-destructive/40 bg-destructive/10 text-destructive",
+      )}
+    >
+      <Brain className="size-3" />
+      AI 腦&thinsp;·&thinsp;{status === "online" ? "線上" : status === "degraded" ? "降級" : "離線"}
+    </span>
+  );
+}
 
 export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
   const spine = useProjectSpine();
@@ -143,6 +163,8 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
             先估成本 · 失敗 <span className="text-emerald-600 dark:text-emerald-400">全額退還</span>
             {gate.stale > 0 && <span className="ml-2 text-amber-600 dark:text-amber-400">· {gate.stale} 鏡過期</span>}
           </span>
+
+          <AiBrainChip />
         </div>
       </CardContent>
     </Card>
