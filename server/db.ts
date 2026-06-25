@@ -3702,15 +3702,21 @@ export async function updateTeamMemberRole(
     );
 }
 
-/** 原子化轉移 owner：新 owner 升為 owner，舊 owner 降為 member，在同一 tx 內完成。 */
+/** 原子化轉移 owner：同一 tx 內更新 teams.ownerId + 新 owner 升為 owner + 舊 owner 降為 member。 */
 export async function transferTeamOwnership(
   teamId: number,
   oldOwnerId: number,
   newOwnerId: number
-) {
+): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.transaction(async tx => {
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(teams)
+      .set({ ownerId: newOwnerId })
+      .where(and(eq(teams.id, teamId), eq(teams.ownerId, oldOwnerId)));
+
     await tx
       .update(teamMemberships)
       .set({ role: "owner" })
@@ -3720,6 +3726,7 @@ export async function transferTeamOwnership(
           eq(teamMemberships.userId, newOwnerId)
         )
       );
+
     await tx
       .update(teamMemberships)
       .set({ role: "member" })

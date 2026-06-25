@@ -51,6 +51,8 @@ const PENDING_BLOCK = [
   "0080_agent_concurrency_registry",
   // AIDV-331：優先佇列 + Agent Scope 欄位
   "0081_orchestration_priority_scope",
+  // AIDV-214：learnHub 管理員文件持久化
+  "0082_learn_modules",
 ];
 
 function readSql(tag: string): string {

@@ -4282,3 +4282,34 @@ export const resourceShares = mysqlTable(
 
 export type ResourceShare = typeof resourceShares.$inferSelect;
 export type InsertResourceShare = typeof resourceShares.$inferInsert;
+
+// ─── Learn Modules — 管理員後台建立的學習文件（AIDV-214）──────────────────────────
+export const learnModules = mysqlTable(
+  "learn_modules",
+  {
+    id: varchar("id", { length: 128 }).primaryKey(),
+    category: varchar("category", { length: 32 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    summary: varchar("summary", { length: 500 }).notNull(),
+    content: mediumtext("content").notNull(),
+    tags: json("tags").$type<string[]>().notNull(),
+    difficulty: mysqlEnum("difficulty", ["beginner", "intermediate", "advanced"])
+      .notNull()
+      .default("beginner"),
+    readingMinutes: int("readingMinutes").notNull().default(5),
+    featured: boolean("featured").notNull().default(false),
+    authorName: varchar("authorName", { length: 100 }),
+    externalUrl: varchar("externalUrl", { length: 500 }),
+    attachments: json("attachments")
+      .$type<Array<{ type: string; url: string; title?: string }>>()
+      .notNull(),
+    publishedAt: timestamp("publishedAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow().onUpdateNow(),
+  },
+  table => ({
+    featuredIdx: index("lm_featured_idx").on(table.featured),
+  })
+);
+
+export type LearnModule = typeof learnModules.$inferSelect;
+export type InsertLearnModule = typeof learnModules.$inferInsert;

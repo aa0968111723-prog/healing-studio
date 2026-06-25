@@ -17,6 +17,7 @@ import {
   providerSnapshots,
   costAggregations,
   aiUsageEvents,
+  alertConfigs,
   AI_PROVIDERS,
 } from "../../drizzle/schema.js";
 import { sql, gte, desc, eq } from "drizzle-orm";
@@ -150,6 +151,86 @@ async function checkAnomalyAlerts(): Promise<void> {
   }
 }
 
+// ─── DB-Configured Alert Evaluation ─────────────────────────────────────────
+// Evaluates user-created alertConfigs rows, fires alerts when thresholds are
+// exceeded, and stamps lastTriggeredAt for dedup (re-fires after 1h).
+
+async function evaluateDbAlertConfigs(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const configs = await db
+    .select()
+    .from(alertConfigs)
+    .where(eq(alertConfigs.isActive, true));
+
+  if (configs.length === 0) return;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+  const [mtdRow] = await db
+    .select({ totalCost: sql<number>`COALESCE(SUM(${costAggregations.totalCostUsd}), 0)` })
+    .from(costAggregations)
+    .where(gte(costAggregations.date, monthStart));
+  const mtdCost = Number(mtdRow?.totalCost ?? 0);
+
+  for (const cfg of configs) {
+    if (cfg.lastTriggeredAt && cfg.lastTriggeredAt > oneHourAgo) continue;
+
+    let triggered = false;
+    let message = "";
+
+    if (cfg.alertType === "budget" && cfg.monthlyBudgetUsd) {
+      const budget = Number(cfg.monthlyBudgetUsd);
+      const thresholdPct = Number(cfg.thresholdPct ?? 80);
+      if (budget > 0 && mtdCost >= budget * (thresholdPct / 100)) {
+        triggered = true;
+        message = `Budget alert (cfg #${cfg.id}): MTD $${mtdCost.toFixed(2)} ≥ ${thresholdPct}% of $${budget}/mo limit`;
+      }
+    } else if (cfg.alertType === "quota" && cfg.provider) {
+      const [snapshot] = await db
+        .select()
+        .from(providerSnapshots)
+        .where(eq(providerSnapshots.provider, cfg.provider as (typeof AI_PROVIDERS)[number]))
+        .orderBy(desc(providerSnapshots.snapshotAt))
+        .limit(1);
+      if (snapshot && snapshot.quota && Number(snapshot.quota) > 0) {
+        const pct = (Number(snapshot.remaining ?? 0) / Number(snapshot.quota)) * 100;
+        const threshold = Number(cfg.thresholdPct ?? 20);
+        if (pct <= threshold) {
+          triggered = true;
+          message = `Quota alert (cfg #${cfg.id}): ${cfg.provider} at ${pct.toFixed(1)}% ≤ threshold ${threshold}%`;
+        }
+      }
+    } else if (cfg.alertType === "anomaly") {
+      const [stats] = await db
+        .select({
+          total: sql<number>`COUNT(*)`,
+          errors: sql<number>`SUM(CASE WHEN ${aiUsageEvents.status} != 'success' THEN 1 ELSE 0 END)`,
+        })
+        .from(aiUsageEvents)
+        .where(gte(aiUsageEvents.createdAt, oneHourAgo));
+      const total = Number(stats?.total ?? 0);
+      if (total > 0) {
+        const errorRate = (Number(stats?.errors ?? 0) / total) * 100;
+        const threshold = Number(cfg.thresholdPct ?? 5);
+        if (errorRate >= threshold) {
+          triggered = true;
+          message = `Anomaly alert (cfg #${cfg.id}): ${errorRate.toFixed(1)}% error rate ≥ threshold ${threshold}%`;
+        }
+      }
+    }
+
+    if (triggered) {
+      console.warn(`[ApiUsageAlert] ${message}`);
+      await sendSlackAlert(message);
+      await db.update(alertConfigs).set({ lastTriggeredAt: now }).where(eq(alertConfigs.id, cfg.id));
+    }
+  }
+}
+
 // ─── Main Run ────────────────────────────────────────────────────────────────
 
 async function runAlertChecks(): Promise<void> {
@@ -160,6 +241,7 @@ async function runAlertChecks(): Promise<void> {
     await checkBudgetAlert();
     await checkQuotaAlerts();
     await checkAnomalyAlerts();
+    await evaluateDbAlertConfigs();
   } catch (err) {
     console.error("[ApiUsageAlert] Alert check error:", err);
   } finally {

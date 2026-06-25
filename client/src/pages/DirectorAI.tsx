@@ -1634,6 +1634,9 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
       <span className="flex-1 truncate text-muted-foreground">
         {task.prompt.slice(0, 60) || "(無提示詞)"}
       </span>
+      {task.status === "pending" && !task.dependsOn && (
+        <div className="w-3 h-3 border-2 border-muted-foreground/30 border-t-muted-foreground/70 rounded-full animate-spin shrink-0" />
+      )}
       {task.status === "processing" && (
         <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin shrink-0" />
       )}

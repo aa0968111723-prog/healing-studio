@@ -102,6 +102,7 @@ import { logger, requestTraceMiddleware } from "./logger";
 import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
+import { initLearnHubFromDb } from "../routers/learnHub";
 import { serverEnv } from "./env.validated";
 import { startOrbScheduler } from "../services/orbScheduler";
 import {
@@ -361,6 +362,14 @@ async function startServer() {
     }
     logger.error("[Server] DB migration failed on startup — server will continue", { err });
   }
+  // AIDV-214: Load admin-created learn hub docs persisted in DB.
+  // Runs after migrations so the learn_modules table is guaranteed to exist.
+  try {
+    await initLearnHubFromDb();
+  } catch (err) {
+    logger.error("[Server] LearnHub DB init failed — server will continue with seed docs only", { err });
+  }
+
   // Reload persisted orb scheduled jobs from the DB and seed env-defined
   // jobs. Awaited so the scheduler is fully ready before the HTTP server
   // accepts requests.
