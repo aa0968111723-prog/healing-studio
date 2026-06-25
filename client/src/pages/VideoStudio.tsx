@@ -78,6 +78,8 @@ import { useLocation } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
+import { PromptVaultAdoption } from "@/components/promptVault";
+import { ENABLE_PROMPT_VAULT } from "@/config/promptVaultFlags";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -773,6 +775,9 @@ function TextToVideoTab() {
   const [soraAspect, setSoraAspect] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [soraResult, setSoraResult] = useState<VideoResult | null>(null);
 
+  // ─ PromptVault：最後一次送出的 t2v 提詞（存庫用）
+  const [lastT2VPrompt, setLastT2VPrompt] = useState<string>("");
+
   // ─ Mutations
   const klingMut = trpc.videoStudio.klingTextToVideo.useMutation({
     onError: e => toast.error(e.message),
@@ -914,6 +919,7 @@ function TextToVideoTab() {
 
   async function runKling() {
     if (!klingPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Kling", modality: "影片" });
+    setLastT2VPrompt(klingPrompt);
     setAIState("generating");
     try {
       const r = await klingMut.mutateAsync({
@@ -937,6 +943,7 @@ function TextToVideoTab() {
 
   async function runWan() {
     if (!wanPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Wan", modality: "影片" });
+    setLastT2VPrompt(wanPrompt);
     setAIState("generating");
     try {
       const r = await wanMut.mutateAsync({
@@ -959,6 +966,7 @@ function TextToVideoTab() {
 
   async function runMinimax() {
     if (!mmPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "MiniMax", modality: "影片" });
+    setLastT2VPrompt(mmPrompt);
     setAIState("generating");
     try {
       const r = await mmMut.mutateAsync({
@@ -979,6 +987,7 @@ function TextToVideoTab() {
 
   async function runVeo3() {
     if (!veoPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Veo 3", modality: "影片" });
+    setLastT2VPrompt(veoPrompt);
     setAIState("generating");
     try {
       const r = await veoMut.mutateAsync({
@@ -1000,6 +1009,7 @@ function TextToVideoTab() {
 
   async function runVeo3Pro() {
     if (!veoPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Veo 3 Pro", modality: "影片" });
+    setLastT2VPrompt(veoPrompt);
     setAIState("generating");
     try {
       const r = await veoProMut.mutateAsync({
@@ -1022,6 +1032,7 @@ function TextToVideoTab() {
 
   async function runLtx() {
     if (!ltxPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "LTX", modality: "影片" });
+    setLastT2VPrompt(ltxPrompt);
     setAIState("generating");
     try {
       const r = await ltxMut.mutateAsync({
@@ -1042,6 +1053,7 @@ function TextToVideoTab() {
 
   async function runSora() {
     if (!soraPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Sora", modality: "影片" });
+    setLastT2VPrompt(soraPrompt);
     setAIState("generating");
     try {
       const r = await soraMut.mutateAsync({
@@ -1631,6 +1643,23 @@ function TextToVideoTab() {
           )}
         </div>
       </ToolCard>
+
+      {ENABLE_PROMPT_VAULT && (
+        <div className="col-span-full">
+          <PromptVaultAdoption
+            sourceWorkflow="video"
+            payload={lastT2VPrompt ? { title: "文生影提詞", content: lastT2VPrompt, category: "video" } : null}
+            onApply={(entry) => {
+              setKlingPrompt(entry.prompt);
+              setWanPrompt(entry.prompt);
+              setMmPrompt(entry.prompt);
+              setVeoPrompt(entry.prompt);
+              setLtxPrompt(entry.prompt);
+              setSoraPrompt(entry.prompt);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
