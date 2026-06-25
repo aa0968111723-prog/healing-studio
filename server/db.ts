@@ -454,6 +454,89 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function softDeleteUser(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const anonymizedOpenId = `deleted-${userId}-${Date.now()}`;
+  await db
+    .update(users)
+    .set({
+      deletedAt: sql`NOW()`,
+      name: null,
+      email: null,
+      passwordHash: null,
+      twoFactorSecret: null,
+      orbMemorySummary: null,
+      avatarUrl: null,
+      openId: anonymizedOpenId,
+    })
+    .where(eq(users.id, userId));
+}
+
+export async function exportUserData(userId: number): Promise<Record<string, unknown> | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [user] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) return null;
+
+  const [projects, promptCount, modelWishCount] = await Promise.all([
+    db
+      .select({ id: creativeProjects.id, title: creativeProjects.title, createdAt: creativeProjects.createdAt })
+      .from(creativeProjects)
+      .where(eq(creativeProjects.userId, userId))
+      .limit(200),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(promptLibrary)
+      .where(eq(promptLibrary.userId, userId))
+      .then(r => r[0]?.count ?? 0),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(modelWishes)
+      .where(eq(modelWishes.userId, userId))
+      .then(r => r[0]?.count ?? 0),
+  ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    profile: user,
+    creativeProjects: projects,
+    summary: {
+      promptLibraryCount: promptCount,
+      modelWishCount,
+    },
+  };
+}
+
+export async function purgeOldLoginHistory(daysToKeep = 90): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.execute(
+    sql`DELETE FROM login_history WHERE createdAt < DATE_SUB(NOW(), INTERVAL ${daysToKeep} DAY)`
+  );
+  return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
+}
+
+export async function purgeOldAuditLog(daysToKeep = 90): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.execute(
+    sql`DELETE FROM global_audit_log WHERE createdAt < DATE_SUB(NOW(), INTERVAL ${daysToKeep} DAY)`
+  );
+  return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
+}
+
 export async function getUsersByIds(ids: number[]) {
   if (ids.length === 0) return [];
   const db = await getDb();

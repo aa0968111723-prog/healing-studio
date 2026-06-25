@@ -300,6 +300,7 @@ describe("brainPipeline graph builder", () => {
       "auditLog", // AIDV-123：稽核軌跡 append-only 查詢 — 純資料持久化，不觸發 AI
       "rbac", // AIDV-121：資料層共享/撤銷/移轉 CRUD — 純資料持久化，不觸發 AI
       "agentCapability", // AIDV-323：代理能力動態登記/心跳/派工 — 純路由基礎設施，不直接觸發 AI provider
+      "account", // AIDV-63：帳號刪除/資料匯出（GDPR），純 CRUD，不觸發 AI
     ]);
 
     const inGraph = new Set(

@@ -589,6 +589,13 @@
       "when": 1779050000094,
       "tag": "0082_learn_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "5",
+      "when": 1779050000095,
+      "tag": "0083_users_soft_delete",
+      "breakpoints": true
     }
   ]
 }
