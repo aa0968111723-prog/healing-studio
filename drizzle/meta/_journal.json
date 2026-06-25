@@ -248,322 +248,322 @@
       "breakpoints": true
     },
     {
-      "idx": 36,
+      "idx": 35,
       "version": "5",
       "when": 1779050000004,
       "tag": "0036_schedule_calendar_extensions",
       "breakpoints": true
     },
     {
-      "idx": 37,
+      "idx": 36,
       "version": "5",
       "when": 1779050000005,
       "tag": "0037_drive_asset_library",
       "breakpoints": true
     },
     {
-      "idx": 38,
+      "idx": 37,
       "version": "5",
       "when": 1779050000006,
       "tag": "0038_users_orb_memory_summary",
       "breakpoints": true
     },
     {
-      "idx": 45,
+      "idx": 38,
       "version": "5",
       "when": 1779050000045,
       "tag": "0045_notes_curator_enhancements",
       "breakpoints": true
     },
     {
-      "idx": 46,
+      "idx": 39,
       "version": "5",
       "when": 1779050000046,
       "tag": "0046_agent_preferences_15_spirits_phase3",
       "breakpoints": true
     },
     {
-      "idx": 47,
+      "idx": 40,
       "version": "5",
       "when": 1779050000047,
       "tag": "0047_featured_showcase_comments",
       "breakpoints": true
     },
     {
-      "idx": 48,
+      "idx": 41,
       "version": "5",
       "when": 1779050000048,
       "tag": "0048_worldbuilding_frameworks",
       "breakpoints": true
     },
     {
-      "idx": 49,
+      "idx": 42,
       "version": "5",
       "when": 1779050000049,
       "tag": "0049_worldbuilding_era",
       "breakpoints": true
     },
     {
-      "idx": 50,
+      "idx": 43,
       "version": "5",
       "when": 1779050000050,
       "tag": "0050_align_brain_defaults_to_latest",
       "breakpoints": true
     },
     {
-      "idx": 51,
+      "idx": 44,
       "version": "5",
       "when": 1779050000051,
       "tag": "0051_model_wishes",
       "breakpoints": true
     },
     {
-      "idx": 52,
+      "idx": 45,
       "version": "5",
       "when": 1779050000052,
       "tag": "0052_role_leader",
       "breakpoints": true
     },
     {
-      "idx": 53,
+      "idx": 46,
       "version": "5",
       "when": 1779050000053,
       "tag": "0053_teaching_materials",
       "breakpoints": true
     },
     {
-      "idx": 54,
+      "idx": 47,
       "version": "5",
       "when": 1779050000054,
       "tag": "0054_teams_and_audit",
       "breakpoints": true
     },
     {
-      "idx": 55,
+      "idx": 48,
       "version": "5",
       "when": 1779050000055,
       "tag": "0055_teaching_archive_fk",
       "breakpoints": true
     },
     {
-      "idx": 56,
+      "idx": 49,
       "version": "5",
       "when": 1779050000056,
       "tag": "0056_jobtype_teaching_ingestion",
       "breakpoints": true
     },
     {
-      "idx": 57,
+      "idx": 50,
       "version": "5",
       "when": 1779050000057,
       "tag": "0057_digital_asset_library_source_tracking",
       "breakpoints": true
     },
     {
-      "idx": 58,
+      "idx": 51,
       "version": "5",
       "when": 1779050000058,
       "tag": "0058_asset_history_archival_fields",
       "breakpoints": true
     },
     {
-      "idx": 59,
+      "idx": 52,
       "version": "5",
       "when": 1779050000059,
       "tag": "0059_media_archival_fields",
       "breakpoints": true
     },
     {
-      "idx": 60,
+      "idx": 53,
       "version": "5",
       "when": 1779050000060,
       "tag": "0060_worldbuilding_animation_extensions",
       "breakpoints": true
     },
     {
-      "idx": 61,
+      "idx": 54,
       "version": "5",
       "when": 1779050000061,
       "tag": "0061_repair_worldbuilding_columns",
       "breakpoints": true
     },
     {
-      "idx": 62,
+      "idx": 55,
       "version": "5",
       "when": 1779050000062,
       "tag": "0062_worldbuilding_v4_research_sound_assets",
       "breakpoints": true
     },
     {
-      "idx": 63,
+      "idx": 56,
       "version": "5",
       "when": 1779050000063,
       "tag": "0063_prompt_collection",
       "breakpoints": true
     },
     {
-      "idx": 64,
+      "idx": 57,
       "version": "5",
       "when": 1779050000064,
       "tag": "0064_timeline_frames_and_compositions",
       "breakpoints": true
     },
     {
-      "idx": 65,
+      "idx": 58,
       "version": "5",
       "when": 1779050000065,
       "tag": "0065_real_earth_information_system",
       "breakpoints": true
     },
     {
-      "idx": 66,
+      "idx": 59,
       "version": "5",
       "when": 1779050000066,
       "tag": "0066_teaching_materials_real_earth_refs",
       "breakpoints": true
     },
     {
-      "idx": 67,
+      "idx": 60,
       "version": "5",
       "when": 1779050000067,
       "tag": "0067_creative_projects",
       "breakpoints": true
     },
     {
-      "idx": 68,
+      "idx": 61,
       "version": "5",
       "when": 1779050000068,
       "tag": "0068_creative_projects_bootstrap",
       "breakpoints": true
     },
     {
-      "idx": 69,
+      "idx": 62,
       "version": "5",
       "when": 1779050000069,
       "tag": "0069_creative_projects_worldview_script",
       "breakpoints": true
     },
     {
-      "idx": 70,
+      "idx": 63,
       "version": "5",
       "when": 1779050000070,
       "tag": "0070_orchestration_runs",
       "breakpoints": true
     },
     {
-      "idx": 75,
+      "idx": 64,
       "version": "5",
       "when": 1779050000075,
       "tag": "0075_prompt_assets",
       "breakpoints": true
     },
     {
-      "idx": 76,
+      "idx": 65,
       "version": "5",
       "when": 1779050000076,
       "tag": "0071_context_packets",
       "breakpoints": true
     },
     {
-      "idx": 77,
+      "idx": 66,
       "version": "5",
       "when": 1779050000077,
       "tag": "0072_project_data_access_rules",
       "breakpoints": true
     },
     {
-      "idx": 78,
+      "idx": 67,
       "version": "5",
       "when": 1779050000078,
       "tag": "0073_data_source_connections",
       "breakpoints": true
     },
     {
-      "idx": 79,
+      "idx": 68,
       "version": "5",
       "when": 1779050000079,
       "tag": "0074_fine_tuned_models_team",
       "breakpoints": true
     },
     {
-      "idx": 80,
+      "idx": 69,
       "version": "5",
       "when": 1779050000080,
       "tag": "0076_global_audit_log",
       "breakpoints": true
     },
     {
-      "idx": 81,
+      "idx": 70,
       "version": "5",
       "when": 1779050000081,
       "tag": "0077_cost_ledger",
       "breakpoints": true
     },
     {
-      "idx": 82,
+      "idx": 71,
       "version": "5",
       "when": 1779050000082,
       "tag": "0078_resource_shares",
       "breakpoints": true
     },
     {
-      "idx": 83,
+      "idx": 72,
       "version": "5",
       "when": 1779050000083,
       "tag": "0079_cost_attribution",
       "breakpoints": true
     },
     {
-      "idx": 84,
+      "idx": 73,
       "version": "5",
       "when": 1779050000084,
       "tag": "0033_add_plan_status_to_sessions",
       "breakpoints": true
     },
     {
-      "idx": 85,
+      "idx": 74,
       "version": "5",
       "when": 1779050000085,
       "tag": "0039_orb_long_term_memory",
       "breakpoints": true
     },
     {
-      "idx": 86,
+      "idx": 75,
       "version": "5",
       "when": 1779050000086,
       "tag": "0040_orb_intent_clarification",
       "breakpoints": true
     },
     {
-      "idx": 87,
+      "idx": 76,
       "version": "5",
       "when": 1779050000087,
       "tag": "0041_orb_feature_usage",
       "breakpoints": true
     },
     {
-      "idx": 88,
+      "idx": 77,
       "version": "5",
       "when": 1779050000088,
       "tag": "0042_orb_workflow_templates",
       "breakpoints": true
     },
     {
-      "idx": 89,
+      "idx": 78,
       "version": "5",
       "when": 1779050000089,
       "tag": "0043_orb_system_monitoring",
       "breakpoints": true
     },
     {
-      "idx": 90,
+      "idx": 79,
       "version": "5",
       "when": 1779050000090,
       "tag": "0044_orb_template_ratings_and_alerts",
       "breakpoints": true
     },
     {
-      "idx": 91,
+      "idx": 80,
       "version": "5",
       "when": 1779050000091,
       "tag": "0067_repair_worldbuilding_v4_columns",
@@ -595,6 +595,13 @@
       "version": "5",
       "when": 1779050000095,
       "tag": "0083_users_soft_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "5",
+      "when": 1779050000096,
+      "tag": "0080_refresh_tokens",
       "breakpoints": true
     }
   ]

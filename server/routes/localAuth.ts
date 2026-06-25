@@ -189,11 +189,11 @@ export function createLocalAuthRouter(
       });
 
       // AIDV-230: record token in DB when rotation is enabled
-      if (isRefreshTokenRotationEnabled() && result.user?.id) {
+      if (isRefreshTokenRotationEnabled() && result.userId) {
         const expiresAt = new Date(Date.now() + sessionLifetimeMs);
         insertRefreshToken({
           tokenHash: hashSessionToken(result.token),
-          userId: result.user.id,
+          userId: result.userId,
           expiresAt,
         }).catch(err => logger.error("[LocalAuth] Failed to record refresh token on register", { err }));
       }
