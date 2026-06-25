@@ -343,7 +343,7 @@ describe("POST /api/upload/finalize — AIDV-64 magic-byte parity", () => {
     server.close();
   });
 
-  it("嗅探 GET 失敗（重試後仍失敗）→ fail-closed 415 + 刪物件（AIDV-182）", async () => {
+  it("嗅探 GET 連續失敗（3 次）→ 400 fail-closed（AIDV-203）", async () => {
     authenticateRequestMock.mockResolvedValue({ id: 1 });
     verifyUploadedObjectMock.mockResolvedValue({
       exists: true,
@@ -351,6 +351,7 @@ describe("POST /api/upload/finalize — AIDV-64 magic-byte parity", () => {
       contentType: "image/png",
     });
     buildPublicUrlMock.mockReturnValue("https://pub.r2.dev/uploads/1/x.png");
+    // 持續拒絕 → 三次重試全失敗 → fail-closed
     fetchObjectHeadBytesMock.mockRejectedValue(new Error("R2 jitter"));
     deleteUploadedObjectMock.mockResolvedValue(undefined);
     const { server, baseUrl } = await startTestServer();
@@ -358,10 +359,10 @@ describe("POST /api/upload/finalize — AIDV-64 magic-byte parity", () => {
       fileKey: "uploads/1/x.png",
       mimeType: "image/png",
     });
-    expect(res.status).toBe(415);
-    expect(deleteUploadedObjectMock).toHaveBeenCalledWith("uploads/1/x.png");
+    expect(res.status).toBe(400);
+    expect(deleteUploadedObjectMock).not.toHaveBeenCalled();
     server.close();
-  }, 3000);
+  }, 10_000); // 退避延遲最多 600ms，給充裕 timeout
 
   it("document kind（text/plain）不跑 binary-media 嗅探（不呼叫 fetchObjectHeadBytes）", async () => {
     authenticateRequestMock.mockResolvedValue({ id: 1 });
