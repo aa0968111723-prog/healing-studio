@@ -18,6 +18,7 @@ vi.mock("@/config/featureFlags", () => ({
 
 const spy = vi.hoisted(() => ({
   generateShot: vi.fn(() => Promise.resolve()),
+  retrySingleShot: vi.fn(() => Promise.resolve()),
   approveShot: vi.fn(() => Promise.resolve()),
   shots: [] as Shot[],
 }));
@@ -25,6 +26,7 @@ vi.mock("@/spine/ProjectSpineProvider", () => ({
   useProjectSpine: () => ({
     project: { shots: spy.shots, characters: [], scenes: [] },
     generateShot: spy.generateShot,
+    retrySingleShot: spy.retrySingleShot,
     approveShot: spy.approveShot,
   }),
 }));
@@ -41,7 +43,7 @@ function shot(over: Partial<Shot> = {}): Shot {
 }
 
 beforeEach(() => { spy.shots = [shot()]; });
-afterEach(() => { cleanup(); flags.chrome = false; spy.generateShot.mockClear(); spy.approveShot.mockClear(); });
+afterEach(() => { cleanup(); flags.chrome = false; spy.generateShot.mockClear(); spy.retrySingleShot.mockClear(); spy.approveShot.mockClear(); });
 
 describe("ShotPanel（U-2 / AIDV-92 · /video S5）", () => {
   it("空態：無分鏡時顯示引導文案", () => {
@@ -78,5 +80,23 @@ describe("ShotPanel（U-2 / AIDV-92 · /video S5）", () => {
     render(<ShotPanel />);
     fireEvent.click(screen.getByText("生成"));
     expect(spy.generateShot).toHaveBeenCalledWith("s1");
+  });
+
+  // AIDV-233：單片段重試機制——error 態顯示「重試」按鈕，點擊觸發 retrySingleShot
+  it("旗標 OFF（AIDV-233）：error 態顯示『生成失敗』＋『重試』→ 點擊觸發 retrySingleShot", () => {
+    flags.chrome = false;
+    spy.shots = [shot({ gen: { status: "error", variant: 0 } })];
+    render(<ShotPanel />);
+    expect(screen.getByText("生成失敗")).toBeTruthy();
+    fireEvent.click(screen.getByText("重試"));
+    expect(spy.retrySingleShot).toHaveBeenCalledWith("s1");
+  });
+
+  it("旗標 ON（AIDV-233）：error 態進 design-kit，『重試』同樣觸發 retrySingleShot", () => {
+    flags.chrome = true;
+    spy.shots = [shot({ gen: { status: "error", variant: 0 } })];
+    render(<ShotPanel />);
+    fireEvent.click(screen.getByText("重試"));
+    expect(spy.retrySingleShot).toHaveBeenCalledWith("s1");
   });
 });

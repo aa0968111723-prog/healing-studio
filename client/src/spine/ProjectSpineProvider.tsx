@@ -56,6 +56,8 @@ interface ProjectSpineValue {
   setProvider: (p: ProviderId) => void;
   // ── 生成 ──
   generateShot: (shotId: string, opts?: { regen?: boolean }) => Promise<void>;
+  // AIDV-233：明確單片段重試語意（內部與 generateShot(id) 等價；對齊 UI 意圖）。
+  retrySingleShot: (shotId: string) => Promise<void>;
   scheduleGeneration: () => Promise<void>;
   // ── 確認門流程 ──
   uploadReference: (charId: string) => Promise<void>;
@@ -250,6 +252,9 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       const shot = p.shots.find((x) => x.id === shotId); if (!shot) return;
       await genOne(shot, opts);
     }), [genOne, runExclusive]);
+
+  // AIDV-233：單片段重試（error 態 → 重跑同一鏡，使用 generate:shotId 去重防雙擊）。
+  const retrySingleShot = useCallback((shotId: string) => generateShot(shotId), [generateShot]);
 
   const scheduleGeneration = useCallback(() => runExclusive("schedule", async () => {
     const p = projRef.current; if (!p) return;
@@ -480,7 +485,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
   const value: ProjectSpineValue = {
     mode: gateway.mode, loading, error, projects, project, activeProjectId, setActiveProject, reload,
     persona, setPersona, provider: spine.provider, setProvider: spine.setProvider,
-    generateShot, scheduleGeneration,
+    generateShot, retrySingleShot, scheduleGeneration,
     uploadReference, changeCharacterSetting, toggleLock, toggleSceneLock, approveShot,
     addNote, addPromptBlock, rebuildPacket, ingestBreakdown, createProject, directorReply, breakdownScript,
     linkWorld, listWorlds,
