@@ -8,8 +8,9 @@
  * 後續做 email invite 再加 pending_invitations。
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { TeamsBoard, type Team, type TeamRole, type TeamsBoardStatus, TEAMS_COLLAB } from "@/components/teams";
 import { shortErrorMsg } from "@/lib/upload";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,40 @@ export default function TeamsPage() {
   const listQuery = trpc.teams.list.useQuery(undefined, { staleTime: 5_000 });
   const teams = listQuery.data ?? [];
 
+  // TeamsBoard: pre-fetch members for the first (default-selected) team
+  const firstTeamId = teams[0]?.id ?? null;
+  const membersQuery = trpc.teams.members.useQuery(
+    { id: firstTeamId! },
+    { enabled: TEAMS_COLLAB && firstTeamId !== null, staleTime: 5_000 },
+  );
+
+  const boardTeams = useMemo((): Team[] => {
+    if (!TEAMS_COLLAB) return [];
+    return teams.map((t, idx) => ({
+      id: String(t.id),
+      name: t.name,
+      blurb: t.description || undefined,
+      scope: "team" as const,
+      members: idx === 0 && membersQuery.data
+        ? membersQuery.data.map(m => ({
+            id: String(m.userId),
+            name: m.user?.name ?? `User #${m.userId}`,
+            avatarUrl: m.user?.avatarUrl ?? undefined,
+            role: mapTrpcRole(m.role),
+          }))
+        : [],
+      tasks: [],
+    }));
+  }, [teams, membersQuery.data]);
+
+  const boardStatus: TeamsBoardStatus = listQuery.isLoading
+    ? "loading"
+    : listQuery.isError
+    ? "error"
+    : teams.length === 0
+    ? "empty"
+    : "ready";
+
   return (
     <div className="page-shell space-y-6">
       <header className="page-header flex items-center justify-between">
@@ -81,7 +116,14 @@ export default function TeamsPage() {
         </Button>
       </header>
 
-      {listQuery.isLoading ? (
+      {TEAMS_COLLAB ? (
+        <TeamsBoard
+          teams={boardTeams}
+          status={boardStatus}
+          initialTeamId={boardTeams[0]?.id}
+          onRetry={() => listQuery.refetch()}
+        />
+      ) : listQuery.isLoading ? (
         <div className="text-muted-foreground py-12 text-center">載入中…</div>
       ) : teams.length === 0 ? (
         <div className="rounded-xl border border-dashed py-16 text-center text-muted-foreground">
@@ -130,6 +172,12 @@ export default function TeamsPage() {
       )}
     </div>
   );
+}
+
+function mapTrpcRole(role: "owner" | "admin" | "member"): TeamRole {
+  if (role === "owner") return "owner";
+  if (role === "admin") return "admin";
+  return "editor";
 }
 
 function RoleBadge({ role }: { role: "owner" | "admin" | "member" }) {
