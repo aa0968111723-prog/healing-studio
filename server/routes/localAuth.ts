@@ -128,6 +128,7 @@ function getAccessTokenLifetimeMs(): number {
 /** Minimal contract for login history operations used by this router */
 interface LoginHistoryGateway {
   getFailedAttemptsByEmail(email: string, withinMinutes: number): Promise<number>;
+  getFailedAttemptsByEmailAndIp(email: string, ipAddress: string, withinMinutes: number): Promise<number>;
   recordLoginAttempt(attempt: { userId: number; email?: string; success: boolean; ipAddress?: string; userAgent?: string; failureReason?: string }): Promise<void>;
 }
 
@@ -245,15 +246,16 @@ export function createLocalAuthRouter(
     const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress;
     const userAgent = req.headers["user-agent"];
 
-    // ── Per-email brute-force check ──────────────────────────────────────
-    // Query the login_history table for recent failures. If the DB is down
-    // this call will throw; we catch and allow the request through so a DB
-    // hiccup never locks out legitimate users.
+    // ── Per-email-AND-IP brute-force check (AIDV-264) ────────────────────
+    // Key by (email, IP) so a remote attacker cannot lock out the victim's
+    // account: only the attacker's IP is throttled; the victim's own IP
+    // (where failure count is 0) can still authenticate.
+    // DB errors → fail-open (never lock out on infrastructure failure).
     try {
-      const recentFailures = await history.getFailedAttemptsByEmail(
-        email,
-        LOCKOUT_WINDOW_MINUTES
-      );
+      const ip = ipAddress ?? "";
+      const recentFailures = ip
+        ? await history.getFailedAttemptsByEmailAndIp(email, ip, LOCKOUT_WINDOW_MINUTES)
+        : await history.getFailedAttemptsByEmail(email, LOCKOUT_WINDOW_MINUTES);
       if (recentFailures >= MAX_FAILED_ATTEMPTS) {
         res.status(429).json({
           error: "Too many failed login attempts. Please try again later or reset your password.",
