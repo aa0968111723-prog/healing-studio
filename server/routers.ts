@@ -128,7 +128,7 @@ import {
   getSpecialistMemoryHints,
   recordToolAuditAsSpecialistInteraction,
 } from "./services/specializedAgentMemoryStore";
-import { getAggregatedPicksForPrompt } from "./services/agentModelPicks";
+import { getAggregatedPicksForPrompt, recordModelPick } from "./services/agentModelPicks";
 import { getOrbMemorySummary, upsertOrbMemory } from "./services/orbUserMemory";
 import {
   approveOrbAgentTask,
@@ -5957,8 +5957,24 @@ export const appRouter = router({
           rating: z.number().min(1).max(5),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await db.updateHistoryEntry(input.id, { userRating: input.rating });
+        if (input.rating >= 4) {
+          void db.getHistoryEntry(input.id, ctx.user.id).then(entry => {
+            const snap = entry?.parameterSnapshot as Record<string, unknown> | null;
+            const modelId = snap?.modelId;
+            if (entry && typeof modelId === "string" && modelId.trim()) {
+              void recordModelPick({
+                userId: ctx.user.id,
+                modality: entry.modality,
+                modelId: modelId.trim(),
+                source: "history",
+                accepted: true,
+                context: { fromRating: input.rating },
+              });
+            }
+          }).catch(() => {});
+        }
         return { success: true };
       }),
 

@@ -1964,6 +1964,17 @@ export async function deleteHistoryEntry(id: number) {
   await db.delete(generationHistory).where(eq(generationHistory.id, id));
 }
 
+export async function getHistoryEntry(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(generationHistory)
+    .where(and(eq(generationHistory.id, id), eq(generationHistory.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 // ─── Custom Blocks ─────────────────────────────────────────────────────────────
 
 export async function createCustomBlock(data: InsertCustomBlock) {
