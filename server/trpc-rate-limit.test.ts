@@ -106,3 +106,57 @@ describe("checkTrpcRateLimit — AIDV-211", () => {
     process.env.NODE_ENV = "development"; // 恢復 beforeEach 設定，讓 afterEach 正確還原
   });
 });
+
+describe("checkTrpcRateLimit — AIDV-242 videoStudio 多視窗保護", () => {
+  it("videoStudio:hr 與 videoStudio:day 是獨立桶", () => {
+    // Fill up hourly bucket but not daily
+    for (let i = 0; i < 50; i++) {
+      checkTrpcRateLimit(1, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" });
+    }
+    expect(() =>
+      checkTrpcRateLimit(1, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" })
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" } as Partial<TRPCError>));
+
+    // Daily bucket is separate — should still allow requests
+    expect(() =>
+      checkTrpcRateLimit(1, { limit: 200, windowMs: 24 * 60 * 60_000, label: "videoStudio:day" })
+    ).not.toThrow();
+  });
+
+  it("模擬 requireVideoStudioLimit 串聯：兩個視窗都必須通過才允許請求", () => {
+    const simulateVideoGenRequest = (userId: number) => {
+      // Same order as requireVideoStudioLimit middleware
+      checkTrpcRateLimit(userId, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" });
+      checkTrpcRateLimit(userId, { limit: 200, windowMs: 24 * 60 * 60_000, label: "videoStudio:day" });
+    };
+
+    // First 50 requests should pass
+    for (let i = 0; i < 50; i++) {
+      expect(() => simulateVideoGenRequest(1)).not.toThrow();
+    }
+
+    // 51st request hits hourly cap first
+    expect(() => simulateVideoGenRequest(1)).toThrowError(
+      expect.objectContaining({ code: "TOO_MANY_REQUESTS" } as Partial<TRPCError>)
+    );
+
+    // After 1 hour, hourly resets — but daily cap still applies
+    vi.advanceTimersByTime(60 * 60_000 + 1);
+    expect(() => simulateVideoGenRequest(1)).not.toThrow();
+  });
+
+  it("videoStudio 速率限制與 gen 桶互相獨立（不互相消耗）", () => {
+    // Exhaust the gen (per-minute) bucket
+    for (let i = 0; i < 5; i++) {
+      checkTrpcRateLimit(1, { limit: 5, windowMs: 60_000, label: "gen" });
+    }
+    expect(() =>
+      checkTrpcRateLimit(1, { limit: 5, windowMs: 60_000, label: "gen" })
+    ).toThrow();
+
+    // videoStudio:hr bucket is unaffected
+    expect(() =>
+      checkTrpcRateLimit(1, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" })
+    ).not.toThrow();
+  });
+});

@@ -22,7 +22,7 @@
 
 import { z } from "zod";
 import { safeExternalUrl, safeExternalUrlOptional } from "../utils/validateSafeUrl";
-import { generationProcedure, publicProcedure, router } from "../_core/trpc";
+import { generationProcedure, videoGenerationProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
@@ -478,7 +478,7 @@ export const videoStudioRouter = router({
    * fal-ai/kling-video/v2.1/standard/text-to-video
    * 業界頂尖中文語意理解，5s/10s，支援 16:9 / 9:16 / 1:1
    */
-  klingTextToVideo: generationProcedure
+  klingTextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -520,7 +520,7 @@ export const videoStudioRouter = router({
    * fal-ai/wan-t2v
    * 開源最強影片生成，720p 高畫質，多語言提詞
    */
-  wanTextToVideo: generationProcedure
+  wanTextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -561,7 +561,7 @@ export const videoStudioRouter = router({
    * fal-ai/minimax/hailuo-02/pro/text-to-video
    * MiniMax 旗艦影片模型，電影級動態；6s/10s，1080p/768p，可指定畫面比例與提詞優化
    */
-  minimaxTextToVideo: generationProcedure
+  minimaxTextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -598,7 +598,7 @@ export const videoStudioRouter = router({
    * fal-ai/veo3
    * Google 最新旗艦影片模型，8s，唯一原生同步音訊生成；可指定 negative_prompt / seed
    */
-  veo3TextToVideo: generationProcedure
+  veo3TextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(3000),
@@ -636,7 +636,7 @@ export const videoStudioRouter = router({
    * Veo 3 旗艦 Pro 版：更高擬真、更好的色彩還原、原生同步音訊
    * 與 Veo 3 Standard 共用 schema，但定價與 timeout 較高
    */
-  veo3ProTextToVideo: generationProcedure
+  veo3ProTextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(3000),
@@ -675,7 +675,7 @@ export const videoStudioRouter = router({
    * fal-ai/ltx-video-13b-distilled
    * Lightricks 開源旗艦，超快速蒸餾版，720p；可指定 seed / guidance_scale / expand_prompt
    */
-  ltxTextToVideo: generationProcedure
+  ltxTextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -725,7 +725,7 @@ export const videoStudioRouter = router({
    * fal-ai/sora — 注意：OpenAI Sora 在 fal.ai 的可用性不穩定
    * 此端點如失效將自動降級到 LTX-Video 13B
    */
-  soraTextToVideo: generationProcedure
+  soraTextToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -769,7 +769,7 @@ export const videoStudioRouter = router({
    * fal-ai/kling-video/v2.1/standard/image-to-video
    * 最自然的圖片動態化，支援起始幀 + 結束幀；可指定 motion_intensity / aspect_ratio / seed
    */
-  klingImageToVideo: generationProcedure
+  klingImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -817,7 +817,7 @@ export const videoStudioRouter = router({
    * Kling Pro 旗艦圖生影：更細膩的動態、更精準的角色一致性；ultra tier
    * 與 Standard 同 schema，但定價較高（Pro pricing 已存在於 modelPricing.ts）
    */
-  klingProImageToVideo: generationProcedure
+  klingProImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -863,7 +863,7 @@ export const videoStudioRouter = router({
    * fal-ai/wan-i2v
    * 開源最強圖生影，720p，靈活參數控制
    */
-  wanImageToVideo: generationProcedure
+  wanImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -902,7 +902,7 @@ export const videoStudioRouter = router({
    * fal-ai/runway-gen4-turbo/image-to-video
    * Runway Gen4，電影級品質，5s/10s；可指定 ratio 與 seed
    */
-  runwayImageToVideo: generationProcedure
+  runwayImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -948,7 +948,7 @@ export const videoStudioRouter = router({
    * fal-ai/pixverse/v4.5/image-to-video
    * PixVerse 旗艦，強大的物理動態，支援特效模板；可指定 aspect_ratio / style / seed
    */
-  pixverseImageToVideo: generationProcedure
+  pixverseImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -997,7 +997,7 @@ export const videoStudioRouter = router({
    * fal-ai/minimax/hailuo-02/pro/image-to-video
    * MiniMax 圖生影，超強首幀固定效果；6s/10s，1080p/768p
    */
-  minimaxImageToVideo: generationProcedure
+  minimaxImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -1038,7 +1038,7 @@ export const videoStudioRouter = router({
    * fal-ai/wan/v2.1/video-to-video
    * 將現有影片依照提詞重新渲染風格；可指定 strength / negative_prompt / seed
    */
-  wanVideoToVideo: generationProcedure
+  wanVideoToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -1076,7 +1076,7 @@ export const videoStudioRouter = router({
    * fal-ai/kling-video/v2.1/standard/video-to-video
    * Kling 高品質影片重繪，保持原始動態；可指定 cfg_scale / negative_prompt / seed
    */
-  klingVideoToVideo: generationProcedure
+  klingVideoToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -1113,7 +1113,7 @@ export const videoStudioRouter = router({
    * fal-ai/ltx-video/image-to-video
    * 以圖片為關鍵幀生成流暢影片動態
    */
-  ltxImageToVideo: generationProcedure
+  ltxImageToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -1161,7 +1161,7 @@ export const videoStudioRouter = router({
    * fal-ai/bytedance/upscaler/video
    * 業界頂尖影片超分辨率，2x 或 4x 放大；premium 層級，計價依影片時長
    */
-  videoUpscale: generationProcedure
+  videoUpscale: videoGenerationProcedure
     .input(
       z.object({
         videoUrl: safeExternalUrl,
@@ -1200,7 +1200,7 @@ export const videoStudioRouter = router({
    * fal-ai/rife-v4.6/video
    * RIFE v4.6 高品質補幀，2x/4x 幀率提升；可指定目標 fps（24-120），standard 層級
    */
-  frameInterpolation: generationProcedure
+  frameInterpolation: videoGenerationProcedure
     .input(
       z.object({
         videoUrl: safeExternalUrl,
@@ -1243,7 +1243,7 @@ export const videoStudioRouter = router({
    * Topaz Labs 專業影片降噪 + 超解析；ultra 層級，計價依影片時長
    * 內建模型：iris（人臉）/ artemis（一般）/ theia（細節）/ gaia（高解析）/ nyx（低光降噪）
    */
-  topazEnhance: generationProcedure
+  topazEnhance: videoGenerationProcedure
     .input(
       z.object({
         videoUrl: safeExternalUrl,
@@ -1298,7 +1298,7 @@ export const videoStudioRouter = router({
    * 精確鏡頭運動控制（17 種運鏡：靜止、推拉、上下移、左右搖、上下俯仰、
    * 順逆時針旋轉、水平/垂直環繞、升降鏡），基於圖生影；premium 層級
    */
-  camMaster: generationProcedure
+  camMaster: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -1382,7 +1382,7 @@ export const videoStudioRouter = router({
    * fal-ai/animatediff-v2v
    * 基於骨架姿勢 / Canny 邊緣 / Depth 深度精確控制影片動作；standard 層級
    */
-  animateDiff: generationProcedure
+  animateDiff: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -1434,7 +1434,7 @@ export const videoStudioRouter = router({
    * 進階參數：num_denoising_steps（去噪步數，越高越精細）、guidance_scale、
    * window_size（時序視窗）、overlap（視窗重疊）、max_res（最大邊長）
    */
-  depthCrafter: generationProcedure
+  depthCrafter: videoGenerationProcedure
     .input(
       z.object({
         videoUrl: safeExternalUrl,
@@ -1486,7 +1486,7 @@ export const videoStudioRouter = router({
    * fal-ai/vidu/q1/reference-to-video
    * 保持角色外觀一致性，最多 3 參考圖
    */
-  viduReferenceToVideo: generationProcedure
+  viduReferenceToVideo: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
