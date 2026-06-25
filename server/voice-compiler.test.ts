@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { VoiceCompiler, getVoiceCompiler } from "./services/voiceCompiler";
+import { VoiceCompiler, getVoiceCompiler, parseVoiceBlockPrompt } from "./services/voiceCompiler";
 import type { VoiceCompilerInput, MoodBlock } from "./services/voiceCompiler";
 
 describe("VoiceCompiler", () => {
@@ -77,6 +77,130 @@ describe("VoiceCompiler", () => {
       const { profile, source } = compiler.resolveEmotion(input);
       expect(profile.name).toBe("中性");
       expect(source).toBe("default (neutral)");
+    });
+
+    // ─── AIDV-216: 自訂語音 preset ────────────────────────────
+
+    it("uses resolvedCustomProfile when moodBlock.isCustom === true", () => {
+      const input: VoiceCompilerInput = {
+        script: "冥想引導文字",
+        moodBlock: {
+          blockId: "cb_42",
+          label: "我的冥想語調",
+          prompt: '{"rate":"80%","pitch":"-5%","styleHint":"meditative"}',
+          isCustom: true,
+          customBlockId: 42,
+        },
+        resolvedCustomProfile: { rate: "80%", pitch: "-5%", styleHint: "meditative" },
+      };
+      const { profile, source } = compiler.resolveEmotion(input);
+      expect(profile.rate).toBe("80%");
+      expect(profile.pitch).toBe("-5%");
+      expect(profile.styleHint).toBe("meditative");
+      expect(source).toContain("customBlock:42");
+      expect(source).toContain("我的冥想語調");
+    });
+
+    it("resolvedCustomProfile overrides built-in profile for isCustom block", () => {
+      const input: VoiceCompilerInput = {
+        script: "測試覆蓋",
+        moodBlock: {
+          blockId: "warm",
+          label: "我改版的 warm",
+          prompt: '{"rate":"70%"}',
+          isCustom: true,
+          customBlockId: 7,
+        },
+        resolvedCustomProfile: { rate: "70%" },
+      };
+      const { profile } = compiler.resolveEmotion(input);
+      // rate should come from custom profile, not the built-in warm (95%)
+      expect(profile.rate).toBe("70%");
+      // other fields fall back to DEFAULT_EMOTION
+      expect(profile.emphasisLevel).toBe("none");
+    });
+
+    it("falls back to normal resolution when resolvedCustomProfile is absent", () => {
+      const input: VoiceCompilerInput = {
+        script: "測試",
+        moodBlock: {
+          blockId: "cb_99",
+          label: "joyful energy",
+          prompt: "",
+          isCustom: true,
+          customBlockId: 99,
+        },
+        // resolvedCustomProfile intentionally omitted (custom block was deleted)
+      };
+      const { profile } = compiler.resolveEmotion(input);
+      // Should fall through to label matching → joyful
+      expect(profile.name).toBe("歡愉");
+    });
+
+    it("ignores resolvedCustomProfile when moodBlock.isCustom is false", () => {
+      const input: VoiceCompilerInput = {
+        script: "測試",
+        moodBlock: {
+          blockId: "serene",
+          label: "寧靜",
+          prompt: "",
+          isCustom: false,
+        },
+        resolvedCustomProfile: { rate: "999%" },
+      };
+      const { profile } = compiler.resolveEmotion(input);
+      // resolvedCustomProfile must NOT be applied; built-in serene should win
+      expect(profile.name).toBe("寧靜");
+      expect(profile.rate).toBe("90%");
+    });
+  });
+
+  // ─── AIDV-216: parseVoiceBlockPrompt ─────────────────────────────────────
+
+  describe("parseVoiceBlockPrompt", () => {
+    it("parses valid JSON with all fields", () => {
+      const json = JSON.stringify({
+        rate: "85%",
+        pitch: "-3%",
+        volume: "soft",
+        emphasisLevel: "reduced",
+        sentenceBreakMs: 700,
+        paragraphBreakMs: 1800,
+        hesitationBreakMs: 1900,
+        styleHint: "calm",
+        name: "我的冥想語調",
+      });
+      const result = parseVoiceBlockPrompt(json);
+      expect(result.rate).toBe("85%");
+      expect(result.pitch).toBe("-3%");
+      expect(result.volume).toBe("soft");
+      expect(result.emphasisLevel).toBe("reduced");
+      expect(result.sentenceBreakMs).toBe(700);
+      expect(result.styleHint).toBe("calm");
+      expect(result.name).toBe("我的冥想語調");
+    });
+
+    it("returns empty object for invalid JSON", () => {
+      expect(parseVoiceBlockPrompt("not json")).toEqual({});
+      expect(parseVoiceBlockPrompt("")).toEqual({});
+    });
+
+    it("ignores invalid emphasisLevel values", () => {
+      const result = parseVoiceBlockPrompt(JSON.stringify({ emphasisLevel: "maximum" }));
+      expect(result.emphasisLevel).toBeUndefined();
+    });
+
+    it("ignores non-string rate/pitch values", () => {
+      const result = parseVoiceBlockPrompt(JSON.stringify({ rate: 0.9, pitch: -5 }));
+      expect(result.rate).toBeUndefined();
+      expect(result.pitch).toBeUndefined();
+    });
+
+    it("handles partial JSON with only some fields", () => {
+      const result = parseVoiceBlockPrompt(JSON.stringify({ rate: "90%", styleHint: "gentle" }));
+      expect(result.rate).toBe("90%");
+      expect(result.styleHint).toBe("gentle");
+      expect(result.pitch).toBeUndefined();
     });
   });
 

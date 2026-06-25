@@ -87,6 +87,12 @@ export interface VoiceCompilerInput {
   enableHesitation?: boolean;
   /** 自訂斷點標記（正則或字串陣列） */
   customBreakpoints?: string[];
+  /**
+   * 預解析的自訂語音 preset（AIDV-216）。
+   * 由呼叫端從 customBlocks 表查詢後以 parseVoiceBlockPrompt() 轉換傳入。
+   * 只有在 moodBlock.isCustom === true 時才會被採用；否則忽略。
+   */
+  resolvedCustomProfile?: Partial<EmotionProfile>;
 }
 
 /** Voice Compiler 輸出 */
@@ -292,6 +298,55 @@ const DEFAULT_EMOTION: EmotionProfile = {
   hesitationBreakMs: 1500,
   styleHint: "neutral, clear, professional",
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 自訂語音 preset 工具函式（AIDV-216）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 從 customBlocks.prompt 欄位解析語音設定。
+ * prompt 預期為 JSON 字串；解析失敗時回傳空物件（退回內建 profiles）。
+ *
+ * 前端建立 voice customBlock 時應將 EmotionProfile 欄位序列化為 JSON 存入
+ * prompt（最多 512 字元）：
+ *   { rate, pitch, volume, emphasisLevel, sentenceBreakMs,
+ *     paragraphBreakMs, hesitationBreakMs, styleHint, name }
+ */
+export function parseVoiceBlockPrompt(prompt: string): Partial<EmotionProfile> {
+  try {
+    const raw = JSON.parse(prompt);
+    if (typeof raw !== "object" || raw === null) return {};
+    const result: Partial<EmotionProfile> = {};
+    if (typeof raw.rate === "string") result.rate = raw.rate;
+    if (typeof raw.pitch === "string") result.pitch = raw.pitch;
+    if (typeof raw.volume === "string") result.volume = raw.volume;
+    if (["none", "moderate", "strong", "reduced"].includes(raw.emphasisLevel))
+      result.emphasisLevel = raw.emphasisLevel as EmotionProfile["emphasisLevel"];
+    if (typeof raw.sentenceBreakMs === "number") result.sentenceBreakMs = raw.sentenceBreakMs;
+    if (typeof raw.paragraphBreakMs === "number") result.paragraphBreakMs = raw.paragraphBreakMs;
+    if (typeof raw.hesitationBreakMs === "number") result.hesitationBreakMs = raw.hesitationBreakMs;
+    if (typeof raw.styleHint === "string") result.styleHint = raw.styleHint;
+    if (typeof raw.name === "string") result.name = raw.name;
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/** 將 Partial<EmotionProfile> 覆蓋到 base 上，只複寫有值的欄位 */
+function mergeEmotionProfile(
+  base: EmotionProfile,
+  overrides: Partial<EmotionProfile>
+): EmotionProfile {
+  const merged = { ...base };
+  for (const key of Object.keys(overrides) as (keyof EmotionProfile)[]) {
+    const val = overrides[key];
+    if (val !== undefined && val !== null) {
+      (merged as any)[key] = val;
+    }
+  }
+  return merged;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Vibe Card → 情緒映射
@@ -705,13 +760,24 @@ export class VoiceCompiler {
 
   /**
    * 解析情緒設定檔
-   * 優先順序：moodBlock.blockId → moodBlock.prompt 推導 → vibeCardIds → 預設
+   * 優先順序：customBlock preset → moodBlock.blockId → moodBlock.prompt 推導 → vibeCardIds → 預設
    */
   resolveEmotion(input: VoiceCompilerInput): {
     profile: EmotionProfile;
     source: string;
   } {
     const log: string[] = [];
+
+    // 0. 自訂語音 preset（AIDV-216）
+    // resolvedCustomProfile 由呼叫端從 customBlocks 表查詢後傳入；
+    // 只有 moodBlock.isCustom === true 時採用，避免誤套非語音積木的資料。
+    if (input.moodBlock?.isCustom && input.resolvedCustomProfile) {
+      const merged = mergeEmotionProfile(DEFAULT_EMOTION, input.resolvedCustomProfile);
+      return {
+        profile: merged,
+        source: `customBlock:${input.moodBlock.customBlockId ?? "unknown"} (${input.moodBlock.label})`,
+      };
+    }
 
     // 1. 從 moodBlock.blockId 直接匹配
     if (input.moodBlock?.blockId) {
