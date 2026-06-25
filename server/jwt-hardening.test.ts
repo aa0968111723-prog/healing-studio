@@ -18,6 +18,7 @@ import {
   createSessionToken,
   verifySessionToken,
   MIN_JWT_SECRET_LENGTH,
+  JWT_AUDIENCE,
 } from "./_core/googleAuth";
 
 const STRONG_SECRET = "this-is-a-strong-secret-0123456789"; // 34 chars
@@ -227,6 +228,62 @@ describe("D. backward compatibility — old long-exp tokens still verify", () =>
       .setExpirationTime("365d")
       .sign(new TextEncoder().encode("a-completely-unrelated-secret-key-00"));
     expect(await verifySessionToken(foreign)).toBeNull();
+  });
+});
+
+// ── E. AIDV-319：JWT audience（aud）驗證 ────────────────────────────────────
+describe("E. JWT audience (aud) verification — AIDV-319", () => {
+  it("E1: 新發 token 帶 aud = JWT_AUDIENCE", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = STRONG_SECRET;
+    const token = await createSessionToken("sub-e1", { name: "Tester" });
+    const { aud } = decodeJwt(token);
+    expect(aud).toBe(JWT_AUDIENCE);
+  });
+
+  it("E2: 含正確 aud 的新 token 可通過驗證", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = STRONG_SECRET;
+    const token = await createSessionToken("sub-e2", { name: "Tester" });
+    const payload = await verifySessionToken(token);
+    expect(payload?.sub).toBe("sub-e2");
+  });
+
+  it("E3: 不含 aud 的舊 token 仍可驗證（過渡相容，防大規模登出）", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = STRONG_SECRET;
+    // 模擬 AIDV-319 上線前簽發的舊 token（無 aud 欄位）
+    const legacyToken = await new SignJWT({ sub: "sub-legacy", name: "Legacy" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("30d")
+      .sign(new TextEncoder().encode(STRONG_SECRET));
+    const payload = await verifySessionToken(legacyToken);
+    expect(payload?.sub).toBe("sub-legacy");
+  });
+
+  it("E4: 含錯誤 aud 的 token 被拒絕（非本站 token）", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = STRONG_SECRET;
+    const badAudToken = await new SignJWT({ sub: "sub-bad-aud", name: "Attacker" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("30d")
+      .setAudience("other-service")
+      .sign(new TextEncoder().encode(STRONG_SECRET));
+    expect(await verifySessionToken(badAudToken)).toBeNull();
+  });
+
+  it("E5: 不同密鑰簽的 token（即便含正確 aud）被拒絕", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.JWT_SECRET = STRONG_SECRET;
+    const foreignToken = await new SignJWT({ sub: "sub-foreign", name: "Attacker" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("30d")
+      .setAudience(JWT_AUDIENCE)
+      .sign(new TextEncoder().encode("a-completely-different-secret-for-other-svc"));
+    expect(await verifySessionToken(foreignToken)).toBeNull();
   });
 });
 
