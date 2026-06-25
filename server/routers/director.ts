@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { gzipSync, gunzipSync } from "node:zlib";
-import { router, brainProcedure } from "../_core/trpc";
+import { router, brainProcedure, aiChatProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM, extractMessageText } from "../_core/llm";
 import { signWebhookToken } from "../_core/webhookTokens";
@@ -201,7 +201,7 @@ async function loadProjectWorldContext(
 
 export const directorRouter = router({
   /** Main chat endpoint — runs dual-engine Director AI */
-  chat: brainProcedure
+  chat: aiChatProcedure
     .input(
       z.object({
         messages: z.array(
@@ -531,7 +531,7 @@ export const directorRouter = router({
    * 以自動把當前世界觀的角色 / 場景 / 風格設定注入系統提示，讓生成的腳本
    * 與既有世界觀保持一致。
    */
-  generateVideoScript: brainProcedure
+  generateVideoScript: aiChatProcedure
     .input(
       z.object({
         brief: z.string().min(1).max(20_000),
@@ -1143,7 +1143,7 @@ ${persona.proactiveHint}
     }),
 
   /** Analyze the full script holistically — themes, arcs, pacing, character/location distribution */
-  analyzeScriptOverview: brainProcedure
+  analyzeScriptOverview: aiChatProcedure
     .input(
       z.object({
         segments: z.array(
