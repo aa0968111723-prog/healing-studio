@@ -294,7 +294,7 @@ export const directorRouter = router({
             },
             {
               role: "user",
-              content: `現有腳本：\n${JSON.stringify(input.script, null, 2)}\n\n修改指示：${input.instruction}`,
+              content: `現有腳本：\n${JSON.stringify(input.script, null, 2)}\n\n修改指示：\n<user_instruction>\n${input.instruction}\n</user_instruction>`,
             },
           ],
           response_format: {
@@ -910,6 +910,7 @@ export const directorRouter = router({
 
 根據以下分鏡段落資訊，生成完整的 CO-STAR 腳本結構。
 
+<user_storyboard>
 分鏡資訊：
 - 場景：${input.segment.storyboard.sceneHeading}
 - 視覺：${input.segment.storyboard.visualDescription}
@@ -921,6 +922,7 @@ export const directorRouter = router({
 
 原始文本：${input.segment.rawText}
 ${discussionInsights}
+</user_storyboard>
 
 ${persona.proactiveHint}
 
@@ -1199,7 +1201,9 @@ ${persona.proactiveHint}
 你是一位專業的腳本分析師。請對整部腳本進行全局分析。
 
 分鏡列表：
+<user_segments>
 ${segmentSummaries}
+</user_segments>
 
 總時長估算：${totalMin}分${totalSec}秒 / 共 ${input.segments.length} 個分鏡
 
