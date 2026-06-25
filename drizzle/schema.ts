@@ -3724,6 +3724,10 @@ export const dataSourceConnections = mysqlTable(
       .default("pending")
       .notNull(),
     lastHealthCheckAt: timestamp("lastHealthCheckAt"),
+    /** AIDV-68: API key / credential 到期時間（null = 永不到期）。 */
+    expiresAt: timestamp("expiresAt"),
+    /** AIDV-68: 最後一次發出到期警告的時間（防重複告警）。 */
+    expireWarnedAt: timestamp("expireWarnedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

@@ -1346,6 +1346,15 @@ const CRON_JOBS: CronJobMeta[] = [
     files: ["server/jobs/loginHistoryPurgeJob.ts"],
     downstream: ["db:main"],
   },
+  {
+    id: "cron:credential-expiry-alert",
+    label: "外部服務憑證到期預警（每日 09:00 UTC）",
+    schedule: "0 9 * * *",
+    description:
+      "掃描 data_source_connections.expiresAt，對 30 天內即將到期的連接發出 console.warn 警告（AIDV-68 M5 key versioning）",
+    files: ["server/jobs/credentialExpiryAlertJob.ts"],
+    downstream: ["db:main"],
+  },
 ];
 
 /**

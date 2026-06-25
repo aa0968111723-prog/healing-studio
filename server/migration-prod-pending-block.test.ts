@@ -59,6 +59,8 @@ const PENDING_BLOCK = [
   "0080_refresh_tokens",
   // AIDV-43 補登記：user_workflows 表（工作流持久化），登記後 when 在 0080 之後。
   "0081_user_workflows",
+  // AIDV-68 補登記：data_source_connections 到期欄位，登記後 when 在 0081 之後。
+  "0082_data_source_expiry",
 ];
 
 function readSql(tag: string): string {

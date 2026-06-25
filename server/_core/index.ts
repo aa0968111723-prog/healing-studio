@@ -97,6 +97,10 @@ import {
   initLoginHistoryPurgeCron,
   stopLoginHistoryPurgeCron,
 } from "../jobs/loginHistoryPurgeJob";
+import {
+  initCredentialExpiryAlertCron,
+  stopCredentialExpiryAlertCron,
+} from "../jobs/credentialExpiryAlertJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -231,6 +235,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "loginHistoryPurgeJob",
     start: initLoginHistoryPurgeCron,
     stop: stopLoginHistoryPurgeCron,
+  },
+  {
+    name: "credentialExpiryAlertJob",
+    start: initCredentialExpiryAlertCron,
+    stop: stopCredentialExpiryAlertCron,
   },
 ];
 
