@@ -106,10 +106,17 @@ export function assertJwtSecretReady(): void {
   getJwtSecret();
 }
 
+/**
+ * AIDV-319：JWT audience 宣告，防止跨服務 token 重放攻擊。
+ * 新發 token 帶 aud: JWT_AUDIENCE；驗證時先嚴格驗 aud，舊 token（無 aud）可相容過渡。
+ */
+export const JWT_AUDIENCE = "healing-studio";
+
 export type SessionPayload = {
   sub: string; // Google sub (openId)
   name: string;
   email?: string;
+  aud?: string | string[];
   iat?: number;
   exp?: number;
 };
@@ -126,30 +133,44 @@ export async function createSessionToken(
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${expiresInSecs}s`)
+    .setAudience(JWT_AUDIENCE) // AIDV-319：鎖定 audience，防跨服務重放攻擊
     .sign(secret);
 }
 
 export async function verifySessionToken(
   token: string
 ): Promise<SessionPayload | null> {
+  const secret = getJwtSecret();
+
+  // AIDV-319：先嚴格驗 aud（新 token 路徑）。
   try {
-    const secret = getJwtSecret();
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, { audience: JWT_AUDIENCE });
     return payload as SessionPayload;
   } catch {
-    // AIDV-59 非破壞性 fallback：若以 trim 後密鑰驗證失敗，且存在「未 trim 的原值」
-    // （JWT_SECRET 曾帶空白），用原值再驗一次，讓舊版（main）以原值簽的既有 session
-    // 仍能通過 → 不會因密鑰正規化而大規模登出。此為過渡相容，數週後可移除。
-    const rawSecret = getRawJwtSecretForCompat();
-    if (rawSecret) {
-      try {
-        const { payload } = await jwtVerify(token, rawSecret);
-        return payload as SessionPayload;
-      } catch {
+    // AIDV-319 過渡相容：舊 token 不含 aud，aud 驗證失敗時改用無 aud 驗證，
+    // 避免現有 session 因加 aud 硬化而大規模失效（同 AIDV-59 雙金鑰過渡模式）。
+    // 數週後待舊 token 自然過期即可移除此 fallback。
+    try {
+      const { payload } = await jwtVerify(token, secret);
+      // 若舊 token 帶了不正確的 aud（非本站發的），仍應拒絕。
+      if (payload.aud !== undefined && payload.aud !== JWT_AUDIENCE &&
+          !(Array.isArray(payload.aud) && payload.aud.includes(JWT_AUDIENCE))) {
         return null;
       }
+      return payload as SessionPayload;
+    } catch {
+      // AIDV-59 非破壞性 fallback：密鑰正規化（trim）前後相容。
+      const rawSecret = getRawJwtSecretForCompat();
+      if (rawSecret) {
+        try {
+          const { payload } = await jwtVerify(token, rawSecret);
+          return payload as SessionPayload;
+        } catch {
+          return null;
+        }
+      }
+      return null;
     }
-    return null;
   }
 }
 
