@@ -2407,6 +2407,8 @@ export const agentCollaborationSessions = mysqlTable(
     completedAt: bigint("completed_at", { mode: "number" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+    /** 樂觀鎖：多代理並行更新時 WHERE id=? AND version=? 確保唯一寫入者（AIDV-323/316） */
+    version: int("version").notNull().default(0),
   },
   table => ({
     userStatusIdx: index("acs_user_status_idx").on(table.userId, table.status),
@@ -2421,6 +2423,32 @@ export type AgentCollaborationSession =
   typeof agentCollaborationSessions.$inferSelect;
 export type InsertAgentCollaborationSession =
   typeof agentCollaborationSessions.$inferInsert;
+
+// ─── Agent Dynamic Registry（動態代理能力登記）──────────────────────────────
+// AIDV-323/317：外部代理上線登記 capabilities + costPerToken；
+// heartbeat 更新 currentLoad；assign 依 capability match + load 最低選派。
+// 與 agentCollaborationOrchestrator 的靜態 in-memory registry 互補：
+// 前者用於外部/長期代理，後者用於本地 session 內的角色派送。
+export const agentDynamicRegistry = mysqlTable(
+  "agent_dynamic_registry",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    agentId: varchar("agentId", { length: 64 }).notNull().unique(),
+    capabilities: json("capabilities").notNull().$type<string[]>(),
+    costPerToken: decimal("costPerToken", { precision: 16, scale: 10 }).notNull().default("0"),
+    currentLoad: decimal("currentLoad", { precision: 5, scale: 4 }).notNull().default("0"),
+    isActive: boolean("isActive").notNull().default(true),
+    lastHeartbeatAt: timestamp("lastHeartbeatAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    isActiveLoadIdx: index("adr_isActive_load_idx").on(table.isActive, table.currentLoad),
+  })
+);
+
+export type AgentDynamicRegistry = typeof agentDynamicRegistry.$inferSelect;
+export type InsertAgentDynamicRegistry = typeof agentDynamicRegistry.$inferInsert;
 
 export const agentCollaborationSteps = mysqlTable(
   "agent_collaboration_steps",
