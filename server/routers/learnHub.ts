@@ -21,6 +21,7 @@ import {
   router,
 } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { sanitizeRichText, sanitizePlainText } from "../utils/sanitize";
 import { FAL_MODEL_CATALOG } from "../services/falModels";
 import { LEGACY_FAL_ALIAS_MAP } from "../../shared/engineModelIds";
 import {
@@ -536,6 +537,9 @@ export const learnHubRouter = router({
       const newDoc: LearnDoc = {
         id: `custom-${Date.now()}`,
         ...input,
+        title: sanitizePlainText(input.title),
+        summary: sanitizePlainText(input.summary),
+        content: sanitizeRichText(input.content),
         publishedAt: now,
         updatedAt: now,
       };
@@ -584,6 +588,9 @@ export const learnHubRouter = router({
       docs[idx] = {
         ...docs[idx],
         ...updates,
+        ...(updates.title !== undefined && { title: sanitizePlainText(updates.title) }),
+        ...(updates.summary !== undefined && { summary: sanitizePlainText(updates.summary) }),
+        ...(updates.content !== undefined && { content: sanitizeRichText(updates.content) }),
         updatedAt: new Date().toISOString(),
       };
       return docs[idx];
