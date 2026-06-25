@@ -55,6 +55,8 @@ export interface Shot {
   stale: boolean;
   gen: { status: GenStatus; provider?: ProviderId; model?: string; costUsd?: number; variant: number; assetUrl?: string };
   prompt?: string;
+  /** 生成完成後的資產 URL（image / keyframe）；有值即可預覽；video 待 M3。 */
+  assetUrl?: string;
 }
 
 // ← project_notes_calendar
