@@ -69,7 +69,7 @@ export function Toasts() {
   if (!ctx || ctx.items.length === 0) return null;
   return (
     <div
-      className="fixed bottom-4 right-4 z-[60] flex w-[min(340px,92vw)] flex-col gap-2"
+      className="fixed bottom-4 right-4 z-[60] flex w-[min(340px,92vw)] flex-col gap-2 max-md:bottom-24"
       aria-label="通知佇列"
     >
       {ctx.items.map((t) => (

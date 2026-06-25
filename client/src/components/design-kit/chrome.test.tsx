@@ -100,6 +100,21 @@ describe("design-kit Chrome 元件（U-10 / AIDV-101）", () => {
     expect(screen.queryByLabelText("登出")).toBeNull();
   });
 
+  it("MobileNav（AIDV-138）：enabled:false 殼層不渲染對應籤", () => {
+    // shells 中「學習」有 enabled: false → 不應出現在行動導覽列
+    render(<MobileNav shells={shells} active="video" onSelect={vi.fn()} />);
+    expect(screen.queryByLabelText("學習")).toBeNull();
+    // enabled shells 仍出現
+    expect(screen.getByLabelText("影片")).toBeTruthy();
+    expect(screen.getByLabelText("社群")).toBeTruthy();
+    expect(screen.getByLabelText("設定")).toBeTruthy();
+  });
+
+  it("MobileNav（AIDV-138）：FAB 命令面板鈕存在且 aria-label='命令面板'", () => {
+    render(<MobileNav shells={shells} active="video" onSelect={vi.fn()} onCmdK={vi.fn()} />);
+    expect(screen.getByLabelText("命令面板")).toBeTruthy();
+  });
+
   it("AccountMenu：closed 時不顯示登出；open 時顯示且點登出 → onLogout", () => {
     const onLogout = vi.fn();
     const onToggle = vi.fn();
