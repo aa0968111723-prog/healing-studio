@@ -108,6 +108,11 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
 
   const busy = generate.isPending || importScript.isPending;
 
+  const charLimit = mode === "brief" ? 20_000 : 100_000;
+  const charPct = brief.length / charLimit;
+  const overLimit = charPct >= 1;
+  const nearLimit = charPct >= 0.8;
+
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -152,16 +157,30 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
         placeholder={mode === "brief"
           ? "例：幫我規劃一支關於放下與呼吸的三分鐘療癒短片"
           : "貼上你的長腳本…系統會拆段成腳本結構"}
-        className="min-h-[120px] resize-none text-sm"
+        className={`min-h-[120px] resize-none text-sm${overLimit ? " border-destructive focus-visible:ring-destructive" : nearLimit ? " border-amber-400 focus-visible:ring-amber-400" : ""}`}
       />
+
+      {/* Token counter — AIDV-240 */}
+      <div className="flex items-center justify-between text-xs">
+        <span className={overLimit ? "text-destructive font-medium" : nearLimit ? "text-amber-500" : "text-muted-foreground"}>
+          {brief.length.toLocaleString()} 字 · ~{Math.ceil(brief.length / 4).toLocaleString()} tokens
+        </span>
+        <span className={overLimit ? "text-destructive font-medium" : nearLimit ? "text-amber-500" : "text-muted-foreground"}>
+          {overLimit
+            ? `超過上限，請縮短腳本（上限 ${charLimit.toLocaleString()} 字）`
+            : nearLimit
+            ? `接近上限（${Math.round(charPct * 100)}%）`
+            : `上限 ${charLimit.toLocaleString()} 字`}
+        </span>
+      </div>
 
       <div className="flex items-center gap-2">
         {mode === "brief" ? (
-          <Button size="sm" onClick={runGenerate} disabled={busy || !brief.trim() || !title.trim() || !selectedType}>
+          <Button size="sm" onClick={runGenerate} disabled={busy || !brief.trim() || !title.trim() || !selectedType || overLimit}>
             {generate.isPending ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />} 生成腳本初稿
           </Button>
         ) : (
-          <Button size="sm" onClick={runImport} disabled={busy || !brief.trim() || !title.trim()}>
+          <Button size="sm" onClick={runImport} disabled={busy || !brief.trim() || !title.trim() || overLimit}>
             {importScript.isPending ? <Loader2 className="size-4 animate-spin" /> : <Import className="size-4" />} 匯入腳本
           </Button>
         )}
