@@ -6,8 +6,7 @@
 // 常駐確認門/成本儀表。光球 Ambient Copilot 四態浮於右下。抽屜（提示詞庫/遊樂場/工作流/設定）
 // 以 split-view 疊層、不整頁離場。所有資料/動作走既有脊椎與 adapter 接縫，flag-gated。
 //
-// 只在 ENABLE_4SHELL=ON ＋ ENABLE_VIDEO_COCKPIT=ON ＋ ENABLE_DIRECTOR_CONSOLE=ON 且專案非空時
-// 由 VideoCockpit 掛載；OFF 任一 → 完全不可達（零行為改變保證）。
+// 只在 ENABLE_4SHELL=ON ＋ ENABLE_VIDEO_COCKPIT=ON 且專案非空時由 VideoCockpit 掛載（W3-G AIDV-52）。
 // ============================================================================
 import { useState } from "react";
 import { DirectorConsoleProvider, useDirectorConsole } from "./DirectorConsoleProvider";

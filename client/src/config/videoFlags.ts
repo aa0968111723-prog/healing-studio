@@ -51,14 +51,6 @@ export const ENABLE_VIDEO_COCKPIT: boolean = readFlag("VITE_ENABLE_VIDEO_COCKPIT
 export const VIDEO_SPINE_MOCK: boolean = readFlag("VITE_VIDEO_SPINE_MOCK", false);
 
 /**
- * Wave 0 導演台重構總開關。**預設 ON**，但只在 ENABLE_4SHELL=ON ＋ ENABLE_VIDEO_COCKPIT=ON
- * 之下才可達（座艙永遠在雙旗標之下）。ON → /video 首頁＝三欄導演台（Story Spine／創作畫布／
- * Context Sidecar ＋ 頂部創作流程列 ＋ 光球 Ambient Copilot）。
- * 設 .env：VITE_ENABLE_DIRECTOR_CONSOLE=0 → 退回 P2 既有三欄座艙（除錯逃生口，strangler-fig 只加不刪）。
- */
-export const ENABLE_DIRECTOR_CONSOLE: boolean = readFlag("VITE_ENABLE_DIRECTOR_CONSOLE", true);
-
-/**
  * I-2 世界風格自動注入（AIDV-80）。**預設 OFF**＝零行為改變：關閉時生成提示詞一字不動。
  * 開啟（VITE_ENABLE_WORLD_STYLE_INJECTION=1）後，選定世界的預設 style profile（繪風／色票／
  * 燈光／trigger word）會自動 prepend 到圖/影格生成提示詞，達成跨鏡視覺一致。
@@ -113,7 +105,6 @@ export const ENABLE_SUBSYSTEM_REAL_DATA: boolean = readFlag("VITE_ENABLE_SUBSYST
 export const VIDEO_FLAGS = {
   ENABLE_VIDEO_COCKPIT,
   VIDEO_SPINE_MOCK,
-  ENABLE_DIRECTOR_CONSOLE,
   ENABLE_WORLD_STYLE_INJECTION,
   ENABLE_PROJECT_HUB,
   ENABLE_VIDEO_GATE_KIT,
