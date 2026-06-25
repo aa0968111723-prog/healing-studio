@@ -5,8 +5,11 @@
 //   確認門讀數 + 成本階梯（provider 階梯／估點／退款風險），只有高成本/刪除/權限才用 modal。
 // 流程列反映「可設定工作流」當前啟用步驟集（console_.steps）。
 // ============================================================================
-import { useMemo } from "react";
-import { Wand2, Zap, Wrench, Check, Coins, Brain } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,6 +56,7 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
   const spine = useProjectSpine();
   const console_ = useDirectorConsole();
   const p = spine.project!;
+  const [exportOpen, setExportOpen] = useState(false);
 
   const gate = useMemo(() => countGate(p.shots, p.characters, p.scenes), [p]);
   // 可排程數＝與 spine.scheduleGeneration 同一判準（就緒、未過期、未生成），避免「按鈕顯示 N 但點了說沒有」。
@@ -62,7 +66,15 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
   );
   const activeSteps = useMemo(() => console_.steps.filter((s) => s.enabled), [console_.steps]);
 
+  // AIDV-226/232：所有鏡頭生成完成時顯示「匯出素材包」CTA；點擊後展示逐鏡下載連結。
+  const exportableShots = useMemo(
+    () => p.shots.filter((s) => s.gen.status === "done" && s.gen.assetUrl),
+    [p.shots],
+  );
+  const allDone = p.shots.length > 0 && p.shots.every((s) => s.gen.status === "done");
+
   return (
+    <>
     <Card className="glass-card-static">
       <CardContent className="space-y-3 py-3">
         {/* 創作流程列（一體成形主軸） */}
@@ -123,6 +135,11 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
             <Button variant="outline" size="sm" onClick={onGuided}>
               <Wand2 className="size-4" /> 引導式創作
             </Button>
+            {allDone && exportableShots.length > 0 && (
+              <Button variant="secondary" size="sm" onClick={() => setExportOpen(true)}>
+                <PackageOpen className="size-4" /> 匯出素材包（{exportableShots.length}）
+              </Button>
+            )}
             <Button size="sm" onClick={() => spine.scheduleGeneration()} disabled={schedulable === 0}>
               <Zap className="size-4" /> 生成就緒鏡（{schedulable}）
             </Button>
@@ -168,6 +185,70 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
         </div>
       </CardContent>
     </Card>
+
+    {/* AIDV-226/232：素材包下載對話框 — 逐鏡下載連結 + 全部下載 */}
+    <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <PackageOpen className="size-5" /> 匯出素材包
+          </DialogTitle>
+          <DialogDescription>
+            {exportableShots.length} 個鏡頭已生成完畢。點「下載」取得個別媒體檔，或「全部下載」依序開啟所有連結。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          {exportableShots.map((sh) => (
+            <div key={sh.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] text-primary shrink-0">{sh.no}</span>
+                <span className="truncate text-foreground">{sh.title}</span>
+                {sh.gen.provider && (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{sh.gen.provider}</span>
+                )}
+              </div>
+              <a
+                href={`/api/media/download?url=${encodeURIComponent(sh.gen.assetUrl!)}&filename=${encodeURIComponent(`${sh.no}.mp4`)}`}
+                download
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1",
+                  "text-[11px] font-medium text-foreground hover:bg-muted transition-colors",
+                )}
+              >
+                <Download className="size-3" /> 下載
+              </a>
+            </div>
+          ))}
+        </div>
+        {exportableShots.length > 1 && (
+          <div className="border-t pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                exportableShots.forEach((sh, i) => {
+                  setTimeout(() => {
+                    const a = document.createElement("a");
+                    a.href = `/api/media/download?url=${encodeURIComponent(sh.gen.assetUrl!)}&filename=${encodeURIComponent(`${sh.no}.mp4`)}`;
+                    a.download = `${sh.no}.mp4`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                  }, i * 400);
+                });
+              }}
+            >
+              <Download className="size-4" /> 全部下載（{exportableShots.length} 個，依序開啟）
+            </Button>
+            <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+              瀏覽器可能提示允許多個下載，請點「允許」。
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 

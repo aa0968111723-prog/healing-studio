@@ -53,7 +53,7 @@ export interface Shot {
   seed: number; // 固定 seed → 跨鏡一致
   approval: "pending" | "approved";
   stale: boolean;
-  gen: { status: GenStatus; provider?: ProviderId; model?: string; costUsd?: number; variant: number };
+  gen: { status: GenStatus; provider?: ProviderId; model?: string; costUsd?: number; variant: number; assetUrl?: string };
   prompt?: string;
 }
 

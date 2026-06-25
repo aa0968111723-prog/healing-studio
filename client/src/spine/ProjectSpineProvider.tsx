@@ -206,7 +206,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
       );
 
       patchShot(shot.id, (s) => ({
-        ...s, gen: { status: "done", provider: res.provider, model: res.model, costUsd: res.costUsd, variant },
+        ...s, gen: { status: "done", provider: res.provider, model: res.model, costUsd: res.costUsd, variant, assetUrl: res.assetUrl },
       }));
       patchProject((pp) => ({
         ...pp,
