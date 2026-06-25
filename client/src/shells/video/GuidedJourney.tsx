@@ -53,9 +53,7 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
       setStep("review");
     } catch (err) {
       if (runSeq.current !== token) return;
-      // error 標真實 procedure 名（W1-8）：P0 過渡走 director.analyzeScriptOverview
-      // ＋ director.generateVideoScript（正式 director.breakdown 為 M3 待後端）。
-      toast.error("腳本拆解失敗（director.analyzeScriptOverview / generateVideoScript）", {
+      toast.error("腳本拆解失敗，請稍後再試", {
         description: err instanceof Error ? err.message : "請稍後重試，或先按「填入範例腳本」測試流程。",
       });
       setStep("input");
