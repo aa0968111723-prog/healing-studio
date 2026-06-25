@@ -583,6 +583,13 @@ const ROUTER_TO_PROVIDERS: Array<{
       "server/services/agentCommunicationBus.ts",
     ],
   },
+  {
+    id: "router:orchestrationRuns",
+    label: "orchestrationRuns（代理操作面板）",
+    description: "orchestration_runs 唯讀視覺化（W3-D AIDV-49）",
+    providers: [],
+    files: ["server/routers/orchestrationRunsRouter.ts"],
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════

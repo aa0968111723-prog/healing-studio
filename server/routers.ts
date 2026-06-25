@@ -93,6 +93,7 @@ import { adminRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
+import { orchestrationRunsRouter } from "./routers/orchestrationRunsRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -1186,6 +1187,7 @@ export const appRouter = router({
   agentCollaboration: agentCollaborationRouter,
   agentCapability: agentCapabilityRouter,
   modelWishes: modelWishesRouter,
+  orchestrationRuns: orchestrationRunsRouter,
   adminEval: adminRouter,
 
   // ─── Orb Agent Observability ─────────────────────────────────────────────
