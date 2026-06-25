@@ -57,6 +57,7 @@ import { worldbuildingRouter } from "./routers/worldbuilding";
 import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { creativeProjectRouter } from "./routers/creativeProject";
+import { accountRouter } from "./routers/account";
 import { commanderRouter } from "./subsystems/commander/commanderRouter";
 import {
   contextPacketRouter,
@@ -128,7 +129,7 @@ import {
   getSpecialistMemoryHints,
   recordToolAuditAsSpecialistInteraction,
 } from "./services/specializedAgentMemoryStore";
-import { getAggregatedPicksForPrompt } from "./services/agentModelPicks";
+import { getAggregatedPicksForPrompt, recordModelPick } from "./services/agentModelPicks";
 import { getOrbMemorySummary, upsertOrbMemory } from "./services/orbUserMemory";
 import {
   approveOrbAgentTask,
@@ -4102,6 +4103,11 @@ export const appRouter = router({
   // 綁定成一個有意義的創作單位，供全站光球與各 Studio 頁面共享世界觀上下文。
   creativeProject: creativeProjectRouter,
 
+  // ─── Account（H9 個資出口：刪帳號/資料匯出）─────────────────────────────────
+  // deleteAccount = 軟刪除 + PII 清除（可逆 90 天）。
+  // exportData = GDPR 可攜性資料匯出 JSON。
+  account: accountRouter,
+
   // ─── Commander（任務總指揮入口） ──────────────────────────────────────────
   // M1-B：記錄使用者創作意圖（createIntent → pending orchestration run）。
   // 第一版只寫 DB，不接 Perplexity / SubQ / MCP / 外部模型。
@@ -5957,8 +5963,24 @@ export const appRouter = router({
           rating: z.number().min(1).max(5),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await db.updateHistoryEntry(input.id, { userRating: input.rating });
+        if (input.rating >= 4) {
+          void db.getHistoryEntry(input.id, ctx.user.id).then(entry => {
+            const snap = entry?.parameterSnapshot as Record<string, unknown> | null;
+            const modelId = snap?.modelId;
+            if (entry && typeof modelId === "string" && modelId.trim()) {
+              void recordModelPick({
+                userId: ctx.user.id,
+                modality: entry.modality,
+                modelId: modelId.trim(),
+                source: "history",
+                accepted: true,
+                context: { fromRating: input.rating },
+              });
+            }
+          }).catch(() => {});
+        }
         return { success: true };
       }),
 
@@ -9447,7 +9469,7 @@ export const appRouter = router({
 
   customBlocks: router({
     list: protectedProcedure
-      .input(z.object({ modality: z.string().optional() }).optional())
+      .input(z.object({ modality: z.enum(["image", "video", "audio", "voice"]).optional() }).optional())
       .query(async ({ ctx, input }) => {
         return db.getCustomBlocksByUser(ctx.user.id, input?.modality);
       }),
@@ -9486,7 +9508,7 @@ export const appRouter = router({
 
   blockCombos: router({
     list: protectedProcedure
-      .input(z.object({ modality: z.string().optional() }).optional())
+      .input(z.object({ modality: z.enum(["image", "video", "audio", "voice"]).optional() }).optional())
       .query(async ({ ctx, input }) => {
         return db.getBlockCombosByUser(ctx.user.id, input?.modality);
       }),

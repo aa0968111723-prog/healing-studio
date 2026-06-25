@@ -463,10 +463,11 @@ export const orbConversationsRouter = router({
       }
 
       const lastAt = Math.max(...input.messages.map(m => m.at));
-      const newCount = (conv.messageCount ?? 0) + rows.length;
+      // AIDV-192: atomic increment avoids read-modify-write race under concurrent appends
+      const estimatedCount = (conv.messageCount ?? 0) + rows.length;
       const updates: Record<string, unknown> = {
         lastMessageAt: new Date(lastAt),
-        messageCount: newCount,
+        messageCount: sql`message_count + ${rows.length}`,
       };
 
       // Auto-title: if the row still uses the default placeholder, take the
@@ -488,7 +489,7 @@ export const orbConversationsRouter = router({
           )
         );
 
-      return { ok: true as const, messageCount: newCount };
+      return { ok: true as const, messageCount: estimatedCount };
     }),
 
   /** Wipe every message in one conversation but keep the row (and tab) alive. */

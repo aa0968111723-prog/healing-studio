@@ -1329,6 +1329,15 @@ const CRON_JOBS: CronJobMeta[] = [
     files: ["server/jobs/staleJobChecker.ts"],
     downstream: ["db:main"],
   },
+  {
+    id: "cron:audit-log-purge",
+    label: "稽核日誌清理（每天 03:17 UTC）",
+    schedule: "17 3 * * *",
+    description:
+      "刪除 login_history 與 global_audit_log 90 天以前的紀錄（AIDV-63 H9 個資出口保留政策；ENABLE_AUDIT_LOG_PURGE=true 才生效）",
+    files: ["server/jobs/auditLogPurgeJob.ts"],
+    downstream: ["db:main"],
+  },
 ];
 
 /**

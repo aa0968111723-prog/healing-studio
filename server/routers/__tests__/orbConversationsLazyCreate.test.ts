@@ -98,7 +98,7 @@ vi.mock("drizzle-orm", () => ({
   asc: (c: Col) => ({ __order: "asc", col: c }),
   desc: (c: Col) => ({ __order: "desc", col: c }),
   lt: (): Pred => ({ kind: "true" }),
-  sql: (strings: TemplateStringsArray) => ({ __sql: strings.join("") }),
+  sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({ __sql: strings.join(""), __sqlVal: vals[0] }),
 }));
 
 vi.mock("../../../drizzle/schema", () => {
@@ -231,9 +231,18 @@ function makeDb() {
           return {
             async where(pred: Pred) {
               let affected = 0;
-              for (const c of store.convs) {
-                if (rowMatches(c as unknown as Record<string, unknown>, pred)) {
-                  Object.assign(c, updates);
+              for (const row of store.convs) {
+                if (rowMatches(row as unknown as Record<string, unknown>, pred)) {
+                  for (const [k, v] of Object.entries(updates)) {
+                    if (v && typeof v === "object" && "__sqlVal" in v) {
+                      // sql`` expression — evaluate as current + increment
+                      (row as Record<string, unknown>)[k] =
+                        ((row as Record<string, unknown>)[k] as number ?? 0) +
+                        Number((v as { __sqlVal: unknown }).__sqlVal);
+                    } else {
+                      (row as Record<string, unknown>)[k] = v;
+                    }
+                  }
                   affected++;
                 }
               }

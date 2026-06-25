@@ -134,9 +134,9 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
           {events.map((e, i) => (
             <li key={i} className="flex items-center gap-2">
               {e.type === "success" ? (
-                <CircleCheck className="h-3.5 w-3.5 text-emerald-500" />
+                <CircleCheck className="h-3.5 w-3.5 text-ok" />
               ) : e.type === "fail" ? (
-                <CircleX className="h-3.5 w-3.5 text-rose-500" />
+                <CircleX className="h-3.5 w-3.5 text-bad" />
               ) : (
                 <Loader2 className="h-3.5 w-3.5 text-muted-foreground" />
               )}

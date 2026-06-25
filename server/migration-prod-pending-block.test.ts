@@ -53,6 +53,8 @@ const PENDING_BLOCK = [
   "0081_orchestration_priority_scope",
   // AIDV-214：learnHub 管理員文件持久化
   "0082_learn_modules",
+  // AIDV-63：H9 個資出口 — 帳號軟刪除、資料匯出、日誌保留
+  "0083_users_soft_delete",
 ];
 
 function readSql(tag: string): string {

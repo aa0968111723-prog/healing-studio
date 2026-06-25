@@ -86,6 +86,10 @@ import {
   stopAssetCleanupCron,
 } from "../jobs/assetCleanupJob";
 import {
+  initAuditLogPurgeCron,
+  stopAuditLogPurgeCron,
+} from "../jobs/auditLogPurgeJob";
+import {
   initStaleJobCheckerCron,
   stopStaleJobCheckerCron,
 } from "../jobs/staleJobChecker";
@@ -213,6 +217,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "staleJobChecker",
     start: initStaleJobCheckerCron,
     stop: stopStaleJobCheckerCron,
+  },
+  {
+    name: "auditLogPurgeJob",
+    start: initAuditLogPurgeCron,
+    stop: stopAuditLogPurgeCron,
   },
 ];
 

@@ -637,6 +637,8 @@ export type PromptBuilderOutput = {
   tokenWeights?: TokenWeight[];
 };
 
+type ModalityEnum = "image" | "video" | "audio" | "voice";
+
 type ProgressivePromptBuilderProps = {
   value: PromptBuilderOutput;
   onChange: (output: PromptBuilderOutput) => void;
@@ -1115,13 +1117,13 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
 
   // Fetch custom blocks for current modality
   const { data: customBlocksData } = trpc.customBlocks.list.useQuery(
-    { modality: modality || "image" },
+    { modality: (modality || "image") as ModalityEnum },
     { enabled: !!modality }
   );
 
   // Fetch saved combos for current modality
   const { data: combosData } = trpc.blockCombos.list.useQuery(
-    { modality: modality || "image" },
+    { modality: (modality || "image") as ModalityEnum },
     { enabled: !!modality }
   );
 

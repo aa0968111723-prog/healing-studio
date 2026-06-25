@@ -1407,6 +1407,9 @@ const PERMANENT_AUTH_PATTERNS = [
 //   - OpenRouter："xxx is not a valid model id"
 //   - OpenAI 風格："The model `xxx` does not exist"
 //   - 泛用：model_not_found / unknown model / unsupported model
+// AIDV-193: "does not exist" removed (too broad — DB/resource 404 would trigger it);
+// replaced by "model `" which matches OpenAI-style "The model `xxx` does not exist".
+// Covered by model_not_found for providers that include the code field.
 const PERMANENT_MODEL_PATTERNS = [
   "invalid_model",
   "invalid model",
@@ -1414,7 +1417,7 @@ const PERMANENT_MODEL_PATTERNS = [
   "not a valid model",
   "model_not_found",
   "model not found",
-  "does not exist",
+  "model `",
   "unknown model",
   "unsupported model",
   "no such model",
@@ -1452,12 +1455,14 @@ export function classifyLLMError(
   }
 
   // 模型無效（invalid_model / 不存在 / 不支援）→ permanent_model。
-  // 僅限 4xx 客戶端錯誤：5xx 即使 body 偶然含 "model" 字眼也應視為 transient
-  // （server 端暫時故障，重試/換引擎可能恢復），避免誤殺。重試同一引擎不會修好
-  // 模型名稱問題，所以標 permanent 讓它跳過重試、立刻 fallback 到次選 provider。
+  // 僅限 4xx 非 429 客戶端錯誤：
+  //   - 5xx 即使 body 偶然含 "model" 字眼也應視為 transient（server 暫時故障）
+  //   - 429 是速率限制（transient），body 偶含 model 字眼不應誤歸 permanent_model
+  // 重試同一引擎不會修好模型名稱問題，標 permanent 讓它跳過重試、立刻 fallback。
   if (
     status >= 400 &&
     status < 500 &&
+    status !== 429 &&
     PERMANENT_MODEL_PATTERNS.some(p => lower.includes(p))
   ) {
     return { permanent: true, reason: "permanent_model" };

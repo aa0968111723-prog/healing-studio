@@ -75,7 +75,9 @@ export const promptLibraryRouter = router({
       if (favoritesOnly) conditions.push(eq(promptLibrary.isFavorite, true));
       if (generationMode) conditions.push(eq(promptLibrary.generationMode, generationMode));
       if (search) {
-        conditions.push(like(promptLibrary.title, `%${search}%`));
+        conditions.push(
+          or(like(promptLibrary.title, `%${search}%`), like(promptLibrary.content, `%${search}%`))!
+        );
       }
 
       const offset = (page - 1) * pageSize;
@@ -125,7 +127,11 @@ export const promptLibraryRouter = router({
 
       if (category) conditions.push(eq(promptLibrary.category, category));
       if (generationMode) conditions.push(eq(promptLibrary.generationMode, generationMode));
-      if (search) conditions.push(like(promptLibrary.title, `%${search}%`));
+      if (search) {
+        conditions.push(
+          or(like(promptLibrary.title, `%${search}%`), like(promptLibrary.content, `%${search}%`))!
+        );
+      }
 
       const offset = (page - 1) * pageSize;
 

@@ -58,6 +58,8 @@ export const users = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+    /** Soft-delete marker. Non-null = account has been deleted by the user. */
+    deletedAt: timestamp("deletedAt"),
   },
   table => ({
     // Email lookup index — used by local auth login and admin queries

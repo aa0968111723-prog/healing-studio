@@ -94,8 +94,11 @@ mediaDownloadRouter.get(
       }
       res.end();
     } catch (err) {
+      console.warn("[download] stream failed", { url: decoded, headersSent: res.headersSent, err });
       if (!res.headersSent) {
         res.status(502).json({ error: "下載失敗，請稍後重試" });
+      } else {
+        res.end();
       }
     }
   }

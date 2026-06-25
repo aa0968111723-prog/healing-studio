@@ -44,6 +44,10 @@ async function hydrateRequestAuth(req: Request, token: string): Promise<boolean>
   try {
     const user = await getUserByOpenId(payload.sub);
     if (user) {
+      if (user.deletedAt) {
+        logger.warn("[Auth] Rejected login for soft-deleted account", { userId: user.id });
+        return false;
+      }
       authReq.user = {
         id: user.id,
         openId: user.openId,

@@ -1,4 +1,4 @@
-import { eq, ne, desc, asc, and, or, like, sql, lt, inArray } from "drizzle-orm";
+import { eq, ne, desc, asc, and, or, like, sql, lt, inArray, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
@@ -452,6 +452,89 @@ export async function getUserByOpenId(openId: string) {
     .where(eq(users.openId, openId))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function softDeleteUser(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const anonymizedOpenId = `deleted-${userId}-${Date.now()}`;
+  await db
+    .update(users)
+    .set({
+      deletedAt: sql`NOW()`,
+      name: null,
+      email: null,
+      passwordHash: null,
+      twoFactorSecret: null,
+      orbMemorySummary: null,
+      avatarUrl: null,
+      openId: anonymizedOpenId,
+    })
+    .where(eq(users.id, userId));
+}
+
+export async function exportUserData(userId: number): Promise<Record<string, unknown> | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const [user] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) return null;
+
+  const [projects, promptCount, modelWishCount] = await Promise.all([
+    db
+      .select({ id: creativeProjects.id, title: creativeProjects.title, createdAt: creativeProjects.createdAt })
+      .from(creativeProjects)
+      .where(eq(creativeProjects.userId, userId))
+      .limit(200),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(promptLibrary)
+      .where(eq(promptLibrary.userId, userId))
+      .then(r => r[0]?.count ?? 0),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(modelWishes)
+      .where(eq(modelWishes.userId, userId))
+      .then(r => r[0]?.count ?? 0),
+  ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    profile: user,
+    creativeProjects: projects,
+    summary: {
+      promptLibraryCount: promptCount,
+      modelWishCount,
+    },
+  };
+}
+
+export async function purgeOldLoginHistory(daysToKeep = 90): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.execute(
+    sql`DELETE FROM login_history WHERE createdAt < DATE_SUB(NOW(), INTERVAL ${daysToKeep} DAY)`
+  );
+  return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
+}
+
+export async function purgeOldAuditLog(daysToKeep = 90): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.execute(
+    sql`DELETE FROM global_audit_log WHERE createdAt < DATE_SUB(NOW(), INTERVAL ${daysToKeep} DAY)`
+  );
+  return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
 }
 
 export async function getUsersByIds(ids: number[]) {
@@ -1964,6 +2047,17 @@ export async function deleteHistoryEntry(id: number) {
   await db.delete(generationHistory).where(eq(generationHistory.id, id));
 }
 
+export async function getHistoryEntry(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(generationHistory)
+    .where(and(eq(generationHistory.id, id), eq(generationHistory.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 // ─── Custom Blocks ─────────────────────────────────────────────────────────────
 
 export async function createCustomBlock(data: InsertCustomBlock) {
@@ -1973,7 +2067,10 @@ export async function createCustomBlock(data: InsertCustomBlock) {
   return result[0].insertId;
 }
 
-export async function getCustomBlocksByUser(userId: number, modality?: string) {
+export async function getCustomBlocksByUser(
+  userId: number,
+  modality?: typeof customBlocks.$inferSelect["modality"]
+) {
   const db = await getDb();
   if (!db) return [];
   if (modality) {
@@ -1983,7 +2080,7 @@ export async function getCustomBlocksByUser(userId: number, modality?: string) {
       .where(
         and(
           eq(customBlocks.userId, userId),
-          eq(customBlocks.modality, modality as any)
+          eq(customBlocks.modality, modality)
         )
       )
       .orderBy(desc(customBlocks.createdAt));
@@ -2012,7 +2109,10 @@ export async function createBlockCombo(data: InsertBlockCombo) {
   return result[0].insertId;
 }
 
-export async function getBlockCombosByUser(userId: number, modality?: string) {
+export async function getBlockCombosByUser(
+  userId: number,
+  modality?: typeof blockCombos.$inferSelect["modality"]
+) {
   const db = await getDb();
   if (!db) return [];
   if (modality) {
@@ -2022,7 +2122,7 @@ export async function getBlockCombosByUser(userId: number, modality?: string) {
       .where(
         and(
           eq(blockCombos.userId, userId),
-          eq(blockCombos.modality, modality as any)
+          eq(blockCombos.modality, modality)
         )
       )
       .orderBy(desc(blockCombos.updatedAt));
@@ -2197,7 +2297,10 @@ export async function upsertSystemSettings(
 /**
  * 查詢指定 jobType 且狀態為 queued 的任務列表
  */
-export async function getQueuedJobsByType(jobType: string, limit = 10) {
+export async function getQueuedJobsByType(
+  jobType: typeof backgroundJobs.$inferSelect["jobType"],
+  limit = 10
+) {
   const db = await getDb();
   if (!db) return [];
   return db
@@ -2205,7 +2308,7 @@ export async function getQueuedJobsByType(jobType: string, limit = 10) {
     .from(backgroundJobs)
     .where(
       and(
-        eq(backgroundJobs.jobType, jobType as any),
+        eq(backgroundJobs.jobType, jobType),
         eq(backgroundJobs.status, "queued")
       )
     )
@@ -2217,7 +2320,7 @@ export async function getQueuedJobsByType(jobType: string, limit = 10) {
  * 查詢指定 jobType 且狀態為 processing 且更新時間超過指定分鐘數的任務（可能卡住）
  */
 export async function getStuckJobsByType(
-  jobType: string,
+  jobType: typeof backgroundJobs.$inferSelect["jobType"],
   stuckAfterMinutes = 15,
   limit = 5
 ) {
@@ -2229,7 +2332,7 @@ export async function getStuckJobsByType(
     .from(backgroundJobs)
     .where(
       and(
-        eq(backgroundJobs.jobType, jobType as any),
+        eq(backgroundJobs.jobType, jobType),
         eq(backgroundJobs.status, "processing"),
         sql`${backgroundJobs.updatedAt} < ${cutoff}`
       )
@@ -2984,8 +3087,8 @@ export interface ModelWishListItem {
 export interface ModelWishListOptions {
   /** 目前查詢者 userId — 用來計算 hasVoted；未登入時傳 null */
   viewerId: number | null;
-  modality?: string;
-  status?: string;
+  modality?: typeof modelWishes.$inferSelect["modality"] | "all";
+  status?: typeof modelWishes.$inferSelect["status"] | "all";
   /** 排序：votes（依票數，預設）｜ latest（依建立時間） */
   sort?: "votes" | "latest";
   limit?: number;
@@ -2996,20 +3099,12 @@ export async function listModelWishes(
 ): Promise<ModelWishListItem[]> {
   const db = await getDb();
   if (!db) return [];
-  const conditions = [] as any[];
-  if (
-    options.modality &&
-    options.modality !== "all" &&
-    options.modality.length > 0
-  ) {
-    conditions.push(eq(modelWishes.modality, options.modality as any));
+  const conditions: SQL[] = [];
+  if (options.modality && options.modality !== "all") {
+    conditions.push(eq(modelWishes.modality, options.modality));
   }
-  if (
-    options.status &&
-    options.status !== "all" &&
-    options.status.length > 0
-  ) {
-    conditions.push(eq(modelWishes.status, options.status as any));
+  if (options.status && options.status !== "all") {
+    conditions.push(eq(modelWishes.status, options.status));
   }
   const orderClause =
     options.sort === "latest"

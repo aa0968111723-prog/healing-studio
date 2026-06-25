@@ -24,11 +24,7 @@ import {
   alertConfigs,
   AI_PROVIDERS,
 } from "../../drizzle/schema";
-import {
-  summarizeAttribution,
-  getTwdPerUsd,
-  type LedgerRowForSummary,
-} from "../services/cost/costAttribution";
+import { getTwdPerUsd } from "../services/cost/costAttribution";
 import { TRPCError } from "@trpc/server";
 import { serverEnv } from "../_core/env.validated";
 import {
@@ -516,6 +512,15 @@ export const apiUsageRouter = router({
         createdAt: r.createdAt,
       }));
 
+      // AIDV-191：真實視窗總成本用獨立 SUM 聚合（同 WHERE、不受 50k 取樣截斷）
+      const [aggRow] = await db
+        .select({
+          totalCostUsd: sql<number>`COALESCE(SUM(${aiUsageEvents.costUsd}), 0)`,
+        })
+        .from(aiUsageEvents)
+        .where(whereClause);
+      const trueTotalCostUsd = Number(aggRow?.totalCostUsd ?? 0);
+
       // 月底投影：以「當月 cost_aggregations 的累積金額」做為 MTD
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const [mtdRow] = await db
@@ -524,8 +529,6 @@ export const apiUsageRouter = router({
         })
         .from(costAggregations)
         .where(gte(costAggregations.date, monthStart));
-
-      const totalCost = events.reduce((s, e) => s + (Number(e.costUsd) || 0), 0);
 
       // 帳單對帳：取每 provider 最新一次 snapshot 的 nextInvoice.amountUsd
       const latestSnapshots = await db
@@ -551,7 +554,7 @@ export const apiUsageRouter = router({
           start: start.toISOString(),
           end: end.toISOString(),
           eventCount: events.length,
-          totalCostUsd: Math.round(totalCost * 1_000_000) / 1_000_000,
+          totalCostUsd: Math.round(trueTotalCostUsd * 1_000_000) / 1_000_000,
           truncated: events.length >= 50_000,
         },
         // 真實成本單一真值（取「平台記錄」與「供應商帳單」的較高值）
@@ -599,39 +602,80 @@ export const apiUsageRouter = router({
   // ── AIDV-14：成本歸屬彙總（唯讀，以 TWD）───────────────────────────────────
   // 依 project / member / workflow 維度彙總 cost_ledger 的 posted debit 真實成本，
   // 以 TWD 呈現（優先用列上凍結的 amountTwd，舊資料 fallback 現算）。dimension 不傳
-  // ＝全部維度。純彙總邏輯在 summarizeAttribution（已單測）。
+  // ＝全部維度。AIDV-191：改 SQL GROUP BY 推聚合＋加 startDate/endDate 窗（預設當月）。
   costAttribution: adminProcedure
     .input(
       z
         .object({
           dimension: z.enum(["project", "member", "workflow"]).optional(),
           limit: z.number().int().min(1).max(500).default(100),
+          startDate: dateStr.optional(),
+          endDate: dateStr.optional(),
         })
         .optional()
     )
     .query(async ({ input }) => {
       const db = await requireDb();
       const rate = getTwdPerUsd();
-      // AIDV-14：取 posted 的 debit ＋ credit 兩種 entryType——summarizeAttribution 會把
-      // 同維度 credit（退款沖銷）從 debit 扣除算「淨額」，避免有退款時前台高估成本（毛額）。
-      // 對手科目 expense:ai-cost 的 credit 不是歸屬維度、會被 summarize 自動略過。
-      const rows = (await db
+      const now = new Date();
+
+      // 預設視窗：當月迄今（比照 deepCost）
+      const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const start = input?.startDate ? new Date(input.startDate) : defaultStart;
+      const end = input?.endDate ? new Date(input.endDate) : now;
+      if (input?.endDate) end.setDate(end.getDate() + 1);
+
+      const conditions = [
+        eq(costLedger.status, "posted"),
+        gte(costLedger.createdAt, start),
+        lte(costLedger.createdAt, end),
+      ];
+
+      // AIDV-191：GROUP BY accountKey — debit 加、credit（退款沖銷）減 → 淨額。
+      // 只回聚合列，不拉整段帳本進 Node；對手科目 expense:ai-cost 在 JS 端過濾掉。
+      // amountTwd 優先用列上凍結值；null（舊資料）fallback 用 amount × rate 現算。
+      const groupRows = await db
         .select({
           accountKey: costLedger.accountKey,
-          entryType: costLedger.entryType,
-          amount: costLedger.amount,
-          amountTwd: costLedger.amountTwd,
-          provider: costLedger.provider,
-          model: costLedger.model,
+          netUsd: sql<string>`SUM(CASE WHEN ${costLedger.entryType} = 'debit' THEN ${costLedger.amount} ELSE -${costLedger.amount} END)`,
+          netTwd: sql<string>`SUM(CASE WHEN ${costLedger.entryType} = 'debit' THEN COALESCE(${costLedger.amountTwd}, ${costLedger.amount} * ${rate}) ELSE -COALESCE(${costLedger.amountTwd}, ${costLedger.amount} * ${rate}) END)`,
+          entries: sql<number>`SUM(CASE WHEN ${costLedger.entryType} = 'debit' THEN 1 ELSE 0 END)`,
         })
         .from(costLedger)
-        .where(eq(costLedger.status, "posted"))) as LedgerRowForSummary[];
+        .where(and(...conditions))
+        .groupBy(costLedger.accountKey);
 
-      const summary = summarizeAttribution(rows, rate, input?.dimension);
+      const summary = groupRows
+        .map(r => {
+          const sep = r.accountKey.indexOf(":");
+          if (sep < 0) return null;
+          const type = r.accountKey.slice(0, sep);
+          const id = r.accountKey.slice(sep + 1);
+          if (type !== "project" && type !== "member" && type !== "workflow") return null;
+          if (input?.dimension && type !== input.dimension) return null;
+          const costUsd = Math.max(0, Number(r.netUsd ?? 0));
+          const costTwd = Math.max(0, Number(r.netTwd ?? 0));
+          const entries = Number(r.entries ?? 0);
+          if (entries === 0 && costUsd === 0 && costTwd === 0) return null;
+          return {
+            type,
+            id,
+            costUsd: Number(costUsd.toFixed(6)),
+            costTwd: Number(costTwd.toFixed(4)),
+            entries,
+          };
+        })
+        .filter(
+          (r): r is { type: string; id: string; costUsd: number; costTwd: number; entries: number } =>
+            r !== null
+        )
+        .sort((a, b) => b.costTwd - a.costTwd);
+
       const limited = summary.slice(0, input?.limit ?? 100);
       return {
         rate,
         dimension: input?.dimension ?? "all",
+        window: { start: start.toISOString(), end: end.toISOString() },
         totalCostTwd: Number(
           limited.reduce((s, r) => s + r.costTwd, 0).toFixed(4)
         ),

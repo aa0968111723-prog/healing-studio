@@ -164,6 +164,18 @@ describe("classifyLLMError — invalid_model 4xx → permanent_model", () => {
       "permanent_quota"
     );
   });
+
+  it("AIDV-193: 429 body 含 model 字眼仍歸 transient（速率限制不誤歸 permanent_model）", () => {
+    // 429 = rate limit；即使 body 偶然含 invalid_model 字串也不應 permanent
+    expect(
+      classifyLLMError(429, '{"error":"rate limit reached. invalid_model for your tier"}')
+    ).toEqual({ permanent: false, reason: "transient" });
+    // 429 body 帶 model_not_found 同理
+    expect(
+      classifyLLMError(429, '{"error":{"code":"model_not_found","message":"too many requests"}}')
+        .reason
+    ).toBe("transient");
+  });
 });
 
 describe("invokeLLM — Perplexity invalid_model 自動回退到次選 provider", () => {

@@ -150,15 +150,20 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [
-  react(),
-  tailwindcss(),
-  jsxLocPlugin(),
-  vitePluginManusRuntime(),
-  vitePluginManusDebugCollector(),
-];
+export default defineConfig(({ mode }) => {
+  const isDev = mode !== "production";
 
-export default defineConfig({
+  const plugins = [
+    react(),
+    tailwindcss(),
+    jsxLocPlugin(),
+    // AIDV-72：vite-plugin-manus-runtime 在 prod build 注入 ~367KB 的執行時程式碼
+    // （診斷工具，生產環境不需要）；僅 dev 啟用。
+    ...(isDev ? [vitePluginManusRuntime()] : []),
+    vitePluginManusDebugCollector(),
+  ];
+
+  return {
   plugins,
   resolve: {
     alias: {
@@ -260,18 +265,34 @@ export default defineConfig({
           )
             return "vendor-date";
 
-          // ── Streamdown + 所有 Markdown 渲染依賴 + Mermaid 子依賴
-          // 合一 chunk 避免循環依賴（vendor-misc ↔ vendor-markdown）
-          // 包含：cytoscape（mermaid 圖形）、langium/chevrotain（@mermaid-js/parser 語法解析）
+          // ── Mermaid 圖表引擎（AIDV-72：從原 12MB vendor-markdown 獨立出來）
+          // 含 langium/chevrotain DSL parser、cytoscape 圖形佈局、vscode-uri/languageserver。
+          // 先判以避免 cytoscape/langium 被歸入下方的 vendor-markdown。
           if (
-            id.includes("node_modules/streamdown") ||
             id.includes("node_modules/mermaid") ||
             id.includes("node_modules/@mermaid-js") ||
+            id.includes("node_modules/cytoscape") ||
+            id.includes("node_modules/langium") ||
+            id.includes("node_modules/chevrotain") ||
+            id.includes("node_modules/@chevrotain") ||
+            id.includes("node_modules/vscode-languageserver") ||
+            id.includes("node_modules/vscode-uri")
+          )
+            return "vendor-mermaid";
+
+          // ── Shiki 語法高亮（AIDV-72：獨立 chunk，~3MB）
+          if (
+            id.includes("node_modules/shiki") ||
+            id.includes("node_modules/@shikijs")
+          )
+            return "vendor-shiki";
+
+          // ── 其餘 Markdown 渲染（streamdown + katex + rehype/remark/unified 等）
+          if (
+            id.includes("node_modules/streamdown") ||
             id.includes("node_modules/katex") ||
             id.includes("node_modules/rehype-katex") ||
             id.includes("node_modules/remark-math") ||
-            id.includes("node_modules/shiki") ||
-            id.includes("node_modules/@shikijs") ||
             id.includes("node_modules/hast") ||
             id.includes("node_modules/rehype") ||
             id.includes("node_modules/remark") ||
@@ -282,12 +303,6 @@ export default defineConfig({
             id.includes("node_modules/unist") ||
             id.includes("node_modules/remend") ||
             id.includes("node_modules/html-url-attributes") ||
-            id.includes("node_modules/cytoscape") ||
-            id.includes("node_modules/langium") ||
-            id.includes("node_modules/chevrotain") ||
-            id.includes("node_modules/@chevrotain") ||
-            id.includes("node_modules/vscode-languageserver") ||
-            id.includes("node_modules/vscode-uri") ||
             id.includes("node_modules/vfile") ||
             id.includes("node_modules/character-reference-invalid") ||
             id.includes("node_modules/html-void-elements") ||
@@ -319,4 +334,5 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
+  };
 });
