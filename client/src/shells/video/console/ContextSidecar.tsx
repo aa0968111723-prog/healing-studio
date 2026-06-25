@@ -7,7 +7,7 @@
 // ============================================================================
 import { useMemo, useState } from "react";
 import {
-  Database, RefreshCw, Cloud, HardDrive, Coins, History, MessageSquarePlus, Layers,
+  Database, RefreshCw, Cloud, HardDrive, Coins, History, MessageSquarePlus, Layers, Link2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -121,9 +121,12 @@ export function ContextSidecar() {
               ))}
             </ul>
           )}
-          <p className="mt-2 text-[10px] text-muted-foreground">過期＝角色改設定的版本連動；完整逐欄 diff／資產血統檢視待後端。</p>
+          <p className="mt-2 text-[10px] text-muted-foreground">過期＝角色改設定的版本連動；資產血統詳見下方。</p>
         </CardContent>
       </Card>
+
+      {/* 資產血統 (W3-F AIDV-51) */}
+      <AssetLineageCard />
 
       {/* 評論 / 筆記 */}
       <Card className="glass-card-static">
@@ -201,6 +204,54 @@ function CostMeter() {
           先估成本 → 先扣後生成（原子）· 失敗 <span className="text-emerald-600 dark:text-emerald-400">全額退還</span> ·
           斷路器 3 連敗開路、冷卻 10 分 · 1–500 pts，不涉真實金錢。
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+const RELATION_LABEL: Record<string, string> = {
+  derived: "衍生",
+  variant: "變體",
+  rewrite: "改寫",
+  extended: "延長",
+};
+
+/** W3-F 血統檢視 v1（AIDV-51）：最近有 prompt 連結的資產，唯讀。 */
+function AssetLineageCard() {
+  const q = trpc.assets.recentLineage.useQuery(undefined, { staleTime: 60_000, retry: 1 });
+
+  if (q.isLoading) return null;
+  if (q.isError || !q.data?.length) return null;
+
+  return (
+    <Card className="glass-card-static">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Link2 className="size-4 text-primary" /> 資產血統 · 生成溯源
+          <Badge variant="outline" className="ml-auto text-[10px]">{q.data.length}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1.5">
+          {q.data.map((row, i) => (
+            <li key={i} className="rounded-lg border border-border/50 bg-muted/30 p-2 text-[11px] space-y-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground/80 truncate flex-1">{row.assetTitle}</span>
+                <Badge variant="secondary" className="text-[9px] shrink-0">{row.assetType}</Badge>
+                <Badge variant="outline" className="text-[9px] shrink-0 text-violet-600 dark:text-violet-400">
+                  {RELATION_LABEL[row.relation] ?? row.relation}
+                </Badge>
+              </div>
+              <div className="text-muted-foreground/70 truncate">
+                ← {row.promptTitle || row.promptContent?.slice(0, 60) || "（無標題）"}
+              </div>
+              {row.sourceStudio && (
+                <div className="text-[10px] text-muted-foreground/50">{row.sourceStudio}{row.modelId ? ` · ${row.modelId.split("/").pop()}` : ""}</div>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[10px] text-muted-foreground/60">僅顯示已連結到提示詞庫的最近 5 筆；完整血統樹待 M2。</p>
       </CardContent>
     </Card>
   );

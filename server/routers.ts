@@ -4242,6 +4242,14 @@ export const appRouter = router({
         return db.getLinkedPromptsForAsset(ctx.user.id, input.assetId);
       }),
 
+    // ── 最近 N 個資產的 prompt 血統（W3-F AIDV-51，一次 join）─────────────────
+    // 旗標：無（讀取不掛旗標；表空時回空陣列，前端相容）
+    recentLineage: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(10) }).optional())
+      .query(async ({ ctx, input }) => {
+        return db.getRecentAssetLineage(ctx.user.id, input?.limit ?? 5);
+      }),
+
     teamAssets: protectedProcedure
       .input(
         z

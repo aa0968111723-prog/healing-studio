@@ -1248,6 +1248,36 @@ export async function getLinkedPromptsForAsset(userId: number, assetId: number) 
     .orderBy(desc(promptAssets.createdAt));
 }
 
+/** W3-F 血統檢視：最近 N 個有 prompt 連結的資產（一次 join，不做 N+1）。 */
+export async function getRecentAssetLineage(userId: number, limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      assetId: digitalAssetLibrary.id,
+      assetTitle: digitalAssetLibrary.title,
+      assetType: digitalAssetLibrary.assetType,
+      sourceStudio: digitalAssetLibrary.sourceStudio,
+      modelId: digitalAssetLibrary.modelId,
+      assetCreatedAt: digitalAssetLibrary.createdAt,
+      relation: promptAssets.relation,
+      promptId: promptLibrary.id,
+      promptTitle: promptLibrary.title,
+      promptContent: promptLibrary.content,
+    })
+    .from(digitalAssetLibrary)
+    .innerJoin(promptAssets, eq(promptAssets.assetId, digitalAssetLibrary.id))
+    .innerJoin(promptLibrary, eq(promptAssets.promptId, promptLibrary.id))
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        eq(promptLibrary.userId, userId),
+      )
+    )
+    .orderBy(desc(digitalAssetLibrary.createdAt))
+    .limit(limit);
+}
+
 export async function getTeamSharedAssets() {
   const db = await getDb();
   if (!db) return [];
