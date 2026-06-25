@@ -47,6 +47,8 @@ const PENDING_BLOCK = [
   "0043_orb_system_monitoring",
   "0044_orb_template_ratings_and_alerts",
   "0067_repair_worldbuilding_v4_columns",
+  // AIDV-323：多代理路由基礎層（樂觀鎖 + 動態能力登記）
+  "0080_agent_concurrency_registry",
 ];
 
 function readSql(tag: string): string {

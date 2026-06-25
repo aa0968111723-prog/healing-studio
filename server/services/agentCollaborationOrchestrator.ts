@@ -40,7 +40,7 @@ import {
   type InsertAgentCollaborationSession,
   type InsertAgentCollaborationHandoff,
 } from "../../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // CollaborationSession is now defined in the shared protocol so the
 // router and the orchestrator agree on the shape (the router imports
@@ -685,6 +685,7 @@ class AgentCollaborationOrchestratorClass {
           currentAgent: session.currentAgent,
           participatingAgents: session.participatingAgents,
           sharedContext: session.sharedContext as Record<string, unknown>,
+          version: sql`${agentCollaborationSessions.version} + 1`,
         })
         .where(eq(agentCollaborationSessions.collaborationId, session.collaborationId));
 
@@ -741,6 +742,7 @@ class AgentCollaborationOrchestratorClass {
           status: session.status,
           result: result as unknown as Record<string, unknown>,
           completedAt: Date.now(),
+          version: sql`${agentCollaborationSessions.version} + 1`,
         })
         .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
 
@@ -810,6 +812,7 @@ class AgentCollaborationOrchestratorClass {
           .set({
             status: "cancelled",
             completedAt: Date.now(),
+            version: sql`${agentCollaborationSessions.version} + 1`,
           })
           .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
 

@@ -88,6 +88,7 @@ import { orbProxyRouter } from "./routers/orbProxyRouter";
 import { orbConversationsRouter } from "./routers/orbConversationsRouter";
 import { adminRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
+import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
@@ -1179,6 +1180,7 @@ export const appRouter = router({
   orbProxy: orbProxyRouter,
   orbConversations: orbConversationsRouter,
   agentCollaboration: agentCollaborationRouter,
+  agentCapability: agentCapabilityRouter,
   modelWishes: modelWishesRouter,
   adminEval: adminRouter,
 

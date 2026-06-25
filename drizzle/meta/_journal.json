@@ -568,6 +568,13 @@
       "when": 1779050000091,
       "tag": "0067_repair_worldbuilding_v4_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "5",
+      "when": 1779050000092,
+      "tag": "0080_agent_concurrency_registry",
+      "breakpoints": true
     }
   ]
 }
