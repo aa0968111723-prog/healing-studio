@@ -1338,6 +1338,14 @@ const CRON_JOBS: CronJobMeta[] = [
     files: ["server/jobs/auditLogPurgeJob.ts"],
     downstream: ["db:main"],
   },
+  {
+    id: "cron:login-history-purge",
+    label: "登入記錄清理（每日 03:00 UTC）",
+    schedule: "0 3 * * *",
+    description: "刪除 login_history 中 90 天以上的舊記錄（AIDV-63 GDPR 資料最小化）",
+    files: ["server/jobs/loginHistoryPurgeJob.ts"],
+    downstream: ["db:main"],
+  },
 ];
 
 /**

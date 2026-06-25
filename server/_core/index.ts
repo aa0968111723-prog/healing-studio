@@ -93,6 +93,10 @@ import {
   initStaleJobCheckerCron,
   stopStaleJobCheckerCron,
 } from "../jobs/staleJobChecker";
+import {
+  initLoginHistoryPurgeCron,
+  stopLoginHistoryPurgeCron,
+} from "../jobs/loginHistoryPurgeJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -222,6 +226,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "auditLogPurgeJob",
     start: initAuditLogPurgeCron,
     stop: stopAuditLogPurgeCron,
+  },
+  {
+    name: "loginHistoryPurgeJob",
+    start: initLoginHistoryPurgeCron,
+    stop: stopLoginHistoryPurgeCron,
   },
 ];
 

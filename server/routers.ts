@@ -9762,6 +9762,17 @@ export const appRouter = router({
         await db.updateUserOnboarding(ctx.user.id, input.done);
         return { success: true };
       }),
+
+    deleteAccount: protectedProcedure
+      .input(z.object({ confirmation: z.literal("DELETE MY ACCOUNT") }))
+      .mutation(async ({ ctx }) => {
+        await db.deleteUserAccount(ctx.user.id);
+        return { success: true };
+      }),
+
+    exportData: protectedProcedure.query(async ({ ctx }) => {
+      return db.exportUserData(ctx.user.id);
+    }),
   }),
 
   // ─── System Settings ──────────────────────────────────────────────────────
