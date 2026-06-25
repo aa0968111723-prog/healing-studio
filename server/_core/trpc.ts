@@ -141,3 +141,18 @@ const requireGenerationLimit = t.middleware(async ({ ctx, next }) => {
 export const aiChatProcedure = brainProcedure.use(requireAiChatLimit);
 /** brainProcedure + 5 req/min per-user limit — for imageStudio/videoStudio generation. */
 export const generationProcedure = brainProcedure.use(requireGenerationLimit);
+
+// AIDV-242: Video Studio generation limits — per-hour + per-day on top of shared 5/min.
+// GPU cost per call ($0.05–$0.5) is far higher than text/image, so tighter hourly/daily caps.
+const requireVideoStudioLimit = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  checkTrpcRateLimit(ctx.user.id, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" });
+  checkTrpcRateLimit(ctx.user.id, { limit: 200, windowMs: 24 * 60 * 60_000, label: "videoStudio:day" });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+/**
+ * generationProcedure (5/min) + 50/hr + 200/day video-specific limits.
+ * Use for all GPU-cost videoStudio mutations; keeps imageStudio unaffected.
+ */
+export const videoGenerationProcedure = generationProcedure.use(requireVideoStudioLimit);
