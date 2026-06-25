@@ -8,7 +8,11 @@
 // ============================================================================
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Sparkles, ArrowRight, Newspaper, Wand2, FolderOpen } from "lucide-react";
+import { Sparkles, ArrowRight, Newspaper, Wand2, FolderOpen, Tv } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+// U-14 Phase 2（AIDV-146）：Flow TV 放映入口（/social）。旗標 OFF＝完全不掛載。
+import { FLOW_TV_ENABLED, FlowTvOverlay } from "@/components/flow-tv";
+import type { FlowTvItem } from "@/components/flow-tv";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +31,42 @@ import { TemplatePicker } from "@/components/social/TemplatePicker";
 import { SocialNewsList } from "@/components/social/SocialNewsList";
 import { BrandLockBadge } from "@/components/social/BrandLockBadge";
 import type { NewsItem } from "@/spine/types";
+
+/** Flow TV 放映入口：懶載入 promptLibrary.list，open 時才發請求。旗標 OFF 時不掛載。 */
+function SocialFlowTvMount() {
+  const [open, setOpen] = useState(false);
+  const list = trpc.promptLibrary.list.useQuery(
+    { pageSize: 50 },
+    { enabled: open, staleTime: 30_000 },
+  );
+  const items: FlowTvItem[] = (list.data?.items ?? []).map((it) => ({
+    id: String(it.id),
+    prompt: it.content,
+    source: "social" as const,
+    tags: it.tags as string[],
+    model: it.modelHint ?? undefined,
+  }));
+  const tvState = list.isFetching ? "loading" : list.isError ? "error" : "ready";
+  return (
+    <>
+      <button
+        type="button"
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => setOpen(true)}
+        aria-label="開啟 Flow TV 放映"
+      >
+        <Tv className="h-4 w-4" aria-hidden /> Flow TV 放映
+      </button>
+      <FlowTvOverlay
+        items={items}
+        open={open}
+        onClose={() => setOpen(false)}
+        state={tvState}
+        onRetry={() => { void list.refetch(); }}
+      />
+    </>
+  );
+}
 
 export default function SocialCockpitPage() {
   const spine = useSpine();
@@ -137,6 +177,7 @@ export default function SocialCockpitPage() {
               <Button onClick={goStudio}>
                 進入圖像台生成 <ArrowRight className="h-4 w-4" />
               </Button>
+              {FLOW_TV_ENABLED && <SocialFlowTvMount />}
             </div>
             {copy && (
               <div className="rounded-lg border bg-muted/40 p-3 text-sm">

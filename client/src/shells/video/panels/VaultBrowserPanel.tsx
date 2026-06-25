@@ -15,11 +15,15 @@
 //     故本片零成本路徑、零後端寫入風險；incrementUseCount 為加法式使用計數，安全。
 // ============================================================================
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Tv } from "lucide-react";
 import { toast } from "sonner";
 import { useSpine } from "@/providers/SpineProvider";
 import { AidvKit, VaultBrowser } from "@/components/design-kit";
 import type { VaultEntry } from "@/components/design-kit";
 import type { PromptVaultItem } from "@/adapters/types";
+// U-14 Phase 2（AIDV-146）：Flow TV 放映入口（/video）。旗標 OFF＝零渲染、零請求。
+import { FLOW_TV_ENABLED, FlowTvOverlay } from "@/components/flow-tv";
+import type { FlowTvItem } from "@/components/flow-tv";
 
 type BrowseState = "empty" | "loading" | "error" | "ready";
 
@@ -57,6 +61,7 @@ export function VaultBrowserPanel({
   const [state, setState] = useState<BrowseState>("loading");
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [query, setQuery] = useState("");
+  const [flowTvOpen, setFlowTvOpen] = useState(false);
 
   // 每次載入帶序號，避免慢回應覆蓋新回應（race）。
   const loadSeq = useRef(0);
@@ -111,19 +116,48 @@ export function VaultBrowserPanel({
     toast("已帶入提示詞 · 於畫布生成", { description: "生成會先估成本再確認後扣點" });
   }, [onReuse, bumpUse]);
 
+  const flowTvItems: FlowTvItem[] = entries.map((e) => ({
+    id: e.id,
+    prompt: e.prompt,
+    source: "video" as const,
+    tags: e.tags,
+    model: e.params?.model && e.params.model !== "—" ? e.params.model : undefined,
+  }));
+
   return (
-    <AidvKit>
-      <VaultBrowser
-        state={state}
-        entries={entries}
-        query={query}
-        onQuery={setQuery}
-        onInsert={onInsert}
-        onFork={onFork}
-        onRegen={onRegen}
-        onRetry={() => { void load(query); }}
-      />
-    </AidvKit>
+    <>
+      {FLOW_TV_ENABLED && (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-background px-2 text-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setFlowTvOpen(true)}
+            aria-label="開啟 Flow TV 放映"
+          >
+            <Tv className="size-3.5" aria-hidden /> Flow TV 放映
+          </button>
+        </div>
+      )}
+      <AidvKit>
+        <VaultBrowser
+          state={state}
+          entries={entries}
+          query={query}
+          onQuery={setQuery}
+          onInsert={onInsert}
+          onFork={onFork}
+          onRegen={onRegen}
+          onRetry={() => { void load(query); }}
+        />
+      </AidvKit>
+      {FLOW_TV_ENABLED && (
+        <FlowTvOverlay
+          items={flowTvItems}
+          open={flowTvOpen}
+          onClose={() => setFlowTvOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
