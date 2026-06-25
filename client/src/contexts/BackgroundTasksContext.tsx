@@ -154,6 +154,8 @@ interface BackgroundTasksContextValue {
   /** 是否展開背景任務面板 */
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
+  /** SSE 即時推送是否正常連線（false = 降級到 5s 輪詢） */
+  sseConnected: boolean;
 }
 
 const BackgroundTasksContext =
@@ -181,6 +183,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
 
   // 追蹤進行中的 jobId，用於逐一 checkStudioJob
   const [activeJobIds, setActiveJobIds] = useState<number[]>([]);
+
+  // AIDV-353：SSE 連線狀態。false = 降級到 REST polling（5 秒輪詢已常態啟動）。
+  const [sseConnected, setSseConnected] = useState(true);
+  const sseDisconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── 查詢所有活躍任務 ──────────────────────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
@@ -365,12 +371,34 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
   }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── SSE 訂閱：webhook 抵達時立即收到完成/失敗事件，免等下一輪 5s 輪詢 ──
+  // AIDV-353：追蹤 SSE 連線狀態；斷線 5 秒後標記 sseConnected=false，觸發 banner。
+  // REST polling（5s）已由 activeJobsQuery.refetchInterval 常態啟動，不需另外開。
   useEffect(() => {
-    if (activeJobIds.length === 0 || typeof EventSource === "undefined") return;
+    if (activeJobIds.length === 0 || typeof EventSource === "undefined") {
+      if (sseDisconnectTimer.current) {
+        clearTimeout(sseDisconnectTimer.current);
+        sseDisconnectTimer.current = null;
+      }
+      setSseConnected(true);
+      return;
+    }
+
+    const clearDisconnectTimer = () => {
+      if (sseDisconnectTimer.current) {
+        clearTimeout(sseDisconnectTimer.current);
+        sseDisconnectTimer.current = null;
+      }
+    };
 
     const sources: EventSource[] = activeJobIds.map(jobId => {
       const es = new EventSource(`/api/generation-events/${jobId}`);
+      es.onopen = () => {
+        clearDisconnectTimer();
+        setSseConnected(true);
+      };
       es.onmessage = ev => {
+        clearDisconnectTimer();
+        setSseConnected(true);
         try {
           const event = JSON.parse(ev.data) as {
             type: string;
@@ -389,12 +417,21 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       es.onerror = () => {
         // SSE 斷線就靠輪詢 fallback；這裡不主動重連避免風暴
         es.close();
+        // 5 秒內若無其他連線成功，標記斷線
+        if (!sseDisconnectTimer.current) {
+          sseDisconnectTimer.current = setTimeout(() => {
+            setSseConnected(false);
+            sseDisconnectTimer.current = null;
+          }, 5000);
+        }
       };
       return es;
     });
 
     return () => {
       sources.forEach(es => es.close());
+      clearDisconnectTimer();
+      setSseConnected(true);
     };
   }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -469,8 +506,9 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       submitTask,
       drawerOpen,
       setDrawerOpen,
+      sseConnected,
     }),
-    [tasks, activeCount, submitTask, drawerOpen]
+    [tasks, activeCount, submitTask, drawerOpen, sseConnected]
   );
 
   return (
