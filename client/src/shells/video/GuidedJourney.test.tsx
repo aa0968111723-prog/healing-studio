@@ -65,7 +65,7 @@ function open(onClose = vi.fn()) {
 }
 
 describe("GuidedJourney（從零引導表單）", () => {
-  it("拆解失敗：toast.error 標真實 procedure 名並回到輸入步驟", async () => {
+  it("拆解失敗：toast.error 白話訊息並回到輸入步驟", async () => {
     spineStub.breakdownScript.mockRejectedValue(new Error("上游爆炸"));
     open();
 
@@ -73,7 +73,7 @@ describe("GuidedJourney（從零引導表單）", () => {
 
     await waitFor(() => expect(toastStub.error).toHaveBeenCalled());
     const [title, opts] = toastStub.error.mock.calls[0];
-    expect(String(title)).toContain("director.analyzeScriptOverview");
+    expect(String(title)).toContain("腳本拆解失敗");
     expect(String((opts as { description?: string })?.description)).toContain("上游爆炸");
     // 回到 STEP 1（輸入框重新可見，沒被關在 loading）
     expect(screen.getByPlaceholderText(/把整份腳本貼進來/)).toBeTruthy();

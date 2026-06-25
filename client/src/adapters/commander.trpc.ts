@@ -7,8 +7,7 @@
 //                     commanderService.ts:createIntent(L80–105) 已內建 assertProjectOwnership ACL
 //   getRun          → commander.getRun                           🔧
 //   listRuns        → commander.listRunsByProject                🔧
-//   breakdownScript → director.breakdown 待建（M3）。過渡：director.analyzeScriptOverview +
-//                     director.generateVideoScript（原 generateVideoScriptFromBrief 不存在）。
+//   breakdownScript → director.importScript（AIDV-180 修復：原 analyzeScriptOverview 契約不符）
 //
 // tRPC 邊界以 `client as any` 寬鬆化；介面強型別。
 // ============================================================================
@@ -113,30 +112,31 @@ export function makeCommanderTrpc(_deps: AdapterDeps): CommanderAdapter {
   }
 
   async function breakdownScript(script: string, projectId?: number | null): Promise<ScriptBreakdown> {
-    // 🔧 過渡組合：director.breakdown 待建（M3）。先用 analyzeScriptOverview + generateVideoScript。
+    // AIDV-180: 修復契約不符 (前端送 script string，analyzeScriptOverview 要 segments[])。
+    // 改用 importScript 直接接受原始腳本字串，並將 ScriptSegment[] 對映成 ScriptBreakdown。
     try {
-      const overview = await client.director.analyzeScriptOverview.mutate({ script, projectId: projectId ?? undefined });
-      const scripted = await client.director.generateVideoScript.mutate({
-        script, overview, projectId: projectId ?? undefined,
+      const imported = await client.director.importScript.mutate({
+        rawContent: script,
+        title: "引導式腳本",
       });
-      const acts = (scripted?.acts ?? overview?.acts ?? []).map((a: any) => ({
-        title: String(a.title ?? "幕"),
-        shots: (a.shots ?? []).map((sh: any) => ({
-          title: String(sh.title ?? ""),
-          route: (sh.route === "ref" ? "ref" : "text") as "text" | "ref",
-          characters: sh.characters ?? [],
-          scene: String(sh.scene ?? ""),
-        })),
+      const segs: any[] = Array.isArray(imported?.segments) ? imported.segments : [];
+      const shots = segs.map((seg: any, i: number) => ({
+        title: String(seg?.storyboard?.sceneHeading || `鏡 ${i + 1}`),
+        route: "text" as const,
+        characters: Array.isArray(seg?.characters) ? seg.characters : [],
+        scene: String(seg?.storyboard?.visualDescription ?? seg?.rawText ?? "").slice(0, 60),
       }));
+      const allChars = Array.from(new Set(segs.flatMap((s: any) => Array.isArray(s?.characters) ? s.characters : [])));
+      const allScenes = Array.from(new Set(segs.map((s: any) => String(s?.storyboard?.sceneHeading ?? "")).filter(Boolean)));
       return {
-        acts,
-        characters: scripted?.characters ?? overview?.characters ?? [],
-        scenes: scripted?.scenes ?? overview?.scenes ?? [],
+        acts: [{ title: String(imported?.title || "腳本"), shots }],
+        characters: allChars,
+        scenes: allScenes,
       };
     } catch (err) {
       throw new AdapterError(
-        "breakdownScript failed（過渡用 analyzeScriptOverview+generateVideoScript；正式 director.breakdown M3 待建）",
-        { seam: "commander", procedure: "director.analyzeScriptOverview", cause: err },
+        "breakdownScript failed",
+        { seam: "commander", procedure: "director.importScript", cause: err },
       );
     }
   }
