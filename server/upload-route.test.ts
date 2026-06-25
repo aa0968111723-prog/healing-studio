@@ -15,7 +15,7 @@
  *      "size pushed past threshold" so observability can tell them apart.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { __uploadRouteInternals } from "./uploadRoute";
 
 const {
@@ -31,6 +31,8 @@ const {
   safeStorageExt,
   MIME_TO_EXT,
   classifyInlineEligibility,
+  sniffFailClosedEnabled,
+  BINARY_MEDIA_KINDS,
 } = __uploadRouteInternals;
 
 describe("AIDV-64 hardening: ftyp ambiguity fix + safe storage extension", () => {
@@ -563,5 +565,49 @@ describe("AIDV-64: full per-format magic-byte validation (detectMimeMismatch)", 
       expect(detectContentFamily(sample.mp4())).not.toBe("image");
       expect(detectContentFamily(sample.mov())).not.toBe("image");
     });
+  });
+});
+
+// ── AIDV-182: content sniff fail-closed flag ──────────────────────────────────
+describe("AIDV-182: upload sniff fail-closed env flag", () => {
+  let saved: string | undefined;
+
+  beforeEach(() => { saved = process.env.UPLOAD_SNIFF_FAIL_CLOSED; });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.UPLOAD_SNIFF_FAIL_CLOSED;
+    else process.env.UPLOAD_SNIFF_FAIL_CLOSED = saved;
+  });
+
+  it("S1: default (unset) → fail-closed enabled", () => {
+    delete process.env.UPLOAD_SNIFF_FAIL_CLOSED;
+    expect(sniffFailClosedEnabled()).toBe(true);
+  });
+
+  it("S2: UPLOAD_SNIFF_FAIL_CLOSED=0 → fail-open opt-out", () => {
+    process.env.UPLOAD_SNIFF_FAIL_CLOSED = "0";
+    expect(sniffFailClosedEnabled()).toBe(false);
+  });
+
+  it("S3: UPLOAD_SNIFF_FAIL_CLOSED=1 → fail-closed (non-zero string)", () => {
+    process.env.UPLOAD_SNIFF_FAIL_CLOSED = "1";
+    expect(sniffFailClosedEnabled()).toBe(true);
+  });
+
+  it("S4: BINARY_MEDIA_KINDS includes image, audio, video, pdf but not document", () => {
+    expect(BINARY_MEDIA_KINDS.has("image")).toBe(true);
+    expect(BINARY_MEDIA_KINDS.has("audio")).toBe(true);
+    expect(BINARY_MEDIA_KINDS.has("video")).toBe(true);
+    expect(BINARY_MEDIA_KINDS.has("pdf")).toBe(true);
+    expect(BINARY_MEDIA_KINDS.has("document" as never)).toBe(false);
+  });
+
+  it("S5: HTML disguised as image/jpeg → detectMimeMismatch rejects (sniff guard works)", () => {
+    const htmlBytes = Buffer.from("<!DOCTYPE html><html><body></body></html>");
+    expect(detectMimeMismatch("image/jpeg", htmlBytes).reject).toBe(true);
+  });
+
+  it("S6: legitimate JPEG header → detectMimeMismatch accepts (no false positive)", () => {
+    const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Array(60).fill(0)]);
+    expect(detectMimeMismatch("image/jpeg", jpegBytes).reject).toBe(false);
   });
 });

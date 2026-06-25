@@ -755,17 +755,23 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
     // 直傳路徑的位元組不經過 Node，base64 路徑的 detectMimeMismatch 在此缺席。補回：
     // 對 binary media kind（image/audio/video/pdf）用 Range:bytes=0-63 取前 64 bytes
     // 跑既有 detectMimeMismatch；偵測到 disguise（markup/executable/跨類）即刪物件 + 415。
-    // 只抓 64 bytes，保留「整檔位元組不進 Node」的核心好處。嗅探失敗（取不到 bytes）
-    // 不阻擋上傳（HeadObject 已證物件存在），僅記 log——避免暫時性 R2 抖動誤殺正常上傳。
+    // 只抓 64 bytes，保留「整檔位元組不進 Node」的核心好處。
+    // AIDV-182：嗅探失敗改為 fail-closed（1 次退避重試後仍失敗→刪物件＋415）。
+    // 退路：UPLOAD_SNIFF_FAIL_CLOSED=0 可秒關回原始 fail-open 行為。
     if (BINARY_MEDIA_KINDS.has(kind)) {
       let headBytes: Buffer | null = null;
-      try {
-        headBytes = await fetchObjectHeadBytes(fileKey);
-      } catch (sniffErr) {
-        console.warn(
-          "[Upload/finalize] content sniff GET failed (allowing upload):",
-          (sniffErr as any)?.message
-        );
+      let sniffErr: unknown = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          headBytes = await fetchObjectHeadBytes(fileKey);
+          sniffErr = null;
+          break;
+        } catch (err) {
+          sniffErr = err;
+          if (attempt === 0) {
+            await new Promise(resolve => setTimeout(resolve, 400));
+          }
+        }
       }
       if (headBytes) {
         const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
@@ -776,12 +782,36 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
           } catch (delErr) {
             console.warn(
               "[Upload/finalize] failed to delete disguised object:",
-              (delErr as any)?.message
+              delErr instanceof Error ? delErr.message : String(delErr)
             );
           }
           res.status(415).json({ error: mismatch.reason });
           return;
         }
+      } else if (process.env.UPLOAD_SNIFF_FAIL_CLOSED !== "0") {
+        // AIDV-182：嗅探重試失敗 → fail-closed（刪物件＋415），防偽裝檔繞過縱深防禦。
+        console.warn(
+          "[Upload/finalize] content sniff failed after retry, failing closed:",
+          sniffErr instanceof Error ? sniffErr.message : String(sniffErr)
+        );
+        try {
+          await deleteUploadedObject(fileKey);
+        } catch (delErr) {
+          console.warn(
+            "[Upload/finalize] failed to delete after sniff failure:",
+            delErr instanceof Error ? delErr.message : String(delErr)
+          );
+        }
+        res.status(415).json({
+          error: "Content inspection failed. Please retry your upload.",
+        });
+        return;
+      } else {
+        // 明確 opt-out（UPLOAD_SNIFF_FAIL_CLOSED=0）：沿用 fail-open。
+        console.warn(
+          "[Upload/finalize] content sniff failed (allowed by UPLOAD_SNIFF_FAIL_CLOSED=0):",
+          sniffErr instanceof Error ? sniffErr.message : String(sniffErr)
+        );
       }
     }
 
@@ -856,6 +886,10 @@ export const __uploadRouteInternals = {
   detectContentFamily,
   detectMimeMismatch,
   safeStorageExt,
+  // AIDV-182: exported for tests — mirrors the env-flag check in the route.
+  sniffFailClosedEnabled(): boolean {
+    return process.env.UPLOAD_SNIFF_FAIL_CLOSED !== "0";
+  },
   /**
    * Pure helper that mirrors the inlineEligible / inlineRecommendation
    * decision the route makes. Same input → same output, no Express coupling.
