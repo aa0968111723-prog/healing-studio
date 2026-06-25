@@ -680,6 +680,15 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     downstream: ["db:main"],
   },
   {
+    id: "api:agent-events",
+    label: "GET /api/agent-events/:collaborationId",
+    description: "SSE 串流：多代理協作狀態廣播（AIDV-331 State Broadcast）",
+    method: "GET",
+    path: "/api/agent-events/:collaborationId",
+    files: ["server/agentEventsRoute.ts", "server/services/agentEventBus.ts"],
+    downstream: ["db:main"],
+  },
+  {
     id: "api:tasks-stream",
     label: "GET /api/tasks/:taskId/stream",
     description: "光球任務狀態機的 SSE 串流（多步驟工具呼叫進度）",

@@ -32,6 +32,8 @@ export const agentCapabilityRouter = router({
         agentId: z.string().min(1).max(64),
         capabilities: capabilitySchema,
         costPerToken: z.number().min(0).max(1).default(0),
+        /** Agent Scope allowlist（AIDV-331）：此代理被允許執行的 endpoint scope */
+        allowedEndpoints: z.array(z.string().min(1).max(64)).max(64).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -45,6 +47,7 @@ export const agentCapabilityRouter = router({
         .values({
           agentId: input.agentId,
           capabilities: input.capabilities,
+          allowedEndpoints: input.allowedEndpoints ?? null,
           costPerToken: String(input.costPerToken),
           currentLoad: "0",
           isActive: true,
@@ -52,6 +55,7 @@ export const agentCapabilityRouter = router({
         .onDuplicateKeyUpdate({
           set: {
             capabilities: input.capabilities,
+            allowedEndpoints: input.allowedEndpoints ?? null,
             costPerToken: String(input.costPerToken),
             isActive: true,
             lastHeartbeatAt: sql`NOW()`,
@@ -109,13 +113,24 @@ export const agentCapabilityRouter = router({
       z.object({
         taskType: z.string().min(1).max(64),
         requiredCapabilities: capabilitySchema,
+        /** Agent Scope（AIDV-331）：呼叫端宣告此任務需要哪些 scope */
+        requiredScope: z.array(z.string().min(1).max(64)).max(16).optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
       }
+
+      // X-Agent-Priority header → priority hint（AIDV-331 Priority Queue）
+      const rawPriority = (ctx.req.headers["x-agent-priority"] as string | undefined)
+        ?.toLowerCase()
+        .trim();
+      const priority =
+        rawPriority === "urgent" || rawPriority === "normal" || rawPriority === "background"
+          ? rawPriority
+          : "normal";
 
       // 取出 5 分鐘內有心跳的活躍代理（上限 100 筆，負載排序）
       const candidates = await db
@@ -130,16 +145,26 @@ export const agentCapabilityRouter = router({
         .orderBy(agentDynamicRegistry.currentLoad)
         .limit(100);
 
-      // 在應用層過 capability match（避免複雜 JSON 查詢）
+      // 在應用層過 capability match + scope 驗證（避免複雜 JSON 查詢）
       const matched = candidates.filter(agent => {
         const caps = agent.capabilities as string[];
-        return input.requiredCapabilities.every(req => caps.includes(req));
+        if (!input.requiredCapabilities.every(req => caps.includes(req))) return false;
+        // Agent Scope 守門：若任務有 requiredScope，代理的 allowedEndpoints 必須全包含
+        if (input.requiredScope && input.requiredScope.length > 0) {
+          const allowed = (agent.allowedEndpoints as string[] | null) ?? [];
+          if (!input.requiredScope.every(s => allowed.includes(s))) return false;
+        }
+        return true;
       });
 
       if (matched.length === 0) {
+        const scopeMsg =
+          input.requiredScope && input.requiredScope.length > 0
+            ? `; scope [${input.requiredScope.join(", ")}] 未被授權`
+            : "";
         return {
           agentId: null,
-          reason: `無符合 capabilities [${input.requiredCapabilities.join(", ")}] 的活躍代理`,
+          reason: `無符合 capabilities [${input.requiredCapabilities.join(", ")}]${scopeMsg} 的活躍代理`,
         };
       }
 
@@ -148,6 +173,7 @@ export const agentCapabilityRouter = router({
         taskType: input.taskType,
         agentId: best.agentId,
         currentLoad: best.currentLoad,
+        priority,
         candidates: matched.length,
       });
 
@@ -156,6 +182,8 @@ export const agentCapabilityRouter = router({
         currentLoad: Number(best.currentLoad),
         capabilities: best.capabilities as string[],
         costPerToken: Number(best.costPerToken),
+        priority,
+        allowedEndpoints: (best.allowedEndpoints as string[] | null) ?? [],
       };
     }),
 

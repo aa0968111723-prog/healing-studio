@@ -32,6 +32,7 @@ import {
   findAgentForTool,
 } from "../../shared/orb-specialized-agents";
 import { AgentCommunicationBus } from "./agentCommunicationBus";
+import { agentEventBus } from "./agentEventBus";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import {
@@ -689,6 +690,13 @@ class AgentCollaborationOrchestratorClass {
         })
         .where(eq(agentCollaborationSessions.collaborationId, session.collaborationId));
 
+      agentEventBus.emit({
+        type: "project_updated",
+        collaborationId: session.collaborationId,
+        updatedFields: ["currentAgent", "participatingAgents", "sharedContext"],
+        version: Date.now(),
+      });
+
       logger.debug("handoff_persisted", {
         collaborationId: session.collaborationId,
 
@@ -745,6 +753,13 @@ class AgentCollaborationOrchestratorClass {
           version: sql`${agentCollaborationSessions.version} + 1`,
         })
         .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
+
+      agentEventBus.emit({
+        type: "project_updated",
+        collaborationId,
+        updatedFields: ["status", "result", "completedAt"],
+        version: Date.now(),
+      });
 
       logger.debug("collaboration_completion_persisted", {
         collaborationId,
@@ -815,6 +830,13 @@ class AgentCollaborationOrchestratorClass {
             version: sql`${agentCollaborationSessions.version} + 1`,
           })
           .where(eq(agentCollaborationSessions.collaborationId, collaborationId));
+
+        agentEventBus.emit({
+          type: "project_updated",
+          collaborationId,
+          updatedFields: ["status", "completedAt"],
+          version: Date.now(),
+        });
 
         logger.debug("collaboration_cancellation_persisted", {
           collaborationId,
