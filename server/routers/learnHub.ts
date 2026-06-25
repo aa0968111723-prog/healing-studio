@@ -36,6 +36,9 @@ import {
   SEED_VIDEOS,
   SEED_QUIZZES,
 } from "./learnHub.seed";
+import { getDb } from "../db.js";
+import { learnModules } from "../../drizzle/schema.js";
+import { eq, desc } from "drizzle-orm";
 
 // ─── 靜態種子文件資料 ─────────────────────────────────────────────────────────
 
@@ -86,6 +89,52 @@ export function getAllLearnDocsForOrbIndex(): Array<{
     featured: d.featured,
     readingMinutes: d.readingMinutes,
   }));
+}
+
+/**
+ * 啟動時從 DB 載入管理員建立的文件（AIDV-214）。
+ * 必須在 migrations 完成後、HTTP server 接受請求前呼叫。
+ * 無 DB（demo 模式）時靜默跳過。
+ */
+export async function initLearnHubFromDb(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const rows = await db
+      .select()
+      .from(learnModules)
+      .orderBy(desc(learnModules.publishedAt));
+
+    const seedIds = new Set(SEED_DOCS.map(d => d.id));
+    const dbDocs: LearnDoc[] = rows
+      .filter(row => !seedIds.has(row.id))
+      .map(row => ({
+        id: row.id,
+        category: row.category as DocCategory,
+        title: row.title,
+        summary: row.summary,
+        content: row.content,
+        tags: (row.tags ?? []) as string[],
+        difficulty: row.difficulty,
+        readingMinutes: row.readingMinutes,
+        featured: row.featured,
+        authorName: row.authorName ?? undefined,
+        externalUrl: row.externalUrl ?? undefined,
+        attachments: (row.attachments ?? []) as LearnDoc["attachments"],
+        publishedAt: row.publishedAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      }));
+
+    // Deduplicate against anything already in memory (e.g. auto-gen docs)
+    const existingIds = new Set(docs.map(d => d.id));
+    const fresh = dbDocs.filter(d => !existingIds.has(d.id));
+    docs = [...fresh, ...docs];
+
+    console.log(`[LearnHub] Loaded ${fresh.length} admin docs from DB`);
+  } catch (err) {
+    console.error("[LearnHub] Failed to load admin docs from DB:", err);
+  }
 }
 
 // ─── Video Types & Seed Data ─────────────────────────────────────────────────
@@ -532,17 +581,42 @@ export const learnHubRouter = router({
           .default([]),
       })
     )
-    .mutation(({ input }) => {
-      const now = new Date().toISOString();
+    .mutation(async ({ input }) => {
+      const now = new Date();
       const newDoc: LearnDoc = {
-        id: `custom-${Date.now()}`,
+        id: `custom-${now.getTime()}`,
         ...input,
         title: sanitizePlainText(input.title),
         summary: sanitizePlainText(input.summary),
         content: sanitizeRichText(input.content),
-        publishedAt: now,
-        updatedAt: now,
+        publishedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
       };
+
+      const db = await getDb();
+      if (db) {
+        try {
+          await db.insert(learnModules).values({
+            id: newDoc.id,
+            category: newDoc.category,
+            title: newDoc.title,
+            summary: newDoc.summary,
+            content: newDoc.content,
+            tags: newDoc.tags,
+            difficulty: newDoc.difficulty,
+            readingMinutes: newDoc.readingMinutes,
+            featured: newDoc.featured,
+            authorName: newDoc.authorName ?? null,
+            externalUrl: newDoc.externalUrl ?? null,
+            attachments: (newDoc.attachments ?? []) as Array<{ type: string; url: string; title?: string }>,
+            publishedAt: now,
+            updatedAt: now,
+          });
+        } catch (dbErr) {
+          console.warn("[LearnHub] DB insert failed:", dbErr);
+        }
+      }
+
       docs.unshift(newDoc);
       return newDoc;
     }),
@@ -580,30 +654,61 @@ export const learnHubRouter = router({
           .optional(),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const idx = docs.findIndex(d => d.id === input.id);
       if (idx === -1)
         throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       const { id, ...updates } = input;
+      const now = new Date();
       docs[idx] = {
         ...docs[idx],
         ...updates,
         ...(updates.title !== undefined && { title: sanitizePlainText(updates.title) }),
         ...(updates.summary !== undefined && { summary: sanitizePlainText(updates.summary) }),
         ...(updates.content !== undefined && { content: sanitizeRichText(updates.content) }),
-        updatedAt: new Date().toISOString(),
+        updatedAt: now.toISOString(),
       };
+
+      const db = await getDb();
+      if (db) {
+        try {
+          const dbSet: Record<string, unknown> = { updatedAt: now };
+          if (updates.title !== undefined) dbSet.title = sanitizePlainText(updates.title);
+          if (updates.summary !== undefined) dbSet.summary = sanitizePlainText(updates.summary);
+          if (updates.content !== undefined) dbSet.content = sanitizeRichText(updates.content);
+          if (updates.tags !== undefined) dbSet.tags = updates.tags;
+          if (updates.featured !== undefined) dbSet.featured = updates.featured;
+          if (updates.category !== undefined) dbSet.category = updates.category;
+          if (updates.difficulty !== undefined) dbSet.difficulty = updates.difficulty;
+          if (updates.readingMinutes !== undefined) dbSet.readingMinutes = updates.readingMinutes;
+          if (updates.attachments !== undefined) dbSet.attachments = updates.attachments;
+          await db.update(learnModules).set(dbSet).where(eq(learnModules.id, id));
+        } catch (dbErr) {
+          console.warn("[LearnHub] DB update failed:", dbErr);
+        }
+      }
+
       return docs[idx];
     }),
 
   /** 管理員：刪除文件 */
   delete: adminProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const idx = docs.findIndex(d => d.id === input.id);
       if (idx === -1)
         throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       docs.splice(idx, 1);
+
+      const db = await getDb();
+      if (db) {
+        try {
+          await db.delete(learnModules).where(eq(learnModules.id, input.id));
+        } catch (dbErr) {
+          console.warn("[LearnHub] DB delete failed:", dbErr);
+        }
+      }
+
       return { success: true };
     }),
 
@@ -645,14 +750,42 @@ export const learnHubRouter = router({
         ),
       })
     )
-    .mutation(({ input }) => {
-      const now = new Date().toISOString();
+    .mutation(async ({ input }) => {
+      const now = new Date();
+      const nowIso = now.toISOString();
       const imported: LearnDoc[] = input.docs.map((item, idx) => ({
-        id: `import-${Date.now()}-${idx}`,
+        id: `import-${now.getTime()}-${idx}`,
         ...item,
-        publishedAt: now,
-        updatedAt: now,
+        publishedAt: nowIso,
+        updatedAt: nowIso,
       }));
+
+      const db = await getDb();
+      if (db && imported.length > 0) {
+        try {
+          await db.insert(learnModules).values(
+            imported.map(doc => ({
+              id: doc.id,
+              category: doc.category,
+              title: doc.title,
+              summary: doc.summary,
+              content: doc.content,
+              tags: doc.tags,
+              difficulty: doc.difficulty,
+              readingMinutes: doc.readingMinutes,
+              featured: doc.featured,
+              authorName: doc.authorName ?? null,
+              externalUrl: doc.externalUrl ?? null,
+              attachments: (doc.attachments ?? []) as Array<{ type: string; url: string; title?: string }>,
+              publishedAt: now,
+              updatedAt: now,
+            }))
+          );
+        } catch (dbErr) {
+          console.warn("[LearnHub] DB importDocs failed:", dbErr);
+        }
+      }
+
       docs = [...imported, ...docs];
       return { success: true, count: imported.length };
     }),
