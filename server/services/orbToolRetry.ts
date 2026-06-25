@@ -267,6 +267,122 @@ export async function withToolRetry<T extends { ok: boolean; error?: string }>(
   };
 }
 
+// ─── Auth Retry ─────────────────────────────────────────────────────────────
+
+const AUTH_RETRY_ERROR_PATTERNS = ["401", "unauthorized"];
+const AUTH_EXHAUSTED_PREFIX = "needs-key";
+const AUTH_RETRY_MAX = 3;
+const AUTH_RETRY_BASE_DELAY_MS = 2_000;
+const AUTH_RETRY_MAX_DELAY_MS = 8_000;
+
+function isAuthError(error: string): boolean {
+  const lower = error.toLowerCase();
+  return AUTH_RETRY_ERROR_PATTERNS.some(p => lower.includes(p));
+}
+
+/**
+ * AIDV-344（AIDV-343）：代理 auth retry wrapper。
+ *
+ * 與 withToolRetry 的差異：
+ *   - 把 401 / unauthorized 視為「暫時性」錯誤（auth service 重啟後自動恢復）。
+ *   - 預設 maxRetries=3，延遲 2s / 4s / 8s。
+ *   - 耗盡重試後，error 加上 "needs-key:" 前綴，供上層標記代理狀態。
+ *
+ * 使用方式：
+ * ```ts
+ * const result = await withAuthRetry(() => callExternalApi(token));
+ * if (!result.result.ok && result.result.error?.startsWith("needs-key")) {
+ *   markAgentNeedsKey(agentId);
+ * }
+ * ```
+ */
+export async function withAuthRetry<T extends { ok: boolean; error?: string }>(
+  fn: () => Promise<T>,
+  options: Pick<ToolRetryOptions, "maxRetries" | "baseDelayMs" | "maxDelayMs" | "toolName" | "verbose" | "onRetry"> = {}
+): Promise<ToolRetryResult<T>> {
+  const maxRetries = options.maxRetries ?? AUTH_RETRY_MAX;
+  const baseDelayMs = options.baseDelayMs ?? AUTH_RETRY_BASE_DELAY_MS;
+  const maxDelayMs = options.maxDelayMs ?? AUTH_RETRY_MAX_DELAY_MS;
+  const toolName = options.toolName ?? "unknown";
+  const retryErrors: string[] = [];
+  const startTime = Date.now();
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await fn();
+
+      if (result.ok) {
+        return {
+          result,
+          attempts: attempt + 1,
+          totalDurationMs: Date.now() - startTime,
+          retried: attempt > 0,
+          retryErrors: retryErrors.length > 0 ? retryErrors : undefined,
+        };
+      }
+
+      const error = result.error ?? "unknown-error";
+      const isAuth = isAuthError(error);
+
+      if (!isAuth || attempt >= maxRetries) {
+        const finalError = isAuth && attempt >= maxRetries
+          ? `${AUTH_EXHAUSTED_PREFIX}: ${error}`
+          : error;
+        if (options.verbose) {
+          console.warn(
+            `[AuthRetry] ${toolName} ${isAuth ? `exhausted ${maxRetries} auth retries` : "non-auth error"}: ${error}`
+          );
+        }
+        return {
+          result: { ...result, error: finalError },
+          attempts: attempt + 1,
+          totalDurationMs: Date.now() - startTime,
+          retried: attempt > 0,
+          retryErrors: retryErrors.length > 0 ? retryErrors : undefined,
+        };
+      }
+
+      retryErrors.push(error);
+      const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+
+      if (options.verbose) {
+        console.info(
+          `[AuthRetry] ${toolName} auth error on attempt ${attempt + 1}: ${error}, retrying in ${delayMs}ms`
+        );
+      }
+      options.onRetry?.(attempt + 1, error, delayMs);
+      await sleep(delayMs);
+    } catch (thrown) {
+      const error = thrown instanceof Error ? thrown.message : String(thrown);
+      const isAuth = isAuthError(error);
+
+      if (!isAuth || attempt >= maxRetries) {
+        const finalError = isAuth ? `${AUTH_EXHAUSTED_PREFIX}: ${error}` : error;
+        return {
+          result: { ok: false, error: finalError } as T,
+          attempts: attempt + 1,
+          totalDurationMs: Date.now() - startTime,
+          retried: attempt > 0,
+          retryErrors: retryErrors.length > 0 ? retryErrors : undefined,
+        };
+      }
+
+      retryErrors.push(error);
+      const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+      options.onRetry?.(attempt + 1, error, delayMs);
+      await sleep(delayMs);
+    }
+  }
+
+  return {
+    result: { ok: false, error: `${AUTH_EXHAUSTED_PREFIX}: retry-logic-error` } as T,
+    attempts: maxRetries + 1,
+    totalDurationMs: Date.now() - startTime,
+    retried: true,
+    retryErrors,
+  };
+}
+
 /**
  * 為特定工具類型提供預設的重試配置。
  */
