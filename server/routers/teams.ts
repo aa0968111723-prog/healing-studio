@@ -200,6 +200,72 @@ export const teamsRouter = router({
       return { ok: true };
     }),
 
+  /** 轉移 owner 身份（僅 owner 可執行；新 owner 必須已是成員） */
+  transferOwnership: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.number().int().positive(),
+        newOwnerId: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const me = await getRequireMembership(input.teamId, ctx.user.id);
+      requireRole(me.role, "owner");
+
+      if (input.newOwnerId === ctx.user.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "不能把擁有權轉移給自己",
+        });
+      }
+
+      const target = await db.getTeamMembership(input.teamId, input.newOwnerId);
+      if (!target) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "指定的新 owner 不是本團隊成員，請先邀請後再轉移",
+        });
+      }
+
+      await db.transferTeamOwnership(input.teamId, ctx.user.id, input.newOwnerId);
+      return { ok: true };
+    }),
+
+  /** 更新成員角色（僅 owner 可執行；owner 角色轉移請用 transferOwnership） */
+  updateMemberRole: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.number().int().positive(),
+        memberId: z.number().int().positive(),
+        newRole: z.enum(["admin", "member"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const me = await getRequireMembership(input.teamId, ctx.user.id);
+      requireRole(me.role, "owner");
+
+      if (input.memberId === ctx.user.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "不能修改自己的角色；若要轉移 owner 身份請用 transferOwnership",
+        });
+      }
+
+      const target = await db.getTeamMembership(input.teamId, input.memberId);
+      if (!target) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "此成員不存在" });
+      }
+      if (target.role === "owner") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "不能直接修改 owner 的角色，請使用 transferOwnership",
+        });
+      }
+
+      await db.updateTeamMemberRole(input.teamId, input.memberId, input.newRole);
+      return { ok: true };
+    }),
+
   /** 解散團隊（僅 owner 可執行）— 團隊素材會退回個人池 */
   delete: protectedProcedure
     .input(z.object({ teamId: z.number().int().positive() }))

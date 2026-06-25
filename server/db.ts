@@ -3684,6 +3684,54 @@ export async function listTeamMembers(
     .orderBy(teamMemberships.joinedAt);
 }
 
+export async function updateTeamMemberRole(
+  teamId: number,
+  userId: number,
+  newRole: "owner" | "admin" | "member"
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(teamMemberships)
+    .set({ role: newRole })
+    .where(
+      and(
+        eq(teamMemberships.teamId, teamId),
+        eq(teamMemberships.userId, userId)
+      )
+    );
+}
+
+/** 原子化轉移 owner：新 owner 升為 owner，舊 owner 降為 member，在同一 tx 內完成。 */
+export async function transferTeamOwnership(
+  teamId: number,
+  oldOwnerId: number,
+  newOwnerId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    await tx
+      .update(teamMemberships)
+      .set({ role: "owner" })
+      .where(
+        and(
+          eq(teamMemberships.teamId, teamId),
+          eq(teamMemberships.userId, newOwnerId)
+        )
+      );
+    await tx
+      .update(teamMemberships)
+      .set({ role: "member" })
+      .where(
+        and(
+          eq(teamMemberships.teamId, teamId),
+          eq(teamMemberships.userId, oldOwnerId)
+        )
+      );
+  });
+}
+
 // ─── Resource shares — 顯式共享 SSOT（AIDV-121 RBAC）─────────────────────────
 //
 // 純 CRUD helper，全部 demo/無 DB 安全（getDb()===null 時讀回空、寫 throw）。
