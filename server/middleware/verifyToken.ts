@@ -1,8 +1,12 @@
 import type { NextFunction, Request, Response } from "express";
 import { parse as parseCookie } from "cookie";
-import { verifySessionToken } from "../_core/googleAuth";
+import {
+  verifySessionToken,
+  hashSessionToken,
+  isRefreshTokenRotationEnabled,
+} from "../_core/googleAuth";
 import { COOKIE_NAME, type UserRole } from "@shared/const";
-import { getUserByOpenId } from "../db";
+import { getUserByOpenId, isRefreshTokenActive } from "../db";
 import { logger } from "../_core/logger";
 
 type AuthenticatedRequest = Request & {
@@ -33,6 +37,12 @@ function getRequestToken(req: Request): string {
 async function hydrateRequestAuth(req: Request, token: string): Promise<boolean> {
   const payload = await verifySessionToken(token);
   if (!payload?.sub) return false;
+
+  // AIDV-230: server-side revocation check (only when flag is ON)
+  if (isRefreshTokenRotationEnabled()) {
+    const active = await isRefreshTokenActive(hashSessionToken(token));
+    if (!active) return false;
+  }
 
   const authReq = req as AuthenticatedRequest;
   authReq.auth = {

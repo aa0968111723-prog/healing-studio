@@ -11,6 +11,7 @@
  */
 
 import { SignJWT, jwtVerify } from "jose";
+import { createHash } from "crypto";
 import type { Request } from "express";
 import { parse as parseCookie } from "cookie";
 import { ENV } from "./env";
@@ -111,6 +112,19 @@ export function assertJwtSecretReady(): void {
  * 新發 token 帶 aud: JWT_AUDIENCE；驗證時先嚴格驗 aud，舊 token（無 aud）可相容過渡。
  */
 export const JWT_AUDIENCE = "healing-studio";
+
+/**
+ * SHA-256 hex digest of a raw JWT string.
+ * Stored in refresh_tokens table instead of the plaintext token.
+ */
+export function hashSessionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+/** Returns true when ENABLE_REFRESH_TOKEN_ROTATION=true is set in the environment. */
+export function isRefreshTokenRotationEnabled(): boolean {
+  return process.env.ENABLE_REFRESH_TOKEN_ROTATION === "true";
+}
 
 export type SessionPayload = {
   sub: string; // Google sub (openId)

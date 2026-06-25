@@ -8,6 +8,18 @@ import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
 import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
+import {
+  hashSessionToken,
+  isRefreshTokenRotationEnabled,
+  createSessionToken,
+  verifySessionToken,
+} from "../_core/googleAuth";
+import {
+  insertRefreshToken,
+  revokeRefreshToken,
+  isRefreshTokenActive,
+  getUserByOpenId,
+} from "../db";
 
 // ── Auth-specific rate limiters ────────────────────────────────────────────
 // Stricter than the global /api/ limiter (300/15min). Built per-router so that
@@ -170,10 +182,21 @@ export function createLocalAuthRouter(
       });
 
       const cookieOptions = getSessionCookieOptions(req);
+      const sessionLifetimeMs = getAccessTokenLifetimeMs();
       res.cookie(COOKIE_NAME, result.token, {
         ...cookieOptions,
-        maxAge: getAccessTokenLifetimeMs(),
+        maxAge: sessionLifetimeMs,
       });
+
+      // AIDV-230: record token in DB when rotation is enabled
+      if (isRefreshTokenRotationEnabled() && result.user?.id) {
+        const expiresAt = new Date(Date.now() + sessionLifetimeMs);
+        insertRefreshToken({
+          tokenHash: hashSessionToken(result.token),
+          userId: result.user.id,
+          expiresAt,
+        }).catch(err => logger.error("[LocalAuth] Failed to record refresh token on register", { err }));
+      }
 
       res.status(201).json({
         success: true,
@@ -270,10 +293,21 @@ export function createLocalAuthRouter(
       }).catch(err => logger.error("[LocalAuth] Failed to record login history", { err }));
 
       const cookieOptions = getSessionCookieOptions(req);
+      const loginLifetimeMs = getAccessTokenLifetimeMs();
       res.cookie(COOKIE_NAME, result.token, {
         ...cookieOptions,
-        maxAge: getAccessTokenLifetimeMs(),
+        maxAge: loginLifetimeMs,
       });
+
+      // AIDV-230: record token in DB when rotation is enabled
+      if (isRefreshTokenRotationEnabled() && result.userId) {
+        const expiresAt = new Date(Date.now() + loginLifetimeMs);
+        insertRefreshToken({
+          tokenHash: hashSessionToken(result.token),
+          userId: result.userId,
+          expiresAt,
+        }).catch(err => logger.error("[LocalAuth] Failed to record refresh token on login", { err }));
+      }
 
       res.json({
         success: true,
@@ -425,6 +459,72 @@ export function createLocalAuthRouter(
       logger.error("[LocalAuth] 2fa disable failed", { err });
       res.status(500).json({ error: "Failed to disable 2FA" });
     }
+  });
+
+  // ── AIDV-230: Token rotation — POST /api/auth/refresh ─────────────────────
+  // Verifies the current session token exists in refresh_tokens (active) →
+  // revokes it → issues a new token → stores the new token.
+  // Only functional when ENABLE_REFRESH_TOKEN_ROTATION=true; returns 403 otherwise.
+  router.post("/api/auth/refresh", async (req: Request, res: Response) => {
+    if (!isRefreshTokenRotationEnabled()) {
+      res.status(403).json({ error: "Token rotation is not enabled" });
+      return;
+    }
+
+    const cookies = Object.fromEntries(
+      (req.headers.cookie || "").split(";").map(c => {
+        const idx = c.indexOf("=");
+        return idx < 0 ? [c.trim(), ""] : [c.slice(0, idx).trim(), c.slice(idx + 1).trim()];
+      })
+    );
+    const oldToken = cookies[COOKIE_NAME] || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7).trim() : "");
+
+    if (!oldToken) {
+      res.status(401).json({ error: "No session token provided" });
+      return;
+    }
+
+    // Cryptographic verification first
+    const payload = await verifySessionToken(oldToken);
+    if (!payload?.sub) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+
+    // Server-side revocation check
+    const oldHash = hashSessionToken(oldToken);
+    const active = await isRefreshTokenActive(oldHash);
+    if (!active) {
+      res.status(401).json({ error: "Token has been revoked" });
+      return;
+    }
+
+    // Issue new token
+    const newLifetimeMs = getAccessTokenLifetimeMs();
+    const newToken = await createSessionToken(payload.sub, {
+      name: payload.name,
+      email: payload.email,
+      expiresInMs: newLifetimeMs,
+    });
+
+    // Fetch userId for DB record
+    const user = await getUserByOpenId(payload.sub);
+    if (!user) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    // Rotate: revoke old, store new (both fire-and-forget to avoid blocking)
+    const newHash = hashSessionToken(newToken);
+    const newExpiresAt = new Date(Date.now() + newLifetimeMs);
+    await Promise.all([
+      revokeRefreshToken(oldHash),
+      insertRefreshToken({ tokenHash: newHash, userId: user.id, expiresAt: newExpiresAt }),
+    ]);
+
+    const cookieOptions = getSessionCookieOptions(req);
+    res.cookie(COOKIE_NAME, newToken, { ...cookieOptions, maxAge: newLifetimeMs });
+    res.json({ success: true, token: newToken });
   });
 
   return router;

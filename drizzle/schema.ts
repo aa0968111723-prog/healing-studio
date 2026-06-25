@@ -4315,3 +4315,27 @@ export const learnModules = mysqlTable(
 
 export type LearnModule = typeof learnModules.$inferSelect;
 export type InsertLearnModule = typeof learnModules.$inferInsert;
+
+// ─── Refresh Tokens (AIDV-230) ─────────────────────────────────────────────
+// 追蹤已發放的 session JWT（以 SHA-256 hex hash 儲存，不存明文）。
+// 配合 ENABLE_REFRESH_TOKEN_ROTATION=true 啟用 server-side revocation + rotation。
+export const refreshTokens = mysqlTable(
+  "refresh_tokens",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** SHA-256 hex digest of the raw JWT string */
+    tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+    userId: int("userId").notNull(),
+    status: mysqlEnum("status", ["active", "revoked"]).default("active").notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    tokenHashUk: uniqueIndex("rt_tokenHash_unique").on(table.tokenHash),
+    userStatusIdx: index("rt_userId_status_idx").on(table.userId, table.status),
+    expiresAtIdx: index("rt_expiresAt_idx").on(table.expiresAt),
+  })
+);
+
+export type RefreshToken = typeof refreshTokens.$inferSelect;
+export type InsertRefreshToken = typeof refreshTokens.$inferInsert;

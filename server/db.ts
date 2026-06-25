@@ -92,6 +92,8 @@ import {
   resourceShares,
   type ResourceShare,
   type InsertResourceShare,
+  refreshTokens,
+  type RefreshToken,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
@@ -4404,3 +4406,61 @@ export async function findTeachingMaterialsByRealEarthRef(
 
   return rows;
 }
+
+// ─── Refresh Tokens (AIDV-230) ─────────────────────────────────────────────
+
+export async function insertRefreshToken(data: {
+  tokenHash: string;
+  userId: number;
+  expiresAt: Date;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(refreshTokens).values({
+    tokenHash: data.tokenHash,
+    userId: data.userId,
+    status: "active",
+    expiresAt: data.expiresAt,
+  });
+}
+
+export async function revokeRefreshToken(tokenHash: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(refreshTokens)
+    .set({ status: "revoked" })
+    .where(eq(refreshTokens.tokenHash, tokenHash));
+}
+
+export async function revokeAllUserRefreshTokens(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(refreshTokens)
+    .set({ status: "revoked" })
+    .where(
+      and(
+        eq(refreshTokens.userId, userId),
+        eq(refreshTokens.status, "active")
+      )
+    );
+}
+
+/** Returns true if the token exists and is active (not revoked, not expired). */
+export async function isRefreshTokenActive(tokenHash: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return true; // fail-open when DB unavailable so we don't lock everyone out
+  const rows = await db
+    .select({ status: refreshTokens.status, expiresAt: refreshTokens.expiresAt })
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, tokenHash))
+    .limit(1);
+  if (rows.length === 0) return false;
+  const row = rows[0];
+  if (row.status !== "active") return false;
+  if (row.expiresAt < new Date()) return false;
+  return true;
+}
+
+export type { RefreshToken };

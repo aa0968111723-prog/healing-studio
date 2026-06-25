@@ -24,7 +24,13 @@ import {
   isDemoMode,
   DEMO_USER,
   GoogleTokenExchangeError,
+  hashSessionToken,
+  isRefreshTokenRotationEnabled,
 } from "./googleAuth";
+import {
+  insertRefreshToken,
+  revokeRefreshToken,
+} from "../db";
 import {
   buildDriveAuthUrl,
   exchangeDriveCode,
@@ -275,6 +281,19 @@ export function registerOAuthRoutes(app: Express) {
         maxAge: sessionLifetimeMs,
       });
 
+      // AIDV-230: record token in DB when rotation is enabled
+      if (isRefreshTokenRotationEnabled()) {
+        const user = await db.getUserByOpenId(userInfo.sub);
+        if (user) {
+          const expiresAt = new Date(Date.now() + sessionLifetimeMs);
+          insertRefreshToken({
+            tokenHash: hashSessionToken(sessionToken),
+            userId: user.id,
+            expiresAt,
+          }).catch(err => console.error("[OAuth] Failed to record refresh token", err));
+        }
+      }
+
       // 解碼 state 取得重定向路徑（僅允許安全的相對路徑，防止 Open Redirect 攻擊）
       const redirectTo = getRedirectFromState(state);
       console.info("[OAuth] Login successful, redirecting to:", redirectTo);
@@ -364,7 +383,16 @@ export function registerOAuthRoutes(app: Express) {
   }
 
   // ── 3. 登出 ───────────────────────────────────────────────
-  app.post("/api/oauth/logout", (req: Request, res: Response) => {
+  app.post("/api/oauth/logout", async (req: Request, res: Response) => {
+    // AIDV-230: revoke the current session token in DB (when flag ON)
+    if (isRefreshTokenRotationEnabled()) {
+      const cookies = parseCookie(req.headers.cookie || "");
+      const sessionToken = cookies[COOKIE_NAME];
+      if (sessionToken) {
+        revokeRefreshToken(hashSessionToken(sessionToken))
+          .catch(err => console.error("[OAuth] Failed to revoke token on logout", err));
+      }
+    }
     const cookieOptions = getSessionCookieOptions(req);
     res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: 0 });
     res.json({ success: true, message: "已登出" });
