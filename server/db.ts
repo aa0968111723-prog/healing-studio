@@ -2943,6 +2943,14 @@ export async function updateDataSourceConnection(
     .where(eq(dataSourceConnections.id, id));
 }
 
+export async function deleteDataSourceConnection(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(dataSourceConnections)
+    .where(eq(dataSourceConnections.id, id));
+}
+
 // ─── Model Wishlist（模型許願池）──────────────────────────────────────────
 
 export interface ModelWishListItem {

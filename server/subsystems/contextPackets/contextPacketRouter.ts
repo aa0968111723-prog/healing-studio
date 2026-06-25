@@ -21,6 +21,7 @@ import {
   listConnections,
   testConnection,
   setConnectionStatus,
+  deleteConnection,
 } from "./connectionService";
 import {
   ContextPacketAccessError,
@@ -185,6 +186,18 @@ export const dataConnectionsRouter = router({
     .mutation(async ({ ctx, input }) => {
       try {
         return await setConnectionStatus(ctx.user.id, input.id, input.status);
+      } catch (error) {
+        mapAccessError(error);
+      }
+    }),
+
+  /** AIDV-185: 刪除連接（含 encryptedCredentialRef），解決 secret-retention 缺口。 */
+  delete: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await deleteConnection(ctx.user.id, input.id);
+        return { deleted: true };
       } catch (error) {
         mapAccessError(error);
       }
