@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { ConfirmGate } from "../ConfirmGate";
+import { AgentProgressPanel } from "./AgentProgressPanel";
 import { trpc } from "@/lib/trpc";
 import { PanelError } from "@/shells/_shared/PanelState";
 
@@ -85,6 +86,9 @@ export function ContextSidecar() {
 
       {/* 成本儀表（餘額 + 退款風險） */}
       <CostMeter />
+
+      {/* 代理即時狀態 — AIDV-358 */}
+      <AgentProgressPanel />
 
       {/* 版本 diff（過期待重生） */}
       <Card className="glass-card-static">
