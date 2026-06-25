@@ -21,6 +21,7 @@
  */
 
 import { z } from "zod";
+import { safeExternalUrl, safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
@@ -424,8 +425,8 @@ export const videoStudioRouter = router({
             "pull_out",
           ])
           .optional(),
-        firstFrameUrl: z.string().url().optional(),
-        lastFrameUrl: z.string().url().optional(),
+        firstFrameUrl: safeExternalUrlOptional,
+        lastFrameUrl: safeExternalUrlOptional,
         firstFrameDesc: z.string().max(500).optional(),
         lastFrameDesc: z.string().max(500).optional(),
         aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:3"]).optional(),
@@ -772,8 +773,8 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
-        imageUrl: z.string().url(),
-        tailImageUrl: z.string().url().optional(),
+        imageUrl: safeExternalUrl,
+        tailImageUrl: safeExternalUrlOptional,
         negativePrompt: z.string().max(1000).optional(),
         duration: z.enum(["5", "10"]).default("5"),
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
@@ -820,8 +821,8 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
-        imageUrl: z.string().url(),
-        tailImageUrl: z.string().url().optional(),
+        imageUrl: safeExternalUrl,
+        tailImageUrl: safeExternalUrlOptional,
         negativePrompt: z.string().max(1000).optional(),
         duration: z.enum(["5", "10"]).default("5"),
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
@@ -866,7 +867,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
-        imageUrl: z.string().url(),
+        imageUrl: safeExternalUrl,
         negativePrompt: z.string().max(1000).optional(),
         numFrames: z.number().min(16).max(81).default(81),
         resolution: z.enum(["480p", "720p"]).default("720p"),
@@ -905,7 +906,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
-        imageUrl: z.string().url(),
+        imageUrl: safeExternalUrl,
         duration: z.enum(["5", "10"]).default("5"),
         ratio: z
           .enum([
@@ -951,7 +952,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
-        imageUrl: z.string().url(),
+        imageUrl: safeExternalUrl,
         negativePrompt: z.string().max(500).optional(),
         // fal PixVerse v4.5 接受 "5" / "8"（pre-v4.5 才有 4s）
         duration: z.enum(["5", "8"]).default("5"),
@@ -1000,7 +1001,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
-        imageUrl: z.string().url(),
+        imageUrl: safeExternalUrl,
         promptOptimizer: z.boolean().default(true),
         duration: z.enum(["6", "10"]).default("6"),
         resolution: z.enum(["768p", "1080p"]).default("1080p"),
@@ -1041,7 +1042,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         negativePrompt: z.string().max(1000).optional(),
         strength: z.number().min(0.1).max(1.0).default(0.7),
         seed: z.number().int().nonnegative().optional(),
@@ -1079,7 +1080,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         negativePrompt: z.string().max(1000).optional(),
         cfgScale: z.number().min(0).max(1).default(0.5),
         seed: z.number().int().nonnegative().optional(),
@@ -1116,7 +1117,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
-        imageUrl: z.string().url(),
+        imageUrl: safeExternalUrl,
         negativePrompt: z.string().max(500).optional(),
         // 25 fps × 5 秒 = 125 frames（對齊 modelPricing.ts "每5秒"）
         numFrames: z.number().min(25).max(257).default(125),
@@ -1163,7 +1164,7 @@ export const videoStudioRouter = router({
   videoUpscale: brainProcedure
     .input(
       z.object({
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         upscaleFactor: z.enum(["2", "4"]).default("2"),
       })
     )
@@ -1202,7 +1203,7 @@ export const videoStudioRouter = router({
   frameInterpolation: brainProcedure
     .input(
       z.object({
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         multiplier: z.enum(["2", "4"]).default("2"),
         outputFps: z.number().min(24).max(120).default(60),
       })
@@ -1245,7 +1246,7 @@ export const videoStudioRouter = router({
   topazEnhance: brainProcedure
     .input(
       z.object({
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         model: z
           .enum(["iris", "artemis", "theia", "gaia", "nyx"])
           .default("iris"),
@@ -1301,7 +1302,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
-        imageUrl: z.string().url(),
+        imageUrl: safeExternalUrl,
         cameraMotion: z
           .enum([
             "static",
@@ -1386,7 +1387,7 @@ export const videoStudioRouter = router({
       z.object({
         prompt: z.string().min(1).max(2000),
         negativePrompt: z.string().max(500).optional(),
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         controlNet: z
           .enum(["openpose", "canny", "depth", "none"])
           .default("openpose"),
@@ -1436,7 +1437,7 @@ export const videoStudioRouter = router({
   depthCrafter: brainProcedure
     .input(
       z.object({
-        videoUrl: z.string().url(),
+        videoUrl: safeExternalUrl,
         numDenoising: z.number().min(1).max(25).default(25),
         guidance: z.number().min(1).max(20).default(1.0),
         windowSize: z.number().min(4).max(110).default(110),
@@ -1489,7 +1490,7 @@ export const videoStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
-        imageUrls: z.array(z.string().url()).min(1).max(3),
+        imageUrls: z.array(safeExternalUrl).min(1).max(3),
         duration: z.enum(["4", "8"]).default("4"),
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         resolution: z.enum(["720p", "1080p"]).default("720p"),
