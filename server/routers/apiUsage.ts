@@ -187,6 +187,14 @@ const alertConfigRouter = router({
       });
       return { id: inserted.insertId };
     }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      await db.delete(alertConfigs).where(eq(alertConfigs.id, input.id));
+      return { success: true };
+    }),
 });
 
 // ─── Main Router ─────────────────────────────────────────────────────────────
