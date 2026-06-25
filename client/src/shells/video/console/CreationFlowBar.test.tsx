@@ -14,6 +14,13 @@ const flags = vi.hoisted(() => ({ chrome: false }));
 vi.mock("@/config/featureFlags", () => ({
   get ENABLE_AIDV_CHROME() { return flags.chrome; },
 }));
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    apiUsage: {
+      textLlmStatus: { useQuery: () => ({ data: undefined }) },
+    },
+  },
+}));
 
 const h = vi.hoisted(() => ({
   setCanvasMode: vi.fn(),
