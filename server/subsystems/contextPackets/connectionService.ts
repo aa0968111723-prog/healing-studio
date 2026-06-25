@@ -20,6 +20,23 @@ import {
 } from "./contracts";
 import type { DataSourceConnection } from "../../../drizzle/schema";
 
+async function assertTeamMembership(teamId: number, userId: number): Promise<void> {
+  const team = await db.getTeam(teamId);
+  if (!team) throw new ContextPacketAccessError("not_found", "找不到指定團隊");
+  const membership = await db.getTeamMembership(teamId, userId);
+  if (!membership && team.ownerId !== userId) {
+    throw new ContextPacketAccessError("forbidden", "你不是此團隊的成員，無法建立歸屬於該團隊的連接");
+  }
+}
+
+async function assertProjectOwnership(projectId: number, userId: number): Promise<void> {
+  const project = await db.getCreativeProject(projectId);
+  if (!project) throw new ContextPacketAccessError("not_found", "找不到指定專案");
+  if (project.userId !== userId) {
+    throw new ContextPacketAccessError("forbidden", "你不是此專案的擁有者，無法建立歸屬於該專案的連接");
+  }
+}
+
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -74,6 +91,14 @@ export async function createConnection(
   userId: number,
   input: CreateConnectionInput
 ): Promise<DataConnectionView> {
+  // AIDV-185: 驗 teamId/projectId 歸屬，防止把連接硬塞進不屬於自己的 team/project。
+  if (input.teamId != null) {
+    await assertTeamMembership(input.teamId, userId);
+  }
+  if (input.projectId != null) {
+    await assertProjectOwnership(input.projectId, userId);
+  }
+
   const authType: DataSourceConnection["authType"] =
     input.provider === "google_drive" ? "oauth" : "api_key";
 
@@ -125,6 +150,15 @@ export async function setConnectionStatus(
   await db.updateDataSourceConnection(id, { status });
   const row = await db.getDataSourceConnection(id);
   return toConnectionView(row!);
+}
+
+// AIDV-185: 刪除連接（含 encryptedCredentialRef）——解決加密憑證永久殘留缺口。
+export async function deleteConnection(
+  userId: number,
+  id: number
+): Promise<void> {
+  await loadOwnedConnection(userId, id);
+  await db.deleteDataSourceConnection(id);
 }
 
 /** 健檢：依 provider 打一個輕量 read API，更新 status + lastHealthCheckAt。 */
