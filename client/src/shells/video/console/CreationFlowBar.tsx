@@ -6,7 +6,7 @@
 // 流程列反映「可設定工作流」當前啟用步驟集（console_.steps）。
 // ============================================================================
 import { useMemo, useState } from "react";
-import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen } from "lucide-react";
+import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen, Captions } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -220,6 +220,18 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
             </div>
           ))}
         </div>
+        {/* AIDV-234：字幕 / CC 區段——明確標示「待語音軌就緒」，不靜默 no-op */}
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Captions className="size-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">字幕 / CC（SRT · VTT）</span>
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-600 dark:text-amber-400">待語音軌</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            自動字幕需先完成語音配音（voiceCompiler）。語音功能啟用後，此處將提供 .srt / .vtt 下載，符合 YouTube / TikTok CC 要求。
+          </p>
+        </div>
+
         {exportableShots.length > 1 && (
           <div className="border-t pt-3">
             <Button

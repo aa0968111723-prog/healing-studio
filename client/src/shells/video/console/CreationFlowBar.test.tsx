@@ -30,11 +30,12 @@ const h = vi.hoisted(() => ({
   toast: vi.fn(),
   canvasMode: "chat" as string,
   steps: null as unknown[] | null,
+  shots: [] as unknown[],
 }));
 vi.mock("sonner", () => ({ toast: (...a: unknown[]) => h.toast(...a) }));
 vi.mock("@/spine/ProjectSpineProvider", () => ({
   useProjectSpine: () => ({
-    project: { shots: [], characters: [], scenes: [], stageIndex: 0 },
+    project: { shots: h.shots, characters: [], scenes: [], stageIndex: 0 },
     scheduleGeneration: h.scheduleGeneration,
     setProvider: h.setProvider,
     provider: "mock",
@@ -52,7 +53,7 @@ vi.mock("../DirectorConsoleProvider", () => ({
 import { CreationFlowBar } from "./CreationFlowBar";
 
 beforeEach(() => {
-  h.setCanvasMode.mockReset(); h.toast.mockReset(); h.canvasMode = "chat"; h.steps = null;
+  h.setCanvasMode.mockReset(); h.toast.mockReset(); h.canvasMode = "chat"; h.steps = null; h.shots = [];
 });
 afterEach(() => { cleanup(); flags.chrome = false; });
 
@@ -111,5 +112,17 @@ describe("CreationFlowBar（U-2 / AIDV-92 · /video S2）", () => {
     fireEvent.click(screen.getByText("待後端步"));
     expect(h.toast).toHaveBeenCalledTimes(1);
     expect(h.setCanvasMode).not.toHaveBeenCalled();
+  });
+
+  // AIDV-234：匯出對話框中字幕 CC 區段顯示「待語音軌」狀態（非靜默 no-op）
+  it("（AIDV-234）匯出對話框展示字幕 / CC 區段，標示「待語音軌」而非靜默忽略", () => {
+    h.shots = [
+      { id: "s1", no: "S01", act: 1, title: "晨光", route: "text", characterIds: [], sceneId: null,
+        seed: 1, approval: "pending", stale: false, gen: { status: "done", variant: 0, assetUrl: "/media/s01.mp4" } },
+    ];
+    render(<CreationFlowBar onGuided={vi.fn()} />);
+    fireEvent.click(screen.getByText(/匯出素材包/));
+    expect(screen.getByText(/字幕 \/ CC（SRT/)).toBeTruthy();
+    expect(screen.getByText("待語音軌")).toBeTruthy();
   });
 });
