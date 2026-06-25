@@ -114,7 +114,7 @@ import {
   setElevenLabsAvailability,
 } from "../services/providerHealth";
 import { WebSocketServer } from "ws";
-import { handleOrbVoiceConnection } from "../ws/orbVoiceGateway";
+import { handleOrbVoiceConnection, ORB_MAX_PAYLOAD_BYTES } from "../ws/orbVoiceGateway";
 import { cache } from "./cache";
 import { metrics } from "./metrics";
 import { featureFlags } from "./featureFlags";
@@ -763,7 +763,7 @@ async function startServer() {
   // `{ server, path }`, the ws library aborts every non-matching upgrade,
   // which silently breaks Vite HMR and leaves the dev home page in a reload
   // loop where modules never finish loading.
-  const orbVoiceWss = new WebSocketServer({ noServer: true });
+  const orbVoiceWss = new WebSocketServer({ noServer: true, maxPayload: ORB_MAX_PAYLOAD_BYTES });
   orbVoiceWss.on("connection", (ws: unknown, req: unknown) => {
     void handleOrbVoiceConnection(ws as never, req as never);
   });
