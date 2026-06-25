@@ -653,6 +653,25 @@ async function startServer() {
   app.use(metricsRouter);
   app.use("/api/webhooks", webhooksRouter);
 
+  // AIDV-219：tRPC CSRF guard — POST 必須帶 x-trpc-source header。
+  // 跨站 form/fetch 不帶自訂 header，瀏覽器會發 CORS preflight；
+  // 攻擊者站台沒有跨域允許，mutation 無法通過。
+  // 退路：CSRF_PROTECTION=0（env flag）可秒關，production 預設 ON。
+  app.use("/api/trpc", (req, _res, next) => {
+    if (
+      req.method !== "POST" ||
+      process.env.CSRF_PROTECTION === "0" ||
+      process.env.NODE_ENV === "test"
+    ) {
+      return next();
+    }
+    if (!req.headers["x-trpc-source"]) {
+      _res.status(403).json({ error: "CSRF 防護：缺少 x-trpc-source header" });
+      return;
+    }
+    return next();
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

@@ -206,6 +206,7 @@ const trpcClient = trpc.createClient({
         url: resolveClientFetchUrl("/api/trpc"),
         transformer: superjson,
         fetch: fetchWithTimeout(180_000),
+        headers: { "x-trpc-source": "web" }, // AIDV-219: CSRF guard
       }),
       // Light: batched, 30s ceiling (auth, profile, page data — anything
       // beyond 30s on these is a backend problem worth surfacing).
@@ -213,6 +214,7 @@ const trpcClient = trpc.createClient({
         url: resolveClientFetchUrl("/api/trpc"),
         transformer: superjson,
         fetch: fetchWithTimeout(30_000),
+        headers: { "x-trpc-source": "web" }, // AIDV-219: CSRF guard
       }),
     }),
   ],
