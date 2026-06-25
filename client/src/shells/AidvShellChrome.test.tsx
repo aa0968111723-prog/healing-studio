@@ -7,12 +7,15 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 
-const h = vi.hoisted(() => ({ navigate: vi.fn(), setActive: vi.fn(), logout: vi.fn() }));
+const h = vi.hoisted(() => ({ navigate: vi.fn(), setActive: vi.fn(), logout: vi.fn(), setProvider: vi.fn() }));
 vi.mock("wouter", () => ({ useLocation: () => ["/video/director", h.navigate] }));
 vi.mock("@/hooks/useMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/_core/hooks/useAuth", () => ({ useAuth: () => ({ logout: h.logout }) }));
 vi.mock("@/spine/useCreativeProject", () => ({
   useCreativeProject: () => ({ activeProjectId: 1, activeProject: null, setActiveProjectId: h.setActive }),
+}));
+vi.mock("@/providers/SpineProvider", () => ({
+  useSpine: () => ({ provider: "hf", setProvider: h.setProvider, faults: {}, flags: {} }),
 }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
